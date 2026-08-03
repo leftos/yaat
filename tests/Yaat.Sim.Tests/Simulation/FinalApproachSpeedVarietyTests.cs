@@ -175,7 +175,7 @@ public class FinalApproachSpeedVarietyTests(ITestOutputHelper output)
             AircraftType = "B738",
             Position = new LatLon(startPos.Lat, startPos.Lon),
             TrueHeading = rwy.TrueHeading,
-            Altitude = GlideSlopeGeometry.AltitudeAtDistance(startDistNm, rwy.ElevationFt),
+            Altitude = GlideSlopeGeometry.AltitudeAtDistance(startDistNm, rwy.ElevationFt, AircraftCategory.Jet),
             IndicatedAirspeed = startSpeed,
             IsOnGround = false,
             FlightPlan = new AircraftFlightPlan { Destination = "OAK" },

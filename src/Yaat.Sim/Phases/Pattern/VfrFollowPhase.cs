@@ -403,8 +403,7 @@ public sealed class VfrFollowPhase : Phase
         double alongFinalNm = GeoMath.AlongTrackDistanceNm(ctx.Aircraft.Position, threshold, finalCourse.ToReciprocal());
         double entryDistNm = Math.Max(alongFinalNm - Math.Abs(crossTrack), MinFinalJoinDistNm);
         var entry = GeoMath.ProjectPoint(threshold, finalCourse.ToReciprocal(), entryDistNm);
-        double gsAngle = GlideSlopeGeometry.AngleForCategory(ctx.Category);
-        double entryAltitude = GlideSlopeGeometry.AltitudeAtDistance(entryDistNm, runway.ElevationFt, gsAngle);
+        double entryAltitude = GlideSlopeGeometry.AltitudeAtDistance(entryDistNm, runway.ElevationFt, ctx.Category);
 
         var airportRunways = NavigationDatabase.Instance.GetRunways(runway.AirportId);
         var circuit = PatternBuilder.BuildCircuit(

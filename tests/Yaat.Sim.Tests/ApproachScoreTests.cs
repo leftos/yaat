@@ -161,7 +161,7 @@ public class ApproachScoreTests
     {
         var runway = MakeRunway(elevationFt: 9);
         double distNm = 8.0;
-        double gsAltitude = GlideSlopeGeometry.AltitudeAtDistance(distNm, 9);
+        double gsAltitude = GlideSlopeGeometry.AltitudeAtDistance(distNm, 9, AircraftCategory.Jet);
 
         // Aircraft above glideslope by 500 ft
         var aircraft = MakeEstablishedAircraft(altitude: gsAltitude + 500, distFromThresholdNm: distNm);
@@ -190,7 +190,7 @@ public class ApproachScoreTests
     {
         var runway = MakeRunway(elevationFt: 9);
         double distNm = 8.0;
-        double gsAltitude = GlideSlopeGeometry.AltitudeAtDistance(distNm, 9);
+        double gsAltitude = GlideSlopeGeometry.AltitudeAtDistance(distNm, 9, AircraftCategory.Jet);
 
         // Aircraft below glideslope by 300 ft
         var aircraft = MakeEstablishedAircraft(altitude: gsAltitude - 300, distFromThresholdNm: distNm);
@@ -747,7 +747,7 @@ public class ApproachScoreTests
     public void GlideSlopeGeometry_AltitudeAtDistance_CorrectValues()
     {
         // Standard 3° glideslope: ~318 ft/nm
-        double alt = GlideSlopeGeometry.AltitudeAtDistance(10.0, 0);
+        double alt = GlideSlopeGeometry.AltitudeAtDistance(10.0, 0, 0, GlideSlopeGeometry.StandardAngleDeg);
 
         // At 10nm from threshold at sea level, should be ~3180ft
         Assert.InRange(alt, 3100, 3300);
@@ -756,7 +756,7 @@ public class ApproachScoreTests
     [Fact]
     public void GlideSlopeGeometry_AltitudeAtDistance_WithElevation()
     {
-        double alt = GlideSlopeGeometry.AltitudeAtDistance(5.0, 1000);
+        double alt = GlideSlopeGeometry.AltitudeAtDistance(5.0, 1000, 0, GlideSlopeGeometry.StandardAngleDeg);
 
         // At 5nm, ~1590ft above threshold + 1000ft elevation = ~2590ft
         Assert.InRange(alt, 2500, 2700);
@@ -765,7 +765,8 @@ public class ApproachScoreTests
     [Fact]
     public void GlideSlopeGeometry_AltitudeAtDistance_ZeroDistance()
     {
-        double alt = GlideSlopeGeometry.AltitudeAtDistance(0, 500);
-        Assert.Equal(500, alt);
+        // At the threshold the path is the crossing height above it, not on it.
+        double alt = GlideSlopeGeometry.AltitudeAtDistance(0, 500, 30, GlideSlopeGeometry.StandardAngleDeg);
+        Assert.Equal(530, alt);
     }
 }

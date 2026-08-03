@@ -159,8 +159,7 @@ public sealed class ApproachNavigationPhase : Phase
         // The continuous-descent floor is the same 3° path FinalApproachPhase will fly, so it shares
         // that phase's datum: the landing threshold, not the pavement end.
         double distNm = GeoMath.DistanceNm(ctx.Aircraft.Position, LandingThreshold.Resolve(ctx.Runway, ctx.GroundLayout));
-        double gsAngleDeg = GlideSlopeGeometry.AngleForCategory(ctx.Category);
-        double gsAltitude = GlideSlopeGeometry.AltitudeAtDistance(distNm, ctx.Runway.ElevationFt, gsAngleDeg);
+        double gsAltitude = GlideSlopeGeometry.AltitudeAtDistance(distNm, ctx.Runway.ElevationFt, ctx.Category);
 
         double floor = gsAltitude;
         for (int i = _currentFixIndex; i < Fixes.Count; i++)

@@ -627,7 +627,7 @@ Phases/ExitPreference.cs       # ExitSide enum, ExitPreference class, ResolvedEx
 Phases/RolloutBraking.cs       # Braking kinematics + firm-rate/turn-off-tolerance limits shared by LandingPhase and RunwayExitPhase
 Phases/ClearanceType.cs        # Enum: LineUpAndWait, ClearedForTakeoff/Land/Option/TouchAndGo/StopAndGo, RunwayCrossing
 Phases/RunwayInfo.cs           # Runway geometry
-Phases/GlideSlopeGeometry.cs   # Altitude/descent rate calculations (3° default)
+Phases/GlideSlopeGeometry.cs   # Glidepath altitude/descent rate (3°, 6° helicopter). AltitudeAtDistance carries a threshold-CROSSING HEIGHT, so the aiming point (AimPointFt = height/tan) emerges from the geometry instead of being tuned per category. Production calls the (dist, elev, category) overload, which pairs AngleForCategory with CategoryPerformance.WheelCrossingHeightFt (wheel band per AIM 1-1-9.d.7, not the published antenna TCH).
 Phases/PatternGeometry.cs      # 7 pattern waypoints from RunwayInfo + category + direction + the authored GroundRunway (required param). The arrival legs (Threshold, downwind abeam, base turn) hang off LandingThreshold.Resolve; DepartureEnd/CrosswindTurn stay on the pavement end per AIM 4-3-2.
 Phases/PatternBuilder.cs       # BuildCircuit, BuildNextCircuit, BuildCrossRunwayDepartureCircuit, BuildPatternExitCircuit (CTO MRC/MRD pattern-exit departures: upwind[→crosswind]→PatternExitPhase, no landing tail), UpdateWaypoints
 Phases/PhaseClearSummary.cs    # Builds short label ("pattern to RWY 28R", "approach to RWY 28R", or phase Name) for the cancellation warning surfaced when a command clears the active phase chain

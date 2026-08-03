@@ -29,14 +29,28 @@ public static class GlideSlopeGeometry
     }
 
     /// <summary>
-    /// Target altitude (MSL) at a given distance from the threshold
-    /// on the specified glideslope angle.
+    /// Target altitude (MSL) at a given distance from the landing threshold, on a glidepath that crosses
+    /// the threshold at <paramref name="crossingHeightFt"/> above it. The path therefore reaches the
+    /// surface <c>crossingHeightFt / tan(angle)</c> beyond the threshold — that intercept point is the
+    /// approach's aiming point, and it emerges from the geometry rather than being tuned per category.
+    ///
+    /// Pass the *wheel* crossing height, not a published TCH: the modelled point becomes the wheels at
+    /// touchdown, and AIM 1-1-9.d.6 is explicit that a published TCH is the height of the glide slope
+    /// *antenna*. <see cref="CategoryPerformance.WheelCrossingHeightFt"/> is the source.
     /// </summary>
-    public static double AltitudeAtDistance(double distanceNm, double thresholdElevation, double angleDeg = StandardAngleDeg)
+    public static double AltitudeAtDistance(double distanceNm, double thresholdElevation, double crossingHeightFt, double angleDeg)
     {
         double angleFt = Math.Tan(angleDeg * DegToRad) * distanceNm * 6076.12;
-        return thresholdElevation + angleFt;
+        return thresholdElevation + crossingHeightFt + angleFt;
     }
+
+    /// <summary>
+    /// Target altitude (MSL) at a given distance from the landing threshold, on the glidepath
+    /// <paramref name="category"/> flies: its angle (<see cref="AngleForCategory"/>) and its wheel
+    /// crossing height (<see cref="CategoryPerformance.WheelCrossingHeightFt"/>).
+    /// </summary>
+    public static double AltitudeAtDistance(double distanceNm, double thresholdElevation, AircraftCategory category) =>
+        AltitudeAtDistance(distanceNm, thresholdElevation, CategoryPerformance.WheelCrossingHeightFt(category), AngleForCategory(category));
 
     /// <summary>
     /// Required descent rate (fpm) to maintain glideslope at a given groundspeed.

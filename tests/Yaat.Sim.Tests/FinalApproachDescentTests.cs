@@ -93,7 +93,7 @@ public class FinalApproachDescentTests
         for (int tick = 0; tick < maxTicks; tick++)
         {
             double dist = GeoMath.DistanceNm(ac.Position, new LatLon(rwy.ThresholdLatitude, rwy.ThresholdLongitude));
-            double gsAlt = GlideSlopeGeometry.AltitudeAtDistance(dist, thresholdElevation);
+            double gsAlt = GlideSlopeGeometry.AltitudeAtDistance(dist, thresholdElevation, AircraftCategory.Jet);
 
             _output.WriteLine($"{tick},{ac.Altitude:F0},{gsAlt:F0},{dist:F2},{ac.Targets.DesiredVerticalRate:F0},{ac.GroundSpeed:F0}");
 
@@ -130,7 +130,7 @@ public class FinalApproachDescentTests
     public void HighAircraft_ConvergesBeforeThreshold()
     {
         // 1300ft above GS at 6.8nm, 140kts
-        double gsAt6_8 = GlideSlopeGeometry.AltitudeAtDistance(6.8, 9);
+        double gsAt6_8 = GlideSlopeGeometry.AltitudeAtDistance(6.8, 9, AircraftCategory.Jet);
         double startAlt = gsAt6_8 + 1300; // ~3474ft
 
         var r = RunDescentScenario("High aircraft 1300ft above GS at 6.8nm", distNm: 6.8, startAltitude: startAlt, startSpeed: 140);
@@ -149,7 +149,7 @@ public class FinalApproachDescentTests
     public void OnGlideslope_MaintainsStandardRate()
     {
         // On GS at 5nm
-        double gsAt5 = GlideSlopeGeometry.AltitudeAtDistance(5.0, 9);
+        double gsAt5 = GlideSlopeGeometry.AltitudeAtDistance(5.0, 9, AircraftCategory.Jet);
         double standardFpm = GlideSlopeGeometry.RequiredDescentRate(140, GlideSlopeGeometry.StandardAngleDeg);
 
         var rwy = TestRunwayFactory.Make(
@@ -206,7 +206,7 @@ public class FinalApproachDescentTests
     public void BelowGlideslope_ReducesRate()
     {
         // 300ft below GS at 5nm
-        double gsAt5 = GlideSlopeGeometry.AltitudeAtDistance(5.0, 9);
+        double gsAt5 = GlideSlopeGeometry.AltitudeAtDistance(5.0, 9, AircraftCategory.Jet);
         double standardFpm = GlideSlopeGeometry.RequiredDescentRate(140, GlideSlopeGeometry.StandardAngleDeg);
 
         var rwy = TestRunwayFactory.Make(
@@ -270,7 +270,7 @@ public class FinalApproachDescentTests
     public void BelowGlideslope_DoesNotCommandClimb()
     {
         const double thresholdElev = 9;
-        double gsAt5 = GlideSlopeGeometry.AltitudeAtDistance(5.0, thresholdElev);
+        double gsAt5 = GlideSlopeGeometry.AltitudeAtDistance(5.0, thresholdElev, AircraftCategory.Jet);
         double startAlt = gsAt5 - 600;
 
         var rwy = TestRunwayFactory.Make(
@@ -371,7 +371,7 @@ public class FinalApproachDescentTests
     {
         // ~160ft AGL at 0.5nm with CTL — should NOT go around
         double thresholdElev = 9;
-        double gsAtHalfNm = GlideSlopeGeometry.AltitudeAtDistance(0.5, thresholdElev);
+        double gsAtHalfNm = GlideSlopeGeometry.AltitudeAtDistance(0.5, thresholdElev, AircraftCategory.Jet);
 
         var r = RunDescentScenario(
             "On GS at MAP — no go-around",

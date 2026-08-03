@@ -505,7 +505,11 @@ approach navigation, downwind/base descent, and final approach. Constants and he
 - `StandardAngleDeg = 3.0`, `HelicopterAngleDeg = 6.0`; `AngleForCategory(category)` returns 6° for helicopters,
   else 3°.
 - `FeetPerNm(angle)` = `tan(angle) · 6076.12` (≈ 318 ft/nm for 3°).
-- `AltitudeAtDistance(distNm, thresholdElevation, angle)` = `thresholdElevation + tan(angle) · distNm · 6076.12`.
+- `AltitudeAtDistance(distNm, thresholdElevation, crossingHeightFt, angle)` =
+  `thresholdElevation + crossingHeightFt + tan(angle) · distNm · 6076.12`. The `(distNm, thresholdElevation, category)`
+  overload is what production calls — it pairs `AngleForCategory` with `CategoryPerformance.WheelCrossingHeightFt` so
+  the two can't be mismatched. Pass a **wheel** crossing height, not a published TCH (AIM 1-1-9.d.6/.7); see
+  [landing-and-runway-exit.md](landing-and-runway-exit.md#touchdown-aiming-point).
 - `RequiredDescentRate(groundSpeedKts, angle)` = `groundSpeedKts · tan(angle) · 101.269` (≈ GS × 5.3 fpm for 3°).
 
 ## Visual following — `AirborneFollowHelper` + `VfrFollowPhase`
@@ -892,7 +896,8 @@ Which command handler builds which phase (parsing/dispatch live in
   can't add a second roll. Without it a 360/S-turn on final advanced straight into `LandingPhase` far out, which descends
   at the category rate with no glideslope tracking → touchdown ~2,600 ft short. Defense-in-depth:
   `LandingPhase.ApplyGlidepathFloor` clamps the pre-flare descent target to the per-category glidepath altitude at the
-  current distance (keep `GlideSlopeGeometry.AngleForCategory` — don't hardcode 3°; the 6° helicopter path must survive),
+  current distance (keep the `AltitudeAtDistance(dist, elev, category)` overload — don't hardcode 3° or a zero crossing
+  height; the 6° helicopter path must survive and the floor has to be the same path FinalApproachPhase flew),
   releasing at `FlareEntryAgl`. Tests: `OakLandingShortAfter360Tests`, `MlsOnFinalResumesApproachTests`,
   `LandingPhaseGlidepathFloorTests`.
 - **`JFAC`/`JLOC` is a *relaxed armed join*, distinct from `ForcedIntercept`.** `JFAC`/`JLOC` is usually appended to a

@@ -753,8 +753,7 @@ internal static class PatternCommandHandler
                 if (effectiveEntryLeg == PatternEntryLeg.Final)
                 {
                     double entryDist = GeoMath.DistanceNm(entryLat, entryLon, waypoints.ThresholdLat, waypoints.ThresholdLon);
-                    double gsAngle = GlideSlopeGeometry.AngleForCategory(category);
-                    entryAltitude = GlideSlopeGeometry.AltitudeAtDistance(entryDist, runway.ElevationFt, gsAngle);
+                    entryAltitude = GlideSlopeGeometry.AltitudeAtDistance(entryDist, runway.ElevationFt, category);
                 }
 
                 var kind = ClassifyEntryKind(aircraft, runway, direction, effectiveEntryLeg);
@@ -3208,8 +3207,7 @@ internal static class PatternCommandHandler
             aircraft.Pattern.AltitudeOverrideFt
         );
 
-        double gsAngle = GlideSlopeGeometry.AngleForCategory(category);
-        double entryAltB = GlideSlopeGeometry.AltitudeAtDistance(RetargetFinalGateNm, runwayB.ElevationFt, gsAngle);
+        double entryAltB = GlideSlopeGeometry.AltitudeAtDistance(RetargetFinalGateNm, runwayB.ElevationFt, category);
         var patternEntryB = new PatternEntryPhase
         {
             EntryLat = feasibility.GateLat,

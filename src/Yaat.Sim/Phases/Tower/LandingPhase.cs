@@ -444,11 +444,10 @@ public sealed class LandingPhase : Phase
     /// This is transparent to a normal short-final handoff, which arrives already in the flare
     /// window.
     ///
-    /// Approximation: the floor aims the path at the threshold (~50 ft TCH there), not the
-    /// ~1,000 ft aim point a real 3° glidepath targets, so a recovered high-entry aircraft
-    /// touches down early in the touchdown zone rather than at the aim point. That is fine for
-    /// this rare fallback (it replaces a ~half-mile undershoot) and never affects a normal
-    /// landing, which is on glidepath from FinalApproachPhase.
+    /// The floor is the same path FinalApproachPhase flies, crossing-height and all, so a recovered
+    /// high-entry aircraft rejoins it and lands at the category's aiming point rather than early in
+    /// the touchdown zone. Past the aiming point the path is below the surface and the floor clamps
+    /// to field elevation.
     /// </summary>
     private static void ApplyGlidepathFloor(PhaseContext ctx, LandingPlan plan)
     {
@@ -464,11 +463,7 @@ public sealed class LandingPhase : Phase
             new LatLon(plan.ThresholdLat, plan.ThresholdLon),
             plan.RunwayHeading
         );
-        double glidepathAlt = GlideSlopeGeometry.AltitudeAtDistance(
-            -pastThresholdNm,
-            plan.FieldElevation,
-            GlideSlopeGeometry.AngleForCategory(ctx.Category)
-        );
+        double glidepathAlt = GlideSlopeGeometry.AltitudeAtDistance(-pastThresholdNm, plan.FieldElevation, ctx.Category);
         double floor = Math.Max(plan.FieldElevation, glidepathAlt);
         ctx.Targets.TargetAltitude = Math.Min(ctx.Aircraft.Altitude, floor);
     }

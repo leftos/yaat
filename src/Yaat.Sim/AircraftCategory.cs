@@ -213,33 +213,42 @@ public static class CategoryPerformance
     }
 
     /// <summary>
-    /// Along-runway distance (feet) past the threshold that the final-approach descent target aims
-    /// for, so the aircraft touches down at a realistic aiming point instead of on the threshold.
-    /// Slow aircraft float little in the flare and would otherwise touch down essentially on the
-    /// threshold; aiming the glidepath down the runway makes a light piston cross the threshold
-    /// slightly high (~20 ft) and land near the numbers (~500 ft, FAA-H-8083-3 technique).
-    /// Turboprops float even less than jets, so they need the largest offset to reach the touchdown
-    /// zone (~450 ft → ~850-1,000 ft touchdown). Jets already float ~1,700 ft down the flare to a
-    /// realistic touchdown zone, so they get no offset. Helicopter: 0 (vertical descent).
+    /// Height (feet) above the landing threshold at which this category's main gear crosses it on a
+    /// stabilized approach. The glidepath is built on this, so the aiming point follows from it:
+    /// <c>height / tan(3°)</c>, i.e. 572 ft for a jet and 382 ft for a piston.
+    ///
+    /// AIM 1-1-9.d.7: "a comfortable wheel crossing height is approximately 20 to 30 feet, depending on
+    /// the type of aircraft" — larger aircraft sit at the top of the band, light singles at the bottom.
+    /// This is deliberately not the published TCH, which AIM 1-1-9.d.6 defines as the height of the
+    /// glide slope *antenna*; the modelled point is the one that touches the runway.
+    ///
+    /// Helicopter: 0. A 6° approach to a spot ends in a vertical descent, with no flare float to place.
     /// </summary>
-    public static double LandingAimPointOffsetFt(AircraftCategory cat)
+    public static double WheelCrossingHeightFt(AircraftCategory cat)
     {
         return cat switch
         {
-            AircraftCategory.Jet => 0,
-            AircraftCategory.Turboprop => 450,
-            AircraftCategory.Piston => 400,
+            AircraftCategory.Jet => 30,
+            AircraftCategory.Turboprop => 25,
+            AircraftCategory.Piston => 20,
             AircraftCategory.Helicopter => 0,
-            _ => 0,
+            _ => 25,
         };
     }
 
-    /// <summary>Descent rate during flare (fpm). Helicopter: 150 fpm slow descent to hover.</summary>
+    /// <summary>
+    /// Sink rate (fpm) commanded at flare initiation, decayed linearly with height to near zero at
+    /// touchdown. A transport enters the flare from a ~700 fpm descent on the glidepath and arrests to
+    /// ~150 fpm by touchdown, so this is the arrest the flare starts from, not the touchdown sink rate.
+    /// Together with <see cref="FlareAltitude"/> it sets how far the aircraft floats past its aiming
+    /// point — see <c>TouchdownPointTests</c>, which pins the resulting touchdown points.
+    /// Helicopter: 150 fpm slow descent to hover.
+    /// </summary>
     public static double FlareDescentRate(AircraftCategory cat)
     {
         return cat switch
         {
-            AircraftCategory.Jet => 200,
+            AircraftCategory.Jet => 370,
             AircraftCategory.Turboprop => 150,
             AircraftCategory.Piston => 100,
             AircraftCategory.Helicopter => 150,

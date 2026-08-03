@@ -33,13 +33,17 @@ GroundNavigator
 
 ## Touchdown Aiming Point
 
-A real 3° approach crosses the threshold at a threshold-crossing height and touches down at the aiming point (~1,000 ft in for jets, near the numbers for light GA), not on the threshold. Previously the glidepath aimed at the threshold (0 ft TCH), so aircraft touched down essentially on it — and because flare float scales with approach speed, slow light singles landed unrealistically short (~100 ft past the threshold).
+A real 3° approach crosses the threshold at a crossing height and reaches the surface at the aiming point (~1,000 ft in), not on the threshold. The aiming point is **not a tunable** — it falls out of the crossing height: `aimPoint = crossingHeight / tan(angle)`.
 
-`CategoryPerformance.LandingAimPointOffsetFt` corrects this by aiming the `FinalApproachPhase` descent target a fixed distance past the threshold (piston 400 ft; turboprop 450 ft — they float even less than jets so they need the largest offset; jet 0 — jets already float ~1,700 ft to a realistic touchdown zone; helicopter 0). A light single then crosses the threshold slightly high (~21 ft) and touches down near the numbers (~500 ft); a turboprop lands ~850-1,000 ft in.
+`CategoryPerformance.WheelCrossingHeightFt` is the input (jet 30 ft, turboprop 25, piston 20, helicopter 0), and `GlideSlopeGeometry.AltitudeAtDistance(distNm, thresholdElev, category)` builds the path from it. That gives aiming points of 572 / 477 / 382 ft.
+
+These are **wheel** crossing heights, per AIM 1-1-9.d.7 ("a comfortable wheel crossing height is approximately 20 to 30 feet, depending on the type of aircraft") — deliberately *not* the 30–50 ft published TCH of AIM 5-4-5.b.3, which AIM 1-1-9.d.6 defines as the height of the glide slope *antenna*. YAAT models a single point that becomes the wheels at touchdown, so the wheel band is the one that applies.
 
 `FinalApproachPhase` completes (hands to `LandingPhase`) at `agl < 30`, near the threshold, **or once the aircraft passes the threshold**. That last condition is a safety net: a high/rushed approach that crosses still above the 50 ft AGL completion band hands off to the flare (or a stabilization-gate go-around) instead of flying past the threshold and climbing away, tracking the glideslope that rises again beyond it (distance-to-threshold is unsigned).
 
-Measured end-to-end through the production tick loop (`TouchdownPointTests`), touchdown lands at **B738 1,705 ft / DH8D 990 ft / C172 453 ft** past the threshold — all inside the AIM 2-1-5.b touchdown zone (100–3,000 ft). The jet's figure is entirely flare float, because its 0 ft offset puts the glidepath on the surface at the threshold; that is the visible symptom of the missing threshold-crossing height (issue #325), and raising the offset alone would push it to ~2,700 ft, at the far edge of the zone.
+Measured end-to-end through the production tick loop (`TouchdownPointTests`), touchdown lands at **B738 1,367 ft / DH8D 798 ft / C172 401 ft** past the threshold — all inside the AIM 2-1-5.b touchdown zone (100–3,000 ft), with the transports on or just past the AIM 2-3-3.b.4 aiming point markings and the light single near the numbers.
+
+Each figure is `aimPoint + flareFloat`, and **the two are coupled**: raising a crossing height moves the whole path back, so the float has to shrink to match (AIM 1-1-9.d.7 NOTE: "a higher than optimum TCH … may cause the aircraft to touch down further from the threshold"). That coupling is why the jet's `FlareDescentRate` is 370 fpm rather than the 200 it carried while the glidepath had no crossing height at all — 200 fpm bought a 2,300 ft float that faked an aiming point the geometry wasn't providing. `FlareDescentRate` is the sink commanded *at flare initiation*, decaying with height; a transport enters the flare from ~700 fpm and arrests to ~150 by touchdown.
 
 ## Displaced thresholds: which datum
 

@@ -112,8 +112,11 @@ public class FinalApproachSpeedTests(ITestOutputHelper output)
     }
 
     /// <summary>
-    /// FDX3807 should decelerate to FAS within the last 5nm and reach FAS
-    /// by the time it's at ~2nm from the threshold.
+    /// FDX3807 should decelerate to FAS within the last 5nm and be at FAS by
+    /// <c>FinalApproachPhase.FasReachGateNm</c> (2 nm), which is the distance the kinematic FAS trigger
+    /// is solved for. Sampled at the gate itself, not outside it — the aircraft is legitimately still
+    /// bleeding speed at 2.2 nm, so a sample there measures the tail of the deceleration and moves
+    /// whenever anything nudges the approach profile.
     /// </summary>
     [Fact]
     public void FDX3807_DeceleratesToFasWithin5nm()
@@ -151,8 +154,8 @@ public class FinalApproachSpeedTests(ITestOutputHelper output)
 
             double distNm = GeoMath.DistanceNm(ac.Position.Lat, ac.Position.Lon, runway.ThresholdLatitude, runway.ThresholdLongitude);
 
-            // At 2nm the aircraft should have reached FAS
-            if ((distNm <= 2.2) && (distNm >= 1.8))
+            // At the FAS reach gate the aircraft should be at FAS
+            if ((distNm <= 2.0) && (distNm >= 1.5))
             {
                 var cat = AircraftCategorization.Categorize(ac.AircraftType);
                 double fas = AircraftPerformance.ApproachSpeed(ac.AircraftType, cat);
@@ -160,8 +163,8 @@ public class FinalApproachSpeedTests(ITestOutputHelper output)
                 output.WriteLine($"At {distNm:F1}nm: ias={ac.IndicatedAirspeed:F0}kts, fas={fas:F0}kts");
 
                 Assert.True(
-                    ac.IndicatedAirspeed <= fas + 10,
-                    $"At {distNm:F1}nm from threshold, aircraft should be at or near FAS. " + $"IAS={ac.IndicatedAirspeed:F0}kts, FAS={fas:F0}kts"
+                    ac.IndicatedAirspeed <= fas + 5,
+                    $"At {distNm:F1}nm from threshold, aircraft should be at FAS. " + $"IAS={ac.IndicatedAirspeed:F0}kts, FAS={fas:F0}kts"
                 );
                 return;
             }

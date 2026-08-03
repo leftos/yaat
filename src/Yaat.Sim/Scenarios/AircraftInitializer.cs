@@ -93,7 +93,7 @@ public static class AircraftInitializer
             distNm = 5.0;
         }
 
-        double alt = GlideSlopeGeometry.AltitudeAtDistance(distNm, runway.ElevationFt, gsAngle);
+        double alt = GlideSlopeGeometry.AltitudeAtDistance(distNm, runway.ElevationFt, category);
         double speed;
         if (requestedSpeed.HasValue)
         {

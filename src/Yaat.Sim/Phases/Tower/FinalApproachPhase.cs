@@ -830,8 +830,8 @@ public sealed class FinalApproachPhase : Phase
         // hold the assigned altitude (clamped by current altitude — never climb up to assigned
         // either) and wait for the GS to descend to meet the aircraft from above. Aircraft must
         // never fly UP to capture a glideslope.
-        double aimPointOffsetNm = CategoryPerformance.LandingAimPointOffsetFt(ctx.Category) / GeoMath.FeetPerNm;
-        double gsAltitude = GlideSlopeGeometry.AltitudeAtDistance(distNm + aimPointOffsetNm, _thresholdElevation, _gsAngleDeg);
+        double crossingHeightFt = CategoryPerformance.WheelCrossingHeightFt(ctx.Category);
+        double gsAltitude = GlideSlopeGeometry.AltitudeAtDistance(distNm, _thresholdElevation, crossingHeightFt, _gsAngleDeg);
         if (!_gsCaptured && (ctx.Aircraft.Altitude >= gsAltitude - GsCaptureWindowFt) && IsLaterallyEstablishedForGs(ctx, absXte))
         {
             _gsCaptured = true;
@@ -867,7 +867,7 @@ public sealed class FinalApproachPhase : Phase
             // Above GS: compute FPM needed to reach GS altitude at a convergence point ahead.
             // Convergence point = min(distNm - 1.0, distNm × 0.7) nm from threshold, floored at 0.5nm.
             double convergeDistNm = Math.Max(Math.Min(distNm - 1.0, distNm * 0.7), 0.5);
-            double convergeGsAlt = GlideSlopeGeometry.AltitudeAtDistance(convergeDistNm + aimPointOffsetNm, _thresholdElevation, _gsAngleDeg);
+            double convergeGsAlt = GlideSlopeGeometry.AltitudeAtDistance(convergeDistNm, _thresholdElevation, crossingHeightFt, _gsAngleDeg);
             double altToLose = ctx.Aircraft.Altitude - convergeGsAlt;
             double distToConverge = distNm - convergeDistNm;
 
@@ -1319,8 +1319,14 @@ public sealed class FinalApproachPhase : Phase
         double maxAngle = distToGate < 2.0 ? 20.0 : 30.0;
         bool isAngleLegal = notVectoredToFac || interceptAngle <= maxAngle;
 
-        // Glideslope deviation at establishment
-        double gsAltitude = GlideSlopeGeometry.AltitudeAtDistance(distNm, _thresholdElevation);
+        // Glideslope deviation at establishment, against the path this aircraft is actually flying —
+        // a helicopter established on its 6° path is not 300 ft high on a 3° one.
+        double gsAltitude = GlideSlopeGeometry.AltitudeAtDistance(
+            distNm,
+            _thresholdElevation,
+            CategoryPerformance.WheelCrossingHeightFt(ctx.Category),
+            _gsAngleDeg
+        );
         double gsDeviation = ctx.Aircraft.Altitude - gsAltitude;
 
         // Speed at intercept

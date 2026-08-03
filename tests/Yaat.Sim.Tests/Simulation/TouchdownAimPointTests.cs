@@ -13,16 +13,16 @@ namespace Yaat.Sim.Tests.Simulation;
 
 /// <summary>
 /// Aircraft must touch down at a realistic aiming point down the runway, not on the threshold.
-/// A light single floats little in the flare, so without help it lands essentially on the
-/// threshold; the per-category aim-point offset (CategoryPerformance.LandingAimPointOffsetFt)
-/// aims its glidepath down the runway so it crosses slightly high and touches down near the
-/// numbers (~500 ft). Jets already float to a realistic touchdown zone in the flare, so they
-/// get no offset.
+/// The glidepath crosses the threshold at the category's wheel crossing height
+/// (CategoryPerformance.WheelCrossingHeightFt) and so reaches the surface an aiming point down the
+/// runway; the flare then carries the aircraft past it. This runs the whole approach through
+/// SimulationEngine against the real OAK layout, where TouchdownPointTests isolates the same
+/// measurement on a synthetic runway.
 /// </summary>
 public class TouchdownAimPointTests(ITestOutputHelper output)
 {
-    // Light piston must land near the numbers, not on the threshold (the fix). The jet already
-    // floats to a realistic touchdown zone and is checked only for a sane bound.
+    // Light piston must land near the numbers, not on the threshold. The jet floats furthest and is
+    // checked against the wider touchdown-zone bound.
     [Theory]
     [InlineData("C172", 400.0, 800.0)]
     [InlineData("C208", 500.0, 1100.0)]

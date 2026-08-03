@@ -33,7 +33,7 @@ public class FinalApproachGlideslopeEstablishedTests
         );
 
         const double distNm = 6.0;
-        double gsAlt = GlideSlopeGeometry.AltitudeAtDistance(distNm, 9, GlideSlopeGeometry.AngleForCategory(AircraftCategory.Jet));
+        double gsAlt = GlideSlopeGeometry.AltitudeAtDistance(distNm, 9, AircraftCategory.Jet);
         double startAlt = gsAlt + 200; // above the GS: capture → descend, hold → stays high
 
         var reciprocal = rwy.TrueHeading.ToReciprocal();
