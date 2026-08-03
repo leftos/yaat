@@ -1316,7 +1316,10 @@ public sealed class FinalApproachPhase : Phase
         // Approach gate = minIntercept - 2nm (the 2nm padding is from gate to min intercept)
         double approachGate = minIntercept - 2.0;
         double distToGate = captureDistNm - approachGate;
-        double maxAngle = distToGate < 2.0 ? 20.0 : 30.0;
+        // "2 miles or more" allows 30°, or 45° for helicopters (a helicopter can capture a steeper cut).
+        // Inside 2 mi the limit is 20° for every category.
+        double farGateMaxAngle = ctx.Category == AircraftCategory.Helicopter ? 45.0 : 30.0;
+        double maxAngle = distToGate < 2.0 ? 20.0 : farGateMaxAngle;
         bool isAngleLegal = notVectoredToFac || interceptAngle <= maxAngle;
 
         // Glideslope deviation at establishment, against the path this aircraft is actually flying —

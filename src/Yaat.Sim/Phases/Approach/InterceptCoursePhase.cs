@@ -48,6 +48,12 @@ public sealed partial class InterceptCoursePhase : Phase
     private const double SpeedAnticipationThresholdNm = 2.0;
     private const double InterceptSpeedFasMultiplier = 1.3;
     private const double BustThroughAlignmentDeg = 30.0;
+
+    // 7110.65 §5-9-2 TBL 5-9-1: the max interception angle at 2 mi or more from the gate is 30°,
+    // "45 degrees for helicopters" — a helicopter can turn tight enough to capture a steeper cut, so
+    // it must not be refused at the 30° jet gate.
+    private const double HelicopterBustThroughAlignmentDeg = 45.0;
+
     private const double MaxElapsedSeconds = 180.0;
 
     private double? _previousSignedCrossTrack;
@@ -103,7 +109,8 @@ public sealed partial class InterceptCoursePhase : Phase
         // gate is effectively unbounded (180° is the theoretical maximum between two headings).
         // The bust-through branch at the centerline-crossing check becomes unreachable, so the
         // aircraft always joins the localizer regardless of how steep the cut is.
-        double maxAlignmentDeg = (ForcedIntercept || RelaxedJoin) ? 180.0 : BustThroughAlignmentDeg;
+        double categoryGateDeg = ctx.Category == AircraftCategory.Helicopter ? HelicopterBustThroughAlignmentDeg : BustThroughAlignmentDeg;
+        double maxAlignmentDeg = (ForcedIntercept || RelaxedJoin) ? 180.0 : categoryGateDeg;
 
         // For parallel-offset approaches the FAC line does not pass through the runway
         // threshold, so we measure cross-track against the published anchor (e.g. the LDA's
