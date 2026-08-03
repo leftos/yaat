@@ -141,6 +141,15 @@ Grouped by trigger. All return `PilotSpeechText`; follow/traffic builders set `R
   `BuildUnableToExit`, `BuildGoingAround`, `BuildApproachingMinimumsNoLandingClearance`.
 - **Visual acquisition** — `BuildTrafficInSight`, `BuildFieldInSight`, `BuildLostSightOfTraffic`,
   `BuildLostSightOfField`.
+- **Military routes / refueling** — `BuildClearedIntoMilitaryRouteClause`,
+  `BuildMaintainRouteAltitudesClause`, `BuildClearedOutOfMilitaryRouteClause`,
+  `BuildClearedToConductRefuelingClause`, plus `PilotSayBuilder.BuildExitFixEstimate` answering
+  `SAYEXIT`. These are builders rather than rules on purpose — their `PhraseologyRule`s exist but
+  are `SttOnly`. Rule selection happens per canonical type without seeing which arguments are
+  present, so `CMTR`'s three forms collapse onto the longest pattern and an assigned altitude is
+  silently read back as "maintain route altitudes"; and `RenderPattern` joins tokens with spaces,
+  so a pattern cannot carry the comma before an altitude clause. `MTRA` and `XMTR` have no choice
+  either way: neither carries its designator, which lives in aircraft state.
 - **Follow / sequencing** (all `RpoTerminal`) — `BuildTargetLanded`,
   `BuildUnableToMaintainSeparation`, `BuildSequenceTightTurningBase`, `BuildSTurnsForSpacing`.
   A follower never reports "unable to catch up": a lead that outpaces it is increasing separation, and the only
@@ -154,6 +163,9 @@ Grouped by trigger. All return `PilotSpeechText`; follow/traffic builders set `R
 | `PilotResponder.SpellDistanceDigits(n)` | digit-by-digit: 10 → "one zero" | position-relative check-in distance ("one zero miles west") — pinned by `M102AirborneCheckInTests` |
 | `PhraseologyVerbalizer.SpellRunway` | drops the padding leading zero: `08R` → "runway eight right" | runway designators (7110.65 §2-4-18.10) |
 | `AtcNumberParser.AltitudeToWords` / `CompactAltitude` | "five thousand" / `5000` | altitudes |
+| `PhraseologyVerbalizer.SpellMilitaryRoute` | letters then group form: `IR531` → "i-r five thirty one" | military **training** route designators (§2-5-1.f) |
+| `PhraseologyVerbalizer.SpellRefuelingTrack` | number only, no letters: `AR312` → "three twelve" | aerial **refueling** tracks (§9-2-13 says "REFUELING ALONG (number) TRACK") |
+| `PhraseologyVerbalizer.SpellRouteString` | `V495 SEA` → "victor four ninety five, Seattle VORTAC" | a whole route of flight (§2-5-1.a); airways phonetic + group form, fixes keep their own pronunciation |
 
 Headings keep all three digits including leading zeros (`HeadingDigits`, §2-4-18.8) — a separate
 path; don't route headings through the distance/cardinal helpers.

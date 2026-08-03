@@ -343,6 +343,11 @@ The restriction covers only codes YAAT chooses on its own. `SQ {code}` still mak
 | Force direct to | `DCTF SJC` | — | — |
 | Append direct to | `ADCT SUNOL` | — | — |
 | Append force DCT | `ADCTF SUNOL` | — | — |
+| Cleared into military route | `CMTR IR149` | `CIR` | `CMTR IR149 50` · `CMTR IR149 B50` |
+| Maintain route altitudes | `MTRA` | `MRA` | — |
+| Cleared out of military route | `XMTR KTCM` | `EMTR` | `XMTR KTCM 240 VIA V495 SEA` |
+| Say exit fix estimate | `SAYEXIT` | `SAYXF` | — |
+| Cleared to conduct refueling | `CAR AR1` | `CREF` | `CAR AR1 240 310` |
 
 ### Ground
 
@@ -1177,6 +1182,35 @@ CFIX supports two forms: `CFIX {altitude}` modifies the altitude restriction for
 `DVIA` no longer requires a prior `JARR`: when no STAR is active, it activates the STAR filed in the flight-plan route and applies that STAR's published crossing restrictions before descending. Symmetrically, `CVIA` no longer requires an active SID: when none is active — for example after `CTO RH` or being vectored off the SID — it activates the SID filed in the route and overlays its published crossing restrictions onto the current route. Issue `DCT <SID fix>` first to reload the lateral path, then `CVIA` to climb via.
 
 `CVIA 190` and `DVIA 240` enable via mode with an altitude cap/floor — "climb/descend via, except maintain." `FH`, `DCT`, and heading commands clear the entire procedure (lateral path + via mode).
+
+### Military Training Routes and Aerial Refueling
+
+YAAT carries the DoD **AP/1B** routes: 648 IR/VR/SR training routes and 247 AR refueling tracks and anchors. A designator in a filed route (`SAT263043 IR149 LRD040028`) expands into the published points automatically; these commands are the clearances.
+
+| Command | Effect |
+|---------|--------|
+| `CMTR IR149` | Cleared into IR-149, maintain the route's published altitudes (7110.65 §9-2-6.a) |
+| `CMTR IR149 50` | Cleared in, maintain 5,000 instead of the published block |
+| `CMTR IR149 B50` | Cleared in, maintain at or below 5,000 — caps the block without lifting its floor |
+| `MTRA` | Revert to the published altitude blocks after an assigned altitude |
+| `XMTR KTCM` | Cleared out of the route to a clearance limit (§9-2-6.b) |
+| `XMTR KTCM 240` | ...and maintain 24,000 after the route |
+| `XMTR KTCM 240 VIA V495 SEA` | ...via a route of flight. The altitude goes **before** `VIA` |
+| `SAYEXIT` | "Verify your exit fix estimate and requested altitude after exit" (§9-2-6.e) |
+| `CAR AR1` | Cleared to conduct refueling along AR1 track at its published block (§9-2-13) |
+| `CAR AR1 240 310` | ...maintain block 24,000 through 31,000 |
+
+**The altitude block flies itself.** A training route publishes a block per *segment*, so the aircraft works down through the published altitudes as it sequences the route with no further clearance. A refueling entry publishes one block for the whole track or anchor. `MTRA` restores the published profile after you have assigned something else.
+
+**Speed.** AP/1B grants the 14 CFR 91.117(a) waiver, so an aircraft established on an IR or VR accelerates past 250 knots — 400 for a tactical jet. `SPD` overrides it. An SR is defined as 250 KIAS or less and never gets the waiver.
+
+**`CMTR` and `CAR` are not interchangeable.** §9-2-6 covers IFR *training* routes; §9-2-13 covers refueling and has its own phraseology and a block altitude clause. Each verb rejects the other's routes and says which to use.
+
+**VR and SR routes accept the command but are not clearances.** ATC issues no clearance into a VFR route, and an SR is not part of the MTR system at all. The aircraft is placed on the route as traffic and the reason is shown.
+
+**One-way.** AP/1B routes prohibit course reversals, so an aircraft joins at the published entry point (or the first point still ahead of it), and a `DCT` back to a point it has already passed is rejected.
+
+The protected corridor either side of the centerline is drawn on the radar under **Show nav route**, and the Aircraft List's **MTR** column shows the route and its current block in controller shorthand (`IR149 050B060`).
 
 ### Speed Management
 

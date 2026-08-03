@@ -60,9 +60,17 @@
         { "verb": "DCTF", "aliases": [], "description": "Force direct to (bypass validation)" },
         { "verb": "ADCT", "aliases": [], "description": "Append direct to fix" },
         { "verb": "ADCTF", "aliases": [], "description": "Append force direct to" },
-        { "verb": "TLDCT / TRDCT", "aliases": [], "description": "Turn L/R then direct to fix" }
+        { "verb": "TLDCT / TRDCT", "aliases": [], "description": "Turn L/R then direct to fix" },
+        { "verb": "CMTR", "aliases": ["cir"], "description": "Cleared into military route (opt. alt, B prefix = at or below)" },
+        { "verb": "MTRA", "aliases": ["mra"], "description": "Maintain the route's published altitudes" },
+        { "verb": "XMTR", "aliases": ["emtr"], "description": "Cleared out of route: dest [alt] [VIA route]" },
+        { "verb": "SAYEXIT", "aliases": ["sayxf"], "description": "Verify exit fix estimate and altitude after exit" },
+        { "verb": "CAR", "aliases": ["cref"], "description": "Cleared to conduct refueling along a track (opt. block)" }
       ],
-      "notes": []
+      "notes": [
+        "Military routes (AP/1B) fly their published altitude block automatically, segment by segment; MTRA restores it after an assigned altitude.",
+        "CMTR is for IR/VR/SR training routes and CAR for AR refueling tracks - each rejects the other's routes."
+      ]
     },
     {
       "id": "transponder",

@@ -1280,6 +1280,29 @@ While a helicopter is mid-air-taxi (or on final to a spot via `LAND`), `HPP` hov
 
 **See [Helicopter Commands in COMMANDS.md](COMMANDS.md#helicopter-commands)** for all departure modifiers, spawning helicopter aircraft, and the full command list.
 
+### Military training routes and aerial refueling
+
+YAAT carries the DoD **AP/1B** routes: 648 IR/VR/SR training routes and 247 AR refueling tracks and anchors. Put a designator in an aircraft's filed route and it expands into the published points automatically — `SAT263043 IR149 LRD040028` is how AP/1B files one, with the entry and exit given as fix/radial/distance.
+
+| Command | Effect |
+|---------|--------|
+| `CMTR IR149` | Cleared into IR-149, maintain the route's published altitudes |
+| `CMTR IR149 50` | Cleared in, maintain 5,000 instead (`B50` = at or below 5,000) |
+| `MTRA` | Back to the published altitudes |
+| `XMTR KTCM 240 VIA V495 SEA` | Cleared out of the route to KTCM, maintain 24,000, via that route |
+| `SAYEXIT` | Ask for the exit fix estimate and the altitude wanted afterwards |
+| `CAR AR1 240 310` | Cleared to conduct refueling along AR1 track, block 24,000 through 31,000 |
+
+The altitude block flies itself. A training route publishes a block for **each segment**, so the aircraft works down through the published altitudes as it sequences the route without further clearance, and shows up on the scope the way real MTR traffic does. A refueling entry publishes one block for the whole track or anchor; a refueling anchor is orbited until you clear the aircraft out.
+
+Aircraft established on an IR or VR accelerate past 250 knots — that waiver is the whole point of the route system — and `SPD` still overrides it.
+
+The **MTR** column in the Aircraft List shows the route and its current block in controller shorthand (`IR149 050B060`), and the protected corridor either side of the centerline draws on the radar under **Show nav route**. The corridor is drawn from the published widths, which are often different left and right of centerline.
+
+`CMTR` is for training routes and `CAR` for refueling — each rejects the other's routes and tells you which to use. Clearing a second aircraft into an occupied route, or assigning an altitude outside the published block, warns you rather than refusing.
+
+**See [Military Training Routes in COMMANDS.md](COMMANDS.md#military-training-routes-and-aerial-refueling)** for the full command list.
+
 ---
 
 ## Simulation Controls

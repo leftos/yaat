@@ -45,6 +45,7 @@ The Task Index above tells you *which files*; these docs explain *how each subsy
 | Weather & wind | [weather-and-wind.md](weather-and-wind.md) |
 | Airspace (Class B/C) & boundary crossing | [airspace-database.md](airspace-database.md) |
 | Minimum Vectoring Altitude (MVA) | [minimum-vectoring-altitude.md](minimum-vectoring-altitude.md) |
+| Military training routes & aerial refueling (AP/1B) | [military-training-routes.md](military-training-routes.md) |
 | Scenario loading & aircraft generation | [scenario-loading-and-generation.md](scenario-loading-and-generation.md) |
 | Snapshots & replay | [snapshots-and-replay.md](snapshots-and-replay.md) |
 | Solo-training evaluation & scoring | [solo-training-evaluation.md](solo-training-evaluation.md) |
@@ -88,6 +89,7 @@ tools/refresh-airline-fleets.py   # Parses Airfleets PDFs into Data/airline-flee
 tools/refresh-aircraft-display-names.py # One-shot tool that queries OpenAI for human-readable names of every ICAO type in AircraftSpecs.json and writes Data/aircraft-display-names.json + .meta sidecar. Re-run only when AircraftSpecs.json gains new types.
 tools/refresh-crc-docs.py         # Mirrors the vNAS docs site (docs.virtualnas.net, Material for MkDocs) into docs/crc/ + docs/vnas-data-admin/: fetches each page, converts HTML->Markdown, downloads images, rewrites links. See docs/crc/README.md.
 tools/parse_airfleets.py          # pdfplumber parser used by refresh-airline-fleets.py; maps fleet variants to ICAO Doc 8643 types.
+tools/build-mtr-data.py           # Parses the DoD AP/1B PDF by word bounding box into Data/MilitaryRoutes/ap1b-mtr.json.br + ap1b-ar.json.br (+ .meta sidecars). Gated by an FRD oracle (navaid-to-point distance must match the published Fac/Rad/Dist) and an FAA AIS MTRSegment cross-check. See military-training-routes.md.
 tools/mcp/context7-stdio.ps1      # Context7 stdio adapter that reads CONTEXT7_API_KEY from the environment when Codex cannot express the custom header.
 tools/mcp/exa-stdio.ps1           # Exa stdio adapter that reads EXA_API_KEY from the environment when a local authenticated Exa MCP is preferred.
 tools/hooks/whitespace-fix-autostage.sh # prek hook: trailing-whitespace + EOF-newline fixes, auto-staged so the commit proceeds.
@@ -746,6 +748,11 @@ Data/Airspace/AirspaceAvoidance.cs # VFR self-restriction geometry: level-off al
 Data/Airspace/faa-training-primary-class-bc.geojson.br # Checked-in Brotli FAA AIS fixture for B/C airspace at all vNAS training primary airports.
 Data/Mva/MvaDatabase.cs / MvaSector.cs / MvaRelation.cs # FAA AIXM-derived MVA sectors: exterior-minus-holes containment + altitude Classify (Below/At/Above). See minimum-vectoring-altitude.md.
 Data/Mva/FAA_MVA_FUS3.geojson.br # Committed FAA MVA charts (FUS3), all 148 published facilities: 3,268 sectors with MSL floors + facility tags, Brotli-compressed, built by tools/build-mva-data.py --all.
+Data/MilitaryRoutes/MilitaryRoute.cs / MilitaryRoutePoint.cs / MilitaryRouteAltitude.cs / MilitaryRouteType.cs # DoD AP/1B route model: one-way point sequence, per-segment altitude block, protected widths, and (chapter 5) per-direction variants with an anchor orbit pattern. See military-training-routes.md.
+Data/MilitaryRoutes/MilitaryRouteDatabase.cs # Lazy process-wide Default + 3-tier fixture search + ScopedOverride (read from the NavigationDatabase ctor, so a leaked override poisons every later nav DB).
+Data/MilitaryRoutes/MilitaryRouteExpander.cs # Expands a designator in a filed route, anchoring on the bracketing FRDs AP/1B files rather than on point names; scores the anchor pair to pick which published direction was filed.
+Data/MilitaryRoutes/ap1b-mtr.json.br # Committed AP/1B chapters 2-4: 648 training routes (213 IR / 304 VR / 131 SR), 7,039 points, Brotli, built by tools/build-mtr-data.py.
+Data/MilitaryRoutes/ap1b-ar.json.br # Committed AP/1B chapter 5: 247 aerial refueling entries (156 tracks / 91 anchors), 1,625 points + 385 orbit corners, built by the same tool.
 Data/ARTCCs/                   # User-submitted per-ARTCC data root (CustomFixes, FixPronunciations, Airports, InitialContactTransfers, WakeDirectives, Procedures, SurfaceTempData — see Data/ARTCCs/README.md).
 Data/ARTCCs/{ARTCC}/SurfaceTempData/{FACILITY}.json # Committed ASDE-X / SAAB SAID drawn geometry (restricted/closed areas + text, optionally filed into a numbered SET). Read by yaat-server's FacilityTempDataStore, which seeds every room from it and layers runtime controller edits on top. Authored by tools/build-surface-temp-data.py or exported from a live room via the client's Scenario menu.
 Data/ARTCCs/ZOA/Procedures/koak-nimi.cifp # Pinned KOAK NIMITZ SID (NIMI5): charted and flown, but dropped from the FAA CIFP at cycle 2605. Carries the published 315 deg initial turn that the ~12-month prior-cycle chain would otherwise lose.

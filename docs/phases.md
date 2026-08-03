@@ -139,6 +139,13 @@ Files are under `Phases/Tower/`, `Phases/Ground/`, `Phases/Pattern/`, `Phases/Ap
 
 **Approach** — `ApproachNavigationPhase`, `InterceptCoursePhase`, `ProcedureTurnPhase`, `HoldingPatternPhase`.
 
+**Military routes** (`Phases/`, no subfolder) — `MilitaryRoutePhase` flies an AP/1B training route or
+a refueling track: lateral guidance along the published points plus the altitude block, re-armed from
+durable state at every segment boundary because `FlightCommandHandler`'s climb/descend/force-altitude
+paths all null both altitude bounds. `AerialRefuelingAnchorPhase` flies a refueling anchor and is
+separate because an anchor does **not** terminate — an empty navigation route means "fly another lap
+of the published orbit", not "done". See [military-training-routes.md](military-training-routes.md).
+
 ### Procedure turns and transition selection
 
 - **`ProcedureTurnPhase`** executes a published procedure turn from a CIFP PI leg (AIM 5-4-9 course reversal). CAPP/JAPP auto-engage it when the procedure has a PI leg, the transition is not NoPT, and either the DCT fix matches the PT anchor or the intercept angle exceeds 90°. The PI leg's `OutboundCourse` is the published 45°-offset PT heading (magnetic, **not** the radial out of the fix); `TurnDirection` is the direction of the 180° turn back to inbound. Implied PTAC (`CAPP` on a vector) additionally requires an empty `NavigationRoute`.

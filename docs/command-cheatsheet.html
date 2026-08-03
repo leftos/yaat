@@ -348,12 +348,19 @@ code {
 </details>
 <details class="cat" id="navigation" data-name="navigation" open>
 <summary>Navigation</summary>
-<div class="cat-body cat-body--no-alias">
+<div class="cat-body">
 <div class="row" id="cmd-navigation-dct" data-verb="dct" data-aliases="" data-desc="direct to fix"><span class="verb">DCT</span><span class="alias"></span><span class="desc">Direct to fix</span></div>
 <div class="row" id="cmd-navigation-dctf" data-verb="dctf" data-aliases="" data-desc="force direct to (bypass validation)"><span class="verb">DCTF</span><span class="alias"></span><span class="desc">Force direct to (bypass validation)</span></div>
 <div class="row" id="cmd-navigation-adct" data-verb="adct" data-aliases="" data-desc="append direct to fix"><span class="verb">ADCT</span><span class="alias"></span><span class="desc">Append direct to fix</span></div>
 <div class="row" id="cmd-navigation-adctf" data-verb="adctf" data-aliases="" data-desc="append force direct to"><span class="verb">ADCTF</span><span class="alias"></span><span class="desc">Append force direct to</span></div>
 <div class="row" id="cmd-navigation-tldct-trdct" data-verb="tldct / trdct" data-aliases="" data-desc="turn l/r then direct to fix"><span class="verb">TLDCT / TRDCT</span><span class="alias"></span><span class="desc">Turn L/R then direct to fix</span></div>
+<div class="row" id="cmd-navigation-cmtr" data-verb="cmtr" data-aliases="cir" data-desc="cleared into military route (opt. alt, b prefix = at or below)"><span class="verb">CMTR</span><span class="alias">cir</span><span class="desc">Cleared into military route (opt. alt, B prefix = at or below)</span></div>
+<div class="row" id="cmd-navigation-mtra" data-verb="mtra" data-aliases="mra" data-desc="maintain the route's published altitudes"><span class="verb">MTRA</span><span class="alias">mra</span><span class="desc">Maintain the route's published altitudes</span></div>
+<div class="row" id="cmd-navigation-xmtr" data-verb="xmtr" data-aliases="emtr" data-desc="cleared out of route: dest [alt] [via route]"><span class="verb">XMTR</span><span class="alias">emtr</span><span class="desc">Cleared out of route: dest [alt] [VIA route]</span></div>
+<div class="row" id="cmd-navigation-sayexit" data-verb="sayexit" data-aliases="sayxf" data-desc="verify exit fix estimate and altitude after exit"><span class="verb">SAYEXIT</span><span class="alias">sayxf</span><span class="desc">Verify exit fix estimate and altitude after exit</span></div>
+<div class="row" id="cmd-navigation-car" data-verb="car" data-aliases="cref" data-desc="cleared to conduct refueling along a track (opt. block)"><span class="verb">CAR</span><span class="alias">cref</span><span class="desc">Cleared to conduct refueling along a track (opt. block)</span></div>
+<div class="note">Military routes (AP/1B) fly their published altitude block automatically, segment by segment; MTRA restores it after an assigned altitude.</div>
+<div class="note">CMTR is for IR/VR/SR training routes and CAR for AR refueling tracks - each rejects the other's routes.</div>
 </div>
 </details>
 <details class="cat" id="transponder" data-name="transponder" open>

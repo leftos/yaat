@@ -243,6 +243,28 @@ otherwise it checks the STAR's transitions for the join fix and emits the remain
 `ExpandAirwaySegment` (`:817`) is **bidirectional** — it walks the airway fix list forward or backward depending on whether the
 from-fix precedes or follows the to-fix.
 
+### Military routes (AP/1B) — `MilitaryRouteExpander`
+
+An `IR` / `VR` / `SR` / `AR` token in a filed route expands through **`MilitaryRouteExpander`**, not
+through `ExpandAirwaySegment`, for two reasons: AP/1B routes are one-way and reversals are prohibited
+(chapter 1 §V.B.1), and chapter 1 §IV.B.1 brackets a route with the **FRDs** of its entry and exit
+(`SAT263043 IR149 LRD040028`) rather than with names of points on it. `ExpandAirwaySegment` walks
+bidirectionally and matches anchors by name, so it now refuses to reverse along a military route.
+
+Routes *are* still shadow-registered into `_airways`, which is what lets `JAWY IR149` and the radar
+context menu's `GetFiledAirways` work without either learning a second concept.
+
+Their points live in a separate `_militaryRoutePoints` dictionary that `GetFixPosition` consults only
+after `_navDb` misses. That keeps ~8,600 synthetic names (`IR149A`, `AR1ARIP`) out of `AllFixNames`
+*and* `GetFixTuples` — so they never reach autocomplete, the DIST suggester, the scope's fix overlay,
+or FRD anchoring — and a real fix always wins a name clash by construction. AP/1B labels always start
+with a letter, so a minted name never ends in three or six digits and `FrdResolver.ParseFrd` can
+never read one as an FRD anchor (see "FRD-named fixes are never FRD anchors" below).
+
+A refueling track publishes **two directions that are not reverses of each other** (they are offset
+parallels), so `SelectVariant` scores the bracketing anchor *pair* to decide which was filed. Full
+detail in [military-training-routes.md](military-training-routes.md).
+
 Two convenience wrappers on the DB:
 
 - `ExpandRoute(route)` (`:867`) → `Expand(route, this)` with the default `true`. This is the **autocomplete / UI** path

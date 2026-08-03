@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+### Added
+- Military training routes and aerial refueling from the DoD AP/1B publication: 648 IR/VR/SR training routes and 247 AR refueling tracks and anchors. A designator in a filed route (`SAT263043 IR149 LRD040028`) expands into the published points, and the aircraft flies the published altitude block — segment by segment on a training route, one block per entry on a refueling track.
+- `CMTR` clears an aircraft into a training route, `MTRA` restores the published altitudes after you assign something else, `XMTR` clears it back out to a limit and altitude, and `SAYEXIT` asks for its exit fix estimate.
+- `CAR` clears a tanker to conduct refueling along a track or in an anchor, with an optional altitude block. Refueling anchors are orbited on the published pattern until you clear the aircraft out.
+- Aircraft established on an IR or VR now accelerate past 250 knots, which is what the routes exist for; `SPD` still overrides.
+- The Aircraft List has an **MTR** column showing the route and its current block in controller shorthand (`IR149 050B060`), and **Show nav route** draws the route's protected corridor on the radar using the published widths.
+- All five clearances are read back by the pilot, in both the terminal and spoken forms.
+- Clearing a second aircraft into an occupied route, or assigning an altitude outside the published block, now warns you.
+
 ### Fixed
 - An IFR aircraft that goes around no longer flies a VFR traffic pattern circuit when it was given `MLT`/`MRT` earlier in the session; it climbs runway heading and waits for instructions.
 

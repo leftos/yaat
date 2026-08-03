@@ -2073,7 +2073,7 @@ Every entry uses these four fields in this order. No prose. Keep entries scannab
 #### §2-5 — Route and NAVAID Description
 
 ##### OutOfScope
-- **Phrasing:** Victor/J/Q/Tango airway descriptions, colored/L/MF airways, named routes, ATS phonetic-letter+number routes, Military Training Routes (IR/VR), NAVAID radial/arc/bearing/azimuth/quadrant descriptions, unnamed NAVAID fix descriptions.
+- **Phrasing:** Victor/J/Q/Tango airway descriptions, colored/L/MF airways, named routes, ATS phonetic-letter+number routes, NAVAID radial/arc/bearing/azimuth/quadrant descriptions, unnamed NAVAID fix descriptions.
   **Canonical:** —
   **Notes:** clearance-limit/route construction phraseology; airway/route handling is covered by individual `JoinAirway`/`JoinRadial*` canonicals in §4-4, not separate route-description phrasings.
 
@@ -2263,22 +2263,27 @@ Every entry uses these four fields in this order. No prose. Keep entries scannab
 
 #### §9-2 — Special Operations
 
+##### Covered
+- **Phrasing:** §9-2-6.a "CLEARED INTO IR (designator)" / "MAINTAIN IR (designator) ALTITUDES" / "MAINTAIN AT OR BELOW (altitude)"
+  **Canonical:** `ClearedIntoMilitaryRoute`, `MaintainMilitaryRouteAltitudes`
+  **Notes:** `CMTR` / `MTRA`. Rules are `SttOnly`; the readbacks are builders in `PilotResponder` because rule selection cannot see which arguments are present and a pattern cannot carry the comma before the altitude clause. Designator spelled per §2-5-1.f by `SpellMilitaryRoute`.
+- **Phrasing:** §9-2-6.b "CLEARED TO (destination/clearance limit) FROM IR (designator/exit fix) VIA (route). MAINTAIN (altitude)"
+  **Canonical:** `ClearedOutOfMilitaryRoute`
+  **Notes:** `XMTR`. The altitude sits between the destination and `VIA` — the route of flight runs greedily to end of line. Route spelled by `SpellRouteString` (§2-5-1.a).
+- **Phrasing:** §9-2-6.e "(Call sign) VERIFY YOUR EXIT FIX ESTIMATE AND REQUESTED ALTITUDE AFTER EXIT"
+  **Canonical:** `SayExitFixEstimate`
+  **Notes:** `SAYEXIT`. Answered by `PilotSayBuilder.BuildExitFixEstimate` rather than echoed; the estimate is a UTC clock time per §2-4-17.c.1 because §9-2-6.g runs the nonreceipt timer against it.
+- **Phrasing:** §9-2-13 "CLEARED TO CONDUCT REFUELING ALONG (number) TRACK" + "MAINTAIN BLOCK (altitude) THROUGH (altitude)"
+  **Canonical:** `ClearedToConductRefueling`
+  **Notes:** `CAR`. The designator inverts against §2-5-1.f — the number is spoken and "track" follows it, so the letters "A-R" are never said (`SpellRefuelingTrack`).
+
 ##### MissingCanonical
-- **Phrasing:** §9-2-6 "CLEARED INTO IR (designator)"
+- **Phrasing:** §9-2-6 "CRUISE (altitude)" (MTR-context)
   **Canonical:** `??`
-  **Notes:** military/edge — defer to product.
-- **Phrasing:** §9-2-6 "MAINTAIN IR (designator) ALTITUDE(S)" / "MAINTAIN AT OR BELOW (altitude)" / "CRUISE (altitude)" (MTR-context)
-  **Canonical:** `??`
-  **Notes:** military/edge — bare `MAINTAIN`/`CRUISE` covered elsewhere; MTR-context wrapper defer to product.
+  **Notes:** the existing `CRUISE` verb amends the *filed* cruise altitude via `TrackEngine`; §4-5-2's cruise **clearance** (a block from the MEA up to the assigned altitude) is a different concept behind the same name. Tracked as issue #328.
 - **Phrasing:** §9-2-6 "CROSS (fix) AT OR LATER THAN (time)"
   **Canonical:** `??`
-  **Notes:** military/edge — same time-restricted crossing gap as §6-4.
-- **Phrasing:** §9-2-6 "CLEARED TO (destination/clearance limit) FROM IR (designator/exit fix) VIA (route)"
-  **Canonical:** `??`
-  **Notes:** military/edge — defer to product.
-- **Phrasing:** §9-2-6 "(Call sign) VERIFY YOUR EXIT FIX ESTIMATE AND REQUESTED ALTITUDE AFTER EXIT"
-  **Canonical:** `??`
-  **Notes:** military/edge.
+  **Notes:** same time-restricted crossing gap as §6-4 — a scheduling constraint rather than a state constraint, so it needs its own design. Tracked as issue #329.
 - **Phrasing:** §9-2-10 "(ACID) TRANSPONDER OBSERVED PROCEED ON COURSE/AS REQUESTED; REMAIN OUTSIDE (class) AIRSPACE"
   **Canonical:** `??`
   **Notes:** DC SFRA security tracking.
