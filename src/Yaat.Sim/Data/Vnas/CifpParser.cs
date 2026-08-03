@@ -1,5 +1,7 @@
+using System.Globalization;
 using System.Text.RegularExpressions;
 using Microsoft.Extensions.Logging;
+using Yaat.Sim.Data.Airport;
 
 namespace Yaat.Sim.Data.Vnas;
 
@@ -1034,6 +1036,64 @@ public static partial class CifpParser
         {
             waypoints[ident] = (lat.Value, lon.Value);
         }
+    }
+
+    /// <summary>
+    /// Parses landing threshold elevations (feet MSL) from the airport runway records
+    /// (section P, subsection G). Keyed by (ICAO airport, runway designator) — e.g. ("KSJC", "30L").
+    ///
+    /// This is the elevation of each runway END, which is what a glidepath is referenced to (AIM
+    /// 5-4-5.b.3 measures the TCH above the threshold). The vNAS nav data carries only one elevation per
+    /// airport, so without this a sloped runway's two ends both read field elevation: KASE 15 is 7,680 ft
+    /// and 33 is 7,820 ft against a 7,838 ft field. Every threshold sits at or below field elevation,
+    /// which is the definition of the latter — a useful sanity check on the column offsets.
+    ///
+    /// ARINC 424 airport-runway record, 1-based columns: 5 section (P), 7-10 airport, 13 subsection (G),
+    /// 14-18 runway identifier ("RW12L"), 22 continuation record number, 67-71 landing threshold
+    /// elevation. Verified against the published data rather than the spec alone — the same records'
+    /// displaced-threshold field (72-75) reproduces the airport map's own displacements exactly
+    /// (KSJC 30L 2,537 ft, 12R 1,297 ft), which pins the offsets.
+    /// </summary>
+    public static IReadOnlyDictionary<(string Airport, string Runway), double> ParseRunwayThresholdElevations(string cifpFilePath)
+    {
+        var elevations = new Dictionary<(string, string), double>();
+
+        foreach (var line in File.ReadLines(cifpFilePath))
+        {
+            if (line.Length < 71 || line[0] != 'S' || line[4] != 'P' || line[12] != 'G')
+            {
+                continue;
+            }
+
+            // Continuation records repeat the key with different payload fields; only the primary
+            // record (0 or 1) carries the threshold elevation.
+            if (line[21] is not ('0' or '1'))
+            {
+                continue;
+            }
+
+            string airport = line[6..10].Trim();
+            string runway = line[13..18].Trim();
+            if (!runway.StartsWith("RW", StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            runway = RunwayIdentifier.NormalizeDesignator(runway[2..]);
+            if (airport.Length == 0 || runway.Length == 0)
+            {
+                continue;
+            }
+
+            if (!int.TryParse(line[66..71].Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out int elevationFt))
+            {
+                continue;
+            }
+
+            elevations.TryAdd((airport, runway), elevationFt);
+        }
+
+        return elevations;
     }
 
     /// <summary>

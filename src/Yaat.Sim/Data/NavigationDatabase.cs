@@ -74,6 +74,13 @@ public sealed class NavigationDatabase
 
     private readonly string _cifpFilePath;
 
+    /// <summary>
+    /// Landing threshold elevation (feet MSL) per (ICAO airport, runway end), from the CIFP. Empty when
+    /// no CIFP is available, in which case runway ends fall back to airport elevation.
+    /// </summary>
+    private readonly IReadOnlyDictionary<(string Airport, string Runway), double> _runwayThresholdElevationsFt =
+        new Dictionary<(string, string), double>();
+
     // Supplementary CIFP chain (newest→oldest cached prior cycles, plus any bundle) consulted when a
     // procedure is absent from the current cycle. Empty when no older source is available.
     private readonly IReadOnlyList<string> _supplementaryCifpFilePaths;
@@ -170,6 +177,9 @@ public sealed class NavigationDatabase
             .ToList();
         artccsBaseDir ??= Path.Combine(AppContext.BaseDirectory, "Data", "ARTCCs");
 
+        // Before BuildIndex: it stamps each runway end's elevation, and the per-end landing threshold
+        // elevations only exist in the CIFP.
+        _runwayThresholdElevationsFt = LoadCifpRunwayThresholdElevations(cifpFilePath);
         BuildIndex(navData);
         BuildProcedureIndex(navData);
         LoadCifpNavaids(cifpFilePath);
@@ -1720,13 +1730,14 @@ public sealed class NavigationDatabase
                         Designator = rwy1.Id,
                         Lat1 = rwy1.StartLocation.Lat,
                         Lon1 = rwy1.StartLocation.Lon,
-                        Elevation1Ft = airport.Elevation,
+                        Elevation1Ft = ThresholdElevationFt(airport.IcaoId, airport.FaaId, rwy1.Id, airport.Elevation),
                         TrueHeading1 = new TrueHeading(rwy1.TrueHeading),
                         Lat2 = rwy2.StartLocation!.Lat,
                         Lon2 = rwy2.StartLocation.Lon,
-                        Elevation2Ft = airport.Elevation,
+                        Elevation2Ft = ThresholdElevationFt(airport.IcaoId, airport.FaaId, rwy2.Id, airport.Elevation),
                         TrueHeading2 = new TrueHeading(rwy2.TrueHeading),
                         WidthFt = rwy1.Width,
+                        AirportElevationFt = airport.Elevation,
                     };
                 }
                 else
@@ -1738,13 +1749,16 @@ public sealed class NavigationDatabase
                         Designator = rwy1.Id,
                         Lat1 = rwy1.StartLocation.Lat,
                         Lon1 = rwy1.StartLocation.Lon,
-                        Elevation1Ft = airport.Elevation,
+                        Elevation1Ft = ThresholdElevationFt(airport.IcaoId, airport.FaaId, rwy1.Id, airport.Elevation),
                         TrueHeading1 = new TrueHeading(rwy1.TrueHeading),
                         Lat2 = rwy1.EndLocation.Lat,
                         Lon2 = rwy1.EndLocation.Lon,
-                        Elevation2Ft = airport.Elevation,
+                        // Unpaired: the nav data has no reciprocal end, so there is no second threshold
+                        // elevation to look up.
+                        Elevation2Ft = ThresholdElevationFt(airport.IcaoId, airport.FaaId, rwy1.Id, airport.Elevation),
                         TrueHeading2 = new TrueHeading(rwy1.TrueHeading + 180.0),
                         WidthFt = rwy1.Width,
+                        AirportElevationFt = airport.Elevation,
                     };
                 }
 
@@ -2473,6 +2487,45 @@ public sealed class NavigationDatabase
 
         string icao = normalizedAirport.Length <= 3 ? $"K{normalizedAirport}" : normalizedAirport;
         return CifpParser.ParseAirportMagneticVariation(_cifpFilePath, icao);
+    }
+
+    /// <summary>
+    /// Loads each runway end's landing threshold elevation from the CIFP, so <see cref="BuildIndex"/> can
+    /// stamp it onto the runway ends instead of giving both airport elevation.
+    /// </summary>
+    private static IReadOnlyDictionary<(string Airport, string Runway), double> LoadCifpRunwayThresholdElevations(string cifpFilePath)
+    {
+        if (!File.Exists(cifpFilePath))
+        {
+            Log.LogWarning("CIFP file not found, runway ends fall back to airport elevation: {Path}", cifpFilePath);
+            return new Dictionary<(string, string), double>();
+        }
+
+        var elevations = CifpParser.ParseRunwayThresholdElevations(cifpFilePath);
+        Log.LogInformation("CIFP runway threshold elevations: {Count} runway ends", elevations.Count);
+        return elevations;
+    }
+
+    /// <summary>
+    /// Landing threshold elevation for one runway end, falling back to <paramref name="airportElevationFt"/>
+    /// when the CIFP has nothing for it (no CIFP loaded, a non-US airport, or a runway the CIFP omits).
+    /// </summary>
+    private double ThresholdElevationFt(string? icaoId, string? faaId, string runwayId, double airportElevationFt)
+    {
+        string designator = RunwayIdentifier.NormalizeDesignator(runwayId);
+
+        if (!string.IsNullOrEmpty(icaoId) && _runwayThresholdElevationsFt.TryGetValue((icaoId, designator), out double byIcao))
+        {
+            return byIcao;
+        }
+
+        // vNAS carries some US airports by FAA id only; the CIFP keys everything by ICAO.
+        if (!string.IsNullOrEmpty(faaId) && _runwayThresholdElevationsFt.TryGetValue(("K" + faaId, designator), out double byFaa))
+        {
+            return byFaa;
+        }
+
+        return airportElevationFt;
     }
 
     /// <summary>

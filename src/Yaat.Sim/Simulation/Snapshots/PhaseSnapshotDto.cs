@@ -40,6 +40,13 @@ public sealed class RunwayInfoDto
     public required double Elevation2Ft { get; init; }
     public required double TrueHeading2Deg { get; init; }
     public required double WidthFt { get; init; }
+
+    /// <summary>
+    /// Airport (field) elevation. Nullable: snapshots written before runway ends carried their own
+    /// elevations have no value, and <see cref="Yaat.Sim.Phases.RunwayInfo.AirportElevationFt"/> then
+    /// falls back to the mean of the two ends — which for those snapshots is exactly what they stored.
+    /// </summary>
+    public double? AirportElevationFt { get; init; }
 }
 
 public sealed class DepartureClearanceDto

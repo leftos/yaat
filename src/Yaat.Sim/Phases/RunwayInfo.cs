@@ -40,6 +40,27 @@ public sealed class RunwayInfo
 
     public required double WidthFt { get; init; }
 
+    private readonly double? _airportElevationFt;
+
+    /// <summary>
+    /// Airport (field) elevation in feet MSL — one value for the whole field, unlike
+    /// <see cref="ElevationFt"/>, which is the active end's landing threshold.
+    ///
+    /// Traffic pattern altitude belongs to the airport, not to a runway end: AIM 4-3-3 recommends
+    /// "1,000 feet above ground level" for one pattern flown around the field, and the Chart Supplement
+    /// publishes a single TPA. Referencing it to a runway end would tilt the pattern with the runway —
+    /// 140 ft between KASE's two thresholds.
+    ///
+    /// Falls back to the mean of the two ends when unset, which is exact for a level runway (both ends
+    /// equal) and keeps hand-built fixtures and pre-existing snapshots on the value they had before the
+    /// ends carried their own elevations.
+    /// </summary>
+    public double AirportElevationFt
+    {
+        get => _airportElevationFt ?? ((Elevation1Ft + Elevation2Ft) / 2.0);
+        init => _airportElevationFt = value;
+    }
+
     // Backward-compatible directional properties
     public double ThresholdLatitude => IsEnd1 ? Lat1 : Lat2;
     public double ThresholdLongitude => IsEnd1 ? Lon1 : Lon2;
@@ -91,6 +112,7 @@ public sealed class RunwayInfo
             Elevation2Ft = Elevation2Ft,
             TrueHeading2Deg = TrueHeading2.Degrees,
             WidthFt = WidthFt,
+            AirportElevationFt = AirportElevationFt,
         };
 
     public static RunwayInfo FromSnapshot(RunwayInfoDto dto) =>
@@ -108,6 +130,7 @@ public sealed class RunwayInfo
             Elevation2Ft = dto.Elevation2Ft,
             TrueHeading2 = new TrueHeading(dto.TrueHeading2Deg),
             WidthFt = dto.WidthFt,
+            AirportElevationFt = dto.AirportElevationFt ?? ((dto.Elevation1Ft + dto.Elevation2Ft) / 2.0),
         };
 
     public RunwayInfo ForApproach(string designator)
@@ -126,6 +149,7 @@ public sealed class RunwayInfo
             Elevation2Ft = Elevation2Ft,
             TrueHeading2 = TrueHeading2,
             WidthFt = WidthFt,
+            AirportElevationFt = AirportElevationFt,
         };
     }
 }

@@ -85,11 +85,22 @@ departure half. Full datum table: [`landing-and-runway-exit.md`](landing-and-run
 **Size/altitude resolution.** `ResolveAuthoredOverrides` (`PatternGeometry.cs:152`) composes a command override
 (e.g. TPA/PSIZE) over the airport-authored `GroundRunway` data: command wins, then authored data fills in.
 Authored `PatternAltitudeAglFt` is interpreted as **feet AGL above field elevation** and translated to MSL via
-`runway.ElevationFt`. When a size override is applied, only `BaseExtensionNm` scales **proportionally** by
+`runway.AirportElevationFt`. When a size override is applied, only `BaseExtensionNm` scales **proportionally** by
 `patternSize / defaultSize` (a smaller pattern has a tighter base leg); the crosswind turn stays anchored at the
 DER. The resolved size is carried on `PatternWaypoints.PatternSizeNm` so the downwind/base descent geometry uses
 the actual offset, not the bare category default. Pattern altitude defaults to
-`runway.ElevationFt + CategoryPerformance.PatternAltitudeAgl(category)`.
+`runway.AirportElevationFt + CategoryPerformance.PatternAltitudeAgl(category)`.
+
+**Two elevation datums.** `RunwayInfo.ElevationFt` is the active end's **landing threshold** elevation, from the
+CIFP (see [navigation-database.md](navigation-database.md#runway-end-elevations-come-from-the-cifp)); a glidepath
+is referenced to it, because that is what the TCH is measured above (AIM 5-4-5.b.3).
+`RunwayInfo.AirportElevationFt` is the **field**, one value for the airport, and pattern altitude uses it —
+AIM 4-3-3 recommends one TPA above the field and the Chart Supplement publishes one value, so the pattern must
+not tilt with the runway. Level runways make the two identical, which is why the split only shows on a sloped
+field: KASE's thresholds are 140 ft apart. `GoAroundHelper.ResolvePatternAltitude` and the IFR visual downwind in
+`ApproachCommandHandler` are pattern altitudes too and use the airport datum; the glidepath sites
+(`FinalApproachPhase`, `ApproachNavigationPhase`, `VfrFollowPhase`, pattern *final* entry altitudes) use the
+threshold.
 
 **Authored data needs a resolved ground layout.** `ResolveAuthoredOverrides` reads the airport's authored
 `patternSize`/`patternAltitude` from a `GroundRunway` — resolved from the **context's** ground layout

@@ -145,7 +145,7 @@ public class GoAroundClimbOutTests
         var aircraft = MakeVfrAircraft(runway);
         var ctx = CommandDispatcher.BuildMinimalContext(aircraft, groundLayout: null);
 
-        int expected = (int)(runway.ElevationFt + PistonPatternAltitudeAgl - HandoffMarginFt);
+        int expected = (int)(runway.AirportElevationFt + PistonPatternAltitudeAgl - HandoffMarginFt);
         Assert.Equal(expected, GoAroundHelper.ResolveClimbOutAltitude(ctx, isPattern: true, missedApproachPhases: []));
     }
 
@@ -166,7 +166,7 @@ public class GoAroundClimbOutTests
         var aircraft = MakeVfrAircraft(runway);
         var ctx = CommandDispatcher.BuildMinimalContext(aircraft, layout);
 
-        int expected = (int)(runway.ElevationFt + Oak28LAuthoredPatternAltitudeAgl - HandoffMarginFt);
+        int expected = (int)(runway.AirportElevationFt + Oak28LAuthoredPatternAltitudeAgl - HandoffMarginFt);
         Assert.Equal(expected, GoAroundHelper.ResolveClimbOutAltitude(ctx, isPattern: true, missedApproachPhases: []));
     }
 
@@ -249,7 +249,7 @@ public class GoAroundClimbOutTests
         Assert.True(result.Success, result.Message);
         var goAround = Assert.IsType<GoAroundPhase>(aircraft.Phases.CurrentPhase);
         Assert.True(goAround.ReenterPattern);
-        Assert.Equal((int)(runway.ElevationFt + PistonPatternAltitudeAgl - HandoffMarginFt), goAround.TargetAltitude);
+        Assert.Equal((int)(runway.AirportElevationFt + PistonPatternAltitudeAgl - HandoffMarginFt), goAround.TargetAltitude);
     }
 
     /// <summary>
@@ -420,7 +420,7 @@ public class GoAroundClimbOutTests
 
         Assert.True(result.Success, result.Message);
         Assert.True(goAround.ReenterPattern);
-        Assert.Equal((int)(runway.ElevationFt + PistonPatternAltitudeAgl - HandoffMarginFt), goAround.TargetAltitude);
+        Assert.Equal((int)(runway.AirportElevationFt + PistonPatternAltitudeAgl - HandoffMarginFt), goAround.TargetAltitude);
         Assert.Equal(goAround.TargetAltitude, aircraft.Targets.TargetAltitude);
         Assert.Equal(PatternDirection.Right, aircraft.Phases.TrafficDirection);
 

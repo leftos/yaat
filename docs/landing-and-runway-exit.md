@@ -60,6 +60,8 @@ AIM 2-3-3.b.8.2: pavement behind a displaced threshold is available for **takeof
 | `PatternGeometry` downwind-abeam, base turn, `ThresholdLat/Lon` | `PatternGeometry` departure end / crosswind turn (AIM 4-3-2 anchors these beyond the *departure* end) |
 | `SoloTrainingEvaluator.AlongLandingThresholdFt` — §3-10-3 "n feet down the runway", `IsLandingAfterThreshold` | `SoloTrainingEvaluator.AlongThresholdFt` — §3-9-6 departure spacing, intersection passage, "crossed the runway end" |
 
+**Elevation splits the same way, on a different axis.** `RunwayInfo.ElevationFt` is the active end's landing threshold elevation (from the CIFP) and carries the glidepath, flare and touchdown altitude; `RunwayInfo.AirportElevationFt` is the field, and carries traffic pattern altitude. Level runways make them identical — see [approach-and-pattern-geometry.md](approach-and-pattern-geometry.md#traffic-pattern-construction--patterngeometrycompute) and [navigation-database.md](navigation-database.md#runway-end-elevations-come-from-the-cifp).
+
 LAHSO is the one place both datums appear in a single calculation: `RunwayIntersectionCalculator.ComputeHoldShortDistanceNm` walks the pavement centerline to the intersection, then subtracts the displacement so the reported distance is the available landing distance a LAHSO clearance actually offers. `PatternCommandHandler` projects the hold-short point from the landing threshold to match — so authoring a displacement shortens the reported distance without moving the physical hold-short point.
 
 ## LandingPhase Braking Strategy

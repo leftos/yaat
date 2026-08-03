@@ -22,7 +22,9 @@ internal static class TestRunwayFactory
         double endLon = -122.01,
         double heading = 280,
         double elevationFt = 0,
-        double endElevationFt = 0,
+        // Defaults to the threshold's, so a fixture that states one elevation gets a level runway
+        // rather than one sloping to sea level (which would drag AirportElevationFt to the mean).
+        double? endElevationFt = null,
         double widthFt = 150
     )
     {
@@ -41,7 +43,7 @@ internal static class TestRunwayFactory
             Lat2 = endLat,
             Lon2 = endLon,
             TrueHeading2 = new TrueHeading(oppositeHeading),
-            Elevation2Ft = endElevationFt,
+            Elevation2Ft = endElevationFt ?? elevationFt,
             WidthFt = widthFt,
         };
     }

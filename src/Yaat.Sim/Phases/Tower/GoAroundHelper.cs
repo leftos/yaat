@@ -170,7 +170,7 @@ internal static class GoAroundHelper
             ctx.Aircraft.Pattern.AltitudeOverrideFt
         );
 
-        return altitudeOverrideFt ?? (runway.ElevationFt + categoryAglFt);
+        return altitudeOverrideFt ?? (runway.AirportElevationFt + categoryAglFt);
     }
 
     /// <summary>

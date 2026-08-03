@@ -181,7 +181,7 @@ public static class PatternGeometry
         double? alt = commandAltitudeMslFt;
         if ((alt is null) && (authoredRunway?.PatternAltitudeAglFt is double agl))
         {
-            alt = runway.ElevationFt + agl;
+            alt = runway.AirportElevationFt + agl;
         }
         return (size, alt);
     }
@@ -226,7 +226,7 @@ public static class PatternGeometry
         double sizeRatio = patternSize / defaultSize;
         double baseExt = CategoryPerformance.BaseExtensionNm(category) * sizeRatio;
         double patternAltAgl = CategoryPerformance.PatternAltitudeAgl(category);
-        double patternAlt = altitudeOverrideFt ?? (runway.ElevationFt + patternAltAgl);
+        double patternAlt = altitudeOverrideFt ?? (runway.AirportElevationFt + patternAltAgl);
 
         // The landing threshold anchors everything the arrival flies to — downwind abeam, the base turn,
         // and the final's aim point. A displaced threshold moves all three downfield with it.

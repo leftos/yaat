@@ -613,7 +613,7 @@ public static class ApproachCommandHandler
             // Authored size/altitude overrides also bypassed: those are tuned for VFR.
             var direction = cmd.TrafficDirection ?? DeterminePatternDirection(aircraft, approachRunway);
 
-            double ifrPatternAltMsl = approachRunway.ElevationFt + IfrVisualDownwindAltAglFt;
+            double ifrPatternAltMsl = approachRunway.AirportElevationFt + IfrVisualDownwindAltAglFt;
             // The authored size/altitude are deliberately bypassed above, but the threshold displacement
             // is not an override — it is where the runway's landing surface starts, so the ground runway
             // is still supplied for it.
