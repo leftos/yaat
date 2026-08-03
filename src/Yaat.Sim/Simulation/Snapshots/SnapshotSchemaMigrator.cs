@@ -29,7 +29,7 @@ public sealed class SnapshotSchemaException : Exception
 /// </summary>
 public static class SnapshotSchemaMigrator
 {
-    public const int CurrentSchemaVersion = 18;
+    public const int CurrentSchemaVersion = 19;
 
     /// <summary>
     /// Migrates a snapshot to <see cref="CurrentSchemaVersion"/> in place.
@@ -115,7 +115,7 @@ public static class SnapshotSchemaMigrator
         //   runway's own end coordinates, which every snapshot already carries. No data transformation —
         //   the field is ignored on read, and the derived length is strictly more correct than the value
         //   it replaces (at KSJC 12R/30L, 11,001 ft of pavement rather than an 8,587 ft landing distance).
-        // V17→V18: Runway ends carry their own landing threshold elevation (from the CIFP) instead of both
+        // V18→V19: Runway ends carry their own landing threshold elevation (from the CIFP) instead of both
         //   reading airport elevation, and RunwayInfoDto gained a nullable AirportElevationFt so traffic
         //   pattern altitude keeps its own field datum. No data transformation — older snapshots have no
         //   AirportElevationFt, and RunwayInfo.FromSnapshot falls back to the mean of the two ends, which
