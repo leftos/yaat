@@ -76,7 +76,15 @@ public class Issue210UpwindLengthTests(ITestOutputHelper output)
     )
     {
         var cat = AircraftCategory.Piston;
-        var waypoints = PatternGeometry.Compute(rwy, cat, PatternDirection.Right, sizeOverrideNm, altitudeOverrideFt, allRunways);
+        var waypoints = PatternGeometry.Compute(
+            rwy,
+            cat,
+            PatternDirection.Right,
+            sizeOverrideNm,
+            altitudeOverrideFt,
+            allRunways,
+            authoredRunway: null
+        );
 
         double crosswindPointNm = GeoMath.AlongTrackDistanceNm(
             new LatLon(waypoints.CrosswindTurnLat, waypoints.CrosswindTurnLon),
@@ -94,7 +102,8 @@ public class Issue210UpwindLengthTests(ITestOutputHelper output)
             null,
             sizeOverrideNm,
             altitudeOverrideFt,
-            allRunways
+            allRunways,
+            authoredRunway: null
         );
         foreach (var p in circuit)
         {
@@ -192,7 +201,7 @@ public class Issue210UpwindLengthTests(ITestOutputHelper output)
 
         double CrosswindTurnAlongTrack(double? sizeNm)
         {
-            var wp = PatternGeometry.Compute(rwy28L, AircraftCategory.Piston, PatternDirection.Right, sizeNm, 609, allRunways);
+            var wp = PatternGeometry.Compute(rwy28L, AircraftCategory.Piston, PatternDirection.Right, sizeNm, 609, allRunways, authoredRunway: null);
             return GeoMath.AlongTrackDistanceNm(
                 new LatLon(wp.CrosswindTurnLat, wp.CrosswindTurnLon),
                 new LatLon(rwy28L.ThresholdLatitude, rwy28L.ThresholdLongitude),
@@ -326,7 +335,7 @@ public class Issue210UpwindLengthTests(ITestOutputHelper output)
 
         var cat = AircraftCategory.Piston;
         // First circuit built with the authored override so the entry leg is flyable; alt 609.
-        var wp = PatternGeometry.Compute(rwy28L, cat, PatternDirection.Right, 0.5, 609, allRunways);
+        var wp = PatternGeometry.Compute(rwy28L, cat, PatternDirection.Right, 0.5, 609, allRunways, authoredRunway: null);
         var ac = new AircraftState
         {
             Callsign = "N12345",
@@ -343,7 +352,18 @@ public class Issue210UpwindLengthTests(ITestOutputHelper output)
         // Key: the aircraft has NO cached ground layout — resolution must come from ctx.GroundLayout.
         ac.Ground.Layout = null;
 
-        var circuit = PatternBuilder.BuildCircuit(rwy28L, cat, PatternDirection.Right, PatternEntryLeg.Downwind, true, null, 0.5, 609, allRunways);
+        var circuit = PatternBuilder.BuildCircuit(
+            rwy28L,
+            cat,
+            PatternDirection.Right,
+            PatternEntryLeg.Downwind,
+            true,
+            null,
+            0.5,
+            609,
+            allRunways,
+            authoredRunway: null
+        );
         foreach (var p in circuit)
         {
             ac.Phases.Add(p);

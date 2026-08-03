@@ -607,7 +607,7 @@ public class AirborneFollowTests : IDisposable
     // -------------------------------------------------------------------------
 
     private static PatternWaypoints DefaultPatternWaypoints() =>
-        PatternGeometry.Compute(DefaultRunway(), AircraftCategory.Piston, PatternDirection.Left, null, null, null);
+        PatternGeometry.Compute(DefaultRunway(), AircraftCategory.Piston, PatternDirection.Left, null, null, null, authoredRunway: null);
 
     /// <summary>
     /// Upwind followers must call <see cref="AirborneFollowHelper.CheckLeadLifecycle"/>

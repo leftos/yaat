@@ -1990,9 +1990,17 @@ public sealed class SoloTrainingEvaluator
                 return null;
             }
 
-            double alongThresholdFt =
+            // Two datums, because the separation rules use both. A takeoff roll and every runway
+            // intersection are referenced to the pavement threshold — pre-threshold pavement is usable
+            // for takeoff in either direction (AIM 2-3-3.b.8.2), and PrecedingIntersectionFt is measured
+            // from it. A landing is referenced to the landing threshold: "3,000 feet down the runway"
+            // (7110.65 §3-10-3) counts from where the arrival was allowed to touch down, not from
+            // pavement it may never land on.
+            double alongPavementFt =
                 GeoMath.AlongTrackDistanceNm(aircraft.Position, new LatLon(runway.ThresholdLatitude, runway.ThresholdLongitude), runway.TrueHeading)
                 * GeoMath.FeetPerNm;
+            var authoredRunway = aircraft.Ground.Layout?.FindRunway(runway.Designator);
+            double displacementFt = LandingThreshold.DisplacementFt(runway, authoredRunway);
             var phase = aircraft.Phases?.CurrentPhase;
             string runwayKey = BuildRunwayKey(runway);
             return new AircraftRunwayState(
@@ -2003,10 +2011,34 @@ public sealed class SoloTrainingEvaluator
                 phase,
                 runway,
                 runwayKey,
-                alongThresholdFt,
+                alongPavementFt,
+                displacementFt,
+                PavementLengthFt(runway, authoredRunway),
                 ResolveSrsCategory(aircraft),
                 ResolveCwtCategory(aircraft)
             );
+        }
+
+        /// <summary>
+        /// Physical pavement length, which is what "crossed the runway end" (7110.65 §3-9-6) means.
+        /// <see cref="RunwayInfo.LengthFt"/> is a landing distance available, so it stops short of the
+        /// pavement on a displaced runway; the airport map's centerline is the real extent when present.
+        /// </summary>
+        private static double PavementLengthFt(RunwayInfo runway, GroundRunway? authoredRunway)
+        {
+            var coordinates = authoredRunway?.Coordinates;
+            if ((coordinates is null) || (coordinates.Count < 2))
+            {
+                return runway.LengthFt;
+            }
+
+            double lengthNm = 0;
+            for (int i = 0; i < coordinates.Count - 1; i++)
+            {
+                lengthNm += GeoMath.DistanceNm(coordinates[i].Lat, coordinates[i].Lon, coordinates[i + 1].Lat, coordinates[i + 1].Lon);
+            }
+
+            return Math.Max(runway.LengthFt, lengthNm * GeoMath.FeetPerNm);
         }
 
         private static RunwayOperation? DetectOperation(
@@ -2776,7 +2808,7 @@ public sealed class SoloTrainingEvaluator
                     else if (violation.Relation.Kind == RunwayRelationKind.OppositeDirectionSamePavement)
                     {
                         satisfied = HasCrossedRunwayEnd(precedingState);
-                        actualText = FormatThresholdDistanceActual(precedingState);
+                        actualText = FormatThresholdDistanceActual(precedingState, fromLandingThreshold: false);
                     }
                     else
                     {
@@ -2807,12 +2839,12 @@ public sealed class SoloTrainingEvaluator
                     else if (violation.Relation.Kind == RunwayRelationKind.OppositeDirectionSamePavement)
                     {
                         satisfied = HasCrossedRunwayEnd(precedingState);
-                        actualText = FormatThresholdDistanceActual(precedingState);
+                        actualText = FormatThresholdDistanceActual(precedingState, fromLandingThreshold: false);
                     }
                     else
                     {
                         satisfied = ArrivalBehindDepartureSatisfied(precedingState, violation.RequiredDistanceFt!.Value);
-                        actualText = FormatThresholdDistanceActual(precedingState);
+                        actualText = FormatThresholdDistanceActual(precedingState, fromLandingThreshold: true);
                     }
                     break;
 
@@ -3412,8 +3444,14 @@ public sealed class SoloTrainingEvaluator
             return !precedingState.IsOnGround && (spacingFt >= requiredFt);
         }
 
+        /// <summary>
+        /// 7110.65 §3-10-3.a.2. The gate is "the other aircraft has departed and crossed the runway end"
+        /// — the pavement end — but the airborne exception is stated as a "minimum distance from the
+        /// <em>landing threshold</em>", because what it protects is the arrival crossing that threshold.
+        /// So the two halves legitimately use different datums.
+        /// </summary>
         private static bool ArrivalBehindDepartureSatisfied(AircraftRunwayState precedingState, double requiredFt) =>
-            HasCrossedRunwayEnd(precedingState) || (!precedingState.IsOnGround && (precedingState.AlongThresholdFt >= requiredFt));
+            HasCrossedRunwayEnd(precedingState) || (!precedingState.IsOnGround && (precedingState.AlongLandingThresholdFt >= requiredFt));
 
         private static bool ArrivalBehindLandingSatisfied(AircraftRunwayState precedingState, double? requiredExceptionFt)
         {
@@ -3422,10 +3460,12 @@ public sealed class SoloTrainingEvaluator
                 return true;
             }
 
-            return requiredExceptionFt.HasValue && precedingState.IsOnGround && (precedingState.AlongThresholdFt >= requiredExceptionFt.Value);
+            // 7110.65 §3-10-3's "(n) feet down the runway" runs from the landing threshold — a preceding
+            // arrival never occupied the pavement behind a displaced one, so it cannot be credited for it.
+            return requiredExceptionFt.HasValue && precedingState.IsOnGround && (precedingState.AlongLandingThresholdFt >= requiredExceptionFt.Value);
         }
 
-        private static bool HasCrossedRunwayEnd(AircraftRunwayState state) => state.AlongThresholdFt >= state.Runway.LengthFt;
+        private static bool HasCrossedRunwayEnd(AircraftRunwayState state) => state.AlongThresholdFt >= state.PavementLengthFt;
 
         private static bool HasPassedIntersection(AircraftRunwayState state, ActiveSameRunwayViolation violation) =>
             violation.Relation.PrecedingIntersectionFt.HasValue && (state.AlongThresholdFt >= violation.Relation.PrecedingIntersectionFt.Value);
@@ -3552,17 +3592,25 @@ public sealed class SoloTrainingEvaluator
                 : $"airborne, {spacingFt:N0} ft spacing";
         }
 
-        private static string FormatThresholdDistanceActual(AircraftRunwayState state)
+        /// <summary>
+        /// Reports the distance on the same datum the rule was judged on, so a displaced runway can't
+        /// print a number that looks like it should have satisfied the requirement it just failed.
+        /// </summary>
+        private static string FormatThresholdDistanceActual(AircraftRunwayState state, bool fromLandingThreshold)
         {
             if (HasCrossedRunwayEnd(state))
             {
                 return "preceding departure crossed DER/runway end";
             }
 
-            return state.IsOnGround
-                ? $"preceding departure still on runway, {state.AlongThresholdFt:N0} ft from threshold"
-                : $"{state.AlongThresholdFt:N0} ft from threshold";
+            double distanceFt = fromLandingThreshold ? state.AlongLandingThresholdFt : state.AlongThresholdFt;
+            string label = ThresholdLabel(state, fromLandingThreshold);
+            return state.IsOnGround ? $"preceding departure still on runway, {distanceFt:N0} ft from {label}" : $"{distanceFt:N0} ft from {label}";
         }
+
+        /// <summary>"threshold" is ambiguous only when the end is displaced; name it explicitly there.</summary>
+        private static string ThresholdLabel(AircraftRunwayState state, bool fromLandingThreshold) =>
+            state.ThresholdDisplacementFt > 0 ? (fromLandingThreshold ? "landing threshold" : "pavement threshold") : "threshold";
 
         private static string FormatRunwayClearActual(AircraftRunwayState state) =>
             IsLandingClearOfRunway(state)
@@ -3570,13 +3618,16 @@ public sealed class SoloTrainingEvaluator
                 : $"preceding landing still on runway ({state.Phase?.Name ?? "unknown"})";
 
         private static string FormatRunwayClearOrThresholdActual(AircraftRunwayState state) =>
-            IsLandingClearOfRunway(state) ? "preceding landing clear of runway" : $"preceding landing {state.AlongThresholdFt:N0} ft from threshold";
+            IsLandingClearOfRunway(state)
+                ? "preceding landing clear of runway"
+                : $"preceding landing {state.AlongLandingThresholdFt:N0} ft from {ThresholdLabel(state, fromLandingThreshold: true)}";
 
         private static string FormatIntersectionActual(AircraftRunwayState state, ActiveSameRunwayViolation violation)
         {
             if (!violation.Relation.PrecedingIntersectionFt.HasValue)
             {
-                return FormatThresholdDistanceActual(state);
+                // PrecedingIntersectionFt is pavement-referenced, so the fallback text is too.
+                return FormatThresholdDistanceActual(state, fromLandingThreshold: false);
             }
 
             double remainingFt = Math.Max(0.0, violation.Relation.PrecedingIntersectionFt.Value - state.AlongThresholdFt);
@@ -3623,6 +3674,9 @@ public sealed class SoloTrainingEvaluator
             return key.ToUpperInvariant();
         }
 
+        /// <param name="AlongThresholdFt">Along-track distance from the runway's pavement threshold — the departure/intersection datum.</param>
+        /// <param name="ThresholdDisplacementFt">Published displacement of this end's landing threshold; 0 when there is no airport map.</param>
+        /// <param name="PavementLengthFt">Physical runway length, for "crossed the runway end".</param>
         private sealed record AircraftRunwayState(
             string Callsign,
             string AircraftType,
@@ -3632,15 +3686,21 @@ public sealed class SoloTrainingEvaluator
             RunwayInfo Runway,
             string RunwayKey,
             double AlongThresholdFt,
+            double ThresholdDisplacementFt,
+            double PavementLengthFt,
             SrsCategory SrsCategory,
             CwtCategory CwtCategory
         )
         {
+            /// <summary>Along-track distance from the *landing* threshold — the arrival datum.</summary>
+            public double AlongLandingThresholdFt => AlongThresholdFt - ThresholdDisplacementFt;
+
             public bool IsTakeoffRoll => IsOnGround && Phase is TakeoffPhase;
             public bool IsDepartureAfterRollStart => Phase is TakeoffPhase or InitialClimbPhase;
             public bool IsArrivalApproach => Phase is FinalApproachPhase or LandingPhase;
             public bool IsArrivalOrLanding => Phase is FinalApproachPhase or LandingPhase or RunwayExitPhase;
-            public bool IsLandingAfterThreshold => (AlongThresholdFt >= 0.0) && (Phase is LandingPhase or RunwayExitPhase or HoldingAfterExitPhase);
+            public bool IsLandingAfterThreshold =>
+                (AlongLandingThresholdFt >= 0.0) && (Phase is LandingPhase or RunwayExitPhase or HoldingAfterExitPhase);
         }
 
         private sealed record RunwayOperation(

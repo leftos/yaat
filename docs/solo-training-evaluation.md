@@ -213,8 +213,18 @@ holding `_previousStates`, `_lastOperationByRunway`, `_recentOperations`, and `_
 **Operation detection** (`DetectOperation`, `:1838`). Per aircraft it builds an `AircraftRunwayState` (`:3452`) from
 the assigned runway and current phase, computing `AlongThresholdFt` (signed distance along the runway centerline). A
 **Departure** op is detected when an aircraft starts its takeoff roll (`TakeoffPhase`) on a runway; a **Landing** op
-when an arrival on `FinalApproachPhase`/`LandingPhase` crosses the threshold (`AlongThresholdFt` goes ≥ 0). First
-observation seeds an op from the current phase (`TrySeedOperation`, `:1875`).
+when an arrival on `FinalApproachPhase`/`LandingPhase` crosses the threshold (`AlongLandingThresholdFt` goes ≥ 0).
+First observation seeds an op from the current phase (`TrySeedOperation`, `:1875`).
+
+**Two datums, and picking the wrong one is a scoring bug.** `AlongThresholdFt` is measured from the **pavement**
+threshold; `AlongLandingThresholdFt` subtracts the airport map's displacement for that end. Departure-side rules stay
+on the pavement — §3-9-6 spacing, `HasPassedIntersection` (`PrecedingIntersectionFt` is itself pavement-referenced),
+and `HasCrossedRunwayEnd`, which compares against `PavementLengthFt` (the map's centerline length, *not*
+`RunwayInfo.LengthFt` — that is a landing distance available and stops short of the pavement on a displaced runway).
+Arrival-side rules use the landing datum: `IsLandingAfterThreshold` and `ArrivalBehindLandingSatisfied`, because
+§3-10-3's "(n) feet down the runway" counts from where the arrival was allowed to touch down. At KSJC 30L that is
+2,537 ft of difference — enough to clear a succeeding arrival across the threshold early if the datums are crossed.
+Full table: [`landing-and-runway-exit.md`](landing-and-runway-exit.md#displaced-thresholds-which-datum).
 
 Note the **two `OperationKind` enums** — the tracker's private `OperationKind { Departure, Landing }` (`:3524`) is the
 runway state-machine kind and is unrelated to the public `Training.OperationKind { Unknown, Departure, Arrival,

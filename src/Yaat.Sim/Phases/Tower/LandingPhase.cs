@@ -330,12 +330,16 @@ public sealed class LandingPhase : Phase
     private static LandingPlan BuildPlan(PhaseContext ctx)
     {
         var rwy = ctx.Runway;
+        // The plan's threshold is the flare/touchdown/LAHSO datum, so it is the *landing* threshold:
+        // pavement behind a displaced threshold is not available for landing in this direction
+        // (AIM 2-3-3.b.8.2). Falls back to the pavement end when no airport map is loaded.
+        var threshold = rwy is not null ? LandingThreshold.Resolve(rwy, ctx.GroundLayout) : ctx.Aircraft.Position;
         return new LandingPlan
         {
             FieldElevation = ctx.FieldElevation,
             RunwayHeading = rwy?.TrueHeading ?? ctx.Aircraft.TrueHeading,
-            ThresholdLat = rwy?.ThresholdLatitude ?? ctx.Aircraft.Position.Lat,
-            ThresholdLon = rwy?.ThresholdLongitude ?? ctx.Aircraft.Position.Lon,
+            ThresholdLat = threshold.Lat,
+            ThresholdLon = threshold.Lon,
             RunwayId = ctx.Aircraft.Phases?.AssignedRunway?.Designator,
             FlareEntryAgl = CategoryPerformance.FlareAltitude(ctx.Category),
             FlareFpm = CategoryPerformance.FlareDescentRate(ctx.Category),

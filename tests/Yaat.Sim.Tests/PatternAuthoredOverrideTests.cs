@@ -82,7 +82,8 @@ public class PatternAuthoredOverrideTests
             PatternDirection.Left,
             sizeOverrideNm: null,
             altitudeOverrideFt: alt,
-            airportRunways: null
+            airportRunways: null,
+            authoredRunway: null
         );
 
         Assert.Equal(609, wp.PatternAltitude);

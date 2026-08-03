@@ -186,13 +186,19 @@ public static class PatternGeometry
         return (size, alt);
     }
 
+    /// <param name="authoredRunway">
+    /// The same ground runway <see cref="ResolveAuthoredOverrides"/> takes, used here for the published
+    /// threshold displacement. Null when no airport map is loaded, in which case the pattern is built to
+    /// the pavement threshold.
+    /// </param>
     public static PatternWaypoints Compute(
         RunwayInfo runway,
         AircraftCategory category,
         PatternDirection direction,
         double? sizeOverrideNm,
         double? altitudeOverrideFt,
-        IReadOnlyList<RunwayInfo>? airportRunways
+        IReadOnlyList<RunwayInfo>? airportRunways,
+        GroundRunway? authoredRunway
     )
     {
         TrueHeading rwyHdg = runway.TrueHeading;
@@ -222,7 +228,14 @@ public static class PatternGeometry
         double patternAltAgl = CategoryPerformance.PatternAltitudeAgl(category);
         double patternAlt = altitudeOverrideFt ?? (runway.ElevationFt + patternAltAgl);
 
-        // Departure end of runway
+        // The landing threshold anchors everything the arrival flies to — downwind abeam, the base turn,
+        // and the final's aim point. A displaced threshold moves all three downfield with it.
+        var threshold = LandingThreshold.Resolve(runway, authoredRunway);
+
+        // Departure end of runway. Deliberately the pavement end, not a displaced-threshold-derived
+        // point: the crosswind turn is a *departure* geometry anchor (AIM 4-3-2, "beyond the departure
+        // end"), and pre-threshold pavement is available for takeoff in either direction
+        // (AIM 2-3-3.b.8.2). Only the arrival side of the pattern moves with the displacement.
         double depEndLat = runway.EndLatitude;
         double depEndLon = runway.EndLongitude;
 
@@ -233,7 +246,7 @@ public static class PatternGeometry
         var downwindStart = GeoMath.ProjectPoint(crosswindTurn.Lat, crosswindTurn.Lon, crosswindHdg, patternSize);
 
         // Downwind abeam: threshold offset perpendicular
-        var downwindAbeam = GeoMath.ProjectPoint(runway.ThresholdLatitude, runway.ThresholdLongitude, crosswindHdg, patternSize);
+        var downwindAbeam = GeoMath.ProjectPoint(threshold.Lat, threshold.Lon, crosswindHdg, patternSize);
 
         // Base turn point: downwind abeam + extension along downwind heading
         var baseTurn = GeoMath.ProjectPoint(downwindAbeam.Lat, downwindAbeam.Lon, downwindHdg, baseExt);
@@ -250,8 +263,8 @@ public static class PatternGeometry
             DownwindAbeamLon = downwindAbeam.Lon,
             BaseTurnLat = baseTurn.Lat,
             BaseTurnLon = baseTurn.Lon,
-            ThresholdLat = runway.ThresholdLatitude,
-            ThresholdLon = runway.ThresholdLongitude,
+            ThresholdLat = threshold.Lat,
+            ThresholdLon = threshold.Lon,
             UpwindHeading = upwindHdg,
             CrosswindHeading = crosswindHdg,
             DownwindHeading = downwindHdg,

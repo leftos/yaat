@@ -69,6 +69,33 @@ public class LahsoTests
         return layout;
     }
 
+    /// <summary>
+    /// <see cref="MakeCrossingLayout"/> with runway 28R's landing threshold displaced
+    /// <paramref name="displacementFt"/> down the pavement.
+    /// </summary>
+    private static AirportGroundLayout MakeCrossingLayoutWithDisplaced28R(double displacementFt)
+    {
+        var layout = MakeCrossingLayout();
+        var pavement = layout.Runways[0];
+        layout.Runways[0] = new GroundRunway
+        {
+            Name = pavement.Name,
+            Coordinates = pavement.Coordinates,
+            WidthFt = pavement.WidthFt,
+            ThresholdDisplacementFtByEnd = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase) { ["28R"] = displacementFt },
+        };
+        return layout;
+    }
+
+    /// <summary>Issues <c>LAHSO 33</c> against <paramref name="layout"/> and returns the resulting target.</summary>
+    private static LahsoTarget ClearLahso(RunwayInfo runway, AirportGroundLayout layout)
+    {
+        var ac = MakeAircraft(runway);
+        var result = PatternCommandHandler.TryLandAndHoldShort(new LandAndHoldShortCommand("33"), ac, layout);
+        Assert.True(result.Success, result.Message);
+        return ac.Phases!.LahsoHoldShort!;
+    }
+
     private static AircraftState MakeAircraft(RunwayInfo runway)
     {
         var ac = new AircraftState
@@ -215,6 +242,30 @@ public class LahsoTests
         // Crossing runway width = 100ft → setback = 50 + 200 = 250ft ≈ 0.041nm
         Assert.True(target.DistFromThresholdNm > 0.3, $"Hold short dist too small: {target.DistFromThresholdNm:F3}nm");
         Assert.True(target.DistFromThresholdNm < 0.6, $"Hold short dist too large: {target.DistFromThresholdNm:F3}nm");
+    }
+
+    /// <summary>
+    /// A LAHSO clearance offers available landing distance, which runs from the landing threshold
+    /// (7110.65 §3-10-4). Displacing the threshold therefore shortens the reported distance by exactly
+    /// the displacement — while the hold-short point itself, set back from a fixed runway intersection,
+    /// must not move an inch. That pair is what keeps the distance and the point on the same datum as
+    /// <see cref="LandingPhase"/>, which measures the aircraft's progress from the landing threshold.
+    /// </summary>
+    [Fact]
+    public void Lahso_DisplacedThreshold_ShortensTheDistanceButNotTheHoldShortPoint()
+    {
+        const double displacementFt = 1000.0;
+        var runway = MakeLandingRunway();
+
+        var undisplacedTarget = ClearLahso(runway, MakeCrossingLayout());
+        var displacedTarget = ClearLahso(runway, MakeCrossingLayoutWithDisplaced28R(displacementFt));
+
+        double distanceLostFt = (undisplacedTarget.DistFromThresholdNm - displacedTarget.DistFromThresholdNm) * GeoMath.FeetPerNm;
+        Assert.InRange(distanceLostFt, displacementFt - 2, displacementFt + 2);
+
+        double pointMovedFt =
+            GeoMath.DistanceNm(undisplacedTarget.Lat, undisplacedTarget.Lon, displacedTarget.Lat, displacedTarget.Lon) * GeoMath.FeetPerNm;
+        Assert.InRange(pointMovedFt, 0, 2);
     }
 
     [Fact]

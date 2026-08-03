@@ -39,7 +39,8 @@ public class PatternExitDepartureBuilderTests
             cruiseAltitude: 11500,
             patternSizeNm: null,
             altitudeOverrideFt: null,
-            airportRunways: null
+            airportRunways: null,
+            authoredRunway: null
         );
 
         Assert.Collection(phases, p => Assert.IsType<UpwindPhase>(p), p => Assert.IsType<CrosswindPhase>(p), p => Assert.IsType<PatternExitPhase>(p));
@@ -68,7 +69,8 @@ public class PatternExitDepartureBuilderTests
             cruiseAltitude: 0,
             patternSizeNm: null,
             altitudeOverrideFt: null,
-            airportRunways: null
+            airportRunways: null,
+            authoredRunway: null
         );
 
         // OAK 28R piston pattern altitude = field elev 9 ft + 1000 ft AGL = 1009 ft MSL.
@@ -90,7 +92,8 @@ public class PatternExitDepartureBuilderTests
             cruiseAltitude: 11500,
             patternSizeNm: null,
             altitudeOverrideFt: null,
-            airportRunways: null
+            airportRunways: null,
+            authoredRunway: null
         );
 
         Assert.Collection(phases, p => Assert.IsType<UpwindPhase>(p), p => Assert.IsType<PatternExitPhase>(p));

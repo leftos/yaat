@@ -1037,11 +1037,14 @@ internal static class NavigationCommandHandler
         // (7110.65 §5-9-2 limits the controller's vector, not this relaxed join). Kept distinct
         // from ForcedIntercept so the glideslope gate stays scoped to PTACF: the lateral-only
         // hold means no descent until CAPP.
+        // The intercept's threshold is the landing threshold: its distance is scored against the
+        // approach gate, which the P/CG measures from there.
+        var interceptThreshold = LandingThreshold.Resolve(approachRunway, aircraft.Ground.Layout);
         var interceptPhase = new InterceptCoursePhase
         {
             FinalApproachCourse = finalCourse,
-            ThresholdLat = approachRunway.ThresholdLatitude,
-            ThresholdLon = approachRunway.ThresholdLongitude,
+            ThresholdLat = interceptThreshold.Lat,
+            ThresholdLon = interceptThreshold.Lon,
             ApproachId = resolvedId,
             RelaxedJoin = true,
         };

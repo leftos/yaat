@@ -38,7 +38,7 @@ public class PhaseTransparentCommandTests
             Transponder = new AircraftTransponder { AssignedCode = 7110, Code = 7110 },
         };
 
-        var waypoints = PatternGeometry.Compute(rwy, AircraftCategory.Piston, PatternDirection.Right, null, null, null);
+        var waypoints = PatternGeometry.Compute(rwy, AircraftCategory.Piston, PatternDirection.Right, null, null, null, authoredRunway: null);
         var phases = new PhaseList { AssignedRunway = rwy };
         phases.Add(new UpwindPhase { Waypoints = waypoints });
         phases.Add(new CrosswindPhase { Waypoints = waypoints });

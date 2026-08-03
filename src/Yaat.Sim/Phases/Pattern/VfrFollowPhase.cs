@@ -238,7 +238,8 @@ public sealed class VfrFollowPhase : Phase
             finalDistanceNm: null,
             patternSizeNm: null,
             altitudeOverrideFt: leadWaypoints.PatternAltitude,
-            airportRunways: airportRunways
+            airportRunways: airportRunways,
+            authoredRunway: (ctx.GroundLayout ?? ctx.Aircraft.Ground.Layout)?.FindRunway(leadRunway.Designator)
         );
 
         // If the follower is already established on the downwind leg (track
@@ -415,7 +416,8 @@ public sealed class VfrFollowPhase : Phase
             finalDistanceNm: null,
             patternSizeNm: null,
             altitudeOverrideFt: null,
-            airportRunways: airportRunways
+            airportRunways: airportRunways,
+            authoredRunway: (ctx.GroundLayout ?? ctx.Aircraft.Ground.Layout)?.FindRunway(runway.Designator)
         );
 
         var phases = ctx.Aircraft.Phases ?? new PhaseList();

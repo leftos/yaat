@@ -2,6 +2,7 @@ using System.Text.RegularExpressions;
 using Microsoft.Extensions.Logging;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
+using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Simulation.Snapshots;
 
 namespace Yaat.Sim.Phases.Approach;
@@ -350,7 +351,11 @@ public sealed partial class InterceptCoursePhase : Phase
             return;
         }
 
-        double minIntercept = ApproachGateDatabase.GetMinInterceptDistanceNm(runway.AirportId, runway.Designator);
+        double minIntercept = ApproachGateDatabase.GetMinInterceptDistanceNm(
+            runway.AirportId,
+            runway.Designator,
+            LandingThreshold.DisplacementFt(runway, ctx.GroundLayout) / GeoMath.FeetPerNm
+        );
 
         if (captureDistNm < minIntercept)
         {

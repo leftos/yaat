@@ -50,7 +50,15 @@ public class GoAroundClimbOutTests
     }
 
     private static PatternWaypoints WaypointsFor(RunwayInfo runway, PatternDirection direction) =>
-        PatternGeometry.Compute(runway, AircraftCategory.Piston, direction, sizeOverrideNm: null, altitudeOverrideFt: null, airportRunways: null);
+        PatternGeometry.Compute(
+            runway,
+            AircraftCategory.Piston,
+            direction,
+            sizeOverrideNm: null,
+            altitudeOverrideFt: null,
+            airportRunways: null,
+            authoredRunway: null
+        );
 
     // ---- ResolvePatternIntent -------------------------------------------------------------
 

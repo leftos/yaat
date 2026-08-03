@@ -165,6 +165,10 @@ public static class ApproachCommandHandler
         {
             aircraft.Targets.NavigationRoute.Clear();
 
+            // The intercept's threshold is the landing threshold: its distance is scored against the
+            // approach gate, which the P/CG measures from there.
+            var interceptThreshold = LandingThreshold.Resolve(approachRunway, aircraft.Ground.Layout);
+
             if (cmd.CrossFixAltitude is { } interceptCxAlt && interceptCxAlt > 0)
             {
                 aircraft.Targets.TargetAltitude = interceptCxAlt;
@@ -175,8 +179,8 @@ public static class ApproachCommandHandler
                 new InterceptCoursePhase
                 {
                     FinalApproachCourse = finalCourse,
-                    ThresholdLat = approachRunway.ThresholdLatitude,
-                    ThresholdLon = approachRunway.ThresholdLongitude,
+                    ThresholdLat = interceptThreshold.Lat,
+                    ThresholdLon = interceptThreshold.Lon,
                     ApproachId = immClearance.ApproachId,
                     ForcedIntercept = cmd.Force,
                 }
@@ -433,12 +437,16 @@ public static class ApproachCommandHandler
         aircraft.Phases = new PhaseList { AssignedRunway = approachRunway, ActiveApproach = clearance };
         aircraft.Procedure.DestinationRunway = approachRunway.Designator;
 
+        // The intercept's threshold is the landing threshold: its distance is scored against the
+        // approach gate, which the P/CG measures from there.
+        var interceptThreshold = LandingThreshold.Resolve(approachRunway, aircraft.Ground.Layout);
+
         aircraft.Phases.Add(
             new InterceptCoursePhase
             {
                 FinalApproachCourse = finalCourse,
-                ThresholdLat = approachRunway.ThresholdLatitude,
-                ThresholdLon = approachRunway.ThresholdLongitude,
+                ThresholdLat = interceptThreshold.Lat,
+                ThresholdLon = interceptThreshold.Lon,
                 ApproachId = clearance.ApproachId,
                 ForcedIntercept = cmd.Forced,
             }
@@ -606,13 +614,18 @@ public static class ApproachCommandHandler
             var direction = cmd.TrafficDirection ?? DeterminePatternDirection(aircraft, approachRunway);
 
             double ifrPatternAltMsl = approachRunway.ElevationFt + IfrVisualDownwindAltAglFt;
+            // The authored size/altitude are deliberately bypassed above, but the threshold displacement
+            // is not an override — it is where the runway's landing surface starts, so the ground runway
+            // is still supplied for it.
+            var authoredRunway = (ctx.GroundLayout ?? aircraft.Ground.Layout)?.FindRunway(approachRunway.Designator);
             var waypoints = PatternGeometry.Compute(
                 approachRunway,
                 category,
                 direction,
                 sizeOverrideNm: null,
                 ifrPatternAltMsl,
-                airportRunways: null
+                airportRunways: null,
+                authoredRunway
             );
 
             var circuitPhases = PatternBuilder.BuildCircuit(
@@ -624,7 +637,8 @@ public static class ApproachCommandHandler
                 null,
                 patternSizeNm: null,
                 ifrPatternAltMsl,
-                airportRunways: null
+                airportRunways: null,
+                authoredRunway
             );
 
             // Check if the aircraft is already established on the downwind leg.

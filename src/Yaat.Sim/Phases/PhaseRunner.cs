@@ -139,9 +139,10 @@ public static class PhaseRunner
                 // otherwise an airborne pattern aircraft with no cached layout reverts to the category
                 // default TPA and flies a long, climb-bound upwind (issue #210).
                 var patternLayout = ctx.GroundLayout ?? ctx.Aircraft.Ground.Layout;
+                var authoredRunway = patternLayout?.FindRunway(runway.Designator);
                 var (sizeOv, altOv) = PatternGeometry.ResolveAuthoredOverrides(
                     runway,
-                    patternLayout?.FindRunway(runway.Designator),
+                    authoredRunway,
                     ctx.Aircraft.Pattern.SizeOverrideNm,
                     ctx.Aircraft.Pattern.AltitudeOverrideFt
                 );
@@ -149,7 +150,16 @@ public static class PhaseRunner
                 // (full-stop → next circuit ends in LandingPhase). After any other
                 // cycle terminator the aircraft was already cycling, so keep cycling with TG.
                 bool nextTouchAndGo = current is GoAroundPhase ga ? !ga.NextLandingFullStop : true;
-                var nextCircuit = PatternBuilder.BuildNextCircuit(runway, ctx.Category, dir, sizeOv, altOv, airportRunways, nextTouchAndGo);
+                var nextCircuit = PatternBuilder.BuildNextCircuit(
+                    runway,
+                    ctx.Category,
+                    dir,
+                    sizeOv,
+                    altOv,
+                    airportRunways,
+                    authoredRunway,
+                    nextTouchAndGo
+                );
                 phases.Phases.AddRange(nextCircuit);
 
                 // Consume the one-shot EXT pre-arm set by EXT during T/G or pre-T/G

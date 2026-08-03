@@ -102,6 +102,12 @@ public static class ConflictAlertDetector
         return corridors;
     }
 
+    /// <summary>
+    /// Deliberately anchored at the pavement threshold, not the landing threshold: the corridor is an
+    /// alert-suppression volume, and it has to cover the whole runway surface. Moving it downfield on a
+    /// displaced end would leave the pre-threshold pavement outside the corridor, where departures
+    /// legitimately roll (AIM 2-3-3.b.8.2) — and start alerting on them.
+    /// </summary>
     private static RunwayCorridor MakeCorridor(RunwayInfo rw, string endDesignator)
     {
         var oriented = rw.ForApproach(endDesignator);

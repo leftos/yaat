@@ -11,7 +11,10 @@ public static class RunwayIntersectionCalculator
 {
     /// <summary>
     /// Finds the centerline intersection between two directional <see cref="RunwayInfo"/> instances.
-    /// Distances are measured from each runway's active threshold.
+    /// Distances are measured from each runway's <em>pavement</em> threshold, deliberately: the only
+    /// consumer is same-runway/intersecting-runway separation, where the aircraft being measured is a
+    /// departure rolling from the pavement (7110.65 §3-9-6). <c>SoloTrainingEvaluator</c> compares these
+    /// against its pavement-datum along-track, so both sides stay on one datum.
     /// </summary>
     public static (double Lat, double Lon, double FirstDistFromThresholdNm, double SecondDistFromThresholdNm)? FindIntersection(
         RunwayInfo firstRunway,
@@ -124,15 +127,19 @@ public static class RunwayIntersectionCalculator
     }
 
     /// <summary>
-    /// Computes the hold-short distance from the landing runway threshold to
+    /// Computes the hold-short distance from the landing runway's landing threshold to
     /// the LAHSO hold-short point. The hold-short point is set back from the
     /// intersection by half the crossing runway width + 200ft RSA buffer.
+    ///
+    /// Measured from the landing threshold, not the pavement end, so it is the available landing
+    /// distance a LAHSO clearance actually offers (7110.65 §3-10-4) — and so it shares a datum with
+    /// the along-track distance <c>LandingPhase</c> compares it against.
     /// </summary>
     /// <param name="intersectionDistNm">Distance from landing runway start to intersection.</param>
     /// <param name="landingDesignator">Which end of the runway we're landing on.</param>
     /// <param name="landingRunway">The landing runway (for total length).</param>
     /// <param name="crossingRunwayWidthFt">Width of the crossing runway in feet.</param>
-    /// <returns>Distance from threshold to hold-short point in nautical miles.</returns>
+    /// <returns>Distance from the landing threshold to the hold-short point in nautical miles.</returns>
     public static double ComputeHoldShortDistanceNm(
         double intersectionDistNm,
         string landingDesignator,
@@ -171,7 +178,11 @@ public static class RunwayIntersectionCalculator
         double setbackFt = (crossingRunwayWidthFt / 2.0) + 200.0;
         double setbackNm = setbackFt / 6076.12;
 
-        return distFromThreshold - setbackNm;
+        // Coordinates are pavement ends; a displaced landing threshold starts the usable distance
+        // that much further down the runway.
+        double displacementNm = landingRunway.ThresholdDisplacementForEnd(landingDesignator) / GeoMath.FeetPerNm;
+
+        return distFromThreshold - setbackNm - displacementNm;
     }
 
     /// <summary>

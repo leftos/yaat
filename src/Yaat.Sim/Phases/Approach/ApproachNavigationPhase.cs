@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Yaat.Sim.Commands;
+using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Simulation.Snapshots;
 
@@ -155,7 +156,9 @@ public sealed class ApproachNavigationPhase : Phase
             return;
         }
 
-        double distNm = GeoMath.DistanceNm(ctx.Aircraft.Position, new LatLon(ctx.Runway.ThresholdLatitude, ctx.Runway.ThresholdLongitude));
+        // The continuous-descent floor is the same 3° path FinalApproachPhase will fly, so it shares
+        // that phase's datum: the landing threshold, not the pavement end.
+        double distNm = GeoMath.DistanceNm(ctx.Aircraft.Position, LandingThreshold.Resolve(ctx.Runway, ctx.GroundLayout));
         double gsAngleDeg = GlideSlopeGeometry.AngleForCategory(ctx.Category);
         double gsAltitude = GlideSlopeGeometry.AltitudeAtDistance(distNm, ctx.Runway.ElevationFt, gsAngleDeg);
 

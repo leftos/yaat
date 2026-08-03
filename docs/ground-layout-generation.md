@@ -66,11 +66,16 @@ The parser expects a GeoJSON FeatureCollection with features typed via `properti
 
 **JSON Preprocessing**: The parser strips leading zeros from numeric literals (e.g., `03` → `3`) using regex before parsing, handling invalid JSON that some GeoJSON sources produce.
 
-**Displaced thresholds**: A runway's `Coordinates` endpoints are always the **pavement** ends. The authored
-`threshold` displacement is kept separately on `GroundRunway.ThresholdDisplacementFtByEnd` and applied only
-by `GroundRunway.LandingThresholdForEnd`. Today the sole consumer is `AdwResolver` (the Ground View ADW
-marks) — runway rendering, `RunwayCrossingDetector`, and every landing/pattern/approach phase still anchor
-on undisplaced ends, so do not assume a "threshold" elsewhere in the codebase is the landing threshold.
+**Displaced thresholds**: A runway's `Coordinates` endpoints are always the **pavement** ends, and so are
+the `RunwayInfo.ThresholdLatitude`/`Longitude` the nav database builds from vNAS (probed against the shipped
+airport maps, they agree within ~5 ft). The authored `threshold` displacement is kept separately on
+`GroundRunway.ThresholdDisplacementFtByEnd`; `LandingThreshold.Resolve(runway, layout)` is what turns a
+`RunwayInfo` into its landing threshold. **Which datum a caller wants is a real decision** — see
+[`landing-and-runway-exit.md`](landing-and-runway-exit.md#displaced-thresholds-which-datum) for the table.
+Short version: arrivals (approach, flare, pattern abeam/base, approach gate, §3-10-3 landing spacing) use
+the landing threshold; departures and anything covering the physical surface (runway rendering,
+`RunwayCrossingDetector`, `TakeoffPhase`, `LineUpGeometry`, runway-intersection distances, the
+`ConflictAlertDetector` corridor) stay on the pavement end.
 
 ### Step 1: Parse Features
 

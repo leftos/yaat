@@ -18,7 +18,7 @@ public class PatternPhaseTests
     private static PatternWaypoints DefaultWaypoints(PatternDirection dir = PatternDirection.Left)
     {
         var rwy = DefaultRunway();
-        return PatternGeometry.Compute(rwy, AircraftCategory.Jet, dir, null, null, null);
+        return PatternGeometry.Compute(rwy, AircraftCategory.Jet, dir, null, null, null, authoredRunway: null);
     }
 
     private static AircraftState MakeAircraft(
@@ -606,7 +606,7 @@ public class PatternPhaseTests
     public void PatternGeometry_PatternAltitude_IsFieldPlusAgl()
     {
         var rwy = DefaultRunway(100);
-        var wp = PatternGeometry.Compute(rwy, AircraftCategory.Jet, PatternDirection.Left, null, null, null);
+        var wp = PatternGeometry.Compute(rwy, AircraftCategory.Jet, PatternDirection.Left, null, null, null, authoredRunway: null);
 
         double expectedAgl = CategoryPerformance.PatternAltitudeAgl(AircraftCategory.Jet);
         Assert.Equal(100.0 + expectedAgl, wp.PatternAltitude, precision: 0);

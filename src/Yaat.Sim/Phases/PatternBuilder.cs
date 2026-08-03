@@ -1,3 +1,4 @@
+using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases.Pattern;
 using Yaat.Sim.Phases.Tower;
 
@@ -34,10 +35,11 @@ public static class PatternBuilder
         double? finalDistanceNm,
         double? patternSizeNm,
         double? altitudeOverrideFt,
-        IReadOnlyList<RunwayInfo>? airportRunways
+        IReadOnlyList<RunwayInfo>? airportRunways,
+        GroundRunway? authoredRunway
     )
     {
-        var waypoints = PatternGeometry.Compute(runway, category, direction, patternSizeNm, altitudeOverrideFt, airportRunways);
+        var waypoints = PatternGeometry.Compute(runway, category, direction, patternSizeNm, altitudeOverrideFt, airportRunways, authoredRunway);
         var phases = new List<Phase>();
 
         switch (entryLeg)
@@ -92,10 +94,11 @@ public static class PatternBuilder
         int cruiseAltitude,
         double? patternSizeNm,
         double? altitudeOverrideFt,
-        IReadOnlyList<RunwayInfo>? airportRunways
+        IReadOnlyList<RunwayInfo>? airportRunways,
+        GroundRunway? authoredRunway
     )
     {
-        var waypoints = PatternGeometry.Compute(runway, category, direction, patternSizeNm, altitudeOverrideFt, airportRunways);
+        var waypoints = PatternGeometry.Compute(runway, category, direction, patternSizeNm, altitudeOverrideFt, airportRunways, authoredRunway);
 
         // Altitude resolution (COMMANDS.md, CTO Departure Modifiers): an assigned altitude wins; else
         // the filed cruise altitude; else pattern altitude. A VFR departure without a filed cruise still
@@ -145,10 +148,22 @@ public static class PatternBuilder
         double? patternSizeNm,
         double? altitudeOverrideFt,
         IReadOnlyList<RunwayInfo>? airportRunways,
+        GroundRunway? authoredRunway,
         bool touchAndGo
     )
     {
-        return BuildCircuit(runway, category, direction, PatternEntryLeg.Upwind, touchAndGo, null, patternSizeNm, altitudeOverrideFt, airportRunways);
+        return BuildCircuit(
+            runway,
+            category,
+            direction,
+            PatternEntryLeg.Upwind,
+            touchAndGo,
+            null,
+            patternSizeNm,
+            altitudeOverrideFt,
+            airportRunways,
+            authoredRunway
+        );
     }
 
     /// <summary>
@@ -171,11 +186,29 @@ public static class PatternBuilder
         bool touchAndGo,
         double? patternSizeNm,
         double? altitudeOverrideFt,
-        IReadOnlyList<RunwayInfo>? airportRunways
+        IReadOnlyList<RunwayInfo>? airportRunways,
+        GroundRunway? departureAuthoredRunway,
+        GroundRunway? patternAuthoredRunway
     )
     {
-        var departureWaypoints = PatternGeometry.Compute(departureRunway, category, direction, patternSizeNm, altitudeOverrideFt, airportRunways);
-        var patternWaypoints = PatternGeometry.Compute(patternRunway, category, direction, patternSizeNm, altitudeOverrideFt, airportRunways);
+        var departureWaypoints = PatternGeometry.Compute(
+            departureRunway,
+            category,
+            direction,
+            patternSizeNm,
+            altitudeOverrideFt,
+            airportRunways,
+            departureAuthoredRunway
+        );
+        var patternWaypoints = PatternGeometry.Compute(
+            patternRunway,
+            category,
+            direction,
+            patternSizeNm,
+            altitudeOverrideFt,
+            airportRunways,
+            patternAuthoredRunway
+        );
 
         var phases = new List<Phase>
         {

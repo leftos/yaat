@@ -122,7 +122,8 @@ public class FinalApproachLateralTests
             PatternDirection.Left,
             null,
             null,
-            null
+            null,
+            authoredRunway: null
         );
 
         var r = RunScenario(
@@ -149,7 +150,8 @@ public class FinalApproachLateralTests
             PatternDirection.Left,
             null,
             null,
-            null
+            null,
+            authoredRunway: null
         );
 
         var r = RunScenario(
@@ -176,7 +178,8 @@ public class FinalApproachLateralTests
             PatternDirection.Right,
             null,
             null,
-            null
+            null,
+            authoredRunway: null
         );
 
         var r = RunScenario(

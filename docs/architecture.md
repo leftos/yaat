@@ -628,7 +628,7 @@ Phases/RolloutBraking.cs       # Braking kinematics + firm-rate/turn-off-toleran
 Phases/ClearanceType.cs        # Enum: LineUpAndWait, ClearedForTakeoff/Land/Option/TouchAndGo/StopAndGo, RunwayCrossing
 Phases/RunwayInfo.cs           # Runway geometry
 Phases/GlideSlopeGeometry.cs   # Altitude/descent rate calculations (3° default)
-Phases/PatternGeometry.cs      # 7 pattern waypoints from RunwayInfo + category + direction
+Phases/PatternGeometry.cs      # 7 pattern waypoints from RunwayInfo + category + direction + the authored GroundRunway (required param). The arrival legs (Threshold, downwind abeam, base turn) hang off LandingThreshold.Resolve; DepartureEnd/CrosswindTurn stay on the pavement end per AIM 4-3-2.
 Phases/PatternBuilder.cs       # BuildCircuit, BuildNextCircuit, BuildCrossRunwayDepartureCircuit, BuildPatternExitCircuit (CTO MRC/MRD pattern-exit departures: upwind[→crosswind]→PatternExitPhase, no landing tail), UpdateWaypoints
 Phases/PhaseClearSummary.cs    # Builds short label ("pattern to RWY 28R", "approach to RWY 28R", or phase Name) for the cancellation warning surfaced when a command clears the active phase chain
 
@@ -737,6 +737,7 @@ Data/AirportSidecarDefinition.cs / AirportSidecarLoader.cs / AirportSidecarCatal
 Data/OneWayConstraintDefinition.cs # One-way taxiway + blocked-turn DTOs (coordinate-polyline form: ordered [lon,lat] path. OneWay: path = allowed direction; block reverse|both. BlockedTurn: >=3-point L-shape through an intersection apex, always bidirectional/hard).
 Data/Airport/Pathfinding/PolylineSnapper.cs # Shared snap-to-node + connected-span trace (direct edge / taxiway-restricted BFS) for the coordinate-polyline sidecar constructs; used by OneWayResolver and BlockedTurnResolver.
 Data/Airport/Pathfinding/OneWayResolver.cs / OneWayMode.cs # Resolves oneWayEdges against a layout into a forbidden directed-move set (ConditionalWeakTable per-layout cache). SearchContext.IsForbiddenMove gates AutoRouter (HardExclude, auto routes) ; RouteMaterialiser emits a wrong-way warning (Warn, explicit routes + the auto two-pass fallback in TaxiPathfinder.RunWithAvoidance).
+Data/Airport/LandingThreshold.cs # Resolve(RunwayInfo, AirportGroundLayout? | GroundRunway?) -> the end's LANDING threshold: the pavement threshold projected downfield by the airport map's `threshold` displacement, along RunwayInfo's own course (so it stays on the centerline every along/cross-track calc uses). Falls back to the pavement threshold with no layout, which is what pre-existing replays depend on. Arrival-side callers (FinalApproachPhase, LandingPhase, LowApproachPhase, ApproachNavigationPhase, InterceptCoursePhase, PatternGeometry, ApproachGateDatabase, SoloTrainingEvaluator) go through it; departure/surface callers deliberately do not. Datum table: landing-and-runway-exit.md.
 Data/Airport/AdwResolver.cs    # Resolves the adw sidecar section against a layout (per-layout cached, same shape as BlockedTurnResolver) into AdwMark line segments: an Outer and an Inner tick per window, laid perpendicular to the arrival runway's final approach course at the published ranges from its landing threshold (positive = outbound on final, negative = past the threshold, down the runway). DtoConverter -> GroundLayoutDto.AdwMarks -> GroundRenderer.DrawAdwMarks. Display-only; no simulation behavior reads it. See ground-rendering.md.
 Data/Airport/Pathfinding/BlockedTurnResolver.cs # Resolves blockedTurns against a layout (per-layout cached) into forbidden pivot turn-triples (prev,apex,next), forbidden bypass-arc moves, and hidden corner-arc pairs. Gated hard in AutoRouter + SegmentExpander (SearchContext.IsBlockedTurn / IsBlockedArcMove, both AUTO and explicit). HiddenArcPairs -> GroundArcDto.HiddenInGroundView (DtoConverter) -> GroundRenderer omits the arc.
 Data/InitialContactTransferRule.cs / InitialContactTransferLoader.cs / InitialContactTransferCatalog.cs
@@ -759,7 +760,7 @@ Data/ARTCCs/{ARTCC}/SurfaceTempData/{FACILITY}.json # Committed ASDE-X / SAAB SA
 Data/ARTCCs/ZOA/Procedures/koak-nimi.cifp # Pinned KOAK NIMITZ SID (NIMI5): charted and flown, but dropped from the FAA CIFP at cycle 2605. Carries the published 315 deg initial turn that the ~12-month prior-cycle chain would otherwise lose.
 Data/FrdResolver.cs            # Fix-Radial-Distance ↔ lat/lon; IsFrdIdentifier gates FRD-named fixes
 Data/LatLonParser.cs           # ERAM DDMM/DDDMM lat-long strings (//4220N/7110W) → lat/lon (CRR group locations)
-Data/ApproachGateDatabase.cs   # Static: min intercept distances from CIFP (§5-9-1)
+Data/ApproachGateDatabase.cs   # Static: FAF->pavement-threshold distances from CIFP; GetMinInterceptDistanceNm(airport, runway, thresholdDisplacementNm) finishes the §5-9-1 gate on the LANDING datum (P/CG: 1 nm outside the FAF, never closer than 5 nm to the landing threshold). Built at startup before any airport map exists, hence the read-time displacement.
 Data/VideoMapMetadata.cs       # Video map metadata model
 Data/VideoMapData.cs           # Video map data structures (lines, labels, filters)
 Data/VideoMapParser.cs         # GeoJSON → VideoMapData
@@ -769,7 +770,7 @@ Data/HttpFileCache.cs          # Shared vNAS download→disk cache: AlwaysRefetc
 IAirportGroundData.cs          # Interface: GetLayout(airportId) + GetSourceGeoJson(airportId)
 AirportLayoutDownloader.cs     # Fetches airport ground GeoJSON from vNAS training API; caches under %LOCALAPPDATA%/yaat/cache/airports/
 AirportGroundLayout.cs         # Graph: IGroundEdge interface, GroundNode, GroundEdge (straight), GroundArc (bezier fillet arc: P1/P2 control points + MinRadiusOfCurvatureFt), DirectionalEdge (traversal direction)
-                               # GroundRunway.ThresholdDisplacementForEnd / LandingThresholdForEnd expose the vNAS map's per-end `threshold` displacement (Coordinates endpoints are *pavement* ends). Read only by AdwResolver today — landing/pattern/approach geometry still anchors on RunwayInfo's undisplaced threshold.
+                               # GroundRunway.ThresholdDisplacementForEnd / LandingThresholdForEnd expose the vNAS map's per-end `threshold` displacement (Coordinates endpoints are *pavement* ends, and so are RunwayInfo's). Read by AdwResolver and by Data/Airport/LandingThreshold.cs.
                                # AllEdges (Edges+Arcs), FindAdjacentHoldShort (BFS, max 12 hops; returns Side), FindExitFromCenterline (walk centerlines, returns side+walk node), FindOnSidePreferredExit (lookahead: defer off-side, prefer later on-side), FindExitPath, FindNearestHoldShortAhead, FindExitAheadOnRunway, ComputeExitAngle
 CubicBezier.cs                 # Bezier math utilities; used by FilletArcGenerator (arc generation) and GroundNavigator (path following)
 IFilletArcGenerator.cs         # Pluggable fillet contract; None + Standard implementations; FilletMode on GeoJsonParser.Parse
@@ -804,7 +805,7 @@ TaxiwayGraphBuilder.cs         # Graph construction from GeoJSON nodes/edges
 GeoJsonParser.cs               # GeoJSON→layout; DetectRunwayCrossings via SplitEdgeAtNode
 CoordinateIndex.cs             # Spatial index for coordinate-based lookups
 RunwayCrossingDetector.cs      # Detect taxiway/runway crossings; seat hold-short bars at the constant perpendicular standoff (geojson holdShortDistance, else AC 150/5300-13B width heuristic) — see docs/ground/hold-short-placement.md
-RunwayIntersectionCalculator.cs # Runway centerline/projected-path intersections for LAHSO and solo-training runway scoring
+RunwayIntersectionCalculator.cs # Runway centerline/projected-path intersections for LAHSO and solo-training runway scoring. Reported distances are on the PAVEMENT datum (their consumers are departures rolling from it); ComputeHoldShortDistanceNm is the exception and subtracts the displacement, so a LAHSO distance is an available landing distance.
 RunwayEntryPoint.cs            # Classify a runway hold short as full-length vs intersection departure for a given end: nearest hold short (along-track on the pavement centerline) is full length, plus an OPPOSITE-side one within OppositeSideBandFt or on the same taxiway (one entrance reachable from both sides); SAME-side extras are always named intersections. Display only, feeds RunwayDepartureQueue
 HoldShortAnnotator.cs          # Annotate hold-short points on taxi routes; ComputeHoldShortPositions offsets taxiway HS by fuselage length. Owns RouteCrossesRunwayAfterStart, the shared "is the route's start bar the entry side of a crossing it makes" predicate — RouteMaterialiser.AnnotateStartCrossing uses the same one so the two annotators cannot drift (see docs/ground/pathfinder.md)
 

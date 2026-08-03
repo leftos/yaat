@@ -232,7 +232,7 @@ public sealed class TrafficAdvisoryMatcherTests
     }
 
     private static BasePhase MakeBasePhase(RunwayInfo runway, PatternDirection side) =>
-        new() { Waypoints = PatternGeometry.Compute(runway, AircraftCategory.Piston, side, null, null, null) };
+        new() { Waypoints = PatternGeometry.Compute(runway, AircraftCategory.Piston, side, null, null, null, authoredRunway: null) };
 
     private static AircraftState PatternCandidate(string callsign, RunwayInfo runway, Phase phase, double distanceNm)
     {

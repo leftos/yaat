@@ -1022,6 +1022,74 @@ public sealed class SoloTrainingEvaluatorTests
         Assert.Empty(report.Timeline);
     }
 
+    /// <summary>
+    /// 7110.65 §3-10-3(a)(1) states its distance exception as "the following minimum distance from the
+    /// <em>landing threshold</em>". On a displaced runway a preceding arrival 3,500 ft past the pavement
+    /// has only used 1,500 ft of landable runway, so the 3,000 ft Category I exception must not apply —
+    /// the same geometry that clears without a displacement has to violate with one (issue #324).
+    /// </summary>
+    [Fact]
+    public void Evaluate_ArrivalBehindLandedAircraft_DisplacedThreshold_MeasuresFromTheLandingThreshold()
+    {
+        var runway = CreateRunway();
+        var layout = DisplacedLayout(runway, "28R", displacementFt: 2000);
+        var evaluator = new SoloTrainingEvaluator();
+
+        var lead = CreateAircraft("N111AA", "C172", flightRules: "VFR", PositionOnRunway(runway, 3500), altitude: 10, isOnGround: true);
+        lead.Ground.Layout = layout;
+        SetPhase(lead, runway, new LandingPhase());
+        var follower = CreateAircraft("N222BB", "C172", flightRules: "VFR", PositionOnRunway(runway, -500), altitude: 100, isOnGround: false);
+        follower.Ground.Layout = layout;
+        SetPhase(follower, runway, new FinalApproachPhase());
+        evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 40, AirspaceDatabase.Default);
+
+        follower.Position = PositionOnRunway(runway, 2100); // 100 ft past the displaced landing threshold
+        SetPhase(follower, runway, new LandingPhase());
+
+        var notices = evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 41, AirspaceDatabase.Default);
+
+        var notice = Assert.Single(notices, e => e.Category == SoloTrainingEventCategory.RunwayWake);
+        Assert.Contains("7110.65 §3-10-3(a)(1)", notice.RuleReference);
+        Assert.Contains("3,000 ft", notice.RequiredText);
+    }
+
+    /// <summary>
+    /// The same geometry without the displacement clears, which is what makes the test above a datum
+    /// test rather than a distance test.
+    /// </summary>
+    [Fact]
+    public void Evaluate_ArrivalBehindLandedAircraft_NoDisplacement_StillClearsAtTheSameGeometry()
+    {
+        var runway = CreateRunway();
+        var evaluator = new SoloTrainingEvaluator();
+
+        var lead = CreateAircraft("N111AA", "C172", flightRules: "VFR", PositionOnRunway(runway, 3500), altitude: 10, isOnGround: true);
+        SetPhase(lead, runway, new LandingPhase());
+        var follower = CreateAircraft("N222BB", "C172", flightRules: "VFR", PositionOnRunway(runway, -500), altitude: 100, isOnGround: false);
+        SetPhase(follower, runway, new FinalApproachPhase());
+        evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 40, AirspaceDatabase.Default);
+
+        follower.Position = PositionOnRunway(runway, 2100);
+        SetPhase(follower, runway, new LandingPhase());
+
+        Assert.Empty(evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 41, AirspaceDatabase.Default));
+    }
+
+    private static AirportGroundLayout DisplacedLayout(RunwayInfo runway, string designator, double displacementFt)
+    {
+        var layout = new AirportGroundLayout { AirportId = runway.AirportId };
+        layout.Runways.Add(
+            new GroundRunway
+            {
+                Name = $"{runway.Id.End1}/{runway.Id.End2}",
+                Coordinates = [(runway.Lat1, runway.Lon1), (runway.Lat2, runway.Lon2)],
+                WidthFt = runway.WidthFt,
+                ThresholdDisplacementFtByEnd = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase) { [designator] = displacementFt },
+            }
+        );
+        return layout;
+    }
+
     [Fact]
     public void Evaluate_SameRunwayViolation_DedupesAcrossRepeatedTicks()
     {

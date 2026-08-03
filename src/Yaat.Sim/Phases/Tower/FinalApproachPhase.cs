@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
+using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Pilot;
 using Yaat.Sim.Simulation.Snapshots;
 
@@ -368,8 +369,12 @@ public sealed class FinalApproachPhase : Phase
 
         Pattern.PatternReportHelper.EmitTurningLeg(ctx, ReportTrigger.Final);
 
-        _thresholdLat = ctx.Runway.ThresholdLatitude;
-        _thresholdLon = ctx.Runway.ThresholdLongitude;
+        // Fly the approach to the landing threshold, not the pavement end: on a displaced end the
+        // glidepath has to reach the surface where landings may begin (AIM 2-3-3.b.8.2). Falls back to
+        // the pavement threshold when no airport map is loaded.
+        var threshold = LandingThreshold.Resolve(ctx.Runway, ctx.GroundLayout);
+        _thresholdLat = threshold.Lat;
+        _thresholdLon = threshold.Lon;
         _thresholdElevation = ctx.Runway.ElevationFt;
         _runwayHeading = ctx.Runway.TrueHeading;
 
@@ -537,15 +542,16 @@ public sealed class FinalApproachPhase : Phase
     /// threshold + centerline. The cross-track correction in OnTick converges the
     /// aircraft onto the new centerline.
     /// </summary>
-    internal void RetargetRunway(RunwayInfo newRunway, double gsAngleDeg)
+    internal void RetargetRunway(RunwayInfo newRunway, AirportGroundLayout? groundLayout, double gsAngleDeg)
     {
-        _thresholdLat = newRunway.ThresholdLatitude;
-        _thresholdLon = newRunway.ThresholdLongitude;
+        var threshold = LandingThreshold.Resolve(newRunway, groundLayout);
+        _thresholdLat = threshold.Lat;
+        _thresholdLon = threshold.Lon;
         _thresholdElevation = newRunway.ElevationFt;
         _runwayHeading = newRunway.TrueHeading;
         _finalApproachCourse = newRunway.TrueHeading;
-        _anchorLat = newRunway.ThresholdLatitude;
-        _anchorLon = newRunway.ThresholdLongitude;
+        _anchorLat = threshold.Lat;
+        _anchorLon = threshold.Lon;
         _gsAngleDeg = gsAngleDeg;
     }
 
@@ -1290,7 +1296,11 @@ public sealed class FinalApproachPhase : Phase
         bool notVectoredToFac =
             interceptClearance is null || _isPatternTraffic || interceptClearance.ApproachId.StartsWith("VIS", StringComparison.Ordinal);
 
-        double minIntercept = ApproachGateDatabase.GetMinInterceptDistanceNm(ctx.Runway.AirportId, ctx.Runway.Designator);
+        double minIntercept = ApproachGateDatabase.GetMinInterceptDistanceNm(
+            ctx.Runway.AirportId,
+            ctx.Runway.Designator,
+            LandingThreshold.DisplacementFt(ctx.Runway, ctx.GroundLayout) / GeoMath.FeetPerNm
+        );
 
         // Use the capture angle (recorded at the actual intercept moment) when available.
         // At establishment time the aircraft is already aligned (< 15°), making the current

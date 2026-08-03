@@ -607,7 +607,8 @@ public class VfrFollowPhaseTests : IDisposable
             PatternDirection.Left,
             sizeOverrideNm: null,
             altitudeOverrideFt: null,
-            airportRunways: [runway]
+            airportRunways: [runway],
+            authoredRunway: null
         );
 
         // Place follower 20 nm east of the runway threshold
@@ -645,7 +646,8 @@ public class VfrFollowPhaseTests : IDisposable
             PatternDirection.Left,
             sizeOverrideNm: null,
             altitudeOverrideFt: null,
-            airportRunways: [runway]
+            airportRunways: [runway],
+            authoredRunway: null
         );
 
         // Place follower 1 nm further south of the downwind abeam point — within
@@ -692,7 +694,8 @@ public class VfrFollowPhaseTests : IDisposable
             PatternDirection.Left,
             sizeOverrideNm: null,
             altitudeOverrideFt: null,
-            airportRunways: [runway]
+            airportRunways: [runway],
+            authoredRunway: null
         );
 
         // Left pattern for runway 28 → downwind is south of the runway.
@@ -789,7 +792,8 @@ public class VfrFollowPhaseTests : IDisposable
             PatternDirection.Left,
             sizeOverrideNm: null,
             altitudeOverrideFt: null,
-            airportRunways: [runway]
+            airportRunways: [runway],
+            authoredRunway: null
         );
 
         // Place follower 0.5 nm past the abeam point along the downwind heading
@@ -857,7 +861,8 @@ public class VfrFollowPhaseTests : IDisposable
             PatternDirection.Left,
             sizeOverrideNm: null,
             altitudeOverrideFt: null,
-            airportRunways: [runway]
+            airportRunways: [runway],
+            authoredRunway: null
         );
 
         var followerPos = GeoMath.ProjectPoint(waypoints.DownwindAbeamLat, waypoints.DownwindAbeamLon, waypoints.DownwindHeading, 0.5);

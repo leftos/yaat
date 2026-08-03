@@ -150,7 +150,7 @@ internal static class PatternCommandHandler
             {
                 return new CommandResult(false, "Unable, too low for sidestep");
             }
-            return ApplySidestep(aircraft, finalApproach, runway, category);
+            return ApplySidestep(aircraft, finalApproach, runway, groundLayout ?? aircraft.Ground.Layout, category);
         }
 
         // EF to the runway the aircraft is already established on final for, when it is
@@ -212,7 +212,15 @@ internal static class PatternCommandHandler
                     aircraft.Pattern.SizeOverrideNm,
                     aircraft.Pattern.AltitudeOverrideFt
                 );
-                waypoints = PatternGeometry.Compute(runway, category, direction, sizeOv, altOv, airportRunways);
+                waypoints = PatternGeometry.Compute(
+                    runway,
+                    category,
+                    direction,
+                    sizeOv,
+                    altOv,
+                    airportRunways,
+                    AuthoredRunway(aircraft, groundLayout, runway)
+                );
             }
         }
 
@@ -235,7 +243,15 @@ internal static class PatternCommandHandler
                 aircraft.Pattern.SizeOverrideNm,
                 aircraft.Pattern.AltitudeOverrideFt
             );
-            waypoints ??= PatternGeometry.Compute(runway, category, direction, sizeOvCi, altOvCi, airportRunwaysCi);
+            waypoints ??= PatternGeometry.Compute(
+                runway,
+                category,
+                direction,
+                sizeOvCi,
+                altOvCi,
+                airportRunwaysCi,
+                AuthoredRunway(aircraft, groundLayout, runway)
+            );
 
             TrueHeading reciprocalCi = waypoints.FinalHeading.ToReciprocal();
             double alongTrackOutboundCi = GeoMath.AlongTrackDistanceNm(
@@ -314,7 +330,15 @@ internal static class PatternCommandHandler
                 aircraft.Pattern.SizeOverrideNm,
                 aircraft.Pattern.AltitudeOverrideFt
             );
-            waypoints ??= PatternGeometry.Compute(runway, category, direction, sizeOvAa, altOvAa, airportRunwaysAa);
+            waypoints ??= PatternGeometry.Compute(
+                runway,
+                category,
+                direction,
+                sizeOvAa,
+                altOvAa,
+                airportRunwaysAa,
+                AuthoredRunway(aircraft, groundLayout, runway)
+            );
 
             double alongTrackOutboundAa = GeoMath.AlongTrackDistanceNm(
                 aircraft.Position,
@@ -406,7 +430,15 @@ internal static class PatternCommandHandler
                 aircraft.Pattern.SizeOverrideNm,
                 aircraft.Pattern.AltitudeOverrideFt
             );
-            waypoints ??= PatternGeometry.Compute(runway, category, direction, sizeOv, altOv, airportRunways);
+            waypoints ??= PatternGeometry.Compute(
+                runway,
+                category,
+                direction,
+                sizeOv,
+                altOv,
+                airportRunways,
+                AuthoredRunway(aircraft, groundLayout, runway)
+            );
             var (eLat, eLon) = GetEntryPoint(waypoints, PatternEntryLeg.Final, finalDistanceNm, category);
 
             double bearingToEntry = GeoMath.BearingTo(aircraft.Position, new LatLon(eLat, eLon));
@@ -591,7 +623,15 @@ internal static class PatternCommandHandler
                 aircraft.Pattern.SizeOverrideNm,
                 aircraft.Pattern.AltitudeOverrideFt
             );
-            waypoints ??= PatternGeometry.Compute(runway, category, direction, sizeOv, altOv, airportRunways);
+            waypoints ??= PatternGeometry.Compute(
+                runway,
+                category,
+                direction,
+                sizeOv,
+                altOv,
+                airportRunways,
+                AuthoredRunway(aircraft, groundLayout, runway)
+            );
         }
 
         // ERB/ELB without a distance argument: derive FinalDistanceNm from the
@@ -665,7 +705,8 @@ internal static class PatternCommandHandler
             effectiveFinalDistanceNm,
             circuitSizeOv,
             circuitAltOv,
-            NavigationDatabase.Instance.GetRunways(runway.AirportId)
+            NavigationDatabase.Instance.GetRunways(runway.AirportId),
+            AuthoredRunway(aircraft, groundLayout, runway)
         );
 
         var phases = new PhaseList { AssignedRunway = runway, ActiveApproach = BuildVisualClearanceForIfr(aircraft, runway) };
@@ -843,7 +884,15 @@ internal static class PatternCommandHandler
             aircraft.Pattern.SizeOverrideNm,
             aircraft.Pattern.AltitudeOverrideFt
         );
-        var waypoints = PatternGeometry.Compute(runway, category, newDirection, sizeOv, altOv, airportRunways);
+        var waypoints = PatternGeometry.Compute(
+            runway,
+            category,
+            newDirection,
+            sizeOv,
+            altOv,
+            airportRunways,
+            AuthoredRunway(aircraft, groundLayout, runway)
+        );
 
         // Set traffic direction — aircraft is now in pattern mode. Stamp both the
         // transient PhaseList field (current circuit) and the persistent
@@ -907,7 +956,8 @@ internal static class PatternCommandHandler
                         finalDistanceNm: null,
                         sizeOv,
                         altOv,
-                        airportRunways
+                        airportRunways,
+                        AuthoredRunway(aircraft, groundLayout, runway)
                     )
                 );
                 // The crossing can drop the aircraft inside the computed downwind track; re-intercept it.
@@ -931,7 +981,8 @@ internal static class PatternCommandHandler
                         finalDistanceNm: null,
                         sizeOv,
                         altOv,
-                        airportRunways
+                        airportRunways,
+                        AuthoredRunway(aircraft, groundLayout, runway)
                     )
                 );
             }
@@ -968,7 +1019,8 @@ internal static class PatternCommandHandler
                 null,
                 sizeOv,
                 altOv,
-                airportRunways
+                airportRunways,
+                AuthoredRunway(aircraft, groundLayout, runway)
             );
             aircraft.Phases.InsertAfterCurrent(circuit);
         }
@@ -1439,7 +1491,8 @@ internal static class PatternCommandHandler
             finalDistanceNm: null,
             sizeOv,
             altOv,
-            NavigationDatabase.Instance.GetRunways(runway.AirportId)
+            NavigationDatabase.Instance.GetRunways(runway.AirportId),
+            AuthoredRunway(aircraft, groundLayout, runway)
         );
 
         // Mark the first phase of the new circuit as extended so the aircraft holds
@@ -1863,7 +1916,15 @@ internal static class PatternCommandHandler
                 sizeNm,
                 aircraft.Pattern.AltitudeOverrideFt
             );
-            var waypoints = PatternGeometry.Compute(runway, category, direction, sizeOv, altOv, airportRunways);
+            var waypoints = PatternGeometry.Compute(
+                runway,
+                category,
+                direction,
+                sizeOv,
+                altOv,
+                airportRunways,
+                AuthoredRunway(aircraft, groundLayout, runway)
+            );
             PatternBuilder.UpdateWaypoints(aircraft.Phases, waypoints);
         }
 
@@ -2535,7 +2596,15 @@ internal static class PatternCommandHandler
             aircraft.Pattern.SizeOverrideNm,
             aircraft.Pattern.AltitudeOverrideFt
         );
-        waypoints ??= PatternGeometry.Compute(runway, category, direction, sizeOv, altOv, airportRunways);
+        waypoints ??= PatternGeometry.Compute(
+            runway,
+            category,
+            direction,
+            sizeOv,
+            altOv,
+            airportRunways,
+            AuthoredRunway(aircraft, groundLayout, runway)
+        );
 
         var threshold = new LatLon(waypoints.ThresholdLat, waypoints.ThresholdLon);
         double alongTrackNm = GeoMath.AlongTrackDistanceNm(aircraft.Position, threshold, waypoints.FinalHeading.ToReciprocal());
@@ -2568,7 +2637,15 @@ internal static class PatternCommandHandler
         // aircraft north of the 28L centerline is on a RIGHT base for 28L; building a left base
         // there would be a wrong-side base.
         var side = rightOffsetNm >= 0 ? PatternDirection.Right : PatternDirection.Left;
-        var retargetWaypoints = PatternGeometry.Compute(runway, category, side, sizeOv, altOv, airportRunways);
+        var retargetWaypoints = PatternGeometry.Compute(
+            runway,
+            category,
+            side,
+            sizeOv,
+            altOv,
+            airportRunways,
+            AuthoredRunway(aircraft, groundLayout, runway)
+        );
 
         Log.LogDebug(
             "[EF-Retarget] {Callsign}: alongTrack={Along:F2}nm rightOffset={Cross:F2}nm angleOffFinal={AngleFinal:F0}° angleOffOutbound={AngleOut:F0}° side={Side}",
@@ -2696,6 +2773,14 @@ internal static class PatternCommandHandler
     }
 
     /// <summary>
+    /// The airport map's entry for <paramref name="runway"/>, carrying its authored pattern size /
+    /// altitude and threshold displacement. Production dispatch passes <c>ctx.GroundLayout</c>; the
+    /// per-aircraft layout is the fallback for direct callers (issue #210).
+    /// </summary>
+    private static GroundRunway? AuthoredRunway(AircraftState aircraft, AirportGroundLayout? groundLayout, RunwayInfo runway) =>
+        (groundLayout ?? aircraft.Ground.Layout)?.FindRunway(runway.Designator);
+
+    /// <summary>
     /// Apply a parallel-runway sidestep on an active FinalApproachPhase: retarget the
     /// running phase to the new runway, transfer any landing clearance, and replace any
     /// active instrument approach (it doesn't apply to the parallel runway) with a visual
@@ -2707,6 +2792,7 @@ internal static class PatternCommandHandler
         AircraftState aircraft,
         FinalApproachPhase finalApproach,
         RunwayInfo newRunway,
+        AirportGroundLayout? groundLayout,
         AircraftCategory category
     )
     {
@@ -2716,7 +2802,7 @@ internal static class PatternCommandHandler
         {
             phases.ClearedRunwayId = newRunway.Designator;
         }
-        finalApproach.RetargetRunway(newRunway, GlideSlopeGeometry.AngleForCategory(category));
+        finalApproach.RetargetRunway(newRunway, groundLayout, GlideSlopeGeometry.AngleForCategory(category));
         return CommandDispatcher.Ok($"Sidestep, runway {RunwayIdentifier.ToDisplayDesignator(newRunway.Designator)}");
     }
 
@@ -3141,7 +3227,8 @@ internal static class PatternCommandHandler
             RetargetFinalGateNm,
             sizeOvB,
             altOvB,
-            airportRunwaysB
+            airportRunwaysB,
+            AuthoredRunway(aircraft, groundLayout, runwayB)
         );
 
         var bTail = new List<Phase> { patternEntryB };
@@ -3294,8 +3381,9 @@ internal static class PatternCommandHandler
             );
         }
 
-        // Compute the hold-short lat/lon on the landing runway centerline
-        var holdShortPoint = GeoMath.ProjectPoint(runway.ThresholdLatitude, runway.ThresholdLongitude, runway.TrueHeading, holdShortDistNm);
+        // Compute the hold-short lat/lon on the landing runway centerline. Anchored at the landing
+        // threshold, matching the datum ComputeHoldShortDistanceNm measured from.
+        var holdShortPoint = GeoMath.ProjectPoint(LandingThreshold.Resolve(runway, groundLayout), runway.TrueHeading, holdShortDistNm);
 
         if (!CommandDispatcher.ReplaceApproachEnding(aircraft.Phases, new LandingPhase()))
         {

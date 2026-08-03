@@ -274,7 +274,8 @@ public class SaArmedForDownwindTests(ITestOutputHelper output)
             finalDistanceNm: null,
             patternSizeNm: null,
             altitudeOverrideFt: null,
-            airportRunways: null
+            airportRunways: null,
+            authoredRunway: null
         );
         foreach (var p in phases)
         {

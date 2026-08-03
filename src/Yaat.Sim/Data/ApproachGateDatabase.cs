@@ -5,10 +5,15 @@ using Yaat.Sim.Phases;
 namespace Yaat.Sim.Data;
 
 /// <summary>
-/// Precomputed minimum intercept distances per (airport, runway)
-/// based on FAA 7110.65 §5-9-1 approach gate concept:
+/// Precomputed FAF-to-threshold distances per (airport, runway), from which the FAA 7110.65 §5-9-1
+/// approach gate follows:
 ///   approach gate = max(FAF_distance + 1nm, 5nm)
 ///   min intercept = approach gate + 2nm
+///
+/// The P/CG defines the gate's 5 nm floor against the <em>landing</em> threshold, and the phases that
+/// consume this measure the aircraft's distance to the same point — but the table is built at startup
+/// from CIFP, long before any airport map exists, so the stored FAF distance is to the pavement end.
+/// Callers pass the runway end's threshold displacement and the gate is finished on the landing datum.
 /// </summary>
 public static class ApproachGateDatabase
 {
@@ -19,7 +24,7 @@ public static class ApproachGateDatabase
 
     private static readonly ILogger Log = SimLog.CreateLogger("ApproachGateDatabase");
 
-    private static Dictionary<(string Airport, string Runway), double> _minIntercepts = [];
+    private static Dictionary<(string Airport, string Runway), double> _fafDistancesToPavementNm = [];
 
     private static bool _initialized;
 
@@ -86,30 +91,26 @@ public static class ApproachGateDatabase
                 continue;
             }
 
-            // Compute FAF → threshold distance
+            // FAF → pavement threshold. The displacement is added back at read time.
             double fafDist = GeoMath.DistanceNm(fafPos.Value.Lat, fafPos.Value.Lon, runwayInfo.ThresholdLatitude, runwayInfo.ThresholdLongitude);
 
-            // Approach gate = max(FAF + 1nm, 5nm)
-            double approachGate = Math.Max(fafDist + GatePaddingNm, MinGateFloorNm);
-
-            // Min intercept = gate + 2nm
-            double minIntercept = approachGate + InterceptPaddingNm;
-
-            result[(NormalizeAirport(airport), runway)] = minIntercept;
+            result[(NormalizeAirport(airport), runway)] = fafDist;
             computed++;
         }
 
-        _minIntercepts = result;
+        _fafDistancesToPavementNm = result;
         _initialized = true;
 
         Log.LogInformation("Approach gate database: {Computed} runways computed, " + "{Skipped} skipped (missing data)", computed, skipped);
     }
 
     /// <summary>
-    /// Returns the minimum intercept distance for the given airport
-    /// and runway. Returns 7.0nm default if not found.
+    /// Minimum legal intercept distance (nm) from the runway's <em>landing</em> threshold, for the
+    /// runway end whose threshold is displaced <paramref name="thresholdDisplacementNm"/>. Pass 0 when
+    /// no airport map is available; the runway then reads as undisplaced. Returns the 7.0 nm default
+    /// when the runway has no FAF in the loaded procedures.
     /// </summary>
-    public static double GetMinInterceptDistanceNm(string airportId, string runwayId)
+    public static double GetMinInterceptDistanceNm(string airportId, string runwayId, double thresholdDisplacementNm)
     {
         if (!_initialized)
         {
@@ -118,12 +119,17 @@ public static class ApproachGateDatabase
 
         string normalized = NormalizeAirport(airportId);
 
-        if (_minIntercepts.TryGetValue((normalized, runwayId), out double dist))
+        if (!_fafDistancesToPavementNm.TryGetValue((normalized, runwayId), out double fafDistToPavementNm))
         {
-            return dist;
+            return DefaultMinInterceptNm;
         }
 
-        return DefaultMinInterceptNm;
+        // The FAF is out on the approach side, so a threshold displaced downfield is that much further
+        // from it. P/CG "approach gate": 1 nm outside the FAF, and never closer than 5 nm to the
+        // landing threshold — both measured on the landing datum.
+        double fafDistNm = fafDistToPavementNm + thresholdDisplacementNm;
+        double approachGate = Math.Max(fafDistNm + GatePaddingNm, MinGateFloorNm);
+        return approachGate + InterceptPaddingNm;
     }
 
     private static string NormalizeAirport(string airportId)

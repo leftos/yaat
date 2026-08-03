@@ -134,7 +134,10 @@ public class MiaRwy9RolloutExitTests(ITestOutputHelper output)
         var clear = engine.SendCommand(Callsign, "CLAND");
         Assert.True(clear.Success, $"CLAND failed: {clear.Message}");
 
-        var threshold = new LatLon(rwy9.ThresholdLatitude, rwy9.ThresholdLongitude);
+        // Rollout distances are measured from the landing threshold — KMIA runway 9 is displaced
+        // 1,375 ft, and touchdown starts there, so a pavement-end datum would charge the aircraft for
+        // pavement it is never allowed to land on.
+        var threshold = LandingThreshold.Resolve(rwy9, layout);
         string? exitTaxiway = null;
         double exitCommitDistFt = -1;
         double maxAlongFt = 0;

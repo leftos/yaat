@@ -39,6 +39,25 @@ A real 3° approach crosses the threshold at a threshold-crossing height and tou
 
 `FinalApproachPhase` completes (hands to `LandingPhase`) at `agl < 30`, near the threshold, **or once the aircraft passes the threshold**. That last condition is a safety net: a high/rushed approach that crosses still above the 50 ft AGL completion band hands off to the flare (or a stabilization-gate go-around) instead of flying past the threshold and climbing away, tracking the glideslope that rises again beyond it (distance-to-threshold is unsigned).
 
+Measured end-to-end through the production tick loop (`TouchdownPointTests`), touchdown lands at **B738 1,705 ft / DH8D 990 ft / C172 453 ft** past the threshold — all inside the AIM 2-1-5.b touchdown zone (100–3,000 ft). The jet's figure is entirely flare float, because its 0 ft offset puts the glidepath on the surface at the threshold; that is the visible symptom of the missing threshold-crossing height (issue #325), and raising the offset alone would push it to ~2,700 ft, at the far edge of the zone.
+
+## Displaced thresholds: which datum
+
+`RunwayInfo.ThresholdLatitude`/`Longitude` are **pavement** ends — the nav database builds them from the vNAS `start_location`/`end_location`, which ignore any displacement. The displacement lives on the airport map, so an end's landing threshold only exists once a `AirportGroundLayout` is in hand: `LandingThreshold.Resolve(runway, layout)` (or the `GroundRunway` overload, for callers that already looked the ground runway up). Both fall back to the pavement threshold when there is no layout, which is what every pre-existing replay depends on.
+
+AIM 2-3-3.b.8.2: pavement behind a displaced threshold is available for **takeoff in either direction** and for rollout from the opposite end, but not for landing in that direction. So the two datums split by *who is being measured*:
+
+| Landing threshold (arrival datum) | Pavement threshold (departure / surface datum) |
+|---|---|
+| `FinalApproachPhase` glidepath + completion | `TakeoffPhase`, `LineUpGeometry`, `LineUpGraphRoute` |
+| `LandingPhase` (`LandingPlan.ThresholdLat/Lon`) — flare, centerline steering, LAHSO progress | Runway rendering, `RunwayCrossingDetector` runway rectangles |
+| `LowApproachPhase`, `ApproachNavigationPhase` continuous descent | `ConflictAlertDetector` corridors (must cover the whole surface) |
+| `InterceptCoursePhase.ThresholdLat/Lon` + `ApproachGateDatabase` (P/CG measures the gate from the landing threshold) | `RunwayIntersectionCalculator` reported distances (its consumers are departures rolling from the pavement) |
+| `PatternGeometry` downwind-abeam, base turn, `ThresholdLat/Lon` | `PatternGeometry` departure end / crosswind turn (AIM 4-3-2 anchors these beyond the *departure* end) |
+| `SoloTrainingEvaluator.AlongLandingThresholdFt` — §3-10-3 "n feet down the runway", `IsLandingAfterThreshold` | `SoloTrainingEvaluator.AlongThresholdFt` — §3-9-6 departure spacing, intersection passage, "crossed the runway end" |
+
+LAHSO is the one place both datums appear in a single calculation: `RunwayIntersectionCalculator.ComputeHoldShortDistanceNm` walks the pavement centerline to the intersection, then subtracts the displacement so the reported distance is the available landing distance a LAHSO clearance actually offers. `PatternCommandHandler` projects the hold-short point from the landing threshold to match — so authoring a displacement shortens the reported distance without moving the physical hold-short point.
+
 ## LandingPhase Braking Strategy
 
 LandingPhase's job is to decelerate the aircraft to the speed needed for the committed exit. For high-speed exits this is coast speed; for standard exits whose turnoff is below coast it is the exit's turnoff speed. RunwayExitPhase and GroundNavigator handle turn geometry and precision braking through the turn.

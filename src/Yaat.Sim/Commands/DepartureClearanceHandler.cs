@@ -693,9 +693,10 @@ internal static class DepartureClearanceHandler
         var patternRunway = ResolvePatternRunway(ct, aircraft) ?? fallbackRunway;
         var cat = AircraftCategorization.Categorize(aircraft.AircraftType);
         var airportRunways = Data.NavigationDatabase.Instance.GetRunways(patternRunway.AirportId);
+        var authoredPatternRunway = aircraft.Ground.Layout?.FindRunway(patternRunway.Designator);
         var (sizeOv, altOv) = PatternGeometry.ResolveAuthoredOverrides(
             patternRunway,
-            aircraft.Ground.Layout?.FindRunway(patternRunway.Designator),
+            authoredPatternRunway,
             aircraft.Pattern.SizeOverrideNm,
             aircraft.Pattern.AltitudeOverrideFt
         );
@@ -705,8 +706,30 @@ internal static class DepartureClearanceHandler
         // circuit on the one runway.
         bool crossRunway = !string.Equals(patternRunway.Designator, fallbackRunway.Designator, StringComparison.OrdinalIgnoreCase);
         var circuit = crossRunway
-            ? PatternBuilder.BuildCrossRunwayDepartureCircuit(fallbackRunway, patternRunway, cat, ct.Direction, true, sizeOv, altOv, airportRunways)
-            : PatternBuilder.BuildCircuit(patternRunway, cat, ct.Direction, PatternEntryLeg.Upwind, true, null, sizeOv, altOv, airportRunways);
+            ? PatternBuilder.BuildCrossRunwayDepartureCircuit(
+                fallbackRunway,
+                patternRunway,
+                cat,
+                ct.Direction,
+                true,
+                sizeOv,
+                altOv,
+                airportRunways,
+                aircraft.Ground.Layout?.FindRunway(fallbackRunway.Designator),
+                authoredPatternRunway
+            )
+            : PatternBuilder.BuildCircuit(
+                patternRunway,
+                cat,
+                ct.Direction,
+                PatternEntryLeg.Upwind,
+                true,
+                null,
+                sizeOv,
+                altOv,
+                airportRunways,
+                authoredPatternRunway
+            );
 
         phases.Phases.AddRange(circuit);
         phases.PatternRunway = patternRunway;
@@ -772,9 +795,10 @@ internal static class DepartureClearanceHandler
 
         var cat = AircraftCategorization.Categorize(aircraft.AircraftType);
         var airportRunways = NavigationDatabase.Instance.GetRunways(runway.AirportId);
+        var authoredRunway = aircraft.Ground.Layout?.FindRunway(runway.Designator);
         var (sizeOv, altOv) = PatternGeometry.ResolveAuthoredOverrides(
             runway,
-            aircraft.Ground.Layout?.FindRunway(runway.Designator),
+            authoredRunway,
             aircraft.Pattern.SizeOverrideNm,
             aircraft.Pattern.AltitudeOverrideFt
         );
@@ -788,7 +812,8 @@ internal static class DepartureClearanceHandler
             aircraft.FlightPlan.Altitude.CruiseFeet ?? 0,
             sizeOv,
             altOv,
-            airportRunways
+            airportRunways,
+            authoredRunway
         );
 
         phases.Phases.AddRange(circuit);

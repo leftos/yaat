@@ -15,6 +15,9 @@
 
 ### Fixed
 - An IFR aircraft that goes around no longer flies a VFR traffic pattern circuit when it was given `MLT`/`MRT` earlier in the session; it climbs runway heading and waits for instructions.
+- Aircraft land at a runway's displaced threshold instead of the pavement end — at KSJC 30L a jet no longer touches down 832 ft short of where landings may begin.
+- The traffic pattern's downwind-abeam and base turn follow a displaced threshold; the departure end and crosswind turn stay at the pavement.
+- LAHSO hold-short distances are the available landing distance from the displaced threshold, and solo-training runway scoring measures arrivals from it.
 
 ## v0.10.2-beta [2026/07/31]
 

@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Yaat.Sim.Commands;
+using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Simulation.Snapshots;
 
 namespace Yaat.Sim.Phases.Tower;
@@ -101,8 +102,11 @@ public sealed class LowApproachPhase : Phase
 
         if (ctx.Runway is not null)
         {
-            _thresholdLat = ctx.Runway.ThresholdLatitude;
-            _thresholdLon = ctx.Runway.ThresholdLongitude;
+            // Same datum FinalApproachPhase just handed off on, so the descent profile doesn't jump
+            // when the low pass takes over on a runway with a displaced threshold.
+            var threshold = LandingThreshold.Resolve(ctx.Runway, ctx.GroundLayout);
+            _thresholdLat = threshold.Lat;
+            _thresholdLon = threshold.Lon;
         }
 
         // Continue on glideslope toward threshold

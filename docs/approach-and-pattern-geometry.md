@@ -74,6 +74,14 @@ then projected:
 - `DownwindAbeam` = threshold + `patternSize` perpendicular — the canonical on-downwind reference point.
 - `BaseTurn` = downwind abeam + `BaseExtensionNm` along the downwind heading.
 
+**Which "threshold".** `Compute` takes the authored `GroundRunway` (a required parameter — pass `null` only
+when no airport map is loaded), and the arrival waypoints — `Threshold`, `DownwindAbeam`, and therefore
+`BaseTurn` — are built on `LandingThreshold.Resolve`, i.e. the **landing** threshold. `DepartureEnd` and
+`CrosswindTurn` deliberately stay on the **pavement** end: AIM 4-3-2 anchors the crosswind turn beyond the
+*departure* end, and pre-threshold pavement is usable for takeoff in either direction (AIM 2-3-3.b.8.2). At
+KSJC 30L (2,537 ft displaced) that is a 0.42 nm shift in the arrival half of the pattern and none in the
+departure half. Full datum table: [`landing-and-runway-exit.md`](landing-and-runway-exit.md#displaced-thresholds-which-datum).
+
 **Size/altitude resolution.** `ResolveAuthoredOverrides` (`PatternGeometry.cs:152`) composes a command override
 (e.g. TPA/PSIZE) over the airport-authored `GroundRunway` data: command wins, then authored data fills in.
 Authored `PatternAltitudeAglFt` is interpreted as **feet AGL above field elevation** and translated to MSL via
@@ -730,12 +738,20 @@ distance, glideslope deviation, speed, forced flag, §5-9-1 legality flags) and 
 capture distance/angle that `InterceptCoursePhase` recorded over the stricter establishment values.
 
 **§5-9-1 legality** is anchored by `ApproachGateDatabase` (`src/Yaat.Sim/Data/ApproachGateDatabase.cs`), which
-**precomputes per-(airport, runway) minimum intercept distances** from CIFP FAF positions at init:
+**precomputes per-(airport, runway) FAF→threshold distances** from CIFP FAF positions at init and finishes the
+gate at read time:
 
 ```
-approachGate  = max(FAF→threshold + 1nm, 5nm)
+approachGate  = max(FAF→threshold + thresholdDisplacement + 1nm, 5nm)
 minIntercept  = approachGate + 2nm        (default 7.0nm when no data)
 ```
+
+The displacement term is a read-time argument because the table is built at startup, before any airport map
+exists — its stored FAF distance therefore runs to the **pavement** end. The P/CG defines the gate against the
+**landing** threshold ("no closer than 5 miles from the landing threshold"), and both callers measure the
+aircraft's distance to the landing threshold too, so they pass
+`LandingThreshold.DisplacementFt(runway, ctx.GroundLayout) / GeoMath.FeetPerNm`. Pass 0 and the runway reads
+as undisplaced, which is the no-layout fallback.
 
 The **max intercept angle** is *not* precomputed here — `FinalApproachPhase` derives it at establishment from the
 capture distance, reconstructing the gate as `minIntercept − 2nm` (`FinalApproachPhase.cs:953`–955):

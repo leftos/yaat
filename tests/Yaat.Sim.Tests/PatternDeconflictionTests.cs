@@ -47,7 +47,7 @@ public class PatternDeconflictionTests
 
         // Jet default pattern is 1.5nm. Rwy 30 is ~1.04nm to the left.
         // Deconfliction should shrink the pattern to ~0.89nm (1.04 - 0.15 buffer).
-        var waypoints = PatternGeometry.Compute(rwy28L, AircraftCategory.Jet, PatternDirection.Left, null, null, allRunways);
+        var waypoints = PatternGeometry.Compute(rwy28L, AircraftCategory.Jet, PatternDirection.Left, null, null, allRunways, authoredRunway: null);
 
         double defaultSize = CategoryPerformance.PatternSizeNm(AircraftCategory.Jet);
         double actual = MeasureDownwindOffset(waypoints, rwy28L);
@@ -75,7 +75,7 @@ public class PatternDeconflictionTests
 
         // Piston default 0.75nm < rwy 30 distance (1.04nm - 0.15nm buffer = 0.89nm)
         // No shrinkage needed.
-        var waypoints = PatternGeometry.Compute(rwy28L, AircraftCategory.Piston, PatternDirection.Left, null, null, allRunways);
+        var waypoints = PatternGeometry.Compute(rwy28L, AircraftCategory.Piston, PatternDirection.Left, null, null, allRunways, authoredRunway: null);
 
         double defaultSize = CategoryPerformance.PatternSizeNm(AircraftCategory.Piston);
         double actual = MeasureDownwindOffset(waypoints, rwy28L);
@@ -98,7 +98,7 @@ public class PatternDeconflictionTests
         var allRunways = navDb.GetRunways("KOAK");
 
         // Right traffic: rwy 30 is on the left, no conflict on right side
-        var waypoints = PatternGeometry.Compute(rwy28L, AircraftCategory.Jet, PatternDirection.Right, null, null, allRunways);
+        var waypoints = PatternGeometry.Compute(rwy28L, AircraftCategory.Jet, PatternDirection.Right, null, null, allRunways, authoredRunway: null);
 
         double defaultSize = CategoryPerformance.PatternSizeNm(AircraftCategory.Jet);
         double actual = MeasureDownwindOffset(waypoints, rwy28L);
@@ -122,7 +122,7 @@ public class PatternDeconflictionTests
 
         // 28L is only ~0.16nm to the left of 28R. 0.16 - 0.15 buffer = 0.01nm, below min floor.
         // Deconfliction should skip — use default size.
-        var waypoints = PatternGeometry.Compute(rwy28R, AircraftCategory.Piston, PatternDirection.Left, null, null, allRunways);
+        var waypoints = PatternGeometry.Compute(rwy28R, AircraftCategory.Piston, PatternDirection.Left, null, null, allRunways, authoredRunway: null);
 
         double defaultSize = CategoryPerformance.PatternSizeNm(AircraftCategory.Piston);
         double actual = MeasureDownwindOffset(waypoints, rwy28R);
@@ -204,7 +204,7 @@ public class PatternDeconflictionTests
     {
         var runway = TestRunwayFactory.Make(designator: "28", heading: 280, elevationFt: 100);
 
-        var waypoints = PatternGeometry.Compute(runway, AircraftCategory.Piston, PatternDirection.Left, null, null, null);
+        var waypoints = PatternGeometry.Compute(runway, AircraftCategory.Piston, PatternDirection.Left, null, null, null, authoredRunway: null);
 
         double defaultSize = CategoryPerformance.PatternSizeNm(AircraftCategory.Piston);
         double actual = MeasureDownwindOffset(waypoints, runway);
@@ -217,7 +217,7 @@ public class PatternDeconflictionTests
     {
         var runway = TestRunwayFactory.Make(designator: "28", heading: 280, elevationFt: 100);
 
-        var waypoints = PatternGeometry.Compute(runway, AircraftCategory.Piston, PatternDirection.Left, null, null, [runway]);
+        var waypoints = PatternGeometry.Compute(runway, AircraftCategory.Piston, PatternDirection.Left, null, null, [runway], authoredRunway: null);
 
         double defaultSize = CategoryPerformance.PatternSizeNm(AircraftCategory.Piston);
         double actual = MeasureDownwindOffset(waypoints, runway);
