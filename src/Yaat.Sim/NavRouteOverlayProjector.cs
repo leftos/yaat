@@ -33,9 +33,96 @@ public static class NavRouteOverlayProjector
             HoldingPatternPhase hold => [BuildHoldRacetrack(aircraft, hold)],
             ProcedureTurnPhase pt => [BuildProcedureTurn(aircraft, pt)],
             DepartureProcedurePhase departure => BuildCodedLegVectors(aircraft, departure),
+            Phases.MilitaryRoutePhase route => BuildMilitaryRouteCorridor(route),
             _ => [],
         };
     }
+
+    /// <summary>
+    /// The protected corridor around the cleared span of a military training route, as one closed
+    /// polygon: up the left edge, back down the right.
+    ///
+    /// FAA JO 7110.65 §9-2-6.d makes the corridor the controller's continuing responsibility, and
+    /// AP/1B publishes it per span and asymmetrically about the centerline — so it cannot be drawn
+    /// as a uniform buffer, and each point is offset by the width published where it sits. Interior
+    /// points bisect the two legs meeting there so the edge stays continuous around a turn.
+    /// </summary>
+    private static List<NavRouteShapeDto> BuildMilitaryRouteCorridor(Phases.MilitaryRoutePhase phase)
+    {
+        var route = Data.NavigationDatabase.Instance.GetMilitaryRoute(phase.Designator);
+        if (route is null || route.Widths.Count == 0)
+        {
+            return [];
+        }
+
+        var navDb = Data.NavigationDatabase.Instance;
+        var centerline = new List<(LatLon Position, string Id)>();
+        foreach (var name in phase.PointNames)
+        {
+            int index = route.IndexOf(NamePointId(route.Designator, name));
+            if (navDb.GetFixPosition(name) is { } position && index >= 0)
+            {
+                centerline.Add((new LatLon(position.Lat, position.Lon), route.Points[index].Id));
+            }
+        }
+
+        if (centerline.Count < 2)
+        {
+            return [];
+        }
+
+        var left = new List<LatLon>();
+        var right = new List<LatLon>();
+        for (int i = 0; i < centerline.Count; i++)
+        {
+            var span = route.WidthAt(centerline[i].Id);
+            if (span is null)
+            {
+                return [];
+            }
+
+            double course = EdgeCourse(centerline, i);
+            left.Add(GeoMath.ProjectPoint(centerline[i].Position, new TrueHeading(course - 90.0), span.LeftNm));
+            right.Add(GeoMath.ProjectPoint(centerline[i].Position, new TrueHeading(course + 90.0), span.RightNm));
+        }
+
+        right.Reverse();
+        var polygon = new List<LatLon>(left);
+        polygon.AddRange(right);
+        polygon.Add(left[0]);
+
+        return
+        [
+            new NavRouteShapeDto(NavRouteShapeKind.MilitaryRouteCorridor, polygon.Select(p => new[] { p.Lat, p.Lon }).ToList(), null, null, null),
+        ];
+    }
+
+    /// <summary>
+    /// The course to offset a corridor edge from at one centerline point: the leg's own course at
+    /// either end, and the bisector of the two legs meeting at an interior point so the edge turns
+    /// the corner without a gap or an overlap.
+    /// </summary>
+    private static double EdgeCourse(List<(LatLon Position, string Id)> centerline, int index)
+    {
+        if (index == 0)
+        {
+            return GeoMath.BearingTo(centerline[0].Position, centerline[1].Position);
+        }
+
+        double inbound = GeoMath.BearingTo(centerline[index - 1].Position, centerline[index].Position);
+        if (index == centerline.Count - 1)
+        {
+            return inbound;
+        }
+
+        double outbound = GeoMath.BearingTo(centerline[index].Position, centerline[index + 1].Position);
+        double delta = ((outbound - inbound + 540.0) % 360.0) - 180.0;
+        return (inbound + (delta / 2.0) + 360.0) % 360.0;
+    }
+
+    /// <summary>The AP/1B point label inside a synthetic fix name ("IR149A" → "A").</summary>
+    private static string NamePointId(string designator, string name) =>
+        name.StartsWith(designator, StringComparison.OrdinalIgnoreCase) ? name[designator.Length..] : name;
 
     /// <summary>
     /// Builds a procedure-turn course reversal (AIM 5-4-9): outbound leg on the final-approach-course

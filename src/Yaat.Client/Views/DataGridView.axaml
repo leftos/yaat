@@ -147,6 +147,7 @@
             <DataGridTextColumn x:DataType="models:AircraftModel" Header="Dest" Binding="{Binding Destination}" Width="Auto" />
             <DataGridTextColumn x:DataType="models:AircraftModel" Header="Fix" Binding="{Binding AsdexFix}" Width="Auto" />
             <DataGridTextColumn x:DataType="models:AircraftModel" Header="Route" Binding="{Binding Route}" Width="Auto" />
+            <DataGridTextColumn x:DataType="models:AircraftModel" Header="MTR" Binding="{Binding MilitaryRouteSummary}" Width="Auto" />
             <DataGridTextColumn x:DataType="models:AircraftModel" Header="P.Alt" Binding="{Binding CruiseAltitudeDisplay}" Width="Auto" />
             <DataGridTextColumn x:DataType="models:AircraftModel" Header="Remarks" Binding="{Binding Remarks}" Width="Auto" />
             <DataGridTextColumn x:DataType="models:AircraftModel" Header="Squawk" Binding="{Binding BeaconCode, StringFormat=\{0:D4\}}" Width="Auto" />

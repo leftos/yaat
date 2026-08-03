@@ -602,6 +602,14 @@ public static class CommandDispatcher
                 return FlightCommandHandler.ApplyRandomSquawk(aircraft, rng);
 
             // --- Direct-to ---
+            // Every direct-to shape is checked in one place: each of the seven has its own handler,
+            // and a guard added to only some of them is the kind of half-wiring that reads as
+            // working. AP/1B routes are one-way and reversals are prohibited.
+            case ParsedCommand
+                when DirectToFixes(command) is { } directFixes
+                    && FlightCommandHandler.RejectBackwardsMilitaryRouteDirect(directFixes, aircraft) is { } rejection:
+                return rejection;
+
             case DirectToCommand cmd:
                 return FlightCommandHandler.ApplyDirectTo(cmd, aircraft, validateDctFixes);
             case ForceDirectToCommand cmd:
@@ -732,7 +740,7 @@ public static class CommandDispatcher
             case JoinAirwayCommand cmd:
                 return NavigationCommandHandler.DispatchJawy(cmd, aircraft);
             case ClearedIntoMilitaryRouteCommand cmd:
-                return MilitaryRouteCommandHandler.DispatchClearedInto(cmd, aircraft);
+                return MilitaryRouteCommandHandler.DispatchClearedInto(cmd, aircraft, ctx);
             case MaintainMilitaryRouteAltitudesCommand:
                 return MilitaryRouteCommandHandler.DispatchMaintainRouteAltitudes(aircraft);
             case ClearedOutOfMilitaryRouteCommand cmd:
@@ -2259,6 +2267,24 @@ public static class CommandDispatcher
 
         return null;
     }
+
+    /// <summary>
+    /// The fixes a direct-to style command routes to, or null when the command is not one.
+    /// Every shape that sends an aircraft direct to a fix belongs here, so a single guard covers
+    /// all of them.
+    /// </summary>
+    private static IReadOnlyList<ResolvedFix>? DirectToFixes(ParsedCommand command) =>
+        command switch
+        {
+            DirectToCommand c => c.Fixes,
+            ForceDirectToCommand c => c.Fixes,
+            ConstrainedForceDirectToCommand c => c.Fixes,
+            AppendDirectToCommand c => c.Fixes,
+            AppendForceDirectToCommand c => c.Fixes,
+            TurnLeftDirectToCommand c => c.Fixes,
+            TurnRightDirectToCommand c => c.Fixes,
+            _ => null,
+        };
 
     internal static CommandResult Ok(string message)
     {

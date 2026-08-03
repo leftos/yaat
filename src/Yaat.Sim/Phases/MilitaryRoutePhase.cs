@@ -136,10 +136,35 @@ public sealed class MilitaryRoutePhase : Phase
         if (state.Status == MilitaryRouteStatus.ClearedIn && IsEstablished(ctx))
         {
             state.Status = MilitaryRouteStatus.Established;
+            ApplyRouteSpeed(ctx);
         }
 
         ReArmBlock(ctx);
         return false;
+    }
+
+    /// <summary>
+    /// Command the training-route airspeed once, on establishment.
+    ///
+    /// The 91.117(a) waiver only lifts the 250 kt cap; nothing supplies a speed, so without this the
+    /// aircraft transits the route at whatever it happened to arrive with — and the automatic speed
+    /// schedule stays quiet because <see cref="ApplyBlock"/> parks the target altitude inside the
+    /// block. Operating above 250 knots is the defining characteristic of the program (P/CG,
+    /// AIM 3-5-2.c), so a route flown at arrival speed is not showing the student what an MTR is.
+    /// <para>
+    /// Only IR and VR. An SR is defined as 250 KIAS or less (AP/1B chapter 4 §V.C) and carries no
+    /// waiver, and a refueling track is flown at tanker speed rather than a tactical dash — both
+    /// keep the ordinary schedule. Set once rather than re-asserted, so a later <c>SPD</c> sticks.
+    /// </para>
+    /// </summary>
+    private void ApplyRouteSpeed(PhaseContext ctx)
+    {
+        if (Kind is not (MilitaryRouteType.Ir or MilitaryRouteType.Vr))
+        {
+            return;
+        }
+
+        ctx.Targets.TargetSpeed = AircraftPerformance.MilitaryRouteSpeedKts(ctx.Category);
     }
 
     public override void OnEnd(PhaseContext ctx, PhaseStatus endStatus)

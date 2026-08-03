@@ -878,6 +878,27 @@ public partial class AircraftModel : ObservableObject
     public bool IsHeldForRelease { get; set; }
 
     /// <summary>
+    /// AP/1B route the aircraft is cleared into (<c>IR149</c>, <c>AR1</c>), or empty.
+    /// </summary>
+    public string MilitaryRoute { get; set; } = string.Empty;
+
+    /// <summary>
+    /// The route's altitude in the hundreds-of-feet strip form — <c>050B060</c> for a block,
+    /// <c>240</c> for a single altitude (FAA JO 7110.65 §4-5-2, §13-1-1). Pre-rendered server-side
+    /// from the *resolved MSL* pair actually enforced, not the published notation.
+    /// </summary>
+    public string MilitaryRouteAltitudeText { get; set; } = string.Empty;
+
+    /// <summary>True when the route is designated for MARSA operations (§9-2-6.c).</summary>
+    public bool MilitaryRouteMarsa { get; set; }
+
+    /// <summary>Route and altitude as one label for the Aircraft List and the strip, or empty.</summary>
+    public string MilitaryRouteSummary =>
+        string.IsNullOrEmpty(MilitaryRoute) ? string.Empty
+        : string.IsNullOrEmpty(MilitaryRouteAltitudeText) ? MilitaryRoute
+        : $"{MilitaryRoute} {MilitaryRouteAltitudeText}";
+
+    /// <summary>
     /// Absolute-UTC bounds of this aircraft's Call-For-Release window (CFR), or null. Evaluated
     /// against real UTC by the MainViewModel to raise instructor-facing expiry alerts (GitHub issue #230).
     /// </summary>
@@ -971,6 +992,9 @@ public partial class AircraftModel : ObservableObject
             RunwayQueuePosition = dto.RunwayQueuePosition,
             RunwayQueueRunway = dto.RunwayQueueRunway,
             RunwayQueueIntersection = dto.RunwayQueueIntersection,
+            MilitaryRoute = dto.MilitaryRoute,
+            MilitaryRouteAltitudeText = dto.MilitaryRouteAltitudeText,
+            MilitaryRouteMarsa = dto.MilitaryRouteMarsa,
             ParkingSpot = dto.ParkingSpot,
             CurrentTaxiway = dto.CurrentTaxiway,
             Owner = dto.Owner,
@@ -1076,6 +1100,9 @@ public partial class AircraftModel : ObservableObject
         RunwayQueuePosition = dto.RunwayQueuePosition;
         RunwayQueueRunway = dto.RunwayQueueRunway;
         RunwayQueueIntersection = dto.RunwayQueueIntersection;
+        MilitaryRoute = dto.MilitaryRoute;
+        MilitaryRouteAltitudeText = dto.MilitaryRouteAltitudeText;
+        MilitaryRouteMarsa = dto.MilitaryRouteMarsa;
         ParkingSpot = dto.ParkingSpot;
         CurrentTaxiway = dto.CurrentTaxiway;
         Owner = dto.Owner;

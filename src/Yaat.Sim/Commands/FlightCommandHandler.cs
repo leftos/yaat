@@ -501,6 +501,56 @@ internal static class FlightCommandHandler
         return CommandDispatcher.Ok($"Squawk {aircraft.Transponder.Code:D4}");
     }
 
+    /// <summary>
+    /// Refuses a direct-to that would fly an aircraft backwards down a one-way military route, or
+    /// null when the clearance is fine.
+    ///
+    /// AP/1B routes are one-way and course reversals are prohibited (chapter 1 §V.B.1). The guard
+    /// cannot live in <see cref="Phases.MilitaryRoutePhase"/>: that phase returns
+    /// <c>ClearsPhase</c> for a direct-to, so by the time it could object it has already been torn
+    /// down and the aircraft flies to the point with no protection left. Going direct to a point
+    /// still <em>ahead</em> stays legal — that is an ordinary shortcut along the route.
+    /// </summary>
+    internal static CommandResult? RejectBackwardsMilitaryRouteDirect(IReadOnlyList<ResolvedFix> fixes, AircraftState aircraft)
+    {
+        var state = aircraft.MilitaryRoute;
+        if (!state.IsActive || state.Designator is null || state.CurrentSegmentIndex < 0)
+        {
+            return null;
+        }
+
+        var route = Data.NavigationDatabase.Instance.GetMilitaryRoute(state.Designator);
+        if (route is null)
+        {
+            return null;
+        }
+
+        foreach (var fix in fixes)
+        {
+            int index = IndexOfRoutePoint(route, fix.Name);
+            if (index >= 0 && index < state.CurrentSegmentIndex)
+            {
+                return new CommandResult(false, $"Unable, {route.Printed} is one-way and {fix.Name} is behind the aircraft (AP/1B chapter 1 §V.B.1)");
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>The index of a synthetic route-point name on the cleared direction, or -1.</summary>
+    private static int IndexOfRoutePoint(Data.MilitaryRoutes.MilitaryRoute route, string name)
+    {
+        for (int i = 0; i < route.Points.Count; i++)
+        {
+            if (string.Equals(route.Points[i].Name, name, StringComparison.OrdinalIgnoreCase))
+            {
+                return i;
+            }
+        }
+
+        return -1;
+    }
+
     internal static CommandResult ApplyDirectTo(DirectToCommand cmd, AircraftState aircraft, bool validateDctFixes)
     {
         if (validateDctFixes)

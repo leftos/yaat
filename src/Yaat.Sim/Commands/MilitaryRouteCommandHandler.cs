@@ -17,7 +17,7 @@ public static class MilitaryRouteCommandHandler
     /// §9-2-6.a "CLEARED INTO IR (designator)". Installs <see cref="MilitaryRoutePhase"/> over the
     /// span from the cleared entry point to the cleared exit point.
     /// </summary>
-    internal static CommandResult DispatchClearedInto(ClearedIntoMilitaryRouteCommand cmd, AircraftState aircraft)
+    internal static CommandResult DispatchClearedInto(ClearedIntoMilitaryRouteCommand cmd, AircraftState aircraft, DispatchContext ctx)
     {
         var navDb = NavigationDatabase.Instance;
         var route = navDb.GetMilitaryRoute(cmd.Designator);
@@ -36,7 +36,7 @@ public static class MilitaryRouteCommandHandler
 
         // A route is one-way and course reversals are prohibited (AP/1B chapter 1 §V.B.1), so the
         // aircraft can only join at or ahead of its present position along the published order.
-        int joinIndex = FindJoinIndex(aircraft, route.Points);
+        int joinIndex = FindJoinIndex(aircraft, route.Points, route.EntryPoints);
         if (joinIndex < 0)
         {
             return new CommandResult(false, $"Unable, {route.Printed} is one-way and the aircraft is past its exit point");
@@ -78,6 +78,9 @@ public static class MilitaryRouteCommandHandler
 
         // The route takes over steering, exactly as an approach clearance does.
         aircraft.Targets.AssignedMagneticHeading = null;
+
+        WarnIfRouteOccupied(aircraft, route, ctx);
+        WarnIfOutsidePublishedBlock(aircraft, route, joinIndex, cmd.AltitudeFt);
 
         // FAA JO 7110.65 §9-2-6 is titled IFR Military Training Routes and every subparagraph is
         // about IRs: a VR is flown under VFR (AIM 3-5-2.c.2) and ATC does not clear an aircraft into
@@ -355,11 +358,38 @@ public static class MilitaryRouteCommandHandler
     }
 
     /// <summary>
+    /// Where to join a route: the published entry point when it is still ahead, otherwise the first
+    /// published point at or ahead of the aircraft, or -1 when it is already past the end.
+    ///
+    /// §9-2-6 hangs its structure on the published entry fix, so that is the default rather than
+    /// whichever point happens to be nearest — an aircraft positioned abeam the middle of a route
+    /// should still be cleared in at the entry unless it is already past it. Joining mid-route stays
+    /// available for an aircraft the entry point is behind.
+    /// </summary>
+    private static int FindJoinIndex(AircraftState aircraft, IReadOnlyList<MilitaryRoutePoint> points, IReadOnlyList<string> entryPoints)
+    {
+        if (entryPoints.Count > 0)
+        {
+            for (int i = 0; i < points.Count; i++)
+            {
+                if (!string.Equals(points[i].Id, entryPoints[0], StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                return IsBehind(aircraft, points[i].Position) ? FindNearestJoinIndex(aircraft, points) : i;
+            }
+        }
+
+        return FindNearestJoinIndex(aircraft, points);
+    }
+
+    /// <summary>
     /// The first published point at or ahead of the aircraft, or -1 when it is already past the end.
     /// Ahead is judged by the leg's own direction, so a route running back past the aircraft laterally
     /// does not read as joinable.
     /// </summary>
-    private static int FindJoinIndex(AircraftState aircraft, IReadOnlyList<MilitaryRoutePoint> points)
+    private static int FindNearestJoinIndex(AircraftState aircraft, IReadOnlyList<MilitaryRoutePoint> points)
     {
         int nearest = -1;
         double best = double.MaxValue;
@@ -390,6 +420,17 @@ public static class MilitaryRouteCommandHandler
         return nearest;
     }
 
+    /// <summary>
+    /// Whether a point lies behind the aircraft.
+    ///
+    /// Deliberately heading rather than ground track. Track is the better description of the path
+    /// actually being flown, but <see cref="AircraftState.TrueTrack"/> is written by
+    /// <see cref="FlightPhysics"/> each tick and carries no "populated yet" signal — it is still
+    /// zero on an aircraft that has not ticked, which is exactly the case when one is spawned and
+    /// cleared in the same breath, and zero is also a legal northbound track so the value cannot be
+    /// told apart from the default. Reading it there flips this decision by 180°. Wind drift is a
+    /// few degrees against a 90° threshold, so heading loses nothing that matters here.
+    /// </summary>
     private static bool IsBehind(AircraftState aircraft, LatLon point)
     {
         double bearing = GeoMath.BearingTo(aircraft.Position, point);
@@ -412,7 +453,7 @@ public static class MilitaryRouteCommandHandler
 
         foreach (var variant in route.Variants)
         {
-            int joinIndex = FindJoinIndex(aircraft, variant.Points);
+            int joinIndex = FindJoinIndex(aircraft, variant.Points, variant.EntryPoints);
             if (joinIndex < 0)
             {
                 continue;
@@ -428,6 +469,77 @@ public static class MilitaryRouteCommandHandler
         }
 
         return best;
+    }
+
+    /// <summary>
+    /// Tell the instructor when someone else is already on the route.
+    ///
+    /// §9-2-6 puts no separation of its own between aircraft sharing a training route — that stays
+    /// the controller's, and the route's published blocks are wide enough for two aircraft to be
+    /// legally inside one and still converge. Surfacing it is the point of a trainer; refusing the
+    /// clearance would not be, since stacking a route is a normal thing to do deliberately.
+    /// </summary>
+    private static void WarnIfRouteOccupied(AircraftState aircraft, MilitaryRoute route, DispatchContext ctx)
+    {
+        if (ctx.ListAircraft is null)
+        {
+            return;
+        }
+
+        var others = ctx.ListAircraft()
+            .Where(other =>
+                !ReferenceEquals(other, aircraft)
+                && other.MilitaryRoute.IsActive
+                && string.Equals(other.MilitaryRoute.Designator, route.Designator, StringComparison.OrdinalIgnoreCase)
+            )
+            .Select(other => other.Callsign)
+            .ToList();
+
+        if (others.Count > 0)
+        {
+            aircraft.PendingWarnings.Add(
+                $"{aircraft.Callsign}: {route.Printed} is already occupied by {string.Join(", ", others)} — "
+                    + "separation between them is yours (7110.65 9-2-6.a)"
+            );
+        }
+    }
+
+    /// <summary>
+    /// Tell the instructor when an assigned altitude falls outside a published block on the cleared
+    /// span. AP/1B's bounds are the segment's minimum and maximum IFR altitudes, so an assignment
+    /// outside one is an error rather than a preference.
+    ///
+    /// Only MSL bounds are compared. An AGL bound cannot be resolved without the terrain proxy the
+    /// phase applies at segment entry, and guessing here would produce warnings wrong by the
+    /// terrain-to-airport delta. In practice that means the ceiling does most of the work: MTR
+    /// blocks are published as an AGL floor under an MSL ceiling far more often than not.
+    /// </summary>
+    private static void WarnIfOutsidePublishedBlock(AircraftState aircraft, MilitaryRoute route, int joinIndex, int? assignedFt)
+    {
+        if (assignedFt is not { } assigned)
+        {
+            return;
+        }
+
+        for (int i = joinIndex; i < route.Points.Count; i++)
+        {
+            var block = route.Points[i].Altitude;
+            if (block.FloorReference == AltitudeReference.Msl && block.FloorFt is { } floor && assigned < floor)
+            {
+                aircraft.PendingWarnings.Add(
+                    $"{aircraft.Callsign}: {assigned:N0} is below {route.Printed}'s published floor of {floor:N0} at point {route.Points[i].Id}"
+                );
+                return;
+            }
+
+            if (block.CeilingReference == AltitudeReference.Msl && block.CeilingFt is { } ceiling && assigned > ceiling)
+            {
+                aircraft.PendingWarnings.Add(
+                    $"{aircraft.Callsign}: {assigned:N0} is above {route.Printed}'s published ceiling of {ceiling:N0} at point {route.Points[i].Id}"
+                );
+                return;
+            }
+        }
     }
 
     /// <summary>

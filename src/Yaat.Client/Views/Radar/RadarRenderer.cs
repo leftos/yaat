@@ -569,8 +569,11 @@ public sealed class RadarRenderer : IDisposable
 
             // Coded-leg vectors are open-ended (a heading flown until an altitude/distance/radial), so
             // they draw dashed like a vector tail. Holds and procedure turns are definite flown paths,
-            // so they draw solid.
-            var linePaint = shape.Kind == NavRouteShapeKind.CodedLegVector ? _pathTailPaints[paintIdx] : _pathLinePaints[paintIdx];
+            // so they draw solid. A military route corridor is a boundary rather than a path — it is
+            // where other traffic must not be (7110.65 §9-2-6.d) — so it draws dashed too.
+            var linePaint = shape.Kind is NavRouteShapeKind.CodedLegVector or NavRouteShapeKind.MilitaryRouteCorridor
+                ? _pathTailPaints[paintIdx]
+                : _pathLinePaints[paintIdx];
 
             for (int i = 1; i < shape.Points.Count; i++)
             {

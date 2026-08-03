@@ -409,6 +409,18 @@ public static class AircraftPerformance
     }
 
     /// <summary>
+    /// Airspeed (KIAS) flown on an IR or VR military training route, by category.
+    ///
+    /// Operating above 250 knots is what defines the program — the P/CG entry for Military Training
+    /// Routes and AIM 3-5-2.c describe routes flown in excess of 250 KIAS, and AP/1B chapter 1 §I
+    /// grants the 14 CFR 91.117(a) waiver that permits it. The waiver only lifts the cap, though;
+    /// nothing publishes a speed, and AP/1B carries none per route. So this is a category default,
+    /// not route data: a tactical jet works the route fast, and anything else has no reason to
+    /// exceed the ordinary limit. A controller <c>SPD</c> assignment overrides it.
+    /// </summary>
+    public static double MilitaryRouteSpeedKts(AircraftCategory category) => category == AircraftCategory.Jet ? 400 : 250;
+
+    /// <summary>
     /// Service ceiling (ft). Returns null if no profile exists.
     /// </summary>
     public static double? Ceiling(string aircraftType)

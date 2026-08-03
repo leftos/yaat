@@ -213,6 +213,148 @@ public sealed class MilitaryRouteCommandTests
     }
 
     [Fact]
+    public void EstablishedOnARoute_CommandsTheTrainingSpeedForItsCategory()
+    {
+        // >250 kt is the defining characteristic of the MTR program (P/CG "Military Training
+        // Routes", AIM 3-5-2.c). The 91.117(a) waiver lifts the cap but supplies no speed, so
+        // without a commanded one the aircraft transits at whatever it arrived with.
+        var aircraft = AircraftOnIr149();
+        Apply(aircraft, "CMTR IR149");
+        TickPhase(aircraft);
+        Assert.Null(aircraft.Targets.TargetSpeed);
+
+        SequenceToSecondPoint(aircraft);
+
+        Assert.Equal(MilitaryRouteStatus.Established, aircraft.MilitaryRoute.Status);
+        Assert.Equal(AircraftPerformance.MilitaryRouteSpeedKts(AircraftCategory.Jet), aircraft.Targets.TargetSpeed);
+    }
+
+    [Fact]
+    public void RouteSpeed_IsOverriddenByAnExplicitAssignment()
+    {
+        var aircraft = AircraftOnIr149();
+        Apply(aircraft, "CMTR IR149");
+        TickPhase(aircraft);
+        SequenceToSecondPoint(aircraft);
+
+        Apply(aircraft, "SPD 300");
+        TickPhase(aircraft);
+
+        Assert.Equal(300, aircraft.Targets.TargetSpeed);
+    }
+
+    [Fact]
+    public void JoinIndex_DefaultsToThePublishedEntryPoint()
+    {
+        // §9-2-6 hangs its structure on the published entry fix, so an aircraft positioned before
+        // the route should join there rather than at whichever point happens to be nearest.
+        var route = NavigationDatabase.Instance.GetMilitaryRoute("IR149")!;
+        var aircraft = AircraftOnIr149();
+
+        Apply(aircraft, "CMTR IR149");
+
+        Assert.Equal(route.EntryPoints[0], aircraft.MilitaryRoute.EntryPointId);
+    }
+
+    [Fact]
+    public void DirectTo_APointAlreadyPassed_IsRejected()
+    {
+        // AP/1B routes are one-way and course reversals are prohibited (chapter 1 §V.B.1). DCT
+        // clears the phase before it can object, so the guard has to sit in the DCT path itself.
+        var aircraft = AircraftOnIr149();
+        var route = NavigationDatabase.Instance.GetMilitaryRoute("IR149")!;
+        Apply(aircraft, "CMTR IR149");
+        TickPhase(aircraft);
+        SequenceToSecondPoint(aircraft);
+        SequenceToSecondPoint(aircraft);
+
+        var result = Apply(aircraft, $"DCTF {route.Points[0].Name}");
+
+        Assert.False(result.Success);
+        Assert.Contains("one-way", result.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void DirectTo_APointStillAhead_IsAllowed()
+    {
+        var aircraft = AircraftOnIr149();
+        var route = NavigationDatabase.Instance.GetMilitaryRoute("IR149")!;
+        Apply(aircraft, "CMTR IR149");
+        TickPhase(aircraft);
+        SequenceToSecondPoint(aircraft);
+
+        var result = Apply(aircraft, $"DCTF {route.Points[^1].Name}");
+
+        Assert.True(result.Success, result.Message);
+    }
+
+    [Fact]
+    public void Cmtr_AltitudeOutsideThePublishedBlock_WarnsTheInstructor()
+    {
+        // IR-149's segments are published as an AGL floor under a 3,000 ft MSL ceiling, so 10,000
+        // is outside the block the aircraft is being cleared into.
+        var aircraft = AircraftOnIr149();
+
+        var result = Apply(aircraft, "CMTR IR149 100");
+
+        Assert.True(result.Success, result.Message);
+        Assert.Contains(aircraft.PendingWarnings, w => w.Contains("above", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void Cmtr_AltitudeInsideThePublishedBlock_RaisesNoWarning()
+    {
+        var aircraft = AircraftOnIr149();
+
+        Apply(aircraft, "CMTR IR149 25");
+
+        Assert.DoesNotContain(aircraft.PendingWarnings, w => w.Contains("published", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void Cmtr_SecondAircraftIntoAnOccupiedRoute_WarnsTheInstructor()
+    {
+        // §9-2-6.a leaves separation on the controller for aircraft sharing a route.
+        var first = AircraftOnIr149();
+        first.Callsign = "TREND21";
+        Apply(first, "CMTR IR149");
+
+        var second = AircraftOnIr149();
+        second.Callsign = "TREND22";
+        var parsed = CommandParser.Parse("CMTR IR149");
+        var ctx = TestDispatch.Context(Random.Shared) with { ListAircraft = () => [first, second] };
+        var result = CommandDispatcher.Dispatch(parsed.Value!, second, ctx);
+
+        Assert.True(result.Success, result.Message);
+        Assert.Contains(second.PendingWarnings, w => w.Contains("TREND21", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void RouteOverlay_ProjectsThePublishedProtectedCorridor()
+    {
+        // §9-2-6.d makes the corridor the controller's continuing responsibility, and AP/1B
+        // publishes it asymmetrically about the centerline, so it cannot be drawn as a buffer.
+        var aircraft = AircraftOnIr149();
+        Apply(aircraft, "CMTR IR149");
+        TickPhase(aircraft);
+
+        var shapes = NavRouteOverlayProjector.BuildShapes(aircraft);
+
+        var corridor = Assert.Single(shapes);
+        Assert.Equal(NavRouteShapeKind.MilitaryRouteCorridor, corridor.Kind);
+
+        // A closed polygon: both edges plus the point that closes it back onto the first.
+        int centerlineCount = aircraft.Targets.NavigationRoute.Count;
+        Assert.Equal((centerlineCount * 2) + 1, corridor.Points.Count);
+        Assert.Equal(corridor.Points[0], corridor.Points[^1]);
+
+        // Every vertex sits off the centerline by roughly the published half-width.
+        var width = NavigationDatabase.Instance.GetMilitaryRoute("IR149")!.WidthAt("B")!;
+        double offset = GeoMath.DistanceNm(aircraft.Targets.NavigationRoute[0].Position, new LatLon(corridor.Points[0][0], corridor.Points[0][1]));
+        Assert.InRange(offset, Math.Min(width.LeftNm, width.RightNm) * 0.5, Math.Max(width.LeftNm, width.RightNm) * 1.5);
+    }
+
+    [Fact]
     public void SpellMilitaryRoute_UsesTheGroupFormFromParagraph2_5_1()
     {
         // The two examples FAA JO 7110.65 §2-5-1.f gives verbatim.

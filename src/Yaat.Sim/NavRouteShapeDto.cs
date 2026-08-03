@@ -16,6 +16,14 @@ public enum NavRouteShapeKind
 
     /// <summary>A procedure-turn course reversal (outbound, 45° barb, 180° turn, inbound).</summary>
     ProcedureTurn = 2,
+
+    /// <summary>
+    /// The protected corridor either side of a military training route's centerline, as a closed
+    /// polygon (FAA JO 7110.65 §9-2-6.d, widths published per span in AP/1B). Drawn because the
+    /// corridor is the one fact in §9-2-6 a controller has to keep acting on: other traffic has to
+    /// stay out of it, and its width changes span to span and is asymmetric about the centerline.
+    /// </summary>
+    MilitaryRouteCorridor = 3,
 }
 
 /// <summary>

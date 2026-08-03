@@ -128,24 +128,32 @@ public class AircraftMilitaryRoute
 
             if (AltitudeSource == MilitaryRouteAltitudeSource.AssignedAltitude && AssignedOverrideFt is { } assigned)
             {
-                return $"MAINTAIN {assigned:N0}";
+                return Hundreds(assigned);
             }
 
             if (AltitudeSource == MilitaryRouteAltitudeSource.AtOrBelow && AssignedOverrideFt is { } restriction)
             {
-                return $"AT OR BELOW {restriction:N0}";
+                return $"B{Hundreds(restriction)}";
             }
 
             return (AppliedFloorFt, AppliedCeilingFt) switch
             {
-                ({ } floor, { } ceiling) when Math.Abs(floor - ceiling) < 1 => $"{floor:N0}",
-                ({ } floor, { } ceiling) => $"{floor:N0}–{ceiling:N0}",
-                (null, { } ceiling) => $"AT OR BELOW {ceiling:N0}",
-                ({ } floor, null) => $"AT OR ABOVE {floor:N0}",
+                ({ } floor, { } ceiling) when Math.Abs(floor - ceiling) < 1 => Hundreds(floor),
+                ({ } floor, { } ceiling) => $"{Hundreds(floor)}B{Hundreds(ceiling)}",
+                (null, { } ceiling) => $"B{Hundreds(ceiling)}",
+                ({ } floor, null) => $"A{Hundreds(floor)}",
                 _ => $"{Designator} ALT",
             };
         }
     }
+
+    /// <summary>
+    /// An altitude in the hundreds-of-feet form controllers write on a strip: 5,000 ft is "050",
+    /// FL240 is "240". FAA JO 7110.65 §4-5-2 and the §13-1-1 strip conventions pair two of them
+    /// with a "B" to mean a block, which is why the strip reads "050B060" rather than "5,000-6,000"
+    /// — and it keeps a non-ASCII dash out of strip text.
+    /// </summary>
+    private static string Hundreds(double feet) => $"{(int)Math.Round(feet / 100.0):000}";
 
     /// <summary>
     /// True when the 14 CFR 91.117(a) 250-knot waiver applies. AP/1B chapter 1 §I grants it within the
