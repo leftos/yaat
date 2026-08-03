@@ -1,6 +1,12 @@
 # Changelog
 
-## Unreleased
+## v0.11.0-beta [2026/08/03]
+
+### Highlights
+- Military training routes and aerial refueling from the DoD AP/1B — file `IR149` or `AR1` in a route and the aircraft flies the published points and altitude blocks on its own.
+- Five new clearances — `CMTR`, `MTRA`, `XMTR`, `SAYEXIT`, `CAR` — plus an **MTR** column in the Aircraft List and the route's protected corridor under **Show nav route**.
+- Aircraft land at a runway's displaced threshold on a real 3° glidepath, touching down on the aiming point markings instead of short of the threshold.
+- Ground View draws a facility's published Arrival/Departure Window marks, toggled with the new **ADW** button; KMIA ships with the four windows from its ATCT SOP.
 
 ### Added
 - Military training routes and aerial refueling from the DoD AP/1B publication: 648 IR/VR/SR training routes and 247 AR refueling tracks and anchors. A designator in a filed route (`SAT263043 IR149 LRD040028`) expands into the published points, and the aircraft flies the published altitude block — segment by segment on a training route, one block per entry on a refueling track.
