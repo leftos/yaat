@@ -99,6 +99,20 @@ internal static class PatternCommandHandler
             && !string.Equals(previousClearedRunwayId, runway.Designator, StringComparison.OrdinalIgnoreCase);
 
         var standingClearance = voidsLandingClearance ? null : aircraft.Phases.LandingClearance;
+        var standingClearedRunwayId = voidsLandingClearance ? null : aircraft.Phases.ClearedRunwayId;
+
+        // A clearance pre-issued while this entry was still queued (CLAND/TG/SG/LA/COPT behind
+        // "DCT VPCOL; ERD 28R") is the standing clearance for the circuit this entry builds. Resolved
+        // here, before `touchAndGo` below, which picks the circuit's terminal phase from it. Peek only —
+        // the slot is consumed at the build site, past every reject path, so an entry rejected with
+        // "unable, too close for base" doesn't silently eat the controller's clearance. A live
+        // clearance still wins: this only fills a gap, it never overrides.
+        var prearmedClearance = standingClearance is null ? PeekPendingLandingClearance(aircraft, runway) : null;
+        if (prearmedClearance is not null)
+        {
+            standingClearance = prearmedClearance.Clearance;
+            standingClearedRunwayId = runway.Designator;
+        }
 
         // The terminal phase of the rebuilt circuit follows the controller's
         // standing landing clearance, not the transient pattern turn-direction.
@@ -712,7 +726,7 @@ internal static class PatternCommandHandler
         var phases = new PhaseList { AssignedRunway = runway, ActiveApproach = BuildVisualClearanceForIfr(aircraft, runway) };
         NavigationCommandHandler.SyncDestinationRunwayWithActiveStar(aircraft, runway.Designator);
         phases.LandingClearance = standingClearance;
-        phases.ClearedRunwayId = voidsLandingClearance ? null : aircraft.Phases.ClearedRunwayId;
+        phases.ClearedRunwayId = standingClearedRunwayId;
         // Stamp the commanded pattern direction so a subsequent go-around preserves
         // it (GoAroundHelper otherwise defaults VFR to Left, regardless of the
         // ERD/ELB/ERB/ELD intent). Applies to wrong-side entries too — the
@@ -797,6 +811,11 @@ internal static class PatternCommandHandler
         }
 
         aircraft.Phases = phases;
+
+        // Consume the single-shot clearance pre-issued before this entry built its circuit. It has
+        // already been folded into standingClearance above; this clears the slot, warns when it named a
+        // different runway than the circuit that just built, and installs the exact SG/LA terminal.
+        ConsumePendingLandingClearance(aircraft, runway);
 
         // Consume any EXT/SA/MNA pre-arm issued before this entry built its circuit
         // (e.g. EXT DOWNWIND while ERD 28R sat queued behind DCT VPCOL).
@@ -1753,6 +1772,204 @@ internal static class PatternCommandHandler
             _ => "Roger",
         };
 
+    /// <summary>True when a parsed command is a pattern entry (ERD/ELD/ERC/ELC/ERB/ELB/EF).</summary>
+    internal static bool IsPatternEntryCommand(ParsedCommand command) => PatternEntryLegOf(command) is not null;
+
+    /// <summary>The runway a pattern-entry command names, or null for a bare entry (or a non-entry command).</summary>
+    internal static string? PatternEntryRunwayOf(ParsedCommand command) =>
+        command switch
+        {
+            EnterLeftDownwindCommand c => c.RunwayId,
+            EnterRightDownwindCommand c => c.RunwayId,
+            EnterLeftCrosswindCommand c => c.RunwayId,
+            EnterRightCrosswindCommand c => c.RunwayId,
+            EnterLeftBaseCommand c => c.RunwayId,
+            EnterRightBaseCommand c => c.RunwayId,
+            EnterFinalCommand c => c.RunwayId,
+            _ => null,
+        };
+
+    /// <summary>
+    /// The first unfired pattern entry sitting in the command queue, or null when nothing is queued.
+    /// This is what a pre-issued landing clearance attaches to.
+    /// </summary>
+    private static ParsedCommand? FindQueuedPatternEntry(AircraftState aircraft)
+    {
+        foreach (var block in aircraft.Queue.Blocks)
+        {
+            if (block.IsApplied)
+            {
+                continue;
+            }
+
+            foreach (var parsed in BlockParsedCommands(block, aircraft))
+            {
+                if (PatternEntryLegOf(parsed) is not null)
+                {
+                    return parsed;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// True when an unfired pattern entry is queued. The dispatcher uses this to scope its no-phase
+    /// clearance reroute to the case that actually has something to pre-arm; the server broadcasts it so
+    /// the client can offer the clearance verbs in the same window.
+    /// </summary>
+    public static bool HasQueuedPatternEntry(AircraftState aircraft) => FindQueuedPatternEntry(aircraft) is not null;
+
+    /// <summary>
+    /// Layer-2 pre-arm for a landing/option clearance (CLAND/TG/SG/LA/COPT) whose approach does not exist
+    /// yet because the pattern entry that would build it is still queued — e.g. CLAND while <c>ERD 28R</c>
+    /// sits behind <c>DCT VPCOL</c>.
+    ///
+    /// Returns Ok when armed; a hard reject when the named runway contradicts the entry's, or when
+    /// neither names one (7110.65 §3-10-5.a — a clearance states the runway; without one the pilot's
+    /// readback would drop it too, per AIM §4-4-7.b.4, and no later runway change could void it); or null
+    /// so the caller falls back to its own rejection.
+    /// </summary>
+    private static CommandResult? TryArmPendingLandingClearance(
+        AircraftState aircraft,
+        ClearanceType clearance,
+        string? requestedRunwayId,
+        PatternDirection? trafficPattern
+    )
+    {
+        var entry = FindQueuedPatternEntry(aircraft);
+        if (entry is null)
+        {
+            return null;
+        }
+
+        string? entryRunwayId = PatternEntryRunwayOf(entry) is { } raw ? RunwayIdentifier.NormalizeDesignator(raw) : null;
+        string? requested = requestedRunwayId is not null ? RunwayIdentifier.NormalizeDesignator(requestedRunwayId) : null;
+
+        if ((requested is not null) && (entryRunwayId is not null) && !string.Equals(requested, entryRunwayId, StringComparison.OrdinalIgnoreCase))
+        {
+            return new CommandResult(
+                false,
+                $"Cannot clear for runway {RunwayIdentifier.ToDisplayDesignator(requested)} — {aircraft.Callsign} is queued to enter the pattern for runway {RunwayIdentifier.ToDisplayDesignator(entryRunwayId)} — re-issue the entry for runway {RunwayIdentifier.ToDisplayDesignator(requested)}, or CLC first"
+            );
+        }
+
+        var resolvedRunwayId = requested ?? entryRunwayId;
+        if (resolvedRunwayId is null)
+        {
+            return new CommandResult(false, $"Cannot clear {aircraft.Callsign} — neither the clearance nor the queued pattern entry names a runway");
+        }
+
+        aircraft.Pattern.PendingLandingClearance = new PendingLandingClearance(clearance, resolvedRunwayId);
+
+        // Side effects that live outside the PhaseList are applied now rather than carried in the record:
+        // the persistent pattern direction an option clearance names, and the full-stop intent CLAND
+        // signals (which drops any standing MLT/MRT so the circuit doesn't auto-cycle after touchdown).
+        if (trafficPattern is { } dir)
+        {
+            aircraft.Pattern.TrafficDirection = dir;
+        }
+        else if (clearance is ClearanceType.ClearedToLand)
+        {
+            aircraft.Pattern.TrafficDirection = null;
+        }
+
+        Log.LogDebug(
+            "[PatternClearance] {Callsign}: pre-issued {Clearance} rwy {Runway} against queued {Entry}",
+            aircraft.Callsign,
+            clearance,
+            resolvedRunwayId,
+            entry.GetType().Name
+        );
+
+        return CommandDispatcher.Ok(PendingClearanceMessage(clearance, resolvedRunwayId, trafficPattern));
+    }
+
+    /// <summary>
+    /// Controller-facing text for a pre-issued clearance. Deliberately NOT phrased as a condition on the
+    /// clearance ("…on entering the pattern"): 7110.65 has no conditional landing clearance and bans
+    /// conditional phrasing in the analogous runway contexts (§3-7-1.a, §3-9-4.a), and it would read as
+    /// the §3-10-1.a "expect landing clearance two mile final" case — a clearance that was *not* issued.
+    /// "Armed" states the sim outcome instead, matching the FOLLOW branch's ", will land behind …".
+    /// </summary>
+    private static string PendingClearanceMessage(ClearanceType clearance, string runwayId, PatternDirection? trafficPattern)
+    {
+        string verb = clearance switch
+        {
+            ClearanceType.ClearedToLand => "Cleared to land",
+            ClearanceType.ClearedTouchAndGo => "Cleared touch-and-go",
+            ClearanceType.ClearedStopAndGo => "Cleared stop-and-go",
+            ClearanceType.ClearedLowApproach => "Cleared low approach",
+            ClearanceType.ClearedForOption => "Cleared for the option",
+            _ => "Cleared",
+        };
+        return $"{verb} runway {RunwayIdentifier.ToDisplayDesignator(runwayId)}{TrafficLabel(trafficPattern)}, armed for the queued pattern entry";
+    }
+
+    /// <summary>
+    /// The pre-issued clearance that applies to a circuit being built for <paramref name="runway"/>, or
+    /// null when there is none or it names a different runway. Pure — the slot is only cleared by
+    /// <see cref="ConsumePendingLandingClearance"/>, after every reject path in
+    /// <see cref="TryEnterPattern"/>, so a rejected entry never eats the controller's clearance.
+    /// </summary>
+    private static PendingLandingClearance? PeekPendingLandingClearance(AircraftState aircraft, RunwayInfo runway)
+    {
+        if (aircraft.Pattern.PendingLandingClearance is not { } pending)
+        {
+            return null;
+        }
+
+        return MatchesRunway(pending.RunwayId, runway) ? pending : null;
+    }
+
+    /// <summary>
+    /// Clears the single-shot pre-issued clearance now that an entry has built its circuit. A clearance
+    /// that named a different runway than the circuit is voided with an RPO warning (7110.65 §3-10-5)
+    /// rather than silently landing the aircraft on a runway nobody cleared — which is also what keeps an
+    /// orphaned pre-arm safe when a vector drops the queued entry it was attached to. Stop-and-go and low
+    /// approach need their exact terminal installed: PatternBuilder only knows landing-vs-touch-and-go.
+    /// </summary>
+    private static void ConsumePendingLandingClearance(AircraftState aircraft, RunwayInfo runway)
+    {
+        if (aircraft.Pattern.PendingLandingClearance is not { } pending)
+        {
+            return;
+        }
+
+        aircraft.Pattern.PendingLandingClearance = null;
+
+        if (!MatchesRunway(pending.RunwayId, runway))
+        {
+            aircraft.PendingWarnings.Add(
+                $"{aircraft.Callsign} pre-issued clearance for runway {RunwayIdentifier.ToDisplayDesignator(pending.RunwayId)} does not apply to runway {RunwayIdentifier.ToDisplayDesignator(runway.Designator)} — re-clear"
+            );
+            return;
+        }
+
+        Phase? exactTerminal = pending.Clearance switch
+        {
+            ClearanceType.ClearedStopAndGo => new StopAndGoPhase(),
+            ClearanceType.ClearedLowApproach => new LowApproachPhase(),
+            _ => null,
+        };
+        if ((exactTerminal is not null) && (aircraft.Phases is not null))
+        {
+            CommandDispatcher.ReplaceApproachEnding(aircraft.Phases, exactTerminal);
+        }
+
+        Log.LogDebug(
+            "[PatternClearance] {Callsign}: consumed pre-issued {Clearance} onto the new {Runway} circuit",
+            aircraft.Callsign,
+            pending.Clearance,
+            runway.Designator
+        );
+    }
+
+    /// <summary>A pre-issued clearance applies only to the runway it names (7110.65 §3-10-5).</summary>
+    private static bool MatchesRunway(string pendingRunwayId, RunwayInfo runway) =>
+        string.Equals(pendingRunwayId, runway.Designator, StringComparison.OrdinalIgnoreCase);
+
     /// <summary>
     /// Applies a pending EXT/SA/MNA pre-arm (set while the entry was still queued) onto the circuit
     /// this entry just built, then clears it (single-shot). Mirrors the live SA/MNA/EXT arming, but
@@ -2074,7 +2291,8 @@ internal static class PatternCommandHandler
     {
         if (aircraft.Phases is null)
         {
-            return new CommandResult(false, "Aircraft has no active phase sequence");
+            return TryArmPendingLandingClearance(aircraft, ClearanceType.ClearedTouchAndGo, null, trafficPattern)
+                ?? new CommandResult(false, "Aircraft has no active phase sequence");
         }
 
         if (!CommandDispatcher.ReplaceApproachEnding(aircraft.Phases, new TouchAndGoPhase()))
@@ -2098,7 +2316,8 @@ internal static class PatternCommandHandler
     {
         if (aircraft.Phases is null)
         {
-            return new CommandResult(false, "Aircraft has no active phase sequence");
+            return TryArmPendingLandingClearance(aircraft, ClearanceType.ClearedStopAndGo, null, trafficPattern)
+                ?? new CommandResult(false, "Aircraft has no active phase sequence");
         }
 
         if (!CommandDispatcher.ReplaceApproachEnding(aircraft.Phases, new StopAndGoPhase()))
@@ -2122,7 +2341,8 @@ internal static class PatternCommandHandler
     {
         if (aircraft.Phases is null)
         {
-            return new CommandResult(false, "Aircraft has no active phase sequence");
+            return TryArmPendingLandingClearance(aircraft, ClearanceType.ClearedLowApproach, null, trafficPattern)
+                ?? new CommandResult(false, "Aircraft has no active phase sequence");
         }
 
         if (!CommandDispatcher.ReplaceApproachEnding(aircraft.Phases, new LowApproachPhase()))
@@ -2146,7 +2366,8 @@ internal static class PatternCommandHandler
     {
         if (aircraft.Phases is null)
         {
-            return new CommandResult(false, "Aircraft has no active phase sequence");
+            return TryArmPendingLandingClearance(aircraft, ClearanceType.ClearedForOption, null, trafficPattern)
+                ?? new CommandResult(false, "Aircraft has no active phase sequence");
         }
 
         if (!CommandDispatcher.ReplaceApproachEnding(aircraft.Phases, new TouchAndGoPhase()))
@@ -2917,14 +3138,25 @@ internal static class PatternCommandHandler
 
     internal static CommandResult TryClearedToLand(ClearedToLandCommand ctl, AircraftState aircraft, AirportGroundLayout? groundLayout)
     {
-        if (aircraft.Phases is null)
-        {
-            return new CommandResult(false, "Aircraft has no active phase sequence");
-        }
-
         if (aircraft.IsOnGround)
         {
             return new CommandResult(false, "Cannot clear to land — aircraft is on the ground");
+        }
+
+        if (aircraft.Phases is null)
+        {
+            // No phase sequence at all, but the entry that will build one may be queued behind another
+            // instruction (CLAND while ERD 28R sits behind DCT VPCOL). Pre-issue against that entry.
+            if (TryArmPendingLandingClearance(aircraft, ClearanceType.ClearedToLand, ctl.RunwayId, null) is { } armed)
+            {
+                if (armed.Success && ctl.NoDelete)
+                {
+                    aircraft.Ground.AutoDeleteExempt = true;
+                }
+                return armed;
+            }
+
+            return new CommandResult(false, "Aircraft has no active phase sequence");
         }
 
         bool following = aircraft.Approach.FollowingCallsign is not null;
@@ -3411,9 +3643,14 @@ internal static class PatternCommandHandler
 
     internal static CommandResult TryCancelLandingClearance(AircraftState aircraft)
     {
+        // A clearance pre-issued against a still-queued pattern entry has no PhaseList to cancel from
+        // yet; retracting it is still a cancel.
+        bool cancelledPrearm = aircraft.Pattern.PendingLandingClearance is not null;
+        aircraft.Pattern.PendingLandingClearance = null;
+
         if (aircraft.Phases is null || aircraft.Phases.LandingClearance is null)
         {
-            return new CommandResult(false, "No landing clearance to cancel");
+            return cancelledPrearm ? CommandDispatcher.Ok("Landing clearance cancelled") : new CommandResult(false, "No landing clearance to cancel");
         }
 
         aircraft.Phases.LandingClearance = null;

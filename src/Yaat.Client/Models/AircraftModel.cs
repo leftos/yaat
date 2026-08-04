@@ -897,6 +897,20 @@ public partial class AircraftModel : ObservableObject
     /// <summary>True when the route is designated for MARSA operations (§9-2-6.c).</summary>
     public bool MilitaryRouteMarsa { get; set; }
 
+    /// <summary>
+    /// True when an unfired pattern entry sits in the aircraft's command queue. There is no arrival
+    /// phase yet, but a landing/option clearance issued now is pre-issued against that entry — so the
+    /// clearance verbs stay applicable in this window.
+    /// </summary>
+    public bool HasQueuedPatternEntry { get; set; }
+
+    /// <summary>
+    /// ClearanceType name of a clearance already pre-issued against that queued entry, or empty.
+    /// Distinct from <see cref="LandingClearance"/>, which means the aircraft is cleared on a circuit it
+    /// is already flying.
+    /// </summary>
+    public string PendingLandingClearance { get; set; } = string.Empty;
+
     /// <summary>Route and altitude as one label for the Aircraft List and the strip, or empty.</summary>
     public string MilitaryRouteSummary =>
         string.IsNullOrEmpty(MilitaryRoute) ? string.Empty
@@ -1001,6 +1015,8 @@ public partial class AircraftModel : ObservableObject
             MilitaryRoute = dto.MilitaryRoute,
             MilitaryRouteAltitudeText = dto.MilitaryRouteAltitudeText,
             MilitaryRouteMarsa = dto.MilitaryRouteMarsa,
+            HasQueuedPatternEntry = dto.HasQueuedPatternEntry,
+            PendingLandingClearance = dto.PendingLandingClearance,
             ParkingSpot = dto.ParkingSpot,
             CurrentTaxiway = dto.CurrentTaxiway,
             Owner = dto.Owner,
@@ -1110,6 +1126,8 @@ public partial class AircraftModel : ObservableObject
         MilitaryRoute = dto.MilitaryRoute;
         MilitaryRouteAltitudeText = dto.MilitaryRouteAltitudeText;
         MilitaryRouteMarsa = dto.MilitaryRouteMarsa;
+        HasQueuedPatternEntry = dto.HasQueuedPatternEntry;
+        PendingLandingClearance = dto.PendingLandingClearance;
         ParkingSpot = dto.ParkingSpot;
         CurrentTaxiway = dto.CurrentTaxiway;
         Owner = dto.Owner;

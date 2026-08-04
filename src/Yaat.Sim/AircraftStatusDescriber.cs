@@ -73,7 +73,24 @@ public static class AircraftStatusDescriber
         }
 
         var noPhase = ComputeNoPhaseStatus(i);
-        return (AppendHeadingIfAssigned(i, noPhase.Text, keep: true), noPhase.Severity);
+        return (AppendPendingClearance(i, AppendHeadingIfAssigned(i, noPhase.Text, keep: true)), noPhase.Severity);
+    }
+
+    /// <summary>
+    /// A clearance pre-issued for a pattern entry that is still queued has no phase to describe it yet,
+    /// so surface it alongside the aircraft's en-route status — otherwise the RPO has no standing
+    /// reminder that the aircraft is already cleared for the approach it hasn't started.
+    /// </summary>
+    private static string AppendPendingClearance(AircraftStatusView i, string text)
+    {
+        if (string.IsNullOrEmpty(i.PendingLandingClearance))
+        {
+            return text;
+        }
+
+        var runway = string.IsNullOrEmpty(i.PendingLandingClearanceRunway) ? "" : $" {i.PendingLandingClearanceRunway}";
+        var armed = $"{i.PendingLandingClearance}{runway} armed";
+        return string.IsNullOrEmpty(text) ? armed : $"{text}, {armed}";
     }
 
     /// <summary>
@@ -106,6 +123,17 @@ public static class AircraftStatusDescriber
         public string PatternDirection { get; init; } = "";
         public string? PatternEntryKind { get; init; }
         public string LandingClearance { get; init; } = "";
+
+        /// <summary>
+        /// Command verb of a clearance pre-issued for a pattern entry that is still queued ("CLAND",
+        /// "TG", "SG", "LA", "COPT"), or empty. Distinct from <see cref="LandingClearance"/>, which means
+        /// the aircraft is actually cleared on a circuit it is already flying.
+        /// </summary>
+        public string PendingLandingClearance { get; init; } = "";
+
+        /// <summary>Runway the pre-issued clearance names, or empty when it adopts whatever the entry builds.</summary>
+        public string PendingLandingClearanceRunway { get; init; } = "";
+
         public bool IsAutoClearedToLand { get; init; }
         public string? HandoffPeer { get; init; }
         public string? HandoffPeerSectorCode { get; init; }
@@ -165,6 +193,8 @@ public static class AircraftStatusDescriber
                 PatternDirection = ac.Phases?.TrafficDirection?.ToString() ?? "",
                 PatternEntryKind = ExtractPatternEntryKind(ac.Phases),
                 LandingClearance = ac.Phases?.LandingClearance?.ToString() ?? "",
+                PendingLandingClearance = PendingClearanceVerb(ac.Pattern.PendingLandingClearance?.Clearance),
+                PendingLandingClearanceRunway = RunwayIdentifier.ToDisplayDesignator(ac.Pattern.PendingLandingClearance?.RunwayId ?? ""),
                 IsAutoClearedToLand = ctx.IsAutoClearedToLand,
                 HandoffPeer = ac.Track.HandoffPeer?.Callsign,
                 HandoffPeerSectorCode = ctx.HandoffPeerLabel,
@@ -461,6 +491,18 @@ public static class AircraftStatusDescriber
             _ => false,
         };
     }
+
+    /// <summary>The command verb an RPO typed for a pre-issued clearance, for the Info column.</summary>
+    private static string PendingClearanceVerb(ClearanceType? clearance) =>
+        clearance switch
+        {
+            ClearanceType.ClearedToLand => "CLAND",
+            ClearanceType.ClearedTouchAndGo => "TG",
+            ClearanceType.ClearedStopAndGo => "SG",
+            ClearanceType.ClearedLowApproach => "LA",
+            ClearanceType.ClearedForOption => "COPT",
+            _ => "",
+        };
 
     private static (string Text, AircraftStatusSeverity Severity) ComputeNoPhaseStatus(AircraftStatusView i)
     {

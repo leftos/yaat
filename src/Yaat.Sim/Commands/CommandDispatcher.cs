@@ -109,6 +109,21 @@ public static class CommandDispatcher
             return ApplyTransparentCompound(compound, aircraft, ctx);
         }
 
+        // Same queue-wipe footgun, for a landing/option clearance pre-issued behind a still-queued
+        // pattern entry (CLAND while ERD 28R sits behind DCT VPCOL). These verbs carry CommandDimension
+        // .All, so the fast path would drop the entry the clearance is meant to attach to. Scoped hard:
+        // only with NO PhaseList at all, and only when an entry is actually queued — a CLAND with
+        // nothing queued keeps the ordinary dry-run-guarded path and its ordinary rejection.
+        if (
+            aircraft.Phases is null
+            && compound.Blocks.Count > 0
+            && compound.Blocks.All(IsPendingLandingClearanceBlock)
+            && PatternCommandHandler.HasQueuedPatternEntry(aircraft)
+        )
+        {
+            return ApplyTransparentCompound(compound, aircraft, ctx);
+        }
+
         // CAPP on an aircraft already established on a JFAC/JLOC lateral join authorizes the
         // glideslope descent in place — it does not tear the join down and rebuild it (which
         // would emit a spurious "… cancelled by CAPP" warning). The aircraft is already tracking
@@ -223,6 +238,15 @@ public static class CommandDispatcher
             return dryRunError;
         }
 
+        // Dry-run only validates the first block, but a clearance trailing a pattern entry in the same
+        // transmission is pre-issued against that entry — so its runway must agree. Check it here, before
+        // anything is applied, rather than letting the leading blocks land and the trailing one fail.
+        var trailingClearanceError = ValidateTrailingClearanceRunway(compound, aircraft);
+        if (trailingClearanceError is not null)
+        {
+            return trailingClearanceError;
+        }
+
         // Now that validation passed, clear phases if the command requires it
         if (shouldClearPhases)
         {
@@ -296,9 +320,9 @@ public static class CommandDispatcher
                 }
 
                 // If the just-applied block installed pattern phases (e.g. ERD), any
-                // subsequent SA/MNA/EXT blocks would otherwise sit in the queue forever
-                // — UpdateCommandQueue short-circuits while a phase is active. Apply
-                // them immediately via the tower path so they arm the pending leg.
+                // subsequent SA/MNA/EXT/clearance blocks would otherwise sit in the queue
+                // forever — UpdateCommandQueue short-circuits while a phase is active. Apply
+                // them immediately via the tower path so they reach the pending leg.
                 if (aircraft.Phases?.CurrentPhase is { } postApplyPhase)
                 {
                     for (int bi = firstNewBlockIdx + 1; bi < aircraft.Queue.Blocks.Count; bi++)
@@ -310,7 +334,10 @@ public static class CommandDispatcher
                         }
 
                         var parsedCmd = block.ParsedCommands[0];
-                        if (parsedCmd is not (MakeShortApproachCommand or MakeNormalApproachCommand or ExtendPatternCommand))
+                        if (
+                            parsedCmd is not (MakeShortApproachCommand or MakeNormalApproachCommand or ExtendPatternCommand)
+                            && !IsPendingLandingClearanceCommand(parsedCmd)
+                        )
                         {
                             break;
                         }
@@ -325,6 +352,39 @@ public static class CommandDispatcher
                         if (bi - firstNewBlockIdx < messages.Count)
                         {
                             messages[bi - firstNewBlockIdx] = modResult.Message ?? block.NaturalDescription;
+                        }
+                    }
+                }
+                // A clearance in a transmission whose pattern entry is still QUEUED (e.g.
+                // "DCT VPCOL; ERD 28R; CLAND") never gets its turn either: the entry installs a phase
+                // the moment it fires, and the queue stops advancing from there. Pre-issue it against
+                // the queued entry now. Unlike the loop above this steps over the intervening entry
+                // block, which must stay queued to fire at its fix.
+                else if (aircraft.Phases is null && PatternCommandHandler.HasQueuedPatternEntry(aircraft))
+                {
+                    for (int bi = firstNewBlockIdx + 1; bi < aircraft.Queue.Blocks.Count; bi++)
+                    {
+                        var block = aircraft.Queue.Blocks[bi];
+                        if (
+                            block.IsApplied
+                            || block.Trigger is not null
+                            || block.ParsedCommands is not { Count: 1 }
+                            || !IsPendingLandingClearanceCommand(block.ParsedCommands[0])
+                        )
+                        {
+                            continue;
+                        }
+
+                        var armResult = ApplyCommand(block.ParsedCommands[0], aircraft, ctx);
+                        if (!armResult.Success)
+                        {
+                            break;
+                        }
+
+                        block.IsApplied = true;
+                        if (bi - firstNewBlockIdx < messages.Count)
+                        {
+                            messages[bi - firstNewBlockIdx] = armResult.Message ?? block.NaturalDescription;
                         }
                     }
                 }
@@ -940,6 +1000,19 @@ public static class CommandDispatcher
             case MakeNormalApproachCommand:
                 return PatternCommandHandler.TryMakeNormalApproach(aircraft);
 
+            // Option clearances (also dispatched via TryApplyTowerCommand in the phase path). Present
+            // here for the same reason as the modifiers above: with no phase they must reach their
+            // handler so it can pre-issue the clearance against a queued pattern entry. Without these
+            // arms they fall to the default NoDispatcherArm rejection instead.
+            case TouchAndGoCommand tg:
+                return PatternCommandHandler.TrySetupTouchAndGo(aircraft, tg.TrafficPattern);
+            case StopAndGoCommand sg:
+                return PatternCommandHandler.TrySetupStopAndGo(aircraft, sg.TrafficPattern);
+            case LowApproachCommand la:
+                return PatternCommandHandler.TrySetupLowApproach(aircraft, la.TrafficPattern);
+            case ClearedForOptionCommand opt:
+                return PatternCommandHandler.TrySetupClearedForOption(aircraft, opt.TrafficPattern);
+
             case FollowCommand follow:
                 return TryAirborneFollow(aircraft, follow, ctx);
 
@@ -1146,6 +1219,70 @@ public static class CommandDispatcher
         }
 
         return block.Commands[0] is MakeShortApproachCommand or MakeNormalApproachCommand or ExtendPatternCommand;
+    }
+
+    /// <summary>
+    /// True when a block is a single, unconditional landing/option clearance (CLAND/TG/SG/LA/COPT).
+    /// These are tower commands, so <see cref="CommandDescriber.GetCommandDimension"/> reports
+    /// <see cref="CommandDimension.All"/> and the All/None fast path in
+    /// <see cref="ClearConflictingBlocks"/> wipes the whole queue — destroying the very queued pattern
+    /// entry the clearance is meant to pre-arm. (Today a no-phase CLAND survives only because
+    /// DryRunValidate rejects it before dispatch reaches the wipe.) Deliberately distinct from
+    /// <see cref="IsImmediatePhaseModifierBlock"/>, which is about modifier blocks that follow a
+    /// tower-handled first block and whose commands carry the <c>None</c> dimension instead.
+    /// </summary>
+    private static bool IsPendingLandingClearanceBlock(ParsedBlock block)
+    {
+        if (block.Condition is not null || block.Commands.Count != 1)
+        {
+            return false;
+        }
+
+        return IsPendingLandingClearanceCommand(block.Commands[0]);
+    }
+
+    /// <summary>The landing/option clearance verbs that can be pre-issued against a queued pattern entry.</summary>
+    private static bool IsPendingLandingClearanceCommand(ParsedCommand command) =>
+        command is ClearedToLandCommand or TouchAndGoCommand or StopAndGoCommand or LowApproachCommand or ClearedForOptionCommand;
+
+    /// <summary>
+    /// A clearance that trails a pattern entry in the same transmission (<c>DCT VPCOL; ERD 28R; CLAND</c>)
+    /// is pre-issued against that entry, so a runway it names must agree with the entry's (7110.65
+    /// §3-10-5). Checked before anything is applied so a contradiction rejects the whole compound rather
+    /// than landing the leading blocks and failing on the trailing one. Returns null when there is no
+    /// such pairing or the two agree.
+    /// </summary>
+    private static CommandResult? ValidateTrailingClearanceRunway(CompoundCommand compound, AircraftState aircraft)
+    {
+        string? entryRunwayId = null;
+        foreach (var block in compound.Blocks)
+        {
+            if (block.Commands.Count == 1 && PatternCommandHandler.IsPatternEntryCommand(block.Commands[0]))
+            {
+                entryRunwayId = PatternCommandHandler.PatternEntryRunwayOf(block.Commands[0]) is { } raw
+                    ? RunwayIdentifier.NormalizeDesignator(raw)
+                    : null;
+                continue;
+            }
+
+            if (entryRunwayId is null || !IsPendingLandingClearanceBlock(block))
+            {
+                continue;
+            }
+
+            if (
+                block.Commands[0] is ClearedToLandCommand { RunwayId: { } requestedRaw }
+                && !string.Equals(RunwayIdentifier.NormalizeDesignator(requestedRaw), entryRunwayId, StringComparison.OrdinalIgnoreCase)
+            )
+            {
+                return new CommandResult(
+                    false,
+                    $"Cannot clear for runway {RunwayIdentifier.ToDisplayDesignator(requestedRaw)} — {aircraft.Callsign} is queued to enter the pattern for runway {RunwayIdentifier.ToDisplayDesignator(entryRunwayId)}"
+                );
+            }
+        }
+
+        return null;
     }
 
     /// <summary>

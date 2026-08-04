@@ -1048,7 +1048,12 @@ public record AircraftDto(
     // sim enforced, not the published AGL/MSL notation — see the server DTO for why.
     string MilitaryRouteAltitudeText = "",
     // True when the route is designated for MARSA operations (FAA JO 7110.65 §9-2-6.c).
-    bool MilitaryRouteMarsa = false
+    bool MilitaryRouteMarsa = false,
+    // True when an unfired pattern entry is queued. A landing/option clearance issued in this window is
+    // pre-issued against that entry, so the clearance verbs stay offered even with no arrival phase yet.
+    bool HasQueuedPatternEntry = false,
+    // ClearanceType name of a clearance already pre-issued against that queued entry, empty when none.
+    string PendingLandingClearance = ""
 );
 
 public record LoadScenarioResultDto(

@@ -189,7 +189,11 @@ public static class AircraftCommandApplicability
 
     // --- Arrivals / pattern landing ---
 
-    /// <summary>Cleared to land — any phase with a pending landing, plus go-around (re-clear).</summary>
+    /// <summary>
+    /// Cleared to land — any phase with a pending landing, plus go-around (re-clear), plus the window
+    /// where a pattern entry is queued but has not fired: there is no arrival phase yet, but the
+    /// clearance is pre-issued against that entry and applies when it builds its circuit.
+    /// </summary>
     public static bool CanClearToLand(AircraftModel? ac)
     {
         if (ac is null)
@@ -197,7 +201,7 @@ public static class AircraftCommandApplicability
             return false;
         }
 
-        return IsOnArrival(ac) || (ac.CurrentPhase ?? "") == "GoAround";
+        return IsOnArrival(ac) || ac.HasQueuedPatternEntry || (ac.CurrentPhase ?? "") == "GoAround";
     }
 
     /// <summary>
@@ -226,10 +230,13 @@ public static class AircraftCommandApplicability
         return IsOnArrival(ac) || phase is "TouchAndGo" or "StopAndGo" or "LowApproach";
     }
 
-    /// <summary>Cancel landing clearance — only when a landing clearance is currently set.</summary>
+    /// <summary>
+    /// Cancel landing clearance — only when a clearance is currently set, either on the circuit the
+    /// aircraft is flying or pre-issued against a pattern entry that is still queued.
+    /// </summary>
     public static bool CanCancelLandingClearance(AircraftModel? ac)
     {
-        return ac is not null && !string.IsNullOrEmpty(ac.LandingClearance);
+        return ac is not null && (!string.IsNullOrEmpty(ac.LandingClearance) || !string.IsNullOrEmpty(ac.PendingLandingClearance));
     }
 
     /// <summary>

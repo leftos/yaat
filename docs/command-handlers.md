@@ -71,6 +71,13 @@ command into a compound for `DispatchCompound`, but that path is not how a user-
    queue-wipe fast path (step 7) would destroy a queued pattern entry the moment their dispatcher arm makes dry-run succeed. Applying directly pre-arms
    the queued entry (`AircraftPattern.PendingEntryModifier`, consumed by `TryEnterPattern` when it builds the circuit) without touching the queue. With
    an active phase the phase gate (step 4) already returns before the wipe, so this reroute is scoped to the no-phase case only.
+3c. **Pre-issued landing/option clearance reroute** — a compound of only single-command, no-condition `CLAND`/`TG`/`SG`/`LA`/`COPT` blocks
+   (`IsPendingLandingClearanceBlock`) on an aircraft with **no `PhaseList` at all** *and* an unfired pattern entry in the queue
+   (`PatternCommandHandler.HasQueuedPatternEntry`) is likewise applied via `ApplyTransparentCompound`. Same footgun as 3b, opposite dimension: these are
+   tower commands → `CommandDimension.All`, which hits the *other* half of the step-7 fast path. Today they survive only because `DryRunValidate` rejects
+   them first; the moment the handler starts pre-issuing, dispatch would reach the wipe and destroy the entry the clearance is meant to attach to.
+   Applying directly stores `AircraftPattern.PendingLandingClearance`, which `TryEnterPattern` folds into `standingClearance` when it builds the circuit.
+   The `HasQueuedPatternEntry` guard keeps a clearance with nothing queued on the ordinary dry-run-guarded path and its ordinary rejection.
 4. **Phase gate** — if `aircraft.Phases?.CurrentPhase` exists, route through `DispatchWithPhase` (`:1172`). See [the phase gate](#the-phase-gate).
 5. **Dry-run validation** — `DryRunValidate` (`:812`) runs the first block on a clone. If it fails, return the error; **real state is unchanged**.
 6. **Post-validation phase clear** — only now (after dry-run passes) does the deferred `ClearsPhase` actually clear the `PhaseList`

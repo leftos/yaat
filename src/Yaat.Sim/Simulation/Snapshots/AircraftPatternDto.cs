@@ -27,4 +27,16 @@ public sealed class AircraftPatternDto
 
     /// <summary>Target pattern leg for the pending modifier (matches PatternEntryLeg). See <see cref="PendingEntryModifierKind"/>.</summary>
     public byte? PendingEntryModifierLeg { get; init; }
+
+    /// <summary>
+    /// Landing/option clearance pre-issued for a queued-but-unbuilt pattern entry (matches
+    /// ClearanceType). Null/absent in old snapshots (treated as no pre-issued clearance on load).
+    /// </summary>
+    public byte? PendingLandingClearanceType { get; init; }
+
+    /// <summary>
+    /// Runway the pre-issued clearance names. Travels with <see cref="PendingLandingClearanceType"/>;
+    /// either both are present or the aircraft has no pre-issued clearance.
+    /// </summary>
+    public string? PendingLandingClearanceRunwayId { get; init; }
 }

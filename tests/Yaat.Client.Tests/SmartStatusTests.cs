@@ -1031,4 +1031,38 @@ public class SmartStatusTests
     {
         Assert.Equal("VFR follow", Text(new AircraftStatusView { CurrentPhase = "VFR Follow", FollowingCallsign = null }));
     }
+
+    /// <summary>
+    /// A clearance pre-issued while the pattern entry is still queued has no phase to describe it, so
+    /// the Info column carries it alongside the en-route status — otherwise the RPO has no reminder that
+    /// the aircraft is already cleared for an approach it hasn't started.
+    /// </summary>
+    [Fact]
+    public void QueuedEntry_PreIssuedClearance_AppendsArmedSuffix()
+    {
+        var v = new AircraftStatusView
+        {
+            CurrentPhase = "",
+            NavigationRouteCount = 1,
+            NavigationRouteDisplay = "VPCOL",
+            PendingLandingClearance = "CLAND",
+            PendingLandingClearanceRunway = "28R",
+        };
+        Assert.Equal("→ VPCOL, CLAND 28R armed", Text(v));
+        Assert.Equal(AircraftStatusSeverity.Normal, Severity(v));
+    }
+
+    /// <summary>A bare pre-issued clearance adopts the entry's runway, so no runway is shown.</summary>
+    [Fact]
+    public void QueuedEntry_PreIssuedClearanceWithoutRunway_OmitsRunway()
+    {
+        var v = new AircraftStatusView
+        {
+            CurrentPhase = "",
+            NavigationRouteCount = 1,
+            NavigationRouteDisplay = "VPCOL",
+            PendingLandingClearance = "COPT",
+        };
+        Assert.Equal("→ VPCOL, COPT armed", Text(v));
+    }
 }

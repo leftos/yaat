@@ -667,7 +667,13 @@ public static class PilotResponder
             return explicitRunwayId;
         }
 
-        return aircraft.Phases?.ClearedRunwayId ?? aircraft.Phases?.AssignedRunway?.Designator ?? aircraft.Phases?.ActiveApproach?.RunwayId ?? "";
+        // The pre-issued clearance is last: an aircraft whose pattern entry is still queued has no
+        // PhaseList at all, so without it the readback drops the runway ("cleared to land" bare).
+        return aircraft.Phases?.ClearedRunwayId
+            ?? aircraft.Phases?.AssignedRunway?.Designator
+            ?? aircraft.Phases?.ActiveApproach?.RunwayId
+            ?? aircraft.Pattern.PendingLandingClearance?.RunwayId
+            ?? "";
     }
 
     private static PilotSpeechText BuildDepartureInstructionClause(DepartureInstruction departure) =>

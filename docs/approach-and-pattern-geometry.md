@@ -346,6 +346,17 @@ also the `touchAndGo` terminator choice). Same-runway re-entry keeps it. Mirrors
 (MRT/MLT). `ApplySidestep` returns before this and deliberately *transfers* the clearance — the instrument
 approach clearance authorizes the parallel (§4-8-7).
 
+**Pre-issued clearances fold into the same `standingClearance`.** A `CLAND`/`TG`/`SG`/`LA`/`COPT` issued while the
+entry that would build the approach is still *queued* is stored on `AircraftPattern.PendingLandingClearance`
+(the entry's runway resolved at issue time, so a contradicting runway is rejected there rather than dropped here).
+`TryEnterPattern` **peeks** at it where `standingClearance` is computed — it has to be resolved before `touchAndGo`,
+which picks the circuit's terminal phase from the clearance and is passed into `PatternBuilder.BuildCircuit`. The slot
+is only **consumed** (`ConsumePendingLandingClearance`) at the build site, past every reject path, so an entry
+rejected with "unable, too close for base" doesn't eat the controller's clearance. A live `Phases.LandingClearance`
+still wins; the pre-arm only fills the gap. Consumption also voids a clearance whose runway disagrees with the circuit
+that built (RPO warning, §3-10-5), which is what makes an orphaned pre-arm safe after a vector drops the queued entry,
+and installs the exact `StopAndGoPhase`/`LowApproachPhase` terminal that `PatternBuilder` cannot build on its own.
+
 When the altitude-aware join is capped at along-track but the aircraft still cannot lose its altitude over the
 cut-in + final at the category `PatternDescentRate`, `EF` succeeds but raises an `AircraftState.PendingWarnings`
 entry ("unable to descend for straight-in … — too high") — a controller-facing advisory, not radio phraseology.

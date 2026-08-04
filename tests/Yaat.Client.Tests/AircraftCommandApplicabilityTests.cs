@@ -213,6 +213,22 @@ public class AircraftCommandApplicabilityTests
         Assert.True(AircraftCommandApplicability.CanIssueVfrOption(ac, VfrCommandsForIfr.None));
     }
 
+    /// <summary>
+    /// An aircraft still free-flying toward its pattern entry ("DCT VPCOL; ERD 28R", entry queued) has no
+    /// arrival phase, but the clearance verbs are pre-issued against the queued entry — so the menu must
+    /// still offer them.
+    /// </summary>
+    [Fact]
+    public void QueuedPatternEntry_OffersClearancesWithNoArrivalPhase()
+    {
+        var ac = Ac("", false, "VFR");
+        Assert.False(AircraftCommandApplicability.CanClearToLand(ac));
+
+        ac.HasQueuedPatternEntry = true;
+        Assert.True(AircraftCommandApplicability.CanClearToLand(ac));
+        Assert.True(AircraftCommandApplicability.CanIssueVfrOption(ac, VfrCommandsForIfr.None));
+    }
+
     // --- Arrivals: Cancel landing clearance (only when a clearance is set) ---
 
     [Theory]
@@ -222,6 +238,18 @@ public class AircraftCommandApplicabilityTests
     public void CanCancelLandingClearance_RequiresActiveClearance(string clearance, bool expected)
     {
         Assert.Equal(expected, AircraftCommandApplicability.CanCancelLandingClearance(Ac("FinalApproach", false, landingClearance: clearance)));
+    }
+
+    /// <summary>A clearance pre-issued against a queued entry is cancellable too, with no phase yet.</summary>
+    [Fact]
+    public void CanCancelLandingClearance_CoversPreIssuedClearance()
+    {
+        var ac = Ac("", false, "VFR");
+        ac.HasQueuedPatternEntry = true;
+        Assert.False(AircraftCommandApplicability.CanCancelLandingClearance(ac));
+
+        ac.PendingLandingClearance = "ClearedToLand";
+        Assert.True(AircraftCommandApplicability.CanCancelLandingClearance(ac));
     }
 
     // --- Runway exit (fixed-wing only) ---

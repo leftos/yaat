@@ -20,6 +20,16 @@ public enum PendingEntryModifierKind
 public sealed record PendingEntryModifier(PendingEntryModifierKind Kind, PatternEntryLeg TargetLeg);
 
 /// <summary>
+/// A landing/option clearance (CLAND/TG/SG/LA/COPT) issued before the pattern-entry command that
+/// will build its approach has fired — e.g. CLAND while ERD 28R sits queued behind DCT VPCOL.
+/// <see cref="RunwayId"/> is the runway the clearance names, adopted from the queued entry when the
+/// controller gave a bare verb. It is never empty: a clearance states its runway (7110.65 §3-10-5.a),
+/// the pilot reads it back (AIM §4-4-7.b.4), and a circuit built for a different runway voids the
+/// clearance — none of which works without one, so arming is refused when neither side names a runway.
+/// </summary>
+public sealed record PendingLandingClearance(ClearanceType Clearance, string RunwayId);
+
+/// <summary>
 /// Per-aircraft pattern overrides. Null fields fall back to category defaults
 /// (downwind offset, pattern altitude). Set by CM/DM during pattern mode and
 /// by MLT/MRT/CTO/GA when the controller specifies an explicit altitude.
@@ -58,6 +68,15 @@ public class AircraftPattern
     /// </summary>
     public PendingEntryModifier? PendingEntryModifier { get; set; }
 
+    /// <summary>
+    /// Pending landing/option clearance pre-issued for a pattern entry (ERD/ELD/…) that is queued but
+    /// has not built its circuit yet — e.g. CLAND issued while ERD 28R sits queued behind DCT VPCOL.
+    /// Consumed by <see cref="Yaat.Sim.Commands.PatternCommandHandler"/> when TryEnterPattern builds the
+    /// circuit: it becomes the circuit's standing clearance and this slot is cleared. Single-shot.
+    /// Null = no pre-issued clearance.
+    /// </summary>
+    public PendingLandingClearance? PendingLandingClearance { get; set; }
+
     public AircraftPatternDto ToSnapshot() =>
         new()
         {
@@ -67,6 +86,8 @@ public class AircraftPattern
             ExtendNextUpwind = ExtendNextUpwind ? true : null,
             PendingEntryModifierKind = PendingEntryModifier is not null ? (byte)PendingEntryModifier.Kind : null,
             PendingEntryModifierLeg = PendingEntryModifier is not null ? (byte)PendingEntryModifier.TargetLeg : null,
+            PendingLandingClearanceType = PendingLandingClearance is not null ? (byte)PendingLandingClearance.Clearance : null,
+            PendingLandingClearanceRunwayId = PendingLandingClearance?.RunwayId,
         };
 
     public static AircraftPattern FromSnapshot(AircraftPatternDto dto) =>
@@ -79,6 +100,10 @@ public class AircraftPattern
             PendingEntryModifier =
                 dto.PendingEntryModifierKind is { } kind && dto.PendingEntryModifierLeg is { } leg
                     ? new PendingEntryModifier((PendingEntryModifierKind)kind, (PatternEntryLeg)leg)
+                    : null,
+            PendingLandingClearance =
+                dto.PendingLandingClearanceType is { } clearance && !string.IsNullOrEmpty(dto.PendingLandingClearanceRunwayId)
+                    ? new PendingLandingClearance((ClearanceType)clearance, dto.PendingLandingClearanceRunwayId)
                     : null,
         };
 }

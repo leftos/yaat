@@ -104,6 +104,8 @@ The decisions established by the phraseology audit, with the authority. Local co
 | An arrival with no approach issued gives a brief **"request approach assignment, {callsign}"** — names neither runway nor approach type (ATC assigns both) | `BuildArrivalApproachRequest` | 4-1-8 |
 | Mandatory readbacks keep the full taxi route (path + runway + cross-runway + hold-short) and the runway **L/R/C** suffix | `PhraseologyRules` TAXI rules + `SpellRunway`/`CompactRunway` | 4-4-7.b.4, 4-3-18 |
 | A taxi clearance that includes a runway segment says **ON** the runway, never "via" — VIA is for taxiways | `PhraseologyVerbalizer.RenderTaxiAlongRunway` (bypasses the flat `via`-only rule template) / `CaptureFormatter.RunwaySegment` | 3-7-2.a |
+| A **pre-issued** clearance (`CLAND`/`TG`/`SG`/`LA`/`COPT` against a still-queued pattern entry) gets the same full readback **including the runway** as a live one — readback verifies the numbers, not the aircraft's position, so being outside the pattern changes nothing | `PilotResponder.ResolveRunwayId` falls back to `Pattern.PendingLandingClearance.RunwayId` | 4-4-7.b.4 |
+| A pre-armed **instruction** with no altitude, vector or runway (`EXT` / `SA` / `MNA` against a queued entry) needs only an acknowledgement, not a clearance-style readback | `PatternCommandHandler.PendingModifierMessage` | 4-4-7.b |
 
 Note the arrival check-in vs approach-request distinction: an IFR arrival checks in with its
 altitude and lateral state (and ATIS if held) — it does **not** request a runway (ATC assigns it).
