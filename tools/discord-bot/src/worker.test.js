@@ -35,10 +35,19 @@ const created = () =>
   new Response(JSON.stringify({ number: 7, html_url: ISSUE_URL }), { status: 201 });
 const json = (value) => new Response(JSON.stringify(value), { status: 200 });
 
+// Captured before vi.useFakeTimers() replaces it, so settle() can yield a genuine event-loop turn
+// while the fake clock is installed.
+const realSetTimeout = globalThis.setTimeout;
+
 /**
  * Drives the fake clock until `promise` settles. Timers are only run as the code under test
  * schedules them — the clock is never advanced past a pending wait — so tests can still assert the
  * exact interval between two requests.
+ *
+ * Each turn ends with a real setTimeout(0) yield, not a bare microtask flush: awaiting only
+ * already-resolved promises chains microtasks back-to-back and starves the event loop, so work that
+ * completes off the fake clock (WebCrypto signing on the libuv threadpool) could never deliver its
+ * result and the turn cap tripped spuriously on slow CI runners.
  */
 async function settle(promise) {
   let done = false;
@@ -49,7 +58,7 @@ async function settle(promise) {
     if (turn > 1000) throw new Error("promise never settled while draining timers");
     await vi.runAllTimersAsync();
     if (done) break;
-    await Promise.resolve();
+    await new Promise((resolve) => realSetTimeout(resolve, 0));
   }
   return tracked;
 }
