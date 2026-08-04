@@ -15,6 +15,7 @@
 - Altitude-triggered conditional blocks such as `LV 050 NORM` fire reliably at high climb and descent rates.
 - Clearing an aircraft to land while its pattern entry is still queued behind another instruction now works. `DCT VPCOL; ERD 28R` followed by `CLAND` is accepted, and the clearance applies on its own when the aircraft reaches the fix and enters the pattern — no second `CLAND` a minute later. `TG`, `SG`, `LA` and `COPT` work the same way, and all five can also be given in one transmission (`DCT VPCOL; ERD 28R; CLAND`).
 - A bare `CLAND` in that window adopts the runway the queued entry names; a runway that contradicts it is rejected on the spot, with the two ways out, rather than quietly ignored later. The Aircraft List shows `CLAND 28R armed` while the clearance is waiting, the pilot reads the runway back, and `CLC` cancels it.
+- A command queued behind another instruction no longer vanishes across a rewind or a restored session. `DCT VPCOL; ERD 28R` rewound before the fix reached VPCOL used to mark the entry applied while silently doing nothing — the aircraft just flew on. Queued commands are now rebuilt on restore, and one that genuinely cannot be recovered is dropped with a warning instead of pretending it ran.
 
 ## v0.11.0-beta [2026/08/03]
 

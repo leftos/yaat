@@ -147,9 +147,11 @@ public class CommandBlock
     /// <summary>
     /// The parsed commands that produced this block. Stored to enable block splitting
     /// when a new command only partially conflicts with this block's dimensions.
-    /// NOT serialized — only needed during the current dispatch lifecycle.
+    /// NOT serialized — recovered from <see cref="SourceCommandText"/> after a snapshot restore by
+    /// <c>CommandDispatcher.RehydrateRestoredBlock</c>, the one writer besides
+    /// <c>CommandDispatcher.CreateBlock</c> (hence settable, not init-only).
     /// </summary>
-    public List<ParsedCommand>? ParsedCommands { get; init; }
+    public List<ParsedCommand>? ParsedCommands { get; set; }
 
     /// <summary>
     /// Whether this block is ready for the queue to advance past it.
@@ -221,8 +223,13 @@ public class CommandBlock
     /// Deferred action that applies this block's commands to the aircraft.
     /// Set by the CommandDispatcher when building the queue.
     /// Returns a CommandResult with success/failure and optional message.
+    ///
+    /// Settable (not init-only) for exactly one second writer:
+    /// <c>CommandDispatcher.RehydrateRestoredBlock</c>, which rebuilds the closure from
+    /// <see cref="SourceCommandText"/> after a snapshot restore — without it a restored block fires as a
+    /// silent no-op. Every other construction goes through <c>CommandDispatcher.CreateBlock</c>.
     /// </summary>
-    public Func<AircraftState, Commands.CommandResult>? ApplyAction { get; init; }
+    public Func<AircraftState, Commands.CommandResult>? ApplyAction { get; set; }
 
     /// <summary>
     /// Original canonical command text that produced this block.
@@ -298,9 +305,10 @@ public class CommandBlock
             HasTrackCommand = dto.HasTrackCommand,
             TrackApplied = dto.TrackApplied,
             HasDeleteCommand = dto.HasDeleteCommand,
-            // ApplyAction is NOT restored here. Non-track commands re-derive it from SourceCommandText;
-            // track commands are re-dispatched by SimulationEngine.ProcessTriggeredTrackBlocks, which
-            // re-parses SourceCommandText when ParsedCommands is absent after restore.
+            // ApplyAction is NOT restored here — this is a static context with no DispatchContext.
+            // SimulationEngine.RehydrateRestoredQueueBlocks rebuilds it (and ParsedCommands) from
+            // SourceCommandText on the next physics tick, before the queue can fire; track commands are
+            // additionally re-dispatched by SimulationEngine.ProcessTriggeredTrackBlocks.
         };
 }
 

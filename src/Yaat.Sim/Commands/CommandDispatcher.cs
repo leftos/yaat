@@ -2749,6 +2749,57 @@ public static class CommandDispatcher
         };
     }
 
+    /// <summary>
+    /// Rebuilds the non-serialized halves of a queued block after a snapshot restore:
+    /// <see cref="CommandBlock.ParsedCommands"/> and <see cref="CommandBlock.ApplyAction"/>. Both are
+    /// closures/objects that only exist in the dispatch that created the block, so a restored block used
+    /// to reach its turn, mark itself applied, and silently do nothing — the queued instruction vanished
+    /// across every rewind and bug-bundle replay.
+    ///
+    /// Recovery re-parses <see cref="CommandBlock.SourceCommandText"/> (the same durable text the track
+    /// path and the pattern pre-arm already recover from) and picks this block's sub-block by matching
+    /// the serialized <see cref="CommandBlock.Description"/> against each candidate's regenerated
+    /// description — longest match wins, so a candidate that is a suffix of another can't shadow it.
+    /// Returns false when the text no longer parses or no candidate matches (the caller warns).
+    /// </summary>
+    internal static bool RehydrateRestoredBlock(CommandBlock block, AircraftState aircraft, DispatchContext ctx)
+    {
+        if (string.IsNullOrEmpty(block.SourceCommandText))
+        {
+            return false;
+        }
+
+        var reparsed = CommandParser.ParseCompound(block.SourceCommandText, aircraft.FlightPlan.Route);
+        if (!reparsed.IsSuccess || reparsed.Value is not { } compound)
+        {
+            return false;
+        }
+
+        List<ParsedCommand>? matched = null;
+        int matchedLength = -1;
+        foreach (var candidate in compound.Blocks)
+        {
+            var candidateDescription = string.Join(", ", candidate.Commands.Select(CommandDescriber.DescribeCommand));
+            if (candidateDescription.Length > matchedLength && block.Description.EndsWith(candidateDescription, StringComparison.Ordinal))
+            {
+                matched = [.. candidate.Commands];
+                matchedLength = candidateDescription.Length;
+            }
+        }
+
+        if (matched is null)
+        {
+            return false;
+        }
+
+        // Mirror CreateBlock: track commands stay out of the ApplyAction (they have no ApplyCommand arm
+        // and are dispatched by SimulationEngine.ProcessTriggeredTrackBlocks) but stay in ParsedCommands.
+        var applyCommands = matched.Where(c => !TrackEngine.IsTrackCommand(c)).ToList();
+        block.ParsedCommands = matched;
+        block.ApplyAction = BuildApplyAction(applyCommands, ctx);
+        return true;
+    }
+
     private static CommandBlock? SplitBlockNonConflicting(CommandBlock block, CommandDimension conflictingDims, DispatchContext ctx)
     {
         // If the block has no dimensional overlap at all, keep it entirely

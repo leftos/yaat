@@ -57,6 +57,11 @@ Some state is intentionally runtime-only:
 - **`AircraftState.DeclinationCachePosition`** — `null` means "not cached"; warms up on the first tick after a round-trip.
 - **`Ground.Layout`** is `[JsonIgnore]`. Only `Ground.LayoutAirportId` round-trips. On restore, `SimulationEngine` re-resolves the layout from the airport ID against the loaded ground graphs. This avoids embedding an entire taxiway graph per aircraft.
 - **`PendingObservations`** (pilot "watch for condition" state) — ephemeral, never restored.
+- **`CommandBlock.ApplyAction` / `CommandBlock.ParsedCommands`** — the queued-block closure and its parsed
+  commands are runtime-only; `SourceCommandText` is the durable carrier. `SimulationEngine.RehydrateRestoredQueueBlocks`
+  (top of `TickPhysics`, shared by both hosts) rebuilds them by re-parsing that text before the queue can fire, so a
+  queued instruction survives rewind/replay/restore instead of firing as a silent no-op. An unrecoverable block is
+  dropped with an RPO warning. See [command-handlers.md](command-handlers.md).
 
 If you see `[JsonIgnore]` on a field, also check that there's a separate carrier (like `LayoutAirportId`) that lets restore reattach.
 

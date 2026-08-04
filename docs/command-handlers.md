@@ -367,14 +367,16 @@ Enum + registry + scheme + parser are covered in `architecture.md`. Inside the d
   load-bearing for the queued-block path even though they look redundant for immediate dispatch — the in-code comment warns against removing them.
 - **APT/DEST is not in `ApplyCommand`.** `ChangeDestinationCommand` is dispatched server-side in `RoomEngine.cs:563`, calling
   `FlightPlanCommandHandler.TryChangeDestination` directly. Don't expect to find it in either dispatcher switch.
-- **A queued `CommandBlock.ApplyAction` closure is NOT restored after a snapshot.** `CommandBlock.FromSnapshot` (`CommandQueue.cs`)
-  persists only `SourceCommandText`; despite a doc comment claiming `ApplyAction` is "re-derived by `CommandQueue.FromSnapshot`," no such
-  re-derivation exists (verified in both repos). At fire time `FlightPhysics.ApplyBlock` does `block.ApplyAction?.Invoke(...)` — a
-  null-conditional that silently no-ops and *then still marks the block applied*. So any `AT`/`ATFN`/`LV` conditional block whose effect is
-  carried by the closure (rather than re-applied from `SourceCommandText`) silently drops after replay/rewind/failover restore. **Don't build
-  snapshot-spanning deferred behavior on the command-queue closure** — hold the state on the aircraft instead (as the `REPORT` armed flags do on
-  `AircraftApproachState`). Track commands avoid this because `ProcessTriggeredTrackBlocks` re-parses `SourceCommandText` on restore (see
-  "Triggered re-dispatch" above).
+- **A queued `CommandBlock.ApplyAction` closure is NOT serialized — it is rehydrated on the next physics tick.**
+  `CommandBlock.FromSnapshot` (`CommandQueue.cs`) persists only `SourceCommandText`.
+  `SimulationEngine.RehydrateRestoredQueueBlocks` (top of `TickPhysics`, shared by the standalone sim/replay and the live server, before
+  `World.Tick` can fire the queue) re-parses that text, matches the block's sub-block by its serialized `Description` (longest suffix match),
+  and rebuilds `ParsedCommands` + `ApplyAction` via `CommandDispatcher.RehydrateRestoredBlock` with a fresh engine `DispatchContext`. A block
+  that cannot be recovered (text no longer parses / no description match) is **dropped with an RPO warning** rather than left to fire as a
+  silent no-op. Rehydration does not recover `DescriptionPrefix`/`NaturalDescriptionPrefix` (cosmetic: a post-restore supersede-split loses
+  the "At FIXIE: " label, not the trigger). Long-lived deferred behavior still belongs on the aircraft (as the `REPORT` armed flags do on
+  `AircraftApproachState`) — rehydration protects queued instructions, it doesn't make closures a durable store. Track commands are
+  additionally re-dispatched by `ProcessTriggeredTrackBlocks` (see "Triggered re-dispatch" above).
 - **`CTO`/`LUAW` take no runway argument — only `CROSS` does.** The server resolves the departure runway from `aircraft.Phases.AssignedRunway`
   (`DepartureClearanceHandler.TryClearedForTakeoff`); `ParseCtoArg`/`ParseLuawArg` *reject* a runway token (`"CTO does not understand '28R'"`). A
   runway is valid for `CTO` only as the optional 2nd token after `MLT`/`MRT` (`CTO MRT 28R`). Context-menu convention: show the runway in the

@@ -17,19 +17,19 @@ namespace Yaat.Sim.Tests.Simulation;
 /// The clearance must instead be pre-issued against the queued entry and become the circuit's standing
 /// clearance when it builds — without the RPO re-issuing it a minute later.
 ///
-/// Hybrid replay, restored *before* the setup compound: the rejected CLAND was never recorded as an
-/// action (only successful commands are), so the test restores the snapshot at t=2820 and lets the
-/// recorded <c>DCT VPCOL; ERD 28R</c> at t=2824 dispatch live, then issues the clearance itself. The
-/// restore has to precede the compound because a queued block restored from a snapshot has no
-/// <c>ApplyAction</c> and never fires — so a restore taken after it was enqueued could not reach the
-/// moment the entry builds its circuit.
+/// Hybrid replay from the exact reported state: the rejected CLAND was never recorded as an action
+/// (only successful commands are), so the test restores the snapshot at t=2825 — N805FM with no
+/// PhaseList and the <c>ERD 28R</c> block sitting unapplied in the queue — and issues the clearance
+/// itself. The restored block has no <c>ParsedCommands</c>, so the pre-arm resolves the entry's runway
+/// by re-parsing <c>SourceCommandText</c>, and the block itself only fires because
+/// <c>SimulationEngine.RehydrateRestoredQueueBlocks</c> rebuilds its <c>ApplyAction</c> — this test
+/// covers both recovery paths end-to-end on real recorded data.
 /// </summary>
 public class QueuedClandPreArmE2ETests(ITestOutputHelper output)
 {
     private const string RecordingPath = "TestData/queued-cland-prearm-recording.yaat-bug-report-bundle.zip";
     private const string Callsign = "N805FM";
-    private const int PreSetupSeconds = 2820;
-    private const int PreClandSeconds = 2826;
+    private const int PreClandSeconds = 2825;
     private const int EntryFiresSeconds = 2960;
 
     private SimulationEngine? BuildEngine()
@@ -60,23 +60,21 @@ public class QueuedClandPreArmE2ETests(ITestOutputHelper output)
         var recording = archive.ToBaseSessionRecording();
         engine.Replay(recording, 0);
 
-        var snap = archive.ReadSnapshotAt(PreSetupSeconds);
+        var snap = archive.ReadSnapshotAt(PreClandSeconds);
         if (snap is null)
         {
-            output.WriteLine($"No snapshot near t={PreSetupSeconds}, skipping");
+            output.WriteLine($"No snapshot near t={PreClandSeconds}, skipping");
             return;
         }
 
         engine.RestoreFromSnapshot(snap.State);
-
-        // Let the recorded "DCT VPCOL; ERD 28R" at t=2824 dispatch live.
-        engine.ReplayRange((int)snap.ElapsedSeconds, PreClandSeconds, recording.Actions);
 
         var ac = engine.FindAircraft(Callsign);
         Assert.NotNull(ac);
         Assert.Null(ac.Phases); // the reported state: the entry has not built anything yet
         var queuedEntry = Assert.Single(ac.Queue.Blocks, b => !b.IsApplied);
         Assert.Contains("ERD 28R", queuedEntry.Description);
+        Assert.Null(queuedEntry.ParsedCommands); // restored block — recovery runs from SourceCommandText
 
         var cland = engine.SendCommand(Callsign, "CLAND");
         output.WriteLine($"CLAND at t={PreClandSeconds}: success={cland.Success} — {cland.Message}");

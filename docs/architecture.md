@@ -904,6 +904,8 @@ SimulationEngine.cs            # Scenario load, tick orchestration, replay (Repl
                                # FastForwardTo — advance from current time; ReplayRange — between two timestamps;
                                # ReplayRangeWithVerification — diff-against-bundled-snapshots; ReplayOneSecond/SubTick — stepping);
                                # CaptureSnapshot/RestoreFromSnapshot; reattaches GroundLayouts to delayed spawns on restore.
+                               # RehydrateRestoredQueueBlocks rebuilds restored blocks' ParsedCommands/ApplyAction from SourceCommandText
+                               # each TickPhysics (shared by both hosts) so queued commands survive rewind/replay/restore.
                                # ApplyPostDispatch is the single post-command hook both hosts call (see solo-training-pilot-speech.md)
 SimScenarioState.cs            # Per-scenario runtime state: queues, settings, ATC positions, coordination, ArtccConfig (loaded from bundle on replay)
 ScenarioPacing.cs              # Shared solo-training pacing helpers for parking call-up intervals and arrival generator rates

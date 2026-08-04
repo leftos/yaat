@@ -763,6 +763,10 @@ public sealed class SimulationEngine
         World.RpoShowPilotSpeech = Scenario?.RpoShowPilotSpeech ?? false;
 
         sw.Restart();
+        RehydrateRestoredQueueBlocks();
+        AccumulateTiming("Physics.RehydrateBlocks", sw);
+
+        sw.Restart();
         World.Tick(delta, PreTick, RecordWorldTiming);
         AccumulateTiming("Physics.WorldTick", sw);
 
@@ -775,6 +779,77 @@ public sealed class SimulationEngine
         sw.Restart();
         ProcessTriggeredTrackBlocks();
         AccumulateTiming("Physics.TrackBlocks", sw);
+    }
+
+    /// <summary>
+    /// Rebuilds the non-serialized <c>ParsedCommands</c>/<c>ApplyAction</c> halves of queued blocks that
+    /// came back from a snapshot restore — without this a restored block reaches its turn inside
+    /// <c>FlightPhysics.UpdateCommandQueue</c>, marks itself applied, and silently does nothing.
+    /// Runs at the top of <see cref="TickPhysics"/> (BEFORE <c>World.Tick</c> fires the queue) because
+    /// that is the one physics hook both the standalone sim/replay and the live server share, mirroring
+    /// <see cref="ProcessTriggeredTrackBlocks"/>. Cheap when there is nothing to do: a live block has a
+    /// non-null <c>ApplyAction</c> and is skipped by the first check.
+    /// </summary>
+    private void RehydrateRestoredQueueBlocks()
+    {
+        foreach (var aircraft in World.GetSnapshot())
+        {
+            List<CommandBlock>? failed = null;
+            foreach (var block in aircraft.Queue.Blocks)
+            {
+                if (block.ApplyAction is not null || block.IsApplied || string.IsNullOrEmpty(block.SourceCommandText))
+                {
+                    continue;
+                }
+
+                var groundLayout = aircraft.Ground.Layout ?? ResolveGroundLayout(aircraft);
+                var ctx = new DispatchContext(
+                    groundLayout,
+                    World.Rng,
+                    World.Weather,
+                    FindAircraft,
+                    () => World.GetSnapshot(),
+                    Scenario?.ValidateDctFixes ?? true,
+                    Scenario?.AutoCrossRunway ?? false,
+                    Scenario?.SoloTrainingMode ?? false,
+                    Scenario?.RpoShowPilotSpeech ?? false,
+                    _terminalEntries.Add,
+                    Scenario?.ArtccConfig,
+                    Scenario?.ElapsedSeconds ?? 0,
+                    PreserveConditionals: true,
+                    IsScenarioScripted: false
+                );
+
+                if (!CommandDispatcher.RehydrateRestoredBlock(block, aircraft, ctx))
+                {
+                    (failed ??= []).Add(block);
+                }
+            }
+
+            if (failed is null)
+            {
+                continue;
+            }
+
+            // A block that cannot be recovered would fire as a silent no-op; drop it with a warning so
+            // the RPO knows the instruction was lost rather than believing it is still pending.
+            foreach (var block in failed)
+            {
+                _logger.LogWarning(
+                    "[Restore] {Callsign}: could not rehydrate queued block '{Description}' from '{Source}' — dropping it",
+                    aircraft.Callsign,
+                    block.Description,
+                    block.SourceCommandText
+                );
+                aircraft.PendingWarnings.Add($"{aircraft.Callsign} queued command lost after restore: {block.Description}");
+                aircraft.Queue.Blocks.Remove(block);
+            }
+
+            if (aircraft.Queue.CurrentBlockIndex >= aircraft.Queue.Blocks.Count)
+            {
+                aircraft.Queue.CurrentBlockIndex = Math.Max(0, aircraft.Queue.Blocks.Count - 1);
+            }
+        }
     }
 
     private void RecordWorldTiming(string bucket, double ms)
