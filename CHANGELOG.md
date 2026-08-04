@@ -1,6 +1,12 @@
 # Changelog
 
-## Unreleased
+## v0.11.1-beta [2026/08/03]
+
+### Highlights
+- `EXP 014` clears the aircraft to 1,400 and expedites in one command — and expediting is now direction-aware: descents roughly double, climbs gain ~15%, within per-category limits.
+- Aircraft level off realistically, winding the vertical rate down through the last 1,000 ft instead of cutting to level in one tick.
+- Clearing an aircraft to land while its pattern entry is still queued now works — `DCT VPCOL; ERD 28R` then `CLAND` arms the clearance and applies it when the aircraft enters the pattern. `TG`, `SG`, `LA`, and `COPT` too.
+- An aircraft squawking ident shows a flashing `ID` on its radar datablock for 18 seconds.
 
 ### Changed
 - `EXP 014` clears the aircraft to 1,400 and expedites the descent to it, in one command.
