@@ -233,12 +233,12 @@ public class ExpediteCommandTests
     }
 
     [Fact]
-    public void Expedite_ScalesPhaseCommandedRate_WithoutTheFloor()
+    public void Expedite_YieldsToAPhaseCommandedRate()
     {
-        // Phases and the descent planner write DesiredVerticalRate directly. Expedite scales
-        // that too (×2 descent, capped) — but the floor must NOT apply: a deliberately gentle
-        // phase-commanded rate (a glidepath) may sit far below the category floor, and raising
-        // it would fly the aircraft through its vertical path.
+        // 7110.65 §4-5-7 NOTE 4: "'Expedite' is not to be used in lieu of appropriate
+        // restrictions." A phase- or planner-commanded DesiredVerticalRate IS the appropriate
+        // restriction — a glidepath or a computed crossing-restriction rate. Expedite must fly
+        // it verbatim, not scale it.
         TestVnasData.EnsureInitialized();
 
         var normal = CreateAircraft(altitude: 10000);
@@ -254,15 +254,14 @@ public class ExpediteCommandTests
         FlightPhysics.Update(expedited, 1.0);
 
         Assert.Equal(-1200, normal.VerticalSpeed, 1);
-        // 1200 × 2 = 2400 — below the 2,500 jet descent floor, which must not engage here.
-        Assert.Equal(-2400, expedited.VerticalSpeed, 1);
+        Assert.Equal(-1200, expedited.VerticalSpeed, 1);
     }
 
     [Fact]
     public void Expedite_NeverReducesAPhaseCommandedRate()
     {
         // A phase commanding a rate above the expedite cap (CLANDF's unclamped dive) must win:
-        // expediting can never make an aircraft slower than it would otherwise be.
+        // the commanded rate is flown verbatim regardless of the expedite flag.
         TestVnasData.EnsureInitialized();
 
         var ac = CreateAircraft(altitude: 10000);

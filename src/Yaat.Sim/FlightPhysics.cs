@@ -926,6 +926,10 @@ public static class FlightPhysics
         bool profileRate = aircraft.Targets.DesiredVerticalRate is null;
         if (aircraft.Targets.DesiredVerticalRate is { } desired)
         {
+            // 7110.65 §4-5-7 NOTE 4: "'Expedite' is not to be used in lieu of appropriate
+            // restrictions." A phase/planner-commanded rate IS the appropriate restriction —
+            // a glidepath or a computed crossing-restriction rate — so it is flown verbatim
+            // and expedite never scales it.
             rate = Math.Abs(desired);
         }
         else
@@ -933,13 +937,11 @@ public static class FlightPhysics
             rate = climbing
                 ? AircraftPerformance.ClimbRate(aircraft.AircraftType, cat, current)
                 : AircraftPerformance.DescentRate(aircraft.AircraftType, cat, current);
-        }
 
-        if (aircraft.Procedure.IsExpediting)
-        {
-            // Direction-split: the descent floor only applies to the profile-rate branch —
-            // a phase/planner-commanded rate (a glidepath) must never be raised to it.
-            rate = CategoryPerformance.ExpediteVerticalRate(cat, rate, climbing, applyFloor: profileRate);
+            if (aircraft.Procedure.IsExpediting)
+            {
+                rate = CategoryPerformance.ExpediteVerticalRate(cat, rate, climbing);
+            }
         }
 
         // AIM 4-4-10.4: fly the optimum rate to 1,000 ft above/below the assigned altitude,

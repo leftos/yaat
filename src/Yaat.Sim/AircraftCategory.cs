@@ -171,24 +171,19 @@ public static class CategoryPerformance
     }
 
     /// <summary>
-    /// The vertical rate an expediting aircraft flies, given the rate it would otherwise use.
-    /// Direction-split: climb is thrust-limited (×<see cref="ExpediteClimbMultiplier"/> up to the
-    /// category cap); descent is drag-limited (×<see cref="ExpediteDescentMultiplier"/> within the
-    /// category floor/cap band). <paramref name="applyFloor"/> is false for a phase- or
-    /// planner-commanded <see cref="ControlTargets.DesiredVerticalRate"/>: a deliberately gentle
-    /// commanded rate (a glidepath) must never be raised to the category floor. Expedite never
-    /// returns less than <paramref name="baseRateFpm"/> — hastening an aircraft cannot slow it.
+    /// The vertical rate an expediting aircraft flies, given the profile rate it would otherwise
+    /// use. Direction-split: climb is thrust-limited (×<see cref="ExpediteClimbMultiplier"/> up to
+    /// the category cap); descent is drag-limited (×<see cref="ExpediteDescentMultiplier"/> within
+    /// the category floor/cap band). Never returns less than <paramref name="baseRateFpm"/> —
+    /// hastening an aircraft cannot slow it. Callers with a phase/planner-commanded
+    /// <see cref="ControlTargets.DesiredVerticalRate"/> must not call this at all: per 7110.65
+    /// §4-5-7 NOTE 4, an explicitly commanded rate is the restriction and expedite never scales it.
     /// </summary>
-    public static double ExpediteVerticalRate(AircraftCategory cat, double baseRateFpm, bool climbing, bool applyFloor)
+    public static double ExpediteVerticalRate(AircraftCategory cat, double baseRateFpm, bool climbing)
     {
         double result = climbing
             ? Math.Min(baseRateFpm * ExpediteClimbMultiplier, ExpediteClimbCapFpm(cat))
-            : Math.Min(baseRateFpm * ExpediteDescentMultiplier, ExpediteDescentCapFpm(cat));
-
-        if (!climbing && applyFloor)
-        {
-            result = Math.Max(result, ExpediteDescentFloorFpm(cat));
-        }
+            : Math.Max(Math.Min(baseRateFpm * ExpediteDescentMultiplier, ExpediteDescentCapFpm(cat)), ExpediteDescentFloorFpm(cat));
 
         return Math.Max(result, baseRateFpm);
     }
