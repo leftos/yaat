@@ -11,7 +11,10 @@ public static class FlightPhysics
     private static readonly ILogger Log = SimLog.CreateLogger("FlightPhysics");
 
     private const double HeadingSnapDeg = 0.5;
-    private const double AltitudeSnapFt = 10.0;
+
+    /// <summary>Altitude capture tolerance in feet — inside this band the aircraft is "at" its goal.</summary>
+    internal const double AltitudeSnapFt = 10.0;
+
     private const double SpeedSnapKts = 2.0;
     private const double NavArrivalNm = 0.5;
     private const double FrdArrivalNm = 1.5;
@@ -943,7 +946,13 @@ public static class FlightPhysics
         }
     }
 
-    private static double? ResolveAltitudeGoal(AircraftState aircraft)
+    /// <summary>
+    /// The altitude <see cref="UpdateAltitude"/> is currently flying toward, folding the VFR
+    /// floor/ceiling band into <see cref="ControlTargets.TargetAltitude"/>. Null means the
+    /// aircraft is level and has nowhere to go — which is why command handlers gate on this
+    /// rather than on <c>TargetAltitude</c> alone.
+    /// </summary>
+    internal static double? ResolveAltitudeGoal(AircraftState aircraft)
     {
         double? goal = aircraft.Targets.TargetAltitude;
         if (aircraft.Targets.AltitudeFloor is { } floor)
@@ -1227,7 +1236,7 @@ public static class FlightPhysics
         {
             if (block.Trigger is not null && !block.TriggerMet)
             {
-                block.TriggerMet = IsTriggerMet(aircraft, block, aircraftLookup);
+                block.TriggerMet = IsTriggerMet(aircraft, block, deltaSeconds, aircraftLookup);
                 if (!block.TriggerMet)
                 {
                     TrackFrdMiss(aircraft, block);
@@ -1248,7 +1257,7 @@ public static class FlightPhysics
                 // aircraft flying past the fix during the countdown — otherwise the trailing block orphans
                 // when the queue finally advances to it. Mirrors the holdApplies latching in
                 // ApplyReadyConditionalBlocks, which only covers the lookahead (current-block-applied) path.
-                LatchFollowingTriggers(aircraft, queue, queue.CurrentBlockIndex + 1, aircraftLookup);
+                LatchFollowingTriggers(aircraft, queue, queue.CurrentBlockIndex + 1, deltaSeconds, aircraftLookup);
             }
         }
     }
@@ -1263,6 +1272,7 @@ public static class FlightPhysics
         AircraftState aircraft,
         CommandQueue queue,
         int startIndex,
+        double deltaSeconds,
         Func<string, AircraftState?>? aircraftLookup
     )
     {
@@ -1281,7 +1291,7 @@ public static class FlightPhysics
 
             if (!block.TriggerMet)
             {
-                block.TriggerMet = IsTriggerMet(aircraft, block, aircraftLookup);
+                block.TriggerMet = IsTriggerMet(aircraft, block, deltaSeconds, aircraftLookup);
                 if (!block.TriggerMet)
                 {
                     TrackFrdMiss(aircraft, block);
@@ -1328,7 +1338,7 @@ public static class FlightPhysics
             // back to false and orphan the block).
             if (!block.TriggerMet)
             {
-                block.TriggerMet = IsTriggerMet(aircraft, block, aircraftLookup);
+                block.TriggerMet = IsTriggerMet(aircraft, block, deltaSeconds, aircraftLookup);
                 if (!block.TriggerMet)
                 {
                     TrackFrdMiss(aircraft, block);
@@ -1534,12 +1544,13 @@ public static class FlightPhysics
         return true;
     }
 
-    private static bool IsTriggerMet(AircraftState aircraft, CommandBlock block, Func<string, AircraftState?>? aircraftLookup)
+    private static bool IsTriggerMet(AircraftState aircraft, CommandBlock block, double deltaSeconds, Func<string, AircraftState?>? aircraftLookup)
     {
         var trigger = block.Trigger!;
         return trigger.Type switch
         {
-            BlockTriggerType.ReachAltitude => trigger.Altitude.HasValue && Math.Abs(aircraft.Altitude - trigger.Altitude.Value) < AltitudeSnapFt,
+            BlockTriggerType.ReachAltitude => trigger.Altitude.HasValue
+                && Math.Abs(aircraft.Altitude - trigger.Altitude.Value) < ReachAltitudeToleranceFt(aircraft, deltaSeconds),
             BlockTriggerType.ReachFix => trigger.FixLat.HasValue
                 && trigger.FixLon.HasValue
                 && GeoMath.DistanceNm(aircraft.Position, new LatLon(trigger.FixLat.Value, trigger.FixLon.Value)) < NavArrivalNm,
@@ -1558,6 +1569,18 @@ public static class FlightPhysics
             BlockTriggerType.AfterRunwayCrossing => IsAfterRunwayCrossingMet(aircraft, block),
             _ => true,
         };
+    }
+
+    /// <summary>
+    /// Capture band for a <see cref="BlockTriggerType.ReachAltitude"/> trigger. The altitude is
+    /// only sampled once per tick, so a fixed band narrower than one tick of travel can be
+    /// stepped clean over — an expedited dive covers well over 20 ft per sub-tick, and the
+    /// trigger would then never fire. Widening the band to one tick of travel guarantees at
+    /// least one sample lands inside it.
+    /// </summary>
+    private static double ReachAltitudeToleranceFt(AircraftState aircraft, double deltaSeconds)
+    {
+        return Math.Max(AltitudeSnapFt, Math.Abs(aircraft.VerticalSpeed) / 60.0 * deltaSeconds);
     }
 
     /// <summary>

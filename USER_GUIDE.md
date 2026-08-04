@@ -1106,6 +1106,8 @@ YAAT has a comprehensive command system for controlling aircraft. Commands are t
 | `SPD 250` | Maintain 250 knots |
 | `CM 050, FH 090` | Climb to 5,000 **and** turn to 090 simultaneously |
 | `CM 100; LV 050 FH 270` | Climb to 10,000; at 5,000 ft, turn heading 270 |
+| `EXP 014` | Descend to 1,400 ft and expedite — the altitude is a clearance, so this both re-clears the aircraft and raises its rate (~1.5×). A bare `EXP` expedites the climb or descent already in progress instead |
+| `EXP; LV 050 NORM` | Expedite the current climb/descent, then resume the normal rate on reaching 5,000 ft |
 | `TAXI S T U` | Taxi via taxiways S, T, U |
 | `TAXI 28R G D` | Taxi **along** runway 28R, then off onto taxiways G, D (a runway named mid-path is taxied along its centerline) |
 | `CLAND` | Cleared to land |

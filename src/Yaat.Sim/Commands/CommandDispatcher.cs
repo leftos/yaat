@@ -403,6 +403,16 @@ public static class CommandDispatcher
         return Ok($"Cleared {clearance.ApproachId} approach, runway {RunwayIdentifier.ToDisplayDesignator(clearance.RunwayId)}");
     }
 
+    /// <summary>
+    /// True for the one phase-transparent command that still owns a control axis: <c>EXP &lt;alt&gt;</c>
+    /// assigns an altitude, so it has to supersede conflicting queued vertical blocks rather than
+    /// take the queue-preserving fast path. Everything else on the transparent list is either
+    /// genuinely dimensionless (squawk, RFIS, bare EXP) or a pattern modifier — and those classify
+    /// as <see cref="CommandDimension.All"/>, so clearing on their behalf would wipe the queued
+    /// pattern entry they exist to modify.
+    /// </summary>
+    private static bool NeedsVerticalSupersede(ParsedCommand cmd) => cmd is ExpediteCommand { Altitude: not null };
+
     private static bool IsAllTransparent(CompoundCommand compound)
     {
         foreach (var block in compound.Blocks)
@@ -442,6 +452,13 @@ public static class CommandDispatcher
         {
             foreach (var cmd in block.Commands)
             {
+                if (NeedsVerticalSupersede(cmd))
+                {
+                    var preserved = ClearConflictingBlocks(aircraft, CommandDimension.Vertical, ctx, preserveTriggeredBlocks: false, out var dropped);
+                    EmitQueueClearWarning(aircraft, dropped, compound);
+                    aircraft.Queue.Blocks.AddRange(preserved);
+                }
+
                 var result = ApplyCommand(cmd, aircraft, transparentCtx);
                 if (!result.Success)
                 {
@@ -467,8 +484,14 @@ public static class CommandDispatcher
             return DispatchCompound(compound, aircraft, ctx);
         }
 
-        // Phase-transparent commands: apply without clearing queue or phases
-        if ((aircraft.Phases?.CurrentPhase is not null) && CommandDescriber.IsPhaseTransparent(CommandDescriber.ToCanonicalType(command)))
+        // Phase-transparent commands: apply without clearing queue or phases. EXP <alt> is
+        // transparent to the phase system but not to the queue — it assigns an altitude, so
+        // it must still supersede conflicting vertical blocks below.
+        if (
+            (aircraft.Phases?.CurrentPhase is not null)
+            && CommandDescriber.IsPhaseTransparent(CommandDescriber.ToCanonicalType(command))
+            && !NeedsVerticalSupersede(command)
+        )
         {
             return ApplyCommand(command, aircraft, ctx);
         }

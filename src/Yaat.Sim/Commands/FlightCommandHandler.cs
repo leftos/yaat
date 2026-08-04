@@ -353,7 +353,7 @@ internal static class FlightCommandHandler
         // no taxi route yet) clears the runway as fast as possible. Keyed on the
         // active landing/exit phase so it never hijacks expedite-descent on short
         // final or expedite-taxi after pushback.
-        if (cmd.UntilAltitude is null && GroundCommandHandler.HasLandingOrExitPhase(aircraft, PhaseStatus.Active))
+        if (cmd.Altitude is null && GroundCommandHandler.HasLandingOrExitPhase(aircraft, PhaseStatus.Active))
         {
             aircraft.Ground.IsExpeditingExit = true;
 
@@ -373,7 +373,7 @@ internal static class FlightCommandHandler
 
         // Ground-context expedite: raise taxi speed cap until next HOLD/RES/HS.
         // Only meaningful with an active taxi route; pushback/parking are out of scope.
-        if (aircraft.IsOnGround && cmd.UntilAltitude is null)
+        if (aircraft.IsOnGround && cmd.Altitude is null)
         {
             if (aircraft.Ground.AssignedTaxiRoute is null)
             {
@@ -386,35 +386,57 @@ internal static class FlightCommandHandler
             return CommandDispatcher.Ok("Expedite taxi");
         }
 
-        if (aircraft.Targets.TargetAltitude is null)
+        // EXP <alt> carries its own clearance — assign the altitude, then expedite to it.
+        // To expedite through an intermediate altitude and resume the normal rate there,
+        // chain the generic level condition instead: `EXP; LV 050 NORM`.
+        if (cmd.Altitude is { } assigned)
         {
-            return new CommandResult(false, "Expedite requires an active altitude assignment");
+            return ApplyExpediteToAltitude(assigned, aircraft);
+        }
+
+        // Bare EXP only makes sense while the aircraft is actually going somewhere
+        // vertically. Ask physics the same question it asks itself each tick, so the
+        // two can never disagree about whether a climb or descent is running.
+        // Rejection text is spoken by the pilot in solo mode ("unable, {reason}"), so it
+        // reads as a standalone clause with no interior dash and no grouped numerals.
+        if (FlightPhysics.ResolveAltitudeGoal(aircraft) is not { } goal)
+        {
+            return new CommandResult(
+                false,
+                aircraft.Targets.AssignedAltitude is { } level
+                    ? $"Unable, level at {(int)level}, no climb or descent to expedite"
+                    : "Unable, no climb or descent in progress"
+            );
         }
 
         aircraft.Procedure.IsExpediting = true;
+        return CommandDispatcher.Ok(goal > aircraft.Altitude ? "Expedite climb" : "Expedite descent");
+    }
 
-        if (cmd.UntilAltitude is not null)
+    /// <summary>
+    /// Assigns <paramref name="assigned"/> exactly as CM/DM would — reusing those handlers
+    /// keeps the via-mode, floor/ceiling and pattern-override bookkeeping in one place — and
+    /// then turns expedite on. Order matters: CM/DM both clear <c>IsExpediting</c>.
+    /// </summary>
+    private static CommandResult ApplyExpediteToAltitude(int assigned, AircraftState aircraft)
+    {
+        if (Math.Abs(assigned - aircraft.Altitude) < FlightPhysics.AltitudeSnapFt)
         {
-            // Add a queued block that clears expedite at the specified altitude
-            aircraft.Queue.Blocks.Add(
-                new CommandBlock
-                {
-                    Trigger = new BlockTrigger { Type = BlockTriggerType.ReachAltitude, Altitude = cmd.UntilAltitude.Value },
-                    ApplyAction = ac =>
-                    {
-                        ac.Procedure.IsExpediting = false;
-                        ac.Targets.DesiredVerticalRate = null;
-                        return new CommandResult(true);
-                    },
-                    Description = $"NORM at {cmd.UntilAltitude}",
-                    NaturalDescription = $"Resume normal rate at {cmd.UntilAltitude:N0}",
-                    Commands = { new TrackedCommand { Type = TrackedCommandType.Immediate } },
-                }
-            );
-            return CommandDispatcher.Ok($"Expedite climb/descent through {cmd.UntilAltitude:N0}");
+            return new CommandResult(false, $"Unable, already level at {assigned}");
         }
 
-        return CommandDispatcher.Ok("Expedite climb/descent");
+        bool climb = assigned > aircraft.Altitude;
+        var assignment = climb
+            ? ApplyClimbMaintain(new ClimbMaintainCommand(assigned), aircraft)
+            : ApplyDescendMaintain(new DescendMaintainCommand(assigned), aircraft);
+
+        if (!assignment.Success)
+        {
+            return assignment;
+        }
+
+        aircraft.Procedure.IsExpediting = true;
+        return CommandDispatcher.Ok($"{AltitudeVerb(aircraft, assigned)} {assigned}, expedite {(climb ? "climb" : "descent")}");
     }
 
     internal static CommandResult ApplyNormalRate(AircraftState aircraft)

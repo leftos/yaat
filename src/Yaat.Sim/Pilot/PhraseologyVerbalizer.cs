@@ -259,7 +259,7 @@ public static class PhraseologyVerbalizer
             ClimbMaintainCommand c => Map("alt", fmt.Altitude(c.Altitude)),
             DescendMaintainCommand c => Map("alt", fmt.Altitude(c.Altitude)),
             SpeedCommand s => Map("spd", fmt.Speed(s.Speed)),
-            ExpediteCommand e => e.UntilAltitude is int alt ? Map("alt", fmt.Altitude(alt)) : Empty(),
+            ExpediteCommand e => e.Altitude is int alt ? Map("alt", fmt.Altitude(alt)) : Empty(),
             MachCommand m => Map("mach", fmt.Mach(m.MachNumber)),
 
             // Navigation

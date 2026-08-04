@@ -112,8 +112,9 @@ A pure reminder when no approach has been issued is the callsign-only "request a
 ## Authoring a rejection reason
 
 Most `CommandResult(false, …)` messages are **spoken**, not just printed: `CommandRegistry.DefaultProducesPilotUnable`
-opts in every command in the `Ground`, `Tower`, `Pattern`, `Navigation`, `Hold`, `Helicopter` and `Approach`
-categories, and `SimulationEngine.QueueSoloUnableIfNeeded` feeds the message to `BuildUnable`. That builder
+opts in every command in the `Heading`, `Altitude / Speed`, `Ground`, `Tower`, `Pattern`, `Navigation`, `Hold`,
+`Helicopter` and `Approach` categories, and `SimulationEngine.QueueSoloUnableIfNeeded` feeds the message to
+`BuildUnable`. That builder
 strips the leading "unable" token via `CleanUnableReason` and renders **"unable, {rest}."** — so the reason has
 to stand alone as a clause:
 
@@ -124,6 +125,11 @@ to stand alone as a clause:
 
 `CleanUnableReason` strips en/em dashes alongside the ASCII hyphen, so `"Unable — reason"` is also safe; it did
 not always, which is how *"unable, — already turning off at G"* reached the frequency. `PilotResponderTests.BuildUnable_StripsTheLeadingTokenAndAnyDashAfterIt` pins it.
+
+That strip covers the **leading** token and the string's **edges** only. An *interior* dash survives into TTS, so
+`"Already at 1,400 — nothing to expedite"` is spoken with the dash intact. Write two clauses joined by a comma
+instead. For the same reason, format altitudes in a spoken reason as bare integers (`1400`) — a `:N0` thousands
+separator hands a comma to the synthesiser mid-number.
 
 ## Builder catalog
 

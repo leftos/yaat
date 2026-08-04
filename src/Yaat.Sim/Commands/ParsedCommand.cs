@@ -70,7 +70,13 @@ public record ReduceToFinalApproachSpeedCommand : ParsedCommand;
 
 public record DeleteSpeedRestrictionsCommand : ParsedCommand;
 
-public record ExpediteCommand(int? UntilAltitude = null) : ParsedCommand;
+/// <summary>
+/// Expedite the vertical rate. With <paramref name="Altitude"/> set, also assigns that
+/// altitude — "expedite descent to 1,400" is one command, not a rate tweak layered on an
+/// existing clearance. Without it, expedites whatever climb or descent is already running
+/// (or the taxi / runway exit, when the aircraft is on the ground).
+/// </summary>
+public record ExpediteCommand(int? Altitude = null) : ParsedCommand;
 
 public record NormalRateCommand : ParsedCommand;
 

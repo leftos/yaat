@@ -337,8 +337,11 @@ Enum + registry + scheme + parser are covered in `architecture.md`. Inside the d
   regardless of that setting.
 - **Two different "transparent" lists.** `CommandDescriber.IsPhaseTransparent` (`CommandDescriber.cs:1262`) is the **broad** list used by the
   `IsAllTransparent` fast path (squawk, ident, say, RFIS/RTIS, NODEL, CT/FCA, expedite, …). A verb on this list is applied directly by
-  `ApplyTransparentCompound`, which **skips `ClearConflictingBlocks` entirely** — so it neither consults phases nor
-  wipes the queue. The dispatcher-local `IsPhaseTransparentCommand` (`CommandDispatcher.cs:1578`) is a **narrow** subset used by the phase gate to
+  `ApplyTransparentCompound`, which **skips `ClearConflictingBlocks`** — so it neither consults phases nor wipes the queue. The single exception is
+  `EXP <alt>`, which assigns an altitude: `NeedsVerticalSupersede` routes it through `ClearConflictingBlocks` with `CommandDimension.Vertical` so a
+  pending `CM`/`DM` cannot later override the clearance it just issued. That exception is deliberately keyed on the command type rather than on
+  "has a dimension" — pattern modifiers (`EXT`/`SA`/`MNA`) are transparent *and* classify as `All`, so a dimension-based rule would clear the very
+  queued pattern entry they exist to modify. The dispatcher-local `IsPhaseTransparentCommand` (`CommandDispatcher.cs:1578`) is a **narrow** subset used by the phase gate to
   fall through to normal dispatch (apply via the handler without clearing the active phase). They are not interchangeable. The real hazard runs the
   other way: a "harmless" status verb that is **omitted** from the broad list but whose `GetCommandDimension` resolves to `None` falls through to
   normal dispatch, where `ClearConflictingBlocks`'s `All`/`None` fast path clears the **entire** pending queue — wiping a

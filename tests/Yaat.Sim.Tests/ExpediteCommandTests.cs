@@ -41,6 +41,26 @@ public class ExpediteCommandTests
 
         Assert.False(result.Success);
         Assert.False(ac.Procedure.IsExpediting);
+        Assert.Contains("climb or descent", result.Message!);
+        AssertSpeakableRejection(result.Message!);
+    }
+
+    [Fact]
+    public void ExpediteBare_LevelAtAssignedAltitude_MessageNamesLevelOff()
+    {
+        // The aircraft has an assignment — it is simply already at it. Saying
+        // "requires an active altitude assignment" here is factually wrong.
+        var ac = CreateAircraft(altitude: 2000);
+        ac.Targets.AssignedAltitude = 2000;
+        ac.Targets.TargetAltitude = null;
+
+        var result = CommandDispatcher.Dispatch(new ExpediteCommand(), ac, TestDispatch.Context(Random.Shared));
+
+        Assert.False(result.Success);
+        Assert.False(ac.Procedure.IsExpediting);
+        Assert.Contains("Unable, level at 2000, no climb or descent to expedite", result.Message!);
+        Assert.DoesNotContain("altitude assignment", result.Message!);
+        AssertSpeakableRejection(result.Message!);
     }
 
     [Fact]
@@ -72,19 +92,20 @@ public class ExpediteCommandTests
     }
 
     [Fact]
-    public void Expedite_WithUntilAltitude_StaysAirborneSemantics_EvenOnGround()
+    public void Expedite_WithAltitude_StaysAirborneSemantics_EvenOnGround()
     {
         // EXP <alt> is unambiguously a climb/descent verb — don't intercept it
-        // for taxi context. If aircraft is on the ground, it's still an
-        // altitude verb, so it must reject without TargetAltitude.
+        // for taxi context. On the ground it assigns the altitude like CM does,
+        // and must never raise the taxi speed cap.
         var ac = CreateAircraft();
         ac.IsOnGround = true;
         ac.Ground.AssignedTaxiRoute = new Yaat.Sim.Data.Airport.TaxiRoute { Segments = [], HoldShortPoints = [] };
 
         var result = CommandDispatcher.Dispatch(new ExpediteCommand(10000), ac, TestDispatch.Context(Random.Shared));
 
-        Assert.False(result.Success);
+        Assert.True(result.Success);
         Assert.False(ac.Ground.IsExpeditingTaxi);
+        Assert.Equal(10000, ac.Targets.AssignedAltitude);
     }
 
     [Fact]
@@ -124,6 +145,143 @@ public class ExpediteCommandTests
         double normClimb = acNormal.Altitude - 5000;
         Assert.True(expClimb > normClimb, $"Expedite climb {expClimb} should exceed normal {normClimb}");
         Assert.InRange(expClimb / normClimb, 1.45, 1.55);
+    }
+
+    // --- Expedite must produce a vertical rate the controller can actually see ---
+
+    /// <summary>
+    /// The reported symptom was "it didn't seem to affect its vertical rate". These cases pin
+    /// the observable <see cref="AircraftState.VerticalSpeed"/> — not just the altitude delta —
+    /// across both directions and all three performance categories, and require the change to
+    /// be large enough to read off a datablock rather than merely non-zero.
+    /// </summary>
+    [Theory]
+    [InlineData("B738", 5000, 15000)] // jet, climb
+    [InlineData("B738", 15000, 5000)] // jet, descent
+    [InlineData("DH8D", 5000, 15000)] // turboprop, climb
+    [InlineData("DH8D", 15000, 5000)] // turboprop, descent
+    [InlineData("SR22", 2658, 1400)] // piston descent — the reported N2BP case
+    [InlineData("SR22", 1400, 5000)] // piston, climb
+    public void Expedite_MeaningfullyRaisesVerticalSpeed(string type, double startAlt, int targetAlt)
+    {
+        TestVnasData.EnsureInitialized();
+
+        double normalVs = VerticalSpeedAfterOneTick(type, startAlt, targetAlt, expedite: false);
+        double expeditedVs = VerticalSpeedAfterOneTick(type, startAlt, targetAlt, expedite: true);
+
+        Assert.NotEqual(0, normalVs);
+        Assert.Equal(Math.Sign(normalVs), Math.Sign(expeditedVs));
+
+        double ratio = Math.Abs(expeditedVs) / Math.Abs(normalVs);
+        Assert.InRange(ratio, 1.45, 1.55);
+
+        // "Meaningfully" — the slowest category still gains 250 fpm, which is a visible
+        // change on a datablock's vertical-rate arrow, not a rounding difference.
+        double gainFpm = Math.Abs(expeditedVs) - Math.Abs(normalVs);
+        Assert.True(gainFpm >= 250, $"{type} {startAlt:F0}->{targetAlt}: expedite only gained {gainFpm:F0} fpm");
+    }
+
+    [Fact]
+    public void Expedite_MultipliesPhaseCommandedRate()
+    {
+        // Phases and the descent planner write DesiredVerticalRate directly. Expedite has to
+        // scale that too, otherwise it silently does nothing whenever a phase owns the rate.
+        TestVnasData.EnsureInitialized();
+
+        var normal = CreateAircraft(altitude: 10000);
+        normal.Targets.TargetAltitude = 5000;
+        normal.Targets.DesiredVerticalRate = -1200;
+
+        var expedited = CreateAircraft(altitude: 10000);
+        expedited.Targets.TargetAltitude = 5000;
+        expedited.Targets.DesiredVerticalRate = -1200;
+        expedited.Procedure.IsExpediting = true;
+
+        FlightPhysics.Update(normal, 1.0);
+        FlightPhysics.Update(expedited, 1.0);
+
+        Assert.Equal(-1200, normal.VerticalSpeed, 1);
+        Assert.Equal(-1800, expedited.VerticalSpeed, 1);
+    }
+
+    [Fact]
+    public void ExpediteCommand_ReachesTheAltitudeSoonerThanPlainDescendMaintain()
+    {
+        // End-to-end through the command path, comparing what the controller would see:
+        // DM 014 vs EXP 014 on identical aircraft.
+        TestVnasData.EnsureInitialized();
+
+        int plainSeconds = SecondsToLevelOff(new DescendMaintainCommand(1400));
+        int expediteSeconds = SecondsToLevelOff(new ExpediteCommand(1400));
+
+        Assert.True(expediteSeconds > 0, "plain DM never levelled off");
+        Assert.True(expediteSeconds < plainSeconds, $"EXP 014 took {expediteSeconds}s vs DM 014 {plainSeconds}s — expedite saved nothing");
+
+        // 1.5x the rate over the same 1,258 ft => about two thirds of the time.
+        Assert.InRange((double)expediteSeconds / plainSeconds, 0.6, 0.72);
+    }
+
+    /// <summary>
+    /// EXP is in the "Altitude / Speed" category, which <c>DefaultProducesPilotUnable</c> opts in,
+    /// so its rejection text is spoken as "unable, {reason}". <c>CleanUnableReason</c> only strips
+    /// the leading token and the string's edges — an interior dash reaches the synthesiser, and a
+    /// <c>:N0</c> thousands separator hands it a comma mid-number.
+    /// </summary>
+    private static void AssertSpeakableRejection(string message)
+    {
+        Assert.DoesNotContain("—", message);
+        Assert.DoesNotContain("–", message);
+        Assert.DoesNotMatch(@"\d,\d", message);
+    }
+
+    private static double VerticalSpeedAfterOneTick(string type, double startAlt, int targetAlt, bool expedite)
+    {
+        var ac = new AircraftState
+        {
+            Callsign = "TEST1",
+            AircraftType = type,
+            Position = new LatLon(37.0, -122.0),
+            TrueHeading = new TrueHeading(360),
+            TrueTrack = new TrueHeading(360),
+            Altitude = startAlt,
+            IndicatedAirspeed = 200,
+        };
+        ac.Targets.TargetAltitude = targetAlt;
+        ac.Procedure.IsExpediting = expedite;
+
+        FlightPhysics.Update(ac, 1.0);
+        return ac.VerticalSpeed;
+    }
+
+    /// <summary>Seconds for an SR22 at 2,658 ft to settle at 1,400 ft under the given command.</summary>
+    private static int SecondsToLevelOff(ParsedCommand command)
+    {
+        var ac = new AircraftState
+        {
+            Callsign = "N2BP",
+            AircraftType = "SR22",
+            Position = new LatLon(37.0, -122.0),
+            TrueHeading = new TrueHeading(360),
+            TrueTrack = new TrueHeading(360),
+            Altitude = 2658,
+            IndicatedAirspeed = 115,
+        };
+        ac.Targets.TargetAltitude = 2000;
+        ac.Targets.AssignedAltitude = 2000;
+
+        var result = CommandDispatcher.Dispatch(command, ac, TestDispatch.Context(Random.Shared));
+        Assert.True(result.Success, result.Message);
+
+        for (int t = 1; t <= 600; t++)
+        {
+            FlightPhysics.Update(ac, 1.0);
+            if (Math.Abs(ac.Altitude - 1400) < 1.0)
+            {
+                return t;
+            }
+        }
+
+        return 0;
     }
 
     [Fact]
@@ -166,19 +324,147 @@ public class ExpediteCommandTests
         Assert.False(ac.Procedure.IsExpediting);
     }
 
+    // --- EXP <alt>: assigns the altitude and expedites to it ---
+
     [Fact]
-    public void ExpediteWithAltitude_AddsQueueBlock()
+    public void ExpediteWithAltitude_AssignsAndExpedites()
     {
-        var ac = CreateAircraft(altitude: 5000);
-        ac.Targets.TargetAltitude = 15000;
+        // The reported case: descending to 2,000, EXP 014 re-clears to 1,400.
+        var ac = CreateAircraft(altitude: 2658);
+        ac.Targets.TargetAltitude = 2000;
+        ac.Targets.AssignedAltitude = 2000;
+
+        var result = CommandDispatcher.Dispatch(new ExpediteCommand(1400), ac, TestDispatch.Context(Random.Shared));
+
+        Assert.True(result.Success);
+        Assert.Equal(1400, ac.Targets.AssignedAltitude);
+        Assert.Equal(1400, ac.Targets.TargetAltitude);
+        Assert.True(ac.Procedure.IsExpediting);
+        Assert.Empty(ac.Queue.Blocks);
+        Assert.Contains("Descend and maintain 1400, expedite descent", result.Message!);
+    }
+
+    [Fact]
+    public void ExpediteWithAltitude_WhenLevel_Assigns()
+    {
+        // Second reported symptom: level at the assigned altitude, EXP 014 was
+        // rejected as "requires an active altitude assignment".
+        var ac = CreateAircraft(altitude: 2000);
+        ac.Targets.AssignedAltitude = 2000;
+        ac.Targets.TargetAltitude = null;
+
+        var result = CommandDispatcher.Dispatch(new ExpediteCommand(1400), ac, TestDispatch.Context(Random.Shared));
+
+        Assert.True(result.Success);
+        Assert.Equal(1400, ac.Targets.AssignedAltitude);
+        Assert.True(ac.Procedure.IsExpediting);
+    }
+
+    [Fact]
+    public void ExpediteWithAltitude_AboveCurrent_UsesClimbSemantics()
+    {
+        var ac = CreateAircraft(altitude: 2000);
+        ac.Targets.TargetAltitude = 2000;
+        ac.Procedure.SidViaMode = true;
+        ac.Procedure.SidViaCeiling = 5000;
 
         var result = CommandDispatcher.Dispatch(new ExpediteCommand(10000), ac, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
+        Assert.Equal(10000, ac.Targets.AssignedAltitude);
         Assert.True(ac.Procedure.IsExpediting);
-        Assert.Single(ac.Queue.Blocks);
-        Assert.Equal(BlockTriggerType.ReachAltitude, ac.Queue.Blocks[0].Trigger!.Type);
-        Assert.Equal(10000, ac.Queue.Blocks[0].Trigger!.Altitude);
+        Assert.False(ac.Procedure.SidViaMode);
+        Assert.Null(ac.Procedure.SidViaCeiling);
+        Assert.Contains("Climb and maintain 10000, expedite climb", result.Message!);
+    }
+
+    [Fact]
+    public void ExpediteWithAltitude_AtCurrentAltitude_Rejected()
+    {
+        var ac = CreateAircraft(altitude: 1400);
+        ac.Targets.AssignedAltitude = 1400;
+
+        var result = CommandDispatcher.Dispatch(new ExpediteCommand(1400), ac, TestDispatch.Context(Random.Shared));
+
+        Assert.False(result.Success);
+        Assert.False(ac.Procedure.IsExpediting);
+        Assert.Contains("Unable, already level at 1400", result.Message!);
+        AssertSpeakableRejection(result.Message!);
+    }
+
+    [Fact]
+    public void ExpediteWithAltitude_SupersedesQueuedAltitudeBlock()
+    {
+        // EXP <alt> now carries the Vertical dimension, so it must clear a queued
+        // altitude block the same way DM does — including on the phase-transparent
+        // fast path that DispatchCompound takes for a bare (unconditioned) command.
+        var ac = CreateAircraft(altitude: 2658);
+        ac.Targets.TargetAltitude = 2000;
+        ac.Targets.AssignedAltitude = 2000;
+        ac.Queue.Blocks.Add(
+            new CommandBlock
+            {
+                Trigger = new BlockTrigger
+                {
+                    Type = BlockTriggerType.ReachFix,
+                    FixName = "ORVIS",
+                    FixLat = 37.5,
+                    FixLon = -122.5,
+                },
+                Description = "CM 5000",
+                SourceCommandText = "CM 050",
+                Dimensions = CommandDimension.Vertical,
+                Commands = { new TrackedCommand { Type = TrackedCommandType.Altitude } },
+            }
+        );
+
+        var compound = new CompoundCommand([new ParsedBlock(null, [new ExpediteCommand(1400)])]);
+        var result = CommandDispatcher.DispatchCompound(compound, ac, TestDispatch.Context(Random.Shared));
+
+        Assert.True(result.Success);
+        Assert.Equal(1400, ac.Targets.AssignedAltitude);
+        Assert.Empty(ac.Queue.Blocks);
+    }
+
+    // --- LV trigger: `EXP; LV 050 NORM` is the documented way to expedite through
+    //     an altitude and then resume the normal rate, so the ReachAltitude trigger
+    //     must not step over its window at high vertical rates. ---
+
+    [Theory]
+    [InlineData(0.0)]
+    [InlineData(5.0)]
+    [InlineData(10.0)]
+    [InlineData(15.0)]
+    [InlineData(20.0)]
+    [InlineData(25.0)]
+    [InlineData(30.0)]
+    [InlineData(35.0)]
+    public void ReachAltitudeTrigger_FiresAtAnySubTickAlignment(double startOffsetFt)
+    {
+        TestVnasData.EnsureInitialized();
+
+        var ac = CreateAircraft(altitude: 5200 + startOffsetFt);
+        ac.Targets.TargetAltitude = 4000;
+        ac.Targets.AssignedAltitude = 4000;
+
+        // A phase-commanded dive rate; expedite takes it to 9,000 fpm = 37.5 ft per
+        // 0.25 s sub-tick, well past the fixed ±10 ft trigger window.
+        ac.Targets.DesiredVerticalRate = -6000;
+
+        var compound = CommandParser.ParseCompound("EXP; LV 050 NORM");
+        Assert.True(compound.IsSuccess);
+        var dispatch = CommandDispatcher.DispatchCompound(compound.Value!, ac, TestDispatch.Context(Random.Shared));
+        Assert.True(dispatch.Success, dispatch.Message);
+        Assert.True(ac.Procedure.IsExpediting);
+
+        // Sub-tick at the production cadence until well past 5,000.
+        for (int i = 0; (i < 400) && (ac.Altitude > 4900); i++)
+        {
+            FlightPhysics.Update(ac, 0.25);
+        }
+
+        Assert.True(ac.Altitude <= 4900, $"aircraft never descended past 4,900 (stopped at {ac.Altitude:F0})");
+        Assert.False(ac.Procedure.IsExpediting, $"LV 050 NORM never fired — trigger stepped over 5,000 (start {5200 + startOffsetFt:F0})");
     }
 
     // --- EXP argument parsing ---
@@ -188,7 +474,7 @@ public class ExpediteCommandTests
     {
         var cmd = CommandParser.Parse("EXP");
         var exp = Assert.IsType<ExpediteCommand>(cmd.Value);
-        Assert.Null(exp.UntilAltitude);
+        Assert.Null(exp.Altitude);
     }
 
     [Fact]
@@ -196,7 +482,7 @@ public class ExpediteCommandTests
     {
         var cmd = CommandParser.Parse("EXP 11000");
         var exp = Assert.IsType<ExpediteCommand>(cmd.Value);
-        Assert.Equal(11000, exp.UntilAltitude);
+        Assert.Equal(11000, exp.Altitude);
     }
 
     [Fact]

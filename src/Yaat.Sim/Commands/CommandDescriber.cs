@@ -420,6 +420,9 @@ public static class CommandDescriber
             ResumeNormalSpeedCommand => TrackedCommandType.Speed,
             ReduceToFinalApproachSpeedCommand => TrackedCommandType.Speed,
             DeleteSpeedRestrictionsCommand => TrackedCommandType.Speed,
+            // EXP <alt> assigns an altitude, so it occupies the vertical axis exactly like
+            // CM/DM. Bare EXP is only a rate modifier and stays dimensionless.
+            ExpediteCommand { Altitude: not null } => TrackedCommandType.Altitude,
             ExpediteCommand => TrackedCommandType.Immediate,
             NormalRateCommand => TrackedCommandType.Immediate,
             MachCommand => TrackedCommandType.Speed,
@@ -496,7 +499,7 @@ public static class CommandDescriber
             ResumeNormalSpeedCommand => "RNS",
             ReduceToFinalApproachSpeedCommand => "RFAS",
             DeleteSpeedRestrictionsCommand => "DSR",
-            ExpediteCommand exp => exp.UntilAltitude is not null ? $"EXP {exp.UntilAltitude / 100}" : "EXP",
+            ExpediteCommand exp => exp.Altitude is not null ? $"EXP {exp.Altitude / 100}" : "EXP",
             NormalRateCommand => "NORM",
             MachCommand mach => $"MACH {mach.MachNumber:F2}",
             ForceHeadingCommand cmd => $"FHN {cmd.MagneticHeading.Degrees:000}",
@@ -921,7 +924,9 @@ public static class CommandDescriber
             ResumeNormalSpeedCommand => "Resume normal speed",
             ReduceToFinalApproachSpeedCommand => "Reduce to final approach speed",
             DeleteSpeedRestrictionsCommand => "Delete speed restrictions",
-            ExpediteCommand exp => exp.UntilAltitude is not null ? $"Expedite through {exp.UntilAltitude:N0}" : "Expedite climb/descent",
+            // No AircraftState here, so the direction cannot be resolved — keep the slash form
+            // rather than guessing, but say "climb/descent to" so it reads as the assignment it is.
+            ExpediteCommand exp => exp.Altitude is not null ? $"Expedite climb/descent to {exp.Altitude:N0}" : "Expedite climb/descent",
             NormalRateCommand => "Resume normal rate",
             MachCommand mach => $"Maintain Mach {mach.MachNumber:F2}",
             ForceHeadingCommand cmd => $"Force heading {cmd.MagneticHeading.Degrees:000}",

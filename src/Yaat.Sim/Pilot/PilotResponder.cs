@@ -281,6 +281,7 @@ public static class PilotResponder
                 BuildRunwayInstructionClause(aircraft, "cleared for the option") ?? VerbalizeDual(option, personality, activityLevel),
                 option.TrafficPattern
             ),
+            ExpediteCommand exp => BuildExpediteClause(aircraft, exp),
             ExtendPatternCommand ext => BuildExtendPatternClause(aircraft, ext),
             ReportCommand report => BuildReportWilcoClause(report),
             ClearedIntoMilitaryRouteCommand cmtr => BuildClearedIntoMilitaryRouteClause(cmtr),
@@ -482,6 +483,48 @@ public static class PilotResponder
         var hash = SHA256.HashData(Encoding.UTF8.GetBytes(input));
         uint value = ((uint)hash[0] << 24) | ((uint)hash[1] << 16) | ((uint)hash[2] << 8) | hash[3];
         return (int)(value % modulo);
+    }
+
+    /// <summary>
+    /// EXP has four readbacks and a <see cref="PhraseologyRule"/> can express none of them: rule
+    /// selection happens per canonical type without seeing the argument or the aircraft, so the
+    /// first-declared "expedite climb …" template won every time — a descending aircraft read back
+    /// a climb, and so did a taxiing one.
+    ///
+    /// FAA JO 7110.65 §2-1-5.b makes <c>EXP (altitude)</c> the same clearance as CLIMB/DESCEND AND
+    /// MAINTAIN with an expedite qualifier appended (it is also why a plain altitude amendment
+    /// cancels the expedite), so the readback mirrors the CM/DM wording and carries the altitude
+    /// per AIM §4-4-7.b. The two ground forms come from §3-7-2.j. Branching here matches
+    /// <see cref="FlightCommandHandler.ApplyExpedite"/>'s own branch order.
+    /// </summary>
+    private static PilotSpeechText BuildExpediteClause(AircraftState aircraft, ExpediteCommand cmd)
+    {
+        if (cmd.Altitude is { } assigned)
+        {
+            bool climb = assigned > aircraft.Altitude;
+            var verb = climb ? "climb" : "descend";
+            var noun = climb ? "climb" : "descent";
+            return new PilotSpeechText(
+                $"{verb} and maintain {PhraseologyVerbalizer.CompactAltitude(assigned)}, expedite {noun}",
+                $"{verb} and maintain {PhraseologyVerbalizer.AltitudeWords(assigned)}, expedite {noun}"
+            );
+        }
+
+        if (GroundCommandHandler.HasLandingOrExitPhase(aircraft, PhaseStatus.Active))
+        {
+            return new PilotSpeechText("exit without delay", "exit without delay");
+        }
+
+        if (aircraft.IsOnGround)
+        {
+            return new PilotSpeechText("taxi without delay", "taxi without delay");
+        }
+
+        // Bare EXP is rejected outright when there is no vertical goal, so by the time a readback
+        // is built the goal is present and its side tells us which word the pilot uses.
+        var climbing = FlightPhysics.ResolveAltitudeGoal(aircraft) is { } goal && goal > aircraft.Altitude;
+        var direction = climbing ? "expedite climb" : "expedite descent";
+        return new PilotSpeechText(direction, direction);
     }
 
     private static PilotSpeechText BuildAltitudeRestrictionClause(AircraftState aircraft, ClimbMaintainCommand cmd)

@@ -301,7 +301,7 @@ All commands grouped by category. Each table shows the primary command, aliases,
 | Speed floor | `SPD 210+` | — | — |
 | Speed ceiling | `SPD 210-` | — | — |
 | Resume normal speed | `RNS` | `NS` | — |
-| Expedite climb/descent (or taxi/runway exit) | `EXP [alt]` | — | — |
+| Expedite climb/descent to altitude (or taxi/runway exit) | `EXP [alt]` | — | — |
 | Resume normal rate | `NORM` | — | — |
 | Reduce to final approach speed | `RFAS` | `FAS` | — |
 | Mach number | `MACH .82` | `M` | — |
@@ -1228,8 +1228,8 @@ The protected corridor either side of the centerline is drawn on the radar under
 | `SPD 210-` | Speed ceiling: do not exceed 210 knots |
 | `SPEEDF 180` / `SPDF` / `SLF` | Force speed: assign a speed that overrides the 5nm-final restriction (`+`/`-` floor/ceiling supported). Unlike `SPDN` it converges via physics rather than teleporting IAS |
 | `RNS` / `NS` | Resume normal speed: clears speed/floor/ceiling, preserves SID/STAR via mode |
-| `EXP` | Expedite climb/descent: increases vertical rate (approx 1.5x category rate). On the ground with an assigned taxi route, raises the taxi speed cap by ~30% (jet 30→39 kts; mutually exclusive with a numeric `SPD` taxi speed); cleared by next HOLD/RES/HS. On a just-landed aircraft (rolling out or exiting), expedites the runway exit instead — earliest reachable exit + max-effort braking (see the exit commands above) |
-| `EXP 50` | Expedite through 5,000 ft, then resume normal rate (requires active altitude assignment) |
+| `EXP` | Expedite the climb/descent already in progress: increases vertical rate (approx 1.5x category rate). Requires an active climb or descent — rejected when the aircraft is level at its assigned altitude. On the ground with an assigned taxi route, raises the taxi speed cap by ~30% (jet 30→39 kts; mutually exclusive with a numeric `SPD` taxi speed); cleared by next HOLD/RES/HS. On a just-landed aircraft (rolling out or exiting), expedites the runway exit instead — earliest reachable exit + max-effort braking (see the exit commands above) |
+| `EXP 50` | Assign 5,000 ft and expedite the climb/descent to it — one command, equivalent to `CM 50` (or `DM 50`) plus `EXP`. Rejected if the aircraft is already at that altitude. To expedite *through* an intermediate altitude and resume the normal rate there, chain a level condition: `EXP; LV 50 NORM` |
 | `NORM` | Resume normal vertical rate: clears expedite and any custom vertical rate |
 | `RFAS` / `FAS` | Reduce to final approach speed: sets speed to per-type approach speed (e.g., B738→144 kts) |
 | `MACH .82` / `M .82` | Maintain Mach number (also accepts `0.82` or `82`); IAS adjusts with altitude |
