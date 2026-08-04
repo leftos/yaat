@@ -253,6 +253,8 @@ Commands gated by a precondition — `AT`/`LV` (altitude or fix), `ONHO` (on han
 
 A freshly-issued **immediate** command (one with no precondition) still supersedes: it clears the conditional list and replaces the conflicting active control surface. When you re-issue an immediate command that conflicts with one already in flight, YAAT supersedes only the **same control surface** (altitude, lateral, or speed) — orthogonal active targets survive. For example, after `DM 020, DCT VPCOL`, re-issuing `DM 025` updates the altitude target but leaves `DCT VPCOL` flying.
 
+A **queued pattern entry** (`ELD`/`ERD`/`ELC`/`ERC`/`ELB`/`ERB`/`EF`) or **queued approach clearance** (`CAPP`/`CVA`/`JFAC`/…) is lateral work for this purpose. After `DCT VPCOL; ERD 28R`, a vector — `RELR 20`, `FH 250`, or a fresh `DCT` — cancels the queued entry and warns which instruction was lost; `DM`/`CM` and `SPD` leave it queued. `CFIX` also leaves it queued: a crossing restriction annotates the route rather than replacing it, so a chain such as `CFIX NRRLI 210 280; CFIX WWAVS 160 280` stacks on the route without disturbing a queued clearance or an active `DCT`.
+
 `SHOWAT` (alias `SHOWCOND`) lists the conditional list with each entry's live status; the same entries appear in the **Pending Cmds** column. To wipe the whole list, issue **`CXL`** (or `CLR`, `DELAT`, `DELCOND`, `DC`) as a follow-up command:
 
 ```

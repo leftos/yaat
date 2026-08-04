@@ -2603,11 +2603,15 @@ public static class CommandDispatcher
             return null;
         }
 
-        // Find which command indices to keep
+        // Find which command indices to keep. This reads GetQueuedCommandDimension — what the command occupies while
+        // it waits — not GetDimension(TrackedCommandType), which reports None for every verb that classifies as
+        // Immediate. A block whose aggregate Dimensions say "conflict" must not then keep every one of its commands:
+        // that is how a queued pattern entry used to survive the vector that replaced its lateral plan, and fire the
+        // moment the superseded DCT ahead of it was marked complete.
         var keepIndices = new List<int>();
         for (int i = 0; i < block.Commands.Count; i++)
         {
-            if ((CommandDescriber.GetDimension(block.Commands[i].Type) & conflictingDims) == 0)
+            if ((CommandDescriber.GetQueuedCommandDimension(block.ParsedCommands[i]) & conflictingDims) == 0)
             {
                 keepIndices.Add(i);
             }

@@ -1260,6 +1260,8 @@ When a new command replaces queued work, YAAT clears only conflicting control su
 
 This means adjusting speed does not cancel a turn, and issuing a heading does not cancel a previously queued altitude trigger unless that queued block also contained lateral work. If a queued block is dropped, YAAT adds a terminal warning naming the lost block. Note that the supersede-on-conflict behavior applies only to **immediate** commands; commands gated by a precondition (`AT`/`ONHO`/`WAIT`/`BEHIND`/…) are additive and never cancel each other (see below).
 
+A queued **pattern entry** or **approach clearance** counts as lateral work. After `DCT VPCOL; ERD 28R`, vectoring the aircraft with `RELR 20` (or `FH`, or a fresh `DCT`) cancels the downwind entry and warns `queue cleared by RELR 20 (lost: ERD 28R)` — the vector is the new plan, so re-issue the entry when you want it. `DM`/`CM` and `SPD` still leave the entry queued, and so does `CFIX`: a crossing restriction stacks onto the route instead of replacing it, so a hand-built descend-via chain never cancels a queued clearance.
+
 ##### The conditional list
 
 Precondition-gated commands — `AT`/`LV`, `ONHO`, `ATFN`, `BEHIND`, and `WAIT`/`WAITD` — collect into a single **conditional list**: each fires when its own trigger is met, and issuing one never cancels the others. So a departure can carry `WAIT 120 RWY 18L TAXI N B`, `ONHO CM 120`, and `AT 6000 DCT MUNCH` simultaneously — it taxis, then climbs on handoff, then turns at 6,000 ft. Executing one (e.g. the taxi firing) leaves the rest pending. `SHOWAT` (alias `SHOWCOND`) lists them, and they appear in the **Pending Cmds** column.

@@ -4,6 +4,8 @@
 
 ### Fixed
 - An aircraft squawking ident shows a flashing `ID` on its radar datablock for 18 seconds, on every datablock form and the EuroScope tag.
+- Vectoring an aircraft cancels a queued pattern entry or approach clearance — `DCT VPCOL; ERD 28R` then `RELR 20` holds the vector.
+- A `CFIX` crossing restriction stacks onto the route without cancelling a queued direct, pattern entry, or approach clearance.
 
 ## v0.11.0-beta [2026/08/03]
 

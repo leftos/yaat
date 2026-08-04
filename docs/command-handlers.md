@@ -197,10 +197,26 @@ Client side, two independent surfaces consume that:
 
 `ClearConflictingBlocks` (`CommandDispatcher.cs:1798`) is dimension-aware. Each command declares which axes it touches via
 `CommandDescriber.GetCommandDimension` (`CommandDescriber.cs:274`): `Lateral`, `Vertical`, `Speed`, `All`, or `None`. Tower and ground commands are
-`All`; ClimbVia/DescendVia and CrossFix/DepartFix are `Lateral | Vertical`; holds are `Lateral`. A new heading command clears queued lateral blocks
+`All`; ClimbVia/DescendVia and DepartFix are `Lateral | Vertical`; holds are `Lateral`. A new heading command clears queued lateral blocks
 but leaves a queued altitude block alone; mixed-dimension blocks are split via `SplitBlockNonConflicting` (`:1923`).
 
+**CrossFix is not lateral; DepartFix is.** `DispatchCrossFix` stamps the restriction on the fix when it is already on the route and appends it when it
+is not, leaving every other fix and restriction untouched — so `CFIX` is `Vertical` (plus `Speed` only when a speed was given) and a hand-built
+descend-via chain never cancels the lateral work the aircraft is flying toward. `DispatchDepartFix` does the opposite: it clears `NavigationRoute`,
+installs the single fix, and sets a departure heading, so it stays lateral.
+
+**Incoming vs. queued is a different question.** `GetCommandDimension` answers "what does this command seize when it fires" — which is what the
+*incoming* compound is measured by. What a block that is still *waiting in the queue* occupies is `CommandDescriber.GetQueuedCommandDimension`, and
+`SplitBlockNonConflicting`'s per-command keep test must use that one. The two diverge for pattern entries and approach clearances: an incoming `ERD`
+or `CAPP` takes all three axes (so issuing one clears the whole queue), but one sitting behind a `DCT` is only a lateral plan — a fresh vector or DCT
+replaces it and must cancel it, while an altitude or speed assignment issued on the way to the fix must not. Everything else falls through to the
+`TrackedCommandType` classification.
+
 > Never call `aircraft.Queue.Clear()` / `aircraft.CommandQueue.Clear()` inside a handler to "reset" state — that defeats parallel-block survival.
+
+> A queued block's per-command dimensions must never all read `None` when the block reports a conflict in aggregate: the block then survives every
+> supersede, and the moment the block ahead of it is marked complete-because-superseded the queue advances straight into it. That is exactly how
+> `RELR 20` used to turn an aircraft 20° right and then hand it back to the downwind it had just been vectored off.
 
 ## Dry-run safety
 
@@ -276,7 +292,8 @@ Enum + registry + scheme + parser are covered in `architecture.md`. Inside the d
 2. **Write the handler.** Read `AircraftState`, write `Targets.*` / `Procedure.*` or install a `PhaseList` (via `BuildMinimalContext` for the
    `PhaseContext`), return `CommandResult`. Keep it clone-safe.
 3. **Classify the dimension** in `CommandDescriber.GetCommandDimension` (and `ClassifyCommand` for the `TrackedCommandType`) so dimension-aware queue
-   clearing works.
+   clearing works. If the verb seizes more axes when it fires than it occupies while it waits — anything that installs its own phase chain — also give
+   it an arm in `GetQueuedCommandDimension`, or a queued instance of it will survive every supersede.
 4. **Classify VFR/IFR** if applicable: add pattern/option verbs to `VfrCommandPolicy.RequiresVfr`; add departure-clearance modifiers to
    `VfrCommandPolicy.IsVfrOnlyDeparture`. The client gate and the context menus both read from there.
 5. **Wire phase acceptance** — give the relevant phase a `CanAcceptCommand` arm (`Allowed` / `Rejected` / `ClearsPhase`, see [phases.md](phases.md)).

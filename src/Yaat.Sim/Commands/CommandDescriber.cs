@@ -295,6 +295,41 @@ public static class CommandDescriber
         };
     }
 
+    /// <summary>
+    /// The dimensions a command occupies while it is still *queued* — which incoming commands displace it before it
+    /// has fired. Deliberately not the same question as <see cref="GetCommandDimension"/>, which reports what a
+    /// command seizes once it *does* fire: a pattern entry or an approach clearance takes all three axes at that point
+    /// (so issuing one clears the whole queue), but while it waits its turn it is only a lateral plan. A fresh vector
+    /// or DCT replaces that plan and must cancel it; an altitude or speed assignment issued on the way to the fix must
+    /// leave it alone.
+    /// </summary>
+    internal static CommandDimension GetQueuedCommandDimension(ParsedCommand command)
+    {
+        if (IsPatternEntryCommand(command) || IsApproachCommand(command))
+        {
+            return CommandDimension.Lateral;
+        }
+
+        return GetDimension(ClassifyCommand(command));
+    }
+
+    /// <summary>
+    /// The pattern entries that hand the aircraft a whole circuit (lead-in, then the legs through to landing) via
+    /// <c>PatternCommandHandler.TryEnterPattern</c>. MLT/MRT are excluded: they only set the traffic direction for a
+    /// runway and build no circuit of their own.
+    /// </summary>
+    internal static bool IsPatternEntryCommand(ParsedCommand command)
+    {
+        return command
+            is EnterLeftDownwindCommand
+                or EnterRightDownwindCommand
+                or EnterLeftCrosswindCommand
+                or EnterRightCrosswindCommand
+                or EnterLeftBaseCommand
+                or EnterRightBaseCommand
+                or EnterFinalCommand;
+    }
+
     internal static CommandDimension GetCommandDimension(ParsedCommand command)
     {
         // Tower commands (includes pattern entries) control all dimensions
@@ -315,8 +350,19 @@ public static class CommandDescriber
             return CommandDimension.Lateral | CommandDimension.Vertical;
         }
 
-        // CrossFix/DepartFix: lateral (navigation) + vertical (altitude at fix)
-        if (command is CrossFixCommand or DepartFixCommand)
+        // CrossFix annotates the route rather than replacing it: DispatchCrossFix stamps the restriction on the fix if
+        // it is already on the route and appends it if it is not, leaving every other fix and restriction in place. So
+        // it is not lateral — a chain of crossing restrictions must not cancel the lateral work the aircraft is flying
+        // toward (a queued DCT, or an approach clearance waiting at one of the crossing fixes). It assigns an altitude
+        // always and a speed only when one was given.
+        if (command is CrossFixCommand crossFix)
+        {
+            return CommandDimension.Vertical | (crossFix.Speed is not null ? CommandDimension.Speed : CommandDimension.None);
+        }
+
+        // DepartFix does replace the route (DispatchDepartFix clears NavigationRoute and installs the single fix plus a
+        // departure heading), so it stays lateral.
+        if (command is DepartFixCommand)
         {
             return CommandDimension.Lateral | CommandDimension.Vertical;
         }
