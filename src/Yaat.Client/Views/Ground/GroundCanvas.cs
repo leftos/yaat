@@ -62,7 +62,7 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
         IReadOnlyList<RangeBearingLine>?
     >(nameof(RangeBearingLines));
 
-    public static readonly StyledProperty<RblEndpoint?> MeasureAnchorProperty = AvaloniaProperty.Register<GroundCanvas, RblEndpoint?>(
+    public static readonly StyledProperty<RblPendingAnchor?> MeasureAnchorProperty = AvaloniaProperty.Register<GroundCanvas, RblPendingAnchor?>(
         nameof(MeasureAnchor)
     );
 
@@ -512,15 +512,18 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
         set => SetValue(IsMeasuringProperty, value);
     }
 
-    /// <summary>Placed measurements, shared with the radar view.</summary>
+    /// <summary>All placed measurements; only those created in the ground view render here.</summary>
     public IReadOnlyList<RangeBearingLine>? RangeBearingLines
     {
         get => GetValue(RangeBearingLinesProperty);
         set => SetValue(RangeBearingLinesProperty, value);
     }
 
-    /// <summary>First endpoint of a half-placed measurement, for the rubber-band preview.</summary>
-    public RblEndpoint? MeasureAnchor
+    /// <summary>
+    /// First endpoint of a half-placed measurement, for the rubber-band preview. Only shown here when it
+    /// was picked in the ground view.
+    /// </summary>
+    public RblPendingAnchor? MeasureAnchor
     {
         get => GetValue(MeasureAnchorProperty);
         set => SetValue(MeasureAnchorProperty, value);
@@ -776,13 +779,19 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
         List<ResolvedRbl>? measurements = null;
         ResolvedRbl? pendingMeasurement = null;
         var placedMeasurements = RangeBearingLines;
-        var measureAnchor = _measureDragAnchor ?? MeasureAnchor;
+        // A half-placed anchor picked in the other view previews there, not here.
+        var measureAnchor = _measureDragAnchor ?? (MeasureAnchor is { View: RblView.Ground } pending ? pending.Endpoint : (RblEndpoint?)null);
         if (placedMeasurements is { Count: > 0 } || measureAnchor is not null)
         {
             var lookup = BuildMeasureLookup();
             if (placedMeasurements is { Count: > 0 })
             {
-                measurements = RangeBearingLineResolver.Resolve(placedMeasurements, lookup, GroundViewModel.MeasureUnits);
+                measurements = RangeBearingLineResolver.Resolve(
+                    placedMeasurements,
+                    lookup,
+                    GroundViewModel.MeasureUnits,
+                    GroundViewModel.MeasureView
+                );
             }
 
             if (measureAnchor is not null)
@@ -1052,7 +1061,7 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
             return null;
         }
 
-        var resolved = RangeBearingLineResolver.Resolve(lines, BuildMeasureLookup(), GroundViewModel.MeasureUnits);
+        var resolved = RangeBearingLineResolver.Resolve(lines, BuildMeasureLookup(), GroundViewModel.MeasureUnits, GroundViewModel.MeasureView);
         return RangeBearingHitTest.NearestSlot(resolved, Viewport, (float)pos.X, (float)pos.Y, MeasurePickRadiusPx);
     }
 

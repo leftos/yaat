@@ -264,6 +264,7 @@ Services/
   CrcAliasExecutor.cs           # Plans an expanded CRC alias into a CrcAliasExecution (Echo/ScopeMarkers/OpenUrl/Unsupported/Failed) — substitutes variables first, then reads the verb, matching CRC's ordering. .echo expands \n/\s/\t into terminal lines; .openurl takes only the first token and returns AbsoluteUri (ToString would un-escape and undo $urlescape); .am/.msg/.autotrack/.wallop and verb-less prose report unsupported
   CallsignPrefixResolver.cs     # Pure resolver: partial callsign prefix → unique aircraft or list of matching candidates. Used by MainViewModel.SendCommandAsync to disambiguate `N12` when multiple aircraft match. A leading known command verb (via CommandScheme.IsKnownVerb) is never treated as a partial callsign — only an exact match overrides it — so `CM 020` isn't matched against `CMD2`.
   CommandErrorFormatter.cs      # Pure formatter for unrecognized-command errors: when the leading token is a known callsign (partial/complete), names the verb after it instead of blaming the callsign. Used by MainViewModel.SendCommandAsync.
+  MeasureEndpointResolver.cs    # Pure resolver for `.rbl A B` / `*T A B` endpoint tokens: exact callsign → fix/FRD → partial callsign, with ambiguity + navdata-not-ready errors. Used by MainViewModel's measure dot-command.
   WindowProfileService.cs       # Saves/restores named window arrangements: per-window geometry + dock/pop-out state + DataGrid column layout. Persists to UserPreferences; surfaced via View → Window Profiles. StagePreferencesPartial applies a chosen subset for the Copy View Settings dialog.
   ViewSettingsCopyCatalog.cs    # Shared catalog of Ground/Radar per-scenario view-setting groups (Key/Label/Describe/AreEqual/Copy). Single source of truth for both CopyViewSettingsDialog's diff rows and MainWindow's merge-on-copy.
   ShownRouteBuilder.cs          # Pure builder for the radar "Show nav route" overlay. Produces a multi-segment path from AircraftModel.NavRouteFixes (server-provided positions, so arcs/custom/FRD fixes draw verbatim; synthetic arc vertices carry empty names) with per-fix crossing-restriction labels, plus a procedure vector tail (5 nm arrow off the last STAR fix on FM/VM/VA legs) + the expected approach line (IAF/transition → FAF → threshold, FAC extended back 5 nm when no transition is named).
@@ -292,7 +293,7 @@ ViewModels/
   GroundViewModel.Measure.cs    # Partial: distance measuring tool on the ground view (feet below a mile)
   RadarViewModel.cs             # Radar view; video map loading, toggle items, DCB, persistence
   RadarViewModel.Measure.cs     # Partial: distance measuring tool on the radar (nautical miles)
-  RangeBearingViewState.cs      # Observable mirror of the one RangeBearingLineStore shared by both map views; owns the tool's behaviour
+  RangeBearingViewState.cs      # Observable mirror of the one RangeBearingLineStore behind both map views (shared slot pool, per-view visibility); owns the tool's behaviour
   SettingsViewModel.cs          # Settings tabs: identity/admin/sim/audio/speech/visuals/keybinds; includes STT/TTS model download flows. LM-Kit catalogs + GPU probe load via LoadModelCatalogsAsync (Task.Run) — never at construction; see the deadlock note below.
   WeatherPeriodViewModel.cs     # Per-period VM: wind layers, METARs, precipitation, start/transition minutes
   WeatherTimelineEditorViewModel.cs  # Timeline editor VM: period list, BuildJson (v1 if 1 period, v2 if 2+), FromJson
@@ -346,8 +347,8 @@ Views/Map/
   MapCanvasBase.cs              # ICustomDrawOperation base + pan/zoom input handling
   TextStyle.cs                  # Paired (SKFont, SKPaint) for measuring + drawing text; keeps draw and hit-test metrics identical
   DatablockDeconfliction.cs     # Pure opt-in datablock overlap resolver shared by radar + ground (snap / free-form)
-  RangeBearingLines.cs          # Distance measuring tool (CRC STARS *T): endpoints, 15-slot store, label formatting, resolver, hit-test
-  RangeBearingRenderer.cs       # Draws measurement lines + labels; shared by radar + ground renderers
+  RangeBearingLines.cs          # Distance measuring tool (CRC STARS *T): endpoints, 15-slot store (lines tagged per RblView — radar/ground each render only their own), label formatting, resolver, viewport label clamp (RblLabelPlacement), hit-test
+  RangeBearingRenderer.cs       # Draws measurement lines + labels (label clamped on-screen via RblLabelPlacement); shared by radar + ground renderers
   RightClickGesture.cs          # Right-button click-vs-drag tracker shared by radar + ground: menu on release-without-drag, pan otherwise
 
 Views/Ground/

@@ -6,7 +6,8 @@ namespace Yaat.Client.ViewModels;
 
 /// <summary>
 /// Observable mirror of the shared <see cref="RangeBearingLineStore" />, bound by both the Radar and
-/// Ground canvases so a measurement taken in one view appears in the other under the same slot number.
+/// Ground canvases. Slot numbers are globally unique across the two views, but each measurement is
+/// tagged with the view it was created in and only renders there.
 /// </summary>
 /// <remarks>
 /// One instance per session, owned by <c>MainViewModel</c> and handed to both map view-models. The
@@ -28,9 +29,12 @@ public sealed partial class RangeBearingViewState : ObservableObject
     [ObservableProperty]
     private IReadOnlyList<RangeBearingLine> _lines = [];
 
-    /// <summary>The first endpoint while a measurement is half-placed, for the rubber-band preview.</summary>
+    /// <summary>
+    /// The first endpoint while a measurement is half-placed, tagged with the view it was picked in so
+    /// only that view shows the rubber-band preview.
+    /// </summary>
     [ObservableProperty]
-    private RblEndpoint? _anchor;
+    private RblPendingAnchor? _anchor;
 
     /// <summary>True while the tool is intercepting map clicks to pick endpoints.</summary>
     [ObservableProperty]
@@ -59,24 +63,26 @@ public sealed partial class RangeBearingViewState : ObservableObject
 
     /// <summary>
     /// Feeds the tool a clicked endpoint: the first click anchors, the second completes the measurement.
+    /// The completed line belongs to the view the anchor was picked in.
     /// </summary>
-    public void Pick(RblEndpoint endpoint, RblTrackLookup lookup, RblUnits units)
+    public void Pick(RblEndpoint endpoint, RblView view, RblTrackLookup lookup, RblUnits units)
     {
         if (_store.PendingAnchor is null)
         {
-            Report(_store.SetAnchor(endpoint) ? AnchoredStatus : FullStatus);
+            Report(_store.SetAnchor(endpoint, view) ? AnchoredStatus : FullStatus);
             return;
         }
 
+        var lineView = _store.PendingAnchor.Value.View;
         var slot = _store.Complete(endpoint);
-        Report(slot is { } placed ? DescribePlaced(placed, lookup, units) : FullStatus);
+        Report(slot is { } placed ? DescribePlaced(placed, lookup, units, lineView) : FullStatus);
     }
 
-    /// <summary>Places a whole measurement at once, for the modifier-drag path.</summary>
-    public void Place(RblEndpoint from, RblEndpoint to, RblTrackLookup lookup, RblUnits units)
+    /// <summary>Places a whole measurement at once, for the modifier-drag and text-command paths.</summary>
+    public void Place(RblEndpoint from, RblEndpoint to, RblView view, RblTrackLookup lookup, RblUnits units)
     {
-        var slot = _store.Add(from, to);
-        Report(slot is { } placed ? DescribePlaced(placed, lookup, units) : FullStatus);
+        var slot = _store.Add(from, to, view);
+        Report(slot is { } placed ? DescribePlaced(placed, lookup, units, view) : FullStatus);
     }
 
     /// <summary>Cancels a half-placed measurement and disarms the tool. Placed measurements stay.</summary>
@@ -122,11 +128,11 @@ public sealed partial class RangeBearingViewState : ObservableObject
             return aircraft is null ? null : new RblTrack(aircraft.Position, aircraft.GroundSpeed);
         };
 
-    private string DescribePlaced(int slot, RblTrackLookup lookup, RblUnits units)
+    private string DescribePlaced(int slot, RblTrackLookup lookup, RblUnits units, RblView view)
     {
         // Report the reading in the status bar too — the on-scope label can sit under a datablock or off
-        // the edge of the other view, and the number is the whole point of the tool.
-        foreach (var resolved in RangeBearingLineResolver.Resolve(Lines, lookup, units))
+        // the edge of the view, and the number is the whole point of the tool.
+        foreach (var resolved in RangeBearingLineResolver.Resolve(Lines, lookup, units, view))
         {
             if (resolved.Slot == slot)
             {

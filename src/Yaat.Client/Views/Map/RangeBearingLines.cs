@@ -22,8 +22,21 @@ public readonly record struct RblEndpoint(string? Callsign, LatLon FixedPosition
     public static RblEndpoint AtPoint(LatLon position, string label) => new(null, position, label);
 }
 
-/// <summary>A placed range/bearing line occupying slot <paramref name="Slot" /> (1-based, as displayed).</summary>
-public sealed record RangeBearingLine(int Slot, RblEndpoint A, RblEndpoint B);
+/// <summary>Which map view a measurement belongs to. A line only renders in the view it was created in.</summary>
+public enum RblView
+{
+    Radar,
+    Ground,
+}
+
+/// <summary>
+/// A placed range/bearing line occupying slot <paramref name="Slot" /> (1-based, as displayed), visible
+/// only in <paramref name="View" />.
+/// </summary>
+public sealed record RangeBearingLine(int Slot, RblEndpoint A, RblEndpoint B, RblView View);
+
+/// <summary>The first endpoint of a half-placed measurement, tagged with the view it was picked in.</summary>
+public readonly record struct RblPendingAnchor(RblEndpoint Endpoint, RblView View);
 
 /// <summary>Live state of an aircraft an endpoint is latched to.</summary>
 public readonly record struct RblTrack(LatLon Position, double? GroundSpeedKts);
@@ -48,8 +61,9 @@ public enum RblUnits
 public sealed record ResolvedRbl(int Slot, LatLon A, LatLon B, string Label, bool ALatched, bool BLatched);
 
 /// <summary>
-/// The instructor's placed range/bearing lines, shared by the Radar and Ground views so a measurement
-/// taken in one shows up in the other under the same slot number.
+/// The instructor's placed range/bearing lines. One store serves both map views — slot numbers are
+/// globally unique, so <c>.rbl 3</c> is unambiguous — but each line is tagged with the view it was
+/// created in and only renders there.
 /// </summary>
 /// <remarks>
 /// Mirrors CRC STARS' <c>*T</c> tool: at most fifteen lines, each labelled with its slot number, each
@@ -70,7 +84,7 @@ public sealed class RangeBearingLineStore
     public bool IsArmed { get; private set; }
 
     /// <summary>The first endpoint once picked, while waiting for the second.</summary>
-    public RblEndpoint? PendingAnchor { get; private set; }
+    public RblPendingAnchor? PendingAnchor { get; private set; }
 
     /// <summary>True when all <see cref="MaxLines" /> slots are occupied.</summary>
     public bool IsFull => LowestFreeSlotIndex() < 0;
@@ -144,7 +158,7 @@ public sealed class RangeBearingLineStore
     /// Picks the first endpoint. Returns false when every slot is taken — the anchor is not set, so the
     /// user is never left dragging a rubber band that cannot be committed.
     /// </summary>
-    public bool SetAnchor(RblEndpoint anchor)
+    public bool SetAnchor(RblEndpoint anchor, RblView view)
     {
         if (IsFull)
         {
@@ -152,14 +166,15 @@ public sealed class RangeBearingLineStore
         }
 
         IsArmed = true;
-        PendingAnchor = anchor;
+        PendingAnchor = new RblPendingAnchor(anchor, view);
         Changed?.Invoke();
         return true;
     }
 
     /// <summary>
-    /// Picks the second endpoint and places the line in the lowest free slot. Returns the slot number
-    /// (1-based) or null when there was no anchor or no free slot.
+    /// Picks the second endpoint and places the line in the lowest free slot. The line belongs to the
+    /// view the anchor was picked in. Returns the slot number (1-based) or null when there was no anchor
+    /// or no free slot.
     /// </summary>
     public int? Complete(RblEndpoint end)
     {
@@ -175,7 +190,7 @@ public sealed class RangeBearingLineStore
         }
 
         var slot = index + 1;
-        _slots[index] = new RangeBearingLine(slot, anchor, end);
+        _slots[index] = new RangeBearingLine(slot, anchor.Endpoint, end, anchor.View);
         IsArmed = false;
         PendingAnchor = null;
         Changed?.Invoke();
@@ -183,10 +198,10 @@ public sealed class RangeBearingLineStore
     }
 
     /// <summary>
-    /// Places a whole line at once, for the modifier-drag path where both endpoints arrive together.
-    /// Returns the slot number, or null when full.
+    /// Places a whole line at once, for the modifier-drag and text-command paths where both endpoints
+    /// arrive together. Returns the slot number, or null when full.
     /// </summary>
-    public int? Add(RblEndpoint a, RblEndpoint b)
+    public int? Add(RblEndpoint a, RblEndpoint b, RblView view)
     {
         var index = LowestFreeSlotIndex();
         if (index < 0)
@@ -195,7 +210,7 @@ public sealed class RangeBearingLineStore
         }
 
         var slot = index + 1;
-        _slots[index] = new RangeBearingLine(slot, a, b);
+        _slots[index] = new RangeBearingLine(slot, a, b, view);
         IsArmed = false;
         PendingAnchor = null;
         Changed?.Invoke();
@@ -258,7 +273,7 @@ public sealed class RangeBearingLineStore
             }
         }
 
-        if (PendingAnchor is { } anchor && IsMissing(anchor, aircraftExists))
+        if (PendingAnchor is { } anchor && IsMissing(anchor.Endpoint, aircraftExists))
         {
             PendingAnchor = null;
             changed = true;
@@ -386,14 +401,21 @@ public static class RangeBearingLineFormatter
 public static class RangeBearingLineResolver
 {
     /// <summary>
-    /// Resolves every placed line against the current aircraft positions. Lines latched to an aircraft
-    /// that has gone are skipped for this frame rather than drawn at a stale position.
+    /// Resolves the placed lines belonging to <paramref name="view" /> against the current aircraft
+    /// positions. Lines created in the other view are skipped — a measurement only renders where it was
+    /// taken. Lines latched to an aircraft that has gone are skipped for this frame rather than drawn at
+    /// a stale position.
     /// </summary>
-    public static List<ResolvedRbl> Resolve(IReadOnlyList<RangeBearingLine> lines, RblTrackLookup lookup, RblUnits units)
+    public static List<ResolvedRbl> Resolve(IReadOnlyList<RangeBearingLine> lines, RblTrackLookup lookup, RblUnits units, RblView view)
     {
         var result = new List<ResolvedRbl>(lines.Count);
         foreach (var line in lines)
         {
+            if (line.View != view)
+            {
+                continue;
+            }
+
             if (ResolveOne(line.A, lookup) is not { } a || ResolveOne(line.B, lookup) is not { } b)
             {
                 continue;
@@ -441,6 +463,107 @@ public static class RangeBearingLineResolver
         }
 
         return lookup(callsign) is { } track ? (track.Position, track) : null;
+    }
+}
+
+/// <summary>
+/// Places a measurement's label so it stays readable: at the far endpoint when that is on-screen
+/// (CRC's placement), otherwise pulled back to where the line leaves the viewport, and always clamped
+/// so the whole text fits inside it.
+/// </summary>
+public static class RblLabelPlacement
+{
+    /// <summary>Label offset from its anchor point, matching CRC's ItemB placement.</summary>
+    private const float OffsetX = 9f;
+    private const float OffsetY = 4f;
+
+    /// <summary>Minimum gap kept between the label and the viewport edge.</summary>
+    private const float EdgePad = 2f;
+
+    /// <summary>
+    /// Computes the label's baseline-left position for the line A→B, or null when no part of the line is
+    /// inside the viewport so there is nothing to label.
+    /// </summary>
+    /// <param name="labelWidth">Measured width of the label text in pixels.</param>
+    /// <param name="labelHeight">Approximate cap height of the label font, used to keep the text below the top edge.</param>
+    public static (float X, float Y)? Compute(
+        float ax,
+        float ay,
+        float bx,
+        float by,
+        float labelWidth,
+        float labelHeight,
+        float viewWidth,
+        float viewHeight
+    )
+    {
+        if (viewWidth < 1f || viewHeight < 1f)
+        {
+            return (bx + OffsetX, by + OffsetY);
+        }
+
+        var anchorX = bx;
+        var anchorY = by;
+        if (!IsInside(bx, by, viewWidth, viewHeight))
+        {
+            if (ExitPointNearestB(ax, ay, bx, by, viewWidth, viewHeight) is not { } exit)
+            {
+                return null;
+            }
+
+            (anchorX, anchorY) = exit;
+        }
+
+        var x = Math.Clamp(anchorX + OffsetX, EdgePad, Math.Max(EdgePad, viewWidth - labelWidth - EdgePad));
+        var y = Math.Clamp(anchorY + OffsetY, labelHeight + EdgePad, Math.Max(labelHeight + EdgePad, viewHeight - EdgePad));
+        return (x, y);
+    }
+
+    private static bool IsInside(float x, float y, float width, float height) => (x >= 0f) && (x <= width) && (y >= 0f) && (y <= height);
+
+    /// <summary>
+    /// Liang–Barsky clip of the segment A→B against the viewport rectangle, returning the clipped point
+    /// nearest B — where the line visually leaves the screen heading toward the off-screen endpoint.
+    /// Null when the segment never crosses the viewport.
+    /// </summary>
+    private static (float X, float Y)? ExitPointNearestB(float ax, float ay, float bx, float by, float width, float height)
+    {
+        var dx = bx - ax;
+        var dy = by - ay;
+        var t0 = 0f;
+        var t1 = 1f;
+
+        Span<float> p = [-dx, dx, -dy, dy];
+        Span<float> q = [ax, width - ax, ay, height - ay];
+        for (var i = 0; i < 4; i++)
+        {
+            if (Math.Abs(p[i]) < 1e-9f)
+            {
+                if (q[i] < 0f)
+                {
+                    return null;
+                }
+
+                continue;
+            }
+
+            var t = q[i] / p[i];
+            if (p[i] < 0f)
+            {
+                t0 = Math.Max(t0, t);
+            }
+            else
+            {
+                t1 = Math.Min(t1, t);
+            }
+
+            if (t0 > t1)
+            {
+                return null;
+            }
+        }
+
+        return (ax + (t1 * dx), ay + (t1 * dy));
     }
 }
 

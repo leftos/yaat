@@ -87,11 +87,15 @@ public sealed class RangeBearingRenderer : IDisposable
             DrawEndpointMarker(canvas, bx, by);
         }
 
-        // Label at the far end, matching CRC's placement. The shadow keeps it readable over video maps.
-        var labelX = bx + 9;
-        var labelY = by + 4;
-        canvas.DrawText(line.Label, labelX + 1, labelY + 1, SKTextAlign.Left, _labelFont, _labelShadowPaint);
-        canvas.DrawText(line.Label, labelX, labelY, SKTextAlign.Left, _labelFont, _labelPaint);
+        // Label at the far end, matching CRC's placement — but clamped into the viewport when that end
+        // is off-screen, so a partially visible line still shows its reading where the line exits the
+        // screen. The shadow keeps it readable over video maps.
+        var labelWidth = _labelFont.MeasureText(line.Label);
+        if (RblLabelPlacement.Compute(ax, ay, bx, by, labelWidth, _labelFont.Size, viewport.PixelWidth, viewport.PixelHeight) is { } label)
+        {
+            canvas.DrawText(line.Label, label.X + 1, label.Y + 1, SKTextAlign.Left, _labelFont, _labelShadowPaint);
+            canvas.DrawText(line.Label, label.X, label.Y, SKTextAlign.Left, _labelFont, _labelPaint);
+        }
     }
 
     private void DrawEndpointMarker(SKCanvas canvas, float x, float y)

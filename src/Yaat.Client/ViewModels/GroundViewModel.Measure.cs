@@ -5,8 +5,8 @@ using Yaat.Client.Views.Map;
 namespace Yaat.Client.ViewModels;
 
 /// <summary>
-/// Ground side of the distance measuring tool. Shares its measurements with the radar view through
-/// <see cref="RangeBearingViewState" />, but labels them in feet at taxiway scale.
+/// Ground side of the distance measuring tool. Slots live in the store shared with the radar view, but
+/// ground measurements only render here, labelled in feet at taxiway scale.
 /// </summary>
 public partial class GroundViewModel
 {
@@ -20,7 +20,10 @@ public partial class GroundViewModel
     /// </summary>
     public const RblUnits MeasureUnits = RblUnits.FeetThenNauticalMiles;
 
-    /// <summary>Injects the measuring-tool state shared with the radar view.</summary>
+    /// <summary>Measurements taken here belong to the ground view and only render there.</summary>
+    public const RblView MeasureView = RblView.Ground;
+
+    /// <summary>Injects the measuring-tool state whose slot pool is shared with the radar view.</summary>
     public void SetMeasureState(RangeBearingViewState state)
     {
         Measure = state;

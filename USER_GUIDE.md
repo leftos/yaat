@@ -508,11 +508,11 @@ The MVA is the radar-vectoring floor from 7110.65 §5-6-1; it is a controller-ju
 
 ##### Measuring distance and bearing
 
-A range/bearing line (RBL) tool, matching CRC STARS' `*T`. It works the same way in the **Radar View** and the **Ground View**, and the two views share one set of measurements — draw one on the ground and it is there on the radar too, under the same number.
+A range/bearing line (RBL) tool, matching CRC STARS' `*T`. It works the same way in the **Radar View** and the **Ground View**. Each measurement belongs to the view it was drawn in — a radar measurement never clutters the ground view and vice versa — but the two views share one numbering pool, so measurement 3 always means the same line no matter where you type `.rbl 3`.
 
 An endpoint can be a **fixed point** on the map or an **aircraft**. An endpoint placed on an aircraft **latches** to it: the line follows the aircraft as it flies or taxis, and the reading updates live. Latching is what makes the tool useful for watching a gap open or close rather than taking a single static measurement.
 
-**Four ways to start a measurement** — all four place the same thing, so use whichever fits what you're doing:
+**Five ways to start a measurement** — all five place the same thing, so use whichever fits what you're doing:
 
 | How | What to do |
 | --- | --- |
@@ -520,6 +520,7 @@ An endpoint can be a **fixed point** on the map or an **aircraft**. An endpoint 
 | **Button** | **RBL** on the radar's AUX menu (press **SHIFT** in the DCB bar) or on the ground view's toolbar. Then click the two endpoints. |
 | **Right-click menu** | **Measure from here** on the map/node menu, or **Measure from {callsign}** — on the radar under **Display**, on the ground in the aircraft menu. The item reads **Measure to …** once the first endpoint is set. |
 | **Ctrl+M** | Arms the tool wherever you are, then click the two endpoints. |
+| **Typed command** | `.rbl <a> <b>` (or `*T <a> <b>`, the CRC STARS spelling) draws a line between two named points without touching the mouse — each endpoint can be a **fix**, an **[FRD](COMMANDS.md#fix-radial-distance-frd)**, or a **callsign** in any combination, e.g. `.rbl OAK MOD`, `*T UAL123 OAK169015`. Callsigns take the same partial matching as ordinary commands, and a callsign endpoint latches. Text-created measurements go to the **radar view**. |
 
 Once armed, the first click sets the anchor and a dashed line follows your cursor with a live reading; the second click commits it. **Esc** or **right-click** cancels a half-placed measurement without disturbing the ones already down.
 
@@ -530,6 +531,8 @@ Once armed, the first click sets the anchor and a dashed line follows your curso
 - `/2` — minutes for the aircraft to reach the other end. Shown **only** when exactly one endpoint is an aircraft with groundspeed and the other is a fixed point, matching STARS. Aircraft-to-aircraft and point-to-point measurements have no time field.
 - `-1` — the measurement's number, used to remove it.
 
+The label sits at the line's far end. When that end is off-screen — say you measured `OAK` to `MOD` and are zoomed in on OAK — the reading is pulled back to where the line leaves the screen, so a partially visible line always shows its numbers.
+
 **Removing measurements:**
 
 - Right-click on or near a line → **Remove measurement N**.
@@ -538,10 +541,11 @@ Once armed, the first click sets the anchor and a dashed line follows your curso
 
 Up to **15** measurements can be down at once, matching STARS. Removing one frees its number for the next measurement. A measurement latched to an aircraft is dropped automatically when that aircraft goes away, rather than being left frozen at its last position.
 
-**Commands** (typed in the command box — local to your displays, never sent to aircraft):
+**Commands** (typed in the command box — local to your displays, never sent to aircraft; `*T` is accepted everywhere `.rbl` is):
 
 - `.rbl` — arm the tool.
 - `.rbl <n>` — remove measurement *n*.
+- `.rbl <a> <b>` — draw a radar-view line between two named points (fix, FRD, or callsign each).
 - `.norbl` — remove all measurements.
 
 **Datablocks** show three lines: (1) callsign (with `*` suffix for VFR), (2) altitude in hundreds + ground speed in tens + aircraft type/weight category, plus a flashing `ID` while the aircraft is squawking ident (see below), (3) RPO assignment (in brackets), track owner TCP, a pending outgoing point-out the student sent (the recipient's sector with an asterisk, e.g. `3E*`), handoff indicator, and scratchpads when set. When no primary scratchpad has been entered, the slot falls back to showing the destination airport, exactly as it appears on the student's STARS scope — which tracks get that fallback (arrivals into the facility's primary airport, satellite arrivals, departures) is set by the facility's STARS configuration. Entering `SP1` overrides it, and clearing `SP1` empties the slot rather than restoring the destination. An aircraft approaching final without a landing clearance gets a flashing red `NoLndgClnc` line appended; opt out in **Settings > Display > Radar Display**. A beacon-code mismatch (see below) adds a line right under the altitude line. An aircraft in a [conflict alert](#conflict-alerts) gets a flashing red `CA` (or `MCI`) field. When an instructor [note](#assigning-a-note-to-an-aircraft) is set, an extra amber line is appended at the bottom of the block.

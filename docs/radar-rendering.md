@@ -139,7 +139,10 @@ performs the fit once the viewport has pixel dimensions (`Viewport.PixelWidth >=
     `RadarCanvas.RenderFromSnapshot` via `RadarRenderer.DrawRangeBearingLines` → the shared
     `Views/Map/RangeBearingRenderer`. Last so a measurement stays legible over targets and datablocks. The snapshot
     carries them already resolved (`ResolvedRbl`), because a latched endpoint has to be looked up against the live
-    aircraft list on the UI thread.
+    aircraft list on the UI thread. Only lines tagged `RblView.Radar` are resolved into the snapshot — measurements
+    taken in the ground view never render here. The label normally sits at the far endpoint (CRC's placement); when
+    that endpoint is off-screen, `RblLabelPlacement` pulls it back to where the line exits the viewport and clamps it
+    fully inside, so a partially visible line always shows its reading.
 
 Inside step 6, `TargetRenderer` first draws **history trails** behind all symbols (`TargetRenderer.cs:198-202`), then does a
 **two-pass deferred render**: aircraft with an active speech bubble are held back to a second pass so their symbol,

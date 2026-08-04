@@ -34,10 +34,11 @@ Bearing 0 renders as `360`, matching CRC's `NavCalc.NormalizeHeading`.
 
 ## Architecture
 
-**One store shared by both views.** A measurement drawn on the ground shows up on the radar and vice
-versa, slot numbers stay consistent across views, and `.rbl 3` is unambiguous. Each view renders the
-same lines with its own unit formatting. Lines whose endpoints fall outside a view's extent simply
-clip.
+**One store shared by both views; per-view visibility.** Slot numbers come from a single 15-slot pool,
+so `.rbl 3` is unambiguous no matter where it is typed — but each line is tagged with the `RblView` it
+was created in and only renders there (revised 2026-08: originally a measurement showed in both views,
+which cluttered the other view's display). Each view renders its own lines with its own unit
+formatting.
 
 New file `src/Yaat.Client/Views/Map/RangeBearingLines.cs` (next to `DatablockDeconfliction.cs`, the
 existing precedent for view-agnostic logic shared by both renderers):
@@ -119,6 +120,20 @@ Consequences:
   with nothing selected.
 - `RadarCanvas` now anchors its map menu at the press position rather than the release position. The
   two are within 5 px by definition, since anything further is a drag.
+
+## Follow-up: text-command creation, per-view visibility, label clamping (2026-08)
+
+- `.rbl A B` (alias `*T A B`, the CRC STARS spelling — `*T` is accepted for every `.rbl` form) draws a
+  line between two typed points, each a fix, an FRD, or a callsign in any combination. Resolution order
+  is exact callsign → fix/FRD → partial callsign (`MeasureEndpointResolver`), so a fix name is never
+  shadowed by an airline shorthand or vice versa. Callsign endpoints latch. Text-created measurements
+  belong to the **radar view**.
+- Lines became per-view (see Architecture above): `RangeBearingLine.View`, view-tagged pending anchor
+  (`RblPendingAnchor`), and a view filter in `RangeBearingLineResolver.Resolve`. Removal and
+  `.norbl`/clear-all stay global, consistent with the shared slot pool.
+- `RblLabelPlacement` clamps the bearing/distance label into the viewport: when the far endpoint is
+  off-screen the label moves to where the line exits the screen (Liang–Barsky clip, taking the
+  intersection nearest the far end), and it is always pulled fully inside the edges.
 
 ## Not done
 

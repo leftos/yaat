@@ -200,10 +200,12 @@ order:
 1. **`** ` override prefix** — strips a leading `** ` and sets `forceOverride`, which re-prepends `** ` onto the
    canonical string before sending (bypasses assignment-ownership checks server-side).
 2. **Chat prefix** — a leading `'`, `/`, or `>` routes the remainder to `SendChatAsync` and returns.
-3. **Dot commands** — a leading `.` (or the `CRC ` force-alias prefix, which is stripped alongside `** `) is
-   handled entirely client-side and returns. `TryHandleScopeMarkerCommand` gets first refusal (`.ff` / `.marker` /
-   `.markers` / `.nomarkers`), then `TryHandleCrcAlias` (`MainViewModel.CrcAliases.cs`); neither claiming it yields
-   "Unknown command or alias". The `CRC ` prefix skips the built-in step so a shadowed alias is still reachable.
+3. **Dot commands** — a leading `.` (or the `CRC ` force-alias prefix, which is stripped alongside `** `, or the
+   `*T` measuring verb) is handled entirely client-side and returns. `TryHandleScopeMarkerCommand` gets first
+   refusal (`.ff` / `.marker` / `.markers` / `.nomarkers`), then `TryHandleMeasureCommand` (`.rbl` / `.norbl` /
+   `*T`; `.rbl A B` resolves each token via `MeasureEndpointResolver` and places a radar-view line), then
+   `TryHandleCrcAlias` (`MainViewModel.CrcAliases.cs`); none claiming it yields "Unknown command or alias". The
+   `CRC ` prefix skips the built-in steps so a shadowed alias is still reachable.
 4. **Global command** — `CommandSchemeParser.Parse` + `IsGlobalCommand`; dispatched via `HandleGlobalCommand` with no
    callsign. Exception: the `AS {tcp} {track_command}` *prefix* form is per-aircraft (the standalone `AS {tcp}` is
    global), so it is **not** taken here.

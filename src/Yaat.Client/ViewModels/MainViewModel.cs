@@ -1995,9 +1995,10 @@ public partial class MainViewModel : ObservableObject
     }
 
     /// <summary>
-    /// Handles the client-only distance measuring dot commands: <c>.rbl</c> arms the tool on both map
-    /// views, <c>.rbl N</c> removes measurement N, and <c>.norbl</c> removes them all. Never sent to the
-    /// server.
+    /// Handles the client-only distance measuring commands: <c>.rbl</c> (alias <c>*T</c>, CRC STARS'
+    /// name for the tool) arms the tool on both map views, <c>.rbl N</c> removes measurement N,
+    /// <c>.rbl A B</c> draws a radar-view line between two typed points — each a fix, an FRD, or a
+    /// callsign — and <c>.norbl</c> removes them all. Never sent to the server.
     /// </summary>
     /// <returns>False when the verb isn't one of these, so the caller can fall through to CRC aliases.</returns>
     private bool TryHandleMeasureCommand(string text)
@@ -2010,25 +2011,65 @@ public partial class MainViewModel : ObservableObject
                 Measure.Clear();
                 return true;
             case ".RBL":
+            case "*T":
                 if (parts.Length < 2)
                 {
                     Measure.Arm();
                     return true;
                 }
 
-                if (int.TryParse(parts[1], out var slot))
+                if (parts.Length == 2 && int.TryParse(parts[1], out var slot))
                 {
                     Measure.Remove(slot);
-                }
-                else
-                {
-                    StatusText = $"Usage: {parts[0]} [measurement number]";
+                    return true;
                 }
 
+                if (parts.Length == 3)
+                {
+                    PlaceMeasurementFromText(parts[1], parts[2]);
+                    return true;
+                }
+
+                StatusText = $"Usage: {parts[0]} [measurement number | point point]";
                 return true;
             default:
                 return false;
         }
+    }
+
+    /// <summary>True for CRC STARS' *T spelling of the measuring tool: "*T", "*T 3", "*T OAK MOD".</summary>
+    private static bool IsStarTCommand(string text) =>
+        text.StartsWith("*T", StringComparison.OrdinalIgnoreCase) && ((text.Length == 2) || (text[2] == ' '));
+
+    /// <summary>
+    /// Draws a measurement between two typed points, each a fix, an FRD, or a callsign (a callsign
+    /// endpoint latches and travels with the aircraft). Text-created measurements belong to the radar
+    /// view, matching CRC STARS' *T.
+    /// </summary>
+    private void PlaceMeasurementFromText(string fromToken, string toToken)
+    {
+        if (ResolveMeasureEndpoint(fromToken) is not { } from || ResolveMeasureEndpoint(toToken) is not { } to)
+        {
+            return;
+        }
+
+        Measure.Place(from, to, RadarViewModel.MeasureView, Radar.MeasureTrackLookup, RadarViewModel.MeasureUnits);
+    }
+
+    /// <summary>
+    /// Resolves one measurement endpoint token via <see cref="MeasureEndpointResolver" />, reporting a
+    /// failure in the status bar.
+    /// </summary>
+    private RblEndpoint? ResolveMeasureEndpoint(string token)
+    {
+        Func<string, LatLon?>? resolveFix = _commandInput.NavDbReady ? t => FrdResolver.Resolve(t, NavigationDatabase.Instance) : null;
+        var (endpoint, error) = MeasureEndpointResolver.Resolve(token, Aircraft, resolveFix);
+        if (error is not null)
+        {
+            StatusText = error;
+        }
+
+        return endpoint;
     }
 
     [RelayCommand(CanExecute = nameof(CanExecuteInRoom))]
@@ -2080,9 +2121,9 @@ public partial class MainViewModel : ObservableObject
         }
 
         // Client-only dot commands. Built-in scope markers (CRC .ff / .marker / .markers / .nomarkers)
-        // and the measuring tool (.rbl / .norbl) win, then CRC aliases read from the user's CRC install.
-        // Neither ever reaches the server.
-        if (forceAlias || text.StartsWith('.'))
+        // and the measuring tool (.rbl / .norbl, with *T as the CRC STARS spelling) win, then CRC
+        // aliases read from the user's CRC install. Neither ever reaches the server.
+        if (forceAlias || text.StartsWith('.') || IsStarTCommand(text))
         {
             bool handled = (!forceAlias) && (TryHandleScopeMarkerCommand(text) || TryHandleMeasureCommand(text));
             if (!handled)

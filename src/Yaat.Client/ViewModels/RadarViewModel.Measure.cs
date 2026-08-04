@@ -18,7 +18,10 @@ public partial class RadarViewModel
     /// <summary>The radar reads distances in nautical miles, matching STARS.</summary>
     public const RblUnits MeasureUnits = RblUnits.NauticalMiles;
 
-    /// <summary>Injects the measuring-tool state shared with the ground view.</summary>
+    /// <summary>Measurements taken here belong to the radar view and only render there.</summary>
+    public const RblView MeasureView = RblView.Radar;
+
+    /// <summary>Injects the measuring-tool state whose slot pool is shared with the ground view.</summary>
     public void SetMeasureState(RangeBearingViewState state)
     {
         Measure = state;

@@ -6,9 +6,9 @@ using Yaat.Sim;
 
 namespace Yaat.Client.UI.Tests;
 
-// Covers the shared state the Radar and Ground views both drive: one store behind both, so a
-// measurement taken in either view appears in both under the same slot number, and each view labels it
-// in its own units.
+// Covers the shared state the Radar and Ground views both drive: one store behind both, so slot
+// numbers are globally unique, but each measurement is tagged with the view it was taken in and only
+// renders there, labelled in that view's units.
 public class RangeBearingViewStateTests
 {
     private static readonly LatLon Oakland = new(37.7213, -122.2208);
@@ -29,11 +29,11 @@ public class RangeBearingViewStateTests
     {
         var state = NewState(out _);
 
-        state.Pick(RblEndpoint.AtPoint(Oakland, "A"), NoAircraft, RblUnits.NauticalMiles);
+        state.Pick(RblEndpoint.AtPoint(Oakland, "A"), RblView.Radar, NoAircraft, RblUnits.NauticalMiles);
         Assert.NotNull(state.Anchor);
         Assert.Empty(state.Lines);
 
-        state.Pick(RblEndpoint.AtPoint(PointNorth, "B"), NoAircraft, RblUnits.NauticalMiles);
+        state.Pick(RblEndpoint.AtPoint(PointNorth, "B"), RblView.Radar, NoAircraft, RblUnits.NauticalMiles);
         Assert.Null(state.Anchor);
         Assert.Single(state.Lines);
         Assert.True(state.HasLines);
@@ -59,8 +59,8 @@ public class RangeBearingViewStateTests
         var reported = new List<string>();
         state.StatusReported += reported.Add;
 
-        state.Pick(RblEndpoint.AtPoint(Oakland, "A"), NoAircraft, RblUnits.NauticalMiles);
-        state.Pick(RblEndpoint.AtPoint(PointNorth, "B"), NoAircraft, RblUnits.NauticalMiles);
+        state.Pick(RblEndpoint.AtPoint(Oakland, "A"), RblView.Radar, NoAircraft, RblUnits.NauticalMiles);
+        state.Pick(RblEndpoint.AtPoint(PointNorth, "B"), RblView.Radar, NoAircraft, RblUnits.NauticalMiles);
 
         // Due north (360 true) reads 347 magnetic at Oakland's ~13 deg east declination — both map views
         // are magnetic-north-up, so the label must be magnetic.
@@ -74,30 +74,29 @@ public class RangeBearingViewStateTests
         var reported = new List<string>();
         state.StatusReported += reported.Add;
 
-        state.Pick(RblEndpoint.AtPoint(Oakland, "A"), NoAircraft, RblUnits.FeetThenNauticalMiles);
-        state.Pick(RblEndpoint.AtPoint(PointNorth, "B"), NoAircraft, RblUnits.FeetThenNauticalMiles);
+        state.Pick(RblEndpoint.AtPoint(Oakland, "A"), RblView.Ground, NoAircraft, RblUnits.FeetThenNauticalMiles);
+        state.Pick(RblEndpoint.AtPoint(PointNorth, "B"), RblView.Ground, NoAircraft, RblUnits.FeetThenNauticalMiles);
 
         Assert.Equal("Measurement 347/3,648 ft-1", reported[^1]);
     }
 
     [Fact]
-    public void OneMeasurementIsVisibleToBothViews()
+    public void MeasurementOnlyRendersInTheViewItWasTakenIn()
     {
-        // Both view-models share one state object, which is what makes a measurement drawn on the ground
-        // readable on the radar and vice versa.
+        // Both view-models share one state object so slot numbers stay globally unique, but a radar
+        // measurement never shows on the ground view and vice versa.
         var state = NewState(out var store);
 
-        state.Place(RblEndpoint.AtPoint(Oakland, "A"), RblEndpoint.AtPoint(PointNorth, "B"), NoAircraft, RblUnits.NauticalMiles);
+        state.Place(RblEndpoint.AtPoint(Oakland, "A"), RblEndpoint.AtPoint(PointNorth, "B"), RblView.Radar, NoAircraft, RblUnits.NauticalMiles);
 
         Assert.Single(state.Lines);
         Assert.Single(store.Lines);
         Assert.Equal(1, state.Lines[0].Slot);
 
-        // The radar reads it in miles, the ground in feet — same line, same slot.
-        var radar = RangeBearingLineResolver.Resolve(state.Lines, NoAircraft, RblUnits.NauticalMiles);
-        var ground = RangeBearingLineResolver.Resolve(state.Lines, NoAircraft, RblUnits.FeetThenNauticalMiles);
-        Assert.Equal("347/0.60-1", radar[0].Label);
-        Assert.Equal("347/3,648 ft-1", ground[0].Label);
+        var radar = RangeBearingLineResolver.Resolve(state.Lines, NoAircraft, RblUnits.NauticalMiles, RblView.Radar);
+        var ground = RangeBearingLineResolver.Resolve(state.Lines, NoAircraft, RblUnits.FeetThenNauticalMiles, RblView.Ground);
+        Assert.Equal("347/0.60-1", Assert.Single(radar).Label);
+        Assert.Empty(ground);
     }
 
     [Fact]
@@ -105,7 +104,7 @@ public class RangeBearingViewStateTests
     {
         var state = NewState(out _);
         var reported = new List<string>();
-        state.Pick(RblEndpoint.AtPoint(Oakland, "A"), NoAircraft, RblUnits.NauticalMiles);
+        state.Pick(RblEndpoint.AtPoint(Oakland, "A"), RblView.Radar, NoAircraft, RblUnits.NauticalMiles);
         state.StatusReported += reported.Add;
 
         state.Cancel();
@@ -133,12 +132,12 @@ public class RangeBearingViewStateTests
         var state = NewState(out _);
         for (var i = 0; i < RangeBearingLineStore.MaxLines; i++)
         {
-            state.Place(RblEndpoint.AtPoint(Oakland, "A"), RblEndpoint.AtPoint(PointNorth, "B"), NoAircraft, RblUnits.NauticalMiles);
+            state.Place(RblEndpoint.AtPoint(Oakland, "A"), RblEndpoint.AtPoint(PointNorth, "B"), RblView.Radar, NoAircraft, RblUnits.NauticalMiles);
         }
 
         var reported = new List<string>();
         state.StatusReported += reported.Add;
-        state.Place(RblEndpoint.AtPoint(Oakland, "A"), RblEndpoint.AtPoint(PointNorth, "B"), NoAircraft, RblUnits.NauticalMiles);
+        state.Place(RblEndpoint.AtPoint(Oakland, "A"), RblEndpoint.AtPoint(PointNorth, "B"), RblView.Radar, NoAircraft, RblUnits.NauticalMiles);
 
         Assert.Equal(RangeBearingLineStore.MaxLines, state.Lines.Count);
         Assert.Contains("all 15", Assert.Single(reported), StringComparison.Ordinal);
@@ -148,7 +147,7 @@ public class RangeBearingViewStateTests
     public void RemoveAndClearReportOutcomes()
     {
         var state = NewState(out _);
-        state.Place(RblEndpoint.AtPoint(Oakland, "A"), RblEndpoint.AtPoint(PointNorth, "B"), NoAircraft, RblUnits.NauticalMiles);
+        state.Place(RblEndpoint.AtPoint(Oakland, "A"), RblEndpoint.AtPoint(PointNorth, "B"), RblView.Radar, NoAircraft, RblUnits.NauticalMiles);
 
         var reported = new List<string>();
         state.StatusReported += reported.Add;
@@ -165,7 +164,7 @@ public class RangeBearingViewStateTests
     public void PruneDropsMeasurementsLatchedToADespawnedAircraft()
     {
         var state = NewState(out _);
-        state.Place(RblEndpoint.OnAircraft("OAL123"), RblEndpoint.AtPoint(PointNorth, "B"), NoAircraft, RblUnits.NauticalMiles);
+        state.Place(RblEndpoint.OnAircraft("OAL123"), RblEndpoint.AtPoint(PointNorth, "B"), RblView.Radar, NoAircraft, RblUnits.NauticalMiles);
         Assert.Single(state.Lines);
 
         state.PruneMissing(_ => null);
@@ -178,7 +177,7 @@ public class RangeBearingViewStateTests
     public void PruneKeepsMeasurementsWhoseAircraftIsStillFlying()
     {
         var state = NewState(out _);
-        state.Place(RblEndpoint.OnAircraft("OAL123"), RblEndpoint.AtPoint(PointNorth, "B"), NoAircraft, RblUnits.NauticalMiles);
+        state.Place(RblEndpoint.OnAircraft("OAL123"), RblEndpoint.AtPoint(PointNorth, "B"), RblView.Radar, NoAircraft, RblUnits.NauticalMiles);
 
         state.PruneMissing(cs => new AircraftModel { Callsign = cs });
 

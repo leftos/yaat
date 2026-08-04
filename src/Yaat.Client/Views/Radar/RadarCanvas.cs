@@ -110,7 +110,7 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
         IReadOnlyList<RangeBearingLine>?
     >(nameof(RangeBearingLines));
 
-    public static readonly StyledProperty<RblEndpoint?> MeasureAnchorProperty = AvaloniaProperty.Register<RadarCanvas, RblEndpoint?>(
+    public static readonly StyledProperty<RblPendingAnchor?> MeasureAnchorProperty = AvaloniaProperty.Register<RadarCanvas, RblPendingAnchor?>(
         nameof(MeasureAnchor)
     );
 
@@ -346,15 +346,18 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
         set => SetValue(IsMeasuringProperty, value);
     }
 
-    /// <summary>Placed measurements, shared with the ground view.</summary>
+    /// <summary>All placed measurements; only those created in the radar view render here.</summary>
     public IReadOnlyList<RangeBearingLine>? RangeBearingLines
     {
         get => GetValue(RangeBearingLinesProperty);
         set => SetValue(RangeBearingLinesProperty, value);
     }
 
-    /// <summary>First endpoint of a half-placed measurement, for the rubber-band preview.</summary>
-    public RblEndpoint? MeasureAnchor
+    /// <summary>
+    /// First endpoint of a half-placed measurement, for the rubber-band preview. Only shown here when it
+    /// was picked in the radar view.
+    /// </summary>
+    public RblPendingAnchor? MeasureAnchor
     {
         get => GetValue(MeasureAnchorProperty);
         set => SetValue(MeasureAnchorProperty, value);
@@ -969,7 +972,7 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
             return null;
         }
 
-        var resolved = RangeBearingLineResolver.Resolve(lines, BuildMeasureLookup(), RadarViewModel.MeasureUnits);
+        var resolved = RangeBearingLineResolver.Resolve(lines, BuildMeasureLookup(), RadarViewModel.MeasureUnits, RadarViewModel.MeasureView);
         return RangeBearingHitTest.NearestSlot(resolved, Viewport, (float)pos.X, (float)pos.Y, MeasurePickRadiusPx);
     }
 
@@ -1040,13 +1043,14 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
         List<ResolvedRbl>? measurements = null;
         ResolvedRbl? pendingMeasurement = null;
         var placedMeasurements = RangeBearingLines;
-        var measureAnchor = _measureDragAnchor ?? MeasureAnchor;
+        // A half-placed anchor picked in the other view previews there, not here.
+        var measureAnchor = _measureDragAnchor ?? (MeasureAnchor is { View: RblView.Radar } pending ? pending.Endpoint : (RblEndpoint?)null);
         if (placedMeasurements is { Count: > 0 } || measureAnchor is not null)
         {
             var lookup = BuildMeasureLookup();
             if (placedMeasurements is { Count: > 0 })
             {
-                measurements = RangeBearingLineResolver.Resolve(placedMeasurements, lookup, RadarViewModel.MeasureUnits);
+                measurements = RangeBearingLineResolver.Resolve(placedMeasurements, lookup, RadarViewModel.MeasureUnits, RadarViewModel.MeasureView);
             }
 
             if (measureAnchor is not null)
