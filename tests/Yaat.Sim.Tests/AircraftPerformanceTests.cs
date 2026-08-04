@@ -92,25 +92,51 @@ public sealed class AircraftPerformanceTests
     [Fact]
     public void DescentRate_ProfiledType_AltitudeAware()
     {
-        // B738: initial=800 (ground), FL100=3500, approach=1500 (ceiling)
-        // Descent rates increase from ground to FL100, then decrease toward ceiling.
+        // B738 per the Eurocontrol source data: approach segment (below FL100) 1500,
+        // descent-to-FL100 segment 3500, initial descent at cruise 800. The rate rises
+        // from the approach band to its FL100 peak, then falls toward the gentle
+        // top-of-descent pushover at the ceiling.
         double high = AircraftPerformance.DescentRate("B738", AircraftCategory.Jet, 30000);
         double mid = AircraftPerformance.DescentRate("B738", AircraftCategory.Jet, 10000);
         double low = AircraftPerformance.DescentRate("B738", AircraftCategory.Jet, 2000);
 
-        // At FL100 boundary the rate should be 3500
         Assert.Equal(3500, mid);
         Assert.True(low < mid, $"Low alt rate ({low}) should be less than mid ({mid})");
-        // High altitude interpolates between FL100 (3500) and ceiling (1500), so > 1500
-        Assert.True(high > 1500, $"High alt rate ({high}) should exceed approach rate (1500)");
+        Assert.True(high < mid, $"High alt rate ({high}) should be less than the FL100 peak ({mid})");
+        Assert.True(high > 800, $"High alt rate ({high}) should exceed the top-of-descent rate (800)");
     }
 
     [Fact]
-    public void DescentRate_AtGroundLevel_ReturnsInitialRate()
+    public void DescentRate_AtGroundLevel_ReturnsApproachRate()
     {
-        // B738: DescentRateInitial=800 maps to ground level (altitude 0)
+        // The approach-segment rate (1500 for the B738) governs near the ground; the
+        // 800 fpm initial-descent rate belongs at the top of descent, not the surface.
         double rate = AircraftPerformance.DescentRate("B738", AircraftCategory.Jet, 0);
+        Assert.Equal(1500, rate);
+    }
+
+    [Fact]
+    public void DescentRate_AtCeiling_ReturnsInitialDescentRate()
+    {
+        var profile = Data.AircraftProfileDatabase.Get("B738");
+        Assert.NotNull(profile);
+
+        double rate = AircraftPerformance.DescentRate("B738", AircraftCategory.Jet, profile.Ceiling);
         Assert.Equal(800, rate);
+    }
+
+    [Fact]
+    public void DescentRate_ZeroInitialDescentRate_HoldsFl100RateAloft()
+    {
+        // Piston/turboprop profiles publish 0 for the initial-descent band ("can't reach").
+        // The interpolator skips zero anchors, so the FL100 rate holds at altitude and the
+        // anchor swap must not change these types.
+        var profile = Data.AircraftProfileDatabase.Get("C172");
+        Assert.NotNull(profile);
+        Assert.Equal(0, profile.DescentRateInitial);
+
+        Assert.Equal(500, AircraftPerformance.DescentRate("C172", AircraftCategory.Piston, 2000));
+        Assert.Equal(500, AircraftPerformance.DescentRate("C172", AircraftCategory.Piston, 12000));
     }
 
     [Fact]

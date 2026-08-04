@@ -914,6 +914,7 @@ public static class FlightPhysics
         bool climbing = diff > 0;
 
         double rate;
+        bool profileRate = aircraft.Targets.DesiredVerticalRate is null;
         if (aircraft.Targets.DesiredVerticalRate is { } desired)
         {
             rate = Math.Abs(desired);
@@ -927,7 +928,9 @@ public static class FlightPhysics
 
         if (aircraft.Procedure.IsExpediting)
         {
-            rate *= 1.5;
+            // Direction-split: the descent floor only applies to the profile-rate branch —
+            // a phase/planner-commanded rate (a glidepath) must never be raised to it.
+            rate = CategoryPerformance.ExpediteVerticalRate(cat, rate, climbing, applyFloor: profileRate);
         }
 
         double feetPerSec = rate / 60.0;

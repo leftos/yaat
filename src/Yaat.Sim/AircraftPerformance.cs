@@ -139,7 +139,10 @@ public static class AircraftPerformance
             return CategoryPerformance.DescentRate(cat);
         }
 
-        ReadOnlySpan<(double, double)> breakpoints = [(0, p.DescentRateInitial), (10000, p.DescentRateFl100), (p.Ceiling, p.DescentRateApproach)];
+        // "Initial" is the initial descent *from cruise* (the gentle top-of-descent pushover)
+        // and "Approach" the below-FL100 segment — the Eurocontrol source data reads top-down,
+        // mirroring the DescentSpeed ladder below. B738: approach 1500 / FL100 3500 / initial 800.
+        ReadOnlySpan<(double, double)> breakpoints = [(0, p.DescentRateApproach), (10000, p.DescentRateFl100), (p.Ceiling, p.DescentRateInitial)];
         return InterpolateByAltitude(altitudeFt, breakpoints);
     }
 

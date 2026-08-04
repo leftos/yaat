@@ -110,16 +110,32 @@ public class N70csCrossStopsOnRunwayTests(ITestOutputHelper output)
     [Fact]
     public void Replay_GivenCrossWhileHoldingShort_CrossesFullyAndStopsClearOf28R()
     {
-        var recording = RecordingLoader.Load(RecordingPath);
+        // Hybrid replay (docs/e2e-tdd-issue-debugging.md §5b): N70CS spawns on final at t=2300 and
+        // is mid-runway-exit when the recorded TAXI fires at t=2417, so the whole setup is
+        // descent-physics-sensitive — a full replay from t=0 puts it at a different exit under
+        // current physics and the recorded command resolves a different route. Restore the
+        // snapshot just before the TAXI, then replay the recorded command through CURRENT code.
+        using var archive = RecordingLoader.OpenArchive(RecordingPath);
         var engine = BuildEngine();
-        if (recording is null || engine is null)
+        if (archive is null || engine is null)
         {
             return;
         }
 
-        // Replay through the recorded "TAXI >J HS 28R" (t=2417); tick (physics only — do NOT apply the
-        // recorded CROSS at t=2518) until N70CS settles holding short of 28R.
-        engine.Replay(recording, 2430);
+        var recording = archive.ToBaseSessionRecording();
+        engine.Replay(recording, 0);
+
+        var snapshot = archive.ReadSnapshotAt(2410);
+        if (snapshot is null)
+        {
+            return;
+        }
+
+        engine.RestoreFromSnapshot(snapshot.State);
+
+        // Apply the recorded "TAXI >J HS 28R" (t=2417); stop before the recorded CROSS at t=2518 —
+        // the test issues its own. Then tick physics only until N70CS settles holding short of 28R.
+        engine.ReplayRange((int)snapshot.ElapsedSeconds, 2430, recording.Actions);
         var ac = engine.FindAircraft(Callsign);
         Assert.NotNull(ac); // fixture drift, not a machine difference — the replay is deterministic once the layout loads
 
@@ -148,6 +164,20 @@ public class N70csCrossStopsOnRunwayTests(ITestOutputHelper output)
         Assert.True(holdingShort, $"N70CS should hold short of 28R; phase={ac.Phases?.CurrentPhase?.GetType().Name ?? "null"}");
         var holdShortPos = ac.Position;
         output.WriteLine($"holding short at ({holdShortPos.Lat:F6},{holdShortPos.Lon:F6})");
+        if (ac.Ground.AssignedTaxiRoute is { } diagRoute)
+        {
+            output.WriteLine($"route: {diagRoute.ToSummary()}");
+            for (int i = 0; i < diagRoute.Segments.Count; i++)
+            {
+                var s = diagRoute.Segments[i];
+                output.WriteLine($"  [{i, 2}] {s.FromNodeId, 5} -> {s.ToNodeId, 5} ({s.TaxiwayName})");
+            }
+
+            foreach (var h in diagRoute.HoldShortPoints)
+            {
+                output.WriteLine($"  HS node={h.NodeId} target={h.TargetName} reason={h.Reason} cleared={h.IsCleared}");
+            }
+        }
 
         var crossResult = engine.SendCommand(Callsign, "CROSS");
         Assert.True(crossResult.Success, $"CROSS failed: {crossResult.Message}");

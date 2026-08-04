@@ -451,7 +451,7 @@ FlightPhysics.cs               # Static 8-step Update: navigation→descentPlan�
                                # Wind physics: TAS = IasToTas(IAS, alt); GS/Track derived from TAS + wind vector; WCA applied to nav
                                # ApplyFixConstraints: SID/STAR via-mode constraint enforcement at waypoints
                                # Bank angle: computed in UpdateHeading from atan(TAS × turnRate × coeff); sign follows turn direction
-                               # Expedite: IsExpediting → 1.5x climb/descent rate; Mach hold: TargetMach → recompute IAS each tick
+                               # Expedite: IsExpediting → direction-split rate (climb ×1.15 / descent ×2.0, per-category caps+floor); Mach hold: TargetMach → recompute IAS each tick
 GeoMath.cs                     # Static: DistanceNm (haversine), BearingTo, TurnHeadingToward, GenerateArcPoints (RF/AF), PointInRing (even-odd ray-cast)
                                # Each primary function has scalar (double, double, double, double) and LatLon (LatLon, LatLon) overloads
                                # FootOfPerpendicular returns (LatLon Foot, double AlongNm, bool Clamped)

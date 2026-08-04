@@ -109,8 +109,8 @@ public class ExpediteAltitudeAssignmentTests(ITestOutputHelper output)
                 }
             }
 
-            // 1.5x the SR22's 500 fpm piston descent rate.
-            Assert.InRange(expeditedVs, -800, -700);
+            // The SR22's 500 fpm descent, doubled and raised to the 1,000 fpm piston expedite floor.
+            Assert.InRange(expeditedVs, -1050, -950);
             Assert.Equal(1400, ac.Altitude, 1);
         }
     }

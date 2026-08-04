@@ -124,7 +124,7 @@ public class ExpediteCommandTests
     }
 
     [Fact]
-    public void UpdateAltitude_Applies1_5xMultiplier_WhenExpediting()
+    public void UpdateAltitude_ExpeditedClimb_UsesModestMultiplier()
     {
         TestVnasData.EnsureInitialized();
 
@@ -140,29 +140,32 @@ public class ExpediteCommandTests
         FlightPhysics.Update(ac, 10.0);
         FlightPhysics.Update(acNormal, 10.0);
 
-        // Expediting aircraft should have climbed ~1.5x as much
+        // Climb is thrust-limited: the normal profile already flies near the optimum rate
+        // (AIM 4-4-10), so expedite adds ~15%, not a performance unlock.
         double expClimb = ac.Altitude - 5000;
         double normClimb = acNormal.Altitude - 5000;
         Assert.True(expClimb > normClimb, $"Expedite climb {expClimb} should exceed normal {normClimb}");
-        Assert.InRange(expClimb / normClimb, 1.45, 1.55);
+        Assert.InRange(expClimb / normClimb, 1.10, 1.20);
     }
 
-    // --- Expedite must produce a vertical rate the controller can actually see ---
+    // --- Expedite must produce a vertical rate the controller can actually see, without
+    //     exceeding what the airframe can do "without an exceptional change in aircraft
+    //     handling characteristics" (7110.65 PCG EXPEDITE). ---
 
     /// <summary>
-    /// The reported symptom was "it didn't seem to affect its vertical rate". These cases pin
-    /// the observable <see cref="AircraftState.VerticalSpeed"/> — not just the altitude delta —
-    /// across both directions and all three performance categories, and require the change to
-    /// be large enough to read off a datablock rather than merely non-zero.
+    /// Direction-split contract: climb is thrust-limited (×1.15 up to a category cap), descent
+    /// is drag-limited (×2.0 within a category floor/cap band), and expedite never reduces the
+    /// rate that would otherwise apply. The constants here restate the spec on purpose — if the
+    /// implementation drifts, this fails.
     /// </summary>
     [Theory]
     [InlineData("B738", 5000, 15000)] // jet, climb
-    [InlineData("B738", 15000, 5000)] // jet, descent
+    [InlineData("B738", 15000, 5000)] // jet, descent — the 4,000 fpm cap binds
     [InlineData("DH8D", 5000, 15000)] // turboprop, climb
     [InlineData("DH8D", 15000, 5000)] // turboprop, descent
-    [InlineData("SR22", 2658, 1400)] // piston descent — the reported N2BP case
+    [InlineData("SR22", 2658, 1400)] // piston descent — the reported N2BP case; the floor binds
     [InlineData("SR22", 1400, 5000)] // piston, climb
-    public void Expedite_MeaningfullyRaisesVerticalSpeed(string type, double startAlt, int targetAlt)
+    public void Expedite_FollowsTheDirectionSplitFormula(string type, double startAlt, int targetAlt)
     {
         TestVnasData.EnsureInitialized();
 
@@ -172,20 +175,70 @@ public class ExpediteCommandTests
         Assert.NotEqual(0, normalVs);
         Assert.Equal(Math.Sign(normalVs), Math.Sign(expeditedVs));
 
-        double ratio = Math.Abs(expeditedVs) / Math.Abs(normalVs);
-        Assert.InRange(ratio, 1.45, 1.55);
+        var cat = AircraftCategorization.Categorize(type);
+        bool climb = targetAlt > startAlt;
+        double normal = Math.Abs(normalVs);
+        (double cap, double? floor) = (climb, cat) switch
+        {
+            (true, AircraftCategory.Jet) => (4000.0, (double?)null),
+            (true, AircraftCategory.Turboprop) => (2500.0, null),
+            (true, AircraftCategory.Piston) => (900.0, null),
+            (false, AircraftCategory.Jet) => (4000.0, 2500.0),
+            (false, AircraftCategory.Turboprop) => (2500.0, 1500.0),
+            (false, AircraftCategory.Piston) => (1500.0, 1000.0),
+            _ => throw new InvalidOperationException($"unexpected category {cat}"),
+        };
 
-        // "Meaningfully" — the slowest category still gains 250 fpm, which is a visible
-        // change on a datablock's vertical-rate arrow, not a rounding difference.
-        double gainFpm = Math.Abs(expeditedVs) - Math.Abs(normalVs);
-        Assert.True(gainFpm >= 250, $"{type} {startAlt:F0}->{targetAlt}: expedite only gained {gainFpm:F0} fpm");
+        double expected = Math.Min(normal * (climb ? 1.15 : 2.0), cap);
+        if (floor is { } f)
+        {
+            expected = Math.Max(expected, f);
+        }
+
+        expected = Math.Max(expected, normal);
+        Assert.Equal(expected, Math.Abs(expeditedVs), 1.0);
     }
 
     [Fact]
-    public void Expedite_MultipliesPhaseCommandedRate()
+    public void ExpeditedDescent_B738MidDescent_HitsTheJetCap()
     {
-        // Phases and the descent planner write DesiredVerticalRate directly. Expedite has to
-        // scale that too, otherwise it silently does nothing whenever a phase owns the rate.
+        // A 737 mid-descent already does ~3,000 fpm; doubling it would be an emergency
+        // descent. The 4,000 fpm cap is what honors the PCG's handling-characteristics clause.
+        TestVnasData.EnsureInitialized();
+
+        double vs = VerticalSpeedAfterOneTick("B738", 15000, 5000, expedite: true);
+        Assert.Equal(-4000, vs, 1.0);
+    }
+
+    [Fact]
+    public void ExpeditedDescent_SR22_RaisedToThePistonFloor()
+    {
+        // The N2BP case: 500 fpm normal descent. Doubled and floored to 1,000 fpm —
+        // a change the controller can actually see on the datablock.
+        TestVnasData.EnsureInitialized();
+
+        double vs = VerticalSpeedAfterOneTick("SR22", 2658, 1400, expedite: true);
+        Assert.Equal(-1000, vs, 1.0);
+    }
+
+    [Fact]
+    public void ExpeditedDescent_C208_RaisedToTheTurbopropFloor()
+    {
+        // The C208 profile publishes a 500 fpm descent everywhere; doubling gives 1,000 but a
+        // turboprop asked to expedite can realistically hold 1,500 fpm — the floor supplies it.
+        TestVnasData.EnsureInitialized();
+
+        double vs = VerticalSpeedAfterOneTick("C208", 3000, 1000, expedite: true);
+        Assert.Equal(-1500, vs, 1.0);
+    }
+
+    [Fact]
+    public void Expedite_ScalesPhaseCommandedRate_WithoutTheFloor()
+    {
+        // Phases and the descent planner write DesiredVerticalRate directly. Expedite scales
+        // that too (×2 descent, capped) — but the floor must NOT apply: a deliberately gentle
+        // phase-commanded rate (a glidepath) may sit far below the category floor, and raising
+        // it would fly the aircraft through its vertical path.
         TestVnasData.EnsureInitialized();
 
         var normal = CreateAircraft(altitude: 10000);
@@ -201,7 +254,25 @@ public class ExpediteCommandTests
         FlightPhysics.Update(expedited, 1.0);
 
         Assert.Equal(-1200, normal.VerticalSpeed, 1);
-        Assert.Equal(-1800, expedited.VerticalSpeed, 1);
+        // 1200 × 2 = 2400 — below the 2,500 jet descent floor, which must not engage here.
+        Assert.Equal(-2400, expedited.VerticalSpeed, 1);
+    }
+
+    [Fact]
+    public void Expedite_NeverReducesAPhaseCommandedRate()
+    {
+        // A phase commanding a rate above the expedite cap (CLANDF's unclamped dive) must win:
+        // expediting can never make an aircraft slower than it would otherwise be.
+        TestVnasData.EnsureInitialized();
+
+        var ac = CreateAircraft(altitude: 10000);
+        ac.Targets.TargetAltitude = 2000;
+        ac.Targets.DesiredVerticalRate = -6000;
+        ac.Procedure.IsExpediting = true;
+
+        FlightPhysics.Update(ac, 1.0);
+
+        Assert.Equal(-6000, ac.VerticalSpeed, 1);
     }
 
     [Fact]
@@ -217,8 +288,8 @@ public class ExpediteCommandTests
         Assert.True(expediteSeconds > 0, "plain DM never levelled off");
         Assert.True(expediteSeconds < plainSeconds, $"EXP 014 took {expediteSeconds}s vs DM 014 {plainSeconds}s — expedite saved nothing");
 
-        // 1.5x the rate over the same 1,258 ft => about two thirds of the time.
-        Assert.InRange((double)expediteSeconds / plainSeconds, 0.6, 0.72);
+        // Doubled-then-floored rate (500 → 1,000 fpm) over the same 1,258 ft => about half the time.
+        Assert.InRange((double)expediteSeconds / plainSeconds, 0.44, 0.56);
     }
 
     /// <summary>

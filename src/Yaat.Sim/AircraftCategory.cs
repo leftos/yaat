@@ -110,6 +110,89 @@ public static class CategoryPerformance
         };
     }
 
+    /// <summary>
+    /// Expedite climb multiplier. Climb is thrust-limited and the normal profile already flies
+    /// near the optimum rate (AIM 4-4-10), so "approximate best rate" (7110.65 PCG EXPEDITE)
+    /// leaves only a modest margin.
+    /// </summary>
+    public const double ExpediteClimbMultiplier = 1.15;
+
+    /// <summary>
+    /// Expedite descent multiplier. Descent is drag-limited — the normal profile is a chosen
+    /// idle-thrust schedule, and speedbrakes/higher speed give roughly twice the rate before
+    /// the maneuver becomes "an exceptional change in aircraft handling characteristics".
+    /// </summary>
+    public const double ExpediteDescentMultiplier = 2.0;
+
+    /// <summary>Ceiling on an expedited climb rate (fpm), honoring the PCG's handling-characteristics clause.</summary>
+    public static double ExpediteClimbCapFpm(AircraftCategory cat)
+    {
+        return cat switch
+        {
+            AircraftCategory.Jet => 4000,
+            AircraftCategory.Turboprop => 2500,
+            AircraftCategory.Piston => 900,
+            AircraftCategory.Helicopter => 1500,
+            _ => 4000,
+        };
+    }
+
+    /// <summary>
+    /// Ceiling on an expedited descent rate (fpm) — above the passenger-comfort norm (expedite is
+    /// the license to exceed it) but below emergency-descent territory.
+    /// </summary>
+    public static double ExpediteDescentCapFpm(AircraftCategory cat)
+    {
+        return cat switch
+        {
+            AircraftCategory.Jet => 4000,
+            AircraftCategory.Turboprop => 2500,
+            AircraftCategory.Piston => 1500,
+            AircraftCategory.Helicopter => 1200,
+            _ => 4000,
+        };
+    }
+
+    /// <summary>
+    /// Minimum expedited descent rate (fpm). Some profiles publish gentle descent schedules well
+    /// below what the type can fly on request — a C208's 500 fpm doubles to only 1,000, but a
+    /// turboprop asked to expedite realistically holds 1,500.
+    /// </summary>
+    public static double ExpediteDescentFloorFpm(AircraftCategory cat)
+    {
+        return cat switch
+        {
+            AircraftCategory.Jet => 2500,
+            AircraftCategory.Turboprop => 1500,
+            AircraftCategory.Piston => 1000,
+            AircraftCategory.Helicopter => 1000,
+            _ => 2500,
+        };
+    }
+
+    /// <summary>
+    /// The vertical rate an expediting aircraft flies, given the rate it would otherwise use.
+    /// Direction-split: climb is thrust-limited (×<see cref="ExpediteClimbMultiplier"/> up to the
+    /// category cap); descent is drag-limited (×<see cref="ExpediteDescentMultiplier"/> within the
+    /// category floor/cap band). <paramref name="applyFloor"/> is false for a phase- or
+    /// planner-commanded <see cref="ControlTargets.DesiredVerticalRate"/>: a deliberately gentle
+    /// commanded rate (a glidepath) must never be raised to the category floor. Expedite never
+    /// returns less than <paramref name="baseRateFpm"/> — hastening an aircraft cannot slow it.
+    /// </summary>
+    public static double ExpediteVerticalRate(AircraftCategory cat, double baseRateFpm, bool climbing, bool applyFloor)
+    {
+        double result = climbing
+            ? Math.Min(baseRateFpm * ExpediteClimbMultiplier, ExpediteClimbCapFpm(cat))
+            : Math.Min(baseRateFpm * ExpediteDescentMultiplier, ExpediteDescentCapFpm(cat));
+
+        if (!climbing && applyFloor)
+        {
+            result = Math.Max(result, ExpediteDescentFloorFpm(cat));
+        }
+
+        return Math.Max(result, baseRateFpm);
+    }
+
     public static double AccelRate(AircraftCategory cat)
     {
         return cat switch

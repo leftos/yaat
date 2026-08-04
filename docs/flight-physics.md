@@ -63,7 +63,7 @@ The numbered "8/10-step" list in [tick-loop.md](tick-loop.md) is the canonical o
 | `TurnRateOverride` | `double?` deg/s | pattern phases, `TRATE` | `UpdateHeading`, `UpdateNavigation` anticipation | Persists; null = category default |
 | `TargetAltitude` | `double?` ft MSL | `CM`/`DM`/`EXP <alt>` handlers, climb/descent planners, phases | `UpdateAltitude` (via `ResolveAltitudeGoal`) | **Self-nulls** on snap (±10 ft) — so a command that needs to know "is a climb/descent running" must ask `ResolveAltitudeGoal`, not this field |
 | `AltitudeFloor` / `AltitudeCeiling` | `double?` ft MSL | "maintain VFR at/above" / "at/below" handlers | `ResolveAltitudeGoal` | Persist until cleared |
-| `DesiredVerticalRate` | `double?` fpm (+ = climb) | climb/descent planners | `UpdateAltitude` | Nulled on altitude snap and on fix revert; null = category rate. (`EXPEDITE` does not write a value here — it sets `Procedure.IsExpediting`, which `UpdateAltitude` reads as a 1.5× multiplier applied to *whichever* rate won, this one included, and nulls `DesiredVerticalRate` on clear) |
+| `DesiredVerticalRate` | `double?` fpm (+ = climb) | climb/descent planners | `UpdateAltitude` | Nulled on altitude snap and on fix revert; null = category rate. (`EXPEDITE` does not write a value here — it sets `Procedure.IsExpediting`, which `UpdateAltitude` routes through `CategoryPerformance.ExpediteVerticalRate`: climb ×1.15 / descent ×2.0 with per-category caps, the descent floor suppressed for planner-commanded rates so a glidepath is never steepened to it, and never below the base rate. `NORM`/CM/DM/snap clear it) |
 | `TargetSpeed` | `double?` KIAS | `SPD`/`SLOW` handlers, speed planner, Mach hold, phases | `UpdateSpeed` | **Self-nulls** on snap (±2 kt) |
 | `DesiredDecelRate` | `double?` kt/s (+ = decel) | `LandingPhase` / `RunwayExitPhase` | `UpdateSpeed` **decel branch only** | Must be cleared on phase transition; null = category default |
 | `SpeedFloor` / `SpeedCeiling` | `double?` KIAS | floor/ceiling handlers, AIM 5-4-1 procedural memory | `UpdateSpeed`, `UpdateSpeedPlanning`, `ApplyFixConstraints` | Persist; enforced continuously |
@@ -156,7 +156,11 @@ direction bias (`TRDCT`/`TLDCT`) survives until the initial turn completes.
 - `goal = ResolveAltitudeGoal(aircraft)` (`:865`) clamps `TargetAltitude` between `AltitudeFloor` and `AltitudeCeiling`; if there is no
   `TargetAltitude` it synthesizes one only when the aircraft is below a floor or above a ceiling (with the snap deadband).
 - `|diff| < AltitudeSnapFt` (10 ft, `:13`) → snap `Altitude`, zero VS, **null `TargetAltitude` and `DesiredVerticalRate`, clear `IsExpediting`**.
-- Rate = `|DesiredVerticalRate|` if set, else `AircraftPerformance.ClimbRate`/`DescentRate(...)`. `IsExpediting` multiplies by **1.5×** (`:846`).
+- Rate = `|DesiredVerticalRate|` if set, else `AircraftPerformance.ClimbRate`/`DescentRate(...)`. `IsExpediting` applies
+  `CategoryPerformance.ExpediteVerticalRate`: climb **×1.15**, descent **×2.0**, clamped to per-category caps (jet 4,000 / TP 2,500 /
+  piston climb 900, descent 1,500 / helo 1,500/1,200 fpm), with a descent floor (jet 2,500 / TP 1,500 / piston+helo 1,000) that applies
+  **only** to the profile-rate branch — a planner/phase `DesiredVerticalRate` is scaled and capped but never floored, and expedite never
+  reduces the base rate.
   `change = min(|diff|, rate/60 × delta)`; `VerticalSpeed` is signed by climb/descend.
 
 **Step climb/descent planners** run *before* the integrators (`UpdateClimbPlanning` `:352`, `UpdateDescentPlanning` `:246`). Each scans the route
