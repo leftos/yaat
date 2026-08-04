@@ -8,6 +8,7 @@
 - Expediting is direction-aware: descents roughly double up to per-category limits (a jet tops out at 4,000 fpm), climbs gain ~15%.
 - Aircraft level off realistically: the vertical rate winds down through the last 1,000 ft to the assigned altitude (1,500 down to 500 fpm) instead of cutting from full rate to level in one tick.
 - Expediting no longer steepens a glidepath or a computed crossing-restriction descent — an explicitly commanded vertical rate is flown as-is.
+- An aircraft re-routed while still rolling toward a runway hold-short bar now brakes and holds at it, instead of taxiing across the runway without a crossing clearance.
 
 ### Fixed
 - An aircraft squawking ident shows a flashing `ID` on its radar datablock for 18 seconds, on every datablock form and the EuroScope tag.

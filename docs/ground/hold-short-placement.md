@@ -77,6 +77,15 @@ a taxiway change misses the pair — that was issue #316, where a departure told
 over an occupied 28L to reach the Charlie bar. Pair by *"does the route pass over the runway in between"*
 (`HoldShortAnnotator.RouteCrossesRunwayAfterStart`), never by taxiway name.
 
+The runtime half of the same case: a bar on the route's **own start node** (`segments[0].FromNodeId`) is
+invisible to `ArriveAtNode` — it is no segment's ToNode — so `TaxiingPhase.TryHoldAtRouteStartNode` takes
+that stop instead. It is checked **every tick** until the hold binds or stops applying, not once: a
+re-route can arrive with the aircraft still rolling toward the bar from beyond the 150 ft parked radius
+(a runway-exit hand-off on a sparse stretch whose nearest node is the bar), and a one-shot early check
+would let it sail across the runway uncleared. While approaching, the navigator's speed is clamped to a
+braking curve that reaches ~0 just short of the bar; the instant stop is only taken at crawl speed.
+`StartNodeHoldShortArmingTests` pins both the parked and the rolling approach.
+
 ## Footguns
 
 - **Node IDs are ephemeral.** They are assigned by mint order and regenerated on every parse; any

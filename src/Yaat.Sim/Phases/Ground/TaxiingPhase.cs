@@ -32,14 +32,22 @@ public sealed class TaxiingPhase : Phase
     // nose-at-spot terminal stop lands cleanly instead of braking abruptly from taxi speed.
     private const double SpotApproachSpeedKts = 4.0;
 
-    // How close to the route's start node the aircraft must still be for a hold-short there to bind.
-    // Well inside the hold-short standoff (>=125 ft from centerline), so honouring it can never place
-    // the aircraft on the runway.
+    // How close to the route's start node the aircraft must be for a hold-short there to take the
+    // stop. Well inside the hold-short standoff (>=125 ft from centerline), so honouring it can
+    // never place the aircraft on the runway.
     private const double StartNodeHoldRadiusFt = 150.0;
+
+    // Where the approach braking curve to a start-node hold-short reaches zero: just short of the
+    // bar, so the aircraft creeps to a natural stop there instead of being frozen mid-approach.
+    private const double StartNodeHoldStopShortFt = 15.0;
+
+    // Speed below which the start-node hold-short may take its instant stop — an imperceptible snap
+    // from a crawl, versus teleport-stopping an aircraft still at taxi speed.
+    private const double StartNodeHoldArmSpeedKts = 3.0;
 
     private GroundNavigator _nav = new();
     private bool _initialized;
-    private bool _startNodeHoldChecked;
+    private bool _startNodeHoldDone;
     private double _timeSinceLastLog;
 
     // Set when this phase completes to hand off to a still-moving CrossingRunwayPhase
@@ -111,16 +119,13 @@ public sealed class TaxiingPhase : Phase
             return false;
         }
 
-        // A hold-short on the route's own start node: the aircraft was re-routed while already parked
-        // at the bar, so it must not move until it is cleared. ArriveAtNode never fires for that node
-        // — it is no segment's ToNodeId — so the stop has to be taken here, before the first segment.
-        if (!_startNodeHoldChecked)
+        // A hold-short on the route's own start node: the aircraft was re-routed at or while
+        // approaching the bar, so it must not enter the crossing until cleared. ArriveAtNode never
+        // fires for that node — it is no segment's ToNodeId — so the stop has to be taken here,
+        // before the first segment, re-checked each tick until the hold binds or stops applying.
+        if (!_startNodeHoldDone && TryHoldAtRouteStartNode(ctx, route))
         {
-            _startNodeHoldChecked = true;
-            if (TryHoldAtRouteStartNode(ctx, route))
-            {
-                return true;
-            }
+            return true;
         }
 
         // Nose-at-spot terminal stop (issue #234): a taxiing aircraft parks with the front of its
@@ -469,14 +474,22 @@ public sealed class TaxiingPhase : Phase
 
     /// <summary>
     /// Take the hold-short sitting on the route's own start node, if any is still binding. Used when a
-    /// TAXI re-route is issued to an aircraft already stopped at a runway holding position and the new
-    /// route crosses that runway: the bar it is parked on is the one to honour, so it holds in place
-    /// rather than driving over the runway to the bar on the far side (issue #316).
+    /// TAXI re-route is issued to an aircraft at or approaching a runway holding position and the new
+    /// route crosses that runway: the bar the route starts on is the one to honour, so the aircraft
+    /// holds there rather than driving over the runway to the bar on the far side (issue #316).
+    ///
+    /// Checked every tick while the hold-short could still bind — not once. A re-route can arrive with
+    /// the aircraft still rolling toward the bar from beyond the parked radius (a runway-exit hand-off
+    /// on a sparse stretch whose nearest node is the bar); a single early check would let it sail
+    /// through the bar and across the runway uncleared. While approaching, the navigator's speed is
+    /// clamped to a braking curve that reaches ~0 just short of the bar; the hold itself is taken once
+    /// the aircraft is close and essentially stopped.
     /// </summary>
-    private static bool TryHoldAtRouteStartNode(PhaseContext ctx, TaxiRoute route)
+    private bool TryHoldAtRouteStartNode(PhaseContext ctx, TaxiRoute route)
     {
         if ((route.CurrentSegmentIndex != 0) || (route.Segments.Count == 0) || (ctx.GroundLayout is null))
         {
+            _startNodeHoldDone = true;
             return false;
         }
 
@@ -484,18 +497,29 @@ public sealed class TaxiingPhase : Phase
         var holdShort = route.GetHoldShortAt(startNodeId);
         if (holdShort is null || holdShort.IsCleared)
         {
+            _startNodeHoldDone = true;
             return false;
         }
 
-        // Only binds while the aircraft is still on the bar; anything further along has passed it.
-        if (
-            !ctx.GroundLayout.Nodes.TryGetValue(startNodeId, out var startNode)
-            || ((GeoMath.DistanceNm(ctx.Aircraft.Position, startNode.Position) * GeoMath.FeetPerNm) > StartNodeHoldRadiusFt)
-        )
+        if (!ctx.GroundLayout.Nodes.TryGetValue(startNodeId, out var startNode))
         {
+            _startNodeHoldDone = true;
             return false;
         }
 
+        double distFt = GeoMath.DistanceNm(ctx.Aircraft.Position, startNode.Position) * GeoMath.FeetPerNm;
+        if ((distFt > StartNodeHoldRadiusFt) || (ctx.Aircraft.IndicatedAirspeed > StartNodeHoldArmSpeedKts))
+        {
+            // Still rolling toward the bar: cap the navigator to a braking curve that reaches
+            // zero just short of it (same form as the navigator's own hold-short braking), and
+            // check again next tick.
+            double stopDistNm = Math.Max(0.0, distFt - StartNodeHoldStopShortFt) / GeoMath.FeetPerNm;
+            double decelRate = _nav.DecelRateKts ?? CategoryPerformance.TaxiDecelRate(ctx.Category);
+            _nav.MaxSpeedKts = Math.Min(_nav.MaxSpeedKts, Math.Sqrt(2.0 * decelRate * stopDistNm * 3600.0));
+            return false;
+        }
+
+        _startNodeHoldDone = true;
         Log.LogDebug(
             "[Taxi] {Callsign}: holding short at route start node {NodeId} (target {Target}, reason {Reason})",
             ctx.Aircraft.Callsign,
