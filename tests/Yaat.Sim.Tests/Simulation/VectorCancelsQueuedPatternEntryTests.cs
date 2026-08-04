@@ -23,7 +23,7 @@ namespace Yaat.Sim.Tests.Simulation;
 /// </summary>
 public class VectorCancelsQueuedPatternEntryTests(ITestOutputHelper output)
 {
-    private const string RecordingPath = "TestData/vector-vs-queued-erd-recording.yaat-bug-report-bundle.zip";
+    private const string RecordingPath = "TestData/8201087a0088.zip";
 
     /// <summary>
     /// Snapshot to restore from: before the <c>DCT VPCOL; ERD 28R</c> at t=2706, so the compound is

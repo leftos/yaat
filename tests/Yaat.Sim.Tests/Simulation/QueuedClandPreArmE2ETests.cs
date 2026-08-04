@@ -27,7 +27,7 @@ namespace Yaat.Sim.Tests.Simulation;
 /// </summary>
 public class QueuedClandPreArmE2ETests(ITestOutputHelper output)
 {
-    private const string RecordingPath = "TestData/queued-cland-prearm-recording.yaat-bug-report-bundle.zip";
+    private const string RecordingPath = "TestData/8201087a0088.zip";
     private const string Callsign = "N805FM";
     private const int PreClandSeconds = 2825;
     private const int EntryFiresSeconds = 2960;
