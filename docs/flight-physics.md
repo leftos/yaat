@@ -161,6 +161,9 @@ direction bias (`TRDCT`/`TLDCT`) survives until the initial turn completes.
   piston climb 900, descent 1,500 / helo 1,500/1,200 fpm), with a descent floor (jet 2,500 / TP 1,500 / piston+helo 1,000) that applies
   **only** to the profile-rate branch — a planner/phase `DesiredVerticalRate` is scaled and capped but never floored, and expedite never
   reduces the base rate.
+- **Level-off taper** (AIM 4-4-10.4): in free flight (no active phase, no `DesiredVerticalRate`), the rate tapers inside the last
+  1,000 ft of the goal — `min(rate, max(500, 1.5 × |diff|))` fpm — so Mode C winds down instead of cutting from full rate to level in
+  one tick. Phases are exempt end-to-end: approach/landing fly profile-rate segments below 1,000 ft AGL that must not be flattened.
   `change = min(|diff|, rate/60 × delta)`; `VerticalSpeed` is signed by climb/descend.
 
 **Step climb/descent planners** run *before* the integrators (`UpdateClimbPlanning` `:352`, `UpdateDescentPlanning` `:246`). Each scans the route

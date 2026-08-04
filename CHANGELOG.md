@@ -6,6 +6,7 @@
 - `EXP 014` clears the aircraft to 1,400 and expedites the descent to it, in one command.
 - `EXP; LV 050 NORM` expedites through 5,000 ft and then resumes the normal rate.
 - Expediting is direction-aware: descents roughly double up to per-category limits (a jet tops out at 4,000 fpm), climbs gain ~15%.
+- Aircraft level off realistically: the vertical rate winds down through the last 1,000 ft to the assigned altitude (1,500 down to 500 fpm) instead of cutting from full rate to level in one tick.
 
 ### Fixed
 - An aircraft squawking ident shows a flashing `ID` on its radar datablock for 18 seconds, on every datablock form and the EuroScope tag.

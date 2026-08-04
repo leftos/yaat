@@ -15,6 +15,15 @@ public static class FlightPhysics
     /// <summary>Altitude capture tolerance in feet — inside this band the aircraft is "at" its goal.</summary>
     internal const double AltitudeSnapFt = 10.0;
 
+    /// <summary>AIM 4-4-10.4 level-off band: within this many feet of the assigned altitude the rate tapers.</summary>
+    private const double LevelOffBandFt = 1000.0;
+
+    /// <summary>Minimum vertical rate (fpm) inside the level-off band, per the AIM's 500–1,500 fpm guidance.</summary>
+    private const double LevelOffMinFpm = 500.0;
+
+    /// <summary>Vertical rate (fpm) entering the level-off band — the top of the AIM's 500–1,500 fpm guidance.</summary>
+    private const double LevelOffMaxFpm = 1500.0;
+
     private const double SpeedSnapKts = 2.0;
     private const double NavArrivalNm = 0.5;
     private const double FrdArrivalNm = 1.5;
@@ -931,6 +940,20 @@ public static class FlightPhysics
             // Direction-split: the descent floor only applies to the profile-rate branch —
             // a phase/planner-commanded rate (a glidepath) must never be raised to it.
             rate = CategoryPerformance.ExpediteVerticalRate(cat, rate, climbing, applyFloor: profileRate);
+        }
+
+        // AIM 4-4-10.4: fly the optimum rate to 1,000 ft above/below the assigned altitude,
+        // "and then attempt to descend or climb at a rate of between 500 and 1,500 fpm until
+        // the assigned altitude is reached." Taper proportionally to the remaining altitude
+        // (1,500 fpm entering the band, floored at 500) so the Mode C readout winds down
+        // instead of cutting from full rate to level in one tick. Scoped to free flight
+        // leveling at an assigned altitude: never raises an already gentle rate, and never
+        // reinterprets a phase's vertical path — approach/landing phases fly segments in the
+        // last 1,000 ft AGL that must not be flattened (a tapered short final floats the
+        // touchdown hundreds of feet long).
+        if (profileRate && (aircraft.Phases?.CurrentPhase is null) && Math.Abs(diff) < LevelOffBandFt)
+        {
+            rate = Math.Min(rate, Math.Max(LevelOffMinFpm, Math.Abs(diff) * (LevelOffMaxFpm / LevelOffBandFt)));
         }
 
         double feetPerSec = rate / 60.0;

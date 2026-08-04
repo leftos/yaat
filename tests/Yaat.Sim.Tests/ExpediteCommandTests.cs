@@ -288,8 +288,10 @@ public class ExpediteCommandTests
         Assert.True(expediteSeconds > 0, "plain DM never levelled off");
         Assert.True(expediteSeconds < plainSeconds, $"EXP 014 took {expediteSeconds}s vs DM 014 {plainSeconds}s — expedite saved nothing");
 
-        // Doubled-then-floored rate (500 → 1,000 fpm) over the same 1,258 ft => about half the time.
-        Assert.InRange((double)expediteSeconds / plainSeconds, 0.44, 0.56);
+        // Doubled-then-floored rate (500 → 1,000 fpm) over the same 1,258 ft, less the shared
+        // AIM 4-4-10 level-off taper inside the last 1,000 ft (which DM's 500 fpm never
+        // triggers but the expedited descent does) => roughly two thirds of the time.
+        Assert.InRange((double)expediteSeconds / plainSeconds, 0.60, 0.76);
     }
 
     /// <summary>
