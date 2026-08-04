@@ -1,6 +1,11 @@
 # Changelog
 
-## Unreleased
+## v0.11.2-beta [2026/08/04]
+
+### Highlights
+- `.rbl A B` (or `*T A B`) draws a measurement line between two typed points — fixes, FRDs, or callsigns in any combination, with a callsign endpoint latching to the aircraft.
+- Measurement lines belong to the view they were drawn in — a radar measurement no longer shows on the ground view; numbering stays shared.
+- A measurement with an off-screen endpoint keeps its reading visible where the line exits the screen.
 
 ### Added
 - `.rbl A B` (or `*T A B`, the CRC STARS spelling) draws a measurement line between two typed points — each endpoint can be a fix, an FRD, or a callsign in any combination (`.rbl OAK MOD`, `*T UAL123 OAK169015`). Callsigns take the usual partial matching, and a callsign endpoint latches to the aircraft. `*T` is accepted everywhere `.rbl` is: `*T` arms the tool, `*T 3` removes measurement 3.
