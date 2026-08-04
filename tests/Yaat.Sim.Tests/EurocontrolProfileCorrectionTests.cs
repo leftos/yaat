@@ -183,6 +183,60 @@ public sealed class EurocontrolProfileCorrectionTests
         Assert.InRange(cr, 940, 980);
     }
 
+    // --- Twin turboprop: the divisor must not over-model the class ---
+
+    [Fact]
+    public void TwinTurboprop_ClimbRate_MatchesKingAirPerformance()
+    {
+        // B350 per the shipped profile data: climbRateInitial 2000, ceiling 35,000. A real
+        // King Air 350 climbs ~2,400-2,700 fpm at max rate — the old ceiling/10 estimate
+        // (3,500 fpm) exceeded anything the type can do. ceiling/14 = 2,500.
+        var b350Profile = new AircraftProfile
+        {
+            TypeCode = "B350",
+            ClimbRateInitial = 2000,
+            Ceiling = 35000,
+            FinalApproachSpeed = 120,
+        };
+        var b350Acd = new FaaAircraftRecord
+        {
+            IcaoCode = "B350",
+            ApproachSpeedKnot = 110,
+            PhysicalClassEngine = "Turboprop",
+            NumEngines = 2,
+        };
+
+        double cr = _adapter.ClimbRateInitial(b350Profile, b350Acd);
+
+        // max(2000, 35000/14=2500) = 2500. Real max ROC: ~2,400-2,700.
+        Assert.InRange(cr, 2400, 2600);
+    }
+
+    [Fact]
+    public void TwinTurboprop_ClimbRate_StillCorrectsALowballProfileUpward()
+    {
+        // Q400-shaped: a lowball 1,200 fpm profile with a 27,000 ft ceiling is raised to
+        // 27000/14 = 1,929 — matching the type's real ~1,800-2,000 fpm initial climb.
+        var dh8dProfile = new AircraftProfile
+        {
+            TypeCode = "DH8D",
+            ClimbRateInitial = 1200,
+            Ceiling = 27000,
+            FinalApproachSpeed = 130,
+        };
+        var dh8dAcd = new FaaAircraftRecord
+        {
+            IcaoCode = "DH8D",
+            ApproachSpeedKnot = 125,
+            PhysicalClassEngine = "Turboprop",
+            NumEngines = 2,
+        };
+
+        double cr = _adapter.ClimbRateInitial(dh8dProfile, dh8dAcd);
+
+        Assert.InRange(cr, 1850, 2000);
+    }
+
     // --- Passthrough adapter returns raw profile values ---
 
     [Fact]

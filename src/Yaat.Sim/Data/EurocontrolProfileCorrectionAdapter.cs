@@ -95,7 +95,11 @@ public sealed class EurocontrolProfileCorrectionAdapter : IProfileCorrectionAdap
     private const double ClimbRateDivisorSinglePistonTurbo = 28.0;
     private const double ClimbRateDivisorTwinPiston = 13.0;
     private const double ClimbRateDivisorSingleTurboprop = 17.0;
-    private const double ClimbRateDivisorTwinTurboprop = 10.0;
+
+    // Anchored to POH max-rate climbs across the class: King Air 350 (35k ceiling, ~2,400-2,700
+    // fpm) and B200 (~2,450) => ~14; Q400 (27k, ~1,800-2,000) => ~14; DHC-6 (25k, ~1,600) => ~15.6.
+    // The old value of 10 gave a King Air 3,500 fpm — beyond anything the type can do.
+    private const double ClimbRateDivisorTwinTurboprop = 14.0;
     private const double TurboPistonCeilingThreshold = 20000.0;
 
     /// <summary>
