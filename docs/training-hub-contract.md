@@ -64,6 +64,14 @@ projection, not the raw physics state. The same assigned-vs-actual split applies
 code) cross as **two** fields, so the radar datablock can flag a beacon-code mismatch when the pilot has not yet squawked
 the assigned code.
 
+`IsIdenting` is a third transponder field, carrying `ac.Transponder.IsIdenting` verbatim so YAAT's own radar can flash
+the `ID` token for the ~18 s the sim keeps the ident alive. Do **not** confuse it with the CRC-side
+`StarsTrackDto.TransponderMode`, which `DtoConverter.MapTransponderMode` renders as the flags string `"A, C, Identing"` —
+that is a different field on a different wire for a different consumer. The training-hub `TransponderMode` stays the raw
+`"C"`/`"Standby"` mode string. **`IsIdenting` must stay in `TrainingDtoFingerprint`**: it is transient state that flips
+twice on an otherwise-static aircraft, so without it neither the on- nor the off-edge is ever broadcast and the flash
+never starts or stops (`ChangeDetectionTests.IsIdenting_Change_TriggersTrainingDtoFlag_OnBothTransitions` guards this).
+
 **Heading frame mismatch — `Heading` is TRUE, `AssignedHeading` is MAGNETIC.** The DTO's bare `Heading` field carries
 `ac.TrueHeading.Degrees` (`DtoConverter.cs:844`) — true heading — while `AssignedHeading` carries
 `ac.Targets.AssignedMagneticHeading?.Degrees` (`:850`) — magnetic. Client-side, `AircraftModel` reconstructs typed

@@ -1291,4 +1291,191 @@ public class RadarDatablockLayoutTests
             Assert.Equal("1200 0301", sample.SquawkLine);
         }
     }
+
+    [Fact]
+    public void Line2_ShowsCwtType_WhenNotIdenting()
+    {
+        var ac = CreateModel();
+        var style = CreateStyle();
+
+        var layout = RadarDatablockLayout.Compute(
+            ac,
+            0,
+            0,
+            style,
+            showNoLandingClearance: false,
+            showConflictAlerts: false,
+            conflictPeer: null,
+            callsignMarker: ""
+        );
+
+        Assert.Equal("230 25 D/B738", layout.Line2);
+        Assert.False(layout.IdentActive);
+    }
+
+    [Fact]
+    public void Line2_AppendsIdAfterCwtType_WhileIdenting()
+    {
+        // The ident is appended at the end of the altitude line and keeps the type readout.
+        var ac = CreateModel();
+        ac.IsIdenting = true;
+        var style = CreateStyle();
+
+        var layout = RadarDatablockLayout.Compute(
+            ac,
+            0,
+            0,
+            style,
+            showNoLandingClearance: false,
+            showConflictAlerts: false,
+            conflictPeer: null,
+            callsignMarker: ""
+        );
+
+        Assert.Equal("230 25 D/B738 ID", layout.Line2);
+        Assert.True(layout.IdentActive);
+    }
+
+    [Fact]
+    public void Line2_ReservesIdWidthAcrossFlashCycle()
+    {
+        // The ident blinks fully off in the renderer, so the layout must keep the token in the measured
+        // string on both phases — otherwise the rect (and the hit area and leader endpoint) would pulse.
+        var ac = CreateModel();
+        ac.IsIdenting = true;
+        var style = CreateStyle();
+
+        var first = RadarDatablockLayout.Compute(
+            ac,
+            0,
+            0,
+            style,
+            showNoLandingClearance: false,
+            showConflictAlerts: false,
+            conflictPeer: null,
+            callsignMarker: ""
+        );
+        for (int i = 0; i < 10; i++)
+        {
+            Thread.Sleep(120);
+            var sample = RadarDatablockLayout.Compute(
+                ac,
+                0,
+                0,
+                style,
+                showNoLandingClearance: false,
+                showConflictAlerts: false,
+                conflictPeer: null,
+                callsignMarker: ""
+            );
+            Assert.Equal("230 25 D/B738 ID", sample.Line2);
+            Assert.Equal(first.Rect.Width, sample.Rect.Width, precision: 3);
+            Assert.Equal(first.LineCount, sample.LineCount);
+        }
+    }
+
+    [Fact]
+    public void Line2_WidensToFitId_WhileIdenting()
+    {
+        // The ident lengthens line 2 rather than displacing the type, so the block has to grow to fit it.
+        var ac = CreateModel();
+        var style = CreateStyle();
+
+        float idle = RadarDatablockLayout
+            .Compute(ac, 0, 0, style, showNoLandingClearance: false, showConflictAlerts: false, conflictPeer: null, callsignMarker: "")
+            .Rect.Width;
+
+        ac.IsIdenting = true;
+        float identing = RadarDatablockLayout
+            .Compute(ac, 0, 0, style, showNoLandingClearance: false, showConflictAlerts: false, conflictPeer: null, callsignMarker: "")
+            .Rect.Width;
+
+        Assert.True(identing > idle, "the reserved ident token must widen the block");
+    }
+
+    [Fact]
+    public void Line2_ShowsIdWithNoCwtOrType_WhileIdenting()
+    {
+        // An aircraft with neither CWT nor type normally has a bare "alt speed" line 2. The ident
+        // still has to land on it — the type token is absent, not an empty slot to skip past.
+        var ac = CreateModel();
+        ac.AircraftType = "";
+        ac.FiledAircraftType = "";
+        ac.CwtCode = "";
+        ac.IsIdenting = true;
+        var style = CreateStyle();
+
+        var layout = RadarDatablockLayout.Compute(
+            ac,
+            0,
+            0,
+            style,
+            showNoLandingClearance: false,
+            showConflictAlerts: false,
+            conflictPeer: null,
+            callsignMarker: ""
+        );
+
+        Assert.Equal("230 25 ID", layout.Line2);
+    }
+
+    [Fact]
+    public void CollapsedLimited_AppendsId_WhileIdenting()
+    {
+        // CRC's BuildLdb appends "ID" after the beacon-code/altitude text on the same line.
+        var ac = CreateModel();
+        ac.StudentDatablockLevel = StarsDatablockLevel.Limited;
+        ac.BeaconCode = 301;
+
+        Assert.Equal(["0301 230"], RadarDatablockLayout.BuildCollapsedLines(ac));
+
+        ac.IsIdenting = true;
+        Assert.Equal(["0301 230 ID"], RadarDatablockLayout.BuildCollapsedLines(ac));
+    }
+
+    [Fact]
+    public void CollapsedPartial_AppendsId_WhileIdenting()
+    {
+        // CRC's BuildPdb appends "ID" after the altitude/ground-speed line.
+        var ac = CreateModel();
+        ac.StudentDatablockLevel = StarsDatablockLevel.Partial;
+
+        Assert.Equal(["230 25"], RadarDatablockLayout.BuildCollapsedLines(ac));
+
+        ac.IsIdenting = true;
+        Assert.Equal(["230 25 ID"], RadarDatablockLayout.BuildCollapsedLines(ac));
+    }
+
+    [Fact]
+    public void CollapsedPartial_KeepsScratchpadLine_WhileIdenting()
+    {
+        // The ident rides on line 0 only; a scratchpad line 1 must survive untouched.
+        var ac = CreateModel();
+        ac.StudentDatablockLevel = StarsDatablockLevel.Partial;
+        ac.Scratchpad1 = "OAK";
+        ac.IsIdenting = true;
+
+        Assert.Equal(["230 25 ID", "OAK"], RadarDatablockLayout.BuildCollapsedLines(ac));
+    }
+
+    [Fact]
+    public void MinifiedLine_AppendsId_WhileIdenting()
+    {
+        var ac = CreateModel();
+
+        Assert.Equal("230 D", RadarDatablockLayout.BuildMinifiedLine(ac));
+
+        ac.IsIdenting = true;
+        Assert.Equal("230 D ID", RadarDatablockLayout.BuildMinifiedLine(ac));
+    }
+
+    [Fact]
+    public void MinifiedLine_AppendsId_WhenNoCwt()
+    {
+        var ac = CreateModel();
+        ac.CwtCode = "";
+        ac.IsIdenting = true;
+
+        Assert.Equal("230 ID", RadarDatablockLayout.BuildMinifiedLine(ac));
+    }
 }

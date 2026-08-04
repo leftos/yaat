@@ -703,28 +703,49 @@ public sealed class TargetRenderer : IDisposable
     }
 
     /// <summary>
-    /// Draws a datablock altitude line, tinting the leading altitude token (everything before the first
-    /// space) when <paramref name="altTint"/> is set and leaving the rest of the line in the block color.
+    /// Draws a datablock line, tinting the leading altitude token (everything before the first space)
+    /// when <paramref name="altTint"/> is set. When <paramref name="identing"/>, the line's trailing IDENT
+    /// token flashes on the 500 ms cycle: it is skipped entirely on the off-phase, which shifts nothing
+    /// because it is the last token and its width is already reserved in the measured line.
     /// </summary>
-    private void DrawAltitudeLine(SKCanvas canvas, string line, float x, float baseline, SKColor? altTint)
+    private void DrawDatablockLine(SKCanvas canvas, string line, float x, float baseline, SKColor? altTint, bool identing)
     {
-        if (altTint is not { } tint || line.Length == 0)
+        if (line.Length == 0)
         {
-            canvas.DrawText(line, x, baseline, SKTextAlign.Left, _dataBlockFont, _dataBlockPaint);
             return;
         }
 
-        int space = line.IndexOf(' ');
-        string altToken = space < 0 ? line : line[..space];
-        var prev = _dataBlockPaint.Color;
-        _dataBlockPaint.Color = tint;
-        canvas.DrawText(altToken, x, baseline, SKTextAlign.Left, _dataBlockFont, _dataBlockPaint);
-        _dataBlockPaint.Color = prev;
-        if (space >= 0)
+        var blockColor = _dataBlockPaint.Color;
+        int firstSpace = line.IndexOf(' ');
+        // A tinted line with no space is all altitude token, so the tint covers the whole line.
+        int headLength = altTint is null ? 0 : (firstSpace >= 0 ? firstSpace : line.Length);
+        int tailStart = identing ? line.LastIndexOf(' ') + 1 : line.Length;
+        if (tailStart <= headLength)
         {
-            float altWidth = _dataBlockFont.MeasureText(altToken);
-            canvas.DrawText(line[space..], x + altWidth, baseline, SKTextAlign.Left, _dataBlockFont, _dataBlockPaint);
+            tailStart = line.Length;
         }
+
+        float cursor = DrawSpan(canvas, line[..headLength], x, baseline, altTint ?? blockColor);
+        cursor = DrawSpan(canvas, line[headLength..tailStart], cursor, baseline, blockColor);
+        bool blinkOff = Environment.TickCount64 / 500 % 2 != 0;
+        if (!blinkOff)
+        {
+            DrawSpan(canvas, line[tailStart..], cursor, baseline, blockColor);
+        }
+        _dataBlockPaint.Color = blockColor;
+    }
+
+    /// <summary>Draws one colored span of a datablock line and returns the x cursor past it.</summary>
+    private float DrawSpan(SKCanvas canvas, string text, float x, float baseline, SKColor color)
+    {
+        if (text.Length == 0)
+        {
+            return x;
+        }
+
+        _dataBlockPaint.Color = color;
+        canvas.DrawText(text, x, baseline, SKTextAlign.Left, _dataBlockFont, _dataBlockPaint);
+        return x + _dataBlockFont.MeasureText(text);
     }
 
     /// <summary>
@@ -789,7 +810,7 @@ public sealed class TargetRenderer : IDisposable
         if (isMinified || collapse)
         {
             IReadOnlyList<string> lines = isMinified ? [RadarDatablockLayout.BuildMinifiedLine(ac)] : RadarDatablockLayout.BuildCollapsedLines(ac);
-            return DrawReducedBlock(canvas, cx, cy, ac, color, lines, isSelected, hasManualOffset, manualOffset, deconflictOffset);
+            return DrawReducedBlock(canvas, cx, cy, ac, color, lines, ac.IsIdenting, isSelected, hasManualOffset, manualOffset, deconflictOffset);
         }
 
         // Full STARS block, optionally annotated with the student's (LDB)/(PDB) marker.
@@ -829,7 +850,7 @@ public sealed class TargetRenderer : IDisposable
         canvas.DrawLine(cx, cy, leaderEndStars.X, leaderEndStars.Y, _leaderPaint);
 
         canvas.DrawText(layout.Line1, layout.TextX, layout.TextY, SKTextAlign.Left, _dataBlockFont, _dataBlockPaint);
-        DrawAltitudeLine(canvas, layout.Line2, layout.TextX, layout.TextY + layout.LineHeight, ResolveMvaAltitudeTint(ac));
+        DrawDatablockLine(canvas, layout.Line2, layout.TextX, layout.TextY + layout.LineHeight, ResolveMvaAltitudeTint(ac), layout.IdentActive);
 
         int row = 2;
         if (layout.SquawkLine.Length > 0)
@@ -926,6 +947,7 @@ public sealed class TargetRenderer : IDisposable
         AircraftModel ac,
         SKColor color,
         IReadOnlyList<string> lines,
+        bool identOnFirstLine,
         bool isSelected,
         bool hasManualOffset,
         SKPoint manualOffset,
@@ -957,7 +979,8 @@ public sealed class TargetRenderer : IDisposable
         float lineH = DataBlockStyle.LineHeight;
         for (int i = 0; i < lines.Count; i++)
         {
-            canvas.DrawText(lines[i], blockX, blockY + (i * lineH), SKTextAlign.Left, _dataBlockFont, _dataBlockPaint);
+            // Every reduced format carries the ident on its first line; flash that token only.
+            DrawDatablockLine(canvas, lines[i], blockX, blockY + (i * lineH), altTint: null, identing: identOnFirstLine && i == 0);
         }
 
         return rect;
@@ -1053,6 +1076,17 @@ public sealed class TargetRenderer : IDisposable
             if (f.Field == TagFieldId.Squawk)
             {
                 DrawSquawkMismatchLine(canvas, f.Text, f.Rect.Left, f.Rect.Bottom, color);
+                continue;
+            }
+
+            if (f.Field == TagFieldId.Ident)
+            {
+                // Flashes on the 500 ms cycle. The field rect is emitted either way, so the tag bounds
+                // and the click target stay put while the text blinks.
+                if (Environment.TickCount64 / 500 % 2 == 0)
+                {
+                    canvas.DrawText(f.Text, f.Rect.Left, f.Rect.Bottom, SKTextAlign.Left, _dataBlockFont, _dataBlockPaint);
+                }
                 continue;
             }
 

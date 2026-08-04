@@ -38,6 +38,7 @@ public class FavoritesPanelInteractionTests
             GroundSpeed: 90,
             BeaconCode: 1200,
             TransponderMode: "ModeC",
+            IsIdenting: false,
             VerticalSpeed: 0,
             AssignedHeading: null,
             AssignedAltitude: null,

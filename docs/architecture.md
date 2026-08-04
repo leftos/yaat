@@ -364,6 +364,7 @@ Views/Radar/
   RadarCanvas.cs                # SkiaSharp canvas with pan/zoom lock
   RadarRenderer.cs              # Stateless SkiaSharp radar renderer
   RadarDatablockLayout.cs       # Datablock line/field layout (EuroScope tag + standard datablock geometry shared with renderer + click hit-testing)
+  EuroScopeTagLayout.cs         # TagFieldId + per-field EuroScope tag rects for hit testing and flyout dispatch
   VideoMapRenderer.cs           # Video map line/label rendering
   TargetRenderer.cs             # Aircraft target/datablock rendering
   Flyouts/

@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+- An aircraft squawking ident shows a flashing `ID` on its radar datablock for 18 seconds, on every datablock form and the EuroScope tag.
+
 ## v0.11.0-beta [2026/08/03]
 
 ### Highlights

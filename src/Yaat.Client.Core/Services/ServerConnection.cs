@@ -874,6 +874,7 @@ public record AircraftDto(
     double GroundSpeed,
     uint BeaconCode,
     string TransponderMode,
+    bool IsIdenting,
     double VerticalSpeed,
     double? AssignedHeading,
     double? AssignedAltitude,

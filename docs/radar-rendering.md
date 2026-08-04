@@ -152,7 +152,8 @@ Two layout families, selected by the `EuroScopeMode` preference:
 
 **STARS — `RadarDatablockLayout.Compute`** (`RadarDatablockLayout.cs:48`). Lines, top to bottom:
 1. Callsign (`*`-suffixed for VFR).
-2. Altitude-hundreds + speed-tens + CWT/type.
+2. Altitude-hundreds + speed-tens + CWT/type, with a flashing `ID` appended while the aircraft is identing
+   (see **IDENT** below).
 3. Beacon-code mismatch (`SquawkLine`, e.g. `1200 0301`) — the reported code solid, then the assigned code
    dim-pulsing, when they differ (see **Beacon-code mismatch** below). Empty when the codes match / it's suppressed.
 4. Owner + flashing handoff + scratchpads (`.sp1 +sp2`) + `[assignedTo]`.
@@ -168,7 +169,7 @@ Two layout families, selected by the `EuroScopeMode` preference:
 
 **EuroScope — `EuroScopeTagLayout.Layout`** (`EuroScopeTagLayout.cs:52`). Four lines plus optional squawk-mismatch / ModeC / NoLndgClnc:
 1. Owner initials (or `--`) + callsign.
-2. Type/CWT + destination.
+2. Type/CWT + destination + a flashing `ID` (`TagFieldId.Ident`) while identing.
 3. Current altitude + assigned altitude `(NNN)` + assigned speed `Snnn`/`ASP` + assigned heading `Hnnn`/`AHDG`.
 4. `Rrwy` + scratchpads + flashing handoff (only when at least one is set).
 5. Beacon-code mismatch — a `TagFieldId.Squawk` field (`1200 0301`, reported solid + assigned dim-pulsing), only when
@@ -181,7 +182,7 @@ identifier (`ASP`, `AHDG`, `(---)`) so the click target stays stable when nothin
 
 ### Flash slots
 
-The handoff indicator (both layouts), the `NoLndgClnc` warning, and the conflict alert blink on a 500 ms cycle:
+The handoff indicator (both layouts), the `NoLndgClnc` warning, the conflict alert, and the `ID` ident token blink on a 500 ms cycle:
 `Environment.TickCount64 / 500 % 2 == 0` (`RadarDatablockLayout.cs:66,119`; `EuroScopeTagLayout.cs:148,187`). The
 `NoLndgClnc` slot **reserves its width and a line slot even when the flash is off-phase**, so the datablock height and the
 hit-rect width don't pulse with the flash (`RadarDatablockLayout.cs:73-90`; `EuroScopeTagLayout.cs:181-185`). The handoff
@@ -194,6 +195,30 @@ carries live separation values that change as the pair moves, so measuring the d
 zero on every off-phase. Both layouts also expose the reservation as an explicit flag — `ReserveWarningSlot` /
 `ReserveConflictSlot` on the STARS layout — because the draw path has to advance its row past a reserved-but-blank
 `NoLndgClnc` slot to place the conflict field, and `Line5.Length > 0` can't distinguish "inactive" from "off-phase".
+
+### IDENT
+
+`ID` blinks fully on/off on the shared 500 ms cycle, and it **reserves its width the same way `NoLndgClnc` reserves its
+line slot** — but the reservation lives in the *string*, not in a flag. Every builder
+(`Compute`'s line 2, `BuildCollapsedLines`, `BuildMinifiedLine`) appends the token unconditionally while the ident is
+active, so measurement and hit-testing always see it; only `TargetRenderer` skips drawing it on the off-phase. Because it
+is the **last** token on its line, skipping it shifts nothing to its right
+(`RadarDatablockLayoutTests.Line2_ReservesIdWidthAcrossFlashCycle`,
+`DatablockHitTestParityTests.HitTestRect_StableAcrossIdentFlashCycle`).
+
+It is **appended after** the CWT/type token (`230 25 D/B738 ID`), not substituted for it — CRC's `BuildFdb` suppresses
+`track.Category` while identing, but YAAT keeps the type because the instructor mirror is also a diagnostic surface. The
+block widens for the duration.
+
+`RadarDatablockLayout.IdentActive` tells the draw path that line 2 carries the token, and
+`TargetRenderer.DrawDatablockLine` splits the line into an MVA-tinted altitude head, a plain middle, and the flashing
+ident tail. All four block forms show it — STARS full, collapsed LDB/PDB, minified, and the EuroScope tag
+(`TagFieldId.Ident`, whose `TagFieldRect` is emitted on both phases so the click target holds still). The **Ground view**
+does not, matching CRC: `DtoConverter.ToAsdexTrack` carries no ident field.
+
+State arrives as `AircraftModel.IsIdenting` (from `AircraftStateDto.IsIdenting`); the sim clears it after
+`AircraftTransponder.IdentDurationSeconds` (18 s). See [training-hub-contract.md](training-hub-contract.md) for the wire
+side and why the field must stay in `TrainingDtoFingerprint`.
 
 ### Conflict alerts
 

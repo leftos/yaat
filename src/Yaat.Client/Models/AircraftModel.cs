@@ -112,6 +112,11 @@ public partial class AircraftModel : ObservableObject
     [ObservableProperty]
     private string _transponderMode = "C";
 
+    // Set while the pilot is squawking ident; the sim clears it automatically after
+    // AircraftTransponder.IdentDurationSeconds. Drives the dim-pulsing "ID" on the radar datablock.
+    [ObservableProperty]
+    private bool _isIdenting;
+
     [ObservableProperty]
     private double _verticalSpeed;
 
@@ -948,6 +953,7 @@ public partial class AircraftModel : ObservableObject
             AssignedBeaconCode = dto.AssignedBeaconCode,
             CommandedSquawkVfr = dto.CommandedSquawkVfr,
             TransponderMode = dto.TransponderMode,
+            IsIdenting = dto.IsIdenting,
             VerticalSpeed = dto.VerticalSpeed,
             AssignedHeading = dto.AssignedHeading.HasValue ? new MagneticHeading(dto.AssignedHeading.Value) : null,
             NavigatingTo = dto.NavigatingTo,
@@ -1054,6 +1060,7 @@ public partial class AircraftModel : ObservableObject
         AssignedBeaconCode = dto.AssignedBeaconCode;
         CommandedSquawkVfr = dto.CommandedSquawkVfr;
         TransponderMode = dto.TransponderMode;
+        IsIdenting = dto.IsIdenting;
         VerticalSpeed = dto.VerticalSpeed;
         AssignedHeading = dto.AssignedHeading.HasValue ? new MagneticHeading(dto.AssignedHeading.Value) : null;
         NavigatingTo = dto.NavigatingTo;

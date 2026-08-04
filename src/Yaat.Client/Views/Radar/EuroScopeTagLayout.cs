@@ -26,6 +26,7 @@ public enum TagFieldId
     Scratchpad1,
     Scratchpad2,
     Squawk,
+    Ident,
     Handoff,
     ModeC,
     NoLandingClearance,
@@ -95,6 +96,13 @@ public static class EuroScopeTagLayout
         if (!string.IsNullOrEmpty(ac.Destination))
         {
             x = AddField(fields, TagFieldId.Destination, ac.Destination, x, y2Top, y2Bot, style);
+        }
+        // IDENT rides at the end of the type/CWT line, mirroring where it sits on the STARS block. The
+        // field is emitted for the whole ident, so the tag bounds and click target hold still while the
+        // renderer flashes the text on the 500 ms cycle.
+        if (ac.IsIdenting)
+        {
+            x = AddField(fields, TagFieldId.Ident, RadarDatablockLayout.IdentText, x, y2Top, y2Bot, style);
         }
         if (x > originX)
         {

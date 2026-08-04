@@ -36,6 +36,7 @@ public class AircraftListSortRefreshTests
             GroundSpeed: 0,
             BeaconCode: 1200,
             TransponderMode: "Standby",
+            IsIdenting: false,
             VerticalSpeed: 0,
             AssignedHeading: null,
             AssignedAltitude: null,

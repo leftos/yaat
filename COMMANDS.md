@@ -320,6 +320,11 @@ All commands grouped by category. Each table shows the primary command, aliases,
 | Squawk normal all | `SNALL` | — | — |
 | Squawk standby all | `SSALL` | — | — |
 
+**IDENT.** `IDENT` squawks ident for 18 seconds, then clears itself. For that window a flashing `ID` appears on the
+aircraft's YAAT radar datablock as well as on the student's CRC scope, so you can confirm the ident actually went out. It
+is appended to the end of the altitude line (`230 25 D/B738 ID`) and shows on every datablock form — full, collapsed
+limited/partial, minified, and the EuroScope tag. The Ground view does not show it.
+
 **Automatic beacon-code assignment.** YAAT picks a discrete code for an aircraft in two places: when the aircraft **spawns with a flight plan** (`ADD` IFR, the arrival generator, scenario-file aircraft) and when a **flight plan is filed or amended** without an explicit code (`FP`, `VP`, `DA`). Both draw from the facility's beacon-code banks in the ARTCC config — IFR traffic from the `Ifr` banks, VFR traffic from the `Vfr` banks, each falling through to the `Any` banks — and drop to sequential octal codes from `0001` when the facility defines no matching bank or the bank is exhausted. Every assigned code is tracked, so no two live aircraft hold the same one. An aircraft that spawns **without** a flight plan (a VFR cold call) gets no assigned code and squawks `1200`.
 
 Codes that would raise a false indication on a controller's scope are never assigned automatically, and `RANDSQ` never picks one either:

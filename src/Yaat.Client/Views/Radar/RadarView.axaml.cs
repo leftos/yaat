@@ -185,7 +185,10 @@ public partial class RadarView : UserControl
                     OpenFieldPopup(NoteFlyout.Build(_canvas, ac.Callsign, ac.Note, cmd => radarVm.SendRawCommandAsync(ac.Callsign, initials, cmd)));
                 }
                 break;
+            // The ident token is a transponder readout, so it opens the same transponder quick-action
+            // menu as the beacon code — that menu already carries Ident among its actions.
             case TagFieldId.Squawk:
+            case TagFieldId.Ident:
                 ShowContextMenu(SquawkFlyout.Build(ac, mainVm.Radar, initials));
                 break;
             case TagFieldId.AssignedRunway:

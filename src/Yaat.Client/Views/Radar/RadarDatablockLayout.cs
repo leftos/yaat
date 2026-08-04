@@ -16,6 +16,14 @@ internal readonly struct RadarDatablockLayout
     internal const string ConflictAlertText = "CA";
     internal const string ModeCIntruderText = "MCI";
 
+    /// <summary>
+    /// IDENT indicator, flashed on the 500 ms cycle at the end of the block's altitude line. Every
+    /// builder here appends it unconditionally while the ident is active, so the measured string — and
+    /// therefore the rect, hit area, and leader endpoint — keeps the token's width across both flash
+    /// phases; the renderer is what blanks it off-phase, mirroring the <c>NoLndgClnc</c> contract.
+    /// </summary>
+    internal const string IdentText = "ID";
+
     /// <summary>Default datablock placement: up and to the right of the symbol.</summary>
     internal static readonly SKPoint DefaultOffset = new(28, -28);
 
@@ -51,6 +59,13 @@ internal readonly struct RadarDatablockLayout
     /// whenever no conflict is active — but the reserved width/line slot does not blink with it.
     /// </summary>
     public readonly string ConflictLine;
+
+    /// <summary>
+    /// True when <see cref="Line2"/> ends with the <see cref="IdentText"/> token. The renderer flashes that
+    /// trailing token; carrying the flag here keeps the layout the single source of truth for what is on
+    /// the line, rather than having the draw path re-derive the condition from the model.
+    /// </summary>
+    public readonly bool IdentActive;
 
     /// <summary>Total drawn lines, including any reserved warning slot and the note line.</summary>
     public readonly int LineCount;
@@ -88,6 +103,7 @@ internal readonly struct RadarDatablockLayout
         string squawkLine,
         string line6,
         string conflictLine,
+        bool identActive,
         int lineCount,
         bool reserveOwnerSlot,
         bool reserveWarningSlot,
@@ -106,6 +122,7 @@ internal readonly struct RadarDatablockLayout
         SquawkLine = squawkLine;
         Line6 = line6;
         ConflictLine = conflictLine;
+        IdentActive = identActive;
         LineCount = lineCount;
         ReserveOwnerSlot = reserveOwnerSlot;
         ReserveWarningSlot = reserveWarningSlot;
@@ -130,7 +147,17 @@ internal readonly struct RadarDatablockLayout
         string cwt = !string.IsNullOrEmpty(ac.CwtCode) ? ac.CwtCode : "";
         string spdTens = ((int)ac.GroundSpeed / 10).ToString("D2");
         string cwtType = FormatCwtType(cwt, ac.DisplayAircraftType);
-        string line2 = cwtType.Length > 0 ? $"{altHundreds} {spdTens} {cwtType}" : $"{altHundreds} {spdTens}";
+        string line2 = $"{altHundreds} {spdTens}";
+        if (cwtType.Length > 0)
+        {
+            line2 += $" {cwtType}";
+        }
+        // The ident flashes on the tail of this line, after the type — the width stays reserved here so
+        // the block does not pulse; the renderer blanks the token on the off-phase.
+        if (ac.IsIdenting)
+        {
+            line2 += $" {IdentText}";
+        }
 
         // line3 (owner/handoff/scratchpads) flashes the handoff token on a 500 ms cycle. Draw the
         // flashing string but reserve width and a line slot for the stable (handoff-always) version so
@@ -220,6 +247,7 @@ internal readonly struct RadarDatablockLayout
             squawkLine,
             line6,
             conflictLine,
+            ac.IsIdenting,
             lineCount,
             reserveOwnerSlot,
             noLndgClncActive,
@@ -414,12 +442,13 @@ internal readonly struct RadarDatablockLayout
             _ => "",
         };
 
-    /// <summary>Single-line minified block: altitude (hundreds) + CWT category.</summary>
+    /// <summary>Single-line minified block: altitude (hundreds) + CWT category, plus a flashing ident.</summary>
     public static string BuildMinifiedLine(AircraftModel ac)
     {
         string altHundreds = ((int)ac.Altitude / 100).ToString("D3");
         string cwt = !string.IsNullOrEmpty(ac.CwtCode) ? ac.CwtCode : "";
-        return cwt.Length > 0 ? $"{altHundreds} {cwt}" : altHundreds;
+        string line = cwt.Length > 0 ? $"{altHundreds} {cwt}" : altHundreds;
+        return ac.IsIdenting ? $"{line} {IdentText}" : line;
     }
 
     /// <summary>
@@ -435,18 +464,20 @@ internal readonly struct RadarDatablockLayout
     public static IReadOnlyList<string> BuildCollapsedLines(AircraftModel ac)
     {
         string altHundreds = ((int)ac.Altitude / 100).ToString("D3");
+        // The ident goes on the first line of both reduced formats, where it stays the trailing token.
+        string ident = ac.IsIdenting ? $" {IdentText}" : "";
 
         if (ac.StudentDatablockLevel == StarsDatablockLevel.Partial)
         {
             string gsTens = ((int)ac.GroundSpeed / 10).ToString("D2");
             string handoff = !string.IsNullOrEmpty(ac.HandoffDisplay) ? $"{ac.HandoffDisplay} " : "";
-            string line1 = $"{altHundreds} {handoff}{gsTens}";
+            string line1 = $"{altHundreds} {handoff}{gsTens}{ident}";
             var effectiveSp1 = EffectiveScratchpad1(ac);
             return !string.IsNullOrEmpty(effectiveSp1) ? [line1, effectiveSp1] : [line1];
         }
 
         string beacon = ac.BeaconCode > 0 ? ac.BeaconCode.ToString("0000") : "";
-        return beacon.Length > 0 ? [$"{beacon} {altHundreds}"] : [altHundreds];
+        return beacon.Length > 0 ? [$"{beacon} {altHundreds}{ident}"] : [$"{altHundreds}{ident}"];
     }
 
     /// <summary>Bounding rect of a reduced (minified/collapsed) block whose text origin is (blockX, blockY).</summary>

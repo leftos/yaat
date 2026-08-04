@@ -77,6 +77,35 @@ public class DatablockHitTestParityTests
     }
 
     [AvaloniaFact]
+    public void HitTestRect_MatchesDrawRect_WhileIdenting()
+    {
+        // The ident swaps line 2's CWT/type token for "ID", which changes the block's widest line —
+        // the hit rect has to follow it or clicks land off the visibly narrower block.
+        var ac = CreateModel();
+        ac.IsIdenting = true;
+        var canvas = new RadarCanvas();
+
+        Assert.Equal(DrawRectAtOrigin(ac, canvas, canvas.DatablockTextSize), canvas.ComputeStableRectAtOrigin(ac));
+    }
+
+    [AvaloniaFact]
+    public void HitTestRect_StableAcrossIdentFlashCycle()
+    {
+        // The ident dim-pulses instead of blanking, so unlike NoLndgClnc it needs no reserved slot —
+        // but that only holds if the rect really is identical on both phases of the 500 ms cycle.
+        var ac = CreateModel();
+        ac.IsIdenting = true;
+        var canvas = new RadarCanvas();
+
+        var first = canvas.ComputeStableRectAtOrigin(ac);
+        for (int i = 0; i < 10; i++)
+        {
+            Thread.Sleep(120);
+            Assert.Equal(first, canvas.ComputeStableRectAtOrigin(ac));
+        }
+    }
+
+    [AvaloniaFact]
     public void HitTestRect_GrowsWithFontSize()
     {
         var ac = CreateModel();
