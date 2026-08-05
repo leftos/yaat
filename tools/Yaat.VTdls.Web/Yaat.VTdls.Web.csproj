@@ -6,7 +6,9 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <RootNamespace>Yaat.VTdls.Web</RootNamespace>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-    <RunAOTCompilation>false</RunAOTCompilation>
+    <!-- AOT applies only to `dotnet publish` (the served bundle); inner-loop
+         build/run stays on the interpreter. Matches Yaat.VStrips.Web. -->
+    <RunAOTCompilation>true</RunAOTCompilation>
     <WasmBuildNative>true</WasmBuildNative>
   </PropertyGroup>
 

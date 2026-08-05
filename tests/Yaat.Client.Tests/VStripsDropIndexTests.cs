@@ -75,4 +75,62 @@ public class VStripsDropIndexTests
         Assert.Equal(1, VStripsView.ComputeDropIndexFromBands(posY: 540, bands));
         Assert.Equal(0, VStripsView.ComputeDropIndexFromBands(posY: 590, bands));
     }
+
+    // ── Hysteresis overload ─────────────────────────────────────
+    //
+    // The hysteresis-aware overload keeps the active preview index until the
+    // pointer clears the boundary between adjacent indices (the midpoint of
+    // the lower band) by more than hysteresisPx, so the gap doesn't flicker
+    // under hand tremor at band boundaries.
+
+    [Fact]
+    public void Hysteresis_WithinBandOfBoundary_KeepsCurrentIndex()
+    {
+        // strip[1]'s band is 436..518, midpoint 477. Raw index flips between
+        // 1 and 2 exactly at 477; with current=1 and hysteresis 6, positions
+        // just above the midpoint (477 > posY > 471) must stay at 1.
+        var bands = new (double Top, double Bottom)[] { (518, 600), (436, 518), (354, 436) };
+        Assert.Equal(2, VStripsView.ComputeDropIndexFromBands(posY: 474, bands));
+        Assert.Equal(1, VStripsView.ComputeDropIndexFromBands(posY: 474, bands, currentIndex: 1, hysteresisPx: 6));
+    }
+
+    [Fact]
+    public void Hysteresis_BeyondBand_Switches()
+    {
+        var bands = new (double Top, double Bottom)[] { (518, 600), (436, 518), (354, 436) };
+        // Clearly above midpoint-minus-hysteresis (471) → flips up to 2.
+        Assert.Equal(2, VStripsView.ComputeDropIndexFromBands(posY: 460, bands, currentIndex: 1, hysteresisPx: 6));
+        // And back down: with current=2, positions just below the midpoint
+        // stay at 2 until clearing 483.
+        Assert.Equal(2, VStripsView.ComputeDropIndexFromBands(posY: 480, bands, currentIndex: 2, hysteresisPx: 6));
+        Assert.Equal(1, VStripsView.ComputeDropIndexFromBands(posY: 490, bands, currentIndex: 2, hysteresisPx: 6));
+    }
+
+    [Fact]
+    public void Hysteresis_NonAdjacentJump_SwitchesImmediately()
+    {
+        // A fast pointer move across multiple bands must not be damped —
+        // hysteresis only applies to adjacent flips.
+        var bands = new (double Top, double Bottom)[] { (518, 600), (436, 518), (354, 436) };
+        Assert.Equal(0, VStripsView.ComputeDropIndexFromBands(posY: 590, bands, currentIndex: 3, hysteresisPx: 6));
+        Assert.Equal(3, VStripsView.ComputeDropIndexFromBands(posY: 200, bands, currentIndex: 0, hysteresisPx: 6));
+    }
+
+    [Fact]
+    public void Hysteresis_NoCurrentIndex_PassesThrough()
+    {
+        var bands = new (double Top, double Bottom)[] { (518, 600), (436, 518), (354, 436) };
+        Assert.Equal(2, VStripsView.ComputeDropIndexFromBands(posY: 474, bands, currentIndex: -1, hysteresisPx: 6));
+    }
+
+    [Fact]
+    public void Hysteresis_AppendBoundary_UsesTopmostBandMidpoint()
+    {
+        // Between index 2 and append (3), the boundary is strip[2]'s midpoint
+        // (395). With current=3 (append), staying just below the midpoint
+        // keeps the append preview.
+        var bands = new (double Top, double Bottom)[] { (518, 600), (436, 518), (354, 436) };
+        Assert.Equal(3, VStripsView.ComputeDropIndexFromBands(posY: 398, bands, currentIndex: 3, hysteresisPx: 6));
+        Assert.Equal(2, VStripsView.ComputeDropIndexFromBands(posY: 410, bands, currentIndex: 3, hysteresisPx: 6));
+    }
 }

@@ -137,7 +137,7 @@ Views/Find/
   FindBarView.axaml(.cs)        # Shared find-bar overlay (query box, match counter, ◀ ▶ ✕). DataContext is a FindController; hosted by VStripsView and VTdlsView.
 
 Views/VStrips/
-  VStripsView.axaml(.cs)        # Embedded vStrips UserControl. Hosts the FindBar overlay (Ctrl+F, scoped to the shown bay) and sticky-bottom rack scroll.
+  VStripsView.axaml(.cs)        # Embedded vStrips UserControl. Pointer-capture strip drag (no OS DnD): display-rate ghost + animated drop-preview gap with index hysteresis, Esc cancel, wheel scroll + edge autoscroll mid-drag, drop-settle animation. Also hosts the FindBar overlay (Ctrl+F, scoped to the shown bay) and sticky-bottom rack scroll.
   StickyScroll.cs               # Pure decision for the racks ScrollViewer sticky-bottom behavior — re-pin to bottom when content grows while the user was already at the bottom. Unit-tested.
   FlightStripControl.axaml(.cs) # Custom control rendering CRC-matching strip visuals (cream cells, barcode, handwriting, offset, disconnected ✗, selection ring, cyan find-match highlight)
   InlineTextEditPopup.axaml(.cs) # Shared popup editor for annotations, half-strip lines, separator labels

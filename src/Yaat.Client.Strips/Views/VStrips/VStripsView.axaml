@@ -27,6 +27,23 @@
             <Setter Property="BorderBrush" Value="White"/>
             <Setter Property="BorderThickness" Value="2"/>
         </Style>
+        <!-- Trash zone lights up while a dragged strip hovers it — replaces
+             the drop-effects cursor feedback the OS drag loop used to give.
+             The class is toggled from ResolveHover in the code-behind. -->
+        <Style Selector="Border#TrashZone.drag-over">
+            <Setter Property="Background" Value="#6A2525"/>
+            <Setter Property="BorderBrush" Value="#E05555"/>
+        </Style>
+        <!-- A bay button hovered by a dragged strip lights up in the same
+             yellow as the drop-insertion line: dropping here TRANSFERS the
+             strip to that bay, as opposed to repositioning it within the
+             current bay's racks. Toggled from ResolveHover; wins over the
+             .external and .selected border styling while active. -->
+        <Style Selector="Button.drag-over">
+            <Setter Property="Background" Value="#4A4430"/>
+            <Setter Property="BorderBrush" Value="#FFD700"/>
+            <Setter Property="BorderThickness" Value="2"/>
+        </Style>
     </UserControl.Styles>
 
     <Grid RowDefinitions="Auto,36,*">
@@ -162,8 +179,7 @@
                                 FontSize="11"
                                 Classes.external="{Binding IsExternal}"
                                 Classes.selected="{Binding IsSelected}"
-                                Click="OnBayButtonClick"
-                                Loaded="OnBayButtonLoaded"/>
+                                Click="OnBayButtonClick"/>
                     </DataTemplate>
                 </ItemsControl.ItemTemplate>
             </ItemsControl>
@@ -281,8 +297,7 @@
                                         Width="547"
                                         VerticalAlignment="Stretch"
                                         Background="Transparent"
-                                        Tag="{Binding}"
-                                        Loaded="OnRackBorderLoaded">
+                                        Tag="{Binding}">
                                     <!-- Grid wrapper lets the drop-preview code-behind
                                          add an overlay yellow line (append case) as
                                          a sibling of the strips host. -->

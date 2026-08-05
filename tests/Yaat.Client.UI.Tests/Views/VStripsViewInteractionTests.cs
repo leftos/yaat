@@ -898,7 +898,7 @@ public class VStripsViewInteractionTests
     // Re-realizes nested ItemsControls (the per-rack strips host) and flushes
     // layout + dispatcher jobs after a post-boot reconcile, so a freshly-added
     // FlightStripControl materializes and its Loaded-priority focus job runs.
-    private static void RealizeContainers(VStripsView view)
+    internal static void RealizeContainers(VStripsView view)
     {
         Dispatcher.UIThread.RunJobs();
         view.UpdateLayout();
@@ -916,7 +916,7 @@ public class VStripsViewInteractionTests
         Dispatcher.UIThread.RunJobs();
     }
 
-    private static (VStripsViewModel Vm, List<(string Callsign, string Command)> Captured) MakeVm()
+    internal static (VStripsViewModel Vm, List<(string Callsign, string Command)> Captured) MakeVm()
     {
         var captured = new List<(string, string)>();
         var vm = new VStripsViewModel(
@@ -931,7 +931,7 @@ public class VStripsViewInteractionTests
         return (vm, captured);
     }
 
-    private static FlightStripsConfigDto SimpleConfig() =>
+    internal static FlightStripsConfigDto SimpleConfig() =>
         new(
             FacilityId: "FAC1",
             FacilityName: "Fresno ATCT",
@@ -960,12 +960,12 @@ public class VStripsViewInteractionTests
             UnderlyingAirports: []
         );
 
-    private static StripItemDto FullStrip(string id) =>
+    internal static StripItemDto FullStrip(string id) =>
         new(id, id, IsDisconnected: false, StripItemType.DepartureStrip, IsOffset: false, FieldValues: [id, "", "B738/L"]);
 
     // Seeds a set of full strips into bayId's racks at the positions given by
     // rackStrips (outer = rack index, inner = strip ids in model order bottom-up).
-    private static void SeedStripsInBay(VStripsViewModel vm, string bayId, string[][] rackStrips)
+    internal static void SeedStripsInBay(VStripsViewModel vm, string bayId, string[][] rackStrips)
     {
         var flatIds = rackStrips.SelectMany(r => r).ToArray();
         vm.ReconcileItems(flatIds.Select(FullStrip).ToArray());
@@ -986,13 +986,13 @@ public class VStripsViewInteractionTests
     // ApplyBayConfig posts to the dispatcher. Under an Avalonia.Headless test
     // that's fine — RunJobs flushes. The reflection path in the unit-test MakeVm
     // exists for non-Avalonia tests and is not needed here.
-    private static void SeedBays(VStripsViewModel vm, FlightStripsConfigDto config)
+    internal static void SeedBays(VStripsViewModel vm, FlightStripsConfigDto config)
     {
         vm.ApplyBayConfig(config);
         Dispatcher.UIThread.RunJobs();
     }
 
-    private static (Window window, VStripsView view) BootView(VStripsViewModel vm)
+    internal static (Window window, VStripsView view) BootView(VStripsViewModel vm)
     {
         var view = new VStripsView { DataContext = vm };
         var window = new Window

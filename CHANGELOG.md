@@ -1,5 +1,20 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+- Dragging a flight strip — in the vStrips web app and the in-app Strips tab — is smooth: the strip follows the pointer at display rate (no more stutter), holds the exact spot you grabbed it by, lifts slightly with a shadow on pickup, and settles into its slot on release.
+- The drop gap slides open and closed as you move along a rack instead of popping, and it no longer flickers when hovering right at the boundary between two slots.
+- **Esc** cancels a strip drag in progress — the strip snaps back and nothing moves.
+- The scroll wheel scrolls the racks mid-drag, and holding a dragged strip near the edge of the rack area auto-scrolls toward it.
+- The trash zone lights up while a dragged strip hovers over it.
+- Hovering a dragged strip over a bay button lights the button up in yellow and fades the strip out of the way, making "this drop transfers to another bay" clearly distinct from repositioning within the current bay.
+- The dragged strip's ghost renders at the racks' zoom level instead of always full-size.
+- The vStrips and vTDLS web apps are compiled ahead-of-time, for faster rendering and lower input latency in the browser.
+
+### Fixed
+- Dragging strips in the vStrips web app works on Firefox.
+
 ## v0.11.2-beta [2026/08/04]
 
 ### Highlights

@@ -727,9 +727,11 @@ Bay layout (number of racks per bay, which bays are own vs external, whether sep
 **Selecting:** click a strip to select it; **Esc** deselects. Plain arrow keys move selection between adjacent strips; **Ctrl+arrows** move the selected strip itself.
 
 **Drag-drop:**
-- Drag any strip onto another rack (same bay or another bay's button in the header) to move it.
-- Drag onto the **trash zone** in the header to delete.
-- A drop preview shows where the strip will land. Drops on rack padding or empty space below the last strip resolve to the rack's tail.
+- Drag any strip onto another rack (same bay or another bay's button in the header) to move it. Hovering a bay button lights it up in yellow and fades the dragged strip out of the way — that drop transfers the strip to the other bay instead of repositioning it here.
+- Drag onto the **trash zone** in the header to delete — it lights up while you hover it.
+- A drop preview shows where the strip will land: the strips above the target slot slide up to open a gap, and on release the strip settles into it. Drops on rack padding or empty space below the last strip resolve to the rack's tail.
+- **Esc** cancels a drag in progress — the strip snaps back to its slot and nothing moves.
+- The **scroll wheel** still scrolls the racks mid-drag, and holding the drag near the top or bottom edge of the rack area auto-scrolls toward it.
 
 **Right-click on a strip** — opens a context menu:
 - **Offset / Un-offset** — shifts the strip horizontally so the callsign column stays visible above the next rack

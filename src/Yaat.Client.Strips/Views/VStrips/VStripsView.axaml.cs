@@ -38,18 +38,48 @@ public partial class VStripsView : UserControl
     /// <summary>Test hook: the in-view Find controller backing the FindBar overlay.</summary>
     internal FindController FindController => _findController;
 
-    // Application-scoped data format for drag/drop. Strip ids fit in a string so
-    // the drop target can resolve the view-model through VStripsViewModel.ItemsById
-    // without marshalling anything across the drag boundary.
-    private static readonly DataFormat<string> StripIdFormat = DataFormat.CreateStringApplicationFormat("yaat.strip-id");
-
     // Ghost overlay state for the drag preview. Lives for the duration of a
-    // single DoDragDropAsync invocation; cleared in the finally block.
+    // single pointer-capture drag; cleared in CleanupDrag. The grab offset
+    // pins the pointer to the exact spot of the strip it pressed on; the
+    // scale transform renders the ghost at the racks' zoom level (plus the
+    // pickup lift) and the base zoom is retained so the drop settle can
+    // scale back down.
     private Control? _dragGhost;
     private TranslateTransform? _dragGhostTransform;
+    private ScaleTransform? _dragGhostScale;
+    private Point _ghostGrabOffset;
+    private double _ghostBaseZoom = 1.0;
     private StripItemViewModel? _draggingStrip;
     private StripRackViewModel? _draggingFromRack;
     private int _draggingFromIndex = -1;
+
+    // True while a completed drop's ghost is settling into its slot (a
+    // ~130ms window after release). New strip presses are ignored during it
+    // so a second drag can't stomp the in-flight ghost or preview state.
+    private bool _isSettling;
+
+    // The pointer that owns the active drag (captured on `this`), retained so
+    // cancel paths can release capture explicitly, and the last pointer
+    // position in `this` coordinates so wheel-scroll during a drag can
+    // re-resolve the hover target under a stationary pointer.
+    private IPointer? _dragPointer;
+    private Point _lastDragRootPos;
+
+    // Resolved once in the constructor — UpdateDrag runs at display rate and
+    // must not pay a name-scope lookup per pointer move.
+    private Canvas? _dragGhostCanvas;
+    private Border? _trashZone;
+    private ScrollViewer? _racksScrollViewer;
+
+    // Edge autoscroll: while a drag hovers within AutoscrollEdgeBand px of
+    // the racks ScrollViewer's viewport edge, a ~60Hz timer scrolls the
+    // offset proportionally to edge proximity and re-resolves the hover
+    // target (the content moves under a stationary pointer). Stopped when
+    // the pointer leaves the band and in CleanupDrag.
+    private const double AutoscrollEdgeBand = 40.0;
+    private const double AutoscrollMaxStep = 14.0;
+    private Avalonia.Threading.DispatcherTimer? _autoscrollTimer;
+    private Vector _autoscrollStep;
 
     // Source ContentPresenter hidden during drag so the dragged strip only
     // appears as the cursor-tracked ghost — the rack's DockPanel collapses
@@ -66,7 +96,7 @@ public partial class VStripsView : UserControl
     // (after the source hide has settled) and reuses for subsequent events
     // over the same rack. Top-Y positions are still re-read each time (they
     // change as the preview margin shifts) but the lookup is a direct index
-    // into the cached list, not a tree walk. Cleared in HideDragGhost.
+    // into the cached list, not a tree walk. Cleared in CleanupDrag.
     private readonly Dictionary<StripRackViewModel, List<(ContentPresenter Presenter, StripItemViewModel Vm)>> _presenterCache = [];
 
     // Drag-hover bay-preview state (docs/crc/vstrips.md:217). When the user
@@ -77,56 +107,57 @@ public partial class VStripsView : UserControl
     private StripBayViewModel? _preHoverSelectedBay;
     private Avalonia.Threading.DispatcherTimer? _hoverTimer;
 
-    // Drop-preview state. While dragging over a rack, we shift the strip at
-    // the computed target index up by the dragged strip's height to open a
-    // visible gap where the drop will land. For the append case (index ==
-    // count) we overlay a yellow insertion line above the topmost strip
-    // instead (no strip to shift). Cleared when the rack/index changes,
-    // when the pointer leaves all racks, on drop, and on drag cancel.
+    // Drop-preview state. While dragging over a rack, every visible strip at
+    // visual index >= the computed target index carries a TranslateTransform
+    // shifted up by the dragged strip's height, opening a visible gap where
+    // the drop will land. The transforms animate (DoubleTransition) so the
+    // gap *slides* along the rack as the target index changes instead of
+    // teleporting — and being render transforms, the animation runs in the
+    // composition pass with no layout work per frame. For the append case
+    // (index == count) we overlay a yellow insertion line above the topmost
+    // strip instead (no strip to shift). Cleared when the pointer leaves all
+    // racks, on drop, and on drag cancel.
     private StripRackViewModel? _dropPreviewRack;
     private int _dropPreviewIndex = -1;
-    private ContentPresenter? _dropPreviewShiftedPresenter;
-    private Thickness _dropPreviewOriginalMargin;
+    private readonly List<(ContentPresenter Presenter, TranslateTransform Transform)> _dropPreviewShifted = [];
     private Border? _dropPreviewLine;
     private Grid? _dropPreviewLineHost;
+
+    // Gap-slide animation length. Short enough to track a fast-moving
+    // pointer, long enough to read as strips physically sliding aside.
+    private const int GapAnimationMs = 100;
+
+    // Hysteresis (in strips-host units) the pointer must clear past a band
+    // midpoint before the preview index flips — keeps the gap from
+    // flickering under hand tremor at band boundaries.
+    private const double DropIndexHysteresis = 6.0;
 
     public VStripsView()
     {
         InitializeComponent();
 
-        // Root-level AllowDrop is load-bearing: without it, DragOver/Drop events
-        // from deep child targets (inside rack borders, strips) never bubble to
-        // any handler. Every concrete drop zone also sets AllowDrop on itself
-        // in its Loaded handler — belt-and-suspenders because Avalonia only
-        // fires DragOver on the nearest AllowDrop element in the hit path.
-        DragDrop.SetAllowDrop(this, true);
-
-        var trash = this.FindControl<Border>("TrashZone");
-        if (trash is not null)
-        {
-            DragDrop.SetAllowDrop(trash, true);
-            trash.AddHandler(DragDrop.DragOverEvent, OnTrashDragOver);
-            trash.AddHandler(DragDrop.DropEvent, OnTrashDrop);
-        }
+        _dragGhostCanvas = this.FindControl<Canvas>("DragGhostCanvas");
+        _trashZone = this.FindControl<Border>("TrashZone");
+        _racksScrollViewer = this.FindControl<ScrollViewer>("RacksScrollViewer");
 
         // Drag-source wiring at the UserControl level (Tunnel) so pointer
         // presses on any strip — rack or printer — can participate in the
         // click-vs-drag dispatch. Pressed records state; Moved promotes to a
-        // drag past the threshold; Released clears state if no drag ran.
-        // Tunnel-phase so the handler fires before the TextBox's own bubble
-        // handler that would grab focus — we still DON'T set Handled=true,
-        // so TextBox focus on short clicks continues to work.
+        // pointer-capture drag past the threshold and then drives the ghost +
+        // drop preview at display rate; Released completes the drop (or
+        // clears state if no drag ran). Tunnel-phase so the handler fires
+        // before the TextBox's own bubble handler that would grab focus — we
+        // still DON'T set Handled=true, so TextBox focus on short clicks
+        // continues to work.
         AddHandler(PointerPressedEvent, OnStripPointerPressed, RoutingStrategies.Tunnel);
         AddHandler(PointerMovedEvent, OnStripPointerMoved, RoutingStrategies.Tunnel);
         AddHandler(PointerReleasedEvent, OnStripPointerReleased, RoutingStrategies.Tunnel);
 
-        // DragOver + Drop at the root level. DragOver paints the drop-effects
-        // cursor + drives the ghost. Drop hit-tests the pointer position to
-        // figure out which zone (rack / trash / bay button) the drop belongs
-        // to. Root-level registration keeps the wiring independent of the
-        // DataTemplate Loaded timing for rack Borders.
-        AddHandler(DragDrop.DragOverEvent, OnGenericDragOver);
-        AddHandler(DragDrop.DropEvent, OnRootDrop);
+        // While `this` holds pointer capture during a drag, wheel events
+        // route along the capture target's ancestor chain — the racks
+        // ScrollViewer (a descendant) never sees them. Handle them here so
+        // the user can still scroll to an off-screen slot mid-drag.
+        AddHandler(PointerWheelChangedEvent, OnDragPointerWheel, RoutingStrategies.Tunnel);
 
         // In-view Find. The FindBar overlay binds to this controller; the snapshot
         // and scroll callbacks resolve the live selected bay on demand.
@@ -158,6 +189,15 @@ public partial class VStripsView : UserControl
         if (e.PropertyName == nameof(VStripsViewModel.SelectedBay))
         {
             _findController.Refresh();
+            OnSelectedBayChangedDuringDrag();
+        }
+
+        // A disconnect mid-drag would leave a ghost tracking a read-only
+        // view — cancel so the strip snaps home and no stale move dispatches
+        // on release.
+        if ((e.PropertyName == nameof(VStripsViewModel.IsConnected)) && (_trackedVm?.IsConnected == false))
+        {
+            CancelDrag();
         }
     }
 
@@ -293,160 +333,68 @@ public partial class VStripsView : UserControl
         menu.ShowAt(button);
     }
 
-    private void OnBayButtonLoaded(object? sender, RoutedEventArgs e)
+    // ── Drop-target resolution ──────────────────────────────────
+
+    private enum DropTargetKind
     {
-        if (sender is Button button)
-        {
-            DragDrop.SetAllowDrop(button, true);
-            button.AddHandler(DragDrop.DragOverEvent, OnBayButtonDragOver);
-            button.AddHandler(DragDrop.DragLeaveEvent, OnBayButtonDragLeave);
-            button.AddHandler(DragDrop.DropEvent, OnBayButtonDrop);
-        }
+        None,
+        Rack,
+        Bay,
+        Trash,
     }
 
     /// <summary>
-    /// Starts a 500ms hover timer the first time the drag enters a bay
-    /// button. When it elapses without the drag leaving, temporarily switches
-    /// the main view to the hovered bay so the user can aim at a specific
-    /// rack inside it. Matches CRC docs/crc/vstrips.md:217.
+    /// Where a drag currently points: a rack slot (border + rack + insertion
+    /// index), a bay button (push target — carries the Button so hover can
+    /// highlight it), the trash zone, or nothing. Rack targets also snapshot
+    /// the bay they belong to at resolution time so the drop dispatch stays
+    /// correct even after <see cref="CleanupDrag"/> restores a pre-hover bay
+    /// selection.
     /// </summary>
-    private void OnBayButtonDragOver(object? sender, DragEventArgs e)
-    {
-        OnGenericDragOver(sender, e);
-        if (sender is not Button { Tag: StripBayViewModel bay } || DataContext is not VStripsViewModel vm || bay.IsExternal)
-        {
-            return;
-        }
-        if (ReferenceEquals(_hoverBay, bay))
-        {
-            return;
-        }
-        _hoverBay = bay;
-        _preHoverSelectedBay ??= vm.SelectedBay;
-        _hoverTimer?.Stop();
-        _hoverTimer = new Avalonia.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(500) };
-        _hoverTimer.Tick += (_, _) =>
-        {
-            _hoverTimer?.Stop();
-            if (_hoverBay is not null && DataContext is VStripsViewModel currentVm)
-            {
-                _ = currentVm.SelectBayAsync(_hoverBay);
-            }
-        };
-        _hoverTimer.Start();
-    }
+    private readonly record struct DropTarget(
+        DropTargetKind Kind,
+        Border? RackBorder,
+        StripRackViewModel? Rack,
+        int Index,
+        StripBayViewModel? Bay,
+        Button? BayButton
+    );
 
     /// <summary>
-    /// Cancels the hover timer if the drag leaves before 500ms elapses. Does
-    /// NOT restore the pre-hover bay here — that happens when the whole drag
-    /// ends (drop or cancel) via <see cref="HideDragGhost"/>, so the preview
-    /// sticks if the user drags back over the bay after a brief detour.
+    /// Resolves what sits under <paramref name="rootPos"/> (in this view's
+    /// coordinates) during a drag: hit-test at the pointer position, then
+    /// ancestor-walk for the trash zone, a bay button, or a rack border.
+    /// The explicit hit-test (rather than event source) works under pointer
+    /// capture — capture retargets event routing, not hit-testing — and the
+    /// two suppressions it relies on are the ghost canvas's
+    /// IsHitTestVisible=false and the hidden source presenter.
     /// </summary>
-    private void OnBayButtonDragLeave(object? sender, DragEventArgs e)
+    private DropTarget ResolveDropTarget(Point rootPos)
     {
-        _hoverTimer?.Stop();
-        _hoverTimer = null;
-        _hoverBay = null;
-    }
-
-    private async void OnBayButtonDrop(object? sender, DragEventArgs e)
-    {
-        if (sender is not Button { Tag: StripBayViewModel bay } || DataContext is not VStripsViewModel vm || e.DataTransfer is null)
+        if (this.InputHitTest(rootPos) is not Visual hit)
         {
-            return;
+            return new DropTarget(DropTargetKind.None, null, null, -1, null, null);
         }
 
-        var stripId = e.DataTransfer.TryGetValue(StripIdFormat);
-        if (stripId is null || !vm.ItemsById.TryGetValue(stripId, out var strip))
-        {
-            return;
-        }
-
-        // Dropped on a bay button (push target) without a specific slot —
-        // append to the tail of rack 0 (CRC bottom-up first-available).
-        await vm.MoveStripAsync(strip, bay, rack: 0, index: null);
-        e.Handled = true;
-    }
-
-    // ── Rack drop zone ───────────────────────────────────────────
-
-    /// <summary>
-    /// Root-level drop handler. Walks up from the hit target to find a rack
-    /// Border (marked with <c>Tag = StripRackViewModel</c> by the rack
-    /// DataTemplate). When found, computes the drop index inside that rack
-    /// and dispatches a move via <see cref="VStripsViewModel.MoveStripAsync"/>.
-    /// Drops outside any rack (bay header, trash, printer modal) fall through
-    /// — those zones install their own local drop handlers in Loaded hooks.
-    /// </summary>
-    private async void OnRootDrop(object? sender, DragEventArgs e)
-    {
-        Log.LogInformation("OnRootDrop fired: source={SourceType} hasDataTransfer={HasDt}", e.Source?.GetType().Name, e.DataTransfer is not null);
-        if (DataContext is not VStripsViewModel vm || e.DataTransfer is null)
-        {
-            Log.LogInformation("OnRootDrop: bailing — vm={VmOk} dt={DtOk}", DataContext is VStripsViewModel, e.DataTransfer is not null);
-            return;
-        }
-
-        var stripId = e.DataTransfer.TryGetValue(StripIdFormat);
-        if (stripId is null || !vm.ItemsById.TryGetValue(stripId, out var strip) || vm.SelectedBay is null)
-        {
-            Log.LogInformation("OnRootDrop: no strip match — stripId={StripId} selectedBay={Bay}", stripId, vm.SelectedBay?.Name);
-            return;
-        }
-
-        // Prefer an explicit hit-test at the pointer position over walking
-        // e.Source — Avalonia can set e.Source to a root-level visual (not
-        // the deepest hit target) for some drop events, which would break
-        // the rack walk. InputHitTest with the drag-ghost canvas suppressed
-        // (IsHitTestVisible=false) returns the underlying rack visual.
-        var rootPos = e.GetPosition(this);
-        var hit = this.InputHitTest(rootPos) as Visual ?? e.Source as Visual;
-        if (hit is null)
-        {
-            Log.LogInformation("OnRootDrop: no hit target at pointer position {Pos}", rootPos);
-            return;
-        }
-
-        Border? rackBorder = null;
         Visual? v = hit;
         while (v is not null)
         {
-            if (v is Border b && b.Tag is StripRackViewModel)
+            if (ReferenceEquals(v, _trashZone))
             {
-                rackBorder = b;
-                break;
+                return new DropTarget(DropTargetKind.Trash, null, null, -1, null, null);
+            }
+            if (v is Button { Tag: StripBayViewModel bay } bayButton)
+            {
+                return new DropTarget(DropTargetKind.Bay, null, null, -1, bay, bayButton);
+            }
+            if (v is Border b && b.Tag is StripRackViewModel rack)
+            {
+                var index = ComputeDropIndex(b, rack, rootPos);
+                return new DropTarget(DropTargetKind.Rack, b, rack, index, (DataContext as VStripsViewModel)?.SelectedBay, null);
             }
             v = v.GetVisualParent() as Visual;
         }
-        if (rackBorder is null || rackBorder.Tag is not StripRackViewModel rack)
-        {
-            Log.LogInformation("OnRootDrop: no rack border under hit={HitType} at {Pos}", hit.GetType().Name, rootPos);
-            return;
-        }
-
-        var index = ComputeDropIndex(rackBorder, rack, e);
-        Log.LogInformation(
-            "OnRootDrop: strip={StripId} → bay={Bay} rack={Rack} index={Index} (from {FromRack}/{FromIdx})",
-            stripId,
-            vm.SelectedBay.Name,
-            rack.RackIndex,
-            index,
-            _draggingFromRack?.RackIndex,
-            _draggingFromIndex
-        );
-        // Clear the preview before the move so the post-move layout doesn't
-        // inherit the lingering Margin.Bottom (it would revisit the wrong
-        // presenter after the collection re-orders).
-        ClearDropPreview();
-        await vm.MoveStripAsync(strip, vm.SelectedBay, rack.RackIndex, index);
-        e.Handled = true;
-    }
-
-    /// <summary>No-op — rack-border drop is handled via <see cref="OnRootDrop"/>.</summary>
-    private void OnRackBorderLoaded(object? sender, RoutedEventArgs e)
-    {
-        // Intentionally empty: root-level drop handler in the constructor
-        // handles rack drops independent of DataTemplate Loaded timing.
+        return new DropTarget(DropTargetKind.None, null, null, -1, null, null);
     }
 
     /// <summary>
@@ -465,7 +413,7 @@ public partial class VStripsView : UserControl
     /// by the preview itself and the preview would oscillate between indices.
     /// See <see cref="ComputeDropIndexFromBands"/> for the pure index math.
     /// </summary>
-    private int ComputeDropIndex(Border rackBorder, StripRackViewModel rack, DragEventArgs e)
+    private int ComputeDropIndex(Border rackBorder, StripRackViewModel rack, Point rootPos)
     {
         var stripsHost = rackBorder.FindDescendantOfType<ItemsControl>();
         if (stripsHost is null || rack.Strips.Count == 0)
@@ -479,14 +427,26 @@ public partial class VStripsView : UserControl
             return 0;
         }
 
-        var pos = e.GetPosition(stripsHost);
-        var bands = BuildUnshiftedBands(visible, rack);
+        // Convert from this view's coordinates into the (zoomed) strips-host
+        // space — TranslatePoint carries the LayoutTransformControl scale, so
+        // the band comparison happens in the same space the presenters were
+        // measured in. Null only when the host is detached mid-teardown.
+        var posInHost = this.TranslatePoint(rootPos, stripsHost);
+        if (posInHost is null)
+        {
+            return visible.Count;
+        }
+        var pos = posInHost.Value;
+        var bands = BuildUnshiftedBands(visible);
         if (bands.Any(b => b.Bottom <= b.Top))
         {
             // Pre-layout — treat as append.
             return visible.Count;
         }
-        return ComputeDropIndexFromBands(pos.Y, bands);
+        // Anchor hysteresis to the active preview index so the gap doesn't
+        // flicker while the pointer hovers a band boundary.
+        var currentIndex = ReferenceEquals(_dropPreviewRack, rack) ? _dropPreviewIndex : -1;
+        return ComputeDropIndexFromBands(pos.Y, bands, currentIndex, DropIndexHysteresis);
     }
 
     /// <summary>
@@ -560,37 +520,26 @@ public partial class VStripsView : UserControl
     }
 
     /// <summary>
-    /// Builds the Y-bands list for <see cref="ComputeDropIndexFromBands"/>,
+    /// Builds the Y-bands list for <see cref="ComputeDropIndexFromBands(double, IReadOnlyList{ValueTuple{double, double}})"/>,
     /// undoing any active preview shift so the pointer-to-index mapping
     /// reflects natural strip positions. Without this, a band already
     /// shifted up by the active preview would make the pointer cross a
     /// different mid-point than the user intended, and the preview would
-    /// oscillate between indices.
+    /// oscillate between indices. Each presenter's measured top includes its
+    /// current preview TranslateTransform (TranslatePoint carries render
+    /// transforms — mid-animation values included), so subtracting the
+    /// transform's current Y restores the natural position exactly.
     /// </summary>
-    private List<(double Top, double Bottom)> BuildUnshiftedBands(
-        List<(ContentPresenter Presenter, StripItemViewModel Vm, double Top)> visible,
-        StripRackViewModel rack
+    private static List<(double Top, double Bottom)> BuildUnshiftedBands(
+        List<(ContentPresenter Presenter, StripItemViewModel Vm, double Top)> visible
     )
     {
-        var shiftedVisualIdx = -1;
-        var shiftAmount = 0.0;
-        if (_dropPreviewShiftedPresenter is not null && ReferenceEquals(_dropPreviewRack, rack))
-        {
-            shiftAmount = _dropPreviewShiftedPresenter.Margin.Bottom - _dropPreviewOriginalMargin.Bottom;
-            shiftedVisualIdx = visible.FindIndex(r => ReferenceEquals(r.Presenter, _dropPreviewShiftedPresenter));
-        }
-
         var bands = new List<(double Top, double Bottom)>(visible.Count);
-        for (var i = 0; i < visible.Count; i++)
+        foreach (var (presenter, _, measuredTop) in visible)
         {
-            var top = visible[i].Top;
-            var bottom = top + visible[i].Presenter.Bounds.Height;
-            if (shiftedVisualIdx >= 0 && i >= shiftedVisualIdx && shiftAmount > 0)
-            {
-                top += shiftAmount;
-                bottom += shiftAmount;
-            }
-            bands.Add((top, bottom));
+            var previewOffset = presenter.RenderTransform is TranslateTransform transform ? transform.Y : 0.0;
+            var top = measuredTop - previewOffset;
+            bands.Add((top, top + presenter.Bounds.Height));
         }
         return bands;
     }
@@ -628,32 +577,82 @@ public partial class VStripsView : UserControl
         return posY < stackTop ? bands.Count : 0;
     }
 
+    /// <summary>
+    /// Hysteresis-aware variant of
+    /// <see cref="ComputeDropIndexFromBands(double, IReadOnlyList{ValueTuple{double, double}})"/>:
+    /// when the raw result is adjacent to <paramref name="currentIndex"/>,
+    /// the pointer must clear the boundary between the two indices (the
+    /// midpoint of the lower band — inside band i, top half → i+1, bottom
+    /// half → i) by more than <paramref name="hysteresisPx"/> before the
+    /// index flips. Non-adjacent jumps (fast pointer moves) and calls with
+    /// no current index (-1) pass through unchanged.
+    /// </summary>
+    internal static int ComputeDropIndexFromBands(
+        double posY,
+        IReadOnlyList<(double Top, double Bottom)> bands,
+        int currentIndex,
+        double hysteresisPx
+    )
+    {
+        var raw = ComputeDropIndexFromBands(posY, bands);
+        if ((currentIndex < 0) || (raw == currentIndex) || (Math.Abs(raw - currentIndex) > 1))
+        {
+            return raw;
+        }
+        var lower = Math.Min(raw, currentIndex);
+        if (lower >= bands.Count)
+        {
+            return raw;
+        }
+        var boundary = (bands[lower].Top + bands[lower].Bottom) / 2;
+        if (raw > currentIndex)
+        {
+            // Moving up the stack (smaller Y): flip only once the pointer is
+            // clearly above the boundary.
+            return posY < (boundary - hysteresisPx) ? raw : currentIndex;
+        }
+        // Moving down the stack: flip only once clearly below the boundary.
+        return posY > (boundary + hysteresisPx) ? raw : currentIndex;
+    }
+
     // ── Drag source (click-vs-drag dispatch) ────────────────────
     //
     // Pressing on a strip records the press position + pending drag target but
-    // doesn't start the OS drag loop yet. PointerMoved checks distance against
-    // DragThresholdSq and triggers DoDragDropAsync past that point. Until the
+    // doesn't start a drag yet. PointerMoved checks distance against
+    // DragThresholdSq and promotes to a drag past that point. Until the
     // threshold is crossed, the event bubbles normally: clicking on an
     // annotation TextBox focuses it in place (caret appears), clicking on the
     // strip body just selects the strip. Matches CRC's "short click edits,
     // hold-and-drag moves" model.
-    private const double DragThresholdSq = 5.0 * 5.0;
+    private enum DragState
+    {
+        Idle,
+        Pressed,
+        Dragging,
+    }
+
+    // 2px: a drag engages almost immediately (Windows' system drag threshold
+    // is 4px — user feedback drove this tighter twice), while a steady
+    // click-to-edit still stays a click. Any lower and ordinary clicks with
+    // slight hand movement start promoting to accidental micro-drags.
+    private const double DragThresholdSq = 2.0 * 2.0;
     private Point _pressPos;
     private FlightStripControl? _pressedStripView;
-    private bool _dragInitiated;
-
-    /// <summary>
-    /// The press that may become a drag. Retained because the drag is promoted later, from
-    /// PointerMoved, but <see cref="DragDrop.DoDragDropAsync"/> requires the originating
-    /// <see cref="PointerPressedEventArgs"/> to identify the pointer that started the gesture.
-    /// </summary>
-    private PointerPressedEventArgs? _pressArgs;
+    private DragState _dragState;
 
     private async void OnStripPointerPressed(object? sender, PointerPressedEventArgs e)
     {
         var props = e.GetCurrentPoint(this).Properties;
 
         if (e.Source is not Visual hit || DataContext is not VStripsViewModel vm)
+        {
+            return;
+        }
+
+        // A completed drop's ghost is still settling into its slot — ignore
+        // new strip presses for the ~130ms window so a second drag can't
+        // stomp the in-flight ghost or drop-preview state.
+        if (_isSettling)
         {
             return;
         }
@@ -713,18 +712,30 @@ public partial class VStripsView : UserControl
         }
 
         // Record press state so PointerMoved can decide when to promote the
-        // gesture to a drag. Do NOT call DoDragDropAsync here — a pure short
-        // click should reach the underlying TextBox (if any) and focus it.
+        // gesture to a drag. Do NOT start a drag here — a pure short click
+        // should reach the underlying TextBox (if any) and focus it.
         _pressPos = e.GetPosition(this);
         _pressedStripView = stripView;
-        _pressArgs = e;
-        _dragInitiated = false;
+        _dragState = DragState.Pressed;
         _draggingStrip = strip;
     }
 
-    private async void OnStripPointerMoved(object? sender, PointerEventArgs e)
+    private void OnStripPointerMoved(object? sender, PointerEventArgs e)
     {
-        if (_pressedStripView is null || _dragInitiated || _draggingStrip is not { } strip || _pressArgs is not { } pressArgs)
+        if (_dragState == DragState.Dragging)
+        {
+            if (!e.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
+            {
+                // Release swallowed elsewhere (e.g. by another window) —
+                // treat as cancel rather than dropping at a stale position.
+                CancelDrag();
+                return;
+            }
+            UpdateDrag(e);
+            return;
+        }
+
+        if (_pressedStripView is null || _dragState != DragState.Pressed || _draggingStrip is not { } strip)
         {
             return;
         }
@@ -734,8 +745,8 @@ public partial class VStripsView : UserControl
             // Button released without our PointerReleased firing (rare, e.g.
             // capture lost to another window). Treat as click-end: clear state.
             _pressedStripView = null;
-            _pressArgs = null;
             _draggingStrip = null;
+            _dragState = DragState.Idle;
             return;
         }
 
@@ -747,14 +758,31 @@ public partial class VStripsView : UserControl
             return;
         }
 
-        _dragInitiated = true;
-        var stripView = _pressedStripView;
+        StartPointerDrag(e, strip);
+    }
+
+    /// <summary>
+    /// Promotes the pressed gesture to a pointer-capture drag. Ordering is
+    /// load-bearing: capture first (hiding a captured element would release
+    /// capture, so the source presenter must not hold it when it hides),
+    /// then hide + initial preview in the same layout pass, then the ghost,
+    /// then focus so Esc-to-cancel works.
+    /// </summary>
+    private void StartPointerDrag(PointerEventArgs e, StripItemViewModel strip)
+    {
+        _dragState = DragState.Dragging;
+        var stripView = _pressedStripView!;
         _pressedStripView = null;
 
-        if (DataContext is not VStripsViewModel vm)
+        if (DataContext is not VStripsViewModel)
         {
+            _dragState = DragState.Idle;
+            _draggingStrip = null;
             return;
         }
+
+        _dragPointer = e.Pointer;
+        e.Pointer.Capture(this);
 
         // Record the origin rack so MoveStripAsync can skip the no-op when the
         // user drops on the exact same position. Walk the visual tree to find
@@ -782,8 +810,13 @@ public partial class VStripsView : UserControl
             }
         }
 
-        var dataTransfer = new DataTransfer();
-        dataTransfer.Add(DataTransferItem.Create(StripIdFormat, strip.Id));
+        ShowDragGhost(strip, stripView, e);
+        _lastDragRootPos = e.GetPosition(this);
+
+        // Take keyboard focus so Esc can cancel the drag. Safe for the
+        // short-click TextBox-focus contract: we only get here past the
+        // drag threshold, never on a plain click.
+        Focus();
 
         Log.LogInformation(
             "Strip drag start: strip={StripId} fromRack={FromRack} fromIdx={FromIdx}",
@@ -791,33 +824,542 @@ public partial class VStripsView : UserControl
             _draggingFromRack?.RackIndex,
             _draggingFromIndex
         );
-        DragDropEffects effect;
-        try
+    }
+
+    /// <summary>
+    /// Per-move drag update, running at display rate (pointer events, not
+    /// the throttled OS drag loop this replaced): moves the ghost and
+    /// re-resolves the hover target (rack preview / bay hover timer / trash
+    /// highlight).
+    /// </summary>
+    private void UpdateDrag(PointerEventArgs e)
+    {
+        _lastDragRootPos = e.GetPosition(this);
+        if (_dragGhostCanvas is not null)
         {
-            ShowDragGhost(strip, e);
-            effect = await DragDrop.DoDragDropAsync(pressArgs, dataTransfer, DragDropEffects.Move);
+            UpdateGhostPosition(e.GetPosition(_dragGhostCanvas));
         }
-        finally
+        ResolveHover(_lastDragRootPos);
+        UpdateAutoscroll(_lastDragRootPos);
+    }
+
+    // ── Edge autoscroll ─────────────────────────────────────────
+
+    /// <summary>
+    /// Starts, retargets, or stops the edge-autoscroll timer based on how
+    /// close the drag pointer is to the racks ScrollViewer's viewport edges.
+    /// Step size ramps linearly with proximity (full speed at the edge, zero
+    /// at the band's inner boundary), on both axes — racks overflow
+    /// horizontally as well as vertically.
+    /// </summary>
+    private void UpdateAutoscroll(Point rootPos)
+    {
+        var scrollViewer = _racksScrollViewer;
+        if (scrollViewer is null)
         {
-            HideDragGhost();
-            _draggingStrip = null;
-            _draggingFromRack = null;
-            _draggingFromIndex = -1;
-            _pressArgs = null;
+            StopAutoscroll();
+            return;
         }
-        Log.LogInformation("Strip drag end: strip={StripId} effect={Effect}", strip.Id, effect);
+        var posInViewer = this.TranslatePoint(rootPos, scrollViewer);
+        if (posInViewer is not { } pos || pos.X < 0 || pos.Y < 0 || pos.X > scrollViewer.Bounds.Width || pos.Y > scrollViewer.Bounds.Height)
+        {
+            // Pointer is outside the racks area (header, trash, printer
+            // modal margins) — never autoscroll from there.
+            StopAutoscroll();
+            return;
+        }
+
+        var stepX = EdgeStep(pos.X, scrollViewer.Bounds.Width);
+        var stepY = EdgeStep(pos.Y, scrollViewer.Bounds.Height);
+        if ((stepX == 0) && (stepY == 0))
+        {
+            StopAutoscroll();
+            return;
+        }
+
+        _autoscrollStep = new Vector(stepX, stepY);
+        if (_autoscrollTimer is null)
+        {
+            _autoscrollTimer = new Avalonia.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(16) };
+            _autoscrollTimer.Tick += (_, _) => OnAutoscrollTick();
+            _autoscrollTimer.Start();
+        }
+    }
+
+    /// <summary>
+    /// Signed per-tick scroll step for one axis: negative near the low edge,
+    /// positive near the high edge, zero outside the band, magnitude ramping
+    /// linearly from 0 at the band boundary to <see cref="AutoscrollMaxStep"/>
+    /// at the very edge.
+    /// </summary>
+    private static double EdgeStep(double pos, double extent)
+    {
+        if (pos < AutoscrollEdgeBand)
+        {
+            return -AutoscrollMaxStep * ((AutoscrollEdgeBand - pos) / AutoscrollEdgeBand);
+        }
+        if (pos > (extent - AutoscrollEdgeBand))
+        {
+            return AutoscrollMaxStep * ((pos - (extent - AutoscrollEdgeBand)) / AutoscrollEdgeBand);
+        }
+        return 0;
+    }
+
+    private void OnAutoscrollTick()
+    {
+        var scrollViewer = _racksScrollViewer;
+        if ((_dragState != DragState.Dragging) || (scrollViewer is null))
+        {
+            StopAutoscroll();
+            return;
+        }
+        var before = scrollViewer.Offset;
+        scrollViewer.Offset = new Vector(before.X + _autoscrollStep.X, before.Y + _autoscrollStep.Y);
+        if (scrollViewer.Offset != before)
+        {
+            // The content moved under a stationary pointer — the hover
+            // target (drop preview position) must re-resolve.
+            ResolveHover(_lastDragRootPos);
+        }
+    }
+
+    private void StopAutoscroll()
+    {
+        _autoscrollTimer?.Stop();
+        _autoscrollTimer = null;
+        _autoscrollStep = default;
     }
 
     private void OnStripPointerReleased(object? sender, PointerReleasedEventArgs e)
     {
+        if (_dragState == DragState.Dragging)
+        {
+            CompleteDrag(e);
+            return;
+        }
+
         // No-op release: the separator's inline TextBox handles single-click
         // edit via its own KeyDown / LostFocus path, so there's nothing to
         // do here when the press never promoted to a drag. Just clear state
         // so the next gesture starts fresh.
-        if (!_dragInitiated)
+        if (_dragState == DragState.Pressed)
         {
             _pressedStripView = null;
             _draggingStrip = null;
+            _dragState = DragState.Idle;
+        }
+    }
+
+    /// <summary>
+    /// Finishes the drag on pointer release: resolves the drop target at the
+    /// release position, restores all drag visuals synchronously, then
+    /// dispatches the matching action (rack move / bay push / trash delete /
+    /// cancel). The target — including the bay a rack belongs to — is
+    /// snapshotted before cleanup because <see cref="CleanupDrag"/> may
+    /// restore a pre-hover bay selection.
+    /// </summary>
+    private async void CompleteDrag(PointerReleasedEventArgs e)
+    {
+        if (_dragState != DragState.Dragging || _draggingStrip is not { } strip)
+        {
+            return;
+        }
+
+        // Idle before releasing capture: our Capture(null) echoes a
+        // PointerCaptureLost, whose handler must see the drag as already over.
+        _dragState = DragState.Idle;
+        _dragPointer?.Capture(null);
+        _dragPointer = null;
+
+        var target = ResolveDropTarget(e.GetPosition(this));
+        Log.LogInformation(
+            "Strip drag end: strip={StripId} target={Kind} rack={Rack} index={Index} bay={Bay}",
+            strip.Id,
+            target.Kind,
+            target.Rack?.RackIndex,
+            target.Index,
+            target.Bay?.Name
+        );
+
+        // Settle animation: the ghost flies into the open gap (rack drop)
+        // or dissolves (bay push / trash) before the cleanup + optimistic
+        // reorder land. The gap and hidden source stay as-is during the
+        // flight — the ghost visually becomes the strip in its new slot —
+        // and _isSettling blocks new presses from stomping the in-flight
+        // state. Cleanup in the finally so an animation fault can never
+        // leave a hidden presenter behind.
+        _isSettling = true;
+        try
+        {
+            switch (target.Kind)
+            {
+                case DropTargetKind.Rack:
+                    if (ComputeSettleDestination(target) is { } destination)
+                    {
+                        await SettleGhostAsync(destination);
+                    }
+                    break;
+                case DropTargetKind.Bay:
+                    await DissolveGhostAsync(durationMs: 80, endScaleFactor: 1.0);
+                    break;
+                case DropTargetKind.Trash:
+                    await DissolveGhostAsync(durationMs: 100, endScaleFactor: 0.6);
+                    break;
+            }
+        }
+        finally
+        {
+            _isSettling = false;
+            // Restores visuals; OptimisticallyMove below then mutates the
+            // collections in the same frame, so there is no flash of the
+            // strip in its old slot and no preview transform surviving
+            // into the post-move layout.
+            CleanupDrag();
+        }
+
+        if (DataContext is not VStripsViewModel vm)
+        {
+            return;
+        }
+        switch (target.Kind)
+        {
+            case DropTargetKind.Rack when target.Bay is not null:
+                await vm.MoveStripAsync(strip, target.Bay, target.Rack!.RackIndex, target.Index);
+                break;
+            case DropTargetKind.Bay:
+                // Dropped on a bay button (push target) without a specific
+                // slot — append to the tail of rack 0 (CRC bottom-up
+                // first-available). External bays are valid push targets.
+                await vm.MoveStripAsync(strip, target.Bay!, rack: 0, index: null);
+                break;
+            case DropTargetKind.Trash:
+                await vm.DeleteStripAsync(strip);
+                break;
+        }
+    }
+
+    // ── Drop settle animation ───────────────────────────────────
+
+    private const int SettleAnimationMs = 130;
+
+    /// <summary>
+    /// Where the ghost's top-left should land (ghost-canvas coordinates) for
+    /// the drop to read as the strip sliding into its slot: the gap the drop
+    /// preview opened at the target index, computed from the natural
+    /// (unshifted) band positions. Null when the rack visuals can't be
+    /// resolved — the caller then skips the flight and snaps.
+    /// </summary>
+    private Point? ComputeSettleDestination(DropTarget target)
+    {
+        if (target.RackBorder is null || target.Rack is null || _dragGhostCanvas is null)
+        {
+            return null;
+        }
+        var stripsHost = target.RackBorder.FindDescendantOfType<ItemsControl>();
+        if (stripsHost is null)
+        {
+            return null;
+        }
+
+        var visible = GetVisiblePresenters(stripsHost, target.Rack);
+        var stripHeight = ResolveDragStripHeight(visible);
+        double topY;
+        double x = 0;
+        if (visible.Count == 0)
+        {
+            topY = stripsHost.Bounds.Height - stripHeight;
+        }
+        else
+        {
+            var bands = BuildUnshiftedBands(visible);
+            var idx = Math.Clamp(target.Index, 0, bands.Count);
+            // Bottom-up stack: the inserted strip's bottom edge is the band
+            // below it (or the current bottom strip's bottom edge for idx 0).
+            var bottomY = idx == 0 ? bands[0].Bottom : bands[idx - 1].Top;
+            topY = bottomY - stripHeight;
+            x = visible[0].Presenter.TranslatePoint(new Point(0, 0), stripsHost)?.X ?? 0;
+        }
+        return stripsHost.TranslatePoint(new Point(x, topY), _dragGhostCanvas);
+    }
+
+    /// <summary>
+    /// Flies the ghost from its current position into the destination slot
+    /// (scale eases back to the racks' zoom so the lifted strip visually
+    /// sets down), then waits out the animation. The gap and hidden source
+    /// presenter stay untouched during the flight; the caller cleans up and
+    /// dispatches the move when this returns.
+    /// </summary>
+    private async Task SettleGhostAsync(Point destinationTopLeft)
+    {
+        var translate = _dragGhostTransform;
+        if (_dragGhost is null || translate is null)
+        {
+            return;
+        }
+        translate.Transitions = new Avalonia.Animation.Transitions
+        {
+            new Avalonia.Animation.DoubleTransition
+            {
+                Property = TranslateTransform.XProperty,
+                Duration = TimeSpan.FromMilliseconds(SettleAnimationMs),
+                Easing = new Avalonia.Animation.Easings.CubicEaseOut(),
+            },
+            new Avalonia.Animation.DoubleTransition
+            {
+                Property = TranslateTransform.YProperty,
+                Duration = TimeSpan.FromMilliseconds(SettleAnimationMs),
+                Easing = new Avalonia.Animation.Easings.CubicEaseOut(),
+            },
+        };
+        translate.X = destinationTopLeft.X;
+        translate.Y = destinationTopLeft.Y;
+        if (_dragGhostScale is { } scale)
+        {
+            scale.ScaleX = _ghostBaseZoom;
+            scale.ScaleY = _ghostBaseZoom;
+        }
+        if (_dragGhost is Border ghostBorder)
+        {
+            ghostBorder.Opacity = 1.0;
+        }
+        await Task.Delay(SettleAnimationMs + 30);
+    }
+
+    /// <summary>
+    /// Fades the ghost out in place (optionally shrinking it — the trash
+    /// drop crumples, the bay push just evaporates), then waits out the
+    /// animation before the caller cleans up and dispatches.
+    /// </summary>
+    private async Task DissolveGhostAsync(int durationMs, double endScaleFactor)
+    {
+        if (_dragGhost is null)
+        {
+            return;
+        }
+        if (_dragGhost is Border ghostBorder)
+        {
+            ghostBorder.Opacity = 0;
+        }
+        if ((_dragGhostScale is { } scale) && (endScaleFactor != 1.0))
+        {
+            scale.ScaleX = _ghostBaseZoom * endScaleFactor;
+            scale.ScaleY = _ghostBaseZoom * endScaleFactor;
+        }
+        await Task.Delay(durationMs + 30);
+    }
+
+    /// <summary>
+    /// Cancels an active drag (Esc, lost capture, disconnect, missed
+    /// release): restores every drag visual and emits nothing. Idempotent —
+    /// the Capture(null) → PointerCaptureLost echo re-enters here and hits
+    /// the early return.
+    /// </summary>
+    private void CancelDrag()
+    {
+        if (_dragState != DragState.Dragging)
+        {
+            return;
+        }
+        _dragState = DragState.Idle;
+        Log.LogInformation("Strip drag cancelled: strip={StripId}", _draggingStrip?.Id);
+        _dragPointer?.Capture(null);
+        _dragPointer = null;
+        CleanupDrag();
+    }
+
+    protected override void OnPointerCaptureLost(PointerCaptureLostEventArgs e)
+    {
+        base.OnPointerCaptureLost(e);
+        // Window deactivation, a popup stealing capture, or the echo of our
+        // own Capture(null) — the latter is a no-op via CancelDrag's guard.
+        CancelDrag();
+    }
+
+    /// <summary>
+    /// Wheel handler that keeps the racks ScrollViewer scrollable during a
+    /// drag (capture would otherwise starve it), then re-resolves the hover
+    /// target from the last pointer position — the content moved under a
+    /// stationary pointer. Inert outside a drag.
+    /// </summary>
+    private void OnDragPointerWheel(object? sender, PointerWheelEventArgs e)
+    {
+        if (_dragState != DragState.Dragging)
+        {
+            return;
+        }
+        var scrollViewer = _racksScrollViewer;
+        if (scrollViewer is null)
+        {
+            return;
+        }
+        // 50 px per wheel notch matches Avalonia's default line-scroll feel;
+        // ScrollViewer clamps the offset to the extent for us.
+        const double WheelStep = 50.0;
+        scrollViewer.Offset = new Vector(scrollViewer.Offset.X - (e.Delta.X * WheelStep), scrollViewer.Offset.Y - (e.Delta.Y * WheelStep));
+        e.Handled = true;
+        ResolveHover(_lastDragRootPos);
+    }
+
+    // ── Drag hover resolution (preview / bay timer / trash) ─────
+
+    /// <summary>
+    /// Applies the hover side effects for the drag position: a rack target
+    /// drives the drop-preview gap, a bay button arms the 500ms hover timer
+    /// that temporarily switches the view to that bay (CRC
+    /// docs/crc/vstrips.md:217), the trash zone lights up, and anything else
+    /// clears all three. The pre-hover bay selection deliberately survives
+    /// hover-target changes — it is restored only when the whole drag ends
+    /// via <see cref="CleanupDrag"/>, so the preview sticks if the user
+    /// drags back over the bay after a brief detour.
+    /// </summary>
+    private void ResolveHover(Point rootPos)
+    {
+        var target = ResolveDropTarget(rootPos);
+
+        SetTrashHighlight(target.Kind == DropTargetKind.Trash);
+        // Light up the hovered bay button (external bays included — they are
+        // valid push targets) so "this drop TRANSFERS to another bay" reads
+        // differently from repositioning inside the current bay's racks.
+        SetBayHighlight(target.Kind == DropTargetKind.Bay ? target.BayButton : null);
+        // The ghost usually covers the small header targets completely, so a
+        // highlight underneath it would be invisible — recede the ghost to
+        // near-transparent over bay buttons and the trash so the lit-up
+        // destination shows through. Restores over racks / empty space.
+        SetGhostRecessed(target.Kind is DropTargetKind.Bay or DropTargetKind.Trash);
+
+        if (target.Kind == DropTargetKind.Bay && !target.Bay!.IsExternal && DataContext is VStripsViewModel vm)
+        {
+            if (!ReferenceEquals(_hoverBay, target.Bay))
+            {
+                _hoverBay = target.Bay;
+                _preHoverSelectedBay ??= vm.SelectedBay;
+                _hoverTimer?.Stop();
+                _hoverTimer = new Avalonia.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(500) };
+                _hoverTimer.Tick += (_, _) =>
+                {
+                    _hoverTimer?.Stop();
+                    if (_hoverBay is not null && DataContext is VStripsViewModel currentVm)
+                    {
+                        _ = currentVm.SelectBayAsync(_hoverBay);
+                    }
+                };
+                _hoverTimer.Start();
+            }
+        }
+        else if (_hoverBay is not null)
+        {
+            _hoverTimer?.Stop();
+            _hoverTimer = null;
+            _hoverBay = null;
+        }
+
+        if (target.Kind == DropTargetKind.Rack)
+        {
+            UpdateRackPreview(target.RackBorder!, target.Rack!, target.Index);
+        }
+        else
+        {
+            // Pointer left all racks — slide the gapped strips home.
+            ClearDropPreview(animate: true);
+        }
+    }
+
+    // The bay button currently carrying the drag-over highlight class, so a
+    // hover change (or drag end) can remove it from the right control.
+    private Button? _hoverBayButton;
+
+    /// <summary>
+    /// Fades the drag ghost to near-transparent (animated via its existing
+    /// opacity transition) while it hovers a header target it would fully
+    /// cover — bay buttons and the trash — and restores it elsewhere. The
+    /// destination's highlight is the signal there; the strip visually
+    /// gives way to it.
+    /// </summary>
+    private void SetGhostRecessed(bool recessed)
+    {
+        if (_dragGhost is not null)
+        {
+            _dragGhost.Opacity = recessed ? 0.25 : 0.92;
+        }
+    }
+
+    private void SetBayHighlight(Button? button)
+    {
+        if (ReferenceEquals(_hoverBayButton, button))
+        {
+            return;
+        }
+        _hoverBayButton?.Classes.Remove("drag-over");
+        _hoverBayButton = button;
+        if (button is not null && !button.Classes.Contains("drag-over"))
+        {
+            button.Classes.Add("drag-over");
+        }
+    }
+
+    private void SetTrashHighlight(bool active)
+    {
+        if (_trashZone is null)
+        {
+            return;
+        }
+        if (active)
+        {
+            if (!_trashZone.Classes.Contains("drag-over"))
+            {
+                _trashZone.Classes.Add("drag-over");
+            }
+        }
+        else
+        {
+            _trashZone.Classes.Remove("drag-over");
+        }
+    }
+
+    /// <summary>
+    /// Handles a SelectedBay change while a drag is live — the bay-hover
+    /// preview switches bays mid-drag, and every switch discards and
+    /// rebuilds the rack containers. The presenter cache and any preview
+    /// transforms now point at detached visuals, and if the newly shown bay
+    /// contains the dragged strip (the user hovered back to the origin bay),
+    /// its fresh container defaults to visible — resurrecting a second copy
+    /// of the strip under the ghost. Invalidate the visuals-derived state
+    /// and re-hide the strip's new container once it materializes.
+    /// </summary>
+    private void OnSelectedBayChangedDuringDrag()
+    {
+        if (_dragState != DragState.Dragging)
+        {
+            return;
+        }
+        _presenterCache.Clear();
+        ClearDropPreview(animate: false);
+        Avalonia.Threading.Dispatcher.UIThread.Post(ReHideDraggingSource, Avalonia.Threading.DispatcherPriority.Loaded);
+    }
+
+    /// <summary>
+    /// Re-applies the source hide after a mid-drag bay switch: finds the
+    /// dragged strip's freshly built rack container in the now-shown bay
+    /// (null when the shown bay doesn't contain it) and collapses it, so
+    /// the strip keeps existing only as the cursor ghost. Also re-targets
+    /// <see cref="_draggingSourcePresenter"/> so the drag-end restore
+    /// un-hides the container that is actually on screen.
+    /// </summary>
+    private void ReHideDraggingSource()
+    {
+        if ((_dragState != DragState.Dragging) || (_draggingStrip is not { } strip))
+        {
+            return;
+        }
+        var stripView = this.FindControl<ItemsControl>("RacksHost")
+            ?.GetVisualDescendants()
+            .OfType<FlightStripControl>()
+            .FirstOrDefault(c => ReferenceEquals(c.DataContext, strip));
+        var presenter = stripView?.FindAncestorOfType<ContentPresenter>();
+        if (presenter is not null)
+        {
+            presenter.IsVisible = false;
+            _draggingSourcePresenter = presenter;
         }
     }
 
@@ -844,41 +1386,97 @@ public partial class VStripsView : UserControl
 
     // ── Drag ghost (preview that follows the cursor) ────────────
 
+    // Pickup scale factor + animation length: a barely-perceptible lift that
+    // reads as the strip rising off the bay toward the user's hand.
+    private const double GhostPickupScale = 1.03;
+    private const int GhostPickupMs = 80;
+
     /// <summary>
     /// Creates a semi-transparent clone of the strip's FlightStripControl in
     /// the DragGhostCanvas so the user sees the strip under the cursor during
-    /// the drag. Avalonia's built-in DoDragDropAsync renders no preview, so we
-    /// roll our own Canvas-overlay ghost. Position is set from the current
-    /// pointer press point and updated in OnGenericDragOver.
+    /// the drag. Position is set from the current pointer position and
+    /// updated in <see cref="UpdateDrag"/> on every pointer move. The ghost
+    /// keeps the exact grab point — the pointer stays over the same spot of
+    /// the strip it pressed on — and "lifts" with a short scale/opacity/
+    /// shadow animation on pickup.
     /// </summary>
-    private void ShowDragGhost(StripItemViewModel strip, PointerEventArgs e)
+    private void ShowDragGhost(StripItemViewModel strip, FlightStripControl sourceView, PointerEventArgs e)
     {
-        var canvas = this.FindControl<Canvas>("DragGhostCanvas");
+        var canvas = _dragGhostCanvas;
         if (canvas is null)
         {
             return;
         }
         // Park the ghost at Canvas (0,0) once; per-frame movement is handled
         // by mutating a single TranslateTransform below. Canvas.Left/Top
-        // would invalidate the Canvas's arrange on every DragOver — with
-        // Windows throttling drag events to ~30 Hz, adding layout work per
-        // event compounds into visible stutter. RenderTransform skips layout
-        // entirely and re-renders in the composition pass.
+        // would invalidate the Canvas's arrange on every pointer move —
+        // RenderTransform skips layout entirely and re-renders in the
+        // composition pass.
+        //
+        // The ghost canvas sits OUTSIDE the racks' LayoutTransformControl,
+        // so without the ScaleTransform the ghost would render at 1.0 scale
+        // while the rack strips render at ZoomScale. Scale is listed before
+        // the translate with a top-left origin, so the translate stays in
+        // canvas pixels and UpdateGhostPosition's math is scale-agnostic.
+        var zoom = (DataContext as VStripsViewModel)?.ZoomScale ?? 1.0;
+        _ghostBaseZoom = zoom;
+
+        var pointerInCanvas = e.GetPosition(canvas);
+        var stripTopLeft = sourceView.TranslatePoint(new Point(0, 0), canvas);
+        _ghostGrabOffset = stripTopLeft is { } topLeft
+            ? new Point(Math.Max(0, pointerInCanvas.X - topLeft.X), Math.Max(0, pointerInCanvas.Y - topLeft.Y))
+            : new Point(24, 16);
+
         var ghostTransform = new TranslateTransform();
-        var ghost = new FlightStripControl
+        var ghostScale = new ScaleTransform(zoom, zoom)
         {
-            DataContext = strip,
-            Tag = strip,
+            Transitions = new Avalonia.Animation.Transitions
+            {
+                new Avalonia.Animation.DoubleTransition
+                {
+                    Property = ScaleTransform.ScaleXProperty,
+                    Duration = TimeSpan.FromMilliseconds(GhostPickupMs),
+                    Easing = new Avalonia.Animation.Easings.CubicEaseOut(),
+                },
+                new Avalonia.Animation.DoubleTransition
+                {
+                    Property = ScaleTransform.ScaleYProperty,
+                    Duration = TimeSpan.FromMilliseconds(GhostPickupMs),
+                    Easing = new Avalonia.Animation.Easings.CubicEaseOut(),
+                },
+            },
+        };
+        var ghost = new Border
+        {
+            Child = new FlightStripControl { DataContext = strip, Tag = strip },
+            BoxShadow = BoxShadows.Parse("0 4 12 2 #66000000"),
             Opacity = 0.75,
             IsHitTestVisible = false,
-            RenderTransform = ghostTransform,
+            RenderTransform = new TransformGroup { Children = { ghostScale, ghostTransform } },
+            RenderTransformOrigin = new RelativePoint(0, 0, RelativeUnit.Relative),
+            Transitions = new Avalonia.Animation.Transitions
+            {
+                new Avalonia.Animation.DoubleTransition
+                {
+                    Property = OpacityProperty,
+                    Duration = TimeSpan.FromMilliseconds(GhostPickupMs),
+                    Easing = new Avalonia.Animation.Easings.CubicEaseOut(),
+                },
+            },
         };
         Canvas.SetLeft(ghost, 0);
         Canvas.SetTop(ghost, 0);
         canvas.Children.Add(ghost);
         _dragGhost = ghost;
         _dragGhostTransform = ghostTransform;
-        UpdateGhostPosition(e.GetPosition(canvas));
+        _dragGhostScale = ghostScale;
+        UpdateGhostPosition(pointerInCanvas);
+
+        // Pickup: nudge the just-created ghost toward its lifted state so the
+        // transitions animate scale + opacity from their initial values.
+        ghost.Opacity = 0.92;
+        ghostScale.ScaleX = zoom * GhostPickupScale;
+        ghostScale.ScaleY = zoom * GhostPickupScale;
     }
 
     private void UpdateGhostPosition(Point pointerInCanvas)
@@ -887,18 +1485,37 @@ public partial class VStripsView : UserControl
         {
             return;
         }
-        // Offset the ghost so the cursor sits inside the strip rather than at
-        // the top-left corner — matches CRC's feel where the strip "sticks" to
-        // the pointer as if you grabbed it somewhere in the middle.
-        _dragGhostTransform.X = pointerInCanvas.X - 24;
-        _dragGhostTransform.Y = pointerInCanvas.Y - 16;
+        // Keep the recorded grab point under the pointer — the strip sticks
+        // to the hand exactly where it was picked up instead of snapping to
+        // a fixed corner offset.
+        _dragGhostTransform.X = pointerInCanvas.X - _ghostGrabOffset.X;
+        _dragGhostTransform.Y = pointerInCanvas.Y - _ghostGrabOffset.Y;
     }
 
-    private void HideDragGhost()
+    /// <summary>
+    /// Single convergence point for every drag exit path (drop, cancel,
+    /// capture lost, disconnect). Restores the source presenter, removes the
+    /// ghost, clears the drop preview and presenter cache, restores the
+    /// pre-hover bay, and resets all drag state fields. Safe to call
+    /// repeatedly — a no-op when nothing is active.
+    /// </summary>
+    private void CleanupDrag()
     {
+        _dragState = DragState.Idle;
+        _draggingStrip = null;
+        _draggingFromRack = null;
+        _draggingFromIndex = -1;
+        _pressedStripView = null;
+        _dragPointer = null;
+        SetTrashHighlight(false);
+        SetBayHighlight(null);
+        StopAutoscroll();
+
         // Clear any lingering drop-preview before the drag ends so the
-        // rack layout snaps back immediately on cancel/drop.
-        ClearDropPreview();
+        // rack layout snaps back immediately on cancel/drop — an animated
+        // close here would leave transforms mid-flight on presenters the
+        // optimistic reorder is about to re-home.
+        ClearDropPreview(animate: false);
 
         // Restore the source presenter first so any post-drop broadcast
         // that re-renders the rack finds it in its normal visible state.
@@ -908,13 +1525,13 @@ public partial class VStripsView : UserControl
             _draggingSourcePresenter = null;
         }
 
-        var canvas = this.FindControl<Canvas>("DragGhostCanvas");
-        if (canvas is not null && _dragGhost is not null)
+        if (_dragGhostCanvas is not null && _dragGhost is not null)
         {
-            canvas.Children.Remove(_dragGhost);
+            _dragGhostCanvas.Children.Remove(_dragGhost);
         }
         _dragGhost = null;
         _dragGhostTransform = null;
+        _dragGhostScale = null;
         _presenterCache.Clear();
 
         // Restore the pre-hover selected bay if the drag ended while a bay
@@ -1217,40 +1834,6 @@ public partial class VStripsView : UserControl
     }
 
     /// <summary>
-    /// True when the hit target sits inside a FlightStripControl annotation
-    /// cell or half-strip cell. Suppresses drag initiation so the cell's
-    /// own click handler can focus the inline editor in the Bubble phase.
-    /// </summary>
-    private static bool IsAnnotationCellHit(Visual hit)
-    {
-        Visual? v = hit;
-        while (v is not null && v is not FlightStripControl)
-        {
-            if (v is Border b && b.Tag is string tag && IsAnnotationTag(tag))
-            {
-                return true;
-            }
-            if (v is TextBox tb && tb.Tag is string tbTag && (IsAnnotationTag(tbTag) || IsHalfCellTag(tbTag) || tbTag == "sep"))
-            {
-                return true;
-            }
-            v = v.GetVisualParent() as Visual;
-        }
-        return false;
-    }
-
-    /// <summary>
-    /// True for the annotation-cell tags: <c>"1"</c>..<c>"9"</c> (3×3 grid)
-    /// plus <c>"8a"</c> and <c>"8b"</c> (col-3 freeform slots below field 8).
-    /// </summary>
-    private static bool IsAnnotationTag(string tag) => (tag.Length == 1 && tag[0] >= '1' && tag[0] <= '9') || tag is "8a" or "8b";
-
-    /// <summary>
-    /// True for the half-strip cell tags: <c>"h0"</c>..<c>"h5"</c>.
-    /// </summary>
-    private static bool IsHalfCellTag(string tag) => tag.Length == 2 && tag[0] == 'h' && tag[1] >= '0' && tag[1] <= '5';
-
-    /// <summary>
     /// Walks up the visual tree from a hit target to the enclosing rack Border
     /// (marked with <c>Tag = StripRackViewModel</c> by the rack DataTemplate).
     /// Returns null for clicks outside any rack (header, trash zone, printer
@@ -1270,100 +1853,49 @@ public partial class VStripsView : UserControl
         return null;
     }
 
-    // ── Generic drag-over handler ───────────────────────────────
-
-    private void OnGenericDragOver(object? sender, DragEventArgs e)
-    {
-        if (e.DataTransfer?.Contains(StripIdFormat) == true)
-        {
-            e.DragEffects = DragDropEffects.Move;
-            e.Handled = true;
-        }
-        else
-        {
-            e.DragEffects = DragDropEffects.None;
-        }
-
-        // Update the ghost to follow the pointer. DragOver fires continuously
-        // over AllowDrop zones, so the ghost tracks smoothly as the user moves
-        // the pointer across racks, bay buttons, or the trash zone.
-        var canvas = this.FindControl<Canvas>("DragGhostCanvas");
-        if (canvas is not null)
-        {
-            UpdateGhostPosition(e.GetPosition(canvas));
-        }
-
-        UpdateDropPreview(e);
-    }
-
     // ── Drop preview (shifting strips + append line) ────────────
 
     /// <summary>
     /// Tracks the insertion target during a strip drag and shows a visible
-    /// gap where the strip will land. For an insertion between existing
-    /// strips, the strip at model-index N is pushed up by the dragged
-    /// strip's height (Margin.Bottom), which — because the rack DockPanel
-    /// docks bottom-up — cascades the shift to every strip visually above
-    /// it. For an append (index == count), draws a thin yellow line just
-    /// above the topmost strip. Called from <see cref="OnGenericDragOver"/>
-    /// so the preview follows the pointer continuously.
+    /// gap where the strip will land. Called from <see cref="ResolveHover"/>
+    /// with an already-resolved rack target so the preview follows the
+    /// pointer continuously. A rack change slides the previous rack's strips
+    /// home; an index change within the rack re-targets the transforms, so
+    /// strips entering/leaving the shifted set animate to their new offset
+    /// and the gap visibly slides along the rack.
     /// </summary>
-    private void UpdateDropPreview(DragEventArgs e)
+    private void UpdateRackPreview(Border rackBorder, StripRackViewModel rack, int index)
     {
-        if (_draggingStrip is null || e.DataTransfer?.Contains(StripIdFormat) != true)
+        if (_draggingStrip is null)
         {
-            ClearDropPreview();
+            ClearDropPreview(animate: true);
             return;
         }
-
-        var rootPos = e.GetPosition(this);
-        var hit = this.InputHitTest(rootPos) as Visual;
-        if (hit is null)
-        {
-            ClearDropPreview();
-            return;
-        }
-
-        Border? rackBorder = null;
-        Visual? v = hit;
-        while (v is not null)
-        {
-            if (v is Border b && b.Tag is StripRackViewModel)
-            {
-                rackBorder = b;
-                break;
-            }
-            v = v.GetVisualParent() as Visual;
-        }
-        if (rackBorder?.Tag is not StripRackViewModel rack)
-        {
-            ClearDropPreview();
-            return;
-        }
-
-        var index = ComputeDropIndex(rackBorder, rack, e);
         if (ReferenceEquals(_dropPreviewRack, rack) && _dropPreviewIndex == index)
         {
             return;
         }
+        if (_dropPreviewRack is not null && !ReferenceEquals(_dropPreviewRack, rack))
+        {
+            ClearDropPreview(animate: true);
+        }
 
-        ClearDropPreview();
-        ApplyDropPreview(rackBorder, rack, index);
+        ApplyDropPreview(rackBorder, rack, index, animate: true);
     }
 
     /// <summary>
     /// Applies the drop preview for visual index <paramref name="visualIdx"/>
-    /// in <paramref name="rack"/>. <c>visualIdx &lt; visible.Count</c> shifts
-    /// the visible strip at that bottom-up position up by one strip height
-    /// (via Margin.Bottom) — the DockPanel cascade pushes every strip above
-    /// it up too, opening a gap at the target position. <c>visualIdx ==
-    /// visible.Count</c> is "append above the visual top" and draws a thin
-    /// yellow line above the topmost visible strip. Uses visual idx (not
-    /// model idx) so the logic is uniform across cross-rack drags (visible
-    /// = all strips) and same-rack drags (visible = all strips except the
-    /// hidden source), and maps 1:1 to the STRIP wire index.
+    /// in <paramref name="rack"/>. <c>visualIdx &lt; visible.Count</c> lifts
+    /// every visible strip at that bottom-up position and above by one strip
+    /// height (animated TranslateTransform), opening a gap at the target
+    /// position. <c>visualIdx == visible.Count</c> is "append above the
+    /// visual top" and draws a thin yellow line above the topmost visible
+    /// strip. Uses visual idx (not model idx) so the logic is uniform across
+    /// cross-rack drags (visible = all strips) and same-rack drags (visible
+    /// = all strips except the hidden source), and maps 1:1 to the STRIP
+    /// wire index.
     /// </summary>
-    private void ApplyDropPreview(Border rackBorder, StripRackViewModel rack, int visualIdx)
+    private void ApplyDropPreview(Border rackBorder, StripRackViewModel rack, int visualIdx, bool animate)
     {
         var rackContent = rackBorder.FindDescendantOfType<Grid>();
         var stripsHost = rackBorder.FindDescendantOfType<ItemsControl>();
@@ -1373,33 +1905,35 @@ public partial class VStripsView : UserControl
         }
 
         var visible = GetVisiblePresenters(stripsHost, rack);
-        ApplyDropPreviewToVisible(rackContent, rack, visualIdx, visible);
+        ApplyDropPreviewToVisible(rackContent, rack, visualIdx, visible, animate);
     }
 
     private void ApplyDropPreviewToVisible(
         Grid rackContent,
         StripRackViewModel rack,
         int visualIdx,
-        List<(ContentPresenter Presenter, StripItemViewModel Vm, double Top)> visible
+        List<(ContentPresenter Presenter, StripItemViewModel Vm, double Top)> visible,
+        bool animate
     )
     {
         var stripHeight = ResolveDragStripHeight(visible);
         _dropPreviewRack = rack;
         _dropPreviewIndex = visualIdx;
+        RemovePreviewLine();
+        _dropPreviewShifted.Clear();
 
-        if (visualIdx < visible.Count)
+        for (var i = 0; i < visible.Count; i++)
         {
-            var targetPresenter = visible[visualIdx].Presenter;
-            _dropPreviewShiftedPresenter = targetPresenter;
-            _dropPreviewOriginalMargin = targetPresenter.Margin;
-            targetPresenter.Margin = new Thickness(
-                targetPresenter.Margin.Left,
-                targetPresenter.Margin.Top,
-                targetPresenter.Margin.Right,
-                targetPresenter.Margin.Bottom + stripHeight
-            );
+            var shifted = (visualIdx < visible.Count) && (i >= visualIdx);
+            var transform = GetPreviewTransform(visible[i].Presenter, animate);
+            transform.Y = shifted ? -stripHeight : 0.0;
+            if (shifted)
+            {
+                _dropPreviewShifted.Add((visible[i].Presenter, transform));
+            }
         }
-        else if (visible.Count > 0)
+
+        if ((visualIdx >= visible.Count) && (visible.Count > 0))
         {
             // Append-at-top: overlay a yellow line at the top edge of the
             // visual-topmost strip. visible is sorted by top-Y descending, so
@@ -1418,24 +1952,68 @@ public partial class VStripsView : UserControl
                 VerticalAlignment = Avalonia.Layout.VerticalAlignment.Top,
                 Margin = new Thickness(0, Math.Max(0, topPoint.Value.Y - 1), 0, 0),
                 IsHitTestVisible = false,
+                Opacity = 0,
+                Transitions = new Avalonia.Animation.Transitions
+                {
+                    new Avalonia.Animation.DoubleTransition
+                    {
+                        Property = OpacityProperty,
+                        Duration = TimeSpan.FromMilliseconds(80),
+                        Easing = new Avalonia.Animation.Easings.CubicEaseOut(),
+                    },
+                },
             };
             rackContent.Children.Add(line);
+            line.Opacity = 1;
             _dropPreviewLine = line;
             _dropPreviewLineHost = rackContent;
         }
     }
 
     /// <summary>
+    /// Returns the presenter's preview TranslateTransform, installing one on
+    /// first use. <paramref name="animate"/> attaches (or detaches) the
+    /// Y-transition so callers can choose between the animated gap slide and
+    /// an instant snap — the initial preview on drag start must snap so the
+    /// shift lands in the same frame as the source hide, and drop/cancel
+    /// cleanup must snap so no transform survives into the post-move layout.
+    /// </summary>
+    private static TranslateTransform GetPreviewTransform(ContentPresenter presenter, bool animate)
+    {
+        if (presenter.RenderTransform is not TranslateTransform transform)
+        {
+            transform = new TranslateTransform();
+            presenter.RenderTransform = transform;
+        }
+        if (animate)
+        {
+            transform.Transitions ??= new Avalonia.Animation.Transitions
+            {
+                new Avalonia.Animation.DoubleTransition
+                {
+                    Property = TranslateTransform.YProperty,
+                    Duration = TimeSpan.FromMilliseconds(GapAnimationMs),
+                    Easing = new Avalonia.Animation.Easings.CubicEaseOut(),
+                },
+            };
+        }
+        else
+        {
+            transform.Transitions = null;
+        }
+        return transform;
+    }
+
+    /// <summary>
     /// Applies the initial preview synchronously on drag start at the source
     /// strip's own slot (visual idx == <paramref name="fromIdx"/>), before
-    /// DoDragDropAsync kicks off the first DragOver. Without this, the
-    /// layout pass that processes IsVisible=false on the source runs before
-    /// the first DragOver computes a preview — the user briefly sees the
-    /// strips above the source fall down to occupy the empty slot, then
-    /// pop back up when the gap preview lands. Applying here queues the
-    /// shift (or yellow line, for source-at-top) into the same layout pass
-    /// as the hide, so the rack lifts out into the ghost smoothly without
-    /// the other strips shifting underneath.
+    /// the first pointer move computes a preview. Without this, the layout
+    /// pass that processes IsVisible=false on the source runs first — the
+    /// user briefly sees the strips above the source fall down to occupy
+    /// the empty slot, then pop back up when the gap preview lands.
+    /// Applying here queues the shift (or yellow line, for source-at-top)
+    /// into the same layout pass as the hide, so the rack lifts out into
+    /// the ghost smoothly without the other strips shifting underneath.
     /// </summary>
     private void ApplyInitialDropPreview(StripRackViewModel rack, int fromIdx)
     {
@@ -1471,8 +2049,13 @@ public partial class VStripsView : UserControl
         // only reads bounds for the append-line case, and that case only
         // fires when fromIdx == rack.Strips.Count - 1 (source topmost), in
         // which case strips *below* the source are unaffected by the hide.
+        //
+        // animate: false is load-bearing — the transforms must land in the
+        // same frame as the source hide so the two cancel out visually. An
+        // animated shift would let the strips dip into the collapsed slot
+        // and slide back up.
         var visible = GetVisiblePresenters(stripsHost, rack);
-        ApplyDropPreviewToVisible(rackContent, rack, fromIdx, visible);
+        ApplyDropPreviewToVisible(rackContent, rack, fromIdx, visible, animate: false);
     }
 
     /// <summary>
@@ -1499,50 +2082,37 @@ public partial class VStripsView : UserControl
     }
 
     /// <summary>
-    /// Undoes any active drop preview: restores the shifted presenter's
-    /// margin and removes the append-line overlay. Safe to call repeatedly
-    /// — a no-op when no preview is active.
+    /// Undoes any active drop preview: returns every shifted presenter to
+    /// its natural position and removes the append-line overlay. Safe to
+    /// call repeatedly — a no-op when no preview is active.
+    /// <paramref name="animate"/> slides the strips home (pointer left the
+    /// rack mid-drag); passing false snaps them, which drop and cancel
+    /// paths need so no render offset survives into the post-move layout.
     /// </summary>
-    private void ClearDropPreview()
+    private void ClearDropPreview(bool animate)
     {
-        if (_dropPreviewShiftedPresenter is not null)
+        foreach (var (_, transform) in _dropPreviewShifted)
         {
-            _dropPreviewShiftedPresenter.Margin = _dropPreviewOriginalMargin;
-            _dropPreviewShiftedPresenter = null;
+            if (!animate)
+            {
+                transform.Transitions = null;
+            }
+            transform.Y = 0;
         }
+        _dropPreviewShifted.Clear();
+        RemovePreviewLine();
+        _dropPreviewRack = null;
+        _dropPreviewIndex = -1;
+    }
+
+    private void RemovePreviewLine()
+    {
         if (_dropPreviewLine is not null && _dropPreviewLineHost is not null)
         {
             _dropPreviewLineHost.Children.Remove(_dropPreviewLine);
         }
         _dropPreviewLine = null;
         _dropPreviewLineHost = null;
-        _dropPreviewRack = null;
-        _dropPreviewIndex = -1;
-    }
-
-    // ── Trash drop target ───────────────────────────────────────
-
-    private void OnTrashDragOver(object? sender, DragEventArgs e)
-    {
-        e.DragEffects = e.DataTransfer?.Contains(StripIdFormat) == true ? DragDropEffects.Move : DragDropEffects.None;
-        e.Handled = true;
-    }
-
-    private async void OnTrashDrop(object? sender, DragEventArgs e)
-    {
-        if (DataContext is not VStripsViewModel vm || e.DataTransfer is null)
-        {
-            return;
-        }
-
-        var stripId = e.DataTransfer.TryGetValue(StripIdFormat);
-        if (stripId is null || !vm.ItemsById.TryGetValue(stripId, out var strip))
-        {
-            return;
-        }
-
-        await vm.DeleteStripAsync(strip);
-        e.Handled = true;
     }
 
     // ── Printer modal actions ───────────────────────────────────
@@ -1666,6 +2236,17 @@ public partial class VStripsView : UserControl
 
     protected override async void OnKeyDown(KeyEventArgs e)
     {
+        // Esc cancels an active drag. First check, before every other guard:
+        // cancel is view-local and must work even mid-disconnect, and while
+        // dragging Esc must not fall through to the Find-close / deselect /
+        // printer-toggle branches below.
+        if ((e.Key == Key.Escape) && (_dragState == DragState.Dragging))
+        {
+            CancelDrag();
+            e.Handled = true;
+            return;
+        }
+
         if (DataContext is not VStripsViewModel vm)
         {
             base.OnKeyDown(e);
@@ -2032,6 +2613,4 @@ public partial class VStripsView : UserControl
         await vm.DispatchRawAsync(del);
         await vm.DispatchRawAsync(create);
     }
-
-    internal (StripRackViewModel? rack, int index) CurrentDragOrigin => (_draggingFromRack, _draggingFromIndex);
 }

@@ -6,7 +6,10 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <RootNamespace>Yaat.VStrips.Web</RootNamespace>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-    <RunAOTCompilation>false</RunAOTCompilation>
+    <!-- AOT applies only to `dotnet publish` (the served bundle); inner-loop
+         build/run stays on the interpreter. Interpreted layout/render was a
+         visible frame-rate ceiling for the strip drag interactions. -->
+    <RunAOTCompilation>true</RunAOTCompilation>
     <WasmBuildNative>true</WasmBuildNative>
   </PropertyGroup>
 

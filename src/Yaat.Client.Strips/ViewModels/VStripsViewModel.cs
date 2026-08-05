@@ -894,7 +894,7 @@ public partial class VStripsViewModel : ObservableObject
         // Optimistic local move so the strip lands in the target slot the
         // moment the user releases the drag. Without this, the strip flashes
         // back into its original position (the drag-source presenter unhide
-        // in HideDragGhost) and only snaps to the new slot once the SignalR
+        // in CleanupDrag) and only snaps to the new slot once the SignalR
         // round-trip + state broadcast lands — visible as a ~100-1000 ms
         // jump depending on network. BlankStrip is a CREATE, not a move, so
         // it has no source slot to relocate from.
