@@ -135,6 +135,7 @@ $estimatedDowntime =
 # The repo whose docker-image.yml workflow builds the deployable image, and the compose
 # file set the droplet uses to run from that image instead of building locally.
 $serverRepo = "leftos/yaat-server"
+$clientRepo = "leftos/yaat"
 $composeImageFiles = "-f docker-compose.yml -f docker-compose.image.yml"
 
 # Load this target's secrets from a local .env.<target> if present, else the shared .env.
@@ -361,6 +362,26 @@ function Invoke-CiImageBuild {
     throw "docker-image.yml run $runId failed — inspect with: gh run view $runId --repo $serverRepo --log-failed"
   }
   Write-Host "✓ Image built and pushed to ghcr.io/$serverRepo" -ForegroundColor Green
+}
+
+# Resolve a commit to "shorthash subject" for the Discord status messages, via the GitHub
+# API so it works no matter what the droplet's checkouts contain. Falls back to the bare
+# short hash when the lookup fails (offline, unknown sha, non-CI "dev" image).
+function Resolve-CommitLabel {
+  param([string]$Repo, [string]$Sha)
+  $short = $Sha.Substring(0, [Math]::Min(8, $Sha.Length))
+  try {
+    # Capture all output before taking the first line: piping a native command into
+    # `Select-Object -First 1` stops it early and leaves $LASTEXITCODE unset.
+    $lines = @(gh api "repos/$Repo/commits/$Sha" --jq '.commit.message' 2>$null)
+    if (($LASTEXITCODE -eq 0) -and ($lines.Count -gt 0) -and $lines[0]) {
+      return "$short $($lines[0])"
+    }
+  }
+  catch {
+    Write-Host "⚠ Could not resolve subject for $Repo@$short : $_" -ForegroundColor Yellow
+  }
+  return $short
 }
 
 # Announce the imminent restart on Discord and checkpoint active sessions (unless
@@ -607,8 +628,8 @@ try {
     $submoduleHash = "unknown"
     try {
       $version = Invoke-RestMethod -Uri "$serverUrl/api/version" -Method Get -TimeoutSec 10
-      $commitHash = $version.server.Substring(0, [Math]::Min(8, $version.server.Length))
-      $submoduleHash = $version.client.Substring(0, [Math]::Min(8, $version.client.Length))
+      $commitHash = Resolve-CommitLabel -Repo $serverRepo -Sha $version.server
+      $submoduleHash = Resolve-CommitLabel -Repo $clientRepo -Sha $version.client
     }
     catch {
       Write-Host "⚠ Could not query $serverUrl/api/version for deployed commit hashes: $_" -ForegroundColor Yellow
