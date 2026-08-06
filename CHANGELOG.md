@@ -6,9 +6,11 @@
 - The same facility can be opened in multiple Strips tabs or windows — each keeps its own selected bay, and duplicate tabs are numbered.
 - A Strips tab or window can be split side by side or stacked (View → Strips, or right-click the tab) — each pane picks its own bay; the layout persists.
 - The strips printer button shows a red badge with the departure/arrival strip counts, matching CRC.
+- The strips bay-button row scrolls horizontally under the mouse wheel when it overflows the window — including mid-drag, so hidden bays stay reachable.
 
 ### Changed
 - The vStrips header matches CRC: taller bar, large bay drop zones, and square trash and printer icon buttons.
+- The strips facility button shows the short facility ID (e.g. OAK); the full name is in its tooltip.
 - Server deploys now interrupt active sessions for only a couple of minutes instead of ~10 — the server build moved off the live machine, which also stops deploys from slowing the server down while they build.
 
 ### Fixed

@@ -51,6 +51,11 @@ public partial class MainViewModel
         var entry = new VStripsDockEntryViewModel(vm, isStudentEntry: false);
         StripsEntries.Add(entry);
 
+        // Strips state and METARs are broadcast-only — copy the student VM's
+        // latest-received broadcasts so the new tab isn't empty until the
+        // next server change.
+        vm.SeedFromPeer(VStrips);
+
         await vm.SwitchFacilityAsync(facilityId);
         await vm.RefreshAccessibleFacilitiesAsync();
     }
@@ -90,6 +95,10 @@ public partial class MainViewModel
         {
             var vm = CreateSecondaryStripsVm();
             AttachSecondaryStripsVm(entry, vm);
+            // Broadcast-only state: copy the pane's primary VM's latest
+            // broadcasts so the new pane renders the same strips and METAR
+            // bar immediately instead of waiting for the next server change.
+            vm.SeedFromPeer(entry.Vm);
             var facilityId = entry.Vm.FacilityId;
             if (!string.IsNullOrEmpty(facilityId))
             {

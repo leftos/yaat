@@ -89,8 +89,20 @@ public partial class VStripsViewModel : ObservableObject
     [ObservableProperty]
     private string? _facilityId;
 
+    partial void OnFacilityIdChanged(string? value) => OnPropertyChanged(nameof(FacilityButtonToolTip));
+
     [ObservableProperty]
     private string? _facilityName;
+
+    partial void OnFacilityNameChanged(string? value) => OnPropertyChanged(nameof(FacilityButtonToolTip));
+
+    /// <summary>
+    /// Header facility button tooltip: the full facility name (the button
+    /// itself shows only the short id, matching CRC's "BOS" box in
+    /// docs/crc/img/header.png) plus the click affordance.
+    /// </summary>
+    public string FacilityButtonToolTip =>
+        string.IsNullOrEmpty(FacilityName) ? "Switch this window's facility" : $"{FacilityName} — switch this window's facility";
 
     // ── Current METAR (scoped to the displayed facility's airports) ──
 
@@ -243,7 +255,33 @@ public partial class VStripsViewModel : ObservableObject
     // broadcast once bays exist so racks/printer populate without requiring
     // the user to trigger a state-broadcast (e.g., "Move to Bay") first.
     private FlightStripsStateDto? _lastReceivedFullState;
-    private List<StripItemDto>? _lastReceivedItems;
+    private IReadOnlyList<StripItemDto>? _lastReceivedItems;
+
+    /// <summary>
+    /// Seeds this VM from a peer sharing the same transport: the latest
+    /// state/items broadcasts and METARs the peer received before this VM
+    /// existed. Strips state and METARs are broadcast-only, so a VM created
+    /// mid-session (duplicate facility tab, split secondary pane) would
+    /// otherwise render empty racks and no METAR bar until the next server
+    /// change. Order-independent with the bay-config fetch — the caches are
+    /// re-applied by <see cref="ApplyBayConfig"/> once bays materialize.
+    /// Must run on the UI thread.
+    /// </summary>
+    public void SeedFromPeer(VStripsViewModel peer)
+    {
+        if (peer._lastReceivedItems is { } items)
+        {
+            ReconcileItems(items);
+        }
+        if (peer._lastReceivedFullState is { } state)
+        {
+            ReconcileFullState(state);
+        }
+        if (peer._latestMetars.Count > 0)
+        {
+            ApplyMetars(peer._latestMetars);
+        }
+    }
 
     public void ApplyBayConfig(FlightStripsConfigDto? config)
     {
@@ -425,6 +463,10 @@ public partial class VStripsViewModel : ObservableObject
     /// </summary>
     public void ReconcileFullState(FlightStripsStateDto state)
     {
+        // Record as the latest-known state so ApplyBayConfig can re-apply it
+        // once bays exist, and SeedFromPeer can copy it into a new VM.
+        _lastReceivedFullState = state;
+
         // The FlightStripsStateDto doesn't contain full item payloads — just the
         // rack/printer ID ordering. We keep existing StripItemViewModel instances
         // for every id we still see, and drop items that are no longer referenced
@@ -500,6 +542,10 @@ public partial class VStripsViewModel : ObservableObject
     /// </summary>
     public void ReconcileItems(IReadOnlyList<StripItemDto> items)
     {
+        // Record as the latest-known items so ApplyBayConfig can re-apply them
+        // once bays exist, and SeedFromPeer can copy them into a new VM.
+        _lastReceivedItems = items;
+
         foreach (var dto in items)
         {
             if (!IsInScope(dto))

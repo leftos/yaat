@@ -695,8 +695,8 @@ A facility is openable when it is your own, a facility below you in the tree (a 
 
 Across the top of every strip view:
 
-- **Facility button** (leftmost) — shows the current facility name. Click to switch this view to another accessible facility in place. Equivalent to CRC's leftmost facility indicator.
-- **Bay buttons** — one per bay accessible from the position. **Own** bays render filled in neutral grey; **external** bays (linked from a sibling facility, e.g. a tower's parent TRACON) render with a thin outlined style and an **↗** suffix in context menus.
+- **Facility button** (leftmost) — shows the current facility's short ID (e.g. `OAK`); hover for the full name. Click to switch this view to another accessible facility in place. Equivalent to CRC's leftmost facility indicator.
+- **Bay buttons** — one per bay accessible from the position. **Own** bays render filled in neutral grey; **external** bays (linked from a sibling facility, e.g. a tower's parent TRACON) render with a thin outlined style and an **↗** suffix in context menus. When there are more bays than fit the window, the bay strip **scrolls horizontally under the mouse wheel** (vertical or tilt) — including mid-drag, so a strip can be dropped on a bay button that's scrolled out of view.
 - **Zoom controls** (− / % / +) — scales the racks area without affecting the header. Range 50%–150% in 10% steps; default 80% fits two racks comfortably on a 1080p screen.
 - **Trash zone** — drop a strip on the red bin to delete it.
 - **Printer** button — a printer icon that opens the printer modal (see below). Bound to **Tab** as well. A red badge on its corner shows how many strips are waiting in each printer as `departures/arrivals` (e.g. `3/0`), matching CRC; the badge hides when both queues are empty.

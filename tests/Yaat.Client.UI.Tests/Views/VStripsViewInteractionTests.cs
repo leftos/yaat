@@ -1,6 +1,7 @@
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Presenters;
+using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
 using Avalonia.Input;
 using Avalonia.Interactivity;
@@ -34,6 +35,12 @@ public class VStripsViewInteractionTests
         // the DataTemplate and Tag binding survive the headless layout pass.
         var bayButtons = view.GetVisualDescendants().OfType<Button>().Where(b => b.Tag is StripBayViewModel).ToList();
         Assert.Equal(2, bayButtons.Count);
+
+        // The facility button shows the short id (CRC's "BOS" box shape);
+        // the full name lives in its tooltip.
+        var facilityButton = view.GetVisualDescendants().OfType<Button>().Single(b => b.Name == "FacilityButton");
+        Assert.Equal("FAC1", facilityButton.Content);
+        Assert.Equal("Fresno ATCT — switch this window's facility", ToolTip.GetTip(facilityButton));
     }
 
     [AvaloniaFact]
@@ -71,6 +78,40 @@ public class VStripsViewInteractionTests
         // Bottom-up: S1 (model idx 0) should have the largest Y, S3 the smallest.
         Assert.True(positions["S1"] > positions["S2"], $"S1 Y={positions["S1"]} should be > S2 Y={positions["S2"]}");
         Assert.True(positions["S2"] > positions["S3"], $"S2 Y={positions["S2"]} should be > S3 Y={positions["S3"]}");
+    }
+
+    [AvaloniaFact]
+    public void BayBar_WheelScrollsHorizontally()
+    {
+        // With more bays than fit the window, the header's bay strip must
+        // scroll horizontally under the wheel (vertical or tilt) so hidden
+        // bay buttons are reachable without resizing the window.
+        var (vm, _) = MakeVm();
+        SeedBays(vm, ManyBaysConfig());
+        var (window, view) = BootView(vm, width: 520);
+
+        var scroller = view.GetVisualDescendants().OfType<ScrollViewer>().Single(s => s.Name == "BayBarScroller");
+        Assert.True(scroller.Extent.Width > scroller.Viewport.Width, "bay strip must overflow the 520px window for this test");
+        Assert.Equal(0, scroller.Offset.X);
+
+        var center = scroller.TranslatePoint(new Point(scroller.Bounds.Width / 2, scroller.Bounds.Height / 2), window)!.Value;
+
+        // Wheel down → scroll right (offset grows).
+        window.MouseWheel(center, new Vector(0, -1));
+        Dispatcher.UIThread.RunJobs();
+        var afterDown = scroller.Offset.X;
+        Assert.True(afterDown > 0, $"wheel down should scroll right, offset stayed {afterDown}");
+
+        // Wheel up → scroll back left, clamped at 0.
+        window.MouseWheel(center, new Vector(0, 1));
+        window.MouseWheel(center, new Vector(0, 1));
+        Dispatcher.UIThread.RunJobs();
+        Assert.Equal(0, scroller.Offset.X);
+
+        // Horizontal tilt wheel scrolls too (positive X → left, so negative X → right).
+        window.MouseWheel(center, new Vector(-1, 0));
+        Dispatcher.UIThread.RunJobs();
+        Assert.True(scroller.Offset.X > 0, "tilt wheel should scroll the bay strip");
     }
 
     [AvaloniaFact]
@@ -960,6 +1001,16 @@ public class VStripsViewInteractionTests
             UnderlyingAirports: []
         );
 
+    /// <summary>Eight own bays — wide enough to overflow any narrow header.</summary>
+    internal static FlightStripsConfigDto ManyBaysConfig() =>
+        new(
+            FacilityId: "FAC1",
+            FacilityName: "Fresno ATCT",
+            Bays: Enumerable.Range(1, 8).Select(i => new StripBayConfigDto($"bay-{i}", $"BAY {i}", 2, "FAC1")).ToArray(),
+            SeparatorsLocked: false,
+            UnderlyingAirports: []
+        );
+
     internal static StripItemDto FullStrip(string id) =>
         new(id, id, IsDisconnected: false, StripItemType.DepartureStrip, IsOffset: false, FieldValues: [id, "", "B738/L"]);
 
@@ -992,12 +1043,14 @@ public class VStripsViewInteractionTests
         Dispatcher.UIThread.RunJobs();
     }
 
-    internal static (Window window, VStripsView view) BootView(VStripsViewModel vm)
+    internal static (Window window, VStripsView view) BootView(VStripsViewModel vm) => BootView(vm, width: 1000);
+
+    internal static (Window window, VStripsView view) BootView(VStripsViewModel vm, double width)
     {
         var view = new VStripsView { DataContext = vm };
         var window = new Window
         {
-            Width = 1000,
+            Width = width,
             Height = 400,
             Content = view,
         };

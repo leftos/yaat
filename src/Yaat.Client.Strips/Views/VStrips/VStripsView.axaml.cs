@@ -70,6 +70,7 @@ public partial class VStripsView : UserControl
     private Canvas? _dragGhostCanvas;
     private Border? _trashZone;
     private ScrollViewer? _racksScrollViewer;
+    private ScrollViewer? _bayBarScroller;
 
     // Edge autoscroll: while a drag hovers within AutoscrollEdgeBand px of
     // the racks ScrollViewer's viewport edge, a ~60Hz timer scrolls the
@@ -139,6 +140,14 @@ public partial class VStripsView : UserControl
         _dragGhostCanvas = this.FindControl<Canvas>("DragGhostCanvas");
         _trashZone = this.FindControl<Border>("TrashZone");
         _racksScrollViewer = this.FindControl<ScrollViewer>("RacksScrollViewer");
+        _bayBarScroller = this.FindControl<ScrollViewer>("BayBarScroller");
+
+        // The bay strip scrolls horizontally under the wheel so bay buttons
+        // that overflow a narrow window stay reachable. Tunnel-phase on the
+        // scroller itself so this runs before the ScrollContentPresenter's
+        // own wheel handling (which would ignore a vertical wheel on a
+        // horizontal-only scroller).
+        _bayBarScroller?.AddHandler(PointerWheelChangedEvent, OnBayBarWheel, RoutingStrategies.Tunnel);
 
         // Drag-source wiring at the UserControl level (Tunnel) so pointer
         // presses on any strip — rack or printer — can participate in the
@@ -1187,6 +1196,14 @@ public partial class VStripsView : UserControl
         {
             return;
         }
+        // A wheel over the bay strip scrolls the strip itself, so a drag can
+        // reach the drop zone of a bay button that overflows the window.
+        if ((_bayBarScroller is { } bayBar) && (PointerIsWithin(bayBar, e)) && (TryScrollBayBar(bayBar, e.Delta)))
+        {
+            e.Handled = true;
+            ResolveHover(_lastDragRootPos);
+            return;
+        }
         var scrollViewer = _racksScrollViewer;
         if (scrollViewer is null)
         {
@@ -1198,6 +1215,54 @@ public partial class VStripsView : UserControl
         scrollViewer.Offset = new Vector(scrollViewer.Offset.X - (e.Delta.X * WheelStep), scrollViewer.Offset.Y - (e.Delta.Y * WheelStep));
         e.Handled = true;
         ResolveHover(_lastDragRootPos);
+    }
+
+    /// <summary>
+    /// Wheel over the bay strip outside a drag — vertical wheel and tilt
+    /// wheel both pan the strip horizontally (wheel down / tilt right moves
+    /// toward the bays hidden on the right), so every bay button is
+    /// reachable in a narrow window without resizing it.
+    /// </summary>
+    private void OnBayBarWheel(object? sender, PointerWheelEventArgs e)
+    {
+        if (_dragState == DragState.Dragging)
+        {
+            // Mid-drag wheels are owned by OnDragPointerWheel (the tunnel
+            // handler on the view root, which runs first anyway).
+            return;
+        }
+        if ((_bayBarScroller is { } bayBar) && (TryScrollBayBar(bayBar, e.Delta)))
+        {
+            e.Handled = true;
+        }
+    }
+
+    /// <summary>
+    /// Pans the bay strip horizontally by one wheel notch. The vertical
+    /// component stands in for the horizontal one when the mouse has no tilt
+    /// wheel. Returns false when the strip has no overflow to scroll.
+    /// </summary>
+    private static bool TryScrollBayBar(ScrollViewer bayBar, Vector delta)
+    {
+        var max = bayBar.Extent.Width - bayBar.Viewport.Width;
+        if (max <= 0)
+        {
+            return false;
+        }
+        var notch = (delta.X != 0) ? delta.X : delta.Y;
+        if (notch == 0)
+        {
+            return false;
+        }
+        const double WheelStep = 60.0;
+        bayBar.Offset = new Vector(Math.Clamp(bayBar.Offset.X - (notch * WheelStep), 0, max), 0);
+        return true;
+    }
+
+    private static bool PointerIsWithin(Control control, PointerEventArgs e)
+    {
+        var pos = e.GetPosition(control);
+        return (pos.X >= 0) && (pos.Y >= 0) && (pos.X <= control.Bounds.Width) && (pos.Y <= control.Bounds.Height);
     }
 
     // ── Drag hover resolution (preview / bay timer / trash) ─────

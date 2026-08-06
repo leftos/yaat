@@ -146,17 +146,18 @@
         <Grid Grid.Row="1" ColumnDefinitions="Auto,*,Auto,Auto,Auto" Background="#252529">
 
             <!-- Facility switcher button — matches CRC's leftmost facility
-                 indicator (docs/crc/img/header.png: BOS box on the left).
-                 Click opens a MenuFlyout of accessible facilities built by
-                 OnFacilityButtonClick in the code-behind. -->
+                 indicator (docs/crc/img/header.png: BOS box on the left),
+                 including showing the short facility id; the full name lives
+                 in the tooltip. Click opens a MenuFlyout of accessible
+                 facilities built by OnFacilityButtonClick in the code-behind. -->
             <!-- Sizing across the header follows docs/crc/img/header.png:
                  the bay drop zones dominate the bar height, the facility
                  button sits half-height on the left, and trash/printer are
                  square icon buttons on the right. -->
             <Button Grid.Column="0"
                     x:Name="FacilityButton"
-                    Content="{Binding FacilityName}"
-                    ToolTip.Tip="Switch this window's facility"
+                    Content="{Binding FacilityId}"
+                    ToolTip.Tip="{Binding FacilityButtonToolTip}"
                     Margin="4,10"
                     Padding="12,0"
                     VerticalAlignment="Stretch"
@@ -165,34 +166,45 @@
                     FontSize="15"
                     Click="OnFacilityButtonClick"/>
 
-            <ItemsControl Grid.Column="1" ItemsSource="{Binding Bays}">
-                <ItemsControl.ItemsPanel>
-                    <ItemsPanelTemplate>
-                        <StackPanel Orientation="Horizontal"/>
-                    </ItemsPanelTemplate>
-                </ItemsControl.ItemsPanel>
-                <ItemsControl.ItemTemplate>
-                    <DataTemplate DataType="vm:StripBayViewModel" x:DataType="vm:StripBayViewModel">
-                        <!-- External bays render as thinner outlined buttons (matches CRC
-                             docs/crc/img/header.png: BOS vs CD/GC/LC). Own bays render with
-                             a solid fill to signal viewability. -->
-                        <Button x:Name="BayButton"
-                                Content="{Binding Name}"
-                                Tag="{Binding}"
-                                Margin="3,4"
-                                Padding="20,0"
-                                MinWidth="110"
-                                VerticalAlignment="Stretch"
-                                VerticalContentAlignment="Center"
-                                HorizontalContentAlignment="Center"
-                                FontFamily="{StaticResource MonoFont}"
-                                FontSize="15"
-                                Classes.external="{Binding IsExternal}"
-                                Classes.selected="{Binding IsSelected}"
-                                Click="OnBayButtonClick"/>
-                    </DataTemplate>
-                </ItemsControl.ItemTemplate>
-            </ItemsControl>
+            <!-- The bay strip scrolls horizontally under the mouse wheel
+                 (vertical or tilt — see OnBayBarWheel in the code-behind)
+                 when there are more bays than fit the window, so hidden bay
+                 buttons stay reachable without resizing. Scrollbar hidden:
+                 the wheel is the scroll affordance, and a bar under the
+                 drop zones would eat header height. -->
+            <ScrollViewer Grid.Column="1"
+                          x:Name="BayBarScroller"
+                          HorizontalScrollBarVisibility="Hidden"
+                          VerticalScrollBarVisibility="Disabled">
+                <ItemsControl ItemsSource="{Binding Bays}">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <StackPanel Orientation="Horizontal"/>
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate DataType="vm:StripBayViewModel" x:DataType="vm:StripBayViewModel">
+                            <!-- External bays render as thinner outlined buttons (matches CRC
+                                 docs/crc/img/header.png: BOS vs CD/GC/LC). Own bays render with
+                                 a solid fill to signal viewability. -->
+                            <Button x:Name="BayButton"
+                                    Content="{Binding Name}"
+                                    Tag="{Binding}"
+                                    Margin="3,4"
+                                    Padding="20,0"
+                                    MinWidth="110"
+                                    VerticalAlignment="Stretch"
+                                    VerticalContentAlignment="Center"
+                                    HorizontalContentAlignment="Center"
+                                    FontFamily="{StaticResource MonoFont}"
+                                    FontSize="15"
+                                    Classes.external="{Binding IsExternal}"
+                                    Classes.selected="{Binding IsSelected}"
+                                    Click="OnBayButtonClick"/>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </ScrollViewer>
 
             <!-- Zoom controls scale the racks area (not the header) via a
                  LayoutTransformControl. Min 0.5, max 1.5, 0.1 steps. Sits to

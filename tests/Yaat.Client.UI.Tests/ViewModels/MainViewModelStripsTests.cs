@@ -1,5 +1,7 @@
 using Avalonia.Headless.XUnit;
+using Avalonia.Threading;
 using Xunit;
+using Yaat.Client.Services;
 using Yaat.Client.UI.Tests.Fakes;
 using Yaat.Client.ViewModels;
 
@@ -133,6 +135,94 @@ public class MainViewModelStripsTests
         vm.UnsplitStripsEntry(entry);
         Assert.Equal(StripsSplitMode.None, entry.SplitMode);
         Assert.Null(entry.SecondaryVm);
+    }
+
+    private static readonly FlightStripsConfigDto OakConfig = new(
+        FacilityId: "OAK",
+        FacilityName: "Oakland Intl ATCT",
+        Bays: [new StripBayConfigDto("bay-gnd", "GROUND", 1, "OAK")],
+        SeparatorsLocked: false,
+        UnderlyingAirports: ["OAK"]
+    );
+
+    /// <summary>
+    /// Simulates the broadcasts a live session's student VM has already
+    /// received: bay config, one departure strip racked in GROUND, and a
+    /// KOAK METAR.
+    /// </summary>
+    private static void SeedLiveSession(VStripsViewModel student)
+    {
+        student.SetConnected(true);
+        student.ApplyBayConfig(OakConfig);
+        Dispatcher.UIThread.RunJobs();
+        student.ReconcileItems([new StripItemDto("S1", "UAL100", false, StripItemType.DepartureStrip, false, ["UAL100", "", "B738/L"])]);
+        student.ReconcileFullState(
+            new FlightStripsStateDto(
+                [],
+                [
+                    new StripBayContentsDto(
+                        "bay-gnd",
+                        [
+                            ["S1"],
+                        ]
+                    ),
+                ],
+                false,
+                false,
+                null,
+                null
+            )
+        );
+        student.ApplyMetars(["KOAK 061819Z AUTO 00000KT 10SM CLR A2992"]);
+        Assert.True(student.HasMetars);
+        Assert.Single(student.Bays.Single(b => b.BayId == "bay-gnd").Racks[0].Strips);
+    }
+
+    private static void AssertSeeded(VStripsViewModel view)
+    {
+        // The offline test can't run the RPC-based facility switch, so apply
+        // the bay config directly the way SwitchFacilityAsync would have; the
+        // seeded caches must then populate the racks (same re-apply path a
+        // late-arriving room join uses).
+        view.ApplyBayConfig(OakConfig);
+        Dispatcher.UIThread.RunJobs();
+
+        var rack = view.Bays.Single(b => b.BayId == "bay-gnd").Racks[0];
+        var strip = Assert.Single(rack.Strips);
+        Assert.Equal("S1", strip.Id);
+        Assert.True(view.HasMetars);
+        Assert.Contains("KOAK", view.PrimaryMetar!.Raw);
+    }
+
+    [AvaloniaFact]
+    public async Task SplitSecondaryPane_SeedsCurrentStripsAndMetars()
+    {
+        // A pane created mid-session must show the strips and METARs the
+        // session already has — state and METARs are broadcast-only, so
+        // without seeding the new pane sits empty (and its header misaligns
+        // with the primary's) until the next server change.
+        var vm = NewVm();
+        var entry = vm.StripsEntries[0];
+        vm.UnsplitStripsEntry(entry);
+        SeedLiveSession(entry.Vm);
+
+        await vm.SplitStripsEntryAsync(entry, StripsSplitMode.SideBySide);
+
+        AssertSeeded(entry.SecondaryVm!);
+    }
+
+    [AvaloniaFact]
+    public async Task DuplicateFacilityTab_SeedsCurrentStripsAndMetars()
+    {
+        // Same seeding contract for a duplicate facility tab opened mid-session.
+        var vm = NewVm();
+        var entry = vm.StripsEntries[0];
+        vm.UnsplitStripsEntry(entry);
+        SeedLiveSession(entry.Vm);
+
+        await vm.OpenStripsEntryForFacilityAsync("OAK");
+
+        AssertSeeded(vm.StripsEntries[^1].Vm);
     }
 
     [AvaloniaFact]
