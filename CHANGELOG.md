@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+- Clearing a **VOR approach** to a numbered runway ("cleared VOR runway N approach") now resolves the published approach. VOR approaches are charted as `S`/`D` type codes in the FAA data, so the "VOR" shorthand previously matched nothing and was rejected as unknown at most airports.
+
 ## v0.11.4-beta [2026/08/06]
 
 ### Highlights

@@ -123,6 +123,32 @@ public class ApproachDatabaseTests
         Assert.Equal(shouldMatch, storedId.StartsWith(normalized, StringComparison.OrdinalIgnoreCase));
     }
 
+    [Theory]
+    // The speech pipeline verbalizes "cleared VOR runway N approach" → "CAPP VOR{rwy}"
+    // (PhraseologyRules), so the VOR shorthand MUST resolve a straight-in VOR approach. The FAA
+    // CIFP codes those approaches with ARINC-424 route type 'S' (VOR) or 'D' (VOR/DME), not 'V'
+    // (which is reserved for circling VOR-A style approaches). KOAK's VOR RWY 10R is "S10R".
+    // NDB ('N') pairs with NDB/DME ('Q') the same way, but no Q-coded approach exists anywhere in
+    // the current US CIFP cycle, so that arm has no data-backed case here.
+    [InlineData("OAK", "VOR10R", "S10R")] // spelled-out VOR → S-coded approach
+    [InlineData("OAK", "V10R", "S10R")] // single-letter V → S-coded approach
+    [InlineData("CCR", "VOR19R", "S19R")]
+    [InlineData("APC", "VOR06", "S06")]
+    public void ResolveApproachId_NavaidFamilyShorthand_ResolvesFamilyCodedApproach(string airport, string shorthand, string expectedId)
+    {
+        var db = GetNavDb();
+        if (db is null)
+        {
+            return;
+        }
+
+        // Sanity: the family-coded approach really is published in the test CIFP.
+        Assert.NotNull(db.GetApproach(airport, expectedId));
+
+        Assert.Equal(expectedId, db.ResolveApproachId(airport, shorthand));
+        Assert.Contains(expectedId, db.ResolveApproachCandidates(airport, shorthand));
+    }
+
     [Fact]
     public void ResolveApproachId_UnknownShorthand_ReturnsNull()
     {

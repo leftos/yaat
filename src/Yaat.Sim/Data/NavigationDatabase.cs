@@ -1439,14 +1439,7 @@ public sealed class NavigationDatabase
                 return match.ApproachId;
             }
 
-            char? altCode = typeCode switch
-            {
-                'H' => 'R',
-                'R' => 'H',
-                _ => null,
-            };
-
-            if (altCode is not null)
+            foreach (char altCode in GetAlternateTypeCodes(typeCode.Value))
             {
                 match = approaches.FirstOrDefault(a =>
                     a.TypeCode == altCode
@@ -1529,15 +1522,8 @@ public sealed class NavigationDatabase
                 return result;
             }
 
-            // Try alternate type code (H↔R for RNAV variants)
-            char? altCode = typeCode switch
-            {
-                'H' => 'R',
-                'R' => 'H',
-                _ => null,
-            };
-
-            if (altCode is not null)
+            // Try alternate type codes (H↔R for RNAV variants; V↔S↔D for the VOR family).
+            foreach (char altCode in GetAlternateTypeCodes(typeCode.Value))
             {
                 matches = approaches
                     .Where(a =>
@@ -2812,4 +2798,26 @@ public sealed class NavigationDatabase
             _ => 10,
         };
     }
+
+    /// <summary>
+    /// Alternate CIFP approach route-type codes to try when the primary type code parsed from the
+    /// shorthand doesn't match a published approach. RNAV shorthand ('H'/'R') alternates within the
+    /// RNAV(GPS)/RNAV pair. A spoken/typed "VOR" maps to 'V', but the FAA CIFP codes straight-in VOR
+    /// approaches to a numbered runway as 'S' (VOR) or 'D' (VOR/DME) — 'V' is reserved for circling
+    /// VOR-A style approaches — so a VOR clearance must also match the 'S'/'D' forms (AIM 1-1-3: VOR,
+    /// VOR/DME and VORTAC are one navigation family). NDB ('N') and NDB/DME ('Q') pair the same way.
+    /// Ordered so the straight-in forms win first.
+    /// </summary>
+    private static char[] GetAlternateTypeCodes(char typeCode) =>
+        typeCode switch
+        {
+            'H' => ['R'],
+            'R' => ['H'],
+            'N' => ['Q'],
+            'Q' => ['N'],
+            'V' => ['S', 'D'],
+            'S' => ['V', 'D'],
+            'D' => ['V', 'S'],
+            _ => [],
+        };
 }
