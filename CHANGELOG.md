@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+- Server deploys now interrupt active sessions for only a couple of minutes instead of ~10 — the server build moved off the live machine, which also stops deploys from slowing the server down while they build.
+
 ## v0.11.3-beta [2026/08/05]
 
 ### Highlights

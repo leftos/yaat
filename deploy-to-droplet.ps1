@@ -1,7 +1,22 @@
 # Deploy yaat-server to a DigitalOcean droplet
-# Usage: .\deploy-to-droplet.ps1 [-Target <name>] [-NoLogs] [-NoCache] [-SkipSessionSave] [-DrainSeconds <sec>] [-CacheReserveGb <gb>]
+# Usage: .\deploy-to-droplet.ps1 [-Target <name>] [-NoLogs] [-SkipSessionSave] [-DrainSeconds <sec>]
+#        .\deploy-to-droplet.ps1 [-Target <name>] -BuildOnDroplet [-NoCache] [-CacheReserveGb <gb>] ...
 #        .\deploy-to-droplet.ps1 -Target yaat2 -RebootOnly [-NoLogs] [-SkipSessionSave] [-DrainSeconds <sec>]
 #        .\deploy-to-droplet.ps1 [-Target <name>] -StatusOnly    (report active rooms only, no deploy)
+#
+# Default deploy flow: trigger yaat-server's docker-image.yml workflow (which builds the
+# image in GitHub Actions and pushes it to ghcr.io), wait for it, then have the droplet
+# pull the image and recreate the container. The running server stays up through the CI
+# build and the pull, so downtime is only the container recreate (~1-2 minutes). The
+# droplet (4 GB) cannot absorb the WASM AOT compile, which is why the build lives in CI.
+# Pulling the private ghcr image requires a one-time `docker login ghcr.io` as the yaat
+# user on the droplet, with a classic PAT carrying read:packages.
+#
+# -BuildOnDroplet  Emergency fallback: build the image on the droplet from source (the
+#                  pre-CI behavior) instead of pulling from ghcr. Use when GitHub Actions
+#                  or ghcr is down. Expect ~10 minutes of downtime and heavy memory
+#                  pressure on the droplet during the build. -NoCache and -CacheReserveGb
+#                  only apply to this mode.
 #
 # -Target  Which deployment to act on (default "yaat1"). Selects the droplet IP, server path,
 #          public URL, and remote compose env file from the $targets map below. Add a new
@@ -41,8 +56,8 @@
 #              on a successful query (whether or not rooms are active), 2 if the query
 #              failed (server unreachable or password unset). Ignores all build/deploy flags.
 #
-# -NoCache  Pass --no-cache to docker compose build, forcing every layer
-#           to rebuild from scratch (including the wasm-tools workload
+# -NoCache  (-BuildOnDroplet only) Pass --no-cache to docker compose build, forcing
+#           every layer to rebuild from scratch (including the wasm-tools workload
 #           install in the Dockerfile, which adds ~1-3 minutes). Off by
 #           default — Docker's layer cache is already correctness-
 #           preserving when source files change, and the layer cache is
@@ -50,16 +65,17 @@
 #
 # -SkipSessionSave  Skip prepare-restart (immediate container replace; active rooms are lost).
 #
-# -CacheReserveGb  After a successful build, prune the BuildKit cache down to this
-#                  many GB of most-recently-used layers (default 10). Every deploy
-#                  rebuilds source/publish layers, so without this the cache grows
-#                  unbounded toward BuildKit's auto ceiling (~57 GB) and fills the
-#                  disk. The reserve keeps the current build's base/restore/wasm
-#                  layers so the next incremental deploy stays fast.
+# -CacheReserveGb  (-BuildOnDroplet only) After a successful build, prune the BuildKit
+#                  cache down to this many GB of most-recently-used layers (default 10).
+#                  Every on-droplet build rebuilds source/publish layers, so without this
+#                  the cache grows unbounded toward BuildKit's auto ceiling (~57 GB) and
+#                  fills the disk. The reserve keeps the current build's base/restore/wasm
+#                  layers so the next incremental build stays fast.
 
 param(
   [string]$Target = "yaat1",
   [switch]$NoLogs,
+  [switch]$BuildOnDroplet,
   [switch]$NoCache,
   [switch]$SkipSessionSave,
   [switch]$RebootOnly,
@@ -107,10 +123,19 @@ $logFile = "/tmp/yaat-deploy-$Target-$(Get-Date -Format 'yyyyMMdd-HHmmss').log"
 $followLogs = -not $NoLogs
 
 # Realistic end-to-end downtime users should expect, surfaced in the Discord status messages.
-# A full deploy rebuilds the container (~7-10 min); a reboot-only just recreates it from the
-# existing image, so it is back much sooner. This is the user-facing outage estimate, distinct
-# from the short -DrainSeconds connection-drain/session-save window.
-$estimatedDowntime = if ($RebootOnly) { "a few minutes" } else { "~10 minutes" }
+# The default image-pull deploy only recreates the container (the CI build and the pull happen
+# while the old server is still up); an on-droplet build rebuilds everything with the server
+# down (~7-10 min); a reboot-only recreates from the existing image. This is the user-facing
+# outage estimate, distinct from the short -DrainSeconds connection-drain/session-save window.
+$estimatedDowntime =
+  if ($RebootOnly) { "a few minutes" }
+  elseif ($BuildOnDroplet) { "~10 minutes" }
+  else { "~2 minutes" }
+
+# The repo whose docker-image.yml workflow builds the deployable image, and the compose
+# file set the droplet uses to run from that image instead of building locally.
+$serverRepo = "leftos/yaat-server"
+$composeImageFiles = "-f docker-compose.yml -f docker-compose.image.yml"
 
 # Load this target's secrets from a local .env.<target> if present, else the shared .env.
 $envFile = Join-Path $PSScriptRoot ".env.$Target"
@@ -303,6 +328,58 @@ function Invoke-WaitForEmptyRooms {
   }
 }
 
+# Trigger yaat-server's docker-image.yml workflow and block until it succeeds. The image
+# lands on ghcr.io tagged :latest (plus a <server>-<client> short-hash tag). Runs entirely
+# before any downtime — the live server keeps serving while CI builds. Requires the local
+# gh CLI to be authenticated with rights on $serverRepo. Throws on dispatch or build failure.
+function Invoke-CiImageBuild {
+  $reason = "deploy-$Target-$(Get-Date -Format 'yyyyMMdd-HHmmss')"
+  Write-Host "  Dispatching docker-image.yml (reason: $reason)..." -ForegroundColor Gray
+  gh workflow run docker-image.yml --repo $serverRepo -f reason=$reason
+  if ($LASTEXITCODE -ne 0) {
+    throw "gh workflow run docker-image.yml failed (exit $LASTEXITCODE). Is gh authenticated with access to $serverRepo?"
+  }
+
+  # The dispatch API returns before the run exists; find ours by the reason baked into run-name.
+  $runId = $null
+  foreach ($attempt in 1..12) {
+    Start-Sleep -Seconds 5
+    $runs = gh run list --repo $serverRepo --workflow docker-image.yml --limit 10 --json databaseId,displayTitle | ConvertFrom-Json
+    $match = $runs | Where-Object { $_.displayTitle -like "*$reason*" } | Select-Object -First 1
+    if ($match) {
+      $runId = $match.databaseId
+      break
+    }
+  }
+  if (-not $runId) {
+    throw "Dispatched docker-image.yml but no matching run appeared within 60s — check https://github.com/$serverRepo/actions"
+  }
+
+  Write-Host "  Watching run $runId (the live server stays up during the build)..." -ForegroundColor Gray
+  gh run watch $runId --repo $serverRepo --exit-status --interval 15
+  if ($LASTEXITCODE -ne 0) {
+    throw "docker-image.yml run $runId failed — inspect with: gh run view $runId --repo $serverRepo --log-failed"
+  }
+  Write-Host "✓ Image built and pushed to ghcr.io/$serverRepo" -ForegroundColor Green
+}
+
+# Announce the imminent restart on Discord and checkpoint active sessions (unless
+# -SkipSessionSave). Returns whether sessions were saved. Shared by both deploy paths;
+# called as late as possible so downtime starts only when the replacement is ready.
+function Invoke-DeployRestartPrep {
+  if ($SkipSessionSave) {
+    Send-DiscordStatus -Title "Server going down for deployment" -Description "``$serverUrl`` is being updated (sessions not preserved). Expect $estimatedDowntime of downtime." -Color 16776960
+    return $false
+  }
+
+  Send-DiscordStatus -Title "Server restarting for deployment" -Description "``$serverUrl`` is saving active sessions, then updating. Expect $estimatedDowntime of downtime." -Color 16776960
+  $saved = Invoke-PrepareRestartSessions -DrainSec $DrainSeconds
+  if (-not $saved) {
+    Send-DiscordStatus -Title "Server going down for deployment" -Description "``$serverUrl`` is being updated (session save skipped or failed). Expect $estimatedDowntime of downtime." -Color 16776960
+  }
+  return $saved
+}
+
 $headerTitle =
   if ($StatusOnly) { "YAAT Server: active-room status (no deploy)" }
   elseif ($WaitForEmptyRooms) { "YAAT Server: wait for empty rooms (no deploy)" }
@@ -444,7 +521,7 @@ try {
   }
 
   # Pre-flight checks
-  Write-Host "[1/8] Checking connectivity..." -ForegroundColor Yellow
+  Write-Host "[1/9] Checking connectivity..." -ForegroundColor Yellow
   if (-not (Test-DropletReachable)) {
     Write-Host "❌ Cannot reach $dropletIp" -ForegroundColor Red
     exit 1
@@ -452,51 +529,91 @@ try {
   Write-Host "✓ Connected" -ForegroundColor Green
 
   Write-Host ""
-  Write-Host "[2/8] Checking current status..." -ForegroundColor Yellow
+  Write-Host "[2/9] Checking current status..." -ForegroundColor Yellow
   Invoke-OnDroplet "cd $serverPath && docker compose --env-file $remoteEnvFile ps" | Tee-Object -Append -FilePath $logFile
 
-  Write-Host ""
-  Write-Host "[3/8] Preparing for restart..." -ForegroundColor Yellow
-  $sessionsSaved = $false
-  if ($SkipSessionSave) {
-    Send-DiscordStatus -Title "Server going down for deployment" -Description "``$serverUrl`` is being updated (sessions not preserved). Expect $estimatedDowntime of downtime." -Color 16776960
+  if ($BuildOnDroplet) {
+    # Emergency fallback: build from source on the droplet. Sessions are saved up front
+    # because the build itself starves the running server of CPU and memory.
+    Write-Host ""
+    Write-Host "[3/9] Preparing for restart..." -ForegroundColor Yellow
+    $sessionsSaved = Invoke-DeployRestartPrep
+
+    Write-Host ""
+    Write-Host "[4/9] Pulling latest code and submodules..." -ForegroundColor Yellow
+    Invoke-OnDroplet "cd $serverPath && git pull && git submodule update --init --remote --recursive" | Tee-Object -Append -FilePath $logFile
+    if ($LASTEXITCODE -ne 0) {
+      throw "git pull / submodule update failed on the droplet (exit $LASTEXITCODE). Aborting so a stale build isn't shipped — check 'git -C $serverPath status' for local changes blocking the pull."
+    }
+
+    # Get the commit hashes after pulling
+    $commitInfo = Invoke-OnDroplet "cd $serverPath && git log -1 --format='%h %s'"
+    $commitHash = ($commitInfo | Select-Object -First 1).Trim()
+    $submoduleInfo = Invoke-OnDroplet "cd $serverPath && git -C extern/yaat log -1 --format='%h %s'"
+    $submoduleHash = ($submoduleInfo | Select-Object -First 1).Trim()
+
+    # Full hashes for /api/version endpoint
+    $serverFullHash = (Invoke-OnDroplet "cd $serverPath && git rev-parse HEAD" | Select-Object -First 1).Trim()
+    $clientFullHash = (Invoke-OnDroplet "cd $serverPath && git -C extern/yaat rev-parse HEAD" | Select-Object -First 1).Trim()
+
+    Write-Host ""
+    Write-Host "[5/9] Rebuilding and recreating services..." -ForegroundColor Yellow
+    $buildFlags = if ($NoCache) { "--no-cache " } else { "" }
+    # --force-recreate replaces the container; named volumes (cache + session-checkpoints +
+    # facility-data, the last holding controller-drawn ASDE-X/SAID geometry) persist. A volume
+    # newly declared in docker-compose.yml is created by `up`, so no extra step on first deploy.
+    Invoke-OnDroplet "cd $serverPath && YAAT_SERVER_COMMIT=$serverFullHash YAAT_CLIENT_COMMIT=$clientFullHash docker compose --env-file $remoteEnvFile build $buildFlags&& YAAT_SERVER_COMMIT=$serverFullHash YAAT_CLIENT_COMMIT=$clientFullHash docker compose --env-file $remoteEnvFile up -d --force-recreate" | Tee-Object -Append -FilePath $logFile
   }
   else {
-    Send-DiscordStatus -Title "Server restarting for deployment" -Description "``$serverUrl`` is saving active sessions, then updating. Expect $estimatedDowntime of downtime." -Color 16776960
-    $sessionsSaved = Invoke-PrepareRestartSessions -DrainSec $DrainSeconds
-    if (-not $sessionsSaved) {
-      Send-DiscordStatus -Title "Server going down for deployment" -Description "``$serverUrl`` is being updated (session save skipped or failed). Expect $estimatedDowntime of downtime." -Color 16776960
+    # Default flow: build in CI, pull on the droplet. Everything up to the container
+    # recreate happens while the old server is still serving, so downtime is minimal.
+    Write-Host ""
+    Write-Host "[3/9] Building image in CI (server stays up)..." -ForegroundColor Yellow
+    Invoke-CiImageBuild
+
+    Write-Host ""
+    Write-Host "[4/9] Pulling latest code on the droplet..." -ForegroundColor Yellow
+    # Compose files, Caddyfile, and the deploy override come from git; the app itself
+    # ships inside the image, so no submodule update is needed on this path.
+    Invoke-OnDroplet "cd $serverPath && git pull" | Tee-Object -Append -FilePath $logFile
+    if ($LASTEXITCODE -ne 0) {
+      throw "git pull failed on the droplet (exit $LASTEXITCODE) — check 'git -C $serverPath status' for local changes blocking the pull."
+    }
+
+    Write-Host ""
+    Write-Host "[5/9] Pulling image on the droplet (server stays up)..." -ForegroundColor Yellow
+    Invoke-OnDroplet "cd $serverPath && docker compose $composeImageFiles --env-file $remoteEnvFile pull yaat-server" | Tee-Object -Append -FilePath $logFile
+    if ($LASTEXITCODE -ne 0) {
+      throw "docker compose pull failed (exit $LASTEXITCODE). If this is an auth error, run a one-time 'docker login ghcr.io' as the $yaatUser user on the droplet with a classic PAT carrying read:packages."
+    }
+
+    Write-Host ""
+    Write-Host "[6/9] Preparing for restart..." -ForegroundColor Yellow
+    $sessionsSaved = Invoke-DeployRestartPrep
+
+    Write-Host ""
+    Write-Host "[7/9] Recreating services from the pulled image..." -ForegroundColor Yellow
+    Invoke-OnDroplet "cd $serverPath && docker compose $composeImageFiles --env-file $remoteEnvFile up -d --force-recreate --no-build" | Tee-Object -Append -FilePath $logFile
+  }
+
+  Write-Host ""
+  Write-Host "[8/9] Waiting for server to be ready..." -ForegroundColor Yellow
+  $ready = Wait-ServerReady
+
+  if (-not $BuildOnDroplet) {
+    # The image path never inspects git on the droplet — report what the new server
+    # actually runs, from the commit hashes baked into the image at CI build time.
+    $commitHash = "unknown"
+    $submoduleHash = "unknown"
+    try {
+      $version = Invoke-RestMethod -Uri "$serverUrl/api/version" -Method Get -TimeoutSec 10
+      $commitHash = $version.server.Substring(0, [Math]::Min(8, $version.server.Length))
+      $submoduleHash = $version.client.Substring(0, [Math]::Min(8, $version.client.Length))
+    }
+    catch {
+      Write-Host "⚠ Could not query $serverUrl/api/version for deployed commit hashes: $_" -ForegroundColor Yellow
     }
   }
-
-  Write-Host ""
-  Write-Host "[4/8] Pulling latest code and submodules..." -ForegroundColor Yellow
-  Invoke-OnDroplet "cd $serverPath && git pull && git submodule update --init --remote --recursive" | Tee-Object -Append -FilePath $logFile
-  if ($LASTEXITCODE -ne 0) {
-    throw "git pull / submodule update failed on the droplet (exit $LASTEXITCODE). Aborting so a stale build isn't shipped — check 'git -C $serverPath status' for local changes blocking the pull."
-  }
-
-  # Get the commit hashes after pulling
-  $commitInfo = Invoke-OnDroplet "cd $serverPath && git log -1 --format='%h %s'"
-  $commitHash = ($commitInfo | Select-Object -First 1).Trim()
-  $submoduleInfo = Invoke-OnDroplet "cd $serverPath && git -C extern/yaat log -1 --format='%h %s'"
-  $submoduleHash = ($submoduleInfo | Select-Object -First 1).Trim()
-
-  # Full hashes for /api/version endpoint
-  $serverFullHash = (Invoke-OnDroplet "cd $serverPath && git rev-parse HEAD" | Select-Object -First 1).Trim()
-  $clientFullHash = (Invoke-OnDroplet "cd $serverPath && git -C extern/yaat rev-parse HEAD" | Select-Object -First 1).Trim()
-
-  Write-Host ""
-  Write-Host "[5/8] Rebuilding and recreating services..." -ForegroundColor Yellow
-  $buildFlags = if ($NoCache) { "--no-cache " } else { "" }
-  # --force-recreate replaces the container; named volumes (cache + session-checkpoints +
-  # facility-data, the last holding controller-drawn ASDE-X/SAID geometry) persist. A volume
-  # newly declared in docker-compose.yml is created by `up`, so no extra step on first deploy.
-  Invoke-OnDroplet "cd $serverPath && YAAT_SERVER_COMMIT=$serverFullHash YAAT_CLIENT_COMMIT=$clientFullHash docker compose --env-file $remoteEnvFile build $buildFlags&& YAAT_SERVER_COMMIT=$serverFullHash YAAT_CLIENT_COMMIT=$clientFullHash docker compose --env-file $remoteEnvFile up -d --force-recreate" | Tee-Object -Append -FilePath $logFile
-
-  Write-Host ""
-  Write-Host "[6/8] Waiting for server to be ready..." -ForegroundColor Yellow
-  $ready = Wait-ServerReady
 
   if ($ready) {
     Write-Host "✓ Server is ready" -ForegroundColor Green
@@ -509,11 +626,17 @@ try {
   }
 
   Write-Host ""
-  Write-Host "[7/8] Pruning build cache (reserve ${CacheReserveGb}GB)..." -ForegroundColor Yellow
-  Invoke-OnDroplet "cd $serverPath && docker builder prune -f --reserved-space ${CacheReserveGb}GB" | Tee-Object -Append -FilePath $logFile
+  if ($BuildOnDroplet) {
+    Write-Host "[9/9] Pruning build cache (reserve ${CacheReserveGb}GB)..." -ForegroundColor Yellow
+    Invoke-OnDroplet "cd $serverPath && docker builder prune -f --reserved-space ${CacheReserveGb}GB" | Tee-Object -Append -FilePath $logFile
+  }
+  else {
+    Write-Host "[9/9] Pruning superseded images..." -ForegroundColor Yellow
+    # Each pull strands the previous :latest as an untagged image (~0.5 GB); dangling-only
+    # prune reclaims them without touching tagged images or the build cache.
+    Invoke-OnDroplet "docker image prune -f" | Tee-Object -Append -FilePath $logFile
+  }
 
-  Write-Host ""
-  Write-Host "[8/8] Done" -ForegroundColor Green
   Write-Host ""
   Write-Host "✓ Deployment complete!" -ForegroundColor Green
   Write-Host ""
