@@ -251,6 +251,32 @@ public class VStripsViewModelTests
         Assert.Equal("S1", vm.Printer.Queue[0].Id);
     }
 
+    [Fact]
+    public void ConnectionLost_ClearsPrinterCarousels()
+    {
+        // The reset paths used to clear only the aggregate Printer.Queue,
+        // leaving the departure/arrival carousels — and the header badge
+        // counts derived from them — showing stale strips until the next
+        // broadcast reconciled them.
+        var (vm, _) = MakeVm();
+        vm.SetConnected(true);
+        SeedBays(vm, SimpleConfig());
+        vm.ReconcileItems([FullStrip("S1", "UAL100"), ArrivalStrip("S2", "UAL200")]);
+        vm.ReconcileFullState(State(printer: ["S1", "S2"]));
+        Assert.Single(vm.Printer.DepartureQueue);
+        Assert.Single(vm.Printer.ArrivalQueue);
+        Assert.True(vm.Printer.HasQueuedStrips);
+
+        vm.SetConnected(false);
+
+        Assert.Empty(vm.Printer.Queue);
+        Assert.Empty(vm.Printer.DepartureQueue);
+        Assert.Empty(vm.Printer.ArrivalQueue);
+        Assert.False(vm.Printer.HasQueuedStrips);
+        Assert.Equal("0/0", vm.Printer.DepartureCounter);
+        Assert.Equal("0/0", vm.Printer.ArrivalCounter);
+    }
+
     // ── Command dispatch (canonical wire format) ─────────────────
 
     [Fact]

@@ -563,6 +563,14 @@ public partial class MainViewModel
         // broadcast path (other clients) refreshes via VStripsViewModel's
         // own subscription; the loader path goes through here instead.
         _ = VStrips.RefreshAccessibleFacilitiesAsync();
+        // The student entry's secondary split pane is constructed with
+        // auto-bootstrap off, so feed it the same student strips config here.
+        // It keeps its own bay selection; only the facility scope follows.
+        if (StripsEntries[0].SecondaryVm is { } splitVm)
+        {
+            splitVm.ApplyBayConfig(bootstrap.FlightStripsConfig);
+            _ = splitVm.RefreshAccessibleFacilitiesAsync();
+        }
 
         // Same bootstrap for vTDLS: populate accessible facilities, then
         // auto-switch to the scenario's primary airport (e.g. OAK for an OAK

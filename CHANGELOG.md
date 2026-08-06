@@ -2,8 +2,17 @@
 
 ## Unreleased
 
+### Added
+- The same facility can be opened in multiple Strips tabs or windows — each keeps its own selected bay, and duplicate tabs are numbered.
+- A Strips tab or window can be split side by side or stacked (View → Strips, or right-click the tab) — each pane picks its own bay; the layout persists.
+- The strips printer button shows a red badge with the departure/arrival strip counts, matching CRC.
+
 ### Changed
+- The vStrips header matches CRC: taller bar, large bay drop zones, and square trash and printer icon buttons.
 - Server deploys now interrupt active sessions for only a couple of minutes instead of ~10 — the server build moved off the live machine, which also stops deploys from slowing the server down while they build.
+
+### Fixed
+- Disconnecting clears the strip printer's departure and arrival carousels instead of leaving stale strips until the next update.
 
 ## v0.11.3-beta [2026/08/05]
 

@@ -26,21 +26,18 @@ public partial class MainViewModel
     /// student entry's <see cref="VStripsViewModel.AccessibleFacilities"/>.
     /// New entries start docked (<see cref="VStripsDockEntryViewModel.IsPoppedOut"/>
     /// = false) and can be popped out by the user via the header action.
-    /// Idempotent: if an entry for the facility already exists, dock it.
+    /// A facility that already has a tab gets a second independent view —
+    /// e.g. two windows monitoring different bays of the same facility —
+    /// distinguished by a " #n" title suffix. Strip broadcasts fan out to
+    /// every view of the facility because each <see cref="VStripsViewModel"/>
+    /// filters the shared connection's events by its own facility id; there
+    /// is no per-facility server subscription to double up or leak.
     /// </summary>
     [RelayCommand]
     public async Task OpenStripsEntryForFacilityAsync(string facilityId)
     {
         if (string.IsNullOrEmpty(facilityId))
         {
-            return;
-        }
-
-        // Existing entry? Just dock it back if it was popped out.
-        var existing = StripsEntries.FirstOrDefault(e => e.Vm.FacilityId == facilityId);
-        if (existing is not null)
-        {
-            existing.IsPoppedOut = false;
             return;
         }
 
@@ -74,6 +71,59 @@ public partial class MainViewModel
         StripsEntries.Remove(entry);
     }
 
+    /// <summary>
+    /// Splits (or re-orients) an entry's tab/window into two full strips
+    /// views around a draggable splitter — each pane keeps its own selected
+    /// bay, so two bays of one facility can be monitored side by side.
+    /// The secondary pane is created on the first split, initially showing
+    /// the entry's current facility, and survives orientation changes.
+    /// </summary>
+    public async Task SplitStripsEntryAsync(VStripsDockEntryViewModel entry, StripsSplitMode mode)
+    {
+        if (mode == StripsSplitMode.None)
+        {
+            UnsplitStripsEntry(entry);
+            return;
+        }
+
+        if (entry.SecondaryVm is null)
+        {
+            var vm = CreateSecondaryStripsVm();
+            AttachSecondaryStripsVm(entry, vm);
+            var facilityId = entry.Vm.FacilityId;
+            if (!string.IsNullOrEmpty(facilityId))
+            {
+                await vm.SwitchFacilityAsync(facilityId);
+                await vm.RefreshAccessibleFacilitiesAsync();
+            }
+        }
+
+        entry.SplitMode = mode;
+    }
+
+    /// <summary>Collapses a split entry back to a single pane and discards the secondary view-model.</summary>
+    public void UnsplitStripsEntry(VStripsDockEntryViewModel entry)
+    {
+        entry.SplitMode = StripsSplitMode.None;
+        if (entry.SecondaryVm is { } secondary)
+        {
+            secondary.PropertyChanged -= OnStripsEntryVmPropertyChanged;
+            entry.SecondaryVm = null;
+        }
+    }
+
+    private VStripsViewModel CreateSecondaryStripsVm() =>
+        new(_connection, SendCommandForViewAsync, () => _preferences.UserInitials, autoBootstrapFromScenarioLoaded: false)
+        {
+            ZoomScale = _preferences.StripsZoomPercent / 100.0,
+        };
+
+    private void AttachSecondaryStripsVm(VStripsDockEntryViewModel entry, VStripsViewModel vm)
+    {
+        entry.SecondaryVm = vm;
+        vm.PropertyChanged += OnStripsEntryVmPropertyChanged;
+    }
+
     /// <summary>Applies a page-zoom percent to every open strips tab. Used by the
     /// Settings live preview / apply / revert paths.</summary>
     public void ApplyStripsZoomPercent(int percent)
@@ -82,6 +132,10 @@ public partial class MainViewModel
         foreach (var entry in StripsEntries)
         {
             entry.Vm.ZoomScale = scale;
+            if (entry.SecondaryVm is { } secondary)
+            {
+                secondary.ZoomScale = scale;
+            }
         }
     }
 
@@ -101,19 +155,47 @@ public partial class MainViewModel
                 UnsubscribeStripsEntry(removed);
             }
         }
+        RecomputeStripsDuplicateOrdinals();
         OnTabPoppedOutChanged();
+    }
+
+    /// <summary>
+    /// Reassigns <see cref="VStripsDockEntryViewModel.DuplicateOrdinal"/> —
+    /// 1..n in collection order per facility — whenever entries are added,
+    /// removed, or switch facility. Self-healing: closing the first of two
+    /// duplicates drops the survivor's " #2" suffix, and switching a tab to
+    /// an already-open facility picks up a suffix.
+    /// </summary>
+    private void RecomputeStripsDuplicateOrdinals()
+    {
+        var counts = new Dictionary<string, int>(StringComparer.Ordinal);
+        foreach (var entry in StripsEntries)
+        {
+            var id = entry.Vm.FacilityId;
+            if (string.IsNullOrEmpty(id))
+            {
+                entry.DuplicateOrdinal = 0;
+                continue;
+            }
+            counts[id] = counts.TryGetValue(id, out var n) ? n + 1 : 1;
+            entry.DuplicateOrdinal = counts[id];
+        }
     }
 
     private void SubscribeStripsEntry(VStripsDockEntryViewModel entry)
     {
         entry.PropertyChanged += OnStripsEntryPropertyChanged;
-        entry.Vm.PropertyChanged += OnStripsZoomChanged;
+        entry.Vm.PropertyChanged += OnStripsEntryVmPropertyChanged;
     }
 
     private void UnsubscribeStripsEntry(VStripsDockEntryViewModel entry)
     {
         entry.PropertyChanged -= OnStripsEntryPropertyChanged;
-        entry.Vm.PropertyChanged -= OnStripsZoomChanged;
+        entry.Vm.PropertyChanged -= OnStripsEntryVmPropertyChanged;
+        if (entry.SecondaryVm is { } secondary)
+        {
+            secondary.PropertyChanged -= OnStripsEntryVmPropertyChanged;
+        }
     }
 
     private void OnStripsEntryPropertyChanged(object? sender, PropertyChangedEventArgs e)
@@ -126,16 +208,41 @@ public partial class MainViewModel
             }
             OnTabPoppedOutChanged();
         }
+        else if (e.PropertyName == nameof(VStripsDockEntryViewModel.SplitMode))
+        {
+            if (sender is VStripsDockEntryViewModel entry && entry.IsStudentEntry)
+            {
+                _preferences.SetVStripsSplitMode(entry.SplitMode.ToString());
+            }
+        }
+        else if (e.PropertyName == nameof(VStripsDockEntryViewModel.SplitRatio))
+        {
+            if (sender is VStripsDockEntryViewModel entry && entry.IsStudentEntry)
+            {
+                _preferences.SetVStripsSplitRatio(entry.SplitRatio);
+            }
+        }
     }
 
     /// <summary>
-    /// Persists the strips page-zoom whenever the user adjusts it via the panel's
-    /// on-panel zoom buttons so it survives restarts. Suppressed while the Settings
-    /// dialog is open — those transient preview values must not be written.
+    /// Watches each entry's inner <see cref="VStripsViewModel"/>: persists the
+    /// strips page-zoom whenever the user adjusts it via the panel's on-panel
+    /// zoom buttons (suppressed while the Settings dialog is open — those
+    /// transient preview values must not be written), and recomputes duplicate
+    /// ordinals when an entry switches facility.
     /// </summary>
-    private void OnStripsZoomChanged(object? sender, PropertyChangedEventArgs e)
+    private void OnStripsEntryVmPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName != nameof(VStripsViewModel.ZoomScale) || sender is not VStripsViewModel vm)
+        if (sender is not VStripsViewModel vm)
+        {
+            return;
+        }
+        if (e.PropertyName == nameof(VStripsViewModel.FacilityId))
+        {
+            RecomputeStripsDuplicateOrdinals();
+            return;
+        }
+        if (e.PropertyName != nameof(VStripsViewModel.ZoomScale))
         {
             return;
         }

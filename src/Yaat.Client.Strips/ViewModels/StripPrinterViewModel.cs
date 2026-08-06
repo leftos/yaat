@@ -45,6 +45,14 @@ public partial class StripPrinterViewModel : ObservableObject
     public string ArrivalCounter => ArrivalQueue.Count == 0 ? "0/0" : $"{VisibleArrivalIndex + 1}/{ArrivalQueue.Count}";
 
     /// <summary>
+    /// Header notification badge — departure/arrival queue sizes ("3/0"),
+    /// matching the red badge on CRC's printer icon in
+    /// docs/crc/img/header.png. Hidden while both queues are empty.
+    /// </summary>
+    public string BadgeText => $"{DepartureQueue.Count}/{ArrivalQueue.Count}";
+    public bool HasQueuedStrips => (DepartureQueue.Count > 0) || (ArrivalQueue.Count > 0);
+
+    /// <summary>
     /// Callsign the user last asked to bring into view via "Request Strip".
     /// Consumed by <see cref="ReplaceAll"/> on the next reconcile so the
     /// carousel jumps to the newly-printed strip without requiring the user
@@ -132,6 +140,29 @@ public partial class StripPrinterViewModel : ObservableObject
         }
     }
 
+    /// <summary>
+    /// Empties every queue and resets both carousels — the disconnect /
+    /// facility-cleared reset path. Raises the same notifications as
+    /// <see cref="ReplaceAll"/> so the counters and the header badge drop to
+    /// zero instead of showing stale strips until the next broadcast.
+    /// </summary>
+    public void Clear()
+    {
+        Queue.Clear();
+        DepartureQueue.Clear();
+        ArrivalQueue.Clear();
+        VisibleDepartureIndex = 0;
+        VisibleArrivalIndex = 0;
+        _pendingFocusCallsign = null;
+        _pendingFocusOnNewBlank = false;
+        OnPropertyChanged(nameof(VisibleDepartureStrip));
+        OnPropertyChanged(nameof(VisibleArrivalStrip));
+        OnPropertyChanged(nameof(DepartureCounter));
+        OnPropertyChanged(nameof(ArrivalCounter));
+        OnPropertyChanged(nameof(BadgeText));
+        OnPropertyChanged(nameof(HasQueuedStrips));
+    }
+
     /// <summary>Reconcile the queue to match <paramref name="itemIds"/>, preserving existing VM instances.</summary>
     public void ReplaceAll(IEnumerable<string> itemIds, IReadOnlyDictionary<string, StripItemViewModel> itemLookup)
     {
@@ -174,6 +205,8 @@ public partial class StripPrinterViewModel : ObservableObject
         OnPropertyChanged(nameof(VisibleArrivalStrip));
         OnPropertyChanged(nameof(DepartureCounter));
         OnPropertyChanged(nameof(ArrivalCounter));
+        OnPropertyChanged(nameof(BadgeText));
+        OnPropertyChanged(nameof(HasQueuedStrips));
     }
 
     partial void OnVisibleDepartureIndexChanged(int value)

@@ -30,6 +30,55 @@ public partial class VStripsDockEntryViewModel : ObservableObject
     [ObservableProperty]
     private bool _isPoppedOut;
 
+    /// <summary>
+    /// 1-based position among entries showing the same facility, recomputed by
+    /// <c>MainViewModel.RecomputeStripsDuplicateOrdinals</c> whenever the entry
+    /// collection or any entry's facility changes. 0 or 1 renders the clean
+    /// title; 2+ appends a " #n" suffix so duplicate-facility tabs are
+    /// distinguishable.
+    /// </summary>
+    [ObservableProperty]
+    private int _duplicateOrdinal;
+
+    partial void OnDuplicateOrdinalChanged(int value) => OnPropertyChanged(nameof(TabTitle));
+
+    /// <summary>
+    /// Split layout of this entry's tab/window. Anything but
+    /// <see cref="StripsSplitMode.None"/> renders two full strips views —
+    /// <see cref="Vm"/> and <see cref="SecondaryVm"/> — around a draggable
+    /// splitter, each with its own independently selected bay.
+    /// <see cref="SecondaryVm"/> is created by
+    /// <c>MainViewModel.SplitStripsEntryAsync</c> before this switches away
+    /// from None and cleared again on unsplit.
+    /// </summary>
+    [ObservableProperty]
+    private StripsSplitMode _splitMode;
+
+    /// <summary>
+    /// Fraction of the split axis the first (left/top) pane occupies.
+    /// Clamped so neither pane can be collapsed into unusability.
+    /// </summary>
+    [ObservableProperty]
+    private double _splitRatio = 0.5;
+
+    partial void OnSplitRatioChanged(double value)
+    {
+        var clamped = Math.Clamp(value, 0.15, 0.85);
+        if (clamped != value)
+        {
+            SplitRatio = clamped;
+        }
+    }
+
+    /// <summary>
+    /// The second pane's view-model while split; null when
+    /// <see cref="SplitMode"/> is <see cref="StripsSplitMode.None"/>. Shares
+    /// the transport with <see cref="Vm"/> — strip broadcasts fan out to both
+    /// because each VM filters by its own facility id.
+    /// </summary>
+    [ObservableProperty]
+    private VStripsViewModel? _secondaryVm;
+
     public VStripsDockEntryViewModel(VStripsViewModel vm, bool isStudentEntry)
     {
         Vm = vm;
@@ -47,15 +96,17 @@ public partial class VStripsDockEntryViewModel : ObservableObject
     /// Display string for the entry's tab header and popped-out window title.
     /// Always prefixed with "Strips " + the facility discriminator so multiple
     /// strip tabs/windows can be told apart at a glance ("Strips (OAK)",
-    /// "Strips (NCT)"). Falls back to the facility id, then to a bare
-    /// "Strips" before the first scenario load.
+    /// "Strips (NCT)"). Duplicate-facility entries append " #n" from
+    /// <see cref="DuplicateOrdinal"/> ("Strips (OAK) #2"). Falls back to the
+    /// facility id, then to a bare "Strips" before the first scenario load.
     /// </summary>
     public string TabTitle
     {
         get
         {
             var facility = !string.IsNullOrEmpty(Vm.FacilityName) ? Vm.FacilityName : Vm.FacilityId;
-            return string.IsNullOrEmpty(facility) ? "Strips" : $"Strips ({facility})";
+            var baseTitle = string.IsNullOrEmpty(facility) ? "Strips" : $"Strips ({facility})";
+            return DuplicateOrdinal >= 2 ? $"{baseTitle} #{DuplicateOrdinal}" : baseTitle;
         }
     }
 }

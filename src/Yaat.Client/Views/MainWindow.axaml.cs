@@ -1256,16 +1256,31 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
 
     private void AttachStripsEntry(MainViewModel vm, VStripsDockEntryViewModel entry)
     {
-        // Create the docked TabItem and add it as a sibling of the other main tabs.
+        // Create the docked TabItem and add it as a sibling of the other main
+        // tabs. The content is a split host that renders one or two full
+        // strips views per the entry's SplitMode. The header context flyout
+        // carries the split actions (the TabItem visual is only the header —
+        // the content area is presented by the TabControl, so the flyout
+        // can't shadow strip right-click menus).
         var tabControl = this.FindControl<TabControl>("MainTabControl");
         if (tabControl is not null)
         {
             var tab = new TabItem
             {
                 Header = entry.TabTitle,
-                Content = new VStripsView { DataContext = entry.Vm },
+                Content = new VStripsSplitHost { DataContext = entry },
                 IsVisible = !entry.IsPoppedOut,
             };
+            var headerFlyout = new MenuFlyout();
+            headerFlyout.Opening += (_, _) =>
+            {
+                headerFlyout.Items.Clear();
+                foreach (var item in BuildStripsSplitMenuItems(vm, entry))
+                {
+                    headerFlyout.Items.Add(item);
+                }
+            };
+            tab.ContextFlyout = headerFlyout;
             _stripsTabItems[entry] = tab;
             tabControl.Items.Add(tab);
         }
@@ -1296,6 +1311,9 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
                     }
                     RebuildStripsSubmenu(vm);
                     break;
+                case nameof(VStripsDockEntryViewModel.SplitMode):
+                    RebuildStripsSubmenu(vm);
+                    break;
             }
         };
 
@@ -1321,7 +1339,10 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
         {
             return;
         }
-        var window = new VStripsViewWindow(vm.Preferences, entry.Vm.FacilityId, entry.TabTitle) { DataContext = entry.Vm };
+        var window = new VStripsViewWindow(vm.Preferences, entry.Vm.FacilityId, entry.TabTitle)
+        {
+            Content = new VStripsSplitHost { DataContext = entry },
+        };
         _stripsWindows[entry] = window;
         window.Closing += (_, _) =>
         {
@@ -1378,6 +1399,13 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
             };
             items.Add(popOut);
 
+            var split = new MenuItem { Header = $"Split {entry.TabTitle}" };
+            foreach (var splitItem in BuildStripsSplitMenuItems(vm, entry))
+            {
+                split.Items.Add(splitItem);
+            }
+            items.Add(split);
+
             if (!entry.IsStudentEntry)
             {
                 var close = new MenuItem { Header = $"Close {entry.TabTitle}", Tag = entry };
@@ -1409,6 +1437,37 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
     }
 
     /// <summary>
+    /// The three split actions for a strips entry — used both by the View →
+    /// Strips submenu ("Split Strips (X)" per entry) and by each strips tab
+    /// header's context flyout. Freshly built per open (menu items can't be
+    /// shared between two parents), with checkmarks reflecting the current
+    /// <see cref="VStripsDockEntryViewModel.SplitMode"/>.
+    /// </summary>
+    private static List<MenuItem> BuildStripsSplitMenuItems(MainViewModel vm, VStripsDockEntryViewModel entry)
+    {
+        var sideBySide = new MenuItem
+        {
+            Header = "Split: Side by Side",
+            ToggleType = MenuItemToggleType.CheckBox,
+            IsChecked = entry.SplitMode == StripsSplitMode.SideBySide,
+        };
+        sideBySide.Click += async (_, _) => await vm.SplitStripsEntryAsync(entry, StripsSplitMode.SideBySide);
+
+        var stacked = new MenuItem
+        {
+            Header = "Split: Stacked",
+            ToggleType = MenuItemToggleType.CheckBox,
+            IsChecked = entry.SplitMode == StripsSplitMode.Stacked,
+        };
+        stacked.Click += async (_, _) => await vm.SplitStripsEntryAsync(entry, StripsSplitMode.Stacked);
+
+        var unsplit = new MenuItem { Header = "Unsplit", IsEnabled = entry.SplitMode != StripsSplitMode.None };
+        unsplit.Click += (_, _) => vm.UnsplitStripsEntry(entry);
+
+        return [sideBySide, stacked, unsplit];
+    }
+
+    /// <summary>
     /// Menu label for a facility entry: the position's own facility is marked
     /// "(own)", and a consolidated vTDLS parent is marked so the merged page is
     /// distinguishable from the child facilities listed alongside it.
@@ -1436,17 +1495,12 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
             return;
         }
 
-        var existingIds = vm
-            .StripsEntries.Select(x => x.Vm.FacilityId)
-            .Where(id => !string.IsNullOrEmpty(id))
-            .ToHashSet(System.StringComparer.Ordinal);
-        var added = 0;
+        // Facilities that already have a tab stay in the list: picking one
+        // opens a second independent view of that facility (each view keeps
+        // its own selected bay), matching the browser client's ability to
+        // open the same facility in two windows.
         foreach (var facility in studentVm.AccessibleFacilities)
         {
-            if (existingIds.Contains(facility.FacilityId))
-            {
-                continue;
-            }
             var item = new MenuItem { Header = FacilityMenuHeader(facility), Tag = facility };
             item.Click += async (_, _) =>
             {
@@ -1456,12 +1510,6 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
                 }
             };
             submenu.Items.Add(item);
-            added++;
-        }
-
-        if (added == 0)
-        {
-            submenu.Items.Add(new MenuItem { Header = "(All accessible facilities already open)", IsEnabled = false });
         }
     }
 

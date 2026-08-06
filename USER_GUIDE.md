@@ -686,8 +686,9 @@ The Strips tab appears next to Aircraft List / Ground View / Radar View as soon 
 
 A facility is openable when it is your own, a facility below you in the tree (a TRACON working its child towers top-down), **or** a facility your own config links a bay from. That last case is the common one at a tower: KOAK's strips config links NorCal (NCT) and Oakland Bay (O90) bays for scanning strips outward, so both TRACONs can be opened as their own tabs — otherwise a strip you scanned to NorCal would be write-only. A facility's tab shows **all** of its bays, not just the linked ones.
 
-- **View → Strips → New Strips Tab…** opens a picker of accessible facilities and adds a new tab. Useful when you control a tower position and want both the local and TRACON bays visible at once.
+- **View → Strips → New Strips Tab…** opens a picker of accessible facilities and adds a new tab. Useful when you control a tower position and want both the local and TRACON bays visible at once. Picking a facility that already has a tab opens a **second independent view** of it — each view keeps its own selected bay, so you can monitor two bays of the same facility side by side (pop one out and dock the other, or pop out both). Duplicate tabs are numbered — `Strips (Oakland Intl ATCT)` and `Strips (Oakland Intl ATCT) #2`.
 - **View → Strips → Pop Out Strips (X)** detaches the tab into its own window. The student entry can be popped out and re-docked but not closed. Non-student entries also get a **Close Strips (X)** action.
+- **View → Strips → Split Strips (X)** (also on the tab header's right-click menu) splits that tab or popped-out window into two full strips views — **Side by Side** or **Stacked** — separated by a draggable divider. Each pane has its own header and its own selected bay, so one window can watch two bays of the same facility at once (each pane can also switch facilities independently). **Unsplit** collapses back to a single pane. The student tab's split layout and divider position persist across restarts. Strips can be moved between panes by dropping on the target bay's header drop zone or via right-click **Push…** — dragging a strip directly across the divider is not supported.
 - Each tab is titled `Strips (FacilityName)` so multiple strip tabs/windows can be told apart at a glance.
 
 #### Header bar
@@ -698,7 +699,7 @@ Across the top of every strip view:
 - **Bay buttons** — one per bay accessible from the position. **Own** bays render filled in neutral grey; **external** bays (linked from a sibling facility, e.g. a tower's parent TRACON) render with a thin outlined style and an **↗** suffix in context menus.
 - **Zoom controls** (− / % / +) — scales the racks area without affecting the header. Range 50%–150% in 10% steps; default 80% fits two racks comfortably on a 1080p screen.
 - **Trash zone** — drop a strip on the red bin to delete it.
-- **Printer** toggle — opens the printer modal (see below). Bound to **Tab** as well.
+- **Printer** button — a printer icon that opens the printer modal (see below). Bound to **Tab** as well. A red badge on its corner shows how many strips are waiting in each printer as `departures/arrivals` (e.g. `3/0`), matching CRC; the badge hides when both queues are empty.
 
 #### Current METAR
 
@@ -756,7 +757,7 @@ Bay layout (number of racks per bay, which bays are own vs external, whether sep
 
 #### Printer modal
 
-The printer modal is a centered overlay reachable via the **Printer** toggle, **Tab**, or **Esc** (when nothing is selected). The racks stay visible behind the modal, so dropping a strip from the printer onto a rack updates immediately without dismissing the modal.
+The printer modal is a centered overlay reachable via the **Printer** icon button, **Tab**, or **Esc** (when nothing is selected). The racks stay visible behind the modal, so dropping a strip from the printer onto a rack updates immediately without dismissing the modal.
 
 - **Request Strip** — type a callsign and click to ask the server to print that aircraft's strip. Requesting one for an aircraft that already has a strip prints a fresh copy that stacks in the printer, so a lost or late strip can be reprinted.
 - **Print Blank Strip** — adds a blank to the printer queue

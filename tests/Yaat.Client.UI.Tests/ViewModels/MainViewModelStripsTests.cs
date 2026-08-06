@@ -40,11 +40,13 @@ public class MainViewModelStripsTests
     }
 
     [AvaloniaFact]
-    public async Task OpenStripsEntryForFacilityAsync_ExistingFacility_RedocksAndAddsNoEntry()
+    public async Task OpenStripsEntryForFacilityAsync_ExistingFacility_AppendsDuplicateEntry()
     {
-        // Re-invoking the command for a facility that already has a tab is the
-        // idempotent "bring back from popped-out" path. Must not append a
-        // duplicate entry, and must dock an existing popped-out entry.
+        // Re-invoking the command for a facility that already has a tab opens
+        // a second independent view of that facility (e.g. to monitor two
+        // bays side by side), mirroring how the browser client can open the
+        // same facility in two windows. The existing entry's pop-out state is
+        // left alone.
         var vm = NewVm();
         var studentEntry = vm.StripsEntries[0];
         studentEntry.Vm.FacilityId = "OAK";
@@ -53,8 +55,37 @@ public class MainViewModelStripsTests
 
         await vm.OpenStripsEntryForFacilityAsync("OAK");
 
-        Assert.Equal(startCount, vm.StripsEntries.Count);
-        Assert.False(studentEntry.IsPoppedOut);
+        Assert.Equal(startCount + 1, vm.StripsEntries.Count);
+        Assert.True(studentEntry.IsPoppedOut);
+        Assert.False(vm.StripsEntries[^1].IsStudentEntry);
+    }
+
+    [AvaloniaFact]
+    public async Task DuplicateFacilityEntries_GetOrdinalSuffixes_AndHealOnClose()
+    {
+        // Two entries on the same facility must be distinguishable: the
+        // second (and later) same-facility tabs get a " #n" title suffix.
+        // Closing a duplicate recomputes the ordinals so a now-unique entry
+        // returns to the clean title.
+        var vm = NewVm();
+        var studentEntry = vm.StripsEntries[0];
+        studentEntry.Vm.FacilityId = "OAK";
+        studentEntry.Vm.FacilityName = "Oakland Intl ATCT";
+
+        await vm.OpenStripsEntryForFacilityAsync("OAK");
+        var duplicate = vm.StripsEntries[^1];
+        // The headless RPC fails (no server), so assign the facility the way
+        // SwitchFacilityAsync would have — this also exercises the
+        // FacilityId-change → recompute path.
+        duplicate.Vm.FacilityId = "OAK";
+        duplicate.Vm.FacilityName = "Oakland Intl ATCT";
+
+        Assert.Equal("Strips (Oakland Intl ATCT)", studentEntry.TabTitle);
+        Assert.Equal("Strips (Oakland Intl ATCT) #2", duplicate.TabTitle);
+
+        vm.CloseStripsEntry(duplicate);
+
+        Assert.Equal("Strips (Oakland Intl ATCT)", studentEntry.TabTitle);
     }
 
     [AvaloniaFact]
@@ -74,5 +105,48 @@ public class MainViewModelStripsTests
         var added = vm.StripsEntries[^1];
         Assert.False(added.IsStudentEntry);
         Assert.False(added.IsPoppedOut);
+    }
+
+    [AvaloniaFact]
+    public async Task SplitStripsEntry_CreatesSecondaryVm_AndUnsplitDiscardsIt()
+    {
+        var vm = NewVm();
+        var entry = vm.StripsEntries[0];
+        // The student entry's split persists in preferences, which the test
+        // process shares across tests — establish a clean baseline instead of
+        // assuming one.
+        vm.UnsplitStripsEntry(entry);
+        Assert.Equal(StripsSplitMode.None, entry.SplitMode);
+        Assert.Null(entry.SecondaryVm);
+
+        await vm.SplitStripsEntryAsync(entry, StripsSplitMode.SideBySide);
+
+        Assert.Equal(StripsSplitMode.SideBySide, entry.SplitMode);
+        Assert.NotNull(entry.SecondaryVm);
+
+        // Re-orienting keeps the same secondary pane (and its bay selection).
+        var secondary = entry.SecondaryVm;
+        await vm.SplitStripsEntryAsync(entry, StripsSplitMode.Stacked);
+        Assert.Equal(StripsSplitMode.Stacked, entry.SplitMode);
+        Assert.Same(secondary, entry.SecondaryVm);
+
+        vm.UnsplitStripsEntry(entry);
+        Assert.Equal(StripsSplitMode.None, entry.SplitMode);
+        Assert.Null(entry.SecondaryVm);
+    }
+
+    [AvaloniaFact]
+    public void SplitRatio_IsClampedToUsableRange()
+    {
+        var entry = new VStripsDockEntryViewModel(NewVm().StripsEntries[0].Vm, isStudentEntry: false);
+
+        entry.SplitRatio = 0.01;
+        Assert.Equal(0.15, entry.SplitRatio);
+
+        entry.SplitRatio = 0.99;
+        Assert.Equal(0.85, entry.SplitRatio);
+
+        entry.SplitRatio = 0.6;
+        Assert.Equal(0.6, entry.SplitRatio);
     }
 }

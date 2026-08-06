@@ -1437,6 +1437,15 @@ public partial class MainViewModel : ObservableObject
         // per-facility entries are session-scoped and always start docked.
         StripsEntries[0].IsPoppedOut = _preferences.IsVStripsPoppedOut;
         TdlsEntries[0].IsPoppedOut = _preferences.IsVTdlsPoppedOut;
+        // Split layout persists too. The restored secondary pane has no
+        // facility until the next scenario bootstrap applies the student
+        // strips config to it (see ApplyScenarioBootstrap).
+        StripsEntries[0].SplitRatio = _preferences.VStripsSplitRatio;
+        if (Enum.TryParse<StripsSplitMode>(_preferences.VStripsSplitMode, out var savedSplitMode) && savedSplitMode != StripsSplitMode.None)
+        {
+            AttachSecondaryStripsVm(StripsEntries[0], CreateSecondaryStripsVm());
+            StripsEntries[0].SplitMode = savedSplitMode;
+        }
 
         _connection.AircraftUpdated += OnAircraftUpdated;
         _connection.AircraftDeleted += OnAircraftDeleted;

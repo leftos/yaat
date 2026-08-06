@@ -46,7 +46,7 @@
         </Style>
     </UserControl.Styles>
 
-    <Grid RowDefinitions="Auto,36,*">
+    <Grid RowDefinitions="Auto,56,*">
 
         <!-- Current-METAR bar (row 0). Shows the displayed facility's airport METARs
              (the airport for a tower, all underlying airports for a TRACON) so students
@@ -149,14 +149,20 @@
                  indicator (docs/crc/img/header.png: BOS box on the left).
                  Click opens a MenuFlyout of accessible facilities built by
                  OnFacilityButtonClick in the code-behind. -->
+            <!-- Sizing across the header follows docs/crc/img/header.png:
+                 the bay drop zones dominate the bar height, the facility
+                 button sits half-height on the left, and trash/printer are
+                 square icon buttons on the right. -->
             <Button Grid.Column="0"
                     x:Name="FacilityButton"
                     Content="{Binding FacilityName}"
                     ToolTip.Tip="Switch this window's facility"
-                    Margin="2,4"
-                    Padding="10,2"
+                    Margin="4,10"
+                    Padding="12,0"
+                    VerticalAlignment="Stretch"
+                    VerticalContentAlignment="Center"
                     FontFamily="{StaticResource MonoFont}"
-                    FontSize="12"
+                    FontSize="15"
                     Click="OnFacilityButtonClick"/>
 
             <ItemsControl Grid.Column="1" ItemsSource="{Binding Bays}">
@@ -173,10 +179,14 @@
                         <Button x:Name="BayButton"
                                 Content="{Binding Name}"
                                 Tag="{Binding}"
-                                Margin="2,4"
-                                Padding="10,2"
+                                Margin="3,4"
+                                Padding="20,0"
+                                MinWidth="110"
+                                VerticalAlignment="Stretch"
+                                VerticalContentAlignment="Center"
+                                HorizontalContentAlignment="Center"
                                 FontFamily="{StaticResource MonoFont}"
-                                FontSize="11"
+                                FontSize="15"
                                 Classes.external="{Binding IsExternal}"
                                 Classes.selected="{Binding IsSelected}"
                                 Click="OnBayButtonClick"/>
@@ -191,8 +201,8 @@
             <StackPanel Grid.Column="2" Orientation="Horizontal"
                         VerticalAlignment="Center" Margin="8,0,4,0" Spacing="2">
                 <Button Content="−"
-                        Padding="8,2" MinWidth="28"
-                        FontFamily="{StaticResource MonoFont}" FontSize="12"
+                        Padding="8,4" MinWidth="32"
+                        FontFamily="{StaticResource MonoFont}" FontSize="13"
                         ToolTip.Tip="Zoom out"
                         Command="{Binding ZoomOutCommand}"/>
                 <TextBlock Text="{Binding ZoomLabel}"
@@ -200,47 +210,73 @@
                            VerticalAlignment="Center"
                            HorizontalAlignment="Center"
                            TextAlignment="Center"
-                           FontFamily="{StaticResource MonoFont}" FontSize="11"
+                           FontFamily="{StaticResource MonoFont}" FontSize="12"
                            Foreground="#C0C0C0"/>
                 <Button Content="+"
-                        Padding="8,2" MinWidth="28"
-                        FontFamily="{StaticResource MonoFont}" FontSize="12"
+                        Padding="8,4" MinWidth="32"
+                        FontFamily="{StaticResource MonoFont}" FontSize="13"
                         ToolTip.Tip="Zoom in"
                         Command="{Binding ZoomInCommand}"/>
             </StackPanel>
 
             <Border Grid.Column="3"
                     x:Name="TrashZone"
-                    Width="40" Height="28"
-                    Margin="4"
+                    Width="48"
+                    Margin="4,5"
                     Background="#3A1A1A"
                     BorderBrush="#8A3A3A"
                     BorderThickness="1"
                     CornerRadius="2"
                     ToolTip.Tip="Drag here to delete">
-                <!-- 8-point Geometry trash glyph drawn at 16x16. Replaces the
+                <!-- Geometry trash glyph drawn at 22x22. Replaces the
                      U+1F5D1 emoji which renders fine in Skia desktop (system
                      emoji fallback) but tofus in Avalonia.Browser since the
                      Inter font we ship has no emoji glyphs and there's no
                      font fallback configured. Path keeps the visual without
                      pulling in a 1MB+ emoji font. -->
-                <Path Width="14" Height="14"
+                <Path Width="22" Height="22"
                       HorizontalAlignment="Center"
                       VerticalAlignment="Center"
                       Stroke="#E0C0C0"
-                      StrokeThickness="1.2"
-                      Fill="#E0C0C0"
-                      Data="M3 4 L11 4 M2 4 L12 4 L11.3 13 L2.7 13 Z M5 6 L5 11 M7 6 L7 11 M9 6 L9 11 M5 4 L5 2.5 L9 2.5 L9 4"/>
+                      StrokeThickness="1.6"
+                      Data="M4.7 6.3 L17.3 6.3 M3.1 6.3 L18.9 6.3 L17.8 20.4 L4.2 20.4 Z M7.9 9.4 L7.9 17.3 M11 9.4 L11 17.3 M14.1 9.4 L14.1 17.3 M7.9 6.3 L7.9 3.9 L14.1 3.9 L14.1 6.3"/>
             </Border>
 
-            <ToggleButton Grid.Column="4"
-                          x:Name="PrinterToggle"
-                          Content="Printer"
-                          Margin="4"
-                          Padding="8,2"
-                          IsChecked="{Binding Printer.IsOpen, Mode=TwoWay}"
-                          IsEnabled="{Binding IsConnected}"
-                          FontSize="11"/>
+            <!-- Printer icon button + red dep/arr strip-count badge, matching
+                 CRC's printer button in docs/crc/img/header.png. The Panel
+                 hosts the badge so it can overlap the button's top-right
+                 corner without being clipped by the ToggleButton. -->
+            <Panel Grid.Column="4" Margin="4,0,6,0">
+                <ToggleButton x:Name="PrinterToggle"
+                              Width="48"
+                              Margin="0,5"
+                              Padding="0"
+                              HorizontalContentAlignment="Center"
+                              VerticalContentAlignment="Center"
+                              IsChecked="{Binding Printer.IsOpen, Mode=TwoWay}"
+                              IsEnabled="{Binding IsConnected}"
+                              ToolTip.Tip="Printer (Tab)">
+                    <!-- Geometry printer glyph drawn at 22x22 — same
+                         no-emoji-font rationale as the trash glyph above. -->
+                    <Path Width="22" Height="22"
+                          Stroke="#D0D0D0"
+                          StrokeThickness="1.6"
+                          Data="M7 6.5 L7 2.5 L15 2.5 L15 6.5 M3.5 6.5 L18.5 6.5 L18.5 14.5 L15 14.5 M3.5 6.5 L3.5 14.5 L7 14.5 M7 11 L15 11 L15 19.5 L7 19.5 Z M15.8 8.8 L16.4 8.8"/>
+                </ToggleButton>
+                <Border IsVisible="{Binding Printer.HasQueuedStrips}"
+                        IsHitTestVisible="False"
+                        HorizontalAlignment="Right"
+                        VerticalAlignment="Top"
+                        Margin="0,0,-4,0"
+                        Background="#C43333"
+                        CornerRadius="9"
+                        Padding="5,1">
+                    <TextBlock Text="{Binding Printer.BadgeText}"
+                               FontFamily="{StaticResource MonoFont}"
+                               FontSize="10"
+                               Foreground="White"/>
+                </Border>
+            </Panel>
         </Grid>
 
         <!-- Main area: selected bay's racks. Printer is now a full-area modal

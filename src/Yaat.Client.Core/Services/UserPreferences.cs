@@ -440,6 +440,12 @@ public sealed class UserPreferences
     public int StripsZoomPercent => _data.StripsZoomPercent;
     public int TdlsZoomPercent => _data.TdlsZoomPercent;
 
+    /// <summary>Split layout of the student strips tab ("None" / "SideBySide" / "Stacked"); the enum lives in Yaat.Client so this stays a string.</summary>
+    public string VStripsSplitMode => _data.VStripsSplitMode;
+
+    /// <summary>Fraction of the split axis the first strips pane occupies.</summary>
+    public double VStripsSplitRatio => _data.VStripsSplitRatio;
+
     /// <summary>Raised when any font-size preference changes (debounced via the single Save call).</summary>
     public event Action? FontSizesChanged;
 
@@ -1030,6 +1036,20 @@ public sealed class UserPreferences
     public void SetTdlsZoomPercent(int percent)
     {
         _data.TdlsZoomPercent = Math.Clamp(percent, 50, 200);
+        Save();
+    }
+
+    /// <summary>Persists the student strips tab's split layout ("None" / "SideBySide" / "Stacked").</summary>
+    public void SetVStripsSplitMode(string mode)
+    {
+        _data.VStripsSplitMode = mode;
+        Save();
+    }
+
+    /// <summary>Persists the student strips tab's splitter position (first-pane fraction).</summary>
+    public void SetVStripsSplitRatio(double ratio)
+    {
+        _data.VStripsSplitRatio = Math.Clamp(ratio, 0.15, 0.85);
         Save();
     }
 
@@ -1859,6 +1879,11 @@ public sealed class UserPreferences
         public int InterfaceFontSize { get; set; } = 12;
         public int StripsZoomPercent { get; set; } = 80;
         public int TdlsZoomPercent { get; set; } = 100;
+
+        // Student strips tab split layout — StripsSplitMode enum name string
+        // (the enum lives in Yaat.Client) plus the first-pane fraction.
+        public string VStripsSplitMode { get; set; } = "None";
+        public double VStripsSplitRatio { get; set; } = 0.5;
         public Dictionary<string, string> ScenarioNames { get; set; } = [];
 
         // Per-scenario primary airport id (e.g. "KOAK"), keyed by ScenarioId. Recorded

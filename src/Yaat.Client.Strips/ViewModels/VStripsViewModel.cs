@@ -199,7 +199,7 @@ public partial class VStripsViewModel : ObservableObject
             }
             bay.HasNewItem = false;
         }
-        Printer.Queue.Clear();
+        Printer.Clear();
         _lastReceivedFullState = null;
         _lastReceivedItems = null;
         _latestMetars = [];
@@ -262,7 +262,7 @@ public partial class VStripsViewModel : ObservableObject
                 _facilityAirports = [];
                 RebuildMetars();
                 _items.Clear();
-                Printer.Queue.Clear();
+                Printer.Clear();
                 return;
             }
 

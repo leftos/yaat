@@ -210,7 +210,7 @@ ViewModels/
 
 Views/
   ConnectWindow.axaml.cs        # Server/room/identity entry dialog
-  VStrips/VStripsViewWindow.axaml.cs # Pop-out window wrapper for VStripsView. Stays in Core because it depends on UserPreferences + WindowGeometryHelper + KeybindHelper; only the desktop hosts open this Window.
+  VStrips/VStripsViewWindow.axaml.cs # Pop-out window shell for the strips view — sizes/positions/titles itself; content (a VStripsSplitHost) is supplied by the creating host. Stays in Core because it depends on UserPreferences + WindowGeometryHelper + KeybindHelper; only the desktop hosts open this Window.
   VTdls/VTdlsViewWindow.axaml.cs # Pop-out window wrapper for VTdlsView. Same shape as VStripsViewWindow: per-facility geometry key (`VTdlsView:{facilityId}`), first-time topmost inherited from the global `VTdlsView` default, AlwaysOnTop hotkey from UserPreferences.
 ```
 
@@ -286,6 +286,9 @@ ViewModels/
   MainViewModel.Bookmarks.cs    # Partial: shared server-synced timeline bookmarks (Bookmarks mirror, add/quick-add/rename/delete via hub RPCs, ApplyBookmarks from BookmarksChanged broadcast/RoomStateDto seed, name-prompt event, SnapshotBookmarks for recording save). Also the client half of the BM verb: TryHandleBookmarkLocallyAsync (LIST query + GO/NEXT/PREV seeks); mutations go to the server via the command pipeline.
   MainViewModel.CrcAliases.cs   # Partial: CRC alias support — CrcAliasStore instance + BuiltInDotCommands (names YAAT's own dot commands reserve: scope markers, .rbl/.norbl, .reloadaliases), LoadCrcAliasesAsync (startup, ARTCC change, Settings save, .reloadaliases), TryHandleCrcAlias/RunCrcAlias, BuildCrcAliasContext (SelectedAircraft flight plan for $dep/$arr/$route/$fullroute). Client-only; never reaches the server.
   MainViewModel.ConflictAlerts.cs # Partial: terminal conflict-alert pairs (ApplyConflictAlerts from ConflictAlertsChanged broadcast/RoomStateDto seed, projected onto AircraftModel.ConflictPeerCallsign for both members; SeedConflictPeer covers an aircraft appearing after the broadcast). Not carried on AircraftDto — see docs/radar-rendering.md § Conflict alerts.
+  MainViewModel.Strips.cs       # Partial: multi-facility strips tabs (StripsEntries) — open/close per-facility entries (same facility may be opened twice; duplicate tabs disambiguated via DuplicateOrdinal " #n" title suffix), split/unsplit (SplitStripsEntryAsync creates the entry's SecondaryVm; split mode + ratio persist for the student entry), strips zoom fan-out + persistence
+  VStripsDockEntryViewModel.cs  # One strips tab/window entry: facility-scoped VStripsViewModel + pop-out flag + TabTitle (facility name + duplicate suffix) + split state (SplitMode / SplitRatio / SecondaryVm)
+  StripsSplitMode.cs            # Split layout of a strips entry: None / SideBySide / Stacked — named by pane arrangement because "split horizontally" is ambiguous
   TimelineMarkerVm.cs           # Per-marker view-model: timestamp, kind, severity, title, callsign, canonical command (commands only).
   TimelineBookmarkVm.cs         # Per-bookmark view-model (editable Name, gold rail tick, Rename/Delete/Jump commands delegating to MainViewModel callbacks).
   AutoClearedToLandSync.cs      # Subscribes to UserPreferences.AutoClearedToLand changes; pushes the new value to every aircraft (local + room-broadcast) so the toggle takes effect mid-session without a scenario reload.
@@ -305,6 +308,7 @@ ViewModels/
 
 Views/
   MainWindow.axaml.cs           # Tab layout (DataGrid/Ground/Radar); room bar; pop-out management
+  VStrips/VStripsSplitHost.cs   # Hosts one strips entry's pane layout: a single VStripsView, or two full views around a GridSplitter when the entry is split; splitter drags write back the entry's SplitRatio. Docked TabItems and popped-out VStripsViewWindows both host this.
   CommandInputView.axaml.cs     # Keyboard: Esc/Up/Down/Tab/Enter for suggestions/history
   FavoritesBarView.axaml.cs     # Favorite command buttons bar and tabbed panel content (click/ctrl+click/right-click); palette-header Import/Export (.yaat-favorites.json)
   FavoritesPanelWindow.axaml.cs # Pop-out favorite commands panel with saved geometry
