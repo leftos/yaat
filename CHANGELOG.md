@@ -1,6 +1,12 @@
 # Changelog
 
-## Unreleased
+## v0.11.4-beta [2026/08/06]
+
+### Highlights
+- A Strips tab or window can be split side by side or stacked — each pane picks its own bay, and the layout persists.
+- The same facility can be opened in multiple Strips tabs or windows, each keeping its own selected bay.
+- The strips printer button shows a red badge with the waiting departure/arrival strip counts, matching CRC.
+- Server deploys now interrupt active sessions for only a couple of minutes instead of ~10.
 
 ### Added
 - The same facility can be opened in multiple Strips tabs or windows — each keeps its own selected bay, and duplicate tabs are numbered.
