@@ -62,7 +62,19 @@ public static class Program
         using var session = HeadlessUnitTestSession.StartNew(typeof(Program));
         var ctx = new CaptureContext { ServerUrl = server.Url };
 
-        return await session.Dispatch(() => Runner.RunAsync(outDir, sceneFilter, SceneCatalog.All, ctx, renderScaling), CancellationToken.None);
+        // The ContinueWith hop keeps this method's continuation off the
+        // session's dispatcher thread: Avalonia 12.1 completes Dispatch's
+        // task synchronously ON that thread and Task awaits inline onto the
+        // completing thread, so resuming here directly means the session
+        // Dispose at the end of this scope Task.Wait()s for the dispatcher
+        // loop it is itself running on — deadlocking the process after the
+        // capture finishes. A ContinueWith without ExecuteSynchronously is
+        // always queued to the thread pool, never inlined.
+        // (ConfigureAwaitOptions.ForceYielding does NOT work here — it only
+        // covers the already-completed-at-await fast path.)
+        return await session
+            .Dispatch(() => Runner.RunAsync(outDir, sceneFilter, SceneCatalog.All, ctx, renderScaling), CancellationToken.None)
+            .ContinueWith(t => t.GetAwaiter().GetResult(), TaskScheduler.Default);
     }
 #endif
 
