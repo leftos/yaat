@@ -1,6 +1,12 @@
 # Changelog
 
-## Unreleased
+## v0.11.3-beta [2026/08/05]
+
+### Highlights
+- Dragging a flight strip is smooth — it follows the pointer at display rate, holds the exact spot you grabbed it by, and settles into its slot on release.
+- Esc cancels a drag in progress; the scroll wheel scrolls the racks mid-drag, with auto-scroll near the rack edge.
+- Drop targets light up — the trash zone, and bay buttons in yellow, so a transfer to another bay is clearly distinct from repositioning.
+- The vStrips and vTDLS web apps are compiled ahead-of-time for faster rendering and lower input latency — and dragging now works on Firefox.
 
 ### Changed
 - Dragging a flight strip — in the vStrips web app and the in-app Strips tab — is smooth: the strip follows the pointer at display rate (no more stutter), holds the exact spot you grabbed it by, lifts slightly with a shadow on pickup, and settles into its slot on release.
