@@ -67,14 +67,20 @@ The check runs automatically five seconds after startup and stays silent unless 
 Triggered on `push` of a `v*` tag. Jobs run in dependency order:
 
 1. **version** — reads `<Version>` from `Directory.Build.props` and the short SHA.
-2. **changelog** — extracts the `CHANGELOG.md` section matching the tag, splitting out a `### Highlights` subsection (authored by `/prepare-release`) from the changelog body.
+2. **changelog** — extracts the `CHANGELOG.md` section matching the tag, splitting out a `### Highlights` subsection (authored by `/prepare-release`) from the changelog body. Also decides draft-until-deployed (below) by diffing the previous `v*` tag against this one over the server-shared paths (`src/Yaat.Sim`, `src/Yaat.Client.Strips`, `src/Yaat.Client.Tdls`, `tools/Yaat.VStrips.Web`, `tools/Yaat.VTdls.Web`).
 3. **build** — `dotnet publish` of `src/Yaat.Client` for `win-x64` and `linux-x64` (`release-macos.yml` publishes `osx-arm64` and `osx-x64` itself).
 4. **package-win / package-linux / package-macos** — `vpk pack` per platform. `package-macos` (in `release-macos.yml`, once per architecture) additionally imports the Developer ID certificates and an App Store Connect API key into a temporary keychain, then signs + notarizes (skipped when the `MACOS_*` secrets are absent).
-5. **release** — assembles `release/`, builds the release body from highlights + changelog + a download table, and publishes via `softprops/action-gh-release` with the default `GITHUB_TOKEN`.
+5. **release** — assembles `release/`, builds the release body from highlights + changelog + a download table, and creates the release via `softprops/action-gh-release` with the default `GITHUB_TOKEN` — published immediately for client-only releases, as a **draft** for server-affecting ones.
+
+### Draft-until-deployed
+
+The client release workflow finishes in ~5 minutes; the server image build + droplet deploy takes ~30. Publishing the client immediately would offer users (via the releases page and Velopack auto-update, which both ignore drafts) a client whose matching server isn't live yet. So when the tag's diff touches anything the production server runs, the release is created as a draft, and `deploy-to-droplet.ps1` publishes it (`gh release edit --draft=false`) after verifying via `/api/version` that the deployed client commit **is** the tagged commit — then dispatches the Discord announcement. `release-macos.yml` is unaffected: the authenticated `gh release view`/`upload` it uses sees drafts, so macOS assets land on the draft like any release.
+
+A failed or skipped deploy leaves the release as a draft on purpose — publish manually with `gh release edit v{version} --repo leftos/yaat --draft=false` once a matching server is live.
 
 ### Discord announcement quirk
 
-`softprops/action-gh-release` with the default `GITHUB_TOKEN` publishes the release, but GitHub's recursion guard suppresses the resulting `release: published` event, so `discord-release.yml` never fires from it. The release job works around this with a final step that dispatches the Discord workflow explicitly: `gh workflow run discord-release.yml --repo "$REPO" --ref main -f tag="v${TAG}"`. `workflow_dispatch` events fired by `GITHUB_TOKEN` are exempt from the recursion guard, so this triggers (the job declares `permissions: actions: write`). The `--repo` flag is required because the release job never runs `actions/checkout`, so `gh` has no `.git/` to infer the repository from.
+`softprops/action-gh-release` with the default `GITHUB_TOKEN` publishes the release, but GitHub's recursion guard suppresses the resulting `release: published` event, so `discord-release.yml` never fires from it. The release job works around this with a final step that dispatches the Discord workflow explicitly: `gh workflow run discord-release.yml --repo "$REPO" --ref main -f tag="v${TAG}"`. `workflow_dispatch` events fired by `GITHUB_TOKEN` are exempt from the recursion guard, so this triggers (the job declares `permissions: actions: write`). The `--repo` flag is required because the release job never runs `actions/checkout`, so `gh` has no `.git/` to infer the repository from. For draft-until-deployed releases the workflow skips this dispatch; `deploy-to-droplet.ps1` fires the same dispatch after it publishes the draft.
 
 ## Shipping a release
 

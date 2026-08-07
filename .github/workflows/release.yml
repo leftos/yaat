@@ -1,9 +1,18 @@
 name: Release
 
 # Windows + Linux installers. This workflow CREATES the GitHub Release on a v*
-# tag push and publishes immediately, without waiting on Apple notarization.
-# macOS is built and notarized by release-macos.yml (same tag trigger) and its
-# assets are appended to this release when they're ready.
+# tag push, without waiting on Apple notarization. macOS is built and notarized
+# by release-macos.yml (same tag trigger) and its assets are appended to this
+# release when they're ready.
+#
+# Draft-until-deployed: when the release changes anything the production server
+# runs (Yaat.Sim or the hosted vStrips/vTdls web UIs), the GitHub Release is
+# created as a DRAFT — invisible to the releases page and to Velopack
+# auto-update — so users can't pick up a client whose matching server isn't
+# live yet (the CI image build + droplet deploy takes ~30 min vs ~5 min for
+# this workflow). deploy-to-droplet.ps1 publishes the draft and fires the
+# Discord announcement once the matching server is verified live. Client-only
+# releases publish immediately.
 
 on:
   push:
@@ -43,11 +52,38 @@ jobs:
     outputs:
       changelog: ${{ steps.cl.outputs.changelog }}
       highlights: ${{ steps.cl.outputs.highlights }}
+      draft: ${{ steps.scope.outputs.draft }}
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
         with:
           persist-credentials: false
           fetch-depth: 0
+
+      - name: Determine whether this release changes the deployed server
+        id: scope
+        run: |
+          set -euo pipefail
+          # Same path test as prepare-release's deployment-scope step: these are
+          # the yaat paths in the server's Docker image closure (shared sim
+          # library + the web UIs the server hosts). Any change there means the
+          # release must stay a draft until deploy-to-droplet.ps1 publishes it.
+          prev=$(git describe --tags --abbrev=0 --match 'v*' "${GITHUB_REF_NAME}^" 2>/dev/null || true)
+          if [[ -z "$prev" ]]; then
+            echo "No previous v* tag reachable from ${GITHUB_REF_NAME}^ — treating the release as server-affecting."
+            echo "draft=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          changed=$(git diff --name-only "$prev" "$GITHUB_REF_NAME" -- \
+            src/Yaat.Sim src/Yaat.Client.Strips src/Yaat.Client.Tdls \
+            tools/Yaat.VStrips.Web tools/Yaat.VTdls.Web)
+          if [[ -n "$changed" ]]; then
+            echo "Server-affecting paths changed since $prev — creating the release as a draft:"
+            printf '%s\n' "$changed"
+            echo "draft=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "No server-affecting changes since $prev — publishing immediately."
+            echo "draft=false" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Extract changelog section
         id: cl
@@ -325,12 +361,16 @@ jobs:
         with:
           body: ${{ steps.body.outputs.body }}
           files: release/*
+          draft: ${{ needs.changelog.outputs.draft }}
 
       # Manually dispatch discord-release.yml. GitHub's recursion guard prevents
       # the release: published event from auto-triggering workflows when the
       # release was created by the default GITHUB_TOKEN, but workflow_dispatch
       # is exempt from that guard, so this works with GITHUB_TOKEN's actions:write.
+      # Draft releases don't announce here — deploy-to-droplet.ps1 dispatches the
+      # announcement when it publishes the draft after the server deploy.
       - name: Announce release on Discord
+        if: needs.changelog.outputs.draft != 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ needs.version.outputs.version }}
@@ -339,3 +379,10 @@ jobs:
           # --repo is required because the release job never checks out the
           # source tree, so gh has no .git/ to infer the repo from.
           gh workflow run discord-release.yml --repo "$REPO" --ref main -f tag="v${TAG}"
+
+      - name: Note deferred announcement
+        if: needs.changelog.outputs.draft == 'true'
+        run: |
+          echo "Release created as DRAFT (server-affecting changes). It becomes public —" \
+               "and the Discord announcement fires — when deploy-to-droplet.ps1 verifies" \
+               "the matching server is live."

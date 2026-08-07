@@ -384,6 +384,46 @@ function Resolve-CommitLabel {
   return $short
 }
 
+# Draft-until-deployed: release.yml creates the GitHub Release as a draft when the
+# release changes anything the server runs, so auto-update can't offer a client whose
+# matching server isn't live yet. Once this deploy verifies the server is up, publish
+# the draft — but only if the deployed client commit IS the tagged release commit;
+# deploying some other main state must not make an unmatched release public.
+function Publish-DraftClientRelease {
+  param([string]$DeployedClientSha)
+  $props = Get-Content (Join-Path $PSScriptRoot "Directory.Build.props") -Raw
+  if ($props -notmatch "<Version>([^<]+)</Version>") {
+    Write-Host "⚠ Could not read <Version> from Directory.Build.props — skipping draft-release publish check." -ForegroundColor Yellow
+    return
+  }
+  $tag = "v$($Matches[1])"
+  $viewJson = @(gh release view $tag --repo $clientRepo --json isDraft 2>$null)
+  if (($LASTEXITCODE -ne 0) -or ($viewJson.Count -eq 0)) {
+    Write-Host "  No GitHub release for $tag — nothing to publish." -ForegroundColor Gray
+    return
+  }
+  if (-not ($viewJson -join "" | ConvertFrom-Json).isDraft) {
+    Write-Host "  Release $tag is already published." -ForegroundColor Gray
+    return
+  }
+  $tagSha = (git -C $PSScriptRoot rev-list -1 $tag 2>$null | Select-Object -First 1)
+  if ((-not $DeployedClientSha) -or (-not $tagSha) -or ($DeployedClientSha -ne $tagSha)) {
+    Write-Host "⚠ Draft release $tag stays hidden: deployed client commit ($DeployedClientSha) is not the tagged release commit ($tagSha)." -ForegroundColor Yellow
+    Write-Host "  Publish manually once the matching server is live: gh release edit $tag --repo $clientRepo --draft=false" -ForegroundColor Yellow
+    return
+  }
+  gh release edit $tag --repo $clientRepo --draft=false
+  if ($LASTEXITCODE -ne 0) {
+    Write-Host "⚠ Failed to publish draft release $tag (gh exit $LASTEXITCODE). Publish manually: gh release edit $tag --repo $clientRepo --draft=false" -ForegroundColor Yellow
+    return
+  }
+  Write-Host "✓ Published GitHub release $tag (was draft pending this deploy)" -ForegroundColor Green
+  gh workflow run discord-release.yml --repo $clientRepo --ref main -f tag=$tag
+  if ($LASTEXITCODE -ne 0) {
+    Write-Host "⚠ Release published but the Discord announcement dispatch failed. Run manually: gh workflow run discord-release.yml --repo $clientRepo --ref main -f tag=$tag" -ForegroundColor Yellow
+  }
+}
+
 # Announce the imminent restart on Discord and checkpoint active sessions (unless
 # -SkipSessionSave). Returns whether sessions were saved. Shared by both deploy paths;
 # called as late as possible so downtime starts only when the replacement is ready.
@@ -621,6 +661,7 @@ try {
   Write-Host "[8/9] Waiting for server to be ready..." -ForegroundColor Yellow
   $ready = Wait-ServerReady
 
+  $deployedClientSha = if ($BuildOnDroplet) { $clientFullHash } else { $null }
   if (-not $BuildOnDroplet) {
     # The image path never inspects git on the droplet — report what the new server
     # actually runs, from the commit hashes baked into the image at CI build time.
@@ -628,6 +669,7 @@ try {
     $submoduleHash = "unknown"
     try {
       $version = Invoke-RestMethod -Uri "$serverUrl/api/version" -Method Get -TimeoutSec 10
+      $deployedClientSha = $version.client
       $commitHash = Resolve-CommitLabel -Repo $serverRepo -Sha $version.server
       $submoduleHash = Resolve-CommitLabel -Repo $clientRepo -Sha $version.client
     }
@@ -640,6 +682,7 @@ try {
     Write-Host "✓ Server is ready" -ForegroundColor Green
     $sessionNote = if ($sessionsSaved) { "`nActive sessions were checkpointed and should restore on reconnect." } else { "" }
     Send-DiscordStatus -Title "Server is back up" -Description "``$serverUrl`` is back online.`nServer: ``$commitHash```nClient (yaat): ``$submoduleHash``$sessionNote" -Color 5814783
+    Publish-DraftClientRelease -DeployedClientSha $deployedClientSha
   }
   else {
     Write-Host "⚠ Server startup check timed out (may still be initializing)" -ForegroundColor Yellow
