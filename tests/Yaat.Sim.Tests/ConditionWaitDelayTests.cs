@@ -96,9 +96,9 @@ public class ConditionWaitDelayTests
         }
 
         // What a controller typing this produces client-side (scheme parser → canonical string), then
-        // what the server rebuilds from that canonical. The client pre-splits the WAIT and the server's
-        // CFIX-implicit-AT makes the descent an `AT TTE` block, but it must still sit at or after the
-        // wait block so the queue holds it behind the wait's countdown (holdApplies).
+        // what the server rebuilds from that canonical. The canonicalizer must keep the WAIT and its
+        // descent payload in one conditioned `AT TTE` block so the queue holds the descent behind the
+        // wait's countdown (issue #335 — the pre-split form orphaned the payload).
         var canonical = CommandSchemeParser.ParseCompound("CFIX TTE 140; AT TTE WAIT 30 DM 110; RNS", CommandScheme.Default());
         Assert.NotNull(canonical);
 
@@ -111,7 +111,97 @@ public class ConditionWaitDelayTests
 
         Assert.True(waitIdx >= 0, $"no wait block in: {canonical.CanonicalString}");
         Assert.True(descendIdx >= 0, $"no descend block in: {canonical.CanonicalString}");
-        Assert.True(descendIdx >= waitIdx, $"descend block (idx {descendIdx}) must be held behind the wait (idx {waitIdx})");
+        Assert.Equal(waitIdx, descendIdx);
+        Assert.IsType<AtFixCondition>(blocks[waitIdx].Condition);
+    }
+
+    // -------------------------------------------------------------------------
+    // Issue #335: the client canonicalizer must not split a condition-led WAIT
+    // compound into a top-level unconditioned payload block
+    // -------------------------------------------------------------------------
+
+    [Theory]
+    [InlineData("LV 050 WAIT 5 DM 110", "LV 050 WAIT 5 DM 110")]
+    [InlineData("ATFN 5 WAIT 10 CM 2000", "ATFN 5 WAIT 10 CM 2000")]
+    [InlineData("AT 060 WAIT 5 SPD 210", "AT 060 WAIT 5 SPD 210")]
+    [InlineData("LV 050 WAIT 5 WAIT 10 DM 110", "LV 050 WAIT 5 WAIT 10 DM 110")]
+    public void ClientCanonical_ConditionWait_StaysOneBlock(string typed, string expectedCanonical)
+    {
+        var result = CommandSchemeParser.ParseCompound(typed, CommandScheme.Default());
+
+        Assert.NotNull(result);
+        Assert.Equal(expectedCanonical, result!.CanonicalString);
+    }
+
+    [Fact]
+    public void ClientCanonical_AtFixWait_StaysOneBlock_AndServerMergesIt()
+    {
+        if (TestVnasData.NavigationDb is null)
+        {
+            return;
+        }
+
+        var canonical = CommandSchemeParser.ParseCompound("AT TTE WAIT 170 DM 110", CommandScheme.Default());
+
+        Assert.NotNull(canonical);
+        Assert.Equal("AT TTE WAIT 170 DM 110", canonical!.CanonicalString);
+
+        var parsed = CommandParser.ParseCompound(canonical.CanonicalString);
+        Assert.True(parsed.IsSuccess);
+        var block = Assert.Single(parsed.Value!.Blocks);
+        Assert.IsType<AtFixCondition>(block.Condition);
+        Assert.Equal(2, block.Commands.Count);
+        Assert.Equal(170.0, Assert.IsType<WaitCommand>(block.Commands[0]).Seconds);
+        Assert.IsType<DescendMaintainCommand>(block.Commands[1]);
+    }
+
+    [Fact]
+    public void ClientCanonical_ChainedWaits_RoundTripToOneConditionedBlock()
+    {
+        var canonical = CommandSchemeParser.ParseCompound("LV 050 WAIT 5 WAIT 10 DM 110", CommandScheme.Default());
+        Assert.NotNull(canonical);
+
+        var parsed = CommandParser.ParseCompound(canonical!.CanonicalString);
+        Assert.True(parsed.IsSuccess);
+        var block = Assert.Single(parsed.Value!.Blocks);
+        Assert.IsType<LevelCondition>(block.Condition);
+        Assert.Collection(
+            block.Commands,
+            c => Assert.Equal(5.0, Assert.IsType<WaitCommand>(c).Seconds),
+            c => Assert.Equal(10.0, Assert.IsType<WaitCommand>(c).Seconds),
+            c => Assert.IsType<DescendMaintainCommand>(c)
+        );
+    }
+
+    [Fact]
+    public void ClientCanonical_ConditionWait_IsIdempotent()
+    {
+        var first = CommandSchemeParser.ParseCompound("LV 050 WAIT 5 DM 110", CommandScheme.Default());
+        Assert.NotNull(first);
+
+        var second = CommandSchemeParser.ParseCompound(first!.CanonicalString, CommandScheme.Default());
+        Assert.NotNull(second);
+        Assert.Equal(first.CanonicalString, second!.CanonicalString);
+    }
+
+    [Fact]
+    public void ClientCanonical_ConditionWaitThenInnerCondition_KeepsInnerConditionSeparate()
+    {
+        // A payload sub-block that introduces its own condition must stay a standalone block —
+        // only the unconditioned payload merges into the wait's block.
+        var canonical = CommandSchemeParser.ParseCompound("LV 050 WAIT 5 AT TTE DM 110", CommandScheme.Default());
+        Assert.NotNull(canonical);
+        Assert.Equal("LV 050 WAIT 5; AT TTE DM 110", canonical!.CanonicalString);
+    }
+
+    [Fact]
+    public void ClientCanonical_UnconditionedWait_StillSplits()
+    {
+        // Without a leading condition the top-level ExpandWait split is the correct canonical form.
+        var result = CommandSchemeParser.ParseCompound("WAIT 5 DM 110", CommandScheme.Default());
+
+        Assert.NotNull(result);
+        Assert.Equal("WAIT 5; DM 110", result!.CanonicalString);
     }
 
     // -------------------------------------------------------------------------

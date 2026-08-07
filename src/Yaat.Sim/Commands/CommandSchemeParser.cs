@@ -168,6 +168,46 @@ public static class CommandSchemeParser
     }
 
     /// <summary>
+    /// True when every parallel command in a canonical command list is a WAIT/WAITD —
+    /// the client mirror of the server merge's <c>IsWaitLikeCommand</c> gate.
+    /// </summary>
+    private static bool IsWaitOnlyCommandList(string canonicalCommands)
+    {
+        var commands = canonicalCommands.Split(',');
+        foreach (var command in commands)
+        {
+            var trimmed = command.Trim();
+            if (!(trimmed.StartsWith("WAIT ", StringComparison.Ordinal) || trimmed.StartsWith("WAITD ", StringComparison.Ordinal)))
+            {
+                return false;
+            }
+        }
+
+        return commands.Length > 0;
+    }
+
+    /// <summary>
+    /// True when a canonical block string carries its own condition (or splits into multiple blocks) —
+    /// the client mirror of the server merge's stop rule for absorbing WAIT payload sub-blocks.
+    /// </summary>
+    private static bool IsConditionLedBlock(string canonicalBlock)
+    {
+        if (canonicalBlock.Contains(';'))
+        {
+            return true;
+        }
+
+        var upper = canonicalBlock.ToUpperInvariant();
+        return upper.StartsWith("LV ")
+            || upper.StartsWith("AT ")
+            || upper.StartsWith("ATFN ")
+            || upper is "ONHO" or "ONHS"
+            || upper.StartsWith("ONHO ")
+            || upper.StartsWith("ONHS ")
+            || IsGiveWayConditionBlock(canonicalBlock);
+    }
+
+    /// <summary>
     /// Heuristic for a callsign token: alphanumeric, at least 3 chars, containing a digit, and either
     /// two or more letters (airline + flight number) or an N-registration. Distinguishes real callsigns
     /// from short taxiway labels like <c>A1</c> or <c>B7</c>.
@@ -378,47 +418,53 @@ public static class CommandSchemeParser
         if (expandedRemainder.Contains(';'))
         {
             // Expansion produced additional blocks — split and handle each
-            var subBlocks = expandedRemainder.Split(';');
-            var allCanonicalCommands = new List<string>();
-
-            for (int i = 0; i < subBlocks.Length; i++)
+            var subBlocks = expandedRemainder.Split(';').Select(s => s.Trim()).Where(s => s.Length > 0).ToList();
+            if (subBlocks.Count == 0)
             {
-                var subBlock = subBlocks[i].Trim();
-                if (string.IsNullOrEmpty(subBlock))
+                return null;
+            }
+
+            // First sub-block gets the condition prefix
+            var firstCmds = ParseCommandList(subBlocks[0], scheme, out failure);
+            if (firstCmds is null)
+            {
+                return null;
+            }
+
+            var tailCanonicals = new List<string>();
+            foreach (var subBlock in subBlocks.Skip(1))
+            {
+                var canonicalBlock = ParseBlockToCanonical(subBlock, scheme, out failure);
+                if (canonicalBlock is null)
                 {
-                    continue;
+                    return null;
                 }
 
-                if (i == 0)
-                {
-                    // First sub-block gets the condition prefix
-                    var cmds = ParseCommandList(subBlock, scheme, out failure);
-                    if (cmds is null)
-                    {
-                        return null;
-                    }
+                tailCanonicals.Add(canonicalBlock);
+            }
 
-                    if (parts.Count > 0)
-                    {
-                        allCanonicalCommands.Add($"{string.Join(" ", parts)} {cmds}");
-                    }
-                    else
-                    {
-                        allCanonicalCommands.Add(cmds);
-                    }
-                }
-                else
+            // A condition-led WAIT compound (`AT TTE WAIT 170 DM 110`) must stay ONE canonical block:
+            // a top-level `;` split would strand the payload as an unconditioned block the server can
+            // never re-attach — its leading-WAIT merge (CommandParser.ParseBlock) only absorbs payload
+            // sub-blocks within a single block string. Mirror that merge's stop rule here: absorb
+            // space-joined payload blocks until one introduces its own condition or splits further.
+            int mergeCount = 0;
+            if ((parts.Count > 0) && IsWaitOnlyCommandList(firstCmds))
+            {
+                while ((mergeCount < tailCanonicals.Count) && !IsConditionLedBlock(tailCanonicals[mergeCount]))
                 {
-                    // Subsequent sub-blocks from expansion are standalone
-                    var canonicalBlock = ParseBlockToCanonical(subBlock, scheme, out failure);
-                    if (canonicalBlock is null)
-                    {
-                        return null;
-                    }
-
-                    allCanonicalCommands.Add(canonicalBlock);
+                    mergeCount++;
                 }
             }
+
+            var firstBlock = parts.Count > 0 ? $"{string.Join(" ", parts)} {firstCmds}" : firstCmds;
+            if (mergeCount > 0)
+            {
+                firstBlock = $"{firstBlock} {string.Join(" ", tailCanonicals.Take(mergeCount))}";
+            }
+
+            var allCanonicalCommands = new List<string> { firstBlock };
+            allCanonicalCommands.AddRange(tailCanonicals.Skip(mergeCount));
 
             return string.Join("; ", allCanonicalCommands);
         }

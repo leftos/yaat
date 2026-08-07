@@ -17,7 +17,7 @@ The instructor types `UA H180 AT FIX1`. By the end of the tick, `ControlTargets.
 - `CallsignArgumentResolver.TryRewrite` rewrites partial callsigns inside arguments (e.g. `FOLLOW UA` → `FOLLOW UAL123`).
 - Sends via SignalR: `SendCommand(callsign, command, initials)` — three strings, JSON-serialized.
 
-The client does **not** canonicalize before sending. Parsing happens twice (once on the client for autocomplete and signature help, once on the server for execution); the server is authoritative.
+The client **does** canonicalize before sending: `SendCommandAsync` runs `CommandSchemeParser.ParseCompound` and transmits `compound.CanonicalString`, not the raw input. The server re-parses that canonical string with `CommandParser.ParseCompound` and is authoritative for execution — but any shape the client canonicalizer produces is what the server sees, so canonicalizer bugs (e.g. issue #335, where a condition-led `WAIT` compound was split into a top-level unconditioned payload block) change runtime behavior on the interactive path even when the direct server parse is correct.
 
 ### 2. Parsing — `CommandSchemeParser.ParseCompound`
 

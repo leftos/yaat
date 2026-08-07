@@ -69,10 +69,12 @@ public class OnHandoffConditionTests
         Assert.NotNull(result);
     }
 
+    // The WAIT payload stays inside the single ONHO block so the server's leading-WAIT merge holds
+    // it for the wait's duration after the handoff (issues #286/#335) — a `;` split would orphan it.
     [Theory]
-    [InlineData("ONHO WAIT 30 CM 360", "ONHO WAIT 30; CM 360")]
-    [InlineData("ONHO WAIT 60 SCRATCHPAD MTV", "ONHO WAIT 60; SP1 MTV")]
-    [InlineData("ONHO WAIT 20 CM 230", "ONHO WAIT 20; CM 230")]
+    [InlineData("ONHO WAIT 30 CM 360", "ONHO WAIT 30 CM 360")]
+    [InlineData("ONHO WAIT 60 SCRATCHPAD MTV", "ONHO WAIT 60 SP1 MTV")]
+    [InlineData("ONHO WAIT 20 CM 230", "ONHO WAIT 20 CM 230")]
     public void SchemeParser_OnhoWithWait_ExpandsWait(string input, string expected)
     {
         var result = CommandSchemeParser.ParseCompound(input, Scheme);
