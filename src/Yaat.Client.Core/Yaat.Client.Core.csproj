@@ -22,7 +22,7 @@
     <PackageReference Include="Microsoft.AspNetCore.SignalR.Client" Version="10.0.3" />
     <!-- DPAPI for encrypting the cached VATSIM session tokens at rest (Windows; no-op fallback elsewhere). -->
     <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="10.0.9" />
-    <PackageReference Include="Velopack" Version="0.0.1298" />
+    <PackageReference Include="Velopack" Version="1.2.0" />
   </ItemGroup>
 
   <ItemGroup>

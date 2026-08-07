@@ -16,7 +16,7 @@ permissions:
 env:
   # Keep in sync with the Velopack PackageReference in the client csproj files;
   # the vpk CLI and the Velopack runtime library must be the same version.
-  VPK_VERSION: "0.0.1298"
+  VPK_VERSION: "1.2.0"
 
 jobs:
   version:
@@ -172,7 +172,9 @@ jobs:
           path: publish/win-x64
 
       - name: Install Velopack CLI
-        run: dotnet tool install -g vpk --version "$VPK_VERSION"
+        # windows-latest runs pwsh, where "$VPK_VERSION" is an (empty) PowerShell
+        # variable, not the env var — that installed latest instead of the pin.
+        run: dotnet tool install -g vpk --version "$env:VPK_VERSION"
 
       - name: Pack installer
         run: |

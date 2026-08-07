@@ -69,7 +69,7 @@
     <!-- Transitive via MessageBox.Avalonia 12.0.0, which declares a 0.12.1-nightly prerelease.
          Pin the stable release so no prerelease reaches a shipped build. -->
     <PackageReference Include="DialogHost.Avalonia" Version="0.12.3" />
-    <PackageReference Include="Velopack" Version="0.0.1298" />
+    <PackageReference Include="Velopack" Version="1.2.0" />
   </ItemGroup>
 
   <ItemGroup>
