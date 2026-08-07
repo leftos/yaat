@@ -1,6 +1,10 @@
 # Changelog
 
-## Unreleased
+## v0.11.5-beta [2026/08/07]
+
+### Highlights
+- "Cleared VOR runway N approach" now resolves the published VOR approach instead of being rejected as unknown.
+- A `<condition> WAIT n <command>` compound (e.g. `AT TTE WAIT 170 DM 110`) fires the delayed command n seconds after the condition again.
 
 ### Fixed
 - Clearing a **VOR approach** to a numbered runway ("cleared VOR runway N approach") now resolves the published approach. VOR approaches are charted as `S`/`D` type codes in the FAA data, so the "VOR" shorthand previously matched nothing and was rejected as unknown at most airports.

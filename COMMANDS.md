@@ -1025,7 +1025,7 @@ All four are also **pre-issuable** against a pattern entry that is still queued 
 
 ### Approach Control Commands
 
-Approach clearances use FAA [CIFP](#glossary) procedure data. Approach IDs can be full CIFP identifiers (e.g., `I28R`) or common shorthand (e.g., `ILS28R`, `RNAV17L`, `LOC30`). The runway number may be typed FAA-style without the leading zero — `I8R` resolves the same as `I08R`, and `ILS8R` the same as `ILS08R`.
+Approach clearances use FAA [CIFP](#glossary) procedure data. Approach IDs can be full CIFP identifiers (e.g., `I28R`) or common shorthand (e.g., `ILS28R`, `RNAV17L`, `LOC30`, `VOR27`, `NDB16`). The runway number may be typed FAA-style without the leading zero — `I8R` resolves the same as `I08R`, and `ILS8R` the same as `ILS08R`.
 
 | Command | Effect |
 |---------|--------|
