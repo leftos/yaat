@@ -20,6 +20,11 @@ public class VStripsSplitHostTests
     {
         var vm = new MainViewModel(new FakeFilePickerService());
         var entry = vm.StripsEntries[0];
+        // The student entry's split mode persists in the per-process shared
+        // preferences.json and is restored by the MainViewModel constructor, so
+        // an earlier test's split would leak in here. Normalize to unsplit so
+        // every test starts from the single-pane baseline regardless of order.
+        vm.UnsplitStripsEntry(entry);
         var host = new VStripsSplitHost { DataContext = entry };
         var window = new Window { Content = host };
         window.Show();
@@ -83,7 +88,47 @@ public class VStripsSplitHostTests
         }
         finally
         {
+            // Restore the shared preferences.json to the unsplit default so the
+            // persisted split can't leak into later-constructed MainViewModels.
+            vm.UnsplitStripsEntry(entry);
             window.Close();
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task SplitHost_RestoresPersistedSplitFromPreferences()
+    {
+        // Splitting the student entry persists the mode, and a fresh
+        // MainViewModel restores it at construction — the flow that carries a
+        // user's split layout across app restarts.
+        var (vm, entry, _, window) = NewSplitHost();
+        MainViewModel? restoredVm = null;
+        Window? restoredWindow = null;
+        try
+        {
+            await vm.SplitStripsEntryAsync(entry, StripsSplitMode.Stacked);
+
+            restoredVm = new MainViewModel(new FakeFilePickerService());
+            var restoredEntry = restoredVm.StripsEntries[0];
+            Assert.Equal(StripsSplitMode.Stacked, restoredEntry.SplitMode);
+            Assert.NotNull(restoredEntry.SecondaryVm);
+
+            var restoredHost = new VStripsSplitHost { DataContext = restoredEntry };
+            restoredWindow = new Window { Content = restoredHost };
+            restoredWindow.Show();
+            restoredWindow.UpdateLayout();
+            Assert.Equal(2, StripsViewsOf(restoredHost).Count);
+            var splitter = Assert.Single(restoredHost.GetVisualDescendants().OfType<GridSplitter>());
+            Assert.Equal(GridResizeDirection.Rows, splitter.ResizeDirection);
+        }
+        finally
+        {
+            // Restore the shared preferences.json to the unsplit default so the
+            // persisted split can't leak into later-constructed MainViewModels.
+            vm.UnsplitStripsEntry(entry);
+            restoredVm?.UnsplitStripsEntry(restoredVm.StripsEntries[0]);
+            window.Close();
+            restoredWindow?.Close();
         }
     }
 }
