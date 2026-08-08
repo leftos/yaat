@@ -1,6 +1,12 @@
 # Changelog
 
-## Unreleased
+## v0.11.7-beta [2026/08/08]
+
+### Highlights
+- The METAR window lists stations alphabetically, and starring a station favorites it for the current scenario, pinning it to the top.
+- "Use Live Weather" works again when any station reports variable (VRB) wind — one malformed station no longer wipes out the whole METAR feed.
+- A queued conditional VFR hold (e.g. `AT 5000 HPPR`) is cancelled by a superseding vector or direct-to instead of re-entering the orbit once its trigger fires.
+- The divider in a split Strips view is a wide grip bar that brightens on hover, clearly distinct from bay dividers.
 
 ### Added
 - The METAR window lists stations alphabetically; a star next to each station favorites it for the current scenario, pinning favorites to the top.
