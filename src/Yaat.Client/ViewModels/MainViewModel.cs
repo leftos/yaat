@@ -1656,6 +1656,7 @@ public partial class MainViewModel : ObservableObject
         OnPropertyChanged(nameof(WindowTitle));
         RefreshDisplayFavorites();
         ReloadCommandHistoryForScenario(value);
+        RefreshMetarOrdering();
     }
 
     /// <summary>

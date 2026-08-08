@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+### Added
+- The METAR window lists stations alphabetically; a star next to each station favorites it for the current scenario, pinning favorites to the top.
+
 ### Fixed
 - A queued conditional VFR hold (`HPPL`/`HPPR`/`HPP`/`HFIXL`/`HFIXR`/`HFIX`, e.g. `AT 5000 HPPR`) is now cancelled by a superseding vector or direct-to instead of re-entering the orbit once its trigger fires. Altitude and speed assignments still leave the queued hold in place.
 - "Use Live Weather" no longer produces default weather (altimeter 29.92, calm wind, empty METAR tab) whenever any station in the ARTCC reports a variable wind direction (`VRB`) — the METAR feed now accepts `VRB` and keeps the remaining stations even if one station's data is malformed.

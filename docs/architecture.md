@@ -251,7 +251,7 @@ Services/
   LiveWeatherService.cs         # Fetches live METARs + FD winds from aviationweather.gov → WeatherProfile
   ArtccAirportResolver.cs       # Fetches vNAS ARTCC config → underlying airport IDs (cached); recurses the facility tree for every STARS config
   FdRegionMapping.cs            # Static ARTCC → FD region code mapping
-  UserPreferences.cs            # JSON to %LOCALAPPDATA%/yaat/preferences.json (incl. macros, favorite command scope/panel-grid/spacer metadata, favorite video maps per ARTCC/airport/scenario, and the macOS renderer-backend override read by Program.BuildAvaloniaApp)
+  UserPreferences.cs            # JSON to %LOCALAPPDATA%/yaat/preferences.json (incl. macros, favorite command scope/panel-grid/spacer metadata, favorite video maps per ARTCC/airport/scenario, favorite METAR stations per scenario, and the macOS renderer-backend override read by Program.BuildAvaloniaApp)
   MenuGroup.cs                  # Enum of context menu groups (Heading, Altitude, Speed, Tower, etc.)
   ContextMenuProfile.cs         # Record: Primary/Secondary/Hidden menu groups for a phase
   ContextMenuProfileService.cs  # Static: maps phase name + isOnGround → ContextMenuProfile (which radar submenu GROUPS show)
@@ -278,7 +278,7 @@ ViewModels/
   MainViewModel.ArrivalGenerators.cs # Partial: live arrival-generator editing (open editor window, push edits to sim, Save As)
   MainViewModel.HoldForRelease.cs # Partial: hold-for-release rundown mirror + REL release commands (HeldDeparturesChanged handler, RoomStateDto.Rundown seed)
   MainViewModel.Timers.cs       # Partial: TIMER countdown mirror + cancel command (TimersChanged handler, RoomStateDto.Timers seed, command-bar timers panel)
-  MainViewModel.Weather.cs      # Partial: weather load/clear commands + WeatherChanged handler; retains raw METARs (Metars) for the METAR window
+  MainViewModel.Weather.cs      # Partial: weather load/clear commands + WeatherChanged handler; retains raw METARs (Metars) for the METAR window, sorted per-scenario favorites first then alphabetical
   MainViewModel.Controllers.cs  # Partial: online-controller list (OnlineControllers + CRC-grouped ControllerGroups) for the Controllers tab; refresh via GetOnlineControllers, re-fetched on CRC membership + scenario load/unload
   MainViewModel.ActivePosition.cs # Partial: active-position (TCP) indicator/dropdown in the input bar (ActiveTcp + ActiveTcpOptions); seeded from the bootstrap PositionDisplayConfig, follows PositionDisplayChanged (standalone AS only), picking a TCP sends AS [TCP]
   MainViewModel.Favorites.cs    # Partial: favorite commands (quick-access bar/panel, global/scenario/airport scope, ground overrides, blank spacers)
@@ -315,7 +315,7 @@ Views/
   FavoriteImportWindow.axaml.cs # Favorites import prompt: Append vs Replace all (returns FavoriteImportMode?)
   ControllersView.axaml.cs      # Controllers tab content: CRC-style facility-grouped list (handoff id / position name / freq) over MainViewModel.ControllerGroups
   ControllersWindow.axaml.cs    # Pop-out host for ControllersView (View > Pop Out Controllers)
-  MetarView.axaml.cs            # METAR tab content: per-airport METAR list over MainViewModel.Metars
+  MetarView.axaml.cs            # METAR tab content: per-airport METAR list over MainViewModel.Metars with a per-scenario favorite-station star toggle
   MetarWindow.axaml.cs          # Pop-out host for MetarView (View > Pop Out METAR)
   FavoritesContextMenu.cs       # Builds the Favorite Commands submenu attached to aircraft right-click menus (list/ground/radar)
   FavoritesContextMenuModel.cs  # Pure model behind FavoritesContextMenu: resolves active favorites against the clicked aircraft for headless tests

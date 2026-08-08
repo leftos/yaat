@@ -8,7 +8,7 @@ using Yaat.Sim;
 namespace Yaat.Client.ViewModels;
 
 /// <summary>One airport's raw METAR string, as broadcast for the currently active weather.</summary>
-public record MetarEntry(string? StationId, string Raw);
+public record MetarEntry(string? StationId, string Raw, bool IsFavorite, bool CanFavorite);
 
 public record WeatherDisplayInfo(
     string? StationId,
@@ -63,6 +63,7 @@ public partial class MainViewModel
 
     private string? _activeWeatherJson;
     private IReadOnlyList<WeatherDisplayInfo>? _allWeatherInfo;
+    private IReadOnlyList<string>? _lastPopulatedMetars;
 
     /// <summary>Raw METAR strings for the active weather, one per airport, shown in the METAR window.</summary>
     public ObservableCollection<MetarEntry> Metars { get; } = [];
@@ -285,14 +286,17 @@ public partial class MainViewModel
         });
     }
 
-    private void PopulateMetars(IReadOnlyList<string>? metars)
+    public void PopulateMetars(IReadOnlyList<string>? metars)
     {
+        _lastPopulatedMetars = metars;
         Metars.Clear();
         if (metars is null)
         {
             return;
         }
 
+        var scenarioId = ActiveScenarioId;
+        var entries = new List<MetarEntry>(metars.Count);
         foreach (var raw in metars)
         {
             if (string.IsNullOrWhiteSpace(raw))
@@ -307,8 +311,47 @@ public partial class MainViewModel
                 stationId = stationId[1..];
             }
 
-            Metars.Add(new MetarEntry(stationId, raw.Trim()));
+            var canFavorite = (stationId is not null) && !string.IsNullOrEmpty(scenarioId);
+            var isFavorite = canFavorite && _preferences.IsFavoriteMetarStation(scenarioId!, stationId!);
+            entries.Add(new MetarEntry(stationId, raw.Trim(), isFavorite, canFavorite));
         }
+
+        // Favorited stations first, then alphabetical within each group; entries whose
+        // METAR failed to parse (no station id) sort last, keeping broadcast order.
+        foreach (
+            var entry in entries
+                .OrderByDescending(e => e.IsFavorite)
+                .ThenBy(e => e.StationId is null)
+                .ThenBy(e => e.StationId, StringComparer.OrdinalIgnoreCase)
+        )
+        {
+            Metars.Add(entry);
+        }
+    }
+
+    /// <summary>
+    /// Re-sorts the METAR list from the last broadcast, picking up the active scenario's
+    /// favorites. Called after a favorite toggle and on every scenario transition.
+    /// </summary>
+    private void RefreshMetarOrdering()
+    {
+        if (_lastPopulatedMetars is not null)
+        {
+            PopulateMetars(_lastPopulatedMetars);
+        }
+    }
+
+    [RelayCommand]
+    private void ToggleMetarFavorite(MetarEntry entry)
+    {
+        var scenarioId = ActiveScenarioId;
+        if ((entry.StationId is null) || string.IsNullOrEmpty(scenarioId))
+        {
+            return;
+        }
+
+        _preferences.SetFavoriteMetarStation(scenarioId, entry.StationId, !entry.IsFavorite);
+        RefreshMetarOrdering();
     }
 
     private static IReadOnlyList<WeatherDisplayInfo>? ExtractAllWeatherDisplay(IReadOnlyList<string>? metars)

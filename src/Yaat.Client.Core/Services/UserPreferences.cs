@@ -1265,6 +1265,46 @@ public sealed class UserPreferences
         Save();
     }
 
+    /// <summary>
+    /// True when the METAR station (display id, e.g. "OAK") is favorited for the given scenario.
+    /// </summary>
+    public bool IsFavoriteMetarStation(string scenarioId, string stationId)
+    {
+        return _data.FavoriteMetarStationsByScenario.TryGetValue(scenarioId, out var stations) && stations.Contains(stationId);
+    }
+
+    /// <summary>
+    /// Adds or removes <paramref name="stationId"/> from the METAR stations favorited for the given
+    /// scenario, dropping the scenario key entirely when its last favorite is removed, then persists.
+    /// </summary>
+    public void SetFavoriteMetarStation(string scenarioId, string stationId, bool isFavorite)
+    {
+        var store = _data.FavoriteMetarStationsByScenario;
+        if (isFavorite)
+        {
+            if (!store.TryGetValue(scenarioId, out var stations))
+            {
+                stations = [];
+                store[scenarioId] = stations;
+            }
+
+            if (!stations.Contains(stationId))
+            {
+                stations.Add(stationId);
+            }
+        }
+        else if (store.TryGetValue(scenarioId, out var stations))
+        {
+            stations.Remove(stationId);
+            if (stations.Count == 0)
+            {
+                store.Remove(scenarioId);
+            }
+        }
+
+        Save();
+    }
+
     public SavedGroundSettings? GetGroundSettings(string scenarioId)
     {
         _data.GroundSettings.TryGetValue(scenarioId, out var settings);
@@ -1481,6 +1521,7 @@ public sealed class UserPreferences
             FavoriteVideoMapsByArtcc = GetFieldOr<Dictionary<string, List<string>>>(obj, "favoriteVideoMapsByArtcc", []),
             FavoriteVideoMapsByAirport = GetFieldOr<Dictionary<string, List<string>>>(obj, "favoriteVideoMapsByAirport", []),
             FavoriteVideoMapsByScenario = GetFieldOr<Dictionary<string, List<string>>>(obj, "favoriteVideoMapsByScenario", []),
+            FavoriteMetarStationsByScenario = GetFieldOr<Dictionary<string, List<string>>>(obj, "favoriteMetarStationsByScenario", []),
             WindowGeometries = GetFieldOr<Dictionary<string, SavedWindowGeometry>>(obj, "windowGeometries", []),
             WindowProfiles = GetFieldOr<List<SavedWindowProfile>>(obj, "windowProfiles", []),
             ShowOnlyActiveAircraft = GetFieldOr(obj, "showOnlyActiveAircraft", false),
@@ -1747,6 +1788,7 @@ public sealed class UserPreferences
         public Dictionary<string, List<string>> FavoriteVideoMapsByArtcc { get; set; } = [];
         public Dictionary<string, List<string>> FavoriteVideoMapsByAirport { get; set; } = [];
         public Dictionary<string, List<string>> FavoriteVideoMapsByScenario { get; set; } = [];
+        public Dictionary<string, List<string>> FavoriteMetarStationsByScenario { get; set; } = [];
         public Dictionary<string, double> GroundRotationByAirport { get; set; } = [];
         public Dictionary<string, SavedWindowGeometry> WindowGeometries { get; set; } = [];
         public List<SavedWindowProfile> WindowProfiles { get; set; } = [];

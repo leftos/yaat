@@ -32,10 +32,33 @@
                                 BorderBrush="#14FFFFFF"
                                 BorderThickness="0,0,0,1">
                             <StackPanel Spacing="2">
-                                <TextBlock Text="{Binding StationId}"
-                                           FontWeight="SemiBold"
-                                           FontSize="{DynamicResource UiFontSizeSubtle}"
-                                           Foreground="{DynamicResource SubtleTextBrush}" />
+                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                    <Button Background="Transparent"
+                                            BorderThickness="0"
+                                            Padding="0"
+                                            Cursor="Hand"
+                                            VerticalAlignment="Center"
+                                            Command="{Binding $parent[ItemsControl].((vm:MainViewModel)DataContext).ToggleMetarFavoriteCommand}"
+                                            CommandParameter="{Binding}"
+                                            IsVisible="{Binding CanFavorite}"
+                                            ToolTip.Tip="Favorite this station for the current scenario">
+                                        <Panel>
+                                            <TextBlock Text="★"
+                                                       FontSize="{DynamicResource UiFontSizeSubtle}"
+                                                       Foreground="Gold"
+                                                       IsVisible="{Binding IsFavorite}" />
+                                            <TextBlock Text="☆"
+                                                       FontSize="{DynamicResource UiFontSizeSubtle}"
+                                                       Foreground="{DynamicResource SubtleTextBrush}"
+                                                       IsVisible="{Binding !IsFavorite}" />
+                                        </Panel>
+                                    </Button>
+                                    <TextBlock Text="{Binding StationId}"
+                                               FontWeight="SemiBold"
+                                               FontSize="{DynamicResource UiFontSizeSubtle}"
+                                               Foreground="{DynamicResource SubtleTextBrush}"
+                                               VerticalAlignment="Center" />
+                                </StackPanel>
                                 <SelectableTextBlock Text="{Binding Raw}"
                                                      TextWrapping="Wrap"
                                                      FontFamily="Consolas,Menlo,monospace" />
