@@ -1,6 +1,11 @@
 # Changelog
 
-## Unreleased
+## v0.11.6-beta [2026/08/07]
+
+### Highlights
+- Approaches, SIDs, and STARs keep every published waypoint — fixes that exist only in the FAA CIFP (like CFMLD on the GSO ILS Y/Z 32) no longer silently drop.
+- Scenario presets like `WAIT n SAY …` keep their message even when it contains "AND" or "THEN".
+- "Report the field in sight" and "report traffic in sight" respond at realistic ranges — 10SM visibility means 10 or more, the field counts up to 120° off the nose, and called-out traffic is spotted at type-appropriate distances.
 
 ### Fixed
 - Approaches, SIDs, and STARs no longer silently drop waypoints that exist in the FAA CIFP but are missing from vNAS navdata (computer navigation fixes like CFMLD on the GSO ILS Y/Z 32). The procedure's own CIFP coordinates are used, so the flown path, missed-approach point distance, and drawn route include every published fix.
