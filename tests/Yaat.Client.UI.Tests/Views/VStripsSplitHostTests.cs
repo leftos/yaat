@@ -53,6 +53,10 @@ public class VStripsSplitHostTests
             Assert.Contains(primaryView, splitViews);
             var splitter = Assert.Single(host.GetVisualDescendants().OfType<GridSplitter>());
             Assert.Equal(GridResizeDirection.Columns, splitter.ResizeDirection);
+            // The splitter must carry the host's own styling — a theme-default
+            // GridSplitter is indistinguishable from the bay dividers inside a
+            // pane (#338).
+            Assert.Same(VStripsSplitHost.SplitterRestBrush, splitter.Background);
 
             await vm.SplitStripsEntryAsync(entry, StripsSplitMode.Stacked);
             window.UpdateLayout();

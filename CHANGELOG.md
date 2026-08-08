@@ -6,6 +6,7 @@
 - A queued conditional VFR hold (`HPPL`/`HPPR`/`HPP`/`HFIXL`/`HFIXR`/`HFIX`, e.g. `AT 5000 HPPR`) is now cancelled by a superseding vector or direct-to instead of re-entering the orbit once its trigger fires. Altitude and speed assignments still leave the queued hold in place.
 - "Use Live Weather" no longer produces default weather (altimeter 29.92, calm wind, empty METAR tab) whenever any station in the ARTCC reports a variable wind direction (`VRB`) — the METAR feed now accepts `VRB` and keeps the remaining stations even if one station's data is malformed.
 - If the METAR feed is unavailable when loading live weather, the terminal now shows a warning ("METARs unavailable — winds aloft only") instead of silently reporting success.
+- The divider between the two panes of a split Strips view is a wide grip bar that brightens on hover, clearly distinct from bay dividers.
 
 ## v0.11.6-beta [2026/08/07]
 

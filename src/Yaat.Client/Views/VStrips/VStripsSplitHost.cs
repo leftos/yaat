@@ -1,5 +1,11 @@
 using System.ComponentModel;
+using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Shapes;
+using Avalonia.Controls.Templates;
+using Avalonia.Layout;
+using Avalonia.Media.Immutable;
+using Avalonia.Styling;
 using Yaat.Client.ViewModels;
 
 namespace Yaat.Client.Views.VStrips;
@@ -17,6 +23,18 @@ namespace Yaat.Client.Views.VStrips;
 /// </summary>
 public sealed class VStripsSplitHost : ContentControl
 {
+    /// <summary>
+    /// Rest color of the pane splitter. Public so tests can pin that the
+    /// splitter is visibly styled rather than falling back to the theme
+    /// default, which is indistinguishable from the bay dividers inside a
+    /// pane.
+    /// </summary>
+    public static readonly ImmutableSolidColorBrush SplitterRestBrush = new(0xFF4A4A52);
+
+    private static readonly ImmutableSolidColorBrush SplitterActiveBrush = new(0xFF6A6A78);
+    private static readonly ImmutableSolidColorBrush SplitterGripBrush = new(0xFFA0A0AC);
+    private const double SplitterThickness = 8;
+
     private readonly VStripsView _primaryView = new();
     private VStripsView? _secondaryView;
     private VStripsDockEntryViewModel? _entry;
@@ -93,7 +111,7 @@ public sealed class VStripsSplitHost : ContentControl
                 new ColumnDefinition(GridLength.Auto),
                 new ColumnDefinition(1 - ratio, GridUnitType.Star),
             ];
-            splitter = new GridSplitter { Width = 5, ResizeDirection = GridResizeDirection.Columns };
+            splitter = CreateSplitter(vertical: true);
             Grid.SetColumn(_primaryView, 0);
             Grid.SetColumn(splitter, 1);
             Grid.SetColumn(_secondaryView, 2);
@@ -106,7 +124,7 @@ public sealed class VStripsSplitHost : ContentControl
                 new RowDefinition(GridLength.Auto),
                 new RowDefinition(1 - ratio, GridUnitType.Star),
             ];
-            splitter = new GridSplitter { Height = 5, ResizeDirection = GridResizeDirection.Rows };
+            splitter = CreateSplitter(vertical: false);
             Grid.SetRow(_primaryView, 0);
             Grid.SetRow(splitter, 1);
             Grid.SetRow(_secondaryView, 2);
@@ -119,6 +137,58 @@ public sealed class VStripsSplitHost : ContentControl
         grid.Children.Add(_secondaryView);
         _splitGrid = grid;
         Content = grid;
+    }
+
+    private static GridSplitter CreateSplitter(bool vertical)
+    {
+        var splitter = new GridSplitter { ResizeDirection = vertical ? GridResizeDirection.Columns : GridResizeDirection.Rows };
+        if (vertical)
+        {
+            splitter.Width = SplitterThickness;
+        }
+        else
+        {
+            splitter.Height = SplitterThickness;
+        }
+
+        splitter.Template = new FuncControlTemplate<GridSplitter>(
+            (parent, _) =>
+            {
+                var dots = new StackPanel
+                {
+                    Orientation = vertical ? Orientation.Vertical : Orientation.Horizontal,
+                    Spacing = 3,
+                    HorizontalAlignment = HorizontalAlignment.Center,
+                    VerticalAlignment = VerticalAlignment.Center,
+                };
+                for (var i = 0; i < 3; i++)
+                {
+                    dots.Children.Add(
+                        new Ellipse
+                        {
+                            Width = 3,
+                            Height = 3,
+                            Fill = SplitterGripBrush,
+                        }
+                    );
+                }
+                var border = new Border { Child = dots };
+                border.Bind(BackgroundProperty, parent.GetObservable(BackgroundProperty));
+                return border;
+            }
+        );
+
+        // The rest color must come from a style rather than a local value —
+        // a local Background would outrank the pointerover/pressed setters
+        // and the hover highlight would never show.
+        splitter.Styles.Add(new Style(x => x.OfType<GridSplitter>()) { Setters = { new Setter(BackgroundProperty, SplitterRestBrush) } });
+        splitter.Styles.Add(
+            new Style(x => x.OfType<GridSplitter>().Class(":pointerover")) { Setters = { new Setter(BackgroundProperty, SplitterActiveBrush) } }
+        );
+        splitter.Styles.Add(
+            new Style(x => x.OfType<GridSplitter>().Class(":pressed")) { Setters = { new Setter(BackgroundProperty, SplitterActiveBrush) } }
+        );
+        return splitter;
     }
 
     private void CaptureRatioFromDefinitions()
