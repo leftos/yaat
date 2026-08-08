@@ -817,7 +817,10 @@ public static class CommandSchemeParser
     /// Skips text inside SAY/SAYF arguments so messages like <c>SAYF READING YOU LOUD AND CLEAR</c>
     /// are preserved verbatim. SAY at block start (after <c>;</c> or input start) consumes the whole
     /// block per the parser's literal-SAY rule; SAY after a <c>,</c> consumes only until the next
-    /// <c>,</c> or <c>;</c>.
+    /// <c>,</c> or <c>;</c>. Transparent prefixes — <c>WAIT</c>/<c>DELAY</c>/<c>WAITD</c> and the
+    /// condition verbs <c>AT</c>/<c>LV</c>/<c>ATFN</c> (each with one argument token) and
+    /// <c>ONHO</c>/<c>ONH</c>/<c>ONHS</c> (bare) — don't end the command start, so SAY after
+    /// <c>WAIT 1</c> or <c>AT FIX</c> still begins a literal message.
     /// </summary>
     public static string NormalizeSeparatorAliases(string input)
     {
@@ -831,6 +834,7 @@ public static class CommandSchemeParser
         bool subCommandStart = true;
         bool inSayArg = false;
         bool sayBlockwide = false;
+        int pendingPrefixArgs = 0;
         int i = 0;
 
         while (i < input.Length)
@@ -844,6 +848,7 @@ public static class CommandSchemeParser
                 subCommandStart = true;
                 inSayArg = false;
                 sayBlockwide = false;
+                pendingPrefixArgs = 0;
                 i++;
                 continue;
             }
@@ -852,6 +857,7 @@ public static class CommandSchemeParser
             {
                 sb.Append(c);
                 subCommandStart = true;
+                pendingPrefixArgs = 0;
                 if (inSayArg && !sayBlockwide)
                 {
                     inSayArg = false;
@@ -875,6 +881,22 @@ public static class CommandSchemeParser
             }
 
             var token = input.AsSpan(start, i - start);
+
+            // A transparent prefix's argument token is copied verbatim: it must neither become a
+            // separator nor start a SAY literal, and the command start it guards stays open.
+            if (pendingPrefixArgs > 0)
+            {
+                sb.Append(token);
+                pendingPrefixArgs--;
+                continue;
+            }
+
+            if ((!inSayArg) && subCommandStart && TransparentPrefixArgCount(token) is int prefixArgs)
+            {
+                sb.Append(token);
+                pendingPrefixArgs = prefixArgs;
+                continue;
+            }
 
             if (!inSayArg && token.Equals("THEN", StringComparison.OrdinalIgnoreCase))
             {
@@ -914,6 +936,37 @@ public static class CommandSchemeParser
         }
 
         return sb.ToString();
+    }
+
+    /// <summary>
+    /// Number of argument tokens a transparent prefix consumes at a command start, or null when the
+    /// token is not a transparent prefix. WAIT/DELAY/WAITD and the conditions AT/LV/ATFN carry one
+    /// argument; ONHO/ONH/ONHS are bare.
+    /// </summary>
+    private static int? TransparentPrefixArgCount(ReadOnlySpan<char> token)
+    {
+        if (
+            token.Equals("WAIT", StringComparison.OrdinalIgnoreCase)
+            || token.Equals("DELAY", StringComparison.OrdinalIgnoreCase)
+            || token.Equals("WAITD", StringComparison.OrdinalIgnoreCase)
+            || token.Equals("AT", StringComparison.OrdinalIgnoreCase)
+            || token.Equals("LV", StringComparison.OrdinalIgnoreCase)
+            || token.Equals("ATFN", StringComparison.OrdinalIgnoreCase)
+        )
+        {
+            return 1;
+        }
+
+        if (
+            token.Equals("ONHO", StringComparison.OrdinalIgnoreCase)
+            || token.Equals("ONH", StringComparison.OrdinalIgnoreCase)
+            || token.Equals("ONHS", StringComparison.OrdinalIgnoreCase)
+        )
+        {
+            return 0;
+        }
+
+        return null;
     }
 
     /// <summary>

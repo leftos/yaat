@@ -876,9 +876,10 @@ BeaconCodePool.cs              # Discrete-code allocator. AssignNextCode(isVfr) 
                                # NextCandidate/BankCursors + RestoreCursors round-trip the draw cursors through snapshots.
 CifpDataService.cs             # FAA CIFP zip download/extract per AIRAC cycle
 CifpParser.cs                  # ARINC 424 parser: approaches (subsection F), SIDs (D), STARs (E), airport magnetic variation (A), airport runways (G: ParseRunwayThresholdElevations -> per-END landing threshold elevation, the glidepath datum NavData has no per-end value for); FAF fixes, terminal waypoints
-                               # ParseTerminalWaypoints: per-airport section-C waypoints for RF center fix resolution
+                               # ParseTerminalWaypoints: per-airport section-C waypoints for RF center fix + leg fix resolution
 CifpModels.cs                  # CIFP data models: CifpApproachProcedure, CifpSidProcedure, CifpStarProcedure, CifpLeg, CifpTransition
-                               # CifpLeg: ArcRadiusNm, ArcCenterLat/Lon (RF), RecommendedNavaidId, Theta, Rho (AF)
+                               # CifpLeg: ArcRadiusNm, ArcCenterLat/Lon (RF), RecommendedNavaidId, Theta, Rho (AF), FixLat/FixLon (CIFP terminal-waypoint coords)
+                               # CifpLegExtensions.ResolveFixPosition: leg fix -> position, CIFP coords first then NavigationDatabase (covers CNFs absent from vNAS NavData)
 CrossingRestrictionLabel.cs    # Formats a CifpAltitudeRestriction/CifpSpeedRestriction into ≥/≤ FL-aware label lines for the "Show nav route" overlay; server-side, fed into NavRouteFixDto.RestrictionLines by DtoConverter
 
 # Scenarios/

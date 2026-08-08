@@ -123,8 +123,8 @@ public static class FinalApproachCourseExtractor
             return null;
         }
 
-        var prevPos = ResolveFixPosition(prev.FixIdentifier, runway, navDb);
-        var mapPos = ResolveFixPosition(legs[mapIndex].FixIdentifier, runway, navDb);
+        var prevPos = ResolveFixOrThreshold(prev, runway, navDb);
+        var mapPos = ResolveFixOrThreshold(legs[mapIndex], runway, navDb);
         if (prevPos is null || mapPos is null)
         {
             return null;
@@ -161,18 +161,18 @@ public static class FinalApproachCourseExtractor
         return null;
     }
 
-    private static (double Lat, double Lon)? ResolveFixPosition(string fixId, RunwayInfo runway, NavigationDatabase navDb)
+    private static (double Lat, double Lon)? ResolveFixOrThreshold(CifpLeg leg, RunwayInfo runway, NavigationDatabase navDb)
     {
-        if (string.IsNullOrEmpty(fixId))
+        if (string.IsNullOrEmpty(leg.FixIdentifier))
         {
             return null;
         }
         // Runway pseudo-fixes (RW28R, RW10L, etc.) are not in NavigationDatabase — fall back to threshold.
-        if (fixId.StartsWith("RW", StringComparison.Ordinal))
+        if (leg.FixIdentifier.StartsWith("RW", StringComparison.Ordinal))
         {
             return (runway.ThresholdLatitude, runway.ThresholdLongitude);
         }
-        return navDb.GetFixPosition(fixId);
+        return leg.ResolveFixPosition(navDb);
     }
 
     private static (double? Lat, double? Lon) DetermineAnchor(CifpLeg mapLeg, RunwayInfo runway, NavigationDatabase navDb)
@@ -183,7 +183,7 @@ public static class FinalApproachCourseExtractor
             return (null, null);
         }
 
-        var pos = navDb.GetFixPosition(mapLeg.FixIdentifier);
+        var pos = mapLeg.ResolveFixPosition(navDb);
         if (pos is null)
         {
             return (null, null);

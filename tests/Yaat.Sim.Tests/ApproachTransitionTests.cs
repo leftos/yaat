@@ -43,6 +43,30 @@ public class ApproachTransitionTests(ITestOutputHelper output)
         };
     }
 
+    // --- CNF fixes absent from vNAS NavData (resolved from CIFP terminal waypoints) ---
+
+    [Fact]
+    public void ExtractMapDistance_KgsoI32Y_ResolvesCnfMapFixFromCifp()
+    {
+        var navDb = GetNavDb();
+        if (navDb is null)
+        {
+            return;
+        }
+
+        // The I32-Y MAP is CFMLD, a CNF present in the CIFP but missing from vNAS NavData.
+        // Its position must come from the leg's CIFP-carried coordinates, not GetFixPosition.
+        var procedure = navDb.GetApproach("KGSO", "I32-Y");
+        Assert.NotNull(procedure);
+        var runway = navDb.GetRunway("KGSO", "32");
+        Assert.NotNull(runway);
+
+        var mapDistance = ApproachCommandHandler.ExtractMapDistance(procedure!, runway!);
+
+        Assert.NotNull(mapDistance);
+        Assert.InRange(mapDistance!.Value, 0.0, 1.5);
+    }
+
     // --- SelectBestTransition ---
 
     [Fact]

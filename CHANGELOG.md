@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+- Approaches, SIDs, and STARs no longer silently drop waypoints that exist in the FAA CIFP but are missing from vNAS navdata (computer navigation fixes like CFMLD on the GSO ILS Y/Z 32). The procedure's own CIFP coordinates are used, so the flown path, missed-approach point distance, and drawn route include every published fix.
+- A scenario preset of the form `WAIT n SAY <message>` parses again when the message contains the words "AND" or "THEN" (e.g. ZTL's AIRBOSS briefings with "…AND THEN, TYPE F4…"). Previously the words were rewritten into command separators, corrupting the message or failing the whole preset with "empty command". The same protection applies after condition prefixes (`AT FIX SAY …`, `LV`, `ATFN`, `ONHO`/`ONH`/`ONHS`).
+
 ## v0.11.5-beta [2026/08/07]
 
 ### Highlights

@@ -125,7 +125,7 @@ internal static class ProcedureLegResolver
                 continue;
             }
 
-            var pos = navDb.GetFixPosition(leg.FixIdentifier);
+            var pos = leg.ResolveFixPosition(navDb);
             if (pos is null)
             {
                 continue;
@@ -237,12 +237,16 @@ internal static class ProcedureLegResolver
     /// </summary>
     private static ProcedureLeg? ResolveDistanceOrRadialLeg(CifpLeg leg, NavigationDatabase navDb, TurnDirection? turn)
     {
-        string? referenceId = leg.PathTerminator == CifpPathTerminator.FC ? leg.FixIdentifier : leg.RecommendedNavaidId;
-        if (string.IsNullOrWhiteSpace(referenceId))
+        (double Lat, double Lon)? refPos;
+        if (leg.PathTerminator == CifpPathTerminator.FC)
         {
-            return null;
+            refPos = string.IsNullOrWhiteSpace(leg.FixIdentifier) ? null : leg.ResolveFixPosition(navDb);
         }
-        var refPos = navDb.GetFixPosition(referenceId);
+        else
+        {
+            refPos = string.IsNullOrWhiteSpace(leg.RecommendedNavaidId) ? null : navDb.GetFixPosition(leg.RecommendedNavaidId);
+        }
+
         if (refPos is null)
         {
             return null;

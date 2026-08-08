@@ -564,6 +564,40 @@ public class CifpParserTests
     }
 
     [Fact]
+    public void ParseApproaches_RealKgsoI32Y_CnfLegCarriesTerminalWaypointCoordinates()
+    {
+        // CFMLD (the I32-Y MAP) is a CNF that exists in the CIFP terminal waypoints but not in
+        // vNAS NavData, so the parsed leg must carry its coordinates directly.
+        var lines = new[]
+        {
+            RealCifpLines.KgsoCfmldTerminalWaypoint,
+            RealCifpLines.KgsoI32YCommon010Llink,
+            RealCifpLines.KgsoI32YCommon020Ulide,
+            RealCifpLines.KgsoI32YCommon030CfmldMap,
+        };
+
+        var tmpFile = Path.GetTempFileName();
+        try
+        {
+            File.WriteAllLines(tmpFile, lines);
+            var approaches = CifpParser.ParseApproaches(tmpFile, "KGSO");
+
+            Assert.Single(approaches);
+            var cfmld = approaches[0].CommonLegs.First(l => l.FixIdentifier == "CFMLD");
+            Assert.Equal(CifpFixRole.MAP, cfmld.FixRole);
+            // N36°05'14.04" W079°56'13.17"
+            Assert.NotNull(cfmld.FixLat);
+            Assert.NotNull(cfmld.FixLon);
+            Assert.Equal(36.0872333, cfmld.FixLat!.Value, precision: 4);
+            Assert.Equal(-79.9369917, cfmld.FixLon!.Value, precision: 4);
+        }
+        finally
+        {
+            File.Delete(tmpFile);
+        }
+    }
+
+    [Fact]
     public void ParseApproaches_RealKiahH08Ry_SkipsContinuationRecord_NoDuplicateMatonNoPhantomSpeed()
     {
         // Real CIFP for KIAH ILS 08R (H08RY). The FAF MATON has a primary record and an
@@ -1105,4 +1139,20 @@ internal static class RealCifpLines
 
     public const string KiahH08RyCommon030Rw08R =
         "SUSAP KIAHK4FH08RY H      030RW08RK4PG0GY M 031TF                                   00149             -300          A FS   220271811";
+
+    // --- KGSO ILS Y RWY 32 I32-Y, common "I" segment (MAP is the CNF CFMLD) ---
+    // CFMLD is a computer navigation fix present in the CIFP's terminal waypoints but absent
+    // from vNAS NavData, so its coordinates must ride on the parsed leg itself.
+    // To regenerate: grep '^SUSAP KGSOK7FI32-Y I ' tests/Yaat.Sim.Tests/TestData/FAACIFP18.gz (after gunzip)
+    public const string KgsoCfmldTerminalWaypoint =
+        "SUSAP KGSOK7CCFMLD K70    W     N36051404W079561317                       W0086     NAR           CFMLD(CNF)               051242305";
+
+    public const string KgsoI32YCommon010Llink =
+        "SUSAP KGSOK7FI32-Y I      010LLINKK7PC0E  I    IF IGFNK7      14520119        PI  J 037000250018000                 0 DS   052831604";
+
+    public const string KgsoI32YCommon020Ulide =
+        "SUSAP KGSOK7FI32-Y I      020ULIDEK7PC0E  F    CF IGFNK7      1452005932500059PI  H 0250002500                      0 DS   052842106";
+
+    public const string KgsoI32YCommon030CfmldMap =
+        "SUSAP KGSOK7FI32-Y I      030CFMLDK7PC0EY M    CF IGFNK7      1452001032500049PI    00953             -300          0 DS   052851604";
 }

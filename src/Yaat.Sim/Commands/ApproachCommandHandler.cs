@@ -1037,7 +1037,7 @@ public static class ApproachCommandHandler
                 continue;
             }
 
-            var pos = navDb.GetFixPosition(leg.FixIdentifier);
+            var pos = leg.ResolveFixPosition(navDb);
             if (pos is null)
             {
                 continue;
@@ -1067,7 +1067,7 @@ public static class ApproachCommandHandler
                 continue;
             }
 
-            var pos = navDb.GetFixPosition(leg.FixIdentifier);
+            var pos = leg.ResolveFixPosition(navDb);
             if (pos is null)
             {
                 continue;
@@ -1200,7 +1200,7 @@ public static class ApproachCommandHandler
                 continue;
             }
 
-            var pos = navDb.GetFixPosition(leg.FixIdentifier);
+            var pos = leg.ResolveFixPosition(navDb);
             if (pos is null)
             {
                 continue;
@@ -1351,22 +1351,22 @@ public static class ApproachCommandHandler
 
         foreach (var transition in procedure.Transitions.Values)
         {
-            string? firstFix = null;
+            CifpLeg? firstLeg = null;
             foreach (var leg in transition.Legs)
             {
                 if (!string.IsNullOrEmpty(leg.FixIdentifier))
                 {
-                    firstFix = leg.FixIdentifier;
+                    firstLeg = leg;
                     break;
                 }
             }
 
-            if (firstFix is null)
+            if (firstLeg is null)
             {
                 continue;
             }
 
-            var pos = navDb.GetFixPosition(firstFix);
+            var pos = firstLeg.ResolveFixPosition(navDb);
             if (pos is null)
             {
                 continue;
@@ -1399,7 +1399,7 @@ public static class ApproachCommandHandler
                 continue;
             }
 
-            var pos = navDb.GetFixPosition(leg.FixIdentifier);
+            var pos = leg.ResolveFixPosition(navDb);
             if (pos is null)
             {
                 continue;
@@ -1462,7 +1462,7 @@ public static class ApproachCommandHandler
     private static ProcedureTurnPhase? BuildProcedureTurnPhase(CifpLeg piLeg, AircraftState aircraft, TrueHeading finalCourse)
     {
         var navDb = NavigationDatabase.Instance;
-        var pos = navDb.GetFixPosition(piLeg.FixIdentifier);
+        var pos = piLeg.ResolveFixPosition(navDb);
         if (pos is null)
         {
             return null;
@@ -1568,7 +1568,7 @@ public static class ApproachCommandHandler
                 continue;
             }
 
-            var pos = navDb.GetFixPosition(leg.FixIdentifier);
+            var pos = leg.ResolveFixPosition(navDb);
             if (pos is null)
             {
                 continue;

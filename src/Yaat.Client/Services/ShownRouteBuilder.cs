@@ -270,7 +270,7 @@ internal static class ShownRouteBuilder
             // FM: anchor is this leg's own fix identifier.
             if (leg.PathTerminator == CifpPathTerminator.FM && !string.IsNullOrEmpty(leg.FixIdentifier))
             {
-                var pos = navDb.GetFixPosition(leg.FixIdentifier);
+                var pos = leg.ResolveFixPosition(navDb);
                 if (pos.HasValue)
                 {
                     return new VectorTail(pos.Value.Lat, pos.Value.Lon, magCourse, TailLengthNm);
@@ -285,7 +285,7 @@ internal static class ShownRouteBuilder
                 {
                     continue;
                 }
-                var pos = navDb.GetFixPosition(prev.FixIdentifier);
+                var pos = prev.ResolveFixPosition(navDb);
                 if (pos.HasValue)
                 {
                     return new VectorTail(pos.Value.Lat, pos.Value.Lon, magCourse, TailLengthNm);
@@ -343,7 +343,7 @@ internal static class ShownRouteBuilder
             {
                 continue;
             }
-            var pos = navDb.GetFixPosition(leg.FixIdentifier);
+            var pos = leg.ResolveFixPosition(navDb);
             if (pos.HasValue)
             {
                 result.Add(new DrawnWaypoint(leg.FixIdentifier, pos.Value.Lat, pos.Value.Lon));

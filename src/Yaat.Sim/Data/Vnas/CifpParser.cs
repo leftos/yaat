@@ -264,7 +264,7 @@ public static partial class CifpParser
         string cifpFilePath,
         string airportIcao,
         char subsection,
-        Func<string, string, List<RawProcedureLeg>, IReadOnlyDictionary<string, (double Lat, double Lon)>?, T?> builder
+        Func<string, string, List<RawProcedureLeg>, IReadOnlyDictionary<string, (double Lat, double Lon)>, T?> builder
     )
     {
         string normalizedIcao = airportIcao.ToUpperInvariant().PadRight(4);
@@ -342,7 +342,7 @@ public static partial class CifpParser
         List<CifpLeg> CommonLegs,
         Dictionary<string, CifpTransition> RunwayTransitions,
         Dictionary<string, CifpTransition> EnrouteTransitions
-    ) ClassifySidStarLegs(List<RawProcedureLeg> rawLegs, IReadOnlyDictionary<string, (double Lat, double Lon)>? terminalWaypoints = null)
+    ) ClassifySidStarLegs(List<RawProcedureLeg> rawLegs, IReadOnlyDictionary<string, (double Lat, double Lon)> terminalWaypoints)
     {
         rawLegs.Sort(
             (a, b) =>
@@ -407,7 +407,7 @@ public static partial class CifpParser
         string airport,
         string procedureId,
         List<RawProcedureLeg> rawLegs,
-        IReadOnlyDictionary<string, (double Lat, double Lon)>? terminalWaypoints
+        IReadOnlyDictionary<string, (double Lat, double Lon)> terminalWaypoints
     )
     {
         if (procedureId.Length == 0)
@@ -423,7 +423,7 @@ public static partial class CifpParser
         string airport,
         string procedureId,
         List<RawProcedureLeg> rawLegs,
-        IReadOnlyDictionary<string, (double Lat, double Lon)>? terminalWaypoints
+        IReadOnlyDictionary<string, (double Lat, double Lon)> terminalWaypoints
     )
     {
         if (procedureId.Length == 0)
@@ -638,7 +638,7 @@ public static partial class CifpParser
         string airport,
         string approachId,
         List<RawApproachLeg> rawLegs,
-        IReadOnlyDictionary<string, (double Lat, double Lon)>? terminalWaypoints = null
+        IReadOnlyDictionary<string, (double Lat, double Lon)> terminalWaypoints
     )
     {
         if (approachId.Length == 0)
@@ -750,15 +750,24 @@ public static partial class CifpParser
         );
     }
 
-    private static CifpLeg BuildCifpLeg(RawProcedureLeg raw, IReadOnlyDictionary<string, (double Lat, double Lon)>? terminalWaypoints)
+    private static CifpLeg BuildCifpLeg(RawProcedureLeg raw, IReadOnlyDictionary<string, (double Lat, double Lon)> terminalWaypoints)
     {
         double? arcCenterLat = null;
         double? arcCenterLon = null;
 
-        if (raw.CenterFixId is not null && terminalWaypoints is not null && terminalWaypoints.TryGetValue(raw.CenterFixId, out var centerPos))
+        if (raw.CenterFixId is not null && terminalWaypoints.TryGetValue(raw.CenterFixId, out var centerPos))
         {
             arcCenterLat = centerPos.Lat;
             arcCenterLon = centerPos.Lon;
+        }
+
+        double? fixLat = null;
+        double? fixLon = null;
+
+        if (!string.IsNullOrEmpty(raw.FixIdentifier) && terminalWaypoints.TryGetValue(raw.FixIdentifier, out var fixPos))
+        {
+            fixLat = fixPos.Lat;
+            fixLon = fixPos.Lon;
         }
 
         return new CifpLeg(
@@ -778,19 +787,30 @@ public static partial class CifpParser
             raw.RecommendedNavaidId,
             raw.Theta,
             raw.Rho,
-            raw.IsFlyOver
+            raw.IsFlyOver,
+            FixLat: fixLat,
+            FixLon: fixLon
         );
     }
 
-    private static CifpLeg BuildCifpLegFromApproach(RawApproachLeg raw, IReadOnlyDictionary<string, (double Lat, double Lon)>? terminalWaypoints)
+    private static CifpLeg BuildCifpLegFromApproach(RawApproachLeg raw, IReadOnlyDictionary<string, (double Lat, double Lon)> terminalWaypoints)
     {
         double? arcCenterLat = null;
         double? arcCenterLon = null;
 
-        if (raw.CenterFixId is not null && terminalWaypoints is not null && terminalWaypoints.TryGetValue(raw.CenterFixId, out var centerPos))
+        if (raw.CenterFixId is not null && terminalWaypoints.TryGetValue(raw.CenterFixId, out var centerPos))
         {
             arcCenterLat = centerPos.Lat;
             arcCenterLon = centerPos.Lon;
+        }
+
+        double? fixLat = null;
+        double? fixLon = null;
+
+        if (!string.IsNullOrEmpty(raw.FixIdentifier) && terminalWaypoints.TryGetValue(raw.FixIdentifier, out var fixPos))
+        {
+            fixLat = fixPos.Lat;
+            fixLon = fixPos.Lon;
         }
 
         return new CifpLeg(
@@ -810,7 +830,9 @@ public static partial class CifpParser
             raw.RecommendedNavaidId,
             raw.Theta,
             raw.Rho,
-            raw.IsFlyOver
+            raw.IsFlyOver,
+            FixLat: fixLat,
+            FixLon: fixLon
         );
     }
 

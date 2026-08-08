@@ -1308,7 +1308,7 @@ internal static class DepartureClearanceHandler
                 continue;
             }
 
-            var pos = navDb.GetFixPosition(leg.FixIdentifier);
+            var pos = leg.ResolveFixPosition(navDb);
             if (pos is null)
             {
                 continue;

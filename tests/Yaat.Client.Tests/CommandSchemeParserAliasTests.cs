@@ -41,6 +41,23 @@ public class CommandSchemeParserAliasTests
         Assert.Equal(input, CommandSchemeParser.NormalizeSeparatorAliases(input));
     }
 
+    [Theory]
+    [InlineData("WAIT 1 SAY FOO AND THEN, BAR")]
+    [InlineData("DELAY 6 SAY A AND B")]
+    [InlineData("WAITD 3 SAY SLOW AND STEADY")]
+    [InlineData("AT BRIXX SAY HELLO AND GOODBYE")]
+    [InlineData("LV 50 SAY CLIMBING AND TURNING")]
+    [InlineData("AT TTE WAIT 5 SAY X AND Y")]
+    [InlineData("wait 1 say foo and then, bar")]
+    [InlineData("WAIT 1 SAY WAIT FOR THE TAG TO \"DISAPPEAR\", AND THEN, TYPE F4 (CALLSIGN) ENTER.")]
+    public void NormalizeSeparatorAliases_PreservesSayAfterTransparentPrefixes(string input)
+    {
+        // WAIT/DELAY/WAITD and condition verbs (AT/LV/ATFN/ONHO/ONH/ONHS) are transparent
+        // prefixes: the token after them starts a command, so SAY there begins a literal
+        // message whose AND/THEN words must not become separators.
+        Assert.Equal(input, CommandSchemeParser.NormalizeSeparatorAliases(input));
+    }
+
     [Fact]
     public void NormalizeSeparatorAliases_ThenBeforeSayStillSubstitutes()
     {
@@ -113,6 +130,15 @@ public class CommandSchemeParserAliasTests
 
         Assert.NotNull(result);
         Assert.Equal("SAY READING YOU LOUD AND CLEAR", result.CanonicalString);
+    }
+
+    [Fact]
+    public void ParseCompound_WaitSayWithAndThen_PreservesMessageInCanonical()
+    {
+        var result = CommandSchemeParser.ParseCompound("WAIT 1 SAY FOO AND THEN, BAR", Scheme);
+
+        Assert.NotNull(result);
+        Assert.Equal("WAIT 1; SAY FOO AND THEN, BAR", result.CanonicalString);
     }
 
     [Theory]

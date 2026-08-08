@@ -150,6 +150,28 @@ public class ZoaParseFixTests : IDisposable
         Assert.Equal("hello, world", say.Text);
     }
 
+    [Fact]
+    public void ParseCompound_WaitSay_PreservesProseWithAndThen()
+    {
+        // Verbatim ZTL "TWR3 | LZU" AIRBOSS preset. The message contains commas, quotes,
+        // interior WAIT/SAY words, and the literal words "AND THEN," — none of which may be
+        // rewritten into separators once the WAIT 1 prefix is recognized as transparent.
+        const string message =
+            "WOULD LIKE TO INQUIRE: ARE THERE ANY ERRORS INVOLVING THE AUTOMATED AIR TRAFFIC CONTROLLERS ACQUIRING ANY TRACKS? "
+            + "THE ERRORS MAY SAY SOMETHING ABOUT \"COULD NOT RUN STARS COMMAND INITIATECONTROL (CALLSIGN) (LETTERS): DUP NEW ID\". "
+            + "IF THAT IS THE CASE, TYPE THE CALLSIGN SOMEWHERE ON YOUR SCREEN. "
+            + "WAIT FOR THE TAG TO \"DISAPPEAR\", AND THEN, TYPE F4 (CALLSIGN) ENTER.";
+
+        var result = CommandParser.ParseCompound($"WAIT 1 SAY {message}");
+
+        Assert.True(result.IsSuccess, result.Reason);
+        Assert.Equal(2, result.Value!.Blocks.Count);
+        var wait = Assert.IsType<WaitCommand>(result.Value!.Blocks[0].Commands[0]);
+        Assert.Equal(1, wait.Seconds);
+        var say = Assert.IsType<SayCommand>(Assert.Single(result.Value!.Blocks[1].Commands));
+        Assert.Equal(message, say.Text);
+    }
+
     // --- Bare CAPP/JFAC ---
 
     [Fact]

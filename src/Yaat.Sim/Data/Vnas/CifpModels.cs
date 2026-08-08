@@ -1,3 +1,5 @@
+using Microsoft.Extensions.Logging;
+
 namespace Yaat.Sim.Data.Vnas;
 
 public enum CifpAltitudeRestrictionType
@@ -117,8 +119,41 @@ public sealed record CifpLeg(
     string? RecommendedNavaidId = null,
     double? Theta = null,
     double? Rho = null,
-    bool IsFlyOver = false
+    bool IsFlyOver = false,
+    double? FixLat = null,
+    double? FixLon = null
 );
+
+public static class CifpLegExtensions
+{
+    private static readonly ILogger Log = SimLog.CreateLogger("CifpLegExtensions");
+
+    /// <summary>
+    /// Resolves the leg's terminator fix to a position. The CIFP's own per-airport terminal
+    /// waypoint coordinates (carried on the leg at parse time) win over the global fix table,
+    /// because CNFs like GSO's CFMLD exist in the CIFP but not in vNAS NavData — and for fixes
+    /// both know, the procedure's source data is authoritative for the procedure's geometry.
+    /// </summary>
+    public static (double Lat, double Lon)? ResolveFixPosition(this CifpLeg leg, NavigationDatabase navDb)
+    {
+        if (leg.FixLat is double lat && leg.FixLon is double lon)
+        {
+            return (lat, lon);
+        }
+
+        var pos = navDb.GetFixPosition(leg.FixIdentifier);
+        if (pos is null && !string.IsNullOrEmpty(leg.FixIdentifier))
+        {
+            Log.LogWarning(
+                "Procedure leg fix '{Fix}' ({PathTerminator}) not found in CIFP terminal waypoints or the fix database; leg will be skipped",
+                leg.FixIdentifier,
+                leg.PathTerminator
+            );
+        }
+
+        return pos;
+    }
+}
 
 public sealed record CifpTransition(string Name, IReadOnlyList<CifpLeg> Legs)
 {
