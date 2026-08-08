@@ -87,28 +87,46 @@ if (!appId || !botToken) {
 const guildArg = process.argv.indexOf("--guild");
 const guildId = guildArg !== -1 ? process.argv[guildArg + 1] : null;
 
+const API = "https://discord.com/api/v10";
+const headers = {
+  Authorization: `Bot ${botToken}`,
+  "Content-Type": "application/json",
+};
+
+async function putCommands(url, body, label) {
+  const res = await fetch(url, { method: "PUT", headers, body: JSON.stringify(body) });
+  if (!res.ok) {
+    console.error(`${label} failed (${res.status}):`, await res.text());
+    process.exit(1);
+  }
+  return res.json();
+}
+
 const url = guildId
-  ? `https://discord.com/api/v10/applications/${appId}/guilds/${guildId}/commands`
-  : `https://discord.com/api/v10/applications/${appId}/commands`;
+  ? `${API}/applications/${appId}/guilds/${guildId}/commands`
+  : `${API}/applications/${appId}/commands`;
 
 console.log(`Registering ${commands.length} commands ${guildId ? `to guild ${guildId}` : "globally"}...`);
 
-const res = await fetch(url, {
-  method: "PUT",
-  headers: {
-    Authorization: `Bot ${botToken}`,
-    "Content-Type": "application/json",
-  },
-  body: JSON.stringify(commands),
-});
-
-if (!res.ok) {
-  console.error(`Failed (${res.status}):`, await res.text());
-  process.exit(1);
-}
-
-const result = await res.json();
+const result = await putCommands(url, commands, "Registration");
 console.log(`Registered ${result.length} commands:`);
 for (const cmd of result) {
   console.log(`  /${cmd.name} (${cmd.id})`);
+}
+
+// Commands registered in the other scope would show every command twice in the picker,
+// so clear whichever scope we did not just write.
+if (guildId) {
+  await putCommands(`${API}/applications/${appId}/commands`, [], "Clearing global commands");
+  console.log("Cleared global commands (guild-scoped registration is the single source).");
+} else {
+  const guildsRes = await fetch(`${API}/users/@me/guilds`, { headers });
+  if (!guildsRes.ok) {
+    console.error(`Listing bot guilds failed (${guildsRes.status}):`, await guildsRes.text());
+    process.exit(1);
+  }
+  for (const guild of await guildsRes.json()) {
+    await putCommands(`${API}/applications/${appId}/guilds/${guild.id}/commands`, [], `Clearing guild ${guild.id} commands`);
+    console.log(`Cleared guild-scoped commands in ${guild.name} (${guild.id}).`);
+  }
 }

@@ -51,6 +51,6 @@ Since a content-creation block outlasts what a slash command can wait out, `/cre
 
 **Tests:** `cd tools/discord-bot && pnpm test` (vitest; also run by CI). Covers `githubFetch` retry/pacing and the queued-issue path.
 
-**Deploy:** `cd tools/discord-bot && pnpm install && pnpm run deploy`. Register commands: `DISCORD_APP_ID=<id> DISCORD_BOT_TOKEN=<token> pnpm run register -- --guild <guild-id>`.
+**Deploy:** `cd tools/discord-bot && pnpm install && pnpm run deploy`. Register commands: `DISCORD_APP_ID=<id> DISCORD_BOT_TOKEN=<token> pnpm run register -- --guild <guild-id>`. Registering one scope clears the other (guild vs global), since commands present in both scopes show up twice in Discord's picker.
 
 **Validation buttons (manual bootstrap):** `DISCORD_BOT_TOKEN=<token> pnpm run setup-validation-buttons` (or `--artcc ZOA`). The yaat-server workflow runs the same script after each validation job so pins self-heal.

@@ -83,6 +83,8 @@ DISCORD_APP_ID=<app-id> DISCORD_BOT_TOKEN=<token> npm run register -- --guild <g
 DISCORD_APP_ID=<app-id> DISCORD_BOT_TOKEN=<token> npm run register
 ```
 
+Registering also clears the *other* scope (guild-scoped registration wipes global commands, and vice versa) — commands present in both scopes show up twice in Discord's command picker.
+
 ### 8. Set up GitHub Webhook
 
 1. Go to https://github.com/leftos/yaat/settings/hooks → **Add webhook**

@@ -431,6 +431,50 @@ describe("queued issue creation", () => {
   });
 });
 
+describe("thread sync with bot-only replies", () => {
+  let privateKeyPem;
+  let kv;
+  let env;
+
+  beforeAll(async () => {
+    privateKeyPem = await generatePrivateKeyPem();
+  });
+
+  beforeEach(() => {
+    kv = fakeKv();
+    env = makeEnv(kv, privateKeyPem);
+  });
+
+  it("reopens without posting a blank GitHub comment when only the bot replied since the last sync", async () => {
+    // After an issue closes, the bot posts its own status message to the thread. /reopen then
+    // syncs the thread — the only new message is the bot's own, which the sync filters out.
+    // GitHub rejects a blank comment body with a 422, so no comment must be attempted at all.
+    kv.store.set(
+      THREAD_ID,
+      JSON.stringify({ issueNumber: 7, issueUrl: ISSUE_URL, guildId: "g1", lastSyncedMessageId: "900" }),
+    );
+    const calls = stubWorld({
+      thread: { name: "✅ [#7] Aircraft stuck on taxiway" },
+      messages: [
+        {
+          id: "901",
+          author: { username: "yaat-bot", bot: true },
+          content: "✅ This issue has been completed.",
+          timestamp: "2026-08-07T00:00:00Z",
+        },
+      ],
+      issueResponses: [],
+    });
+
+    await settle(worker.processCommand({ ...commandArgs(env), commandName: "reopen" }));
+
+    expect(calls.some((c) => c.method === "POST" && c.url.includes("/comments"))).toBe(false);
+    expect(JSON.parse(kv.store.get(THREAD_ID)).lastSyncedMessageId).toBe("901");
+    const reply = calls.findLast((c) => c.url.includes("/messages/@original"));
+    expect(reply.body.content).toContain("Reopened GitHub issue");
+  });
+});
+
 describe("createGitHubIssue", () => {
   it("throws a rate-limit-flagged error when GitHub blocks content creation", async () => {
     queueResponses([rateLimited({ "retry-after": "60" })]);

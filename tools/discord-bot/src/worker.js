@@ -755,7 +755,7 @@ export async function processCommand({ threadId, guildId, commandName, token, ap
   } catch (err) {
     console.error("Error processing command:", err);
     await editOriginalResponse(appId, token, {
-      content: `Failed to create issue: ${err.message}`,
+      content: `/${commandName} failed: ${err.message}`,
     });
   }
 }
@@ -1095,10 +1095,14 @@ async function syncThread(env, threadId, mapping, githubToken, budgetMs) {
     return true;
   });
 
-  const urlMap = await reuploadAttachments(filteredMessages, env.ATTACHMENTS);
+  // All new messages may be the bot's own (e.g. the status message posted when the issue
+  // closed). GitHub rejects a blank comment body with a 422, so skip the comment entirely.
+  if (filteredMessages.length > 0) {
+    const urlMap = await reuploadAttachments(filteredMessages, env.ATTACHMENTS);
 
-  const digest = formatConversation(filteredMessages, urlMap);
-  await createGitHubComment(githubToken, env.GITHUB_REPO, mapping.issueNumber, digest, budgetMs);
+    const digest = formatConversation(filteredMessages, urlMap);
+    await createGitHubComment(githubToken, env.GITHUB_REPO, mapping.issueNumber, digest, budgetMs);
+  }
 
   // Always update cursor to latest message (including bot messages)
   mapping.lastSyncedMessageId = messages[messages.length - 1].id;
