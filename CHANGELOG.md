@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+- Release announcements post to Discord once instead of twice (server-affecting releases had announced both from the publish event and from an explicit dispatch since v0.11.6).
+
 ## v0.11.7-beta [2026/08/08]
 
 ### Highlights

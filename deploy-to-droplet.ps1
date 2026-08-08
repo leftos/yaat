@@ -418,10 +418,9 @@ function Publish-DraftClientRelease {
     return
   }
   Write-Host "✓ Published GitHub release $tag (was draft pending this deploy)" -ForegroundColor Green
-  gh workflow run discord-release.yml --repo $clientRepo --ref main -f tag=$tag
-  if ($LASTEXITCODE -ne 0) {
-    Write-Host "⚠ Release published but the Discord announcement dispatch failed. Run manually: gh workflow run discord-release.yml --repo $clientRepo --ref main -f tag=$tag" -ForegroundColor Yellow
-  }
+  # No explicit Discord dispatch here: publishing with the operator's user token (unlike
+  # GITHUB_TOKEN in release.yml) fires the release:published event, which triggers
+  # discord-release.yml on its own. Dispatching as well posts a duplicate announcement.
 }
 
 # Announce the imminent restart on Discord and checkpoint active sessions (unless
