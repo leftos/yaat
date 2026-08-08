@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+- A queued conditional VFR hold (`HPPL`/`HPPR`/`HPP`/`HFIXL`/`HFIXR`/`HFIX`, e.g. `AT 5000 HPPR`) is now cancelled by a superseding vector or direct-to instead of re-entering the orbit once its trigger fires. Altitude and speed assignments still leave the queued hold in place.
+
 ## v0.11.6-beta [2026/08/07]
 
 ### Highlights
