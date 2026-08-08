@@ -302,8 +302,13 @@ one ATPA pairing per aircraft.
 
 `VisualDetection` decides whether a pilot can see the field or another aircraft, per FAA 7110.65 §7-4-3 / §7-4-4 and AIM
 §5-4-23 / §4-4-15 (citations are in the source). `VisualAcquisition` is the thin wrapper that bundles the METAR /
-airport-elevation / bank-angle inputs so the command handlers (RTIS/RFIS first check) and `PilotObservationUpdater`
-(per-tick re-check) feed identical inputs.
+elevation / bank-angle inputs so the command handlers (RTIS/RFIS first check) and `PilotObservationUpdater`
+(per-tick re-check) feed identical inputs. Weather sourcing differs by target: **airport** (RFIS) acquisition uses the
+destination's METAR (the destination field is the thing being looked at); **traffic** (RTIS) acquisition uses the air
+mass at the ownship's position — `WeatherProfile.GetWeatherNearPosition` resolves the nearest reporting station within
+`MetarInterpolator.MaxInterpolationRangeNm` (50 nm), and that station's field elevation is the AGL→MSL datum for its
+cloud bases. An overflight with no destination (or a departure bound far away) therefore still gets local-weather
+gating; with no station within range the air mass is unknown and acquisition falls back to clear-sky behavior.
 
 Every attempt returns a `VisualAcquisitionResult` carrying `Acquired`, a `VisualAcquisitionFailure` reason, the computed
 `DistanceNm`, the `MaxRangeNm` used, and (for ceiling failures) the binding BKN/OVC `CloudLayer` so messages can name it.
@@ -326,11 +331,14 @@ This split is the central design point and the source of a footgun:
 Computed range first (`:307`): `maxRange = min(horizon, airportSizeCap, visibility)` where
 `horizon = 0.5 × 1.23 × √(altitudeAGL)` nm (geometric horizon scaled by `HorizonScaleFactor = 0.5` for haze/scan/FOV),
 `airportSizeCap` from `VisualAcquisition.AirportSizeCapNm`, and METAR visibility (statute miles × 0.869) as a hard
-ceiling. Then the ordered failure checks:
+ceiling **only when reported below 10 SM** — `10SM` is the US METAR reporting maximum and means "10 or more"
+(`UnrestrictedVisibilitySm`), so a clear-day METAR does not cap the range. Then the ordered failure checks:
 
 1. `InClassA` — altitude ≥ 18000 ft (no visual approaches in Class A, 7110.65 §7-2-1.a).
 2. `AboveCeiling` — at/above any BKN/OVC layer (`FindBindingCeilingAbove`).
-3. `BehindOwnship` — bearing to field outside the ±90° forward hemisphere.
+3. `BehindOwnship` — bearing to field outside the ±120° field of view (`AirportForwardHemisphereDeg`; wider than the
+   ±90° traffic gate because a runway complex is visible out the side window without being foveated — AIM §8-1-6.c.2
+   arc plus a head turn — covering a standard downwind through abeam-the-numbers).
 4. `OccludedByBank` — high-wing occlusion during a turn (see below).
 5. `OutOfRange` — `distance > maxRange`.
 6. `OppositeSideOfRunway` (runway variant only) — bearing from airport to aircraft more than ±120° off the runway's
@@ -339,9 +347,11 @@ ceiling. Then the ordered failure checks:
 ### The traffic-acquisition ladder — `TryAcquireTraffic`
 
 No Class A gate (pilots can see traffic in Class A; only visual *separation* is prohibited). `maxRange` =
-`WakeTurbulenceData.TrafficDetectionRangeNm(target)` clamped by visibility. Checks in order: `MixedCeiling`
+`WakeTurbulenceData.TrafficDetectionRangeNm(target)` clamped by visibility (again only when reported below the 10 SM
+maximum). Checks in order: `MixedCeiling`
 (`FindObstructingLayerBetween` — a BKN/OVC base strictly between the two altitudes, so one aircraft is above the deck
-and the other below), `BehindOwnship`, `OccludedByBank`, `OutOfRange`.
+and the other below), `BehindOwnship` (strict ±90° — a point target must land inside the forward scan),
+`OccludedByBank`, `OutOfRange`.
 
 ### Bank-angle occlusion — `IsOccludedByBank`
 
@@ -376,11 +386,20 @@ for both the ATPA wake matrix and the visual traffic-detection range. It **must 
 `TrafficDetectionRangeNm(type, fallbackCategory)` (`:36`) resolves range in three tiers:
 
 1. **Physical dimensions** — `FaaAircraftDatabase.Get(type)` → `ComputeRangeFromDimensions`. A small-angle silhouette
-   model: `silhouette = √(wingspan² + 0.7·length² + 0.3·tailHeight²)`, `range = silhouette / 0.003491 rad` (≈12 arcmin
-   first-detection threshold), converted to nm and clamped to [1.5, 10] nm. The 12-arcmin threshold reflects typical
-   training-scenario conditions (coarser than the ~8-arcmin CAVOK ideal); rationale cites FAA AC 90-48 and AIM §8-1-6.
-2. **CWT bucket** — fixed values per CWT code A–I (10.0 down to 2.0 nm), derived by running the same formula on a
-   representative type per bucket.
+   model: `silhouette = √(wingspan² + 0.7·length² + 0.3·tailHeight²)`, `range = silhouette / 0.002618 rad` (9 arcmin
+   alerted-search threshold), converted to nm and clamped to [1.5, 12] nm. The threshold is calibrated for the model's
+   only consumer — the RTIS path, an *alerted* directed search (controller supplies clock/distance/type, 7110.65
+   §2-1-21.a; the pilot foveates the called sector, AIM §8-1-6.c.2) — with a notch of margin over the ~8 arcmin foveal
+   best case as an implicit ground-clutter allowance. Environmental degradation is *not* baked in: visibility, cloud
+   layers, bank occlusion, and the scan hemisphere each have their own checks. The 1.5 nm floor is a data-quality guard
+   against partial ACD records (nothing real computes that low); the 12 nm ceiling marks where a pure angular model
+   stops being valid (beyond it, acquisition is contrast-limited by atmospheric extinction, which the model cannot
+   represent — deliberately not scaled by reported visibility). Empirical alerted-acquisition band (unalerted GA
+   ~1–1.5 nm, alerted median ~2.5–3.5 nm) per the Lincoln Laboratory / AC 90-48-era studies (external source).
+   Example outputs: C172 → 2.7 nm, CRJ7 → 6.4 nm, B738 → 10.1 nm, heavies → clamped 12 nm.
+2. **CWT bucket** — fixed values per CWT code A–I (12.0 down to 2.7 nm), derived by running the same formula on a
+   representative type per bucket. CWT D is the 41-type heavy bucket (A124/IL76/B741-class) and E is exactly B752/B753 —
+   the same D/E identity as the wake GOTCHA below (a stale mapping once swapped their detection ranges too).
 3. **Aircraft category** — broad Jet/Turboprop/Piston/Helicopter fallback when the type is in neither table.
 
 `WakeTurbulenceData.OnApproachWakeSeparationNm` is the single shared on-approach wake-separation source: both `AtpaProcessor.ComputeRequiredSeparation` (precise per-type CWT) and the arrival-generator spawn gap (`SimulationEngine.SpacingGapNm`, coarse `WakeClass(WakeClass)` fallback — follower type isn't chosen yet at gap time) call it. It encodes FAA 7110.65 TBL 5-5-2 mile-based CWT minima, keyed by `(leaderCWT, followerCWT)` A-I; a pair absent from the table is 0 (no wake add-on) and the caller floors at the radar minimum. These mile-based minima **replace**, not add to, the legacy time-based wake minima; wake still binds under 2.5 nm final (5-5-4 para 10) — don't drop it.
@@ -446,7 +465,10 @@ here and have `aviation-sim-expert` review against the local FAA references.
 | `SteepBankAltBuffer` | 1000 | ft | Occlusion altitude buffer for steep banks |
 | `ModerateBankAltBuffer` | 500 | ft | Occlusion altitude buffer for moderate banks |
 | `NoseConeDeg` | 10.0 | deg | Target within nose cone is always visible |
+| `TrafficForwardHemisphereDeg` | 90.0 | deg | Traffic scan gate (point target must be in the forward scan) |
+| `AirportForwardHemisphereDeg` | 120.0 | deg | Airport field-of-view gate (AIM §8-1-6.c.2 arc + head turn) |
 | `SmToNm` | 0.869 | — | Statute-mile → nm for METAR visibility |
+| `MetarParser.UnrestrictedVisibilitySm` | 10.0 | SM | Reported vis at/above is right-censored ("10 or more") → no range cap |
 | `AirportSizeCap` floor/ceiling | 15 / 25 | nm | Conspicuity cap clamp |
 | `SizeCap` intercept/slope | 10 / 5 | nm, nm/nm | Conspicuity cap line in runway extent |
 
@@ -454,10 +476,10 @@ here and have `aviation-sim-expert` review against the local FAA references.
 
 | Constant | Value | Units | Meaning |
 |---|---|---|---|
-| `DetectionThresholdRad` | 0.003491 | rad | ≈12 arcmin first-detection angle |
-| `MinRangeNm` / `MaxRangeNm` | 1.5 / 10.0 | nm | Silhouette-range clamp |
+| `DetectionThresholdRad` | 0.002618 | rad | 9 arcmin alerted-search first-detection angle |
+| `MinRangeNm` / `MaxRangeNm` | 1.5 / 12.0 | nm | Data-quality floor / contrast-limit ceiling |
 | Silhouette weights | wingspan 1.0, length² 0.7, tail² 0.3 | — | Variance-weight blend of dimensions |
-| CWT bucket ranges | 10.0 (A–C) … 2.0 (I) | nm | Per-CWT fallback detection range |
+| CWT bucket ranges | 12.0 (A–D) … 2.7 (I) | nm | Per-CWT fallback detection range |
 
 ---
 

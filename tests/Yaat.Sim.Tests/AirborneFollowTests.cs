@@ -1005,6 +1005,15 @@ public class AirborneFollowTests : IDisposable
         const string LeadCallsign = "LEAD";
 
         // Follower at 3000 ft, lead at 1000 ft, BKN020 (2000 ft AGL) between them.
+        // Traffic-acquisition weather is sourced from the nearest reporting station
+        // to the ownship's POSITION, so the KTEST station must have a resolvable
+        // position in the (scoped, synthetic) nav database for its METAR to apply.
+        using var _ = NavigationDatabase.ScopedOverride(
+            TestNavDbFactory.Make(
+                fixes: new Dictionary<string, (double Lat, double Lon)>(StringComparer.OrdinalIgnoreCase) { ["KTEST"] = (37.0, -122.0) },
+                runways: [DefaultRunway()]
+            )
+        );
         var follower = MakeAircraft(callsign: "FOLL", type: "C172", lat: 37.00, lon: -122.0, altitude: 3000, followingCallsign: LeadCallsign);
         var lead = MakeAircraft(callsign: LeadCallsign, type: "C172", lat: 37.00, lon: -121.99, altitude: 1000);
 

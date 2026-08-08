@@ -56,24 +56,36 @@ public class WakeTurbulenceDataTests
 
     [Theory]
     // Common airline types go through the FAA ACD physical-dimension formula
-    // (~12 arcmin detection threshold, clamp [1.5, 10] nm). Ranges derived from
-    // actual wingspan/length/tail data in FaaAcd.json.
-    [InlineData("A388", 10.0)] // Super: silhouette ~332 ft, clamped
-    [InlineData("B77W", 10.0)] // Heavy widebody: clamped
-    [InlineData("B763", 10.0)] // Heavy widebody: ~10.3 nm, clamped
-    [InlineData("B738", 7.6)] // Narrowbody jet
-    [InlineData("C172", 2.0)] // Small GA
+    // (9 arcmin alerted-search threshold, clamp [1.5, 12] nm). Ranges derived
+    // from actual wingspan/length/tail data in FaaAcd.json.
+    [InlineData("A388", 12.0)] // Super: silhouette ~332 ft, clamped
+    [InlineData("B77W", 12.0)] // Heavy widebody: clamped
+    [InlineData("B763", 12.0)] // Heavy widebody: ~13.8 nm, clamped
+    [InlineData("B738", 10.1)] // Narrowbody jet
+    [InlineData("C172", 2.7)] // Small GA
     public void TrafficDetectionRangeNm_PhysicalDimensions(string type, double expected)
     {
         var actual = WakeTurbulenceData.TrafficDetectionRangeNm(type, AircraftCategory.Jet);
         Assert.InRange(actual, expected - 0.5, expected + 0.5);
     }
 
+    [Fact]
+    public void TrafficDetectionRangeNm_CwtDExoticHeavy_GetsHeavyBucketRange()
+    {
+        // AN22 is CWT D but absent from the FAA ACD, so it exercises the CWT
+        // bucket fallback. CWT D is a 41-type HEAVY bucket (A124, IL76, B741,
+        // B52...); CWT E is exactly B752/B753. The D bucket must carry the
+        // heavy-representative range (~210 ft silhouette → clamped at 12 nm),
+        // not the smaller B757-derived value.
+        double dRange = WakeTurbulenceData.TrafficDetectionRangeNm("AN22", AircraftCategory.Jet);
+        Assert.InRange(dRange, 11.5, 12.5);
+    }
+
     [Theory]
-    [InlineData(AircraftCategory.Jet, 7.6)]
-    [InlineData(AircraftCategory.Turboprop, 4.8)]
-    [InlineData(AircraftCategory.Piston, 2.0)]
-    [InlineData(AircraftCategory.Helicopter, 2.0)]
+    [InlineData(AircraftCategory.Jet, 10.1)]
+    [InlineData(AircraftCategory.Turboprop, 6.4)]
+    [InlineData(AircraftCategory.Piston, 2.7)]
+    [InlineData(AircraftCategory.Helicopter, 2.7)]
     public void TrafficDetectionRangeNm_FallbackByCategory(AircraftCategory cat, double expected)
     {
         // "ZZZZ" has no FAA ACD record and no CWT entry, so falls all the way

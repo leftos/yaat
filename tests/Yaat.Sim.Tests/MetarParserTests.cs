@@ -13,7 +13,9 @@ public class MetarParserTests
     [InlineData("KOAK 121853Z 27012KT 3SM BR FEW025 20/12 A2992", 3.0)]
     [InlineData("KOAK 121853Z 27012KT 1/2SM FG FEW025 20/12 A2992", 0.5)]
     [InlineData("KOAK 121853Z 27012KT 1 1/2SM BR FEW025 20/12 A2992", 1.5)]
-    [InlineData("KOAK 121853Z 27012KT P6SM FEW025 20/12 A2992", 6.0)]
+    // P6SM is right-censored ("greater than 6") — mapped to the unrestricted
+    // sentinel so it never acts as a 6 SM measurement.
+    [InlineData("KOAK 121853Z 27012KT P6SM FEW025 20/12 A2992", 10.0)]
     public void Parse_Visibility_Correct(string metar, double expected)
     {
         var result = MetarParser.Parse(metar);

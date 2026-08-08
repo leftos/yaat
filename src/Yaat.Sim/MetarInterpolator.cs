@@ -4,7 +4,13 @@ namespace Yaat.Sim;
 
 public static class MetarInterpolator
 {
-    private const double MaxInterpolationRangeNm = 50.0;
+    /// <summary>
+    /// Maximum distance at which a reporting station is considered to describe
+    /// the air mass at a queried location — both for IDW interpolation here and
+    /// for <see cref="WeatherProfile.GetWeatherNearPosition"/>'s nearest-station
+    /// association.
+    /// </summary>
+    public const double MaxInterpolationRangeNm = 50.0;
 
     /// <summary>
     /// Get ceiling/visibility for an airport. First checks for exact station match,

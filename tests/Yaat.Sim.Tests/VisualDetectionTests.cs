@@ -103,6 +103,89 @@ public class VisualDetectionTests
     }
 
     [Fact]
+    public void CanSeeAirport_PastAbeam_Within120_True()
+    {
+        // Downwind-past-abeam case: aircraft due north of the field, heading 070,
+        // so the field bears 180 — 110° off the nose. A multi-acre airport is
+        // visible out the side window (AIM §8-1-6.c.2 ±100° arc + head turn), so
+        // the airport hemisphere is ±120°, wider than the ±90° traffic gate.
+        var ac = MakeAircraft(37.77, -122.221, heading: 70, altitude: 3000);
+        var result = VisualDetection.TryAcquireAirport(ac, AptLat, AptLon, AptElev, null, 10.0, 0.0, LargeCap);
+        Assert.True(result.Acquired, $"Expected acquired with field 110° off the nose, got {result.Reason}");
+    }
+
+    [Fact]
+    public void CanSeeAirport_Beyond120_False()
+    {
+        // Field bears 180, heading 045 → 135° off the nose: aft of the wing line,
+        // outside even the widened airport hemisphere.
+        var ac = MakeAircraft(37.77, -122.221, heading: 45, altitude: 3000);
+        var result = VisualDetection.TryAcquireAirport(ac, AptLat, AptLon, AptElev, null, 10.0, 0.0, LargeCap);
+        Assert.False(result.Acquired);
+        Assert.Equal(VisualAcquisitionFailure.BehindOwnship, result.Reason);
+    }
+
+    [Fact]
+    public void CanSeeTraffic_At110Degrees_StillBehindOwnship()
+    {
+        // Traffic keeps the strict ±90° gate: a point target must land in the
+        // forward scan to be found (10:1 foveal/peripheral penalty, AIM §8-1-6.c.2).
+        var own = MakeAircraft(37.75, -122.221, heading: 70, altitude: 3000);
+        var tgt = MakeAircraft(37.72, -122.221, heading: 180, altitude: 3000);
+        var result = VisualDetection.TryAcquireTraffic(own, tgt, null, AptElev, 10.0, 0.0);
+        Assert.False(result.Acquired);
+        Assert.Equal(VisualAcquisitionFailure.BehindOwnship, result.Reason);
+    }
+
+    [Fact]
+    public void CanSeeAirport_TenSmVisibility_DoesNotCapRange()
+    {
+        // US METARs report at most "10SM", which means 10 statute miles OR MORE —
+        // a reporting ceiling, not a measurement. A clear-day 10SM METAR must not
+        // cap acquisition at 8.69 nm; the horizon and airport-size caps govern.
+        // Same geometry as CanSeeAirport_LongRangeAtJetAltitude_True (~18 nm out
+        // at 5000 ft), which acquires with no METAR at all.
+        var ac = MakeAircraft(38.022, -122.221, heading: 180, altitude: 5000);
+        var result = VisualDetection.TryAcquireAirport(ac, AptLat, AptLon, AptElev, null, 10.0, 0.0, LargeCap);
+        Assert.True(result.Acquired, $"Expected acquired at ~18 nm with a 10SM METAR, got {result.Reason} (range={result.MaxRangeNm:F1} nm)");
+    }
+
+    [Fact]
+    public void CanSeeAirport_NineSmVisibility_StillCapsRange()
+    {
+        // Below the 10SM reporting ceiling the value is a real measurement and
+        // must bind: 9 SM ≈ 7.8 nm < 18 nm → OutOfRange.
+        var ac = MakeAircraft(38.022, -122.221, heading: 180, altitude: 5000);
+        var result = VisualDetection.TryAcquireAirport(ac, AptLat, AptLon, AptElev, null, 9.0, 0.0, LargeCap);
+        Assert.False(result.Acquired);
+        Assert.Equal(VisualAcquisitionFailure.OutOfRange, result.Reason);
+    }
+
+    [Fact]
+    public void CanSeeTraffic_TenSmVisibility_DoesNotCapRange()
+    {
+        // B77W target ~9 nm out is within its 10 nm size-based detection range;
+        // a clear-day 10SM METAR (8.69 nm literal) must not veto the sighting.
+        var own = MakeAircraft(37.87, -122.221, heading: 180, altitude: 10000);
+        var tgt = MakeAircraft(37.72, -122.221, heading: 180, altitude: 10000);
+        tgt.AircraftType = "B77W";
+        var result = VisualDetection.TryAcquireTraffic(own, tgt, null, AptElev, 10.0, 0.0);
+        Assert.True(result.Acquired, $"Expected acquired at ~9 nm with a 10SM METAR, got {result.Reason} (range={result.MaxRangeNm:F1} nm)");
+    }
+
+    [Fact]
+    public void CanSeeTraffic_FiveSmVisibility_StillCapsRange()
+    {
+        // 5 SM ≈ 4.3 nm binds below the B77W's 10 nm size range → OutOfRange at ~9 nm.
+        var own = MakeAircraft(37.87, -122.221, heading: 180, altitude: 10000);
+        var tgt = MakeAircraft(37.72, -122.221, heading: 180, altitude: 10000);
+        tgt.AircraftType = "B77W";
+        var result = VisualDetection.TryAcquireTraffic(own, tgt, null, AptElev, 5.0, 0.0);
+        Assert.False(result.Acquired);
+        Assert.Equal(VisualAcquisitionFailure.OutOfRange, result.Reason);
+    }
+
+    [Fact]
     public void CanSeeAirport_BeyondSizeCap_False()
     {
         // 27 nm out at 8000 ft. Horizon ≈ 0.5 * 1.23 * sqrt(7991) ≈ 55 nm — not the limiter.
@@ -396,7 +479,7 @@ public class VisualDetectionTests
     [Fact]
     public void CanSeeTraffic_SmallTarget_ShortRange()
     {
-        // C172 (36ft ws, 27ft len, 9ft tail) → ~3 nm formula-derived range
+        // C172 (36ft ws, 27ft len, 9ft tail) → ~2.7 nm formula-derived range
         var own = MakeAircraft(37.75, -122.221, heading: 180, altitude: 3000);
         // Target ~2nm south (within range)
         var tgt = MakeAircraft(37.72, -122.221, heading: 180, altitude: 3000);
@@ -412,9 +495,9 @@ public class VisualDetectionTests
     [Fact]
     public void CanSeeTraffic_MediumJet_MidRange()
     {
-        // B738 (118ft ws, 129ft len, 41ft tail) → ~7.6 nm formula-derived range
+        // B738 (118ft ws, 129ft len, 41ft tail) → ~10.1 nm formula-derived range
         var own = MakeAircraft(37.82, -122.221, heading: 180, altitude: 5000);
-        // Target ~6nm south (within 7.6 nm B738 range)
+        // Target ~6nm south (within 10.1 nm B738 range)
         var tgt = MakeAircraft(37.72, -122.221, heading: 180, altitude: 5000);
         tgt.AircraftType = "B738";
         Assert.True(VisualDetection.TryAcquireTraffic(own, tgt, null, AptElev, null, 0.0).Acquired);
@@ -423,7 +506,7 @@ public class VisualDetectionTests
     [Fact]
     public void CanSeeTraffic_HeavyWidebody_LongRange()
     {
-        // B77W → clamped to 10 nm max
+        // B77W → clamped to 12 nm max
         var own = MakeAircraft(37.87, -122.221, heading: 180, altitude: 10000);
         // Target ~9nm south (within 10 nm clamp)
         var tgt = MakeAircraft(37.72, -122.221, heading: 180, altitude: 10000);
@@ -450,7 +533,7 @@ public class VisualDetectionTests
     [Fact]
     public void CanSeeTraffic_UnknownType_FallsBackToCategory()
     {
-        // Unknown type falls back to Jet category (~11.3 nm range). Put target well
+        // Unknown type falls back to Jet category (10.1 nm range). Put target well
         // beyond that so the test still proves the fallback is bounded.
         var own = MakeAircraft(37.75, -122.221, heading: 180, altitude: 3000);
         // Target ~15 nm south of ownship

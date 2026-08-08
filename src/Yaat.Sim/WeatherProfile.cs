@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using Yaat.Sim.Data;
 
 namespace Yaat.Sim;
 
@@ -51,6 +52,7 @@ public class WeatherProfile
 
     private List<WindLayer> _windLayers = [];
     private readonly Dictionary<string, MetarParser.ParsedMetar?> _metarCache = new(StringComparer.OrdinalIgnoreCase);
+    private List<(string AirportId, LatLon Position)>? _stationIndex;
 
     /// <summary>
     /// Pre-computed interpolated METAR values populated during weather timeline transitions.
@@ -83,5 +85,104 @@ public class WeatherProfile
         var result = MetarInterpolator.GetWeatherForAirport(Metars, airportId);
         _metarCache[airportId] = result;
         return result;
+    }
+
+    /// <summary>
+    /// Weather describing the air mass at a geographic position: the METAR of the
+    /// nearest reporting station within <paramref name="maxRangeNm"/>. Returns the
+    /// station's airport id (FAA-lookup form) alongside the parsed METAR so callers
+    /// can resolve the station elevation as the AGL→MSL datum for its cloud bases.
+    /// Returns null when no station is within range — the local air mass is unknown
+    /// and callers should fall back to their no-weather behavior.
+    /// </summary>
+    public (MetarParser.ParsedMetar Metar, string StationAirportId)? GetWeatherNearPosition(LatLon position, double maxRangeNm)
+    {
+        _stationIndex ??= BuildStationIndex();
+
+        string? nearestId = null;
+        double nearestDist = maxRangeNm;
+        foreach (var (airportId, stationPos) in _stationIndex)
+        {
+            double dist = GeoMath.DistanceNm(position, stationPos);
+            if (dist <= nearestDist)
+            {
+                nearestDist = dist;
+                nearestId = airportId;
+            }
+        }
+
+        // Interpolated overrides can carry stations that have no METAR text in
+        // Metars (weather timeline transitions replace parsed values wholesale),
+        // so their keys are candidates too. Resolved per call, not cached —
+        // ParsedMetarOverrides mutates at runtime while the Metars index does not.
+        if (ParsedMetarOverrides is not null)
+        {
+            foreach (var stationKey in ParsedMetarOverrides.Keys)
+            {
+                var resolved = ResolveStationAirport(stationKey);
+                if (resolved is not { } station)
+                {
+                    continue;
+                }
+
+                double dist = GeoMath.DistanceNm(position, station.Position);
+                if (dist <= nearestDist)
+                {
+                    nearestDist = dist;
+                    nearestId = station.AirportId;
+                }
+            }
+        }
+
+        if (nearestId is null)
+        {
+            return null;
+        }
+
+        var metar = GetWeatherForAirport(nearestId);
+        return metar is null ? null : (metar, nearestId);
+    }
+
+    private List<(string AirportId, LatLon Position)> BuildStationIndex()
+    {
+        var index = new List<(string, LatLon)>();
+        foreach (var metarStr in Metars)
+        {
+            var parsed = MetarParser.Parse(metarStr);
+            if (parsed is null)
+            {
+                continue;
+            }
+
+            if (ResolveStationAirport(parsed.StationId) is { } station)
+            {
+                index.Add(station);
+            }
+        }
+        return index;
+    }
+
+    /// <summary>
+    /// Resolves a METAR station id to a nav-database airport position, trying the
+    /// id as-is and then with the ICAO 'K' prefix stripped (FAA-lookup form).
+    /// Returns the ORIGINAL id — <see cref="GetWeatherForAirport"/> needs it to hit
+    /// <see cref="ParsedMetarOverrides"/> (keyed by station id) and exact METAR
+    /// matches, and <c>NavigationDatabase.GetAirportElevation</c> accepts either
+    /// form. Null if the station is not in the nav database.
+    /// </summary>
+    private static (string AirportId, LatLon Position)? ResolveStationAirport(string stationId)
+    {
+        var navDb = NavigationDatabase.Instance;
+        var pos = navDb.GetFixPosition(stationId);
+        if (pos is null && stationId.Length == 4 && (stationId[0] is 'K' or 'k'))
+        {
+            pos = navDb.GetFixPosition(stationId[1..]);
+        }
+        if (pos is null)
+        {
+            return null;
+        }
+
+        return (stationId, new LatLon(pos.Value.Lat, pos.Value.Lon));
     }
 }

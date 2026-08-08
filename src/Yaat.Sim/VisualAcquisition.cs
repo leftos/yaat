@@ -14,19 +14,8 @@ public static class VisualAcquisition
 {
     public static VisualAcquisitionResult TryAcquireTraffic(AircraftState ownship, AircraftState target, WeatherProfile? weather)
     {
-        IReadOnlyList<MetarParser.CloudLayer>? layers = null;
-        double? visibilitySm = null;
-        double aptElevation = 0.0;
-        var destination = ownship.FlightPlan.Destination;
-        if (!string.IsNullOrWhiteSpace(destination))
-        {
-            var metar = weather?.GetWeatherForAirport(destination);
-            layers = metar?.Layers;
-            visibilitySm = metar?.VisibilityStatuteMiles;
-            aptElevation = NavigationDatabase.Instance.GetAirportElevation(destination) ?? 0.0;
-        }
-
-        return VisualDetection.TryAcquireTraffic(ownship, target, layers, aptElevation, visibilitySm, ownship.BankAngle);
+        var (layers, visibilitySm, referenceElevation) = ResolveWeatherNearOwnship(ownship, weather);
+        return VisualDetection.TryAcquireTraffic(ownship, target, layers, referenceElevation, visibilitySm, ownship.BankAngle);
     }
 
     /// <summary>
@@ -37,17 +26,33 @@ public static class VisualAcquisition
     /// </summary>
     public static VisualAcquisitionResult TryMaintainTrafficContact(AircraftState ownship, AircraftState target, WeatherProfile? weather)
     {
-        IReadOnlyList<MetarParser.CloudLayer>? layers = null;
-        double aptElevation = 0.0;
-        var destination = ownship.FlightPlan.Destination;
-        if (!string.IsNullOrWhiteSpace(destination))
+        var (layers, _, referenceElevation) = ResolveWeatherNearOwnship(ownship, weather);
+        return VisualDetection.TryMaintainTrafficContact(ownship, target, layers, referenceElevation);
+    }
+
+    /// <summary>
+    /// Weather for traffic acquisition comes from the air mass the ownship is
+    /// flying in — the nearest reporting station to its position — NOT from its
+    /// flight-plan destination, which may be hundreds of miles away (or absent
+    /// entirely for an overflight) and previously produced a clear-sky assumption
+    /// in exactly those cases. The station's field elevation is the AGL→MSL datum
+    /// for its cloud-layer bases. Airport (RFIS) acquisition keeps destination
+    /// sourcing: there the destination field itself is the thing being looked at.
+    /// </summary>
+    private static (IReadOnlyList<MetarParser.CloudLayer>? Layers, double? VisibilitySm, double ReferenceElevation) ResolveWeatherNearOwnship(
+        AircraftState ownship,
+        WeatherProfile? weather
+    )
+    {
+        var near = weather?.GetWeatherNearPosition(ownship.Position, MetarInterpolator.MaxInterpolationRangeNm);
+        if (near is null)
         {
-            var metar = weather?.GetWeatherForAirport(destination);
-            layers = metar?.Layers;
-            aptElevation = NavigationDatabase.Instance.GetAirportElevation(destination) ?? 0.0;
+            return (null, null, 0.0);
         }
 
-        return VisualDetection.TryMaintainTrafficContact(ownship, target, layers, aptElevation);
+        var (metar, stationAirportId) = near.Value;
+        double elevation = NavigationDatabase.Instance.GetAirportElevation(stationAirportId) ?? 0.0;
+        return (metar.Layers, metar.VisibilityStatuteMiles, elevation);
     }
 
     /// <summary>
@@ -92,9 +97,11 @@ public static class VisualAcquisition
     /// from its runway envelope. Larger / multi-runway hubs are visually
     /// distinctive at greater range than a single short GA strip; the
     /// max-pairwise-distance between runway endpoints is a reasonable proxy
-    /// for that distinctiveness. AIM §5-4-24.6 (CVFP design figure) treats
-    /// 20 nm acquisition as routine for major fields, which anchors the
-    /// upper end of the scale.
+    /// for that distinctiveness. 7110.65 §7-4-3.g's worked example asks a
+    /// pilot to report an airport in sight at 12 miles, and §7-4-3.f presumes
+    /// the pilot hunts for a field that is not yet visually obvious once told
+    /// where to look — which anchors the 15–25 nm scale as the clear-day
+    /// acquisition envelope.
     /// </summary>
     public static double AirportSizeCapNm(string airportId)
     {

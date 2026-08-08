@@ -20,7 +20,12 @@ public enum VisualAcquisitionFailure
     /// <summary>Ownship and target are on opposite sides of the cloud layer. Traffic only.</summary>
     MixedCeiling,
 
-    /// <summary>Target bearing lies outside the ±90° forward hemisphere of the ownship.</summary>
+    /// <summary>
+    /// Target bearing lies outside the ownship's field of view: ±90° for traffic
+    /// (a point target must fall inside the forward scan), ±120° for the airport
+    /// (a runway complex is visible out the side window; AIM §8-1-6.c.2 arc plus
+    /// a head turn).
+    /// </summary>
     BehindOwnship,
 
     /// <summary>During a turn, the high wing blocks the view of the target.</summary>
@@ -68,6 +73,21 @@ public static class VisualDetection
 {
     private const double SmToNm = 0.869;
     private const double ClassAFloorFt = 18000.0;
+
+    // Forward-hemisphere gates. Traffic is a point target that must land inside
+    // the pilot's forward scan to be recognized at all (AIM §8-1-6.c.2: ~10:1
+    // foveal-to-peripheral recognition penalty), so it keeps the strict ±90°.
+    // The airport is a runway complex subtending far more than the point-target
+    // threshold — it only has to be within the field of view, not foveated — so
+    // it gets the AIM's ±100° eyes-only arc plus a bounded head turn (§8-1-8.j.1
+    // expects pilots to move their heads around door posts and wings): ±120°,
+    // which covers a standard downwind through abeam-the-numbers. Note the
+    // visibility cap below applies only under MetarParser.UnrestrictedVisibilitySm:
+    // 9SM → 7.8 nm vs 10SM → uncapped is a deliberate step, not a bug to smooth —
+    // sub-10 visibility is definitionally an obscured air mass (AIM §7-1-15),
+    // at-or-above-10 is a censored "10 or more" that asserts no limit.
+    private const double TrafficForwardHemisphereDeg = 90.0;
+    private const double AirportForwardHemisphereDeg = 120.0;
 
     // Geometric horizon = 1.23 * sqrt(eye-height in ft), in nm.
     // Half is a defensible upper bound for visual airport acquisition: full
@@ -206,9 +226,9 @@ public static class VisualDetection
     {
         double distance = GeoMath.DistanceNm(ownship.Position, target.Position);
         double maxRange = WakeTurbulenceData.TrafficDetectionRangeNm(target.AircraftType, AircraftCategorization.Categorize(target.AircraftType));
-        if (visibilitySm is not null)
+        if (visibilitySm is { } trafficVis && trafficVis < MetarParser.UnrestrictedVisibilitySm)
         {
-            maxRange = Math.Min(visibilitySm.Value * SmToNm, maxRange);
+            maxRange = Math.Min(trafficVis * SmToNm, maxRange);
         }
 
         // Any BKN/OVC layer whose base lies strictly between the two altitudes
@@ -222,7 +242,7 @@ public static class VisualDetection
         // Forward hemisphere check
         double bearing = GeoMath.BearingTo(ownship.Position, target.Position);
         double angleDiff = ownship.TrueHeading.AbsAngleTo(new TrueHeading(bearing));
-        if (angleDiff > 90.0)
+        if (angleDiff > TrafficForwardHemisphereDeg)
         {
             return VisualAcquisitionResult.Fail(VisualAcquisitionFailure.BehindOwnship, distance, maxRange);
         }
@@ -340,16 +360,19 @@ public static class VisualDetection
 
         // Multi-factor acquisition range. Neither 7110.65 §7-4-3 nor AIM §5-4-23
         // prescribe a distance limit ("airport in sight" is the only criterion);
-        // AIM §5-4-24.6 (CVFP design) treats 20 nm acquisition as routine. We
-        // model the realistic limiters: METAR visibility (hard ceiling), the
+        // 7110.65 §7-4-3.g's own worked example asks a pilot to report an airport
+        // in sight at 12 miles, and §7-4-3.f presumes the pilot hunts for a field
+        // that is not yet visually obvious. We
+        // model the realistic limiters: METAR visibility (hard ceiling when below
+        // the 10SM reporting maximum), the
         // observer's geometric horizon scaled by HorizonScaleFactor (haze, scan,
         // field-of-view), and an airport-conspicuity cap (large hub vs GA field).
         double altAgl = Math.Max(0, aircraft.Altitude - airportElevation);
         double horizonNm = HorizonScaleFactor * HorizonNmPerSqrtFt * Math.Sqrt(altAgl);
         double maxRange = Math.Min(horizonNm, airportSizeCapNm);
-        if (visibilitySm is not null)
+        if (visibilitySm is { } airportVis && airportVis < MetarParser.UnrestrictedVisibilitySm)
         {
-            maxRange = Math.Min(maxRange, visibilitySm.Value * SmToNm);
+            maxRange = Math.Min(maxRange, airportVis * SmToNm);
         }
 
         // Class A: no visual approaches at or above FL180 (7110.65 §7-2-1.a)
@@ -367,10 +390,12 @@ public static class VisualDetection
             return VisualAcquisitionResult.FailLayer(VisualAcquisitionFailure.AboveCeiling, distance, maxRange, above);
         }
 
-        // Forward hemisphere check: bearing to airport within ±90° of heading
+        // Field-of-view check: the airport gets the wider ±120° gate (see the
+        // hemisphere constants above) — a runway complex is visible out the side
+        // window without being foveated, unlike a point traffic target.
         double bearing = GeoMath.BearingTo(aircraft.Position, new LatLon(airportLat, airportLon));
         double angleDiff = aircraft.TrueHeading.AbsAngleTo(new TrueHeading(bearing));
-        if (angleDiff > 90.0)
+        if (angleDiff > AirportForwardHemisphereDeg)
         {
             return VisualAcquisitionResult.Fail(VisualAcquisitionFailure.BehindOwnship, distance, maxRange);
         }

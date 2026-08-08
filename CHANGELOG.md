@@ -5,6 +5,11 @@
 ### Fixed
 - Approaches, SIDs, and STARs no longer silently drop waypoints that exist in the FAA CIFP but are missing from vNAS navdata (computer navigation fixes like CFMLD on the GSO ILS Y/Z 32). The procedure's own CIFP coordinates are used, so the flown path, missed-approach point distance, and drawn route include every published fix.
 - A scenario preset of the form `WAIT n SAY <message>` parses again when the message contains the words "AND" or "THEN" (e.g. ZTL's AIRBOSS briefings with "…AND THEN, TYPE F4…"). Previously the words were rewritten into command separators, corrupting the message or failing the whole preset with "empty command". The same protection applies after condition prefixes (`AT FIX SAY …`, `LV`, `ATFN`, `ONHO`/`ONH`/`ONHS`).
+- A clear-day "10SM" METAR no longer caps visual acquisition at 8.7 nm — reported visibility of 10 miles or more means "10 or more", not a limit.
+- Pilots can call the field in sight up to 120° off the nose — a field just past abeam on downwind no longer reads as "behind us".
+- "Report traffic in sight" resolves at realistic alerted-search ranges — a called-out Cessna at 2.7 nm, a 737 at 10 nm, heavies at 12 nm.
+- Exotic heavy types absent from FAA dimensions data (AN-22, B-52 class) use the heavy detection range, not the smaller 757 value.
+- Traffic-in-sight checks use the weather where the aircraft is flying — overflights with no destination no longer see through local cloud decks.
 
 ## v0.11.5-beta [2026/08/07]
 

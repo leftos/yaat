@@ -1729,13 +1729,14 @@ internal static class NavigationCommandHandler
     }
 
     /// <summary>
-    /// Clarifies the max-range qualifier for field acquisition: airport detection
-    /// is capped at 12 nm normally but drops with low visibility. If visibility is
-    /// the binding constraint, mention it; otherwise report the hard cap.
+    /// Clarifies the max-range qualifier for field acquisition. Reported
+    /// visibility only participates in the range cap when below the 10SM
+    /// reporting maximum (see <see cref="MetarParser.UnrestrictedVisibilitySm"/>),
+    /// so only mention it then — a clear-day "10SM" is not a constraint.
     /// </summary>
     private static string VisibilityQualifier(MetarParser.ParsedMetar? metar)
     {
-        if (metar?.VisibilityStatuteMiles is double visSm && visSm * 0.869 < 12.0)
+        if (metar?.VisibilityStatuteMiles is double visSm && visSm < MetarParser.UnrestrictedVisibilitySm)
         {
             return $" — visibility {visSm:F0} SM";
         }

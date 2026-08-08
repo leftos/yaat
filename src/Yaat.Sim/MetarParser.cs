@@ -14,6 +14,16 @@ public static partial class MetarParser
 
     public record CloudLayer(CloudCover Cover, int BaseFeetAgl);
 
+    /// <summary>
+    /// US surface observations report visibility of 10 statute miles or more as
+    /// "10SM" (AIM §7-1-29) — the value is right-censored, meaning "10 or more",
+    /// not a measurement. A parsed visibility at or above this sentinel therefore
+    /// asserts nothing about how far the pilot can actually see and must not be
+    /// used as a range cap. Below it the value is a real measurement (AIM §7-1-15:
+    /// sub-10 visibility comes with a named obscuration) and binds.
+    /// </summary>
+    public const double UnrestrictedVisibilitySm = 10.0;
+
     public record ParsedMetar(
         string StationId,
         int? CeilingFeetAgl,
@@ -134,12 +144,16 @@ public static partial class MetarParser
 
         var raw = match.Groups[1].Value.Trim();
 
-        // P6SM → greater than 6
+        // P-prefix (TAF-style "P6SM") means "greater than" — a right-censored
+        // value like the 10SM METAR maximum, in practice only ever written as
+        // P6SM = unrestricted. Map it to the unrestricted sentinel rather than
+        // returning the floor as if it were a measurement (which would, e.g.,
+        // cap visual acquisition at 6 SM on a clear day).
         if (raw.StartsWith('P'))
         {
-            if (double.TryParse(raw[1..], out double pVal))
+            if (double.TryParse(raw[1..], out _))
             {
-                return pVal;
+                return UnrestrictedVisibilitySm;
             }
             return null;
         }

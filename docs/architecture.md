@@ -557,7 +557,7 @@ PilotObservationUpdater.cs     # Static per-tick evaluator called from FlightPhy
                                # (SAY channel, "Have <target> in sight" / "Have the field in sight").
                                # Silently drops observations whose target has left the sim or whose
                                # destination is no longer lookupable.
-WakeTurbulenceData.cs          # Static: WTG code lookup from AircraftSpecs.json; TrafficDetectionRangeNm by WTG (A=15nm to F=3nm)
+WakeTurbulenceData.cs          # Static: CWT code lookup from AircraftCwt.json; wake minima (TBL 5-5-2) + alerted visual TrafficDetectionRangeNm (9-arcmin silhouette model, clamp [1.5, 12] nm)
 
 # Track operations
 TrackOwner.cs                  # Record: Callsign, FacilityId, Subset, SectorId, OwnerType

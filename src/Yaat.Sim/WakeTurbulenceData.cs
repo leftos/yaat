@@ -153,9 +153,12 @@ public static class WakeTurbulenceData
     };
 
     /// <summary>
-    /// Max visual detection range (nm) for a target aircraft — the distance at which
-    /// a pilot with normal vision, actively scanning, can first visually acquire the
-    /// target silhouette in clear-air, high-contrast conditions.
+    /// Max visual detection range (nm) for a target aircraft in an ALERTED,
+    /// directed search — the pilot has been given clock position, distance, and
+    /// type per 7110.65 §2-1-21.a and foveates the called-out sector. This is the
+    /// RTIS regime, not cold see-and-avoid scanning (AIM §8-1-6.c.2 puts the
+    /// foveal-to-peripheral recognition penalty at ~10:1, so unalerted ranges are
+    /// far shorter).
     ///
     /// <para>Uses the FAA Aircraft Characteristics Database (wingspan, length, tail
     /// height) to compute a principled small-angle physics estimate. Falls back to
@@ -176,33 +179,33 @@ public static class WakeTurbulenceData
         }
 
         // Fallback 1: CWT bucket. Values derived by evaluating ComputeRangeFromDimensions
-        // on a representative type per bucket with the 12 arcmin threshold (see below).
+        // on a representative type per bucket with the 9 arcmin threshold (see below).
         var cwt = GetCwt(aircraftType);
         if (cwt is not null)
         {
             return cwt switch
             {
-                "A" => 10.0, // Super (A388): silhouette ~332 ft → ~16 nm, clamped
-                "B" => 10.0, // Upper Heavy (B744): silhouette ~288 ft → ~14 nm, clamped
-                "C" => 10.0, // Lower Heavy (B763): silhouette ~219 ft → ~10 nm, clamped
-                "D" => 8.5, // B757: silhouette ~181 ft
-                "E" => 9.9, // Large Low (IL76): silhouette ~210 ft
-                "F" => 7.6, // Upper Medium (B738): silhouette ~161 ft
-                "G" => 4.8, // Lower Medium (CRJ7): silhouette ~102 ft
-                "H" => 2.9, // Upper Small (C208): silhouette ~62 ft
-                "I" => 2.0, // Small (C172/PA28): silhouette ~43 ft
-                _ => 4.8,
+                "A" => 12.0, // Super (A388): silhouette ~332 ft → ~21 nm, clamped
+                "B" => 12.0, // Upper Heavy (B744): silhouette ~288 ft → ~18 nm, clamped
+                "C" => 12.0, // Lower Heavy (B763): silhouette ~219 ft → ~14 nm, clamped
+                "D" => 12.0, // Heavy bucket (A124/IL76/B741-class): silhouette ~210 ft → ~13 nm, clamped
+                "E" => 11.4, // B757 (B752/B753 only): silhouette ~181 ft
+                "F" => 10.1, // Upper Medium (B738): silhouette ~161 ft
+                "G" => 6.4, // Lower Medium (CRJ7): silhouette ~102 ft
+                "H" => 3.9, // Upper Small (B190/ASTR-class): silhouette ~62 ft
+                "I" => 2.7, // Small (C172/PA28): silhouette ~43 ft
+                _ => 6.4,
             };
         }
 
         // Fallback 2: broad aircraft category. Values mirror a representative CWT bucket.
         return fallbackCategory switch
         {
-            AircraftCategory.Jet => 7.6,
-            AircraftCategory.Turboprop => 4.8,
-            AircraftCategory.Piston => 2.0,
-            AircraftCategory.Helicopter => 2.0,
-            _ => 4.8,
+            AircraftCategory.Jet => 10.1,
+            AircraftCategory.Turboprop => 6.4,
+            AircraftCategory.Piston => 2.7,
+            AircraftCategory.Helicopter => 2.7,
+            _ => 6.4,
         };
     }
 
@@ -210,26 +213,50 @@ public static class WakeTurbulenceData
     /// Computes clear-air visual detection range from physical dimensions using a
     /// small-angle geometry model: distance = effective_size / minimum_visual_angle.
     ///
-    /// <para>The threshold angle (≈12 arcminutes) is an empirical value for first
-    /// detection of a contrasting silhouette by a pilot scanning in good but not
-    /// ideal conditions. Below the ~1 arcmin 20/20 Snellen resolution but coarser
-    /// than theoretical CAVOK-best-case (~8 arcmin) to reflect typical training
-    /// scenario conditions rather than empty-sky ideal. Consistent with the spirit
-    /// of FAA AC 90-48 (Pilots' Role in Collision Avoidance) empirical studies and
-    /// AIM §8-1-6 scanning discussion.</para>
+    /// <para>The threshold angle (9 arcminutes) is calibrated for an alerted,
+    /// directed search — the only consumer is the RTIS path, where the pilot has a
+    /// clock/distance/type cue (7110.65 §2-1-21.a) and foveates the called sector
+    /// (AIM §8-1-6.c.2: ~10:1 foveal-to-peripheral recognition penalty). It sits a
+    /// notch above the ~8 arcmin foveal best case as an implicit allowance for
+    /// ground-clutter backgrounds, which the model does not otherwise represent.
+    /// Environmental degradation is NOT baked in here — visibility, cloud layers,
+    /// bank occlusion, and the scan hemisphere each have dedicated checks in
+    /// <see cref="VisualDetection"/>. The empirical alerted-acquisition band
+    /// (unalerted GA ~1–1.5 nm, alerted median ~2.5–3.5 nm) comes from the
+    /// Lincoln Laboratory / AC 90-48-era studies (external source, not in the
+    /// local FAA reference set).</para>
     ///
     /// <para>Effective silhouette size blends wingspan (dominant from head-on/abeam),
-    /// length (oblique views), and tail height (small vertical contribution). The
-    /// weights give wingspan full weight, length 70%, and tail 30% — a rough average
-    /// over pilot viewing geometries during approach and en-route scanning.</para>
+    /// length (oblique views), and tail height (small vertical contribution) in
+    /// quadrature: sqrt(w² + 0.7·L² + 0.3·t²). This is a diagonal-extent proxy — the
+    /// result exceeds the largest single dimension because a 3D object presents more
+    /// than one axis — with effective linear weights of 1.0 / ~0.84 / ~0.55, a rough
+    /// average over pilot viewing geometries during approach and en-route scanning.
+    /// Note the 9 arcmin threshold is referenced to this inflated silhouette, so it
+    /// is an effective ~7.5 arcmin against bare wingspan — recalibrate end-to-end in
+    /// nm, not by comparing the arcmin constant to wingspan-based literature.</para>
     /// </summary>
     private static double ComputeRangeFromDimensions(FaaAircraftRecord rec)
     {
-        // 12 arcmin ≈ 0.003491 rad. See AC 90-48 / AIM §8-1-6 discussion.
-        const double DetectionThresholdRad = 0.003491;
+        // 9 arcmin ≈ 0.002618 rad (alerted-search calibration; see XML doc above).
+        const double DetectionThresholdRad = 0.002618;
         const double FtPerNm = 6076.12;
+
+        // Data-quality guard, not a physics floor: nothing with real dimensions
+        // computes this low (an R22 comes out ~2.9 nm), so the floor only catches
+        // a partial FaaAircraftRecord. It is also defensible on its merits — an
+        // alerted search on a called-out target at 1.5 nm succeeds regardless of
+        // target size.
         const double MinRangeNm = 1.5;
-        const double MaxRangeNm = 10.0;
+
+        // Contrast ceiling, not a size result: beyond ~12 nm air-to-air
+        // acquisition is contrast-limited (atmospheric extinction drives
+        // target/sky contrast below detection threshold), which a pure angular
+        // model cannot represent. The clamp marks where the model stops being
+        // valid. Deliberately NOT scaled by reported visibility — surface
+        // visibility is not slant visibility (see the ≥10SM handling in
+        // VisualDetection).
+        const double MaxRangeNm = 12.0;
 
         double wingspan = rec.WingspanFtWithWinglets ?? rec.WingspanFtWithoutWinglets ?? 0.0;
         double length = rec.LengthFt ?? 0.0;
