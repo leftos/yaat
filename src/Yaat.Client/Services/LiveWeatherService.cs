@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using Microsoft.Extensions.Logging;
 using Yaat.Client.Logging;
 using Yaat.Sim;
@@ -14,7 +15,7 @@ public sealed class LiveWeatherService
 {
     private const string AwcBase = "https://aviationweather.gov/api/data";
 
-    private readonly ILogger _log = AppLog.CreateLogger<LiveWeatherService>();
+    private static readonly ILogger Log = AppLog.CreateLogger<LiveWeatherService>();
     private readonly HttpClient _http = new() { Timeout = TimeSpan.FromSeconds(30) };
 
     /// <summary>
@@ -25,7 +26,7 @@ public sealed class LiveWeatherService
     {
         if (airportIds.Count == 0)
         {
-            _log.LogWarning("No airport IDs provided for live weather");
+            Log.LogWarning("No airport IDs provided for live weather");
             return null;
         }
 
@@ -41,7 +42,7 @@ public sealed class LiveWeatherService
 
         if ((metars is null || metars.Count == 0) && (fdStations is null || fdStations.Count == 0))
         {
-            _log.LogWarning("Both METAR and FD fetches failed or returned empty");
+            Log.LogWarning("Both METAR and FD fetches failed or returned empty");
             return null;
         }
 
@@ -88,13 +89,45 @@ public sealed class LiveWeatherService
             var ids = string.Join(",", icaoIds);
             var url = $"{AwcBase}/metar?ids={ids}&format=json";
             var json = await _http.GetStringAsync(url);
-            return JsonSerializer.Deserialize<List<MetarJson>>(json, JsonOpts);
+            return ParseMetars(json);
         }
         catch (Exception ex)
         {
-            _log.LogWarning(ex, "Failed to fetch METARs");
+            Log.LogWarning(ex, "Failed to fetch METARs");
             return null;
         }
+    }
+
+    /// <summary>
+    /// Deserializes an aviationweather.gov METAR JSON array, skipping any element that
+    /// fails to convert so one malformed station never discards the whole response.
+    /// </summary>
+    public static List<MetarJson>? ParseMetars(string json)
+    {
+        var elements = JsonSerializer.Deserialize<List<JsonElement>>(json, JsonOpts);
+        if (elements is null)
+        {
+            return null;
+        }
+
+        var metars = new List<MetarJson>(elements.Count);
+        foreach (var element in elements)
+        {
+            try
+            {
+                var metar = element.Deserialize<MetarJson>(JsonOpts);
+                if (metar is not null)
+                {
+                    metars.Add(metar);
+                }
+            }
+            catch (JsonException ex)
+            {
+                Log.LogWarning(ex, "Skipping unparseable METAR element: {Element}", element.GetRawText());
+            }
+        }
+
+        return metars;
     }
 
     private async Task<List<StationWinds>?> FetchWindsAloftAsync(string artccId)
@@ -102,7 +135,7 @@ public sealed class LiveWeatherService
         var region = FdRegionMapping.GetRegion(artccId);
         if (region is null)
         {
-            _log.LogWarning("No FD region mapping for ARTCC {Artcc}", artccId);
+            Log.LogWarning("No FD region mapping for ARTCC {Artcc}", artccId);
             return null;
         }
 
@@ -114,7 +147,7 @@ public sealed class LiveWeatherService
         }
         catch (Exception ex)
         {
-            _log.LogWarning(ex, "Failed to fetch winds aloft for region {Region}", region);
+            Log.LogWarning(ex, "Failed to fetch winds aloft for region {Region}", region);
             return null;
         }
     }
@@ -296,10 +329,44 @@ public sealed class LiveWeatherService
     private static readonly JsonSerializerOptions JsonOpts = new() { PropertyNameCaseInsensitive = true };
 
     // Minimal DTOs for aviationweather.gov JSON responses
-    private sealed class MetarJson
+    public sealed class MetarJson
     {
         public string RawOb { get; set; } = "";
+
+        [JsonConverter(typeof(LenientNullableIntConverter))]
         public int? Wdir { get; set; }
+
+        [JsonConverter(typeof(LenientNullableIntConverter))]
         public int? Wspd { get; set; }
+    }
+
+    /// <summary>
+    /// Reads an aviationweather.gov numeric field that may arrive as a JSON number, a numeric
+    /// string, or a non-numeric string such as "VRB" (variable wind direction → null).
+    /// </summary>
+    public sealed class LenientNullableIntConverter : JsonConverter<int?>
+    {
+        public override int? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return reader.TokenType switch
+            {
+                JsonTokenType.Null => null,
+                JsonTokenType.Number => reader.GetInt32(),
+                JsonTokenType.String => int.TryParse(reader.GetString(), out int value) ? value : null,
+                _ => throw new JsonException($"Unexpected token {reader.TokenType} for nullable int"),
+            };
+        }
+
+        public override void Write(Utf8JsonWriter writer, int? value, JsonSerializerOptions options)
+        {
+            if (value is { } v)
+            {
+                writer.WriteNumberValue(v);
+            }
+            else
+            {
+                writer.WriteNullValue();
+            }
+        }
     }
 }

@@ -166,6 +166,11 @@ public partial class MainViewModel
                 return;
             }
 
+            if (profile.Metars.Count == 0)
+            {
+                AddWarningEntry("Live weather: METARs unavailable — winds aloft only. Altimeter and surface wind will use defaults.");
+            }
+
             var json = JsonSerializer.Serialize(profile);
             // Live-fetched real METARs are left untouched (no dynamic reconstruction).
             var result = await _connection.LoadWeatherAsync(json, reconstructMetars: false);
