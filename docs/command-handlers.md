@@ -214,10 +214,10 @@ installs the single fix, and sets a departure heading, so it stays lateral.
 
 **Incoming vs. queued is a different question.** `GetCommandDimension` answers "what does this command seize when it fires" — which is what the
 *incoming* compound is measured by. What a block that is still *waiting in the queue* occupies is `CommandDescriber.GetQueuedCommandDimension`, and
-`SplitBlockNonConflicting`'s per-command keep test must use that one. The two diverge for pattern entries and approach clearances: an incoming `ERD`
-or `CAPP` takes all three axes (so issuing one clears the whole queue), but one sitting behind a `DCT` is only a lateral plan — a fresh vector or DCT
-replaces it and must cancel it, while an altitude or speed assignment issued on the way to the fix must not. Everything else falls through to the
-`TrackedCommandType` classification.
+`SplitBlockNonConflicting`'s per-command keep test must use that one. The two diverge for pattern entries, approach clearances, and holds
+(`CommandDescriber.IsHoldCommand` — `HPP*`/`HFIX*`/`HP`): an incoming `ERD` or `CAPP` takes all three axes (so issuing one clears the whole queue),
+but one sitting behind a `DCT` or `AT` condition is only a lateral plan — a fresh vector or DCT replaces it and must cancel it, while an altitude or
+speed assignment issued on the way to the fix must not. Everything else falls through to the `TrackedCommandType` classification.
 
 > Never call `aircraft.Queue.Clear()` / `aircraft.CommandQueue.Clear()` inside a handler to "reset" state — that defeats parallel-block survival.
 
