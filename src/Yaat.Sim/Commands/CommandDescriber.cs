@@ -305,12 +305,32 @@ public static class CommandDescriber
     /// </summary>
     internal static CommandDimension GetQueuedCommandDimension(ParsedCommand command)
     {
-        if (IsPatternEntryCommand(command) || IsApproachCommand(command))
+        // Pattern entries, approach clearances, and holds are all "lateral plans" while they wait: a
+        // fresh vector or DCT replaces the plan and must cancel the queued block. The four VFR holds
+        // have no arm in ClassifyCommand (they fall through to Immediate → None), yet GetCommandDimension
+        // classifies them as Lateral — so without this arm a queued hold's aggregate block dimension
+        // reports a lateral conflict while its per-command keep-test reads None, and SplitBlockNonConflicting
+        // keeps (survives) the very hold a superseding vector was meant to cancel.
+        if (IsPatternEntryCommand(command) || IsApproachCommand(command) || IsHoldCommand(command))
         {
             return CommandDimension.Lateral;
         }
 
         return GetDimension(ClassifyCommand(command));
+    }
+
+    /// <summary>
+    /// The hold commands that <see cref="GetCommandDimension"/> classifies as <see cref="CommandDimension.Lateral"/>.
+    /// Kept in sync with that switch arm so a queued hold occupies the same axis it seizes when it fires.
+    /// </summary>
+    internal static bool IsHoldCommand(ParsedCommand command)
+    {
+        return command
+            is HoldPresentPosition360Command
+                or HoldPresentPositionHoverCommand
+                or HoldAtFixOrbitCommand
+                or HoldAtFixHoverCommand
+                or HoldingPatternCommand;
     }
 
     /// <summary>
@@ -368,14 +388,7 @@ public static class CommandDescriber
         }
 
         // Holding patterns are lateral
-        if (
-            command
-            is HoldPresentPosition360Command
-                or HoldPresentPositionHoverCommand
-                or HoldAtFixOrbitCommand
-                or HoldAtFixHoverCommand
-                or HoldingPatternCommand
-        )
+        if (IsHoldCommand(command))
         {
             return CommandDimension.Lateral;
         }
