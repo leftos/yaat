@@ -242,4 +242,24 @@ public class CallsignArgumentResolverTests
         Assert.Null(result.Error);
         Assert.Equal("BEHIND N152SP TAXI C", result.Text);
     }
+
+    [Fact]
+    public void GwAlias_UniqueSubstring_RewritesCallsign()
+    {
+        // "GW" is the short alias for the GIVEWAY condition prefix. Its callsign argument
+        // must resolve exactly like the spelled-out "GIVEWAY 152SP ..." form.
+        var result = CallsignArgumentResolver.TryRewrite("GW 152SP TAXI C", Scheme, Aircraft("N152SP", "N569SX"));
+
+        Assert.Null(result.Error);
+        Assert.Equal("GW N152SP TAXI C", result.Text);
+    }
+
+    [Fact]
+    public void GwAlias_ExactMatch_LeavesUntouched()
+    {
+        var result = CallsignArgumentResolver.TryRewrite("GW N152SP TAXI C", Scheme, Aircraft("N152SP"));
+
+        Assert.Null(result.Error);
+        Assert.Equal("GW N152SP TAXI C", result.Text);
+    }
 }

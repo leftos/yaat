@@ -130,7 +130,7 @@ internal static class CallsignArgumentResolver
 
         if (conditionVerb is "GIVEWAY" or "BEHIND")
         {
-            var prefixRewrite = TryRewriteConditionCallsign(prefixText, conditionVerb, aircraft);
+            var prefixRewrite = TryRewriteConditionCallsign(prefixText, aircraft);
             if (prefixRewrite.Error is not null)
             {
                 return new Result(null, prefixRewrite.Error);
@@ -286,12 +286,21 @@ internal static class CallsignArgumentResolver
     /// (e.g. "BEHIND 152SP " → "BEHIND N152SP ") via <see cref="CallsignMatcher"/>.
     /// Trailing whitespace is preserved verbatim.
     ///
+    /// The verb length is measured from the original <paramref name="prefixText"/> (its first
+    /// whitespace-delimited token), not from the normalized condition keyword: the "GW" alias
+    /// normalizes to "GIVEWAY", so using the keyword's length would slice into the callsign token.
+    ///
     /// Returns Text=null when no rewrite was needed; Error non-null on ambiguity.
     /// </summary>
-    private static Result TryRewriteConditionCallsign(string prefixText, string conditionVerb, IReadOnlyCollection<AircraftModel> aircraft)
+    private static Result TryRewriteConditionCallsign(string prefixText, IReadOnlyCollection<AircraftModel> aircraft)
     {
-        int verbLen = conditionVerb.Length;
-        if (prefixText.Length < verbLen + 1)
+        int verbLen = 0;
+        while (verbLen < prefixText.Length && !char.IsWhiteSpace(prefixText[verbLen]))
+        {
+            verbLen++;
+        }
+
+        if (verbLen >= prefixText.Length)
         {
             return new Result(null, null);
         }
