@@ -1093,8 +1093,14 @@ public sealed class SimulationEngine
                     }
                     else
                     {
-                        // Maintained contact: ignore bank (pass 0)
-                        var maintainTrafficResult = VisualDetection.TryAcquireTraffic(ac, target, layers, aptElevation.Value, visibilitySm, 0.0);
+                        // Maintained contact: weather-only check. The acquisition-range /
+                        // forward-hemisphere / bank-occlusion geometry models FINDING unknown
+                        // traffic, not TRACKING traffic already called in sight; re-applying it
+                        // here produces false "lost sight of traffic" reports as the lead merely
+                        // pulls ahead (a growing gap increases separation — the controller's to
+                        // re-sequence, never the follower's cue to break off; AIM §5-5-12.a.2 /
+                        // §4-4-14 NOTE). Mirrors the field-maintain path above and AirborneFollowHelper.
+                        var maintainTrafficResult = VisualDetection.TryMaintainTrafficContact(ac, target, layers, aptElevation.Value);
                         if (!maintainTrafficResult.Acquired)
                         {
                             ac.Approach.HasReportedTrafficInSight = false;
