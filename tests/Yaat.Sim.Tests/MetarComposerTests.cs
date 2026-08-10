@@ -16,8 +16,14 @@ public class MetarComposerTests
         IReadOnlyList<MetarParser.CloudLayer>? layers = null,
         int? ceiling = null,
         double? alt = 29.92,
-        bool precip = false
-    ) => new(calm, dir, speed, gust, vis, layers ?? [], ceiling, alt, precip);
+        bool precip = false,
+        bool variable = false,
+        int? varFrom = null,
+        int? varTo = null,
+        int? peakKt = null,
+        int peakDir = 0,
+        DateTime? peakUtc = null
+    ) => new(calm, dir, speed, gust, variable, varFrom, varTo, peakKt, peakDir, peakUtc, vis, layers ?? [], ceiling, alt, precip);
 
     [Fact]
     public void Compose_Calm_EmitsZeroWind()
@@ -149,5 +155,70 @@ public class MetarComposerTests
         var result = MetarComposer.Compose(withKeyword, Cond(), Obs, isSpeci: false);
         Assert.StartsWith("METAR KOAK", result);
         Assert.DoesNotContain("METAR METAR", result);
+    }
+
+    // -------------------------------------------------------------------------
+    // Variable wind groups
+    // -------------------------------------------------------------------------
+
+    [Fact]
+    public void Compose_VariableWind_EmitsVrb()
+    {
+        var result = MetarComposer.Compose(Base, Cond(speed: 5, variable: true), Obs, isSpeci: false);
+        Assert.Contains("VRB05KT", result);
+        Assert.DoesNotContain("27012KT", result);
+    }
+
+    [Fact]
+    public void Compose_VarGroup_InsertedAfterWind()
+    {
+        var result = MetarComposer.Compose(Base, Cond(dir: 210, speed: 15, varFrom: 180, varTo: 240), Obs, isSpeci: false);
+        Assert.Contains("21015KT 180V240", result);
+    }
+
+    [Fact]
+    public void Compose_VarGroup_ReplacesBaseGroup()
+    {
+        const string withVar = "KOAK 121853Z 21015KT 170V250 10SM FEW025 18/12 A2992";
+        var result = MetarComposer.Compose(withVar, Cond(dir: 220, speed: 16, varFrom: 190, varTo: 260), Obs, isSpeci: false);
+        Assert.Contains("22016KT 190V260", result);
+        Assert.DoesNotContain("170V250", result);
+    }
+
+    [Fact]
+    public void Compose_NoObservedSpread_StripsBaseVarGroup()
+    {
+        const string withVar = "KOAK 121853Z 21015KT 170V250 10SM FEW025 18/12 A2992";
+        var result = MetarComposer.Compose(withVar, Cond(dir: 210, speed: 15), Obs, isSpeci: false);
+        Assert.Contains("21015KT 10SM", result);
+        Assert.DoesNotContain("170V250", result);
+    }
+
+    [Fact]
+    public void Compose_PeakWind_EmitsRemark()
+    {
+        var peakTime = new DateTime(2026, 6, 2, 18, 47, 0, DateTimeKind.Utc);
+        var result = MetarComposer.Compose(
+            Base,
+            Cond(dir: 280, speed: 22, gust: 33, peakKt: 33, peakDir: 280, peakUtc: peakTime),
+            Obs,
+            isSpeci: false
+        );
+        Assert.Contains("RMK PK WND 28033/1847", result);
+        Assert.Contains("AO2", result);
+    }
+
+    [Fact]
+    public void Compose_PeakWind_NoRemarksSection_CreatesOne()
+    {
+        const string bare = "KOAK 121853Z 27012KT 10SM FEW025 18/12 A2992";
+        var peakTime = new DateTime(2026, 6, 2, 18, 47, 0, DateTimeKind.Utc);
+        var result = MetarComposer.Compose(
+            bare,
+            Cond(dir: 280, speed: 22, gust: 33, peakKt: 33, peakDir: 280, peakUtc: peakTime),
+            Obs,
+            isSpeci: false
+        );
+        Assert.EndsWith("RMK PK WND 28033/1847", result);
     }
 }

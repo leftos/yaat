@@ -18,9 +18,19 @@ public static class SpeciCriteria
     private const int WindShiftDegrees = 45;
     private const int WindShiftMinSpeedKt = 10;
 
+    // AIM TBL 7-1-1 item 7 (squall): speed suddenly increases by at least 16 kt to a
+    // sustained speed of 22 kt or more. Evaluated on the 2-minute means.
+    private const int SquallIncreaseKt = 16;
+    private const int SquallMinSpeedKt = 22;
+
     public static bool IsSpeciWorthy(ReportedConditions lastIssued, ReportedConditions current)
     {
         if (IsWindShift(lastIssued, current))
+        {
+            return true;
+        }
+
+        if (IsSquall(lastIssued, current))
         {
             return true;
         }
@@ -40,11 +50,12 @@ public static class SpeciCriteria
 
     /// <summary>
     /// FMH-1 wind shift: direction change of 45 degrees or more with the wind speed 10 kt or more
-    /// throughout (approximated here by both endpoints being 10 kt or more).
+    /// throughout (approximated here by both endpoints being 10 kt or more). Both endpoints are
+    /// 2-minute mean directions; a VRB endpoint has no meaningful direction to shift from.
     /// </summary>
     private static bool IsWindShift(ReportedConditions a, ReportedConditions b)
     {
-        if (a.Calm || b.Calm)
+        if (a.Calm || b.Calm || a.WindVariable || b.WindVariable)
         {
             return false;
         }
@@ -55,6 +66,11 @@ public static class SpeciCriteria
         }
 
         return AngularDifference(a.WindDirTrueDeg, b.WindDirTrueDeg) >= WindShiftDegrees;
+    }
+
+    private static bool IsSquall(ReportedConditions a, ReportedConditions b)
+    {
+        return (b.WindSpeedKt >= a.WindSpeedKt + SquallIncreaseKt) && (b.WindSpeedKt >= SquallMinSpeedKt);
     }
 
     private static int AngularDifference(int a, int b)

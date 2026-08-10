@@ -10,8 +10,9 @@ public class SpeciCriteriaTests
         int speed = 12,
         double? vis = 10,
         int? ceiling = null,
-        bool precip = false
-    ) => new(calm, dir, speed, null, vis, [], ceiling, 29.92, precip);
+        bool precip = false,
+        bool variable = false
+    ) => new(calm, dir, speed, null, variable, null, null, null, 0, null, vis, [], ceiling, 29.92, precip);
 
     [Fact]
     public void NoChange_NotWorthy()
@@ -58,6 +59,26 @@ public class SpeciCriteriaTests
     public void CeilingCrossing(int? last, int? current, bool expected)
     {
         var result = SpeciCriteria.IsSpeciWorthy(Cond(ceiling: last), Cond(ceiling: current));
+        Assert.Equal(expected, result);
+    }
+
+    [Fact]
+    public void WindShift_VariableEndpoint_NotWorthy()
+    {
+        // A VRB endpoint has no meaningful direction to shift from.
+        Assert.False(SpeciCriteria.IsSpeciWorthy(Cond(dir: 270, speed: 12, variable: true), Cond(dir: 90, speed: 12)));
+        Assert.False(SpeciCriteria.IsSpeciWorthy(Cond(dir: 270, speed: 12), Cond(dir: 90, speed: 12, variable: true)));
+    }
+
+    [Theory]
+    [InlineData(5, 22, true)] // +17 kt to 22: squall
+    [InlineData(5, 20, false)] // +15 kt but below 22 sustained
+    [InlineData(10, 24, false)] // only +14 kt
+    [InlineData(6, 30, true)] // +24 kt to 30
+    public void Squall(int lastSpd, int curSpd, bool expected)
+    {
+        // Same direction so the wind-shift criterion stays out of the way.
+        var result = SpeciCriteria.IsSpeciWorthy(Cond(speed: lastSpd), Cond(speed: curSpd));
         Assert.Equal(expected, result);
     }
 

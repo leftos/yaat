@@ -90,16 +90,43 @@ public static partial class MetarComposer
 
         var result = (isSpeci ? "SPECI " : "METAR ") + body;
 
+        string? peakRemark = ComposePeakWindRemark(conditions);
+
         if (remarks is not null)
         {
             var cleaned = StripStaleRemarks(remarks);
+            if (peakRemark is not null)
+            {
+                // The base's own PK WND was stripped as stale; ours leads the remarks.
+                cleaned =
+                    string.Equals(cleaned, "RMK", StringComparison.Ordinal) || string.IsNullOrWhiteSpace(cleaned)
+                        ? "RMK " + peakRemark
+                        : "RMK " + peakRemark + " " + cleaned["RMK ".Length..];
+            }
+
             if (!string.IsNullOrWhiteSpace(cleaned) && !string.Equals(cleaned, "RMK", StringComparison.Ordinal))
             {
                 result += " " + cleaned;
             }
         }
+        else if (peakRemark is not null)
+        {
+            result += " RMK " + peakRemark;
+        }
 
         return result;
+    }
+
+    /// <summary>AIM 7-1-28: PK WND dddss/hhmm when the 10-minute peak exceeded 25 kt.</summary>
+    private static string? ComposePeakWindRemark(ReportedConditions c)
+    {
+        if (c.PeakWindKt is not { } peak || c.PeakWindUtc is not { } peakUtc)
+        {
+            return null;
+        }
+
+        var speed = peak.ToString(peak >= 100 ? "D3" : "D2", CultureInfo.InvariantCulture);
+        return $"PK WND {c.PeakWindDirTrueDeg:D3}{speed}/{peakUtc:HHmm}";
     }
 
     private static string PatchTimestamp(string body, DateTime observationUtc)
@@ -116,14 +143,35 @@ public static partial class MetarComposer
 
     private static string PatchWind(string body, ReportedConditions c)
     {
-        if (!WindRegex().IsMatch(body))
+        var windMatch = WindRegex().Match(body);
+        if (!windMatch.Success)
         {
             return body;
         }
 
-        body = WindRegex().Replace(body, ComposeWind(c), 1);
-        // We do not model a variable-direction spread; drop any dddVddd group from the base.
-        return WindVariabilityRegex().Replace(body, "", 1);
+        string wind = ComposeWind(c);
+        // The observed dddVddd group replaces the base's (if any) or slots in right after
+        // the wind group; a VRB or narrow-spread observation drops any stale base group.
+        string? varGroup = null;
+        if (c is { WindVarFromTrueDeg: { } from, WindVarToTrueDeg: { } to })
+        {
+            varGroup = $"{from:D3}V{to:D3}";
+        }
+
+        body = WindRegex().Replace(body, wind, 1);
+        var existingVar = WindVariabilityRegex().Match(body);
+        if (existingVar.Success)
+        {
+            return body[..existingVar.Index] + (varGroup ?? "") + body[(existingVar.Index + existingVar.Length)..];
+        }
+
+        if (varGroup is null)
+        {
+            return body;
+        }
+
+        int afterWind = body.IndexOf(wind, StringComparison.Ordinal) + wind.Length;
+        return body[..afterWind] + " " + varGroup + body[afterWind..];
     }
 
     private static string PatchVisibility(string body, ReportedConditions c)
@@ -178,7 +226,7 @@ public static partial class MetarComposer
             return "00000KT";
         }
 
-        var direction = c.WindDirTrueDeg.ToString("D3", CultureInfo.InvariantCulture);
+        var direction = c.WindVariable ? "VRB" : c.WindDirTrueDeg.ToString("D3", CultureInfo.InvariantCulture);
         var speed = c.WindSpeedKt.ToString(c.WindSpeedKt >= 100 ? "D3" : "D2", CultureInfo.InvariantCulture);
         var gust = c.WindGustKt is { } g ? "G" + g.ToString(g >= 100 ? "D3" : "D2", CultureInfo.InvariantCulture) : "";
         return direction + speed + gust + "KT";

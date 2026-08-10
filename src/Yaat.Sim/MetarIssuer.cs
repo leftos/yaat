@@ -34,7 +34,11 @@ public sealed class MetarIssuer
             }
 
             _stationOrder.Add(parsed.StationId);
-            _stations[parsed.StationId] = new StationReport(raw.Trim(), Sample(parsed.StationId, weather, stationLocator), anchorUtc);
+            _stations[parsed.StationId] = new StationReport(
+                raw.Trim(),
+                Sample(parsed.StationId, weather, stationLocator, elapsedSeconds: 0, observationUtc: anchorUtc),
+                anchorUtc
+            );
         }
 
         // Treat the most recent routine instant as already issued so loading mid-hour does not
@@ -71,7 +75,7 @@ public sealed class MetarIssuer
         foreach (var id in _stationOrder)
         {
             var state = _stations[id];
-            var current = Sample(id, weather, stationLocator);
+            var current = Sample(id, weather, stationLocator, elapsedSeconds, observationUtc);
 
             bool isSpeci = !routineDue && SpeciCriteria.IsSpeciWorthy(state.LastIssued, current);
             if (!routineDue && !isSpeci)
@@ -113,79 +117,154 @@ public sealed class MetarIssuer
         return null;
     }
 
-    private static ReportedConditions Sample(string stationId, WeatherProfile weather, Func<string, (double Lat, double Lon)?> stationLocator)
+    private static ReportedConditions Sample(
+        string stationId,
+        WeatherProfile weather,
+        Func<string, (double Lat, double Lon)?> stationLocator,
+        double elapsedSeconds,
+        DateTime observationUtc
+    )
     {
         var parsed = weather.GetWeatherForAirport(stationId);
-        var (calm, dirTrue, speed, gust) = SampleWind(stationId, weather, parsed, stationLocator);
+        var wind = SampleWind(stationId, weather, parsed, stationLocator, elapsedSeconds, observationUtc);
 
+        return wind with
+        {
+            VisibilityStatuteMiles = parsed?.VisibilityStatuteMiles,
+            Layers = parsed?.Layers ?? [],
+            CeilingFeetAgl = parsed?.CeilingFeetAgl,
+            AltimeterInHg = parsed?.AltimeterInHg,
+            Precipitation = !string.IsNullOrWhiteSpace(weather.Precipitation),
+        };
+    }
+
+    private static ReportedConditions SampleWind(
+        string stationId,
+        WeatherProfile weather,
+        MetarParser.ParsedMetar? parsed,
+        Func<string, (double Lat, double Lon)?> stationLocator,
+        double elapsedSeconds,
+        DateTime observationUtc
+    )
+    {
+        // The mean and peak come from observing the simulated field (2-min means, 10-min
+        // peak/lull at phase 0), converted magnetic → true here. The envelope groups
+        // (gust value, dddVddd arc, VRB) code from the authored layer amplitudes: bounded
+        // noise's true envelope IS the authored arc — a finite sample only ever
+        // under-estimates it — so the round trip stays exact. Fall back to the base
+        // METAR's own (already-true) wind for text-only weather.
+        if (WindObservation.Observe(weather, elapsedSeconds) is { } obs)
+        {
+            double ToTrue(double magDeg)
+            {
+                return stationLocator(stationId) is { } location ? MagneticDeclination.MagneticToTrue(magDeg, location.Lat, location.Lon) : magDeg;
+            }
+
+            int meanSpeed = (int)Math.Round(obs.MeanSpeedKts, MidpointRounding.AwayFromZero);
+            if (obs.MeanSpeedKts < WindObservation.CalmBelowKt)
+            {
+                return WindOnly(calm: true, dirTrue: 0, speed: meanSpeed, gust: null, variable: false, varFrom: null, varTo: null);
+            }
+
+            var surface = weather.WindLayers[0];
+            bool layerVariable = surface.Variable ?? false;
+            var (gustExcess, halfSpread) = WindVariation.ResolveAmplitudes(
+                surface.Speed,
+                surface.Gusts,
+                surface.DirectionVariabilityDeg,
+                layerVariable
+            );
+            double spread = 2.0 * halfSpread;
+
+            // FMH-1 coding: variation ≥180° (or an authored VRB layer) codes VRB at any
+            // speed; ≥60° codes VRB at ≤6 kt and a dddVddd group above 6 kt (extremes
+            // clockwise around the authored mean, converted to true like the mean).
+            bool variable =
+                layerVariable
+                || (spread >= WindObservation.VrbForcedSpreadDeg)
+                || ((spread >= WindObservation.MinVariableSpreadDeg) && (obs.MeanSpeedKts <= WindObservation.VrbMaxMeanSpeedKt));
+            bool hasVarGroup = (!variable) && (spread >= WindObservation.MinVariableSpreadDeg);
+
+            int? gust = null;
+            if (gustExcess >= WindObservation.MinGustExcessKt)
+            {
+                gust = (int)Math.Round(surface.Speed + gustExcess, MidpointRounding.AwayFromZero);
+            }
+
+            var wind = WindOnly(
+                calm: false,
+                dirTrue: RoundToTen(ToTrue(obs.MeanDirectionMagDeg)),
+                speed: meanSpeed,
+                gust: gust,
+                variable: variable,
+                varFrom: hasVarGroup ? RoundToTen(ToTrue(surface.Direction - halfSpread)) : null,
+                varTo: hasVarGroup ? RoundToTen(ToTrue(surface.Direction + halfSpread)) : null
+            );
+
+            if (obs.PeakSpeedKts > WindObservation.PeakWindRemarkAboveKt)
+            {
+                wind = wind with
+                {
+                    PeakWindKt = (int)Math.Round(obs.PeakSpeedKts, MidpointRounding.AwayFromZero),
+                    PeakWindDirTrueDeg = RoundToTen(ToTrue(obs.PeakDirectionMagDeg)),
+                    PeakWindUtc = observationUtc.AddSeconds(obs.PeakElapsedSeconds - elapsedSeconds),
+                };
+            }
+
+            return wind;
+        }
+
+        if (parsed?.WindSpeedKts is { } parsedSpeed)
+        {
+            if (parsed.WindVariable)
+            {
+                return WindOnly(calm: false, dirTrue: 0, speed: parsedSpeed, gust: parsed.WindGustKts, variable: true, varFrom: null, varTo: null);
+            }
+
+            if ((parsedSpeed < WindObservation.CalmBelowKt) || (parsed.WindDirectionDeg is null))
+            {
+                return WindOnly(calm: true, dirTrue: 0, speed: parsedSpeed, gust: null, variable: false, varFrom: null, varTo: null);
+            }
+
+            return WindOnly(
+                calm: false,
+                dirTrue: RoundToTen(parsed.WindDirectionDeg.Value),
+                speed: parsedSpeed,
+                gust: parsed.WindGustKts,
+                variable: false,
+                varFrom: parsed.WindVarFromDeg,
+                varTo: parsed.WindVarToDeg
+            );
+        }
+
+        return WindOnly(calm: true, dirTrue: 0, speed: 0, gust: null, variable: false, varFrom: null, varTo: null);
+    }
+
+    private static ReportedConditions WindOnly(bool calm, int dirTrue, int speed, int? gust, bool variable, int? varFrom, int? varTo)
+    {
         return new ReportedConditions(
             Calm: calm,
             WindDirTrueDeg: dirTrue,
             WindSpeedKt: speed,
             WindGustKt: gust,
-            VisibilityStatuteMiles: parsed?.VisibilityStatuteMiles,
-            Layers: parsed?.Layers ?? [],
-            CeilingFeetAgl: parsed?.CeilingFeetAgl,
-            AltimeterInHg: parsed?.AltimeterInHg,
-            Precipitation: !string.IsNullOrWhiteSpace(weather.Precipitation)
+            WindVariable: variable,
+            WindVarFromTrueDeg: varFrom,
+            WindVarToTrueDeg: varTo,
+            PeakWindKt: null,
+            PeakWindDirTrueDeg: 0,
+            PeakWindUtc: null,
+            VisibilityStatuteMiles: null,
+            Layers: [],
+            CeilingFeetAgl: null,
+            AltimeterInHg: null,
+            Precipitation: false
         );
-    }
-
-    private static (bool Calm, int DirTrue, int Speed, int? Gust) SampleWind(
-        string stationId,
-        WeatherProfile weather,
-        MetarParser.ParsedMetar? parsed,
-        Func<string, (double Lat, double Lon)?> stationLocator
-    )
-    {
-        // Prefer the actual physics surface wind (lowest layer, stored magnetic) converted to true,
-        // so the report matches what the sim applies to aircraft. Fall back to the base METAR's
-        // (already-true) wind when no wind layers are present.
-        if (weather.WindLayers.Count > 0)
-        {
-            var surface = weather.WindLayers[0];
-            int speed = (int)Math.Round(surface.Speed, MidpointRounding.AwayFromZero);
-            if (speed <= 2)
-            {
-                return (true, 0, speed, null);
-            }
-
-            double trueDir = surface.Direction;
-            if (stationLocator(stationId) is { } location)
-            {
-                trueDir = MagneticDeclination.MagneticToTrue(surface.Direction, location.Lat, location.Lon);
-            }
-
-            int? gust = null;
-            if (surface.Gusts is { } g)
-            {
-                int gustKt = (int)Math.Round(g, MidpointRounding.AwayFromZero);
-                if (gustKt > speed)
-                {
-                    gust = gustKt;
-                }
-            }
-
-            return (false, RoundToTen(trueDir), speed, gust);
-        }
-
-        if (parsed?.WindSpeedKts is { } parsedSpeed)
-        {
-            if (parsedSpeed <= 2 || parsed.WindDirectionDeg is null)
-            {
-                return (true, 0, parsedSpeed, null);
-            }
-
-            return (false, RoundToTen(parsed.WindDirectionDeg.Value), parsedSpeed, parsed.WindGustKts);
-        }
-
-        return (true, 0, 0, null);
     }
 
     private static int RoundToTen(double degrees)
     {
         int rounded = (int)Math.Round(degrees / 10.0, MidpointRounding.AwayFromZero) * 10;
-        rounded %= 360;
+        rounded = ((rounded % 360) + 360) % 360;
         return rounded == 0 ? 360 : rounded;
     }
 

@@ -82,4 +82,103 @@ public class MetarIssuerTests
         Assert.Contains("27012KT", report);
         Assert.DoesNotContain("09005KT", report);
     }
+
+    // -------------------------------------------------------------------------
+    // Observed variable wind
+    // -------------------------------------------------------------------------
+
+    private static WeatherProfile GustyWeather(string metar, double halfSpread, double? gusts) =>
+        new()
+        {
+            Metars = [metar],
+            WindLayers =
+            [
+                new WindLayer
+                {
+                    Altitude = 0,
+                    Direction = 210,
+                    Speed = 15,
+                    Gusts = gusts,
+                    DirectionVariabilityDeg = halfSpread,
+                },
+            ],
+        };
+
+    [Fact]
+    public void Tick_GustyVariableLayer_ReportsGustAndVarGroup()
+    {
+        // 210/15 gusting 25 with a ±35° authored spread: the observed report should carry
+        // a gust group and a dddVddd group derived from the simulated field.
+        var w = GustyWeather("KOAK 011840Z 21015KT 10SM CLR 18/12 A2992", halfSpread: 35, gusts: 25);
+        var issuer = new MetarIssuer(w, Anchor, NoLocator);
+        Assert.True(issuer.Tick(13 * 60, w, NoLocator)); // routine at 18:53
+        var report = Assert.Single(issuer.Reports);
+        Assert.Matches(@"\b210\d{2}G\d{2}KT \d{3}V\d{3}\b", report);
+    }
+
+    [Fact]
+    public void Tick_VrbLayer_ReportsVrb()
+    {
+        var w = new WeatherProfile
+        {
+            Metars = ["KOAK 011840Z 27004KT 10SM CLR 18/12 A2992"],
+            WindLayers =
+            [
+                new WindLayer
+                {
+                    Altitude = 0,
+                    Direction = 270,
+                    Speed = 4,
+                    Variable = true,
+                },
+            ],
+        };
+        var issuer = new MetarIssuer(w, Anchor, NoLocator);
+        Assert.True(issuer.Tick(13 * 60, w, NoLocator));
+        var report = Assert.Single(issuer.Reports);
+        Assert.Contains("VRB04KT", report);
+    }
+
+    [Fact]
+    public void Tick_TextOnlyVrbBase_KeepsVrbNotCalm()
+    {
+        // A text-only VRB base METAR used to be re-reported as 00000KT.
+        var w = new WeatherProfile { Metars = ["KOAK 011840Z VRB15KT 10SM CLR 18/12 A2992"] };
+        var issuer = new MetarIssuer(w, Anchor, NoLocator);
+        Assert.True(issuer.Tick(13 * 60, w, NoLocator));
+        var report = Assert.Single(issuer.Reports);
+        Assert.Contains("VRB15KT", report);
+        Assert.DoesNotContain("00000KT", report);
+    }
+
+    [Fact]
+    public void Tick_SteadyLayer_NoSpuriousGroups()
+    {
+        // No authored variability: the observed report stays a plain wind group.
+        var w = Weather("KOAK 011840Z 27012KT 10SM CLR 18/12 A2992");
+        var issuer = new MetarIssuer(w, Anchor, NoLocator);
+        Assert.True(issuer.Tick(13 * 60, w, NoLocator));
+        var report = Assert.Single(issuer.Reports);
+        Assert.Contains("27012KT", report);
+        Assert.DoesNotContain("VRB", report);
+        Assert.DoesNotContain("G", report.Split("KT")[0][^6..]); // no gust group inside the wind group
+    }
+
+    [Fact]
+    public void Tick_VariabilityAlone_NeverIssuesWindShiftSpeci()
+    {
+        // 60 minutes of a gusty variable wind with a static configured mean must never
+        // produce an off-cycle SPECI: the 2-minute mean direction wanders, but stays well
+        // inside the 45° wind-shift criterion, and gust-group changes are not SPECI-worthy.
+        var w = GustyWeather("KOAK 011753Z 21015KT 10SM CLR 18/12 A2992", halfSpread: 30, gusts: 25);
+        // Anchor just past :53 so no routine issuance lands inside the hour under test.
+        var anchor = new DateTime(2026, 6, 1, 17, 54, 0, DateTimeKind.Utc);
+        var issuer = new MetarIssuer(w, anchor, NoLocator);
+
+        for (int elapsed = 1; elapsed <= 3500; elapsed += 1)
+        {
+            bool changed = issuer.Tick(elapsed, w, NoLocator);
+            Assert.False(changed, $"Unexpected SPECI at elapsed={elapsed}: {issuer.Reports[0]}");
+        }
+    }
 }
