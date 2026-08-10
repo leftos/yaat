@@ -224,4 +224,150 @@ public class WindPhysicsTests
 
         Assert.True(trackDiff < 5, $"Expected track near 090°, got {ac.TrueTrack.Degrees}°");
     }
+
+    // -------------------------------------------------------------------------
+    // Variable wind: GS wobbles with authored variability, steady without
+    // -------------------------------------------------------------------------
+
+    private static WeatherProfile MakeGustyWind(double fromDeg, double speedKts, double gustKts, double halfSpreadDeg)
+    {
+        return new WeatherProfile
+        {
+            WindLayers =
+            [
+                new WindLayer
+                {
+                    Direction = fromDeg,
+                    Speed = speedKts,
+                    Altitude = 0,
+                    Gusts = gustKts,
+                    DirectionVariabilityDeg = halfSpreadDeg,
+                },
+            ],
+        };
+    }
+
+    [Fact]
+    public void VariableWind_GroundSpeedWobblesOverTime()
+    {
+        // 21015G25 180V240 on final at 500 ft: the GS readout should move around.
+        var weather = MakeGustyWind(fromDeg: 210, speedKts: 15, gustKts: 25, halfSpreadDeg: 30);
+        var speeds = new HashSet<double>();
+        for (int t = 0; t < 120; t += 10)
+        {
+            var ac = MakeAircraft(140, 210, 500);
+            FlightPhysics.Update(ac, 1.0, null, weather, simTimeSeconds: t);
+            speeds.Add(Math.Round(ac.GroundSpeed, 1));
+        }
+
+        Assert.True(speeds.Count > 3, $"Expected GS to wobble across two minutes, saw {speeds.Count} distinct values");
+    }
+
+    [Fact]
+    public void SteadyWind_NoVariabilityAuthored_GroundSpeedConstantOverTime()
+    {
+        var weather = MakeWind(fromDeg: 210, speedKts: 15, altitude: 0);
+        double? first = null;
+        for (int t = 0; t < 120; t += 10)
+        {
+            var ac = MakeAircraft(140, 210, 500);
+            FlightPhysics.Update(ac, 1.0, null, weather, simTimeSeconds: t);
+            first ??= ac.GroundSpeed;
+            Assert.Equal(first.Value, ac.GroundSpeed);
+        }
+    }
+
+    [Fact]
+    public void VariableWind_TapersOutAtAltitude()
+    {
+        // Same gusty surface layer: at 10,000 ft AGL the perturbation is fully tapered,
+        // so GS is identical at every sample time.
+        var weather = MakeGustyWind(fromDeg: 210, speedKts: 15, gustKts: 25, halfSpreadDeg: 30);
+        double? first = null;
+        for (int t = 0; t < 120; t += 10)
+        {
+            var ac = MakeAircraft(250, 210, 10_000);
+            FlightPhysics.Update(ac, 1.0, null, weather, simTimeSeconds: t);
+            first ??= ac.GroundSpeed;
+            Assert.Equal(first.Value, ac.GroundSpeed);
+        }
+    }
+
+    [Fact]
+    public void VariableWind_DifferentCallsigns_Decorrelated()
+    {
+        // Two aircraft in identical states see different instantaneous winds (callsign
+        // phase offset) while a steady wind would give them identical GS.
+        var weather = MakeGustyWind(fromDeg: 210, speedKts: 15, gustKts: 25, halfSpreadDeg: 30);
+        int differing = 0;
+        for (int t = 0; t < 300; t += 20)
+        {
+            var a = MakeAircraft(140, 210, 500);
+            var b = MakeAircraft(140, 210, 500);
+            b.Callsign = "OTHER99";
+            FlightPhysics.Update(a, 1.0, null, weather, simTimeSeconds: t);
+            FlightPhysics.Update(b, 1.0, null, weather, simTimeSeconds: t);
+            if (Math.Abs(a.GroundSpeed - b.GroundSpeed) > 0.1)
+            {
+                differing++;
+            }
+        }
+
+        Assert.True(differing > 7, $"Expected decorrelated wobble between callsigns, differed {differing}/15 samples");
+    }
+
+    [Fact]
+    public void VariableWind_WorldTick_ReplaysIdentically()
+    {
+        // Two identical worlds ticked through the same time sequence must land on
+        // identical positions — the perturbation is a pure function of sim time.
+        static SimulationWorld BuildWorld()
+        {
+            var world = new SimulationWorld();
+            var ac = new AircraftState
+            {
+                Callsign = "RPL01",
+                AircraftType = "B738",
+                TrueHeading = new TrueHeading(90),
+                TrueTrack = new TrueHeading(90),
+                Altitude = 800,
+                IndicatedAirspeed = 140,
+                IsOnGround = false,
+            };
+            world.AddAircraft(ac);
+            world.Weather = new WeatherProfile
+            {
+                WindLayers =
+                [
+                    new WindLayer
+                    {
+                        Direction = 210,
+                        Speed = 15,
+                        Altitude = 0,
+                        Gusts = 25,
+                        DirectionVariabilityDeg = 30,
+                    },
+                ],
+            };
+            return world;
+        }
+
+        var world1 = BuildWorld();
+        var world2 = BuildWorld();
+        for (int second = 0; second < 60; second++)
+        {
+            for (int sub = 0; sub < 4; sub++)
+            {
+                world1.Tick(0.25, second);
+                world2.Tick(0.25, second);
+            }
+        }
+
+        var a = world1.GetSnapshot()[0];
+        var b = world2.GetSnapshot()[0];
+        Assert.Equal(a.Position.Lat, b.Position.Lat);
+        Assert.Equal(a.Position.Lon, b.Position.Lon);
+        Assert.Equal(a.GroundSpeed, b.GroundSpeed);
+        Assert.Equal(a.TrueTrack.Degrees, b.TrueTrack.Degrees);
+    }
 }

@@ -45,14 +45,18 @@ public static class WindInterpolator
 
         var layers = profile.WindLayers;
 
+        // Height above the profile's surface layer drives the variability taper — the
+        // lowest layer sits at/near field elevation, so it is the AGL reference.
+        double heightAglFt = Math.Max(0, altitudeFt - layers[0].Altitude);
+
         if (altitudeFt <= layers[0].Altitude)
         {
-            return WindVariation.Perturb(new WindAtAltitude(layers[0].Direction, layers[0].Speed), simTimeSeconds, phaseSeconds);
+            return PerturbLayer(layers[0], heightAglFt, simTimeSeconds, phaseSeconds);
         }
 
         if (altitudeFt >= layers[^1].Altitude)
         {
-            return WindVariation.Perturb(new WindAtAltitude(layers[^1].Direction, layers[^1].Speed), simTimeSeconds, phaseSeconds);
+            return PerturbLayer(layers[^1], heightAglFt, simTimeSeconds, phaseSeconds);
         }
 
         int upper = 1;
@@ -80,7 +84,32 @@ public static class WindInterpolator
             direction += 360.0;
         }
 
-        return WindVariation.Perturb(new WindAtAltitude(direction, interpSpeed), simTimeSeconds, phaseSeconds);
+        // Variability amplitudes interpolate between the bracketing layers with the same
+        // scheme as the mean vector, so a layer boundary never produces a turbulence
+        // discontinuity; the AGL taper applies last, inside Compute. The discrete VRB
+        // flag steps at t=0.5, matching the cloud-cover convention.
+        var (gustLow, spreadLow) = WindVariation.ResolveAmplitudes(low.Speed, low.Gusts, low.DirectionVariabilityDeg, low.Variable ?? false);
+        var (gustHigh, spreadHigh) = WindVariation.ResolveAmplitudes(high.Speed, high.Gusts, high.DirectionVariabilityDeg, high.Variable ?? false);
+        double gustExcess = gustLow + (t * (gustHigh - gustLow));
+        double halfSpread = spreadLow + (t * (spreadHigh - spreadLow));
+        bool variable = t < 0.5 ? (low.Variable ?? false) : (high.Variable ?? false);
+
+        return WindVariation.Compute(
+            new WindPerturbationInputs(direction, interpSpeed, gustExcess, halfSpread, variable, heightAglFt),
+            simTimeSeconds,
+            phaseSeconds
+        );
+    }
+
+    private static WindAtAltitude PerturbLayer(WindLayer layer, double heightAglFt, double simTimeSeconds, double phaseSeconds)
+    {
+        bool variable = layer.Variable ?? false;
+        var (gustExcess, halfSpread) = WindVariation.ResolveAmplitudes(layer.Speed, layer.Gusts, layer.DirectionVariabilityDeg, variable);
+        return WindVariation.Compute(
+            new WindPerturbationInputs(layer.Direction, layer.Speed, gustExcess, halfSpread, variable, heightAglFt),
+            simTimeSeconds,
+            phaseSeconds
+        );
     }
 
     /// <summary>

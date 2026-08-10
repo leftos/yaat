@@ -359,16 +359,4 @@ public static class WindVariation
         deg %= 360.0;
         return deg < 0 ? deg + 360.0 : deg;
     }
-
-    /// <summary>
-    /// Applies the time-varying perturbation to an interpolated mean wind. The identity
-    /// mapping — every wind lookup threads sim time and phase through this single choke
-    /// point so the perturbation model has exactly one seam.
-    /// </summary>
-    public static WindAtAltitude Perturb(WindAtAltitude meanWind, double simTimeSeconds, double phaseSeconds)
-    {
-        _ = simTimeSeconds;
-        _ = phaseSeconds;
-        return meanWind;
-    }
 }
