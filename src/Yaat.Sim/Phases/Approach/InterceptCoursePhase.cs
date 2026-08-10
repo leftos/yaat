@@ -98,6 +98,16 @@ public sealed partial class InterceptCoursePhase : Phase
 
     public override bool OnTick(PhaseContext ctx)
     {
+        // Lead lifecycle watchdog — see ApproachNavigationPhase.OnTick. Normally a new
+        // approach clearance clears any follow, but restored or hand-authored state can
+        // carry one onto an intercept; the same lost-lead event must behave the same
+        // here as on any other approach segment. Bails out when a cancel replaced or
+        // cleared the phase list mid-tick.
+        if (AirborneFollowHelper.CheckLeadLifecycle(ctx))
+        {
+            return false;
+        }
+
         // When ForcedIntercept (PTACF) or RelaxedJoin (JFAC/JLOC) is set, the capture-angle
         // gate is effectively unbounded (180° is the theoretical maximum between two headings).
         // The bust-through branch at the centerline-crossing check becomes unreachable, so the

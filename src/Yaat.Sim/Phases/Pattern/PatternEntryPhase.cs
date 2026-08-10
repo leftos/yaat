@@ -211,8 +211,12 @@ public sealed class PatternEntryPhase : Phase
     public override bool OnTick(PhaseContext ctx)
     {
         // Lead-not-found / lead-on-ground / runaway-distance watchdog. See
-        // DownwindPhase.OnTick for the full rationale.
-        AirborneFollowHelper.CheckLeadLifecycle(ctx);
+        // DownwindPhase.OnTick for the full rationale. A cancel can replace or
+        // clear this phase list mid-tick — bail out when it fires.
+        if (AirborneFollowHelper.CheckLeadLifecycle(ctx))
+        {
+            return false;
+        }
 
         // If the aircraft is following, close the gap during entry rather
         // than waiting until DownwindPhase to engage spacing control. Use

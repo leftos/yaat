@@ -573,8 +573,12 @@ public sealed class FinalApproachPhase : Phase
 
         // Lead-not-found / lead-on-ground / runaway-distance watchdog. See
         // DownwindPhase.OnTick for the full rationale. The on-ground branch
-        // is what catches a leader that lands while we're still on final.
-        AirborneFollowHelper.CheckLeadLifecycle(ctx);
+        // is what catches a leader that lands while we're still on final. A
+        // cancel can replace/clear this phase list mid-tick — bail out when it fires.
+        if (AirborneFollowHelper.CheckLeadLifecycle(ctx))
+        {
+            return false;
+        }
 
         double distNm = GeoMath.DistanceNm(ctx.Aircraft.Position, new LatLon(_thresholdLat, _thresholdLon));
         DistanceToThresholdNm = distNm;

@@ -166,8 +166,13 @@ public sealed class DownwindPhase : Phase
         // Lead-not-found / lead-on-ground / runaway-distance watchdog. Clears
         // FollowingCallsign + emits the appropriate pilot transmission so a
         // pattern-phase follower doesn't keep a stale follow target after the
-        // lead despawns or lands.
-        AirborneFollowHelper.CheckLeadLifecycle(ctx);
+        // lead despawns or lands. A cancel can now also end a visual approach
+        // outright (VisualApproachHelper), replacing or clearing this phase list
+        // mid-tick — bail out of the tick when it fires.
+        if (AirborneFollowHelper.CheckLeadLifecycle(ctx))
+        {
+            return false;
+        }
 
         // OFL/OFR lateral dogleg + parallel hold. Reference point must be ON the
         // downwind track (not the runway centerline) — abeam-the-threshold is the

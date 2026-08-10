@@ -150,15 +150,7 @@ public static class AirborneFollowHelper
         if (lead is null)
         {
             Log.LogDebug("[Follow] {Callsign}: target {Target} not found, ending follow", follower.Callsign, targetCallsign);
-            CancelFollowHoldingLeg(follower);
-            Pilot.PilotResponder.RouteSoloOrRpoTransmission(
-                follower,
-                ctx.SoloTrainingMode,
-                ctx.RpoShowPilotSpeech,
-                ctx.StudentPositionType,
-                Pilot.PilotResponder.BuildLostSightOfTraffic(follower, targetCallsign),
-                Pilot.PilotResponder.SoloPositionsTowerApproach
-            );
+            Tower.VisualApproachHelper.HandleTrafficContactLost(ctx, targetCallsign, false);
             return true;
         }
 
@@ -190,15 +182,7 @@ public static class AirborneFollowHelper
         if (!contact.Acquired)
         {
             Log.LogDebug("[Follow] {Callsign}: lost visual on {Target} ({Reason}), ending follow", follower.Callsign, targetCallsign, contact.Reason);
-            CancelFollowHoldingLeg(follower);
-            Pilot.PilotResponder.RouteSoloOrRpoTransmission(
-                follower,
-                ctx.SoloTrainingMode,
-                ctx.RpoShowPilotSpeech,
-                ctx.StudentPositionType,
-                Pilot.PilotResponder.BuildLostSightOfTraffic(follower, targetCallsign),
-                Pilot.PilotResponder.SoloPositionsTowerApproach
-            );
+            Tower.VisualApproachHelper.HandleTrafficContactLost(ctx, targetCallsign, false);
             return true;
         }
 
@@ -215,6 +199,13 @@ public static class AirborneFollowHelper
     /// </summary>
     public static void ClearFollowState(AircraftState follower)
     {
+        // Deliberately does NOT touch HasReportedTrafficInSight: ending the follow
+        // instruction is not the same event as losing sight of the traffic. The
+        // dispatcher's generic phase-clear runs this before every phase-clearing
+        // command — including FOLLOW itself, whose bare form gates on the report —
+        // and a vectored-off follower still sees the traffic it called. Sites where
+        // the sight itself is lost (VisualApproachHelper.HandleTrafficContactLost,
+        // VoidVisualApproach) clear the report themselves.
         follower.Approach.FollowingCallsign = null;
     }
 

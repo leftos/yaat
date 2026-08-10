@@ -90,8 +90,12 @@ public sealed class CrosswindPhase : Phase
     {
         // Lead-not-found / lead-on-ground / runaway-distance watchdog. Mirrors
         // DownwindPhase so a pattern-phase follower doesn't keep a stale follow
-        // target after the lead despawns or lands while crossing over.
-        AirborneFollowHelper.CheckLeadLifecycle(ctx);
+        // target after the lead despawns or lands while crossing over. A cancel
+        // can replace/clear this phase list mid-tick — bail out when it fires.
+        if (AirborneFollowHelper.CheckLeadLifecycle(ctx))
+        {
+            return false;
+        }
 
         // OFL/OFR lateral dogleg. Reference point: crosswind turn point.
         if (LateralOffset is not null && Waypoints is not null)

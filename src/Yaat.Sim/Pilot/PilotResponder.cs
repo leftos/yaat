@@ -1213,6 +1213,77 @@ public static class PilotResponder
     }
 
     /// <summary>
+    /// Visual-approach follower lost the lead but still holds the FIELD (AIM §5-5-11.a.3 case a):
+    /// the clearance stands and the aircraft continues its own visual, but pilot-applied visual
+    /// separation just ended, so the report couples the loss with the still-held reference
+    /// (7110.65 §7-4-3.c.3 — the controller must reassume radar separation). Spoken and solo
+    /// terminal forms say "the traffic"; the RPO terminal names the lead as a diagnostic.
+    /// </summary>
+    public static PilotSpeechText BuildLostSightOfTrafficFieldInSight(AircraftState aircraft, string targetCallsign)
+    {
+        var spoken = SpokenOwnCallsign(aircraft);
+        return new PilotSpeechText(
+            "lost sight of the traffic, field in sight.",
+            $"{spoken}, lost sight of the traffic, we still have the field in sight."
+        )
+        {
+            RpoTerminal = $"lost sight of {targetCallsign}, field in sight.",
+        };
+    }
+
+    /// <summary>
+    /// The phrase naming which visual reference(s) were lost, shared by the end-of-visual
+    /// builders. Both-false is the backstop wording for an aircraft that never held the
+    /// reference it needed (e.g. the lead landed before the follower ever saw the field).
+    /// </summary>
+    private static string LostVisualReferencePhrase(bool lostField, bool lostTraffic) =>
+        (lostField, lostTraffic) switch
+        {
+            (true, true) => "lost sight of the field and the traffic",
+            (true, false) => "lost sight of the field",
+            (false, true) => "lost sight of the traffic",
+            (false, false) => "don't have the field in sight",
+        };
+
+    /// <summary>
+    /// Visual approach no longer legal — nothing in sight (AIM §5-5-11.a.3 case c), away from
+    /// the runway: the pilot advises, levels off, and asks for a new clearance following the
+    /// AIM §5-5-16.a.1 reason → unable → request structure. The climb decision belongs to ATC
+    /// (7110.65 §7-4-1.a.2), so the aircraft holds altitude and heading until vectored.
+    /// Spoken/solo forms never name the lead; the RPO terminal does when one was involved.
+    /// </summary>
+    public static PilotSpeechText BuildUnableVisualRequestVectors(AircraftState aircraft, bool lostField, bool lostTraffic, string? leadCallsign)
+    {
+        var spoken = SpokenOwnCallsign(aircraft);
+        string phrase = LostVisualReferencePhrase(lostField, lostTraffic);
+        string spokenPhrase = (lostField || lostTraffic) ? $"we've {phrase}" : $"we {phrase}";
+        string terminal = $"unable the visual, {phrase} — request vectors.";
+        string tts = $"{spoken}, unable the visual, {spokenPhrase}, request vectors.";
+        if (lostTraffic && leadCallsign is not null)
+        {
+            return new PilotSpeechText(terminal, tts)
+            {
+                RpoTerminal = $"unable the visual, {phrase.Replace("the traffic", leadCallsign)} — request vectors.",
+            };
+        }
+        return new PilotSpeechText(terminal, tts);
+    }
+
+    /// <summary>
+    /// Visual approach no longer legal on short final (committed): the pilot goes around and —
+    /// unlike the sim-internal go-around reasons, which stay in the terminal parenthetical —
+    /// SPEAKS the reason, per AIM §5-5-5.a.2 ("include the reason" when the pilot initiates
+    /// the missed approach).
+    /// </summary>
+    public static PilotSpeechText BuildGoingAroundLostVisualReference(AircraftState aircraft, bool lostField, bool lostTraffic)
+    {
+        var spoken = SpokenOwnCallsign(aircraft);
+        string phrase = LostVisualReferencePhrase(lostField, lostTraffic);
+        string spokenPhrase = (lostField || lostTraffic) ? $"we've {phrase}" : $"we {phrase}";
+        return new PilotSpeechText($"going around, {phrase}.", $"{spoken}, going around, {spokenPhrase}.");
+    }
+
+    /// <summary>
     /// Pilot transmission when the pilot initiates a go-around. Reason is a short sim-internal
     /// descriptor ("no landing clearance", "too high at missed approach point", etc.) that's
     /// included parenthetically so the controller has the why; the spoken callout itself is the

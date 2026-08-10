@@ -40,6 +40,15 @@ public sealed class ApproachNavigationPhase : Phase
 
     public override bool OnTick(PhaseContext ctx)
     {
+        // Lead lifecycle watchdog: a CVA FOLLOW with an angled join rides this phase before
+        // FinalApproachPhase, and without the check the same lost-lead event would produce a
+        // different outcome here than 30 seconds later on final. A cancel can replace or
+        // clear this phase list mid-tick — bail out when it fires.
+        if (AirborneFollowHelper.CheckLeadLifecycle(ctx))
+        {
+            return false;
+        }
+
         if (_currentFixIndex >= Fixes.Count)
         {
             return true;

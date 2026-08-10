@@ -1025,12 +1025,14 @@ public class AirborneFollowTests : IDisposable
             },
         };
 
+        follower.Approach.HasReportedTrafficInSight = true;
         var ctx = Ctx(follower, lookup: cs => cs == LeadCallsign ? lead : null, weather: weather);
 
         bool cancelled = AirborneFollowHelper.CheckLeadLifecycle(ctx);
 
         Assert.True(cancelled, "A BKN deck between follower and lead must break off the follow (lost visual).");
         Assert.Null(follower.Approach.FollowingCallsign);
+        Assert.False(follower.Approach.HasReportedTrafficInSight, "The in-sight report is consumed with the follow — cancelling must clear it.");
     }
 
     /// <summary>
@@ -1061,12 +1063,120 @@ public class AirborneFollowTests : IDisposable
             },
         };
 
+        follower.Approach.HasReportedTrafficInSight = true;
         var ctx = Ctx(follower, lookup: cs => cs == LeadCallsign ? lead : null, weather: weather);
 
         bool cancelled = AirborneFollowHelper.CheckLeadLifecycle(ctx);
 
         Assert.True(cancelled, "A visibility collapse below the gap to the lead must break off the follow (lost visual).");
         Assert.Null(follower.Approach.FollowingCallsign);
+        Assert.False(follower.Approach.HasReportedTrafficInSight, "The in-sight report is consumed with the follow — cancelling must clear it.");
+    }
+
+    private static ApproachClearance MakeVisualClearance() =>
+        new()
+        {
+            ApproachId = "VIS28",
+            AirportCode = "KTEST",
+            RunwayId = "28",
+            FinalApproachCourse = new TrueHeading(280),
+            Procedure = null,
+        };
+
+    /// <summary>
+    /// AIM §5-5-11.a.3 case (a): a visual-approach follower that loses the lead while still
+    /// holding the FIELD keeps a valid clearance (7110.65 §7-4-3.c.3 — the controller reassumes
+    /// radar separation) and is authorized to proceed to the airport on its own. The leg freeze
+    /// (<c>IsExtended</c>) exists for followers whose ONLY outstanding instruction was to follow;
+    /// it must not fire here — freezing would orbit a downwind the aircraft is cleared to leave.
+    /// </summary>
+    [Fact]
+    public void CheckLeadLifecycle_VisualApproachFieldHeld_CancelsWithoutLegFreeze()
+    {
+        const string LeadCallsign = "LEAD";
+
+        using var _ = NavigationDatabase.ScopedOverride(
+            TestNavDbFactory.Make(
+                fixes: new Dictionary<string, (double Lat, double Lon)>(StringComparer.OrdinalIgnoreCase) { ["KTEST"] = (37.0, -122.0) },
+                runways: [DefaultRunway()]
+            )
+        );
+        var follower = MakeAircraft(callsign: "FOLL", type: "C172", lat: 37.00, lon: -122.0, altitude: 3000, followingCallsign: LeadCallsign);
+        var lead = MakeAircraft(callsign: LeadCallsign, type: "C172", lat: 37.00, lon: -121.93, altitude: 3000);
+
+        follower.Phases = new PhaseList { ActiveApproach = MakeVisualClearance() };
+        var downwind = new DownwindPhase();
+        follower.Phases.Add(downwind);
+        follower.Phases.Start(CommandDispatcher.BuildMinimalContext(follower));
+        follower.Approach.HasReportedFieldInSight = true;
+        follower.Approach.HasReportedTrafficInSight = true;
+
+        var weather = new WeatherProfile
+        {
+            ParsedMetarOverrides = new Dictionary<string, MetarParser.ParsedMetar>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["KTEST"] = new MetarParser.ParsedMetar("KTEST", null, [], 3.0),
+            },
+        };
+
+        var ctx = Ctx(follower, lookup: cs => cs == LeadCallsign ? lead : null, weather: weather);
+
+        bool cancelled = AirborneFollowHelper.CheckLeadLifecycle(ctx);
+
+        Assert.True(cancelled);
+        Assert.Null(follower.Approach.FollowingCallsign);
+        Assert.False(follower.Approach.HasReportedTrafficInSight);
+        Assert.False(downwind.IsExtended, "Field held: the visual continues on its own navigation — the leg must NOT freeze (§7-4-3.c.3).");
+        Assert.True(follower.Approach.HasReportedFieldInSight, "The field report must survive a traffic-only loss.");
+        Assert.NotNull(follower.Phases.ActiveApproach);
+        Assert.Contains(follower.PendingWarnings, w => w.Contains("field in sight", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(follower.PendingWarnings, w => w.Contains("radar separation", StringComparison.OrdinalIgnoreCase));
+    }
+
+    /// <summary>
+    /// AIM §5-5-11.a.3 case (c): a visual-approach follower that never held the field and now
+    /// loses the lead has NOTHING in sight — the visual approach is no longer legal. Away from
+    /// the runway (not committed) the pilot levels off, holds present heading, and requests
+    /// vectors (7110.65 §7-4-1.a.2 puts the climb decision on ATC); the voided clearance must
+    /// not silently resurrect.
+    /// </summary>
+    [Fact]
+    public void CheckLeadLifecycle_VisualApproachFieldNeverHeld_EndsVisual()
+    {
+        const string LeadCallsign = "LEAD";
+
+        using var _ = NavigationDatabase.ScopedOverride(
+            TestNavDbFactory.Make(
+                fixes: new Dictionary<string, (double Lat, double Lon)>(StringComparer.OrdinalIgnoreCase) { ["KTEST"] = (37.0, -122.0) },
+                runways: [DefaultRunway()]
+            )
+        );
+        var follower = MakeAircraft(callsign: "FOLL", type: "C172", lat: 37.00, lon: -122.0, altitude: 3000, followingCallsign: LeadCallsign);
+        var lead = MakeAircraft(callsign: LeadCallsign, type: "C172", lat: 37.00, lon: -121.93, altitude: 3000);
+
+        follower.Phases = new PhaseList { ActiveApproach = MakeVisualClearance() };
+        follower.Phases.Add(new DownwindPhase());
+        follower.Phases.Start(CommandDispatcher.BuildMinimalContext(follower));
+        follower.Approach.HasReportedTrafficInSight = true;
+
+        var weather = new WeatherProfile
+        {
+            ParsedMetarOverrides = new Dictionary<string, MetarParser.ParsedMetar>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["KTEST"] = new MetarParser.ParsedMetar("KTEST", null, [], 3.0),
+            },
+        };
+
+        var ctx = Ctx(follower, lookup: cs => cs == LeadCallsign ? lead : null, weather: weather);
+
+        bool cancelled = AirborneFollowHelper.CheckLeadLifecycle(ctx);
+
+        Assert.True(cancelled);
+        Assert.Null(follower.Approach.FollowingCallsign);
+        Assert.Null(follower.Phases?.ActiveApproach);
+        Assert.Equal(3000, follower.Targets.TargetAltitude);
+        Assert.NotNull(follower.Targets.AssignedMagneticHeading);
+        Assert.Contains(follower.PendingWarnings, w => w.Contains("unable the visual", StringComparison.OrdinalIgnoreCase));
     }
 
     /// <summary>

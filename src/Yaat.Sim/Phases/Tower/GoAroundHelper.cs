@@ -20,7 +20,15 @@ internal static class GoAroundHelper
     /// the appropriate missed-approach phase sequence, and advances the
     /// phase list to the new <see cref="GoAroundPhase"/>.
     /// </summary>
-    public static void Trigger(PhaseContext ctx, string reason)
+    public static void Trigger(PhaseContext ctx, string reason) => Trigger(ctx, Pilot.PilotResponder.BuildGoingAround(ctx.Aircraft, reason));
+
+    /// <summary>
+    /// <see cref="Trigger(PhaseContext, string)"/> with a caller-supplied transmission, for
+    /// go-arounds whose reason must be SPOKEN rather than left in the terminal parenthetical —
+    /// AIM §5-5-5.a.2 requires the reason on the air when the pilot initiates the missed
+    /// approach (e.g. lost visual reference on a visual approach).
+    /// </summary>
+    public static void Trigger(PhaseContext ctx, Pilot.PilotSpeechText speech)
     {
         if (ctx.Aircraft.Phases is null)
         {
@@ -32,7 +40,7 @@ internal static class GoAroundHelper
             ctx.SoloTrainingMode,
             ctx.RpoShowPilotSpeech,
             ctx.StudentPositionType,
-            Pilot.PilotResponder.BuildGoingAround(ctx.Aircraft, reason),
+            speech,
             Pilot.PilotResponder.SoloPositionsTower
         );
 
@@ -181,6 +189,16 @@ internal static class GoAroundHelper
     internal static void InstallGoAroundPhases(PhaseContext ctx, GoAroundPhase goAround, IReadOnlyList<Phase> missedApproachPhases)
     {
         var phaseList = ctx.Aircraft.Phases!;
+
+        // Any go-around off a visual approach voids the clearance (7110.65 §7-4-1: handled as
+        // any go-around; a visual has no missed approach segment, so nothing survives to fly).
+        // Without this, TickVisualDetection keeps running the acquisition ladder against a dead
+        // clearance and can silently re-acquire on the climbout. Shared by the automatic
+        // (Trigger) and manual (GA command) paths. A fresh CVA re-arms everything.
+        if (phaseList.ActiveApproach?.ApproachId.StartsWith("VIS", StringComparison.Ordinal) == true)
+        {
+            VisualApproachHelper.VoidVisualApproach(ctx.Aircraft);
+        }
 
         var phases = new List<Phase> { goAround };
         phases.AddRange(missedApproachPhases);

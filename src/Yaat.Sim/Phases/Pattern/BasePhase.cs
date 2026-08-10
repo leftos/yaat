@@ -131,8 +131,12 @@ public sealed class BasePhase : Phase
     public override bool OnTick(PhaseContext ctx)
     {
         // Lead-not-found / lead-on-ground / runaway-distance watchdog. See
-        // DownwindPhase.OnTick for the full rationale.
-        AirborneFollowHelper.CheckLeadLifecycle(ctx);
+        // DownwindPhase.OnTick for the full rationale. A cancel can replace or
+        // clear this phase list mid-tick — bail out when it fires.
+        if (AirborneFollowHelper.CheckLeadLifecycle(ctx))
+        {
+            return false;
+        }
 
         // Break off the follow and go around when the follower can no longer sequence
         // behind a much-slower lead by speed alone (structural overtake) and is closing
