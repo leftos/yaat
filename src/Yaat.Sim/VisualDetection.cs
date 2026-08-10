@@ -84,6 +84,28 @@ public static class VisualDetection
     // consecutive-tick debounce would need new serialized state for snapshots/replay.
     private const double MaintainVisibilityToleranceFactor = 1.25;
 
+    // AIRPORT visibility envelope (never applied to point traffic targets, whose
+    // detection is contrast- and resolution-limited — extended-object slant relief
+    // does not transfer). Reported prevailing visibility is a systematically
+    // pessimistic estimate of the flight visibility toward a lit runway complex:
+    // it is the value equaled or exceeded over only HALF the horizon circle (AIM
+    // §7-1-15.b — the paragraph's own example has one quadrant at 2 while the rest
+    // is 3), and the LOWER of two observations is used when tower-level and
+    // surface readings disagree (§7-1-15.c). 1.5 is deliberately bounded: in the
+    // fully-immersed regime the pilot should not see the field materially beyond
+    // the flight visibility they are required to maintain.
+    private const double FlightVisibilityCreditFactor = 1.5;
+
+    // Top of the presumed surface-based obscuration for the Koschmieder slab model
+    // in AirportVisibilityRangeNm. Sub-10SM visibility is definitionally caused by
+    // a surface-based phenomenon — fog, haze, smoke (AIM §7-1-15.a) — capped by the
+    // boundary-layer mixing height. 3000 ft AGL is conservative against typical
+    // continental haze tops (4000–6000 ft) and, being a divisor, the larger value
+    // is the conservative choice; it also keeps the height credit inert at and
+    // below the 2000 ft AGL IFR-visual downwind, where the aircraft is genuinely
+    // inside the murk. A meteorological constant, not a regulatory one.
+    private const double ObscurationTopFt = 3000.0;
+
     // Forward-hemisphere gates. Both start from AIM §8-1-6.c.2's ±100° eyes-only
     // arc and differ in head-turn credit. Traffic is a point target that must be
     // FOVEATED to be recognized (§8-1-6.c.2: an aircraft sharp in the foveal center
@@ -100,8 +122,8 @@ public static class VisualDetection
     // view, not foveated, so it gets the full bounded head turn (§8-1-8.j.1
     // expects pilots to move their heads around door posts and wings): ±120°,
     // which covers a standard downwind through abeam-the-numbers. Note the
-    // visibility cap below applies only under MetarParser.UnrestrictedVisibilitySm:
-    // 9SM → 7.8 nm vs 10SM → uncapped is a deliberate step, not a bug to smooth —
+    // visibility envelope below applies only under MetarParser.UnrestrictedVisibilitySm:
+    // the 9SM-capped vs 10SM-uncapped step is deliberate, not a bug to smooth —
     // sub-10 visibility is definitionally an obscured air mass (AIM §7-1-15),
     // at-or-above-10 is a censored "10 or more" that asserts no limit.
     private const double TrafficForwardHemisphereDeg = 110.0;
@@ -242,19 +264,46 @@ public static class VisualDetection
         // Flight-visibility collapse: fog or heavy haze that leaves the field farther
         // away than the pilot can physically see genuinely breaks contact — unlike the
         // finding-geometry caps, this is weather (AIM §5-5-11.a.3: the pilot must "at
-        // all times" have the airport or the preceding aircraft in sight). Visibility
-        // at or above the censored METAR maximum ("10 or more") asserts no limit
-        // (AIM §7-1-15).
-        if (visibilitySm is { } vis && vis < MetarParser.UnrestrictedVisibilitySm)
+        // all times" have the airport or the preceding aircraft in sight). The envelope
+        // is the same AirportVisibilityRangeNm the acquisition path uses (sharing one
+        // function is what proves acquire-then-immediately-lose can never happen), with
+        // the maintained-contact tracking credit on top.
+        double altAgl = Math.Max(0, aircraft.Altitude - airportElevation);
+        double visRangeNm = AirportVisibilityRangeNm(visibilitySm, altAgl) * MaintainVisibilityToleranceFactor;
+        if (fieldDistanceNm > visRangeNm)
         {
-            double visRangeNm = vis * SmToNm * MaintainVisibilityToleranceFactor;
-            if (fieldDistanceNm > visRangeNm)
-            {
-                return VisualAcquisitionResult.Fail(VisualAcquisitionFailure.OutOfRange, fieldDistanceNm, visRangeNm);
-            }
+            return VisualAcquisitionResult.Fail(VisualAcquisitionFailure.OutOfRange, fieldDistanceNm, visRangeNm);
         }
 
         return VisualAcquisitionResult.Success(0.0, 0.0);
+    }
+
+    /// <summary>
+    /// Distance (nm) at which the FIELD can be seen through a surface-based obscuration,
+    /// given the reported surface visibility and the observer's height above the field.
+    /// Returns +infinity when visibility is at/above the censored METAR maximum
+    /// ("10 or more" asserts no limit — AIM §7-1-15) or unreported.
+    ///
+    /// Koschmieder slab model: the obscuration occupies the surface layer up to
+    /// <see cref="ObscurationTopFt"/>; for an observer at height h the line of sight to the
+    /// field crosses <c>D × min(1, top/h)</c> of it, so contact holds while
+    /// <c>D ≤ V_eff × max(1, h/top)</c>. Inside the layer this degenerates to the flat
+    /// surface figure (with the <see cref="FlightVisibilityCreditFactor"/> pessimism
+    /// correction); above it the envelope grows linearly with height — the familiar
+    /// "can see straight down fine, nothing forward" phenomenon inverted. Used by BOTH
+    /// the acquire and airport-maintain paths so the two can never disagree. Never
+    /// applied to traffic targets.
+    /// </summary>
+    private static double AirportVisibilityRangeNm(double? visibilitySm, double heightAboveFieldFt)
+    {
+        if (visibilitySm is not { } vis || vis >= MetarParser.UnrestrictedVisibilitySm)
+        {
+            return double.PositiveInfinity;
+        }
+
+        double surfaceNm = vis * SmToNm;
+        double layerRatio = Math.Max(1.0, heightAboveFieldFt / ObscurationTopFt);
+        return surfaceNm * FlightVisibilityCreditFactor * layerRatio;
     }
 
     /// <summary>
@@ -431,18 +480,15 @@ public static class VisualDetection
         // prescribe a distance limit ("airport in sight" is the only criterion);
         // 7110.65 §7-4-3.g's own worked example asks a pilot to report an airport
         // in sight at 12 miles, and §7-4-3.f presumes the pilot hunts for a field
-        // that is not yet visually obvious. We
-        // model the realistic limiters: METAR visibility (hard ceiling when below
-        // the 10SM reporting maximum), the
+        // that is not yet visually obvious. We model the realistic limiters: the
+        // slant-range visibility envelope (AirportVisibilityRangeNm — binds only
+        // below the 10SM reporting maximum; without it a legally-clearable 1000/3
+        // visual would cap field acquisition at ~2.6 nm and be unreachable), the
         // observer's geometric horizon scaled by HorizonScaleFactor (haze, scan,
         // field-of-view), and an airport-conspicuity cap (large hub vs GA field).
         double altAgl = Math.Max(0, aircraft.Altitude - airportElevation);
         double horizonNm = HorizonScaleFactor * HorizonNmPerSqrtFt * Math.Sqrt(altAgl);
-        double maxRange = Math.Min(horizonNm, airportSizeCapNm);
-        if (visibilitySm is { } airportVis && airportVis < MetarParser.UnrestrictedVisibilitySm)
-        {
-            maxRange = Math.Min(maxRange, airportVis * SmToNm);
-        }
+        double maxRange = Math.Min(Math.Min(horizonNm, airportSizeCapNm), AirportVisibilityRangeNm(visibilitySm, altAgl));
 
         // Class A: no visual approaches at or above FL180 (7110.65 §7-2-1.a)
         if (aircraft.Altitude >= ClassAFloorFt)

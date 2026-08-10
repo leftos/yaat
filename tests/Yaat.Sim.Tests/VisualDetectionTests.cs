@@ -167,12 +167,111 @@ public class VisualDetectionTests
     [Fact]
     public void CanSeeAirport_NineSmVisibility_StillCapsRange()
     {
-        // Below the 10SM reporting ceiling the value is a real measurement and
-        // must bind: 9 SM ≈ 7.8 nm < 18 nm → OutOfRange.
-        var ac = MakeAircraft(38.022, -122.221, heading: 180, altitude: 5000);
+        // Below the 10SM reporting ceiling the value is a real measurement and must
+        // bind — but as a slant-range envelope, not the literal surface figure: at
+        // 5000 ft (4991 AGL) the 9 SM report gives 9 × 0.869 × 1.5 × (4991/3000)
+        // ≈ 19.5 nm. An aircraft 21 nm out is beyond it → OutOfRange.
+        var ac = MakeAircraft(38.071, -122.221, heading: 180, altitude: 5000);
         var result = VisualDetection.TryAcquireAirport(ac, AptLat, AptLon, AptElev, null, 9.0, 0.0, LargeCap);
         Assert.False(result.Acquired);
         Assert.Equal(VisualAcquisitionFailure.OutOfRange, result.Reason);
+    }
+
+    // -------------------------------------------------------------------------
+    // Airport visibility envelope — slant-range model (issue #345)
+    //
+    // Surface METAR visibility is a surface-horizontal point statistic (AIM
+    // §7-1-15); flight visibility differs (7110.65 §7-5-7/§7-5-8 NOTE). The
+    // airport cap is vis × 0.869 × 1.5 × max(1, AGL/3000ft): the 1.5 credit
+    // absorbs prevailing-visibility pessimism (half-horizon rule, lower-of-two
+    // observations), and the height ratio is the Koschmieder slab — above the
+    // surface obscuration the line of sight crosses less of it. Traffic (point
+    // targets) keeps the strict literal cap.
+    // -------------------------------------------------------------------------
+
+    [Fact]
+    public void Airport1000And3_ShortFinal_AcquiresAndNeverLoses()
+    {
+        // The legally-clearable 1000/3 visual (7110.65 §7-4-3.b, AIM §5-5-11.b.1):
+        // a jet at 900 AGL, 3.8 nm out, under a 3SM report must be able to report
+        // the field (envelope 3 × 0.869 × 1.5 = 3.91 nm), and once acquired must
+        // hold it all the way in (maintain = envelope × 1.25).
+        var ac = MakeAircraft(37.721 + (3.8 / 60.0), -122.221, heading: 180, altitude: AptElev + 900);
+        var acquire = VisualDetection.TryAcquireAirport(ac, AptLat, AptLon, AptElev, null, 3.0, 0.0, LargeCap);
+        Assert.True(acquire.Acquired, $"1000/3 short final must acquire, got {acquire.Reason} (range={acquire.MaxRangeNm:F2} nm)");
+
+        foreach (double distNm in new[] { 3.8, 3.0, 2.0, 1.0 })
+        {
+            var maintain = VisualDetection.TryMaintainAirportContact(ac, AptElev, null, 3.0, distNm);
+            Assert.True(maintain.Acquired, $"field must stay in sight at {distNm} nm under 3SM");
+        }
+    }
+
+    [Fact]
+    public void Airport3Sm_PatternAltitudeAbeam_Acquires()
+    {
+        // 3SM under a BKN040 deck, 2000 AGL on a downwind abeam ~1.6 nm from the
+        // ARP: fully immersed in the obscuration (ratio floors at 1) the envelope
+        // is a flat 3.91 nm — the field right off the wing is inside it.
+        var ac = MakeAircraft(37.721 + (1.6 / 60.0), -122.221, heading: 104, altitude: AptElev + 2000);
+        var result = VisualDetection.TryAcquireAirport(ac, AptLat, AptLon, AptElev, Bkn(4000), 3.0, 0.0, LargeCap);
+        Assert.True(result.Acquired, $"pattern-altitude abeam under 3SM must acquire, got {result.Reason} (range={result.MaxRangeNm:F2} nm)");
+    }
+
+    [Fact]
+    public void Airport3Sm_DescentFromAbove_AcquiresAndHoldsThroughDescent()
+    {
+        // Above the obscuration the envelope grows with height: at 9000 ft AGL a
+        // 3SM report gives 3.91 × (9000/3000) ≈ 11.7 nm. A jet descending on a
+        // normal 400 ft/nm gradient stays inside the shrinking envelope the whole
+        // way down (descent-stability: gradient ≤ H/V_eff ≈ 767 ft/nm at 3SM).
+        var acquireAc = MakeAircraft(37.721 + (11.0 / 60.0), -122.221, heading: 180, altitude: AptElev + 9000);
+        var acquire = VisualDetection.TryAcquireAirport(acquireAc, AptLat, AptLon, AptElev, null, 3.0, 0.0, LargeCap);
+        Assert.True(acquire.Acquired, $"3SM from 9000 AGL at 11 nm must acquire, got {acquire.Reason} (range={acquire.MaxRangeNm:F2} nm)");
+
+        foreach (var (distNm, agl) in new[] { (9.0, 8200.0), (6.0, 7000.0), (3.0, 5800.0), (1.0, 5000.0) })
+        {
+            var ac = MakeAircraft(37.721 + (distNm / 60.0), -122.221, heading: 180, altitude: AptElev + agl);
+            var maintain = VisualDetection.TryMaintainAirportContact(ac, AptElev, null, 3.0, distNm);
+            Assert.True(maintain.Acquired, $"contact must hold at {distNm} nm / {agl} ft AGL on a 400 ft/nm descent");
+        }
+    }
+
+    [Fact]
+    public void Airport_NineVsTenSm_CliffSoftened()
+    {
+        // 9SM at 2000 AGL: envelope 9 × 0.869 × 1.5 ≈ 11.7 nm — a real bound, but
+        // no longer a 7.8-vs-uncapped cliff against the censored 10SM report.
+        var ac = MakeAircraft(37.721 + (5.0 / 60.0), -122.221, heading: 180, altitude: AptElev + 2000);
+        var result = VisualDetection.TryAcquireAirport(ac, AptLat, AptLon, AptElev, null, 9.0, 0.0, LargeCap);
+        Assert.True(result.Acquired);
+        Assert.InRange(result.MaxRangeNm, 11.5, 12.0);
+    }
+
+    /// <summary>
+    /// The no-flap invariant: because acquire and maintain share one envelope function
+    /// (maintain adds the ×1.25 tracking credit on top), a just-acquired field can never
+    /// be immediately lost by the maintain check — at any visibility and any altitude.
+    /// </summary>
+    [Theory]
+    [InlineData(1.0, 500.0)]
+    [InlineData(3.0, 500.0)]
+    [InlineData(3.0, 2000.0)]
+    [InlineData(3.0, 9000.0)]
+    [InlineData(6.0, 5000.0)]
+    [InlineData(9.0, 2000.0)]
+    [InlineData(9.0, 9000.0)]
+    public void Airport_AcquireRangeAlwaysInsideMaintainEnvelope(double visSm, double agl)
+    {
+        var ac = MakeAircraft(37.721 + (1.0 / 60.0), -122.221, heading: 180, altitude: AptElev + agl);
+        var acquire = VisualDetection.TryAcquireAirport(ac, AptLat, AptLon, AptElev, null, visSm, 0.0, LargeCap);
+        Assert.True(acquire.Acquired);
+
+        var maintainAtCap = VisualDetection.TryMaintainAirportContact(ac, AptElev, null, visSm, acquire.MaxRangeNm);
+        Assert.True(
+            maintainAtCap.Acquired,
+            $"vis={visSm}SM agl={agl}: a field acquired at the cap ({acquire.MaxRangeNm:F2} nm) must not be immediately lost by maintain"
+        );
     }
 
     [Fact]
