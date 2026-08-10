@@ -1,5 +1,7 @@
 # Deploy yaat-server to a DigitalOcean droplet
 # Usage: .\deploy-to-droplet.ps1 [-Target <name>] [-NoLogs] [-SkipSessionSave] [-DrainSeconds <sec>]
+#        .\deploy-to-droplet.ps1 [-Target <name>] -BuildImageOnly   (build+push the ghcr image in CI, no deploy)
+#        .\deploy-to-droplet.ps1 [-Target <name>] -SkipCiBuild [-NoLogs] ...   (deploy the already-built image)
 #        .\deploy-to-droplet.ps1 [-Target <name>] -BuildOnDroplet [-NoCache] [-CacheReserveGb <gb>] ...
 #        .\deploy-to-droplet.ps1 -Target yaat2 -RebootOnly [-NoLogs] [-SkipSessionSave] [-DrainSeconds <sec>]
 #        .\deploy-to-droplet.ps1 [-Target <name>] -StatusOnly    (report active rooms only, no deploy)
@@ -36,6 +38,17 @@
 #              if the serial changed. Sessions are preserved exactly as a normal deploy
 #              (honors -SkipSessionSave / -DrainSeconds). -NoCache / -CacheReserveGb are
 #              ignored (nothing is built or pruned).
+#
+# -BuildImageOnly  Do NOT deploy. Dispatch yaat-server's docker-image.yml workflow, wait for
+#                  it to build and push the image to ghcr.io, then exit without touching the
+#                  droplet. The live server is unaffected. Used by the prepare-release flow to
+#                  front-load the ~20-minute CI build so the deploy decision (and its room-
+#                  occupancy check) can happen right before the actual downtime, not 20 minutes
+#                  earlier. Follow up with a normal deploy passing -SkipCiBuild.
+#
+# -SkipCiBuild  Skip the CI image-build step and deploy whatever ghcr.io currently holds as
+#               :latest. Only meaningful right after a -BuildImageOnly run (or another deploy)
+#               has produced the intended image — otherwise the droplet redeploys a stale build.
 #
 # -WaitForEmptyRooms  Do NOT deploy. Poll the target's /admin/status endpoint every
 #                     -PollSeconds (default 60) and block until the server reports zero
@@ -81,6 +94,8 @@ param(
   [switch]$RebootOnly,
   [switch]$WaitForEmptyRooms,
   [switch]$StatusOnly,
+  [switch]$BuildImageOnly,
+  [switch]$SkipCiBuild,
   [int]$DrainSeconds = 30,
   [int]$PollSeconds = 60,
   [int]$CacheReserveGb = 10
@@ -443,12 +458,13 @@ function Invoke-DeployRestartPrep {
 $headerTitle =
   if ($StatusOnly) { "YAAT Server: active-room status (no deploy)" }
   elseif ($WaitForEmptyRooms) { "YAAT Server: wait for empty rooms (no deploy)" }
+  elseif ($BuildImageOnly) { "YAAT Server: CI image build only (no deploy)" }
   elseif ($RebootOnly) { "YAAT Server Reboot (refresh nav data, no redeploy)" }
   else { "YAAT Server Deployment" }
 Write-Host $headerTitle -ForegroundColor Cyan
 Write-Host "=====================" -ForegroundColor Cyan
 Write-Host "Target:     $Target ($serverUrl)"
-if (-not $WaitForEmptyRooms -and -not $StatusOnly) {
+if (-not $WaitForEmptyRooms -and -not $StatusOnly -and -not $BuildImageOnly) {
   Write-Host "Droplet:    $dropletIp"
   Write-Host "Path:       $serverPath"
   Write-Host "Env file:   $remoteEnvFile (remote)"
@@ -568,6 +584,21 @@ if ($StatusOnly) {
   }
 }
 
+# Build-only also runs outside the main try/catch: a CI build failure leaves the live server
+# untouched, so it must not send the "Deployment failed" Discord alert.
+if ($BuildImageOnly) {
+  try {
+    Invoke-CiImageBuild
+    Write-Host ""
+    Write-Host "✓ Image build complete — deploy it with: .\deploy-to-droplet.ps1 -Target $Target -SkipCiBuild -NoLogs" -ForegroundColor Green
+    exit 0
+  }
+  catch {
+    Write-Host "❌ CI image build failed: $_" -ForegroundColor Red
+    exit 1
+  }
+}
+
 try {
   if ($WaitForEmptyRooms) {
     Invoke-WaitForEmptyRooms -PollSec $PollSeconds
@@ -628,8 +659,13 @@ try {
     # Default flow: build in CI, pull on the droplet. Everything up to the container
     # recreate happens while the old server is still serving, so downtime is minimal.
     Write-Host ""
-    Write-Host "[3/9] Building image in CI (server stays up)..." -ForegroundColor Yellow
-    Invoke-CiImageBuild
+    if ($SkipCiBuild) {
+      Write-Host "[3/9] Skipping CI image build (-SkipCiBuild) — deploying the current ghcr :latest image..." -ForegroundColor Yellow
+    }
+    else {
+      Write-Host "[3/9] Building image in CI (server stays up)..." -ForegroundColor Yellow
+      Invoke-CiImageBuild
+    }
 
     Write-Host ""
     Write-Host "[4/9] Pulling latest code on the droplet..." -ForegroundColor Yellow

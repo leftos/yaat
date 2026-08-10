@@ -23,4 +23,6 @@ Use this skill when the user asks to prepare, cut, or ship a YAAT release.
 
 Show the draft highlights, full changelog section, heading promotion, and the Step 3a version-file verdicts before asking for approval, matching the canonical command.
 
-Also determine and report the deployment-scope verdict (client-only vs server-affecting) as the canonical command's Step 7 describes: if every change since the previous release is confined to the desktop client — nothing in `Yaat.Sim`, the server, or the web-deployed UI (vStrips/vTDLS) — recommend skipping the droplet deploy to avoid downtime, and default the push/deploy prompt accordingly.
+Also determine and report the deployment-scope verdict (client-only vs server-affecting) as the canonical command's Step 7 describes: if every change since the previous release is confined to the desktop client — nothing in `Yaat.Sim`, the server, or the web-deployed UI (vStrips/vTDLS) — recommend skipping the droplet deploy to avoid downtime, and default the push prompt accordingly.
+
+On a server-affecting release, the deploy is two-stage: push, front-load the ~20-minute CI image build (`deploy-to-droplet.ps1 -BuildImageOnly`, no downtime), and only when the image is ready check room occupancy and ask whether to deploy (`-SkipCiBuild -NoLogs`, ~2 minutes of downtime). Never ask the deploy question before the image build has finished — occupancy changes over the build window.
