@@ -339,15 +339,39 @@ public static class AircraftPerformance
         return CategoryPerformance.ApproachSpeed(cat);
     }
 
-    /// <summary>Boeing FCTM / Airbus FCOM cap on the wind additive applied to Vref.</summary>
-    private const double MaxGustIncrementKts = 20.0;
+    /// <summary>Boeing FCTM / Airbus FCOM cap on the total wind additive applied to Vref.</summary>
+    private const double MaxWindAdditiveKts = 20.0;
 
     /// <summary>
-    /// Approach-speed wind additive for gusty conditions: pilots fly Vref plus half the
-    /// gust increment (reported gust minus sustained wind), the increment capped at 20 kt
-    /// (Boeing FCTM / Airbus FCOM technique). Zero in steady or VRB (light) wind. Uses the
-    /// surface layer's resolved gust excess so a spread-only layer that the sim gusts by
-    /// cross-derivation gets the same additive pilots would fly from its reported G group.
+    /// Full approach-speed wind additive (Boeing FCTM / Airbus FCOM, FSF ALAR 8.2):
+    /// Vapp = Vref + half the steady headwind component + the full gust increment
+    /// (reported gust minus sustained), total capped at 20 kt. Tailwind never subtracts.
+    /// The gust increment comes from the layer's AUTHORED gusts only — pilots fly the
+    /// additive from the reported G group, so a spread-only wind with no G group adds
+    /// nothing. The runway heading is true while the layer direction is magnetic, matching
+    /// the sim's existing WCA convention (the declination error in the cosine is small
+    /// for a wind anywhere near the runway axis).
+    /// </summary>
+    public static double WindApproachAdditive(WeatherProfile? weather, double runwayTrueHeadingDeg)
+    {
+        if (weather is null || weather.WindLayers.Count == 0)
+        {
+            return 0;
+        }
+
+        var surface = weather.WindLayers[0];
+        if (surface.Variable ?? false)
+        {
+            return 0;
+        }
+
+        double headwind = Math.Max(0, WindInterpolator.HeadwindComponentKts(surface.Direction, surface.Speed, runwayTrueHeadingDeg));
+        return Math.Min((0.5 * headwind) + AuthoredGustExcess(surface), MaxWindAdditiveKts);
+    }
+
+    /// <summary>
+    /// The gust-only part of the wind additive, maintained to touchdown per the FCTM
+    /// (only the steady-headwind half bleeds off in the flare).
     /// </summary>
     public static double GustApproachAdditive(WeatherProfile? weather)
     {
@@ -362,8 +386,12 @@ public static class AircraftPerformance
             return 0;
         }
 
-        var (gustExcess, _) = WindVariation.ResolveAmplitudes(surface.Speed, surface.Gusts, surface.DirectionVariabilityDeg, variable: false);
-        return Math.Min(gustExcess, MaxGustIncrementKts) / 2.0;
+        return Math.Min(AuthoredGustExcess(surface), MaxWindAdditiveKts);
+    }
+
+    private static double AuthoredGustExcess(WindLayer surface)
+    {
+        return surface.Gusts is { } gust && gust > surface.Speed ? gust - surface.Speed : 0;
     }
 
     public static double TouchdownSpeed(string aircraftType, AircraftCategory cat)

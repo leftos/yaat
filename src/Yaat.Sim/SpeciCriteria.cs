@@ -18,19 +18,38 @@ public static class SpeciCriteria
     private const int WindShiftDegrees = 45;
     private const int WindShiftMinSpeedKt = 10;
 
+    /// <summary>AIM TBL 7-1-1 item 1: a wind shift is 45°+ "in less than 15 minutes".</summary>
+    public const double WindShiftWindowSeconds = 900;
+
     // AIM TBL 7-1-1 item 7 (squall): speed suddenly increases by at least 16 kt to a
     // sustained speed of 22 kt or more. Evaluated on the 2-minute means.
     private const int SquallIncreaseKt = 16;
     private const int SquallMinSpeedKt = 22;
 
-    public static bool IsSpeciWorthy(ReportedConditions lastIssued, ReportedConditions current)
+    /// <summary>"Suddenly" for the squall criterion: the increase must occur within about two minutes.</summary>
+    public const double SquallWindowSeconds = 120;
+
+    /// <summary>
+    /// The wind criteria are double-gated: against the last issued report (hysteresis — a
+    /// SPECI re-baselines, so the same shift never fires twice) AND against a recent
+    /// observation of the field (the AIM time bound — a slow one-hour veer or a gradual
+    /// timeline ramp is neither a shift nor a squall). The baselines are null for
+    /// text-only weather, which degrades to the last-issued comparison alone.
+    /// </summary>
+    public static bool IsSpeciWorthy(
+        ReportedConditions lastIssued,
+        ReportedConditions current,
+        ObservedWind? observedNow,
+        ObservedWind? shiftBaseline,
+        ObservedWind? squallBaseline
+    )
     {
-        if (IsWindShift(lastIssued, current))
+        if (IsWindShift(lastIssued, current) && WithinShiftWindow(observedNow, shiftBaseline))
         {
             return true;
         }
 
-        if (IsSquall(lastIssued, current))
+        if (IsSquall(lastIssued, current) && WithinSquallWindow(observedNow, squallBaseline))
         {
             return true;
         }
@@ -71,6 +90,28 @@ public static class SpeciCriteria
     private static bool IsSquall(ReportedConditions a, ReportedConditions b)
     {
         return (b.WindSpeedKt >= a.WindSpeedKt + SquallIncreaseKt) && (b.WindSpeedKt >= SquallMinSpeedKt);
+    }
+
+    private static bool WithinShiftWindow(ObservedWind? now, ObservedWind? baseline)
+    {
+        if (now is null || baseline is null)
+        {
+            return true;
+        }
+
+        double diff = Math.Abs(now.MeanDirectionMagDeg - baseline.MeanDirectionMagDeg) % 360;
+        diff = diff > 180 ? 360 - diff : diff;
+        return (diff >= WindShiftDegrees) && (now.MeanSpeedKts >= WindShiftMinSpeedKt) && (baseline.MeanSpeedKts >= WindShiftMinSpeedKt);
+    }
+
+    private static bool WithinSquallWindow(ObservedWind? now, ObservedWind? baseline)
+    {
+        if (now is null || baseline is null)
+        {
+            return true;
+        }
+
+        return now.MeanSpeedKts >= baseline.MeanSpeedKts + SquallIncreaseKt;
     }
 
     private static int AngularDifference(int a, int b)

@@ -593,9 +593,12 @@ public sealed class FinalApproachPhase : Phase
         // controller-issued speed commands.
         if (!lateralOnly && !_fasSet && !ctx.Targets.HasExplicitSpeedCommand)
         {
-            // Vapp = Vref + half the gust increment (capped): standard gusty-day technique,
-            // and the controller-visible reason tight in-trail spacing degrades in gusts.
-            double fas = AircraftPerformance.ApproachSpeed(ctx.AircraftType, ctx.Category) + AircraftPerformance.GustApproachAdditive(ctx.Weather);
+            // Vapp = Vref + half the steady headwind + the full gust increment (capped at
+            // 20 kt): standard windy-day technique, and the controller-visible reason
+            // tight in-trail spacing degrades in gusts.
+            double fas =
+                AircraftPerformance.ApproachSpeed(ctx.AircraftType, ctx.Category)
+                + AircraftPerformance.WindApproachAdditive(ctx.Weather, _runwayHeading.Degrees);
             double decelRate = AircraftPerformance.DecelRate(ctx.AircraftType, ctx.Category);
             double reachGate = EffectiveFasReachGateNm(ctx);
             double fasTrigger = ComputeFasTriggerDistanceNm(ctx.Aircraft.IndicatedAirspeed, fas, ctx.Aircraft.GroundSpeed, decelRate, reachGate);
@@ -676,7 +679,9 @@ public sealed class FinalApproachPhase : Phase
         //    is committed — land safely or go around, don't chase.
         if (_fasSet && ctx.Aircraft.Approach.FollowingCallsign is not null)
         {
-            double vref = AircraftPerformance.ApproachSpeed(ctx.AircraftType, ctx.Category) + AircraftPerformance.GustApproachAdditive(ctx.Weather);
+            double vref =
+                AircraftPerformance.ApproachSpeed(ctx.AircraftType, ctx.Category)
+                + AircraftPerformance.WindApproachAdditive(ctx.Weather, _runwayHeading.Degrees);
             double gs = ctx.Aircraft.GroundSpeed;
             bool inStabilizationWindow = (gs > 0) && ((distNm / gs * 3600.0) <= StabilizationWindowSeconds);
             var lead = ctx.AircraftLookup?.Invoke(ctx.Aircraft.Approach.FollowingCallsign);
@@ -1425,7 +1430,8 @@ public sealed class FinalApproachPhase : Phase
         // The forced landing owns the speed profile: it pins approach speed every tick, so a
         // SPEEDF issued to a forced aircraft is intentionally superseded.
         ctx.Targets.TargetSpeed =
-            AircraftPerformance.ApproachSpeed(ctx.AircraftType, ctx.Category) + AircraftPerformance.GustApproachAdditive(ctx.Weather);
+            AircraftPerformance.ApproachSpeed(ctx.AircraftType, ctx.Category)
+            + AircraftPerformance.WindApproachAdditive(ctx.Weather, _runwayHeading.Degrees);
     }
 
     public override CommandAcceptance CanAcceptCommand(CanonicalCommandType cmd)

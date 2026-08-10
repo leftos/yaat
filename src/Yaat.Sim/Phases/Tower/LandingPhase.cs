@@ -343,7 +343,9 @@ public sealed class LandingPhase : Phase
             RunwayId = ctx.Aircraft.Phases?.AssignedRunway?.Designator,
             FlareEntryAgl = CategoryPerformance.FlareAltitude(ctx.Category),
             FlareFpm = CategoryPerformance.FlareDescentRate(ctx.Category),
-            Vref = CategoryPerformance.ApproachSpeed(ctx.Category),
+            // FCTM: the gust correction is maintained to touchdown; only the steady-headwind
+            // half of the approach additive bleeds off in the flare.
+            Vref = CategoryPerformance.ApproachSpeed(ctx.Category) + AircraftPerformance.GustApproachAdditive(ctx.Weather),
             Vtd = AircraftPerformance.TouchdownSpeed(ctx.Aircraft.AircraftType, ctx.Category),
             CoastSpeed = CategoryPerformance.RolloutCoastSpeed(ctx.Category),
             DefaultDecel = CategoryPerformance.RolloutDecelRate(ctx.Category),

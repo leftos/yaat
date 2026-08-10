@@ -1,4 +1,5 @@
 using Xunit;
+using Yaat.Sim.Data;
 
 namespace Yaat.Sim.Tests;
 
@@ -100,6 +101,43 @@ public class WindCalibrationTests
         }
 
         Assert.True(buckets.Count(b => b) >= 7, $"VRB direction covered only {buckets.Count(b => b)}/8 octants over 30 min");
+    }
+
+    [Fact]
+    public void HighElevationAirport_LayerAtZeroMsl_StillPerturbsAtFieldLevel()
+    {
+        // Live weather authors its surface layer at 0 MSL regardless of terrain. The taper
+        // datum must come from the field elevation (via the METAR station), not the layer
+        // altitude — otherwise an aircraft on the runway at Denver (~5400 ft MSL) would sit
+        // "5400 ft AGL" and the variable wind would be entirely tapered off.
+        TestVnasData.EnsureInitialized();
+        var weather = new WeatherProfile
+        {
+            Metars = ["KDEN 011853Z 27015G25KT 10SM CLR 18/12 A2992"],
+            WindLayers =
+            [
+                new WindLayer
+                {
+                    Altitude = 0,
+                    Direction = 270,
+                    Speed = 15,
+                    Gusts = 25,
+                },
+            ],
+        };
+
+        if (NavigationDatabase.Instance.GetAirportElevation("KDEN") is not { } fieldElevation || fieldElevation < 4000)
+        {
+            return; // nav data unavailable — silently skip per test-data policy
+        }
+
+        var speeds = new HashSet<double>();
+        for (int t = 0; t < 300; t += 15)
+        {
+            speeds.Add(Math.Round(WindInterpolator.GetWindAt(weather, fieldElevation, t, 0).SpeedKts, 1));
+        }
+
+        Assert.True(speeds.Count > 3, "Expected full-amplitude gusts at field elevation on a high-elevation airport");
     }
 
     [Fact]

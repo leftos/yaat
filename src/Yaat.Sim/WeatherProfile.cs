@@ -159,6 +159,52 @@ public class WeatherProfile
         return metar is null ? null : (metar, nearestId);
     }
 
+    private double? _surfaceElevationFt;
+    private bool _surfaceElevationResolved;
+
+    /// <summary>
+    /// Ground elevation (ft MSL) the wind-variability altitude taper is referenced to.
+    /// Resolved from the profile's first nav-database-known METAR station — real profiles
+    /// often author their lowest wind layer well above the field (or, for live weather, at
+    /// 0 MSL regardless of terrain), so the layer altitude is not a usable ground datum:
+    /// it would disable variability entirely at high-elevation airports and shift the
+    /// taper band at airports whose lowest layer is aloft. Falls back to the lowest wind
+    /// layer's altitude when no station resolves. Cached per profile; timeline collapse
+    /// builds a fresh profile every second, so the cache follows the weather.
+    /// </summary>
+    public double SurfaceElevationFt()
+    {
+        if (_surfaceElevationResolved)
+        {
+            return _surfaceElevationFt ?? (_windLayers.Count > 0 ? _windLayers[0].Altitude : 0);
+        }
+
+        _surfaceElevationResolved = true;
+        var navDb = NavigationDatabase.Instance;
+        foreach (var metarStr in Metars)
+        {
+            var parsed = MetarParser.Parse(metarStr);
+            if (parsed is null)
+            {
+                continue;
+            }
+
+            double? elevation = navDb.GetAirportElevation(parsed.StationId);
+            if (elevation is null && parsed.StationId.Length == 4 && (parsed.StationId[0] is 'K' or 'k'))
+            {
+                elevation = navDb.GetAirportElevation(parsed.StationId[1..]);
+            }
+
+            if (elevation is { } resolved)
+            {
+                _surfaceElevationFt = resolved;
+                return resolved;
+            }
+        }
+
+        return _windLayers.Count > 0 ? _windLayers[0].Altitude : 0;
+    }
+
     private List<(string AirportId, LatLon Position)> BuildStationIndex()
     {
         var index = new List<(string, LatLon)>();

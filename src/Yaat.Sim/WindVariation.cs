@@ -113,11 +113,37 @@ public static class WindVariation
 
     // --- Altitude taper -----------------------------------------------------------------
 
-    /// <summary>Full perturbation amplitude at or below this height above the surface layer (final, pattern, climb-out).</summary>
+    /// <summary>Full perturbation amplitude at or below this height above the surface (final, pattern, climb-out).</summary>
     private const double FullAmplitudeTopAglFt = 1000.0;
 
     /// <summary>Zero perturbation at or above this height (cruise track stays clean); smoothstep between.</summary>
     private const double ZeroAmplitudeTopAglFt = 3000.0;
+
+    /// <summary>
+    /// VRB is a shallow decoupled-surface-layer phenomenon (tens to ~200 ft), not boundary-layer
+    /// turbulence: full wander only near the surface, gone by the gradient wind. Without its own
+    /// ceiling, an interpolated VRB surface layer would swing the WCA of an aircraft on final
+    /// through ±180°.
+    /// </summary>
+    private const double VrbFullAmplitudeTopAglFt = 200.0;
+
+    private const double VrbZeroAmplitudeTopAglFt = 1000.0;
+
+    /// <summary>
+    /// Bounded value noise under-realizes its envelope in finite windows (median 10-minute peak
+    /// ≈ 0.69 of the bound): scaling the normalized stack past 1 and clamping restores a
+    /// realized envelope near the coded value — the reported gust becomes a ceiling that is
+    /// typically reached, which is what a real gust report means — while keeping the hard
+    /// bound exact.
+    /// </summary>
+    private const double LongitudinalEnvelopeScale = 1.45;
+
+    /// <summary>
+    /// The lateral channel's scale additionally equalizes its variance to the longitudinal's:
+    /// folding the meander octave into the normalization otherwise dilutes lateral σ by ~0.89,
+    /// double-applying <see cref="LateralToLongitudinalSigmaRatio"/>.
+    /// </summary>
+    private const double LateralEnvelopeScale = 1.63;
 
     // --- Sampling -----------------------------------------------------------------------
 
@@ -222,7 +248,7 @@ public static class WindVariation
 
         if (inputs.Variable)
         {
-            return ComputeVrb(inputs, t, taper);
+            return ComputeVrb(inputs, t);
         }
 
         if ((inputs.GustExcessKts <= 0) && (inputs.HalfSpreadDeg <= 0))
@@ -254,7 +280,7 @@ public static class WindVariation
         return new WindAtAltitude(direction, speed);
     }
 
-    private static WindAtAltitude ComputeVrb(WindPerturbationInputs inputs, double t, double taper)
+    private static WindAtAltitude ComputeVrb(WindPerturbationInputs inputs, double t)
     {
         // Polar formulation with the observation semantics built in: the reported VRB speed
         // is a 2-minute average, so instantaneous speed moves within ±VrbSpeedVariationFraction
@@ -263,11 +289,18 @@ public static class WindVariation
         // wraps the circle. A vector-space model was tried and rejected: bounded noise carries
         // so little variance per unit amplitude that matching the reported mean speed required
         // amplitudes letting a "VRB04" spike to ~5× its reported speed.
-        double nSpd = OctaveNoise(t, VrbBaseEddyPeriodSeconds, SeedVrbSpeed, includeMeander: false);
-        double nDir = OctaveNoise(t, VrbBaseEddyPeriodSeconds, SeedVrbDirection, includeMeander: false);
+        // The wander uses the shallow VRB taper, not the turbulence taper.
+        double vrbTaper = SmoothTaper(inputs.HeightAglFt, VrbFullAmplitudeTopAglFt, VrbZeroAmplitudeTopAglFt);
+        if (vrbTaper <= 0)
+        {
+            return new WindAtAltitude(inputs.MeanDirectionDeg, inputs.MeanSpeedKts);
+        }
 
-        double speed = Math.Max(inputs.MeanSpeedKts * (1.0 + (VrbSpeedVariationFraction * taper * nSpd)), 0);
-        double direction = NormalizeDeg(inputs.MeanDirectionDeg + (VrbWanderAmplitudeDeg * taper * nDir));
+        double nSpd = OctaveNoise(t, VrbBaseEddyPeriodSeconds, SeedVrbSpeed, includeMeander: false, envelopeScale: 1.0);
+        double nDir = OctaveNoise(t, VrbBaseEddyPeriodSeconds, SeedVrbDirection, includeMeander: false, envelopeScale: 1.0);
+
+        double speed = Math.Max(inputs.MeanSpeedKts * (1.0 + (VrbSpeedVariationFraction * vrbTaper * nSpd)), 0);
+        double direction = NormalizeDeg(inputs.MeanDirectionDeg + (VrbWanderAmplitudeDeg * vrbTaper * nDir));
 
         return new WindAtAltitude(direction, speed);
     }
@@ -275,37 +308,44 @@ public static class WindVariation
     /// <summary>1 at/below the full-amplitude band, 0 at/above the zero band, smoothstep between.</summary>
     public static double AmplitudeTaper(double heightAglFt)
     {
-        if (heightAglFt <= FullAmplitudeTopAglFt)
+        return SmoothTaper(heightAglFt, FullAmplitudeTopAglFt, ZeroAmplitudeTopAglFt);
+    }
+
+    private static double SmoothTaper(double heightAglFt, double fullTopFt, double zeroTopFt)
+    {
+        if (heightAglFt <= fullTopFt)
         {
             return 1.0;
         }
 
-        if (heightAglFt >= ZeroAmplitudeTopAglFt)
+        if (heightAglFt >= zeroTopFt)
         {
             return 0.0;
         }
 
-        double x = (heightAglFt - FullAmplitudeTopAglFt) / (ZeroAmplitudeTopAglFt - FullAmplitudeTopAglFt);
+        double x = (heightAglFt - fullTopFt) / (zeroTopFt - fullTopFt);
         return 1.0 - (x * x * (3.0 - (2.0 * x)));
     }
 
     private static double LongitudinalNoise(double t, double basePeriodSeconds)
     {
-        return OctaveNoise(t, basePeriodSeconds, SeedLongitudinal, includeMeander: false);
+        return OctaveNoise(t, basePeriodSeconds, SeedLongitudinal, includeMeander: false, LongitudinalEnvelopeScale);
     }
 
     private static double LateralNoise(double t, double basePeriodSeconds)
     {
-        return OctaveNoise(t, basePeriodSeconds, SeedLateral, includeMeander: true);
+        return OctaveNoise(t, basePeriodSeconds, SeedLateral, includeMeander: true, LateralEnvelopeScale);
     }
 
     /// <summary>
     /// Normalized band-limited value noise in [-1, 1]: three octaves at period ratio 3 and
     /// amplitude ratio 3^(-1/3), finest floored at <see cref="MinOctavePeriodSeconds"/>;
-    /// the lateral channel adds the slow meander octave. Weights are normalized so the
-    /// bound |n| ≤ 1 is exact — which is what makes the reported gust a hard ceiling.
+    /// the lateral channel adds the slow meander octave. The normalized stack is scaled by
+    /// <paramref name="envelopeScale"/> and clamped, so the bound |n| ≤ 1 stays exact — which
+    /// is what makes the reported gust a hard ceiling — while finite observation windows
+    /// actually realize it.
     /// </summary>
-    private static double OctaveNoise(double t, double basePeriodSeconds, ulong seed, bool includeMeander)
+    private static double OctaveNoise(double t, double basePeriodSeconds, ulong seed, bool includeMeander, double envelopeScale)
     {
         double w1 = 1.0;
         double w2 = OctaveAmplitudeRatio;
@@ -321,7 +361,7 @@ public static class WindVariation
             totalWeight += MeanderAmplitudeWeight;
         }
 
-        return sum / totalWeight;
+        return Math.Clamp(sum / totalWeight * envelopeScale, -1.0, 1.0);
     }
 
     /// <summary>Smoothly interpolated lattice noise in [-1, 1], period-scaled; pure function of (t, period, seed).</summary>

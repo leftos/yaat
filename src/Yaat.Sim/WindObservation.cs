@@ -66,7 +66,9 @@ public static class WindObservation
             return null;
         }
 
-        double surfaceAltitude = weather.WindLayers[0].Altitude;
+        // Sample at the field-elevation datum (an anemometer stands on the ground), so the
+        // observation sees the same full-amplitude wind a runway-level aircraft flies in.
+        double surfaceAltitude = weather.SurfaceElevationFt();
 
         // One pass over the 10-minute window for peak/lull speeds (plus the peak's
         // direction and time for the PK WND remark); the first 24 samples (2 minutes)

@@ -25,6 +25,7 @@ public sealed class MetarIssuer
     {
         _anchorUtc = anchorUtc;
 
+        var obs = WindObservation.Observe(weather, 0);
         foreach (var raw in weather.Metars)
         {
             var parsed = MetarParser.Parse(raw);
@@ -36,7 +37,7 @@ public sealed class MetarIssuer
             _stationOrder.Add(parsed.StationId);
             _stations[parsed.StationId] = new StationReport(
                 raw.Trim(),
-                Sample(parsed.StationId, weather, stationLocator, elapsedSeconds: 0, observationUtc: anchorUtc),
+                Sample(parsed.StationId, weather, stationLocator, obs, elapsedSeconds: 0, observationUtc: anchorUtc),
                 anchorUtc
             );
         }
@@ -71,13 +72,22 @@ public sealed class MetarIssuer
         var routineInstant = MostRecentRoutineInstant(observationUtc);
         bool routineDue = routineInstant > _lastRoutineInstantUtc;
 
+        // The surface-wind observation is station-independent (one ARTCC-wide surface
+        // layer) — observe once per tick, not once per station. The two look-back
+        // observations bound the SPECI wind criteria in time (a shift/squall must happen
+        // within its window, not merely since a report that may be an hour old); the
+        // field is a pure function of elapsed time, so past sampling is free.
+        var obsNow = WindObservation.Observe(weather, elapsedSeconds);
+        var obsShiftBaseline = WindObservation.Observe(weather, elapsedSeconds - SpeciCriteria.WindShiftWindowSeconds);
+        var obsSquallBaseline = WindObservation.Observe(weather, elapsedSeconds - SpeciCriteria.SquallWindowSeconds);
+
         bool changed = false;
         foreach (var id in _stationOrder)
         {
             var state = _stations[id];
-            var current = Sample(id, weather, stationLocator, elapsedSeconds, observationUtc);
+            var current = Sample(id, weather, stationLocator, obsNow, elapsedSeconds, observationUtc);
 
-            bool isSpeci = !routineDue && SpeciCriteria.IsSpeciWorthy(state.LastIssued, current);
+            bool isSpeci = !routineDue && SpeciCriteria.IsSpeciWorthy(state.LastIssued, current, obsNow, obsShiftBaseline, obsSquallBaseline);
             if (!routineDue && !isSpeci)
             {
                 continue;
@@ -121,12 +131,13 @@ public sealed class MetarIssuer
         string stationId,
         WeatherProfile weather,
         Func<string, (double Lat, double Lon)?> stationLocator,
+        ObservedWind? obs,
         double elapsedSeconds,
         DateTime observationUtc
     )
     {
         var parsed = weather.GetWeatherForAirport(stationId);
-        var wind = SampleWind(stationId, weather, parsed, stationLocator, elapsedSeconds, observationUtc);
+        var wind = SampleWind(stationId, weather, parsed, stationLocator, obs, elapsedSeconds, observationUtc);
 
         return wind with
         {
@@ -143,6 +154,7 @@ public sealed class MetarIssuer
         WeatherProfile weather,
         MetarParser.ParsedMetar? parsed,
         Func<string, (double Lat, double Lon)?> stationLocator,
+        ObservedWind? observation,
         double elapsedSeconds,
         DateTime observationUtc
     )
@@ -150,10 +162,10 @@ public sealed class MetarIssuer
         // The mean and peak come from observing the simulated field (2-min means, 10-min
         // peak/lull at phase 0), converted magnetic → true here. The envelope groups
         // (gust value, dddVddd arc, VRB) code from the authored layer amplitudes: bounded
-        // noise's true envelope IS the authored arc — a finite sample only ever
-        // under-estimates it — so the round trip stays exact. Fall back to the base
-        // METAR's own (already-true) wind for text-only weather.
-        if (WindObservation.Observe(weather, elapsedSeconds) is { } obs)
+        // noise's true envelope IS the authored arc, which a finite sample only ever
+        // under-estimates. Fall back to the base METAR's own (already-true) wind for
+        // text-only weather.
+        if (observation is { } obs)
         {
             double ToTrue(double magDeg)
             {
@@ -166,14 +178,14 @@ public sealed class MetarIssuer
                 return WindOnly(calm: true, dirTrue: 0, speed: meanSpeed, gust: null, variable: false, varFrom: null, varTo: null);
             }
 
+            // The coded groups restate what the layer AUTHORS, never what the physics model
+            // derives from it: cross-derivation is defensible for driving turbulence (one
+            // intensity, one unknown) but would fabricate METAR groups nobody observed
+            // (a gust group from a spread-only wind, a 100°+ arc from a gust-only wind),
+            // and the physics amplitude clamp must not rewrite a loaded real report.
             var surface = weather.WindLayers[0];
             bool layerVariable = surface.Variable ?? false;
-            var (gustExcess, halfSpread) = WindVariation.ResolveAmplitudes(
-                surface.Speed,
-                surface.Gusts,
-                surface.DirectionVariabilityDeg,
-                layerVariable
-            );
+            double halfSpread = surface.DirectionVariabilityDeg ?? 0;
             double spread = 2.0 * halfSpread;
 
             // FMH-1 coding: variation ≥180° (or an authored VRB layer) codes VRB at any
@@ -186,9 +198,9 @@ public sealed class MetarIssuer
             bool hasVarGroup = (!variable) && (spread >= WindObservation.MinVariableSpreadDeg);
 
             int? gust = null;
-            if (gustExcess >= WindObservation.MinGustExcessKt)
+            if (surface.Gusts is { } authoredGust && authoredGust >= surface.Speed + WindObservation.MinGustExcessKt)
             {
-                gust = (int)Math.Round(surface.Speed + gustExcess, MidpointRounding.AwayFromZero);
+                gust = (int)Math.Round(authoredGust, MidpointRounding.AwayFromZero);
             }
 
             var wind = WindOnly(
@@ -201,11 +213,15 @@ public sealed class MetarIssuer
                 varTo: hasVarGroup ? RoundToTen(ToTrue(surface.Direction + halfSpread)) : null
             );
 
-            if (obs.PeakSpeedKts > WindObservation.PeakWindRemarkAboveKt)
+            // PK WND: the value can never undercut the gust group (both derive from the
+            // same peak in a real report); the time and direction come from the observed
+            // peak sample.
+            int peakKt = Math.Max((int)Math.Round(obs.PeakSpeedKts, MidpointRounding.AwayFromZero), gust ?? 0);
+            if (peakKt > WindObservation.PeakWindRemarkAboveKt)
             {
                 wind = wind with
                 {
-                    PeakWindKt = (int)Math.Round(obs.PeakSpeedKts, MidpointRounding.AwayFromZero),
+                    PeakWindKt = peakKt,
                     PeakWindDirTrueDeg = RoundToTen(ToTrue(obs.PeakDirectionMagDeg)),
                     PeakWindUtc = observationUtc.AddSeconds(obs.PeakElapsedSeconds - elapsedSeconds),
                 };

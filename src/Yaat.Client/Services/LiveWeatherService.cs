@@ -57,7 +57,7 @@ public sealed class LiveWeatherService
         // Add surface wind from METARs
         if (metars is { Count: > 0 })
         {
-            var surfaceWind = BuildSurfaceWindLayer(metars);
+            var surfaceWind = BuildSurfaceWindLayer(metars, GetArtccCenter(artccId));
             if (surfaceWind is not null)
             {
                 windLayers.Insert(0, surfaceWind);
@@ -236,7 +236,7 @@ public sealed class LiveWeatherService
         return layers;
     }
 
-    public static WindLayer? BuildSurfaceWindLayer(List<MetarJson> metars)
+    public static WindLayer? BuildSurfaceWindLayer(List<MetarJson> metars, LatLon declinationReference)
     {
         // Parse each station's raw METAR so VRB winds, gusts, and dddVddd spreads all
         // contribute — the JSON Wdir/Wspd fields are the fallback when the text is absent.
@@ -334,12 +334,15 @@ public sealed class LiveWeatherService
             avgGust = null;
         }
 
-        // METAR wind directions are already magnetic — no conversion needed
+        // METAR text winds are TRUE (AIM 7-1-28; only ATIS/ASOS voice is magnetic) while
+        // WindLayer.Direction is magnetic — convert like the FD layers do, using the ARTCC
+        // center as the declination proxy.
+        double magDir = allVariable ? 0 : MagneticDeclination.TrueToMagnetic(avgDir, declinationReference.Lat, declinationReference.Lon);
         return new WindLayer
         {
             Id = "surface",
             Altitude = 0,
-            Direction = Math.Round(avgDir, 1),
+            Direction = Math.Round(magDir, 1),
             Speed = Math.Round(avgSpeed, 1),
             Gusts = avgGust,
             DirectionVariabilityDeg = halfSpreadCount > 0 ? Math.Round(halfSpreadSum / halfSpreadCount, 1) : null,

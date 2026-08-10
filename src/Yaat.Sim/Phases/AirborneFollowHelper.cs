@@ -918,7 +918,11 @@ public static class AirborneFollowHelper
         // IAS to IAS — both fly the same final into the same wind, so the airspeed
         // difference is the wind-independent measure of "can I slow to the lead's speed";
         // the actual ground-frame closure is handled separately by IsClosing below.
-        double followerVref = AircraftPerformance.ApproachSpeed(ctx.AircraftType, ctx.Category);
+        // The lead's instantaneous IAS includes the wind additive (it flies the same
+        // weather), so the follower's floor must carry the gust part too or the comparison
+        // is biased permissive by exactly the additive.
+        double followerVref =
+            AircraftPerformance.ApproachSpeed(ctx.AircraftType, ctx.Category) + AircraftPerformance.GustApproachAdditive(ctx.Weather);
         if (followerVref <= lead.IndicatedAirspeed + StructuralOvertakeMarginKts)
         {
             return false;

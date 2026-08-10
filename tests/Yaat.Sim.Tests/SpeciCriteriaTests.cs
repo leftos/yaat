@@ -17,7 +17,7 @@ public class SpeciCriteriaTests
     [Fact]
     public void NoChange_NotWorthy()
     {
-        Assert.False(SpeciCriteria.IsSpeciWorthy(Cond(), Cond()));
+        Assert.False(SpeciCriteria.IsSpeciWorthy(Cond(), Cond(), null, null, null));
     }
 
     [Theory]
@@ -27,14 +27,14 @@ public class SpeciCriteriaTests
     [InlineData(10, 12, 320, 12, true)] // wrap: 10 vs 320 = 50 deg
     public void WindShift(int lastDir, int lastSpd, int curDir, int curSpd, bool expected)
     {
-        var result = SpeciCriteria.IsSpeciWorthy(Cond(dir: lastDir, speed: lastSpd), Cond(dir: curDir, speed: curSpd));
+        var result = SpeciCriteria.IsSpeciWorthy(Cond(dir: lastDir, speed: lastSpd), Cond(dir: curDir, speed: curSpd), null, null, null);
         Assert.Equal(expected, result);
     }
 
     [Fact]
     public void WindShift_FromCalm_NotWorthy()
     {
-        Assert.False(SpeciCriteria.IsSpeciWorthy(Cond(calm: true, speed: 0), Cond(dir: 90, speed: 15)));
+        Assert.False(SpeciCriteria.IsSpeciWorthy(Cond(calm: true, speed: 0), Cond(dir: 90, speed: 15), null, null, null));
     }
 
     [Theory]
@@ -46,7 +46,7 @@ public class SpeciCriteriaTests
     [InlineData(0.75, 0.6, false)] // both between 1/2 and 1
     public void VisibilityCrossing(double last, double current, bool expected)
     {
-        var result = SpeciCriteria.IsSpeciWorthy(Cond(vis: last), Cond(vis: current));
+        var result = SpeciCriteria.IsSpeciWorthy(Cond(vis: last), Cond(vis: current), null, null, null);
         Assert.Equal(expected, result);
     }
 
@@ -58,7 +58,7 @@ public class SpeciCriteriaTests
     [InlineData(600, 400, true)] // crosses 500
     public void CeilingCrossing(int? last, int? current, bool expected)
     {
-        var result = SpeciCriteria.IsSpeciWorthy(Cond(ceiling: last), Cond(ceiling: current));
+        var result = SpeciCriteria.IsSpeciWorthy(Cond(ceiling: last), Cond(ceiling: current), null, null, null);
         Assert.Equal(expected, result);
     }
 
@@ -66,8 +66,8 @@ public class SpeciCriteriaTests
     public void WindShift_VariableEndpoint_NotWorthy()
     {
         // A VRB endpoint has no meaningful direction to shift from.
-        Assert.False(SpeciCriteria.IsSpeciWorthy(Cond(dir: 270, speed: 12, variable: true), Cond(dir: 90, speed: 12)));
-        Assert.False(SpeciCriteria.IsSpeciWorthy(Cond(dir: 270, speed: 12), Cond(dir: 90, speed: 12, variable: true)));
+        Assert.False(SpeciCriteria.IsSpeciWorthy(Cond(dir: 270, speed: 12, variable: true), Cond(dir: 90, speed: 12), null, null, null));
+        Assert.False(SpeciCriteria.IsSpeciWorthy(Cond(dir: 270, speed: 12), Cond(dir: 90, speed: 12, variable: true), null, null, null));
     }
 
     [Theory]
@@ -78,19 +78,19 @@ public class SpeciCriteriaTests
     public void Squall(int lastSpd, int curSpd, bool expected)
     {
         // Same direction so the wind-shift criterion stays out of the way.
-        var result = SpeciCriteria.IsSpeciWorthy(Cond(speed: lastSpd), Cond(speed: curSpd));
+        var result = SpeciCriteria.IsSpeciWorthy(Cond(speed: lastSpd), Cond(speed: curSpd), null, null, null);
         Assert.Equal(expected, result);
     }
 
     [Fact]
     public void PrecipitationOnset_Worthy()
     {
-        Assert.True(SpeciCriteria.IsSpeciWorthy(Cond(precip: false), Cond(precip: true)));
+        Assert.True(SpeciCriteria.IsSpeciWorthy(Cond(precip: false), Cond(precip: true), null, null, null));
     }
 
     [Fact]
     public void PrecipitationCessation_Worthy()
     {
-        Assert.True(SpeciCriteria.IsSpeciWorthy(Cond(precip: true), Cond(precip: false)));
+        Assert.True(SpeciCriteria.IsSpeciWorthy(Cond(precip: true), Cond(precip: false), null, null, null));
     }
 }

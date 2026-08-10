@@ -97,11 +97,9 @@ public static partial class MetarComposer
             var cleaned = StripStaleRemarks(remarks);
             if (peakRemark is not null)
             {
-                // The base's own PK WND was stripped as stale; ours leads the remarks.
-                cleaned =
-                    string.Equals(cleaned, "RMK", StringComparison.Ordinal) || string.IsNullOrWhiteSpace(cleaned)
-                        ? "RMK " + peakRemark
-                        : "RMK " + peakRemark + " " + cleaned["RMK ".Length..];
+                // The base's own PK WND was stripped as stale; ours goes in FMH-1 remark
+                // order — after the station-type group (AO1/AO2) when one leads.
+                cleaned = InsertPeakRemark(cleaned, peakRemark);
             }
 
             if (!string.IsNullOrWhiteSpace(cleaned) && !string.Equals(cleaned, "RMK", StringComparison.Ordinal))
@@ -115,6 +113,24 @@ public static partial class MetarComposer
         }
 
         return result;
+    }
+
+    private static string InsertPeakRemark(string cleaned, string peakRemark)
+    {
+        if (string.Equals(cleaned, "RMK", StringComparison.Ordinal) || string.IsNullOrWhiteSpace(cleaned))
+        {
+            return "RMK " + peakRemark;
+        }
+
+        var rest = cleaned["RMK ".Length..];
+        if (rest.StartsWith("AO1", StringComparison.Ordinal) || rest.StartsWith("AO2", StringComparison.Ordinal))
+        {
+            var stationType = rest[..3];
+            var tail = rest[3..].TrimStart();
+            return tail.Length > 0 ? $"RMK {stationType} {peakRemark} {tail}" : $"RMK {stationType} {peakRemark}";
+        }
+
+        return "RMK " + peakRemark + " " + rest;
     }
 
     /// <summary>AIM 7-1-28: PK WND dddss/hhmm when the 10-minute peak exceeded 25 kt.</summary>

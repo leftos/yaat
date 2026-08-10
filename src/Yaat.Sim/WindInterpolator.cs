@@ -45,9 +45,12 @@ public static class WindInterpolator
 
         var layers = profile.WindLayers;
 
-        // Height above the profile's surface layer drives the variability taper — the
-        // lowest layer sits at/near field elevation, so it is the AGL reference.
-        double heightAglFt = Math.Max(0, altitudeFt - layers[0].Altitude);
+        // Height above the ground drives the variability taper. The datum is the profile's
+        // resolved field elevation, NOT the lowest layer's altitude — real profiles author
+        // their lowest layer well above the field, and live weather authors it at 0 MSL
+        // regardless of terrain, either of which would misplace (or entirely disable) the
+        // taper at high-elevation airports.
+        double heightAglFt = Math.Max(0, altitudeFt - profile.SurfaceElevationFt());
 
         if (altitudeFt <= layers[0].Altitude)
         {
@@ -213,6 +216,17 @@ public static class WindInterpolator
 
         double stratDelta = DeltaTropopause * Math.Exp(-G * (h - TropopauseM) / (RGas * TropopauseK));
         return (TropopauseK, stratDelta);
+    }
+
+    /// <summary>
+    /// Component of a wind along <paramref name="trueHeadingDeg"/>, in knots.
+    /// Positive = headwind, negative = tailwind. On the ground the gear prevents lateral
+    /// translation, so only this component affects groundspeed; the crosswind component
+    /// produces a side force, not drift.
+    /// </summary>
+    public static double HeadwindComponentKts(double windFromDeg, double windSpeedKts, double trueHeadingDeg)
+    {
+        return windSpeedKts * Math.Cos((windFromDeg - trueHeadingDeg) * DegToRad);
     }
 
     /// <summary>

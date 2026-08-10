@@ -204,8 +204,7 @@ public class MetarComposerTests
             Obs,
             isSpeci: false
         );
-        Assert.Contains("RMK PK WND 28033/1847", result);
-        Assert.Contains("AO2", result);
+        Assert.Contains("AO2 PK WND 28033/1847", result);
     }
 
     [Fact]

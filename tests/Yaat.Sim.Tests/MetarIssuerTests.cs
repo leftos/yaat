@@ -113,7 +113,10 @@ public class MetarIssuerTests
         var issuer = new MetarIssuer(w, Anchor, NoLocator);
         Assert.True(issuer.Tick(13 * 60, w, NoLocator)); // routine at 18:53
         var report = Assert.Single(issuer.Reports);
-        Assert.Matches(@"\b210\d{2}G\d{2}KT \d{3}V\d{3}\b", report);
+        // The envelope groups are deterministic (authored gust; authored 210±35 arc → 180V250
+        // after rounding); the observed 2-minute mean direction/speed legitimately wander a
+        // little between reports, so only their shape is pinned.
+        Assert.Matches(@"\b(?:19|20|21|22)0\d{2}G25KT 180V250\b", report);
     }
 
     [Fact]

@@ -401,21 +401,78 @@ public sealed class AircraftPerformanceTests
     }
 
     // -------------------------------------------------------------------------
-    // Gust approach additive (Vapp = Vref + min(gust increment, 20)/2)
+    // Wind approach additive (Vapp = Vref + half headwind + full gust increment, cap 20)
     // -------------------------------------------------------------------------
 
     [Fact]
-    public void GustApproachAdditive_NoWeatherOrSteadyWind_Zero()
+    public void WindApproachAdditive_NoWeatherOrSteadyCalmWind_Zero()
     {
-        Assert.Equal(0, AircraftPerformance.GustApproachAdditive(null));
-        var steady = new WeatherProfile { WindLayers = [new WindLayer { Direction = 210, Speed = 15 }] };
-        Assert.Equal(0, AircraftPerformance.GustApproachAdditive(steady));
+        Assert.Equal(0, AircraftPerformance.WindApproachAdditive(null, 270));
+        var steadyCrosswind = new WeatherProfile { WindLayers = [new WindLayer { Direction = 180, Speed = 15 }] };
+        Assert.Equal(0, AircraftPerformance.WindApproachAdditive(steadyCrosswind, 270), 3);
     }
 
     [Fact]
-    public void GustApproachAdditive_HalfTheGustIncrement()
+    public void WindApproachAdditive_HalfHeadwindPlusFullGust()
     {
-        // 18G28: increment 10 -> additive 5.
+        // 27010G20 landing runway 270: half the 10 kt headwind + the full 10 kt gust increment.
+        var gusty = new WeatherProfile
+        {
+            WindLayers =
+            [
+                new WindLayer
+                {
+                    Direction = 270,
+                    Speed = 10,
+                    Gusts = 20,
+                },
+            ],
+        };
+        Assert.Equal(15.0, AircraftPerformance.WindApproachAdditive(gusty, 270), 1);
+    }
+
+    [Fact]
+    public void WindApproachAdditive_TailwindNeverSubtracts()
+    {
+        // Same wind, opposite runway: the tailwind contributes nothing, the gust still counts in full.
+        var gusty = new WeatherProfile
+        {
+            WindLayers =
+            [
+                new WindLayer
+                {
+                    Direction = 270,
+                    Speed = 10,
+                    Gusts = 20,
+                },
+            ],
+        };
+        Assert.Equal(10.0, AircraftPerformance.WindApproachAdditive(gusty, 90), 1);
+    }
+
+    [Fact]
+    public void WindApproachAdditive_TotalCappedAtTwenty()
+    {
+        var severe = new WeatherProfile
+        {
+            WindLayers =
+            [
+                new WindLayer
+                {
+                    Direction = 270,
+                    Speed = 20,
+                    Gusts = 45,
+                },
+            ],
+        };
+        Assert.Equal(20.0, AircraftPerformance.WindApproachAdditive(severe, 270), 1);
+    }
+
+    [Fact]
+    public void GustApproachAdditive_FullGustIncrement_KeptToTouchdown()
+    {
+        // 18G28: the gust part alone is the full 10 kt increment; steady/VRB wind adds none;
+        // a spread-only wind (no authored G group) adds none either.
         var gusty = new WeatherProfile
         {
             WindLayers =
@@ -428,32 +485,25 @@ public sealed class AircraftPerformanceTests
                 },
             ],
         };
-        Assert.Equal(5.0, AircraftPerformance.GustApproachAdditive(gusty), 3);
-    }
+        Assert.Equal(10.0, AircraftPerformance.GustApproachAdditive(gusty), 1);
 
-    [Fact]
-    public void GustApproachAdditive_IncrementCappedAtTwenty()
-    {
-        // 20G45 clamps to the 2.5x gust-factor sanity bound (excess 30), then the
-        // FCTM 20 kt increment cap applies -> additive 10.
-        var severe = new WeatherProfile
+        var steady = new WeatherProfile { WindLayers = [new WindLayer { Direction = 210, Speed = 15 }] };
+        Assert.Equal(0, AircraftPerformance.GustApproachAdditive(steady));
+
+        var spreadOnly = new WeatherProfile
         {
             WindLayers =
             [
                 new WindLayer
                 {
                     Direction = 210,
-                    Speed = 20,
-                    Gusts = 45,
+                    Speed = 15,
+                    DirectionVariabilityDeg = 30,
                 },
             ],
         };
-        Assert.Equal(10.0, AircraftPerformance.GustApproachAdditive(severe), 3);
-    }
+        Assert.Equal(0, AircraftPerformance.GustApproachAdditive(spreadOnly));
 
-    [Fact]
-    public void GustApproachAdditive_VrbWind_Zero()
-    {
         var vrb = new WeatherProfile
         {
             WindLayers =

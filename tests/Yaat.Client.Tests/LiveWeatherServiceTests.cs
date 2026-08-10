@@ -1,5 +1,6 @@
 using Xunit;
 using Yaat.Client.Services;
+using Yaat.Sim;
 
 namespace Yaat.Client.Tests;
 
@@ -77,18 +78,27 @@ public class LiveWeatherServiceTests
             Wspd = wspd,
         };
 
+    // Declination proxy for the assembled layer: METAR text winds are TRUE and the layer
+    // stores magnetic, so expectations convert the same way the service does.
+    private static readonly LatLon Reference = new(37.7, -122.4);
+
+    private static double Mag(double trueDeg) => MagneticDeclination.TrueToMagnetic(trueDeg, Reference.Lat, Reference.Lon);
+
     [Fact]
     public void BuildSurfaceWindLayer_VrbStation_ContributesSpeedNotDirection()
     {
         // The VRB station's 6 kt joins the speed average; the direction average comes from
         // the directional stations alone.
-        var layer = LiveWeatherService.BuildSurfaceWindLayer([
-            Station("METAR KOAK 081953Z 27010KT 10SM CLR 21/12 A2999", 270, 10),
-            Station("METAR KLVK 081953Z VRB06KT 10SM CLR 24/09 A2997", null, 6),
-        ]);
+        var layer = LiveWeatherService.BuildSurfaceWindLayer(
+            [
+                Station("METAR KOAK 081953Z 27010KT 10SM CLR 21/12 A2999", 270, 10),
+                Station("METAR KLVK 081953Z VRB06KT 10SM CLR 24/09 A2997", null, 6),
+            ],
+            Reference
+        );
 
         Assert.NotNull(layer);
-        Assert.Equal(270, layer.Direction, 1);
+        Assert.Equal(Mag(270), layer.Direction, 1);
         Assert.Equal(8, layer.Speed, 1);
         Assert.Null(layer.Variable);
     }
@@ -96,10 +106,13 @@ public class LiveWeatherServiceTests
     [Fact]
     public void BuildSurfaceWindLayer_AllVrb_ProducesVariableLayer()
     {
-        var layer = LiveWeatherService.BuildSurfaceWindLayer([
-            Station("METAR KOAK 081953Z VRB04KT 10SM CLR 21/12 A2999", null, 4),
-            Station("METAR KLVK 081953Z VRB06KT 10SM CLR 24/09 A2997", null, 6),
-        ]);
+        var layer = LiveWeatherService.BuildSurfaceWindLayer(
+            [
+                Station("METAR KOAK 081953Z VRB04KT 10SM CLR 21/12 A2999", null, 4),
+                Station("METAR KLVK 081953Z VRB06KT 10SM CLR 24/09 A2997", null, 6),
+            ],
+            Reference
+        );
 
         Assert.NotNull(layer);
         Assert.True(layer.Variable);
@@ -110,10 +123,13 @@ public class LiveWeatherServiceTests
     public void BuildSurfaceWindLayer_GustsAndSpread_MinedFromRawText()
     {
         // 21015G25KT 180V240 → gusts 25, half-spread 30 on the assembled layer.
-        var layer = LiveWeatherService.BuildSurfaceWindLayer([Station("METAR KOAK 081953Z 21015G25KT 180V240 10SM CLR 21/12 A2999", 210, 15)]);
+        var layer = LiveWeatherService.BuildSurfaceWindLayer(
+            [Station("METAR KOAK 081953Z 21015G25KT 180V240 10SM CLR 21/12 A2999", 210, 15)],
+            Reference
+        );
 
         Assert.NotNull(layer);
-        Assert.Equal(210, layer.Direction, 1);
+        Assert.Equal(Mag(210), layer.Direction, 1);
         Assert.Equal(15, layer.Speed, 1);
         Assert.NotNull(layer.Gusts);
         Assert.Equal(25, layer.Gusts!.Value, 1);
@@ -124,7 +140,7 @@ public class LiveWeatherServiceTests
     [Fact]
     public void BuildSurfaceWindLayer_SteadyStations_NoSpuriousVariability()
     {
-        var layer = LiveWeatherService.BuildSurfaceWindLayer([Station("METAR KOAK 081953Z 27010KT 10SM CLR 21/12 A2999", 270, 10)]);
+        var layer = LiveWeatherService.BuildSurfaceWindLayer([Station("METAR KOAK 081953Z 27010KT 10SM CLR 21/12 A2999", 270, 10)], Reference);
 
         Assert.NotNull(layer);
         Assert.Null(layer.Gusts);
