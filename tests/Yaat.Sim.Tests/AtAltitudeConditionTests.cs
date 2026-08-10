@@ -120,7 +120,7 @@ public class AtAltitudeConditionTests
         Assert.Equal(5000, aircraft.Queue.Blocks[0].Trigger!.Altitude);
 
         // Tick — aircraft at 3000, target 5000 → trigger not met
-        FlightPhysics.Update(aircraft, 1.0, null, null);
+        FlightPhysics.Update(aircraft, 1.0);
         Assert.False(aircraft.Queue.Blocks[0].IsApplied);
     }
 
@@ -135,7 +135,7 @@ public class AtAltitudeConditionTests
 
         // Move aircraft to within snap range of 5000
         aircraft.Altitude = 4998;
-        FlightPhysics.Update(aircraft, 1.0, null, null);
+        FlightPhysics.Update(aircraft, 1.0);
 
         Assert.True(aircraft.Queue.Blocks[0].IsApplied);
     }
@@ -166,7 +166,7 @@ public class AtAltitudeConditionTests
 
         // Within snap range of 3000
         aircraft.Altitude = 3005;
-        FlightPhysics.Update(aircraft, 1.0, null, null);
+        FlightPhysics.Update(aircraft, 1.0);
 
         Assert.True(aircraft.Queue.Blocks[0].IsApplied);
         Assert.Equal(270.0, aircraft.Targets.AssignedMagneticHeading?.Degrees);
@@ -185,13 +185,13 @@ public class AtAltitudeConditionTests
         Assert.Equal(2, aircraft.Queue.Blocks.Count);
 
         // Block 0: AT 5000 FH 180 — not yet
-        FlightPhysics.Update(aircraft, 1.0, null, null);
+        FlightPhysics.Update(aircraft, 1.0);
         Assert.False(aircraft.Queue.Blocks[0].IsApplied);
         Assert.False(aircraft.Queue.Blocks[1].IsApplied);
 
         // Reach 5000 → block 0 fires, sets heading to 180
         aircraft.Altitude = 5000;
-        FlightPhysics.Update(aircraft, 1.0, null, null);
+        FlightPhysics.Update(aircraft, 1.0);
         Assert.True(aircraft.Queue.Blocks[0].IsApplied);
         Assert.Equal(180.0, aircraft.Targets.AssignedMagneticHeading?.Degrees);
         Assert.False(aircraft.Queue.Blocks[1].IsApplied);
@@ -199,7 +199,7 @@ public class AtAltitudeConditionTests
         // Simulate heading reaching target so block 0 completes
         aircraft.TrueHeading = new TrueHeading(180);
         aircraft.Targets.TargetTrueHeading = null;
-        FlightPhysics.Update(aircraft, 1.0, null, null);
+        FlightPhysics.Update(aircraft, 1.0);
         Assert.Equal(1, aircraft.Queue.CurrentBlockIndex);
 
         // Block 1 not met yet (altitude 5000, target 9000)
@@ -207,7 +207,7 @@ public class AtAltitudeConditionTests
 
         // Reach 9000 → block 1 fires
         aircraft.Altitude = 9000;
-        FlightPhysics.Update(aircraft, 1.0, null, null);
+        FlightPhysics.Update(aircraft, 1.0);
         Assert.True(aircraft.Queue.Blocks[1].IsApplied);
         Assert.Equal(270.0, aircraft.Targets.AssignedMagneticHeading?.Degrees);
     }

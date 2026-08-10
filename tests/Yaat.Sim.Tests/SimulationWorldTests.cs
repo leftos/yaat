@@ -225,7 +225,7 @@ public class SimulationWorldTests
         world.AddAircraft(MakeAircraft("AAL100"));
 
         var invokedCallsigns = new List<string>();
-        world.Tick(1.0, (ac, _) => invokedCallsigns.Add(ac.Callsign));
+        world.Tick(1.0, 0, (ac, _) => invokedCallsigns.Add(ac.Callsign));
 
         Assert.Contains("AAL100", invokedCallsigns);
     }

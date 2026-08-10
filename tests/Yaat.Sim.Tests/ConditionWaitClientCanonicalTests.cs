@@ -52,7 +52,7 @@ public class ConditionWaitClientCanonicalTests(ITestOutputHelper output)
             descendedAt = null;
         for (int t = 1; t <= 60; t++)
         {
-            FlightPhysics.Update(ac, 1.0, null, null);
+            FlightPhysics.Update(ac, 1.0);
             if ((crossedAt is null) && (ac.Altitude <= 5000))
             {
                 crossedAt = t;

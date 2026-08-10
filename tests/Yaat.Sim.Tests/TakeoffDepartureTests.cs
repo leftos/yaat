@@ -337,7 +337,7 @@ public class TakeoffDepartureTests
 
         for (int tick = 0; tick < 120; tick++)
         {
-            FlightPhysics.Update(aircraft, 1.0, null, null);
+            FlightPhysics.Update(aircraft, 1.0);
 
             double curHeading = aircraft.TrueHeading.Degrees;
 

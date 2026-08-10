@@ -59,7 +59,7 @@ public class KoakOakes3FmTerminatorTests
         };
         ac.Targets.NavigationRoute.Add(last);
 
-        FlightPhysics.Update(ac, 1.0, null, null);
+        FlightPhysics.Update(ac, 1.0);
 
         // Reached HIRMO → route empties and the aircraft turns to the published outbound course,
         // rather than holding its 90° arrival heading.

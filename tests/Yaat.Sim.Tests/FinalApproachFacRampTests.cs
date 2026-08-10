@@ -146,7 +146,7 @@ public class FinalApproachFacRampTests
 
         for (int tick = 0; tick < maxTicks; tick++)
         {
-            world.Tick(dt, PreTick);
+            world.Tick(dt, tick * dt, PreTick);
 
             // Drain warnings each tick (mirrors server post-physics flow).
             foreach (var (callsign, warning) in world.DrainAllWarnings())

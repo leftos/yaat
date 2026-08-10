@@ -254,7 +254,7 @@ public class ConditionWaitDelayTests
         // 10 s in: the trigger is met but the 30 s wait has not elapsed — payload must not fire.
         for (int i = 0; i < 10; i++)
         {
-            FlightPhysics.Update(ac, 1.0, null, null);
+            FlightPhysics.Update(ac, 1.0);
         }
 
         Assert.False(applied, "Payload fired before the WAIT elapsed");
@@ -263,7 +263,7 @@ public class ConditionWaitDelayTests
         // Past 30 s total — payload fires.
         for (int i = 0; i < 25; i++)
         {
-            FlightPhysics.Update(ac, 1.0, null, null);
+            FlightPhysics.Update(ac, 1.0);
         }
 
         Assert.True(applied, "Payload never fired after the WAIT elapsed");
@@ -326,7 +326,7 @@ public class ConditionWaitDelayTests
         // block may have fired yet (the later block is held behind the unexpired wait).
         for (int i = 0; i < 10; i++)
         {
-            FlightPhysics.Update(ac, 1.0, null, null);
+            FlightPhysics.Update(ac, 1.0);
         }
 
         Assert.False(waitApplied, "WAIT payload fired before its delay elapsed");
@@ -336,7 +336,7 @@ public class ConditionWaitDelayTests
         // though the aircraft has flown well past the trigger fix during the wait).
         for (int i = 0; i < 25; i++)
         {
-            FlightPhysics.Update(ac, 1.0, null, null);
+            FlightPhysics.Update(ac, 1.0);
         }
 
         Assert.True(waitApplied, "WAIT payload never fired");
@@ -393,7 +393,7 @@ public class ConditionWaitDelayTests
         // 10 s in: the wait is still counting down. Neither may have fired.
         for (int i = 0; i < 10; i++)
         {
-            FlightPhysics.Update(ac, 1.0, null, null);
+            FlightPhysics.Update(ac, 1.0);
         }
 
         Assert.False(waitApplied, "WAIT payload fired before its delay elapsed");
@@ -403,7 +403,7 @@ public class ConditionWaitDelayTests
         // though the aircraft has flown well past the trigger fix during the wait countdown.
         for (int i = 0; i < 25; i++)
         {
-            FlightPhysics.Update(ac, 1.0, null, null);
+            FlightPhysics.Update(ac, 1.0);
         }
 
         Assert.True(waitApplied, "WAIT payload never fired");

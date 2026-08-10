@@ -246,7 +246,7 @@ public class OnHandoffConditionTests
         };
         world.AddAircraft(ac);
 
-        world.Tick(1.0);
+        world.Tick(1.0, 0);
 
         Assert.False(ac.Track.HandoffAccepted);
     }
@@ -269,7 +269,7 @@ public class OnHandoffConditionTests
         // HandoffAccepted should survive the tick (different TCP than student)
         // The tick itself will consume it via trigger evaluation if there's a matching ONHO block,
         // but with no commands queued it stays true through the tick
-        world.Tick(1.0);
+        world.Tick(1.0, 0);
 
         Assert.True(ac.Track.HandoffAccepted);
     }

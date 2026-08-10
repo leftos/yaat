@@ -308,7 +308,12 @@ public sealed class HoldingPatternPhase : Phase
             return targetInboundSeconds;
         }
 
-        var wind = WindInterpolator.GetWindAt(ctx.Weather, ctx.Aircraft.Altitude);
+        var wind = WindInterpolator.GetWindAt(
+            ctx.Weather,
+            ctx.Aircraft.Altitude,
+            ctx.ScenarioElapsedSeconds,
+            WindVariation.PhaseSecondsFor(ctx.Aircraft.Callsign)
+        );
         if (wind.SpeedKts <= 0)
         {
             return targetInboundSeconds;
@@ -344,7 +349,12 @@ public sealed class HoldingPatternPhase : Phase
         }
 
         double tas = WindInterpolator.IasToTas(ctx.Aircraft.IndicatedAirspeed, ctx.Aircraft.Altitude);
-        var wind = WindInterpolator.GetWindAt(ctx.Weather, ctx.Aircraft.Altitude);
+        var wind = WindInterpolator.GetWindAt(
+            ctx.Weather,
+            ctx.Aircraft.Altitude,
+            ctx.ScenarioElapsedSeconds,
+            WindVariation.PhaseSecondsFor(ctx.Aircraft.Callsign)
+        );
 
         // inboundWca > 0 means crab right to maintain inbound track.
         // Triple-drift outbound: subtract 3× WCA from the outbound heading

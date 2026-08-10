@@ -45,7 +45,7 @@ public class CommandQueueTests
         var ac = MakeAircraft();
         ac.Queue.Blocks.Add(ImmediateBlock());
 
-        FlightPhysics.Update(ac, 1.0, null, null);
+        FlightPhysics.Update(ac, 1.0);
 
         Assert.True(ac.Queue.Blocks[0].IsApplied);
     }
@@ -56,7 +56,7 @@ public class CommandQueueTests
         var ac = MakeAircraft(altitude: 5_000);
         ac.Queue.Blocks.Add(TriggeredBlock(new BlockTrigger { Type = BlockTriggerType.ReachAltitude, Altitude = 10_000 }));
 
-        FlightPhysics.Update(ac, 1.0, null, null);
+        FlightPhysics.Update(ac, 1.0);
 
         Assert.False(ac.Queue.Blocks[0].IsApplied);
     }
@@ -68,7 +68,7 @@ public class CommandQueueTests
         var ac = MakeAircraft(altitude: 9_995);
         ac.Queue.Blocks.Add(TriggeredBlock(new BlockTrigger { Type = BlockTriggerType.ReachAltitude, Altitude = 10_000 }));
 
-        FlightPhysics.Update(ac, 1.0, null, null);
+        FlightPhysics.Update(ac, 1.0);
 
         Assert.True(ac.Queue.Blocks[0].IsApplied);
     }
@@ -89,7 +89,7 @@ public class CommandQueueTests
             )
         );
 
-        FlightPhysics.Update(ac, 1.0, null, null);
+        FlightPhysics.Update(ac, 1.0);
 
         Assert.False(ac.Queue.Blocks[0].IsApplied);
     }
@@ -111,7 +111,7 @@ public class CommandQueueTests
             )
         );
 
-        FlightPhysics.Update(ac, 1.0, null, null);
+        FlightPhysics.Update(ac, 1.0);
 
         Assert.True(ac.Queue.Blocks[0].IsApplied);
     }
@@ -134,7 +134,7 @@ public class CommandQueueTests
             )
         );
 
-        FlightPhysics.Update(ac, 1.0, null, null);
+        FlightPhysics.Update(ac, 1.0);
 
         Assert.True(ac.Queue.Blocks[0].IsApplied);
     }
@@ -156,7 +156,7 @@ public class CommandQueueTests
             )
         );
 
-        FlightPhysics.Update(ac, 1.0, null, null);
+        FlightPhysics.Update(ac, 1.0);
 
         Assert.False(ac.Queue.Blocks[0].IsApplied);
     }
@@ -169,7 +169,7 @@ public class CommandQueueTests
         ac.IsOnGround = true;
         ac.Queue.Blocks.Add(TriggeredBlock(new BlockTrigger { Type = BlockTriggerType.GiveWay, TargetCallsign = "OTHER" }));
 
-        FlightPhysics.Update(ac, 1.0, null, null);
+        FlightPhysics.Update(ac, 1.0);
 
         Assert.True(ac.Queue.Blocks[0].IsApplied);
     }
@@ -188,7 +188,7 @@ public class CommandQueueTests
 
         ac.Queue.Blocks.Add(TriggeredBlock(new BlockTrigger { Type = BlockTriggerType.GiveWay, TargetCallsign = "OTHER" }));
 
-        FlightPhysics.Update(ac, 1.0, s => lookup.GetValueOrDefault(s), null);
+        FlightPhysics.Update(ac, 1.0, s => lookup.GetValueOrDefault(s));
 
         Assert.True(ac.Queue.Blocks[0].IsApplied);
     }
@@ -213,7 +213,7 @@ public class CommandQueueTests
 
         ac.Queue.Blocks.Add(TriggeredBlock(new BlockTrigger { Type = BlockTriggerType.GiveWay, TargetCallsign = "OTHER" }));
 
-        FlightPhysics.Update(ac, 1.0, s => lookup.GetValueOrDefault(s), null);
+        FlightPhysics.Update(ac, 1.0, s => lookup.GetValueOrDefault(s));
 
         Assert.True(ac.Queue.Blocks[0].IsApplied);
     }
@@ -239,7 +239,7 @@ public class CommandQueueTests
 
         ac.Queue.Blocks.Add(TriggeredBlock(new BlockTrigger { Type = BlockTriggerType.GiveWay, TargetCallsign = "OTHER" }));
 
-        FlightPhysics.Update(ac, 1.0, s => lookup.GetValueOrDefault(s), null);
+        FlightPhysics.Update(ac, 1.0, s => lookup.GetValueOrDefault(s));
 
         Assert.False(ac.Queue.Blocks[0].IsApplied);
     }
@@ -265,7 +265,7 @@ public class CommandQueueTests
 
         ac.Queue.Blocks.Add(TriggeredBlock(new BlockTrigger { Type = BlockTriggerType.GiveWay, TargetCallsign = "OTHER" }));
 
-        FlightPhysics.Update(ac, 1.0, s => lookup.GetValueOrDefault(s), null);
+        FlightPhysics.Update(ac, 1.0, s => lookup.GetValueOrDefault(s));
 
         Assert.True(ac.Queue.Blocks[0].IsApplied);
     }
@@ -278,7 +278,7 @@ public class CommandQueueTests
         ac.Phases = null;
         ac.Queue.Blocks.Add(TriggeredBlock(new BlockTrigger { Type = BlockTriggerType.DistanceFinal, DistanceFinalNm = 5.0 }));
 
-        FlightPhysics.Update(ac, 1.0, null, null);
+        FlightPhysics.Update(ac, 1.0);
 
         Assert.False(ac.Queue.Blocks[0].IsApplied);
     }
@@ -294,7 +294,7 @@ public class CommandQueueTests
         var cmd = new TrackedCommand { Type = TrackedCommandType.Immediate };
         ac.Queue.Blocks.Add(new CommandBlock { Commands = [cmd] });
 
-        FlightPhysics.Update(ac, 1.0, null, null);
+        FlightPhysics.Update(ac, 1.0);
 
         Assert.True(cmd.IsComplete);
     }
@@ -308,8 +308,8 @@ public class CommandQueueTests
         var cmd = new TrackedCommand { Type = TrackedCommandType.Heading };
         ac.Queue.Blocks.Add(new CommandBlock { Commands = [cmd] });
 
-        FlightPhysics.Update(ac, 1.0, null, null);
-        FlightPhysics.Update(ac, 1.0, null, null);
+        FlightPhysics.Update(ac, 1.0);
+        FlightPhysics.Update(ac, 1.0);
 
         Assert.True(cmd.IsComplete);
     }
@@ -330,20 +330,20 @@ public class CommandQueueTests
         ac.Queue.Blocks.Add(block);
 
         // Tick 1: apply block
-        FlightPhysics.Update(ac, 1.0, null, null);
+        FlightPhysics.Update(ac, 1.0);
         Assert.False(cmd.IsComplete);
 
         // Tick 2: 3.0 - 1.0 = 2.0 → still incomplete
-        FlightPhysics.Update(ac, 1.0, null, null);
+        FlightPhysics.Update(ac, 1.0);
         Assert.False(cmd.IsComplete);
         Assert.True(block.WaitRemainingSeconds > 0);
 
         // Tick 3: 2.0 - 1.0 = 1.0 → still incomplete
-        FlightPhysics.Update(ac, 1.0, null, null);
+        FlightPhysics.Update(ac, 1.0);
         Assert.False(cmd.IsComplete);
 
         // Tick 4: 1.0 - 1.0 = 0.0 → complete
-        FlightPhysics.Update(ac, 1.0, null, null);
+        FlightPhysics.Update(ac, 1.0);
         Assert.True(cmd.IsComplete);
     }
 
@@ -367,19 +367,19 @@ public class CommandQueueTests
         ac.Queue.Blocks.Add(block);
 
         // Tick 1: apply block
-        FlightPhysics.Update(ac, 1.0, null, null);
+        FlightPhysics.Update(ac, 1.0);
         Assert.False(cmd.IsComplete);
 
         // Tick 2: 3.0 - 1.0 = 2.0 → still incomplete
-        FlightPhysics.Update(ac, 1.0, null, null);
+        FlightPhysics.Update(ac, 1.0);
         Assert.False(cmd.IsComplete);
 
         // Tick 3: 2.0 - 1.0 = 1.0 → still incomplete
-        FlightPhysics.Update(ac, 1.0, null, null);
+        FlightPhysics.Update(ac, 1.0);
         Assert.False(cmd.IsComplete);
 
         // Tick 4: 1.0 - 1.0 = 0.0 → complete
-        FlightPhysics.Update(ac, 1.0, null, null);
+        FlightPhysics.Update(ac, 1.0);
         Assert.True(cmd.IsComplete);
     }
 
@@ -396,7 +396,7 @@ public class CommandQueueTests
         var block = new CommandBlock { Commands = [immediateCmd, headingCmd] };
         ac.Queue.Blocks.Add(block);
 
-        FlightPhysics.Update(ac, 1.0, null, null);
+        FlightPhysics.Update(ac, 1.0);
 
         Assert.True(immediateCmd.IsComplete);
         Assert.False(headingCmd.IsComplete);
@@ -419,14 +419,14 @@ public class CommandQueueTests
         ac.Queue.Blocks.Add(firstBlock);
         ac.Queue.Blocks.Add(secondBlock);
 
-        FlightPhysics.Update(ac, 1.0, null, null);
+        FlightPhysics.Update(ac, 1.0);
         Assert.True(firstBlock.IsApplied);
         Assert.False(secondBlock.IsApplied);
 
-        FlightPhysics.Update(ac, 1.0, null, null);
+        FlightPhysics.Update(ac, 1.0);
         Assert.True(secondBlock.IsApplied);
 
-        FlightPhysics.Update(ac, 1.0, null, null);
+        FlightPhysics.Update(ac, 1.0);
         Assert.Equal(2, ac.Queue.CurrentBlockIndex);
         Assert.True(ac.Queue.IsComplete);
     }
@@ -446,7 +446,7 @@ public class CommandQueueTests
         };
         ac.Queue.Blocks.Add(block);
 
-        FlightPhysics.Update(ac, 1.0, null, null);
+        FlightPhysics.Update(ac, 1.0);
 
         Assert.Equal(270, ac.TrueHeading.Degrees);
         Assert.True(block.IsApplied);
@@ -546,7 +546,7 @@ public class CommandQueueTests
         // Navigation completes (route empty), altitude still tracking
         navCmd.IsComplete = true;
 
-        FlightPhysics.Update(ac, 1.0, null, null);
+        FlightPhysics.Update(ac, 1.0);
 
         // Should have advanced to block 1
         Assert.Equal(1, ac.Queue.CurrentBlockIndex);

@@ -142,7 +142,7 @@ public class KaseLindz1DepartureE2ETests
         for (int t = 0; t < 360; t++)
         {
             PhaseRunner.Tick(ac, ctx);
-            FlightPhysics.Update(ac, 1.0, null, null);
+            FlightPhysics.Update(ac, 1.0);
 
             string phase = ac.Phases.CurrentPhase?.Name ?? "(none)";
             double tgt = ac.Targets.TargetTrueHeading?.Degrees ?? -1;
@@ -264,7 +264,7 @@ public class KaseLindz1DepartureE2ETests
         for (int t = 0; t < 420; t++)
         {
             PhaseRunner.Tick(ac, ctx);
-            FlightPhysics.Update(ac, 1.0, null, null);
+            FlightPhysics.Update(ac, 1.0);
 
             string phase = ac.Phases.CurrentPhase?.Name ?? "(none)";
             if (phaseSeq.Count == 0 || phaseSeq[^1] != phase)

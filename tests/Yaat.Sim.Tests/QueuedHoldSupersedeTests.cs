@@ -60,7 +60,11 @@ public class QueuedHoldSupersedeTests
         var vectorCompound = CommandParser.ParseCompound("FH 270");
         Assert.True(vectorCompound.IsSuccess, $"Vector parse failed: {vectorCompound.Reason}");
 
-        var vectorResult = CommandDispatcher.DispatchCompound(vectorCompound.Value!, ac, TestDispatch.Context(Random.Shared, validateDctFixes: false));
+        var vectorResult = CommandDispatcher.DispatchCompound(
+            vectorCompound.Value!,
+            ac,
+            TestDispatch.Context(Random.Shared, validateDctFixes: false)
+        );
         Assert.True(vectorResult.Success, $"Vector dispatch failed: {vectorResult.Message}");
 
         // The lateral vector must supersede the queued lateral hold — otherwise, once the aircraft

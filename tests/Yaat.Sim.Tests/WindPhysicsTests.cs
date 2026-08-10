@@ -50,7 +50,7 @@ public class WindPhysicsTests
     {
         // At sea level TAS factor = 1.0, so GS should equal IAS with no wind.
         var ac = MakeAircraft(200, 090, 0);
-        FlightPhysics.Update(ac, 1.0, null, null);
+        FlightPhysics.Update(ac, 1.0);
         Assert.Equal(ac.IndicatedAirspeed, ac.GroundSpeed, Tolerance);
     }
 
@@ -59,7 +59,7 @@ public class WindPhysicsTests
     {
         // At FL100, TAS factor ≈ 1.165. GS = IAS * 1.165 with no wind.
         var ac = MakeAircraft(200, 090, 10_000);
-        FlightPhysics.Update(ac, 1.0, null, null);
+        FlightPhysics.Update(ac, 1.0);
         double expectedTas = WindInterpolator.IasToTas(200, 10_000);
         Assert.Equal(expectedTas, ac.GroundSpeed, 1.0);
     }
@@ -69,7 +69,7 @@ public class WindPhysicsTests
     {
         var ac = MakeAircraft(200, 090, 10_000);
         var weather = new WeatherProfile(); // no wind layers
-        FlightPhysics.Update(ac, 1.0, null, weather);
+        FlightPhysics.Update(ac, 1.0, null, weather, simTimeSeconds: 0);
         Assert.Equal(ac.TrueHeading.Degrees, ac.TrueTrack.Degrees, Tolerance);
     }
 
@@ -83,7 +83,7 @@ public class WindPhysicsTests
         // Flying east (090), headwind FROM east (090) at 30 kts
         var ac = MakeAircraft(200, 090, 5_000);
         var weather = MakeWind(fromDeg: 090, speedKts: 30, altitude: 5_000);
-        FlightPhysics.Update(ac, 1.0, null, weather);
+        FlightPhysics.Update(ac, 1.0, null, weather, simTimeSeconds: 0);
 
         // GS should be less than IAS (headwind reduces GS)
         Assert.True(ac.GroundSpeed < 200 - 10, $"Expected GS significantly < 200, got {ac.GroundSpeed}");
@@ -101,7 +101,7 @@ public class WindPhysicsTests
         // Flying east (090), tailwind FROM west (270) at 30 kts
         var ac = MakeAircraft(200, 090, 5_000);
         var weather = MakeWind(fromDeg: 270, speedKts: 30, altitude: 5_000);
-        FlightPhysics.Update(ac, 1.0, null, weather);
+        FlightPhysics.Update(ac, 1.0, null, weather, simTimeSeconds: 0);
 
         // GS should be greater than IAS (tailwind adds to GS)
         Assert.True(ac.GroundSpeed > 210, $"Expected GS > 210, got {ac.GroundSpeed}");
@@ -119,7 +119,7 @@ public class WindPhysicsTests
         // Flying north (000), crosswind FROM east (090) at 30 kts
         var ac = MakeAircraft(200, 000, 5_000);
         var weather = MakeWind(fromDeg: 090, speedKts: 30, altitude: 5_000);
-        FlightPhysics.Update(ac, 1.0, null, weather);
+        FlightPhysics.Update(ac, 1.0, null, weather, simTimeSeconds: 0);
 
         // Track should differ from heading due to wind drift
         double trackDiff = Math.Abs(ac.TrueTrack.Degrees - 000);
@@ -136,7 +136,7 @@ public class WindPhysicsTests
     {
         var ac = MakeAircraft(200, 000, 5_000);
         var weather = MakeWind(fromDeg: 090, speedKts: 30, altitude: 5_000);
-        FlightPhysics.Update(ac, 1.0, null, weather);
+        FlightPhysics.Update(ac, 1.0, null, weather, simTimeSeconds: 0);
 
         // At 5000ft, TAS = 200 * 1.077 ≈ 215.4. GS = sqrt(215.4² + 30²) ≈ 217.5
         double tas = WindInterpolator.IasToTas(200, 5_000);
@@ -156,7 +156,7 @@ public class WindPhysicsTests
         ac.IsOnGround = true;
 
         var weather = MakeWind(fromDeg: 270, speedKts: 50, altitude: 0);
-        FlightPhysics.Update(ac, 1.0, null, weather);
+        FlightPhysics.Update(ac, 1.0, null, weather, simTimeSeconds: 0);
 
         // On ground: GS and IAS stay equal; Track follows Heading
         Assert.Equal(ac.GroundSpeed, ac.IndicatedAirspeed, Tolerance);
@@ -172,7 +172,7 @@ public class WindPhysicsTests
     {
         // At FL350 with no wind, GS ≈ TAS ≈ 473 kts for IAS 280 (ISA compressible flow)
         var ac = MakeAircraft(280, 090, 35_000);
-        FlightPhysics.Update(ac, 1.0, null, null);
+        FlightPhysics.Update(ac, 1.0);
 
         Assert.True(ac.GroundSpeed > 450, $"Expected GS > 450 at FL350 IAS 280, got {ac.GroundSpeed}");
     }
@@ -185,7 +185,7 @@ public class WindPhysicsTests
     public void NullWeather_BackwardCompat_TrackEqualsHeading()
     {
         var ac = MakeAircraft(200, 135, 10_000);
-        FlightPhysics.Update(ac, 1.0, null, null);
+        FlightPhysics.Update(ac, 1.0);
         Assert.Equal(ac.TrueHeading.Degrees, ac.TrueTrack.Degrees, Tolerance);
     }
 
@@ -212,7 +212,7 @@ public class WindPhysicsTests
         // Run a few ticks so navigation and WCA are applied
         for (int i = 0; i < 5; i++)
         {
-            FlightPhysics.Update(ac, 1.0, null, weather);
+            FlightPhysics.Update(ac, 1.0, null, weather, simTimeSeconds: i);
         }
 
         // Track should be near 090 (east) because WCA corrects the heading

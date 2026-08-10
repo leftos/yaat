@@ -163,7 +163,7 @@ public class ArrivalStarSpawnTests
         double initialAlt = state.Altitude;
         for (int t = 0; t < 180; t++)
         {
-            FlightPhysics.Update(state, 1.0, null, null);
+            FlightPhysics.Update(state, 1.0);
         }
 
         output.WriteLine($"alt {initialAlt:F0} -> {state.Altitude:F0} (target {state.Targets.TargetAltitude:F0})");
@@ -187,7 +187,7 @@ public class ArrivalStarSpawnTests
         double spawnAlt = state.Altitude;
         for (int t = 0; t < 120; t++)
         {
-            FlightPhysics.Update(state, 1.0, null, null);
+            FlightPhysics.Update(state, 1.0);
         }
 
         // Holds level while StarViaMode is off and the route carries no constraints.

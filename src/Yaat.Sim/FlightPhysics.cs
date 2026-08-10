@@ -36,17 +36,12 @@ public static class FlightPhysics
 
     public static void Update(AircraftState aircraft, double deltaSeconds)
     {
-        Update(aircraft, deltaSeconds, aircraftLookup: null, weather: null, soloTrainingMode: false, rpoShowPilotSpeech: false);
+        Update(aircraft, deltaSeconds, aircraftLookup: null, weather: null, simTimeSeconds: 0, soloTrainingMode: false, rpoShowPilotSpeech: false);
     }
 
     public static void Update(AircraftState aircraft, double deltaSeconds, Func<string, AircraftState?>? aircraftLookup)
     {
-        Update(aircraft, deltaSeconds, aircraftLookup, weather: null, soloTrainingMode: false, rpoShowPilotSpeech: false);
-    }
-
-    public static void Update(AircraftState aircraft, double deltaSeconds, Func<string, AircraftState?>? aircraftLookup, WeatherProfile? weather)
-    {
-        Update(aircraft, deltaSeconds, aircraftLookup, weather, soloTrainingMode: false, rpoShowPilotSpeech: false);
+        Update(aircraft, deltaSeconds, aircraftLookup, weather: null, simTimeSeconds: 0, soloTrainingMode: false, rpoShowPilotSpeech: false);
     }
 
     public static void Update(
@@ -54,6 +49,18 @@ public static class FlightPhysics
         double deltaSeconds,
         Func<string, AircraftState?>? aircraftLookup,
         WeatherProfile? weather,
+        double simTimeSeconds
+    )
+    {
+        Update(aircraft, deltaSeconds, aircraftLookup, weather, simTimeSeconds, soloTrainingMode: false, rpoShowPilotSpeech: false);
+    }
+
+    public static void Update(
+        AircraftState aircraft,
+        double deltaSeconds,
+        Func<string, AircraftState?>? aircraftLookup,
+        WeatherProfile? weather,
+        double simTimeSeconds,
         bool soloTrainingMode,
         bool rpoShowPilotSpeech
     )
@@ -103,7 +110,8 @@ public static class FlightPhysics
             aircraft.IndicatedAirspeed = aircraft.GroundSpeed;
         }
 
-        UpdateNavigation(aircraft, weather);
+        double windPhaseSeconds = WindVariation.PhaseSecondsFor(aircraft.Callsign);
+        UpdateNavigation(aircraft, weather, simTimeSeconds, windPhaseSeconds);
         UpdateDescentPlanning(aircraft, cat);
         UpdateClimbPlanning(aircraft, cat);
         UpdateSpeedPlanning(aircraft, cat);
@@ -111,14 +119,14 @@ public static class FlightPhysics
         UpdateAltitude(aircraft, cat, deltaSeconds);
         UpdateSpeed(aircraft, cat, deltaSeconds);
         AutoCancelSpeedAtFinal(aircraft);
-        UpdatePosition(aircraft, deltaSeconds, weather);
+        UpdatePosition(aircraft, deltaSeconds, weather, simTimeSeconds, windPhaseSeconds);
         UpdateCommandQueue(aircraft, deltaSeconds, aircraftLookup);
         UpdateGroundStationaryTimer(aircraft, deltaSeconds);
         UpdateGiveWayResume(aircraft, aircraftLookup, deltaSeconds);
         PilotObservationUpdater.Update(aircraft, aircraftLookup, weather, soloTrainingMode, rpoShowPilotSpeech);
     }
 
-    private static void UpdateNavigation(AircraftState aircraft, WeatherProfile? weather)
+    private static void UpdateNavigation(AircraftState aircraft, WeatherProfile? weather, double simTimeSeconds, double windPhaseSeconds)
     {
         var route = aircraft.Targets.NavigationRoute;
         if (route.Count == 0)
@@ -269,7 +277,7 @@ public static class FlightPhysics
         if (weather is not null && !aircraft.IsOnGround && aircraft.IndicatedAirspeed > 0)
         {
             double tas = WindInterpolator.IasToTas(aircraft.IndicatedAirspeed, aircraft.Altitude);
-            var wind = WindInterpolator.GetWindAt(weather, aircraft.Altitude);
+            var wind = WindInterpolator.GetWindAt(weather, aircraft.Altitude, simTimeSeconds, windPhaseSeconds);
             wca = WindInterpolator.ComputeWindCorrectionAngle(bearing, tas, wind.DirectionDeg, wind.SpeedKts);
         }
 
@@ -1153,7 +1161,13 @@ public static class FlightPhysics
         aircraft.IndicatedAirspeed += accelerating ? change : -change;
     }
 
-    private static void UpdatePosition(AircraftState aircraft, double deltaSeconds, WeatherProfile? weather)
+    private static void UpdatePosition(
+        AircraftState aircraft,
+        double deltaSeconds,
+        WeatherProfile? weather,
+        double simTimeSeconds,
+        double windPhaseSeconds
+    )
     {
         var pos = aircraft.Position;
         double latRad = pos.Lat * DegToRad;
@@ -1182,7 +1196,7 @@ public static class FlightPhysics
             // Airborne: derive ground speed vector from TAS + wind.
             double tasKts = WindInterpolator.IasToTas(aircraft.IndicatedAirspeed, aircraft.Altitude);
             double headingRad = aircraft.TrueHeading.Degrees * DegToRad;
-            var (windNKts, windEKts) = WindInterpolator.GetWindComponents(weather, aircraft.Altitude);
+            var (windNKts, windEKts) = WindInterpolator.GetWindComponents(weather, aircraft.Altitude, simTimeSeconds, windPhaseSeconds);
 
             // Cache wind so AircraftState.GroundSpeed can derive the correct value without weather context.
             aircraft.WindComponents = (windNKts, windEKts);

@@ -26,12 +26,17 @@ public static class WindInterpolator
     private static readonly double DeltaTropopause = Math.Pow(TropopauseK / T0, GOverLR); // ~0.22336
 
     /// <summary>
-    /// Returns interpolated wind at the given altitude.
+    /// Returns interpolated wind at the given altitude, perturbed by
+    /// <see cref="WindVariation"/> for the given sim time and phase offset.
     /// Null profile or empty layers returns zero wind.
     /// Altitudes outside the layer range are clamped to the nearest layer.
     /// Interpolation uses N/E vector components to handle the 0/360 boundary correctly.
+    /// <paramref name="simTimeSeconds"/> is the scenario's elapsed sim time;
+    /// <paramref name="phaseSeconds"/> is the sampler's phase offset — 0 for
+    /// observation/reporting surfaces, <see cref="WindVariation.PhaseSecondsFor"/>
+    /// for a specific aircraft.
     /// </summary>
-    public static WindAtAltitude GetWindAt(WeatherProfile? profile, double altitudeFt)
+    public static WindAtAltitude GetWindAt(WeatherProfile? profile, double altitudeFt, double simTimeSeconds, double phaseSeconds)
     {
         if (profile is null || profile.WindLayers.Count == 0)
         {
@@ -42,12 +47,12 @@ public static class WindInterpolator
 
         if (altitudeFt <= layers[0].Altitude)
         {
-            return new WindAtAltitude(layers[0].Direction, layers[0].Speed);
+            return WindVariation.Perturb(new WindAtAltitude(layers[0].Direction, layers[0].Speed), simTimeSeconds, phaseSeconds);
         }
 
         if (altitudeFt >= layers[^1].Altitude)
         {
-            return new WindAtAltitude(layers[^1].Direction, layers[^1].Speed);
+            return WindVariation.Perturb(new WindAtAltitude(layers[^1].Direction, layers[^1].Speed), simTimeSeconds, phaseSeconds);
         }
 
         int upper = 1;
@@ -75,17 +80,23 @@ public static class WindInterpolator
             direction += 360.0;
         }
 
-        return new WindAtAltitude(direction, interpSpeed);
+        return WindVariation.Perturb(new WindAtAltitude(direction, interpSpeed), simTimeSeconds, phaseSeconds);
     }
 
     /// <summary>
     /// Returns the wind effect vector in knots: the direction the wind blows TOWARD
     /// (reversed from the "wind FROM" convention) as (northKts, eastKts) components.
     /// Example: wind FROM 270 at 10 kts → (northKts: 0, eastKts: +10).
+    /// Time/phase semantics match <see cref="GetWindAt"/>.
     /// </summary>
-    public static (double NorthKts, double EastKts) GetWindComponents(WeatherProfile? profile, double altitudeFt)
+    public static (double NorthKts, double EastKts) GetWindComponents(
+        WeatherProfile? profile,
+        double altitudeFt,
+        double simTimeSeconds,
+        double phaseSeconds
+    )
     {
-        var wind = GetWindAt(profile, altitudeFt);
+        var wind = GetWindAt(profile, altitudeFt, simTimeSeconds, phaseSeconds);
         if (wind.SpeedKts <= 0)
         {
             return (0, 0);

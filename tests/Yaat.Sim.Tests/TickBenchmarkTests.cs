@@ -31,7 +31,7 @@ public class TickBenchmarkTests(ITestOutputHelper output)
         // Warmup
         for (int i = 0; i < 10; i++)
         {
-            world.Tick(1.0);
+            world.Tick(1.0, i);
         }
 
         // Measure
@@ -39,7 +39,7 @@ public class TickBenchmarkTests(ITestOutputHelper output)
         var sw = Stopwatch.StartNew();
         for (int i = 0; i < iterations; i++)
         {
-            world.Tick(0.25);
+            world.Tick(0.25, i * 0.25);
         }
 
         sw.Stop();
@@ -70,14 +70,14 @@ public class TickBenchmarkTests(ITestOutputHelper output)
         // Warmup
         for (int i = 0; i < 10; i++)
         {
-            world.Tick(1.0);
+            world.Tick(1.0, i);
         }
 
         const int iterations = 1000;
         var sw = Stopwatch.StartNew();
         for (int i = 0; i < iterations; i++)
         {
-            world.Tick(0.25);
+            world.Tick(0.25, i * 0.25);
         }
 
         sw.Stop();

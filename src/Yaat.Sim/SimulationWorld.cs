@@ -216,14 +216,14 @@ public sealed class SimulationWorld
         }
     }
 
-    public void Tick(double deltaSeconds)
+    public void Tick(double deltaSeconds, double simTimeSeconds)
     {
-        Tick(deltaSeconds, preTick: null, timingCallback: null);
+        Tick(deltaSeconds, simTimeSeconds, preTick: null, timingCallback: null);
     }
 
-    public void Tick(double deltaSeconds, Action<AircraftState, double>? preTick)
+    public void Tick(double deltaSeconds, double simTimeSeconds, Action<AircraftState, double>? preTick)
     {
-        Tick(deltaSeconds, preTick, timingCallback: null);
+        Tick(deltaSeconds, simTimeSeconds, preTick, timingCallback: null);
     }
 
     /// <summary>
@@ -233,7 +233,7 @@ public sealed class SimulationWorld
     /// break down per-tick cost. Overhead is ~1µs per bucket when the callback
     /// is null-checked (the Stopwatch allocations are skipped in that path).
     /// </summary>
-    public void Tick(double deltaSeconds, Action<AircraftState, double>? preTick, Action<string, double>? timingCallback)
+    public void Tick(double deltaSeconds, double simTimeSeconds, Action<AircraftState, double>? preTick, Action<string, double>? timingCallback)
     {
         lock (_lock)
         {
@@ -278,13 +278,13 @@ public sealed class SimulationWorld
                 {
                     var acSw = Stopwatch.StartNew();
                     bool onGround = ac.IsOnGround;
-                    FlightPhysics.Update(ac, deltaSeconds, Lookup, weather, soloMode, rpoShowPilotSpeech);
+                    FlightPhysics.Update(ac, deltaSeconds, Lookup, weather, simTimeSeconds, soloMode, rpoShowPilotSpeech);
                     acSw.Stop();
                     timingCallback(onGround ? "World.Physics.Ground" : "World.Physics.Air", acSw.Elapsed.TotalMilliseconds);
                 }
                 else
                 {
-                    FlightPhysics.Update(ac, deltaSeconds, Lookup, weather, soloMode, rpoShowPilotSpeech);
+                    FlightPhysics.Update(ac, deltaSeconds, Lookup, weather, simTimeSeconds, soloMode, rpoShowPilotSpeech);
                 }
             }
         }

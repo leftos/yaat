@@ -20,7 +20,7 @@
 | **Radar rendering** | `RadarCanvas.cs` (input/zoom) → `RadarRenderer.cs` (drawing) → `TargetRenderer.cs` (datablocks) → `VideoMapRenderer.cs` (maps) |
 | **Ground view rendering** | `GroundCanvas.cs` (input/hit-test) → `GroundRenderer.cs` (drawing, 3 layers) |
 | **Command input UX** | `CommandInputController.cs` (parse pipeline) → `ArgumentSuggester.cs` (dropdown values) → `SignatureHelpState.cs` (inline hints) |
-| **Weather** | `WeatherProfile.cs`, `WeatherTimeline.cs`, `WindInterpolator.cs`, `LiveWeatherService.cs`, `MetarComposer.cs`, `MetarIssuer.cs`, `SpeciCriteria.cs` |
+| **Weather** | `WeatherProfile.cs`, `WeatherTimeline.cs`, `WindInterpolator.cs`, `WindVariation.cs`, `LiveWeatherService.cs`, `MetarComposer.cs`, `MetarIssuer.cs`, `SpeciCriteria.cs` |
 | **Scenarios** | `ScenarioLoader.cs`, `ScenarioModels.cs`, `AircraftInitializer.cs`, `ScenarioLifecycleService.cs` (server) |
 | **Snapshots/replay** | `StateSnapshotDto.cs`, `AircraftSnapshotDto.cs`, `RecordingArchive.cs`, `SimulationEngine.cs` |
 | **CRC protocol** | `CrcDtos*.cs` (wire format) → `DtoConverter.cs` (translation) → `CrcBroadcastService.cs` (dispatch) → `CrcWebSocketHandler.cs` (connection) |
@@ -525,8 +525,10 @@ WeatherTimeline.cs             # Time-based weather evolution: list of WeatherPe
                                # HasMeaningfulChange: rate-limits broadcasts (direction >1°, speed >0.5kt tolerance)
 WeatherTimelineParser.cs       # Static v1/v2 auto-detection parser: checks for "periods" array → WeatherTimeline, else → WeatherProfile
                                # Returns WeatherParseResult discriminated union (Timeline | Profile | Error)
-WindInterpolator.cs            # Static wind utilities: GetWindAt, GetWindComponents (vector lerp through 0/360),
+WindInterpolator.cs            # Static wind utilities: GetWindAt, GetWindComponents (vector lerp through 0/360; take sim time + phase),
                                # IasToTas/TasToIas/MachToIas/IasToMach (ISA compressible-flow equations), ComputeWindCorrectionAngle
+WindVariation.cs               # Deterministic time-varying wind perturbation seam: PhaseSecondsFor (per-aircraft callsign FNV-1a phase),
+                               # Perturb choke point every wind lookup routes through (pure function of sim time — no RNG)
 MetarParser.cs                 # Static METAR parsing: station ID, ceiling (BKN/OVC), visibility (SM); ParsedMetar record
 DefaultMetar.cs                # Static: builds the no-weather default METAR (calm/10SM/CLR/29.92) shared by the METAR panel, radar/ground overlay, vStrips bar
 MetarInterpolator.cs           # Static: GetWeatherForAirport — exact station match then IDW interpolation within 50nm

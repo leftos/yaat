@@ -108,8 +108,8 @@ public class RngDeterminismTests
 
         for (int i = 0; i < 30; i++)
         {
-            world1.Tick(1.0, null);
-            world2.Tick(1.0, null);
+            world1.Tick(1.0, i, null);
+            world2.Tick(1.0, i, null);
         }
 
         Assert.Equal(ac1.Position.Lat, ac2.Position.Lat, 10);

@@ -88,7 +88,7 @@ public class LandingPhaseStabilizationDiagnosticTests
         int maxTicks = maxSeconds * 4;
         for (int i = 0; i < maxTicks; i++)
         {
-            world.Tick(dt, PreTick);
+            world.Tick(dt, i * dt, PreTick);
             foreach (var (_, warning) in world.DrainAllWarnings())
             {
                 if (warning.Contains("going around", StringComparison.OrdinalIgnoreCase))

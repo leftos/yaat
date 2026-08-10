@@ -150,7 +150,7 @@ public class Issue227Coast9ClimbRestrictionTests
         for (int t = 0; t < 360; t++)
         {
             PhaseRunner.Tick(ac, ctx);
-            FlightPhysics.Update(ac, 1.0, null, null);
+            FlightPhysics.Update(ac, 1.0);
 
             double dme = GeoMath.DistanceNm(ac.Position, oak);
             string phase = ac.Phases.CurrentPhase?.Name ?? "(none)";

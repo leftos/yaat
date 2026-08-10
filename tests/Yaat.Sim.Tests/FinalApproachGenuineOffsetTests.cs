@@ -143,7 +143,7 @@ public class FinalApproachGenuineOffsetTests
 
         for (int tick = 0; tick < maxTicks; tick++)
         {
-            world.Tick(dt, PreTick);
+            world.Tick(dt, tick * dt, PreTick);
 
             foreach (var (callsign, warning) in world.DrainAllWarnings())
             {

@@ -12,7 +12,7 @@ public class WindInterpolatorTests
     [Fact]
     public void GetWindAt_NullProfile_ReturnsZero()
     {
-        var result = WindInterpolator.GetWindAt(null, 10_000);
+        var result = WindInterpolator.GetWindAt(null, 10_000, 0, 0);
         Assert.Equal(0, result.DirectionDeg);
         Assert.Equal(0, result.SpeedKts);
     }
@@ -21,7 +21,7 @@ public class WindInterpolatorTests
     public void GetWindAt_EmptyLayers_ReturnsZero()
     {
         var profile = new WeatherProfile();
-        var result = WindInterpolator.GetWindAt(profile, 10_000);
+        var result = WindInterpolator.GetWindAt(profile, 10_000, 0, 0);
         Assert.Equal(0, result.DirectionDeg);
         Assert.Equal(0, result.SpeedKts);
     }
@@ -41,7 +41,7 @@ public class WindInterpolatorTests
                 Altitude = 5_000,
             },
         ]);
-        var result = WindInterpolator.GetWindAt(profile, 1_000);
+        var result = WindInterpolator.GetWindAt(profile, 1_000, 0, 0);
         Assert.Equal(270, result.DirectionDeg, precision: 1);
         Assert.Equal(20, result.SpeedKts, precision: 1);
     }
@@ -57,7 +57,7 @@ public class WindInterpolatorTests
                 Altitude = 5_000,
             },
         ]);
-        var result = WindInterpolator.GetWindAt(profile, 20_000);
+        var result = WindInterpolator.GetWindAt(profile, 20_000, 0, 0);
         Assert.Equal(90, result.DirectionDeg, precision: 1);
         Assert.Equal(30, result.SpeedKts, precision: 1);
     }
@@ -73,7 +73,7 @@ public class WindInterpolatorTests
                 Altitude = 10_000,
             },
         ]);
-        var result = WindInterpolator.GetWindAt(profile, 10_000);
+        var result = WindInterpolator.GetWindAt(profile, 10_000, 0, 0);
         Assert.Equal(180, result.DirectionDeg, precision: 1);
         Assert.Equal(15, result.SpeedKts, precision: 1);
     }
@@ -99,7 +99,7 @@ public class WindInterpolatorTests
                 Altitude = 10_000,
             },
         ]);
-        var result = WindInterpolator.GetWindAt(profile, 500);
+        var result = WindInterpolator.GetWindAt(profile, 500, 0, 0);
         Assert.Equal(90, result.DirectionDeg, precision: 1);
         Assert.Equal(10, result.SpeedKts, precision: 1);
     }
@@ -121,7 +121,7 @@ public class WindInterpolatorTests
                 Altitude = 10_000,
             },
         ]);
-        var result = WindInterpolator.GetWindAt(profile, 40_000);
+        var result = WindInterpolator.GetWindAt(profile, 40_000, 0, 0);
         Assert.Equal(180, result.DirectionDeg, precision: 1);
         Assert.Equal(20, result.SpeedKts, precision: 1);
     }
@@ -148,7 +148,7 @@ public class WindInterpolatorTests
             },
         ]);
         // Midpoint: speed should be 20 kts
-        var result = WindInterpolator.GetWindAt(profile, 5_000);
+        var result = WindInterpolator.GetWindAt(profile, 5_000, 0, 0);
         Assert.Equal(20, result.SpeedKts, precision: 1);
         Assert.Equal(270, result.DirectionDeg, precision: 1);
     }
@@ -171,7 +171,7 @@ public class WindInterpolatorTests
                 Altitude = 10_000,
             },
         ]);
-        var result = WindInterpolator.GetWindAt(profile, 5_000);
+        var result = WindInterpolator.GetWindAt(profile, 5_000, 0, 0);
         // Midpoint through vector interpolation should be ≈ 000°
         double dir = result.DirectionDeg;
         // Normalize: should be 0° or 360°
@@ -199,7 +199,7 @@ public class WindInterpolatorTests
                 Altitude = 5_000,
             },
         ]);
-        var (northKts, eastKts) = WindInterpolator.GetWindComponents(profile, 5_000);
+        var (northKts, eastKts) = WindInterpolator.GetWindComponents(profile, 5_000, 0, 0);
         Assert.Equal(0, northKts, precision: 1);
         Assert.Equal(10, eastKts, precision: 1);
     }
@@ -216,7 +216,7 @@ public class WindInterpolatorTests
                 Altitude = 5_000,
             },
         ]);
-        var (northKts, eastKts) = WindInterpolator.GetWindComponents(profile, 5_000);
+        var (northKts, eastKts) = WindInterpolator.GetWindComponents(profile, 5_000, 0, 0);
         Assert.Equal(0, northKts, precision: 1);
         Assert.Equal(-10, eastKts, precision: 1);
     }
@@ -224,7 +224,7 @@ public class WindInterpolatorTests
     [Fact]
     public void GetWindComponents_NullProfile_ReturnsZero()
     {
-        var (northKts, eastKts) = WindInterpolator.GetWindComponents(null, 5_000);
+        var (northKts, eastKts) = WindInterpolator.GetWindComponents(null, 5_000, 0, 0);
         Assert.Equal(0, northKts);
         Assert.Equal(0, eastKts);
     }

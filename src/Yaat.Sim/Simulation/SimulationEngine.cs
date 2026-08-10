@@ -767,7 +767,7 @@ public sealed class SimulationEngine
         AccumulateTiming("Physics.RehydrateBlocks", sw);
 
         sw.Restart();
-        World.Tick(delta, PreTick, RecordWorldTiming);
+        World.Tick(delta, Scenario?.ElapsedSeconds ?? 0, PreTick, RecordWorldTiming);
         AccumulateTiming("Physics.WorldTick", sw);
 
         _occupiedHoldShortNodes = null;

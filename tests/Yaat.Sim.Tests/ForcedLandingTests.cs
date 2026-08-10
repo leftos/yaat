@@ -91,7 +91,7 @@ public class ForcedLandingTests : IDisposable
         int maxTicks = maxSeconds * 4;
         for (int i = 0; i < maxTicks; i++)
         {
-            world.Tick(dt, preTick);
+            world.Tick(dt, i * dt, preTick);
             world.DrainAllWarnings();
 
             if (ac.Phases?.CurrentPhase is GoAroundPhase)
