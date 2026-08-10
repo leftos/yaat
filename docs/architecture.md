@@ -538,14 +538,15 @@ WindsAloftParser.cs            # Static: parses FAA FD fixed-width text → Stat
 MagneticDeclination.cs         # Static: NOAA World Magnetic Model (WMM) declination via the Geo library; TrueToMagnetic/MagneticToTrue conversion
 VisualDetection.cs             # Static: TryAcquireAirport, TryAcquireAirportForRunway, TryAcquireTraffic, IsOccludedByBank
                                # Maintained-contact variants (already-in-sight, weather-only incl. visibility-collapse × 1.25 tolerance): TryMaintainAirportContact, TryMaintainTrafficContact
+                               # Airport visibility envelope AirportVisibilityRangeNm (vis × 0.869 × 1.5 × max(1, AGL/3000ft) — Koschmieder slab; shared by acquire + maintain; traffic keeps the literal cap)
                                # Returns VisualAcquisitionResult { Acquired, Reason, DistanceNm, MaxRangeNm }
                                # VisualAcquisitionFailure enum: InClassA, AboveCeiling, MixedCeiling, BehindOwnship, OccludedByBank, OutOfRange, OppositeSideOfRunway
                                # Forward hemisphere (traffic ±110°, airport ±120°), visibility, ceiling, bank angle occlusion (7110.65 §7-4-4.c.2), WTG-based traffic range
                                # FL180 gate on airport (visual approach eligibility) but NOT traffic (pilots can see in Class A)
 VisualAcquisition.cs           # Static helpers: TryAcquireTraffic(ownship, target, weather), TryMaintainTrafficContact(...) and TryAcquireAirport(ownship, weather)
-                               # Bundle METAR/elevation/bank-angle lookup around VisualDetection so RTIS/RFIS first-check and
-                               # PilotObservationUpdater re-check use identical inputs. TryAcquireAirport returns null when the
-                               # destination is missing or not in the nav db (caller drops the observation).
+                               # Bundle METAR/elevation/bank-angle lookup around VisualDetection so ALL traffic paths (RTIS first-check,
+                               # PilotObservationUpdater re-check, CheckLeadLifecycle, TickVisualDetection) use identical ownship-nearest-station
+                               # inputs. TryAcquireAirport returns null when the destination is missing or not in the nav db (caller drops the observation).
 PilotObservation.cs            # Abstract record PilotObservation + TrafficAcquisitionObservation(TargetCallsign) + FieldAcquisitionObservation
                                # Pilot-side "watch for a condition" state — populated when RTIS/RFIS soft-fail (pilot keeps looking)
                                # Extension points for future "report leaving altitude", "report passing fix", etc.
@@ -654,6 +655,10 @@ LandingPhase.cs                # Flare→touchdown→rollout; continuous exit ev
 RunwayHoldingPhase.cs          # LAHSO: hold at 0kts on runway after landing; clearance-gated (RunwayCrossing)
 GoAroundPhase.cs               # TOGA, runway heading. Climbs to pattern altitude−300 (VFR/pattern traffic), the published missed-approach altitude (instrument), or 2000ft AGL (self-clear)
 GoAroundHelper.cs              # Shared go-around wiring for the auto trigger + the GA command: pattern-intent resolution (ResolvePatternIntent), climb-out altitude (ResolveClimbOutAltitude), phase-list install, pre-GA landing-intent capture
+                               # InstallGoAroundPhases voids a VIS* clearance (any go-around off a visual kills the approach authorization — 7110.65 §7-4-1)
+VisualApproachHelper.cs        # AIM §5-5-11.a.3 lost-visual-reference consequence engine: HandleTrafficContactLost (handback vs end-of-visual),
+                               # EndVisualLostReference (committed → go-around w/ spoken reason; else level-off + "unable the visual, request vectors"),
+                               # VoidVisualApproach (clearance/flags/follow/landing-clearance teardown). Fed by CheckLeadLifecycle + TickVisualDetection.
 TouchAndGoPhase.cs / StopAndGoPhase.cs / LowApproachPhase.cs
 MakeTurnPhase.cs               # 360/270 turn tracking (cumulative degrees, exit heading); clones pattern phase for 360s; slows to holding speed then resumes
 STurnPhase.cs                  # S-turn phase: alternating 30° deviations from final heading for spacing

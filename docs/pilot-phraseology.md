@@ -100,7 +100,9 @@ The decisions established by the phraseology audit, with the authority. Local co
 | A pilot **never speaks the lead/target callsign** in a traffic-in-sight or follow call (acquired by position, not callsign); callsign is an RPO diagnostic only | `BuildTrafficInSight` + all follow builders (`RpoTerminal`) | 5-5-10/11 |
 | Pilots do **not** read back "caution wake turbulence" — it's a controller advisory | takeoff/landing-clearance readbacks | 4-4-7 |
 | Fix-passage report says **"passing {fix}"** using the display name (terminal) / spoken name (TTS), not the raw fix id | `BuildAtFixReport` (`FixDisplayText`/`SpellFix`) | PCG REPORT- |
-| Go-around: spoken call is just **"going around"**; the internal reason stays terminal-only | `BuildGoingAround` | 5-4-21, 5-5-5 |
+| Go-around: spoken call is just **"going around"**; the internal reason stays terminal-only — EXCEPT a lost-visual go-around, whose reason is regulatorily required on the air ("include the reason" for a pilot-initiated missed) | `BuildGoingAround` / `BuildGoingAroundLostVisualReference` | 5-4-21, 5-5-5.a.2 |
+| Losing the lead while still holding the field couples the loss with the held reference ("lost sight of the traffic, field in sight"); losing everything follows the reason → unable → request structure ("unable the visual, lost sight of …, request vectors" — the template is AIM 5-5-16.a.1's RNAV unable-call, borrowed as a structural analogy, not as visual-approach authority) | `BuildLostSightOfTrafficFieldInSight` / `BuildUnableVisualRequestVectors` | 5-5-11.a.3/.5 |
+| Losing the field while following traffic is **silent** on frequency. Product decision to keep the frequency clean: §7-4-3.c.2 NOTE never required the field report on a FOLLOW clearance and the approach legally continues — but note AIM §5-5-11.a.5 literally lists "loses sight of the airport" among the advise-ATC items, so this is a deliberate deviation | `SimulationEngine.TickVisualDetection` field-loss branch (log only) | 7110.65 7-4-3.c.2 |
 | An arrival with no approach issued gives a brief **"request approach assignment, {callsign}"** — names neither runway nor approach type (ATC assigns both) | `BuildArrivalApproachRequest` | 4-1-8 |
 | Mandatory readbacks keep the full taxi route (path + runway + cross-runway + hold-short) and the runway **L/R/C** suffix | `PhraseologyRules` TAXI rules + `SpellRunway`/`CompactRunway` | 4-4-7.b.4, 4-3-18 |
 | A taxi clearance that includes a runway segment says **ON** the runway, never "via" — VIA is for taxiways | `PhraseologyVerbalizer.RenderTaxiAlongRunway` (bypasses the flat `via`-only rule template) / `CaptureFormatter.RunwaySegment` | 3-7-2.a |
@@ -148,7 +150,9 @@ Grouped by trigger. All return `PilotSpeechText`; follow/traffic builders set `R
 - **Tower / ground** — `BuildHoldingShortTaxi`, `BuildHoldingShortCrossing`, `BuildClearOfRunwayText`,
   `BuildUnableToExit`, `BuildGoingAround`, `BuildApproachingMinimumsNoLandingClearance`.
 - **Visual acquisition** — `BuildTrafficInSight`, `BuildFieldInSight`, `BuildLostSightOfTraffic`,
-  `BuildLostSightOfField`.
+  `BuildLostSightOfField`, `BuildLostSightOfTrafficFieldInSight` (traffic lost, field held — the §7-4-3.c.3
+  separation handback), `BuildUnableVisualRequestVectors` (visual ended away from the runway — level-off +
+  request), `BuildGoingAroundLostVisualReference` (visual ended on short final — reason spoken per §5-5-5.a.2).
 - **Military routes / refueling** — `BuildClearedIntoMilitaryRouteClause`,
   `BuildMaintainRouteAltitudesClause`, `BuildClearedOutOfMilitaryRouteClause`,
   `BuildClearedToConductRefuelingClause`, plus `PilotSayBuilder.BuildExitFixEstimate` answering

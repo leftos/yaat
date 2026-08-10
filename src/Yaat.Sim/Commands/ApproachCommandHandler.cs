@@ -20,6 +20,24 @@ public static class ApproachCommandHandler
     /// </summary>
     private const double IfrVisualDownwindAltAglFt = 2000.0;
 
+    /// <summary>
+    /// CVA weather minimums (7110.65 §7-4-3.b; AIM §5-5-11.b.1): do not clear a visual
+    /// approach unless the reported ceiling is at/above 1000 ft and visibility 3 SM or
+    /// greater. Enforced only when weather IS reported — §7-4-3.c allows the clearance
+    /// with weather not available. CVAF bypasses (instructor override).
+    /// </summary>
+    private const int BasicVfrCeilingFt = 1000;
+
+    private const double BasicVfrVisibilitySm = 3.0;
+
+    /// <summary>
+    /// Below-bases margin required between the reported ceiling and the 2000 ft AGL IFR
+    /// visual downwind before the wide-angle pattern-entry geometry is allowed. Without
+    /// it the downwind is built inside (or scraping) the deck and the lost-reference
+    /// consequence immediately breaks off the approach it was just cleared for.
+    /// </summary>
+    private const double PatternEntryCeilingMarginFt = 500.0;
+
     public static CommandResult TryClearedApproach(ClearedApproachCommand cmd, AircraftState aircraft)
     {
         var resolved = ResolveApproach(cmd.ApproachId, cmd.AirportCode, aircraft);
@@ -478,7 +496,7 @@ public static class ApproachCommandHandler
         // Forced CVA (CVAF): the RPO folds the pilot's in-sight report into the visual approach
         // clearance so it need not be reported first. RPO-only, like RFISF/RTISF — a solo
         // student must have the pilot make the report. Force whichever report the acquisition
-        // gate below requires: traffic-in-sight when following (§7-4-3.a.2), else field-in-sight.
+        // gate below requires: traffic-in-sight when following (§7-4-3.c.2), else field-in-sight.
         if (cmd.Force)
         {
             if (ctx.SoloTrainingMode)
@@ -488,6 +506,7 @@ public static class ApproachCommandHandler
             if (cmd.FollowCallsign is not null)
             {
                 aircraft.Approach.HasReportedTrafficInSight = true;
+                aircraft.Approach.LastReportedTrafficCallsign = cmd.FollowCallsign.ToUpperInvariant();
             }
             else
             {
@@ -496,9 +515,9 @@ public static class ApproachCommandHandler
             }
         }
 
-        // Visual-approach acquisition gate (7110.65 §7-4-3.a; AIM §5-4-23.a): the pilot must
+        // Visual-approach acquisition gate (7110.65 §7-4-3.c; AIM §5-4-23.a): the pilot must
         // have EITHER the preceding traffic in sight (when following) OR the airport in sight
-        // (otherwise). Per §7-4-3.a.2 NOTE, a following aircraft need not report the field.
+        // (otherwise). Per §7-4-3.c.2 NOTE, a following aircraft need not report the field.
         // RPO can force either report with RTISF/RFISF (or CVAF).
         if (cmd.FollowCallsign is not null)
         {
@@ -507,8 +526,21 @@ public static class ApproachCommandHandler
                 return new CommandResult(false, "Traffic not in sight — issue RTIS first");
             }
 
+            // §7-4-3.c.2: the report must be about THE PRECEDING AIRCRAFT. A still-standing
+            // report about different traffic (e.g. a lead that landed, which keeps the report —
+            // the pilot still sees it) does not authorize following someone else. Mirrors the
+            // bare-FOLLOW identity gate; a null identity (restored state) cannot be verified
+            // and is accepted, matching that gate's bare form.
+            if (
+                aircraft.Approach.LastReportedTrafficCallsign is { } reportedCs
+                && !reportedCs.Equals(cmd.FollowCallsign, StringComparison.OrdinalIgnoreCase)
+            )
+            {
+                return new CommandResult(false, $"Traffic in sight was reported for {reportedCs} — issue RTIS {cmd.FollowCallsign} first");
+            }
+
             // Visual separation — and therefore CVA FOLLOW — is not authorized behind a super
-            // (7110.65 §7-4-3.a.4 NOTE, §7-2-1; AIM §5-5-11.2.5). Runs after the CVAF forced
+            // (7110.65 §7-4-3.d NOTE, §7-2-1; AIM §5-5-11.2.5). Runs after the CVAF forced
             // block so forcing traffic-in-sight cannot bypass the prohibition.
             if (
                 ctx.FindAircraft?.Invoke(cmd.FollowCallsign) is { } lead
@@ -551,6 +583,39 @@ public static class ApproachCommandHandler
         }
 
         var approachRunway = runway.IsActiveEnd(cmd.RunwayId) ? runway : runway.ForApproach(cmd.RunwayId);
+
+        // Weather gates. 7110.65 §7-4-3.b / AIM §5-5-11.b.1: no visual approach clearance
+        // unless the reported weather is at/above basic-VFR minimums (1000 ft ceiling /
+        // 3 SM). GetWeatherForAirport falls back to area weather interpolated from nearby
+        // stations, so a field with no station of its own is judged on that (the §7-4-2
+        // "reasonable assurance" proxy); only a scenario with no weather at all skips the
+        // gate. The wide-angle geometry further requires the deck to clear the 2000 ft AGL
+        // IFR downwind it would build, plus a below-bases margin — a sim margin stricter
+        // than the regulation (a visual needs only "clear of clouds"), because otherwise
+        // the pattern is authored inside the cloud and the AIM §5-5-11.a.3 lost-reference
+        // consequence breaks it off immediately. CVAF bypasses both gates (instructor
+        // override, consistent with its forced reports).
+        if (!cmd.Force && ctx.Weather?.GetWeatherForAirport(airport) is { } metar)
+        {
+            int? ceilingFt = metar.CeilingFeetAgl;
+            double? visSm = metar.VisibilityStatuteMiles;
+            if ((ceilingFt is { } ceiling && ceiling < BasicVfrCeilingFt) || (visSm is { } vis && vis < BasicVfrVisibilitySm))
+            {
+                string ceilingText = ceilingFt is { } c ? $"ceiling {c} ft" : "ceiling not reported";
+                string visText = visSm is { } v ? $"{v:0.#} SM" : "visibility not reported";
+                return new CommandResult(false, $"Unable, {airport} weather below visual approach minimums ({ceilingText}, {visText})");
+            }
+
+            double joinAngleOff = aircraft.TrueHeading.AbsAngleTo(approachRunway.TrueHeading);
+            if (
+                (joinAngleOff > 90.0)
+                && ceilingFt is { } patternCeiling
+                && (patternCeiling < (IfrVisualDownwindAltAglFt + PatternEntryCeilingMarginFt))
+            )
+            {
+                return new CommandResult(false, $"Unable, ceiling {patternCeiling} ft too low for a visual pattern entry — vector for a closer join");
+            }
+        }
 
         // Cancel speed restrictions per 7110.65 §5-7-1
         aircraft.Targets.TargetSpeed = null;

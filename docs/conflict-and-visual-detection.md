@@ -302,13 +302,18 @@ one ATPA pairing per aircraft.
 
 `VisualDetection` decides whether a pilot can see the field or another aircraft, per FAA 7110.65 §7-4-3 / §7-4-4 and AIM
 §5-4-23 / §4-4-15 (citations are in the source). `VisualAcquisition` is the thin wrapper that bundles the METAR /
-elevation / bank-angle inputs so the command handlers (RTIS/RFIS first check) and `PilotObservationUpdater`
-(per-tick re-check) feed identical inputs. Weather sourcing differs by target: **airport** (RFIS) acquisition uses the
-destination's METAR (the destination field is the thing being looked at); **traffic** (RTIS) acquisition uses the air
-mass at the ownship's position — `WeatherProfile.GetWeatherNearPosition` resolves the nearest reporting station within
-`MetarInterpolator.MaxInterpolationRangeNm` (50 nm), and that station's field elevation is the AGL→MSL datum for its
-cloud bases. An overflight with no destination (or a departure bound far away) therefore still gets local-weather
-gating; with no station within range the air mass is unknown and acquisition falls back to clear-sky behavior.
+elevation / bank-angle inputs so every caller feeds identical inputs. Weather sourcing differs by target: **airport**
+(RFIS) acquisition uses the destination's METAR (the destination field is the thing being looked at); **traffic** (RTIS)
+acquisition uses the air mass at the ownship's position — `WeatherProfile.GetWeatherNearPosition` resolves the nearest
+reporting station within `MetarInterpolator.MaxInterpolationRangeNm` (50 nm), and that station's field elevation is the
+AGL→MSL datum for its cloud bases. **All four traffic paths share the ownship-nearest sourcing** via the
+`VisualAcquisition` wrappers: the RTIS command first-check, `PilotObservationUpdater` (per-tick re-check),
+`AirborneFollowHelper.CheckLeadLifecycle` (follow lifecycle, physics sub-tick), and
+`SimulationEngine.TickVisualDetection`'s traffic branch (per-second acquire/maintain). Destination METAR is
+field-only — a destination-sourced traffic check would judge the same follower against two different cloud decks /
+visibilities in the same tick as the lifecycle check (#344's lost→regained transmission flap). An overflight with no
+destination (or a departure bound far away) therefore still gets local-weather gating; with no station within range the
+air mass is unknown and acquisition falls back to clear-sky behavior.
 
 Every attempt returns a `VisualAcquisitionResult` carrying `Acquired`, a `VisualAcquisitionFailure` reason, the computed
 `DistanceNm`, the `MaxRangeNm` used, and (for ceiling failures) the binding BKN/OVC `CloudLayer` so messages can name it.
@@ -333,14 +338,83 @@ This split is the central design point and the source of a footgun:
   that merely opens the gap is *increasing* separation — never the follower's cue to break off (AIM §5-5-12.a.2).
   The airport visibility distance is measured to the **assigned runway threshold** when known (else the ARP): at a
   sprawling field the ARP can sit beyond a collapsed visibility range while the landing runway is right off the nose.
+  The airport maintain threshold is the same `AirportVisibilityRangeNm` envelope the acquisition path uses, times the
+  ×1.25 credit — see "The visibility envelope" below.
+
+### Lost-visual-reference consequence — `VisualApproachHelper` (issue #343)
+
+AIM §5-5-11.a.3 is a disjunction: a pilot on a visual approach must at all times have EITHER the airport OR the
+preceding aircraft in sight. The detectors above only flip the two in-sight flags; the *consequence* is owned by a
+single engine, `Phases/Tower/VisualApproachHelper`, fed from three sites: `CheckLeadLifecycle` (follow lifecycle,
+physics sub-tick), `TickVisualDetection`'s field- and traffic-maintain loss branches, and a per-second backstop at the
+end of each `TickVisualDetection` iteration (catches "nothing in sight with no loss event this tick", e.g. the lead
+landed while the field was never reported — after the field re-acquisition attempt got its chance). The matrix:
+
+- **Lost the lead, field held** — a separation-responsibility handback, not a termination (7110.65 §7-4-3.c.3): the
+  follow clears with **no leg freeze** (the clearance authorizes proceeding to the airport), the pilot transmits
+  "lost sight of the traffic, field in sight", and a `PendingWarnings` line tells the instructor radar separation must
+  be reassumed. Solo separation scoring re-arms automatically (`SoloTrainingEvaluator.IsCoveredByVisualFollow`).
+  Non-visual follows (VFR pattern FOLLOW) keep the historical `CancelFollowHoldingLeg` freeze.
+- **Lost the field, lead held** — legal steady state (§7-4-3.c.2 NOTE: a follower never needed the field report).
+  Silent on frequency; log only.
+- **Lost everything** — the visual is no longer legal and **ends**. Committed (Final/Landing/HelicopterLanding/
+  LowApproach/Base at/below 1000 ft AGL — `CommittedAglFt`; Base counts because its level-off heading points across
+  the final approach course) → go-around via `GoAroundHelper.Trigger` with the reason SPOKEN (AIM §5-5-5.a.2).
+  Otherwise → level off at the nearest 100 ft, hold present heading AND present speed (releasing the speed target
+  would auto-accelerate a jet back toward 250 in the terminal area), transmit "unable the visual … request vectors"
+  (AIM §5-5-11.a.5 — the pilot advises and asks; pilots don't know the MVA, so no self-initiated climb), register the
+  transmission as a pending Approach request (suppresses the proactive "request approach assignment" nag and arms the
+  standard unanswered-request follow-up) and become a plain vectored IFR target. Both paths run `VoidVisualApproach`:
+  `ActiveApproach`, the issued `LandingClearance` AND the pre-armed `Pattern.PendingLandingClearance` nulled, both
+  flags and the follow cleared, pending acquisition observations dropped — so a weather flicker cannot silently
+  resurrect an approach the controller believes is dead. The runway identity (`AssignedRunway` and
+  `Procedure.DestinationRunway`) is kept — the controller usually re-clears the same runway. A fresh CVA re-arms
+  everything.
+
+Supporting invariants:
+
+- **CVA preserves its gating basis.** `TryClearedVisualApproach` restores the in-sight flag(s) the acquisition gate
+  consumed after `ClearExistingPhases` wipes them (traffic flag only for a FOLLOW clearance). Without this every CVA
+  would open with nothing in sight and the backstop would end it immediately; it also removes the post-CVA re-report
+  chatter.
+- **Any go-around off a visual voids the clearance** (`InstallGoAroundPhases`), covering the manual `GA` command and
+  the spacing break-off, not just the lost-reference path.
+- **Losing sight consumes the traffic report; a command-driven follow cancel does not.** `HandleTrafficContactLost`
+  and `VoidVisualApproach` clear `HasReportedTrafficInSight`; `ClearFollowState` deliberately leaves it alone — the
+  dispatcher's generic phase-clear runs before every phase-clearing command including `FOLLOW` itself, whose bare form
+  gates on the report, and a vectored-off follower still sees the traffic it called.
+- **Every phase that can host a follow watches the lead.** `ApproachNavigationPhase` and `InterceptCoursePhase` now
+  call `CheckLeadLifecycle` like the pattern phases and `FinalApproachPhase` do; all call sites bail out of the
+  current tick when it fires, because a cancel can now replace or clear the phase list mid-tick.
+- **CVA weather gates** (7110.65 §7-4-3.b / AIM §5-5-11.b.1): with a reported METAR, CVA rejects below 1000 ft
+  ceiling / 3 SM, and the wide-angle pattern-entry geometry additionally requires ceiling ≥ 2500 ft AGL so the 2000 ft
+  IFR downwind isn't authored inside the deck (which would trip the lost-reference consequence immediately). No METAR →
+  allowed (§7-4-3.c weather-not-available). `CVAF` bypasses both.
 
 ### The airport-acquisition ladder — `TryAcquireAirportCore`
 
-Computed range first (`:307`): `maxRange = min(horizon, airportSizeCap, visibility)` where
+Computed range first: `maxRange = min(horizon, airportSizeCap, AirportVisibilityRangeNm)` where
 `horizon = 0.5 × 1.23 × √(altitudeAGL)` nm (geometric horizon scaled by `HorizonScaleFactor = 0.5` for haze/scan/FOV),
-`airportSizeCap` from `VisualAcquisition.AirportSizeCapNm`, and METAR visibility (statute miles × 0.869) as a hard
-ceiling **only when reported below 10 SM** — `10SM` is the US METAR reporting maximum and means "10 or more"
-(`UnrestrictedVisibilitySm`), so a clear-day METAR does not cap the range. Then the ordered failure checks:
+`airportSizeCap` from `VisualAcquisition.AirportSizeCapNm`, and `AirportVisibilityRangeNm` is the slant-range
+visibility envelope, binding **only when reported below 10 SM** — `10SM` is the US METAR reporting maximum and means
+"10 or more" (`UnrestrictedVisibilitySm`), so a clear-day METAR does not cap the range.
+
+**The visibility envelope** (`AirportVisibilityRangeNm`, airport-only — issue #345):
+`vis × 0.869 × 1.5 × max(1, AGL / 3000 ft)`. Surface METAR visibility is a surface-horizontal point statistic and a
+systematically pessimistic estimate of the flight visibility toward a lit runway complex (AIM §7-1-15.b: prevailing
+visibility is the value exceeded over only *half* the horizon circle — the paragraph's own example has one quadrant at
+2 while the rest is 3; §7-1-15.c: the *lower* of two observations is used when tower and surface disagree) — the 1.5
+credit absorbs that pessimism, bounded so the fully-immersed pilot never sees the field materially beyond required
+flight visibility. The height ratio is a Koschmieder slab: sub-10SM visibility is definitionally a surface-based obscuration
+(fog/haze/smoke) capped by the boundary layer (`ObscurationTopFt = 3000`), so above it the line of sight crosses
+proportionally less of the murk. Result: a legally-clearable 1000/3 visual (7110.65 §7-4-3.b) is reachable —
+~3.9 nm at/below 3000 AGL, ~6.5 nm at 5000, ~11.7 nm at 9000. The envelope is shared verbatim with the airport
+maintain check (which multiplies the ×1.25 tracking credit on top), which **proves** acquire-then-immediately-lose
+can never happen at any altitude; descent stability holds for normal 300–500 ft/nm gradients
+(`Airport_AcquireRangeAlwaysInsideMaintainEnvelope` pins the invariant). **Traffic keeps the strict literal cap** —
+point-target detection is contrast/resolution-limited and the extended-object slant relief does not transfer.
+
+Then the ordered failure checks:
 
 1. `InClassA` — altitude ≥ 18000 ft (no visual approaches in Class A, 7110.65 §7-2-1.a).
 2. `AboveCeiling` — at/above any BKN/OVC layer (`FindBindingCeilingAbove`).

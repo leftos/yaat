@@ -191,6 +191,27 @@ public class VisualApproachCommandTests : IDisposable
         Assert.Contains("follow UAL456", result.Message);
     }
 
+    /// <summary>
+    /// 7110.65 §7-4-3.c.2: the pilot must report THE PRECEDING AIRCRAFT in sight — a report
+    /// made about different traffic (e.g. a lead that has since landed) does not satisfy a
+    /// follow clearance naming someone else. Mirrors the bare-FOLLOW identity gate.
+    /// </summary>
+    [Fact]
+    public void Cva_WithFollow_RejectedWhenReportNamesDifferentTraffic()
+    {
+        var aircraft = MakeAircraft(heading: 280);
+        aircraft.Approach.HasReportedFieldInSight = true;
+        aircraft.Approach.HasReportedTrafficInSight = true;
+        aircraft.Approach.LastReportedTrafficCallsign = "UAL456";
+
+        var cmd = new ClearedVisualApproachCommand("28R", null, null, "DAL789", false);
+        var result = ApproachCommandHandler.TryClearedVisualApproach(cmd, aircraft, Ctx());
+
+        Assert.False(result.Success);
+        Assert.Contains("RTIS", result.Message);
+        Assert.Null(aircraft.Approach.FollowingCallsign);
+    }
+
     // -------------------------------------------------------------------------
     // Traffic direction override
     // -------------------------------------------------------------------------
@@ -261,7 +282,7 @@ public class VisualApproachCommandTests : IDisposable
     // -------------------------------------------------------------------------
 
     [Fact]
-    public void Cva_ClearsPreviousVisualState()
+    public void Cva_ClearsStaleFollowButKeepsGatingFieldReport()
     {
         var aircraft = MakeAircraft(heading: 280);
         aircraft.Approach.HasReportedFieldInSight = true;
@@ -271,7 +292,10 @@ public class VisualApproachCommandTests : IDisposable
         var cmd = new ClearedVisualApproachCommand("28R", null, null, null, false);
         ApproachCommandHandler.TryClearedVisualApproach(cmd, aircraft, Ctx());
 
-        Assert.False(aircraft.Approach.HasReportedFieldInSight);
+        // The field report is what the CVA gate consumed — it survives as the clearance basis
+        // (AIM §5-5-11.a.3). The stale follow and its traffic report do not carry into a
+        // clearance that isn't following anyone.
+        Assert.True(aircraft.Approach.HasReportedFieldInSight);
         Assert.False(aircraft.Approach.HasReportedTrafficInSight);
         Assert.Null(aircraft.Approach.FollowingCallsign);
     }
