@@ -3,6 +3,7 @@
 ## Unreleased
 
 ### Fixed
+- Typing the `GW` give-way shorthand (e.g. `GW 152SP TAXI C`) no longer corrupts the callsign in the sent command — the alias now resolves partial callsigns exactly like the spelled-out `GIVEWAY`/`BEHIND` forms.
 - A pilot on a visual approach following traffic no longer falsely reports "lost sight of the traffic" when the lead merely opens the gap (pulls ahead beyond visual detection range). The per-tick maintained-contact check is now weather-only, matching the field-in-sight path.
 - Release announcements post to Discord once instead of twice (server-affecting releases had announced both from the publish event and from an explicit dispatch since v0.11.6).
 
