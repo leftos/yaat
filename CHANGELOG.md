@@ -1,6 +1,12 @@
 # Changelog
 
-## Unreleased
+## v0.12.0-beta [2026/08/10]
+
+### Highlights
+- Winds can now be variable and gusty — gusts make groundspeed readouts wobble, a ±Var arc makes the direction wander, and VRB produces light-and-variable wind roaming the whole circle.
+- Wind and air density now shape takeoff rolls and landing rollouts — headwinds lift off earlier, tailwinds and high-elevation airports need more runway.
+- Re-issued METARs observe the simulated wind like a real ASOS — 2-minute mean, VRB/gust groups, and PK WND remarks.
+- Losing sight on a visual approach now has real consequences (go-around or level off and request vectors), and `CVA` enforces the 1000 ft / 3 SM weather minimums.
 
 ### Added
 - Winds can now be variable and gusty instead of perfectly steady. A wind layer with gusts makes groundspeed readouts genuinely wobble (each aircraft decorrelated, so tight in-trail spacing degrades on gusty days like it should), a new ±Var (°) field makes the direction wander within that arc (visible crab hunting on final), and a VRB checkbox produces light-and-variable wind that roams the whole circle. Steady layers behave exactly as before.
