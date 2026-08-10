@@ -715,6 +715,138 @@ public class WeatherTimelineTests
         Assert.True(WeatherTimeline.HasMeaningfulChange(a, b));
     }
 
+    [Fact]
+    public void HasMeaningfulChange_GustChange_ReturnsTrue()
+    {
+        var a = new WeatherProfile
+        {
+            WindLayers =
+            [
+                new WindLayer
+                {
+                    Direction = 270,
+                    Speed = 10,
+                    Gusts = 18,
+                },
+            ],
+        };
+        var b = new WeatherProfile
+        {
+            WindLayers =
+            [
+                new WindLayer
+                {
+                    Direction = 270,
+                    Speed = 10,
+                    Gusts = 22,
+                },
+            ],
+        };
+        var c = new WeatherProfile { WindLayers = [new WindLayer { Direction = 270, Speed = 10 }] };
+        Assert.True(WeatherTimeline.HasMeaningfulChange(a, b));
+        Assert.True(WeatherTimeline.HasMeaningfulChange(a, c));
+        Assert.False(WeatherTimeline.HasMeaningfulChange(a, a));
+    }
+
+    [Fact]
+    public void HasMeaningfulChange_VariabilityChange_ReturnsTrue()
+    {
+        var a = new WeatherProfile
+        {
+            WindLayers =
+            [
+                new WindLayer
+                {
+                    Direction = 270,
+                    Speed = 10,
+                    DirectionVariabilityDeg = 30,
+                },
+            ],
+        };
+        var b = new WeatherProfile
+        {
+            WindLayers =
+            [
+                new WindLayer
+                {
+                    Direction = 270,
+                    Speed = 10,
+                    DirectionVariabilityDeg = 45,
+                },
+            ],
+        };
+        var c = new WeatherProfile
+        {
+            WindLayers =
+            [
+                new WindLayer
+                {
+                    Direction = 270,
+                    Speed = 10,
+                    Variable = true,
+                },
+            ],
+        };
+        var d = new WeatherProfile { WindLayers = [new WindLayer { Direction = 270, Speed = 10 }] };
+        Assert.True(WeatherTimeline.HasMeaningfulChange(a, b));
+        Assert.True(WeatherTimeline.HasMeaningfulChange(c, d));
+        Assert.False(WeatherTimeline.HasMeaningfulChange(a, a));
+    }
+
+    // -------------------------------------------------------------------------
+    // Variability carry-through during transitions
+    // -------------------------------------------------------------------------
+
+    [Fact]
+    public void Transition_VariabilityLerps_VrbFlagStepsAtMidpoint()
+    {
+        var timeline = MakeTimeline(
+            new WeatherPeriod
+            {
+                StartMinutes = 0,
+                TransitionMinutes = 0,
+                WindLayers =
+                [
+                    new WindLayer
+                    {
+                        Altitude = 3000,
+                        Direction = 270,
+                        Speed = 10,
+                        DirectionVariabilityDeg = 20,
+                        Variable = false,
+                    },
+                ],
+            },
+            new WeatherPeriod
+            {
+                StartMinutes = 10,
+                TransitionMinutes = 10,
+                WindLayers =
+                [
+                    new WindLayer
+                    {
+                        Altitude = 3000,
+                        Direction = 270,
+                        Speed = 10,
+                        DirectionVariabilityDeg = 40,
+                        Variable = true,
+                    },
+                ],
+            }
+        );
+
+        // t=0.25 (minute 12.5): variability lerps 20 → 40, VRB flag still the source period's
+        var atQ1 = timeline.GetWeatherAt(12.5 * 60);
+        Assert.NotNull(atQ1.WindLayers[0].DirectionVariabilityDeg);
+        Assert.Equal(25, atQ1.WindLayers[0].DirectionVariabilityDeg!.Value, 1);
+        Assert.False(atQ1.WindLayers[0].Variable);
+
+        // t=0.75 (minute 17.5): VRB flag stepped to the target period's at t=0.5
+        var atQ3 = timeline.GetWeatherAt(17.5 * 60);
+        Assert.Equal(35, atQ3.WindLayers[0].DirectionVariabilityDeg!.Value, 1);
+        Assert.True(atQ3.WindLayers[0].Variable);
+    }
+
     // -------------------------------------------------------------------------
     // Cloud layer (METAR) interpolation during transitions
     // -------------------------------------------------------------------------

@@ -24,6 +24,13 @@ public static partial class MetarParser
     /// </summary>
     public const double UnrestrictedVisibilitySm = 10.0;
 
+    /// <summary>
+    /// <paramref name="WindVariable"/> is true for a VRB wind group (no prevailing direction;
+    /// <paramref name="WindDirectionDeg"/> is null). <paramref name="WindVarFromDeg"/> /
+    /// <paramref name="WindVarToDeg"/> carry the dddVddd variable-direction group verbatim —
+    /// the extremes are coded clockwise (280V350 spans 70°, and a group like 350V030 wraps
+    /// through north), so consumers must compute the arc clockwise from From to To.
+    /// </summary>
     public record ParsedMetar(
         string StationId,
         int? CeilingFeetAgl,
@@ -32,7 +39,10 @@ public static partial class MetarParser
         int? WindDirectionDeg = null,
         int? WindSpeedKts = null,
         int? WindGustKts = null,
-        double? AltimeterInHg = null
+        double? AltimeterInHg = null,
+        bool WindVariable = false,
+        int? WindVarFromDeg = null,
+        int? WindVarToDeg = null
     );
 
     // Visibility patterns: "M1/4SM", "P6SM", "10SM", "3SM", "1/2SM", "1 1/2SM"
@@ -54,6 +64,10 @@ public static partial class MetarParser
     // Wind: dddssKT or dddssGggKT or VRBssKT
     [GeneratedRegex(@"\b(\d{3}|VRB)(\d{2,3})(G(\d{2,3}))?KT\b", RegexOptions.Compiled)]
     private static partial Regex WindRegex();
+
+    // Variable-direction group following the wind group: dddVddd (e.g. "21015KT 180V240")
+    [GeneratedRegex(@"\b(\d{3})V(\d{3})\b", RegexOptions.Compiled)]
+    private static partial Regex WindVariabilityRegex();
 
     // Altimeter: A followed by 4 digits (e.g., A2992 = 29.92 inHg)
     [GeneratedRegex(@"\bA(\d{4})\b", RegexOptions.Compiled)]
@@ -95,10 +109,10 @@ public static partial class MetarParser
 
         double? visibility = ParseVisibility(metar);
         var (layers, ceiling) = ParseLayers(metar);
-        var (windDir, windSpd, windGust) = ParseWind(metar);
+        var (windDir, windSpd, windGust, windVariable, varFrom, varTo) = ParseWind(metar);
         double? altimeter = ParseAltimeter(metar);
 
-        return new ParsedMetar(stationId, ceiling, layers, visibility, windDir, windSpd, windGust, altimeter);
+        return new ParsedMetar(stationId, ceiling, layers, visibility, windDir, windSpd, windGust, altimeter, windVariable, varFrom, varTo);
     }
 
     public static ParsedMetar? FindStation(IEnumerable<string> metars, string airportId)
@@ -321,19 +335,31 @@ public static partial class MetarParser
         return result;
     }
 
-    private static (int? Direction, int? Speed, int? Gust) ParseWind(string metar)
+    private static (int? Direction, int? Speed, int? Gust, bool Variable, int? VarFrom, int? VarTo) ParseWind(string metar)
     {
         var match = WindRegex().Match(metar);
         if (!match.Success)
         {
-            return (null, null, null);
+            return (null, null, null, false, null, null);
         }
 
-        int? direction = match.Groups[1].Value == "VRB" ? null : int.Parse(match.Groups[1].Value);
+        bool variable = match.Groups[1].Value == "VRB";
+        int? direction = variable ? null : int.Parse(match.Groups[1].Value);
         int speed = int.Parse(match.Groups[2].Value);
         int? gust = match.Groups[4].Success ? int.Parse(match.Groups[4].Value) : null;
 
-        return (direction, speed, gust);
+        // The dddVddd group follows the wind group; only accept a match after it so a
+        // stray dddVddd-shaped token elsewhere in remarks can't bind to the wind.
+        int? varFrom = null;
+        int? varTo = null;
+        var varMatch = WindVariabilityRegex().Match(metar, match.Index + match.Length);
+        if (varMatch.Success)
+        {
+            varFrom = int.Parse(varMatch.Groups[1].Value);
+            varTo = int.Parse(varMatch.Groups[2].Value);
+        }
+
+        return (direction, speed, gust, variable, varFrom, varTo);
     }
 
     private static double? ParseAltimeter(string metar)

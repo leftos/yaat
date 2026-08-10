@@ -137,9 +137,34 @@ public class WeatherTimeline
             {
                 return true;
             }
+
+            if (NullableDiffers(a.WindLayers[i].Gusts, b.WindLayers[i].Gusts, 0.5))
+            {
+                return true;
+            }
+
+            if (NullableDiffers(a.WindLayers[i].DirectionVariabilityDeg, b.WindLayers[i].DirectionVariabilityDeg, 1.0))
+            {
+                return true;
+            }
+
+            if ((a.WindLayers[i].Variable ?? false) != (b.WindLayers[i].Variable ?? false))
+            {
+                return true;
+            }
         }
 
         return false;
+    }
+
+    private static bool NullableDiffers(double? a, double? b, double tolerance)
+    {
+        if (a.HasValue != b.HasValue)
+        {
+            return true;
+        }
+
+        return (a.HasValue) && (Math.Abs(a.Value - b!.Value) > tolerance);
     }
 
     private static List<WindLayer> InterpolateWindLayers(List<WindLayer> from, List<WindLayer> to, double t)
@@ -182,6 +207,18 @@ public class WeatherTimeline
                 gusts = b.Gusts;
             }
 
+            // Direction variability lerps like gusts; the VRB flag is discrete and
+            // step-changes at t=0.5, matching the cloud-cover convention.
+            double? variability = null;
+            if (a.DirectionVariabilityDeg.HasValue && b.DirectionVariabilityDeg.HasValue)
+            {
+                variability = a.DirectionVariabilityDeg.Value + t * (b.DirectionVariabilityDeg.Value - a.DirectionVariabilityDeg.Value);
+            }
+            else if (b.DirectionVariabilityDeg.HasValue)
+            {
+                variability = b.DirectionVariabilityDeg;
+            }
+
             result.Add(
                 new WindLayer
                 {
@@ -190,6 +227,8 @@ public class WeatherTimeline
                     Direction = direction,
                     Speed = speed,
                     Gusts = gusts,
+                    DirectionVariabilityDeg = variability,
+                    Variable = t < 0.5 ? a.Variable : b.Variable,
                 }
             );
         }

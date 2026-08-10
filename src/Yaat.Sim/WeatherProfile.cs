@@ -23,6 +23,22 @@ public class WindLayer
     /// <summary>Gust speed in knots. Stored but not applied to physics.</summary>
     [JsonPropertyName("gusts")]
     public double? Gusts { get; set; }
+
+    /// <summary>
+    /// Half-spread of direction variability in degrees: the direction wanders within
+    /// ±this value around <see cref="Direction"/>. A METAR "21015KT 180V240" authors
+    /// mean 210 with half-spread 30. Null = no authored variability.
+    /// </summary>
+    [JsonPropertyName("directionVariabilityDeg")]
+    public double? DirectionVariabilityDeg { get; set; }
+
+    /// <summary>
+    /// True for a VRB wind: no prevailing direction — the wind wanders the full circle.
+    /// <see cref="Direction"/> still holds the (weak) mean the wander is seeded around.
+    /// Null/false = normal directional wind.
+    /// </summary>
+    [JsonPropertyName("variable")]
+    public bool? Variable { get; set; }
 }
 
 public class WeatherProfile

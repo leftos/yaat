@@ -372,6 +372,39 @@ public class MetarParserTests
         Assert.Equal(expectedGust, result.WindGustKts);
     }
 
+    // AIM 7-1-28.b.5: "VRB" when the direction is variable; a dddVddd group follows the
+    // wind group when direction varies ≥60° at >6 kt, extremes coded clockwise (280V350
+    // spans 70°; 350V030 wraps through north).
+    [Theory]
+    [InlineData("KOAK 121853Z 21015KT 180V240 10SM CLR 20/12 A2992", false, 180, 240)]
+    [InlineData("KOAK 121853Z 32012G22KT 280V350 10SM CLR 20/12 A2992", false, 280, 350)]
+    [InlineData("KOAK 121853Z 36010KT 350V030 10SM CLR 20/12 A2992", false, 350, 30)]
+    [InlineData("KOAK 121853Z VRB05KT 10SM CLR 20/12 A2992", true, null, null)]
+    [InlineData("KOAK 121853Z 27012KT 10SM CLR 20/12 A2992", false, null, null)]
+    [InlineData("KOAK 121853Z 10SM CLR 20/12 A2992", false, null, null)]
+    public void Parse_WindVariability_Correct(string metar, bool expectedVariable, int? expectedFrom, int? expectedTo)
+    {
+        var result = MetarParser.Parse(metar);
+        Assert.NotNull(result);
+        Assert.Equal(expectedVariable, result.WindVariable);
+        Assert.Equal(expectedFrom, result.WindVarFromDeg);
+        Assert.Equal(expectedTo, result.WindVarToDeg);
+    }
+
+    [Fact]
+    public void Parse_VariabilityGroup_KeepsMeanWindIntact()
+    {
+        // The dddVddd group must not disturb the parsed prevailing wind.
+        var result = MetarParser.Parse("KOAK 121853Z 21015G25KT 180V240 10SM CLR 20/12 A2992");
+        Assert.NotNull(result);
+        Assert.Equal(210, result.WindDirectionDeg);
+        Assert.Equal(15, result.WindSpeedKts);
+        Assert.Equal(25, result.WindGustKts);
+        Assert.False(result.WindVariable);
+        Assert.Equal(180, result.WindVarFromDeg);
+        Assert.Equal(240, result.WindVarToDeg);
+    }
+
     // -------------------------------------------------------------------------
     // Parse — altimeter
     // -------------------------------------------------------------------------
