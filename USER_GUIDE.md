@@ -988,7 +988,9 @@ Live weather builds wind layers from FAA Winds and Temperatures Aloft (FD) data 
 The editor has two panels:
 
 - **Left panel** — period list. Use **+ Add** to create new periods and **- Remove** to delete the selected one (minimum one period). Each period shows its start time.
-- **Right panel** — selected period details: start time (minutes), transition duration (minutes), precipitation type, wind layers grid (altitude, direction, speed, gusts), and METARs list.
+- **Right panel** — selected period details: start time (minutes), transition duration (minutes), precipitation type, wind layers grid (altitude, direction, speed, gusts, ±Var, VRB), and METARs list.
+
+**Variable wind:** winds are no longer perfectly steady. A layer with **Gusts** produces real gusts — groundspeed readouts wobble, approach speeds rise (pilots fly Vref plus a wind additive on gusty days), headwinds shorten takeoff rolls and landing rollouts — and a **±Var (°)** value makes the direction wander within that arc around the mean (crab hunting on final). Checking **VRB** makes the wind light-and-variable: the direction wanders the full circle near the surface. Re-issued METARs report what a real observing system would: the 2-minute mean wind (so successive reports differ slightly), the authored gust and `dddVddd` groups, `VRB` when the spread warrants it, and a `PK WND` remark when the 10-minute peak exceeds 25 knots. Each aircraft experiences its own decorrelated wobble, but everything shares the same mean wind — and layers without gusts or variability stay exactly steady, so existing scenarios behave as before.
 
 **Saving format:** If the editor has a single period, it saves as a v1 weather profile (compatible with ATCTrainer). With two or more periods, it saves as a v2 weather timeline.
 

@@ -2,7 +2,15 @@
 
 ## Unreleased
 
+### Added
+- Winds can now be variable and gusty instead of perfectly steady. A wind layer with gusts makes groundspeed readouts genuinely wobble (each aircraft decorrelated, so tight in-trail spacing degrades on gusty days like it should), a new ±Var (°) field makes the direction wander within that arc (visible crab hunting on final), and a VRB checkbox produces light-and-variable wind that roams the whole circle. Steady layers behave exactly as before.
+- METAR `VRB` winds and the `dddVddd` variable-direction group (e.g. `21015KT 180V240`) are parsed everywhere METARs are read, shown in the radar/ground wind readouts, and — along with gusts — mined from live-weather stations into the simulated surface wind (VRB stations no longer dropped from the average).
+- Re-issued METARs observe the simulated wind like a real ASOS: they report the 2-minute mean (successive reports differ slightly), code `VRB`/`dddVddd`/gust groups per the FMH-1 rules instead of stripping them, add a `PK WND` remark when the 10-minute peak exceeds 25 kt, and fire squall SPECIs. Wind-shift SPECIs now respect the 15-minute time bound, so a slow veer never triggers one.
+- Pilots fly gusty-day approach speeds: Vref plus half the steady headwind plus the full gust increment (capped at 20 kt, Boeing/Airbus technique), with the gust part kept to touchdown — final-approach speeds and spacing behave accordingly.
+- Wind and air density now shape takeoff rolls and landing rollouts: a 20 kt headwind lifts off about a quarter runway earlier and shortens the rollout, a tailwind lengthens both, and high-elevation airports need more runway. Surface-radar groundspeed at rotation reads correctly (previously ~headwind too high).
+
 ### Fixed
+- Live weather no longer skews the simulated surface wind by one magnetic declination — METAR text winds are true north (only the spoken ATIS/ASOS form is magnetic) and are now converted when building the wind layer, like the winds-aloft layers always were.
 - Typing the `GW` give-way shorthand (e.g. `GW 152SP TAXI C`) no longer corrupts the callsign in the sent command — the alias now resolves partial callsigns exactly like the spelled-out `GIVEWAY`/`BEHIND` forms.
 - A pilot on a visual approach now genuinely loses sight of the field or the followed traffic when reported visibility collapses below the distance to it (fog, heavy haze) and reports it — while a lead merely opening the gap, or the field falling behind the nose, still never breaks an established contact. A follow in progress breaks off the same way.
 - `RTIS` now finds traffic up to 110° off the nose — a shallow over-the-shoulder look, per the AIM's recommended scan for an alerted traffic search — instead of cutting off exactly at abeam, so a "traffic, four o'clock" call slightly behind the wing line can resolve.

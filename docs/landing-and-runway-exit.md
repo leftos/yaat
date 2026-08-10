@@ -2,6 +2,11 @@
 
 > This is the **ground** half of an arrival. For the **airborne** half upstream of touchdown — approach intercept, pattern legs, holding, and glideslope geometry — see [approach-and-pattern-geometry.md](approach-and-pattern-geometry.md).
 
+> **Everything below the touchdown flip is GROUND-FRAME.** On the ground `AircraftState.IndicatedAirspeed` carries wheel speed;
+> coast/exit speeds, `DesiredDecelRate`, and braking-distance math are all ground-frame quantities. Wind enters exactly once,
+> at the touchdown conversion (`GroundFrame.EnterGround`: wheel speed = touchdown TAS − headwind component), so a headwind
+> shortens the rollout by the v² law and makes earlier exits reachable. See [flight-physics.md](flight-physics.md).
+
 ## Core Principle: Analog, Not Node-Based
 
 The runway exit system treats the runway as a continuous surface, not a graph of nodes. The aircraft rolls along the runway heading, measures distances to exits, and plans braking kinematically. There is no node-walking on the runway — nodes are only used once the aircraft commits to a taxiway.

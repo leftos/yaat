@@ -94,13 +94,20 @@ This is the load-bearing model the rest of physics rests on. (This material prev
 
 - **`IndicatedAirspeed` (KIAS) is the single source of truth for airspeed** (`AircraftState.cs:106`). It is what ATC commands, what
   `TargetSpeed` targets, and the only stored airspeed value. Set it; everything else derives.
+- **ON THE GROUND the same field carries GROUNDSPEED (wheel speed)** — taxi speeds, rollout coast/exit speeds, and braking rates
+  are all ground-frame quantities, the gear resists lateral wind (track = heading, no vector sum), and the ASI is only meaningful
+  at roll speeds. Wind and density enter at exactly the frame flips, owned by `GroundFrame`: the takeoff roll integrates
+  groundspeed and rotates when `GroundFrame.IasForGroundSpeed` (TAS = GS + headwind, density-corrected) reaches Vr — a 20 kt
+  headwind lifts off ~20 kt of groundspeed earlier and shortens the roll by the v² law — and touchdown converts
+  `TAS − headwind` into wheel speed (`GroundFrame.EnterGround`). Every phase that flips `IsOnGround` with meaningful speed must
+  route through these helpers. `AircraftState.HeadwindKts` derives from the cached `WindComponents` (now cached on the ground too).
 - **TAS is computed, never stored.** `WindInterpolator.IasToTas(ias, altitudeFt)` (`WindInterpolator.cs:105`) converts IAS→TAS via ISA
   compressible-flow relations (CAS→Mach→TAS). TAS rises with altitude even at constant IAS.
 - **`GroundSpeed` is DERIVED on every read — it has no setter** (`AircraftState.cs:85`). On the ground it returns `IndicatedAirspeed` directly.
   Airborne it is `|TAS·(cos/sin heading) + WindComponents|`: TAS along `TrueHeading`, plus the cached wind vector, magnitude. You cannot "set
   ground speed," and `GS == IAS` is only true on the ground or in still air at sea level.
 - **`WindComponents` (N, E knots) is cached during `UpdatePosition`** (`FlightPhysics.cs:1041`) so `AircraftState.GroundSpeed` can derive
-  airborne GS without a `WeatherProfile` in hand. It is zero on the ground / with no weather. Note: both `GroundSpeed`'s getter and `UpdatePosition`
+  airborne GS without a `WeatherProfile` in hand. It is cached on the ground as well (feeding `HeadwindKts` for the frame flips); zero with no weather. Note: both `GroundSpeed`'s getter and `UpdatePosition`
   build the airborne GS vector by projecting TAS along the same `TrueHeading` basis and adding the wind vector — so the displayed GS magnitude
   matches the position step. (`UpdatePosition` then derives `TrueTrack` from `atan2` of that wind-summed vector, which is why track diverges from
   heading in wind.)
