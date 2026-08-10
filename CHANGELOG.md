@@ -3,6 +3,7 @@
 ## Unreleased
 
 ### Fixed
+- A pilot on a visual approach following traffic no longer falsely reports "lost sight of the traffic" when the lead merely opens the gap (pulls ahead beyond visual detection range). The per-tick maintained-contact check is now weather-only, matching the field-in-sight path.
 - Release announcements post to Discord once instead of twice (server-affecting releases had announced both from the publish event and from an explicit dispatch since v0.11.6).
 
 ## v0.11.7-beta [2026/08/08]
