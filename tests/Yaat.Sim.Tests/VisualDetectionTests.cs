@@ -126,11 +126,25 @@ public class VisualDetectionTests
     }
 
     [Fact]
-    public void CanSeeTraffic_At110Degrees_StillBehindOwnship()
+    public void CanSeeTraffic_At105Degrees_AcquiresOverShoulder()
     {
-        // Traffic keeps the strict ±90° gate: a point target must land in the
-        // forward scan to be found (10:1 foveal/peripheral penalty, AIM §8-1-6.c.2).
-        var own = MakeAircraft(37.75, -122.221, heading: 70, altitude: 3000);
+        // Traffic bears 180, heading 075 → 105° off the nose: aft of abeam but inside
+        // the ±110° alerted-search arc. The AIM's own recommended scan starts "over
+        // the left shoulder" (§8-1-6.c.3, §8-1-8.j.1) and RTIS hands the pilot a clock
+        // position, so a shallow over-the-shoulder look is normal technique.
+        var own = MakeAircraft(37.75, -122.221, heading: 75, altitude: 3000);
+        var tgt = MakeAircraft(37.72, -122.221, heading: 180, altitude: 3000);
+        var result = VisualDetection.TryAcquireTraffic(own, tgt, null, AptElev, 10.0, 0.0);
+        Assert.True(result.Acquired, $"Expected acquired with traffic 105° off the nose, got {result.Reason}");
+    }
+
+    [Fact]
+    public void CanSeeTraffic_At120Degrees_BehindOwnship()
+    {
+        // Traffic bears 180, heading 060 → 120° off the nose: past the head+eye yaw
+        // limit for a foveated point target (±110°), even though the airport's wider
+        // field-of-view gate would still accept this bearing.
+        var own = MakeAircraft(37.75, -122.221, heading: 60, altitude: 3000);
         var tgt = MakeAircraft(37.72, -122.221, heading: 180, altitude: 3000);
         var result = VisualDetection.TryAcquireTraffic(own, tgt, null, AptElev, 10.0, 0.0);
         Assert.False(result.Acquired);

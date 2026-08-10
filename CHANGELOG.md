@@ -4,7 +4,8 @@
 
 ### Fixed
 - Typing the `GW` give-way shorthand (e.g. `GW 152SP TAXI C`) no longer corrupts the callsign in the sent command — the alias now resolves partial callsigns exactly like the spelled-out `GIVEWAY`/`BEHIND` forms.
-- A pilot on a visual approach now genuinely loses sight of the field or the followed traffic when reported visibility collapses below the distance to it (fog, heavy haze) and reports it — while a lead merely opening the gap, or the field falling behind the nose, still never breaks an established contact. A follow in progress breaks off the same way.- A pilot on a visual approach following traffic no longer falsely reports "lost sight of the traffic" when the lead merely opens the gap (pulls ahead beyond visual detection range). The per-tick maintained-contact check is now weather-only, matching the field-in-sight path.
+- A pilot on a visual approach now genuinely loses sight of the field or the followed traffic when reported visibility collapses below the distance to it (fog, heavy haze) and reports it — while a lead merely opening the gap, or the field falling behind the nose, still never breaks an established contact. A follow in progress breaks off the same way.
+- `RTIS` now finds traffic up to 110° off the nose — a shallow over-the-shoulder look, per the AIM's recommended scan for an alerted traffic search — instead of cutting off exactly at abeam, so a "traffic, four o'clock" call slightly behind the wing line can resolve.- A pilot on a visual approach following traffic no longer falsely reports "lost sight of the traffic" when the lead merely opens the gap (pulls ahead beyond visual detection range). The per-tick maintained-contact check is now weather-only, matching the field-in-sight path.
 - Release announcements post to Discord once instead of twice (server-affecting releases had announced both from the publish event and from an explicit dispatch since v0.11.6).
 
 ## v0.11.7-beta [2026/08/08]

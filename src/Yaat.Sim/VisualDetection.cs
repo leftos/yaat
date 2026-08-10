@@ -84,19 +84,27 @@ public static class VisualDetection
     // consecutive-tick debounce would need new serialized state for snapshots/replay.
     private const double MaintainVisibilityToleranceFactor = 1.25;
 
-    // Forward-hemisphere gates. Traffic is a point target that must land inside
-    // the pilot's forward scan to be recognized at all (AIM §8-1-6.c.2: ~10:1
-    // foveal-to-peripheral recognition penalty), so it keeps the strict ±90°.
-    // The airport is a runway complex subtending far more than the point-target
-    // threshold — it only has to be within the field of view, not foveated — so
-    // it gets the AIM's ±100° eyes-only arc plus a bounded head turn (§8-1-8.j.1
+    // Forward-hemisphere gates. Both start from AIM §8-1-6.c.2's ±100° eyes-only
+    // arc and differ in head-turn credit. Traffic is a point target that must be
+    // FOVEATED to be recognized (§8-1-6.c.2: an aircraft sharp in the foveal center
+    // at 7 miles must be inside 7/10 mile to be recognized outside it), so it earns
+    // a smaller credit than the airport: ±110° = the ±100° arc plus ~10°, against
+    // the airport's +20°. RTIS is an alerted search by construction — 7110.65
+    // §2-1-21.a hands the pilot a clock position — and the AIM's own recommended
+    // scan starts "over the left shoulder" (§8-1-6.c.3, §8-1-8.j.1), so
+    // aft-of-abeam looking is normal technique and a strict ±90° gate was too
+    // tight. 110° is where head+eye yaw runs out for a seated, harnessed pilot
+    // (~60° neck + ~45° eye), so it is a ceiling rather than a comfortable value —
+    // it covers a 3 o'clock call fully and the near half of a 4 o'clock call.
+    // The airport is a runway complex that only has to be within the field of
+    // view, not foveated, so it gets the full bounded head turn (§8-1-8.j.1
     // expects pilots to move their heads around door posts and wings): ±120°,
     // which covers a standard downwind through abeam-the-numbers. Note the
     // visibility cap below applies only under MetarParser.UnrestrictedVisibilitySm:
     // 9SM → 7.8 nm vs 10SM → uncapped is a deliberate step, not a bug to smooth —
     // sub-10 visibility is definitionally an obscured air mass (AIM §7-1-15),
     // at-or-above-10 is a censored "10 or more" that asserts no limit.
-    private const double TrafficForwardHemisphereDeg = 90.0;
+    private const double TrafficForwardHemisphereDeg = 110.0;
     private const double AirportForwardHemisphereDeg = 120.0;
 
     // Geometric horizon = 1.23 * sqrt(eye-height in ft), in nm.

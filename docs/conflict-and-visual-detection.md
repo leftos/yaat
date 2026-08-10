@@ -345,8 +345,8 @@ ceiling **only when reported below 10 SM** — `10SM` is the US METAR reporting 
 1. `InClassA` — altitude ≥ 18000 ft (no visual approaches in Class A, 7110.65 §7-2-1.a).
 2. `AboveCeiling` — at/above any BKN/OVC layer (`FindBindingCeilingAbove`).
 3. `BehindOwnship` — bearing to field outside the ±120° field of view (`AirportForwardHemisphereDeg`; wider than the
-   ±90° traffic gate because a runway complex is visible out the side window without being foveated — AIM §8-1-6.c.2
-   arc plus a head turn — covering a standard downwind through abeam-the-numbers).
+   ±110° traffic gate because a runway complex is visible out the side window without being foveated — AIM §8-1-6.c.2
+   arc plus a full head turn — covering a standard downwind through abeam-the-numbers).
 4. `OccludedByBank` — high-wing occlusion during a turn (see below).
 5. `OutOfRange` — `distance > maxRange`.
 6. `OppositeSideOfRunway` (runway variant only) — bearing from airport to aircraft more than ±120° off the runway's
@@ -358,8 +358,11 @@ No Class A gate (pilots can see traffic in Class A; only visual *separation* is 
 `WakeTurbulenceData.TrafficDetectionRangeNm(target)` clamped by visibility (again only when reported below the 10 SM
 maximum). Checks in order: `MixedCeiling`
 (`FindObstructingLayerBetween` — a BKN/OVC base strictly between the two altitudes, so one aircraft is above the deck
-and the other below), `BehindOwnship` (strict ±90° — a point target must land inside the forward scan),
-`OccludedByBank`, `OutOfRange`.
+and the other below), `BehindOwnship` (±110° — the AIM §8-1-6.c.2 ±100° eyes-only arc plus a ~10° head-turn credit;
+RTIS is an alerted search and the AIM's recommended scan starts "over the left shoulder" (§8-1-6.c.3), but a point
+target must still be foveated, so the credit is smaller than the airport's +20°), `OccludedByBank`, `OutOfRange`.
+Level-flight wing occlusion in the 90–110° aft-of-abeam wedge is deliberately un-modeled (no high/low-wing attribute
+exists; AIM §8-1-8.j.1's "lift a wing" maneuver is the real-world mitigation).
 
 ### Bank-angle occlusion — `IsOccludedByBank`
 

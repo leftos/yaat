@@ -540,7 +540,7 @@ VisualDetection.cs             # Static: TryAcquireAirport, TryAcquireAirportFor
                                # Maintained-contact variants (already-in-sight, weather-only incl. visibility-collapse × 1.25 tolerance): TryMaintainAirportContact, TryMaintainTrafficContact
                                # Returns VisualAcquisitionResult { Acquired, Reason, DistanceNm, MaxRangeNm }
                                # VisualAcquisitionFailure enum: InClassA, AboveCeiling, MixedCeiling, BehindOwnship, OccludedByBank, OutOfRange, OppositeSideOfRunway
-                               # Forward hemisphere, visibility, ceiling, bank angle occlusion (7110.65 §7-4-4.c.2), WTG-based traffic range
+                               # Forward hemisphere (traffic ±110°, airport ±120°), visibility, ceiling, bank angle occlusion (7110.65 §7-4-4.c.2), WTG-based traffic range
                                # FL180 gate on airport (visual approach eligibility) but NOT traffic (pilots can see in Class A)
 VisualAcquisition.cs           # Static helpers: TryAcquireTraffic(ownship, target, weather), TryMaintainTrafficContact(...) and TryAcquireAirport(ownship, weather)
                                # Bundle METAR/elevation/bank-angle lookup around VisualDetection so RTIS/RFIS first-check and
