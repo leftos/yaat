@@ -319,12 +319,20 @@ This split is the central design point and the source of a footgun:
 
 - **Initial acquisition** (`TryAcquireAirport` / `TryAcquireAirportForRunway` / `TryAcquireTraffic`) runs the **full
   ordered ladder** of checks and is called with the live `BankAngle`.
-- **Maintained contact** (`TryMaintainAirportContact`, `VisualDetection.cs:168`) runs **weather-only** — it checks just
-  the Class A floor and `FindBindingCeilingAbove`, and **deliberately skips all geometric checks**
-  (`BehindOwnship`, `OutOfRange`, `OppositeSideOfRunway`, `OccludedByBank`). The server calls it once
-  `Approach.HasReportedFieldInSight` is true (`TickProcessor.cs:1299`). Rationale: the airport reference point is a
+- **Maintained contact** (`TryMaintainAirportContact` / `TryMaintainTrafficContact`) runs **weather-only** — the Class A
+  floor (airport only), the obscuring BKN/OVC layer, and a **flight-visibility collapse**: when METAR visibility is
+  reported below the censored 10 SM maximum and the distance to the target exceeds `visibility × 0.869 × 1.25` nm
+  (`MaintainVisibilityToleranceFactor` — a stateless tracking credit that suppresses threshold chatter, since one tick
+  of boundary noise irreversibly cancels a follow), contact is genuinely lost per AIM §5-5-11.a.3's "at all times"
+  obligation (fog/haze is weather, not finding-geometry). It **deliberately skips the target-finding geometry**
+  (`BehindOwnship`, `OppositeSideOfRunway`, `OccludedByBank`, the type-based traffic detection range, and the airport
+  horizon/conspicuity caps). The server calls the airport variant once `Approach.HasReportedFieldInSight` is true, and
+  the traffic variant once `Approach.HasReportedTrafficInSight` is true. Rationale: the airport reference point is a
   single lat/lon proxy for a multi-acre polygon; at threshold crossing the ARP falls behind the nose, and a geometric
-  check would falsely report "lost sight of the field" while the runway is directly under the cockpit.
+  check would falsely report "lost sight of the field" while the runway is directly under the cockpit. Likewise a lead
+  that merely opens the gap is *increasing* separation — never the follower's cue to break off (AIM §5-5-12.a.2).
+  The airport visibility distance is measured to the **assigned runway threshold** when known (else the ARP): at a
+  sprawling field the ARP can sit beyond a collapsed visibility range while the landing runway is right off the nose.
 
 ### The airport-acquisition ladder — `TryAcquireAirportCore`
 
@@ -518,10 +526,14 @@ here and have `aviation-sim-expert` review against the local FAA references.
   altitude (`FindBindingCeilingAbove` / `FindObstructingLayerBetween`). ATPA `WidthLeft`/`WidthRight` are **feet** while
   `Length` is **nm**. Mixing these up is the easiest mistake in this code.
 
-- **`TryMaintainAirportContact` skips all geometric checks on purpose.** It runs Class A + ceiling only. Re-adding any of
-  `BehindOwnship` / `OutOfRange` / `OppositeSideOfRunway` / `OccludedByBank` here regresses the "lost sight of the field
-  at threshold crossing" fix — the single-point ARP proxy falls behind the nose during the flare and would trigger a
-  false loss report. The initial-acquisition path keeps those checks.
+- **`TryMaintainAirportContact` / `TryMaintainTrafficContact` skip the finding-geometry on purpose.** They run weather
+  only: Class A + ceiling (+ the visibility-collapse distance check). Re-adding `BehindOwnship` / `OppositeSideOfRunway` /
+  `OccludedByBank` / the type-detection or horizon/conspicuity range caps here regresses the "lost sight of the field at
+  threshold crossing" and "lost sight of the traffic when the lead pulls ahead" fixes — the single-point ARP proxy falls
+  behind the nose during the flare, and a faster lead legitimately opens the gap beyond its type detection range. The
+  only distance that may break maintained contact is the flight-visibility range (`visibility × 0.869 × 1.25` nm when
+  reported below 10 SM; the airport datum is min(ARP, assigned threshold) so maintain can never out-reach acquisition) —
+  that one is weather. The initial-acquisition path keeps all checks.
 
 - **Ground classification keys on phase *name* strings.** `IsOnRunway` (`GroundConflictDetector.cs:804`) and
   `IsStationaryPhase` (`:825`) match literals like `"LinedUpAndWaiting"`, `"Landing"`, `"Takeoff"`, and the prefix

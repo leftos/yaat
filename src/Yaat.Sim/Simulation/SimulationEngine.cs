@@ -1026,13 +1026,26 @@ public sealed class SimulationEngine
             }
             else
             {
-                // Maintained contact: weather-only check. Geometric checks
-                // (BehindOwnship/OutOfRange/OppositeSideOfRunway) produce false
-                // "lost sight of the field" reports as the aircraft crosses the
-                // threshold and the airport reference point falls behind the nose.
-                // Once acquired, only Class A or a BKN/OVC layer above the
-                // aircraft can realistically obscure the airport polygon.
-                var maintainResult = VisualDetection.TryMaintainAirportContact(ac, aptElevation.Value, layers);
+                // Maintained contact: weather-only check. The finding-geometry checks
+                // (BehindOwnship/OppositeSideOfRunway and the horizon/conspicuity range
+                // caps) produce false "lost sight of the field" reports as the aircraft
+                // crosses the threshold and the airport reference point falls behind the
+                // nose. Once acquired, only weather — Class A, a BKN/OVC layer above the
+                // aircraft, or a flight-visibility collapse below the distance to the
+                // field — can realistically obscure the airport polygon. The visibility
+                // distance is the MINIMUM over the ARP (what acquisition measured — the
+                // maintain datum must never exceed it, or maintain manufactures a loss
+                // acquisition would not have allowed) and the assigned runway threshold
+                // (at a sprawling field the ARP can sit beyond the visibility range while
+                // the landing runway is right off the nose).
+                double fieldDistanceNm = GeoMath.DistanceNm(ac.Position, new LatLon(aptPos.Value.Lat, aptPos.Value.Lon));
+                if (runway is not null && NavigationDatabase.AirportIdsMatch(runway.AirportId, airport))
+                {
+                    double thresholdDistanceNm = GeoMath.DistanceNm(ac.Position, new LatLon(runway.ThresholdLatitude, runway.ThresholdLongitude));
+                    fieldDistanceNm = Math.Min(fieldDistanceNm, thresholdDistanceNm);
+                }
+
+                var maintainResult = VisualDetection.TryMaintainAirportContact(ac, aptElevation.Value, layers, visibilitySm, fieldDistanceNm);
 
                 if (!maintainResult.Acquired)
                 {
@@ -1093,14 +1106,16 @@ public sealed class SimulationEngine
                     }
                     else
                     {
-                        // Maintained contact: weather-only check. The acquisition-range /
+                        // Maintained contact: weather-only check. The type-detection-range /
                         // forward-hemisphere / bank-occlusion geometry models FINDING unknown
                         // traffic, not TRACKING traffic already called in sight; re-applying it
                         // here produces false "lost sight of traffic" reports as the lead merely
                         // pulls ahead (a growing gap increases separation — the controller's to
                         // re-sequence, never the follower's cue to break off; AIM §5-5-12.a.2 /
-                        // §4-4-14 NOTE). Mirrors the field-maintain path above and AirborneFollowHelper.
-                        var maintainTrafficResult = VisualDetection.TryMaintainTrafficContact(ac, target, layers, aptElevation.Value);
+                        // §4-4-14 NOTE). A flight-visibility collapse below the gap DOES break
+                        // contact — that is weather, not finding-geometry (AIM §5-5-11.a.3).
+                        // Mirrors the field-maintain path above and AirborneFollowHelper.
+                        var maintainTrafficResult = VisualDetection.TryMaintainTrafficContact(ac, target, layers, aptElevation.Value, visibilitySm);
                         if (!maintainTrafficResult.Acquired)
                         {
                             ac.Approach.HasReportedTrafficInSight = false;

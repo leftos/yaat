@@ -20,14 +20,15 @@ public static class VisualAcquisition
 
     /// <summary>
     /// Maintained-contact variant of <see cref="TryAcquireTraffic"/> for traffic
-    /// already in sight: runs only the weather obstruction (cloud layer between),
-    /// skipping the acquisition-range, forward-hemisphere, and bank-occlusion checks.
+    /// already in sight: runs only the weather obstructions (cloud layer between,
+    /// flight-visibility collapse below the gap), skipping the type-based
+    /// detection range, forward-hemisphere, and bank-occlusion checks.
     /// See <see cref="VisualDetection.TryMaintainTrafficContact"/>.
     /// </summary>
     public static VisualAcquisitionResult TryMaintainTrafficContact(AircraftState ownship, AircraftState target, WeatherProfile? weather)
     {
-        var (layers, _, referenceElevation) = ResolveWeatherNearOwnship(ownship, weather);
-        return VisualDetection.TryMaintainTrafficContact(ownship, target, layers, referenceElevation);
+        var (layers, visibilitySm, referenceElevation) = ResolveWeatherNearOwnship(ownship, weather);
+        return VisualDetection.TryMaintainTrafficContact(ownship, target, layers, referenceElevation, visibilitySm);
     }
 
     /// <summary>

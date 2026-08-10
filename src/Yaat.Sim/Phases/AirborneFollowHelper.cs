@@ -126,10 +126,11 @@ public static class AirborneFollowHelper
     /// <item><description>The lead is no longer in the world (lookup returns null).</description></item>
     /// <item><description>The lead has transitioned to <see cref="AircraftState.IsOnGround"/>.</description></item>
     /// <item><description>The follower loses visual contact with the lead — a BKN/OVC deck slides
-    /// between them (AIM §5-5-12.a.2 / §4-4-14 NOTE). A lead that merely pulls ahead or slips
-    /// behind is still followed; a growing gap increases separation and is the controller's to
-    /// re-sequence. See <see cref="VisualDetection.TryMaintainTrafficContact"/> for why the
-    /// acquisition-range / hemisphere / bank geometry is deliberately not re-checked here.</description></item>
+    /// between them, or flight visibility collapses below the gap (AIM §5-5-12.a.2 / §4-4-14
+    /// NOTE). A lead that merely pulls ahead or slips behind is still followed; a growing gap
+    /// increases separation and is the controller's to re-sequence. See
+    /// <see cref="VisualDetection.TryMaintainTrafficContact"/> for why the type-detection-range /
+    /// hemisphere / bank geometry is deliberately not re-checked here.</description></item>
     /// </list>
     /// Pattern-phase OnTicks call this before applying their spacing adjustments;
     /// <see cref="Pattern.VfrFollowPhase.OnTick"/> delegates to it for the same checks.
@@ -180,10 +181,11 @@ public static class AirborneFollowHelper
         // §5-5-12.a.2 / §4-4-14 NOTE). A lead that merely pulls ahead (it is faster)
         // or slips behind is still followed — a growing gap *increases* separation and
         // is the controller's to re-sequence, never the follower's cue to break off.
-        // The maintained-contact check therefore runs only the weather obstruction (a
-        // BKN/OVC deck lying between the two aircraft) and skips the acquisition-range /
-        // forward-hemisphere / bank-occlusion geometry, which models finding unknown
-        // traffic rather than tracking traffic already called in sight.
+        // The maintained-contact check therefore runs only the weather obstructions (a
+        // BKN/OVC deck lying between the two aircraft, or a flight-visibility collapse
+        // below the gap) and skips the type-detection-range / forward-hemisphere /
+        // bank-occlusion geometry, which models finding unknown traffic rather than
+        // tracking traffic already called in sight.
         var contact = VisualAcquisition.TryMaintainTrafficContact(follower, lead, ctx.Weather);
         if (!contact.Acquired)
         {

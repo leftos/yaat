@@ -74,6 +74,16 @@ public static class VisualDetection
     private const double SmToNm = 0.869;
     private const double ClassAFloorFt = 18000.0;
 
+    // Tracking a target already foveated holds well past the range at which it could
+    // have been found — the same finding-vs-tracking asymmetry that removes the
+    // detection-range/hemisphere/bank gates from the maintain checks. AIM §8-1-6.c.2
+    // would license 10:1; 1.25 is a deliberately small credit whose job is only to
+    // suppress threshold chatter (gap and visibility are both continuous quantities,
+    // and one tick of boundary noise irreversibly cancels a follow via
+    // AirborneFollowHelper.CancelFollowHoldingLeg). Stateless by design: a
+    // consecutive-tick debounce would need new serialized state for snapshots/replay.
+    private const double MaintainVisibilityToleranceFactor = 1.25;
+
     // Forward-hemisphere gates. Traffic is a point target that must land inside
     // the pilot's forward scan to be recognized at all (AIM §8-1-6.c.2: ~10:1
     // foveal-to-peripheral recognition penalty), so it keeps the strict ±90°.
@@ -171,8 +181,10 @@ public static class VisualDetection
     /// <summary>
     /// Maintained-contact check for the airport, used after the pilot has already
     /// reported the field in sight. Runs ONLY weather-driven obstructions (Class A
-    /// floor, BKN/OVC layer above the aircraft); skips geometric checks
-    /// (BehindOwnship, OutOfRange, OppositeSideOfRunway, OccludedByBank).
+    /// floor, BKN/OVC layer above the aircraft, and a flight-visibility collapse
+    /// below the distance to the field); skips the target-finding geometric checks
+    /// (BehindOwnship, OppositeSideOfRunway, OccludedByBank, and the horizon /
+    /// conspicuity range caps).
     ///
     /// Rationale: the airport is a multi-acre polygon the pilot is approaching or
     /// overflying. Once acquired, only weather can realistically obscure it. The
@@ -182,13 +194,26 @@ public static class VisualDetection
     /// nose, even though the runway is directly under the cockpit.
     ///
     /// DistanceNm/MaxRangeNm in the result are zero (not meaningful for this
-    /// regime). Callers should read <see cref="VisualAcquisitionResult.Acquired"/>,
+    /// regime) except on an <see cref="VisualAcquisitionFailure.OutOfRange"/>
+    /// visibility failure, which carries the real distance and the visibility range.
+    /// Callers should read <see cref="VisualAcquisitionResult.Acquired"/>,
     /// <see cref="VisualAcquisitionResult.Reason"/>, and <see cref="VisualAcquisitionResult.BindingLayer"/>.
+    ///
+    /// <paramref name="fieldDistanceNm"/> is the distance to the nearest salient part
+    /// of the field — the minimum over the ARP and the assigned runway threshold ("field
+    /// in sight" means seeing ANY salient part, so the nearest one governs). INVARIANT:
+    /// it must never exceed the distance the acquisition path measured (the ARP), or the
+    /// maintain check can manufacture a loss the acquisition geometry would not have
+    /// allowed — at a sprawling field the assigned threshold can sit several nm FARTHER
+    /// than the ARP, and a threshold-only datum would acquire-and-lose at 1 Hz with no
+    /// weather change at all.
     /// </summary>
     public static VisualAcquisitionResult TryMaintainAirportContact(
         AircraftState aircraft,
         double airportElevation,
-        IReadOnlyList<MetarParser.CloudLayer>? layers
+        IReadOnlyList<MetarParser.CloudLayer>? layers,
+        double? visibilitySm,
+        double fieldDistanceNm
     )
     {
         // Class A: no visual approaches at or above FL180 (7110.65 §7-2-1.a).
@@ -204,6 +229,21 @@ public static class VisualDetection
         if (binding is { } above)
         {
             return VisualAcquisitionResult.FailLayer(VisualAcquisitionFailure.AboveCeiling, 0.0, 0.0, above);
+        }
+
+        // Flight-visibility collapse: fog or heavy haze that leaves the field farther
+        // away than the pilot can physically see genuinely breaks contact — unlike the
+        // finding-geometry caps, this is weather (AIM §5-5-11.a.3: the pilot must "at
+        // all times" have the airport or the preceding aircraft in sight). Visibility
+        // at or above the censored METAR maximum ("10 or more") asserts no limit
+        // (AIM §7-1-15).
+        if (visibilitySm is { } vis && vis < MetarParser.UnrestrictedVisibilitySm)
+        {
+            double visRangeNm = vis * SmToNm * MaintainVisibilityToleranceFactor;
+            if (fieldDistanceNm > visRangeNm)
+            {
+                return VisualAcquisitionResult.Fail(VisualAcquisitionFailure.OutOfRange, fieldDistanceNm, visRangeNm);
+            }
         }
 
         return VisualAcquisitionResult.Success(0.0, 0.0);
@@ -263,8 +303,9 @@ public static class VisualDetection
 
     /// <summary>
     /// Maintained-contact check for traffic the pilot has already reported in sight.
-    /// Runs ONLY the weather obstruction (a BKN/OVC layer lying between the two
-    /// aircraft) and skips every geometric check — <see cref="VisualAcquisitionFailure.OutOfRange"/>,
+    /// Runs ONLY the weather obstructions — a BKN/OVC layer lying between the two
+    /// aircraft, or a flight-visibility collapse below the gap to the target — and
+    /// skips the target-finding geometry: the type-based detection range,
     /// <see cref="VisualAcquisitionFailure.BehindOwnship"/>, <see cref="VisualAcquisitionFailure.OccludedByBank"/>.
     ///
     /// <para>
@@ -280,8 +321,10 @@ public static class VisualDetection
     /// </para>
     ///
     /// <para>
-    /// DistanceNm/MaxRangeNm in the result are zero (not meaningful for this regime), matching
-    /// <see cref="TryMaintainAirportContact"/>. Callers should read <see cref="VisualAcquisitionResult.Acquired"/>,
+    /// DistanceNm/MaxRangeNm in the result are zero (not meaningful for this regime) except on an
+    /// <see cref="VisualAcquisitionFailure.OutOfRange"/> visibility failure, which carries the real
+    /// distance and the visibility range — matching <see cref="TryMaintainAirportContact"/>. Callers
+    /// should read <see cref="VisualAcquisitionResult.Acquired"/>,
     /// <see cref="VisualAcquisitionResult.Reason"/>, and <see cref="VisualAcquisitionResult.BindingLayer"/>.
     /// </para>
     /// </summary>
@@ -289,13 +332,31 @@ public static class VisualDetection
         AircraftState ownship,
         AircraftState target,
         IReadOnlyList<MetarParser.CloudLayer>? layers,
-        double airportElevation
+        double airportElevation,
+        double? visibilitySm
     )
     {
         var obstructing = FindObstructingLayerBetween(ownship.Altitude, target.Altitude, airportElevation, layers);
         if (obstructing is { } mixed)
         {
             return VisualAcquisitionResult.FailLayer(VisualAcquisitionFailure.MixedCeiling, 0.0, 0.0, mixed);
+        }
+
+        // Flight-visibility collapse: a target farther away than the pilot can
+        // physically see through fog or heavy haze is genuinely lost — this is
+        // weather, not finding-geometry (AIM §5-5-11.a.3: the pilot must "at all
+        // times" have the airport or the preceding aircraft in sight). Visibility at
+        // or above the censored METAR maximum ("10 or more") asserts no limit
+        // (AIM §7-1-15), and the type-based detection range deliberately does not
+        // reapply here.
+        if (visibilitySm is { } vis && vis < MetarParser.UnrestrictedVisibilitySm)
+        {
+            double distance = GeoMath.DistanceNm(ownship.Position, target.Position);
+            double visRangeNm = vis * SmToNm * MaintainVisibilityToleranceFactor;
+            if (distance > visRangeNm)
+            {
+                return VisualAcquisitionResult.Fail(VisualAcquisitionFailure.OutOfRange, distance, visRangeNm);
+            }
         }
 
         return VisualAcquisitionResult.Success(0.0, 0.0);

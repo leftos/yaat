@@ -1034,6 +1034,42 @@ public class AirborneFollowTests : IDisposable
     }
 
     /// <summary>
+    /// A flight-visibility collapse below the gap to the lead also breaks the follow —
+    /// fog is weather, exactly like the BKN deck above (AIM §5-5-11.a.3: the pilot must
+    /// at all times have the airport or the preceding aircraft in sight). The gap here
+    /// (~3.35 nm) exceeds the maintained range for 3SM (3 × 0.869 × 1.25 ≈ 3.26 nm).
+    /// </summary>
+    [Fact]
+    public void CheckLeadLifecycle_Cancels_WhenVisibilityCollapsesBelowGap()
+    {
+        const string LeadCallsign = "LEAD";
+
+        using var _ = NavigationDatabase.ScopedOverride(
+            TestNavDbFactory.Make(
+                fixes: new Dictionary<string, (double Lat, double Lon)>(StringComparer.OrdinalIgnoreCase) { ["KTEST"] = (37.0, -122.0) },
+                runways: [DefaultRunway()]
+            )
+        );
+        var follower = MakeAircraft(callsign: "FOLL", type: "C172", lat: 37.00, lon: -122.0, altitude: 3000, followingCallsign: LeadCallsign);
+        var lead = MakeAircraft(callsign: LeadCallsign, type: "C172", lat: 37.00, lon: -121.93, altitude: 3000);
+
+        var weather = new WeatherProfile
+        {
+            ParsedMetarOverrides = new Dictionary<string, MetarParser.ParsedMetar>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["KTEST"] = new MetarParser.ParsedMetar("KTEST", null, [], 3.0),
+            },
+        };
+
+        var ctx = Ctx(follower, lookup: cs => cs == LeadCallsign ? lead : null, weather: weather);
+
+        bool cancelled = AirborneFollowHelper.CheckLeadLifecycle(ctx);
+
+        Assert.True(cancelled, "A visibility collapse below the gap to the lead must break off the follow (lost visual).");
+        Assert.Null(follower.Approach.FollowingCallsign);
+    }
+
+    /// <summary>
     /// Same leg, but the lead has been told to EXTEND it (here Crosswind). The gap
     /// grows as the lead runs outbound — the controller deliberately holding the lead
     /// ahead in the sequence. The follow must survive, exactly as it does for any other

@@ -63,6 +63,44 @@ public class VisualAcquisitionTests
         Assert.Equal(VisualAcquisitionFailure.MixedCeiling, result.Reason);
     }
 
+    // KOAK 3SM, no clouds: flight-visibility range 3 SM ≈ 2.6 nm. The target sits
+    // ~5 nm ahead (0.083° of latitude) at the same altitude — beyond what the pilot
+    // can physically see through the haze, so maintained contact breaks on
+    // visibility alone (no cloud layer involved).
+    private static WeatherProfile Oak3SmClear() => new() { Metars = ["KOAK 121853Z 27012KT 3SM CLR 20/12 A2992"] };
+
+    [Fact]
+    public void TryMaintainTrafficContact_VisibilityBelowGap_LosesContact()
+    {
+        var own = MakeAircraft(37.75, -122.221, heading: 180, altitude: 5000, destination: null);
+        var tgt = MakeAircraft(37.667, -122.221, heading: 180, altitude: 5000, destination: null);
+        var result = VisualAcquisition.TryMaintainTrafficContact(own, tgt, Oak3SmClear());
+        Assert.False(result.Acquired, "A 5 nm gap in 3SM visibility must break maintained contact");
+        Assert.Equal(VisualAcquisitionFailure.OutOfRange, result.Reason);
+    }
+
+    [Fact]
+    public void TryMaintainTrafficContact_GapInToleranceBand_KeepsContact()
+    {
+        // 3SM: the ACQUISITION visibility cap is 2.61 nm, but maintained contact
+        // carries a 1.25× tracking tolerance (≈3.26 nm) so threshold chatter between
+        // two continuously-varying quantities cannot irreversibly cancel a follow.
+        // 0.05° of latitude = 3.0 nm — beyond acquisition, inside the maintain band.
+        var own = MakeAircraft(37.75, -122.221, heading: 180, altitude: 5000, destination: null);
+        var tgt = MakeAircraft(37.70, -122.221, heading: 180, altitude: 5000, destination: null);
+        var result = VisualAcquisition.TryMaintainTrafficContact(own, tgt, Oak3SmClear());
+        Assert.True(result.Acquired, "A gap inside the 1.25× maintain tolerance must keep contact");
+    }
+
+    [Fact]
+    public void TryMaintainTrafficContact_GapWithinVisibility_KeepsContact()
+    {
+        var own = MakeAircraft(37.75, -122.221, heading: 180, altitude: 5000, destination: null);
+        var tgt = MakeAircraft(37.717, -122.221, heading: 180, altitude: 5000, destination: null);
+        var result = VisualAcquisition.TryMaintainTrafficContact(own, tgt, Oak3SmClear());
+        Assert.True(result.Acquired, "A ~2 nm gap in 3SM visibility stays within the flight-visibility range");
+    }
+
     private static AircraftState MakeAircraft(double lat, double lon, double heading, double altitude, string? destination)
     {
         var aircraft = new AircraftState

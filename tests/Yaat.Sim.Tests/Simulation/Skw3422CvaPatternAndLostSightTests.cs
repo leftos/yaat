@@ -154,8 +154,15 @@ public class Skw3422CvaPatternAndLostSightTests(ITestOutputHelper output)
         Assert.False(oldResult.Acquired);
         output.WriteLine($"Old TryAcquireAirportForRunway: Acquired=false, Reason={oldResult.Reason} (false positive — bug)");
 
-        // New method: weather/Class-A only, no geometric checks. Should acquire.
-        var maintained = VisualDetection.TryMaintainAirportContact(aircraft, airportElevation: 9.0, layers: null);
+        // New method: weather/Class-A only, no finding-geometry checks. Should acquire
+        // (10SM is the censored maximum, so visibility never caps here either).
+        var maintained = VisualDetection.TryMaintainAirportContact(
+            aircraft,
+            airportElevation: 9.0,
+            layers: null,
+            visibilitySm: 10.0,
+            fieldDistanceNm: GeoMath.DistanceNm(aircraft.Position, new LatLon(37.7240, -122.2199))
+        );
         Assert.True(
             maintained.Acquired,
             $"TryMaintainAirportContact should not lose sight of the field on short final; got Reason={maintained.Reason}"
@@ -305,7 +312,13 @@ public class Skw3422CvaPatternAndLostSightTests(ITestOutputHelper output)
 
         IReadOnlyList<MetarParser.CloudLayer> bkn1000 = [new MetarParser.CloudLayer(MetarParser.CloudCover.Broken, 1000)];
 
-        var result = VisualDetection.TryMaintainAirportContact(aircraft, airportElevation: 9.0, layers: bkn1000);
+        var result = VisualDetection.TryMaintainAirportContact(
+            aircraft,
+            airportElevation: 9.0,
+            layers: bkn1000,
+            visibilitySm: null,
+            fieldDistanceNm: GeoMath.DistanceNm(aircraft.Position, new LatLon(37.7213, -122.2207))
+        );
         Assert.False(result.Acquired);
         Assert.Equal(VisualAcquisitionFailure.AboveCeiling, result.Reason);
         Assert.NotNull(result.BindingLayer);

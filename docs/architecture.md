@@ -537,7 +537,7 @@ MetarIssuer.cs                 # Per-room state machine: routine METAR at :53 + 
 WindsAloftParser.cs            # Static: parses FAA FD fixed-width text → StationWinds[]; DecodeWind handles 100+kt, light/variable
 MagneticDeclination.cs         # Static: NOAA World Magnetic Model (WMM) declination via the Geo library; TrueToMagnetic/MagneticToTrue conversion
 VisualDetection.cs             # Static: TryAcquireAirport, TryAcquireAirportForRunway, TryAcquireTraffic, IsOccludedByBank
-                               # Maintained-contact variants (already-in-sight, weather-only): TryMaintainAirportContact, TryMaintainTrafficContact
+                               # Maintained-contact variants (already-in-sight, weather-only incl. visibility-collapse × 1.25 tolerance): TryMaintainAirportContact, TryMaintainTrafficContact
                                # Returns VisualAcquisitionResult { Acquired, Reason, DistanceNm, MaxRangeNm }
                                # VisualAcquisitionFailure enum: InClassA, AboveCeiling, MixedCeiling, BehindOwnship, OccludedByBank, OutOfRange, OppositeSideOfRunway
                                # Forward hemisphere, visibility, ceiling, bank angle occlusion (7110.65 §7-4-4.c.2), WTG-based traffic range
