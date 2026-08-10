@@ -70,8 +70,8 @@ public sealed class TouchAndGoPhase : Phase
         _thresholdLon = ctx.Runway?.ThresholdLongitude ?? ctx.Aircraft.Position.Lon;
         _rolloutDuration = CategoryPerformance.TouchAndGoRolloutSeconds(ctx.Category);
 
-        // Start decelerating on the runway
-        ctx.Aircraft.IsOnGround = true;
+        // Start decelerating on the runway (air → ground frame flip: the field becomes wheel speed)
+        GroundFrame.EnterGround(ctx.Aircraft, ctx.Aircraft.IndicatedAirspeed);
         ctx.Targets.TargetTrueHeading = _runwayHeading;
         ctx.Targets.PreferredTurnDirection = null;
         if (!ctx.Targets.HasExplicitTurnRate)
@@ -124,18 +124,15 @@ public sealed class TouchAndGoPhase : Phase
             double vr = AircraftPerformance.RotationSpeed(ctx.AircraftType, ctx.Category);
             double accelRate = AircraftPerformance.GroundAccelRate(ctx.AircraftType, ctx.Category);
 
-            double targetSpeed = ctx.Aircraft.IndicatedAirspeed + accelRate * ctx.DeltaSeconds;
-            if (targetSpeed >= vr)
-            {
-                targetSpeed = vr;
-            }
-            ctx.Aircraft.IndicatedAirspeed = targetSpeed;
+            // Ground-frame roll: integrate groundspeed, gate rotation on the indicated
+            // airspeed it implies (headwind + density corrected).
+            double groundSpeed = ctx.Aircraft.IndicatedAirspeed + (accelRate * ctx.DeltaSeconds);
             ctx.Targets.TargetSpeed = null;
 
-            if (ctx.Aircraft.IndicatedAirspeed >= vr)
+            if (GroundFrame.IasForGroundSpeed(ctx.Aircraft, groundSpeed) >= vr)
             {
                 _airborne = true;
-                ctx.Aircraft.IsOnGround = false;
+                GroundFrame.LeaveGround(ctx.Aircraft, vr);
                 Log.LogDebug("[TouchAndGo] {Callsign}: airborne at Vr={Vr:F0}kts", ctx.Aircraft.Callsign, vr);
 
                 double climbRate = AircraftPerformance.InitialClimbRate(ctx.AircraftType, ctx.Category);
@@ -145,6 +142,10 @@ public sealed class TouchAndGoPhase : Phase
                 ctx.Targets.TargetAltitude = targetAlt;
                 ctx.Targets.DesiredVerticalRate = climbRate;
                 ctx.Targets.TargetSpeed = climbSpeed;
+            }
+            else
+            {
+                ctx.Aircraft.IndicatedAirspeed = groundSpeed;
             }
         }
 

@@ -90,15 +90,30 @@ public class AircraftState
     public double Altitude { get; set; }
 
     /// <summary>
-    /// Most recently observed wind components in knots (North, East).
-    /// Updated by FlightPhysics each tick from the WeatherProfile at the aircraft's altitude.
-    /// Zero when no weather is loaded or aircraft is on the ground.
+    /// Most recently observed wind components in knots (North, East), in the direction the
+    /// wind blows TOWARD. Updated by FlightPhysics each tick from the WeatherProfile at the
+    /// aircraft's altitude, on the ground and airborne alike. Zero when no weather is loaded.
     /// </summary>
     public (double N, double E) WindComponents { get; internal set; }
 
     /// <summary>
-    /// Ground speed in knots. On the ground: equals IndicatedAirspeed.
-    /// Airborne: derived from IAS → TAS (altitude correction) plus cached wind vector.
+    /// Headwind component along the current heading, in knots (negative = tailwind).
+    /// Derived from the cached <see cref="WindComponents"/>, so it round-trips through
+    /// snapshots and replays with no extra state.
+    /// </summary>
+    public double HeadwindKts
+    {
+        get
+        {
+            double hdgRad = TrueHeading.Degrees * (Math.PI / 180.0);
+            return -((WindComponents.N * Math.Cos(hdgRad)) + (WindComponents.E * Math.Sin(hdgRad)));
+        }
+    }
+
+    /// <summary>
+    /// Ground speed in knots. On the ground: equals IndicatedAirspeed, which carries wheel
+    /// speed there (see that property's frame note). Airborne: derived from IAS → TAS
+    /// (altitude correction) plus cached wind vector.
     /// </summary>
     public double GroundSpeed
     {
@@ -118,8 +133,11 @@ public class AircraftState
     }
 
     /// <summary>
-    /// Indicated airspeed in knots. What the pilot flies and ATC commands.
-    /// Differs from GroundSpeed when wind is present or at altitude (TAS correction).
+    /// Airborne: indicated airspeed in knots — what the pilot flies and ATC commands.
+    /// ON THE GROUND this field carries groundspeed (wheel speed): taxi speeds, rollout
+    /// coast/exit speeds, and braking rates are all ground-frame quantities, and the ASI
+    /// is only meaningful at roll speeds. <see cref="GroundFrame"/> owns the conversions
+    /// at the liftoff/touchdown transitions.
     /// </summary>
     public double IndicatedAirspeed { get; set; }
 

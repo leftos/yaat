@@ -115,37 +115,40 @@ public sealed class TakeoffPhase : Phase
         double vr = AircraftPerformance.RotationSpeed(ctx.AircraftType, ctx.Category);
         double accelRate = AircraftPerformance.GroundAccelRate(ctx.AircraftType, ctx.Category);
 
-        // Accelerate toward Vr using ground acceleration rate
-        double targetSpeed = ctx.Aircraft.IndicatedAirspeed + accelRate * ctx.DeltaSeconds;
-        if (targetSpeed >= vr)
-        {
-            targetSpeed = vr;
-        }
-        ctx.Aircraft.IndicatedAirspeed = targetSpeed;
+        // The roll integrates GROUNDSPEED (the field's ground-frame meaning); the rotation
+        // gate is on INDICATED airspeed, which the headwind component and the density
+        // correction both feed — a 20 kt headwind lifts off ~20 kt of groundspeed earlier
+        // (v² law: ~25% less runway), a high-elevation field needs more.
+        double groundSpeed = ctx.Aircraft.IndicatedAirspeed + (accelRate * ctx.DeltaSeconds);
         ctx.Targets.TargetSpeed = null;
 
-        // Liftoff at Vr
-        if (ctx.Aircraft.IndicatedAirspeed >= vr)
+        // Liftoff at Vr indicated
+        if (GroundFrame.IasForGroundSpeed(ctx.Aircraft, groundSpeed) >= vr)
         {
             _airborne = true;
-            ctx.Aircraft.IsOnGround = false;
-            Log.LogDebug("[Takeoff] {Callsign}: airborne at Vr={Vr:F0}kts", ctx.Aircraft.Callsign, vr);
-
-            // Set climb targets
-            double climbRate = AircraftPerformance.InitialClimbRate(ctx.AircraftType, ctx.Category);
-            double climbSpeed = AircraftPerformance.InitialClimbSpeed(ctx.AircraftType, ctx.Category);
-            ctx.Targets.TargetAltitude = _fieldElevation + CompletionAgl;
-            ctx.Targets.DesiredVerticalRate = climbRate;
-            ctx.Targets.TargetSpeed = climbSpeed;
-
-            // Heading remains the runway heading throughout the airborne portion of
-            // TakeoffPhase. The assigned departure heading (relative turn / fly heading /
-            // direct fix) is applied later by InitialClimbPhase once the aircraft reaches a
-            // safe minimum altitude — TERPS-style 400 ft AGL for IFR (AIM 5-2-9.e.1), or
-            // pattern altitude − 300 ft AND past the departure end of runway for VFR (AIM 4-3-2).
+            GroundFrame.LeaveGround(ctx.Aircraft, vr);
+            Log.LogDebug("[Takeoff] {Callsign}: airborne at Vr={Vr:F0}kts (gs={Gs:F0}kts)", ctx.Aircraft.Callsign, vr, ctx.Aircraft.GroundSpeed);
+            SetInitialClimbTargets(ctx);
+            return false;
         }
 
+        ctx.Aircraft.IndicatedAirspeed = groundSpeed;
         return false;
+    }
+
+    private void SetInitialClimbTargets(PhaseContext ctx)
+    {
+        double climbRate = AircraftPerformance.InitialClimbRate(ctx.AircraftType, ctx.Category);
+        double climbSpeed = AircraftPerformance.InitialClimbSpeed(ctx.AircraftType, ctx.Category);
+        ctx.Targets.TargetAltitude = _fieldElevation + CompletionAgl;
+        ctx.Targets.DesiredVerticalRate = climbRate;
+        ctx.Targets.TargetSpeed = climbSpeed;
+
+        // Heading remains the runway heading throughout the airborne portion of
+        // TakeoffPhase. The assigned departure heading (relative turn / fly heading /
+        // direct fix) is applied later by InitialClimbPhase once the aircraft reaches a
+        // safe minimum altitude — TERPS-style 400 ft AGL for IFR (AIM 5-2-9.e.1), or
+        // pattern altitude − 300 ft AND past the departure end of runway for VFR (AIM 4-3-2).
     }
 
     private static bool TickAirborneClimb(double agl)

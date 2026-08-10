@@ -604,11 +604,12 @@ public sealed class LandingPhase : Phase
             ctx.Aircraft.Phases.ForceLanding = false;
         }
 
-        // Snap IAS down to Vtd if flare overshot it — prevents rollout from starting too fast.
-        if (ctx.Aircraft.IndicatedAirspeed > plan.Vtd)
-        {
-            ctx.Aircraft.IndicatedAirspeed = plan.Vtd;
-        }
+        // Air → ground frame flip: the field becomes wheel speed. Snap the airborne IAS to
+        // Vtd if the flare overshot it, then convert — touchdown groundspeed is touchdown
+        // TAS minus the headwind component, so a 15 kt headwind shortens the rollout by
+        // the v² law and makes an earlier exit reachable.
+        double touchdownIas = Math.Min(ctx.Aircraft.IndicatedAirspeed, plan.Vtd);
+        GroundFrame.EnterGround(ctx.Aircraft, touchdownIas);
 
         _touchdownLat = ctx.Aircraft.Position.Lat;
         _touchdownLon = ctx.Aircraft.Position.Lon;

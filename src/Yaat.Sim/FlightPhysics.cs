@@ -1172,6 +1172,11 @@ public static class FlightPhysics
         var pos = aircraft.Position;
         double latRad = pos.Lat * DegToRad;
 
+        // Cache wind on the ground too: motion there is wheel-driven (track = heading, no
+        // vector sum), but the takeoff roll's rotation gate and the touchdown frame flip
+        // read AircraftState.HeadwindKts from this cache.
+        aircraft.WindComponents = WindInterpolator.GetWindComponents(weather, aircraft.Altitude, simTimeSeconds, windPhaseSeconds);
+
         if (aircraft.IsOnGround)
         {
             // Enforce ground conflict speed limit before computing displacement.
@@ -1196,14 +1201,10 @@ public static class FlightPhysics
             // Airborne: derive ground speed vector from TAS + wind.
             double tasKts = WindInterpolator.IasToTas(aircraft.IndicatedAirspeed, aircraft.Altitude);
             double headingRad = aircraft.TrueHeading.Degrees * DegToRad;
-            var (windNKts, windEKts) = WindInterpolator.GetWindComponents(weather, aircraft.Altitude, simTimeSeconds, windPhaseSeconds);
-
-            // Cache wind so AircraftState.GroundSpeed can derive the correct value without weather context.
-            aircraft.WindComponents = (windNKts, windEKts);
 
             // Ground speed vector (knots, N/E components).
-            double gsNKts = tasKts * Math.Cos(headingRad) + windNKts;
-            double gsEKts = tasKts * Math.Sin(headingRad) + windEKts;
+            double gsNKts = tasKts * Math.Cos(headingRad) + aircraft.WindComponents.N;
+            double gsEKts = tasKts * Math.Sin(headingRad) + aircraft.WindComponents.E;
 
             double trackDeg = Math.Atan2(gsEKts, gsNKts) * (180.0 / Math.PI);
             if (trackDeg < 0)

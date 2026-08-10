@@ -60,7 +60,8 @@ public sealed class AirTaxiPhase : Phase
         if (ctx.Aircraft.IsOnGround)
         {
             _liftingOff = true;
-            ctx.Aircraft.IsOnGround = false;
+            // Ground → air: the ground-frame taxi speed becomes the equivalent indicated airspeed.
+            GroundFrame.LeaveGround(ctx.Aircraft, GroundFrame.IasForGroundSpeed(ctx.Aircraft, ctx.Aircraft.IndicatedAirspeed));
             ctx.Targets.TargetAltitude = _targetAltitude;
             ctx.Targets.DesiredVerticalRate = AircraftPerformance.InitialClimbRate(ctx.AircraftType, ctx.Category);
         }
