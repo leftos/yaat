@@ -64,4 +64,71 @@ public class LiveWeatherServiceTests
         Assert.Equal(320, ccr.Wdir);
         Assert.Equal(7, ccr.Wspd);
     }
+
+    // -------------------------------------------------------------------------
+    // Surface layer assembly: VRB stations, gusts, and dddVddd spreads
+    // -------------------------------------------------------------------------
+
+    private static LiveWeatherService.MetarJson Station(string rawOb, int? wdir, int? wspd) =>
+        new()
+        {
+            RawOb = rawOb,
+            Wdir = wdir,
+            Wspd = wspd,
+        };
+
+    [Fact]
+    public void BuildSurfaceWindLayer_VrbStation_ContributesSpeedNotDirection()
+    {
+        // The VRB station's 6 kt joins the speed average; the direction average comes from
+        // the directional stations alone.
+        var layer = LiveWeatherService.BuildSurfaceWindLayer([
+            Station("METAR KOAK 081953Z 27010KT 10SM CLR 21/12 A2999", 270, 10),
+            Station("METAR KLVK 081953Z VRB06KT 10SM CLR 24/09 A2997", null, 6),
+        ]);
+
+        Assert.NotNull(layer);
+        Assert.Equal(270, layer.Direction, 1);
+        Assert.Equal(8, layer.Speed, 1);
+        Assert.Null(layer.Variable);
+    }
+
+    [Fact]
+    public void BuildSurfaceWindLayer_AllVrb_ProducesVariableLayer()
+    {
+        var layer = LiveWeatherService.BuildSurfaceWindLayer([
+            Station("METAR KOAK 081953Z VRB04KT 10SM CLR 21/12 A2999", null, 4),
+            Station("METAR KLVK 081953Z VRB06KT 10SM CLR 24/09 A2997", null, 6),
+        ]);
+
+        Assert.NotNull(layer);
+        Assert.True(layer.Variable);
+        Assert.Equal(5, layer.Speed, 1);
+    }
+
+    [Fact]
+    public void BuildSurfaceWindLayer_GustsAndSpread_MinedFromRawText()
+    {
+        // 21015G25KT 180V240 → gusts 25, half-spread 30 on the assembled layer.
+        var layer = LiveWeatherService.BuildSurfaceWindLayer([Station("METAR KOAK 081953Z 21015G25KT 180V240 10SM CLR 21/12 A2999", 210, 15)]);
+
+        Assert.NotNull(layer);
+        Assert.Equal(210, layer.Direction, 1);
+        Assert.Equal(15, layer.Speed, 1);
+        Assert.NotNull(layer.Gusts);
+        Assert.Equal(25, layer.Gusts!.Value, 1);
+        Assert.NotNull(layer.DirectionVariabilityDeg);
+        Assert.Equal(30, layer.DirectionVariabilityDeg!.Value, 1);
+    }
+
+    [Fact]
+    public void BuildSurfaceWindLayer_SteadyStations_NoSpuriousVariability()
+    {
+        var layer = LiveWeatherService.BuildSurfaceWindLayer([Station("METAR KOAK 081953Z 27010KT 10SM CLR 21/12 A2999", 270, 10)]);
+
+        Assert.NotNull(layer);
+        Assert.Null(layer.Gusts);
+        Assert.Null(layer.DirectionVariabilityDeg);
+        Assert.Null(layer.Variable);
+    }
 }

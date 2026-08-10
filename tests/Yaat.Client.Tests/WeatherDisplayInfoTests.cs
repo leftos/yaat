@@ -42,4 +42,20 @@ public class WeatherDisplayInfoTests
 
         Assert.Equal("OAK VRB04KT", info.ToDisplayString());
     }
+
+    [Fact]
+    public void ToDisplayString_VariableDirectionGroup_RendersAfterWind()
+    {
+        var info = new WeatherDisplayInfo(
+            "OAK",
+            WindDirectionDeg: 210,
+            WindSpeedKts: 15,
+            WindGustKts: 25,
+            AltimeterInHg: null,
+            WindVarFromDeg: 180,
+            WindVarToDeg: 240
+        );
+
+        Assert.Equal("OAK 21015G25KT 180V240", info.ToDisplayString());
+    }
 }

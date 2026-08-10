@@ -37,6 +37,8 @@
                 <DataGridTextColumn Header="Dir (°)" Binding="{Binding Direction}" Width="70" />
                 <DataGridTextColumn Header="Speed (kt)" Binding="{Binding Speed}" Width="80" />
                 <DataGridTextColumn Header="Gusts (kt)" Binding="{Binding Gusts}" Width="80" />
+                <DataGridTextColumn Header="±Var (°)" Binding="{Binding DirectionVariabilityDeg}" Width="70" />
+                <DataGridCheckBoxColumn Header="VRB" Binding="{Binding Variable}" Width="50" />
                 <DataGridTemplateColumn Header="" Width="40">
                     <DataGridTemplateColumn.CellTemplate>
                         <DataTemplate x:DataType="vm:WindLayerRow">

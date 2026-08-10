@@ -18,6 +18,14 @@ public partial class WindLayerRow : ObservableObject
 
     [ObservableProperty]
     private double? _gusts;
+
+    /// <summary>Half-spread of direction variability (± degrees around the mean); null = steady direction.</summary>
+    [ObservableProperty]
+    private double? _directionVariabilityDeg;
+
+    /// <summary>VRB wind: no prevailing direction, wanders the full circle.</summary>
+    [ObservableProperty]
+    private bool _variable;
 }
 
 public partial class MetarRow : ObservableObject
@@ -89,6 +97,8 @@ public partial class WeatherPeriodViewModel : ObservableObject
                     Direction = w.Direction,
                     Speed = w.Speed,
                     Gusts = w.Gusts,
+                    DirectionVariabilityDeg = w.DirectionVariabilityDeg,
+                    Variable = w.Variable ? true : null,
                 })
                 .ToList(),
             Metars = Metars.Where(m => !string.IsNullOrWhiteSpace(m.Text)).Select(m => m.Text.Trim()).ToList(),
@@ -113,6 +123,8 @@ public partial class WeatherPeriodViewModel : ObservableObject
                     Direction = layer.Direction,
                     Speed = layer.Speed,
                     Gusts = layer.Gusts,
+                    DirectionVariabilityDeg = layer.DirectionVariabilityDeg,
+                    Variable = layer.Variable ?? false,
                 }
             );
         }
@@ -143,6 +155,8 @@ public partial class WeatherPeriodViewModel : ObservableObject
                     Direction = layer.Direction,
                     Speed = layer.Speed,
                     Gusts = layer.Gusts,
+                    DirectionVariabilityDeg = layer.DirectionVariabilityDeg,
+                    Variable = layer.Variable ?? false,
                 }
             );
         }

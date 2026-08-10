@@ -18,12 +18,15 @@ public record WeatherDisplayInfo(
     double? AltimeterInHg,
     // Cloud ceiling (lowest BKN/OVC base) in feet AGL, or null when clear / scattered-only. The ground
     // view keeps an aircraft visible until it climbs through the ceiling (or 6,000 ft AGL if clear).
-    int? CeilingFeetAgl = null
+    int? CeilingFeetAgl = null,
+    // The METAR dddVddd variable-direction extremes (clockwise), when the report carries them.
+    int? WindVarFromDeg = null,
+    int? WindVarToDeg = null
 )
 {
     public string ToDisplayString()
     {
-        var parts = new List<string>(3);
+        var parts = new List<string>(4);
 
         if (StationId is not null)
         {
@@ -47,6 +50,11 @@ public record WeatherDisplayInfo(
 
             wind += "KT";
             parts.Add(wind);
+
+            if (WindVarFromDeg is { } varFrom && WindVarToDeg is { } varTo)
+            {
+                parts.Add($"{varFrom:D3}V{varTo:D3}");
+            }
         }
 
         return string.Join(" ", parts);
@@ -384,7 +392,9 @@ public partial class MainViewModel
                     parsed.WindSpeedKts,
                     parsed.WindGustKts,
                     parsed.AltimeterInHg,
-                    parsed.CeilingFeetAgl
+                    parsed.CeilingFeetAgl,
+                    parsed.WindVarFromDeg,
+                    parsed.WindVarToDeg
                 )
             );
         }

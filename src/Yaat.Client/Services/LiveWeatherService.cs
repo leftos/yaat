@@ -236,41 +236,102 @@ public sealed class LiveWeatherService
         return layers;
     }
 
-    private static WindLayer? BuildSurfaceWindLayer(List<MetarJson> metars)
+    public static WindLayer? BuildSurfaceWindLayer(List<MetarJson> metars)
     {
+        // Parse each station's raw METAR so VRB winds, gusts, and dddVddd spreads all
+        // contribute — the JSON Wdir/Wspd fields are the fallback when the text is absent.
+        // Directional stations vector-average; VRB stations contribute speed only (their
+        // direction is undefined), and an all-VRB region produces a Variable layer.
         double sinSum = 0,
             cosSum = 0,
             speedSum = 0;
-        int count = 0;
+        int directionalCount = 0;
+        int speedCount = 0;
+        int vrbCount = 0;
+        double gustSum = 0;
+        int gustCount = 0;
+        double halfSpreadSum = 0;
+        int halfSpreadCount = 0;
 
         foreach (var m in metars)
         {
-            if (m.Wdir is not { } dir || m.Wspd is not { } spd)
+            var parsed = string.IsNullOrWhiteSpace(m.RawOb) ? null : MetarParser.Parse(m.RawOb);
+            int? dir = parsed?.WindDirectionDeg ?? m.Wdir;
+            int? spd = parsed?.WindSpeedKts ?? m.Wspd;
+            bool variable = parsed?.WindVariable ?? ((m.Wdir is null) && (m.Wspd is not null));
+
+            if (spd is not { } speed)
             {
                 continue;
             }
 
-            if (dir == 0 && spd == 0)
+            if (variable)
+            {
+                if (speed > 0)
+                {
+                    speedSum += speed;
+                    speedCount++;
+                    vrbCount++;
+                }
+            }
+            else if (dir is { } direction)
+            {
+                if (direction == 0 && speed == 0)
+                {
+                    continue;
+                }
+
+                double rad = direction * Math.PI / 180.0;
+                sinSum += Math.Sin(rad);
+                cosSum += Math.Cos(rad);
+                speedSum += speed;
+                speedCount++;
+                directionalCount++;
+            }
+            else
             {
                 continue;
             }
 
-            double rad = dir * Math.PI / 180.0;
-            sinSum += Math.Sin(rad);
-            cosSum += Math.Cos(rad);
-            speedSum += spd;
-            count++;
+            if (parsed?.WindGustKts is { } gust && gust > speed)
+            {
+                gustSum += gust;
+                gustCount++;
+            }
+
+            if (parsed is { WindVarFromDeg: { } varFrom, WindVarToDeg: { } varTo })
+            {
+                double arc = ((varTo - varFrom) + 360) % 360;
+                if (arc > 0)
+                {
+                    halfSpreadSum += arc / 2.0;
+                    halfSpreadCount++;
+                }
+            }
         }
 
-        if (count == 0)
+        if (speedCount == 0)
         {
             return null;
         }
 
-        double avgDir = Math.Atan2(sinSum / count, cosSum / count) * 180.0 / Math.PI;
-        if (avgDir < 0)
+        double avgSpeed = speedSum / speedCount;
+        bool allVariable = directionalCount == 0;
+
+        double avgDir = 0;
+        if (!allVariable)
         {
-            avgDir += 360.0;
+            avgDir = Math.Atan2(sinSum / directionalCount, cosSum / directionalCount) * 180.0 / Math.PI;
+            if (avgDir < 0)
+            {
+                avgDir += 360.0;
+            }
+        }
+
+        double? avgGust = gustCount > 0 ? Math.Round(gustSum / gustCount, 1) : null;
+        if (avgGust is { } g && g <= avgSpeed)
+        {
+            avgGust = null;
         }
 
         // METAR wind directions are already magnetic — no conversion needed
@@ -279,7 +340,10 @@ public sealed class LiveWeatherService
             Id = "surface",
             Altitude = 0,
             Direction = Math.Round(avgDir, 1),
-            Speed = Math.Round(speedSum / count, 1),
+            Speed = Math.Round(avgSpeed, 1),
+            Gusts = avgGust,
+            DirectionVariabilityDeg = halfSpreadCount > 0 ? Math.Round(halfSpreadSum / halfSpreadCount, 1) : null,
+            Variable = allVariable ? true : null,
         };
     }
 
