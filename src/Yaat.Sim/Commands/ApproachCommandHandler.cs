@@ -558,8 +558,19 @@ public static class ApproachCommandHandler
         // Clear assigned heading — approach takes over steering
         aircraft.Targets.AssignedMagneticHeading = null;
 
+        // The clearance is predicated on these reports (the acquisition gate above) —
+        // ClearExistingPhases wipes them as generic approach state, so restore the basis the
+        // gate consumed. Without this every CVA opens with both flags false: the pilot
+        // re-reports a field they already reported, and the AIM §5-5-11.a.3 lost-reference
+        // consequence would read a freshly-cleared visual as "nothing in sight". The traffic
+        // report only carries when this clearance actually follows someone.
+        bool hadFieldReport = aircraft.Approach.HasReportedFieldInSight;
+        bool hadTrafficReport = aircraft.Approach.HasReportedTrafficInSight;
+
         // Clear existing phases
         ClearExistingPhases(aircraft);
+        aircraft.Approach.HasReportedFieldInSight = hadFieldReport;
+        aircraft.Approach.HasReportedTrafficInSight = (cmd.FollowCallsign is not null) && hadTrafficReport;
 
         var clearance = new ApproachClearance
         {

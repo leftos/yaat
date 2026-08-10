@@ -969,6 +969,7 @@ public sealed class SimulationEngine
             // Bank angle affects initial acquisition only — once acquired, pilot can track through turns.
             var runway = ac.Phases.AssignedRunway;
             double airportSizeCapNm = VisualAcquisition.AirportSizeCapNm(airport);
+            bool fieldLostThisTick = false;
 
             if (!ac.Approach.HasReportedFieldInSight)
             {
@@ -1050,12 +1051,7 @@ public sealed class SimulationEngine
                 if (!maintainResult.Acquired)
                 {
                     ac.Approach.HasReportedFieldInSight = false;
-                    PilotResponder.RouteRpoTransmission(
-                        ac,
-                        scenario.SoloTrainingMode,
-                        scenario.RpoShowPilotSpeech,
-                        PilotResponder.BuildLostSightOfField(ac)
-                    );
+                    fieldLostThisTick = true;
                     _logger.LogWarning(
                         "Field loss: {Callsign} lost sight of {Airport} at t={T}s (alt={Alt}ft, vis={Vis}sm, ceil={Ceil}ft AGL)",
                         ac.Callsign,
@@ -1065,10 +1061,26 @@ public sealed class SimulationEngine
                         visibilitySm,
                         primaryCeilingForLogs
                     );
+
+                    // AIM §5-5-11.a.3 disjunction: still following with the traffic in sight →
+                    // legal steady state (§7-4-3.c.2 NOTE — the field report was never required
+                    // on a FOLLOW clearance), stay silent on frequency. Otherwise the field was
+                    // the only reference — the visual is no longer legal and ends here.
+                    bool trafficStillHeld = (ac.Approach.FollowingCallsign is not null) && ac.Approach.HasReportedTrafficInSight;
+                    if (!trafficStillHeld)
+                    {
+                        VisualApproachHelper.EndVisualLostReference(BuildPhaseContext(ac, 0.0), true, false, null);
+                    }
                 }
             }
 
-            // Traffic in sight check (for FOLLOW variant)
+            // Traffic in sight check (for FOLLOW variant). Weather for BOTH the acquire
+            // and maintain paths comes from the air mass the follower is flying in — the
+            // nearest reporting station to its position, via the VisualAcquisition
+            // wrappers — never from the destination METAR used by the field branch above.
+            // AirborneFollowHelper.CheckLeadLifecycle and PilotObservationUpdater use the
+            // same wrappers; a destination-sourced check here would judge the same
+            // follower against two different cloud decks/visibilities in the same tick.
             if (ac.Approach.FollowingCallsign is { } followCs)
             {
                 var target = snapshot.FirstOrDefault(t => t.Callsign.Equals(followCs, StringComparison.OrdinalIgnoreCase));
@@ -1076,18 +1088,14 @@ public sealed class SimulationEngine
                 {
                     if (!ac.Approach.HasReportedTrafficInSight)
                     {
-                        // Initial acquisition: use actual bank angle
-                        var acquireTrafficResult = VisualDetection.TryAcquireTraffic(
-                            ac,
-                            target,
-                            layers,
-                            aptElevation.Value,
-                            visibilitySm,
-                            ac.BankAngle
-                        );
+                        var acquireTrafficResult = VisualAcquisition.TryAcquireTraffic(ac, target, weather);
                         if (acquireTrafficResult.Acquired)
                         {
                             ac.Approach.HasReportedTrafficInSight = true;
+                            // Stamp the identity with the report — the CVA FOLLOW gate verifies
+                            // the report names the traffic being followed, and a bare FOLLOW
+                            // defaults to the last-reported callsign.
+                            ac.Approach.LastReportedTrafficCallsign = followCs.ToUpperInvariant();
                             PilotResponder.RouteRpoTransmission(
                                 ac,
                                 scenario.SoloTrainingMode,
@@ -1095,12 +1103,12 @@ public sealed class SimulationEngine
                                 PilotResponder.BuildTrafficInSight(ac, followCs)
                             );
                             _logger.LogInformation(
-                                "Traffic acquisition: {Callsign} acquired {Target} at t={T}s (dist={Dist}nm, vis={Vis}sm)",
+                                "Traffic acquisition: {Callsign} acquired {Target} at t={T}s (dist={Dist}nm, maxRange={MaxRange}nm)",
                                 ac.Callsign,
                                 followCs,
                                 scenario.ElapsedSeconds,
-                                GeoMath.DistanceNm(ac.Position, target.Position),
-                                visibilitySm
+                                acquireTrafficResult.DistanceNm,
+                                acquireTrafficResult.MaxRangeNm
                             );
                         }
                     }
@@ -1115,23 +1123,22 @@ public sealed class SimulationEngine
                         // §4-4-14 NOTE). A flight-visibility collapse below the gap DOES break
                         // contact — that is weather, not finding-geometry (AIM §5-5-11.a.3).
                         // Mirrors the field-maintain path above and AirborneFollowHelper.
-                        var maintainTrafficResult = VisualDetection.TryMaintainTrafficContact(ac, target, layers, aptElevation.Value, visibilitySm);
+                        var maintainTrafficResult = VisualAcquisition.TryMaintainTrafficContact(ac, target, weather);
                         if (!maintainTrafficResult.Acquired)
                         {
                             ac.Approach.HasReportedTrafficInSight = false;
-                            PilotResponder.RouteRpoTransmission(
-                                ac,
-                                scenario.SoloTrainingMode,
-                                scenario.RpoShowPilotSpeech,
-                                PilotResponder.BuildLostSightOfTraffic(ac, followCs).Tts,
-                                $"{ac.Callsign} has lost sight of the traffic"
-                            );
                             _logger.LogWarning(
-                                "Traffic loss: {Callsign} lost sight of {Target} at t={T}s",
+                                "Traffic loss: {Callsign} lost sight of {Target} at t={T}s ({Reason})",
                                 ac.Callsign,
                                 followCs,
-                                scenario.ElapsedSeconds
+                                scenario.ElapsedSeconds,
+                                maintainTrafficResult.Reason
                             );
+                            // Consequence (transmission, follow handback, or end-of-visual when
+                            // nothing else is in sight) is owned by VisualApproachHelper — the
+                            // same handler CheckLeadLifecycle routes to, so the loss event gets
+                            // one outcome regardless of which detector saw it first.
+                            VisualApproachHelper.HandleTrafficContactLost(BuildPhaseContext(ac, 0.0), followCs, fieldLostThisTick);
                         }
                     }
                 }
@@ -1144,6 +1151,29 @@ public sealed class SimulationEngine
                         scenario.ElapsedSeconds
                     );
                 }
+            }
+
+            // AIM §5-5-11.a.3 backstop: a visual approach with NOTHING in sight and no loss
+            // event this tick still ends. Reached when the follow was torn down elsewhere
+            // (e.g. the lead landed under CheckLeadLifecycle while the field was never
+            // reported — the acquisition attempt above got its chance first) or when
+            // restored state carries a clearance with no basis. The loss-event paths above
+            // void the clearance when they fire, so this only sees aircraft they skipped.
+            if (
+                (ac.Phases?.ActiveApproach?.ApproachId.StartsWith("VIS", StringComparison.Ordinal) == true)
+                && (!ac.IsOnGround)
+                && (ac.Phases.CurrentPhase is not GoAroundPhase)
+                && (!ac.Approach.HasReportedFieldInSight)
+                && (!((ac.Approach.FollowingCallsign is not null) && ac.Approach.HasReportedTrafficInSight))
+            )
+            {
+                _logger.LogWarning(
+                    "Visual reference lost: {Callsign} has neither the field nor traffic in sight on {Approach} at t={T}s — ending the visual",
+                    ac.Callsign,
+                    ac.Phases.ActiveApproach.ApproachId,
+                    scenario.ElapsedSeconds
+                );
+                VisualApproachHelper.EndVisualLostReference(BuildPhaseContext(ac, 0.0), false, false, null);
             }
         }
     }
@@ -2872,12 +2902,26 @@ public sealed class SimulationEngine
             return;
         }
 
+        PhaseRunner.Tick(aircraft, BuildPhaseContext(aircraft, deltaSeconds));
+    }
+
+    /// <summary>
+    /// Builds the full-fidelity <see cref="PhaseContext"/> the phase machinery runs under.
+    /// Shared by the per-sub-tick <see cref="PreTick"/> and by post-physics consumers that
+    /// need to drive phase-level consequences outside the phase loop (e.g.
+    /// <see cref="TickVisualDetection"/> ending a visual approach) — those pass
+    /// <paramref name="deltaSeconds"/> 0. <c>CommandDispatcher.BuildMinimalContext</c> is NOT
+    /// a substitute: it leaves the solo-training/RPO routing fields unset, which misroutes
+    /// pilot transmissions.
+    /// </summary>
+    private PhaseContext BuildPhaseContext(AircraftState aircraft, double deltaSeconds)
+    {
         var cat = AircraftCategorization.Categorize(aircraft.AircraftType);
-        var runway = aircraft.Phases.AssignedRunway;
+        var runway = aircraft.Phases?.AssignedRunway;
         var groundLayout = aircraft.Ground.Layout ?? ResolveGroundLayout(aircraft);
         var occupiedNodes = _occupiedHoldShortNodes;
 
-        var ctx = new PhaseContext
+        return new PhaseContext
         {
             Aircraft = aircraft,
             Targets = aircraft.Targets,
@@ -2914,8 +2958,6 @@ public sealed class SimulationEngine
             // need a way to resolve the lead aircraft by callsign.
             AircraftLookup = World.FindAircraft,
         };
-
-        PhaseRunner.Tick(aircraft, ctx);
     }
 
     private void ProcessDelayedSpawns(List<AircraftState> spawned)
