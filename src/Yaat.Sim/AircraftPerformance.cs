@@ -339,6 +339,33 @@ public static class AircraftPerformance
         return CategoryPerformance.ApproachSpeed(cat);
     }
 
+    /// <summary>Boeing FCTM / Airbus FCOM cap on the wind additive applied to Vref.</summary>
+    private const double MaxGustIncrementKts = 20.0;
+
+    /// <summary>
+    /// Approach-speed wind additive for gusty conditions: pilots fly Vref plus half the
+    /// gust increment (reported gust minus sustained wind), the increment capped at 20 kt
+    /// (Boeing FCTM / Airbus FCOM technique). Zero in steady or VRB (light) wind. Uses the
+    /// surface layer's resolved gust excess so a spread-only layer that the sim gusts by
+    /// cross-derivation gets the same additive pilots would fly from its reported G group.
+    /// </summary>
+    public static double GustApproachAdditive(WeatherProfile? weather)
+    {
+        if (weather is null || weather.WindLayers.Count == 0)
+        {
+            return 0;
+        }
+
+        var surface = weather.WindLayers[0];
+        if (surface.Variable ?? false)
+        {
+            return 0;
+        }
+
+        var (gustExcess, _) = WindVariation.ResolveAmplitudes(surface.Speed, surface.Gusts, surface.DirectionVariabilityDeg, variable: false);
+        return Math.Min(gustExcess, MaxGustIncrementKts) / 2.0;
+    }
+
     public static double TouchdownSpeed(string aircraftType, AircraftCategory cat)
     {
         var p = AircraftProfileDatabase.Get(aircraftType);

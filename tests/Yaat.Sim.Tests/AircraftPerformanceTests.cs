@@ -399,4 +399,73 @@ public sealed class AircraftPerformanceTests
         double v = CategoryPerformance.TurnRateLimitedSpeedKts(AircraftCategory.Jet, 0.5);
         Assert.Equal(CategoryPerformance.SlowTurnSpeedKts, v, 3);
     }
+
+    // -------------------------------------------------------------------------
+    // Gust approach additive (Vapp = Vref + min(gust increment, 20)/2)
+    // -------------------------------------------------------------------------
+
+    [Fact]
+    public void GustApproachAdditive_NoWeatherOrSteadyWind_Zero()
+    {
+        Assert.Equal(0, AircraftPerformance.GustApproachAdditive(null));
+        var steady = new WeatherProfile { WindLayers = [new WindLayer { Direction = 210, Speed = 15 }] };
+        Assert.Equal(0, AircraftPerformance.GustApproachAdditive(steady));
+    }
+
+    [Fact]
+    public void GustApproachAdditive_HalfTheGustIncrement()
+    {
+        // 18G28: increment 10 -> additive 5.
+        var gusty = new WeatherProfile
+        {
+            WindLayers =
+            [
+                new WindLayer
+                {
+                    Direction = 210,
+                    Speed = 18,
+                    Gusts = 28,
+                },
+            ],
+        };
+        Assert.Equal(5.0, AircraftPerformance.GustApproachAdditive(gusty), 3);
+    }
+
+    [Fact]
+    public void GustApproachAdditive_IncrementCappedAtTwenty()
+    {
+        // 20G45 clamps to the 2.5x gust-factor sanity bound (excess 30), then the
+        // FCTM 20 kt increment cap applies -> additive 10.
+        var severe = new WeatherProfile
+        {
+            WindLayers =
+            [
+                new WindLayer
+                {
+                    Direction = 210,
+                    Speed = 20,
+                    Gusts = 45,
+                },
+            ],
+        };
+        Assert.Equal(10.0, AircraftPerformance.GustApproachAdditive(severe), 3);
+    }
+
+    [Fact]
+    public void GustApproachAdditive_VrbWind_Zero()
+    {
+        var vrb = new WeatherProfile
+        {
+            WindLayers =
+            [
+                new WindLayer
+                {
+                    Direction = 270,
+                    Speed = 4,
+                    Variable = true,
+                },
+            ],
+        };
+        Assert.Equal(0, AircraftPerformance.GustApproachAdditive(vrb));
+    }
 }
