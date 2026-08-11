@@ -599,6 +599,13 @@ public partial class GroundView : UserControl
                 {
                     menu.Items.Add(pushSubmenu);
                 }
+
+                // A parked aircraft can start up and trail another ground aircraft, but
+                // give-way needs an assigned taxi route, which a parked aircraft never has.
+                if (!isRelative)
+                {
+                    AddFollowBehindSubmenus(menu, ac, callsign, initials, includeGiveWay: false);
+                }
             }
         }
 
@@ -612,7 +619,7 @@ public partial class GroundView : UserControl
             AddHoldShortSubmenu(menu, vm, ac, callsign, initials);
             if (!isRelative)
             {
-                AddFollowBehindSubmenus(menu, ac, callsign, initials);
+                AddFollowBehindSubmenus(menu, ac, callsign, initials, includeGiveWay: true);
             }
 
             // BREAK overrides the ground-conflict speed limit for 15 seconds.
@@ -644,6 +651,11 @@ public partial class GroundView : UserControl
             // Holding In Position always has a paused route (the aircraft was
             // mid-taxi when HOLDPOSITION was issued).
             menu.Items.Add(CreateMenuItem("Resume taxi", () => vm.ResumeAsync(callsign, initials)));
+
+            if (ac is not null && !isRelative)
+            {
+                AddFollowBehindSubmenus(menu, ac, callsign, initials, includeGiveWay: true);
+            }
         }
 
         if (phase is "Holding After Exit" or "Holding After Pushback")
@@ -655,6 +667,11 @@ public partial class GroundView : UserControl
             if (ac is { HasActiveTaxiRoute: true })
             {
                 menu.Items.Add(CreateMenuItem("Resume taxi", () => vm.ResumeAsync(callsign, initials)));
+            }
+
+            if (ac is not null && !isRelative)
+            {
+                AddFollowBehindSubmenus(menu, ac, callsign, initials, includeGiveWay: ac.HasActiveTaxiRoute);
             }
         }
 
@@ -811,10 +828,12 @@ public partial class GroundView : UserControl
     }
 
     /// <summary>
-    /// Adds "Follow..." and "Give way to..." submenus listing other ground aircraft
-    /// (sorted by distance, capped at 12). Skips when no other ground aircraft are present.
+    /// Adds "Follow..." and (when <paramref name="includeGiveWay"/>) "Give way to..." submenus
+    /// listing other ground aircraft (sorted by distance, capped at 12). Skips when no other
+    /// ground aircraft are present. Give-way requires an assigned taxi route, so callers whose
+    /// phase cannot have one (At Parking) pass false.
     /// </summary>
-    private void AddFollowBehindSubmenus(ContextMenu menu, AircraftModel ac, string callsign, string initials)
+    private void AddFollowBehindSubmenus(ContextMenu menu, AircraftModel ac, string callsign, string initials, bool includeGiveWay)
     {
         var mainVm = FindMainViewModel();
         if (mainVm is null || DataContext is not GroundViewModel vm)
@@ -856,7 +875,10 @@ public partial class GroundView : UserControl
         }
 
         menu.Items.Add(followSub);
-        menu.Items.Add(giveSub);
+        if (includeGiveWay)
+        {
+            menu.Items.Add(giveSub);
+        }
     }
 
     /// <summary>

@@ -2006,7 +2006,12 @@ internal static class GroundCommandHandler
         return CommandDispatcher.Ok($"Hold short of {hs.Target}");
     }
 
-    internal static CommandResult TryFollow(AircraftState aircraft, FollowGroundCommand follow, AirportGroundLayout? groundLayout)
+    internal static CommandResult TryFollow(
+        AircraftState aircraft,
+        FollowGroundCommand follow,
+        AirportGroundLayout? groundLayout,
+        Func<string, AircraftState?>? findAircraft
+    )
     {
         var currentPhase = aircraft.Phases?.CurrentPhase;
         if (currentPhase is null)
@@ -2018,6 +2023,27 @@ internal static class GroundCommandHandler
         if (!aircraft.IsOnGround)
         {
             return new CommandResult(false, "Follow requires the aircraft to be on the ground");
+        }
+
+        if (string.Equals(follow.TargetCallsign, aircraft.Callsign, StringComparison.OrdinalIgnoreCase))
+        {
+            return new CommandResult(false, "Aircraft cannot follow itself");
+        }
+
+        // Validate the leader when a lookup is available (minimal harnesses pass null and skip,
+        // same graceful contract as DispatchContext.FindAircraft's other consumers).
+        if (findAircraft is not null)
+        {
+            var leader = findAircraft(follow.TargetCallsign);
+            if (leader is null)
+            {
+                return new CommandResult(false, $"No aircraft {follow.TargetCallsign}");
+            }
+
+            if (!leader.IsOnGround)
+            {
+                return new CommandResult(false, $"{follow.TargetCallsign} is not on the ground");
+            }
         }
 
         var acceptance = currentPhase.CanAcceptCommand(CanonicalCommandType.FollowGround);

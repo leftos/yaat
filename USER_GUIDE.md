@@ -359,11 +359,12 @@ An interactive airport surface map showing taxiways, runways, and aircraft posit
 **Right-click context menus:**
 - **Anywhere on the ground** — the click snaps to the nearest node, so the menu appears even on an open stretch of runway or taxiway with no node directly under the cursor. *With an aircraft selected* it carries up to 4 route options ("Taxi via T U W") computed via K-shortest paths — routes that cross runways automatically append crossing commands — plus "Push to {spot}" (parking nodes), "Draw taxi route...", "Custom taxi...", and "Warp here". *With nothing selected* it carries the [measuring](#measuring-distance-and-bearing) items.
 - **On an aircraft** — items vary by phase:
-  - *At Parking*: "Push back" (default), "Push back, face {taxiway}" per connected edge, "Push back to..." submenu listing the closest 30 named parking/spot/helipad nodes (sorted by distance)
+  - *At Parking*: "Push back" (default), "Push back, face {taxiway}" per connected edge, "Push back to..." submenu listing the closest 30 named parking/spot/helipad nodes (sorted by distance), "Follow..." submenu — the aircraft starts up and falls in behind the chosen leader without needing a taxi route first
   - *Pushback / Taxiing / Following*: "Hold position"
   - *Taxiing*: "Hold short of..." submenu listing intersecting runways and taxiways; "Follow..." and "Give way to..." submenus listing nearby ground aircraft (closest 12 by distance)
+  - *Holding In Position*: "Resume taxi", plus the same "Follow..." and "Give way to..." submenus
   - *Holding Short*: "Resume taxi", "Cross {rwy}", "Line up and wait", "Cleared for takeoff" — all for the runway the aircraft is holding short of
-  - *Holding After Exit*: "Resume taxi"
+  - *Holding After Exit / Holding After Pushback*: "Resume taxi" (when a route exists), "Follow..." submenu ("Give way to..." when a route exists)
   - *Lined Up*: "Cleared for takeoff", "Cancel takeoff clearance"
   - *On the ground (most phases)*: "Preset taxi route" submenu listing per-airport SOP routes when applicable, "Draw taxi route..."
   - *Takeoff*: "Cancel takeoff clearance"

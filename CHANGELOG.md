@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+### Added
+- `FOLLOWG` now works on a parked, actively-taxiing, or any holding aircraft (in position, after pushback, after a runway exit) — previously only holding-in-position accepted it. A parked aircraft starts up and falls in behind the leader — no `TAXI` route needed first — including as the payload of a deferred `BEHIND SWA123 FOLLOWG SWA123` clearance, and a taxiing aircraft drops its route and follows. The leader is validated when the command is issued: an unknown, airborne, or self target is rejected instead of leaving the aircraft stranded holding in place. The ground right-click menu now offers **Follow...** on all of those phases too (**Give way to...** only where a taxi route can exist).
+
 ## v0.12.0-beta [2026/08/10]
 
 ### Highlights

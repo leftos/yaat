@@ -964,7 +964,7 @@ public class GroundCommandHandlerTests
         ac.Phases = null;
         var cmd = new FollowGroundCommand("UAL123");
 
-        var result = GroundCommandHandler.TryFollow(ac, cmd, null);
+        var result = GroundCommandHandler.TryFollow(ac, cmd, null, null);
 
         Assert.False(result.Success);
         Assert.Contains("no active phase", result.Message!);
@@ -990,10 +990,120 @@ public class GroundCommandHandlerTests
         );
         var cmd = new FollowGroundCommand("UAL123");
 
-        var result = GroundCommandHandler.TryFollow(ac, cmd, null);
+        var result = GroundCommandHandler.TryFollow(ac, cmd, null, null);
 
         Assert.False(result.Success);
         Assert.Contains("on the ground", result.Message!);
+    }
+
+    private static Func<string, AircraftState?> LookupWithGroundLeader(string callsign)
+    {
+        var leader = MakeGroundAircraft(37.729, -122.219);
+        leader.Callsign = callsign;
+        return cs => string.Equals(cs, callsign, StringComparison.OrdinalIgnoreCase) ? leader : null;
+    }
+
+    [Fact]
+    public void TryFollow_FromAtParking_Succeeds()
+    {
+        var ac = MakeAircraftAtParking();
+        var cmd = new FollowGroundCommand("UAL123");
+
+        var result = GroundCommandHandler.TryFollow(ac, cmd, null, LookupWithGroundLeader("UAL123"));
+
+        Assert.True(result.Success, result.Message);
+        Assert.IsType<FollowingPhase>(ac.Phases!.CurrentPhase);
+    }
+
+    [Fact]
+    public void TryFollow_FromTaxiing_Succeeds()
+    {
+        var ac = MakeGroundAircraft();
+        ac.Phases = new PhaseList();
+        ac.Phases.Add(new TaxiingPhase());
+        ac.Phases.Start(
+            new PhaseContext
+            {
+                Aircraft = ac,
+                Targets = ac.Targets,
+                Category = AircraftCategory.Jet,
+                DeltaSeconds = 0,
+                Logger = NullLogger.Instance,
+            }
+        );
+        var cmd = new FollowGroundCommand("UAL123");
+
+        var result = GroundCommandHandler.TryFollow(ac, cmd, null, LookupWithGroundLeader("UAL123"));
+
+        Assert.True(result.Success, result.Message);
+        Assert.IsType<FollowingPhase>(ac.Phases!.CurrentPhase);
+    }
+
+    [Theory]
+    [InlineData(typeof(HoldingAfterPushbackPhase))]
+    [InlineData(typeof(HoldingAfterExitPhase))]
+    public void TryFollow_FromIdleHoldingPhases_Succeeds(Type phaseType)
+    {
+        var ac = MakeGroundAircraft();
+        ac.Phases = new PhaseList();
+        ac.Phases.Add((Phase)Activator.CreateInstance(phaseType)!);
+        ac.Phases.Start(
+            new PhaseContext
+            {
+                Aircraft = ac,
+                Targets = ac.Targets,
+                Category = AircraftCategory.Jet,
+                DeltaSeconds = 0,
+                Logger = NullLogger.Instance,
+            }
+        );
+        var cmd = new FollowGroundCommand("UAL123");
+
+        var result = GroundCommandHandler.TryFollow(ac, cmd, null, LookupWithGroundLeader("UAL123"));
+
+        Assert.True(result.Success, result.Message);
+        Assert.IsType<FollowingPhase>(ac.Phases!.CurrentPhase);
+    }
+
+    [Fact]
+    public void TryFollow_UnknownTarget_Fails()
+    {
+        var ac = MakeAircraftAtParking();
+        var cmd = new FollowGroundCommand("UAL123");
+
+        var result = GroundCommandHandler.TryFollow(ac, cmd, null, _ => null);
+
+        Assert.False(result.Success);
+        Assert.Contains("No aircraft UAL123", result.Message!);
+        Assert.IsType<AtParkingPhase>(ac.Phases!.CurrentPhase);
+    }
+
+    [Fact]
+    public void TryFollow_TargetAirborne_Fails()
+    {
+        var ac = MakeAircraftAtParking();
+        var cmd = new FollowGroundCommand("UAL123");
+        var lookup = LookupWithGroundLeader("UAL123");
+        lookup("UAL123")!.IsOnGround = false;
+
+        var result = GroundCommandHandler.TryFollow(ac, cmd, null, lookup);
+
+        Assert.False(result.Success);
+        Assert.Contains("not on the ground", result.Message!);
+        Assert.IsType<AtParkingPhase>(ac.Phases!.CurrentPhase);
+    }
+
+    [Fact]
+    public void TryFollow_Self_Fails()
+    {
+        var ac = MakeAircraftAtParking();
+        var cmd = new FollowGroundCommand(ac.Callsign);
+
+        var result = GroundCommandHandler.TryFollow(ac, cmd, null, LookupWithGroundLeader(ac.Callsign));
+
+        Assert.False(result.Success);
+        Assert.Contains("cannot follow itself", result.Message!);
+        Assert.IsType<AtParkingPhase>(ac.Phases!.CurrentPhase);
     }
 
     // -------------------------------------------------------------------------

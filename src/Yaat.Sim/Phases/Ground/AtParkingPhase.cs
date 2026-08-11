@@ -8,7 +8,7 @@ namespace Yaat.Sim.Phases.Ground;
 
 /// <summary>
 /// Aircraft is at a parking spot, engines off. Speed=0, IsOnGround=true.
-/// Accepts Pushback, Taxi, and Delete only.
+/// Accepts Pushback, Taxi, AirTaxi, Land, ClearedTakeoffPresent, FollowGround, and Delete.
 /// Never completes on its own — waits for an RPO command.
 /// </summary>
 public sealed class AtParkingPhase : Phase
@@ -98,8 +98,9 @@ public sealed class AtParkingPhase : Phase
             CanonicalCommandType.AirTaxi => CommandAcceptance.ClearsPhase,
             CanonicalCommandType.Land => CommandAcceptance.ClearsPhase,
             CanonicalCommandType.ClearedTakeoffPresent => CommandAcceptance.ClearsPhase,
+            CanonicalCommandType.FollowGround => CommandAcceptance.ClearsPhase,
             CanonicalCommandType.Delete => CommandAcceptance.ClearsPhase,
-            _ => CommandAcceptance.Rejected("aircraft is parked with engines off; only PUSH/TAXI/ATXI/LAND/CTOPP/DEL apply"),
+            _ => CommandAcceptance.Rejected("aircraft is parked with engines off; only PUSH/TAXI/ATXI/LAND/CTOPP/FOLLOWG/DEL apply"),
         };
     }
 

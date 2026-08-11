@@ -47,8 +47,9 @@ public sealed class HoldingAfterPushbackPhase : Phase
             CanonicalCommandType.AirTaxi => CommandAcceptance.ClearsPhase,
             CanonicalCommandType.Land => CommandAcceptance.ClearsPhase,
             CanonicalCommandType.HoldPosition => CommandAcceptance.Allowed,
+            CanonicalCommandType.FollowGround => CommandAcceptance.ClearsPhase,
             CanonicalCommandType.Delete => CommandAcceptance.ClearsPhase,
-            _ => CommandAcceptance.Rejected("aircraft is holding after pushback; only HOLD or a new PUSH/TAXI/ATXI/LAND apply"),
+            _ => CommandAcceptance.Rejected("aircraft is holding after pushback; only HOLD, FOLLOWG, or a new PUSH/TAXI/ATXI/LAND apply"),
         };
     }
 

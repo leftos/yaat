@@ -729,7 +729,7 @@ These mutate ASDE-X display state only; they never change the underlying scenari
 | `HS B` | Hold short at the next intersection with taxiway B |
 | `HS 28L` | Hold short at the entry side of the next runway 28L crossing. Revokes any clearance that crossing already had — AutoCross, an earlier `CROSS 28L`, or the implicit first-crossing clearance — because the hold-short is the most recent instruction. Rejected once the aircraft has entered 28L (use `HOLD`, or issue a new `TAXI`). A no-op when 28L is the assigned departure runway, since the aircraft already holds short of it. |
 | `RWY 30` | Assign runway 30 (override runway assignment without taxi) |
-| `FOLLOWG SWA123` | Follow another aircraft on the ground |
+| `FOLLOWG SWA123` | Follow another aircraft on the ground. Works from parking (the aircraft starts up and falls in behind — no `TAXI` needed first), mid-taxi (drops the current route and chases the leader), or from any holding state (in position, after pushback, after a runway exit). The leader must exist and be on the ground. Combine with a give-way condition (`BEHIND SWA123 FOLLOWG SWA123`) to wait until the leader passes before pulling out. |
 | `GIVEWAY SWA123` | Give way to (yield to) SWA123 on the current taxi route until it passes. As a condition prefix (`GIVEWAY SWA123 TAXI …`) it instead waits for SWA123 before running the command (see [Conditional Blocks](#conditional-blocks)). Can be appended to a taxi clearance: `TAXI A A1 1R GIVEWAY KLM605`. |
 | `TAXIALL 30` | Taxi all parked aircraft to runway 30 via A* pathfinding (global command, no callsign needed) |
 | `BREAK` | Ignore ground conflicts for 15 seconds |

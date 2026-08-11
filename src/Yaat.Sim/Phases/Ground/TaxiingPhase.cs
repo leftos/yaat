@@ -188,8 +188,9 @@ public sealed class TaxiingPhase : Phase
             CanonicalCommandType.CrossRunway => CommandAcceptance.Allowed,
             CanonicalCommandType.HoldShort => CommandAcceptance.Allowed,
             CanonicalCommandType.Speed or CanonicalCommandType.ResumeNormalSpeed => CommandAcceptance.Allowed,
+            CanonicalCommandType.FollowGround => CommandAcceptance.ClearsPhase,
             CanonicalCommandType.Delete => CommandAcceptance.ClearsPhase,
-            _ => CommandAcceptance.Rejected("aircraft is taxiing; only HOLD/RES, CROSS, HS, or SPD apply, or issue a new TAXI"),
+            _ => CommandAcceptance.Rejected("aircraft is taxiing; only HOLD/RES, CROSS, HS, SPD, or FOLLOWG apply, or issue a new TAXI"),
         };
     }
 
