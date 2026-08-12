@@ -93,7 +93,7 @@ public class KaseLindz1DepartureE2ETests
             ClearanceType.ClearedForTakeoff,
             new DefaultDeparture(),
             assignedAltitude: null,
-            null,
+            TestDispatch.Context(Random.Shared),
             NullLogger.Instance
         );
         _output.WriteLine($"CTO success={result.Success}: {result.Message}");
@@ -234,7 +234,7 @@ public class KaseLindz1DepartureE2ETests
             ClearanceType.ClearedForTakeoff,
             new DefaultDeparture(),
             assignedAltitude: null,
-            null,
+            TestDispatch.Context(Random.Shared),
             NullLogger.Instance
         );
         Assert.True(cto.Success, cto.Message);

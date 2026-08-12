@@ -624,6 +624,10 @@ Commands/TrackResolver.cs           # AS-prefix extraction (e.g. "AS 3Y ACCEPT" 
                                     # resolution with optional ARTCC-config fallback, owner→TCP lookup. Shared by yaat-server's live track path
                                     # and Sim's replay applier.
 Commands/PatternCommandHandler.cs   # Pattern operation command logic (extend, rock wings, GoAround, CTL, sequence, etc.); EF loop detection via turn-arc geometry, same-runway continue no-op, never-route-outbound reject, and the pattern retarget that degrades a too-close EF into a base entry; runway-changing entries void the landing clearance; pre-arms EXT/SA/MNA and landing/option clearances behind a still-queued pattern entry
+Commands/RunwaySafetyAdvisor.cs     # Non-blocking 7110.65 3-9-4 occupied-runway advisories (PendingWarnings → amber terminal): landing-family clearance
+                                    # (CLAND/COPT/TG/SG/LA/LAHSO/CLANDF) with traffic holding in position / taxiing to line up on the runway, and the reverse
+                                    # (LUAW with a landing-family clearance outstanding). Suppressed when ArtccConfigResolver.AirportHasFullSafetyLogic finds
+                                    # an ASDE-X config with runway configurations for the airport (CRC Safety Logic covers the incursion there)
 Commands/StripCommandHandler.cs     # Flight strip CRUD (STRIP, SCAN, STRIPD, STRIPO, AN, HSC, HSA, HSD, HSM, HSO, HSS, SEP, SEPD, BLANK, BLANKD); dispatches to StripMutations
 Commands/FlightPlanCommandHandler.cs # Flight-plan amendment validation: TryChangeDestination resolves FAA/ICAO airport input via NavigationDatabase.TryResolveAirport,
                                     # writes canonical ICAO to FlightPlan.Destination, rejects unknown airports. Called from yaat-server's RoomEngine APT handler.

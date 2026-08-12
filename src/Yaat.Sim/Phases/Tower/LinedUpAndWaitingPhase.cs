@@ -39,6 +39,14 @@ public sealed class LinedUpAndWaitingPhase : Phase
         return phase;
     }
 
+    /// <summary>
+    /// True once the takeoff clearance has been issued (the phase's single requirement is
+    /// satisfied) — the aircraft is waiting out its reaction delay, not waiting on the
+    /// controller. Read by <see cref="Commands.RunwaySafetyAdvisor"/>: a lined-up aircraft with
+    /// clearance in hand is anticipated separation, not a 3-9-4 "holding in position" conflict.
+    /// </summary>
+    public bool HasTakeoffClearance => Requirements[0].IsSatisfied;
+
     /// <summary>Departure instruction from CTO command.</summary>
     public DepartureInstruction? Departure { get; set; }
 

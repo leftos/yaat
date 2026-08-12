@@ -1835,7 +1835,8 @@ internal static class PatternCommandHandler
         AircraftState aircraft,
         ClearanceType clearance,
         string? requestedRunwayId,
-        PatternDirection? trafficPattern
+        PatternDirection? trafficPattern,
+        DispatchContext ctx
     )
     {
         var entry = FindQueuedPatternEntry(aircraft);
@@ -1883,6 +1884,7 @@ internal static class PatternCommandHandler
             entry.GetType().Name
         );
 
+        RunwaySafetyAdvisor.WarnIfRunwayOccupied(aircraft, resolvedRunwayId, ctx);
         return CommandDispatcher.Ok(PendingClearanceMessage(clearance, resolvedRunwayId, trafficPattern));
     }
 
@@ -2287,11 +2289,11 @@ internal static class PatternCommandHandler
         };
     }
 
-    internal static CommandResult TrySetupTouchAndGo(AircraftState aircraft, PatternDirection? trafficPattern)
+    internal static CommandResult TrySetupTouchAndGo(AircraftState aircraft, PatternDirection? trafficPattern, DispatchContext ctx)
     {
         if (aircraft.Phases is null)
         {
-            return TryArmPendingLandingClearance(aircraft, ClearanceType.ClearedTouchAndGo, null, trafficPattern)
+            return TryArmPendingLandingClearance(aircraft, ClearanceType.ClearedTouchAndGo, null, trafficPattern, ctx)
                 ?? new CommandResult(false, "Aircraft has no active phase sequence");
         }
 
@@ -2309,14 +2311,18 @@ internal static class PatternCommandHandler
         }
         EnsurePatternMode(aircraft);
 
+        if (aircraft.Phases.AssignedRunway is { } clearedRunway)
+        {
+            RunwaySafetyAdvisor.WarnIfRunwayOccupied(aircraft, clearedRunway, ctx);
+        }
         return CommandDispatcher.Ok($"Cleared touch-and-go{CommandDispatcher.RunwayLabel(aircraft)}{TrafficLabel(trafficPattern)}");
     }
 
-    internal static CommandResult TrySetupStopAndGo(AircraftState aircraft, PatternDirection? trafficPattern)
+    internal static CommandResult TrySetupStopAndGo(AircraftState aircraft, PatternDirection? trafficPattern, DispatchContext ctx)
     {
         if (aircraft.Phases is null)
         {
-            return TryArmPendingLandingClearance(aircraft, ClearanceType.ClearedStopAndGo, null, trafficPattern)
+            return TryArmPendingLandingClearance(aircraft, ClearanceType.ClearedStopAndGo, null, trafficPattern, ctx)
                 ?? new CommandResult(false, "Aircraft has no active phase sequence");
         }
 
@@ -2334,14 +2340,18 @@ internal static class PatternCommandHandler
         }
         EnsurePatternMode(aircraft);
 
+        if (aircraft.Phases.AssignedRunway is { } clearedRunway)
+        {
+            RunwaySafetyAdvisor.WarnIfRunwayOccupied(aircraft, clearedRunway, ctx);
+        }
         return CommandDispatcher.Ok($"Cleared stop-and-go{CommandDispatcher.RunwayLabel(aircraft)}{TrafficLabel(trafficPattern)}");
     }
 
-    internal static CommandResult TrySetupLowApproach(AircraftState aircraft, PatternDirection? trafficPattern)
+    internal static CommandResult TrySetupLowApproach(AircraftState aircraft, PatternDirection? trafficPattern, DispatchContext ctx)
     {
         if (aircraft.Phases is null)
         {
-            return TryArmPendingLandingClearance(aircraft, ClearanceType.ClearedLowApproach, null, trafficPattern)
+            return TryArmPendingLandingClearance(aircraft, ClearanceType.ClearedLowApproach, null, trafficPattern, ctx)
                 ?? new CommandResult(false, "Aircraft has no active phase sequence");
         }
 
@@ -2359,14 +2369,18 @@ internal static class PatternCommandHandler
         }
         EnsurePatternMode(aircraft);
 
+        if (aircraft.Phases.AssignedRunway is { } clearedRunway)
+        {
+            RunwaySafetyAdvisor.WarnIfRunwayOccupied(aircraft, clearedRunway, ctx);
+        }
         return CommandDispatcher.Ok($"Cleared low approach{CommandDispatcher.RunwayLabel(aircraft)}{TrafficLabel(trafficPattern)}");
     }
 
-    internal static CommandResult TrySetupClearedForOption(AircraftState aircraft, PatternDirection? trafficPattern)
+    internal static CommandResult TrySetupClearedForOption(AircraftState aircraft, PatternDirection? trafficPattern, DispatchContext ctx)
     {
         if (aircraft.Phases is null)
         {
-            return TryArmPendingLandingClearance(aircraft, ClearanceType.ClearedForOption, null, trafficPattern)
+            return TryArmPendingLandingClearance(aircraft, ClearanceType.ClearedForOption, null, trafficPattern, ctx)
                 ?? new CommandResult(false, "Aircraft has no active phase sequence");
         }
 
@@ -2384,6 +2398,10 @@ internal static class PatternCommandHandler
         }
         EnsurePatternMode(aircraft);
 
+        if (aircraft.Phases.AssignedRunway is { } clearedRunway)
+        {
+            RunwaySafetyAdvisor.WarnIfRunwayOccupied(aircraft, clearedRunway, ctx);
+        }
         return CommandDispatcher.Ok($"Cleared for the option{CommandDispatcher.RunwayLabel(aircraft)}{TrafficLabel(trafficPattern)}");
     }
 
@@ -3136,7 +3154,7 @@ internal static class PatternCommandHandler
         return CommandDispatcher.Ok(gaMsg);
     }
 
-    internal static CommandResult TryClearedToLand(ClearedToLandCommand ctl, AircraftState aircraft, AirportGroundLayout? groundLayout)
+    internal static CommandResult TryClearedToLand(ClearedToLandCommand ctl, AircraftState aircraft, DispatchContext ctx)
     {
         if (aircraft.IsOnGround)
         {
@@ -3147,7 +3165,7 @@ internal static class PatternCommandHandler
         {
             // No phase sequence at all, but the entry that will build one may be queued behind another
             // instruction (CLAND while ERD 28R sits behind DCT VPCOL). Pre-issue against that entry.
-            if (TryArmPendingLandingClearance(aircraft, ClearanceType.ClearedToLand, ctl.RunwayId, null) is { } armed)
+            if (TryArmPendingLandingClearance(aircraft, ClearanceType.ClearedToLand, ctl.RunwayId, null, ctx) is { } armed)
             {
                 if (armed.Success && ctl.NoDelete)
                 {
@@ -3176,7 +3194,7 @@ internal static class PatternCommandHandler
                 // any other runway mismatch keeps the strict reject below.
                 if (IsOnLowApproach(aircraft))
                 {
-                    return TryRetargetLowApproachToRunway(ctl, aircraft, assignedRunway, groundLayout);
+                    return TryRetargetLowApproachToRunway(ctl, aircraft, assignedRunway, ctx);
                 }
 
                 return new CommandResult(
@@ -3200,6 +3218,7 @@ internal static class PatternCommandHandler
                 {
                     aircraft.Ground.AutoDeleteExempt = true;
                 }
+                RunwaySafetyAdvisor.WarnIfRunwayOccupied(aircraft, assignedRunway, ctx);
                 return CommandDispatcher.Ok($"Cleared to land{CommandDispatcher.RunwayLabel(aircraft)}");
             }
 
@@ -3222,6 +3241,10 @@ internal static class PatternCommandHandler
             if (ctl.NoDelete)
             {
                 aircraft.Ground.AutoDeleteExempt = true;
+            }
+            if (aircraft.Phases.ClearedRunwayId is { } armedRunwayId)
+            {
+                RunwaySafetyAdvisor.WarnIfRunwayOccupied(aircraft, armedRunwayId, ctx);
             }
             string rwyClause = ctl.RunwayId is not null ? $" runway {RunwayIdentifier.ToDisplayDesignator(ctl.RunwayId)}" : "";
             return CommandDispatcher.Ok($"Cleared to land{rwyClause}, will land behind {aircraft.Approach.FollowingCallsign}");
@@ -3379,7 +3402,7 @@ internal static class PatternCommandHandler
         ClearedToLandCommand ctl,
         AircraftState aircraft,
         RunwayInfo assignedRunway,
-        AirportGroundLayout? groundLayout
+        DispatchContext ctx
     )
     {
         var airportId = ResolveAirportContext(aircraft);
@@ -3434,7 +3457,7 @@ internal static class PatternCommandHandler
         var airportRunwaysB = NavigationDatabase.Instance.GetRunways(runwayB.AirportId);
         var (sizeOvB, altOvB) = PatternGeometry.ResolveAuthoredOverrides(
             runwayB,
-            (groundLayout ?? aircraft.Ground.Layout)?.FindRunway(runwayB.Designator),
+            (ctx.GroundLayout ?? aircraft.Ground.Layout)?.FindRunway(runwayB.Designator),
             aircraft.Pattern.SizeOverrideNm,
             aircraft.Pattern.AltitudeOverrideFt
         );
@@ -3458,7 +3481,7 @@ internal static class PatternCommandHandler
             sizeOvB,
             altOvB,
             airportRunwaysB,
-            AuthoredRunway(aircraft, groundLayout, runwayB)
+            AuthoredRunway(aircraft, ctx.GroundLayout, runwayB)
         );
 
         var bTail = new List<Phase> { patternEntryB };
@@ -3478,6 +3501,8 @@ internal static class PatternCommandHandler
         {
             aircraft.Ground.AutoDeleteExempt = true;
         }
+
+        RunwaySafetyAdvisor.WarnIfRunwayOccupied(aircraft, runwayB, ctx);
 
         // 7110.65 §3-10-5 subpara 3: restate the runway number to emphasize the changed runway —
         // "CHANGE TO RUNWAY (n), RUNWAY (n) CLEARED TO LAND".
@@ -3546,10 +3571,16 @@ internal static class PatternCommandHandler
         aircraft.Phases.TrafficDirection = null;
         aircraft.Pattern.TrafficDirection = null;
 
+        RunwaySafetyAdvisor.WarnIfRunwayOccupied(aircraft, assignedRunway, ctx);
         return CommandDispatcher.Ok($"Forcing landing{CommandDispatcher.RunwayLabel(aircraft)}");
     }
 
-    internal static CommandResult TryLandAndHoldShort(LandAndHoldShortCommand lahso, AircraftState aircraft, AirportGroundLayout? groundLayout)
+    internal static CommandResult TryLandAndHoldShort(
+        LandAndHoldShortCommand lahso,
+        AircraftState aircraft,
+        AirportGroundLayout? groundLayout,
+        DispatchContext ctx
+    )
     {
         if (aircraft.Phases is null)
         {
@@ -3636,6 +3667,7 @@ internal static class PatternCommandHandler
         // LAHSO is always full-stop — drop persistent pattern direction.
         aircraft.Pattern.TrafficDirection = null;
 
+        RunwaySafetyAdvisor.WarnIfRunwayOccupied(aircraft, runway, ctx);
         return CommandDispatcher.Ok(
             $"Cleared to land{CommandDispatcher.RunwayLabel(aircraft)}, hold short runway {RunwayIdentifier.ToDisplayDesignator(lahso.CrossingRunwayId)}"
         );

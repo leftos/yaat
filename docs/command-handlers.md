@@ -279,16 +279,29 @@ and which domains read them:
 | `GroundLayout` | The graph-routing `GroundCommandHandler` methods (via the phase path's `TryApplyTowerCommand:1347`); the dry-run clone constructor; `ConvertGroundEntityCondition`. |
 | `Rng` | `ApplyRandomSquawk` and anything needing deterministic randomness; overridden to `Random(0)` in dry-run. |
 | `Weather` | RFIS/RTIS visual acquisition (nullable; commands fail gracefully when absent). |
-| `FindAircraft` / `ListAircraft` | RTIS/FOLLOW relative-traffic lookups; GiveWay target validation (nullable). |
+| `FindAircraft` / `ListAircraft` | RTIS/FOLLOW relative-traffic lookups; GiveWay target validation; `RunwaySafetyAdvisor` occupied-runway scans (nullable). |
 | `ValidateDctFixes` | `ApplyDirectTo` strict off-route fix check; forced off in transparent + dry-run paths. |
 | `AutoCrossRunway` | `TryTaxi` / `TryTaxiAuto` auto-crossing-clearance behavior; forced off in dry-run. |
 | `SoloTrainingMode` / `RpoShowPilotSpeech` | CT/FCA pilot-speech routing. |
 | `TerminalEmitter` | SAY-class verbs broadcast through it; **nulled in dry-run / parser tests** so SAYs don't fire twice. |
-| `ArtccConfig` | `ContactCommandHandler` target → frequency resolution (nullable). |
+| `ArtccConfig` | `ContactCommandHandler` target → frequency resolution; `RunwaySafetyAdvisor` safety-logic gate (nullable). |
 | `ScenarioElapsedSeconds` | CT/FCA handoff-completion stamp. |
 
 All fields are positional and required so a future addition breaks at the compiler, not silently at runtime. **Add a new contextual flag here and set
 it at the `SimulationEngine` / `RoomEngine` call sites — never pass it as a handler parameter.** The bundle exists to avoid signature creep.
+
+## Non-blocking controller advisories (`PendingWarnings`)
+
+Handlers that want to warn the RPO **without failing the command** append a string to `AircraftState.PendingWarnings`. The strings are drained every
+tick (`SimulationWorld.DrainAllWarnings` → yaat-server `TickProcessor.BroadcastWarnings`) and broadcast as `"Warning"` terminal entries, rendered
+amber in the client — so the advisory surfaces on the tick *after* the command's own response, decoupled from `CommandResult.Message`. Two users:
+
+- `MilitaryRouteCommandHandler.WarnIfRouteOccupied` — a second aircraft cleared onto an occupied MTR (7110.65 9-2-6.a).
+- `RunwaySafetyAdvisor` (`src/Yaat.Sim/Commands/RunwaySafetyAdvisor.cs`) — 7110.65 3-9-4 occupied-runway advisories: a landing-family clearance
+  (CLAND/COPT/TG/SG/LA/LAHSO/CLANDF) onto a runway with traffic holding in position or taxiing to line up, and the reverse (LUAW while an aircraft
+  holds a landing-family clearance for the runway). Gated on the airport's vNAS ARTCC config: suppressed when
+  `ArtccConfigResolver.AirportHasFullSafetyLogic` finds an ASDE-X config with runway configurations (CRC's Safety Logic covers the incursion there).
+  This is why `PatternCommandHandler`'s clearance methods and `DepartureClearanceHandler.TryDepartureClearance` take the full `DispatchContext`.
 
 ## Adding a new command's effect
 

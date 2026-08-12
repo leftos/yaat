@@ -91,7 +91,7 @@ public class LahsoTests
     private static LahsoTarget ClearLahso(RunwayInfo runway, AirportGroundLayout layout)
     {
         var ac = MakeAircraft(runway);
-        var result = PatternCommandHandler.TryLandAndHoldShort(new LandAndHoldShortCommand("33"), ac, layout);
+        var result = PatternCommandHandler.TryLandAndHoldShort(new LandAndHoldShortCommand("33"), ac, layout, TestDispatch.Context(Random.Shared));
         Assert.True(result.Success, result.Message);
         return ac.Phases!.LahsoHoldShort!;
     }
@@ -127,7 +127,7 @@ public class LahsoTests
         var ac = MakeAircraft(runway);
 
         var cmd = new LandAndHoldShortCommand("33");
-        var result = PatternCommandHandler.TryLandAndHoldShort(cmd, ac, layout);
+        var result = PatternCommandHandler.TryLandAndHoldShort(cmd, ac, layout, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
         Assert.Contains("hold short runway 33", result.Message!);
@@ -144,7 +144,7 @@ public class LahsoTests
         var ac = MakeAircraft(runway);
 
         var cmd = new LandAndHoldShortCommand("33");
-        var result = PatternCommandHandler.TryLandAndHoldShort(cmd, ac, null);
+        var result = PatternCommandHandler.TryLandAndHoldShort(cmd, ac, null, TestDispatch.Context(Random.Shared));
 
         Assert.False(result.Success);
         Assert.Contains("No ground layout", result.Message!);
@@ -167,7 +167,7 @@ public class LahsoTests
 
         var layout = MakeCrossingLayout();
         var cmd = new LandAndHoldShortCommand("33");
-        var result = PatternCommandHandler.TryLandAndHoldShort(cmd, ac, layout);
+        var result = PatternCommandHandler.TryLandAndHoldShort(cmd, ac, layout, TestDispatch.Context(Random.Shared));
 
         Assert.False(result.Success);
         Assert.Contains("No assigned runway", result.Message!);
@@ -181,7 +181,7 @@ public class LahsoTests
         var ac = MakeAircraft(runway);
 
         var cmd = new LandAndHoldShortCommand("99");
-        var result = PatternCommandHandler.TryLandAndHoldShort(cmd, ac, layout);
+        var result = PatternCommandHandler.TryLandAndHoldShort(cmd, ac, layout, TestDispatch.Context(Random.Shared));
 
         Assert.False(result.Success);
         Assert.Contains("not found in ground layout", result.Message!);
@@ -218,7 +218,7 @@ public class LahsoTests
         );
 
         var cmd = new LandAndHoldShortCommand("28L");
-        var result = PatternCommandHandler.TryLandAndHoldShort(cmd, ac, layout);
+        var result = PatternCommandHandler.TryLandAndHoldShort(cmd, ac, layout, TestDispatch.Context(Random.Shared));
 
         Assert.False(result.Success);
         Assert.Contains("does not intersect", result.Message!);
@@ -232,7 +232,7 @@ public class LahsoTests
         var ac = MakeAircraft(runway);
 
         var cmd = new LandAndHoldShortCommand("33");
-        var result = PatternCommandHandler.TryLandAndHoldShort(cmd, ac, layout);
+        var result = PatternCommandHandler.TryLandAndHoldShort(cmd, ac, layout, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
         var target = ac.Phases!.LahsoHoldShort!;
@@ -276,7 +276,7 @@ public class LahsoTests
         var ac = MakeAircraft(runway);
 
         var cmd = new LandAndHoldShortCommand("33");
-        var result = PatternCommandHandler.TryLandAndHoldShort(cmd, ac, layout);
+        var result = PatternCommandHandler.TryLandAndHoldShort(cmd, ac, layout, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
         Assert.Contains(ac.Phases!.Phases, p => p is LandingPhase);

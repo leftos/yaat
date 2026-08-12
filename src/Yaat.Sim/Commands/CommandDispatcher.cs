@@ -962,11 +962,11 @@ public static class CommandDispatcher
 
             // --- Tower commands (also dispatched via TryApplyTowerCommand in the phase path) ---
             case ClearedToLandCommand ctl:
-                return PatternCommandHandler.TryClearedToLand(ctl, aircraft, ctx.GroundLayout);
+                return PatternCommandHandler.TryClearedToLand(ctl, aircraft, ctx);
             case ForceLandingCommand flc:
                 return PatternCommandHandler.TryForceLanding(flc, aircraft, ctx);
             case LandAndHoldShortCommand lahso:
-                return PatternCommandHandler.TryLandAndHoldShort(lahso, aircraft, aircraft.Ground.Layout);
+                return PatternCommandHandler.TryLandAndHoldShort(lahso, aircraft, aircraft.Ground.Layout, ctx);
             case CancelLandingClearanceCommand:
                 return PatternCommandHandler.TryCancelLandingClearance(aircraft);
             case GoAroundCommand ga:
@@ -1005,13 +1005,13 @@ public static class CommandDispatcher
             // handler so it can pre-issue the clearance against a queued pattern entry. Without these
             // arms they fall to the default NoDispatcherArm rejection instead.
             case TouchAndGoCommand tg:
-                return PatternCommandHandler.TrySetupTouchAndGo(aircraft, tg.TrafficPattern);
+                return PatternCommandHandler.TrySetupTouchAndGo(aircraft, tg.TrafficPattern, ctx);
             case StopAndGoCommand sg:
-                return PatternCommandHandler.TrySetupStopAndGo(aircraft, sg.TrafficPattern);
+                return PatternCommandHandler.TrySetupStopAndGo(aircraft, sg.TrafficPattern, ctx);
             case LowApproachCommand la:
-                return PatternCommandHandler.TrySetupLowApproach(aircraft, la.TrafficPattern);
+                return PatternCommandHandler.TrySetupLowApproach(aircraft, la.TrafficPattern, ctx);
             case ClearedForOptionCommand opt:
-                return PatternCommandHandler.TrySetupClearedForOption(aircraft, opt.TrafficPattern);
+                return PatternCommandHandler.TrySetupClearedForOption(aircraft, opt.TrafficPattern, ctx);
 
             case FollowCommand follow:
                 return TryAirborneFollow(aircraft, follow, ctx);
@@ -1905,7 +1905,7 @@ public static class CommandDispatcher
                         ClearanceType.ClearedForTakeoff,
                         cto.Departure,
                         cto.AssignedAltitude,
-                        groundLayout,
+                        ctx,
                         Log
                     );
                 // "Cleared for immediate takeoff" — brisk lineup taxi (+ rolling takeoff via the
@@ -1930,7 +1930,7 @@ public static class CommandDispatcher
                     ClearanceType.LineUpAndWait,
                     new DefaultDeparture(),
                     null,
-                    groundLayout,
+                    ctx,
                     Log
                 );
                 // "Line up and wait, without delay" — brisk lineup taxi; still stops at the centerline.
@@ -1942,13 +1942,13 @@ public static class CommandDispatcher
             }
 
             case ClearedToLandCommand ctl:
-                return PatternCommandHandler.TryClearedToLand(ctl, aircraft, ctx.GroundLayout);
+                return PatternCommandHandler.TryClearedToLand(ctl, aircraft, ctx);
 
             case ForceLandingCommand flc:
                 return PatternCommandHandler.TryForceLanding(flc, aircraft, ctx);
 
             case LandAndHoldShortCommand lahso:
-                return PatternCommandHandler.TryLandAndHoldShort(lahso, aircraft, groundLayout);
+                return PatternCommandHandler.TryLandAndHoldShort(lahso, aircraft, groundLayout, ctx);
 
             case CancelLandingClearanceCommand:
                 return PatternCommandHandler.TryCancelLandingClearance(aircraft);
@@ -2083,13 +2083,13 @@ public static class CommandDispatcher
 
             // Option approach / special ops commands
             case TouchAndGoCommand tg:
-                return PatternCommandHandler.TrySetupTouchAndGo(aircraft, tg.TrafficPattern);
+                return PatternCommandHandler.TrySetupTouchAndGo(aircraft, tg.TrafficPattern, ctx);
             case StopAndGoCommand sg:
-                return PatternCommandHandler.TrySetupStopAndGo(aircraft, sg.TrafficPattern);
+                return PatternCommandHandler.TrySetupStopAndGo(aircraft, sg.TrafficPattern, ctx);
             case LowApproachCommand la:
-                return PatternCommandHandler.TrySetupLowApproach(aircraft, la.TrafficPattern);
+                return PatternCommandHandler.TrySetupLowApproach(aircraft, la.TrafficPattern, ctx);
             case ClearedForOptionCommand opt:
-                return PatternCommandHandler.TrySetupClearedForOption(aircraft, opt.TrafficPattern);
+                return PatternCommandHandler.TrySetupClearedForOption(aircraft, opt.TrafficPattern, ctx);
 
             // Hold commands
             case HoldPresentPosition360Command hpp:

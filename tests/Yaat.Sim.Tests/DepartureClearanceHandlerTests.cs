@@ -81,7 +81,7 @@ public class DepartureClearanceHandlerTests
             ClearanceType.LineUpAndWait,
             new DefaultDeparture(),
             null,
-            null,
+            TestDispatch.Context(Random.Shared),
             Logger
         );
 
@@ -107,7 +107,7 @@ public class DepartureClearanceHandlerTests
             ClearanceType.ClearedForTakeoff,
             new RunwayHeadingDeparture(),
             null,
-            null,
+            TestDispatch.Context(Random.Shared),
             Logger
         );
 
@@ -135,7 +135,7 @@ public class DepartureClearanceHandlerTests
             ClearanceType.ClearedForTakeoff,
             new RunwayHeadingDeparture(),
             null,
-            null,
+            TestDispatch.Context(Random.Shared),
             Logger
         );
 
@@ -165,7 +165,7 @@ public class DepartureClearanceHandlerTests
             ClearanceType.LineUpAndWait,
             new DefaultDeparture(),
             null,
-            null,
+            TestDispatch.Context(Random.Shared),
             Logger
         );
 
@@ -213,7 +213,7 @@ public class DepartureClearanceHandlerTests
             ClearanceType.ClearedForTakeoff,
             new RunwayHeadingDeparture(),
             null,
-            null,
+            TestDispatch.Context(Random.Shared),
             Logger
         );
 
@@ -262,7 +262,7 @@ public class DepartureClearanceHandlerTests
             ClearanceType.ClearedForTakeoff,
             new DefaultDeparture(),
             5000,
-            null,
+            TestDispatch.Context(Random.Shared),
             Logger
         );
 
@@ -309,7 +309,7 @@ public class DepartureClearanceHandlerTests
             ClearanceType.ClearedForTakeoff,
             new DefaultDeparture(),
             5000,
-            null,
+            TestDispatch.Context(Random.Shared),
             Logger
         );
 
@@ -357,7 +357,7 @@ public class DepartureClearanceHandlerTests
             ClearanceType.ClearedForTakeoff,
             new DefaultDeparture(),
             5000,
-            null,
+            TestDispatch.Context(Random.Shared),
             Logger
         );
 
@@ -436,7 +436,7 @@ public class DepartureClearanceHandlerTests
             ClearanceType.ClearedForTakeoff,
             new DefaultDeparture(),
             null,
-            null,
+            TestDispatch.Context(Random.Shared),
             Logger
         );
 
@@ -472,7 +472,7 @@ public class DepartureClearanceHandlerTests
             ClearanceType.ClearedForTakeoff,
             new RunwayHeadingDeparture(),
             null,
-            null,
+            TestDispatch.Context(Random.Shared),
             Logger
         );
 
@@ -494,7 +494,7 @@ public class DepartureClearanceHandlerTests
             ClearanceType.LineUpAndWait,
             new DefaultDeparture(),
             null,
-            null,
+            TestDispatch.Context(Random.Shared),
             Logger
         );
 
@@ -524,7 +524,7 @@ public class DepartureClearanceHandlerTests
             ClearanceType.ClearedForTakeoff,
             new RunwayHeadingDeparture(),
             5000,
-            null,
+            TestDispatch.Context(Random.Shared),
             Logger
         );
 
@@ -562,7 +562,7 @@ public class DepartureClearanceHandlerTests
             ClearanceType.LineUpAndWait,
             new DefaultDeparture(),
             null,
-            null,
+            TestDispatch.Context(Random.Shared),
             Logger
         );
 
@@ -609,7 +609,7 @@ public class DepartureClearanceHandlerTests
             ClearanceType.LineUpAndWait,
             new DefaultDeparture(),
             null,
-            layout,
+            TestDispatch.Context(Random.Shared, groundLayout: layout),
             Logger
         );
 
@@ -644,7 +644,7 @@ public class DepartureClearanceHandlerTests
             ClearanceType.ClearedForTakeoff,
             new DefaultDeparture(),
             null,
-            null,
+            TestDispatch.Context(Random.Shared),
             Logger
         );
 
@@ -668,7 +668,15 @@ public class DepartureClearanceHandlerTests
         using var _ = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithRunways(rwy));
 
         var departure = new ClosedTrafficDeparture(PatternDirection.Left, null, null);
-        var result = DepartureClearanceHandler.TryDepartureClearance(ac, holding, ClearanceType.ClearedForTakeoff, departure, null, null, Logger);
+        var result = DepartureClearanceHandler.TryDepartureClearance(
+            ac,
+            holding,
+            ClearanceType.ClearedForTakeoff,
+            departure,
+            null,
+            TestDispatch.Context(Random.Shared),
+            Logger
+        );
 
         Assert.True(result.Success);
         Assert.Equal(PatternDirection.Left, ac.Phases.TrafficDirection);
@@ -829,7 +837,7 @@ public class DepartureClearanceHandlerTests
             ClearanceType.ClearedForTakeoff,
             new ClosedTrafficDeparture(PatternDirection.Right, "28R", null),
             null,
-            null,
+            TestDispatch.Context(Random.Shared),
             Logger
         );
 
@@ -873,7 +881,7 @@ public class DepartureClearanceHandlerTests
             ClearanceType.ClearedForTakeoff,
             new ClosedTrafficDeparture(PatternDirection.Left, "28L", null),
             null,
-            null,
+            TestDispatch.Context(Random.Shared),
             Logger
         );
 
@@ -899,7 +907,7 @@ public class DepartureClearanceHandlerTests
             ClearanceType.ClearedForTakeoff,
             new ClosedTrafficDeparture(PatternDirection.Right, null, null),
             null,
-            null,
+            TestDispatch.Context(Random.Shared),
             Logger
         );
 
@@ -1008,7 +1016,7 @@ public class DepartureClearanceHandlerTests
             ClearanceType.ClearedForTakeoff,
             new ClosedTrafficDeparture(PatternDirection.Right, "28R", null),
             null,
-            null,
+            TestDispatch.Context(Random.Shared),
             Logger
         );
 
@@ -1041,7 +1049,7 @@ public class DepartureClearanceHandlerTests
         ac.Altitude = 1500;
 
         // Issue CLAND — should clear for the pattern runway (28R), not the takeoff runway (33)
-        var clandResult = PatternCommandHandler.TryClearedToLand(new ClearedToLandCommand(), ac, null);
+        var clandResult = PatternCommandHandler.TryClearedToLand(new ClearedToLandCommand(), ac, TestDispatch.Context(Random.Shared));
         Assert.True(clandResult.Success);
         Assert.Equal("28R", ac.Phases.ClearedRunwayId);
         Assert.Contains("Runway 28R", clandResult.Message);
@@ -1071,7 +1079,7 @@ public class DepartureClearanceHandlerTests
             ClearanceType.LineUpAndWait,
             new DefaultDeparture(),
             null,
-            null,
+            TestDispatch.Context(Random.Shared),
             Logger
         );
 

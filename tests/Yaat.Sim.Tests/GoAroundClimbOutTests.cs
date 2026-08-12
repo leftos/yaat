@@ -299,7 +299,7 @@ public class GoAroundClimbOutTests
         aircraft.Phases.Add(new LandingPhase());
         aircraft.Phases.Start(CommandDispatcher.BuildMinimalContext(aircraft, groundLayout: null));
 
-        var result = PatternCommandHandler.TrySetupTouchAndGo(aircraft, trafficPattern: null);
+        var result = PatternCommandHandler.TrySetupTouchAndGo(aircraft, trafficPattern: null, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success, result.Message);
         Assert.Equal(PatternDirection.Right, aircraft.Phases.TrafficDirection);
@@ -321,7 +321,7 @@ public class GoAroundClimbOutTests
         aircraft.Phases.Add(new LandingPhase());
         aircraft.Phases.Start(CommandDispatcher.BuildMinimalContext(aircraft, groundLayout: null));
 
-        var result = PatternCommandHandler.TrySetupTouchAndGo(aircraft, trafficPattern: null);
+        var result = PatternCommandHandler.TrySetupTouchAndGo(aircraft, trafficPattern: null, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success, result.Message);
         Assert.Equal(PatternDirection.Left, aircraft.Phases.TrafficDirection);

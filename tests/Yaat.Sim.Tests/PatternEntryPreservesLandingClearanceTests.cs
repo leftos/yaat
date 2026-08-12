@@ -94,7 +94,7 @@ public class PatternEntryPreservesLandingClearanceTests : IDisposable
         var runway = MakeOak28R();
         var ac = MakeOnRightBase(runway);
 
-        var cland = PatternCommandHandler.TryClearedToLand(new ClearedToLandCommand { RunwayId = "28R" }, ac, null);
+        var cland = PatternCommandHandler.TryClearedToLand(new ClearedToLandCommand { RunwayId = "28R" }, ac, TestDispatch.Context(Random.Shared));
         Assert.True(cland.Success, cland.Message);
         Assert.Equal(ClearanceType.ClearedToLand, ac.Phases!.LandingClearance);
 
@@ -124,7 +124,7 @@ public class PatternEntryPreservesLandingClearanceTests : IDisposable
         var runway = MakeOak28R();
         var ac = MakeOnRightBase(runway);
 
-        var tg = PatternCommandHandler.TrySetupTouchAndGo(ac, PatternDirection.Right);
+        var tg = PatternCommandHandler.TrySetupTouchAndGo(ac, PatternDirection.Right, TestDispatch.Context(Random.Shared));
         Assert.True(tg.Success, tg.Message);
         Assert.Equal(ClearanceType.ClearedTouchAndGo, ac.Phases!.LandingClearance);
 

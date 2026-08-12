@@ -296,7 +296,7 @@ public class Issue292KoakLowApproachRetargetTests(ITestOutputHelper output)
         ac.Phases = new PhaseList { AssignedRunway = rwy28R };
         ac.Phases.Add(new LandingPhase());
 
-        var result = PatternCommandHandler.TryClearedToLand(new ClearedToLandCommand { RunwayId = "33" }, ac, null);
+        var result = PatternCommandHandler.TryClearedToLand(new ClearedToLandCommand { RunwayId = "33" }, ac, TestDispatch.Context(Random.Shared));
         Assert.False(result.Success);
         Assert.Contains("established for runway", result.Message!, StringComparison.OrdinalIgnoreCase);
         Assert.Equal("28R", ac.Phases.AssignedRunway?.Designator);
@@ -313,7 +313,7 @@ public class Issue292KoakLowApproachRetargetTests(ITestOutputHelper output)
         var (_, ac) = setup.Value;
 
         // 28L is near-parallel to 28R → the guardrail rejects; the low approach must be left untouched.
-        var result = PatternCommandHandler.TryClearedToLand(new ClearedToLandCommand { RunwayId = "28L" }, ac, null);
+        var result = PatternCommandHandler.TryClearedToLand(new ClearedToLandCommand { RunwayId = "28L" }, ac, TestDispatch.Context(Random.Shared));
         Assert.False(result.Success);
         Assert.Equal("28R", ac.Phases?.AssignedRunway?.Designator);
         Assert.Equal(ClearanceType.ClearedLowApproach, ac.Phases?.LandingClearance);
@@ -332,7 +332,7 @@ public class Issue292KoakLowApproachRetargetTests(ITestOutputHelper output)
 
         // Same runway as assigned → the runway-mismatch branch is not taken; this is an ordinary CLAND
         // that converts the pending low approach into a full-stop landing on 28R.
-        var result = PatternCommandHandler.TryClearedToLand(new ClearedToLandCommand { RunwayId = "28R" }, ac, null);
+        var result = PatternCommandHandler.TryClearedToLand(new ClearedToLandCommand { RunwayId = "28R" }, ac, TestDispatch.Context(Random.Shared));
         Assert.True(result.Success, result.Message);
         Assert.Equal("28R", ac.Phases?.AssignedRunway?.Designator);
         Assert.Equal(ClearanceType.ClearedToLand, ac.Phases?.LandingClearance);
@@ -355,7 +355,7 @@ public class Issue292KoakLowApproachRetargetTests(ITestOutputHelper output)
         ac.Phases = new PhaseList { AssignedRunway = rwy28R, LandingClearance = ClearanceType.ClearedLowApproach };
         ac.Phases.Add(new LowApproachPhase());
 
-        var result = PatternCommandHandler.TryClearedToLand(new ClearedToLandCommand { RunwayId = "33" }, ac, null);
+        var result = PatternCommandHandler.TryClearedToLand(new ClearedToLandCommand { RunwayId = "33" }, ac, TestDispatch.Context(Random.Shared));
         Assert.False(result.Success);
         Assert.Contains("light-aircraft", result.Message!, StringComparison.OrdinalIgnoreCase);
         Assert.Equal("28R", ac.Phases.AssignedRunway?.Designator);
@@ -375,7 +375,7 @@ public class Issue292KoakLowApproachRetargetTests(ITestOutputHelper output)
         var (_, ac) = setup.Value;
 
         var cland = new ClearedToLandCommand { RunwayId = "33" };
-        var result = PatternCommandHandler.TryClearedToLand(cland, ac, null);
+        var result = PatternCommandHandler.TryClearedToLand(cland, ac, TestDispatch.Context(Random.Shared));
         Assert.True(result.Success, result.Message);
         Assert.Contains("change to runway 33", result.Message!, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("cleared to land", result.Message!, StringComparison.OrdinalIgnoreCase);
