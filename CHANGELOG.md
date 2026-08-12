@@ -1,6 +1,9 @@
 # Changelog
 
-## Unreleased
+## v0.12.4-beta [2026/08/12]
+
+### Highlights
+- Telling a held aircraft to follow another aircraft on the ground now releases the hold so it actually moves.
 
 ### Fixed
 - Telling a held aircraft to follow another aircraft on the ground (`FOLLOWG` or the Follow… context menu) now releases the hold so it actually moves — previously the command was acknowledged but the aircraft stayed frozen at 0 kt until a `TAXI` or `RES`.
