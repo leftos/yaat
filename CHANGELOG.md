@@ -1,6 +1,9 @@
 # Changelog
 
-## Unreleased
+## v0.12.2-beta [2026/08/11]
+
+### Highlights
+- The terminal now warns (amber) when a landing-type clearance (`CLAND`, `COPT`, `TG`, `SG`, `LA`, `LAHSO`, `CLANDF`) is issued while another aircraft is holding in position or taxiing to line up on that runway — and when `LUAW` is authorized while such a clearance already stands (7110.65 3-9-4). A reminder, not enforcement; suppressed at ASDE-X safety-logic airports like SFO where CRC covers it.
 
 ### Added
 - The terminal now warns (amber) when a landing-family clearance (`CLAND`/`COPT`/`TG`/`SG`/`LA`/`LAHSO`/`CLANDF`) is issued while another aircraft is holding in position or taxiing to line up on the same runway — and the reverse, when `LUAW` is authorized while an aircraft already holds one of those clearances for that runway (7110.65 3-9-4). The command still goes through; this is an RPO/mentor reminder, not enforcement. Suppressed at airports whose vNAS ARTCC config carries an ASDE-X safety-logic runway configuration (e.g. SFO), where CRC's Safety Logic covers the incursion.
