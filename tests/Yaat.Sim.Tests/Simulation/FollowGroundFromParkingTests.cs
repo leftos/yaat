@@ -108,6 +108,64 @@ public class FollowGroundFromParkingTests(ITestOutputHelper output)
         Assert.True(movedNm > 0.02, $"follower barely moved ({movedNm:F3} nm)");
     }
 
+    /// <summary>
+    /// Regression: FOLLOWG must clear any active ground <see cref="AircraftGroundOps.Hold"/> on the
+    /// follower. A taxiing aircraft told HOLD POSITION carries a <c>HoldDirective.HoldPosition</c>
+    /// (auto-released only by RES/TAXI, never on its own). The b13188b FOLLOWG-from-taxiing path
+    /// replaces the phase with <see cref="FollowingPhase"/> but left <c>Ground.Hold</c> set, so
+    /// <c>FollowingPhase.OnTick</c> saw <c>IsImmobile</c> and froze the aircraft at 0 kt forever —
+    /// the command reported success yet the aircraft never followed.
+    /// </summary>
+    [Fact]
+    public void FollowGround_ClearsActiveHold_SoHeldTaxiingFollowerMoves()
+    {
+        if (ReplayToParkedFollower() is not var (engine, _, _))
+        {
+            return;
+        }
+
+        // KPO83 is taxiing; hold it in position (a HoldPosition directive that only RES/TAXI clears).
+        var holdResult = engine.SendCommand("KPO83", "HOLD");
+        Assert.True(holdResult.Success, $"HOLD should succeed but got: {holdResult.Message}");
+        var kpo = engine.FindAircraft("KPO83");
+        Assert.NotNull(kpo);
+        Assert.True(kpo.Ground.IsImmobile, "KPO83 should be immobile after HOLDPOSITION");
+        Assert.IsType<TaxiingPhase>(kpo.Phases?.CurrentPhase);
+
+        // Now tell the held aircraft to follow the (on-ground) leader FTH399.
+        var result = engine.SendCommand("KPO83", "FOLLOWG FTH399");
+        output.WriteLine($"FOLLOWG FTH399 result: success={result.Success} msg={result.Message}");
+        Assert.True(result.Success, $"FOLLOWG should succeed but got: {result.Message}");
+
+        kpo = engine.FindAircraft("KPO83");
+        Assert.NotNull(kpo);
+        Assert.IsType<FollowingPhase>(kpo.Phases?.CurrentPhase);
+
+        // Settle 15 s first so any residual coast from the pre-HOLD taxi speed bleeds off, then
+        // measure sustained movement over the next 45 s. A frozen (still-held) follower produces
+        // ~0 nm here; a real follower keeps taxiing toward the leader.
+        for (int i = 0; i < 15; i++)
+        {
+            engine.TickOneSecond();
+        }
+
+        kpo = engine.FindAircraft("KPO83");
+        Assert.NotNull(kpo);
+        var settledPos = kpo.Position;
+        for (int i = 0; i < 45; i++)
+        {
+            engine.TickOneSecond();
+        }
+
+        kpo = engine.FindAircraft("KPO83");
+        Assert.NotNull(kpo);
+        double movedNm = GeoMath.DistanceNm(settledPos.Lat, settledPos.Lon, kpo.Position.Lat, kpo.Position.Lon);
+        output.WriteLine($"KPO83 phase={kpo.Phases?.CurrentPhase?.Name} sustained-move={movedNm:F3}nm gs={kpo.GroundSpeed:F1}");
+
+        // With the hold left set (the bug) FollowingPhase.OnTick keeps the follower stopped.
+        Assert.True(movedNm > 0.03, $"held follower did not sustain movement ({movedNm:F3} nm) — FOLLOWG did not clear Ground.Hold");
+    }
+
     [Fact]
     public void FTH399_DeferredBehindFollowGroundFromParking()
     {
