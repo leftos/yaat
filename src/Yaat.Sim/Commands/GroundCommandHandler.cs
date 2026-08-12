@@ -2057,6 +2057,9 @@ internal static class GroundCommandHandler
         // and advances CurrentIndex past the end, but does not remove the phase entries —
         // truncate the list before adding so Start() lands on the new FollowingPhase at index 0.
         var phases = aircraft.Phases!;
+        // Clear any active ground hold (HOLD/GIVEWAY) so FollowingPhase is not frozen by IsImmobile —
+        // FOLLOWG is a fresh movement clearance, same as TryTaxi/TryAirTaxi which also reset Hold.
+        aircraft.Ground.Hold = null;
         phases.Clear(CommandDispatcher.BuildMinimalContext(aircraft, groundLayout));
         phases.Phases.Clear();
         phases.Phases.Add(new FollowingPhase(follow.TargetCallsign));
