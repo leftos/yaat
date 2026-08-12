@@ -1,6 +1,11 @@
 # Changelog
 
-## Unreleased
+## v0.12.3-beta [2026/08/11]
+
+### Highlights
+- Quitting no longer hangs the app when the push-to-talk keyboard hook gets stuck shutting down.
+- Closing a pop-out window by its title-bar X no longer risks a freeze.
+- Server operators can force-close a stuck training room without restarting the server.
 
 ### Added
 - Server operators can now force-close a stuck training room without restarting the server (`POST /admin/rooms/{roomId}/close`, or `deploy-to-droplet.ps1 -KillRoom <roomId>`) — for rooms held open by a crashed or stuck client that never disconnects. Everyone still connected is evicted with a "closed by the server administrator" notice.
