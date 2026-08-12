@@ -50,6 +50,10 @@
          (included in the base package) on machines without it. -->
     <PackageReference Include="LM-Kit.NET" Version="2026.7.4" />
     <PackageReference Include="MessageBox.Avalonia" Version="3.3.1.1" />
+    <!-- ClrMD, used by UiThreadWatchdog to append every thread's managed call stack to the log when
+         the UI thread hard-freezes (GitHub #347): a snapshot self-attach is the only way to read the
+         wedged dispatcher thread's stack from inside the process. Windows-only at runtime. -->
+    <PackageReference Include="Microsoft.Diagnostics.Runtime" Version="4.0.732401" />
     <PackageReference Include="MetadataExtractor" Version="2.9.2" />
     <PackageReference Include="Microsoft.AspNetCore.SignalR.Client" Version="10.0.3" />
     <PackageReference Include="org.k2fsa.sherpa.onnx" Version="1.12.40" />

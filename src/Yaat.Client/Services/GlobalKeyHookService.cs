@@ -21,7 +21,7 @@ public sealed class GlobalKeyHookService : IDisposable
 {
     private static readonly ILogger Log = AppLog.CreateLogger<GlobalKeyHookService>();
 
-    private readonly SimpleGlobalHook _hook;
+    private readonly IGlobalHook _hook;
     private Task? _hookTask;
     private bool _disposed;
 
@@ -49,8 +49,12 @@ public sealed class GlobalKeyHookService : IDisposable
     public bool IsRunning => _hook.IsRunning;
 
     public GlobalKeyHookService()
+        : this(new SimpleGlobalHook()) { }
+
+    /// <summary>Test seam: lets tests substitute a fake hook (e.g. one whose native teardown hangs).</summary>
+    internal GlobalKeyHookService(IGlobalHook hook)
     {
-        _hook = new SimpleGlobalHook();
+        _hook = hook;
         _hook.KeyPressed += OnKeyPressed;
         _hook.KeyReleased += OnKeyReleased;
         _hook.HookEnabled += OnHookEnabled;
@@ -185,6 +189,13 @@ public sealed class GlobalKeyHookService : IDisposable
         return mods;
     }
 
+    /// <summary>
+    /// How long <see cref="Dispose"/> waits for the native hook teardown before abandoning it.
+    /// Normal teardown completes in milliseconds; the bound exists because a wedged teardown must
+    /// not block the caller (it froze the UI thread mid-shutdown in GitHub #347).
+    /// </summary>
+    private static readonly TimeSpan TeardownTimeout = TimeSpan.FromSeconds(2);
+
     public void Dispose()
     {
         if (_disposed)
@@ -194,17 +205,38 @@ public sealed class GlobalKeyHookService : IDisposable
 
         _disposed = true;
 
-        try
+        _hook.KeyPressed -= OnKeyPressed;
+        _hook.KeyReleased -= OnKeyReleased;
+        _hook.HookEnabled -= OnHookEnabled;
+        _hook.HookDisabled -= OnHookDisabled;
+
+        // SharpHook's Dispose is a blocking P/Invoke into libuiohook's hook_stop() with no
+        // timeout, and this Dispose runs on the UI thread during MainWindow.OnClosing. Run the
+        // native teardown on its own background thread with a bounded wait: if hook_stop() wedges,
+        // shutdown proceeds and process exit reaps the abandoned background threads.
+        var teardown = new Thread(() =>
         {
-            _hook.KeyPressed -= OnKeyPressed;
-            _hook.KeyReleased -= OnKeyReleased;
-            _hook.HookEnabled -= OnHookEnabled;
-            _hook.HookDisabled -= OnHookDisabled;
-            _hook.Dispose();
-        }
-        catch (Exception ex)
+            try
+            {
+                _hook.Dispose();
+            }
+            catch (Exception ex)
+            {
+                Log.LogWarning(ex, "Error disposing global keyboard hook");
+            }
+        })
         {
-            Log.LogWarning(ex, "Error disposing global keyboard hook");
+            IsBackground = true,
+            Name = "GlobalKeyHookTeardown",
+        };
+        teardown.Start();
+
+        if (!teardown.Join(TeardownTimeout))
+        {
+            Log.LogWarning(
+                "Global keyboard hook teardown did not finish within {TimeoutSec}s; abandoning it so shutdown can continue",
+                TeardownTimeout.TotalSeconds
+            );
         }
     }
 }

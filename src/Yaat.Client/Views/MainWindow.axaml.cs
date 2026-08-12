@@ -1346,11 +1346,14 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
         _stripsWindows[entry] = window;
         window.Closing += (_, _) =>
         {
+            // Remove BEFORE flipping the flag — the setter synchronously re-enters
+            // CloseStripsEntryWindow, which must miss the dictionary and no-op instead of
+            // re-Closing the window currently inside its own Closing event.
+            _stripsWindows.Remove(entry);
             if (!IsClosingFromShutdown(_isMainWindowClosing))
             {
                 entry.IsPoppedOut = false;
             }
-            _stripsWindows.Remove(entry);
         };
         window.Show();
     }
@@ -1624,11 +1627,14 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
         _tdlsWindows[entry] = window;
         window.Closing += (_, _) =>
         {
+            // Remove BEFORE flipping the flag — the setter synchronously re-enters
+            // CloseTdlsEntryWindow, which must miss the dictionary and no-op instead of
+            // re-Closing the window currently inside its own Closing event.
+            _tdlsWindows.Remove(entry);
             if (!IsClosingFromShutdown(_isMainWindowClosing))
             {
                 entry.IsPoppedOut = false;
             }
-            _tdlsWindows.Remove(entry);
         };
         window.Show();
     }
@@ -1834,58 +1840,63 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
     // has a chance to fire.
     private static bool IsClosingFromShutdown(bool isMainWindowClosing) => isMainWindowClosing || AppLifetime.IsShuttingDown;
 
+    // Each handler clears its window field BEFORE flipping the VM pop-out flag: the flag setter
+    // raises PropertyChanged synchronously on this same call stack, which re-enters
+    // HandleXxxPopOut → CloseXxxWindow. With the field already null that re-entry no-ops; with it
+    // still set it would call Close() on the very window currently inside its own Closing event.
+
     private void OnTerminalWindowClosing(object? sender, WindowClosingEventArgs e)
     {
+        _terminalWindow = null;
         if (!IsClosingFromShutdown(_isMainWindowClosing) && DataContext is MainViewModel vm)
         {
             vm.IsTerminalPoppedOut = false;
         }
-        _terminalWindow = null;
     }
 
     private void OnDataGridWindowClosing(object? sender, WindowClosingEventArgs e)
     {
+        _dataGridWindow = null;
         if (!IsClosingFromShutdown(_isMainWindowClosing) && DataContext is MainViewModel vm)
         {
             vm.IsDataGridPoppedOut = false;
         }
-        _dataGridWindow = null;
     }
 
     private void OnGroundViewWindowClosing(object? sender, WindowClosingEventArgs e)
     {
+        _groundViewWindow = null;
         if (!IsClosingFromShutdown(_isMainWindowClosing) && DataContext is MainViewModel vm)
         {
             vm.IsGroundViewPoppedOut = false;
         }
-        _groundViewWindow = null;
     }
 
     private void OnRadarViewWindowClosing(object? sender, WindowClosingEventArgs e)
     {
+        _radarViewWindow = null;
         if (!IsClosingFromShutdown(_isMainWindowClosing) && DataContext is MainViewModel vm)
         {
             vm.IsRadarViewPoppedOut = false;
         }
-        _radarViewWindow = null;
     }
 
     private void OnControllersWindowClosing(object? sender, WindowClosingEventArgs e)
     {
+        _controllersWindow = null;
         if (!IsClosingFromShutdown(_isMainWindowClosing) && DataContext is MainViewModel vm)
         {
             vm.IsControllersPoppedOut = false;
         }
-        _controllersWindow = null;
     }
 
     private void OnMetarWindowClosing(object? sender, WindowClosingEventArgs e)
     {
+        _metarWindow = null;
         if (!IsClosingFromShutdown(_isMainWindowClosing) && DataContext is MainViewModel vm)
         {
             vm.IsMetarPoppedOut = false;
         }
-        _metarWindow = null;
     }
 
     private void RefreshRecentScenariosEnabled(MainViewModel vm)

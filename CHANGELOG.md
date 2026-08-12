@@ -4,6 +4,11 @@
 
 ### Added
 - Server operators can now force-close a stuck training room without restarting the server (`POST /admin/rooms/{roomId}/close`, or `deploy-to-droplet.ps1 -KillRoom <roomId>`) — for rooms held open by a crashed or stuck client that never disconnects. Everyone still connected is evicted with a "closed by the server administrator" notice.
+- The "YAAT is not responding" warning now also writes every thread's activity to the log (Windows), so freeze reports pinpoint the cause.
+
+### Fixed
+- Quitting no longer hangs the app forever when the system-wide push-to-talk keyboard hook gets stuck shutting down.
+- Closing a pop-out window by its title-bar X no longer risks a freeze from the same window being closed twice.
 
 ## v0.12.2-beta [2026/08/11]
 

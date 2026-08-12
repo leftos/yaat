@@ -130,6 +130,48 @@ public class MainWindowLifecycleTests
         Assert.Empty(main.StripsWindows);
     }
 
+    [AvaloniaFact]
+    public void RadarPopOut_ClosedViaWindowChrome_UndocksWithoutReenteringClose()
+    {
+        var (main, vm) = BootMainWindow();
+        vm.IsRadarViewPoppedOut = false;
+        Dispatcher.UIThread.RunJobs();
+
+        vm.IsRadarViewPoppedOut = true;
+        Dispatcher.UIThread.RunJobs();
+        var popOut = main.RadarViewWindow;
+        Assert.NotNull(popOut);
+
+        // Close the pop-out window itself — the native title-bar X path (#347). The Closing
+        // handler flips IsRadarViewPoppedOut, whose PropertyChanged fan-out re-enters
+        // CloseRadarViewWindow on this same call stack; it must no-op instead of calling
+        // Close() again on the window that is already inside its own Closing event.
+        popOut!.Close();
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.False(vm.IsRadarViewPoppedOut);
+        Assert.Null(main.RadarViewWindow);
+    }
+
+    [AvaloniaFact]
+    public void StripsEntryPopOut_ClosedViaWindowChrome_UndocksWithoutReenteringClose()
+    {
+        var (main, vm) = BootMainWindow();
+        var studentEntry = vm.StripsEntries[0];
+        studentEntry.IsPoppedOut = false;
+        Dispatcher.UIThread.RunJobs();
+
+        studentEntry.IsPoppedOut = true;
+        Dispatcher.UIThread.RunJobs();
+        var window = main.StripsWindows[studentEntry];
+
+        window.Close();
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.False(studentEntry.IsPoppedOut);
+        Assert.Empty(main.StripsWindows);
+    }
+
     private static (MainWindow main, MainViewModel vm) BootMainWindow()
     {
         var main = new MainWindow();

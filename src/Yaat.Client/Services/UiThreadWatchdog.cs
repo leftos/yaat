@@ -20,8 +20,9 @@ namespace Yaat.Client.Services;
 /// SignalR, and rendering all appear healthy because the stall is on the dispatcher itself. The
 /// captured snapshot discriminates the likely causes: a jump in gen2 collections points at a GC
 /// pause, while a high memory-load percentage points at OS memory pressure (the classic macOS
-/// compressed-memory / swap thrash pattern). It does not capture the frozen thread's managed call
-/// stack — .NET has no reliable cross-thread stack API off Windows; the OS hang report
+/// compressed-memory / swap thrash pattern). On Windows, a hard freeze additionally appends every
+/// thread's managed call stack to the log via <see cref="ManagedStackCapture"/> (GitHub #347 was
+/// undiagnosable without one); off Windows the OS hang report
 /// (<c>~/Library/Logs/DiagnosticReports/*.hang</c> on macOS) covers that.
 ///
 /// The heartbeat is posted at the dispatcher's default priority, so it measures responsiveness to
@@ -62,6 +63,11 @@ public sealed class UiThreadWatchdog : IDisposable
     // Latched for the life of the process: a freeze notice is shown at most once so a flapping UI
     // cannot nag. Unlike _stallReported this is never cleared on recovery.
     private bool _freezeNotified;
+
+    // Managed id of the dispatcher thread, learned from the first heartbeat that runs on it.
+    // -1 until then (a freeze during the very first heartbeat leaves the UI thread unmarked in
+    // the stack capture, which still lists every thread).
+    private volatile int _uiManagedThreadId = -1;
     private int _gen0AtStall;
     private int _gen1AtStall;
     private int _gen2AtStall;
@@ -163,6 +169,7 @@ public sealed class UiThreadWatchdog : IDisposable
 
     private void OnHeartbeat()
     {
+        _uiManagedThreadId = Environment.CurrentManagedThreadId;
         long now = Environment.TickCount64;
         bool recovered = false;
         long durationMs = 0;
@@ -238,9 +245,11 @@ public sealed class UiThreadWatchdog : IDisposable
     /// Tells the user the app is wedged rather than merely busy, and points at the log to attach to a
     /// bug report. Deliberately a native message box: a frozen UI thread cannot draw an Avalonia
     /// dialog, which is exactly the case this covers. Windows-only — the other desktop platforms have
-    /// no equivalent one-call dialog, so there the log line is the whole story.
+    /// no equivalent one-call dialog, so there the log line is the whole story. On Windows the freeze
+    /// also triggers a one-time all-thread managed stack capture into the log, UI thread first —
+    /// without it a permanent freeze is undiagnosable from a bug report (GitHub #347).
     /// </summary>
-    private static void NotifyUserOfFreeze(long stallMs)
+    private void NotifyUserOfFreeze(long stallMs)
     {
         Log.LogError("UI thread FROZEN for ~{StallMs} ms — notifying the user. Attach {LogPath} to a bug report.", stallMs, AppLog.LogPath);
 
@@ -249,6 +258,20 @@ public sealed class UiThreadWatchdog : IDisposable
             return;
         }
 
+        // The message box runs on its own thread (below), so the capture never delays the user
+        // notice; it only occupies the watchdog thread, whose 500 ms cadence has nothing left to
+        // measure during a hard freeze anyway.
+        ShowFreezeMessageBox(stallMs);
+
+        string? stacks = ManagedStackCapture.TryCaptureAllThreads(_uiManagedThreadId);
+        if (stacks is not null)
+        {
+            Log.LogError("Managed stacks at freeze (UI thread first):\n{Stacks}", stacks);
+        }
+    }
+
+    private static void ShowFreezeMessageBox(long stallMs)
+    {
         string message =
             $"YAAT has stopped responding (frozen for about {stallMs / 1000} seconds)."
             + "\n\nIt may recover on its own. If it does not, close YAAT and reopen it."
