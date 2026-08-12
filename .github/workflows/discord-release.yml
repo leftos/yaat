@@ -1,8 +1,10 @@
 name: Discord Release Announcement
 
 # Posts a release announcement to the Discord announcements channel.
-# Triggered automatically when release.yml publishes a GitHub Release;
-# can also be invoked manually to (re)announce a specific tag.
+# Triggered automatically when the draft GitHub Release is published (by
+# deploy-to-droplet.ps1 after a verified server deploy, or by a manual
+# `gh release edit --draft=false`); can also be invoked manually to
+# (re)announce a specific tag.
 
 on:
   release:

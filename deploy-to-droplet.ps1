@@ -428,11 +428,12 @@ function Resolve-CommitLabel {
   return $short
 }
 
-# Draft-until-deployed: release.yml creates the GitHub Release as a draft when the
-# release changes anything the server runs, so auto-update can't offer a client whose
-# matching server isn't live yet. Once this deploy verifies the server is up, publish
-# the draft — but only if the deployed client commit IS the tagged release commit;
-# deploying some other main state must not make an unmatched release public.
+# Draft-until-published: release.yml always creates the GitHub Release as a draft,
+# so auto-update can't offer a client whose matching server isn't live yet. Once this
+# deploy verifies the server is up, publish the draft — but only if the deployed
+# client commit IS the tagged release commit; deploying some other main state must
+# not make an unmatched release public. (Client-only releases skip the deploy; the
+# /prepare-release flow publishes those directly.)
 function Publish-DraftClientRelease {
   param([string]$DeployedClientSha)
   $props = Get-Content (Join-Path $PSScriptRoot "Directory.Build.props") -Raw
@@ -462,9 +463,9 @@ function Publish-DraftClientRelease {
     return
   }
   Write-Host "✓ Published GitHub release $tag (was draft pending this deploy)" -ForegroundColor Green
-  # No explicit Discord dispatch here: publishing with the operator's user token (unlike
-  # GITHUB_TOKEN in release.yml) fires the release:published event, which triggers
-  # discord-release.yml on its own. Dispatching as well posts a duplicate announcement.
+  # No explicit Discord dispatch here: publishing with the operator's user token fires
+  # the release:published event, which triggers discord-release.yml on its own.
+  # Dispatching as well posts a duplicate announcement.
 }
 
 # Announce the imminent restart on Discord and checkpoint active sessions (unless

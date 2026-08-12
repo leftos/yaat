@@ -67,20 +67,25 @@ The check runs automatically five seconds after startup and stays silent unless 
 Triggered on `push` of a `v*` tag. Jobs run in dependency order:
 
 1. **version** — reads `<Version>` from `Directory.Build.props` and the short SHA.
-2. **changelog** — extracts the `CHANGELOG.md` section matching the tag, splitting out a `### Highlights` subsection (authored by `/prepare-release`) from the changelog body. Also decides draft-until-deployed (below) by diffing the previous `v*` tag against this one over the server-shared paths (`src/Yaat.Sim`, `src/Yaat.Client.Strips`, `src/Yaat.Client.Tdls`, `tools/Yaat.VStrips.Web`, `tools/Yaat.VTdls.Web`).
+2. **changelog** — extracts the `CHANGELOG.md` section matching the tag, splitting out a `### Highlights` subsection (authored by `/prepare-release`) from the changelog body.
 3. **build** — `dotnet publish` of `src/Yaat.Client` for `win-x64` and `linux-x64` (`release-macos.yml` publishes `osx-arm64` and `osx-x64` itself).
 4. **package-win / package-linux / package-macos** — `vpk pack` per platform. `package-macos` (in `release-macos.yml`, once per architecture) additionally imports the Developer ID certificates and an App Store Connect API key into a temporary keychain, then signs + notarizes (skipped when the `MACOS_*` secrets are absent).
-5. **release** — assembles `release/`, builds the release body from highlights + changelog + a download table, and creates the release via `softprops/action-gh-release` with the default `GITHUB_TOKEN` — published immediately for client-only releases, as a **draft** for server-affecting ones.
+5. **release** — assembles `release/`, builds the release body from highlights + changelog + a download table, and creates the release via `softprops/action-gh-release` with the default `GITHUB_TOKEN`, always as a **draft**.
 
-### Draft-until-deployed
+### Draft-until-published
 
-The client release workflow finishes in ~5 minutes; the server image build + droplet deploy takes ~30. Publishing the client immediately would offer users (via the releases page and Velopack auto-update, which both ignore drafts) a client whose matching server isn't live yet. So when the tag's diff touches anything the production server runs, the release is created as a draft, and `deploy-to-droplet.ps1` publishes it (`gh release edit --draft=false`) after verifying via `/api/version` that the deployed client commit **is** the tagged commit — which also fires the Discord announcement (see the quirk below). `release-macos.yml` is unaffected: the authenticated `gh release view`/`upload` it uses sees drafts, so macOS assets land on the draft like any release.
+Every release is created as a draft — invisible to the releases page and to Velopack auto-update. CI cannot judge deployment scope: a release can be server-affecting purely via the yaat-server repo, which `release.yml` (running in the yaat repo) cannot see, so publishing is never decided in CI. The `/prepare-release` flow, which has cross-repo visibility, publishes the draft:
+
+- **Server-affecting releases**: `deploy-to-droplet.ps1` publishes (`gh release edit --draft=false`) after verifying via `/api/version` that the deployed client commit **is** the tagged commit. The client release workflow finishes in ~5 minutes while the server image build + droplet deploy takes ~30; keeping the release a draft until then stops users picking up a client whose matching server isn't live yet.
+- **Client-only releases**: the `/prepare-release` flow publishes once `release.yml` finishes building the installers — no deploy is involved.
+
+`release-macos.yml` is unaffected: the authenticated `gh release view`/`upload` it uses sees drafts, so macOS assets land on the draft like any release.
 
 A failed or skipped deploy leaves the release as a draft on purpose — publish manually with `gh release edit v{version} --repo leftos/yaat --draft=false` once a matching server is live.
 
-### Discord announcement quirk
+### Discord announcement
 
-`softprops/action-gh-release` with the default `GITHUB_TOKEN` publishes the release, but GitHub's recursion guard suppresses the resulting `release: published` event, so `discord-release.yml` never fires from it. The release job works around this with a final step that dispatches the Discord workflow explicitly: `gh workflow run discord-release.yml --repo "$REPO" --ref main -f tag="v${TAG}"`. `workflow_dispatch` events fired by `GITHUB_TOKEN` are exempt from the recursion guard, so this triggers (the job declares `permissions: actions: write`). The `--repo` flag is required because the release job never runs `actions/checkout`, so `gh` has no `.git/` to infer the repository from. For draft-until-deployed releases the workflow skips this dispatch, and no explicit dispatch happens later either: `deploy-to-droplet.ps1` publishes the draft with the operator's *user* token, which is not subject to the recursion guard, so the `release: published` event fires and triggers `discord-release.yml` directly. (The same applies to a manual `gh release edit --draft=false`.) Dispatching the workflow on top of that posts the announcement twice — which is exactly what happened on v0.11.6/v0.11.7.
+`discord-release.yml` triggers on `release: published`. Both publish paths use the operator's *user* token (the deploy script or a manual `gh release edit --draft=false`), which is not subject to GitHub's workflow-recursion guard, so the event fires and the announcement posts. Do **not** also dispatch `discord-release.yml` by hand on top of a publish — that posts the announcement twice (which is exactly what happened on v0.11.6/v0.11.7).
 
 ## Shipping a release
 
