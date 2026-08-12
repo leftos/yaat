@@ -5,6 +5,7 @@
 #        .\deploy-to-droplet.ps1 [-Target <name>] -BuildOnDroplet [-NoCache] [-CacheReserveGb <gb>] ...
 #        .\deploy-to-droplet.ps1 -Target yaat2 -RebootOnly [-NoLogs] [-SkipSessionSave] [-DrainSeconds <sec>]
 #        .\deploy-to-droplet.ps1 [-Target <name>] -StatusOnly    (report active rooms only, no deploy)
+#        .\deploy-to-droplet.ps1 [-Target <name>] -KillRoom <roomId>   (force-close one room, no deploy)
 #
 # Default deploy flow: trigger yaat-server's docker-image.yml workflow (which builds the
 # image in GitHub Actions and pushes it to ghcr.io), wait for it, then have the droplet
@@ -69,6 +70,18 @@
 #              on a successful query (whether or not rooms are active), 2 if the query
 #              failed (server unreachable or password unset). Ignores all build/deploy flags.
 #
+# -KillRoom <roomId>  Do NOT deploy. POST the target's /admin/rooms/<roomId>/close endpoint
+#                     to force-close that room: every connected training and CRC client is
+#                     evicted with a "closed by the server administrator" notice and the
+#                     room's simulation state is torn down immediately, regardless of
+#                     occupancy or pause state. The escape hatch for a room held open by a
+#                     stuck or crashed client that abandoned-room cleanup (needs all clients
+#                     gone) and paused-room retirement (needs an hour paused) never reach.
+#                     Get the room id from -StatusOnly. Requires ADMIN_PASSWORD (read from
+#                     .env.<target>/.env). Exit code 0 on success, 2 if the close failed
+#                     (unknown room, server unreachable, or password unset). Ignores all
+#                     build/deploy flags.
+#
 # -NoCache  (-BuildOnDroplet only) Pass --no-cache to docker compose build, forcing
 #           every layer to rebuild from scratch (including the wasm-tools workload
 #           install in the Dockerfile, which adds ~1-3 minutes). Off by
@@ -94,6 +107,7 @@ param(
   [switch]$RebootOnly,
   [switch]$WaitForEmptyRooms,
   [switch]$StatusOnly,
+  [string]$KillRoom,
   [switch]$BuildImageOnly,
   [switch]$SkipCiBuild,
   [int]$DrainSeconds = 30,
@@ -312,6 +326,21 @@ function Invoke-StatusCheck {
   }
 }
 
+# Force-close one room via POST /admin/rooms/{roomId}/close: evicts every connected client
+# with a notice and tears the room down immediately. Throws on failure (unknown room id,
+# unreachable server, password unset) so the caller can exit 2.
+function Invoke-KillRoom {
+  param([string]$RoomId)
+  if (-not $adminPassword) {
+    throw "ADMIN_PASSWORD not set in $envFile — cannot call /admin/rooms/$RoomId/close. Set it (matching the droplet) and retry."
+  }
+
+  $headers = @{ "X-Yaat-Admin-Password" = $adminPassword }
+  $result = Invoke-RestMethod -Uri "$serverUrl/admin/rooms/$RoomId/close" -Method Post -Headers $headers -TimeoutSec 15
+  Write-Host ("✓ Force-closed room {0} (scenario '{1}'): evicted {2} member(s), removed {3} aircraft." -f
+    $result.roomId, $result.scenario, $result.membersEvicted, $result.aircraftRemoved) -ForegroundColor Green
+}
+
 # Block until the target server reports zero rooms in memory. Polls /admin/status every
 # $PollSec seconds, printing the active rooms each check. Returns once the server is empty.
 # A transient query failure (server briefly unreachable) is reported and retried, never
@@ -456,7 +485,8 @@ function Invoke-DeployRestartPrep {
 }
 
 $headerTitle =
-  if ($StatusOnly) { "YAAT Server: active-room status (no deploy)" }
+  if ($KillRoom) { "YAAT Server: force-close room $KillRoom (no deploy)" }
+  elseif ($StatusOnly) { "YAAT Server: active-room status (no deploy)" }
   elseif ($WaitForEmptyRooms) { "YAAT Server: wait for empty rooms (no deploy)" }
   elseif ($BuildImageOnly) { "YAAT Server: CI image build only (no deploy)" }
   elseif ($RebootOnly) { "YAAT Server Reboot (refresh nav data, no redeploy)" }
@@ -464,7 +494,7 @@ $headerTitle =
 Write-Host $headerTitle -ForegroundColor Cyan
 Write-Host "=====================" -ForegroundColor Cyan
 Write-Host "Target:     $Target ($serverUrl)"
-if (-not $WaitForEmptyRooms -and -not $StatusOnly -and -not $BuildImageOnly) {
+if (-not $WaitForEmptyRooms -and -not $StatusOnly -and -not $KillRoom -and -not $BuildImageOnly) {
   Write-Host "Droplet:    $dropletIp"
   Write-Host "Path:       $serverPath"
   Write-Host "Env file:   $remoteEnvFile (remote)"
@@ -569,6 +599,20 @@ function Invoke-ServerReboot {
   Write-Host ""
   Write-Host "✓ Reboot complete!" -ForegroundColor Green
   Write-Host ""
+}
+
+# Room force-close runs outside the main try/catch so a failure never sends a false
+# "Deployment failed" Discord alert. Exit 0 = room closed, 2 = close failed (unknown room,
+# server unreachable, or password unset).
+if ($KillRoom) {
+  try {
+    Invoke-KillRoom -RoomId $KillRoom
+    exit 0
+  }
+  catch {
+    Write-Host "⚠ Could not close room $KillRoom via $serverUrl ($_)" -ForegroundColor Yellow
+    exit 2
+  }
 }
 
 # Read-only status check runs outside the main try/catch so a query failure never sends a
