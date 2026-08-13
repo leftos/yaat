@@ -379,6 +379,8 @@ public partial class MainViewModel
         FlightPlanEditorManager.Close();
         Radar.ClearShownPaths();
         Ground.ClearShownTaxiRoutes();
+        Radar.DataBlockState.Clear();
+        Ground.DataBlockState.Clear();
         Aircraft.Clear();
 
         int delayed = 0;

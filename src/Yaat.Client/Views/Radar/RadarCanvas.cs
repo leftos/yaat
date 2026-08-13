@@ -146,11 +146,21 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
         DatablockDeconflictMode
     >(nameof(DeconflictMode));
 
+    public static readonly StyledProperty<RadarDataBlockViewState?> DataBlockStateProperty = AvaloniaProperty.Register<
+        RadarCanvas,
+        RadarDataBlockViewState?
+    >(nameof(DataBlockState));
+
     private const float DataBlockPad = 3f;
     private static readonly IReadOnlyDictionary<string, SKPoint> EmptyOffsets = new Dictionary<string, SKPoint>();
 
     private readonly RadarRenderer _renderer = new();
-    private readonly Dictionary<string, SKPoint> _dataBlockOffsets = new();
+
+    // Unbound fallback (bare-canvas tests, detached windows). The bound view-model state is the
+    // session-persistent store; the binding may churn to null on tab detach, so reads always go
+    // through State and nothing is ever cleared from a property change.
+    private readonly RadarDataBlockViewState _localDataBlockState = new();
+    private RadarDataBlockViewState State => DataBlockState ?? _localDataBlockState;
 
     // Per-frame deconfliction result (callsign -> effective text-origin offset). Written on the UI
     // thread at snapshot build; read by the snapshot copy (draw) and by hit-testing. Persists across
@@ -180,10 +190,6 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
 
     // True when Ctrl was held at the last pointer-move; gates the Ctrl+hover MVA tooltip overlay.
     private bool _ctrlHeldAtPointer;
-    private readonly HashSet<string> _minifiedCallsigns = new();
-    private readonly HashSet<string> _highlightedCallsigns = new();
-    private readonly Dictionary<string, int> _dataBlockZOrder = new();
-    private int _nextZOrder = 1;
 
     // Click-to-dismiss state for the opt-in speech bubble. On press inside a bubble, record
     // the callsign + position; on release, if the pointer barely moved, clear the bubble.
@@ -532,6 +538,13 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
         set => SetValue(DeconflictModeProperty, value);
     }
 
+    /// <summary>Session-persistent datablock state shared with the owning view-model (see <see cref="RadarDataBlockViewState"/>).</summary>
+    public RadarDataBlockViewState? DataBlockState
+    {
+        get => GetValue(DataBlockStateProperty);
+        set => SetValue(DataBlockStateProperty, value);
+    }
+
     /// <summary>
     /// Airport id the user's ground view is currently showing (null when none). A ground
     /// aircraft is normally hidden on the radar, but when it has an active speech bubble and its
@@ -738,16 +751,12 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
     /// <summary>Toggles full/mini datablock for the given callsign.</summary>
     public void ToggleMinifiedDataBlock(string callsign)
     {
-        if (!_minifiedCallsigns.Remove(callsign))
-        {
-            _minifiedCallsigns.Add(callsign);
-        }
-
+        State.ToggleMinified(callsign);
         MarkDirty();
     }
 
     /// <summary>Returns true if the callsign's datablock is currently minified.</summary>
-    public bool IsMinified(string callsign) => _minifiedCallsigns.Contains(callsign);
+    public bool IsMinified(string callsign) => State.MinifiedCallsigns.Contains(callsign);
 
     /// <summary>
     /// Clears any manual drag offset for the callsign so its datablock returns to the student's leader
@@ -756,19 +765,19 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
     /// </summary>
     public void ResetDataBlockOffset(string callsign)
     {
-        if (_dataBlockOffsets.Remove(callsign))
+        if (State.ManualOffsets.Remove(callsign))
         {
             MarkDirty();
         }
     }
 
     /// <summary>Returns true if the callsign's datablock has been manually dragged to a custom position.</summary>
-    public bool HasManualDataBlockOffset(string callsign) => _dataBlockOffsets.ContainsKey(callsign);
+    public bool HasManualDataBlockOffset(string callsign) => State.ManualOffsets.ContainsKey(callsign);
 
     /// <summary>Surfaces the datablock for the given callsign to the top of the Z-order.</summary>
     public void SurfaceDataBlock(string callsign)
     {
-        _dataBlockZOrder[callsign] = _nextZOrder++;
+        State.SurfaceDataBlock(callsign);
         MarkDirty();
     }
 
@@ -853,6 +862,7 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
             || change.Property == ShownShapesProperty
             || change.Property == HistoryCountProperty
             || change.Property == DeconflictModeProperty
+            || change.Property == DataBlockStateProperty
         )
         {
             MarkDirty();
@@ -1036,7 +1046,7 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
 
         var sorted = SortByZOrder(
             FilterAircraft(Aircraft, ShowTopDown, ShowSpeechBubbles, AlwaysShowGroundBubblesOnRadar, GroundShownAirportId, DateTime.UtcNow),
-            _dataBlockZOrder
+            State.DataBlockZOrder
         );
         var deconflictOffsets = RunDeconfliction(sorted);
 
@@ -1084,7 +1094,7 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
             RangeRingCenterLat,
             RangeRingCenterLon,
             RangeRingSizeNm,
-            new Dictionary<string, SKPoint>(_dataBlockOffsets),
+            new Dictionary<string, SKPoint>(State.ManualOffsets),
             deconflictOffsets,
             hoveredFix,
             PtlLengthMinutes,
@@ -1096,8 +1106,8 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
             drawRouteCursorLatLon,
             drawRouteCursorLabel,
             IsDrawingRoute ? WaypointConditions : null,
-            new HashSet<string>(_minifiedCallsigns),
-            new HashSet<string>(_highlightedCallsigns),
+            new HashSet<string>(State.MinifiedCallsigns),
+            new HashSet<string>(State.HighlightedCallsigns),
             ShowTopDown,
             WeatherInfo,
             ShownPaths,
@@ -1283,11 +1293,7 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
             var hitAc = FindDataBlockAtPoint(pos) ?? FindAircraftAtPoint(pos);
             if (hitAc is not null)
             {
-                if (!_highlightedCallsigns.Remove(hitAc.Callsign))
-                {
-                    _highlightedCallsigns.Add(hitAc.Callsign);
-                }
-
+                State.ToggleHighlight(hitAc.Callsign);
                 MarkDirty();
                 e.Handled = true;
             }
@@ -1440,7 +1446,7 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
 
             if (_dragThresholdMet && _dragCallsign is not null)
             {
-                _dataBlockOffsets[_dragCallsign] = new SKPoint(_dragStartOffset.X + dx, _dragStartOffset.Y + dy);
+                State.ManualOffsets[_dragCallsign] = new SKPoint(_dragStartOffset.X + dx, _dragStartOffset.Y + dy);
                 MarkDirty();
             }
 
@@ -1582,7 +1588,7 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
         var tags = LastEuroScopeTags;
         var sorted = SortByZOrder(
             FilterAircraft(Aircraft, ShowTopDown, ShowSpeechBubbles, AlwaysShowGroundBubblesOnRadar, GroundShownAirportId, DateTime.UtcNow),
-            _dataBlockZOrder
+            State.DataBlockZOrder
         );
         AircraftModel? bestAc = null;
         var bestField = TagFieldId.None;
@@ -1635,7 +1641,7 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
         // Use z-order-sorted list so the topmost (last-drawn) datablock wins
         var sorted = SortByZOrder(
             FilterAircraft(Aircraft, ShowTopDown, ShowSpeechBubbles, AlwaysShowGroundBubblesOnRadar, GroundShownAirportId, DateTime.UtcNow),
-            _dataBlockZOrder
+            State.DataBlockZOrder
         );
         AircraftModel? best = null;
 
@@ -1663,11 +1669,11 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
     private (SKPoint Offset, SKRect Rect) ComputeDataBlockPlacement(AircraftModel ac)
     {
         SKPoint manualOffset = default;
-        bool hasManual = _dataBlockOffsets.TryGetValue(ac.Callsign, out manualOffset);
+        bool hasManual = State.ManualOffsets.TryGetValue(ac.Callsign, out manualOffset);
 
         // EuroScope path uses the bounds the renderer cached during the last frame so
         // hit testing always matches what's actually on screen.
-        if (EuroScopeMode && !_minifiedCallsigns.Contains(ac.Callsign) && LastEuroScopeTags.TryGetValue(ac.Callsign, out var esResult))
+        if (EuroScopeMode && !State.MinifiedCallsigns.Contains(ac.Callsign) && LastEuroScopeTags.TryGetValue(ac.Callsign, out var esResult))
         {
             return (hasManual ? manualOffset : RadarDatablockLayout.DefaultOffset, esResult.Bounds);
         }
@@ -1693,7 +1699,7 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
     /// </summary>
     internal SKRect ComputeStableRectAtOrigin(AircraftModel ac)
     {
-        bool isMinified = _minifiedCallsigns.Contains(ac.Callsign);
+        bool isMinified = State.MinifiedCallsigns.Contains(ac.Callsign);
         bool collapse =
             !isMinified
             && CollapseStudentDatablocks
@@ -1784,12 +1790,12 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
         {
             var (sx, sy) = Viewport.LatLonToScreen(ac.Position.Lat, ac.Position.Lon);
             var anchor = new SKPoint(sx, sy);
-            bool hasManual = _dataBlockOffsets.TryGetValue(ac.Callsign, out var manualOffset);
+            bool hasManual = State.ManualOffsets.TryGetValue(ac.Callsign, out var manualOffset);
             bool isPriority = ReferenceEquals(ac, SelectedAircraft);
 
             // EuroScope tags are pinned for v1: their per-field hit rects are cached from the draw, so
             // moving the tag would desync field hit-testing. Anchor the cached bounds as an obstacle.
-            if (EuroScopeMode && !_minifiedCallsigns.Contains(ac.Callsign) && LastEuroScopeTags.TryGetValue(ac.Callsign, out var es))
+            if (EuroScopeMode && !State.MinifiedCallsigns.Contains(ac.Callsign) && LastEuroScopeTags.TryGetValue(ac.Callsign, out var es))
             {
                 var esOffset = hasManual ? manualOffset : RadarDatablockLayout.DefaultOffset;
                 float ox = sx + esOffset.X;

@@ -589,6 +589,8 @@ The button cycles through three modes:
 
 Datablocks you have **dragged by hand stay put**, and the rest route around them. To hand a dragged datablock back to automatic placement, right-click it and choose **Reset datablock position** (radar: in the **Display** submenu, labeled "Reset to student position"; ground: "Reset datablock position"). Deconfliction only moves labels that actually overlap — an uncrowded datablock stays in its normal spot. Repositioned labels keep the same left-to-right and top-to-bottom order as the aircraft they belong to, so they don't cross over.
 
+Dragged positions — along with highlights, hidden/shown datablock choices, and mini-datablock state — last for the **whole session**: they survive switching to another docked tab and back, and popping the view out or docking it again. They reset when a scenario loads or restarts.
+
 #### Assigning a Note to an Aircraft
 
 A **note** is a freetext reminder you can pin to a specific aircraft — "watch wake", "exam: vector to final", "trainee struggling". It shows as an extra amber line at the bottom of the aircraft's datablock on **both** the radar and ground views and follows the aircraft across the two views, reconnects, and recordings. Notes are **instructor-only**: they are never sent to the students' CRC scopes. Each note is a single line, max 40 characters.

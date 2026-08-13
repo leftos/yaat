@@ -424,6 +424,7 @@
         <!-- Radar canvas + overlay popups -->
         <Grid>
             <radar:RadarCanvas x:Name="Canvas"
+                               DataBlockState="{Binding DataBlockState}"
                                Aircraft="{Binding $parent[Window].((vm:MainViewModel)DataContext).Aircraft}"
                                SelectedAircraft="{Binding SelectedAircraft}"
                                VideoMaps="{Binding ActiveVideoMaps}"

@@ -173,10 +173,20 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
         DatablockDeconflictMode
     >(nameof(DeconflictMode));
 
+    public static readonly StyledProperty<GroundDataBlockViewState?> DataBlockStateProperty = AvaloniaProperty.Register<
+        GroundCanvas,
+        GroundDataBlockViewState?
+    >(nameof(DataBlockState));
+
     private static readonly IReadOnlyDictionary<string, SKPoint> EmptyOffsets = new Dictionary<string, SKPoint>();
 
     private readonly GroundRenderer _renderer = new();
-    private readonly Dictionary<string, SKPoint> _dataBlockOffsets = new();
+
+    // Unbound fallback (bare-canvas tests, detached windows). The bound view-model state is the
+    // session-persistent store; the binding may churn to null on tab detach, so reads always go
+    // through State and nothing is ever cleared from a property change.
+    private readonly GroundDataBlockViewState _localDataBlockState = new();
+    private GroundDataBlockViewState State => DataBlockState ?? _localDataBlockState;
 
     // Per-frame deconfliction result (callsign -> effective text-origin offset). Written on the UI
     // thread at snapshot build; read by the snapshot copy (draw) and by hit-testing; persists across
@@ -272,12 +282,6 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
     private SKPoint _dragStartOffset;
     private Point _dragStartMousePos;
     private bool _dragThresholdMet;
-    private readonly Dictionary<string, int> _dataBlockZOrder = new();
-    private int _nextZOrder = 1;
-    private readonly HashSet<string> _highlightedCallsigns = [];
-    private readonly HashSet<string> _hiddenDataBlockCallsigns = [];
-    private readonly HashSet<string> _shownDataBlockCallsigns = [];
-    private bool _startWithAllHidden;
 
     // Click-to-dismiss state for opt-in speech bubbles. See RadarCanvas for the same pattern.
     private string? _bubblePressCallsign;
@@ -376,6 +380,13 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
     {
         get => GetValue(DeconflictModeProperty);
         set => SetValue(DeconflictModeProperty, value);
+    }
+
+    /// <summary>Session-persistent datablock state shared with the owning view-model (see <see cref="GroundDataBlockViewState"/>).</summary>
+    public GroundDataBlockViewState? DataBlockState
+    {
+        get => GetValue(DataBlockStateProperty);
+        set => SetValue(DataBlockStateProperty, value);
     }
 
     public GroundFilterMode ShowHoldShort
@@ -552,44 +563,27 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
     /// <summary>Surfaces the datablock for the given callsign to the top of the Z-order.</summary>
     public void SurfaceDataBlock(string callsign)
     {
-        _dataBlockZOrder[callsign] = _nextZOrder++;
+        State.SurfaceDataBlock(callsign);
         MarkDirty();
     }
 
     /// <summary>Returns true if the datablock for the given callsign is currently hidden.</summary>
-    public bool IsDataBlockHidden(string callsign)
-    {
-        return _startWithAllHidden ? !_shownDataBlockCallsigns.Contains(callsign) : _hiddenDataBlockCallsigns.Contains(callsign);
-    }
+    public bool IsDataBlockHidden(string callsign) => State.IsDataBlockHidden(callsign);
 
     /// <summary>Toggles the hidden state of the datablock for the given callsign.</summary>
     public void ToggleHiddenDataBlock(string callsign)
     {
-        if (_startWithAllHidden)
-        {
-            if (!_shownDataBlockCallsigns.Remove(callsign))
-            {
-                _shownDataBlockCallsigns.Add(callsign);
-            }
-        }
-        else
-        {
-            if (!_hiddenDataBlockCallsigns.Remove(callsign))
-            {
-                _hiddenDataBlockCallsigns.Add(callsign);
-            }
-        }
-
+        State.ToggleHiddenDataBlock(callsign);
         MarkDirty();
     }
 
     /// <summary>Sets whether all datablocks start hidden (inverts the hide/show logic).</summary>
     public void SetStartWithAllHidden(bool hidden)
     {
-        _startWithAllHidden = hidden;
-        _hiddenDataBlockCallsigns.Clear();
-        _shownDataBlockCallsigns.Clear();
-        MarkDirty();
+        if (State.SetStartWithAllHidden(hidden))
+        {
+            MarkDirty();
+        }
     }
 
     /// <summary>Fired when a node is right-clicked. Args: nodeId, screen position.</summary>
@@ -649,16 +643,15 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
 
         if (change.Property == LayoutProperty)
         {
+            // Per-callsign datablock state deliberately survives this: the Layout binding re-fires
+            // on tab detach/reattach, and the view-model owns the real lifecycle clears.
             _initialFitDone = false;
-            _dataBlockOffsets.Clear();
-            _highlightedCallsigns.Clear();
-            _hiddenDataBlockCallsigns.Clear();
-            _shownDataBlockCallsigns.Clear();
             TryInitialView();
             InvalidateVisual();
         }
         else if (
-            change.Property == AircraftProperty
+            change.Property == DataBlockStateProperty
+            || change.Property == AircraftProperty
             || change.Property == SelectedAircraftProperty
             || change.Property == HoverTaxiRouteProperty
             || change.Property == PreviewRouteProperty
@@ -754,15 +747,16 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
 
     protected override object? CreateRenderSnapshot()
     {
-        var aircraft = SortByZOrder(VisibleAircraft(), _dataBlockZOrder);
+        var state = State;
+        var aircraft = SortByZOrder(VisibleAircraft(), state.DataBlockZOrder);
         var deconflictOffsets = RunDeconfliction(aircraft);
 
         var hiddenDbs = new HashSet<string>();
-        if (_startWithAllHidden)
+        if (state.StartWithAllHidden)
         {
             foreach (var ac in aircraft)
             {
-                if (!_shownDataBlockCallsigns.Contains(ac.Callsign))
+                if (!state.ShownDataBlockCallsigns.Contains(ac.Callsign))
                 {
                     hiddenDbs.Add(ac.Callsign);
                 }
@@ -770,7 +764,7 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
         }
         else
         {
-            foreach (var cs in _hiddenDataBlockCallsigns)
+            foreach (var cs in state.HiddenDataBlockCallsigns)
             {
                 hiddenDbs.Add(cs);
             }
@@ -818,7 +812,7 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
             DrawHoverPreview,
             DrawWaypoints,
             IsDrawingRoute,
-            new Dictionary<string, SKPoint>(_dataBlockOffsets),
+            new Dictionary<string, SKPoint>(state.ManualOffsets),
             deconflictOffsets,
             ShowDebugInfo,
             WeatherInfo,
@@ -828,7 +822,7 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
             ShowParking,
             ShowSpot,
             ShownTaxiRoutes,
-            new HashSet<string>(_highlightedCallsigns),
+            new HashSet<string>(state.HighlightedCallsigns),
             hiddenDbs,
             BackgroundImage,
             TowerCabMap,
@@ -980,7 +974,7 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
 
             if (_dragThresholdMet && _dragCallsign is not null)
             {
-                _dataBlockOffsets[_dragCallsign] = new SKPoint(_dragStartOffset.X + dx, _dragStartOffset.Y + dy);
+                State.ManualOffsets[_dragCallsign] = new SKPoint(_dragStartOffset.X + dx, _dragStartOffset.Y + dy);
                 MarkDirty();
             }
 
@@ -1137,10 +1131,7 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
             var hitAc = FindDataBlockAtPoint(pos) ?? FindAircraftAtPoint(pos);
             if (hitAc is not null)
             {
-                if (!_highlightedCallsigns.Remove(hitAc.Callsign))
-                {
-                    _highlightedCallsigns.Add(hitAc.Callsign);
-                }
+                State.ToggleHighlight(hitAc.Callsign);
 
                 if (IsDataBlockHidden(hitAc.Callsign))
                 {
@@ -1172,7 +1163,7 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
 
                 _isDraggingDataBlock = true;
                 _dragCallsign = dataBlockAc.Callsign;
-                _dragStartOffset = _dataBlockOffsets.TryGetValue(dataBlockAc.Callsign, out var off) ? off : DataBlockLayout.DefaultOffset;
+                _dragStartOffset = State.ManualOffsets.TryGetValue(dataBlockAc.Callsign, out var off) ? off : DataBlockLayout.DefaultOffset;
                 _dragStartMousePos = pos;
                 _dragThresholdMet = false;
                 e.Handled = true;
@@ -1470,7 +1461,7 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
         }
 
         // Use z-order-sorted list so the topmost (last-drawn) datablock wins
-        var sorted = SortByZOrder(VisibleAircraft(), _dataBlockZOrder);
+        var sorted = SortByZOrder(VisibleAircraft(), State.DataBlockZOrder);
         AircraftModel? best = null;
 
         foreach (var ac in sorted)
@@ -1478,7 +1469,7 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
             var (sx, sy) = Viewport.LatLonToScreen(ac.Position.Lat, ac.Position.Lon);
 
             SKPoint offset = DataBlockLayout.DefaultOffset;
-            if (_dataBlockOffsets.TryGetValue(ac.Callsign, out var customOffset))
+            if (State.ManualOffsets.TryGetValue(ac.Callsign, out var customOffset))
             {
                 offset = customOffset;
             }
@@ -1542,7 +1533,7 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
         foreach (var ac in sorted)
         {
             var (sx, sy) = Viewport.LatLonToScreen(ac.Position.Lat, ac.Position.Lon);
-            bool hasManual = _dataBlockOffsets.TryGetValue(ac.Callsign, out var manualOffset);
+            bool hasManual = State.ManualOffsets.TryGetValue(ac.Callsign, out var manualOffset);
             var rectAtOrigin = DataBlockLayout.Compute(ac, 0, 0, SKPoint.Empty, HitTestStyle, isAirborne: !ac.IsOnGround).Rect;
             items.Add(
                 new DatablockDeconfliction.Item
@@ -1567,14 +1558,14 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
     /// </summary>
     public void ResetDataBlockOffset(string callsign)
     {
-        if (_dataBlockOffsets.Remove(callsign))
+        if (State.ManualOffsets.Remove(callsign))
         {
             MarkDirty();
         }
     }
 
     /// <summary>Returns true if the callsign's datablock has been manually dragged to a custom position.</summary>
-    public bool HasManualDataBlockOffset(string callsign) => _dataBlockOffsets.ContainsKey(callsign);
+    public bool HasManualDataBlockOffset(string callsign) => State.ManualOffsets.ContainsKey(callsign);
 
     public AircraftModel? FindAircraftAtPoint(Point screenPos)
     {

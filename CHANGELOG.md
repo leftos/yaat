@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+- Ground and Radar views keep dragged datablock positions (and highlight, hide/show, and mini-datablock choices) across docked-tab switches and pop-outs, resetting only on scenario load. (#350)
+
 ## v0.12.4-beta [2026/08/12]
 
 ### Highlights

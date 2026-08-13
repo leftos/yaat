@@ -657,6 +657,7 @@ public partial class MainViewModel
         Radar.SetPrimaryAirportId(null);
         Radar.ClearShownPaths();
         Ground.ClearShownTaxiRoutes();
+        Radar.DataBlockState.Clear();
         Aircraft.Clear();
         ClearBookmarks();
         InitialDelayedSpawnCount = 0;

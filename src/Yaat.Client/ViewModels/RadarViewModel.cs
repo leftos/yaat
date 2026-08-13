@@ -278,6 +278,13 @@ public partial class RadarViewModel : ObservableObject
         SKColor.Parse("#45B7D1"),
     ];
 
+    /// <summary>
+    /// Per-callsign datablock view state (manual offsets, highlights, minified choices). Owned here
+    /// rather than by the canvas so it survives tab switches and pop-out/dock-back; every
+    /// <see cref="Views.Radar.RadarCanvas"/> bound to this view-model shares it.
+    /// </summary>
+    public RadarDataBlockViewState DataBlockState { get; } = new();
+
     private readonly HashSet<string> _shownPathCallsigns = new();
     private readonly Dictionary<string, (IReadOnlyList<ShownPathEntry> Segments, string Fingerprint)> _pathCache = new();
     private readonly Dictionary<string, int> _pathColorIndices = new();

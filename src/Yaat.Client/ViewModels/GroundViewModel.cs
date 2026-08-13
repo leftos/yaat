@@ -207,6 +207,13 @@ public partial class GroundViewModel : ObservableObject
         SKColor.Parse("#45B7D1"),
     ];
 
+    /// <summary>
+    /// Per-callsign datablock view state (manual offsets, highlights, hide/show choices). Owned here
+    /// rather than by the canvas so it survives tab switches and pop-out/dock-back; every
+    /// <see cref="Views.Ground.GroundCanvas"/> bound to this view-model shares it.
+    /// </summary>
+    public GroundDataBlockViewState DataBlockState { get; } = new();
+
     private readonly HashSet<string> _shownTaxiRouteCallsigns = new();
     private readonly HashSet<string> _taxiRouteHiddenCallsigns = new();
     private readonly Dictionary<string, int> _taxiColorIndices = new();
@@ -421,6 +428,7 @@ public partial class GroundViewModel : ObservableObject
     /// </summary>
     internal void SetLayoutForTesting(GroundLayoutDto dto)
     {
+        DataBlockState.Clear();
         Layout = dto;
         _domainLayout = ReconstructLayout(dto);
         ShownAirportChanged?.Invoke();
@@ -445,12 +453,14 @@ public partial class GroundViewModel : ObservableObject
             if (dto is null)
             {
                 _log.LogWarning("No ground layout for airport {Id}", airportId);
+                DataBlockState.Clear();
                 Layout = null;
                 _domainLayout = null;
                 ShownAirportChanged?.Invoke();
                 return;
             }
 
+            DataBlockState.Clear();
             Layout = dto;
             _domainLayout = ReconstructLayout(dto);
 
@@ -539,6 +549,7 @@ public partial class GroundViewModel : ObservableObject
         TowerCabMap = null;
         GroundAircraft.Clear();
         ClearShownTaxiRoutes();
+        DataBlockState.Clear();
         ShownAirportChanged?.Invoke();
     }
 

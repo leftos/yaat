@@ -49,6 +49,7 @@
     <Panel>
         <ground:GroundCanvas x:Name="Canvas"
                              Layout="{Binding Layout}"
+                             DataBlockState="{Binding DataBlockState}"
                              SelectedAircraft="{Binding SelectedAircraft}"
                              HoverTaxiRoute="{Binding HoverTaxiRoute}"
                              PreviewRoute="{Binding PreviewRoute}"

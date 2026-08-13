@@ -293,6 +293,7 @@ ViewModels/
   TimelineMarkerVm.cs           # Per-marker view-model: timestamp, kind, severity, title, callsign, canonical command (commands only).
   TimelineBookmarkVm.cs         # Per-bookmark view-model (editable Name, gold rail tick, Rename/Delete/Jump commands delegating to MainViewModel callbacks).
   AutoClearedToLandSync.cs      # Subscribes to UserPreferences.AutoClearedToLand changes; pushes the new value to every aircraft (local + room-broadcast) so the toggle takes effect mid-session without a scenario reload.
+  DataBlockViewState.cs         # Session-persistent per-callsign datablock state (manual offsets, highlights, hide/show, minified, z-order) owned by Ground/RadarViewModel and bound into the canvases — survives tab switches and pop-outs (#350)
   GroundViewModel.cs            # Ground view; loads layout, A* pathfinding, commands
   GroundViewModel.Measure.cs    # Partial: distance measuring tool on the ground view (feet below a mile)
   RadarViewModel.cs             # Radar view; video map loading, toggle items, DCB, persistence

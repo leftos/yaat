@@ -52,10 +52,23 @@ All paths are under `src/Yaat.Client/`.
 
 `RenderFromSnapshot` runs on the render thread and **must never read a `StyledProperty` or a mutable canvas field**.
 This is stated only in the `MapCanvasBase` doc-comments (`MapCanvasBase.cs:53-65`); nothing enforces it. Because of it,
-mutable interaction state that the renderer needs is **defensively copied into the snapshot**: `_minifiedCallsigns` and
-`_highlightedCallsigns` are copied into fresh `HashSet`s, `_dataBlockOffsets` into a fresh `Dictionary`, and the aircraft
-list is filtered + z-ordered into a new list (`RadarCanvas.cs:762-796`). Reading any of those directly inside
+mutable interaction state that the renderer needs is **defensively copied into the snapshot**: the per-callsign datablock
+state (`RadarDataBlockViewState` — manual offsets, minified, highlighted, z-order) is copied into fresh `HashSet`s /
+`Dictionary`s, and the aircraft list is filtered + z-ordered into a new list. Reading any of it directly inside
 `RenderFromSnapshot` would be a nondeterministic cross-thread access.
+
+### Session-persistent datablock state (`DataBlockViewState`)
+
+Per-callsign datablock UI state — manual drag offsets, highlights, minified choices, z-order — lives in
+`RadarViewModel.DataBlockState` (`RadarDataBlockViewState`, `ViewModels/DataBlockViewState.cs`), **not** on the canvas
+(issue #350). The canvas binds it via the `DataBlockState` styled property (`RadarView.axaml`) and mutates it in place;
+a private local instance backs bare-canvas tests and detached windows. Two rules follow:
+
+- The `DataBlockState` property-changed handler only marks dirty — it must **never clear** the store, because the binding
+  churns to null and back when the docked tab detaches/reattaches its content.
+- Lifecycle clears belong to the view-model layer: scenario restart/rewind (`MainViewModel.ReplaceAircraftFromManifest`)
+  and scenario unload (`ClearScenarioState`) call `DataBlockState.Clear()`. Because the state is shared by every
+  `RadarCanvas` bound to the view-model, the embedded tab and the pop-out window see the same offsets.
 
 ### The 100 ms force-repaint timer
 
@@ -373,9 +386,9 @@ drawn:
 - `FindTagFieldAtPoint` (`:1206`) — EuroScope per-field hit (aircraft + `TagFieldId`); `(null, None)` outside any field.
 - `FindBubbleAircraftAtPoint` (`:449`) — aircraft whose speech-bubble rect contains the point (uses `LastBubbleRects`).
 
-`SortByZOrder` (`:1586`) orders by `_dataBlockZOrder` so the last-surfaced (topmost) datablock wins a hit; `SurfaceDataBlock`
-bumps a callsign to the top on any interaction (`:586-590`). `_minifiedCallsigns` toggles a callsign between full and
-single-line (altitude + CWT) datablock (`ToggleMinifiedDataBlock`, `:572-580`).
+`SortByZOrder` orders by the shared state's `DataBlockZOrder` so the last-surfaced (topmost) datablock wins a hit;
+`SurfaceDataBlock` bumps a callsign to the top on any interaction. `DataBlockState.MinifiedCallsigns` toggles a callsign
+between full and single-line (altitude + CWT) datablock (`ToggleMinifiedDataBlock`).
 
 **`FilterAircraft` is the single source of which aircraft are drawable AND hit-testable** (`:1648`, pure + static so it's
 unit-testable). It hides delayed aircraft always, and on-ground aircraft in the non-top-down (radar) view — **except**
@@ -554,9 +567,12 @@ This is distinct from the **automatic ATPA cone**: `StarsTrackDto.TpaType` (Key 
 
 - **The two-thread split is unenforced.** `CreateRenderSnapshot` (UI thread) must capture everything;
   `RenderFromSnapshot` (render thread) must never read a `StyledProperty` or mutable canvas field. The rule lives only in
-  `MapCanvasBase` doc-comments. Mutable interaction state (`_minifiedCallsigns`, `_highlightedCallsigns`,
-  `_dataBlockOffsets`, the filtered aircraft list) is defensively copied into the snapshot for exactly this reason — don't
-  reach past the snapshot.
+  `MapCanvasBase` doc-comments. Mutable interaction state (the shared `DataBlockViewState` collections, the filtered
+  aircraft list) is defensively copied into the snapshot for exactly this reason — don't reach past the snapshot.
+- **Per-callsign datablock state must not live on the canvas.** It belongs to `RadarViewModel.DataBlockState` /
+  `GroundViewModel.DataBlockState` (see "Session-persistent datablock state" above); canvas-local fields are lost on
+  pop-out (fresh canvas) and were wiped by Layout-binding churn on tab switches (#350). Never clear the store from a
+  canvas property-changed handler.
 - **Datablock geometry is computed twice.** The draw path (`RadarDatablockLayout.Compute` /
   `EuroScopeTagLayout.Layout`) and the hit-test path (`RadarCanvas.ComputeStableRectAtOrigin`, which re-measures with its
   own `HitTestStyle`) must stay consistent. Edit one without the other and clicks miss the rect.

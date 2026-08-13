@@ -40,6 +40,23 @@ The route overlays sit **between infrastructure and aircraft** so routes never o
 
 `DataBlockLayout.Compute(AircraftModel, …)` is the **single source of truth** for both the draw pass (`DrawOneDataBlock`) and the click hit-test (`GroundCanvas.FindDataBlockAtPoint`), so a new line or callsign suffix grows the click rect automatically. Line 1 is the callsign, plus a trailing `*` when pre-armed for auto-delete (`AutoDeletePending`) and a ` {runway} #N` departure-queue suffix (e.g. `28R #2`) when `AircraftModel.RunwayQueuePosition > 0` — the runway comes from `AircraftModel.RunwayQueueRunway` and is omitted defensively if blank. An **intersection departure** names its entry taxiway too (`28R@E #2`, from `AircraftModel.RunwayQueueIntersection`); a full-length departure leaves it empty and reads `28R #2`. All three are **server-computed** (`RunwayDepartureQueue` + `RunwayEntryPoint` in Yaat.Sim, wired through `AircraftStateDto.RunwayQueuePosition` / `RunwayQueueRunway` / `RunwayQueueIntersection`); the client only displays them — no client-side ranking or classification, mirroring the `SmartStatus` and taxi-route-reconstruction contracts.
 
+### Session-persistent datablock state (`DataBlockViewState`)
+
+Per-callsign datablock UI state — manual drag offsets, highlights, hide/show choices (and the `StartWithAllHidden`
+inversion mode), z-order — lives in `GroundViewModel.DataBlockState` (`GroundDataBlockViewState`,
+`ViewModels/DataBlockViewState.cs`), **not** on the canvas (issue #350). The canvas binds it via the `DataBlockState`
+styled property (`GroundView.axaml`) and mutates it in place; a private local instance backs bare-canvas tests and
+detached windows. Two rules follow:
+
+- The canvas's `Layout`-changed handler (and the `DataBlockState` handler itself) must **never clear** the store — the
+  bindings churn to null and back when the docked tab detaches/reattaches its content, which is exactly what used to wipe
+  dragged datablock positions on every tab switch.
+- Lifecycle clears belong to the view-model layer: `GroundViewModel.LoadLayoutAsync` / `SetLayoutForTesting` /
+  `ClearLayout` and the scenario restart/rewind path (`MainViewModel.ReplaceAircraftFromManifest`) call
+  `DataBlockState.Clear()`. Because the state is shared by every `GroundCanvas` bound to the view-model, the embedded tab
+  and the pop-out window see the same offsets. `SetStartWithAllHidden` only resets the per-callsign choices when the mode
+  actually flips, so a pop-out re-applying the preference on load can't wipe them.
+
 ## Route overlays
 
 All five overlays flow VM → `GroundCanvas` `StyledProperty` → `RenderSnapshot` → `GroundRenderer`, and all funnel through one primitive, `GroundRenderer.DrawRoute(canvas, vp, layout, TaxiRoute?, SKPaint)`, which walks `TaxiRoute.Segments` (straight `GroundEdge`s and `GroundArc` fillets) and projects each node via `MapViewport.LatLonToScreen`.
@@ -208,7 +225,8 @@ The pop-out Ground View window shares the same `MainViewModel.Ground` instance, 
 - **New route/rendering flags must be threaded into `RenderSnapshot`.** A `GroundCanvas` `StyledProperty` read directly on the render thread violates the no-StyledProperty rule; copy it into the snapshot record in `CreateRenderSnapshot`.
 - **Colors flicker if allocation isn't stable.** `AllocateRouteColors` deliberately preserves a callsign's palette index across refreshes; assigning by iteration order would reshuffle colors every aircraft-update batch.
 - **`_domainLayout` must be loaded before any route resolves.** `ResolveRemainingRoute` returns `null` with no layout; tests use `SetLayoutForTesting`.
-- **Per-session vs global state.** The show/hide override sets are per-session and cleared on layout change; the two settings are global `UserPreferences`. Don't conflate them with the per-scenario `SavedGroundSettings`.
+- **Per-session vs global state.** The show/hide override sets are per-session (in `GroundViewModel.DataBlockState`, cleared on layout load/unload by the VM — never by the canvas); the two settings are global `UserPreferences`. Don't conflate them with the per-scenario `SavedGroundSettings`.
+- **Per-callsign datablock state must not live on the canvas.** Canvas-local fields are lost on pop-out (fresh canvas) and were wiped by Layout-binding churn on tab switches (#350). See "Session-persistent datablock state" above.
 - **Text draws through a `TextStyle`, not a bare `SKPaint`.** SkiaSharp 3 keeps text state on `SKFont`; `GroundRenderer` pairs each text paint with a font (`_taxiLabelFont`, `_nodeLabelFont`, `_dataBlockTextFont`, …) and `DataBlockLayout.Compute` takes a `Views/Map/TextStyle`. `LabelTextSize`/`DatablockTextSize` resize the **fonts**, and `GroundCanvas`'s hit-test font must be resized alongside the renderer's or ground datablock clicks miss at non-default sizes (guarded for the radar by `DatablockHitTestParityTests`). See [radar-rendering.md](radar-rendering.md#pitfalls) for the full `SKFont` contract.
 - **Alignment is a draw argument now.** `SKPaint.TextAlign` is gone, so `LabelCandidate` carries its own `Align` and `DrawLabels` passes it to `canvas.DrawText(..., label.Align, style.Font, style.Paint)`. Runway labels are centered; everything else is left-aligned. Add a new label kind without setting `Align` and it silently left-aligns.
 - **The tower-cab blit is mipmapped on purpose.** `new SKSamplingOptions(SKFilterMode.Linear, SKMipmapMode.Linear)` — dropping the mipmap mode makes Skia walk the full 8K source per output pixel at typical airport zoom (~30% GPU).
