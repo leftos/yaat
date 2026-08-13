@@ -241,7 +241,7 @@ Route drawing and heading mode start from the aircraft right-click menu.
 
 ![Aircraft List with the OAK scenario's 18 aircraft](docs/user-guide/img/aircraft-list.png)
 
-The default view. Shows all aircraft in your scenario, grouped into **Active** and **Delayed** sections. Click the group header row to collapse or expand each section. Use **View > Reset Aircraft List Layout** to restore defaults.
+The default view. Shows all aircraft in your scenario, grouped into **Active** and **Delayed** sections. Click the group header row to collapse or expand each section. Use **View > Reset Aircraft List Layout** to restore defaults. Selecting an aircraft anywhere — clicking it on the Ground or Radar view, via a context menu, or by typing its callsign — automatically scrolls the list to bring its row into view.
 
 | Column | Description |
 |--------|-------------|

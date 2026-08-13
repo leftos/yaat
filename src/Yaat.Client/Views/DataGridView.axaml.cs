@@ -2,6 +2,7 @@ using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using Avalonia.Threading;
 using Avalonia.VisualTree;
 using Yaat.Client.Models;
 using Yaat.Client.ViewModels;
@@ -97,6 +98,16 @@ public partial class DataGridView : UserControl
                 if (grid is not null && sender is MainViewModel vm)
                 {
                     grid.SelectedItem = vm.SelectedAircraft;
+
+                    // #351: bring the selected row into view for selections made outside the grid
+                    // (radar/ground click, command input, context menus). Deferred because the row
+                    // may not be realized yet when the selection lands (Avalonia DataGrid quirk),
+                    // and skipped when the active filter hides the aircraft from the view.
+                    var selected = vm.SelectedAircraft;
+                    if (selected is not null && vm.AircraftView.Contains(selected))
+                    {
+                        Dispatcher.UIThread.Post(() => grid.ScrollIntoView(selected, null), DispatcherPriority.Background);
+                    }
                 }
             }
             finally
