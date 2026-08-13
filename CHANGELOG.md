@@ -1,6 +1,9 @@
 # Changelog
 
-## Unreleased
+## v0.12.5-beta [2026/08/12]
+
+### Highlights
+- Dragged datablock positions — and highlight, hide/show, and mini-datablock choices — now stick across tab switches and pop-outs.
 
 ### Fixed
 - Ground and Radar views keep dragged datablock positions (and highlight, hide/show, and mini-datablock choices) across docked-tab switches and pop-outs, resetting only on scenario load. (#350)
