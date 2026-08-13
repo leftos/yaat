@@ -246,7 +246,11 @@ public static class AirborneFollowHelper
     private static int? PatternLegIndex(AircraftState aircraft) =>
         aircraft.Phases?.CurrentPhase switch
         {
-            PatternEntryPhase => 0,
+            // Wrong-side crossing/teardrop entries are pattern feeders like PatternEntryPhase:
+            // a lead still on one of them is a leg BEHIND any follower already on a numbered
+            // leg, and returning null here would suppress the flow-behind guard — the follower
+            // would slow toward Vref chasing traffic that has not even joined the pattern yet.
+            PatternEntryPhase or MidfieldCrossingPhase or TeardropReentryPhase => 0,
             UpwindPhase => 1,
             CrosswindPhase => 2,
             DownwindPhase => 3,

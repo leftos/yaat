@@ -250,6 +250,20 @@ the aircraft is on:
 on-pattern-side so the classification doesn't whipsaw tick-to-tick. The signed pattern-side distance flips the
 runway-heading cross-track by the pattern sign (`Right ⇒ +1`, `Left ⇒ −1`).
 
+### Present-position downwind join — `PatternCommandHandler.IsAtOrPastDownwindEntry`
+
+A downwind entry (`ERD`/`ELD`) normally routes through a `PatternEntryPhase` targeting the abeam entry point with a
+lead-in chosen by `ChooseDownwindLeadIn` — a 45° midfield intercept (AIM 4-3-3) vs a straight-in join to the extended
+downwind, scored by total heading change with a penalty on any single turn > 120°. **Both lead-in candidates project
+behind the abeam point**, so an aircraft already alongside the downwind — at/past the entry point along-track (with
+`PresentPositionJoinAlongTrackToleranceNm = 0.25` slack), no further than ~1 nm past the base turn
+(`PresentPositionJoinBeyondBaseTurnNm`), and laterally within `PresentPositionJoinLateralWidthFactor = 1.5` × pattern
+width of the downwind track — would be commanded a U-turn back up the downwind: the "about-face onto a parallel offset
+track" of issue #352. Such an aircraft skips the entry entirely: the circuit's `DownwindPhase` gets `RejoinTrack =
+true` (the same bounded-intercept re-capture used by wrong-side crossings) and it joins from present position.
+Aircraft further out along the extended downwind are **arrivals**, not pattern members, and still fly the normal
+45°/extended entry — that far-out geometry is exactly where turning around to enter properly is correct.
+
 ### Teardrop re-entry — `TeardropReentryPhase`
 
 For **turboprop/jet** aircraft entering from the wrong side, `PatternCommandHandler` inserts a
@@ -685,13 +699,32 @@ on `DownwindPhase` too — the old cap-forced base turn is replaced by the same 
 4-3-2.a.3.2 (the upwind leg is an explicit separation/sequencing leg) and 5-5-12.a.1 / 4-3-5 (the follower
 maneuvers as necessary and advises ATC — it does not fly an *unrequested* turn on its own).
 
-**Cross-runway FOLLOW re-sequences onto the lead's runway** (`CommandDispatcher.TryAirborneFollow` +
-`IsLeadOnDifferentRunway`). Every spacing / leg-hold path above is gated on both aircraft sharing a runway, so a
-follower flying a 28L pattern told to follow traffic landing 28R used to tag the target and sequence against
-nothing. Instead, when the lead's `Phases.AssignedRunway` differs from the follower's, the follower's (wrong-runway)
-pattern is dropped and a `VfrFollowPhase` is installed — its auto-join (`TryJoinLeadPattern` / `TryJoinLeadFinal`)
-rebuilds the circuit or final on the **lead's** runway with the usual in-trail and intercept gates. Same-runway (or
-unknown-runway) FOLLOW keeps the cheap in-place retarget.
+**Pattern-aware FOLLOW install** (`CommandDispatcher.TryAirborneFollow` — issue #352). When the follower is *not*
+already on a pattern leg for the lead's runway (no phase at all, a non-pattern phase, or a cross-runway pattern) and
+the lead is **established toward a known runway** (`IsEstablishedTowardRunway`: entry / crossing / teardrop / pattern
+leg / final / landing / touch-and-go with `AssignedRunway` set), FOLLOW is treated as a runway-sequencing instruction:
+the dispatcher builds the follower a downwind entry to the **lead's** runway (the `TryEnterPattern` machinery,
+present-position join included) and lets the `DownwindPhase`/`AirborneFollowHelper` holds do the spacing. Free pursuit
+cannot express "continue the downwind, extend, turn base behind" — `ComputeFreePursuitHeading` immediately parallels
+the lead's track, which from a downwind-shaped geometry is a ~180° about-face onto a parallel offset track (the #352
+report). The join side (`ChooseFollowJoinDirection`) is the **runway's established circuit**: the lead's
+`TrafficDirection` first, then the runway's natural direction (parallel-runway inference — 28R with 28L present flies
+right traffic), then the follower's own side, then FAA-default left (AIM §4-3-3). The circuit must win over the
+follower's momentary side — joining on whatever side the follower occupies can build opposing circuits for one runway
+and, on close parallels, descends a base leg across the neighboring runway's final approach course (AIM §4-3-3
+FIG 4-3-3 note 7). A follower on the wrong side for the chosen circuit takes the published midfield-crossing entry at
+TPA (AIM §4-3-3.1.b) via `TryEnterPattern`'s wrong-side path. For a lead landing a *different* runway this models an
+implied runway change — 7110.65 §3-8-1's codified phraseology for traffic on another runway is a traffic advisory, not
+FOLLOW; the re-sequence is a deliberate trainer affordance.
+
+Two paths still install `VfrFollowPhase` free pursuit: a genuinely **free-flight lead** (no runway to sequence onto),
+and a lead on final with the follower already positioned in the **final-approach corridor**
+(`CanJoinLeadFinalDirectly`: ≥ `FollowDirectFinalJoinMinAlongFinalNm = 1.5` out along the final course, cross-track
+≤ `FollowDirectFinalJoinMaxCrossTrackNm = 2.5` and ≤ the along-final distance [a 45° cone], and no parallel runway's
+final in between). There the direct in-trail join is the right shape — a full circuit would loop an aircraft that is
+effectively number two on the approach. The corridor test is **position-only**: the instantaneous track is unreliable
+(the follower may be mid-turn when the FOLLOW arrives). Same-runway pattern-leg FOLLOW keeps the cheap in-place
+retarget, as before.
 
 **...but not from base or final.** The re-sequence is refused when the follower is already on `BasePhase` or
 `FinalApproachPhase` ("Unable, established for runway {rwy} — vector or go around"). From there the follower is low
@@ -700,11 +733,10 @@ approach course (AIM §4-3-3 FIG 4-3-3 note 7 — do not penetrate the parallel'
 maneuvers). The controller re-sequences explicitly (`ELB`/`ERB`), vectors, or sends it around. Re-sequencing from
 upwind / crosswind / downwind / pattern-entry is allowed.
 
-> **Known gap (closely-spaced parallels).** `TryJoinLeadFinal` has no pattern-side gate (unlike `TryJoinLeadPattern`)
-> and commits at up to `MaxFinalJoinCrossTrackNm = 1.0` nm cross-track — ~11× the 530 ft (0.087 nm) 28L/28R spacing —
-> so an opposite-side follower can still intercept through the adjacent runway's final. 7110.65 §5-9-2 TBL 5-9-1 also
-> caps intercepts at 20° (not 30°) inside 2 mi of the gate. Pre-existing for any straight-in join; the base/final
-> refusal above removes the worst (low, close-in) case.
+FOLLOW during a **wrong-side entry** (`MidfieldCrossingPhase` / `TeardropReentryPhase`) is additive for the same
+runway: both phases accept `Follow`, run `CheckLeadLifecycle` + the free-flight spacing speed loop each tick
+(mirroring `PatternEntryPhase`), and the `DownwindPhase` the entry feeds runs all the sequencing holds. Clearing the
+crossing to free-pursue instead would discard the wrong-side entry (#352).
 
 ### `VfrFollowPhase` — free pursuit + auto-join
 
@@ -740,7 +772,13 @@ has *no* pattern-leg waypoints to copy (e.g. an IFR aircraft that spawned direct
 final once the in-trail spacing (`followerDist − leadDist`) is at least `requiredInTrail = max(SameRunwayInTrailFloorNm
 = 1.5, WakeTurbulenceData.OnApproachWakeSeparationNm(lead → follower))` and the follower is aligned for a sane
 intercept (`|cross-track| ≤ MaxFinalJoinCrossTrackNm = 1.0`, `intercept ≤ MaxFinalJoinInterceptDeg = 30°`, not inside
-`MinFinalJoinDistNm = 0.5`). The in-trail floor keeps the follower genuinely behind the traffic (AIM §4-3-4.4 — no
+`MinFinalJoinDistNm = 0.5`). The join is also refused when a
+near-parallel runway's extended centerline lies laterally **between** the follower and the target centerline
+(`JoinCapturePathCrossesParallelFinal`, heading delta ≤ 10° against **either stored end** — navdata stores each
+physical runway oriented to an arbitrary end, e.g. KOAK stores 10L/10R, so a stored-orientation-only test silently
+never fires): the 1.0 nm cross-track allowance dwarfs closely-spaced parallel separation (OAK 28L/28R ≈ 0.165 nm), and
+capturing through the adjacent final approach course at low altitude
+violates AIM §4-3-3 FIG 4-3-3 note 7. The in-trail floor keeps the follower genuinely behind the traffic (AIM §4-3-4.4 — no
 cutting in front, since 1.5 > 0) and at the 7110.65 §3-10-3 same-runway minimum for a light single behind same/lighter
 traffic, rising to the CWT wake minimum (TBL 5-5-2) for a heavier lead. (FOLLOW itself is rejected at command time when
 the lead is a super — visual separation prohibited, 7110.65 §7-2-1.) `SequenceOntoFinal` builds `PatternEntryPhase →

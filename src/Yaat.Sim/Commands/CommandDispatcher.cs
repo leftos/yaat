@@ -3281,7 +3281,16 @@ public static class CommandDispatcher
         // below, whose auto-join (TryJoinLeadPattern / TryJoinLeadFinal) re-sequences the
         // follower onto the lead's runway with proper in-trail spacing and intercept gates.
         var current = aircraft.Phases?.CurrentPhase;
-        bool followerOnPatternLeg = current is PatternEntryPhase or UpwindPhase or CrosswindPhase or DownwindPhase or BasePhase or FinalApproachPhase;
+        bool followerOnPatternLeg =
+            current
+            is PatternEntryPhase
+                or MidfieldCrossingPhase
+                or TeardropReentryPhase
+                or UpwindPhase
+                or CrosswindPhase
+                or DownwindPhase
+                or BasePhase
+                or FinalApproachPhase;
         bool crossRunway = followerOnPatternLeg && IsLeadOnDifferentRunway(aircraft, leadAircraft);
 
         // A cross-runway re-sequence needs room to maneuver. From Base or FinalApproach the
@@ -3315,7 +3324,61 @@ public static class CommandDispatcher
             return Ok($"Follow {target}");
         }
 
-        // If the follower is already in VfrFollowPhase, retarget in place.
+        // Pattern-aware install (issue #352): when the lead is established toward a known
+        // runway (entry, pattern leg, final, landing), FOLLOW is a runway-sequencing
+        // instruction — the correct maneuver is to fly that runway's pattern behind the
+        // lead (continue the downwind, extend, turn base behind), which free pursuit cannot
+        // express: ComputeFreePursuitHeading immediately parallels the lead's track, and
+        // from a downwind-shaped geometry that is an about-face onto a parallel offset
+        // track. Build the pattern entry to the lead's runway instead — on the runway's
+        // established circuit side (ChooseFollowJoinDirection), with the published
+        // midfield-crossing entry when the follower is on the wrong side — and let the
+        // Downwind/AirborneFollowHelper sequencing holds do the spacing. Free pursuit
+        // remains for genuinely free-flight leads (no runway to sequence onto).
+        // For a lead landing a DIFFERENT runway this models an implied runway change:
+        // 7110.65 §3-8-1's codified phraseology for traffic on another runway is a
+        // traffic advisory ("TRAFFIC ... LANDING RUNWAY (number)"), not FOLLOW — the
+        // re-sequence is a deliberate trainer affordance (the controller's intent is the
+        // lead's runway), kept per maintainer decision.
+        if (leadAircraft is { IsOnGround: false } establishedLead && IsEstablishedTowardRunway(establishedLead))
+        {
+            var leadRunway = establishedLead.Phases!.AssignedRunway!;
+
+            // Exception: the lead is on final and the follower is already positioned to join
+            // that final directly — inbound at a workable angle, near the approach course,
+            // with no parallel runway's final in between. There the in-trail join
+            // (VfrFollowPhase → TryJoinLeadFinal) is the right shape; a full downwind
+            // circuit would loop an aircraft that is effectively number two on the approach.
+            bool leadOnFinal = establishedLead.Phases.CurrentPhase is FinalApproachPhase or LandingPhase;
+            if (!(leadOnFinal && CanJoinLeadFinalDirectly(aircraft, leadRunway)))
+            {
+                var joinDirection = ChooseFollowJoinDirection(aircraft, establishedLead, leadRunway);
+                var entryResult = PatternCommandHandler.TryEnterPattern(
+                    aircraft,
+                    joinDirection,
+                    PatternEntryLeg.Downwind,
+                    runwayId: leadRunway.Designator,
+                    finalDistanceNm: null,
+                    groundLayout: ctx.GroundLayout
+                );
+                if (entryResult.Success)
+                {
+                    aircraft.Approach.FollowingCallsign = target;
+                    return Ok($"Follow {target}");
+                }
+                // The entry could not be built (no airport context / runway lookup failure) —
+                // fall through to the free-pursuit install rather than dropping the follow.
+                // Invariant this relies on: with (Downwind, finalDistanceNm: null) every
+                // TryEnterPattern reject path returns BEFORE mutating the phase chain, so
+                // `current` (captured above) is still valid below. The reject paths that DO
+                // leave AssignedRunway repointed without a rebuilt chain are all gated on
+                // Final/Base entries, which this call site never requests.
+            }
+        }
+
+        // If the follower is already in VfrFollowPhase, retarget in place. Reached only for
+        // free-flight leads — a lead established toward a runway re-sequences via the
+        // pattern install above.
         if (current is VfrFollowPhase vfp)
         {
             vfp.UpdateTarget(target);
@@ -3358,5 +3421,106 @@ public static class CommandDispatcher
         }
 
         return !string.Equals(followerRunway, leadRunway, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// True when the lead has an assigned runway and is on a phase that flows toward it —
+    /// a pattern entry/leg, final, or the landing itself. A FOLLOW on such a lead is a
+    /// sequencing instruction for that runway, so the follower joins its pattern rather
+    /// than free-pursuing the lead's present track.
+    /// </summary>
+    private static bool IsEstablishedTowardRunway(AircraftState lead) =>
+        (lead.Phases?.AssignedRunway is not null)
+        && lead.Phases.CurrentPhase
+            is PatternEntryPhase
+                or MidfieldCrossingPhase
+                or TeardropReentryPhase
+                or UpwindPhase
+                or CrosswindPhase
+                or DownwindPhase
+                or BasePhase
+                or FinalApproachPhase
+                or LandingPhase
+                or TouchAndGoPhase;
+
+    /// <summary>
+    /// Maximum cross-track from the lead's final approach course at which a follower still
+    /// counts as positioned for a direct in-trail final join (rather than a pattern join).
+    /// Deliberately wider than <see cref="VfrFollowPhase.MaxFinalJoinCrossTrackNm"/> — the
+    /// follower converges under free pursuit before the join gates commit the turn.
+    /// </summary>
+    private const double FollowDirectFinalJoinMaxCrossTrackNm = 2.5;
+
+    /// <summary>
+    /// Minimum distance up the final approach course for a direct in-trail join. Below it
+    /// the follower is abeam the field (a downwind-shaped position, issue #352) — even if it
+    /// is laterally near the extended centerline band, "beside the runway" is pattern
+    /// territory, not approach-corridor territory.
+    /// </summary>
+    private const double FollowDirectFinalJoinMinAlongFinalNm = 1.5;
+
+    /// <summary>
+    /// True when the follower is positioned in <paramref name="runway"/>'s final approach
+    /// corridor — genuinely out on the arrival side, laterally near the course (within a 45°
+    /// cone), and not separated from it by a parallel runway's final. The test is position
+    /// only: the instantaneous track is unreliable (the follower may be mid-turn when the
+    /// FOLLOW arrives), and free pursuit turns a corridor-positioned follower into trail
+    /// without a pattern-shaped maneuver.
+    /// </summary>
+    private static bool CanJoinLeadFinalDirectly(AircraftState follower, RunwayInfo runway)
+    {
+        var threshold = new LatLon(runway.ThresholdLatitude, runway.ThresholdLongitude);
+        double alongFinalNm = GeoMath.AlongTrackDistanceNm(follower.Position, threshold, runway.TrueHeading.ToReciprocal());
+        double crossTrackNm = Math.Abs(GeoMath.SignedCrossTrackDistanceNm(follower.Position, threshold, runway.TrueHeading));
+        return (alongFinalNm >= FollowDirectFinalJoinMinAlongFinalNm)
+            && (crossTrackNm <= FollowDirectFinalJoinMaxCrossTrackNm)
+            && (crossTrackNm <= alongFinalNm)
+            && !VfrFollowPhase.JoinCapturePathCrossesParallelFinal(follower.Position, runway);
+    }
+
+    /// <summary>
+    /// Cross-track band around the extended centerline within which the follower has no
+    /// meaningful "own side" for the last-resort side fallback.
+    /// </summary>
+    private const double FollowJoinSideEpsilonNm = 0.25;
+
+    /// <summary>
+    /// Pattern side for a follow-driven pattern join: the lead's own circuit direction
+    /// first, then the runway's natural direction (parallel-runway inference — 28R with
+    /// 28L present flies right traffic), then the side the follower happens to occupy,
+    /// then the FAA default Left (AIM §4-3-3). The runway's established circuit must win:
+    /// joining on whatever side the follower momentarily occupies can build an opposing
+    /// circuit for the same runway, and on close parallels it descends a base leg across
+    /// the neighboring runway's final approach course (AIM §4-3-3 FIG 4-3-3 note 7). A
+    /// follower left on the wrong side for the chosen circuit takes the published
+    /// midfield-crossing entry at pattern altitude (AIM §4-3-3.1.b) via
+    /// <see cref="PatternCommandHandler.TryEnterPattern"/>'s wrong-side path — crossing
+    /// the field at TPA is the maneuver the AIM prescribes for exactly this geometry.
+    /// </summary>
+    internal static PatternDirection ChooseFollowJoinDirection(AircraftState follower, AircraftState lead, RunwayInfo runway)
+    {
+        if (lead.Phases?.TrafficDirection is { } leadDirection)
+        {
+            return leadDirection;
+        }
+        if (GoAroundHelper.InferDefaultPatternDirection(runway) is { } naturalDirection)
+        {
+            return naturalDirection;
+        }
+        TrueHeading rightSideHeading = runway.TrueHeading + 90.0;
+        double sideOffsetNm = GeoMath.AlongTrackDistanceNm(
+            follower.Position,
+            new LatLon(runway.ThresholdLatitude, runway.ThresholdLongitude),
+            rightSideHeading
+        );
+        if (sideOffsetNm > FollowJoinSideEpsilonNm)
+        {
+            return PatternDirection.Right;
+        }
+        if (sideOffsetNm < -FollowJoinSideEpsilonNm)
+        {
+            return PatternDirection.Left;
+        }
+        return PatternDirection.Left;
     }
 }

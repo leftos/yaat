@@ -7,6 +7,10 @@
 
 ### Fixed
 - Authorizing `LUAW` no longer warns about an arrival that went around — a go-around voids the landing clearance until the aircraft is re-cleared. (#353)
+- Telling an aircraft in the pattern to `FOLLOW` traffic on final no longer turns it around onto a parallel offset track — a follower that isn't already in the pattern now joins the lead's runway pattern (on that runway's established circuit side, crossing midfield at pattern altitude when arriving from the wrong side) and sequences behind via the normal downwind holds, instead of free-pursuing straight into trail. A follower already positioned out on the final-approach corridor still falls in trail directly. (#352)
+- `ERD`/`ELD` issued to an aircraft already alongside the downwind (at or past the midfield entry point) now joins the downwind from present position instead of commanding a U-turn back to an entry lead-in behind it. Aircraft further out on the extended downwind still fly the normal 45°/extended entry. (#352)
+- A same-runway `FOLLOW` issued during a wrong-side pattern entry (midfield crossing or teardrop re-entry) no longer discards the entry — the crossing continues and the downwind sequencing takes over once established. (#352)
+- A follower joining traffic on final never captures the final through a closely-spaced parallel runway's approach course (e.g. cutting across OAK 28L's final to reach 28R).
 
 ## v0.12.5-beta [2026/08/12]
 

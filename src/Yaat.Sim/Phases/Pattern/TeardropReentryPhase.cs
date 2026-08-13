@@ -117,7 +117,32 @@ public sealed class TeardropReentryPhase : Phase
         );
     }
 
-    public override bool OnTick(PhaseContext ctx) => ctx.Targets.NavigationRoute.Count == 0;
+    public override bool OnTick(PhaseContext ctx)
+    {
+        // Lead-not-found / lead-on-ground / lost-visual watchdog for a follow accepted
+        // mid-reentry. A cancel can replace or clear this phase list mid-tick — bail out
+        // when it fires. See DownwindPhase.OnTick for the full rationale.
+        if (AirborneFollowHelper.CheckLeadLifecycle(ctx))
+        {
+            return false;
+        }
+
+        // A follow accepted during the re-entry engages free-flight spacing immediately
+        // (mirrors PatternEntryPhase): wider free-flight desired distance, and only ever
+        // SLOW below the re-entry baseline.
+        if (ctx.Aircraft.Approach.FollowingCallsign is not null)
+        {
+            double normalSpeed = AircraftPerformance.DownwindSpeed(ctx.AircraftType, ctx.Category);
+            double minSpeed = AircraftPerformance.ApproachSpeed(ctx.AircraftType, ctx.Category);
+            var adjusted = AirborneFollowHelper.GetAdjustedSpeedFreeFlight(ctx, normalSpeed, minSpeed);
+            if (adjusted is not null)
+            {
+                ctx.Targets.TargetSpeed = Math.Min(adjusted.Value, normalSpeed);
+            }
+        }
+
+        return ctx.Targets.NavigationRoute.Count == 0;
+    }
 
     public override CommandAcceptance CanAcceptCommand(CanonicalCommandType cmd)
     {
@@ -141,6 +166,9 @@ public sealed class TeardropReentryPhase : Phase
             CanonicalCommandType.LandAndHoldShort => CommandAcceptance.Allowed,
             CanonicalCommandType.ClearedForOption => CommandAcceptance.Allowed,
             CanonicalCommandType.GoAround => CommandAcceptance.Allowed,
+            // FOLLOW is additive during a same-runway re-entry: it records the traffic to
+            // sequence behind; the DownwindPhase this re-entry feeds runs the spacing holds (#352).
+            CanonicalCommandType.Follow => CommandAcceptance.Allowed,
             CanonicalCommandType.Delete => CommandAcceptance.ClearsPhase,
             _ => CommandAcceptance.ClearsPhase,
         };

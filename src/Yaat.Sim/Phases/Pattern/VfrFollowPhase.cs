@@ -47,6 +47,13 @@ public sealed class VfrFollowPhase : Phase
     /// <summary>Maximum intercept angle (track vs final approach course) allowed when committing onto final — the standard 30° final intercept.</summary>
     public const double MaxFinalJoinInterceptDeg = 30.0;
 
+    /// <summary>
+    /// Heading delta under which another runway at the airport counts as a parallel whose
+    /// final approach course the join capture path must not cross. True parallels differ
+    /// by well under 1°; CIFP/mag-var rounding can push apparent deltas to a few degrees.
+    /// </summary>
+    private const double MaxParallelHeadingDeltaDeg = 10.0;
+
     /// <summary>Never newly turn a follower onto final closer than this to the threshold.</summary>
     public const double MinFinalJoinDistNm = 0.5;
 
@@ -108,7 +115,17 @@ public sealed class VfrFollowPhase : Phase
         // know its runway, follow it onto that runway's final to await a landing
         // clearance — rather than cancelling the follow and free-flying level over the
         // field. Runs before CheckLeadLifecycle, which would otherwise cancel here.
-        if (lead is { IsOnGround: true } && _leadLandingRunway is { } landedRunway)
+        // Same parallel-final gate as TryJoinLeadFinal: this shortcut skips the in-trail
+        // and intercept gates by design (the lead is down, so spacing is moot), but
+        // capturing the runway from the far side of a close parallel would still cross
+        // that parallel's final approach course (AIM §4-3-3 FIG 4-3-3 note 7). When the
+        // gate refuses, fall through to CheckLeadLifecycle, which ends the follow
+        // (lead on the ground) and leaves the re-sequence to the controller.
+        if (
+            lead is { IsOnGround: true }
+            && _leadLandingRunway is { } landedRunway
+            && !JoinCapturePathCrossesParallelFinal(ctx.Aircraft.Position, landedRunway)
+        )
         {
             SequenceOntoFinal(ctx, landedRunway);
             return true;
@@ -370,9 +387,58 @@ public sealed class VfrFollowPhase : Phase
         {
             return false;
         }
+        // Never capture through a parallel runway's final: the cross-track allowance
+        // (1.0 nm) dwarfs closely-spaced parallel separation (OAK 28L/28R ≈ 0.165 nm), so
+        // a follower on the far side of the parallel would descend across its final
+        // approach course to reach the lead's centerline (AIM §4-3-3 FIG 4-3-3 note 7).
+        // Keep pursuing instead; the gate re-evaluates every tick as geometry improves.
+        if (JoinCapturePathCrossesParallelFinal(ctx.Aircraft.Position, runway))
+        {
+            return false;
+        }
 
         SequenceOntoFinal(ctx, runway);
         return true;
+    }
+
+    /// <summary>
+    /// True when a near-parallel runway's extended centerline lies laterally between the
+    /// follower and <paramref name="runway"/>'s centerline — the geometry where capturing
+    /// the lead's final means crossing the parallel's final approach course at low altitude.
+    /// Navdata stores one <see cref="RunwayInfo"/> per physical runway oriented to an
+    /// arbitrary end (KOAK stores 10L/10R, not 28R/28L), so both ends' headings are tested
+    /// and the matching end's coordinates are used — comparing only the stored orientation
+    /// makes the gate a silent no-op whenever the stored end points the other way.
+    /// </summary>
+    internal static bool JoinCapturePathCrossesParallelFinal(LatLon followerPos, RunwayInfo runway)
+    {
+        var threshold = new LatLon(runway.ThresholdLatitude, runway.ThresholdLongitude);
+        double followerCrossNm = GeoMath.SignedCrossTrackDistanceNm(followerPos, threshold, runway.TrueHeading);
+        foreach (var other in NavigationDatabase.Instance.GetRunways(runway.AirportId))
+        {
+            // Skip the target's own pavement in either orientation (28R matches a stored 10L entry).
+            bool samePavement =
+                string.Equals(other.Id.End1, runway.Designator, StringComparison.OrdinalIgnoreCase)
+                || string.Equals(other.Id.End2, runway.Designator, StringComparison.OrdinalIgnoreCase);
+            if (samePavement)
+            {
+                continue;
+            }
+            double delta1 = other.TrueHeading1.AbsAngleTo(runway.TrueHeading);
+            double delta2 = other.TrueHeading2.AbsAngleTo(runway.TrueHeading);
+            if (Math.Min(delta1, delta2) > MaxParallelHeadingDeltaDeg)
+            {
+                continue;
+            }
+            var otherOnCenterline = delta1 <= delta2 ? new LatLon(other.Lat1, other.Lon1) : new LatLon(other.Lat2, other.Lon2);
+            double otherCrossNm = GeoMath.SignedCrossTrackDistanceNm(otherOnCenterline, threshold, runway.TrueHeading);
+            bool sameSideAsFollower = (Math.Sign(otherCrossNm) == Math.Sign(followerCrossNm)) && (Math.Abs(otherCrossNm) > 1e-3);
+            if (sameSideAsFollower && (Math.Abs(otherCrossNm) < Math.Abs(followerCrossNm)))
+            {
+                return true;
+            }
+        }
+        return false;
     }
 
     /// <summary>

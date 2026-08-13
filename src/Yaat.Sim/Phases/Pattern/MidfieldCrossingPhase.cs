@@ -80,6 +80,28 @@ public sealed class MidfieldCrossingPhase : Phase
 
     public override bool OnTick(PhaseContext ctx)
     {
+        // Lead-not-found / lead-on-ground / lost-visual watchdog for a follow accepted
+        // mid-crossing. A cancel can replace or clear this phase list mid-tick — bail out
+        // when it fires. See DownwindPhase.OnTick for the full rationale.
+        if (AirborneFollowHelper.CheckLeadLifecycle(ctx))
+        {
+            return false;
+        }
+
+        // A follow accepted during the crossing engages free-flight spacing immediately
+        // (mirrors PatternEntryPhase): the aircraft isn't on a pattern leg yet, so use the
+        // wider free-flight desired distance, and only ever SLOW below the crossing baseline.
+        if (ctx.Aircraft.Approach.FollowingCallsign is not null)
+        {
+            double normalSpeed = AircraftPerformance.DownwindSpeed(ctx.AircraftType, ctx.Category);
+            double minSpeed = AircraftPerformance.ApproachSpeed(ctx.AircraftType, ctx.Category);
+            var adjusted = AirborneFollowHelper.GetAdjustedSpeedFreeFlight(ctx, normalSpeed, minSpeed);
+            if (adjusted is not null)
+            {
+                ctx.Targets.TargetSpeed = Math.Min(adjusted.Value, normalSpeed);
+            }
+        }
+
         // Continuously update heading toward the midfield target
         double bearing = GeoMath.BearingTo(ctx.Aircraft.Position, new LatLon(_targetLat, _targetLon));
         ctx.Targets.TargetTrueHeading = new TrueHeading(bearing);
@@ -120,7 +142,14 @@ public sealed class MidfieldCrossingPhase : Phase
             return CommandAcceptance.Allowed;
         }
 
-        return CommandAcceptance.ClearsPhase;
+        // FOLLOW is additive during a same-runway crossing: it records the traffic to sequence
+        // behind, and the DownwindPhase this crossing feeds runs all the spacing holds. Clearing
+        // the crossing here would discard the wrong-side entry and free-pursue instead (#352).
+        return cmd switch
+        {
+            CanonicalCommandType.Follow => CommandAcceptance.Allowed,
+            _ => CommandAcceptance.ClearsPhase,
+        };
     }
 
     public override PhaseDto ToSnapshot() =>

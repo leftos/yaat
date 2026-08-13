@@ -20,14 +20,16 @@ namespace Yaat.Sim.Tests.Simulation;
 /// <see cref="FinalApproachPhase"/> — it never flew a VFR pattern, so it has no
 /// pattern-leg waypoints).
 ///
-/// Observed (the bug): FOLLOW installs <see cref="VfrFollowPhase"/>, which wipes
-/// N713UP's runway + landing chain and only steers laterally toward the lead while
-/// holding 1009 ft. <see cref="VfrFollowPhase.TryJoinLeadPattern"/> can't rescue it
-/// because the lead has no pattern waypoints. When N8307E lands the follow cancels
-/// and N713UP free-flies level over the 28R threshold at 1009 ft.
+/// Observed (the original bug): FOLLOW installed <see cref="VfrFollowPhase"/>, which
+/// wiped N713UP's runway + landing chain and only steered laterally toward the lead
+/// while holding 1009 ft; when N8307E landed the follow cancelled and N713UP free-flew
+/// level over the 28R threshold at 1009 ft.
 ///
-/// Expected (the fix): N713UP is sequenced onto 28R final behind N8307E, descends,
-/// and holds for a separate landing clearance (CLAND) — going around if never cleared.
+/// Expected: N713UP sits in the 28R approach corridor at FOLLOW time, so the install
+/// keeps the direct in-trail join (the issue-#352 pattern-aware install applies only to
+/// followers positioned off the corridor, e.g. abeam the field on a downwind): it is
+/// sequenced onto 28R final behind N8307E, descends, and holds for a separate landing
+/// clearance (CLAND) — going around if never cleared.
 ///
 /// Replay strategy: hybrid (snapshot restore just before FOLLOW, then forward) —
 /// mirrors <see cref="Issue148FollowOnFinalTests"/> which uses the same scenario.
@@ -154,6 +156,7 @@ public class VfrFollowSequencesToFinalTests(ITestOutputHelper output)
                 follower.Phases?.CurrentPhase is FinalApproachPhase,
                 $"Precondition: follower should be on final at t=830, got {follower.Phases?.CurrentPhase?.GetType().Name ?? "(null)"}"
             );
+            Assert.Equal("28R", follower.Phases?.AssignedRunway?.Designator);
 
             var clandResult = engine.SendCommand(Follower, "CLAND");
             Assert.True(clandResult.Success, $"CLAND should succeed once the follower is on final: {clandResult.Message}");
@@ -161,7 +164,7 @@ public class VfrFollowSequencesToFinalTests(ITestOutputHelper output)
             // Physics-only ticks: do not re-apply the recording (its DEL at t=929 would
             // despawn the follower before touchdown).
             bool landed = false;
-            for (int t = 0; t < 200; t++)
+            for (int t = 0; t < 300; t++)
             {
                 engine.TickOneSecond();
                 follower = engine.FindAircraft(Follower);
@@ -189,7 +192,9 @@ public class VfrFollowSequencesToFinalTests(ITestOutputHelper output)
     /// follower to land while it is still pursuing its lead and has no runway of its
     /// own. <c>CLAND 28R</c> arms the clearance; when <see cref="VfrFollowPhase"/>
     /// sequences the follower onto 28R final, the clearance carries over and the
-    /// follower lands without a second CLAND.
+    /// follower lands without a second CLAND. (This recording's follower sits in the
+    /// 28R approach corridor at FOLLOW time, so the install keeps the direct in-trail
+    /// join rather than the issue-#352 pattern join.)
     /// </summary>
     [Fact]
     public void Follower_LandsOnArmedClearance_ClandRunwayWhileFollowing()
@@ -247,7 +252,7 @@ public class VfrFollowSequencesToFinalTests(ITestOutputHelper output)
             // No second CLAND: it lands on the armed clearance. Physics-only ticks avoid
             // the recorded DEL at t=929.
             bool landed = false;
-            for (int t = 0; t < 240; t++)
+            for (int t = 0; t < 300; t++)
             {
                 engine.TickOneSecond();
                 follower = engine.FindAircraft(Follower);

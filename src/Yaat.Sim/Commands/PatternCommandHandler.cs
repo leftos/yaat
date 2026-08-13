@@ -744,7 +744,26 @@ internal static class PatternCommandHandler
                 : GetEntryPoint(waypoints, effectiveEntryLeg, effectiveFinalDistanceNm ?? finalEntryDistanceNm, category);
             double distToEntry = GeoMath.DistanceNm(aircraft.Position, new LatLon(entryLat, entryLon));
 
-            if (distToEntry > 1.0)
+            // Downwind entry for an aircraft already at/past the fixed entry point: every entry
+            // route targets the abeam point, and both lead-in candidates project BEHIND it
+            // (ChooseDownwindLeadIn), so installing a PatternEntryPhase from here commands a
+            // U-turn back up the downwind — the "about-face onto a parallel offset track" of
+            // issue #352. A pilot told "enter the downwind" from alongside it just joins from
+            // present position (AIM 4-3-3 pattern entries describe how to REACH the downwind,
+            // not a mandatory backtrack). Skip the entry and let DownwindPhase re-intercept the
+            // computed track instead.
+            if (
+                effectiveEntryLeg == PatternEntryLeg.Downwind
+                && !useAircraftPositionAsEntry
+                && IsAtOrPastDownwindEntry(aircraft, waypoints, category, entryLat, entryLon)
+            )
+            {
+                if (circuitPhases.OfType<DownwindPhase>().FirstOrDefault() is { } presentPositionDownwind)
+                {
+                    presentPositionDownwind.RejoinTrack = true;
+                }
+            }
+            else if (distToEntry > 1.0)
             {
                 double? leadInLat = null;
                 double? leadInLon = null;
@@ -2583,6 +2602,93 @@ internal static class PatternCommandHandler
         total += Math.Max(0.0, turnMid - uTurnThresholdDeg);
         total += Math.Max(0.0, turnAbeam - uTurnThresholdDeg);
         return total;
+    }
+
+    /// <summary>
+    /// Along-track slack behind the downwind entry point within which an aircraft still counts
+    /// as "at" it. Anything less than one lead-in length (1.5 nm extended-downwind / ~0.5-2 nm
+    /// 45°) behind the entry point has a lead-in genuinely ahead of it and takes the normal
+    /// entry; at/past the point every lead-in is behind and the entry would command a U-turn.
+    /// </summary>
+    private const double PresentPositionJoinAlongTrackToleranceNm = 0.25;
+
+    /// <summary>
+    /// Maximum lateral displacement from the computed downwind track, as a multiple of the
+    /// pattern width, for a present-position downwind join. Within it the aircraft is
+    /// "alongside the downwind" and DownwindPhase's bounded-intercept rejoin captures the track
+    /// as a normal maneuver; beyond it the aircraft is far enough out that flying a proper
+    /// (re-)entry — even one that turns it around — is the sane reading of the clearance.
+    /// </summary>
+    private const double PresentPositionJoinLateralWidthFactor = 1.5;
+
+    /// <summary>
+    /// Along-track slack past the base-turn point within which an aircraft still counts as
+    /// "inside the circuit" for a present-position join. Beyond it the aircraft is out on the
+    /// arrival side (the extended downwind), where flying a normal entry to the pattern —
+    /// lead-in and all — is the correct reading of the clearance.
+    /// </summary>
+    private const double PresentPositionJoinBeyondBaseTurnNm = 1.0;
+
+    /// <summary>
+    /// True when the aircraft is already alongside the downwind between the entry point and
+    /// (just past) the base turn, laterally close to the computed downwind track, and low
+    /// enough to land from what remains of the circuit — the geometry where every entry
+    /// lead-in projects behind the aircraft, so a <see cref="PatternEntryPhase"/> would route
+    /// it on a U-turn (issue #352). Such an aircraft joins the downwind from present position
+    /// instead. Aircraft further out along the extended downwind are arrivals, not pattern
+    /// members, and take the normal entry — as does an aircraft too high to descend over the
+    /// short remaining downwind + base + final at the category pattern rate (AIM 4-3-3:
+    /// pattern entry at TPA; mirrors the ERB "too high for base" feasibility check), for which
+    /// the longer entry maneuver is the descent room.
+    /// </summary>
+    internal static bool IsAtOrPastDownwindEntry(
+        AircraftState aircraft,
+        PatternWaypoints waypoints,
+        AircraftCategory category,
+        double entryLat,
+        double entryLon
+    )
+    {
+        var entry = new LatLon(entryLat, entryLon);
+        var threshold = new LatLon(waypoints.ThresholdLat, waypoints.ThresholdLon);
+        double alongPastEntryNm = GeoMath.AlongTrackDistanceNm(aircraft.Position, entry, waypoints.DownwindHeading);
+        double baseTurnBeyondEntryNm = GeoMath.AlongTrackDistanceNm(
+            new LatLon(waypoints.BaseTurnLat, waypoints.BaseTurnLon),
+            entry,
+            waypoints.DownwindHeading
+        );
+        double lateralOffTrackNm = Math.Abs(GeoMath.SignedCrossTrackDistanceNm(aircraft.Position, entry, waypoints.DownwindHeading));
+        double patternWidthNm = Math.Abs(GeoMath.SignedCrossTrackDistanceNm(entry, threshold, waypoints.FinalHeading));
+        bool alongside =
+            (alongPastEntryNm > -PresentPositionJoinAlongTrackToleranceNm)
+            && (alongPastEntryNm <= baseTurnBeyondEntryNm + PresentPositionJoinBeyondBaseTurnNm)
+            && (lateralOffTrackNm <= patternWidthNm * PresentPositionJoinLateralWidthFactor);
+        if (!alongside)
+        {
+            return false;
+        }
+
+        // Altitude feasibility: the join only needs to absorb the EXCESS above pattern
+        // altitude (AIM 4-3-3 — entries are flown at TPA; the TPA-to-ground descent is the
+        // normal circuit profile that the downwind/final phases already own). An aircraft
+        // at/below TPA always qualifies; one above it must be able to shed the excess over
+        // the remaining circuit (downwind remainder + base + final) at the category pattern
+        // descent rate and base speed — otherwise the longer entry maneuver IS the descent room.
+        double excessAboveTpaFt = aircraft.Altitude - waypoints.PatternAltitude;
+        if (excessAboveTpaFt <= 0)
+        {
+            return true;
+        }
+        double baseTurnToThresholdNm = GeoMath.AlongTrackDistanceNm(
+            new LatLon(waypoints.BaseTurnLat, waypoints.BaseTurnLon),
+            threshold,
+            waypoints.DownwindHeading
+        );
+        double totalPathNm = Math.Max(0.0, baseTurnBeyondEntryNm - alongPastEntryNm) + patternWidthNm + Math.Max(0.0, baseTurnToThresholdNm);
+        double baseSpeedKt = CategoryPerformance.BaseSpeed(category);
+        double pathMinutes = totalPathNm / (baseSpeedKt / 60.0);
+        double maxDescentFt = CategoryPerformance.PatternDescentRate(category) * pathMinutes;
+        return excessAboveTpaFt <= maxDescentFt;
     }
 
     /// <summary>
