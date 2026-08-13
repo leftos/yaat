@@ -1,6 +1,12 @@
 # Changelog
 
-## Unreleased
+## v0.12.6-beta [2026/08/13]
+
+### Highlights
+- `FOLLOW` on traffic on final now sequences the follower through the pattern behind it, instead of turning it around onto a parallel offset track.
+- `ERD`/`ELD` issued to an aircraft already alongside the downwind joins from present position instead of U-turning back to the entry point.
+- The Aircraft List auto-scrolls to the selected aircraft.
+- `LUAW` no longer warns about an arrival that went around — a go-around voids the landing clearance.
 
 ### Added
 - The Aircraft List now auto-scrolls to the selected aircraft, so selecting one on the Ground or Radar view (or by typing its callsign) brings its row into view without manual scrolling. (#351)
