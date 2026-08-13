@@ -117,6 +117,15 @@ public class DataBlockStatePersistenceTests
         var window = new MainWindow();
         window.ShowAndRunLayout();
         var vm = (MainViewModel)window.DataContext!;
+
+        // Start from a known all-docked state: pop-out flips persist to the shared per-process
+        // preferences.json, so a preceding test can leave the Ground view popped out — its canvas
+        // would then live in a pop-out window instead of the docked tab this test drives.
+        vm.IsDataGridPoppedOut = false;
+        vm.IsGroundViewPoppedOut = false;
+        vm.IsRadarViewPoppedOut = false;
+        Dispatcher.UIThread.RunJobs();
+
         var tabs = window.FindControl<TabControl>("MainTabControl");
         Assert.NotNull(tabs);
 
@@ -124,7 +133,7 @@ public class DataBlockStatePersistenceTests
         tabs!.SelectedIndex = 1; // Ground View tab
         PumpLayout(window);
 
-        var canvas = window.GetVisualDescendants().OfType<GroundCanvas>().First();
+        var canvas = WaitForDockedGroundCanvas(window, vm);
         var ac = MakeAircraft();
         canvas.Aircraft = new[] { ac };
         canvas.Viewport.CenterLat = FieldLat;
@@ -180,6 +189,33 @@ public class DataBlockStatePersistenceTests
     }
 
     // ── Helpers ──────────────────────────────────────────────────
+
+    /// <summary>
+    /// The docked GroundCanvas enters MainWindow's visual tree only once the TabControl
+    /// materializes the selected tab's content, which can lag extra dispatcher/layout passes when
+    /// the machine is loaded (the suite has flaked here under parallel full-solution runs). Pumps
+    /// until it appears; on timeout fails with the view-model state so the cause is visible.
+    /// </summary>
+    private static GroundCanvas WaitForDockedGroundCanvas(Window window, MainViewModel vm)
+    {
+        for (var i = 0; i < 40; i++)
+        {
+            var canvas = window.GetVisualDescendants().OfType<GroundCanvas>().FirstOrDefault();
+            if (canvas is not null)
+            {
+                return canvas;
+            }
+            Thread.Sleep(25);
+            Dispatcher.UIThread.RunJobs();
+            window.UpdateLayout();
+        }
+
+        Assert.Fail(
+            $"no docked GroundCanvas materialized: SelectedTabIndex={vm.SelectedTabIndex}, GroundPoppedOut={vm.IsGroundViewPoppedOut}, "
+                + $"AnyTabVisible={vm.IsAnyTabVisible}, ContentGridVisible={vm.IsContentGridVisible}, WindowSize={window.Bounds.Size}"
+        );
+        return null!; // unreachable — Assert.Fail throws
+    }
 
     private static AircraftModel MakeAircraft()
     {

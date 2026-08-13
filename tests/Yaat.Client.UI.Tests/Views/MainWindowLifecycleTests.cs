@@ -69,6 +69,11 @@ public class MainWindowLifecycleTests
 
         Assert.Null(main.GroundViewWindow);
         Assert.NotNull(main.RadarViewWindow); // other window untouched
+
+        // Every pop-out flip persists to the shared per-process preferences.json, so leave the
+        // state docked — a later test's MainWindow would otherwise boot with the view popped out.
+        vm.IsRadarViewPoppedOut = false;
+        Dispatcher.UIThread.RunJobs();
     }
 
     [AvaloniaFact]
@@ -106,6 +111,19 @@ public class MainWindowLifecycleTests
         vm.IsTerminalPoppedOut = true;
         Dispatcher.UIThread.RunJobs();
         Assert.False(vm.IsContentGridVisible);
+
+        // Every pop-out flip persists to the shared per-process preferences.json, so re-dock
+        // everything — a later test's MainWindow would otherwise boot with all views popped out
+        // and no docked GroundCanvas/RadarCanvas to find.
+        vm.IsDataGridPoppedOut = false;
+        vm.IsGroundViewPoppedOut = false;
+        vm.IsRadarViewPoppedOut = false;
+        vm.IsControllersPoppedOut = false;
+        vm.IsMetarPoppedOut = false;
+        vm.StripsEntries[0].IsPoppedOut = false;
+        vm.TdlsEntries[0].IsPoppedOut = false;
+        vm.IsTerminalPoppedOut = false;
+        Dispatcher.UIThread.RunJobs();
     }
 
     [AvaloniaFact]
