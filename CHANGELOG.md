@@ -5,6 +5,9 @@
 ### Added
 - The Aircraft List now auto-scrolls to the selected aircraft, so selecting one on the Ground or Radar view (or by typing its callsign) brings its row into view without manual scrolling. (#351)
 
+### Fixed
+- Authorizing `LUAW` no longer warns about an arrival that went around — a go-around voids the landing clearance until the aircraft is re-cleared. (#353)
+
 ## v0.12.5-beta [2026/08/12]
 
 ### Highlights

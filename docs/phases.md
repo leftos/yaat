@@ -80,7 +80,7 @@ These run inside `PhaseRunner` after the current phase advances. They turn one-s
 - **Post-LAHSO**: When `LandingPhase.StoppedForLahso` is set, append `RunwayHoldingPhase → RunwayExitPhase → HoldingAfterExitPhase`.
 - **Post-landing (no pattern)**: If queue is complete and `TrafficDirection is null`, auto-append `RunwayExitPhase → HoldingAfterExitPhase`.
 - **Pattern re-entry from go-around**: After `GoAroundPhase` with `ReenterPattern=true`, set `TrafficDirection` from the persistent `AircraftPattern.TrafficDirection` (falling back to the transient field, then Left) when a runway is assigned.
-- **Pattern auto-cycle**: If the completed phase was a cycle terminator (`TouchAndGoPhase`, `StopAndGoPhase`, `LowApproachPhase`) or a `GoAroundPhase` with `ReenterPattern=true`, AND the queue is complete AND a direction resolves (persistent `AircraftPattern.TrafficDirection`, else the transient `TrafficDirection`) AND `AssignedRunway is not null`, `PatternBuilder` builds the next circuit and appends the leg phases. Landing clearance is cleared.
+- **Pattern auto-cycle**: If the completed phase was a cycle terminator (`TouchAndGoPhase`, `StopAndGoPhase`, `LowApproachPhase`) or a `GoAroundPhase` with `ReenterPattern=true`, AND the queue is complete AND a direction resolves (persistent `AircraftPattern.TrafficDirection`, else the transient `TrafficDirection`) AND `AssignedRunway is not null`, `PatternBuilder` builds the next circuit and appends the leg phases. Landing clearance is cleared (defensively — `GoAroundHelper.InstallGoAroundPhases` already voided it at go-around installation).
 
 Full-stop approaches **do not** auto-cycle. The pattern bit (`TrafficDirection`) is what distinguishes a touch-and-go aircraft from a full-stop arrival.
 
@@ -108,8 +108,8 @@ Phases write **directly** to `ctx.Targets` — they do not enqueue commands.
 | `AssignedRunway` | TAXI, RWY, departure clearance | `LineUpPhase`, `TakeoffPhase`, `FinalApproachPhase` |
 | `TaxiRoute` | TAXI handler | `TaxiingPhase` |
 | `DepartureClearance` | LUAW / CTO | `LinedUpAndWaitingPhase`, threshold logic |
-| `LandingClearance` (`ClearanceType?`) | CLAND, CTOC, LUAW-cancel | `FinalApproachPhase`, `LandingPhase` |
-| `ClearedRunwayId` | landing clearance | `FinalApproachPhase` |
+| `LandingClearance` (`ClearanceType?`) | CLAND, CTOC, LUAW-cancel; voided by any go-around (`GoAroundHelper.InstallGoAroundPhases`, along with `Pattern.PendingLandingClearance`) | `FinalApproachPhase`, `LandingPhase` |
+| `ClearedRunwayId` | landing clearance; voided with it at go-around | `FinalApproachPhase` |
 | `TrafficDirection` (`PatternDirection?`) | pattern commands | auto-cycle in `PhaseRunner` |
 | `PatternRunway` | cross-runway closed traffic | pattern phases |
 | `ActiveApproach` (`ApproachClearance?`) | JFAC / CAPP / JAPP / PTAC | `ApproachNavigationPhase`, `FinalApproachPhase` |

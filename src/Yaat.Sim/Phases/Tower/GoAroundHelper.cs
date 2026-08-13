@@ -200,6 +200,16 @@ internal static class GoAroundHelper
             VisualApproachHelper.VoidVisualApproach(ctx.Aircraft);
         }
 
+        // Every go-around voids the landing-family clearance, visual or not: 7110.65 7-4-1
+        // handles a broken-off visual "as any go-around", and AIM 5-5-5.a.6 has the pilot
+        // *request* the next action after a missed approach — so no clearance survives, and
+        // the 3-9-4.c.1.(b) LUAW restriction (which applies only while a clearance still
+        // stands) correctly lifts. ActiveApproach deliberately survives (7110.65 4-8-9.a:
+        // the approach clearance itself authorizes flying the published missed approach).
+        phaseList.LandingClearance = null;
+        phaseList.ClearedRunwayId = null;
+        ctx.Aircraft.Pattern.PendingLandingClearance = null;
+
         var phases = new List<Phase> { goAround };
         phases.AddRange(missedApproachPhases);
 

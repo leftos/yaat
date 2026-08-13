@@ -368,6 +368,49 @@ public class RunwayOccupancyWarningTests
     }
 
     [Fact]
+    public void Luaw_ArrivalWentAround_NoWarning()
+    {
+        // A go-around voids the landing clearance — 7110.65 3-9-4.c.1.(b) restricts LUAW only
+        // while a clearance for the runway still stands, and a gone-around aircraft must be
+        // re-cleared to land. The stale clearance must not re-trigger the advisory just because
+        // the aircraft is still airborne on the climb-out (issue #353); airborne analog of
+        // Luaw_ArrivalLandedAndExiting_NoWarning.
+        var runway = TestRunwayFactory.Make(designator: "30", airportId: "OAK", heading: 310, elevationFt: 6);
+        using var _ = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithRunways(runway));
+
+        var arrival = MakeArrival("N200AR", TestRunwayFactory.Make(designator: "30", airportId: "OAK", heading: 310, elevationFt: 6));
+        arrival.Phases!.LandingClearance = ClearanceType.ClearedToLand;
+        arrival.Phases.ClearedRunwayId = "30";
+        GoAroundHelper.InstallGoAroundPhases(CommandDispatcher.BuildMinimalContext(arrival), new GoAroundPhase(), []);
+        var departure = MakeDepartureHoldingShort("N300DP");
+
+        var result = Dispatch("LUAW", departure, arrival, departure);
+
+        Assert.True(result.Success, result.Message);
+        Assert.DoesNotContain(departure.PendingWarnings, w => w.Contains("N200AR", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void InstallGoAroundPhases_NonVisualApproach_VoidsLandingClearance()
+    {
+        // Every go-around voids the standing landing clearance and any pre-armed pending one,
+        // not just visual approaches — the RPO must re-clear each approach.
+        var runway = TestRunwayFactory.Make(designator: "30", airportId: "OAK", heading: 310, elevationFt: 6);
+        using var _ = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithRunways(runway));
+
+        var arrival = MakeArrival("N200AR", TestRunwayFactory.Make(designator: "30", airportId: "OAK", heading: 310, elevationFt: 6));
+        arrival.Phases!.LandingClearance = ClearanceType.ClearedToLand;
+        arrival.Phases.ClearedRunwayId = "30";
+        arrival.Pattern.PendingLandingClearance = new PendingLandingClearance(ClearanceType.ClearedToLand, "30");
+
+        GoAroundHelper.InstallGoAroundPhases(CommandDispatcher.BuildMinimalContext(arrival), new GoAroundPhase(), []);
+
+        Assert.Null(arrival.Phases.LandingClearance);
+        Assert.Null(arrival.Phases.ClearedRunwayId);
+        Assert.Null(arrival.Pattern.PendingLandingClearance);
+    }
+
+    [Fact]
     public void Cto_ArrivalClearedToLandSameRunway_NoWarning()
     {
         // Takeoff clearance with an arrival cleared to land is anticipated separation — legal,

@@ -666,7 +666,7 @@ FinalApproachSpeedVariety.cs   # Deterministic per-callsign FAS-reduction distan
 LandingPhase.cs                # Flare→touchdown→rollout; continuous exit evaluation (resolve→brake→commit/abandon→relax preference); LAHSO-aware
 RunwayHoldingPhase.cs          # LAHSO: hold at 0kts on runway after landing; clearance-gated (RunwayCrossing)
 GoAroundPhase.cs               # TOGA, runway heading. Climbs to pattern altitude−300 (VFR/pattern traffic), the published missed-approach altitude (instrument), or 2000ft AGL (self-clear)
-GoAroundHelper.cs              # Shared go-around wiring for the auto trigger + the GA command: pattern-intent resolution (ResolvePatternIntent), climb-out altitude (ResolveClimbOutAltitude), phase-list install, pre-GA landing-intent capture
+GoAroundHelper.cs              # Shared go-around wiring for the auto trigger + the GA command: pattern-intent resolution (ResolvePatternIntent), climb-out altitude (ResolveClimbOutAltitude), phase-list install (voids the standing + pending landing clearance), pre-GA landing-intent capture
                                # InstallGoAroundPhases voids a VIS* clearance (any go-around off a visual kills the approach authorization — 7110.65 §7-4-1)
 VisualApproachHelper.cs        # AIM §5-5-11.a.3 lost-visual-reference consequence engine: HandleTrafficContactLost (handback vs end-of-visual),
                                # EndVisualLostReference (committed → go-around w/ spoken reason; else level-off + "unable the visual, request vectors"),
