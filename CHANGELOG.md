@@ -1,6 +1,12 @@
 # Changelog
 
-## Unreleased
+## v0.12.7-beta [2026/08/13]
+
+### Highlights
+- Named favorite command sets — Global, per-airport, per-scenario, and custom sets (e.g. "S1 Training") with a full editor, import/export, and window-profile integration (#354)
+- A taxi route never travels along a runway the clearance didn't include — contradictory clearances resolve to a sane route with a warning
+- `HS` for a runway the taxi route travels along now arms a hold-short at each boundary instead of being silently dropped
+- A taxi clearance ending on a bare taxiway holds where the route meets it instead of guessing a direction down it
 
 ### Changed
 - A `TAXI` clearance ending on a taxiway with no destination or turn hint (e.g. `TAXI C D` after landing) now taxis to where the route meets that final taxiway and holds there, instead of committing the aircraft down the taxiway in a guessed direction (`TAXI C D` at OAK used to walk the full length of D to the 15/33 boundary). The response says where the aircraft will hold: `Taxi via E C [holding at the C/D intersection — route ends at D, no destination given]`.
