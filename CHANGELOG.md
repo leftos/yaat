@@ -3,10 +3,12 @@
 ## Unreleased
 
 ### Added
-- Favorite commands can be grouped into named sets (e.g. "S1 Training") loaded/unloaded via the new **Sets** button, alongside the existing scoped favorites. (#354)
-- A new **Favorites Editor** (Sets → Manage sets…) creates, renames, and deletes sets and copies, moves, or reorders favorites between them. (#354)
+- Favorite commands live in sets on one level — **Global**, per-airport, per-scenario, and named sets (e.g. "S1 Training") loaded/unloaded via the **Sets** button. (#354)
+- A favorite can belong to several sets at once — the same favorite everywhere, one edit updates every appearance; the add/edit dialogs pick its sets with checkboxes.
+- The **Favorites Editor** (Sets → Manage sets…) manages every set plus a "Not in any set" view — add, move, remove, reorder, rename, delete. (#354)
 - Window profiles remember which favorite sets are loaded. (#354)
-- **Export → All sets** shares every set as one bundle file; Import auto-detects it alongside regular favorites files. (#354)
+- **Export** shares one set or the whole library as a zip of per-favorite JSON files; **Import** merges shared sets, libraries, or single favorites.
+- Each favorite and set is its own JSON file named after its label in the YAAT data folder; existing favorites migrate automatically.
 
 ## v0.12.6-beta [2026/08/13]
 

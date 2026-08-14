@@ -16,7 +16,7 @@ public static class FavoritesContextMenu
             return menu;
         }
 
-        var entries = FavoritesContextMenuModel.Build(vm.DisplayFavorites, aircraft);
+        var entries = FavoritesContextMenuModel.Build(vm.DisplayFavorites.Select(e => e.Favorite), aircraft);
         if (entries.Count == 0)
         {
             menu.Items.Add(new MenuItem { Header = "(no items)", IsEnabled = false });

@@ -50,7 +50,7 @@ internal static class FavoritesSceneData
 
         foreach (var favorite in CreateFavorites())
         {
-            vm.DisplayFavorites.Add(favorite);
+            vm.DisplayFavorites.Add(new FavoriteDisplayEntry(favorite, vm.FavoriteStore.GlobalSet.Id));
         }
 
         return vm;

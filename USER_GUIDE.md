@@ -1622,40 +1622,42 @@ The favorites bar sits below the command input and provides quick-access buttons
 
 - **Click** a favorite to execute immediately. If text is in the command input (e.g., a callsign), the favorite command is appended.
 - **Ctrl+Click** a favorite to append its command text without sending (joined with `,`).
-- **Right-click** a favorite to edit its label, command text, ground override, category, visibility scope, button colors, button size, or delete it.
+- **Right-click** a favorite to edit its label, command text, ground override, category, which sets it's in, button colors, button size, or delete it.
 - Click **+** to add a new favorite.
 - Click **Panel** or use **View > Open Favorites Panel...** for a larger pop-out panel with **Air**, **Ground**, **Vehicle**, and **Airport** tabs. The panel's status bar shows which aircraft a favorite will act on (your current selection) and the result of your last click. Because favorites act on the selected aircraft, select one in the main window first; the panel floats freely, so you can bring the main window forward to change your selection.
-- In the pop-out panel, set **Cols** for a fixed grid, click **Batch** to add a screenful of blank slots to the active tab, then right-click each slot to fill in its label and command. Click **Blank** for a single extra slot. Blank slots reserve button-sized space so you can line up commands in predictable positions; click-hold-drag favorites or blank slots to rearrange them, or right-click to move left/right, insert blanks before/after, change category/scope/size, or delete. The same drag and move controls are available from the main favorites bar.
+- In the pop-out panel, set **Cols** for a fixed grid, click **Batch** to add a screenful of blank slots to the active tab, then right-click each slot to fill in its label and command. Click **Blank** for a single extra slot. Blank slots reserve button-sized space so you can line up commands in predictable positions; click-hold-drag favorites or blank slots to rearrange them, or right-click to move left/right, insert blanks before/after, change category/sets/size, or delete. The same drag and move controls are available from the main favorites bar.
 - **Right-click the command input** with text present to choose **Save as favorite…** — the add dialog opens with the command pre-filled, so you only need to type a label.
 
 ![Favorites panel](docs/user-guide/img/favorites-panel.png)
 
-Each favorite has a **label** (displayed on the button) and **command text** (the command to execute). A favorite can also have an optional **ground command override**. When the selected aircraft is on the ground, that override is sent instead of the default command. Favorites and blank slots have a **scope**:
-
-- **Global** favorites appear everywhere.
-- **Scenario** favorites appear only when the current scenario is loaded.
-- **Airport** favorites appear when the current scenario's primary airport matches, even across different scenarios for that airport.
-
-Airport-specific favorites are useful for airport- or position-specific presets that don't apply elsewhere. For example, while running a FLL departure scenario you can save `T T3 B` as a favorite labeled "T3 B" with **Airport (FLL)** selected — that button appears for other FLL scenarios too, while staying hidden at other airports.
+Each favorite has a **label** (displayed on the button) and **command text** (the command to execute). A favorite can also have an optional **ground command override**. When the selected aircraft is on the ground, that override is sent instead of the default command.
 
 #### Favorite Sets
 
-In addition to the always-present scoped favorites above, you can group favorites into named **sets** (for example "S1 Training" or "S2") and load or unload whole sets at once. While a set is loaded, *all* of its favorites appear in the bar, panel tabs, and aircraft right-click menu — after your regular favorites, in the order you loaded the sets. Set membership is the visibility gate: a favorite inside a loaded set shows regardless of its scenario/airport scope (the scope is kept, and applies again if you ever copy the favorite back out of the set).
+Every favorite lives in one or more **sets**, and every container is a set on the same level:
 
-- Click **Sets** (in the favorites bar or the pop-out panel header) to check/uncheck which sets are loaded, or pick **Manage sets…** to open the **Favorites Editor**.
-- The **Favorites Editor** lists your containers on the left — **Favorites (main)** plus every named set, each with a **Loaded** checkbox — and the selected container's favorites on the right. Create, rename, or delete sets; multi-select favorites and **Move Up/Down**, **Copy to…** or **Move to…** another set (or back to the main list), or **Delete** them. Copying leaves independent copies, so editing one later never changes the other.
-- **Window profiles remember which sets are loaded**: saving a profile captures the loaded sets, and applying it loads exactly those sets again (see **Window Profiles** in the Interface section).
+- **Global** — always visible, everywhere.
+- **Airport (XXX)** — one set per airport; visible while that airport is the scenario's primary airport, across all of its scenarios.
+- **Scenario (Name)** — one set per scenario; visible only while that scenario is loaded.
+- **Named sets** you create (for example "S1 Training") — visible while **loaded**. Click **Sets** (in the favorites bar or the pop-out panel header) to check/uncheck which are loaded, or pick **Manage sets…** to open the **Favorites Editor**.
+
+The bar and panel show each visible set's buttons in order: Global, the active airport, the active scenario, then loaded named sets in the order you loaded them.
+
+A favorite can be in **several sets at once**, and it's the *same* favorite everywhere — edit its label or command from any button and every appearance updates. The add, edit, and batch-add dialogs have an **In** checkbox list of all sets; check as many as you want (at least one to save). When editing, the checkboxes show where the favorite currently lives — moving it is unchecking one place and checking another. **Delete** in the edit dialog removes the favorite from *every* set.
+
+Airport sets are useful for airport- or position-specific presets that don't apply elsewhere. For example, while running a FLL departure scenario you can save `T T3 B` as a favorite labeled "T3 B" checked into **Airport (FLL)** — that button appears for other FLL scenarios too, while staying hidden at other airports.
+
+- The **Favorites Editor** lists every set on the left (named sets have a **Loaded** checkbox) plus **Not in any set**, which holds favorites you removed from their last set — nothing is lost until you explicitly delete it. The right pane lists the selected set's favorites with multi-select: **Move Up/Down** reorders within the set, **Add to…** puts the selection in another set as well, **Move to…** transfers it, **Remove** takes it out of the current set only, and **Delete** destroys it everywhere.
+- **Window profiles remember which named sets are loaded**: saving a profile captures the loaded sets, and applying it loads exactly those sets again (see **Window Profiles** in the Interface section).
+- On disk, each favorite and each set is its own JSON file under `favorites/` in the YAAT data folder, named after its label (e.g. `FH 270.3f2a9c1b.json`), so they're easy to inspect, back up, or sync.
 
 #### Import / Export
 
-Favorites can be shared between users as a `.yaat-favorites.json` file, using the **Import** and **Export** buttons in the pop-out **Favorites Panel** header (open it with **View > Open Favorites Panel...** or the **Panel** button).
+Favorites are shared with the **Import** and **Export** buttons in the pop-out **Favorites Panel** header (open it with **View > Open Favorites Panel...** or the **Panel** button).
 
-- **Export → All favorites** — save every favorite (all four tabs, including blank slots) to a file.
-- **Export → Current tab** — save just the favorites in the tab you're viewing (Air, Ground, Vehicle, or Airport).
-- **Export → All sets** — save every named favorite set (with which ones are loaded) to a single bundle file. Your main favorites list is not included — use **All favorites** for that.
-- **Import** — load favorites from a file; both formats are detected automatically. For a regular favorites file: if you already have favorites, you're asked whether to **Append** them (added after your existing ones) or **Replace all** of them; with no existing favorites, the file loads directly. For an all-sets bundle: choose **Merge** (same-named sets gain the imported favorites, new names become new sets) or **Replace All Sets** (your named sets are replaced with the file's; your main favorites list is untouched either way).
-
-Scenario- and airport-scoped favorites keep their scope when shared, so an imported favorite only appears when its scenario or airport is active.
+- **Export → Set: …** — save one set as a `.yaat-favset.zip`: the set plus one JSON per favorite it references, side by side.
+- **Export → Everything (library)** — save every set and every favorite (including ones not in any set) as a `.yaat-favlibrary.zip`.
+- **Import** — load either zip, or a single favorite/set `.json` taken from one. Everything merges by the favorite's id: a favorite you already have is updated in place, new ones are added, and a named set that matches one of yours by id is updated while a same-named set from someone else imports alongside yours with a "(2)" suffix. Airport/Scenario/Global sets merge into your matching containers. A lone favorite json lands in Global so it shows up immediately.
 
 ### Command History
 

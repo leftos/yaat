@@ -27,6 +27,7 @@ public partial class MainViewModel : ObservableObject
     private readonly ServerConnection _connection = new();
     public ServerConnection Connection => _connection;
     private readonly UserPreferences _preferences = new();
+    private readonly FavoriteStore _favoriteStore;
     private readonly VatsimAuthClient _auth = new();
     private VatsimIdentity? _identity;
     internal string? CurrentCid => _identity?.Cid;
@@ -1331,6 +1332,8 @@ public partial class MainViewModel : ObservableObject
     public MainViewModel(IFilePickerService filePicker)
     {
         _filePicker = filePicker;
+        _favoriteStore = new FavoriteStore(FavoriteStore.DefaultRootDir);
+        FavoriteLegacyMigration.Run(_preferences, _favoriteStore);
         _isSpeechEnabled = _preferences.SpeechEnabled;
         _sessionSoloTrainingMode = _preferences.SoloTrainingMode;
         _pilotSpeechAlerts = new PilotSpeechAlertService(_preferences);
@@ -1488,6 +1491,7 @@ public partial class MainViewModel : ObservableObject
         RefreshCommandScheme();
         _commandInput.Macros = _preferences.Macros;
         RefreshDisplayFavorites();
+        _favoriteStore.Changed += () => Dispatcher.UIThread.Post(RefreshDisplayFavorites);
         _preferences.FavoriteSetsChanged += () => Dispatcher.UIThread.Post(RefreshDisplayFavorites);
 
         _ = InitializeNavDataAsync();

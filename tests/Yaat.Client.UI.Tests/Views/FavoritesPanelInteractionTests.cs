@@ -54,16 +54,15 @@ public class FavoritesPanelInteractionTests
     public void FavoriteButtonClick_InPaletteMode_ReachesCommandDispatch()
     {
         var vm = NewVm();
-        // A global (unscoped) air favorite carrying a real command but no callsign — exactly the
-        // shape of a real favorite, which targets the currently SelectedAircraft.
-        vm.AddFavorite(
-            new FavoriteCommand
-            {
-                Label = "TestFav",
-                CommandText = "FH 270",
-                Category = FavoriteCommandCategory.Air,
-            }
-        );
+        // A Global air favorite carrying a real command but no callsign — exactly the shape of a
+        // real favorite, which targets the currently SelectedAircraft.
+        var testFav = new FavoriteCommand
+        {
+            Label = "TestFav",
+            CommandText = "FH 270",
+            Category = FavoriteCommandCategory.Air,
+        };
+        vm.AddFavorite(testFav, [vm.FavoriteStore.GlobalSet.Id]);
 
         var view = new FavoritesBarView { IsPaletteMode = true };
         var window = new Window
@@ -86,7 +85,7 @@ public class FavoritesPanelInteractionTests
             Assert.Null(vm.SelectedAircraft);
             Assert.Equal("Disconnected", vm.StatusText);
 
-            var button = view.GetVisualDescendants().OfType<Button>().Single(b => b.Tag is FavoriteCommand { Label: "TestFav" });
+            var button = view.GetVisualDescendants().OfType<Button>().Single(b => b.Tag is FavoriteDisplayEntry { Favorite.Label: "TestFav" });
 
             // Simulate a genuine pointer press + release (not RaiseEvent(Button.ClickEvent)) so the
             // FavoritesBarView tunnel handlers that capture the pointer for drag-reorder actually run.
@@ -105,6 +104,7 @@ public class FavoritesPanelInteractionTests
         {
             window.Close();
             Dispatcher.UIThread.RunJobs();
+            vm.DeleteFavorite(testFav.Id);
         }
     }
 

@@ -1,5 +1,4 @@
 using System.Collections.Specialized;
-using System.Text.Json;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
@@ -9,6 +8,7 @@ using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.VisualTree;
 using Microsoft.Extensions.Logging;
+using MsBox.Avalonia;
 using Yaat.Client.Logging;
 using Yaat.Client.Services;
 using Yaat.Client.ViewModels;
@@ -27,7 +27,11 @@ public partial class FavoritesBarView : UserControl
         FavoriteCommandCategory.Airport,
     ];
 
-    private static readonly FilePickerFilter FavoritesFileType = new("YAAT Favorites", ["*.yaat-favorites.json"]);
+    private static readonly FilePickerFilter FavoritesZipType = new("YAAT Favorites", ["*.yaat-favset.zip", "*.yaat-favlibrary.zip"]);
+
+    private static readonly FilePickerFilter SetZipType = new("YAAT Favorite Set", ["*.yaat-favset.zip"]);
+
+    private static readonly FilePickerFilter LibraryZipType = new("YAAT Favorites Library", ["*.yaat-favlibrary.zip"]);
 
     private static readonly FilePickerFilter JsonFileType = new("JSON Files", ["*.json"]);
 
@@ -39,9 +43,9 @@ public partial class FavoritesBarView : UserControl
     private Button? _addButton;
     private NumericUpDown? _columnsBox;
     private FavoriteCommandCategory _selectedPaletteCategory = FavoriteCommandCategory.Air;
-    private FavoriteCommand? _pendingDragFavorite;
-    private FavoriteCommand? _activeDragFavorite;
-    private FavoriteCommand? _lastDragTarget;
+    private FavoriteDisplayEntry? _pendingDragFavorite;
+    private FavoriteDisplayEntry? _activeDragFavorite;
+    private FavoriteDisplayEntry? _lastDragTarget;
     private IPointer? _capturedPointer;
     private Point _dragStartPoint;
     private DateTime _dragPressUtc;
@@ -250,13 +254,13 @@ public partial class FavoritesBarView : UserControl
 
         _panel.Children.Clear();
 
-        foreach (var fav in vm.DisplayFavorites.Where(f => !f.IsSpacer))
+        foreach (var entry in vm.DisplayFavorites.Where(f => !f.Favorite.IsSpacer))
         {
-            var btn = CreateFavoriteButton(fav);
+            var btn = CreateFavoriteButton(entry);
             _panel.Children.Add(btn);
         }
 
-        if (vm.FavoriteSetNames.Count > 0)
+        if (vm.NamedFavoriteSets.Count > 0)
         {
             var setsButton = CreateSetsButton();
             setsButton.Margin = new Thickness(0, 0, 4, 4);
@@ -280,9 +284,9 @@ public partial class FavoritesBarView : UserControl
         {
             var panel = new UniformGrid { Columns = GetPanelColumns(vm), Margin = new Thickness(8) };
 
-            foreach (var fav in vm.DisplayFavorites.Where(f => NormalizeCategory(f) == category))
+            foreach (var entry in vm.DisplayFavorites.Where(f => NormalizeCategory(f.Favorite) == category))
             {
-                panel.Children.Add(fav.IsSpacer ? CreateBlankSlot(fav) : CreateFavoriteButton(fav));
+                panel.Children.Add(entry.Favorite.IsSpacer ? CreateBlankSlot(entry) : CreateFavoriteButton(entry));
             }
 
             var scroll = new ScrollViewer
@@ -301,8 +305,9 @@ public partial class FavoritesBarView : UserControl
         }
     }
 
-    private Button CreateFavoriteButton(FavoriteCommand fav)
+    private Button CreateFavoriteButton(FavoriteDisplayEntry entry)
     {
+        var fav = entry.Favorite;
         var width = GetButtonWidth(fav);
         var height = GetButtonHeight(fav);
         var btn = new Button
@@ -316,7 +321,7 @@ public partial class FavoritesBarView : UserControl
                 MaxLines = 2,
                 VerticalAlignment = VerticalAlignment.Center,
             },
-            Tag = fav,
+            Tag = entry,
             Margin = new Thickness(0, 0, 4, 4),
             Padding = IsPaletteMode ? new Thickness(6, 2) : new Thickness(8, 2),
             FontSize = IsPaletteMode ? 13 : 12,
@@ -341,13 +346,14 @@ public partial class FavoritesBarView : UserControl
         return btn;
     }
 
-    private Button CreateBlankSlot(FavoriteCommand fav)
+    private Button CreateBlankSlot(FavoriteDisplayEntry entry)
     {
+        var fav = entry.Favorite;
         var width = GetButtonWidth(fav);
         var height = GetButtonHeight(fav);
         var btn = new Button
         {
-            Tag = fav,
+            Tag = entry,
             Margin = new Thickness(0, 0, 4, 4),
             Padding = new Thickness(0),
             Width = width,
@@ -453,26 +459,27 @@ public partial class FavoritesBarView : UserControl
         // Built fresh on every open so the checkboxes always reflect the current loaded state —
         // no persistent subscription (and no repopulation reentrancy) needed.
         var flyout = new MenuFlyout();
-        foreach (var name in vm.FavoriteSetNames)
+        var namedSets = vm.NamedFavoriteSets;
+        foreach (var set in namedSets)
         {
-            var setName = name;
+            var setId = set.Id;
             var item = new MenuItem
             {
-                Header = setName,
+                Header = set.Name,
                 ToggleType = MenuItemToggleType.CheckBox,
-                IsChecked = vm.IsFavoriteSetLoaded(setName),
+                IsChecked = vm.IsFavoriteSetLoaded(setId),
                 StaysOpenOnClick = true,
             };
             item.Click += (_, _) =>
             {
-                var nowLoaded = !vm.IsFavoriteSetLoaded(setName);
+                var nowLoaded = !vm.IsFavoriteSetLoaded(setId);
                 item.IsChecked = nowLoaded;
-                vm.SetFavoriteSetLoaded(setName, nowLoaded);
+                vm.SetFavoriteSetLoaded(setId, nowLoaded);
             };
             flyout.Items.Add(item);
         }
 
-        if (vm.FavoriteSetNames.Count > 0)
+        if (namedSets.Count > 0)
         {
             flyout.Items.Add(new Separator());
         }
@@ -490,7 +497,7 @@ public partial class FavoritesBarView : UserControl
             return;
         }
 
-        var editor = new FavoritesEditorWindow(vm.Preferences);
+        var editor = new FavoritesEditorWindow(vm.Preferences, vm.FavoriteStore);
         _ = editor.ShowDialog(owner);
     }
 
@@ -531,29 +538,25 @@ public partial class FavoritesBarView : UserControl
             return;
         }
 
-        var category = _selectedPaletteCategory;
-
-        var allItem = new MenuItem { Header = "All favorites" };
-        allItem.Click += (_, _) => _ = ExportFavoritesAsync(vm.ExportFavorites());
-
-        var tabItem = new MenuItem { Header = $"Current tab ({category})" };
-        tabItem.Click += (_, _) => _ = ExportFavoritesAsync(vm.ExportFavorites(category));
-
         var flyout = new MenuFlyout();
-        flyout.Items.Add(allItem);
-        flyout.Items.Add(tabItem);
-
-        if (vm.FavoriteSetNames.Count > 0)
+        foreach (var set in vm.FavoriteStore.OrderedSets)
         {
-            var setsItem = new MenuItem { Header = "All sets" };
-            setsItem.Click += (_, _) => _ = ExportFavoriteSetsAsync(vm);
-            flyout.Items.Add(setsItem);
+            var setId = set.Id;
+            var displayName = set.DisplayName;
+            var item = new MenuItem { Header = $"Set: {displayName}" };
+            item.Click += (_, _) => _ = ExportSetAsync(vm, setId, displayName);
+            flyout.Items.Add(item);
         }
+
+        flyout.Items.Add(new Separator());
+        var libraryItem = new MenuItem { Header = "Everything (library)" };
+        libraryItem.Click += (_, _) => _ = ExportLibraryAsync(vm);
+        flyout.Items.Add(libraryItem);
 
         flyout.ShowAt(btn);
     }
 
-    private async Task ExportFavoriteSetsAsync(MainViewModel vm)
+    private async Task ExportSetAsync(MainViewModel vm, string setId, string displayName)
     {
         if (TopLevel.GetTopLevel(this) is not Window owner)
         {
@@ -563,111 +566,10 @@ public partial class FavoritesBarView : UserControl
         var picker = new AvaloniaFilePickerService(owner);
         var path = await picker.SaveFileAsync(
             new SaveFileOptions(
-                Title: "Export Favorite Sets",
-                SuggestedFileName: "favorites-sets.yaat-favorites.json",
-                Filters: [FavoritesFileType, JsonFileType],
-                DefaultExtension: "yaat-favorites.json"
-            )
-        );
-
-        if (path is null)
-        {
-            return;
-        }
-
-        try
-        {
-            var json = FavoriteSetSerialization.SerializeBundle(vm.Preferences.FavoriteCommandSets, vm.Preferences.LoadedFavoriteSetNames);
-            await File.WriteAllTextAsync(path, json);
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-        {
-            Log.LogWarning(ex, "Favorite sets export failed to write {Path}", path);
-        }
-    }
-
-    private async void OnImportFavoritesClick(object? sender, RoutedEventArgs e)
-    {
-        if (DataContext is not MainViewModel vm || TopLevel.GetTopLevel(this) is not Window owner)
-        {
-            return;
-        }
-
-        var picker = new AvaloniaFilePickerService(owner);
-        var path = await picker.OpenFileAsync(new OpenFileOptions("Import Favorites", [FavoritesFileType, JsonFileType]));
-        if (path is null)
-        {
-            return;
-        }
-
-        FavoriteImportPayload? payload;
-        try
-        {
-            var json = await File.ReadAllTextAsync(path);
-            payload = FavoriteSetSerialization.Parse(json);
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-        {
-            Log.LogWarning(ex, "Favorites import failed to read {Path}", path);
-            return;
-        }
-
-        if (payload is null)
-        {
-            Log.LogWarning("Favorites import did not recognize {Path} as a flat favorites file or an all-sets bundle", path);
-            return;
-        }
-
-        if (payload.Bundle is { } bundle)
-        {
-            var favoriteCount = bundle.Sets.Sum(s => s.Favorites.Count);
-            var bundleDialog = FavoriteImportWindow.CreateForBundle(bundle.Sets.Count, favoriteCount);
-            var bundleMode = await bundleDialog.ShowDialog<FavoriteImportMode?>(owner);
-            if (bundleMode is null)
-            {
-                return;
-            }
-
-            vm.ImportFavoriteSets(bundle, bundleMode.Value);
-            return;
-        }
-
-        var imported = payload.FlatFavorites;
-        if (imported is null || imported.Count == 0)
-        {
-            return;
-        }
-
-        if (vm.Preferences.FavoriteCommands.Count == 0)
-        {
-            vm.ImportFavorites(imported, FavoriteImportMode.Append);
-            return;
-        }
-
-        var dialog = new FavoriteImportWindow(imported.Count);
-        var mode = await dialog.ShowDialog<FavoriteImportMode?>(owner);
-        if (mode is null)
-        {
-            return;
-        }
-
-        vm.ImportFavorites(imported, mode.Value);
-    }
-
-    private async Task ExportFavoritesAsync(List<FavoriteCommand> favorites)
-    {
-        if (favorites.Count == 0 || TopLevel.GetTopLevel(this) is not Window owner)
-        {
-            return;
-        }
-
-        var picker = new AvaloniaFilePickerService(owner);
-        var path = await picker.SaveFileAsync(
-            new SaveFileOptions(
-                Title: "Export Favorites",
-                SuggestedFileName: "favorites.yaat-favorites.json",
-                Filters: [FavoritesFileType, JsonFileType],
-                DefaultExtension: "yaat-favorites.json"
+                Title: "Export Favorite Set",
+                SuggestedFileName: $"{FavoriteStore.SanitizeFileName(displayName, "set")}{FavoriteExport.SetExportExtension}",
+                Filters: [SetZipType],
+                DefaultExtension: "yaat-favset.zip"
             )
         );
 
@@ -679,17 +581,95 @@ public partial class FavoritesBarView : UserControl
         try
         {
             await using var stream = File.Create(path);
-            await JsonSerializer.SerializeAsync(stream, favorites, UserPreferences.JsonOptions);
+            vm.ExportFavoriteSet(setId, stream);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            Log.LogWarning(ex, "Favorites export failed to write {Path}", path);
+            Log.LogWarning(ex, "Favorite set export failed to write {Path}", path);
         }
+    }
+
+    private async Task ExportLibraryAsync(MainViewModel vm)
+    {
+        if (TopLevel.GetTopLevel(this) is not Window owner)
+        {
+            return;
+        }
+
+        var picker = new AvaloniaFilePickerService(owner);
+        var path = await picker.SaveFileAsync(
+            new SaveFileOptions(
+                Title: "Export Favorites Library",
+                SuggestedFileName: $"favorites{FavoriteExport.LibraryExportExtension}",
+                Filters: [LibraryZipType],
+                DefaultExtension: "yaat-favlibrary.zip"
+            )
+        );
+
+        if (path is null)
+        {
+            return;
+        }
+
+        try
+        {
+            await using var stream = File.Create(path);
+            vm.ExportFavoriteLibrary(stream);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            Log.LogWarning(ex, "Favorites library export failed to write {Path}", path);
+        }
+    }
+
+    private async void OnImportFavoritesClick(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is not MainViewModel vm || TopLevel.GetTopLevel(this) is not Window owner)
+        {
+            return;
+        }
+
+        var picker = new AvaloniaFilePickerService(owner);
+        var path = await picker.OpenFileAsync(new OpenFileOptions("Import Favorites", [FavoritesZipType, JsonFileType]));
+        if (path is null)
+        {
+            return;
+        }
+
+        FavoriteImportResult? result;
+        try
+        {
+            await using var stream = File.OpenRead(path);
+            result = vm.ImportFavoritesFile(Path.GetFileName(path), stream);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            Log.LogWarning(ex, "Favorites import failed to read {Path}", path);
+            return;
+        }
+
+        if (result is null)
+        {
+            Log.LogWarning("Favorites import did not recognize {Path} as a favorites zip or entity json", path);
+            await MessageBoxManager
+                .GetMessageBoxStandard("Import Favorites", "The selected file is not a recognized favorites export.")
+                .ShowWindowDialogAsync(owner);
+            return;
+        }
+
+        var summary =
+            $"Imported {result.FavoritesAdded} new favorite(s), updated {result.FavoritesUpdated}; "
+            + $"added {result.SetsAdded} set(s), merged into {result.SetsUpdated}.";
+        if (result.MissingReferences > 0)
+        {
+            summary += $" {result.MissingReferences} referenced favorite(s) were missing from the file and were skipped.";
+        }
+        await MessageBoxManager.GetMessageBoxStandard("Import Favorites", summary).ShowWindowDialogAsync(owner);
     }
 
     private void OnFavoritePointerPressed(object? sender, PointerPressedEventArgs e)
     {
-        if (sender is not Button btn || btn.Tag is not FavoriteCommand fav)
+        if (sender is not Button btn || btn.Tag is not FavoriteDisplayEntry entry)
         {
             return;
         }
@@ -701,25 +681,25 @@ public partial class FavoritesBarView : UserControl
         {
             ClearFavoriteDragState();
             e.Handled = true;
-            if (fav.IsSpacer)
+            if (entry.Favorite.IsSpacer)
             {
-                ShowEditBlankFlyout(btn, fav);
+                ShowEditBlankFlyout(btn, entry);
             }
             else
             {
-                ShowEditFlyout(btn, fav);
+                ShowEditFlyout(btn, entry);
             }
             return;
         }
 
         // Ctrl+Left-click → append to input
-        if (!fav.IsSpacer && props.IsLeftButtonPressed && PlatformHelper.HasActionModifier(e.KeyModifiers))
+        if (!entry.Favorite.IsSpacer && props.IsLeftButtonPressed && PlatformHelper.HasActionModifier(e.KeyModifiers))
         {
             ClearFavoriteDragState();
             e.Handled = true;
             if (DataContext is MainViewModel vm)
             {
-                vm.AppendFavoriteToInput(fav);
+                vm.AppendFavoriteToInput(entry.Favorite);
             }
             return;
         }
@@ -730,7 +710,7 @@ public partial class FavoritesBarView : UserControl
             // stole the click from the underlying Button (the CaptureLost cascade released the
             // button's own capture), so plain clicks did nothing (#287). Capture is deferred to the
             // moment a drag actually activates in OnFavoritePointerMoved.
-            _pendingDragFavorite = fav;
+            _pendingDragFavorite = entry;
             _activeDragFavorite = null;
             _lastDragTarget = null;
             _dragStartPoint = e.GetPosition(this);
@@ -741,7 +721,7 @@ public partial class FavoritesBarView : UserControl
 
     private void OnFavoriteClick(object? sender, RoutedEventArgs e)
     {
-        if (sender is not Button btn || btn.Tag is not FavoriteCommand fav)
+        if (sender is not Button btn || btn.Tag is not FavoriteDisplayEntry entry)
         {
             return;
         }
@@ -752,9 +732,9 @@ public partial class FavoritesBarView : UserControl
             return;
         }
 
-        if (!fav.IsSpacer && DataContext is MainViewModel vm)
+        if (!entry.Favorite.IsSpacer && DataContext is MainViewModel vm)
         {
-            _ = vm.ExecuteFavoriteAsync(fav);
+            _ = vm.ExecuteFavoriteAsync(entry.Favorite);
         }
     }
 
@@ -776,12 +756,8 @@ public partial class FavoritesBarView : UserControl
         }
 
         vm.AddFavorite(
-            CreateBlankFavorite(
-                GetActiveAddCategory(),
-                scopeSource: null,
-                width: FavoriteCommandDefaults.ButtonWidth,
-                height: FavoriteCommandDefaults.ButtonHeight
-            )
+            CreateBlankFavorite(GetActiveAddCategory(), FavoriteCommandDefaults.ButtonWidth, FavoriteCommandDefaults.ButtonHeight),
+            [vm.FavoriteStore.GlobalSet.Id]
         );
     }
 
@@ -872,7 +848,7 @@ public partial class FavoritesBarView : UserControl
         }
 
         var target = FindFavoriteAt(currentPoint);
-        if (target is null || ReferenceEquals(target, dragged) || ReferenceEquals(target, _lastDragTarget))
+        if (target is null || target == dragged || target == _lastDragTarget)
         {
             e.Handled = true;
             return;
@@ -911,9 +887,9 @@ public partial class FavoritesBarView : UserControl
         EndFavoriteDrag();
     }
 
-    private FavoriteCommand? FindFavoriteAt(Point point)
+    private FavoriteDisplayEntry? FindFavoriteAt(Point point)
     {
-        return this.GetVisualsAt(point).OfType<Button>().Select(button => button.Tag).OfType<FavoriteCommand>().FirstOrDefault();
+        return this.GetVisualsAt(point).OfType<Button>().Select(button => button.Tag).OfType<FavoriteDisplayEntry>().FirstOrDefault();
     }
 
     private void EndFavoriteDrag()
@@ -967,9 +943,10 @@ public partial class FavoritesBarView : UserControl
         var textPicker = CreateColorPicker(FavoriteCommandDefaults.TextColor);
         var widthBox = CreateDimensionBox(FavoriteCommandDefaults.ButtonWidth, 70, 240);
         var heightBox = CreateDimensionBox(FavoriteCommandDefaults.ButtonHeight, 24, 72);
-        var scopeBox = CreateScopeBox(vm, FavoriteScope.Global);
+        var containerPicker = new FavoriteContainerPicker(vm, checkedSetIds: [vm.FavoriteStore.GlobalSet.Id]);
 
         var saveBtn = new Button { Content = "Add", Margin = new Thickness(0, 4, 0, 0) };
+        BindSaveToContainers(saveBtn, containerPicker);
 
         var panel = CreateEditorPanel(
             "Add Favorite",
@@ -981,7 +958,7 @@ public partial class FavoritesBarView : UserControl
             textPicker,
             widthBox,
             heightBox,
-            scopeBox,
+            containerPicker,
             saveBtn
         );
 
@@ -998,6 +975,7 @@ public partial class FavoritesBarView : UserControl
 
             var fav = new FavoriteCommand
             {
+                Id = vm.FavoriteStore.NewFavoriteId(),
                 Label = label,
                 CommandText = cmdText,
                 GroundCommandText = groundCommandBox.Text?.Trim() ?? "",
@@ -1007,16 +985,15 @@ public partial class FavoritesBarView : UserControl
                 ButtonWidth = GetDimensionValue(widthBox, FavoriteCommandDefaults.ButtonWidth),
                 ButtonHeight = GetDimensionValue(heightBox, FavoriteCommandDefaults.ButtonHeight),
             };
-            ApplySelectedScope(fav, scopeBox, vm, null);
 
-            vm.AddFavorite(fav);
+            vm.AddFavorite(fav, containerPicker.ResolveSelectedSetIds(vm));
             flyout.Hide();
         };
 
         flyout.ShowAt(target);
     }
 
-    private void ShowEditFlyout(Button target, FavoriteCommand fav)
+    private void ShowEditFlyout(Button target, FavoriteDisplayEntry entry)
     {
         var vm = DataContext as MainViewModel;
         if (vm is null)
@@ -1024,6 +1001,7 @@ public partial class FavoritesBarView : UserControl
             return;
         }
 
+        var fav = entry.Favorite;
         var labelBox = new TextBox
         {
             Text = fav.Label,
@@ -1047,10 +1025,11 @@ public partial class FavoritesBarView : UserControl
         var textPicker = CreateColorPicker(GetFavoriteTextColor(fav));
         var widthBox = CreateDimensionBox(GetButtonWidth(fav), 70, 240);
         var heightBox = CreateDimensionBox(GetButtonHeight(fav), 24, 72);
-        var scopeBox = CreateScopeBox(vm, GetFavoriteScope(fav));
+        var containerPicker = new FavoriteContainerPicker(vm, vm.GetFavoriteMembership(fav.Id));
 
         var deleteBtn = CreateDeleteButton();
         var saveBtn = new Button { Content = "Save", HorizontalAlignment = HorizontalAlignment.Right };
+        BindSaveToContainers(saveBtn, containerPicker);
         var moveLeftBtn = CreateSmallActionButton("Move Left");
         var moveRightBtn = CreateSmallActionButton("Move Right");
         var insertBeforeBtn = CreateInsertBlankButton("Blank Before");
@@ -1067,22 +1046,9 @@ public partial class FavoritesBarView : UserControl
             textPicker,
             widthBox,
             heightBox,
-            scopeBox,
+            containerPicker,
             footer
         );
-
-        if (vm.GetFavoriteOwningSetName(fav) is { } owningSet)
-        {
-            var hint = new TextBlock
-            {
-                Text = $"In set '{owningSet}' — scope applies only while outside a set",
-                FontSize = 11,
-                Foreground = Brushes.Gray,
-                TextWrapping = TextWrapping.Wrap,
-                Margin = new Thickness(0, 0, 0, 6),
-            };
-            panel.Children.Insert(1, hint);
-        }
 
         var flyout = new Flyout { Content = panel, Placement = PlacementMode.Top };
 
@@ -1097,6 +1063,7 @@ public partial class FavoritesBarView : UserControl
 
             var updated = new FavoriteCommand
             {
+                Id = fav.Id,
                 Label = label,
                 CommandText = cmdText,
                 GroundCommandText = groundCommandBox.Text?.Trim() ?? "",
@@ -1106,37 +1073,36 @@ public partial class FavoritesBarView : UserControl
                 ButtonWidth = GetDimensionValue(widthBox, GetButtonWidth(fav)),
                 ButtonHeight = GetDimensionValue(heightBox, GetButtonHeight(fav)),
             };
-            ApplySelectedScope(updated, scopeBox, vm, fav);
 
-            vm.UpdateFavorite(fav, updated);
+            vm.UpdateFavorite(updated, containerPicker.ResolveSelectedSetIds(vm));
             flyout.Hide();
         };
 
         deleteBtn.Click += (_, _) =>
         {
-            vm.RemoveFavorite(fav);
+            vm.DeleteFavorite(fav.Id);
             flyout.Hide();
         };
 
         insertBeforeBtn.Click += (_, _) =>
         {
-            vm.InsertFavoriteBefore(fav, CreateBlankFavorite(NormalizeCategory(fav), fav, GetButtonWidth(fav), GetButtonHeight(fav)));
+            vm.InsertBlankBefore(entry, CreateBlankFavorite(NormalizeCategory(fav), GetButtonWidth(fav), GetButtonHeight(fav)));
             flyout.Hide();
         };
 
         insertAfterBtn.Click += (_, _) =>
         {
-            vm.InsertFavoriteAfter(fav, CreateBlankFavorite(NormalizeCategory(fav), fav, GetButtonWidth(fav), GetButtonHeight(fav)));
+            vm.InsertBlankAfter(entry, CreateBlankFavorite(NormalizeCategory(fav), GetButtonWidth(fav), GetButtonHeight(fav)));
             flyout.Hide();
         };
 
-        moveLeftBtn.Click += (_, _) => MoveFavorite(fav, direction: -1, flyout);
-        moveRightBtn.Click += (_, _) => MoveFavorite(fav, direction: 1, flyout);
+        moveLeftBtn.Click += (_, _) => MoveFavorite(entry, direction: -1, flyout);
+        moveRightBtn.Click += (_, _) => MoveFavorite(entry, direction: 1, flyout);
 
         flyout.ShowAt(target);
     }
 
-    private void ShowEditBlankFlyout(Button target, FavoriteCommand fav)
+    private void ShowEditBlankFlyout(Button target, FavoriteDisplayEntry entry)
     {
         var vm = DataContext as MainViewModel;
         if (vm is null)
@@ -1144,6 +1110,7 @@ public partial class FavoritesBarView : UserControl
             return;
         }
 
+        var fav = entry.Favorite;
         var labelBox = new TextBox
         {
             PlaceholderText = "Label (leave blank for spacer)",
@@ -1167,9 +1134,10 @@ public partial class FavoritesBarView : UserControl
         var textPicker = CreateColorPicker(FavoriteCommandDefaults.TextColor);
         var widthBox = CreateDimensionBox(GetButtonWidth(fav), 70, 240);
         var heightBox = CreateDimensionBox(GetButtonHeight(fav), 24, 72);
-        var scopeBox = CreateScopeBox(vm, GetFavoriteScope(fav));
+        var containerPicker = new FavoriteContainerPicker(vm, vm.GetFavoriteMembership(fav.Id));
         var deleteBtn = CreateDeleteButton();
         var saveBtn = new Button { Content = "Save", HorizontalAlignment = HorizontalAlignment.Right };
+        BindSaveToContainers(saveBtn, containerPicker);
         var moveLeftBtn = CreateSmallActionButton("Move Left");
         var moveRightBtn = CreateSmallActionButton("Move Right");
         var insertBeforeBtn = CreateInsertBlankButton("Blank Before");
@@ -1186,7 +1154,7 @@ public partial class FavoritesBarView : UserControl
             textPicker,
             widthBox,
             heightBox,
-            scopeBox,
+            containerPicker,
             footer
         );
 
@@ -1199,6 +1167,7 @@ public partial class FavoritesBarView : UserControl
             var isFavorite = !string.IsNullOrEmpty(label) && !string.IsNullOrEmpty(cmdText);
             var updated = new FavoriteCommand
             {
+                Id = fav.Id,
                 IsSpacer = !isFavorite,
                 Label = isFavorite ? label : "",
                 CommandText = isFavorite ? cmdText : "",
@@ -1209,32 +1178,31 @@ public partial class FavoritesBarView : UserControl
                 ButtonWidth = GetDimensionValue(widthBox, GetButtonWidth(fav)),
                 ButtonHeight = GetDimensionValue(heightBox, GetButtonHeight(fav)),
             };
-            ApplySelectedScope(updated, scopeBox, vm, fav);
 
-            vm.UpdateFavorite(fav, updated);
+            vm.UpdateFavorite(updated, containerPicker.ResolveSelectedSetIds(vm));
             flyout.Hide();
         };
 
         deleteBtn.Click += (_, _) =>
         {
-            vm.RemoveFavorite(fav);
+            vm.DeleteFavorite(fav.Id);
             flyout.Hide();
         };
 
         insertBeforeBtn.Click += (_, _) =>
         {
-            vm.InsertFavoriteBefore(fav, CreateBlankFavorite(NormalizeCategory(fav), fav, GetButtonWidth(fav), GetButtonHeight(fav)));
+            vm.InsertBlankBefore(entry, CreateBlankFavorite(NormalizeCategory(fav), GetButtonWidth(fav), GetButtonHeight(fav)));
             flyout.Hide();
         };
 
         insertAfterBtn.Click += (_, _) =>
         {
-            vm.InsertFavoriteAfter(fav, CreateBlankFavorite(NormalizeCategory(fav), fav, GetButtonWidth(fav), GetButtonHeight(fav)));
+            vm.InsertBlankAfter(entry, CreateBlankFavorite(NormalizeCategory(fav), GetButtonWidth(fav), GetButtonHeight(fav)));
             flyout.Hide();
         };
 
-        moveLeftBtn.Click += (_, _) => MoveFavorite(fav, direction: -1, flyout);
-        moveRightBtn.Click += (_, _) => MoveFavorite(fav, direction: 1, flyout);
+        moveLeftBtn.Click += (_, _) => MoveFavorite(entry, direction: -1, flyout);
+        moveRightBtn.Click += (_, _) => MoveFavorite(entry, direction: 1, flyout);
 
         flyout.ShowAt(target);
     }
@@ -1252,8 +1220,9 @@ public partial class FavoritesBarView : UserControl
         countBox.Increment = 1;
         var widthBox = CreateDimensionBox(FavoriteCommandDefaults.ButtonWidth, 70, 240);
         var heightBox = CreateDimensionBox(FavoriteCommandDefaults.ButtonHeight, 24, 72);
-        var scopeBox = CreateScopeBox(vm, FavoriteScope.Global);
+        var containerPicker = new FavoriteContainerPicker(vm, checkedSetIds: [vm.FavoriteStore.GlobalSet.Id]);
         var saveBtn = new Button { Content = "Add Blanks", Margin = new Thickness(0, 4, 0, 0) };
+        BindSaveToContainers(saveBtn, containerPicker);
 
         var panel = new StackPanel { Width = 220 };
         panel.Children.Add(
@@ -1266,7 +1235,7 @@ public partial class FavoritesBarView : UserControl
         );
         panel.Children.Add(CreateLabeledControl("Slots", countBox));
         panel.Children.Add(CreateDimensionRow(widthBox, heightBox));
-        panel.Children.Add(CreateLabeledControl("Scope", scopeBox));
+        panel.Children.Add(CreateLabeledControl("In", containerPicker.Control));
         panel.Children.Add(saveBtn);
 
         var flyout = new Flyout { Content = panel, Placement = PlacementMode.Top };
@@ -1275,17 +1244,9 @@ public partial class FavoritesBarView : UserControl
             var count = Math.Clamp((int)Math.Round(GetDimensionValue(countBox, 12)), 1, 100);
             var width = GetDimensionValue(widthBox, FavoriteCommandDefaults.ButtonWidth);
             var height = GetDimensionValue(heightBox, FavoriteCommandDefaults.ButtonHeight);
-            var blanks = Enumerable
-                .Range(0, count)
-                .Select(_ =>
-                {
-                    var blank = CreateBlankFavorite(category, scopeSource: null, width, height);
-                    ApplySelectedScope(blank, scopeBox, vm, previous: null);
-                    return blank;
-                })
-                .ToList();
+            var blanks = Enumerable.Range(0, count).Select(_ => CreateBlankFavorite(category, width, height)).ToList();
 
-            vm.AddFavorites(blanks);
+            vm.AddFavorites(blanks, containerPicker.ResolveSelectedSetIds(vm));
             flyout.Hide();
         };
 
@@ -1312,7 +1273,7 @@ public partial class FavoritesBarView : UserControl
         ColorPicker textPicker,
         NumericUpDown widthBox,
         NumericUpDown heightBox,
-        ComboBox scopeBox,
+        FavoriteContainerPicker containerPicker,
         Control footer
     )
     {
@@ -1332,76 +1293,63 @@ public partial class FavoritesBarView : UserControl
         panel.Children.Add(CreateLabeledControl("Button color", backgroundPicker));
         panel.Children.Add(CreateLabeledControl("Text color", textPicker));
         panel.Children.Add(CreateDimensionRow(widthBox, heightBox));
-        panel.Children.Add(CreateLabeledControl("Scope", scopeBox));
+        panel.Children.Add(CreateLabeledControl("In", containerPicker.Control));
         panel.Children.Add(footer);
         return panel;
     }
 
-    private static ComboBox CreateScopeBox(MainViewModel vm, FavoriteScope selectedScope)
+    /// <summary>Disables the save button whenever no container is checked.</summary>
+    private static void BindSaveToContainers(Button saveBtn, FavoriteContainerPicker containerPicker)
     {
-        var options = new List<FavoriteScopeOption> { new(FavoriteScope.Global, "Global") };
-        if (vm.ActiveScenarioId is not null || selectedScope == FavoriteScope.Scenario)
-        {
-            options.Add(new FavoriteScopeOption(FavoriteScope.Scenario, "Scenario"));
-        }
-
-        if (vm.ActiveScenarioPrimaryAirportId is not null || selectedScope == FavoriteScope.Airport)
-        {
-            var airport = vm.ActiveScenarioPrimaryAirportId ?? "saved airport";
-            options.Add(new FavoriteScopeOption(FavoriteScope.Airport, $"Airport ({airport})"));
-        }
-
-        var selected = options.FirstOrDefault(o => o.Scope == selectedScope) ?? options[0];
-        return new ComboBox
-        {
-            ItemsSource = options,
-            SelectedItem = selected,
-            Width = 200,
-            Margin = new Thickness(0, 0, 0, 4),
-        };
+        saveBtn.IsEnabled = containerPicker.SelectedCount > 0;
+        containerPicker.SelectionChanged += () => saveBtn.IsEnabled = containerPicker.SelectedCount > 0;
     }
 
-    private static void ApplySelectedScope(FavoriteCommand target, ComboBox scopeBox, MainViewModel vm, FavoriteCommand? previous)
+    private void MoveFavorite(FavoriteDisplayEntry entry, int direction, Flyout flyout)
     {
-        target.ScenarioId = null;
-        target.AirportId = null;
-
-        var scope = scopeBox.SelectedItem is FavoriteScopeOption option ? option.Scope : FavoriteScope.Global;
-        if (scope == FavoriteScope.Scenario)
+        if (DataContext is not MainViewModel vm)
         {
-            target.ScenarioId = vm.ActiveScenarioId ?? previous?.ScenarioId;
             return;
         }
 
-        if (scope == FavoriteScope.Airport)
+        var orderedFavorites = GetReorderContext(vm, entry).ToList();
+        var index = orderedFavorites.IndexOf(entry);
+        var targetIndex = index + direction;
+        if (index < 0 || targetIndex < 0 || targetIndex >= orderedFavorites.Count)
         {
-            target.AirportId = MainViewModel.NormalizeFavoriteAirportId(vm.ActiveScenarioPrimaryAirportId ?? previous?.AirportId);
+            return;
         }
+
+        var target = orderedFavorites[targetIndex];
+        if (direction < 0)
+        {
+            vm.MoveFavoriteBefore(entry, target);
+        }
+        else
+        {
+            vm.MoveFavoriteAfter(entry, target);
+        }
+
+        flyout.Hide();
     }
 
-    private static FavoriteScope GetFavoriteScope(FavoriteCommand favorite)
+    private IEnumerable<FavoriteDisplayEntry> GetReorderContext(MainViewModel vm, FavoriteDisplayEntry entry)
     {
-        if (!string.IsNullOrWhiteSpace(favorite.ScenarioId))
-        {
-            return FavoriteScope.Scenario;
-        }
-
-        if (!string.IsNullOrWhiteSpace(favorite.AirportId))
-        {
-            return FavoriteScope.Airport;
-        }
-
-        return FavoriteScope.Global;
+        return IsPaletteMode
+            ? vm.DisplayFavorites.Where(f => NormalizeCategory(f.Favorite) == NormalizeCategory(entry.Favorite))
+            : vm.DisplayFavorites.Where(f => !f.Favorite.IsSpacer);
     }
 
     private static Button CreateDeleteButton()
     {
-        return new Button
+        var btn = new Button
         {
             Content = "Delete",
             Foreground = Brushes.Red,
             HorizontalAlignment = HorizontalAlignment.Left,
         };
+        ToolTip.SetTip(btn, "Delete this favorite from every set");
+        return btn;
     }
 
     private static Button CreateInsertBlankButton(string content)
@@ -1419,7 +1367,7 @@ public partial class FavoritesBarView : UserControl
         };
     }
 
-    private static Control CreateEditFooter(
+    private static StackPanel CreateEditFooter(
         Button deleteBtn,
         Button saveBtn,
         Button moveLeftBtn,
@@ -1428,55 +1376,30 @@ public partial class FavoritesBarView : UserControl
         Button insertAfterBtn
     )
     {
-        var panel = new StackPanel { Margin = new Thickness(0, 4, 0, 0) };
+        var panel = new StackPanel();
 
-        var moveRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 6) };
+        var moveRow = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Spacing = 4,
+            Margin = new Thickness(0, 4, 0, 0),
+        };
         moveRow.Children.Add(moveLeftBtn);
         moveRow.Children.Add(moveRightBtn);
         panel.Children.Add(moveRow);
 
-        var insertRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 6) };
+        var insertRow = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Spacing = 4,
+            Margin = new Thickness(0, 4, 0, 0),
+        };
         insertRow.Children.Add(insertBeforeBtn);
         insertRow.Children.Add(insertAfterBtn);
         panel.Children.Add(insertRow);
 
         panel.Children.Add(CreateEditButtonRow(deleteBtn, saveBtn));
         return panel;
-    }
-
-    private void MoveFavorite(FavoriteCommand favorite, int direction, Flyout flyout)
-    {
-        if (DataContext is not MainViewModel vm)
-        {
-            return;
-        }
-
-        var orderedFavorites = GetReorderContext(vm, favorite).ToList();
-        var index = orderedFavorites.IndexOf(favorite);
-        var targetIndex = index + direction;
-        if (index < 0 || targetIndex < 0 || targetIndex >= orderedFavorites.Count)
-        {
-            return;
-        }
-
-        var target = orderedFavorites[targetIndex];
-        if (direction < 0)
-        {
-            vm.MoveFavoriteBefore(favorite, target);
-        }
-        else
-        {
-            vm.MoveFavoriteAfter(favorite, target);
-        }
-
-        flyout.Hide();
-    }
-
-    private IEnumerable<FavoriteCommand> GetReorderContext(MainViewModel vm, FavoriteCommand favorite)
-    {
-        return IsPaletteMode
-            ? vm.DisplayFavorites.Where(f => NormalizeCategory(f) == NormalizeCategory(favorite))
-            : vm.DisplayFavorites.Where(f => !f.IsSpacer);
     }
 
     private static DockPanel CreateEditButtonRow(Button deleteBtn, Button saveBtn)
@@ -1488,13 +1411,11 @@ public partial class FavoritesBarView : UserControl
         return buttonRow;
     }
 
-    private static FavoriteCommand CreateBlankFavorite(FavoriteCommandCategory category, FavoriteCommand? scopeSource, double width, double height)
+    private static FavoriteCommand CreateBlankFavorite(FavoriteCommandCategory category, double width, double height)
     {
         return new FavoriteCommand
         {
             IsSpacer = true,
-            ScenarioId = scopeSource?.ScenarioId,
-            AirportId = scopeSource?.AirportId,
             Category = category,
             ButtonWidth = width,
             ButtonHeight = height,
@@ -1642,15 +1563,54 @@ public partial class FavoritesBarView : UserControl
         return $"#{color.R:X2}{color.G:X2}{color.B:X2}";
     }
 
-    private enum FavoriteScope
+    /// <summary>
+    /// The "In" checkbox group of a favorite flyout: one checkbox per container — Global, the active
+    /// airport/scenario (created on demand when first checked), every airport/scenario that already
+    /// has favorites, and every named set. A favorite lives in exactly the checked containers; the
+    /// same entity shows in each, so an edit anywhere updates it everywhere.
+    /// </summary>
+    private sealed class FavoriteContainerPicker
     {
-        Global,
-        Scenario,
-        Airport,
-    }
+        private readonly List<(CheckBox Box, FavoriteContainerOption Option)> _entries = [];
 
-    private sealed record FavoriteScopeOption(FavoriteScope Scope, string Label)
-    {
-        public override string ToString() => Label;
+        public FavoriteContainerPicker(MainViewModel vm, IReadOnlyList<string> checkedSetIds)
+        {
+            var panel = new StackPanel();
+            foreach (var option in vm.BuildFavoriteContainerOptions())
+            {
+                var isChecked = option.SetId is not null && checkedSetIds.Contains(option.SetId, StringComparer.OrdinalIgnoreCase);
+                var box = new CheckBox
+                {
+                    Content = option.Label,
+                    IsChecked = isChecked,
+                    FontSize = 12,
+                    MinHeight = 0,
+                    Padding = new Thickness(4, 0, 0, 0),
+                };
+                box.IsCheckedChanged += (_, _) => SelectionChanged?.Invoke();
+                _entries.Add((box, option));
+                panel.Children.Add(box);
+            }
+
+            Control = new ScrollViewer
+            {
+                Content = panel,
+                MaxHeight = 132,
+                Width = 200,
+                Margin = new Thickness(0, 0, 0, 4),
+            };
+        }
+
+        public Control Control { get; }
+
+        public event Action? SelectionChanged;
+
+        public int SelectedCount => _entries.Count(e => e.Box.IsChecked == true);
+
+        /// <summary>Set ids of the checked containers, creating on-demand airport/scenario sets as needed.</summary>
+        public List<string> ResolveSelectedSetIds(MainViewModel vm)
+        {
+            return _entries.Where(e => e.Box.IsChecked == true).Select(e => vm.EnsureFavoriteContainer(e.Option)).ToList();
+        }
     }
 }

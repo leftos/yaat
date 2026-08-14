@@ -2038,17 +2038,17 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
 
         _windowProfileService.StagePreferences(profile);
 
-        // Load exactly the favorite sets the profile captured. Names whose set has since been
-        // deleted are pruned by the preferences normalize invariant; surface those so the user
-        // knows why part of the profile did not take effect. Null = pre-feature profile.
+        // Load exactly the favorite sets the profile captured. Ids whose set has since been
+        // deleted are skipped at compose time; surface those so the user knows why part of the
+        // profile did not take effect. Null = pre-feature profile.
         string? missingSetsNote = null;
-        if (profile.LoadedFavoriteSetNames is { } setNames)
+        if (profile.LoadedFavoriteSetIds is { } setIds)
         {
-            vm.Preferences.SetLoadedFavoriteSets(setNames.ToList());
-            var missing = setNames.Where(n => !vm.Preferences.LoadedFavoriteSetNames.Contains(n, StringComparer.OrdinalIgnoreCase)).ToList();
-            if (missing.Count > 0)
+            vm.Preferences.SetLoadedFavoriteSets(setIds.ToList());
+            var missingCount = setIds.Count(id => vm.FavoriteStore.GetSet(id) is null);
+            if (missingCount > 0)
             {
-                missingSetsNote = $" (favorite set(s) not found: {string.Join(", ", missing)})";
+                missingSetsNote = $" ({missingCount} favorite set(s) no longer exist)";
             }
             vm.RefreshDisplayFavorites();
         }

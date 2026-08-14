@@ -11,20 +11,26 @@ using Yaat.Client.Views;
 namespace Yaat.Client.UI.Tests.Views;
 
 /// <summary>
-/// Smoke coverage for the Favorites Editor window (issue #354): the container pane lists the
-/// base pool plus every named set, selecting a set shows its favorites, the Loaded checkbox
-/// drives the loaded-set list, and loading a set feeds its favorites into DisplayFavorites.
+/// Smoke coverage for the Favorites Editor window: the container pane lists every set as a peer
+/// (Global first, plus the "Not in any set" view), selecting a set shows its favorites, the
+/// Loaded checkbox drives the loaded-set id list, and loading a set feeds its favorites into
+/// DisplayFavorites.
 /// </summary>
 public class FavoritesEditorWindowTests
 {
+    private static FavoriteStore NewStore() => new(Path.Combine(Path.GetTempPath(), "yaat-editor-tests", Guid.NewGuid().ToString("N")));
+
     [AvaloniaFact]
     public void Editor_ListsContainers_AndShowsSelectedSetFavorites()
     {
         var prefs = new UserPreferences();
-        prefs.CreateFavoriteSet("FSE-Smoke");
-        prefs.SetFavoriteSetFavorites("FSE-Smoke", [new FavoriteCommand { Label = "SmokeFav", CommandText = "FH 090" }]);
+        var store = NewStore();
+        var set = store.CreateNamedSet("FSE-Smoke")!;
+        var favorite = new FavoriteCommand { Label = "SmokeFav", CommandText = "FH 090" };
+        store.SaveFavorite(favorite);
+        store.AddToSet(set.Id, favorite.Id);
 
-        var editor = new FavoritesEditorWindow(prefs);
+        var editor = new FavoritesEditorWindow(prefs, store);
         editor.Show();
         Dispatcher.UIThread.RunJobs();
 
@@ -34,9 +40,10 @@ public class FavoritesEditorWindowTests
             Assert.NotNull(containers);
             var items = Assert.IsAssignableFrom<IEnumerable<ListBoxItem>>(containers.ItemsSource).ToList();
 
-            // First row is always the base pool; the created set is present.
-            Assert.Null(items[0].Tag);
-            var setRow = items.Single(i => string.Equals(i.Tag as string, "FSE-Smoke", StringComparison.Ordinal));
+            // Global is always the first container; the named set and the orphans view are present.
+            Assert.Equal(store.GlobalSet.Id, items[0].Tag as string);
+            var setRow = items.Single(i => string.Equals(i.Tag as string, set.Id, StringComparison.Ordinal));
+            Assert.Contains(items, i => (i.Tag as string) == "*orphans*");
 
             containers.SelectedItem = setRow;
             Dispatcher.UIThread.RunJobs();
@@ -51,17 +58,17 @@ public class FavoritesEditorWindowTests
         {
             editor.Close();
             Dispatcher.UIThread.RunJobs();
-            prefs.DeleteFavoriteSet("FSE-Smoke");
         }
     }
 
     [AvaloniaFact]
-    public void Editor_LoadedCheckbox_TogglesLoadedSetList()
+    public void Editor_LoadedCheckbox_TogglesLoadedSetIdList()
     {
         var prefs = new UserPreferences();
-        prefs.CreateFavoriteSet("FSE-Toggle");
+        var store = NewStore();
+        var set = store.CreateNamedSet("FSE-Toggle")!;
 
-        var editor = new FavoritesEditorWindow(prefs);
+        var editor = new FavoritesEditorWindow(prefs, store);
         editor.Show();
         Dispatcher.UIThread.RunJobs();
 
@@ -70,22 +77,22 @@ public class FavoritesEditorWindowTests
             var containers = editor.FindControl<ListBox>("ContainersList");
             Assert.NotNull(containers);
             var items = Assert.IsAssignableFrom<IEnumerable<ListBoxItem>>(containers.ItemsSource).ToList();
-            var setRow = items.Single(i => string.Equals(i.Tag as string, "FSE-Toggle", StringComparison.Ordinal));
+            var setRow = items.Single(i => string.Equals(i.Tag as string, set.Id, StringComparison.Ordinal));
             var checkbox = ((StackPanel)setRow.Content!).Children.OfType<CheckBox>().Single();
 
             checkbox.IsChecked = true;
             Dispatcher.UIThread.RunJobs();
-            Assert.Contains("FSE-Toggle", prefs.LoadedFavoriteSetNames);
+            Assert.Contains(set.Id, prefs.LoadedFavoriteSetIds);
 
             checkbox.IsChecked = false;
             Dispatcher.UIThread.RunJobs();
-            Assert.DoesNotContain("FSE-Toggle", prefs.LoadedFavoriteSetNames);
+            Assert.DoesNotContain(set.Id, prefs.LoadedFavoriteSetIds);
         }
         finally
         {
             editor.Close();
             Dispatcher.UIThread.RunJobs();
-            prefs.DeleteFavoriteSet("FSE-Toggle");
+            prefs.SetFavoriteSetLoaded(set.Id, false);
         }
     }
 
@@ -93,22 +100,25 @@ public class FavoritesEditorWindowTests
     public void LoadingSet_FeedsDisplayFavorites_AndUnloadingRemovesThem()
     {
         var vm = new MainViewModel(new FakeFilePickerService());
-        vm.Preferences.CreateFavoriteSet("FSE-Display");
-        vm.Preferences.SetFavoriteSetFavorites("FSE-Display", [new FavoriteCommand { Label = "FromSet", CommandText = "FH 180" }]);
+        var set = vm.FavoriteStore.CreateNamedSet("FSE-Display")!;
+        var favorite = new FavoriteCommand { Label = "FromSet", CommandText = "FH 180" };
+        vm.FavoriteStore.SaveFavorite(favorite);
+        vm.FavoriteStore.AddToSet(set.Id, favorite.Id);
 
         try
         {
-            Assert.DoesNotContain(vm.DisplayFavorites, f => f.Label == "FromSet");
+            Assert.DoesNotContain(vm.DisplayFavorites, e => e.Favorite.Label == "FromSet");
 
-            vm.SetFavoriteSetLoaded("FSE-Display", true);
-            Assert.Contains(vm.DisplayFavorites, f => f.Label == "FromSet");
+            vm.SetFavoriteSetLoaded(set.Id, true);
+            Assert.Contains(vm.DisplayFavorites, e => e.Favorite.Label == "FromSet");
 
-            vm.SetFavoriteSetLoaded("FSE-Display", false);
-            Assert.DoesNotContain(vm.DisplayFavorites, f => f.Label == "FromSet");
+            vm.SetFavoriteSetLoaded(set.Id, false);
+            Assert.DoesNotContain(vm.DisplayFavorites, e => e.Favorite.Label == "FromSet");
         }
         finally
         {
-            vm.Preferences.DeleteFavoriteSet("FSE-Display");
+            vm.FavoriteStore.DeleteFavorite(favorite.Id);
+            vm.FavoriteStore.DeleteSet(set.Id);
             Dispatcher.UIThread.RunJobs();
         }
     }

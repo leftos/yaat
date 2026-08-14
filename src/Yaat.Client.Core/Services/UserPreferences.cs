@@ -78,7 +78,6 @@ public sealed class UserPreferences
             .HiddenTerminalKinds.Where(s => Enum.TryParse<TerminalEntryKind>(s, out _))
             .Select(s => Enum.Parse<TerminalEntryKind>(s))
             .ToHashSet();
-        NormalizeFavoriteSets(_data.FavoriteCommandSets, _data.LoadedFavoriteSetNames);
     }
 
     public CommandScheme CommandScheme => _commandScheme;
@@ -339,11 +338,8 @@ public sealed class UserPreferences
     /// <summary>Called by the public mutators above after Save(). Lets MainWindow refresh its menu.</summary>
     private void RaiseWindowProfilesChanged() => WindowProfilesChanged?.Invoke();
 
-    public IReadOnlyList<FavoriteCommand> FavoriteCommands => _data.FavoriteCommands;
-    public IReadOnlyList<FavoriteCommandSet> FavoriteCommandSets => _data.FavoriteCommandSets;
-
-    /// <summary>Names of the currently loaded favorite sets, in load order (display order in the bar/panel).</summary>
-    public IReadOnlyList<string> LoadedFavoriteSetNames => _data.LoadedFavoriteSetNames;
+    /// <summary>Ids of the currently loaded named favorite sets, in load order (display order in the bar/panel).</summary>
+    public IReadOnlyList<string> LoadedFavoriteSetIds => _data.LoadedFavoriteSetIds;
     public int FavoritePanelColumns => Math.Clamp(_data.FavoritePanelColumns, 1, 20);
     public IReadOnlyList<RecentScenario> RecentScenarios => _data.RecentScenarios;
     public IReadOnlyList<RecentWeather> RecentWeatherFiles => _data.RecentWeatherFiles;
@@ -1142,178 +1138,90 @@ public sealed class UserPreferences
         Save();
     }
 
-    public void SetFavoriteCommands(List<FavoriteCommand> favorites)
-    {
-        _data.FavoriteCommands = favorites;
-        Save();
-        RaiseFavoriteSetsChanged();
-    }
-
     /// <summary>
-    /// Raised after any favorites container changes — the base pool, the named-set store, or the
-    /// loaded-set list — so the bar/panel refresh even when the mutation came from the Favorites
-    /// Editor rather than through MainViewModel.
+    /// Raised after the loaded-set list changes, so the bar/panel refresh even when the mutation
+    /// came from the Favorites Editor rather than through MainViewModel. Favorite/set content
+    /// changes are signaled by <see cref="FavoriteStore.Changed"/> instead.
     /// </summary>
     public event Action? FavoriteSetsChanged;
 
     private void RaiseFavoriteSetsChanged() => FavoriteSetsChanged?.Invoke();
 
-    /// <summary>Returns true when the set was created; false on a blank name or a case-insensitive name collision.</summary>
-    public bool CreateFavoriteSet(string name)
-    {
-        var trimmed = name.Trim();
-        if (string.IsNullOrEmpty(trimmed))
-        {
-            return false;
-        }
-
-        if (_data.FavoriteCommandSets.Any(s => string.Equals(s.Name, trimmed, StringComparison.OrdinalIgnoreCase)))
-        {
-            return false;
-        }
-
-        _data.FavoriteCommandSets.Add(new FavoriteCommandSet { Name = trimmed });
-        _data.FavoriteCommandSets.Sort((a, b) => string.Compare(a.Name, b.Name, StringComparison.OrdinalIgnoreCase));
-        Save();
-        RaiseFavoriteSetsChanged();
-        return true;
-    }
-
-    /// <summary>Returns true on rename, false when oldName is not found or newName is blank/collides with another set.</summary>
-    public bool RenameFavoriteSet(string oldName, string newName)
-    {
-        var trimmed = newName.Trim();
-        if (string.IsNullOrEmpty(trimmed))
-        {
-            return false;
-        }
-
-        var existing = _data.FavoriteCommandSets.FirstOrDefault(s => string.Equals(s.Name, oldName, StringComparison.OrdinalIgnoreCase));
-        if (existing is null)
-        {
-            return false;
-        }
-
-        if (!string.Equals(oldName, trimmed, StringComparison.OrdinalIgnoreCase))
-        {
-            var collision = _data.FavoriteCommandSets.Any(s => (s != existing) && string.Equals(s.Name, trimmed, StringComparison.OrdinalIgnoreCase));
-            if (collision)
-            {
-                return false;
-            }
-        }
-
-        existing.Name = trimmed;
-        var loadedIndex = _data.LoadedFavoriteSetNames.FindIndex(n => string.Equals(n, oldName, StringComparison.OrdinalIgnoreCase));
-        if (loadedIndex >= 0)
-        {
-            _data.LoadedFavoriteSetNames[loadedIndex] = trimmed;
-        }
-        _data.FavoriteCommandSets.Sort((a, b) => string.Compare(a.Name, b.Name, StringComparison.OrdinalIgnoreCase));
-        Save();
-        RaiseFavoriteSetsChanged();
-        return true;
-    }
-
-    /// <summary>Deletes the named set and unloads it if loaded. Returns true when a set was removed.</summary>
-    public bool DeleteFavoriteSet(string name)
-    {
-        var removed = _data.FavoriteCommandSets.RemoveAll(s => string.Equals(s.Name, name, StringComparison.OrdinalIgnoreCase));
-        if (removed == 0)
-        {
-            return false;
-        }
-
-        _data.LoadedFavoriteSetNames.RemoveAll(n => string.Equals(n, name, StringComparison.OrdinalIgnoreCase));
-        Save();
-        RaiseFavoriteSetsChanged();
-        return true;
-    }
-
-    /// <summary>Replaces the favorites list of the named set (no-op when the set does not exist).</summary>
-    public void SetFavoriteSetFavorites(string setName, List<FavoriteCommand> favorites)
-    {
-        var set = _data.FavoriteCommandSets.FirstOrDefault(s => string.Equals(s.Name, setName, StringComparison.OrdinalIgnoreCase));
-        if (set is null)
-        {
-            return;
-        }
-
-        set.Favorites = favorites;
-        Save();
-        RaiseFavoriteSetsChanged();
-    }
-
-    /// <summary>Loads (appends to the load order) or unloads one named set; no-op when already in the requested state.</summary>
-    public void SetFavoriteSetLoaded(string name, bool loaded)
-    {
-        var names = _data.LoadedFavoriteSetNames.ToList();
-        if (loaded)
-        {
-            if (names.Any(n => string.Equals(n, name, StringComparison.OrdinalIgnoreCase)))
-            {
-                return;
-            }
-            names.Add(name);
-        }
-        else if (names.RemoveAll(n => string.Equals(n, name, StringComparison.OrdinalIgnoreCase)) == 0)
-        {
-            return;
-        }
-
-        SetLoadedFavoriteSets(names);
-    }
-
-    /// <summary>Replaces the loaded-set list (order = load order). Unknown names are dropped by the normalize invariant.</summary>
-    public void SetLoadedFavoriteSets(List<string> names)
-    {
-        _data.LoadedFavoriteSetNames = names;
-        NormalizeFavoriteSets(_data.FavoriteCommandSets, _data.LoadedFavoriteSetNames);
-        Save();
-        RaiseFavoriteSetsChanged();
-    }
-
-    /// <summary>Bundled-import replace path: swaps in a whole new sets store plus loaded list, then re-normalizes.</summary>
-    public void ReplaceFavoriteSets(List<FavoriteCommandSet> sets, List<string> loadedNames)
-    {
-        _data.FavoriteCommandSets = sets;
-        _data.LoadedFavoriteSetNames = loadedNames;
-        NormalizeFavoriteSets(_data.FavoriteCommandSets, _data.LoadedFavoriteSetNames);
-        Save();
-        RaiseFavoriteSetsChanged();
-    }
-
     /// <summary>
-    /// Idempotent invariant repair, run on every load and after every wholesale replace: drops
-    /// sets with blank names, sorts sets by name, and prunes the loaded list down to unique
-    /// names that actually match a set (preserving its own load order).
+    /// Pre-identity-model favorites still sitting in preferences.json, if any. Read once by the
+    /// one-time migration into <see cref="FavoriteStore"/>; null when there is nothing to migrate.
     /// </summary>
-    internal static void NormalizeFavoriteSets(List<FavoriteCommandSet> sets, List<string> loadedNames)
+    internal LegacyFavoritesPayload? PeekLegacyFavorites()
     {
-        sets.RemoveAll(s => string.IsNullOrWhiteSpace(s.Name));
-        foreach (var set in sets)
+        if ((_data.LegacyFavoriteCommands is not { Count: > 0 }) && (_data.LegacyFavoriteCommandSets is not { Count: > 0 }))
         {
-            set.Name = set.Name.Trim();
+            return null;
         }
-        sets.Sort((a, b) => string.Compare(a.Name, b.Name, StringComparison.OrdinalIgnoreCase));
 
-        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        var pruned = new List<string>();
-        foreach (var raw in loadedNames)
+        return new LegacyFavoritesPayload(
+            _data.LegacyFavoriteCommands ?? [],
+            _data.LegacyFavoriteCommandSets ?? [],
+            _data.LegacyLoadedFavoriteSetNames ?? []
+        );
+    }
+
+    /// <summary>Drops the migrated legacy favorites fields from preferences.json.</summary>
+    internal void ClearLegacyFavorites()
+    {
+        _data.LegacyFavoriteCommands = null;
+        _data.LegacyFavoriteCommandSets = null;
+        _data.LegacyLoadedFavoriteSetNames = null;
+        Save();
+    }
+
+    /// <summary>Rewrites every window profile's legacy loaded-set-names list into set ids (unknown names dropped).</summary>
+    internal void MigrateProfileLoadedSetNames(Func<string, string?> nameToId)
+    {
+        var migrated = false;
+        foreach (var profile in _data.WindowProfiles)
         {
-            var name = raw?.Trim();
-            if (string.IsNullOrEmpty(name))
+            if (profile.LoadedFavoriteSetNames is not { } names)
             {
                 continue;
             }
-            var matchesSet = sets.Any(s => string.Equals(s.Name, name, StringComparison.OrdinalIgnoreCase));
-            if (matchesSet && seen.Add(name))
-            {
-                pruned.Add(name);
-            }
+
+            profile.LoadedFavoriteSetIds = names.Select(nameToId).Where(id => id is not null).Cast<string>().ToList();
+            profile.LoadedFavoriteSetNames = null;
+            migrated = true;
         }
-        loadedNames.Clear();
-        loadedNames.AddRange(pruned);
+
+        if (migrated)
+        {
+            Save();
+        }
+    }
+
+    /// <summary>Loads (appends to the load order) or unloads one named set by id; no-op when already in the requested state.</summary>
+    public void SetFavoriteSetLoaded(string setId, bool loaded)
+    {
+        var ids = _data.LoadedFavoriteSetIds.ToList();
+        if (loaded)
+        {
+            if (ids.Any(id => string.Equals(id, setId, StringComparison.OrdinalIgnoreCase)))
+            {
+                return;
+            }
+            ids.Add(setId);
+        }
+        else if (ids.RemoveAll(id => string.Equals(id, setId, StringComparison.OrdinalIgnoreCase)) == 0)
+        {
+            return;
+        }
+
+        SetLoadedFavoriteSets(ids);
+    }
+
+    /// <summary>Replaces the loaded named-set id list (order = load order). Ids without a matching set are skipped at compose time.</summary>
+    public void SetLoadedFavoriteSets(List<string> setIds)
+    {
+        _data.LoadedFavoriteSetIds = setIds;
+        Save();
+        RaiseFavoriteSetsChanged();
     }
 
     public void SetFavoritePanelColumns(int columns)
@@ -1732,9 +1640,10 @@ public sealed class UserPreferences
             PilotVoiceEnabled = GetFieldOr(obj, "pilotVoiceEnabled", false),
             PilotVoiceVolume = GetFieldOr(obj, "pilotVoiceVolume", 80),
             PilotVoiceRadioFxEnabled = GetFieldOr(obj, "pilotVoiceRadioFxEnabled", true),
-            FavoriteCommands = GetFieldOr<List<FavoriteCommand>>(obj, "favoriteCommands", []),
-            FavoriteCommandSets = GetFieldOr<List<FavoriteCommandSet>>(obj, "favoriteCommandSets", []),
-            LoadedFavoriteSetNames = GetFieldOr<List<string>>(obj, "loadedFavoriteSetNames", []),
+            LoadedFavoriteSetIds = GetFieldOr<List<string>>(obj, "loadedFavoriteSetIds", []),
+            LegacyFavoriteCommands = GetFieldOr<List<LegacyFavoriteCommand>?>(obj, "favoriteCommands", null),
+            LegacyFavoriteCommandSets = GetFieldOr<List<LegacyFavoriteCommandSet>?>(obj, "favoriteCommandSets", null),
+            LegacyLoadedFavoriteSetNames = GetFieldOr<List<string>?>(obj, "loadedFavoriteSetNames", null),
             FavoritePanelColumns = GetFieldOr(obj, "favoritePanelColumns", 6),
             RecentScenarios = GetFieldOr<List<RecentScenario>>(obj, "recentScenarios", []),
             RecentWeatherFiles = GetFieldOr<List<RecentWeather>>(obj, "recentWeatherFiles", []),
@@ -2023,9 +1932,21 @@ public sealed class UserPreferences
         public bool PilotVoiceEnabled { get; set; }
         public int PilotVoiceVolume { get; set; } = 80;
         public bool PilotVoiceRadioFxEnabled { get; set; } = true;
-        public List<FavoriteCommand> FavoriteCommands { get; set; } = [];
-        public List<FavoriteCommandSet> FavoriteCommandSets { get; set; } = [];
-        public List<string> LoadedFavoriteSetNames { get; set; } = [];
+        public List<string> LoadedFavoriteSetIds { get; set; } = [];
+
+        // Pre-identity-model favorites storage, kept deserializable only so the one-time
+        // FavoriteLegacyMigration can read it; nulled (and thus dropped from the file) afterwards.
+        [JsonPropertyName("favoriteCommands")]
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        public List<LegacyFavoriteCommand>? LegacyFavoriteCommands { get; set; }
+
+        [JsonPropertyName("favoriteCommandSets")]
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        public List<LegacyFavoriteCommandSet>? LegacyFavoriteCommandSets { get; set; }
+
+        [JsonPropertyName("loadedFavoriteSetNames")]
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        public List<string>? LegacyLoadedFavoriteSetNames { get; set; }
         public int FavoritePanelColumns { get; set; } = 6;
         public List<RecentScenario> RecentScenarios { get; set; } = [];
         public List<RecentWeather> RecentWeatherFiles { get; set; } = [];
@@ -2217,11 +2138,14 @@ public sealed class SavedWindowProfile
     public SavedGridLayout? DataGridLayout { get; set; }
 
     /// <summary>
-    /// Names of the favorite sets loaded at capture time, in load order. Applying the profile
-    /// loads exactly these sets (names without a matching set are skipped). Null on profiles
-    /// captured before favorite sets existed — applying such a profile leaves the loaded sets
-    /// untouched.
+    /// Ids of the named favorite sets loaded at capture time, in load order. Applying the profile
+    /// loads exactly these sets (ids without a matching set are skipped). Null on profiles captured
+    /// before favorite sets existed — applying such a profile leaves the loaded sets untouched.
     /// </summary>
+    public List<string>? LoadedFavoriteSetIds { get; set; }
+
+    /// <summary>Pre-identity-model loaded-set names; converted to ids and nulled by the one-time migration.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public List<string>? LoadedFavoriteSetNames { get; set; }
 }
 
@@ -2251,63 +2175,6 @@ public sealed class SavedMacro
     public string Expansion { get; set; } = "";
 }
 
-public sealed class FavoriteCommand
-{
-    public bool IsSpacer { get; set; }
-    public string Label { get; set; } = "";
-    public string CommandText { get; set; } = "";
-    public string GroundCommandText { get; set; } = "";
-    public string? ScenarioId { get; set; }
-    public string? AirportId { get; set; }
-    public FavoriteCommandCategory Category { get; set; } = FavoriteCommandCategory.Air;
-    public string BackgroundColor { get; set; } = FavoriteCommandDefaults.BackgroundColor;
-    public string TextColor { get; set; } = FavoriteCommandDefaults.TextColor;
-    public double ButtonWidth { get; set; } = FavoriteCommandDefaults.ButtonWidth;
-    public double ButtonHeight { get; set; } = FavoriteCommandDefaults.ButtonHeight;
-
-    /// <summary>
-    /// Member-wise copy. Favorites are mutable reference objects and the edit flyouts mutate
-    /// them in place, so copying one between containers (base pool ↔ named sets) must clone —
-    /// a shared reference would make an edit in one container silently bleed into the other.
-    /// </summary>
-    public FavoriteCommand Clone() =>
-        new()
-        {
-            IsSpacer = IsSpacer,
-            Label = Label,
-            CommandText = CommandText,
-            GroundCommandText = GroundCommandText,
-            ScenarioId = ScenarioId,
-            AirportId = AirportId,
-            Category = Category,
-            BackgroundColor = BackgroundColor,
-            TextColor = TextColor,
-            ButtonWidth = ButtonWidth,
-            ButtonHeight = ButtonHeight,
-        };
-}
-
-/// <summary>
-/// A named, user-defined collection of favorite commands that can be loaded/unloaded as a
-/// whole, in addition to the always-present base pool (<see cref="UserPreferences.FavoriteCommands"/>).
-/// While a set is loaded, all of its favorites are shown regardless of their per-favorite
-/// Global/Scenario/Airport scope; the scope fields are preserved so a favorite copied back to
-/// the base pool keeps its original visibility behavior.
-/// </summary>
-public sealed class FavoriteCommandSet
-{
-    public string Name { get; set; } = "";
-    public List<FavoriteCommand> Favorites { get; set; } = [];
-}
-
-public enum FavoriteCommandCategory
-{
-    Air,
-    Ground,
-    Vehicle,
-    Airport,
-}
-
 /// <summary>
 /// Scope a favorited Radar View video map is saved under: the whole ARTCC, the scenario's
 /// primary airport, or one specific scenario.
@@ -2317,14 +2184,6 @@ public enum FavoriteMapScope
     Artcc,
     Airport,
     Scenario,
-}
-
-public static class FavoriteCommandDefaults
-{
-    public const string BackgroundColor = "#F3F3EE";
-    public const string TextColor = "#111111";
-    public const double ButtonWidth = 118;
-    public const double ButtonHeight = 32;
 }
 
 public sealed class SavedRadarSettings
