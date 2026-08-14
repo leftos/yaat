@@ -84,7 +84,7 @@ Each view can be popped out into its own window via **View > Pop Out Aircraft Li
 
 All views can be popped out simultaneously. Pop-out state and window positions are remembered across sessions.
 
-**Window Profiles** save and restore named window arrangements — geometry, dock/pop-out state, and DataGrid columns. Use **View > Window Profiles** to save the current layout under a name, switch between saved profiles, or rename and delete them. Useful for keeping separate GC and LC layouts and switching between them in one click.
+**Window Profiles** save and restore named window arrangements — geometry, dock/pop-out state, DataGrid columns, and which [favorite sets](#favorite-sets) are loaded. Use **View > Window Profiles** to save the current layout under a name, switch between saved profiles, or rename and delete them. Useful for keeping separate GC and LC layouts (each with its own favorite sets) and switching between them in one click.
 
 **Copy View Settings** (**View > Copy View Settings**) compares your current view settings against another source — a different scenario or a saved window profile — and copies only the sections you tick. The dialog shows each group side by side (map position, video maps, range, PTL, brightness, labels, filters, window geometry, pop-out/dock state, and the Aircraft List column layout) and highlights the rows that differ, so you can see exactly what would change before applying. Map-position rows are flagged when the source is a different airport.
 
@@ -1638,13 +1638,22 @@ Each favorite has a **label** (displayed on the button) and **command text** (th
 
 Airport-specific favorites are useful for airport- or position-specific presets that don't apply elsewhere. For example, while running a FLL departure scenario you can save `T T3 B` as a favorite labeled "T3 B" with **Airport (FLL)** selected — that button appears for other FLL scenarios too, while staying hidden at other airports.
 
+#### Favorite Sets
+
+In addition to the always-present scoped favorites above, you can group favorites into named **sets** (for example "S1 Training" or "S2") and load or unload whole sets at once. While a set is loaded, *all* of its favorites appear in the bar, panel tabs, and aircraft right-click menu — after your regular favorites, in the order you loaded the sets. Set membership is the visibility gate: a favorite inside a loaded set shows regardless of its scenario/airport scope (the scope is kept, and applies again if you ever copy the favorite back out of the set).
+
+- Click **Sets** (in the favorites bar or the pop-out panel header) to check/uncheck which sets are loaded, or pick **Manage sets…** to open the **Favorites Editor**.
+- The **Favorites Editor** lists your containers on the left — **Favorites (main)** plus every named set, each with a **Loaded** checkbox — and the selected container's favorites on the right. Create, rename, or delete sets; multi-select favorites and **Move Up/Down**, **Copy to…** or **Move to…** another set (or back to the main list), or **Delete** them. Copying leaves independent copies, so editing one later never changes the other.
+- **Window profiles remember which sets are loaded**: saving a profile captures the loaded sets, and applying it loads exactly those sets again (see **Window Profiles** in the Interface section).
+
 #### Import / Export
 
 Favorites can be shared between users as a `.yaat-favorites.json` file, using the **Import** and **Export** buttons in the pop-out **Favorites Panel** header (open it with **View > Open Favorites Panel...** or the **Panel** button).
 
 - **Export → All favorites** — save every favorite (all four tabs, including blank slots) to a file.
 - **Export → Current tab** — save just the favorites in the tab you're viewing (Air, Ground, Vehicle, or Airport).
-- **Import** — load favorites from a file. If you already have favorites, you're asked whether to **Append** them (added after your existing ones) or **Replace all** of them. With no existing favorites, the file loads directly.
+- **Export → All sets** — save every named favorite set (with which ones are loaded) to a single bundle file. Your main favorites list is not included — use **All favorites** for that.
+- **Import** — load favorites from a file; both formats are detected automatically. For a regular favorites file: if you already have favorites, you're asked whether to **Append** them (added after your existing ones) or **Replace all** of them; with no existing favorites, the file loads directly. For an all-sets bundle: choose **Merge** (same-named sets gain the imported favorites, new names become new sets) or **Replace All Sets** (your named sets are replaced with the file's; your main favorites list is untouched either way).
 
 Scenario- and airport-scoped favorites keep their scope when shared, so an imported favorite only appears when its scenario or airport is active.
 

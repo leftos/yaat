@@ -53,6 +53,7 @@ public class UserPreferencesWindowProfileTests
                 ColumnWidths = new() { ["callsign"] = 120.5, ["altitude"] = 70 },
                 HiddenColumns = ["squawk"],
             },
+            LoadedFavoriteSetNames = ["WPT-SetB", "WPT-SetA"],
         };
 
         var writer = new UserPreferences();
@@ -87,6 +88,9 @@ public class UserPreferencesWindowProfileTests
         Assert.Equal(ListSortDirection.Ascending, reloaded.DataGridLayout.SortDirection);
         Assert.Equal(120.5, reloaded.DataGridLayout.ColumnWidths!["callsign"]);
         Assert.Equal(["squawk"], reloaded.DataGridLayout.HiddenColumns);
+
+        // Loaded favorite sets round-trip in load order (not sorted).
+        Assert.Equal(["WPT-SetB", "WPT-SetA"], reloaded.LoadedFavoriteSetNames);
 
         new UserPreferences().DeleteWindowProfile("WPT-Roundtrip");
     }

@@ -217,6 +217,10 @@ public partial class FavoritesBarView : UserControl
         DockPanel.SetDock(importButton, Dock.Right);
         header.Children.Add(importButton);
 
+        var setsButton = CreateSetsButton();
+        DockPanel.SetDock(setsButton, Dock.Right);
+        header.Children.Add(setsButton);
+
         root.Children.Add(header);
 
         _tabControl = new TabControl();
@@ -250,6 +254,13 @@ public partial class FavoritesBarView : UserControl
         {
             var btn = CreateFavoriteButton(fav);
             _panel.Children.Add(btn);
+        }
+
+        if (vm.FavoriteSetNames.Count > 0)
+        {
+            var setsButton = CreateSetsButton();
+            setsButton.Margin = new Thickness(0, 0, 4, 4);
+            _panel.Children.Add(setsButton);
         }
 
         _panel.Children.Add(CreateOpenPanelButton());
@@ -417,6 +428,72 @@ public partial class FavoritesBarView : UserControl
         return btn;
     }
 
+    private Button CreateSetsButton()
+    {
+        var btn = new Button
+        {
+            Content = "Sets",
+            Margin = new Thickness(8, 0, 0, 0),
+            Padding = new Thickness(8, 2),
+            FontSize = 12,
+        };
+
+        ToolTip.SetTip(btn, "Load or unload favorite sets, or open the sets editor");
+        btn.Click += OnSetsClick;
+        return btn;
+    }
+
+    private void OnSetsClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is not Button btn || DataContext is not MainViewModel vm)
+        {
+            return;
+        }
+
+        // Built fresh on every open so the checkboxes always reflect the current loaded state —
+        // no persistent subscription (and no repopulation reentrancy) needed.
+        var flyout = new MenuFlyout();
+        foreach (var name in vm.FavoriteSetNames)
+        {
+            var setName = name;
+            var item = new MenuItem
+            {
+                Header = setName,
+                ToggleType = MenuItemToggleType.CheckBox,
+                IsChecked = vm.IsFavoriteSetLoaded(setName),
+                StaysOpenOnClick = true,
+            };
+            item.Click += (_, _) =>
+            {
+                var nowLoaded = !vm.IsFavoriteSetLoaded(setName);
+                item.IsChecked = nowLoaded;
+                vm.SetFavoriteSetLoaded(setName, nowLoaded);
+            };
+            flyout.Items.Add(item);
+        }
+
+        if (vm.FavoriteSetNames.Count > 0)
+        {
+            flyout.Items.Add(new Separator());
+        }
+
+        var manage = new MenuItem { Header = "Manage sets…" };
+        manage.Click += (_, _) => OpenFavoritesEditor(vm);
+        flyout.Items.Add(manage);
+        flyout.ShowAt(btn);
+    }
+
+    private void OpenFavoritesEditor(MainViewModel vm)
+    {
+        if (TopLevel.GetTopLevel(this) is not Window owner)
+        {
+            return;
+        }
+
+        var editor = new FavoritesEditorWindow(vm.Preferences);
+        _ = editor.ShowDialog(owner);
+    }
+
     private Button CreateImportButton()
     {
         var btn = new Button
@@ -465,7 +542,48 @@ public partial class FavoritesBarView : UserControl
         var flyout = new MenuFlyout();
         flyout.Items.Add(allItem);
         flyout.Items.Add(tabItem);
+
+        if (vm.FavoriteSetNames.Count > 0)
+        {
+            var setsItem = new MenuItem { Header = "All sets" };
+            setsItem.Click += (_, _) => _ = ExportFavoriteSetsAsync(vm);
+            flyout.Items.Add(setsItem);
+        }
+
         flyout.ShowAt(btn);
+    }
+
+    private async Task ExportFavoriteSetsAsync(MainViewModel vm)
+    {
+        if (TopLevel.GetTopLevel(this) is not Window owner)
+        {
+            return;
+        }
+
+        var picker = new AvaloniaFilePickerService(owner);
+        var path = await picker.SaveFileAsync(
+            new SaveFileOptions(
+                Title: "Export Favorite Sets",
+                SuggestedFileName: "favorites-sets.yaat-favorites.json",
+                Filters: [FavoritesFileType, JsonFileType],
+                DefaultExtension: "yaat-favorites.json"
+            )
+        );
+
+        if (path is null)
+        {
+            return;
+        }
+
+        try
+        {
+            var json = FavoriteSetSerialization.SerializeBundle(vm.Preferences.FavoriteCommandSets, vm.Preferences.LoadedFavoriteSetNames);
+            await File.WriteAllTextAsync(path, json);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            Log.LogWarning(ex, "Favorite sets export failed to write {Path}", path);
+        }
     }
 
     private async void OnImportFavoritesClick(object? sender, RoutedEventArgs e)
@@ -482,18 +600,39 @@ public partial class FavoritesBarView : UserControl
             return;
         }
 
-        List<FavoriteCommand>? imported;
+        FavoriteImportPayload? payload;
         try
         {
-            await using var stream = File.OpenRead(path);
-            imported = await JsonSerializer.DeserializeAsync<List<FavoriteCommand>>(stream, UserPreferences.JsonOptions);
+            var json = await File.ReadAllTextAsync(path);
+            payload = FavoriteSetSerialization.Parse(json);
         }
-        catch (Exception ex) when (ex is JsonException or IOException or UnauthorizedAccessException)
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
             Log.LogWarning(ex, "Favorites import failed to read {Path}", path);
             return;
         }
 
+        if (payload is null)
+        {
+            Log.LogWarning("Favorites import did not recognize {Path} as a flat favorites file or an all-sets bundle", path);
+            return;
+        }
+
+        if (payload.Bundle is { } bundle)
+        {
+            var favoriteCount = bundle.Sets.Sum(s => s.Favorites.Count);
+            var bundleDialog = FavoriteImportWindow.CreateForBundle(bundle.Sets.Count, favoriteCount);
+            var bundleMode = await bundleDialog.ShowDialog<FavoriteImportMode?>(owner);
+            if (bundleMode is null)
+            {
+                return;
+            }
+
+            vm.ImportFavoriteSets(bundle, bundleMode.Value);
+            return;
+        }
+
+        var imported = payload.FlatFavorites;
         if (imported is null || imported.Count == 0)
         {
             return;
@@ -931,6 +1070,19 @@ public partial class FavoritesBarView : UserControl
             scopeBox,
             footer
         );
+
+        if (vm.GetFavoriteOwningSetName(fav) is { } owningSet)
+        {
+            var hint = new TextBlock
+            {
+                Text = $"In set '{owningSet}' — scope applies only while outside a set",
+                FontSize = 11,
+                Foreground = Brushes.Gray,
+                TextWrapping = TextWrapping.Wrap,
+                Margin = new Thickness(0, 0, 0, 6),
+            };
+            panel.Children.Insert(1, hint);
+        }
 
         var flyout = new Flyout { Content = panel, Placement = PlacementMode.Top };
 

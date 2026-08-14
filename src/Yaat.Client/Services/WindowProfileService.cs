@@ -52,6 +52,7 @@ public sealed class WindowProfileService
             IsControllersPoppedOut = vm.IsControllersPoppedOut,
             IsMetarPoppedOut = vm.IsMetarPoppedOut,
             DataGridLayout = CloneGridLayout(_preferences.GridLayout),
+            LoadedFavoriteSetNames = _preferences.LoadedFavoriteSetNames.ToList(),
         };
 
         // Flush every open window's helper first so the snapshot we read back

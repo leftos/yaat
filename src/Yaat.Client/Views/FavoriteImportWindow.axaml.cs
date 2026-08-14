@@ -24,6 +24,24 @@ public partial class FavoriteImportWindow : Window
         MessageText.Text = $"{importCount} favorite{suffix} in file. Append to your existing favorites, or replace all of them?";
     }
 
+    /// <summary>
+    /// Variant for all-sets bundle files: Append becomes "Merge" (same-named sets gain the imported
+    /// favorites, new names become new sets) and Replace discards every existing named set. The base
+    /// favorites pool is not touched either way.
+    /// </summary>
+    public static FavoriteImportWindow CreateForBundle(int setCount, int favoriteCount)
+    {
+        var window = new FavoriteImportWindow { Title = "Import Favorite Sets" };
+        var setSuffix = setCount == 1 ? "" : "s";
+        var favSuffix = favoriteCount == 1 ? "" : "s";
+        window.MessageText.Text =
+            $"{setCount} favorite set{setSuffix} ({favoriteCount} favorite{favSuffix}) in file. Merge into your existing sets, or replace all of your sets?";
+        window.AppendButton.Content = "Merge";
+        window.ReplaceButton.Content = "Replace All Sets";
+        window.ReplaceButton.Width = 130;
+        return window;
+    }
+
     private void OnAppendClick(object? sender, RoutedEventArgs e) => Close(FavoriteImportMode.Append);
 
     private void OnReplaceClick(object? sender, RoutedEventArgs e) => Close(FavoriteImportMode.Replace);

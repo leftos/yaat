@@ -2038,6 +2038,21 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
 
         _windowProfileService.StagePreferences(profile);
 
+        // Load exactly the favorite sets the profile captured. Names whose set has since been
+        // deleted are pruned by the preferences normalize invariant; surface those so the user
+        // knows why part of the profile did not take effect. Null = pre-feature profile.
+        string? missingSetsNote = null;
+        if (profile.LoadedFavoriteSetNames is { } setNames)
+        {
+            vm.Preferences.SetLoadedFavoriteSets(setNames.ToList());
+            var missing = setNames.Where(n => !vm.Preferences.LoadedFavoriteSetNames.Contains(n, StringComparer.OrdinalIgnoreCase)).ToList();
+            if (missing.Count > 0)
+            {
+                missingSetsNote = $" (favorite set(s) not found: {string.Join(", ", missing)})";
+            }
+            vm.RefreshDisplayFavorites();
+        }
+
         // Flip the pop-out toggles. The OnIs*PoppedOutChanged handlers on
         // MainViewModel + OnViewModelPropertyChanged here will create or
         // destroy the corresponding pop-out windows. New windows read the
@@ -2069,7 +2084,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
             }
         });
 
-        vm.StatusText = $"Applied window profile \"{name}\"";
+        vm.StatusText = $"Applied window profile \"{name}\"{missingSetsNote}";
     }
 
     /// <summary>

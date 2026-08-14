@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+### Added
+- Favorite commands can be grouped into named sets (e.g. "S1 Training") loaded/unloaded via the new **Sets** button, alongside the existing scoped favorites. (#354)
+- A new **Favorites Editor** (Sets → Manage sets…) creates, renames, and deletes sets and copies, moves, or reorders favorites between them. (#354)
+- Window profiles remember which favorite sets are loaded. (#354)
+- **Export → All sets** shares every set as one bundle file; Import auto-detects it alongside regular favorites files. (#354)
+
 ## v0.12.6-beta [2026/08/13]
 
 ### Highlights

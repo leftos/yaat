@@ -1488,6 +1488,7 @@ public partial class MainViewModel : ObservableObject
         RefreshCommandScheme();
         _commandInput.Macros = _preferences.Macros;
         RefreshDisplayFavorites();
+        _preferences.FavoriteSetsChanged += () => Dispatcher.UIThread.Post(RefreshDisplayFavorites);
 
         _ = InitializeNavDataAsync();
         _ = _vnasConfigService.InitializeAsync();
