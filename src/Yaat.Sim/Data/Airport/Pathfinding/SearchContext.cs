@@ -468,7 +468,7 @@ public sealed record SearchContext(
     /// Node-reference tokens ("#1234") and runway tokens are excluded.
     /// <c>RAMP</c> is apron / parking access, not a controller-authorized lettered taxiway, so it
     /// is excluded too — otherwise RAMP edges would draw an unauthorized-taxiway cost penalty
-    /// (<see cref="RouteCostFunction"/>) and "not in authorized path" warnings
+    /// (<see cref="RouteCostFunction"/>) and "not in the route issued" warnings
     /// (<see cref="RouteMaterialiser"/>) even though apron access is always permitted.
     /// </summary>
     public static bool IsLetterOnlyTaxiway(string name)

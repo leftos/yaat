@@ -201,23 +201,35 @@ public sealed class TaxiRoute
             }
         }
 
-        // Emit each explicit hold-short once; collapse consecutive duplicates of the same target
-        // so a route that touches one taxiway hold-short at several nodes reads "HS B", not
-        // "HS B HS B HS B". The source annotator already de-duplicates; this is a display backstop.
+        // Emit each explicit hold-short. A runway bar is located with "at (taxiway)" per 7110.65
+        // §3-7-2 phraseology, and shows the single commanded end when the command context names one
+        // ("HS 33 at F, HS 33 at C" — two distinct stops, never collapsed into one entry; hiding an
+        // armed bar from the echo is how a hold-short gets missed). Only true duplicates of the same
+        // bar text collapse — a taxiway hold-short annotated at several adjacent nodes still reads
+        // "HS B" once.
         string? lastHoldShort = null;
-        foreach (var hs in HoldShortPoints)
+        for (int i = 0; i < HoldShortPoints.Count; i++)
         {
-            if (hs.Reason == HoldShortReason.ExplicitHoldShort && hs.TargetName is not null)
+            var hs = HoldShortPoints[i];
+            if (hs.Reason != HoldShortReason.ExplicitHoldShort || hs.TargetName is null)
             {
-                if (string.Equals(hs.TargetName, lastHoldShort, StringComparison.OrdinalIgnoreCase))
-                {
-                    continue;
-                }
-
-                parts.Add("HS");
-                parts.Add(hs.TargetName);
-                lastHoldShort = hs.TargetName;
+                continue;
             }
+
+            string entry = DisplayHoldShortTarget(hs, clearedRunways);
+            if (string.Equals(entry, lastHoldShort, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            if (lastHoldShort is not null)
+            {
+                parts[^1] += ",";
+            }
+
+            parts.Add("HS");
+            parts.Add(entry);
+            lastHoldShort = entry;
         }
 
         // Append destination runway assignment
@@ -242,6 +254,77 @@ public sealed class TaxiRoute
         }
 
         return string.Join(" ", parts);
+    }
+
+    /// <summary>
+    /// Operator-facing text for one explicit hold-short. A runway bar shows the single commanded
+    /// end when the command's path names one (else the combined pair) and is located with
+    /// "at (taxiway)" so two bars for the same runway on one route read as the two distinct stops
+    /// they are. A taxiway hold-short stays the bare name.
+    /// </summary>
+    private string DisplayHoldShortTarget(HoldShortPoint hs, IReadOnlyCollection<string> clearedRunways)
+    {
+        string target = hs.TargetName!;
+        var node = FindRouteNode(hs.NodeId);
+        if (node is null || node.Type != GroundNodeType.RunwayHoldShort)
+        {
+            return target;
+        }
+
+        string display = target;
+        var id = RunwayIdentifier.Parse(target);
+        foreach (string token in clearedRunways)
+        {
+            if (id.Contains(token))
+            {
+                display = RunwayIdentifier.ToDisplayDesignator(token);
+                break;
+            }
+        }
+
+        foreach (var edge in node.Edges)
+        {
+            string name = edge.TaxiwayName;
+            if (edge is GroundArc arc)
+            {
+                string? arcName = Array.Find(arc.TaxiwayNames, n => !IsRunwayOrRampName(n));
+                if (arcName is null)
+                {
+                    continue;
+                }
+
+                name = arcName;
+            }
+
+            if (!IsRunwayOrRampName(name))
+            {
+                return $"{display} at {name}";
+            }
+        }
+
+        return display;
+    }
+
+    private static bool IsRunwayOrRampName(string name) =>
+        name.StartsWith("RWY", StringComparison.OrdinalIgnoreCase) || string.Equals(name, "RAMP", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>The route's node instance for <paramref name="nodeId"/>, or null when no segment touches it.</summary>
+    private GroundNode? FindRouteNode(int nodeId)
+    {
+        foreach (var seg in Segments)
+        {
+            if (seg.FromNodeId == nodeId)
+            {
+                return seg.Edge.FromNode;
+            }
+
+            if (seg.ToNodeId == nodeId)
+            {
+                return seg.Edge.ToNode;
+            }
+        }
+
+        return null;
     }
 
     public TaxiRouteDto ToSnapshot() =>

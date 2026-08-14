@@ -261,7 +261,7 @@ public class OakTaxiResolutionE2ETests(ITestOutputHelper output)
         var traversed = TraversedTaxiways(route);
         Assert.False(traversed.Contains("K"), $"route detours via K: {route.ToSummary()}");
         Assert.False(traversed.Contains("F"), $"route detours via F: {route.ToSummary()}");
-        Assert.DoesNotContain(route.Warnings, w => w.Contains("not in authorized path", StringComparison.OrdinalIgnoreCase));
+        Assert.DoesNotContain(route.Warnings, w => w.Contains("not in the route issued", StringComparison.OrdinalIgnoreCase));
 
         // And still ends at the 28R departure hold-short.
         Assert.Contains(route.HoldShortPoints, h => (h.Reason == HoldShortReason.DestinationRunway) && (h.TargetName == "28R"));

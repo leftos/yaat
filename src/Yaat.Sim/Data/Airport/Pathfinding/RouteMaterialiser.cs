@@ -68,7 +68,11 @@ public static class RouteMaterialiser
             );
             if (!bound)
             {
-                warnings.Add($"HS {target} not on the route");
+                warnings.Add(
+                    ctx.Layout.TryGetRunwayCenterlineName(target, out _)
+                        ? $"HS {target} not applied — no runway {target} hold line on the route"
+                        : $"HS {target} not applied — the route never reaches {target}"
+                );
             }
         }
 
@@ -637,7 +641,7 @@ public static class RouteMaterialiser
                 && warned.Add(name)
             )
             {
-                warnings.Add($"Taxiing via {name} (not in authorized path)");
+                warnings.Add($"taxiing via {name} — not in the route issued");
             }
         }
 

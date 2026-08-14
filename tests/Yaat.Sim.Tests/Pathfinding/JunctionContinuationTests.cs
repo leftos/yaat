@@ -215,7 +215,7 @@ public class JunctionContinuationTests
 
         // The leading RAMP (parking bridge from D8) must not be flagged as a "not in authorized
         // path" deviation, and walking A directly to the B1 junction is on cleared taxiways.
-        Assert.DoesNotContain(route.Warnings, w => w.Contains("not in authorized path", StringComparison.OrdinalIgnoreCase));
+        Assert.DoesNotContain(route.Warnings, w => w.Contains("not in the route issued", StringComparison.OrdinalIgnoreCase));
     }
 
     /// <summary>

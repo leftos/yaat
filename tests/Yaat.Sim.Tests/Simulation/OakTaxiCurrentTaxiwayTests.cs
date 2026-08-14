@@ -19,7 +19,7 @@ namespace Yaat.Sim.Tests.Simulation;
 ///     The user's workaround was the redundant `TAXI W5 W`.
 ///   * N157LE (departure) is holding short on taxiway C. `TAXI E RWY 28R` must read
 ///     back cleanly — today it returns
-///     "Taxi via C C - E E RWY 28R [Taxiing via C (not in authorized path)]":
+///     "Taxi via C C - E E RWY 28R [Taxiing via C — not in the route issued]":
 ///     a spurious unauthorized-taxiway warning for the taxiway it is already on, and a
 ///     junction-arc token ("C - E") leaked into the readback by TaxiRoute.ToSummary().
 /// </summary>
@@ -89,8 +89,8 @@ public class OakTaxiCurrentTaxiwayTests(ITestOutputHelper output)
 
         Assert.True(result.Success, $"TAXI E RWY 28R should succeed but failed: {result.Message}");
 
-        // No spurious "not in authorized path" warning for taxiway C (the aircraft is on it).
-        Assert.DoesNotContain("not in authorized path", result.Message, StringComparison.OrdinalIgnoreCase);
+        // No spurious "not in the route issued" warning for taxiway C (the aircraft is on it).
+        Assert.DoesNotContain("not in the route issued", result.Message, StringComparison.OrdinalIgnoreCase);
 
         // No junction/membership arc token ("C - E") in the readback.
         Assert.DoesNotContain(" - ", result.Message);

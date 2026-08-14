@@ -11,7 +11,7 @@ namespace Yaat.Sim.Tests.Simulation;
 /// A taxiway hold-short target inside a TAXI command must steer the route, not just
 /// annotate it. The controller cleared N45912 <c>TAXI D C HS E RWY 28R</c> at OAK; the
 /// pathfinder ignored <c>E</c> as a routing waypoint and detoured through the un-named
-/// taxiways A and B, flagging each "not in authorized path". Naming E in the path
+/// taxiways A and B, flagging each "not in the route issued". Naming E in the path
 /// (<c>TAXI D C E HS E RWY 28R</c>) already routes cleanly — the fix makes the embedded
 /// <c>HS &lt;taxiway&gt;</c> form behave identically.
 ///
@@ -40,7 +40,7 @@ public class OakHsDirectionalHintTests(ITestOutputHelper output)
     }
 
     private static bool HasUnauthorizedWarning(TaxiRoute route) =>
-        route.Warnings.Any(w => w.Contains("not in authorized path", StringComparison.OrdinalIgnoreCase));
+        route.Warnings.Any(w => w.Contains("not in the route issued", StringComparison.OrdinalIgnoreCase));
 
     private static List<string> StraightSegmentTaxiways(TaxiRoute route) =>
         route.Segments.Select(s => s.TaxiwayName).Distinct(StringComparer.OrdinalIgnoreCase).ToList();

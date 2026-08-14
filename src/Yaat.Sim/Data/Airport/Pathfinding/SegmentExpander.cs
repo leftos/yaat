@@ -803,7 +803,9 @@ public static class SegmentExpander
             }
         }
 
-        ctx.ResolutionAdvisories.Add($"holding at {precedingTaxiway}/{finalTaxiway} intersection — no onward direction on {finalTaxiway}");
+        ctx.ResolutionAdvisories.Add(
+            $"holding at the {precedingTaxiway}/{finalTaxiway} intersection — route ends at {finalTaxiway}, no destination given"
+        );
         ctx.DiagnosticLog?.Invoke($"[terminus-junction] {precedingTaxiway}/{finalTaxiway} stop={junctionHead.HeadNodeId} edges={edges.Count}");
         return (edges, junctionHead, null);
     }

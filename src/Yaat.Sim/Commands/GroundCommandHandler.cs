@@ -100,7 +100,7 @@ internal static class GroundCommandHandler
         // Infer the taxiway the aircraft is already on. The controller clears a continuation
         // ("TAXI E") without re-naming the taxiway the aircraft currently occupies; prepending it
         // makes the explicit pathfinder start there instead of bridging onto the first cleared
-        // taxiway (which both flags the occupied taxiway "not in authorized path" and hard-fails
+        // taxiway (which both flags the occupied taxiway "not in the route issued" and hard-fails
         // when the bridge's hop cap can't reach it). Guards:
         //   * start node actually lies on that taxiway — a stale CurrentTaxiway never injects a phantom leg;
         //   * path doesn't already begin with it;
@@ -212,7 +212,7 @@ internal static class GroundCommandHandler
                     droppedName,
                     destLabel
                 );
-                bestDropRoute.Warnings.Add($"{droppedName} dropped — no route via {droppedName} reaches {destLabel}");
+                bestDropRoute.Warnings.Add($"unable via {droppedName} — no route via {droppedName} reaches {destLabel}; {droppedName} omitted");
                 route = bestDropRoute;
                 failReason = null;
             }
@@ -329,7 +329,7 @@ internal static class GroundCommandHandler
             {
                 if (!matchedCrossRunways.Contains(crossRwy))
                 {
-                    route.Warnings.Add($"CROSS {crossRwy} matched no crossing on the route");
+                    route.Warnings.Add($"CROSS {crossRwy} not applied — the route crosses no runway {crossRwy}");
                 }
             }
         }
