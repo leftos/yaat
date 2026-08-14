@@ -237,6 +237,78 @@ public class OakTaxiResolutionE2ETests(ITestOutputHelper output)
         Assert.Contains(route.Warnings, w => w.Contains("D", StringComparison.Ordinal));
     }
 
+    /// <summary>
+    /// <b>Case 3 — N8312H, t=1869/1874, <c>TAXI D C B RWY 28R</c>:</b> the aircraft was mid-taxi
+    /// WESTBOUND on a previous clearance when re-cleared southeast toward 28R. The resolver honored
+    /// D in the direction of travel and produced a huge K/F detour flagged "not in authorized
+    /// path". The RPO held the aircraft and re-issued — a held aircraft can turn around on the
+    /// spot, so the identical command must then resolve to the direct D C B route (which the RPO
+    /// only obtained by WARPG-ing the aircraft to a node).
+    /// </summary>
+    [Fact]
+    public void TaxiDCB_WhileHeld_TurnsAroundInsteadOfDetouring()
+    {
+        var issued = IssueTaxi(1875, "N8312H", "TAXI D C B RWY 28R");
+        if (issued is null)
+        {
+            return;
+        }
+
+        var (result, route) = issued.Value;
+        Assert.True(result.Success, result.Message);
+
+        // The held aircraft turns around and taxis D C B directly — no unauthorized detour via K/F.
+        var traversed = TraversedTaxiways(route);
+        Assert.False(traversed.Contains("K"), $"route detours via K: {route.ToSummary()}");
+        Assert.False(traversed.Contains("F"), $"route detours via F: {route.ToSummary()}");
+        Assert.DoesNotContain(route.Warnings, w => w.Contains("not in authorized path", StringComparison.OrdinalIgnoreCase));
+
+        // And still ends at the 28R departure hold-short.
+        Assert.Contains(route.HoldShortPoints, h => (h.Reason == HoldShortReason.DestinationRunway) && (h.TargetName == "28R"));
+    }
+
+    /// <summary>
+    /// The held aircraft must physically execute the about-face — a clean resolution that then
+    /// deadlocks against the aircraft's westbound pose would be no better than the detour.
+    /// </summary>
+    [Fact]
+    public void TaxiDCB_WhileHeld_AircraftActuallyTaxisTheReversedRoute()
+    {
+        var archive = RecordingLoader.OpenArchive(RecordingPath);
+        var engine = BuildEngine();
+        if (archive is null || engine is null)
+        {
+            return;
+        }
+
+        using (archive)
+        {
+            engine.Replay(archive.ToBaseSessionRecording(), 0);
+            var snapshot = archive.ReadSnapshotAt(1875);
+            Assert.NotNull(snapshot);
+            engine.RestoreFromSnapshot(snapshot.State);
+
+            var result = engine.SendCommand("N8312H", "TAXI D C B RWY 28R");
+            Assert.True(result.Success, result.Message);
+
+            var ac = engine.FindAircraft("N8312H");
+            Assert.NotNull(ac);
+            var startPos = ac.Position;
+
+            for (int t = 0; t < 120; t++)
+            {
+                engine.TickOneSecond();
+            }
+
+            var route = ac.Ground.AssignedTaxiRoute;
+            Assert.NotNull(route);
+            output.WriteLine(
+                $"after 120s: segment {route.CurrentSegmentIndex}/{route.Segments.Count}, moved {GeoMath.DistanceNm(startPos, ac.Position) * GeoMath.FeetPerNm:F0} ft"
+            );
+            Assert.True(route.CurrentSegmentIndex > 5, $"aircraft made no progress on the reversed route (segment {route.CurrentSegmentIndex})");
+        }
+    }
+
     [Fact]
     public void TaxiCD_AfterExit_ResponseSaysWhereTheAircraftWillHold()
     {
