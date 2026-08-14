@@ -261,7 +261,7 @@ public static class SegmentExpander
                 AvoidedTaxiways = unauthorized,
                 AvoidMode = unauthorized.Count > 0 ? AvoidTaxiwayMode.HardExclude : AvoidTaxiwayMode.Off,
             };
-            var (autoRoute, _) = AutoRouter.Run(autoCtx);
+            var (autoRoute, autoFailure) = AutoRouter.Run(autoCtx);
             if (autoRoute is not null)
             {
                 var autoEdges = autoRoute.Segments.Select(s => s.Edge).ToList();
@@ -273,6 +273,16 @@ public static class SegmentExpander
                     edges = autoEdges;
                     insertions.Clear();
                 }
+                else
+                {
+                    ctx.DiagnosticLog?.Invoke(
+                        $"[fallback] constrained A* route did not reach a rwy {fallbackRunway} hold-short ({autoEdges.Count} edges)"
+                    );
+                }
+            }
+            else
+            {
+                ctx.DiagnosticLog?.Invoke($"[fallback] constrained A* failed: {autoFailure?.HumanMessage ?? "no route"}");
             }
         }
 
@@ -1084,6 +1094,12 @@ public static class SegmentExpander
 
             foreach (var edge in node.Edges)
             {
+                // The bridge may not hop over runway pavement the route isn't allowed on.
+                if (ctx.IsForbiddenCenterlineEdge(edge))
+                {
+                    continue;
+                }
+
                 var neighbor = edge.OtherNode(node);
                 if (!visited.Add(neighbor.Id))
                 {

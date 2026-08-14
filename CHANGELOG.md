@@ -7,6 +7,8 @@
 
 ### Fixed
 - An explicit `HS` for a runway the taxi route also travels **along** (e.g. `TAXI F 33 D C B RWY 28R HS 33`) is no longer silently dropped — the aircraft now holds short at each 15/33 boundary until cleared across/onto it, instead of rolling onto the runway unimpeded, and the response echoes the hold-short (`… HS 15/33 RWY 28R`).
+- A taxi route never travels **along** a runway the clearance didn't put in the path. `TAXI C D @GA1` at OAK (GA1 is a right turn east on C; D leads away northwest) used to satisfy the contradiction by taxiing the full length of C, entering 10L at C1, and back-taxiing the entire runway — it now resolves to the sane `E C @GA1` route and warns `[D dropped — no route via D reaches @GA1]`. Genuine runway *crossings* are unaffected.
+- A `CROSS` runway in a taxi clearance that matches no crossing on the resolved route, or an `HS` target the route never meets, now adds a warning to the response instead of being silently inert.
 
 ### Added
 - Favorite commands live in sets on one level — **Global**, per-airport, per-scenario, and named sets (e.g. "S1 Training") loaded/unloaded via the **Sets** button. (#354)

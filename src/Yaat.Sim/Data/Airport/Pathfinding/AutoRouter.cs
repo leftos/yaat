@@ -106,8 +106,51 @@ public static class AutoRouter
             return (emptyRoute, null);
         }
 
-        var result = RunAstar(ctx, startNode, destinationNode, startOverride, maxExpansions);
-        return result;
+        // A returned path may use an uncleared runway as a same-side shortcut (on at one exit, off
+        // at the next) — not a crossing. That can only be judged on the whole path, and judging it
+        // inside the A* would poison the (node, bearing-bucket) closed set with path-dependent dead
+        // ends. So: run, validate, and on a violation re-run with that run's centerline edges banned
+        // outright, so the next attempt finds the legal path instead of inheriting poisoned states.
+        HashSet<(int, int)>? bannedMoves = null;
+        for (int attempt = 0; attempt < 3; attempt++)
+        {
+            var result = RunAstar(ctx, startNode, destinationNode, startOverride, maxExpansions, bannedMoves);
+            if (result.Route is null || !ctx.HasSameSideCenterlineRun(result.Route.Segments.Select(s => s.Edge).ToList()))
+            {
+                return result;
+            }
+
+            bannedMoves ??= [];
+            int bannedBefore = bannedMoves.Count;
+            foreach (var seg in result.Route.Segments)
+            {
+                if (seg.Edge.Edge.IsRunwayCenterline)
+                {
+                    bannedMoves.Add((seg.FromNodeId, seg.ToNodeId));
+                    bannedMoves.Add((seg.ToNodeId, seg.FromNodeId));
+                }
+            }
+
+            ctx.DiagnosticLog?.Invoke(
+                $"[auto] path travels along an uncleared runway same-side; retrying with {bannedMoves.Count} banned centerline moves"
+            );
+            if (bannedMoves.Count == bannedBefore)
+            {
+                // Nothing new to ban — the violation cannot be excised; fail rather than loop.
+                break;
+            }
+        }
+
+        return (
+            null,
+            new PathfindingFailure(
+                FailureKind.DestinationUnreachable,
+                "No route to the destination without taxiing along a runway not in the clearance.",
+                null,
+                null,
+                null
+            )
+        );
     }
 
     private static (TaxiRoute? Route, PathfindingFailure? Failure) RunAstar(
@@ -115,7 +158,8 @@ public static class AutoRouter
         GroundNode startNode,
         GroundNode destinationNode,
         PartialRoute? startOverride,
-        int maxExpansions
+        int maxExpansions,
+        HashSet<(int From, int To)>? bannedMoves
     )
     {
         // Priority queue: (PartialRoute, fScore). .NET 6+ PriorityQueue<TElement, TPriority>.
@@ -233,6 +277,24 @@ public static class AutoRouter
                 // route, TaxiPathfinder re-runs with OneWayMode relaxed to Warn so a destination reachable
                 // only against a one-way still resolves.
                 if (ctx.IsForbiddenMove(current.HeadNodeId, nextNode.Id))
+                {
+                    rejected++;
+                    continue;
+                }
+
+                // Along-runway pavement is capped at a crossing's worth unless the controller named
+                // the runway in the path or the aircraft started on it — a taxi route may CROSS a
+                // runway stitched through centerline nodes, but never invents a back-taxi (OAK
+                // "TAXI C D @GA1" back-taxied all of 10L to satisfy the destination). No soft
+                // fallback: an unreachable destination fails rather than routing over a runway.
+                if (ctx.IsForbiddenCenterlineMove(current, edge))
+                {
+                    rejected++;
+                    continue;
+                }
+
+                // Centerline moves banned by a prior same-side-shortcut retry (see Run).
+                if (bannedMoves is not null && bannedMoves.Contains((current.HeadNodeId, nextNode.Id)))
                 {
                     rejected++;
                     continue;

@@ -58,6 +58,20 @@ public static class RouteMaterialiser
         // notifications for mandatory connector insertions.
         var warnings = BuildWarnings(segments, ctx, insertions);
 
+        // An HS target that bound nothing — no runway bar, no adjacent-taxiway point — was silently
+        // dropped; tell the controller instead of letting them believe the aircraft will hold.
+        foreach (string target in ctx.ExplicitHoldShorts)
+        {
+            bool bound = holdShorts.Exists(h =>
+                h.TargetName is { } name
+                && (string.Equals(name, target, StringComparison.OrdinalIgnoreCase) || RunwayIdentifier.Parse(name).Contains(target))
+            );
+            if (!bound)
+            {
+                warnings.Add($"HS {target} not on the route");
+            }
+        }
+
         return new TaxiRoute
         {
             Segments = segments,

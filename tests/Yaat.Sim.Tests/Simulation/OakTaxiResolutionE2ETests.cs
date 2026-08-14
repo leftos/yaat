@@ -206,6 +206,37 @@ public class OakTaxiResolutionE2ETests(ITestOutputHelper output)
         Assert.Contains("33", result.Message[result.Message.IndexOf("HS", StringComparison.Ordinal)..], StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// <b>Case 2 — N124QR, t=1281, <c>TAXI C D @GA1</c>:</b> GA1 parking is a short taxi EAST along
+    /// C from the E exit; D is the far-northwest parallel and leads away from it — the commanded
+    /// route contradicts the destination. The resolver taxied the full length of C west, took C1
+    /// onto runway 10L, back-taxied its entire length, and came back up E and C to the ramp — an
+    /// uncommanded runway excursion. It must instead resolve the sane route to GA1 without touching
+    /// any runway surface, and warn that the contradictory D was dropped.
+    /// </summary>
+    [Fact]
+    public void TaxiCDToGa1_NeverRoutesAlongARunway_AndWarnsAboutDroppedD()
+    {
+        var issued = IssueTaxi(1280, "N124QR", "TAXI C D @GA1");
+        if (issued is null)
+        {
+            return;
+        }
+
+        var (result, route) = issued.Value;
+        Assert.True(result.Success, result.Message);
+
+        // The route must never travel along a runway the controller didn't put in the path.
+        Assert.DoesNotContain(route.Segments, s => s.Edge.Edge.IsRunwayCenterline);
+
+        // It still reaches GA1.
+        Assert.Equal("GA1", route.DestinationParking);
+
+        // The unreachable-toward-GA1 taxiway D is dropped with a warning naming it.
+        Assert.NotNull(result.Message);
+        Assert.Contains(route.Warnings, w => w.Contains("D", StringComparison.Ordinal));
+    }
+
     [Fact]
     public void TaxiCD_AfterExit_ResponseSaysWhereTheAircraftWillHold()
     {

@@ -175,6 +175,49 @@ internal static class GroundCommandHandler
             route = ResolveRoute(taxi, out failReason);
         }
 
+        // A parking/spot destination whose named path cannot legally reach it (OAK "TAXI C D @GA1":
+        // GA1 is east along C, D leads away northwest, and routing over a runway to satisfy both is
+        // forbidden): drop one named taxiway at a time and keep the shortest resolution that reaches
+        // the destination, warning which element was dropped. The controller's destination wins over
+        // a contradictory via — silently failing the whole clearance helps nobody, silently honoring
+        // it via a runway back-taxi is worse.
+        if (route is null && (taxi.DestinationParking is not null || taxi.DestinationSpot is not null) && taxi.Path.Count >= 2)
+        {
+            string destLabel = taxi.DestinationParking is not null ? $"@{taxi.DestinationParking}" : $"${taxi.DestinationSpot}";
+            TaxiRoute? bestDropRoute = null;
+            string? droppedName = null;
+            for (int drop = 0; drop < taxi.Path.Count; drop++)
+            {
+                if (taxi.Path[drop].StartsWith('#'))
+                {
+                    continue;
+                }
+
+                var reducedPath = taxi.Path.Where((_, idx) => idx != drop).ToList();
+                var reducedHints = taxi.PathTurnHints?.Where((_, idx) => idx != drop).ToList();
+                var reduced = taxi with { Path = reducedPath, PathTurnHints = reducedHints };
+                var candidate = ResolveRoute(reduced, out _);
+                if (candidate is not null && (bestDropRoute is null || candidate.TotalDistanceNm < bestDropRoute.TotalDistanceNm))
+                {
+                    bestDropRoute = candidate;
+                    droppedName = taxi.Path[drop];
+                }
+            }
+
+            if (bestDropRoute is not null && droppedName is not null)
+            {
+                Log.LogInformation(
+                    "[TryTaxi] {Callsign}: dropped contradictory path element {Dropped} to reach {Dest}",
+                    aircraft.Callsign,
+                    droppedName,
+                    destLabel
+                );
+                bestDropRoute.Warnings.Add($"{droppedName} dropped — no route via {droppedName} reaches {destLabel}");
+                route = bestDropRoute;
+                failReason = null;
+            }
+        }
+
         if (route is null)
         {
             Log.LogWarning("[TryTaxi] {Callsign}: route resolution failed — {Reason}", aircraft.Callsign, failReason ?? "no matching taxiways");
@@ -259,6 +302,7 @@ internal static class GroundCommandHandler
         // Pre-clear specific runway crossings from CROSS keywords in the TAXI command
         if (taxi.CrossRunways is { Count: > 0 })
         {
+            var matchedCrossRunways = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             foreach (var hs in route.HoldShortPoints)
             {
                 if (hs.Reason == HoldShortReason.RunwayCrossing && hs.TargetName is not null)
@@ -273,9 +317,19 @@ internal static class GroundCommandHandler
                             // AutoCross attribution so a future AutoCross-OFF toggle does
                             // not revert this user-issued crossing authorization.
                             hs.ClearedByAutoCross = false;
+                            matchedCrossRunways.Add(crossRwy);
                             break;
                         }
                     }
+                }
+            }
+
+            // A CROSS runway that pre-cleared nothing was silently inert; tell the controller.
+            foreach (var crossRwy in taxi.CrossRunways)
+            {
+                if (!matchedCrossRunways.Contains(crossRwy))
+                {
+                    route.Warnings.Add($"CROSS {crossRwy} matched no crossing on the route");
                 }
             }
         }

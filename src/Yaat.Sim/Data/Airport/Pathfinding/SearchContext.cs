@@ -98,6 +98,129 @@ public sealed record SearchContext(
     public bool IsBlockedArcMove(int fromId, int toId) => BlockedArcMoves.Contains((fromId, toId));
 
     /// <summary>
+    /// Canonical centerline names (<c>"RWY28R/10L"</c>) of runways this route may travel ALONG:
+    /// every runway the controller named as a path waypoint, plus any runway whose centerline passes
+    /// through the start node (a landed or lined-up aircraft must be able to taxi off the surface it
+    /// is standing on). For every other runway, a search may keep at most
+    /// <see cref="MaxUnclearedCenterlineRunNm"/> of consecutive centerline pavement — enough to
+    /// CROSS a runway whose crossing is stitched through centerline nodes (MIA taxiway S over
+    /// 12/30), never enough to back-taxi one (OAK "TAXI C D @GA1" back-taxied all of 10L).
+    /// </summary>
+    public IReadOnlySet<string> AllowedCenterlineNames { get; init; } = EmptyAvoidedTaxiways;
+
+    /// <summary>
+    /// Longest consecutive along-runway run permitted on a runway the route is not cleared onto —
+    /// generous for a perpendicular-to-diagonal crossing (~900 ft), far below any real back-taxi.
+    /// </summary>
+    private const double MaxUnclearedCenterlineRunNm = 0.15;
+
+    /// <summary>True when <paramref name="edge"/> is a single along-runway hop the route may never take.</summary>
+    public bool IsForbiddenCenterlineEdge(IGroundEdge edge) => IsUnclearedCenterline(edge) && (edge.DistanceNm > MaxUnclearedCenterlineRunNm);
+
+    /// <summary>
+    /// True when extending <paramref name="current"/> with <paramref name="edge"/> would run the
+    /// route along an uncleared runway's pavement for longer than a crossing needs.
+    /// </summary>
+    public bool IsForbiddenCenterlineMove(PartialRoute current, IGroundEdge edge)
+    {
+        if (!IsUnclearedCenterline(edge))
+        {
+            return false;
+        }
+
+        double runNm = edge.DistanceNm;
+        for (var p = current; p is { LastEdge: { } prevEdge }; p = p.Previous)
+        {
+            if (!prevEdge.IsRunwayCenterline || !prevEdge.SharesTaxiway(edge))
+            {
+                break;
+            }
+
+            runNm += prevEdge.DistanceNm;
+        }
+
+        return runNm > MaxUnclearedCenterlineRunNm;
+    }
+
+    private bool IsUnclearedCenterline(IGroundEdge edge)
+    {
+        if (!edge.IsRunwayCenterline)
+        {
+            return false;
+        }
+
+        foreach (string allowed in AllowedCenterlineNames)
+        {
+            if (edge.MatchesTaxiway(allowed))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    /// True when the edge sequence contains an uncleared centerline run that ENTERS and EXITS on
+    /// the SAME side of the runway. A genuine crossing comes out the opposite side; an
+    /// enter-here-exit-there hop between two exits on one side is travel ALONG the runway that the
+    /// per-run length cap alone cannot catch (OAK: onto 10L at G, off at the adjacent E exit).
+    /// Checked on a candidate route rather than per-expansion — side depends on how the run was
+    /// entered, and folding that history into A* admissibility would poison the
+    /// (node, bearing-bucket) closed set with path-dependent dead ends.
+    /// </summary>
+    public bool HasSameSideCenterlineRun(IReadOnlyList<DirectionalEdge> edges)
+    {
+        for (int i = 0; i < edges.Count; i++)
+        {
+            if (!IsUnclearedCenterline(edges[i].Edge))
+            {
+                continue;
+            }
+
+            var runEdge = edges[i].Edge;
+
+            // Extend over everything sharing the runway name — including the flanking junction
+            // arcs ("G - RWY28R/10L"), whose outer endpoints are the off-runway entry/exit nodes.
+            int a = i;
+            while (a > 0 && edges[a - 1].Edge.SharesTaxiway(runEdge))
+            {
+                a--;
+            }
+
+            int b = i;
+            while (b < edges.Count - 1 && edges[b + 1].Edge.SharesTaxiway(runEdge))
+            {
+                b++;
+            }
+
+            var axisA = runEdge.Nodes[0].Position;
+            var axisB = runEdge.Nodes[1].Position;
+            double entrySide = SideOfLine(axisA, axisB, edges[a].FromNode.Position);
+            double exitSide = SideOfLine(axisA, axisB, edges[b].ToNode.Position);
+            if ((entrySide * exitSide) > 0)
+            {
+                return true;
+            }
+
+            i = b;
+        }
+
+        return false;
+    }
+
+    /// <summary>Signed side of <paramref name="p"/> relative to the line A→B (local equirectangular cross product).</summary>
+    private static double SideOfLine(LatLon a, LatLon b, LatLon p)
+    {
+        double cosLat = Math.Cos(a.Lat * Math.PI / 180.0);
+        double abX = (b.Lon - a.Lon) * cosLat;
+        double abY = b.Lat - a.Lat;
+        double apX = (p.Lon - a.Lon) * cosLat;
+        double apY = p.Lat - a.Lat;
+        return (abX * apY) - (abY * apX);
+    }
+
+    /// <summary>
     /// The airport's implicit connectors (e.g. <c>LF</c> between <c>L</c> and <c>F</c>), resolved from
     /// <see cref="NavigationDatabase.AirportSidecars"/>. Used both to authorize a connector contextually
     /// and to let an explicit named-taxiway transition prefer the painted connector over crossing at the
@@ -191,6 +314,32 @@ public sealed record SearchContext(
         // resolved unconditionally — there is no warn mode and no waypoint-sequence gate.
         var blocked = ResolveBlockedTurns(layout);
 
+        // Along-runway travel is admissible only for runways the controller named in the path, plus
+        // the runway the aircraft is already standing on (post-landing / lined-up starts).
+        var allowedCenterlines = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (string token in waypointSequence)
+        {
+            if (layout.TryGetRunwayCenterlineName(token, out string? centerlineName))
+            {
+                allowedCenterlines.Add(centerlineName);
+            }
+            else if (token.StartsWith("RWY", StringComparison.OrdinalIgnoreCase))
+            {
+                allowedCenterlines.Add(token);
+            }
+        }
+
+        if (layout.Nodes.TryGetValue(startNodeId, out var startNode))
+        {
+            foreach (var edge in startNode.Edges)
+            {
+                if (edge.IsRunwayCenterline)
+                {
+                    allowedCenterlines.Add(RouteCostFunction.ResolveTaxiwayName(edge, startNodeId));
+                }
+            }
+        }
+
         return new SearchContext(layout, startNodeId, destination, waypointSequence, authorized, holdShorts, category, preference, diagnosticLog)
         {
             AvoidedTaxiways = avoidedTaxiways,
@@ -202,6 +351,7 @@ public sealed record SearchContext(
             ImplicitConnectors = implicitConnectors,
             WaypointTurnHints = waypointTurnHints,
             StartHeadingTrue = startHeadingTrue,
+            AllowedCenterlineNames = allowedCenterlines,
         };
     }
 
