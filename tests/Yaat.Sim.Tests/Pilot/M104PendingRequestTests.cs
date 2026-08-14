@@ -77,6 +77,27 @@ public sealed class M104PendingRequestTests
         Assert.Equal(PilotPendingRequestResponseState.Satisfied, ac.PendingPilotRequest!.ResponseState);
     }
 
+    // A VFR pattern aircraft transmits "request closed traffic" (recorded by PatternEntryPhase as a
+    // Landing request). Per 7110.65 3-10-11 the controller grants it with "LEFT/RIGHT CLOSED TRAFFIC
+    // APPROVED" — YAAT's MLT/MRT. That grant must satisfy the request; otherwise the pilot re-announces
+    // "request closed traffic" every 120 s (the issue #307 class). The AirspaceEntry arm already treats
+    // MLT/MRT as satisfying, so the Landing arm omitting them is an asymmetry.
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void MakeTraffic_ClosesPendingClosedTrafficLandingRequest(bool left)
+    {
+        var ac = NewAircraft();
+        ac.IsOnGround = false;
+        PilotRequestTracker.RecordRequest(ac, PilotPendingRequestKind.Landing, nowSeconds: 10, ClosedTrafficLine, PilotRequestContext.None);
+        ParsedCommand makeTraffic = left ? new MakeLeftTrafficCommand(null, null) : new MakeRightTrafficCommand(null, null);
+        var compound = new CompoundCommand([new ParsedBlock(null, [makeTraffic])]);
+
+        PilotRequestTracker.ApplyControllerResponse(ac, compound, nowSeconds: 20);
+
+        Assert.Equal(PilotPendingRequestResponseState.Satisfied, ac.PendingPilotRequest!.ResponseState);
+    }
+
     [Fact]
     public void ClearedForTakeoff_ClosesPendingTakeoffRequest()
     {
@@ -166,6 +187,11 @@ public sealed class M104PendingRequestTests
     private static readonly PilotSpeechText ReadyToTaxiLine = new(
         "ground, ready to taxi.",
         "ground, november one two three alpha bravo, ready to taxi."
+    );
+
+    private static readonly PilotSpeechText ClosedTrafficLine = new(
+        "tower, three miles south at one thousand five hundred, request closed traffic.",
+        "tower, november one two three alpha bravo, three miles south at one thousand five hundred, request closed traffic."
     );
 
     private static readonly PilotSpeechText ReadyForDepartureLine = new(
