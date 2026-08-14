@@ -200,7 +200,9 @@ internal static class GroundCommandHandler
             route.Segments.Count,
             route.HoldShortPoints.Count,
             hsDetails,
-            route.ToSummary()
+            // Same overload as the response below, so the log names an along-runway leg by the
+            // commanded end ("on 33") instead of the travel-direction fallback ("on 15").
+            route.ToSummary(BuildTurnHintMap(taxi), taxi.Path)
         );
 
         if (!IsPlausibleNodeRefResolution(groundLayout, taxi, route))

@@ -141,8 +141,11 @@ public static class RouteMaterialiser
                     continue;
                 }
 
-                // Cleared to taxi along this runway: no hold-short at its boundary (taxi straight on).
-                if (clearedRunways.Exists(d => runwayId.Contains(d)))
+                // Cleared to taxi along this runway: no hold-short at its boundary (taxi straight
+                // on) — unless the controller ALSO named it in the HS list. An explicit HS overrides
+                // the straight-on entry: the aircraft holds at the entry-side bar until cleared, then
+                // proceeds onto/along the runway (the exit side pairs away below like any crossing).
+                if (clearedRunways.Exists(d => runwayId.Contains(d)) && !MatchesExplicitHoldShort(runwayId, ctx.ExplicitHoldShorts))
                 {
                     continue;
                 }
@@ -300,7 +303,7 @@ public static class RouteMaterialiser
             return;
         }
 
-        if (clearedRunways.Exists(designator => startRwyId.Contains(designator)))
+        if (clearedRunways.Exists(designator => startRwyId.Contains(designator)) && !MatchesExplicitHoldShort(startRwyId, ctx.ExplicitHoldShorts))
         {
             return;
         }

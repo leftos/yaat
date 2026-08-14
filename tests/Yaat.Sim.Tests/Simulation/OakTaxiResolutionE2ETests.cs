@@ -156,6 +156,56 @@ public class OakTaxiResolutionE2ETests(ITestOutputHelper output)
         Assert.Equal(JunctionCD, route.Segments[^1].ToNodeId);
     }
 
+    /// <summary>
+    /// <b>Case 4 — N8312H, t=1849, <c>TAXI F 33 D C B RWY 28R HS 33</c>:</b> the resolved route
+    /// back-taxis runway 15/33 as commanded, but the explicit <c>HS 33</c> was silently dropped —
+    /// the only hold-short was the 28R destination bar, so the pilot would roll onto 15/33 without
+    /// ever stopping. Naming a runway in the path authorizes taxiing onto it, but an explicit
+    /// <c>HS</c> for that runway must override the straight-on entry with a hold-short bar at the
+    /// entry side, and the response must echo it.
+    /// </summary>
+    [Fact]
+    public void TaxiF33_WithHs33_ArmsHoldShortBeforeEnteringTheRunway()
+    {
+        var issued = IssueTaxi(1845, "N8312H", "TAXI F 33 D C B RWY 28R HS 33");
+        if (issued is null)
+        {
+            return;
+        }
+
+        var (result, route) = issued.Value;
+        Assert.True(result.Success, result.Message);
+
+        // The commanded back-taxi on 15/33 is preserved.
+        int firstRunwaySegment = route.Segments.FindIndex(s => s.Edge.Edge.IsRunwayCenterline && s.Edge.Edge.MatchesRunway("33"));
+        Assert.True(firstRunwaySegment >= 0, $"route must still back-taxi 15/33 as commanded: {route.ToSummary()}");
+
+        // HS 33 arms an uncleared hold-short at the runway entry — at or before the first
+        // along-runway segment.
+        var hs33 = route.HoldShortPoints.Find(h =>
+            (h.Reason == HoldShortReason.ExplicitHoldShort) && (h.TargetName is not null) && h.TargetName.Contains("33", StringComparison.Ordinal)
+        );
+        if (hs33 is null)
+        {
+            Assert.Fail(
+                $"HS 33 must arm a hold-short; got [{string.Join(", ", route.HoldShortPoints.Select(h => $"{h.TargetName}@{h.NodeId}({h.Reason})"))}]"
+            );
+            return;
+        }
+
+        Assert.False(hs33.IsCleared);
+        int hsSegment = route.Segments.FindIndex(s => (s.FromNodeId == hs33.NodeId) || (s.ToNodeId == hs33.NodeId));
+        Assert.True(
+            hsSegment >= 0 && hsSegment <= firstRunwaySegment,
+            $"HS 33 bar (segment {hsSegment}) must sit at or before the runway entry (segment {firstRunwaySegment})"
+        );
+
+        // The response echoes the honored hold-short.
+        Assert.NotNull(result.Message);
+        Assert.Contains("HS", result.Message, StringComparison.Ordinal);
+        Assert.Contains("33", result.Message[result.Message.IndexOf("HS", StringComparison.Ordinal)..], StringComparison.Ordinal);
+    }
+
     [Fact]
     public void TaxiCD_AfterExit_ResponseSaysWhereTheAircraftWillHold()
     {

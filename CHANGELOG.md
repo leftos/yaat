@@ -5,6 +5,9 @@
 ### Changed
 - A `TAXI` clearance ending on a taxiway with no destination or turn hint (e.g. `TAXI C D` after landing) now taxis to where the route meets that final taxiway and holds there, instead of committing the aircraft down the taxiway in a guessed direction (`TAXI C D` at OAK used to walk the full length of D to the 15/33 boundary). The response says where the aircraft will hold: `Taxi via E C [holding at C/D intersection — no onward direction on D]`.
 
+### Fixed
+- An explicit `HS` for a runway the taxi route also travels **along** (e.g. `TAXI F 33 D C B RWY 28R HS 33`) is no longer silently dropped — the aircraft now holds short at each 15/33 boundary until cleared across/onto it, instead of rolling onto the runway unimpeded, and the response echoes the hold-short (`… HS 15/33 RWY 28R`).
+
 ### Added
 - Favorite commands live in sets on one level — **Global**, per-airport, per-scenario, and named sets (e.g. "S1 Training") loaded/unloaded via the **Sets** button. (#354)
 - A favorite can belong to several sets at once — the same favorite everywhere, one edit updates every appearance; the add/edit dialogs pick its sets with checkboxes.
