@@ -572,7 +572,7 @@ public static class RouteMaterialiser
 
         // Turn-direction hints (issue #172 W7) the resolver couldn't honor — advise the controller that
         // the aircraft turned the other way. De-duplicated in case a hint was evaluated more than once.
-        foreach (string advisory in ctx.TurnHintAdvisories.Distinct())
+        foreach (string advisory in ctx.ResolutionAdvisories.Distinct())
         {
             warnings.Add(advisory);
         }

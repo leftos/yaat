@@ -133,13 +133,14 @@ public sealed record SearchContext(
     public double? StartHeadingTrue { get; init; }
 
     /// <summary>
-    /// Sink for advisories the explicit resolver appends when a <c>&gt;</c>/<c>&lt;</c> turn hint could
-    /// not be honored at the committed junction (the geometry admitted only the other turn). Mutable so
+    /// Sink for advisories the explicit resolver appends while committing the route — a
+    /// <c>&gt;</c>/<c>&lt;</c> turn hint it could not honor at the committed junction, or a bare final
+    /// taxiway with no onward direction that makes the route hold at the transition junction. Mutable so
     /// the resolver records into it as it commits each transition; <see cref="RouteMaterialiser"/> copies
-    /// the entries onto the route's warnings so the controller's TAXI echo reports the unhonored turn.
+    /// the entries onto the route's warnings so the controller's TAXI echo reports them.
     /// One list per search (shared across <c>with</c> copies); only the top-level resolution records.
     /// </summary>
-    public List<string> TurnHintAdvisories { get; init; } = [];
+    public List<string> ResolutionAdvisories { get; init; } = [];
 
     /// <summary>
     /// Build a <see cref="SearchContext"/> from parsed command inputs.

@@ -89,19 +89,16 @@ public class TaxiCrossTrailingTaxiwayTests(ITestOutputHelper output)
         Assert.True(result.Success, result.Message);
         Assert.NotNull(route);
 
-        // The route must continue onto taxiway B (the clearance's last leg), not stop just past 33.
-        Assert.Contains(route.Segments, s => s.TaxiwayName == "B");
+        // The route must reach taxiway B (the clearance's last leg), not truncate at 33. B has no
+        // onward direction or destination, so the route holds at the C/B junction rather than
+        // walking B toward 28R — the controller continues it with a follow-up taxi or RWY clearance.
+        var layout = new TestAirportGroundData().GetLayout("OAK");
+        Assert.NotNull(layout);
+        var lastNode = layout.Nodes[route.Segments[^1].ToNodeId];
+        Assert.True(lastNode.Edges.Any(e => e.MatchesTaxiway("B")), $"expected the route to hold at a C/B junction, ended at #{lastNode.Id}");
 
-        // The route must hold short of 28R (the runway it was not cleared across) — the same place the
-        // recorded RWY-28R workaround stopped — proving it produced the correct, safe C→B route rather
-        // than truncating at 33 or blowing through a runway.
-        Assert.Contains(
-            route.HoldShortPoints,
-            h =>
-                (h.Reason == HoldShortReason.RunwayCrossing)
-                && (h.TargetName is not null)
-                && h.TargetName.Contains("28R", StringComparison.OrdinalIgnoreCase)
-                && !h.IsCleared
-        );
+        // Holding at C/B never approaches 28R, and 33 lies the other way along C — the route must
+        // not cross or enter any runway.
+        Assert.DoesNotContain(route.Segments, s => s.Edge.Edge.IsRunwayCenterline);
     }
 }

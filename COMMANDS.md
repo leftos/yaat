@@ -700,7 +700,7 @@ These mutate ASDE-X display state only; they never change the underlying scenari
 | `PUSH @4A FACE NE` | Push back to gate 4A, facing northeast |
 | `PUSH $7A` | Push onto spot 7A — reverse past it then pull forward, ending lined up **nose-out** toward the parent taxiway with the nosewheel on the mark |
 | `PUSH $7A TAIL W` | Push onto spot 7A with tail pointing west (= face east), overriding the default nose-out facing |
-| `TAXI S T U W W1` | Taxi via taxiways S, T, U, W, W1 |
+| `TAXI S T U W W1` | Taxi via taxiways S, T, U, W, W1. With no destination, the **final** taxiway gives no onward direction, so the aircraft taxis to where the route meets it and holds there — the response notes it (e.g. `[holding at W/W1 intersection — no onward direction on W1]`). Continue it with a follow-up `TAXI`, a destination (`RWY`/`@parking`), or a turn hint on the last taxiway (`TAXI C >D`), all of which commit a direction and taxi the full leg. |
 | `TAXI T U W 30` | Taxi via T, U, W to runway 30 |
 | `TAXI T U W RWY 30` | Same as above (explicit RWY keyword) |
 | `RWY 30 TAXI T U W` | Same as above (RWY-first syntax) |

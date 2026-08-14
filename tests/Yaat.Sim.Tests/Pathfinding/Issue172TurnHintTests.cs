@@ -275,7 +275,8 @@ public class Issue172TurnHintTests(ITestOutputHelper output)
         Assert.Null(failReason);
         Assert.NotNull(route);
         Assert.Equal(11, route.Segments[0].ToNodeId); // AE — went right (east) onto A
-        Assert.Equal(12, route.Segments[^1].ToNodeId); // BE
+        // The bare final taxiway B has no onward direction, so the route holds at the A/B junction.
+        Assert.Equal(11, route.Segments[^1].ToNodeId);
     }
 
     [Fact]
@@ -286,7 +287,8 @@ public class Issue172TurnHintTests(ITestOutputHelper output)
         Assert.Null(failReason);
         Assert.NotNull(route);
         Assert.Equal(13, route.Segments[0].ToNodeId); // AW — went left (west) onto A
-        Assert.Equal(14, route.Segments[^1].ToNodeId); // BW
+        // The bare final taxiway B has no onward direction, so the route holds at the A/B junction.
+        Assert.Equal(13, route.Segments[^1].ToNodeId);
     }
 
     // -----------------------------------------------------------------------

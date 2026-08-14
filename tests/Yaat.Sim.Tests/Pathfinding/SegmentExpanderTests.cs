@@ -134,9 +134,11 @@ public class SegmentExpanderTests(ITestOutputHelper output)
 
         Assert.Null(failure);
         Assert.NotNull(route);
-        // A: n0→n1, n1→n2; B: n2→n3
-        Assert.Equal(3, route.Segments.Count);
-        Assert.Equal(3, route.Segments[^1].ToNodeId);
+        // A: n0→n1, n1→n2 — then hold at the A/B junction (n2). The bare final taxiway B has no
+        // onward direction or destination, so the route stops where it meets B instead of walking it.
+        Assert.Equal(2, route.Segments.Count);
+        Assert.Equal(2, route.Segments[^1].ToNodeId);
+        Assert.Contains(route.Warnings, w => w.Contains("holding at A/B intersection", StringComparison.OrdinalIgnoreCase));
     }
 
     // -----------------------------------------------------------------------
@@ -173,12 +175,11 @@ public class SegmentExpanderTests(ITestOutputHelper output)
 
         Assert.Null(failure);
         Assert.NotNull(route);
-        // Route should end somewhere on taxiway B. The greedy terminus walk
-        // may proceed past n4 to n3 (n3 also has a B edge), so verify we land
-        // on a node that is in the B network (n3 or n4) and not back at the start.
+        // The bare final taxiway B has no onward direction or destination, so the route stops at a
+        // junction where A meets B (n1 or n3) instead of walking B in a guessed direction.
         int lastNode = route.Segments[^1].ToNodeId;
-        Assert.True(lastNode == 3 || lastNode == 4, $"Expected terminus on B (n3 or n4) but got n{lastNode}");
-        Assert.NotEqual(0, lastNode);
+        Assert.True(lastNode == 1 || lastNode == 3, $"Expected stop at an A/B junction (n1 or n3) but got n{lastNode}");
+        Assert.DoesNotContain(route.Segments, s => s.TaxiwayName.Equals("B", StringComparison.OrdinalIgnoreCase));
     }
 
     // -----------------------------------------------------------------------
@@ -258,10 +259,11 @@ public class SegmentExpanderTests(ITestOutputHelper output)
         var ctx = ExplicitCtx(layout, fromNodeId: 0, waypoints: ["A", "B"], log: s => output.WriteLine(s));
         var (route, failure) = SegmentExpander.Run(ctx);
 
-        // The pathfinder should find the detour via N1.
+        // The pathfinder should find the detour via N1 and hold where it reaches B (n2) — the bare
+        // final taxiway has no onward direction, so B is not walked.
         Assert.Null(failure);
         Assert.NotNull(route);
-        Assert.Equal(3, route.Segments[^1].ToNodeId);
+        Assert.Equal(2, route.Segments[^1].ToNodeId);
     }
 
     // -----------------------------------------------------------------------

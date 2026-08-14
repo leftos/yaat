@@ -436,8 +436,11 @@ public static class SegmentExpander
                 // Last waypoint: walk to natural terminus of the taxiway (or the node itself for
                 // node-refs). The named taxiway it was reached FROM (when any) lets a bare final
                 // taxiway with no downstream constraint stop at that junction instead of walking off
-                // in an arbitrary direction.
-                string? precedingTaxiway = (i > 0 && !tokens[i - 1].IsNodeRef) ? tokens[i - 1].Name : null;
+                // in an arbitrary direction. A preceding RUNWAY token does not count: stopping at the
+                // runway/taxiway "junction" ends the route on the runway surface with no crossing
+                // bar (MIA TAXI M1 RWY08R/26L L1 stopped on the 08R centerline), so the final
+                // taxiway is walked clear of the runway as before.
+                string? precedingTaxiway = (i > 0 && !tokens[i - 1].IsNodeRef && !tokens[i - 1].IsRunway) ? tokens[i - 1].Name : null;
                 var (segEdges, newHead, failure) = ExpandLastWaypoint(current, token, precedingTaxiway, ctx);
                 if (failure is not null)
                 {
@@ -582,7 +585,9 @@ public static class SegmentExpander
             }
             else
             {
-                result.Add(new WaypointToken(token, IsNodeRef: false, ResolvedNodeId: -1, TurnHint: hint, IsRunway: false));
+                // A token already in canonical centerline form ("RWY08R/26L") routes along the runway
+                // by name without the rewrite above, so classify it as a runway too.
+                result.Add(new WaypointToken(token, IsNodeRef: false, ResolvedNodeId: -1, TurnHint: hint, IsRunway: IsRunwayWaypoint(token)));
             }
         }
 
@@ -711,7 +716,7 @@ public static class SegmentExpander
             {
                 // No edge on this taxiway departs the hinted way from the aircraft's heading — the turn
                 // can't be honored, so advise the controller (the terminus walk still picks a direction).
-                ctx.TurnHintAdvisories.Add(TurnHintAdvisory(waypoint.Name, firstHint));
+                ctx.ResolutionAdvisories.Add(TurnHintAdvisory(waypoint.Name, firstHint));
             }
         }
 
@@ -719,9 +724,9 @@ public static class SegmentExpander
         // that intersection rather than committing to a direction along the final taxiway. "TAXI G B"
         // leaves the aircraft at the pure G/B intersection so the controller can then turn it either
         // way on B with a follow-up taxi; walking B here is direction-blind and picks a wrong way.
-        // A destination (handled above) or a hold-short on the taxiway (a non-null bias) gives a
-        // direction, so those keep walking.
-        if (precedingTaxiway is not null && bias is null && ctx.Destination.Kind == DestinationKind.EndOfLastTaxiway)
+        // A destination (handled above), a hold-short on the taxiway (a non-null bias), or a >/<
+        // turn hint on the final taxiway gives a direction, so those keep walking.
+        if (precedingTaxiway is not null && bias is null && waypoint.TurnHint is null && ctx.Destination.Kind == DestinationKind.EndOfLastTaxiway)
         {
             var terminate = TerminateAtTransitionJunction(head, precedingTaxiway, waypoint.Name, ctx);
             if (terminate is not null)
@@ -739,13 +744,12 @@ public static class SegmentExpander
     /// taxiway with no downstream constraint (e.g. <c>TAXI G B</c>): the aircraft arrives at the
     /// junction and holds, ready to be turned either way on the final taxiway by a follow-up taxi.
     /// Routes from the current head along the preceding taxiway to the canonical (pre-fillet, lowest
-    /// id) crossing node.
-    ///
-    /// <para>Only fires when the final taxiway extends in more than one direction from the
-    /// intersection — that is the case where a direction must be guessed (and was guessed wrong). A
-    /// final taxiway that leaves the junction only one way (a stub) is unambiguous, so the caller
-    /// walks it normally. Returns null — caller falls back to the natural-terminus walk — when the
-    /// intersection is unknown, unambiguous, or unreachable on the preceding taxiway.</para>
+    /// id) crossing node. Applies whether the final taxiway extends one way or both ways from the
+    /// junction — the clearance gave no onward direction or destination, so committing the aircraft
+    /// down the taxiway (OAK <c>TAXI C D</c> walking the full 0.9 nm of D to the 15/33 boundary) is
+    /// never what the controller meant. An advisory tells the controller where the aircraft holds.
+    /// Returns null — caller falls back to the natural-terminus walk — when the intersection is
+    /// unknown or unreachable on the preceding taxiway.
     /// </summary>
     private static (List<DirectionalEdge>? Edges, PartialRoute? Head, PathfindingFailure? Failure)? TerminateAtTransitionJunction(
         PartialRoute head,
@@ -754,33 +758,43 @@ public static class SegmentExpander
         SearchContext ctx
     )
     {
-        var intersection = ctx.Layout.FindIntersectionNode(precedingTaxiway, finalTaxiway);
-        if (intersection is null)
-        {
-            return null;
-        }
+        List<DirectionalEdge> edges = [];
+        var junctionHead = head;
 
-        int finalTaxiwayDirections = 0;
-        foreach (var edge in intersection.Edges)
+        var intersection = ctx.Layout.FindIntersectionNode(precedingTaxiway, finalTaxiway);
+        if (intersection is not null && head.HeadNodeId != intersection.Id)
         {
-            if (edge.MatchesTaxiway(finalTaxiway))
+            (var searchEdges, junctionHead, _) = LocalSearchToJunction(head, precedingTaxiway, intersection.Id, ctx);
+            if (searchEdges is null || junctionHead is null)
             {
-                finalTaxiwayDirections++;
+                // The canonical intersection is behind or otherwise unreachable from the junction the
+                // preceding segment committed to. The head already sits at (or one fillet node short
+                // of) a junction with the final taxiway — that pick is the stop.
+                bool headOnFinal = ctx.Layout.Nodes.TryGetValue(head.HeadNodeId, out var headNode) && NodeIncidentToTaxiway(headNode, finalTaxiway);
+                if (!headOnFinal)
+                {
+                    return null;
+                }
+
+                junctionHead = head;
+                edges = [];
+            }
+            else
+            {
+                edges = searchEdges;
+            }
+        }
+        else if (intersection is null)
+        {
+            bool headOnFinal = ctx.Layout.Nodes.TryGetValue(head.HeadNodeId, out var headNode) && NodeIncidentToTaxiway(headNode, finalTaxiway);
+            if (!headOnFinal)
+            {
+                return null;
             }
         }
 
-        if (finalTaxiwayDirections < 2)
-        {
-            return null;
-        }
-
-        var (edges, junctionHead, _) = LocalSearchToJunction(head, precedingTaxiway, intersection.Id, ctx);
-        if (edges is null || junctionHead is null)
-        {
-            return null;
-        }
-
-        ctx.DiagnosticLog?.Invoke($"[terminus-junction] {precedingTaxiway}/{finalTaxiway} stop={intersection.Id} edges={edges.Count}");
+        ctx.ResolutionAdvisories.Add($"holding at {precedingTaxiway}/{finalTaxiway} intersection — no onward direction on {finalTaxiway}");
+        ctx.DiagnosticLog?.Invoke($"[terminus-junction] {precedingTaxiway}/{finalTaxiway} stop={junctionHead.HeadNodeId} edges={edges.Count}");
         return (edges, junctionHead, null);
     }
 
@@ -1438,12 +1452,12 @@ public static class SegmentExpander
                 && tokens[index + 1].TurnHint is { } ontoHint
             )
             {
-                ctx.TurnHintAdvisories.Add(TurnHintAdvisory(toTaxiway, ontoHint));
+                ctx.ResolutionAdvisories.Add(TurnHintAdvisory(toTaxiway, ontoHint));
             }
 
             if (FirstTaxiwayTurnHintPenalty(bestSegEdges, tokens, index, ctx) > 0 && tokens[0].TurnHint is { } firstHint)
             {
-                ctx.TurnHintAdvisories.Add(TurnHintAdvisory(tokens[0].Name, firstHint));
+                ctx.ResolutionAdvisories.Add(TurnHintAdvisory(tokens[0].Name, firstHint));
             }
         }
 

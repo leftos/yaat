@@ -92,11 +92,13 @@ public class RunwaySegmentRoutingTests
         // The centerline of 28R is traversed.
         Assert.Contains(route.Segments, s => s.Edge.Edge.IsRunwayCenterline && s.Edge.Edge.MatchesRunway("28R"));
 
-        // Segments appear in clearance order: runway 28R, then G, then D.
+        // Segments appear in clearance order: runway 28R, then G. The bare final taxiway D has no
+        // onward direction or destination, so the route holds where G meets D instead of walking D.
         int rwyIdx = route.Segments.FindIndex(s => s.Edge.Edge.IsRunwayCenterline && s.Edge.Edge.MatchesRunway("28R"));
         int gIdx = route.Segments.FindIndex(s => s.TaxiwayName == "G");
-        int dIdx = route.Segments.FindIndex(s => s.TaxiwayName == "D");
-        Assert.True(rwyIdx >= 0 && gIdx > rwyIdx && dIdx > gIdx, $"expected 28R(centerline)#{rwyIdx} < G#{gIdx} < D#{dIdx} in segment order");
+        Assert.True(rwyIdx >= 0 && gIdx > rwyIdx, $"expected 28R(centerline)#{rwyIdx} < G#{gIdx} in segment order");
+        var lastNode = layout.Nodes[route.Segments[^1].ToNodeId];
+        Assert.True(lastNode.Edges.Any(e => e.MatchesTaxiway("D")), $"expected the route to hold at a G/D junction, ended at #{lastNode.Id}");
 
         // The cleared runway is taxied straight onto — no hold-short at its entry.
         Assert.DoesNotContain(route.HoldShortPoints, h => (h.TargetName ?? "").Contains("28R", StringComparison.Ordinal));

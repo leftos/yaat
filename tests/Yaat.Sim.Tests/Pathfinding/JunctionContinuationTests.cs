@@ -198,7 +198,11 @@ public class JunctionContinuationTests
         // Failure mode 2: the instructed taxiway order is honored. The single-name runs must
         // contain the instruction as an in-order subsequence, so B is fully walked to the B/B3
         // junction (B before B3) and the second A comes after B3 — never B3 taken off the first A.
-        AssertOrderedSubsequence(instructed, runs);
+        // The bare final taxiway S is not walked — the route holds at the Z/S junction — so it is
+        // excluded from the subsequence and asserted as the terminus instead.
+        AssertOrderedSubsequence(instructed[..^1], runs);
+        var lastNode = layout.Nodes[route.Segments[^1].ToNodeId];
+        Assert.True(lastNode.Edges.Any(e => e.MatchesTaxiway("S")), $"expected the route to hold at a Z/S junction, ended at #{lastNode.Id}");
 
         // On the current SFO layout (vNAS data-api), taxiway A and B1 share a direct junction
         // (node 1159, carrying an A/B1 fillet arc), so the resolver bridges A→B1 with no inserted
