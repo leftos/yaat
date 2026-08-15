@@ -140,7 +140,13 @@ public static class PilotRequestTracker
                 or StopAndGoCommand
                 or LowApproachCommand
                 or ClearedForOptionCommand
-                or GoAroundCommand => PilotPendingRequestResponseState.Satisfied,
+                or GoAroundCommand
+                // "LEFT/RIGHT CLOSED TRAFFIC APPROVED" (7110.65 3-10-11) is the grant for the
+                // "request closed traffic" call PatternEntryPhase records as a Landing request; in
+                // YAAT that is MLT/MRT. Without it the approved pilot re-announces the request every
+                // 120 s (issue #307 class). Mirrors the AirspaceEntry arm below.
+                or MakeLeftTrafficCommand
+                or MakeRightTrafficCommand => PilotPendingRequestResponseState.Satisfied,
                 _ => PilotPendingRequestResponseState.None,
             },
             PilotPendingRequestKind.Approach => command switch
