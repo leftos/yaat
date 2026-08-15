@@ -227,16 +227,26 @@ public static class PhraseologyMapper
         // produces strictly more outputs or consumes strictly more input tokens than pass 1,
         // so a "for"-rule match in pass 1 always beats an equivalent pass 2 result.
         //
-        // The runwayInvalid flag is OR-accumulated across both passes. It's set whenever a rule
-        // pattern-matches and produces a {rwy} capture that isn't in MapContext.AvailableRunways
-        // (see TryMatchRule). When set, Map returns null — even if some shorter rule still
+        // The runwayInvalid flag is tracked per pass. It's set whenever a rule pattern-matches
+        // and produces a {rwy} capture that isn't in MapContext.AvailableRunways (see
+        // TryMatchRule). When it holds, Map returns null — even if some shorter rule still
         // matched — because the user explicitly mentioned a runway and downgrading to a
         // runway-less rule (e.g. "ERD" instead of "ERD 28R") would silently strip that mention.
         // Returning null lets the LLM fallback recover the intended runway from scenario context.
+        //
+        // Whenever pass 2 runs, ITS flag is authoritative — win or lose. Pass 2's de-fillered
+        // token stream is the truer view of the transcript: an invalid {rwy} capture there can
+        // only come from a genuine runway mention, whereas pass 1 routinely captures a filler
+        // itself (e.g. "for" in "cross runway for two eight right") as the runway, and that
+        // artifact must not poison a pass 2 that stripped the filler and resolved the real
+        // runway. Conversely, a pass 2 invalid still vetoes a tying pass 1 result ("enter right
+        // downwind for runway 274" downgrades to a bare ERD in both passes — only pass 2's rule
+        // attempt ever reaches the 274 capture).
         var matchedRulesPass1 = new List<PhraseologyRule>();
-        var runwayInvalid = false;
-        var (outputs, consumedPass1) = MatchTokens(tokens, context, matchedRulesPass1, ref runwayInvalid);
+        var runwayInvalidPass1 = false;
+        var (outputs, consumedPass1) = MatchTokens(tokens, context, matchedRulesPass1, ref runwayInvalidPass1);
         var winningMatchedRules = matchedRulesPass1;
+        var runwayInvalid = runwayInvalidPass1;
 
         var pass1UsedSecondPassFiller = matchedRulesPass1.Any(r => r.Pattern.Any(p => SecondPassFillers.Contains(p)));
         var inputContainsSecondPassFiller = tokens.Any(t => SecondPassFillers.Contains(t));
@@ -249,7 +259,9 @@ public static class PhraseologyMapper
             );
             var strippedTokens = tokens.Where(t => !SecondPassFillers.Contains(t)).ToList();
             var matchedRulesPass2 = new List<PhraseologyRule>();
-            var (outputsPass2, consumedPass2) = MatchTokens(strippedTokens, context, matchedRulesPass2, ref runwayInvalid);
+            var runwayInvalidPass2 = false;
+            var (outputsPass2, consumedPass2) = MatchTokens(strippedTokens, context, matchedRulesPass2, ref runwayInvalidPass2);
+            runwayInvalid = runwayInvalidPass2;
 
             // Pass 2 wins on more outputs OR same outputs but more raw tokens consumed. Comparing
             // raw consumed counts is fair here because pass 2's input is a subset of pass 1's

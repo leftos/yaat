@@ -969,6 +969,29 @@ public class PhraseologyMapperTests
         Assert.Equal(expected, result!.CanonicalCommand);
     }
 
+    [Fact]
+    public void TwoPassFiller_RunwayInvalidFromPass1_DoesNotPoisonWinningPass2()
+    {
+        // "cross runway for two eight right" — pass 1's "cross runway {rwy}" rule captures the
+        // conversational filler "for" as the runway and fails validation. Pass 2 strips the
+        // filler, resolves CROSS 28R, and wins — pass 1's invalid capture must not null out the
+        // winning pass 2 result (that would force a needless LLM fallback).
+        var ctx = ContextWithRunways("KOAK", "28R", "28L", "10R", "10L");
+        var result = PhraseologyMapper.Map("cross runway for two eight right", ctx);
+        Assert.NotNull(result);
+        Assert.Equal("CROSS 28R", result!.CanonicalCommand);
+    }
+
+    [Fact]
+    public void TwoPassFiller_RunwayInvalidInBothPasses_StillFailsRule()
+    {
+        // Genuinely invalid runway: 18L isn't at the airport, so both passes fail validation.
+        // The invalid-runway guard must still drop the match so the LLM fallback owns recovery.
+        var ctx = ContextWithRunways("KOAK", "28R", "28L");
+        var result = PhraseologyMapper.Map("cross runway for one eight left", ctx);
+        Assert.Null(result);
+    }
+
     // --- Hold rules ---
 
     [Theory]

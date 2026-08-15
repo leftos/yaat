@@ -281,6 +281,12 @@ depend on LM-Kit and PortAudio native libraries.
   validation would silently fall back to the shorter `enter right
   downwind` rule, stripping the user's runway mention.
 
+  The flag is scoped per matching pass: whenever the filler-stripping
+  pass 2 runs, its flag is authoritative (win or lose), because pass 1
+  routinely captures the filler itself as the runway (`"cross runway
+  for two eight right"` → `{rwy}` = `"for"`) and that artifact must not
+  null out a pass 2 that resolved the real runway.
+
   Skipped entirely when `MapContext.AvailableRunways` is empty — every
   existing test using `MapContext.Empty` continues to pass-through any
   `{rwy}` capture as-is.

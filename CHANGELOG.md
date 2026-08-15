@@ -3,6 +3,8 @@
 ## Unreleased
 
 ### Fixed
+- Approving a solo-training pilot's "request closed traffic" with **left/right closed traffic approved** (`MLT`/`MRT`) now satisfies the request — the pilot no longer re-announces "request closed traffic" every two minutes after it was already granted. (#355)
+- A spoken runway crossing with a conversational "for" before the runway (e.g. "cross runway for two eight right") now maps directly to `CROSS 28R` instead of falling back to the slower LLM recovery — the filler word was being mistaken for the runway and poisoning the retry that had already resolved it correctly.
 - **File > Exit** now behaves like closing the main window: it shows the confirm-exit dialog when a scenario session is active and, once confirmed, runs the full shutdown teardown. It used to force-quit past both — skipping the dialog and the teardown — which could leave the process permanently wedged after the windows closed, with the "YAAT is not responding" warning as the only sign of life. (#347)
 - Quitting can no longer hang forever: if process teardown doesn't finish within 10 seconds of the windows closing, YAAT logs the wedge and exits. (#347)
 - Windows/OS shutdown is no longer blocked by (or bypasses) the confirm-exit dialog — an OS- or application-initiated close proceeds straight to teardown. (#347)
