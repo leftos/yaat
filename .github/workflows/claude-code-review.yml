@@ -46,3 +46,5 @@ jobs:
           plugin_marketplaces: 'https://github.com/anthropics/claude-code.git'
           plugins: 'code-review@claude-code-plugins'
           prompt: '/code-review:code-review ${{ github.repository }}/pull/${{ steps.pr.outputs.number }}'
+          # --model opus tracks the latest Opus release without pinning a version.
+          claude_args: '--model opus'

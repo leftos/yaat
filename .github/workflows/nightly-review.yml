@@ -134,7 +134,7 @@ jobs:
           # The action hides agent output by default ("full output hidden for
           # security"); surface it so dry-run findings and errors are visible.
           show_full_output: true
-          claude_args: '--max-turns 80 --allowed-tools "Bash Read Write Edit Grep Glob WebFetch"'
+          claude_args: '--model opus --max-turns 80 --allowed-tools "Bash Read Write Edit Grep Glob WebFetch"'
           prompt: |
             You are the YAAT nightly code reviewer running headless in CI. Be rigorous and economical.
 
