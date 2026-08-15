@@ -124,10 +124,12 @@ jobs:
         uses: anthropics/claude-code-action@9dd8b95a392eb34b6f5fb56cf5a64cb735912d4b  # v1
         env:
           GH_TOKEN: ${{ secrets.NIGHTLY_REVIEW_TOKEN }}
-          # The agent writes a short Discord-bound TL;DR here; the notifier workflow
-          # picks it up via the uploaded summary artifact. Outside both checkouts so
-          # it never lands in a draft-PR branch.
+          # The agent writes a short Discord-bound TL;DR and its full markdown report
+          # to these paths; the cost step below appends the report to the job summary
+          # and stages both into the notify artifact. Outside both checkouts so they
+          # never land in a draft-PR branch.
           TLDR_FILE: ${{ github.workspace }}/nightly-review-tldr.txt
+          REPORT_FILE: ${{ github.workspace }}/nightly-review-report.md
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           github_token: ${{ secrets.NIGHTLY_REVIEW_TOKEN }}
@@ -203,36 +205,53 @@ jobs:
                 fixes. Never merge.
               - If nothing clears the bar, file nothing and say so. Zero findings is a success, not a failure.
 
-            FINALLY (required): write your full report as markdown to the run's job summary so it is visible
-            on the Actions Summary tab. Read the file path from the `GITHUB_STEP_SUMMARY` environment
-            variable and append your report to that file (e.g. with Bash). The report must include: commits
-            reviewed, subsystem reviewed, candidates considered, what you refuted and why, and what was filed
+            FINALLY (required): write your full report as markdown to the file whose absolute path is in the
+            `REPORT_FILE` environment variable. A later workflow step appends it to the run's job summary
+            (Actions Summary tab) and uploads it as an artifact, so it survives the run and is retrievable
+            later - do not write to GITHUB_STEP_SUMMARY yourself. The report must include: commits reviewed,
+            subsystem reviewed, candidates considered, what you refuted and why, and what was filed
             (issue/PR numbers) - or, in DRY-RUN, the FULL detail of each finding you WOULD file (title,
             file:line, root cause, the repro test, the suggested fix, and a confidence level).
 
             ALSO (required): write a short plain-text TL;DR of this run to the file whose absolute path is in
-            the `TLDR_FILE` environment variable (use Bash, e.g. `printf '%s' "..." > "$TLDR_FILE"`). This
-            text is posted to a Discord CI channel on EVERY run, success or not, so make it self-contained and
-            tight (<= 1500 characters, 1-5 short lines, plain text - no markdown headers). Say what you did and
-            whether anything interesting turned up:
+            the `TLDR_FILE` environment variable. This text is posted to a Discord CI channel on EVERY run,
+            success or not, so make it self-contained and tight: 1-5 short lines, plain text, no markdown
+            headers. HARD LIMIT 1500 characters - anything longer is cut off before posting, so keep detail
+            out of it (detail belongs in REPORT_FILE, which the Discord post links via the run URL):
               - Subsystem reviewed and how many commits were in the window.
               - If you filed anything: the issue/PR numbers and their URLs.
-              - In DRY-RUN: how many findings you WOULD file, with their titles (and note it was a dry run).
+              - In DRY-RUN: how many findings you WOULD file, with their TITLES ONLY (and note it was a dry
+                run) - no root cause, repro, or fix detail here.
               - If nothing cleared the bar: say so plainly (e.g. "No findings - N candidates refuted.").
             Write this file even if the result is "nothing found". If you somehow cannot, it is non-fatal.
 
       # total_cost_usd is a client-side API-price estimate from the run's result
       # JSON. Under subscription auth nothing is billed per-run; the figure is the
       # API-equivalent value the job extracted from the subscription - good enough
-      # for a per-night trend. This step also stages the summary artifact the
-      # "Nightly Review Notify" workflow posts to Discord.
-      - name: Log run cost and stage Discord summary
+      # for a per-night trend. This step also publishes the agent's REPORT_FILE to
+      # the job summary and stages the notify artifact (summary.json + report.md)
+      # the "Nightly Review Notify" workflow posts to Discord.
+      - name: Publish report, log run cost, stage Discord summary
         if: always()
         env:
           EXECUTION_FILE: ${{ steps.review.outputs.execution_file }}
           REVIEW_OUTCOME: ${{ steps.review.outcome }}
         run: |
           set -euo pipefail
+          mkdir -p notify
+
+          # Full markdown report: onto the Actions Summary tab AND into the
+          # artifact - the summary tab is not retrievable via the API, so the
+          # artifact copy is what makes dry-run findings recoverable later.
+          REPORT="${GITHUB_WORKSPACE}/nightly-review-report.md"
+          if [ -s "$REPORT" ]; then
+            cat "$REPORT" >> "$GITHUB_STEP_SUMMARY"
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            cp "$REPORT" notify/report.md
+          else
+            echo "_The reviewer wrote no report file._" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
           FILE="$EXECUTION_FILE"
           COST=""
           if [ -n "$FILE" ] && [ -f "$FILE" ]; then
@@ -247,10 +266,21 @@ jobs:
             fi
           } >> "$GITHUB_STEP_SUMMARY"
 
-          mkdir -p notify
+          # TL;DR for Discord. The notifier adds ~150 chars of header/footer and
+          # Discord caps messages at 2000, so budget 1500 here. When the agent
+          # overruns despite the prompt's hard limit, cut at the last complete
+          # line inside the budget and say so, instead of stopping mid-sentence.
           TLDR="(The reviewer wrote no TL;DR - see the run's job summary for details.)"
-          if [ -s "${GITHUB_WORKSPACE}/nightly-review-tldr.txt" ]; then
-            TLDR=$(head -c 1500 "${GITHUB_WORKSPACE}/nightly-review-tldr.txt")
+          TLDR_SRC="${GITHUB_WORKSPACE}/nightly-review-tldr.txt"
+          if [ -s "$TLDR_SRC" ]; then
+            TLDR=$(cat "$TLDR_SRC")
+            if [ "${#TLDR}" -gt 1500 ]; then
+              TLDR=$(printf '%s' "$TLDR" | head -c 1400)
+              case "$TLDR" in
+                *$'\n'*) TLDR="${TLDR%$'\n'*}" ;;
+              esac
+              TLDR="$TLDR"$'\n'"[TL;DR truncated - full report in the run's summary and artifact]"
+            fi
           fi
           jq -n \
             --arg outcome "${REVIEW_OUTCOME:-unknown}" \
@@ -260,11 +290,11 @@ jobs:
           echo "Staged Discord summary:"
           cat notify/summary.json
 
-      - name: Upload Discord summary
+      - name: Upload Discord summary and report
         if: always()
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f  # v7.0.0
         with:
           name: nightly-review-notify
-          path: notify/summary.json
+          path: notify/
           retention-days: 7
           if-no-files-found: warn
