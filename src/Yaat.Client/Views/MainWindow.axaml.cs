@@ -27,6 +27,8 @@ namespace Yaat.Client.Views;
 
 public partial class MainWindow : Window, IAlwaysOnTopToggle
 {
+    private static readonly ILogger Log = AppLog.CreateLogger("MainWindow");
+
     private readonly WindowGeometryHelper _geometryHelper;
     private readonly WindowProfileService _windowProfileService;
     private TerminalWindow? _terminalWindow;
@@ -3066,9 +3068,45 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
         return confirmed;
     }
 
+    /// <summary>
+    /// Whether closing the main window should first show the confirm-exit dialog. A user-initiated
+    /// close with an active scenario session asks: title-bar X and File &gt; Exit (both reach here
+    /// as <see cref="WindowCloseReason.WindowClosing"/> via <see cref="Window.Close()"/>), a
+    /// platform that reports no reason, and a user-initiated app quit (macOS Cmd+Q — reason
+    /// <see cref="WindowCloseReason.ApplicationShutdown"/> with <c>isProgrammatic</c> false, a
+    /// non-forced shutdown whose cancel is honored). A <em>programmatic</em> application shutdown
+    /// must proceed straight to teardown instead — Avalonia's forced <c>Shutdown()</c> ignores
+    /// <c>e.Cancel</c>, so a dialog there would be bypassed AND skip the close-proceeding hook
+    /// teardown (the GitHub #347 exit freeze). OS shutdown is never blocked by a dialog.
+    /// </summary>
+    internal static bool ShouldConfirmExit(WindowCloseReason reason, bool isProgrammatic, bool isConfirmedClose, bool hasActiveScenario)
+    {
+        if (isConfirmedClose || (!hasActiveScenario))
+        {
+            return false;
+        }
+
+        return reason switch
+        {
+            WindowCloseReason.WindowClosing or WindowCloseReason.Undefined => true,
+            WindowCloseReason.ApplicationShutdown => !isProgrammatic,
+            _ => false,
+        };
+    }
+
     protected override async void OnClosing(WindowClosingEventArgs e)
     {
-        if (!_isConfirmedClose && DataContext is MainViewModel vm && vm.IsConnected && vm.IsInRoom && vm.HasScenario)
+        // Shutdown breadcrumb (GitHub #347): the freeze reports need to show how far the close
+        // path got, so every decision on this path logs.
+        Log.LogInformation(
+            "MainWindow closing: reason={Reason} programmatic={Programmatic} confirmed={Confirmed}",
+            e.CloseReason,
+            e.IsProgrammatic,
+            _isConfirmedClose
+        );
+
+        bool hasActiveScenario = DataContext is MainViewModel vm && vm.IsConnected && vm.IsInRoom && vm.HasScenario;
+        if (ShouldConfirmExit(e.CloseReason, e.IsProgrammatic, _isConfirmedClose, hasActiveScenario))
         {
             e.Cancel = true;
 
@@ -3150,10 +3188,12 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
 
         if (_isMainWindowClosing && _globalKeyHook is { } hook)
         {
+            Log.LogInformation("MainWindow closing: disposing global key hook");
             hook.KeyDown -= OnGlobalKeyDown;
             hook.KeyUp -= OnGlobalKeyUp;
             hook.Dispose();
             _globalKeyHook = null;
+            Log.LogInformation("MainWindow closing: global key hook disposed");
         }
 
         if (_isMainWindowClosing && _autoConnectCts is { } cts)
@@ -3161,6 +3201,11 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
             cts.Cancel();
             cts.Dispose();
             _autoConnectCts = null;
+        }
+
+        if (_isMainWindowClosing)
+        {
+            Log.LogInformation("MainWindow closing: teardown complete, close proceeding");
         }
 
         base.OnClosing(e);

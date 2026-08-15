@@ -258,10 +258,19 @@ public sealed class UiThreadWatchdog : IDisposable
             return;
         }
 
+        // Minidump first: it carries the complete native stacks (the managed capture below stops
+        // at native transitions — the GitHub #347 recurrence was invisible without them), and it
+        // takes well under a second so it barely delays the user notice.
+        string? dumpPath = Path.GetDirectoryName(AppLog.LogPath) is { } logDir ? FreezeDumpWriter.TryWrite(logDir) : null;
+        if (dumpPath is not null)
+        {
+            Log.LogError("Freeze minidump written to {DumpPath} — attach it to the bug report alongside the log.", dumpPath);
+        }
+
         // The message box runs on its own thread (below), so the capture never delays the user
         // notice; it only occupies the watchdog thread, whose 500 ms cadence has nothing left to
         // measure during a hard freeze anyway.
-        ShowFreezeMessageBox(stallMs);
+        ShowFreezeMessageBox(stallMs, dumpPath);
 
         string? stacks = ManagedStackCapture.TryCaptureAllThreads(_uiManagedThreadId);
         if (stacks is not null)
@@ -270,12 +279,15 @@ public sealed class UiThreadWatchdog : IDisposable
         }
     }
 
-    private static void ShowFreezeMessageBox(long stallMs)
+    private static void ShowFreezeMessageBox(long stallMs, string? dumpPath)
     {
+        string attachments = dumpPath is null
+            ? $"\n\nPlease attach this log file to a bug report:\n{AppLog.LogPath}"
+            : $"\n\nPlease attach these files to a bug report:\n{AppLog.LogPath}\n{dumpPath}";
         string message =
             $"YAAT has stopped responding (frozen for about {stallMs / 1000} seconds)."
             + "\n\nIt may recover on its own. If it does not, close YAAT and reopen it."
-            + $"\n\nPlease attach this log file to a bug report:\n{AppLog.LogPath}";
+            + attachments;
 
         // Runs on its own short-lived thread so the watchdog keeps measuring while the box is up, and
         // is unparented (hWnd zero) on purpose — parenting it to the frozen window would inherit the

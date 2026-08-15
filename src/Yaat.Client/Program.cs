@@ -17,6 +17,9 @@ public static class Program
     // designer (which calls BuildAvaloniaApp without running Main) gets the platform default.
     private static RendererMode _rendererMode = RendererMode.Auto;
 
+    /// <summary>How long process teardown may run after the main loop exits before <see cref="StartExitWatchdog"/> terminates the process.</summary>
+    private static readonly TimeSpan ExitTimeout = TimeSpan.FromSeconds(10);
+
     [STAThread]
     public static void Main(string[] args)
     {
@@ -49,6 +52,16 @@ public static class Program
         AppDomain.CurrentDomain.UnhandledException += (_, e) =>
         {
             log.LogCritical(e.ExceptionObject as Exception, "Unhandled exception (AppDomain)");
+            AppLog.Flush();
+        };
+
+        // Shutdown breadcrumb (GitHub #347): registered before LM-Kit (or anything else) can add
+        // its own ProcessExit handler — multicast handlers run in subscription order, so this line
+        // in the log proves CLR shutdown reached ProcessExit; a freeze after it points at a
+        // later-registered handler or native teardown.
+        AppDomain.CurrentDomain.ProcessExit += (_, _) =>
+        {
+            log.LogInformation("ProcessExit handlers running");
             AppLog.Flush();
         };
 
@@ -109,6 +122,45 @@ public static class Program
             AppLog.Flush();
             throw;
         }
+
+        // The dispatcher loop has exited: everything user-visible (preferences, window geometry)
+        // is already saved. What remains is CLR + native teardown (ProcessExit handlers, LM-Kit
+        // runtime, SharpHook) — which is exactly where the GitHub #347 exit freeze lived, wedging
+        // the process forever after the windows were gone.
+        log.LogInformation("Main loop exited; running process teardown");
+
+        // The dispatcher this synchronization context posts to is shut down, but the context is
+        // still installed on this thread — leaving it would route every blocking wait in the
+        // teardown below (locks, joins, finalizer waits) through AvaloniaSynchronizationContext.
+        SynchronizationContext.SetSynchronizationContext(null);
+        AppLog.Flush();
+        StartExitWatchdog(log);
+    }
+
+    /// <summary>
+    /// Bounds process teardown after the main loop exits. Everything the user cares about is saved
+    /// before this starts, so a teardown that takes longer than <see cref="ExitTimeout"/> is wedged
+    /// (a stuck native teardown held the process alive forever in GitHub #347) — log it and
+    /// terminate. Deliberately <see cref="Process.Kill()"/> rather than <see cref="Environment.Exit(int)"/>:
+    /// Exit joins the already-running (and possibly wedged) CLR shutdown, Kill is TerminateProcess.
+    /// The thread is a background thread, so a teardown that finishes in time just exits the
+    /// process out from under it.
+    /// </summary>
+    private static void StartExitWatchdog(ILogger log)
+    {
+        var watchdog = new Thread(() =>
+        {
+            Thread.Sleep(ExitTimeout);
+            log.LogError("Process teardown did not finish within {TimeoutSec}s of the main loop exiting — terminating", ExitTimeout.TotalSeconds);
+            AppLog.Flush();
+            using var self = System.Diagnostics.Process.GetCurrentProcess();
+            self.Kill();
+        })
+        {
+            IsBackground = true,
+            Name = "ExitWatchdog",
+        };
+        watchdog.Start();
     }
 
     public static AppBuilder BuildAvaloniaApp()

@@ -2943,13 +2943,25 @@ public partial class MainViewModel : ObservableObject
     [RelayCommand]
     private void Exit()
     {
-        // Mark shutdown before invoking Avalonia's Shutdown so pop-out windows' Closing
-        // handlers don't treat the cascade close as a manual user-close and clobber
-        // persisted pop-out flags. MainWindow.OnClosing sets the same flag, but Shutdown
-        // can iterate other windows before reaching MainWindow.
-        AppLifetime.MarkShuttingDown();
-        if (Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
+        if (Application.Current?.ApplicationLifetime is not IClassicDesktopStyleApplicationLifetime desktop)
         {
+            return;
+        }
+
+        // Route through MainWindow.Close() rather than desktop.Shutdown(): Shutdown() force-closes
+        // every window and ignores OnClosing's e.Cancel, which bypassed the confirm-exit dialog AND
+        // skipped the close-proceeding teardown (global key hook dispose) — the GitHub #347 exit
+        // freeze. Close() runs the same confirm + teardown path as the title-bar X, and
+        // ShutdownMode.OnMainWindowClose turns the completed close into an orderly shutdown.
+        // MarkShuttingDown is deliberately NOT set here: MainWindow.OnClosing sets it once the
+        // close actually proceeds, so cancelling the confirm dialog leaves the app fully usable.
+        if (desktop.MainWindow is { } mainWindow)
+        {
+            mainWindow.Close();
+        }
+        else
+        {
+            AppLifetime.MarkShuttingDown();
             desktop.Shutdown();
         }
     }

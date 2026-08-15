@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+- **File > Exit** now behaves like closing the main window: it shows the confirm-exit dialog when a scenario session is active and, once confirmed, runs the full shutdown teardown. It used to force-quit past both — skipping the dialog and the teardown — which could leave the process permanently wedged after the windows closed, with the "YAAT is not responding" warning as the only sign of life. (#347)
+- Quitting can no longer hang forever: if process teardown doesn't finish within 10 seconds of the windows closing, YAAT logs the wedge and exits. (#347)
+- Windows/OS shutdown is no longer blocked by (or bypasses) the confirm-exit dialog — an OS- or application-initiated close proceeds straight to teardown. (#347)
+
+### Added
+- A hard UI freeze on Windows now also writes a small minidump (`yaat-freeze-<timestamp>.dmp`, next to `yaat-client.log`, newest 3 kept) capturing every thread's native call stack — the freeze warning lists it to attach to a bug report. The quit path also logs each shutdown stage so freeze reports show exactly how far it got. (#347)
+
 ## v0.12.7-beta [2026/08/13]
 
 ### Highlights
