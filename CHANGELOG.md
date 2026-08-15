@@ -1,6 +1,12 @@
 # Changelog
 
-## Unreleased
+## v0.12.8-beta [2026/08/15]
+
+### Highlights
+- **File > Exit** now shows the confirm-exit dialog and shuts down cleanly instead of force-quitting — no more permanently wedged process after the windows close (#347)
+- Quitting can no longer hang forever — a stuck shutdown logs the wedge and exits after 10 seconds (#347)
+- Approving a pilot's "request closed traffic" with left/right closed traffic (`MLT`/`MRT`) now satisfies the request — no more repeated calls every two minutes (#355)
+- A spoken runway crossing with a conversational "for" (e.g. "cross runway for two eight right") now maps directly to `CROSS 28R` instead of falling back to the slower LLM recovery
 
 ### Fixed
 - Approving a solo-training pilot's "request closed traffic" with **left/right closed traffic approved** (`MLT`/`MRT`) now satisfies the request — the pilot no longer re-announces "request closed traffic" every two minutes after it was already granted. (#355)
