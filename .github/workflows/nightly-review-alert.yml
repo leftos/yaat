@@ -76,7 +76,7 @@ jobs:
             body=$(printf '%s\n\n%s' "$body" "$TLDR")
           fi
           if [ -n "$COST" ]; then
-            body=$(printf '%s\n_Est. cost: $%s USD_' "$body" "$COST")
+            body=$(printf '%s\n_Est. API-equivalent: $%s USD (subscription)_' "$body" "$COST")
           fi
           # Discord hard-caps content at 2000 chars; trim with headroom.
           body=$(printf '%s' "$body" | head -c 1900)

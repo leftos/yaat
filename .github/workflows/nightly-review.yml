@@ -15,13 +15,12 @@ name: Nightly Review
 # collide on the runner) and on-demand via workflow_dispatch.
 #
 # Required repository secrets:
-#   ANTHROPIC_API_KEY    - metered Anthropic API key. Use a DEDICATED key so this
-#                          job's spend shows on its own line in the Console Usage &
-#                          Cost dashboard. Each run also prints its own estimated
-#                          cost to the job summary.
-#                          To pay nothing incremental at the cost of dollar
-#                          visibility, replace the `anthropic_api_key:` line below
-#                          with `claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}`.
+#   CLAUDE_CODE_OAUTH_TOKEN - long-lived Claude subscription OAuth token generated
+#                          via `claude setup-token`; shared with the claude.yml and
+#                          claude-code-review.yml workflows. Runs draw on the
+#                          subscription's usage quota instead of metered API
+#                          billing; if the subscription's weekly limit is exhausted
+#                          the run fails, which the Discord notifier surfaces.
 #   NIGHTLY_REVIEW_TOKEN - PAT used for git/gh across both repos: read on
 #                          leftos/yaat-server, and contents+issues+pull-requests
 #                          write on leftos/yaat. A classic repo-scoped PAT works;
@@ -130,7 +129,7 @@ jobs:
           # it never lands in a draft-PR branch.
           TLDR_FILE: ${{ github.workspace }}/nightly-review-tldr.txt
         with:
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           github_token: ${{ secrets.NIGHTLY_REVIEW_TOKEN }}
           # The action hides agent output by default ("full output hidden for
           # security"); surface it so dry-run findings and errors are visible.
@@ -222,10 +221,11 @@ jobs:
               - If nothing cleared the bar: say so plainly (e.g. "No findings - N candidates refuted.").
             Write this file even if the result is "nothing found". If you somehow cannot, it is non-fatal.
 
-      # total_cost_usd is a client-side estimate from the run's result JSON, not
-      # authoritative billing - good enough for a per-night trend. For actual
-      # dollars, see the Console Usage & Cost dashboard. This step also stages the
-      # summary artifact the "Nightly Review Notify" workflow posts to Discord.
+      # total_cost_usd is a client-side API-price estimate from the run's result
+      # JSON. Under subscription auth nothing is billed per-run; the figure is the
+      # API-equivalent value the job extracted from the subscription - good enough
+      # for a per-night trend. This step also stages the summary artifact the
+      # "Nightly Review Notify" workflow posts to Discord.
       - name: Log run cost and stage Discord summary
         if: always()
         env:
@@ -241,9 +241,9 @@ jobs:
           {
             echo "### Nightly Review cost"
             if [ -n "$COST" ]; then
-              echo "Estimated run cost: **\$$COST USD** (client-side estimate)"
+              echo "Estimated API-equivalent usage: **\$$COST USD** (covered by subscription)"
             else
-              echo "Cost estimate unavailable (no execution result parsed)."
+              echo "Usage estimate unavailable (no execution result parsed)."
             fi
           } >> "$GITHUB_STEP_SUMMARY"
 
