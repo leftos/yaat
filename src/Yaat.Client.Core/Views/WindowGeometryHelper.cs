@@ -134,19 +134,109 @@ public sealed class WindowGeometryHelper
         _lastNormalGeometry = CaptureCurrentGeometry();
     }
 
+    /// <summary>
+    /// A screen's working area in device pixels plus its DPI scale factor,
+    /// decoupled from Avalonia's <see cref="Screen"/> so geometry resolution
+    /// is testable without a windowing platform.
+    /// </summary>
+    public readonly record struct ScreenInfo(PixelRect WorkingArea, double Scaling);
+
+    /// <summary>
+    /// Result of <see cref="ResolveGeometry"/>: position in device pixels,
+    /// size in device-independent pixels (what <see cref="Window.Width"/> expects).
+    /// </summary>
+    public readonly record struct ResolvedGeometry(int X, int Y, double Width, double Height);
+
+    // Minimum on-screen overlap (device px) for a saved position to be restored verbatim —
+    // roughly enough visible title bar to grab the window with the mouse.
+    private const int MinVisibleWidthPx = 50;
+    private const int MinVisibleHeightPx = 30;
+
+    /// <summary>
+    /// Resolves where a saved geometry should land given the current screen layout.
+    /// Saved positions are device pixels; saved sizes are DIPs. A position whose window
+    /// still shows a usable sliver on any screen is restored verbatim — a window snapped
+    /// to a screen edge legitimately has its frame origin slightly outside the working
+    /// area (Windows' invisible resize borders), and clamping it inward makes it overlap
+    /// its neighbors. Clamping into the target screen's working area is only a rescue
+    /// for geometry that would be substantially off-screen (monitor unplugged,
+    /// resolution shrank, or a poisoned iconic position).
+    /// </summary>
+    public static ResolvedGeometry ResolveGeometry(SavedWindowGeometry geo, IReadOnlyList<ScreenInfo> screens)
+    {
+        var target = ResolveTargetScreen(screens, geo);
+        var workArea = target.WorkingArea;
+        var scaling = SafeScaling(target.Scaling);
+
+        var widthPx = (int)Math.Round(Math.Min(geo.Width * scaling, workArea.Width));
+        var heightPx = (int)Math.Round(Math.Min(geo.Height * scaling, workArea.Height));
+        var width = geo.Width * scaling > workArea.Width ? workArea.Width / scaling : geo.Width;
+        var height = geo.Height * scaling > workArea.Height ? workArea.Height / scaling : geo.Height;
+
+        if (IsSufficientlyVisible(new PixelRect(geo.X, geo.Y, widthPx, heightPx), screens))
+        {
+            return new ResolvedGeometry(geo.X, geo.Y, width, height);
+        }
+
+        var x = Clamp(geo.X, workArea.X, workArea.Right - widthPx);
+        var y = Clamp(geo.Y, workArea.Y, workArea.Bottom - heightPx);
+
+        return new ResolvedGeometry(x, y, width, height);
+    }
+
+    private static bool IsSufficientlyVisible(PixelRect windowRect, IReadOnlyList<ScreenInfo> screens)
+    {
+        foreach (var screen in screens)
+        {
+            var workArea = screen.WorkingArea;
+            var overlapWidth = Math.Min(windowRect.Right, workArea.Right) - Math.Max(windowRect.X, workArea.X);
+            var overlapHeight = Math.Min(windowRect.Bottom, workArea.Bottom) - Math.Max(windowRect.Y, workArea.Y);
+            if ((overlapWidth >= MinVisibleWidthPx) && (overlapHeight >= MinVisibleHeightPx))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static ScreenInfo ResolveTargetScreen(IReadOnlyList<ScreenInfo> screens, SavedWindowGeometry geo)
+    {
+        // Prefer the saved screen index if it still exists
+        if (geo.ScreenIndex >= 0 && geo.ScreenIndex < screens.Count)
+        {
+            return screens[geo.ScreenIndex];
+        }
+
+        // Fall back to whichever screen contains the saved center point
+        foreach (var screen in screens)
+        {
+            var scaling = SafeScaling(screen.Scaling);
+            var center = new PixelPoint(geo.X + (int)(geo.Width * scaling / 2), geo.Y + (int)(geo.Height * scaling / 2));
+            if (screen.WorkingArea.Contains(center))
+            {
+                return screen;
+            }
+        }
+
+        // No screen contains the saved position — use primary
+        return screens[0];
+    }
+
+    private static double SafeScaling(double scaling) => scaling > 0 ? scaling : 1.0;
+
     private void ApplyGeometryToWindow(SavedWindowGeometry geo, bool isStartupRestore)
     {
         var screens = _window.Screens.All;
         if (screens.Count > 0)
         {
-            var targetScreen = GetTargetScreen(screens, geo);
-            var workArea = targetScreen.WorkingArea;
+            var screenInfos = new ScreenInfo[screens.Count];
+            for (var i = 0; i < screens.Count; i++)
+            {
+                screenInfos[i] = new ScreenInfo(screens[i].WorkingArea, screens[i].Scaling);
+            }
 
-            var width = Math.Min(geo.Width, workArea.Width);
-            var height = Math.Min(geo.Height, workArea.Height);
-
-            var x = Clamp(geo.X, workArea.X, workArea.Right - (int)width);
-            var y = Clamp(geo.Y, workArea.Y, workArea.Bottom - (int)height);
+            var resolved = ResolveGeometry(geo, screenInfos);
 
             if (isStartupRestore)
             {
@@ -158,9 +248,9 @@ public sealed class WindowGeometryHelper
                 _window.WindowState = WindowState.Normal;
             }
 
-            _window.Width = width;
-            _window.Height = height;
-            _window.Position = new PixelPoint(x, y);
+            _window.Width = resolved.Width;
+            _window.Height = resolved.Height;
+            _window.Position = new PixelPoint(resolved.X, resolved.Y);
 
             _window.WindowState = geo.IsMaximized ? WindowState.Maximized : WindowState.Normal;
         }
@@ -254,31 +344,6 @@ public sealed class WindowGeometryHelper
         }
     }
 
-    private static Screen GetTargetScreen(IReadOnlyList<Screen> screens, SavedWindowGeometry geo)
-    {
-        // Prefer the saved screen index if it still exists
-        if (geo.ScreenIndex >= 0 && geo.ScreenIndex < screens.Count)
-        {
-            return screens[geo.ScreenIndex];
-        }
-
-        // Fall back to whichever screen contains the saved center point
-        var centerX = geo.X + (int)(geo.Width / 2);
-        var centerY = geo.Y + (int)(geo.Height / 2);
-        var center = new PixelPoint(centerX, centerY);
-
-        foreach (var screen in screens)
-        {
-            if (screen.WorkingArea.Contains(center))
-            {
-                return screen;
-            }
-        }
-
-        // No screen contains the saved position — use primary
-        return screens[0];
-    }
-
     private static int Clamp(int value, int min, int max)
     {
         if (min > max)
@@ -304,10 +369,13 @@ public sealed class WindowGeometryHelper
 
     private void OnPositionChanged(object? sender, PixelPointEventArgs e)
     {
-        if (_window.WindowState == WindowState.Normal)
+        // A minimize can report its iconic position before WindowState flips to
+        // Minimized — never let that sentinel replace the last normal geometry.
+        var current = CaptureCurrentGeometry();
+        if (_window.WindowState == WindowState.Normal && !IsIconicOrigin(current))
         {
             _previousNormalGeometry = _lastNormalGeometry;
-            _lastNormalGeometry = CaptureCurrentGeometry();
+            _lastNormalGeometry = current;
         }
         ScheduleAutoSave();
     }
@@ -393,17 +461,21 @@ public sealed class WindowGeometryHelper
 
     private NormalWindowGeometry CaptureCurrentGeometry() => new(_window.Position, _window.Width, _window.Height);
 
-    private static bool IsIconicOrigin(NormalWindowGeometry geometry) => geometry.Position is { X: 0, Y: 0 };
+    // (0,0) is the headless/macOS iconic report; (-32000,-32000) is the Win32 sentinel
+    // for a minimized window's position.
+    private static bool IsIconicOrigin(NormalWindowGeometry geometry) => geometry.Position is { X: 0, Y: 0 } or { X: <= -32000, Y: <= -32000 };
 
     private int GetCurrentScreenIndex(NormalWindowGeometry geometry)
     {
         var screens = _window.Screens.All;
-        var centerX = geometry.Position.X + (int)(geometry.Width / 2);
-        var centerY = geometry.Position.Y + (int)(geometry.Height / 2);
-        var center = new PixelPoint(centerX, centerY);
 
         for (var i = 0; i < screens.Count; i++)
         {
+            var scaling = SafeScaling(screens[i].Scaling);
+            var center = new PixelPoint(
+                geometry.Position.X + (int)(geometry.Width * scaling / 2),
+                geometry.Position.Y + (int)(geometry.Height * scaling / 2)
+            );
             if (screens[i].WorkingArea.Contains(center))
             {
                 return i;

@@ -6,6 +6,9 @@
 - `CONS` of a non-leaf TCP on a facility with automatic consolidation disabled now redirects its unattended subsectors' handoffs to the receiver and suppresses server auto-accept there. (#357)
 - Favorites Panel: the "Cols" spinner no longer clips its down arrow outside the control's border and now actually shows the column count, and it keeps the same 8px gap from the Blank button as the rest of the header; the W/H boxes in the add/edit favorite flyouts are likewise wide enough to show 3-digit values. (#359)
 - A minimized Flight Plan Editor, Favorites Panel, or other reusable tool window now restores and comes to the front when re-opened. (#360)
+- Windows placed at a screen edge no longer shift inward and overlap their neighbors when a window profile loads or the app restores them at startup. (#361)
+- Saving a profile or quitting while a window is minimized no longer records a far-off-screen position; already-poisoned entries snap back on-screen.
+- Window restore and off-screen rescue account for monitor DPI scaling.
 
 ## v0.12.8-beta [2026/08/15]
 
