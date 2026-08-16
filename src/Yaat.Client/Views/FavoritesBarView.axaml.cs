@@ -191,7 +191,10 @@ public partial class FavoritesBarView : UserControl
             Maximum = 20,
             Increment = 1,
             FormatString = "0",
-            Width = 58,
+            // The Fluent spinner's two RepeatButtons alone need 68px; anything narrower hides the
+            // value text and clips the decrease button outside the border (issue #359).
+            Width = 100,
+            Margin = new Thickness(8, 0, 0, 0),
         };
         _columnsBox.ValueChanged += OnPanelColumnsChanged;
         DockPanel.SetDock(_columnsBox, Dock.Right);
@@ -1506,7 +1509,8 @@ public partial class FavoritesBarView : UserControl
             Minimum = (decimal)minimum,
             Maximum = (decimal)maximum,
             Increment = 2,
-            Width = 84,
+            // Wide enough for a 3-digit value next to the 68px Fluent spinner pair (issue #359).
+            Width = 110,
             Margin = new Thickness(0, 0, 4, 4),
         };
     }

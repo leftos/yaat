@@ -4,6 +4,7 @@
 
 ### Fixed
 - `CONS` of a non-leaf TCP on a facility with automatic consolidation disabled now redirects its unattended subsectors' handoffs to the receiver and suppresses server auto-accept there. (#357)
+- Favorites Panel: the "Cols" spinner no longer clips its down arrow outside the control's border and now actually shows the column count, and it keeps the same 8px gap from the Blank button as the rest of the header; the W/H boxes in the add/edit favorite flyouts are likewise wide enough to show 3-digit values. (#359)
 
 ## v0.12.8-beta [2026/08/15]
 
