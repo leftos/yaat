@@ -186,12 +186,6 @@ Services/
   UpdateService.cs              # Velopack auto-updater. Constructor takes channel? — null for Yaat.Client (default platform channel). CheckForUpdateAsync returns an UpdateCheckResult (UpdateAvailable/UpToDate/NotInstalled/Failed) so Help > Check for Updates can report each case; the startup check ignores all but UpdateAvailable.
   ClientVersionGate.cs          # Reads GET /api/client-requirements before connecting. Below Minimum -> refuse with a message; below Recommended -> dismissible banner. Fails open on any error.
   YaatHubJsonContext.cs         # Source-generated JsonSerializerContext for the broader DTO surface (room state, aircraft, weather, CRC, scenarios). Strip DTOs live in YaatStripsHubJsonContext (Strips); both contexts insert into the same resolver chain.
-  WindowGeometryHelper.cs       # Save/restore window position+size+topmost; composes WindowSystemMenuHelper + WindowNativeMenuHelper for cross-platform always-on-top discoverability
-  WindowActivationExtensions.cs # Window.RestoreAndActivate(): un-minimize (WindowState.Normal) before Activate — every reuse-and-activate window (FPE, Favorites Panel, Speech Debug, Session Report, Weather/Arrival editors) goes through this (#360)
-  WindowSystemMenuHelper.cs     # Windows-only: injects "Always on Top" into the title-bar system menu via WM_SYSCOMMAND + SetWindowSubclass
-  WindowNativeMenuHelper.cs     # macOS-only: adds "Window → Always on Top" to the menu bar via Avalonia NativeMenu
-  KeybindHelper.cs              # Keyboard shortcut resolution
-  IAlwaysOnTopToggle.cs         # Window contract for the central always-on-top hotkey (WindowHotkeys); each window delegates to its WindowGeometryHelper.ToggleTopmost
   MacroDefinition.cs            # Macro model: Name, Expansion, ParameterNames
   CrcAlias.cs                   # One CRC alias definition: Name (with leading dot), ReplacementTokens, ArgumentCount, source file + line
   CrcAliasFileParser.cs         # Pure text→aliases. Mirrors CRC AliasParser.LoadAliases: a line counts only if it starts with '.', is >=4 chars, and matches ^(\.\w+)\s+(.+)$ — which is why header text and # comments are skipped (CRC has no comment syntax). ArgumentCount = consecutive $1,$2,... stopping at the first gap
@@ -211,6 +205,12 @@ ViewModels/
 
 Views/
   ConnectWindow.axaml.cs        # Server/room/identity entry dialog
+  WindowGeometryHelper.cs       # Save/restore window position+size+topmost; composes WindowSystemMenuHelper + WindowNativeMenuHelper for cross-platform always-on-top discoverability
+  WindowActivationExtensions.cs # Window.RestoreAndActivate(): un-minimize (WindowState.Normal) before Activate — every reuse-and-activate window (FPE, Favorites Panel, Speech Debug, Session Report, Weather/Arrival editors) goes through this (#360)
+  WindowSystemMenuHelper.cs     # Windows-only: injects "Always on Top" into the title-bar system menu via WM_SYSCOMMAND + SetWindowSubclass
+  WindowNativeMenuHelper.cs     # macOS-only: adds "Window → Always on Top" to the menu bar via Avalonia NativeMenu
+  KeybindHelper.cs              # Keyboard shortcut resolution
+  IAlwaysOnTopToggle.cs         # Window contract for the central always-on-top hotkey (WindowHotkeys); each window delegates to its WindowGeometryHelper.ToggleTopmost
   VStrips/VStripsViewWindow.axaml.cs # Pop-out window shell for the strips view — sizes/positions/titles itself; content (a VStripsSplitHost) is supplied by the creating host. Stays in Core because it depends on UserPreferences + WindowGeometryHelper + KeybindHelper; only the desktop hosts open this Window.
   VTdls/VTdlsViewWindow.axaml.cs # Pop-out window wrapper for VTdlsView. Same shape as VStripsViewWindow: per-facility geometry key (`VTdlsView:{facilityId}`), first-time topmost inherited from the global `VTdlsView` default, AlwaysOnTop hotkey from UserPreferences.
 ```
@@ -353,7 +353,6 @@ Views/
   FlightPlanEditorAmendmentBuilder.cs # Builds a FlightPlanAmendment from the built-in flight plan editor's field/route edits for dispatch to the server
   HoldShortMenuHelper.cs        # Shared resolver: held runway from the "Holding Short {rwy}" phase, used by ground-map + aircraft-list cross/LUAW menu items
   WindowHotkeys.cs              # App-wide class handler for window-level hotkeys (focus command input + always-on-top + Ctrl+F8 radar DCB toggle); routes focus to the visible CommandInputView and toggles topmost via IAlwaysOnTopToggle
-  WindowGeometryHelper.cs       # Save/restore window position+size+topmost
 
 Views/Map/
   MapViewport.cs                # Shared equirectangular projection for map views
