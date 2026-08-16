@@ -76,9 +76,12 @@ Two graph walks do the work:
   owner), then the natural **`ParentTcpId`** link. Overrides are consulted at *every* hop, not just on the starting TCP, so a
   descendant of an overridden non-leaf follows the override into the receiver rather than resolving to its natural attended
   ancestor — which is what keeps `Owner` in agreement with the `Children` lists the second pass builds (see below). Chained
-  overrides (`1F → 1G`, `1G → 1X`) resolve through to the final receiver. When `autoConsolidate` is off the natural-parent hop is
-  skipped entirely, so only explicit overrides move ownership. Cycle-guarded with a visited set, which also bounds override chains
-  that loop back on themselves.
+  overrides (`1F → 1G`, `1G → 1X`) resolve through to the final receiver. When `autoConsolidate` is off, natural folding doesn't
+  occur, but the natural-parent climb still runs so an *ancestor's* override can be discovered (issue #357 — a descendant of an
+  overridden non-leaf follows the override even with auto off): an attended TCP reached naturally is **not** returned as owner —
+  only the query start itself or an override receiver counts — and the walk stops at an unattended override receiver rather than
+  continuing up the receiver's own chain (nobody works that airspace → `null`). Cycle-guarded with a visited set, which also
+  bounds override chains that loop back on themselves.
 - **`CollectConsolidatedDescendants`** — walk **DOWN** the children index (`childrenOf`, keyed by
   parent id) from an attended TCP, stopping at any child that is itself attended (it owns its own subtree). Optionally skips ids in
   an `excludeIds` set (used for manual overrides — see below).
@@ -90,9 +93,11 @@ These conventions are baked into the item shape and must be preserved:
 - **`Owner == null` does NOT mean "unowned."** It means *this TCP is the root / owns itself (attended).* `Owner != null` means the
   TCP is consolidated under that owner. When `ResolveOwner` returns the TCP itself, the engine normalizes `Owner` to `null`.
 - **Self is excluded from the `Children` list.** CRC injects the controller's own TCP (`OurTcp`) into the consolidated set
-  automatically, so the engine filters `c.Id != tcp.Id` (`ConsolidationEngine.cs:86`) to avoid a duplicate.
-- **When `autoConsolidate` is off**, every TCP gets `Owner = null` and `Children = []` — each position owns only itself
-  (`ConsolidationEngine.cs:65`). Manual overrides still apply on top.
+  automatically, so the engine filters `c.Id != tcp.Id` (`ConsolidationEngine.cs:70`) to avoid a duplicate.
+- **When `autoConsolidate` is off**, no TCP folds into an attended ancestor *naturally* — auto-computed `Children` stay empty and
+  a TCP with no override in play gets `Owner = null`. Manual overrides apply on top, and they move whole blocks: a descendant of
+  an overridden non-leaf reports the override receiver as its `Owner` (via the ancestor-override climb in `ResolveOwner`), in
+  agreement with the receiver's `Children`.
 
 `GetConsolidationOwner` is the single-TCP version used by handoff redirection and auto-accept suppression. It builds the `byId`
 index and defers to the same `ResolveOwner` walk the item build uses, so the two can never disagree.
@@ -134,7 +139,12 @@ Manual overrides require a second pass because moving a TCP under a *different* 
 
 The two passes must stay in agreement: pass 2 pulls an overridden non-leaf's unattended descendants into the receiver's
 `Children`, so pass 1's ancestor-override hop is what makes those same descendants report the receiver as their `Owner`. Removing
-either half reintroduces a scope whose `Owner` and `Children` contradict each other (issue #299).
+either half reintroduces a scope whose `Owner` and `Children` contradict each other — and the agreement must hold for **both**
+values of the auto flag: issue #299 was the auto-on contradiction, issue #357 the auto-off one (the ancestor-override climb was
+gated behind `autoConsolidate`, so descendants resolved `Owner = null` while the receiver listed them). The one deliberate
+exception is an override into an *unattended* receiver under auto-off: the receiver's `Children` keep the sender block (the
+explicit CONS stays visible) while the block's `Owner` is `null` — no attended owner exists, so handoff redirection and
+auto-accept suppression correctly treat that airspace as unstaffed.
 
 ## Full consolidation: track transfer & handoff redirection
 

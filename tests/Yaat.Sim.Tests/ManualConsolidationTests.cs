@@ -549,6 +549,97 @@ public class ManualConsolidationTests
     }
 
     [Fact]
+    public void ManualOverride_DescendantOfOverriddenNonLeaf_AutoOff_OwnerFollowsIntoReceiver()
+    {
+        var state = new ConsolidationState();
+
+        // Only 1G attended; consolidate the *non-leaf* 1F (unattended
+        // descendants 1S, 1H) under 1G — with automatic consolidation OFF.
+        var attended = new HashSet<string> { IdG };
+        Func<Tcp, bool> isAttended = tcp => attended.Contains(tcp.Id);
+
+        state.Consolidate(Tcp1G, Tcp1F, basic: false); // 1F → 1G (non-leaf sender)
+
+        var items = ConsolidationEngine.GetConsolidationItems(AllTcps, false, isAttended, state);
+
+        // The children pass folds 1S and 1H into 1G even with auto off.
+        var gChildren = ChildIds(FindItem(items, IdG));
+        Assert.Contains(IdS, gChildren);
+        Assert.Contains(IdH, gChildren);
+
+        // Ownership resolution must AGREE: descendants of the overridden
+        // non-leaf resolve to 1G — the ancestor-override discovery climb
+        // runs even with auto off.
+        Assert.Equal(IdG, FindItem(items, IdS).Owner!.Id);
+        Assert.Equal(IdG, FindItem(items, IdH).Owner!.Id);
+
+        var sOwner = ConsolidationEngine.GetConsolidationOwner(AllTcps, false, Tcp1S, isAttended, state);
+        Assert.Equal(IdG, sOwner!.Id);
+        var hOwner = ConsolidationEngine.GetConsolidationOwner(AllTcps, false, Tcp1H, isAttended, state);
+        Assert.Equal(IdG, hOwner!.Id);
+    }
+
+    [Fact]
+    public void ManualOverride_AutoOff_UnattendedReceiver_NoAttendedOwner()
+    {
+        var state = new ConsolidationState();
+
+        // Auto off, only 1T attended. 1S is consolidated into 1F, but 1F is
+        // UNATTENDED — and with auto off, 1F does not fold into its natural
+        // parent 1T. Nobody is working 1F's airspace, so the walk stops at
+        // the receiver: no attended owner exists.
+        var attended = new HashSet<string> { IdT };
+        Func<Tcp, bool> isAttended = tcp => attended.Contains(tcp.Id);
+
+        state.Consolidate(Tcp1F, Tcp1S, basic: false); // 1S → 1F (receiver unattended)
+
+        var sOwner = ConsolidationEngine.GetConsolidationOwner(AllTcps, false, Tcp1S, isAttended, state);
+        Assert.Null(sOwner);
+        var hOwner = ConsolidationEngine.GetConsolidationOwner(AllTcps, false, Tcp1H, isAttended, state);
+        Assert.Null(hOwner);
+
+        var items = ConsolidationEngine.GetConsolidationItems(AllTcps, false, isAttended, state);
+        Assert.Null(FindItem(items, IdS).Owner);
+        Assert.Null(FindItem(items, IdH).Owner);
+
+        // 1T never absorbed 1F's airspace — the sender block must not
+        // surface under it.
+        var tChildren = ChildIds(FindItem(items, IdT));
+        Assert.DoesNotContain(IdS, tChildren);
+        Assert.DoesNotContain(IdH, tChildren);
+    }
+
+    [Fact]
+    public void ManualOverride_AutoOff_ChainedOverrides_ResolveThroughToFinalReceiver()
+    {
+        var state = new ConsolidationState();
+
+        // Auto off, only 1X attended. 1F folds into 1G, and 1G in turn folds
+        // into 1X — chained overrides keep hopping regardless of the auto flag.
+        var attended = new HashSet<string> { IdX };
+        Func<Tcp, bool> isAttended = tcp => attended.Contains(tcp.Id);
+
+        state.Consolidate(Tcp1G, Tcp1F, basic: false); // 1F → 1G
+        state.Consolidate(Tcp1X, Tcp1G, basic: false); // 1G → 1X
+
+        var fOwner = ConsolidationEngine.GetConsolidationOwner(AllTcps, false, Tcp1F, isAttended, state);
+        Assert.Equal(IdX, fOwner!.Id);
+        var sOwner = ConsolidationEngine.GetConsolidationOwner(AllTcps, false, Tcp1S, isAttended, state);
+        Assert.Equal(IdX, sOwner!.Id);
+
+        var items = ConsolidationEngine.GetConsolidationItems(AllTcps, false, isAttended, state);
+        Assert.Equal(IdX, FindItem(items, IdF).Owner!.Id);
+        Assert.Equal(IdX, FindItem(items, IdS).Owner!.Id);
+        Assert.Equal(IdX, FindItem(items, IdH).Owner!.Id);
+
+        var xChildren = ChildIds(FindItem(items, IdX));
+        Assert.Contains(IdG, xChildren);
+        Assert.Contains(IdF, xChildren);
+        Assert.Contains(IdS, xChildren);
+        Assert.Contains(IdH, xChildren);
+    }
+
+    [Fact]
     public void ManualOverride_ChainedOverrides_ResolveThroughToFinalReceiver()
     {
         var state = new ConsolidationState();

@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+- `CONS` of a non-leaf TCP on a facility with automatic consolidation disabled now redirects its unattended subsectors' handoffs to the receiver and suppresses server auto-accept there. (#357)
+
 ## v0.12.8-beta [2026/08/15]
 
 ### Highlights

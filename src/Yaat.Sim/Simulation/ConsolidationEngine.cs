@@ -51,32 +51,24 @@ public static class ConsolidationEngine
                 continue;
             }
 
-            Tcp? autoOwner;
-            List<Tcp> children;
-
-            if (!autoConsolidate)
+            // CRC convention: Owner = null means "I'm the root hub".
+            // Owner = some TCP means "I'm consolidated under that TCP".
+            // With auto off, ResolveOwner still discovers an ancestor's manual
+            // override; natural folding into an attended ancestor doesn't occur.
+            var autoOwner = ResolveOwner(tcp, byId, isAttended, manualOverrides, autoConsolidate);
+            // If the resolved owner is the TCP itself, it's the root → null
+            if (autoOwner is not null && autoOwner.Id == tcp.Id)
             {
-                // CRC convention: Owner = null means "I'm the root hub".
-                // Owner = some TCP means "I'm consolidated under that TCP".
-                // When the TCP is attended, it owns itself → Owner = null.
-                // Don't include self in children — CRC adds OurTcp automatically.
                 autoOwner = null;
-                children = [];
             }
-            else
-            {
-                autoOwner = ResolveOwner(tcp, byId, isAttended, manualOverrides, autoConsolidate);
-                // If the resolved owner is the TCP itself, it's the root → null
-                if (autoOwner is not null && autoOwner.Id == tcp.Id)
-                {
-                    autoOwner = null;
-                }
 
-                // CRC adds OurTcp to ConsolidatedTcps automatically, so exclude
-                // self from children to avoid duplicates.
-                var allDescendants = isAttended(tcp) ? CollectConsolidatedDescendants(tcp, childrenOf, isAttended, manuallyOverriddenIds) : [];
-                children = allDescendants.Where(c => c.Id != tcp.Id).ToList();
-            }
+            // CRC adds OurTcp to ConsolidatedTcps automatically, so exclude
+            // self from children to avoid duplicates. Natural descendants fold
+            // in only under automatic consolidation; with auto off, children
+            // come solely from the manual-override pass below.
+            var allDescendants =
+                (autoConsolidate) && (isAttended(tcp)) ? CollectConsolidatedDescendants(tcp, childrenOf, isAttended, manuallyOverriddenIds) : [];
+            var children = allDescendants.Where(c => c.Id != tcp.Id).ToList();
 
             results.Add(new ConsolidationItem(tcp, autoOwner, children, false));
         }
@@ -211,8 +203,13 @@ public static class ConsolidationEngine
     /// <c>ParentTcpId</c> link. Consulting overrides at every hop — not just on the
     /// starting TCP — keeps ownership in agreement with the children lists built by
     /// <see cref="GetConsolidationItems"/>, which already pull an overridden non-leaf's
-    /// descendants into the receiver. Cycle-guarded with a visited set, which also
-    /// bounds chained overrides that loop back on themselves.
+    /// descendants into the receiver. Without automatic consolidation a TCP never folds
+    /// into its natural parent, but the natural-parent climb still runs so an
+    /// <em>ancestor's</em> override can be discovered; an attended TCP reached that way
+    /// is not returned as owner — only the query start itself or an override receiver
+    /// counts — and the climb stops at an unattended override receiver rather than
+    /// continuing up the receiver's own chain. Cycle-guarded with a visited set, which
+    /// also bounds chained overrides that loop back on themselves.
     /// </summary>
     private static Tcp? ResolveOwner(
         Tcp tcp,
@@ -223,6 +220,8 @@ public static class ConsolidationEngine
     )
     {
         var current = tcp;
+        var isStart = true;
+        var reachedViaOverride = false;
         var visited = new HashSet<string>();
         while (current is not null)
         {
@@ -235,22 +234,30 @@ public static class ConsolidationEngine
             if (manualOv is not null && byId.TryGetValue(manualOv.ReceivingTcpId, out var receivingTcp))
             {
                 current = receivingTcp;
+                reachedViaOverride = true;
+                isStart = false;
                 continue;
             }
 
             if (isAttended(current))
             {
-                return current;
+                // With auto off, a naturally-reached attended ancestor is not the
+                // owner — only the start itself or an override receiver counts.
+                return ((autoConsolidate) || (isStart) || (reachedViaOverride)) ? current : null;
             }
 
-            // Without automatic consolidation a TCP never folds into its natural
-            // parent — only an explicit override moves ownership.
-            if (!autoConsolidate || current.ParentTcpId is null || !byId.TryGetValue(current.ParentTcpId, out var parent))
+            // The natural-parent climb always runs while hunting for an ancestor
+            // override on the start's own chain; with auto off it must not continue
+            // past an override receiver (the receiver doesn't fold into ITS parent
+            // without auto).
+            if ((!autoConsolidate && reachedViaOverride) || current.ParentTcpId is null || !byId.TryGetValue(current.ParentTcpId, out var parent))
             {
                 return null;
             }
 
             current = parent;
+            reachedViaOverride = false;
+            isStart = false;
         }
 
         return null;
