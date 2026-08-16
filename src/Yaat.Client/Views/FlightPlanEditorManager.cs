@@ -11,13 +11,13 @@ public static class FlightPlanEditorManager
     private static readonly ILogger Log = AppLog.CreateLogger("FlightPlanEditorManager");
     private static FlightPlanEditorWindow? _openEditor;
 
-    public static void Open(AircraftModel ac, MainViewModel vm)
+    public static FlightPlanEditorWindow Open(AircraftModel ac, MainViewModel vm)
     {
         if (_openEditor is not null)
         {
             _openEditor.LoadAircraft(ac);
-            _openEditor.Activate();
-            return;
+            _openEditor.RestoreAndActivate();
+            return _openEditor;
         }
 
         var window = new FlightPlanEditorWindow(
@@ -68,6 +68,7 @@ public static class FlightPlanEditorManager
 
         // Shown un-owned so the editor never locks above the main window or other tool windows (#287).
         window.Show();
+        return window;
     }
 
     public static void Close()

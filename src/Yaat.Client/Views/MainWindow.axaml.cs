@@ -372,7 +372,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
         // creating a duplicate. Nulled out on Closed so the next request opens a fresh one.
         if (_speechDebugWindow is { } existing)
         {
-            existing.Activate();
+            existing.RestoreAndActivate();
             return;
         }
 
@@ -2546,7 +2546,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
 
         if (_sessionReportWindow is { } existing)
         {
-            existing.Activate();
+            existing.RestoreAndActivate();
             return;
         }
 
@@ -2852,7 +2852,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
     {
         if (_weatherEditorWindow is not null)
         {
-            _weatherEditorWindow.Activate();
+            _weatherEditorWindow.RestoreAndActivate();
             return;
         }
 
@@ -2877,7 +2877,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
 
         if (_arrivalGeneratorsEditorWindow is not null)
         {
-            _arrivalGeneratorsEditorWindow.Activate();
+            _arrivalGeneratorsEditorWindow.RestoreAndActivate();
             return;
         }
 

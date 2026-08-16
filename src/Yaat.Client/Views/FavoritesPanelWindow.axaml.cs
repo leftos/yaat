@@ -21,12 +21,12 @@ public partial class FavoritesPanelWindow : Window, IAlwaysOnTopToggle
         _geometryHelper.Restore();
     }
 
-    public static void ShowOrActivate(MainViewModel vm)
+    public static FavoritesPanelWindow ShowOrActivate(MainViewModel vm)
     {
         if (OpenWindows.TryGetValue(vm, out var existing))
         {
-            existing.Activate();
-            return;
+            existing.RestoreAndActivate();
+            return existing;
         }
 
         var window = new FavoritesPanelWindow(vm.Preferences) { DataContext = vm };
@@ -37,6 +37,7 @@ public partial class FavoritesPanelWindow : Window, IAlwaysOnTopToggle
         // popped-out Radar/Ground/DataGrid). An owned window is forced above its owner in Z-order and
         // can't be sent behind, which made the panel feel like it blocked the main window (#287).
         window.Show();
+        return window;
     }
 
     public void ToggleAlwaysOnTop() => _geometryHelper.ToggleTopmost();
