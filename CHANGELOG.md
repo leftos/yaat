@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.12.11-beta [2026/08/17]
 
 ### Fixed
 - Applying a window profile brings every saved window to the front, un-minimizing as needed, and returns focus to the main window. (#365)
