@@ -139,7 +139,7 @@ Don't add rules in `PhraseologyRules.cs` without a failing test first.
 2. **Aviation realism** — before adding any new rule, cite the FAA reference. Real ATC phraseology lives in:
    - `.claude/reference/faa/7110.65/` — controller-side
    - `.claude/reference/faa/aim/` — pilot-side
-   Use `aviation-realism-review` skill for non-trivial additions. For obvious word-order tweaks ("runway 28R cleared for takeoff" is 7110.65 §3-9-9), one-line cite in the rule comment is enough.
+   Use the `aviation-sim-expert` agent for non-trivial additions. For obvious word-order tweaks ("runway 28R cleared for takeoff" is 7110.65 §3-9-9), one-line cite in the rule comment is enough.
 
 3. **Add the rule** in `src/Yaat.Sim/Speech/PhraseologyRules.cs`. **Order matters for the verbalizer**: `PhraseologyVerbalizer.PickPreferredRule` picks the first-declared rule on capture-count ties. Put the pilot-readback-canonical form FIRST; informal STT-only variants come after. The rule mapper itself is order-insensitive (it scores by longest match).
 

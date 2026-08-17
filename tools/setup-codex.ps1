@@ -23,13 +23,6 @@ $CompatibleSkillNames = @(
     "consolidate-recordings"
 )
 
-$AdaptedSkillNames = @(
-    "aviation-realism-review",
-    "csharp-review",
-    "architecture-doc-check",
-    "prepare-release"
-)
-
 $ExpectedDescriptions = @{
     "test-fix" = "YAAT TDD bug-fix workflow: write failing test, confirm failure, apply fix, confirm pass"
 }
@@ -259,7 +252,7 @@ function Register-McpServers {
     }
 }
 
-$allSkillNames = $CompatibleSkillNames + $AdaptedSkillNames
+$allSkillNames = $CompatibleSkillNames
 foreach ($name in $allSkillNames) {
     Test-Skill -Name $name
 }

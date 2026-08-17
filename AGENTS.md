@@ -10,7 +10,7 @@
 - Claude command source prompts: `.claude/commands/`
 - Local reference material: `.claude/reference/`
 
-Do not move or fork those sources casually. Codex wrappers should point back to the canonical Claude files when a Claude-only feature needs a Codex-native entrypoint.
+Do not move or fork those sources casually. When a Claude-only feature has no Codex-native entrypoint, read the canonical Claude file directly and follow it.
 
 ## YAAT Rules To Preserve
 
@@ -30,17 +30,13 @@ Do not move or fork those sources casually. Codex wrappers should point back to 
 ## Claude Concepts In Codex
 
 - Claude skills that are format-compatible are linked into Codex by `tools/setup-codex.ps1`.
-- Claude agents do not map to user-defined Codex subagents in this environment. Use the corresponding Codex skill wrappers instead:
-  - `.claude/agents/aviation-sim-expert.md` -> `aviation-realism-review`
-  - `.claude/agents/csharp-reviewer.md` -> `csharp-review`
-  - `.claude/agents/architecture-updater.md` -> `architecture-doc-check`
-- Claude slash commands do not map directly. Use the corresponding Codex skill wrapper:
-  - `.claude/commands/prepare-release.md` -> `prepare-release`
+- Claude agents do not map to user-defined Codex subagents in this environment. Read the agent prompt directly and follow it inline: `.claude/agents/aviation-sim-expert.md`, `.claude/agents/csharp-reviewer.md`, `.claude/agents/architecture-updater.md`.
+- Claude slash commands do not map directly. Read the command file directly and follow it inline: `.claude/commands/prepare-release.md`.
 - Claude hooks are not linked into Codex. Their behavior is restated here and checked by `tools/setup-codex.ps1`.
 
 ## Mandatory Aviation Review
 
-Any change touching aviation logic needs the aviation realism review flow from `CLAUDE.md`. Use the `aviation-realism-review` skill and the local FAA references under `.claude/reference/faa/`. Do not web-search for FAA 7110.65 or AIM content that is already available locally.
+Any change touching aviation logic needs the aviation realism review flow from `CLAUDE.md`. Follow `.claude/agents/aviation-sim-expert.md` and the local FAA references under `.claude/reference/faa/`. Do not web-search for FAA 7110.65 or AIM content that is already available locally.
 
 ## Local Setup
 

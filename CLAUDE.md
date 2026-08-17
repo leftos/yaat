@@ -231,7 +231,7 @@ When invoking aviation-sim-expert, always include:
 
 - **Prefer the skill over ad-hoc CLI**: `layout-inspect` (never compose LayoutInspector flags from memory), `bug-bundle` (any `*-recording.zip` / `*.yaat-bug-report-bundle.zip`), `stt-pipeline-debugging` (any speech sample or "why doesn't this transcript match").
 - **Bug fixes and sim changes**: `test-fix` implements the mandatory TDD loop below.
-- **Review gates**: `aviation-realism-review` and `csharp-review` are the skill entrypoints to the corresponding agents; `architecture-doc-check` covers the pre-commit `docs/architecture.md` obligation.
+- **Review gates**: invoke the `aviation-sim-expert` and `csharp-reviewer` agents directly (via `Agent`); the `architecture-updater` agent covers the pre-commit `docs/architecture.md` obligation.
 - **Landing work**: `changelog-and-commit` → `merge-session-to-main` → `ship` (the last one composes all three, pushes, and closes issues — invoking it *is* the approval).
 - **Release**: `prepare-release`. Maintenance: `consolidate-recordings`.
 

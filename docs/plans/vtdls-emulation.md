@@ -324,7 +324,7 @@ Committed at `dfd35cc8`. `docs/vtdls/` cached. Findings folded into the rest of 
 - Modify `docs/command-cheatsheet.json` (and regenerate the HTML cheatsheet) — per `feedback_cheatsheet_json_sync`.
 
 **9.3** `docs(tdls): aviation-realism review`
-- Invoke `aviation-realism-review` (skill) against the auto-WILCO timing + the silent-pilot rule + the lifecycle (2-hour TTL, activate-on-departure removal, dump terminality). PDC content/phraseology follows AIM 5-2-2 and FAA Order 7210.3. Append findings to `docs/vtdls.md` under "Phraseology compliance notes". Local FAA refs at `.claude/reference/faa/aim/`.
+- Invoke the `aviation-sim-expert` agent against the auto-WILCO timing + the silent-pilot rule + the lifecycle (2-hour TTL, activate-on-departure removal, dump terminality). PDC content/phraseology follows AIM 5-2-2 and FAA Order 7210.3. Append findings to `docs/vtdls.md` under "Phraseology compliance notes". Local FAA refs at `.claude/reference/faa/aim/`.
 
 **9.4** `docs(tdls): CHANGELOG entry`
 - Modify `CHANGELOG.md` under `## Unreleased` — single bullet describing the vTDLS PDC feature (multi-facility tab + pop-out + browser app at `/vtdls/` + silent WILCO + Dump). Match house tone — no "comprehensive" / "robust" adjectives.
