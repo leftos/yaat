@@ -14,6 +14,7 @@
 - The TAXI echo warns when a located hold-short binds nothing (wrong location taxiway) and when a bare taxiway hold-short binds right at the start of the route, suggesting the `@` form.
 - A TAXI command's canonical and prose descriptions carry the full clearance — destination runway, crossings, hold-shorts, `NODEL` — instead of only the path and parking.
 - Command-bar autocomplete offers the loaded airport's taxiway names for taxiway arguments (`HS` targets, `TAXI` routes, exits) — they were runway-only — and an `HS`/`CROSS` modifier slot suggests its own argument type.
+- The Ground View "Hold short of..." menu lists one entry per crossing when the route meets a target on more than one taxiway ("Taxiway X at A" → `HS X@A`), and the hover preview stops at that crossing.
 
 ### Added
 - Located hold-short syntax `HS C@J` — holds short of C at its crossing with J, not the first C the route meets, and taxis the aircraft along J to it. (#358)

@@ -1111,62 +1111,114 @@ public partial class GroundViewModel : ObservableObject
 
         var routeTaxiways = ParseRouteTaxiways(ac.TaxiRoute);
         var routeSet = new HashSet<string>(routeTaxiways, StringComparer.OrdinalIgnoreCase);
-        var runways = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        var taxiways = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-        // Collect all node IDs along the resolved path
-        var routeNodeIds = new HashSet<int> { route.Segments[0].FromNodeId };
-        foreach (var seg in route.Segments)
+        // Per target: the distinct route taxiways it is crossed ON, in route order. A target the
+        // route meets on more than one taxiway gets one LOCATED menu entry per crossing
+        // (`X@A`, `X@B`) — a bare `HS X` can only ever bind the first — while a single crossing
+        // keeps the bare form. Crossings on the SAME taxiway cannot be told apart by the located
+        // syntax either, so they collapse into one entry like before.
+        var runwayCrossings = new Dictionary<string, List<string?>>(StringComparer.OrdinalIgnoreCase);
+        var taxiwayCrossings = new Dictionary<string, List<string?>>(StringComparer.OrdinalIgnoreCase);
+
+        static void Record(Dictionary<string, List<string?>> map, string target, string? location)
         {
-            routeNodeIds.Add(seg.ToNodeId);
+            if (!map.TryGetValue(target, out var locations))
+            {
+                locations = [];
+                map[target] = locations;
+            }
+
+            if (!locations.Contains(location, StringComparer.OrdinalIgnoreCase))
+            {
+                locations.Add(location);
+            }
         }
 
-        // Scan only nodes on the actual path
-        foreach (int nodeId in routeNodeIds)
+        void ScanNode(int nodeId, string? location)
         {
             if (!_domainLayout.Nodes.TryGetValue(nodeId, out var node))
             {
-                continue;
+                return;
             }
 
             if (node.Type == GroundNodeType.RunwayHoldShort && node.RunwayId is { } rwyId)
             {
-                runways.Add(rwyId.End1);
+                Record(runwayCrossings, rwyId.End1, location);
                 if (!string.Equals(rwyId.End1, rwyId.End2, StringComparison.OrdinalIgnoreCase))
                 {
-                    runways.Add(rwyId.End2);
+                    Record(runwayCrossings, rwyId.End2, location);
                 }
             }
 
             foreach (var adj in node.Edges)
             {
                 var name = adj.TaxiwayName;
-                if (routeSet.Contains(name))
+                if (routeSet.Contains(name) || adj.IsRunwayCenterline || adj.IsRamp)
                 {
                     continue;
                 }
 
-                if (adj.IsRunwayCenterline || adj.IsRamp)
-                {
-                    continue;
-                }
-
-                taxiways.Add(name);
+                // A junction arc's joined name can lead with the target itself ("X - A") — a
+                // location equal to the target is meaningless, record the crossing as unlocated.
+                Record(taxiwayCrossings, name, string.Equals(location, name, StringComparison.OrdinalIgnoreCase) ? null : location);
             }
         }
 
+        ScanNode(route.Segments[0].FromNodeId, ArrivingTaxiway(route.Segments[0]));
+        foreach (var seg in route.Segments)
+        {
+            ScanNode(seg.ToNodeId, ArrivingTaxiway(seg));
+        }
+
         var results = new List<(string DisplayName, string Target)>();
-        foreach (var rwy in runways.Order())
-        {
-            results.Add(($"Runway {RunwayIdentifier.ToDisplayDesignator(rwy)}", rwy));
-        }
-
-        foreach (var tw in taxiways.Order())
-        {
-            results.Add(($"Taxiway {tw}", tw));
-        }
-
+        AppendEntries(results, runwayCrossings, target => $"Runway {RunwayIdentifier.ToDisplayDesignator(target)}");
+        AppendEntries(results, taxiwayCrossings, target => $"Taxiway {target}");
         return results;
+    }
+
+    /// <summary>
+    /// One menu entry per target: bare when the route meets it on a single taxiway, located
+    /// (<c>target@taxiway</c>, "… at J") once per distinct crossing taxiway otherwise.
+    /// </summary>
+    private static void AppendEntries(
+        List<(string DisplayName, string Target)> results,
+        Dictionary<string, List<string?>> crossings,
+        Func<string, string> displayName
+    )
+    {
+        foreach (var (target, locations) in crossings.OrderBy(kv => kv.Key, StringComparer.OrdinalIgnoreCase))
+        {
+            var located = locations.OfType<string>().ToList();
+            if (located.Count > 1)
+            {
+                foreach (var location in located)
+                {
+                    results.Add(($"{displayName(target)} at {location}", $"{target}@{location}"));
+                }
+            }
+            else
+            {
+                results.Add((displayName(target), target));
+            }
+        }
+    }
+
+    /// <summary>
+    /// The route taxiway a segment travels ON — the location half of a located hold-short. A fillet
+    /// arc carries the joined junction name ("C - J"), so the composite is split and the first
+    /// plain taxiway name wins. Null when the segment is pure runway/ramp pavement.
+    /// </summary>
+    private static string? ArrivingTaxiway(TaxiRouteSegment seg)
+    {
+        foreach (var name in seg.TaxiwayName.Split(" - ", StringSplitOptions.RemoveEmptyEntries))
+        {
+            if (!name.StartsWith("RWY", StringComparison.OrdinalIgnoreCase) && !string.Equals(name, "RAMP", StringComparison.OrdinalIgnoreCase))
+            {
+                return name;
+            }
+        }
+
+        return null;
     }
 
     /// <summary>
@@ -1240,6 +1292,11 @@ public partial class GroundViewModel : ObservableObject
             return null;
         }
 
+        if (!HoldShortTarget.TryParse(target, out var holdShort, out _))
+        {
+            return null;
+        }
+
         for (int i = 0; i < route.Segments.Count; i++)
         {
             var seg = route.Segments[i];
@@ -1250,13 +1307,21 @@ public partial class GroundViewModel : ObservableObject
                 continue;
             }
 
-            bool matches = node.Type == GroundNodeType.RunwayHoldShort && node.RunwayId is { } hsRwyId && hsRwyId.Contains(target);
+            // A located target (C@J) only binds a node on its location taxiway — the same
+            // node-incidence rule the server's annotators use, so the hover preview stops at the
+            // crossing the command will actually arm.
+            if (holdShort.OnTaxiway is { } onTaxiway && !node.Edges.Any(e => e.MatchesTaxiway(onTaxiway)))
+            {
+                continue;
+            }
+
+            bool matches = node.Type == GroundNodeType.RunwayHoldShort && node.RunwayId is { } hsRwyId && hsRwyId.Contains(holdShort.Target);
 
             if (!matches)
             {
                 foreach (var edge in node.Edges)
                 {
-                    if (edge.MatchesTaxiway(target))
+                    if (edge.MatchesTaxiway(holdShort.Target))
                     {
                         matches = true;
                         break;
