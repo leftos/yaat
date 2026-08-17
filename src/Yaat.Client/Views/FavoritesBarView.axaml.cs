@@ -51,6 +51,7 @@ public partial class FavoritesBarView : UserControl
     private DateTime _dragPressUtc;
     private DateTime _lastDragReorderUtc = DateTime.MinValue;
     private bool _suppressNextFavoriteClick;
+    private bool _suppressPaletteTabFeedback;
 
     private static readonly TimeSpan DragHoldDelay = TimeSpan.FromMilliseconds(250);
     private static readonly TimeSpan DragReorderDebounce = TimeSpan.FromMilliseconds(175);
@@ -281,30 +282,43 @@ public partial class FavoritesBarView : UserControl
             return;
         }
 
-        _tabControl.Items.Clear();
-
-        foreach (var category in PaletteCategories)
+        // The TabControl auto-selects the first item added after Items.Clear(), which would fire
+        // SelectionChanged and overwrite _selectedPaletteCategory with Air mid-rebuild (#364), so
+        // feedback is suppressed and the remembered tab is pushed explicitly once all four exist.
+        _suppressPaletteTabFeedback = true;
+        try
         {
-            var panel = new UniformGrid { Columns = GetPanelColumns(vm), Margin = new Thickness(8) };
+            _tabControl.Items.Clear();
 
-            foreach (var entry in vm.DisplayFavorites.Where(f => NormalizeCategory(f.Favorite) == category))
+            TabItem? selectedTab = null;
+            foreach (var category in PaletteCategories)
             {
-                panel.Children.Add(entry.Favorite.IsSpacer ? CreateBlankSlot(entry) : CreateFavoriteButton(entry));
+                var panel = new UniformGrid { Columns = GetPanelColumns(vm), Margin = new Thickness(8) };
+
+                foreach (var entry in vm.DisplayFavorites.Where(f => NormalizeCategory(f.Favorite) == category))
+                {
+                    panel.Children.Add(entry.Favorite.IsSpacer ? CreateBlankSlot(entry) : CreateFavoriteButton(entry));
+                }
+
+                var scroll = new ScrollViewer
+                {
+                    Content = panel,
+                    HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+                    VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+                };
+                var tab = new TabItem { Header = category.ToString(), Content = scroll };
+                if (category == _selectedPaletteCategory)
+                {
+                    selectedTab = tab;
+                }
+                _tabControl.Items.Add(tab);
             }
 
-            var scroll = new ScrollViewer
-            {
-                Content = panel,
-                HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
-                VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-            };
-            var tab = new TabItem
-            {
-                Header = category.ToString(),
-                Content = scroll,
-                IsSelected = category == _selectedPaletteCategory,
-            };
-            _tabControl.Items.Add(tab);
+            _tabControl.SelectedItem = selectedTab ?? _tabControl.Items.OfType<TabItem>().First();
+        }
+        finally
+        {
+            _suppressPaletteTabFeedback = false;
         }
     }
 
@@ -786,6 +800,11 @@ public partial class FavoritesBarView : UserControl
 
     private void OnPaletteTabChanged(object? sender, SelectionChangedEventArgs e)
     {
+        if (_suppressPaletteTabFeedback)
+        {
+            return;
+        }
+
         if (_tabControl?.SelectedItem is TabItem { Header: string header } && Enum.TryParse<FavoriteCommandCategory>(header, out var category))
         {
             _selectedPaletteCategory = category;

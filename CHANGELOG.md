@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+- Favorites panel stays on the selected category tab after adding, editing, or deleting a favorite or changing the column count. (#364)
+
 ## v0.12.10-beta [2026/08/17]
 
 ### Fixed
