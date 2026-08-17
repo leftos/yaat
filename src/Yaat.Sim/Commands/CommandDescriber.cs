@@ -2035,6 +2035,12 @@ public static class CommandDescriber
         return clause;
     }
 
+    /// <summary>
+    /// Full-clearance canonical: path (with turn glyphs), parking/spot sigil, then <c>RWY</c>,
+    /// <c>CROSS</c>, <c>HS</c>, and <c>NODEL</c> — in an order <c>ParseTaxiTokens</c> round-trips
+    /// (the parking sigil must precede <c>CROSS</c>, whose mode would otherwise consume it;
+    /// <c>NODEL</c> is position-independent).
+    /// </summary>
     private static string FormatTaxiCanonical(TaxiCommand taxi)
     {
         var parts = new List<string> { "TAXI" };
@@ -2048,6 +2054,29 @@ public static class CommandDescriber
             parts.Add($"@{taxi.DestinationParking}");
         }
 
+        if (taxi.DestinationRunway is not null)
+        {
+            parts.Add("RWY");
+            parts.Add(taxi.DestinationRunway);
+        }
+
+        if (taxi.CrossRunways is { Count: > 0 } crossRunways)
+        {
+            parts.Add("CROSS");
+            parts.AddRange(crossRunways);
+        }
+
+        if (taxi.HoldShorts.Count > 0)
+        {
+            parts.Add("HS");
+            parts.AddRange(taxi.HoldShorts.Select(h => h.ToCanonical()));
+        }
+
+        if (taxi.NoDelete)
+        {
+            parts.Add("NODEL");
+        }
+
         return string.Join(" ", parts);
     }
 
@@ -2056,17 +2085,36 @@ public static class CommandDescriber
         var displayPath = FormatTaxiNaturalPath(taxi);
         bool hasPath = displayPath.Length > 0;
 
+        string body;
         if (taxi.DestinationSpot is not null)
         {
-            return hasPath ? $"Taxi via {displayPath} to spot {taxi.DestinationSpot}" : $"Taxi to spot {taxi.DestinationSpot}";
+            body = hasPath ? $"Taxi via {displayPath} to spot {taxi.DestinationSpot}" : $"Taxi to spot {taxi.DestinationSpot}";
         }
-
-        if (taxi.DestinationParking is not null)
+        else if (taxi.DestinationParking is not null)
         {
-            return hasPath ? $"Taxi via {displayPath} to parking {taxi.DestinationParking}" : $"Taxi to parking {taxi.DestinationParking}";
+            body = hasPath ? $"Taxi via {displayPath} to parking {taxi.DestinationParking}" : $"Taxi to parking {taxi.DestinationParking}";
+        }
+        else if (taxi.DestinationRunway is not null)
+        {
+            string runway = RunwayIdentifier.ToDisplayDesignator(taxi.DestinationRunway);
+            body = hasPath ? $"Taxi via {displayPath} to runway {runway}" : $"Taxi to runway {runway}";
+        }
+        else
+        {
+            body = hasPath ? $"Taxi via {displayPath}" : "Taxi";
         }
 
-        return hasPath ? $"Taxi via {displayPath}" : "Taxi";
+        if (taxi.CrossRunways is { Count: > 0 } crossRunways)
+        {
+            body += $", cross {string.Join(" and ", crossRunways.Select(RunwayIdentifier.ToDisplayDesignator))}";
+        }
+
+        if (taxi.HoldShorts.Count > 0)
+        {
+            body += $", hold short of {string.Join(" and ", taxi.HoldShorts.Select(h => h.ToNatural()))}";
+        }
+
+        return body;
     }
 
     /// <summary>

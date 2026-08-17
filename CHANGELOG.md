@@ -12,6 +12,7 @@
 - A taxiway hold-short target in a taxi readback is no longer spoken as a runway ("hold short of charlie", not "hold short of runway charlie").
 - Standalone `HS` commands now produce a pilot readback (they were silent).
 - The TAXI echo warns when a located hold-short binds nothing (wrong location taxiway) and when a bare taxiway hold-short binds right at the start of the route, suggesting the `@` form.
+- A TAXI command's canonical and prose descriptions carry the full clearance — destination runway, crossings, hold-shorts, `NODEL` — instead of only the path and parking.
 
 ### Added
 - Located hold-short syntax `HS C@J` — holds short of C at its crossing with J, not the first C the route meets, and taxis the aircraft along J to it. (#358)
