@@ -1,6 +1,19 @@
 # Changelog
 
-## Unreleased
+## v0.12.9-beta [2026/08/16]
+
+### Highlights
+- Located hold-short syntax `HS C@J` — hold short of a taxiway or runway at a specific crossing, supported in typed commands, pilot speech, and the Ground View "Hold short of..." menu (#358)
+- Command-bar autocomplete now offers the airport's taxiway names for taxi routes, hold-short targets, and exits
+- Windows stay where you put them — edge-snapped windows no longer shift on profile load, minimized tool windows restore when re-opened, and off-screen positions are rescued with DPI awareness (#359–#361)
+- `CONS` of a non-leaf TCP with automatic consolidation disabled now redirects unattended subsectors' handoffs to the receiver (#357)
+
+### Added
+- Located hold-short syntax `HS C@J` — holds short of C at its crossing with J, not the first C the route meets, and taxis the aircraft along J to it. (#358)
+- Runway targets take the same form: `HS 28R@J` arms the 28R holding-position bar on J; accepted in `TAXI … HS`, standalone `HS`, `RES … HS`, and `CROSS … HS`. (#358)
+- Pilot speech reads back and recognizes the located form ("hold short of charlie at juliet"). (#358)
+- The Ground View "Hold short of..." menu lists one entry per crossing when the route meets a target on more than one taxiway ("Taxiway X at A" → `HS X@A`), and the hover preview stops at that crossing. (#358)
+- The TAXI echo warns when a located hold-short binds nothing (wrong location taxiway) and when a bare taxiway hold-short binds right at the start of the route, suggesting the `@` form. (#358)
 
 ### Fixed
 - `CONS` of a non-leaf TCP on a facility with automatic consolidation disabled now redirects its unattended subsectors' handoffs to the receiver and suppresses server auto-accept there. (#357)
@@ -11,17 +24,10 @@
 - Window restore and off-screen rescue account for monitor DPI scaling.
 - A taxiway hold-short target in a taxi readback is no longer spoken as a runway ("hold short of charlie", not "hold short of runway charlie").
 - Standalone `HS` commands now produce a pilot readback (they were silent).
-- The TAXI echo warns when a located hold-short binds nothing (wrong location taxiway) and when a bare taxiway hold-short binds right at the start of the route, suggesting the `@` form.
 - A TAXI command's canonical and prose descriptions carry the full clearance — destination runway, crossings, hold-shorts, `NODEL` — instead of only the path and parking.
 - Command-bar autocomplete offers the loaded airport's taxiway names for taxiway arguments (`HS` targets, `TAXI` routes, exits) — they were runway-only — and an `HS`/`CROSS` modifier slot suggests its own argument type.
-- The Ground View "Hold short of..." menu lists one entry per crossing when the route meets a target on more than one taxiway ("Taxiway X at A" → `HS X@A`), and the hover preview stops at that crossing.
 - `CROSS <taxiway>` reads back as "continue taxiing" — the release for a taxiway hold-short — instead of the uncodified "cross runway bravo".
 - Spoken/terminal phonetic spelling for J follows the ICAO/AIM "juliett"; speech recognition still accepts the common "juliet".
-
-### Added
-- Located hold-short syntax `HS C@J` — holds short of C at its crossing with J, not the first C the route meets, and taxis the aircraft along J to it. (#358)
-- Runway targets take the same form: `HS 28R@J` arms the 28R holding-position bar on J; accepted in `TAXI … HS`, standalone `HS`, `RES … HS`, and `CROSS … HS`. (#358)
-- Pilot speech reads back and recognizes the located form ("hold short of charlie at juliet"). (#358)
 
 ## v0.12.8-beta [2026/08/15]
 
