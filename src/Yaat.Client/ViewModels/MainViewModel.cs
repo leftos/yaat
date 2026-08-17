@@ -15,6 +15,7 @@ using Yaat.Client.Views.Map;
 using Yaat.Sim;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
+using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Speech;
 
@@ -1398,6 +1399,7 @@ public partial class MainViewModel : ObservableObject
         Measure.StatusReported += status => StatusText = status;
         Ground.SetMeasureState(Measure);
         Radar.SetMeasureState(Measure);
+        _commandInput.TaxiwayNamesProvider = CollectLoadedTaxiwayNames;
         // Student entry is always the first strips entry. Additional
         // per-facility entries are appended via OpenStripsEntryForFacilityAsync.
         var studentVm = new VStripsViewModel(_connection, SendCommandForViewAsync, () => _preferences.UserInitials)
@@ -1853,27 +1855,9 @@ public partial class MainViewModel : ObservableObject
         }
 
         // Taxiway-name set for the currently-loaded ground layout — used by NatoLetterNormalizer
-        // to disambiguate multi-letter taxiway names during NATO collapse. The GroundViewModel
-        // owns the domain layout because it's the view that reconstructs it from the server DTO;
-        // MainViewModel borrows a reference here so the speech pipeline sees the same airport
-        // the user is currently looking at. Falls back to empty when no ground layout is loaded —
-        // single-letter splits still work in that case.
-        var taxiwayNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        var layout = Ground.DomainLayout;
-        if (layout is not null)
-        {
-            foreach (var edge in layout.Edges)
-            {
-                if (edge.IsRunwayCenterline || edge.IsRamp)
-                {
-                    continue;
-                }
-                if (!string.IsNullOrEmpty(edge.TaxiwayName))
-                {
-                    taxiwayNames.Add(edge.TaxiwayName.ToUpperInvariant());
-                }
-            }
-        }
+        // to disambiguate multi-letter taxiway names during NATO collapse. Falls back to empty
+        // when no ground layout is loaded — single-letter splits still work in that case.
+        var taxiwayNames = CollectLoadedTaxiwayNames();
 
         return new SpeechContext(callsigns, programmedFixes, whisperInitialPrompt)
         {
@@ -1883,6 +1867,37 @@ public partial class MainViewModel : ObservableObject
             TaxiwayNames = taxiwayNames,
             Procedures = procedures,
         };
+    }
+
+    /// <summary>
+    /// Taxiway names of the currently-loaded ground layout, shared by the speech pipeline
+    /// (NATO-collapse disambiguation) and command autocomplete (taxiway-typed arguments like
+    /// <c>HS</c> targets). The GroundViewModel owns the domain layout because it's the view that
+    /// reconstructs it from the server DTO; this borrows a reference so both consumers see the
+    /// same airport the user is currently looking at. Empty when no ground layout is loaded.
+    /// </summary>
+    private HashSet<string> CollectLoadedTaxiwayNames()
+    {
+        var taxiwayNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var layout = Ground.DomainLayout;
+        if (layout is null)
+        {
+            return taxiwayNames;
+        }
+
+        foreach (var edge in layout.Edges)
+        {
+            if (edge.IsRunwayCenterline || edge.IsRamp || edge is not GroundEdge)
+            {
+                continue;
+            }
+            if (!string.IsNullOrEmpty(edge.TaxiwayName))
+            {
+                taxiwayNames.Add(edge.TaxiwayName.ToUpperInvariant());
+            }
+        }
+
+        return taxiwayNames;
     }
 
     private void HandleSpeechServiceStatusChange(SpeechStatus status)

@@ -32,6 +32,7 @@ public class ArgumentSuggesterCrossTests
             aircraft: [],
             suggestions,
             primaryAirportId: null,
+            taxiwayNames: [],
             maxSuggestions: 20
         );
 

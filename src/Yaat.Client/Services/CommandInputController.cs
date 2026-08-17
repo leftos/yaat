@@ -44,6 +44,13 @@ public partial class CommandInputController : ObservableObject
     public string? PrimaryAirportId { get; set; }
     public IReadOnlyList<MacroDefinition>? Macros { get; set; }
 
+    /// <summary>
+    /// Source of the loaded ground layout's taxiway names for taxiway-typed argument suggestions.
+    /// A provider (not a snapshot) so the dropdown tracks whichever airport layout is currently
+    /// loaded; null or an empty result degrades taxiway parameters to their other suggestion kinds.
+    /// </summary>
+    public Func<IReadOnlyCollection<string>>? TaxiwayNamesProvider { get; set; }
+
     public bool IsNavigatingHistory => _isNavigatingHistory;
 
     /// <summary>
@@ -209,7 +216,18 @@ public partial class CommandInputController : ObservableObject
         {
             // ADD command positional argument suggestions
         }
-        else if (ArgumentSuggester.TryAddArgumentSuggestions(parsed, text, targetAircraft, aircraft, Suggestions, PrimaryAirportId, MaxSuggestions))
+        else if (
+            ArgumentSuggester.TryAddArgumentSuggestions(
+                parsed,
+                text,
+                targetAircraft,
+                aircraft,
+                Suggestions,
+                PrimaryAirportId,
+                TaxiwayNamesProvider?.Invoke() ?? [],
+                MaxSuggestions
+            )
+        )
         {
             // Command-specific argument suggestions (CTO modifiers, runways, fixes, callsigns)
         }

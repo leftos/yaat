@@ -23,6 +23,7 @@ internal static class ArgumentSuggester
         IReadOnlyCollection<AircraftModel> aircraft,
         ObservableCollection<SuggestionItem> suggestions,
         string? primaryAirportId,
+        IReadOnlyCollection<string> taxiwayNames,
         int maxSuggestions
     )
     {
@@ -41,7 +42,7 @@ internal static class ArgumentSuggester
             return false;
         }
 
-        return AddRegistrySuggestions(parsed, fullText, targetAircraft, aircraft, suggestions, primaryAirportId, maxSuggestions);
+        return AddRegistrySuggestions(parsed, fullText, targetAircraft, aircraft, suggestions, primaryAirportId, taxiwayNames, maxSuggestions);
     }
 
     private static bool AddRegistrySuggestions(
@@ -51,6 +52,7 @@ internal static class ArgumentSuggester
         IReadOnlyCollection<AircraftModel> aircraft,
         ObservableCollection<SuggestionItem> suggestions,
         string? primaryAirportId,
+        IReadOnlyCollection<string> taxiwayNames,
         int maxSuggestions
     )
     {
@@ -79,61 +81,77 @@ internal static class ArgumentSuggester
         // Collect what kinds of suggestions exist at this parameter position
         bool hasLiterals = false;
         bool hasRunway = false;
+        bool hasTaxiway = false;
         bool hasFix = false;
         bool hasApproach = false;
         bool hasCallsign = false;
         bool hasPatternLeg = false;
         bool hasAirway = false;
 
-        foreach (var overload in def.Overloads)
+        // When the caret sits inside a compound modifier's argument region (e.g. the token after
+        // `HS` in `TAXI A HS `), the modifier's own ArgHint decides the value suggestions — the
+        // overload's clamped trailing parameter no longer applies once the parser has switched
+        // modes (`CROSS 28R HS ` wants taxiway/runway targets, not more crossing runways).
+        var activeModifier = FindActiveModifier(def, parsed);
+        if (activeModifier is { ArgHint: { } modifierHint })
         {
-            int effectiveIndex = paramIndex;
-            if (effectiveIndex >= overload.Parameters.Length)
+            hasRunway = IsRunwayHint(modifierHint);
+            hasTaxiway = IsTaxiwayHint(modifierHint);
+        }
+        else
+        {
+            foreach (var overload in def.Overloads)
             {
-                // A trailing repeatable parameter (e.g. CROSS's runway list) keeps offering its
-                // own suggestions past its declared index, so clamp onto it instead of skipping.
-                int lastIndex = overload.Parameters.Length - 1;
-                if (lastIndex < 0 || !overload.Parameters[lastIndex].Repeatable)
+                int effectiveIndex = paramIndex;
+                if (effectiveIndex >= overload.Parameters.Length)
+                {
+                    // A trailing repeatable parameter (e.g. CROSS's runway list) keeps offering its
+                    // own suggestions past its declared index, so clamp onto it instead of skipping.
+                    int lastIndex = overload.Parameters.Length - 1;
+                    if (lastIndex < 0 || !overload.Parameters[lastIndex].Repeatable)
+                    {
+                        continue;
+                    }
+                    effectiveIndex = lastIndex;
+                }
+
+                // Check that any earlier literal params match what the user actually typed
+                if (!OverloadMatchesPrecedingArgs(overload, parsed.Tokens, parsed.VerbIndex, effectiveIndex))
                 {
                     continue;
                 }
-                effectiveIndex = lastIndex;
-            }
 
-            // Check that any earlier literal params match what the user actually typed
-            if (!OverloadMatchesPrecedingArgs(overload, parsed.Tokens, parsed.VerbIndex, effectiveIndex))
-            {
-                continue;
-            }
-
-            var param = overload.Parameters[effectiveIndex];
-            if (param.IsLiteral)
-            {
-                hasLiterals = true;
-            }
-            else if (IsRunwayHint(param.TypeHint))
-            {
-                hasRunway = true;
-            }
-            else if (IsApproachHint(param.TypeHint))
-            {
-                hasApproach = true;
-            }
-            else if (IsFixHint(param.TypeHint))
-            {
-                hasFix = true;
-            }
-            else if (IsCallsignHint(param.TypeHint))
-            {
-                hasCallsign = true;
-            }
-            else if (IsPatternLegHint(param.TypeHint))
-            {
-                hasPatternLeg = true;
-            }
-            else if (IsAirwayHint(param.TypeHint))
-            {
-                hasAirway = true;
+                var param = overload.Parameters[effectiveIndex];
+                if (param.IsLiteral)
+                {
+                    hasLiterals = true;
+                }
+                else if (IsApproachHint(param.TypeHint))
+                {
+                    hasApproach = true;
+                }
+                else if (IsFixHint(param.TypeHint))
+                {
+                    hasFix = true;
+                }
+                else if (IsCallsignHint(param.TypeHint))
+                {
+                    hasCallsign = true;
+                }
+                else if (IsPatternLegHint(param.TypeHint))
+                {
+                    hasPatternLeg = true;
+                }
+                else if (IsAirwayHint(param.TypeHint))
+                {
+                    hasAirway = true;
+                }
+                else
+                {
+                    // Runway and taxiway are not mutually exclusive ("taxiway/runway") — check both.
+                    hasRunway |= IsRunwayHint(param.TypeHint);
+                    hasTaxiway |= IsTaxiwayHint(param.TypeHint);
+                }
             }
         }
 
@@ -146,7 +164,7 @@ internal static class ArgumentSuggester
             hasModifiers = true;
         }
 
-        if (!hasLiterals && !hasRunway && !hasFix && !hasApproach && !hasCallsign && !hasPatternLeg && !hasAirway && !hasModifiers)
+        if (!hasLiterals && !hasRunway && !hasTaxiway && !hasFix && !hasApproach && !hasCallsign && !hasPatternLeg && !hasAirway && !hasModifiers)
         {
             return false;
         }
@@ -159,6 +177,11 @@ internal static class ArgumentSuggester
         if (hasRunway)
         {
             AddRunwaySuggestions(fullText, parsed.ActiveTokenStart, parsed.ActiveTokenEnd, partial, suggestions, primaryAirportId, maxSuggestions);
+        }
+
+        if (hasTaxiway)
+        {
+            AddTaxiwaySuggestions(fullText, parsed.ActiveTokenStart, parsed.ActiveTokenEnd, partial, suggestions, taxiwayNames, maxSuggestions);
         }
 
         if (hasApproach)
@@ -330,6 +353,50 @@ internal static class ArgumentSuggester
     private static bool IsRunwayHint(string typeHint)
     {
         return typeHint.Contains("runway", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsTaxiwayHint(string typeHint)
+    {
+        return typeHint.Contains("taxiway", StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// The compound modifier whose argument region the caret sits in, or null when the active token
+    /// still belongs to the overload parameters. Mirrors the parser's mode semantics: a modifier
+    /// keyword switches mode until the next keyword; a non-repeatable modifier's mode lasts one
+    /// argument token (<c>RWY 28R</c>), a repeatable one until the next keyword (<c>HS C E</c>).
+    /// Keyword-only modifiers (<c>NODEL</c>) and the <c>@</c>/<c>$</c> sigils (self-contained
+    /// tokens) never open an argument region.
+    /// </summary>
+    private static CompoundModifier? FindActiveModifier(CommandDefinition def, CommandInputParseResult parsed)
+    {
+        if (def.CompoundModifiers is not { Length: > 0 } modifiers)
+        {
+            return null;
+        }
+
+        CompoundModifier? active = null;
+        int argTokensSinceKeyword = 0;
+        for (int i = parsed.VerbIndex + 1; i < parsed.ActiveTokenIndex && i < parsed.Tokens.Length; i++)
+        {
+            var keywordMatch = modifiers.FirstOrDefault(m =>
+                (m.ArgHint is not null) && string.Equals(m.Keyword, parsed.Tokens[i], StringComparison.OrdinalIgnoreCase)
+            );
+            if (keywordMatch is not null)
+            {
+                active = keywordMatch;
+                argTokensSinceKeyword = 0;
+                continue;
+            }
+
+            argTokensSinceKeyword++;
+            if (active is { Repeatable: false } && argTokensSinceKeyword >= 1)
+            {
+                active = null;
+            }
+        }
+
+        return active;
     }
 
     private static bool IsAirwayHint(string typeHint)
@@ -546,6 +613,47 @@ internal static class ArgumentSuggester
                     }
                 );
             }
+        }
+    }
+
+    /// <summary>
+    /// Taxiway names from the loaded ground layout for taxiway-typed parameters (HS targets, TAXI
+    /// routes, runway exits). Empty when no ground layout is loaded — the dropdown then degrades to
+    /// whatever else the parameter offers (runways for <c>taxiway/runway</c> hints).
+    /// </summary>
+    private static void AddTaxiwaySuggestions(
+        string fullText,
+        int activeTokenStart,
+        int activeTokenEnd,
+        string partial,
+        ObservableCollection<SuggestionItem> suggestions,
+        IReadOnlyCollection<string> taxiwayNames,
+        int maxSuggestions
+    )
+    {
+        foreach (var name in taxiwayNames.OrderBy(n => n, StringComparer.OrdinalIgnoreCase))
+        {
+            if (suggestions.Count >= maxSuggestions)
+            {
+                return;
+            }
+
+            if (partial.Length > 0 && !name.StartsWith(partial, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            var (insertText, caret) = CommandInputController.BuildTokenReplacement(fullText, activeTokenStart, activeTokenEnd, name);
+            suggestions.Add(
+                new SuggestionItem
+                {
+                    Kind = SuggestionKind.Command,
+                    Text = name,
+                    Description = "Taxiway",
+                    InsertText = insertText,
+                    CaretAfterInsert = caret,
+                }
+            );
         }
     }
 
