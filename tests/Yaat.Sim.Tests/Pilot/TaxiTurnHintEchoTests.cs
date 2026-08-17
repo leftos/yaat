@@ -173,6 +173,6 @@ public class TaxiTurnHintEchoTests(ITestOutputHelper output)
         output.WriteLine($"TTS: {tts}");
 
         Assert.NotNull(tts);
-        Assert.Contains("right on juliet", tts);
+        Assert.Contains("right on juliett", tts);
     }
 }

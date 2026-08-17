@@ -156,7 +156,7 @@ public sealed class MilitaryRouteReadbackTests
     // §2-5-1.a: the airway is its phonetic letter plus the number in group form; a fix keeps its
     // own pronunciation, so SEA stays the Seattle VORTAC rather than being spelled out.
     [InlineData("V495 SEA", "victor four ninety five, Seattle VORTAC")]
-    [InlineData("J80", "juliet eighty")]
+    [InlineData("J80", "juliett eighty")]
     [InlineData("A700", "alpha seven hundred")]
     public void SpellRouteString_SpellsAirwaysPhoneticallyInGroupForm(string route, string expected)
     {

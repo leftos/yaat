@@ -54,7 +54,7 @@ public class NatoNearMissResolverTests
     [InlineData("delt", "delta")] // missing trailing 'a'
     [InlineData("papaa", "papa")] // extra trailing 'a'
     [InlineData("whisky", "whiskey")] // missing 'e'
-    [InlineData("juliett", "juliet")] // extra trailing 't'
+    [InlineData("juliet", "juliett")] // common single-t spelling
     public void Distance1_NearMisses_Are_Resolved(string input, string expected)
     {
         var result = NatoNearMissResolver.Resolve([input], NoProtection);

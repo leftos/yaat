@@ -30,7 +30,7 @@ public static class NatoPhoneticAlphabet
         ['G'] = "golf",
         ['H'] = "hotel",
         ['I'] = "india",
-        ['J'] = "juliet",
+        ['J'] = "juliett",
         ['K'] = "kilo",
         ['L'] = "lima",
         ['M'] = "mike",
@@ -120,6 +120,10 @@ public static class NatoPhoneticAlphabet
         {
             map[word] = letter;
         }
+
+        // The canonical spelling is the ICAO/AIM "Juliett" (AIM Table 4-2-2), but the common
+        // English "Juliet" is what Whisper usually transcribes — accept it as an input alias.
+        map["juliet"] = 'J';
         return map;
     }
 }

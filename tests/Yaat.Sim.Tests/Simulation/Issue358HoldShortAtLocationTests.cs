@@ -362,10 +362,10 @@ public class Issue358HoldShortAtLocationTests(ITestOutputHelper output)
     /// Pins the aviation-review-required forms for all four target shapes.
     /// </summary>
     [Theory]
-    [InlineData("TAXI C D J HS C", "taxi via charlie, delta, juliet hold short of charlie")]
-    [InlineData("TAXI C D J HS C@J", "taxi via charlie, delta, juliet hold short of charlie at juliet")]
+    [InlineData("TAXI C D J HS C", "taxi via charlie, delta, juliett hold short of charlie")]
+    [InlineData("TAXI C D J HS C@J", "taxi via charlie, delta, juliett hold short of charlie at juliett")]
     [InlineData("TAXI B C HS 28R", "taxi via bravo, charlie hold short of runway two eight right")]
-    [InlineData("TAXI C D J HS 28R@J", "taxi via charlie, delta, juliet hold short of runway two eight right at juliet")]
+    [InlineData("TAXI C D J HS 28R@J", "taxi via charlie, delta, juliett hold short of runway two eight right at juliett")]
     public void Readback_TaxiWithHoldShort_RunwayWordMatchesTargetType(string command, string expected)
     {
         var parsed = CommandParser.Parse(command);

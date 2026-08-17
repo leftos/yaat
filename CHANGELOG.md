@@ -16,6 +16,7 @@
 - Command-bar autocomplete offers the loaded airport's taxiway names for taxiway arguments (`HS` targets, `TAXI` routes, exits) — they were runway-only — and an `HS`/`CROSS` modifier slot suggests its own argument type.
 - The Ground View "Hold short of..." menu lists one entry per crossing when the route meets a target on more than one taxiway ("Taxiway X at A" → `HS X@A`), and the hover preview stops at that crossing.
 - `CROSS <taxiway>` reads back as "continue taxiing" — the release for a taxiway hold-short — instead of the uncodified "cross runway bravo".
+- Spoken/terminal phonetic spelling for J follows the ICAO/AIM "juliett"; speech recognition still accepts the common "juliet".
 
 ### Added
 - Located hold-short syntax `HS C@J` — holds short of C at its crossing with J, not the first C the route meets, and taxis the aircraft along J to it. (#358)

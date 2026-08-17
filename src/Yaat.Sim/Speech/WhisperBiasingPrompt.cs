@@ -74,7 +74,7 @@ public static class WhisperBiasingPrompt
         "romeo",
         "delta",
         "victor",
-        "juliet",
+        "juliett",
         "quebec",
         "foxtrot",
         "yankee",
