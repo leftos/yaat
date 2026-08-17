@@ -177,12 +177,17 @@ public static class PhraseologyVerbalizer
             return RenderResume((ResumeCommand)cmd, fmt);
         }
 
-        // CROSS with multiple runways or an HS modifier composes "cross runway … and …" /
-        // "hold short of …" clauses the single-{rwy} rule template can't express. A single-runway,
-        // no-HS CROSS falls through to the rule-driven path so its readback and STT stay unchanged.
-        if (cmd is CrossRunwayCommand { RunwayIds.Count: > 1 } or CrossRunwayCommand { HoldShorts.Count: > 0 })
+        // CROSS with multiple runways, an HS modifier, or any TAXIWAY target composes clauses the
+        // single-{rwy} rule template can't express — a taxiway target must never be read back as
+        // "cross runway bravo" (crossing clearances are a runway construct, 7110.65 §3-7-2.a.3).
+        // A single-runway, no-HS CROSS falls through to the rule-driven path so its readback and
+        // STT stay unchanged.
+        if (
+            cmd is CrossRunwayCommand crossCmd
+            && (crossCmd.RunwayIds.Count > 1 || crossCmd.HoldShorts.Count > 0 || crossCmd.RunwayIds.Any(r => !CommandParser.IsRunwayArg(r)))
+        )
         {
-            return RenderCross((CrossRunwayCommand)cmd, fmt);
+            return RenderCross(crossCmd, fmt);
         }
 
         var canonicalType = CommandDescriber.ToCanonicalType(cmd);
@@ -467,9 +472,24 @@ public static class PhraseologyVerbalizer
     {
         var body = new StringBuilder();
 
-        if (cross.RunwayIds is { Count: > 0 } runways)
+        // A taxiway target in the CROSS list releases a taxiway hold-short — that is read back as
+        // the §3-7 "continue taxiing" release, never as a runway-crossing clause. Naming the
+        // taxiway is not codified, so the clause carries no identifier.
+        var runways = cross.RunwayIds.Where(CommandParser.IsRunwayArg).ToList();
+        bool releasesTaxiwayHold = cross.RunwayIds.Count > runways.Count;
+
+        if (runways.Count > 0)
         {
             body.Append($"cross runway {string.Join(" and ", runways.Select(fmt.Runway))}");
+        }
+
+        if (releasesTaxiwayHold)
+        {
+            if (body.Length > 0)
+            {
+                body.Append(", ");
+            }
+            body.Append("continue taxiing");
         }
 
         if (cross.HoldShorts is { Count: > 0 } holdShorts)
