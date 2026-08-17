@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.12.10-beta [2026/08/17]
 
 ### Fixed
 - An ASDE-X "Edit DB Fields" change (callsign, beacon, category, aircraft type, or fix override) on a stationary aircraft now reaches already-connected CRC clients immediately instead of waiting for the aircraft to move. (#362)
