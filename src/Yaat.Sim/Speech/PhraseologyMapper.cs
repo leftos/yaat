@@ -88,7 +88,9 @@ public static class PhraseologyMapper
     // Skipped when context.TaxiwayNames is empty (tests, headless) — same skip behavior as runway
     // and procedure validation. Production callers populate TaxiwayNames from the active aircraft's
     // ground layout.
-    private static readonly HashSet<string> TaxiwayLikeCaptureNames = new(StringComparer.OrdinalIgnoreCase) { "taxiway" };
+    // "hson" is the located hold-short's location taxiway ("hold short of charlie AT JULIETT" →
+    // HS C@J) — always a taxiway, so it takes the same layout validation.
+    private static readonly HashSet<string> TaxiwayLikeCaptureNames = new(StringComparer.OrdinalIgnoreCase) { "taxiway", "hson" };
 
     /// <summary>
     /// Map a transcript to a canonical YAAT command. Returns null when no rule matched any part

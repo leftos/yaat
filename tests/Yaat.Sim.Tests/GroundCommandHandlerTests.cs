@@ -920,7 +920,7 @@ public class GroundCommandHandlerTests
     {
         var ac = MakeGroundAircraft();
         ac.IsOnGround = false;
-        var cmd = new HoldShortCommand("28R");
+        var cmd = new HoldShortCommand(HoldShortTarget.Parse("28R"));
 
         var result = GroundCommandHandler.TryHoldShort(ac, cmd, null);
 
@@ -932,7 +932,7 @@ public class GroundCommandHandlerTests
     public void TryHoldShort_NoRoute_Fails()
     {
         var ac = MakeGroundAircraft();
-        var cmd = new HoldShortCommand("28R");
+        var cmd = new HoldShortCommand(HoldShortTarget.Parse("28R"));
 
         var result = GroundCommandHandler.TryHoldShort(ac, cmd, null);
 
@@ -945,7 +945,7 @@ public class GroundCommandHandlerTests
     {
         var ac = MakeGroundAircraft();
         ac.Ground.AssignedTaxiRoute = MakeRouteWithHoldShort("28R/10L");
-        var cmd = new HoldShortCommand("B");
+        var cmd = new HoldShortCommand(HoldShortTarget.Parse("B"));
 
         var result = GroundCommandHandler.TryHoldShort(ac, cmd, null);
 
@@ -1505,7 +1505,7 @@ public class GroundCommandHandlerTests
         };
         ac.Phases.Start(ctx);
 
-        var compound = new CompoundCommand([new ParsedBlock(null, [new ResumeCommand([], ["28L"])])]);
+        var compound = new CompoundCommand([new ParsedBlock(null, [new ResumeCommand([], [HoldShortTarget.Parse("28L")])])]);
         var result = CommandDispatcher.DispatchCompound(compound, ac, TestDispatch.Context(new SerializableRandom(42)));
 
         Assert.True(result.Success, $"Expected success but got: {result.Message}");
@@ -1537,7 +1537,7 @@ public class GroundCommandHandlerTests
         };
         ac.Phases.Start(ctx);
 
-        var compound = new CompoundCommand([new ParsedBlock(null, [new ResumeCommand([], ["09L"])])]);
+        var compound = new CompoundCommand([new ParsedBlock(null, [new ResumeCommand([], [HoldShortTarget.Parse("09L")])])]);
         var result = CommandDispatcher.DispatchCompound(compound, ac, TestDispatch.Context(new SerializableRandom(42)));
 
         Assert.False(result.Success);
@@ -1588,7 +1588,7 @@ public class GroundCommandHandlerTests
         };
         ac.Phases.Start(ctx);
 
-        var compound = new CompoundCommand([new ParsedBlock(null, [new ResumeCommand(["28R"], ["28L"])])]);
+        var compound = new CompoundCommand([new ParsedBlock(null, [new ResumeCommand(["28R"], [HoldShortTarget.Parse("28L")])])]);
         var result = CommandDispatcher.DispatchCompound(compound, ac, TestDispatch.Context(new SerializableRandom(42)));
 
         Assert.True(result.Success, $"Expected success but got: {result.Message}");
@@ -1607,7 +1607,7 @@ public class GroundCommandHandlerTests
         var (layout, route) = MakeCrossingRoute(autoCleared: true);
         var ac = MakeAircraftHoldingShortOfTaxiwayC(route);
 
-        var compound = new CompoundCommand([new ParsedBlock(null, [new ResumeCommand([], ["28R"])])]);
+        var compound = new CompoundCommand([new ParsedBlock(null, [new ResumeCommand([], [HoldShortTarget.Parse("28R")])])]);
         var result = CommandDispatcher.DispatchCompound(compound, ac, TestDispatch.Context(new SerializableRandom(42), groundLayout: layout));
 
         Assert.True(result.Success, $"Expected success but got: {result.Message}");
@@ -1625,7 +1625,7 @@ public class GroundCommandHandlerTests
         var ac = MakeGroundAircraft();
         ac.Ground.AssignedTaxiRoute = route;
 
-        var result = GroundCommandHandler.TryHoldShort(ac, new HoldShortCommand("28R"), layout);
+        var result = GroundCommandHandler.TryHoldShort(ac, new HoldShortCommand(HoldShortTarget.Parse("28R")), layout);
 
         Assert.True(result.Success, $"Expected success but got: {result.Message}");
         var hs28R = Assert.Single(route.HoldShortPoints, h => h.TargetName == "28R/10L");
@@ -1643,7 +1643,7 @@ public class GroundCommandHandlerTests
         var ac = MakeGroundAircraft();
         ac.Ground.AssignedTaxiRoute = route;
 
-        var result = GroundCommandHandler.TryHoldShort(ac, new HoldShortCommand("28R"), layout);
+        var result = GroundCommandHandler.TryHoldShort(ac, new HoldShortCommand(HoldShortTarget.Parse("28R")), layout);
 
         Assert.False(result.Success);
         Assert.Contains("28R", result.Message!);
@@ -1660,7 +1660,7 @@ public class GroundCommandHandlerTests
         var ac = MakeGroundAircraft();
         ac.Ground.AssignedTaxiRoute = route;
 
-        var result = GroundCommandHandler.TryHoldShort(ac, new HoldShortCommand("28R"), layout);
+        var result = GroundCommandHandler.TryHoldShort(ac, new HoldShortCommand(HoldShortTarget.Parse("28R")), layout);
 
         Assert.True(result.Success, $"Expected success but got: {result.Message}");
         var hs28R = Assert.Single(route.HoldShortPoints, h => h.TargetName == "28R/10L");
@@ -1680,7 +1680,7 @@ public class GroundCommandHandlerTests
         Assert.True(GroundCommandHandler.TryCrossRunway(ac, new CrossRunwayCommand(["28R"], []), ac.Ground.Layout).Success);
         Assert.True(route.HoldShortPoints[1].IsCleared);
 
-        var result = GroundCommandHandler.TryHoldShort(ac, new HoldShortCommand("28R"), layout);
+        var result = GroundCommandHandler.TryHoldShort(ac, new HoldShortCommand(HoldShortTarget.Parse("28R")), layout);
 
         Assert.True(result.Success, $"Expected success but got: {result.Message}");
         Assert.False(route.HoldShortPoints[1].IsCleared);
@@ -1695,7 +1695,7 @@ public class GroundCommandHandlerTests
         var ac = MakeGroundAircraft();
         ac.Ground.AssignedTaxiRoute = route;
 
-        var result = GroundCommandHandler.TryHoldShort(ac, new HoldShortCommand("28R"), layout);
+        var result = GroundCommandHandler.TryHoldShort(ac, new HoldShortCommand(HoldShortTarget.Parse("28R")), layout);
 
         Assert.True(result.Success, $"Expected success but got: {result.Message}");
         Assert.Equal(HoldShortReason.DestinationRunway, route.HoldShortPoints[1].Reason);
@@ -1708,7 +1708,9 @@ public class GroundCommandHandlerTests
         var (layout, route) = MakeCrossingRoute(autoCleared: true);
         var ac = MakeAircraftHoldingShortOfTaxiwayC(route);
 
-        var compound = new CompoundCommand([new ParsedBlock(null, [new ResumeCommand([], ["28R", "09L"])])]);
+        var compound = new CompoundCommand([
+            new ParsedBlock(null, [new ResumeCommand([], [HoldShortTarget.Parse("28R"), HoldShortTarget.Parse("09L")])]),
+        ]);
         var result = CommandDispatcher.DispatchCompound(compound, ac, TestDispatch.Context(new SerializableRandom(42), groundLayout: layout));
 
         Assert.False(result.Success);

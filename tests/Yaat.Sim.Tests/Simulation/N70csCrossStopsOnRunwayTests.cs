@@ -76,7 +76,7 @@ public class N70csCrossStopsOnRunwayTests(ITestOutputHelper output)
             fromNodeId: JApproachNode,
             taxiwayNames: ["J"],
             out string? failReason,
-            new ExplicitPathOptions { AirportId = "OAK", ExplicitHoldShorts = ["28R"] },
+            new ExplicitPathOptions { AirportId = "OAK", ExplicitHoldShorts = [HoldShortTarget.Parse("28R")] },
             AircraftCategory.Jet
         );
 

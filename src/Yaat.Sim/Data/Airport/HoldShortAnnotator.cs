@@ -225,14 +225,18 @@ internal static class HoldShortAnnotator
     /// <summary>
     /// Works out what <c>HS &lt;target&gt;</c> would do to <paramref name="route"/> without touching it,
     /// so a multi-target command can validate every target before mutating any. Apply the result with
-    /// <see cref="ApplyExplicitHoldShort"/>.
+    /// <see cref="ApplyExplicitHoldShort"/>. A located target (<c>C@J</c>) only considers points and
+    /// nodes on the location taxiway, so the crossing the controller named binds even when an earlier
+    /// crossing of the same target lies ahead on the route (issue #358).
     /// </summary>
-    internal static ExplicitHoldShortPlan PlanExplicitHoldShort(AirportGroundLayout? layout, TaxiRoute route, string target)
+    internal static ExplicitHoldShortPlan PlanExplicitHoldShort(AirportGroundLayout? layout, TaxiRoute route, HoldShortTarget target)
     {
         // The route's HoldShortPoints already carry exactly one entry per runway it crosses, on the
         // entry side — AddImplicitRunwayHoldShorts pairs the bars and drops the far side. So an
         // existing point is the authoritative near-side bar; never re-derive it from the segments.
-        var candidates = route.HoldShortPoints.Where(h => TargetMatches(h.TargetName, target)).ToList();
+        var candidates = route
+            .HoldShortPoints.Where(h => TargetMatches(h.TargetName, target.Target) && NodeOnLocationTaxiway(layout, h.NodeId, target.OnTaxiway))
+            .ToList();
         if (candidates.Count > 0)
         {
             // A bar can only be behind the aircraft if it was cleared — the taxi gate physically
@@ -264,7 +268,8 @@ internal static class HoldShortAnnotator
         }
 
         // No point for this target yet: walk the remaining route for the first node to hang one on.
-        // At a given node a runway bar is tried before the node's taxiway edges.
+        // At a given node a runway bar is tried before the node's taxiway edges. A located target
+        // skips nodes off its location taxiway.
         for (int i = Math.Max(0, route.CurrentSegmentIndex); i < route.Segments.Count; i++)
         {
             if (!layout.Nodes.TryGetValue(route.Segments[i].ToNodeId, out var node))
@@ -272,7 +277,12 @@ internal static class HoldShortAnnotator
                 continue;
             }
 
-            if (node.Type == GroundNodeType.RunwayHoldShort && node.RunwayId is { } nodeRwyId && nodeRwyId.Contains(target))
+            if (target.OnTaxiway is { } onTaxiway && !node.Edges.Any(e => e.MatchesTaxiway(onTaxiway)))
+            {
+                continue;
+            }
+
+            if (node.Type == GroundNodeType.RunwayHoldShort && node.RunwayId is { } nodeRwyId && nodeRwyId.Contains(target.Target))
             {
                 return new ExplicitHoldShortPlan
                 {
@@ -284,13 +294,13 @@ internal static class HoldShortAnnotator
 
             foreach (var edge in node.Edges)
             {
-                if (edge.MatchesTaxiway(target))
+                if (edge.MatchesTaxiway(target.Target))
                 {
                     return new ExplicitHoldShortPlan
                     {
                         Outcome = ExplicitHoldShortOutcome.Add,
                         NodeId = node.Id,
-                        TargetName = target.ToUpperInvariant(),
+                        TargetName = target.Target,
                     };
                 }
             }
@@ -300,11 +310,26 @@ internal static class HoldShortAnnotator
     }
 
     /// <summary>
+    /// True when the located constraint is satisfied: no location, or the node has an edge on the
+    /// location taxiway. Without a layout the constraint cannot be checked and fails closed — a
+    /// located target must never silently bind the wrong crossing.
+    /// </summary>
+    private static bool NodeOnLocationTaxiway(AirportGroundLayout? layout, int nodeId, string? onTaxiway)
+    {
+        if (onTaxiway is null)
+        {
+            return true;
+        }
+
+        return layout is not null && layout.Nodes.TryGetValue(nodeId, out var node) && node.Edges.Any(e => e.MatchesTaxiway(onTaxiway));
+    }
+
+    /// <summary>
     /// Commits a <see cref="PlanExplicitHoldShort"/> result. A re-arm revokes the existing clearance
     /// whatever set it — AutoCross, an earlier CROSS, or the implicit first-crossing clearance — because
     /// the hold-short is the controller's most recent instruction for that runway.
     /// </summary>
-    internal static void ApplyExplicitHoldShort(TaxiRoute route, ExplicitHoldShortPlan plan, string target)
+    internal static void ApplyExplicitHoldShort(TaxiRoute route, ExplicitHoldShortPlan plan, HoldShortTarget target)
     {
         switch (plan.Outcome)
         {

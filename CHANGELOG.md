@@ -9,6 +9,14 @@
 - Windows placed at a screen edge no longer shift inward and overlap their neighbors when a window profile loads or the app restores them at startup. (#361)
 - Saving a profile or quitting while a window is minimized no longer records a far-off-screen position; already-poisoned entries snap back on-screen.
 - Window restore and off-screen rescue account for monitor DPI scaling.
+- A taxiway hold-short target in a taxi readback is no longer spoken as a runway ("hold short of charlie", not "hold short of runway charlie").
+- Standalone `HS` commands now produce a pilot readback (they were silent).
+- The TAXI echo warns when a located hold-short binds nothing (wrong location taxiway) and when a bare taxiway hold-short binds right at the start of the route, suggesting the `@` form.
+
+### Added
+- Located hold-short syntax `HS C@J` — holds short of C at its crossing with J, not the first C the route meets, and taxis the aircraft along J to it. (#358)
+- Runway targets take the same form: `HS 28R@J` arms the 28R holding-position bar on J; accepted in `TAXI … HS`, standalone `HS`, `RES … HS`, and `CROSS … HS`. (#358)
+- Pilot speech reads back and recognizes the located form ("hold short of charlie at juliet"). (#358)
 
 ## v0.12.8-beta [2026/08/15]
 
@@ -27,7 +35,6 @@
 
 ### Added
 - A hard UI freeze on Windows now also writes a small minidump (`yaat-freeze-<timestamp>.dmp`, next to `yaat-client.log`, newest 3 kept) capturing every thread's native call stack — the freeze warning lists it to attach to a bug report. The quit path also logs each shutdown stage so freeze reports show exactly how far it got. (#347)
-
 ## v0.12.7-beta [2026/08/13]
 
 ### Highlights

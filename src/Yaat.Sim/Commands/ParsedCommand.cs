@@ -1,3 +1,4 @@
+using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Simulation.Snapshots;
 
@@ -459,7 +460,7 @@ public record PushbackCommand(
 /// </summary>
 public record TaxiCommand(
     List<string> Path,
-    List<string> HoldShorts,
+    List<HoldShortTarget> HoldShorts,
     string? DestinationRunway = null,
     bool NoDelete = false,
     string? DestinationParking = null,
@@ -488,7 +489,7 @@ public record HoldPositionCommand : ParsedCommand;
 /// first matching intersection. Both lists are always non-null; empty for bare
 /// RES. Canonical form: <c>RES [CROSS rwy...] [HS target...]</c>.
 /// </summary>
-public record ResumeCommand(IReadOnlyList<string> CrossRunways, IReadOnlyList<string> HoldShorts) : ParsedCommand;
+public record ResumeCommand(IReadOnlyList<string> CrossRunways, IReadOnlyList<HoldShortTarget> HoldShorts) : ParsedCommand;
 
 /// <summary>
 /// Cross one or more runways. Each runway in <see cref="RunwayIds"/> is cleared:
@@ -501,9 +502,9 @@ public record ResumeCommand(IReadOnlyList<string> CrossRunways, IReadOnlyList<st
 /// on the route (runway or taxiway) — exactly one, so the aircraft still stops at
 /// subsequent hold-shorts. Canonical form: <c>CROSS [rwy...] [HS target...]</c>.
 /// </summary>
-public record CrossRunwayCommand(IReadOnlyList<string> RunwayIds, IReadOnlyList<string> HoldShorts) : ParsedCommand;
+public record CrossRunwayCommand(IReadOnlyList<string> RunwayIds, IReadOnlyList<HoldShortTarget> HoldShorts) : ParsedCommand;
 
-public record HoldShortCommand(string Target) : ParsedCommand;
+public record HoldShortCommand(HoldShortTarget Target) : ParsedCommand;
 
 public record AssignRunwayCommand(string RunwayId) : ParsedCommand;
 

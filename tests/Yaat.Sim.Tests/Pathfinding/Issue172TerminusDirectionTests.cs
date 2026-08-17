@@ -96,7 +96,7 @@ public class Issue172TerminusDirectionTests(ITestOutputHelper output)
             fromNodeId: f1bIntersection.Id,
             taxiwayNames: ["B", "K"],
             out string? failReason,
-            new ExplicitPathOptions { AirportId = "SFO", ExplicitHoldShorts = ["10R"] },
+            new ExplicitPathOptions { AirportId = "SFO", ExplicitHoldShorts = [HoldShortTarget.Parse("10R")] },
             AircraftCategory.Jet
         );
 

@@ -228,8 +228,8 @@ public class HoldShortAnnotatorTests
         var layout = LayoutWith(TaxiNode(1), hsNode);
         var route = RouteOf([Seg(1, 2)], [], 0);
 
-        var plan = HoldShortAnnotator.PlanExplicitHoldShort(layout, route, "28R");
-        HoldShortAnnotator.ApplyExplicitHoldShort(route, plan, "28R");
+        var plan = HoldShortAnnotator.PlanExplicitHoldShort(layout, route, HoldShortTarget.Parse("28R"));
+        HoldShortAnnotator.ApplyExplicitHoldShort(route, plan, HoldShortTarget.Parse("28R"));
 
         Assert.Equal(ExplicitHoldShortOutcome.Add, plan.Outcome);
         var hs = Assert.Single(route.HoldShortPoints);
@@ -257,8 +257,8 @@ public class HoldShortAnnotatorTests
         var layout = LayoutWith(TaxiNode(1), hs15, intersectionNode);
         var route = RouteOf([Seg(1, 2), Seg(2, 3)], [], 0);
 
-        var plan = HoldShortAnnotator.PlanExplicitHoldShort(layout, route, "A");
-        HoldShortAnnotator.ApplyExplicitHoldShort(route, plan, "A");
+        var plan = HoldShortAnnotator.PlanExplicitHoldShort(layout, route, HoldShortTarget.Parse("A"));
+        HoldShortAnnotator.ApplyExplicitHoldShort(route, plan, HoldShortTarget.Parse("A"));
 
         var hs = Assert.Single(route.HoldShortPoints);
         Assert.Equal(3, hs.NodeId);
@@ -287,8 +287,8 @@ public class HoldShortAnnotatorTests
         var layout = LayoutWith(TaxiNode(1), node2, node3);
         var route = RouteOf([Seg(1, 2), Seg(2, 3)], [], 0);
 
-        var plan = HoldShortAnnotator.PlanExplicitHoldShort(layout, route, "B");
-        HoldShortAnnotator.ApplyExplicitHoldShort(route, plan, "B");
+        var plan = HoldShortAnnotator.PlanExplicitHoldShort(layout, route, HoldShortTarget.Parse("B"));
+        HoldShortAnnotator.ApplyExplicitHoldShort(route, plan, HoldShortTarget.Parse("B"));
 
         var hs = Assert.Single(route.HoldShortPoints);
         Assert.Equal(2, hs.NodeId);
@@ -300,8 +300,8 @@ public class HoldShortAnnotatorTests
         var layout = LayoutWith(TaxiNode(1), TaxiNode(2));
         var route = RouteOf([Seg(1, 2)], [], 0);
 
-        var plan = HoldShortAnnotator.PlanExplicitHoldShort(layout, route, "ZZZZ");
-        HoldShortAnnotator.ApplyExplicitHoldShort(route, plan, "ZZZZ");
+        var plan = HoldShortAnnotator.PlanExplicitHoldShort(layout, route, HoldShortTarget.Parse("ZZZZ"));
+        HoldShortAnnotator.ApplyExplicitHoldShort(route, plan, HoldShortTarget.Parse("ZZZZ"));
 
         Assert.Equal(ExplicitHoldShortOutcome.NotOnRoute, plan.Outcome);
         Assert.Empty(route.HoldShortPoints);
@@ -313,8 +313,8 @@ public class HoldShortAnnotatorTests
         var (layout, segments) = CrossingLayout();
         var route = RouteOf(segments, [Crossing28R(isCleared: true)], 0);
 
-        var plan = HoldShortAnnotator.PlanExplicitHoldShort(layout, route, "28R");
-        HoldShortAnnotator.ApplyExplicitHoldShort(route, plan, "28R");
+        var plan = HoldShortAnnotator.PlanExplicitHoldShort(layout, route, HoldShortTarget.Parse("28R"));
+        HoldShortAnnotator.ApplyExplicitHoldShort(route, plan, HoldShortTarget.Parse("28R"));
 
         Assert.Equal(ExplicitHoldShortOutcome.ReArm, plan.Outcome);
         var hs = Assert.Single(route.HoldShortPoints);
@@ -331,7 +331,7 @@ public class HoldShortAnnotatorTests
         var (layout, segments) = CrossingLayout();
         var route = RouteOf(segments, [Crossing28R(isCleared: true)], 2);
 
-        var plan = HoldShortAnnotator.PlanExplicitHoldShort(layout, route, "28R");
+        var plan = HoldShortAnnotator.PlanExplicitHoldShort(layout, route, HoldShortTarget.Parse("28R"));
 
         Assert.Equal(ExplicitHoldShortOutcome.AlreadyEntered, plan.Outcome);
     }
@@ -345,7 +345,7 @@ public class HoldShortAnnotatorTests
         var (layout, segments) = CrossingLayout();
         var route = RouteOf(segments, [Crossing28R(isCleared: false)], 1);
 
-        var plan = HoldShortAnnotator.PlanExplicitHoldShort(layout, route, "28R");
+        var plan = HoldShortAnnotator.PlanExplicitHoldShort(layout, route, HoldShortTarget.Parse("28R"));
 
         Assert.Equal(ExplicitHoldShortOutcome.ReArm, plan.Outcome);
     }
@@ -358,8 +358,8 @@ public class HoldShortAnnotatorTests
         dest.Reason = HoldShortReason.DestinationRunway;
         var route = RouteOf(segments, [dest], 0);
 
-        var plan = HoldShortAnnotator.PlanExplicitHoldShort(layout, route, "28R");
-        HoldShortAnnotator.ApplyExplicitHoldShort(route, plan, "28R");
+        var plan = HoldShortAnnotator.PlanExplicitHoldShort(layout, route, HoldShortTarget.Parse("28R"));
+        HoldShortAnnotator.ApplyExplicitHoldShort(route, plan, HoldShortTarget.Parse("28R"));
 
         Assert.Equal(ExplicitHoldShortOutcome.NoOp, plan.Outcome);
         Assert.Equal(HoldShortReason.DestinationRunway, Assert.Single(route.HoldShortPoints).Reason);
@@ -371,8 +371,8 @@ public class HoldShortAnnotatorTests
         var (_, segments) = CrossingLayout();
         var route = RouteOf(segments, [Crossing28R(isCleared: true)], 0);
 
-        Assert.Equal(ExplicitHoldShortOutcome.ReArm, HoldShortAnnotator.PlanExplicitHoldShort(null, route, "28R").Outcome);
-        Assert.Equal(ExplicitHoldShortOutcome.NotOnRoute, HoldShortAnnotator.PlanExplicitHoldShort(null, route, "B").Outcome);
+        Assert.Equal(ExplicitHoldShortOutcome.ReArm, HoldShortAnnotator.PlanExplicitHoldShort(null, route, HoldShortTarget.Parse("28R")).Outcome);
+        Assert.Equal(ExplicitHoldShortOutcome.NotOnRoute, HoldShortAnnotator.PlanExplicitHoldShort(null, route, HoldShortTarget.Parse("B")).Outcome);
     }
 
     // -------------------------------------------------------------------------

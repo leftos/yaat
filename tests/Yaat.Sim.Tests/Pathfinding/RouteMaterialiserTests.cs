@@ -57,7 +57,7 @@ public class RouteMaterialiserTests
         AirportGroundLayout layout,
         DestinationDescriptor? dest = null,
         IReadOnlySet<string>? authorized = null,
-        IReadOnlySet<string>? holdShorts = null,
+        IReadOnlySet<HoldShortTarget>? holdShorts = null,
         AircraftCategory category = AircraftCategory.Jet,
         IReadOnlyList<string>? waypointSequence = null
     ) =>
@@ -67,7 +67,7 @@ public class RouteMaterialiserTests
             dest ?? new DestinationDescriptor(null, null, null, null, DestinationKind.EndOfLastTaxiway),
             waypointSequence ?? [],
             authorized,
-            holdShorts ?? new HashSet<string>(StringComparer.OrdinalIgnoreCase),
+            holdShorts ?? new HashSet<HoldShortTarget>(),
             category,
             null,
             null
@@ -153,7 +153,7 @@ public class RouteMaterialiserTests
 
         // A controller says "hold short 28R" — a single designator, never the combined "28R/10L".
         // Reciprocal matching must tag the 28R/10L bar as the explicit hold.
-        var holdShortSet = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "28R" };
+        var holdShortSet = new HashSet<HoldShortTarget> { HoldShortTarget.Parse("28R") };
         var ctx = Context(layout, holdShorts: holdShortSet);
 
         var edges = new List<DirectionalEdge> { Directed(e01, n0, n1), Directed(e12, n1, n2) };
@@ -161,6 +161,52 @@ public class RouteMaterialiserTests
 
         Assert.Single(route.HoldShortPoints);
         Assert.Equal(HoldShortReason.ExplicitHoldShort, route.HoldShortPoints[0].Reason);
+    }
+
+    [Fact]
+    public void LocatedRunwayHoldShort_MatchingLocation_PromotedToExplicit()
+    {
+        // HS 28R@J — the bar sits at the A/J junction, so the located target promotes it.
+        var n0 = Node(0, 37.700, -122.200);
+        var n1 = Node(1, 37.701, -122.200, GroundNodeType.RunwayHoldShort);
+        n1.RunwayId = new RunwayIdentifier("28R", "10L");
+        var n2 = Node(2, 37.702, -122.200);
+        var nJ = Node(3, 37.701, -122.201);
+        var layout = Layout(n0, n1, n2, nJ);
+        var e01 = Edge(n0, n1, "A");
+        var e12 = Edge(n1, n2, "A");
+        Edge(n1, nJ, "J");
+
+        var ctx = Context(layout, holdShorts: new HashSet<HoldShortTarget> { HoldShortTarget.Parse("28R@J") });
+        var edges = new List<DirectionalEdge> { Directed(e01, n0, n1), Directed(e12, n1, n2) };
+        var route = RouteMaterialiser.Materialise(edges, ctx, []);
+
+        var hs = Assert.Single(route.HoldShortPoints);
+        Assert.Equal(HoldShortReason.ExplicitHoldShort, hs.Reason);
+        Assert.DoesNotContain(route.Warnings, w => w.Contains("not applied", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void LocatedRunwayHoldShort_MismatchedLocation_StaysCrossing_AndWarns()
+    {
+        // HS 28R@Z — the route crosses 28R, but not at a node on Z. The crossing must stay a plain
+        // RunwayCrossing (eligible for AutoCross), and the controller must be told the located
+        // hold-short bound nothing — a bare name match would silently swallow it (issue #358 review).
+        var n0 = Node(0, 37.700, -122.200);
+        var n1 = Node(1, 37.701, -122.200, GroundNodeType.RunwayHoldShort);
+        n1.RunwayId = new RunwayIdentifier("28R", "10L");
+        var n2 = Node(2, 37.702, -122.200);
+        var layout = Layout(n0, n1, n2);
+        var e01 = Edge(n0, n1, "A");
+        var e12 = Edge(n1, n2, "A");
+
+        var ctx = Context(layout, holdShorts: new HashSet<HoldShortTarget> { HoldShortTarget.Parse("28R@Z") });
+        var edges = new List<DirectionalEdge> { Directed(e01, n0, n1), Directed(e12, n1, n2) };
+        var route = RouteMaterialiser.Materialise(edges, ctx, []);
+
+        var hs = Assert.Single(route.HoldShortPoints);
+        Assert.Equal(HoldShortReason.RunwayCrossing, hs.Reason);
+        Assert.Contains(route.Warnings, w => w.Contains("HS 28R@Z not applied", StringComparison.OrdinalIgnoreCase));
     }
 
     // ---------------------------------------------------------------------------
@@ -303,7 +349,7 @@ public class RouteMaterialiserTests
         var e23 = Edge(mid, farHs, "A");
         var e34 = Edge(farHs, beyond, "A");
 
-        var holdShorts = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "28R" };
+        var holdShorts = new HashSet<HoldShortTarget> { HoldShortTarget.Parse("28R") };
         var ctx = Context(layout, holdShorts: holdShorts, waypointSequence: ["A"]);
 
         var edges = new List<DirectionalEdge>
@@ -340,7 +386,7 @@ public class RouteMaterialiserTests
         var e12 = Edge(nearHs, past, "A");
         var e23 = Edge(past, beyond, "A");
 
-        var holdShorts = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "28R" };
+        var holdShorts = new HashSet<HoldShortTarget> { HoldShortTarget.Parse("28R") };
         var ctx = Context(layout, holdShorts: holdShorts, waypointSequence: ["A"]);
 
         var edges = new List<DirectionalEdge> { Directed(e01, n0, nearHs), Directed(e12, nearHs, past), Directed(e23, past, beyond) };

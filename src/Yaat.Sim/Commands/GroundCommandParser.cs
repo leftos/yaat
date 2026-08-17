@@ -1,3 +1,4 @@
+using Yaat.Sim.Data.Airport;
 using PR = Yaat.Sim.Commands.ParseResult<Yaat.Sim.Commands.ParsedCommand>;
 
 namespace Yaat.Sim.Commands;
@@ -275,7 +276,7 @@ internal static class GroundCommandParser
 
         var path = new List<string>();
         var pathTurnHints = new List<TurnDirection?>();
-        var holdShorts = new List<string>();
+        var holdShorts = new List<HoldShortTarget>();
         List<string>? crossRunways = null;
         string? destRunway = null;
         string? destParking = null;
@@ -354,7 +355,12 @@ internal static class GroundCommandParser
 
             if (inHoldShort)
             {
-                holdShorts.Add(token.ToUpperInvariant());
+                if (!HoldShortTarget.TryParse(token, out var holdShortTarget, out string? holdShortError))
+                {
+                    return PR.Fail(holdShortError!);
+                }
+
+                holdShorts.Add(holdShortTarget);
             }
             else
             {
@@ -489,7 +495,7 @@ internal static class GroundCommandParser
         }
 
         var crossRunways = new List<string>();
-        var holdShorts = new List<string>();
+        var holdShorts = new List<HoldShortTarget>();
         var mode = ParseMode.None;
 
         foreach (var raw in tokens)
@@ -511,7 +517,12 @@ internal static class GroundCommandParser
                     crossRunways.Add(raw.ToUpperInvariant());
                     break;
                 case ParseMode.HoldShort:
-                    holdShorts.Add(raw.ToUpperInvariant());
+                    if (!HoldShortTarget.TryParse(raw, out var holdShortTarget, out string? holdShortError))
+                    {
+                        return PR.Fail(holdShortError!);
+                    }
+
+                    holdShorts.Add(holdShortTarget);
                     break;
                 default:
                     return PR.Fail($"RES: unexpected argument '{raw}' (expected CROSS, HS, or no argument)");
@@ -559,7 +570,7 @@ internal static class GroundCommandParser
         }
 
         var crossRunways = new List<string>();
-        var holdShorts = new List<string>();
+        var holdShorts = new List<HoldShortTarget>();
         var mode = ParseMode.Cross;
 
         foreach (var raw in tokens)
@@ -581,7 +592,12 @@ internal static class GroundCommandParser
                     crossRunways.Add(raw.ToUpperInvariant());
                     break;
                 case ParseMode.HoldShort:
-                    holdShorts.Add(raw.ToUpperInvariant());
+                    if (!HoldShortTarget.TryParse(raw, out var holdShortTarget, out string? holdShortError))
+                    {
+                        return PR.Fail(holdShortError!);
+                    }
+
+                    holdShorts.Add(holdShortTarget);
                     break;
                 default:
                     return PR.Fail($"CROSS: unexpected argument '{raw}'");
@@ -607,10 +623,14 @@ internal static class GroundCommandParser
             return PR.Fail("HS requires a target");
         }
 
-        var target = arg.Trim().ToUpperInvariant();
-        if (target.Length == 0)
+        if (arg.Trim().Length == 0)
         {
             return PR.Fail("HS requires a target");
+        }
+
+        if (!HoldShortTarget.TryParse(arg, out var target, out string? error))
+        {
+            return PR.Fail(error!);
         }
 
         return PR.Ok(new HoldShortCommand(target));

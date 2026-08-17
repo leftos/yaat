@@ -81,7 +81,7 @@ public class SfoTaxiBToF1RampConnectorTests
             {
                 AirportId = "SFO",
                 DestinationHintNode = f1,
-                ExplicitHoldShorts = ["B4"],
+                ExplicitHoldShorts = [HoldShortTarget.Parse("B4")],
                 StartHeadingTrue = StartHeadingTrue,
                 DiagnosticLog = msg => _output.WriteLine(msg),
             },

@@ -1,5 +1,6 @@
 using Xunit;
 using Yaat.Sim.Commands;
+using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Pilot;
 using Yaat.Sim.Tests.Helpers;
 
@@ -47,14 +48,14 @@ public class ResumeReadbackTests
     [Fact]
     public void Res_HoldShortRunway_VoicesHoldShort()
     {
-        var result = PhraseologyVerbalizer.VerbalizeTerminal(new ResumeCommand([], ["28R"]));
+        var result = PhraseologyVerbalizer.VerbalizeTerminal(new ResumeCommand([], [HoldShortTarget.Parse("28R")]));
         Assert.Equal("resume taxi, hold short of runway 28R", result);
     }
 
     [Fact]
     public void Res_CrossAndHoldShort_VoicesBothClauses()
     {
-        var result = PhraseologyVerbalizer.VerbalizeTerminal(new ResumeCommand(["28L"], ["28R"]));
+        var result = PhraseologyVerbalizer.VerbalizeTerminal(new ResumeCommand(["28L"], [HoldShortTarget.Parse("28R")]));
         Assert.Equal("resume taxi, cross runway 28L, hold short of runway 28R", result);
     }
 }

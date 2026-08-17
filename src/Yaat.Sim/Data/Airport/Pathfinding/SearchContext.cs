@@ -34,7 +34,7 @@ public sealed record SearchContext(
     DestinationDescriptor Destination,
     IReadOnlyList<string> WaypointSequence,
     IReadOnlySet<string>? AuthorizedTaxiways,
-    IReadOnlySet<string> ExplicitHoldShorts,
+    IReadOnlySet<HoldShortTarget> ExplicitHoldShorts,
     AircraftCategory Category,
     RoutePreference? Preference,
     Action<string>? DiagnosticLog
@@ -278,7 +278,7 @@ public sealed record SearchContext(
         string? destinationParking,
         string? destinationSpot,
         int? destinationNodeId,
-        IReadOnlyList<string>? explicitHoldShortRunways,
+        IReadOnlyList<HoldShortTarget>? explicitHoldShorts,
         AircraftCategory category,
         RoutePreference? preference,
         Action<string>? diagnosticLog,
@@ -286,9 +286,9 @@ public sealed record SearchContext(
         double? startHeadingTrue
     )
     {
-        var holdShorts = explicitHoldShortRunways is { Count: > 0 }
-            ? (IReadOnlySet<string>)new HashSet<string>(explicitHoldShortRunways, StringComparer.OrdinalIgnoreCase)
-            : (IReadOnlySet<string>)new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var holdShorts = explicitHoldShorts is { Count: > 0 }
+            ? (IReadOnlySet<HoldShortTarget>)new HashSet<HoldShortTarget>(explicitHoldShorts)
+            : (IReadOnlySet<HoldShortTarget>)new HashSet<HoldShortTarget>();
 
         var implicitConnectors = ResolveImplicitConnectors(layout);
         var authorized = BuildAuthorizedTaxiwaySet(waypointSequence, implicitConnectors);

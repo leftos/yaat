@@ -2,6 +2,7 @@ using Xunit;
 using Yaat.Sim;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
+using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Pattern;
@@ -646,7 +647,7 @@ public class PilotResponderTests
         // "taxi to runway 28L via B C, cross runway 10R, hold short runway 28R" — the richest
         // capture set. PickPreferredRule must choose the four-capture TAXI variant so none of the
         // path / destination runway / cross runway / hold-short clauses are dropped.
-        var compound = Compound(new TaxiCommand(["B", "C"], ["28R"], DestinationRunway: "28L", CrossRunways: ["10R"]));
+        var compound = Compound(new TaxiCommand(["B", "C"], [HoldShortTarget.Parse("28R")], DestinationRunway: "28L", CrossRunways: ["10R"]));
 
         var result = PilotResponder.BuildReadback(compound, ac);
 

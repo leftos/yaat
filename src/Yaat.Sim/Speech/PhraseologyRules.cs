@@ -702,10 +702,23 @@ public static class PhraseologyRules
             new(["continue", "taxiing", "via", "{path...}"], "TAXI {path}", Taxi, SttOnly: true),
             new(["proceed", "via", "{path...}"], "TAXI {path}", Taxi, SttOnly: true),
             // Taxi with hold-short instruction. "runway" is optional because pilots often drop it
-            // when the runway designator is already unambiguous ("hold short of 28R").
+            // when the runway designator is already unambiguous ("hold short of 28R"). Each form
+            // has a LOCATED twin (issue #358) declared first — "… hold short of charlie at
+            // juliett" → HS C@J — so the "at {hson}" tail is consumed instead of being swallowed
+            // into the {path...} variadic (which produced a malformed canonical).
+            new(
+                ["taxi", "via", "{path...}", "hold", "short", "of?", "runway?", "{holdshort}", "at", "{hson}"],
+                "TAXI {path} HS {holdshort}@{hson}",
+                Taxi
+            ),
             new(["taxi", "via", "{path...}", "hold", "short", "of?", "runway?", "{holdshort}"], "TAXI {path} HS {holdshort}", Taxi),
             // Leading-runway + hold-short: "runway 30, taxi via B C, hold short of runway 28R".
             // Mirrors the hold-short rule above, with the destination runway stated first.
+            new(
+                ["runway", "{rwy}", "taxi", "via", "{path...}", "hold", "short", "of?", "runway?", "{holdshort}", "at", "{hson}"],
+                "TAXI {path} {rwy} HS {holdshort}@{hson}",
+                Taxi
+            ),
             new(
                 ["runway", "{rwy}", "taxi", "via", "{path...}", "hold", "short", "of?", "runway?", "{holdshort}"],
                 "TAXI {path} {rwy} HS {holdshort}",
@@ -717,12 +730,39 @@ public static class PhraseologyRules
             new(["runway", "{rwy}", "taxi", "via", "{path...}", "cross", "runway", "{crossrwy}"], "TAXI {path} {rwy} CROSS {crossrwy}", Taxi),
             // Taxi with cross-then-hold-short (dual runway clearance, 7110.65 §3-7-2.b).
             // Example: "taxi via charlie cross runway 27L hold short of runway 27R".
+            // Located twins first, as above.
+            new(
+                ["taxi", "via", "{path...}", "cross", "runway", "{crossrwy}", "hold", "short", "of?", "runway?", "{holdshort}", "at", "{hson}"],
+                "TAXI {path} CROSS {crossrwy} HS {holdshort}@{hson}",
+                Taxi
+            ),
             new(
                 ["taxi", "via", "{path...}", "cross", "runway", "{crossrwy}", "hold", "short", "of?", "runway?", "{holdshort}"],
                 "TAXI {path} CROSS {crossrwy} HS {holdshort}",
                 Taxi
             ),
             // Leading-runway + cross + hold-short: full dual-runway clearance with stated destination.
+            new(
+                [
+                    "runway",
+                    "{rwy}",
+                    "taxi",
+                    "via",
+                    "{path...}",
+                    "cross",
+                    "runway",
+                    "{crossrwy}",
+                    "hold",
+                    "short",
+                    "of?",
+                    "runway?",
+                    "{holdshort}",
+                    "at",
+                    "{hson}",
+                ],
+                "TAXI {path} {rwy} CROSS {crossrwy} HS {holdshort}@{hson}",
+                Taxi
+            ),
             new(
                 ["runway", "{rwy}", "taxi", "via", "{path...}", "cross", "runway", "{crossrwy}", "hold", "short", "of?", "runway?", "{holdshort}"],
                 "TAXI {path} {rwy} CROSS {crossrwy} HS {holdshort}",
@@ -762,6 +802,18 @@ public static class PhraseologyRules
             // §3-7 "ACROSS RUNWAY (number)" — alternate to "CROSS RUNWAY". SttOnly so the pilot AI
             // keeps reading back as "cross runway".
             new(["across", "runway", "{rwy}"], "CROSS {rwy}", CrossRunway, SttOnly: true),
+            // Located hold-short (issue #358): "hold short of charlie at juliett" → HS C@J — the
+            // §3-7-2.a "at (runway/taxiway)" locative picks WHICH crossing binds when the route
+            // meets the target more than once. Declared before the bare forms so the located
+            // utterance is consumed whole instead of the location being silently dropped. "at
+            // taxiway juliett" and the colloquial "on juliett" are SttOnly aliases so the pilot AI
+            // reads back the codified bare-"at" form.
+            new(["hold", "short", "of?", "runway", "{rwy}", "at", "{hson}"], "HS {rwy}@{hson}", HoldShort),
+            new(["hold", "short", "of?", "{taxiway}", "at", "{hson}"], "HS {taxiway}@{hson}", HoldShort),
+            new(["hold", "short", "of?", "runway", "{rwy}", "at", "taxiway", "{hson}"], "HS {rwy}@{hson}", HoldShort, SttOnly: true),
+            new(["hold", "short", "of?", "{taxiway}", "at", "taxiway", "{hson}"], "HS {taxiway}@{hson}", HoldShort, SttOnly: true),
+            new(["hold", "short", "of?", "runway", "{rwy}", "on", "{hson}"], "HS {rwy}@{hson}", HoldShort, SttOnly: true),
+            new(["hold", "short", "of?", "{taxiway}", "on", "{hson}"], "HS {taxiway}@{hson}", HoldShort, SttOnly: true),
             new(["hold", "short", "of?", "runway", "{rwy}"], "HS {rwy}", HoldShort),
             new(["hold", "short", "of?", "{taxiway}"], "HS {taxiway}", HoldShort),
             new(["follow", "the?", "{callsign}", "on", "ground"], "FOLLOWG {callsign}", FollowGround),

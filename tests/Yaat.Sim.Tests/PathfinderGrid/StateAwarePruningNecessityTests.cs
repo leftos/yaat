@@ -219,7 +219,7 @@ public class StateAwarePruningNecessityTests
             destinationParking: null,
             destinationSpot: null,
             destinationNodeId: to,
-            explicitHoldShortRunways: null,
+            explicitHoldShorts: null,
             category: AircraftCategory.Jet,
             preference: RoutePreference.FewestTurns,
             diagnosticLog: null,

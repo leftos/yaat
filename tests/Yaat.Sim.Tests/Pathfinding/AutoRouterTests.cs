@@ -62,7 +62,7 @@ public class AutoRouterTests
             new DestinationDescriptor(toNodeId, null, null, null, DestinationKind.Node),
             [],
             authorizedTaxiways,
-            new HashSet<string>(StringComparer.OrdinalIgnoreCase),
+            new HashSet<HoldShortTarget>(),
             AircraftCategory.Jet,
             preference,
             log
@@ -355,7 +355,7 @@ public class AutoRouterTests
             new DestinationDescriptor(null, null, null, null, DestinationKind.EndOfLastTaxiway),
             [],
             null,
-            new HashSet<string>(StringComparer.OrdinalIgnoreCase),
+            new HashSet<HoldShortTarget>(),
             AircraftCategory.Jet,
             null,
             null

@@ -50,7 +50,7 @@ public sealed class OakMultiCrossingTaxiTests(ITestOutputHelper output)
         var opts = new ExplicitPathOptions
         {
             DestinationRunway = "30",
-            ExplicitHoldShorts = ["28R"],
+            ExplicitHoldShorts = [HoldShortTarget.Parse("28R")],
             AirportId = "OAK",
             DiagnosticLog = m => output.WriteLine("  " + m),
         };

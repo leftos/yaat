@@ -59,20 +59,59 @@ public static class RouteMaterialiser
         var warnings = BuildWarnings(segments, ctx, insertions);
 
         // An HS target that bound nothing — no runway bar, no adjacent-taxiway point — was silently
-        // dropped; tell the controller instead of letting them believe the aircraft will hold.
-        foreach (string target in ctx.ExplicitHoldShorts)
+        // dropped; tell the controller instead of letting them believe the aircraft will hold. A
+        // plain RunwayCrossing point does NOT satisfy the check: a located runway target whose
+        // location taxiway doesn't match the crossing's node (HS 28R@E when the route crosses 28R
+        // on J) leaves the crossing un-promoted, and AutoCross may then clear it — the one case
+        // where a name match must still warn. DestinationRunway points still satisfy it (the
+        // explicit-HS-of-own-destination no-op).
+        foreach (var target in ctx.ExplicitHoldShorts)
         {
             bool bound = holdShorts.Exists(h =>
                 h.TargetName is { } name
-                && (string.Equals(name, target, StringComparison.OrdinalIgnoreCase) || RunwayIdentifier.Parse(name).Contains(target))
+                && (h.Reason != HoldShortReason.RunwayCrossing)
+                && (string.Equals(name, target.Target, StringComparison.OrdinalIgnoreCase) || RunwayIdentifier.Parse(name).Contains(target.Target))
             );
             if (!bound)
             {
+                string display = target.ToCanonical();
                 warnings.Add(
-                    ctx.Layout.TryGetRunwayCenterlineName(target, out _)
-                        ? $"HS {target} not applied — no runway {target} hold line on the route"
-                        : $"HS {target} not applied — the route never reaches {target}"
+                    ctx.Layout.TryGetRunwayCenterlineName(target.Target, out _)
+                        ? $"HS {display} not applied — no runway {target.Target} hold line on the route"
+                        : $"HS {display} not applied — the route never reaches {display}"
                 );
+            }
+        }
+
+        // A bare taxiway HS target that is ALSO a cleared path element can bind at the crossing the
+        // route STARTS from — the aircraft holds immediately and never taxis (the issue #358 report:
+        // "TAXI C D J HS C" from an aircraft already short of C). The binding is kept — the located
+        // form is the disambiguator — but the instructor is told which crossing bound and how to
+        // pick a later one.
+        if (segments.Count > 0)
+        {
+            foreach (var target in ctx.ExplicitHoldShorts)
+            {
+                if (
+                    target.OnTaxiway is not null
+                    || ctx.Layout.TryGetRunwayCenterlineName(target.Target, out _)
+                    || !ctx.WaypointSequence.Contains(target.Target, StringComparer.OrdinalIgnoreCase)
+                )
+                {
+                    continue;
+                }
+
+                bool boundAtStart = holdShorts.Exists(h =>
+                    (h.Reason == HoldShortReason.ExplicitHoldShort)
+                    && string.Equals(h.TargetName, target.Target, StringComparison.OrdinalIgnoreCase)
+                    && ((h.NodeId == segments[0].FromNodeId) || (h.NodeId == segments[0].ToNodeId))
+                );
+                if (boundAtStart)
+                {
+                    warnings.Add(
+                        $"HS {target.Target} holds at the first {target.Target} crossing, at the start of the route — use {target.Target}@<taxiway> to hold at a later crossing"
+                    );
+                }
             }
         }
 
@@ -163,7 +202,7 @@ public static class RouteMaterialiser
                 // on) — unless the controller ALSO named it in the HS list. An explicit HS overrides
                 // the straight-on entry: the aircraft holds at the entry-side bar until cleared, then
                 // proceeds onto/along the runway (the exit side pairs away below like any crossing).
-                if (clearedRunways.Exists(d => runwayId.Contains(d)) && !MatchesExplicitHoldShort(runwayId, ctx.ExplicitHoldShorts))
+                if (clearedRunways.Exists(d => runwayId.Contains(d)) && !MatchesExplicitHoldShort(node, runwayId, ctx.ExplicitHoldShorts))
                 {
                     continue;
                 }
@@ -182,7 +221,7 @@ public static class RouteMaterialiser
                     new HoldShortPoint
                     {
                         NodeId = nodeId,
-                        Reason = MatchesExplicitHoldShort(runwayId, ctx.ExplicitHoldShorts)
+                        Reason = MatchesExplicitHoldShort(node, runwayId, ctx.ExplicitHoldShorts)
                             ? HoldShortReason.ExplicitHoldShort
                             : HoldShortReason.RunwayCrossing,
                         TargetName = runwayId.ToString(),
@@ -197,26 +236,34 @@ public static class RouteMaterialiser
             // taxiway the route runs ALONG (e.g. "TAXI G B HS B") is adjacent to every node on
             // that taxiway; without this per-target guard the summary echoes "HS B" once per node
             // ("G B HS B HS B HS B …"). Mirrors the per-runway enteredRunways guard above.
-            foreach (string holdShortTarget in ctx.ExplicitHoldShorts)
+            // A located target ("HS C@J") additionally requires the node to sit ON the location
+            // taxiway, so only the J-side crossing of C binds — not an earlier crossing the route
+            // happens to pass first (issue #358).
+            foreach (var holdShortTarget in ctx.ExplicitHoldShorts)
             {
-                if (taxiwayHoldShortTargets.Contains(holdShortTarget))
+                if (taxiwayHoldShortTargets.Contains(holdShortTarget.ToCanonical()))
+                {
+                    continue;
+                }
+
+                if (holdShortTarget.OnTaxiway is { } onTaxiway && !NodeIncidentToTaxiway(node, onTaxiway))
                 {
                     continue;
                 }
 
                 foreach (var edge in node.Edges)
                 {
-                    if (edge.MatchesTaxiway(holdShortTarget))
+                    if (edge.MatchesTaxiway(holdShortTarget.Target))
                     {
                         holdShorts.Add(
                             new HoldShortPoint
                             {
                                 NodeId = nodeId,
                                 Reason = HoldShortReason.ExplicitHoldShort,
-                                TargetName = holdShortTarget,
+                                TargetName = holdShortTarget.Target,
                             }
                         );
-                        taxiwayHoldShortTargets.Add(holdShortTarget);
+                        taxiwayHoldShortTargets.Add(holdShortTarget.ToCanonical());
                         break;
                     }
                 }
@@ -321,7 +368,10 @@ public static class RouteMaterialiser
             return;
         }
 
-        if (clearedRunways.Exists(designator => startRwyId.Contains(designator)) && !MatchesExplicitHoldShort(startRwyId, ctx.ExplicitHoldShorts))
+        if (
+            clearedRunways.Exists(designator => startRwyId.Contains(designator))
+            && !MatchesExplicitHoldShort(startNode, startRwyId, ctx.ExplicitHoldShorts)
+        )
         {
             return;
         }
@@ -333,7 +383,7 @@ public static class RouteMaterialiser
             new HoldShortPoint
             {
                 NodeId = startNodeId,
-                Reason = MatchesExplicitHoldShort(startRwyId, ctx.ExplicitHoldShorts)
+                Reason = MatchesExplicitHoldShort(startNode, startRwyId, ctx.ExplicitHoldShorts)
                     ? HoldShortReason.ExplicitHoldShort
                     : HoldShortReason.RunwayCrossing,
                 TargetName = startRwyId.ToString(),
@@ -342,17 +392,26 @@ public static class RouteMaterialiser
     }
 
     /// <summary>
-    /// True when any controller-named explicit hold-short designator matches this runway,
-    /// reciprocal-aware (a "28R" hold matches a node whose RunwayId is "28R/10L").
+    /// True when any controller-named explicit hold-short target matches this runway bar,
+    /// reciprocal-aware (a "28R" hold matches a node whose RunwayId is "28R/10L"). A located
+    /// target ("28R@J") additionally requires the bar node to sit on the location taxiway, so
+    /// only the crossing the controller named binds when the route meets the runway more than once.
     /// </summary>
-    private static bool MatchesExplicitHoldShort(RunwayIdentifier runwayId, IReadOnlySet<string> explicitHoldShorts)
+    private static bool MatchesExplicitHoldShort(GroundNode node, RunwayIdentifier runwayId, IReadOnlySet<HoldShortTarget> explicitHoldShorts)
     {
-        foreach (string designator in explicitHoldShorts)
+        foreach (var target in explicitHoldShorts)
         {
-            if (runwayId.Contains(designator))
+            if (!runwayId.Contains(target.Target))
             {
-                return true;
+                continue;
             }
+
+            if (target.OnTaxiway is { } onTaxiway && !NodeIncidentToTaxiway(node, onTaxiway))
+            {
+                continue;
+            }
+
+            return true;
         }
 
         return false;

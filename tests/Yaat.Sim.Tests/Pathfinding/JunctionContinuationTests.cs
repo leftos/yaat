@@ -61,7 +61,7 @@ public class JunctionContinuationTests
             new ExplicitPathOptions
             {
                 DestinationRunway = "10L",
-                ExplicitHoldShorts = ["10L"],
+                ExplicitHoldShorts = [HoldShortTarget.Parse("10L")],
                 AirportId = "FLL",
                 DiagnosticLog = msg => _output.WriteLine(msg),
             },

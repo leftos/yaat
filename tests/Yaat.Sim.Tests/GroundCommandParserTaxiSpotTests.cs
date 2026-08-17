@@ -20,7 +20,7 @@ public class GroundCommandParserTaxiSpotTests
         Assert.Equal("I8L", taxi.DestinationSpot);
         Assert.Null(taxi.DestinationParking);
         Assert.Equal(["T9", "A", "F"], taxi.Path);
-        Assert.Equal(["01L"], taxi.HoldShorts);
+        Assert.Equal(["01L"], taxi.HoldShorts.Select(h => h.ToCanonical()));
     }
 
     [Fact]

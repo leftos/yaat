@@ -60,7 +60,7 @@ public class RouteCostFunctionTests
             new DestinationDescriptor(null, null, null, null, DestinationKind.EndOfLastTaxiway),
             [],
             authorizedTaxiways,
-            new HashSet<string>(StringComparer.OrdinalIgnoreCase),
+            new HashSet<HoldShortTarget>(),
             AircraftCategory.Jet,
             preference,
             null
@@ -470,17 +470,7 @@ public class RouteCostFunctionTests
         var e = MakeEdge(n0, n1, "A");
 
         var dest = new DestinationDescriptor(null, "28R", null, null, DestinationKind.Runway);
-        var ctx = new SearchContext(
-            layout,
-            0,
-            dest,
-            [],
-            null,
-            new HashSet<string>(StringComparer.OrdinalIgnoreCase),
-            AircraftCategory.Jet,
-            null,
-            null
-        );
+        var ctx = new SearchContext(layout, 0, dest, [], null, new HashSet<HoldShortTarget>(), AircraftCategory.Jet, null, null);
 
         var r0 = StartRoute(0);
         double cost = RouteCostFunction.IncrementalCost(r0, e, n1, ctx);
@@ -501,17 +491,7 @@ public class RouteCostFunctionTests
 
         // Destination is 30, not 10L/28R — so this hold-short IS a crossing.
         var dest = new DestinationDescriptor(null, "30", null, null, DestinationKind.Runway);
-        var ctx = new SearchContext(
-            layout,
-            0,
-            dest,
-            [],
-            null,
-            new HashSet<string>(StringComparer.OrdinalIgnoreCase),
-            AircraftCategory.Jet,
-            null,
-            null
-        );
+        var ctx = new SearchContext(layout, 0, dest, [], null, new HashSet<HoldShortTarget>(), AircraftCategory.Jet, null, null);
 
         var r0 = StartRoute(0);
         double cost = RouteCostFunction.IncrementalCost(r0, e, n1, ctx);

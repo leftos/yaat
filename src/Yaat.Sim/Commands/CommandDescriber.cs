@@ -1032,7 +1032,7 @@ public static class CommandDescriber
             HoldPositionCommand => "Hold position",
             ResumeCommand resume => FormatResumeNatural(resume),
             CrossRunwayCommand cross => FormatCrossNatural(cross),
-            HoldShortCommand hs => $"Hold short of {hs.Target}",
+            HoldShortCommand hs => $"Hold short of {hs.Target.ToNatural()}",
             FollowCommand follow => $"Follow {follow.TargetCallsign}",
             FollowGroundCommand follow => $"Follow {follow.TargetCallsign} (ground)",
             GiveWayCommand gw => $"Give way to {gw.TargetCallsign}",
@@ -1975,7 +1975,7 @@ public static class CommandDescriber
         if (resume.HoldShorts.Count > 0)
         {
             parts.Add("HS");
-            parts.AddRange(resume.HoldShorts);
+            parts.AddRange(resume.HoldShorts.Select(h => h.ToCanonical()));
         }
         return string.Join(" ", parts);
     }
@@ -1993,7 +1993,7 @@ public static class CommandDescriber
         }
         if (resume.HoldShorts.Count > 0)
         {
-            qualifiers.Add($"hold short of {string.Join(", ", resume.HoldShorts)}");
+            qualifiers.Add($"hold short of {string.Join(", ", resume.HoldShorts.Select(h => h.ToNatural()))}");
         }
         return $"Resume taxi ({string.Join("; ", qualifiers)})";
     }
@@ -2009,7 +2009,7 @@ public static class CommandDescriber
         if (cross.HoldShorts.Count > 0)
         {
             parts.Add("HS");
-            parts.AddRange(cross.HoldShorts);
+            parts.AddRange(cross.HoldShorts.Select(h => h.ToCanonical()));
         }
         return string.Join(" ", parts);
     }
@@ -2022,7 +2022,7 @@ public static class CommandDescriber
         }
         if (cross.RunwayIds.Count == 0)
         {
-            return $"Hold short of {string.Join(" and ", cross.HoldShorts)}";
+            return $"Hold short of {string.Join(" and ", cross.HoldShorts.Select(h => h.ToNatural()))}";
         }
 
         var noun = cross.RunwayIds.Count == 1 ? "runway" : "runways";
@@ -2030,7 +2030,7 @@ public static class CommandDescriber
         var clause = $"Cross {noun} {runways}";
         if (cross.HoldShorts.Count > 0)
         {
-            clause += $", hold short of {string.Join(" and ", cross.HoldShorts)}";
+            clause += $", hold short of {string.Join(" and ", cross.HoldShorts.Select(h => h.ToNatural()))}";
         }
         return clause;
     }

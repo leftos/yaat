@@ -462,8 +462,10 @@ internal static class GroundCommandHandler
     /// a directional hint rather than only annotating an already-chosen route. The target stays in
     /// <see cref="TaxiCommand.HoldShorts"/> so the hold-short is still placed at that intersection —
     /// this turns <c>TAXI D C HS E RWY 28R</c> into the already-supported <c>TAXI D C E HS E RWY 28R</c>
-    /// shape internally. Runway hold-shorts (e.g. <c>HS 28L</c>) have no taxiway nodes and are left to
-    /// the runway-crossing machinery. Returns the command unchanged when no HS target is a routable taxiway.
+    /// shape internally. A located target (<c>HS C@J</c>) folds its ON-taxiway (<c>J</c>) instead —
+    /// the aircraft travels J and holds short OF C, so C itself must not be added to the cleared path.
+    /// Runway hold-shorts (e.g. <c>HS 28L</c>) have no taxiway nodes and are left to the
+    /// runway-crossing machinery. Returns the command unchanged when no HS target folds a routable taxiway.
     /// </summary>
     private static TaxiCommand AugmentPathWithHoldShortTaxiways(AirportGroundLayout groundLayout, TaxiCommand taxi)
     {
@@ -478,17 +480,18 @@ internal static class GroundCommandHandler
 
         foreach (var target in taxi.HoldShorts)
         {
-            if (path.Contains(target, StringComparer.OrdinalIgnoreCase))
+            string foldTaxiway = target.OnTaxiway ?? target.Target;
+            if (path.Contains(foldTaxiway, StringComparer.OrdinalIgnoreCase))
             {
                 continue;
             }
 
-            if (groundLayout.GetNodesOnTaxiway(target).Count == 0)
+            if (groundLayout.GetNodesOnTaxiway(foldTaxiway).Count == 0)
             {
                 continue;
             }
 
-            path.Add(target);
+            path.Add(foldTaxiway);
             hints?.Add(null);
             changed = true;
         }
@@ -1537,7 +1540,11 @@ internal static class GroundCommandHandler
     /// list is a no-op success. Without a layout only targets already on the route's HoldShortPoints
     /// can be matched.
     /// </summary>
-    internal static CommandResult TryAddExplicitHoldShorts(AircraftState aircraft, AirportGroundLayout? layout, IReadOnlyList<string> targets)
+    internal static CommandResult TryAddExplicitHoldShorts(
+        AircraftState aircraft,
+        AirportGroundLayout? layout,
+        IReadOnlyList<HoldShortTarget> targets
+    )
     {
         if (targets.Count == 0)
         {
@@ -1575,14 +1582,14 @@ internal static class GroundCommandHandler
     /// The rejection for a hold-short outcome the aircraft can't honour, or <c>null</c> when the plan
     /// is applicable (including the destination-runway no-op, which is a success).
     /// </summary>
-    private static CommandResult? DescribeHoldShortFailure(ExplicitHoldShortOutcome outcome, string target) =>
+    private static CommandResult? DescribeHoldShortFailure(ExplicitHoldShortOutcome outcome, HoldShortTarget target) =>
         outcome switch
         {
             ExplicitHoldShortOutcome.AlreadyEntered => new CommandResult(
                 false,
-                $"Already entered RWY {RunwayIdentifier.ToDisplayDesignator(target)}; use HOLD or issue a new TAXI"
+                $"Already entered RWY {RunwayIdentifier.ToDisplayDesignator(target.Target)}; use HOLD or issue a new TAXI"
             ),
-            ExplicitHoldShortOutcome.NotOnRoute => new CommandResult(false, $"No match for HS {target} in taxi route"),
+            ExplicitHoldShortOutcome.NotOnRoute => new CommandResult(false, $"No match for HS {target.ToCanonical()} in taxi route"),
             _ => null,
         };
 
@@ -1613,7 +1620,7 @@ internal static class GroundCommandHandler
         AircraftState aircraft,
         AirportGroundLayout? layout,
         IReadOnlyList<string> crossRunways,
-        IReadOnlyList<string> holdShorts
+        IReadOnlyList<HoldShortTarget> holdShorts
     )
     {
         var preClear = TryPreClearRouteCrossings(aircraft, crossRunways);
@@ -2058,8 +2065,8 @@ internal static class GroundCommandHandler
 
         aircraft.Ground.IsExpeditingTaxi = false;
 
-        Log.LogDebug("[HS] {Callsign}: hold short of {Target} ({Outcome})", aircraft.Callsign, hs.Target, plan.Outcome);
-        return CommandDispatcher.Ok($"Hold short of {hs.Target}");
+        Log.LogDebug("[HS] {Callsign}: hold short of {Target} ({Outcome})", aircraft.Callsign, hs.Target.ToCanonical(), plan.Outcome);
+        return CommandDispatcher.Ok($"Hold short of {hs.Target.ToNatural()}");
     }
 
     internal static CommandResult TryFollow(

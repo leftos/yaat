@@ -21,7 +21,7 @@ public enum RoutePreference
 /// </summary>
 public sealed class ExplicitPathOptions
 {
-    public List<string>? ExplicitHoldShorts { get; init; }
+    public List<HoldShortTarget>? ExplicitHoldShorts { get; init; }
     public string? DestinationRunway { get; init; }
     public string? AirportId { get; init; }
     public GroundNode? DestinationHintNode { get; init; }

@@ -62,7 +62,7 @@ public class Issue316NearSideHoldShortTests(ITestOutputHelper output)
             new ExplicitPathOptions
             {
                 AirportId = "SFO",
-                ExplicitHoldShorts = ["10R"],
+                ExplicitHoldShorts = [HoldShortTarget.Parse("10R")],
                 DestinationRunway = "28R",
             },
             AircraftCategory.Jet
@@ -194,7 +194,7 @@ public class Issue316NearSideHoldShortTests(ITestOutputHelper output)
             new ExplicitPathOptions
             {
                 AirportId = "SFO",
-                ExplicitHoldShorts = ["10R"],
+                ExplicitHoldShorts = [HoldShortTarget.Parse("10R")],
                 DestinationRunway = "28R",
             },
             AircraftCategory.Jet

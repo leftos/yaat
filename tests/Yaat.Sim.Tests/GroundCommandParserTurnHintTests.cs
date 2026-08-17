@@ -56,7 +56,7 @@ public class GroundCommandParserTurnHintTests
 
         Assert.Equal(["A", "B"], taxi.Path);
         Assert.Equal([TurnDirection.Right, null], taxi.PathTurnHints);
-        Assert.Equal(["28R"], taxi.HoldShorts);
+        Assert.Equal(["28R"], taxi.HoldShorts.Select(h => h.ToCanonical()));
         Assert.Equal(["01L"], taxi.CrossRunways);
     }
 

@@ -46,7 +46,7 @@ public class BlockedTurnPathfinderTests
             new DestinationDescriptor(dest, null, null, null, DestinationKind.Node),
             seq,
             seq.Length == 0 ? null : new HashSet<string>(["L", "F", "LF"], StringComparer.OrdinalIgnoreCase),
-            new HashSet<string>(),
+            new HashSet<HoldShortTarget>(),
             AircraftCategory.Jet,
             RoutePreference.FewestTurns,
             null

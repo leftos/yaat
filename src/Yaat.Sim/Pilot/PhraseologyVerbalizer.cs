@@ -1,6 +1,7 @@
 using System.Text;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
+using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Speech;
 
 namespace Yaat.Sim.Pilot;
@@ -159,10 +160,13 @@ public static class PhraseologyVerbalizer
         // A TAXI clearance naming a runway as a path segment (taxi ALONG it) needs per-segment
         // connectors — "via" for the taxiway route, "on" for the runway (7110.65 §3-7-2.a separates
         // "VIA (route)" from "ON (runway)") — which the flat "taxi via {path}" rule template can't
-        // express. Render it directly.
-        if (cmd is TaxiCommand alongRwy && TaxiPathHasRunway(alongRwy))
+        // express. A TAXI carrying hold-shorts is direct-rendered for a different reason: the rule
+        // template's "runway?" literal is spoken unconditionally, so a taxiway HS target would be
+        // read back as a runway ("hold short of runway charlie") — the direct clause picks the
+        // "runway" word per target type (AIM 2-3-5.a.3 vs 7110.65 §3-7-2.b).
+        if (cmd is TaxiCommand taxiDirect && (TaxiPathHasRunway(taxiDirect) || taxiDirect.HoldShorts.Count > 0))
         {
-            return RenderTaxiAlongRunway(alongRwy, fmt);
+            return RenderTaxiAlongRunway(taxiDirect, fmt);
         }
 
         // RES with CROSS/HS modifiers composes clauses the flat "resume taxi" rule template can't
@@ -297,7 +301,7 @@ public static class PhraseologyVerbalizer
             // Multi-runway / HS-modified CROSS is direct-rendered in VerbalizeCore; only the
             // single-runway, no-HS form reaches the rule template here.
             CrossRunwayCommand { RunwayIds.Count: 1, HoldShorts.Count: 0 } c => Map("rwy", fmt.Runway(c.RunwayIds[0])),
-            HoldShortCommand h => Map("holdshort", fmt.Runway(h.Target)),
+            HoldShortCommand h => HoldShortCommandArgs(h, fmt),
             AssignRunwayCommand a => Map("rwy", fmt.Runway(a.RunwayId)),
             TaxiCommand taxi => TaxiArgs(taxi, fmt),
             ExitTaxiwayCommand e => Map("taxiway", fmt.Taxiway(e.Taxiway)),
@@ -321,10 +325,12 @@ public static class PhraseologyVerbalizer
 
     /// <summary>
     /// Extracts the spoken-readback captures for a TAXI clearance: the route path (with turn words),
-    /// the destination runway, hold-shorts, and crossings. <see cref="PickPreferredRule"/> then selects
-    /// the richest matching rule, so a path-only command reads "taxi via …" while a full clearance reads
-    /// "runway … taxi via … cross runway … hold short of …". An empty path (node-refs only) yields no
-    /// captures, so the command produces no readback (a draw-route debug taxi isn't voiced).
+    /// the destination runway, and crossings. <see cref="PickPreferredRule"/> then selects the richest
+    /// matching rule, so a path-only command reads "taxi via …" while a fuller clearance reads
+    /// "runway … taxi via … cross runway …". Hold-shorts never reach here — a TAXI carrying them is
+    /// direct-rendered in <see cref="VerbalizeCore"/> so the "runway" word is decided per target type.
+    /// An empty path (node-refs only) yields no captures, so the command produces no readback (a
+    /// draw-route debug taxi isn't voiced).
     /// </summary>
     private static IReadOnlyDictionary<string, string> TaxiArgs(TaxiCommand taxi, CaptureFormatter fmt)
     {
@@ -338,11 +344,6 @@ public static class PhraseologyVerbalizer
         if (taxi.DestinationRunway is { Length: > 0 } rwy)
         {
             dict["rwy"] = fmt.Runway(rwy);
-        }
-
-        if (taxi.HoldShorts is { Count: > 0 } holdShorts)
-        {
-            dict["holdshort"] = string.Join(" and ", holdShorts.Select(h => CommandParser.IsRunwayArg(h) ? fmt.Runway(h) : fmt.Taxiway(h)));
         }
 
         if (taxi.CrossRunways is { Count: > 0 } crossRunways)
@@ -424,8 +425,7 @@ public static class PhraseologyVerbalizer
 
         if (taxi.HoldShorts is { Count: > 0 } holdShorts)
         {
-            body +=
-                $" hold short of {string.Join(" and ", holdShorts.Select(h => CommandParser.IsRunwayArg(h) ? $"runway {fmt.Runway(h)}" : fmt.Taxiway(h)))}";
+            body += $" hold short of {string.Join(" and ", holdShorts.Select(h => RenderHoldShortTarget(h, fmt)))}";
         }
 
         if (taxi.DestinationRunway is { Length: > 0 } rwy)
@@ -452,9 +452,7 @@ public static class PhraseologyVerbalizer
 
         if (resume.HoldShorts is { Count: > 0 } holdShorts)
         {
-            body.Append(
-                $", hold short of {string.Join(" and ", holdShorts.Select(h => CommandParser.IsRunwayArg(h) ? $"runway {fmt.Runway(h)}" : fmt.Taxiway(h)))}"
-            );
+            body.Append($", hold short of {string.Join(" and ", holdShorts.Select(h => RenderHoldShortTarget(h, fmt)))}");
         }
 
         return body.ToString();
@@ -480,12 +478,44 @@ public static class PhraseologyVerbalizer
             {
                 body.Append(", ");
             }
-            body.Append(
-                $"hold short of {string.Join(" and ", holdShorts.Select(h => CommandParser.IsRunwayArg(h) ? $"runway {fmt.Runway(h)}" : fmt.Taxiway(h)))}"
-            );
+            body.Append($"hold short of {string.Join(" and ", holdShorts.Select(h => RenderHoldShortTarget(h, fmt)))}");
         }
 
         return body.ToString();
+    }
+
+    /// <summary>
+    /// Spoken form of one hold-short target in a direct-rendered clause: <c>runway two eight right</c>
+    /// for a runway target (the "runway" word is mandatory — a taxiway target read back as a runway
+    /// would assert a runway hold the controller never issued), <c>charlie</c> for a taxiway target.
+    /// A located target (<c>C@J</c>) adds its ON-taxiway with the 7110.65 §3-7-2 locative —
+    /// <c>charlie at juliett</c> — so the readback says which crossing binds.
+    /// </summary>
+    private static string RenderHoldShortTarget(HoldShortTarget target, CaptureFormatter fmt)
+    {
+        string spoken = CommandParser.IsRunwayArg(target.Target) ? $"runway {fmt.Runway(target.Target)}" : fmt.Taxiway(target.Target);
+        return target.OnTaxiway is { } onTaxiway ? $"{spoken} at {fmt.Taxiway(onTaxiway)}" : spoken;
+    }
+
+    /// <summary>
+    /// Captures for a standalone <c>HS</c> readback, keyed to the rule the target type satisfies:
+    /// <c>{rwy}</c> for a runway target ("hold short of runway …"), <c>{taxiway}</c> for a taxiway
+    /// target ("hold short of …"). A located target adds <c>{hson}</c>, which selects the richer
+    /// "… at {hson}" rule variant.
+    /// </summary>
+    private static IReadOnlyDictionary<string, string> HoldShortCommandArgs(HoldShortCommand h, CaptureFormatter fmt)
+    {
+        bool isRunway = CommandParser.IsRunwayArg(h.Target.Target);
+        var dict = new Dictionary<string, string>
+        {
+            [isRunway ? "rwy" : "taxiway"] = isRunway ? fmt.Runway(h.Target.Target) : fmt.Taxiway(h.Target.Target),
+        };
+        if (h.Target.OnTaxiway is { } onTaxiway)
+        {
+            dict["hson"] = fmt.Taxiway(onTaxiway);
+        }
+
+        return dict;
     }
 
     private static IReadOnlyDictionary<string, string> Map(string k, string v) => new Dictionary<string, string> { [k] = v };

@@ -2174,11 +2174,13 @@ public static class SegmentExpander
     /// The position the final-taxiway terminus walk should head toward at its first step, for a
     /// runway destination: the nearest hold-short for the destination runway that lies on the named
     /// taxiway (so a "TAXI B 28R" walk heads toward B's own 28R hold-short instead of away from it,
-    /// avoiding a wrong-direction walk that then detours via another taxiway). Null when there is no
-    /// directional preference — the walk keeps its prior admissibility-only behaviour. Parking/spot
-    /// destinations are handled by the on-taxiway LocalSearchToJunction in ExpandLastWaypoint, not
-    /// here: biasing the terminus walk toward an off-taxiway parking node is unreliable (it can pick
-    /// a terminus from which the parking extension cannot complete).
+    /// avoiding a wrong-direction walk that then detours via another taxiway). A located taxiway
+    /// hold-short whose ON-taxiway is the final taxiway ("TAXI C D J HS C@J") biases toward the
+    /// J∩C crossing the same way — without it the walk never commits down J at all (issue #358).
+    /// Null when there is no directional preference — the walk keeps its prior admissibility-only
+    /// behaviour. Parking/spot destinations are handled by the on-taxiway LocalSearchToJunction in
+    /// ExpandLastWaypoint, not here: biasing the terminus walk toward an off-taxiway parking node is
+    /// unreliable (it can pick a terminus from which the parking extension cannot complete).
     /// </summary>
     private static LatLon? ResolveTerminusBias(PartialRoute head, string taxiwayName, SearchContext ctx)
     {
@@ -2197,9 +2199,33 @@ public static class SegmentExpander
             targets.Add(runwayId);
         }
 
-        foreach (string holdShort in ctx.ExplicitHoldShorts)
+        LatLon? taxiwayCrossingBias = null;
+        double taxiwayCrossingDistNm = double.MaxValue;
+        foreach (var holdShort in ctx.ExplicitHoldShorts)
         {
-            targets.Add(holdShort);
+            // A located target only steers the taxiway it holds ON.
+            if (holdShort.OnTaxiway is { } onTaxiway && !onTaxiway.Equals(taxiwayName, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            targets.Add(holdShort.Target);
+
+            // A located TAXIWAY target has no runway bar to aim at — bias toward the crossing of
+            // the target taxiway on this taxiway instead, so the walk heads for the C∩J junction.
+            if (holdShort.OnTaxiway is not null && !ctx.Layout.TryGetRunwayCenterlineName(holdShort.Target, out _))
+            {
+                var crossing = ctx.Layout.FindIntersectionNode(taxiwayName, holdShort.Target, headNode.Position);
+                if (crossing is not null)
+                {
+                    double crossingDistNm = GeoMath.DistanceNm(crossing.Position, headNode.Position);
+                    if (crossingDistNm < taxiwayCrossingDistNm)
+                    {
+                        taxiwayCrossingDistNm = crossingDistNm;
+                        taxiwayCrossingBias = crossing.Position;
+                    }
+                }
+            }
         }
 
         if (targets.Count == 0)
@@ -2249,7 +2275,12 @@ public static class SegmentExpander
             }
         }
 
-        return best?.Position;
+        if (best is not null && (taxiwayCrossingBias is null || bestDistNm <= taxiwayCrossingDistNm))
+        {
+            return best.Position;
+        }
+
+        return taxiwayCrossingBias;
     }
 
     // -----------------------------------------------------------------------

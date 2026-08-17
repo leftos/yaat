@@ -63,7 +63,7 @@ public class StateAwarePruningTests
             new DestinationDescriptor(to, null, null, null, DestinationKind.Node),
             [],
             null,
-            new HashSet<string>(StringComparer.OrdinalIgnoreCase),
+            new HashSet<HoldShortTarget>(),
             AircraftCategory.Jet,
             RoutePreference.FewestTurns,
             null

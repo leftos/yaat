@@ -1,5 +1,6 @@
 using Xunit;
 using Yaat.Sim.Commands;
+using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Pilot;
 using Yaat.Sim.Tests.Helpers;
 
@@ -42,6 +43,9 @@ public class CrossReadbackTests
     [Fact]
     public void Cross_RunwayAndHoldShort_VoicesBothClauses()
     {
-        Assert.Equal("cross runway 28L, hold short of runway 28R", PhraseologyVerbalizer.VerbalizeTerminal(new CrossRunwayCommand(["28L"], ["28R"])));
+        Assert.Equal(
+            "cross runway 28L, hold short of runway 28R",
+            PhraseologyVerbalizer.VerbalizeTerminal(new CrossRunwayCommand(["28L"], [HoldShortTarget.Parse("28R")]))
+        );
     }
 }

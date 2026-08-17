@@ -1,6 +1,7 @@
 using Xunit;
 using Yaat.Sim;
 using Yaat.Sim.Commands;
+using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Pilot;
 using Yaat.Sim.Tests.Helpers;
 
@@ -42,7 +43,7 @@ public class Issue172TaxiReadbackTests
     [Fact]
     public void Taxi_WithHoldShort_VoicesHoldShort()
     {
-        var result = PhraseologyVerbalizer.Verbalize(new TaxiCommand(["B", "C"], ["28R"]));
+        var result = PhraseologyVerbalizer.Verbalize(new TaxiCommand(["B", "C"], [HoldShortTarget.Parse("28R")]));
         Assert.Equal("taxi via bravo, charlie hold short of runway two eight right", result);
     }
 

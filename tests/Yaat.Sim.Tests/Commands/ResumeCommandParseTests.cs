@@ -85,7 +85,7 @@ public sealed class ResumeCommandParseTests
         Assert.IsType<ResumeCommand>(result.Value);
         var resume = (ResumeCommand)result.Value!;
         Assert.Empty(resume.CrossRunways);
-        Assert.Equal(new[] { "20" }, resume.HoldShorts);
+        Assert.Equal(new[] { "20" }, resume.HoldShorts.Select(h => h.ToCanonical()));
     }
 
     [Fact]
@@ -95,7 +95,7 @@ public sealed class ResumeCommandParseTests
         var result = CommandParser.Parse("RES HS B");
 
         Assert.IsType<ResumeCommand>(result.Value);
-        Assert.Equal(new[] { "B" }, ((ResumeCommand)result.Value!).HoldShorts);
+        Assert.Equal(new[] { "B" }, ((ResumeCommand)result.Value!).HoldShorts.Select(h => h.ToCanonical()));
     }
 
     [Fact]
@@ -106,7 +106,7 @@ public sealed class ResumeCommandParseTests
         Assert.IsType<ResumeCommand>(result.Value);
         var resume = (ResumeCommand)result.Value!;
         Assert.Equal(new[] { "28R", "28L" }, resume.CrossRunways);
-        Assert.Equal(new[] { "20" }, resume.HoldShorts);
+        Assert.Equal(new[] { "20" }, resume.HoldShorts.Select(h => h.ToCanonical()));
     }
 
     [Fact]
@@ -117,7 +117,7 @@ public sealed class ResumeCommandParseTests
         Assert.IsType<ResumeCommand>(result.Value);
         var resume = (ResumeCommand)result.Value!;
         Assert.Equal(new[] { "28R" }, resume.CrossRunways);
-        Assert.Equal(new[] { "20" }, resume.HoldShorts);
+        Assert.Equal(new[] { "20" }, resume.HoldShorts.Select(h => h.ToCanonical()));
     }
 
     [Fact]

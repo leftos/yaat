@@ -1,5 +1,6 @@
 using Xunit;
 using Yaat.Sim.Commands;
+using Yaat.Sim.Data.Airport;
 
 namespace Yaat.Sim.Tests;
 
@@ -33,7 +34,7 @@ public class GroundParserTests
         var taxi = Assert.IsType<TaxiCommand>(cmd.Value);
         Assert.Equal(["TE"], taxi.Path);
         Assert.Equal("B3", taxi.DestinationParking);
-        Assert.Equal(["30"], taxi.HoldShorts);
+        Assert.Equal(["30"], taxi.HoldShorts.Select(h => h.ToCanonical()));
     }
 
     [Fact]
@@ -199,7 +200,7 @@ public class GroundParserTests
         var taxi = Assert.IsType<TaxiCommand>(cmd.Value);
         Assert.Equal(["C", "B", "T", "U", "W"], taxi.Path);
         Assert.Equal(["28R"], taxi.CrossRunways);
-        Assert.Equal(["28L"], taxi.HoldShorts);
+        Assert.Equal(["28L"], taxi.HoldShorts.Select(h => h.ToCanonical()));
     }
 
     [Fact]
@@ -261,7 +262,7 @@ public class GroundParserTests
         var cmd = CommandParser.Parse("TAXI #42 #18 HS 28L");
         var taxi = Assert.IsType<TaxiCommand>(cmd.Value);
         Assert.Equal(["#42", "#18"], taxi.Path);
-        Assert.Equal(["28L"], taxi.HoldShorts);
+        Assert.Equal(["28L"], taxi.HoldShorts.Select(h => h.ToCanonical()));
     }
 
     [Fact]
@@ -502,7 +503,7 @@ public class GroundParserTests
         var cmd = CommandParser.Parse("CROSS 28R HS 20");
         var cross = Assert.IsType<CrossRunwayCommand>(cmd.Value);
         Assert.Equal(["28R"], cross.RunwayIds);
-        Assert.Equal(["20"], cross.HoldShorts);
+        Assert.Equal(["20"], cross.HoldShorts.Select(h => h.ToCanonical()));
     }
 
     [Fact]
@@ -511,7 +512,7 @@ public class GroundParserTests
         var cmd = CommandParser.Parse("CROSS 28R 28L HS 20 B");
         var cross = Assert.IsType<CrossRunwayCommand>(cmd.Value);
         Assert.Equal(["28R", "28L"], cross.RunwayIds);
-        Assert.Equal(["20", "B"], cross.HoldShorts);
+        Assert.Equal(["20", "B"], cross.HoldShorts.Select(h => h.ToCanonical()));
     }
 
     [Fact]
@@ -524,12 +525,12 @@ public class GroundParserTests
     [Fact]
     public void Cross_CanonicalRoundTrip_MultiRunwayAndHoldShort()
     {
-        var cmd = new CrossRunwayCommand(["28R", "28L"], ["20"]);
+        var cmd = new CrossRunwayCommand(["28R", "28L"], [HoldShortTarget.Parse("20")]);
         Assert.Equal("CROSS 28R 28L HS 20", CommandDescriber.DescribeCommand(cmd));
 
         var reparsed = Assert.IsType<CrossRunwayCommand>(CommandParser.Parse("CROSS 28R 28L HS 20").Value);
         Assert.Equal(["28R", "28L"], reparsed.RunwayIds);
-        Assert.Equal(["20"], reparsed.HoldShorts);
+        Assert.Equal(["20"], reparsed.HoldShorts.Select(h => h.ToCanonical()));
     }
 
     [Fact]
