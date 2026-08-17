@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+- An ASDE-X "Edit DB Fields" change (callsign, beacon, category, aircraft type, or fix override) on a stationary aircraft now reaches already-connected CRC clients immediately instead of waiting for the aircraft to move. (#362)
+- Setting a PDC clearance or hold annotation, or dumping an aircraft from TDLS, now reaches already-connected CRC clients immediately — previously the change stayed invisible to peers until an unrelated flight-plan field was amended. (#363)
+
 ## v0.12.9-beta [2026/08/16]
 
 ### Highlights
