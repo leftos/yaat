@@ -3,6 +3,8 @@
 ## Unreleased
 
 ### Fixed
+- Applying a window profile brings every saved window to the front, un-minimizing as needed, and returns focus to the main window. (#365)
+- Window profiles capture each window's minimized, maximized, and always-on-top state and restore it on apply. (#365)
 - Favorites panel stays on the selected category tab after adding, editing, or deleting a favorite or changing the column count. (#364)
 
 ## v0.12.10-beta [2026/08/17]

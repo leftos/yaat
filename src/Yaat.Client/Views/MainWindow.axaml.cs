@@ -2084,9 +2084,25 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
             {
                 ApplyGridLayoutToLiveGrids(vm);
             }
+
+            ReclaimFocusAfterProfileApply();
         });
 
         vm.StatusText = $"Applied window profile \"{name}\"{missingSetsNote}";
+    }
+
+    /// <summary>
+    /// Returns keyboard focus to the main window after a profile-apply sweep has
+    /// activated each pop-out in turn, so focus ends where the user triggered the
+    /// apply while the pop-outs stay raised. Skipped when the profile itself put
+    /// the main window in a minimized state.
+    /// </summary>
+    private void ReclaimFocusAfterProfileApply()
+    {
+        if (WindowState != WindowState.Minimized)
+        {
+            Activate();
+        }
     }
 
     /// <summary>
@@ -2273,6 +2289,8 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
             {
                 ApplyGridLayoutToLiveGrids(vm);
             }
+
+            ReclaimFocusAfterProfileApply();
         });
 
         vm.StatusText = $"Copied layout from profile \"{profile.Name}\"";

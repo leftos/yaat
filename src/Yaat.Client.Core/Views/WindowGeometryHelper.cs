@@ -30,6 +30,7 @@ public sealed class WindowGeometryHelper
 
     private NormalWindowGeometry _lastNormalGeometry;
     private NormalWindowGeometry? _previousNormalGeometry;
+    private bool _wasMaximizedBeforeMinimize;
     private string _baseTitle = string.Empty;
     private bool _applyingTitle;
     private bool _isRegistered;
@@ -119,10 +120,14 @@ public sealed class WindowGeometryHelper
     /// Pushes a previously-saved geometry onto the live window (used when
     /// applying a window-layout profile). Differs from <see cref="Restore"/>
     /// in that it operates on a window that is already showing, so it must
-    /// also un-maximize / re-maximize and reposition relative to the current
-    /// screen layout. The given geometry is clamped to a real screen so a
-    /// profile captured on a multi-monitor box still lands on-screen when
-    /// applied on a single-monitor box.
+    /// also un-minimize / un-maximize / re-maximize and reposition relative
+    /// to the current screen layout, then bring the window to the front —
+    /// setting <see cref="Window.WindowState"/> alone un-minimizes but does
+    /// not raise the window (#360/#365). A geometry saved with
+    /// <see cref="SavedWindowGeometry.IsMinimized"/> instead re-minimizes the
+    /// window without activating it. The given geometry is clamped to a real
+    /// screen so a profile captured on a multi-monitor box still lands
+    /// on-screen when applied on a single-monitor box.
     /// </summary>
     public void ApplyGeometry(SavedWindowGeometry geometry)
     {
@@ -131,7 +136,13 @@ public sealed class WindowGeometryHelper
             return;
         }
         ApplyGeometryToWindow(geometry, isStartupRestore: false);
-        _lastNormalGeometry = CaptureCurrentGeometry();
+        // A minimized/maximized end state reports the iconic/maximized frame, which must
+        // never be recorded as the window's normal geometry; the Width/Position setters
+        // already refreshed _lastNormalGeometry while the window was still Normal.
+        if (_window.WindowState == WindowState.Normal)
+        {
+            _lastNormalGeometry = CaptureCurrentGeometry();
+        }
     }
 
     /// <summary>
@@ -242,9 +253,11 @@ public sealed class WindowGeometryHelper
             {
                 _window.WindowStartupLocation = WindowStartupLocation.Manual;
             }
-            else if (_window.WindowState == WindowState.Maximized && !geo.IsMaximized)
+            else if ((_window.WindowState == WindowState.Minimized) || ((_window.WindowState == WindowState.Maximized) && !geo.IsMaximized))
             {
-                // Cannot resize/reposition while maximized — drop to Normal first.
+                // Cannot resize/reposition while minimized or maximized — the geometry
+                // must land on the restored frame, not the iconic one, so drop to
+                // Normal first.
                 _window.WindowState = WindowState.Normal;
             }
 
@@ -252,7 +265,13 @@ public sealed class WindowGeometryHelper
             _window.Height = resolved.Height;
             _window.Position = new PixelPoint(resolved.X, resolved.Y);
 
+            // Maximize before minimizing so a minimized geometry still restores to
+            // the maximized frame when the user later un-minimizes it.
             _window.WindowState = geo.IsMaximized ? WindowState.Maximized : WindowState.Normal;
+            if (geo.IsMinimized && !isStartupRestore)
+            {
+                _window.WindowState = WindowState.Minimized;
+            }
         }
         else
         {
@@ -261,6 +280,13 @@ public sealed class WindowGeometryHelper
         }
 
         _window.Topmost = geo.IsTopmost;
+
+        // Profile apply brings every saved foreground window to the front; startup
+        // restore runs while the window is being shown, which raises it anyway.
+        if (!isStartupRestore && _window.WindowState != WindowState.Minimized)
+        {
+            _window.Activate();
+        }
     }
 
     /// <summary>
@@ -363,6 +389,12 @@ public sealed class WindowGeometryHelper
         }
         else if (e.Property == Window.WindowStateProperty)
         {
+            // Remember whether a minimize came from a maximized frame so the saved
+            // geometry keeps IsMaximized while the window sits minimized (#365).
+            if (e.GetNewValue<WindowState>() == WindowState.Minimized)
+            {
+                _wasMaximizedBeforeMinimize = e.GetOldValue<WindowState>() == WindowState.Maximized;
+            }
             ScheduleAutoSave();
         }
     }
@@ -411,38 +443,32 @@ public sealed class WindowGeometryHelper
 
     private void SaveCurrentGeometry()
     {
-        var isNotNormal = _window.WindowState != WindowState.Normal;
-        var isMax = _window.WindowState == WindowState.Maximized;
-
-        var normalGeometry = GetNormalGeometryForPersistence(isNotNormal);
-        var geo = CreateSavedGeometry(normalGeometry, isMax);
-
-        _preferences.SetWindowGeometry(_windowName, geo);
+        _preferences.SetWindowGeometry(_windowName, CreateSavedGeometry());
     }
 
     public void ToggleTopmost()
     {
         _window.Topmost = !_window.Topmost;
-
-        var isNotNormal = _window.WindowState != WindowState.Normal;
-        var isMax = _window.WindowState == WindowState.Maximized;
-        var normalGeometry = GetNormalGeometryForPersistence(isNotNormal);
-        var geo = CreateSavedGeometry(normalGeometry, isMax);
-
-        _preferences.SetWindowGeometry(_windowName, geo);
+        SaveCurrentGeometry();
     }
 
-    private SavedWindowGeometry CreateSavedGeometry(NormalWindowGeometry geometry, bool isMaximized) =>
-        new()
+    private SavedWindowGeometry CreateSavedGeometry()
+    {
+        var state = _window.WindowState;
+        var isMinimized = state == WindowState.Minimized;
+        var geometry = GetNormalGeometryForPersistence(isNotNormal: state != WindowState.Normal);
+        return new SavedWindowGeometry
         {
             X = geometry.Position.X,
             Y = geometry.Position.Y,
             Width = geometry.Width,
             Height = geometry.Height,
-            IsMaximized = isMaximized,
+            IsMaximized = (state == WindowState.Maximized) || (isMinimized && _wasMaximizedBeforeMinimize),
+            IsMinimized = isMinimized,
             ScreenIndex = GetCurrentScreenIndex(geometry),
             IsTopmost = _window.Topmost,
         };
+    }
 
     private NormalWindowGeometry GetNormalGeometryForPersistence(bool isNotNormal)
     {

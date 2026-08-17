@@ -528,7 +528,8 @@ public partial class CopyViewSettingsDialog : Window
             return "—";
         }
 
-        return geo.IsMaximized ? "maximized" : $"{(int)geo.Width}×{(int)geo.Height}";
+        var size = geo.IsMaximized ? "maximized" : $"{(int)geo.Width}×{(int)geo.Height}";
+        return geo.IsMinimized ? $"{size} (minimized)" : size;
     }
 
     private static bool GeoEqual(SavedWindowGeometry? a, SavedWindowGeometry? b)
@@ -543,6 +544,7 @@ public partial class CopyViewSettingsDialog : Window
             && Math.Abs(a.Width - b.Width) < 0.5
             && Math.Abs(a.Height - b.Height) < 0.5
             && a.IsMaximized == b.IsMaximized
+            && a.IsMinimized == b.IsMinimized
             && a.ScreenIndex == b.ScreenIndex
             && a.IsTopmost == b.IsTopmost;
     }

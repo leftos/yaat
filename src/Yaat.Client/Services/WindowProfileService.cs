@@ -148,6 +148,7 @@ public sealed class WindowProfileService
             Width = source.Width,
             Height = source.Height,
             IsMaximized = source.IsMaximized,
+            IsMinimized = source.IsMinimized,
             ScreenIndex = source.ScreenIndex,
             IsTopmost = source.IsTopmost,
         };

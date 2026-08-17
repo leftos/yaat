@@ -205,7 +205,7 @@ ViewModels/
 
 Views/
   ConnectWindow.axaml.cs        # Server/room/identity entry dialog
-  WindowGeometryHelper.cs       # Save/restore window position+size+topmost; composes WindowSystemMenuHelper + WindowNativeMenuHelper for cross-platform always-on-top discoverability
+  WindowGeometryHelper.cs       # Save/restore window position+size+min/max/topmost state; profile-apply path (ApplyGeometry) un-minimizes + activates (#365); composes WindowSystemMenuHelper + WindowNativeMenuHelper for cross-platform always-on-top discoverability
   WindowActivationExtensions.cs # Window.RestoreAndActivate(): un-minimize (WindowState.Normal) before Activate — every reuse-and-activate window (FPE, Favorites Panel, Speech Debug, Session Report, Weather/Arrival editors) goes through this (#360)
   WindowSystemMenuHelper.cs     # Windows-only: injects "Always on Top" into the title-bar system menu via WM_SYSCOMMAND + SetWindowSubclass
   WindowNativeMenuHelper.cs     # macOS-only: adds "Window → Always on Top" to the menu bar via Avalonia NativeMenu
