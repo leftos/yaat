@@ -1042,6 +1042,18 @@ internal static class PatternCommandHandler
         // Update waypoints on existing pattern phases
         bool hasPatternPhases = PatternBuilder.UpdateWaypoints(aircraft.Phases, waypoints);
 
+        // An on-ground aircraft with no pattern phases (taxiing, holding short, crossing a runway,
+        // lined up and waiting) only pre-arms the direction — stamped on Pattern/Phases.TrafficDirection
+        // above. Splicing a circuit here makes an airborne leg the next phase after the current ground
+        // phase completes, and the aircraft "flies" the upwind leg on the pavement: it accelerates with
+        // no TakeoffPhase to rotate it and runs off the runway end. The departure-clearance path builds
+        // the circuit in the right place (after TakeoffPhase) when the aircraft actually departs.
+        if (!hasPatternPhases && aircraft.IsOnGround)
+        {
+            var dirStrGround = newDirection == PatternDirection.Left ? "left" : "right";
+            return CommandDispatcher.Ok($"Make {dirStrGround} traffic{CommandDispatcher.RunwayLabel(aircraft)}");
+        }
+
         // If no pattern phases exist yet (a departure told to stay in closed traffic), append a full
         // circuit after the current phase. A go-around never lands here — it returns above, letting
         // PhaseRunner's auto-cycle build the circuit once the climb-out completes.

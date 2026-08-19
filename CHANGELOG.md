@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+- `MLT`/`MRT` given to a departure still on the ground only records the pattern side — the aircraft no longer accelerates down the runway without rotating.
+- `CTO`/`LUAW` issued while the aircraft is crossing a runway en route to its departure runway is accepted as a rolling clearance.
+
 ## v0.12.11-beta [2026/08/17]
 
 ### Fixed

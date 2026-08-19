@@ -158,7 +158,11 @@ internal static class DepartureClearanceHandler
             return LineUpFromHoldShort(aircraft, holding, clearanceType, departure, assignedAltitude, logger);
         }
 
-        if (currentPhase is TaxiingPhase)
+        // A crossing on the way to the route's destination runway is the same rolling situation as
+        // plain taxiing: store the clearance now and let the taxi machinery apply it at route end.
+        // StoreDepartureClearanceDuringTaxi validates against the assigned route, so a crossing with
+        // no departure hold-short downstream still fails with a specific message.
+        if (currentPhase is TaxiingPhase or CrossingRunwayPhase)
         {
             return StoreDepartureClearanceDuringTaxi(aircraft, clearanceType, departure, assignedAltitude);
         }
