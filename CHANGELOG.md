@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+- `DEST`/`APT` works behind conditions and in scenario preset commands (e.g. `AT 5000 DEST KDEN`) instead of failing when the trigger fires.
+- Airports with no published vNAS ground map are remembered instead of being re-requested from the network every half hour of a session.
+- Airport ground layouts refresh in the background and scenario load pre-warms every referenced airport, so long sessions no longer stutter when a cached layout expires mid-flight.
+- Procedure lookups at airports with no published SIDs, STARs, or approaches no longer scan every cached prior-cycle CIFP file (a mid-session pause at fields like HDN).
+
 ## v0.12.13-beta [2026/08/19]
 
 ### Highlights
@@ -8,10 +16,6 @@
 - ERAM data blocks respect each controller's leader-length setting instead of forcing length 3 on handoff.
 
 ### Fixed
-- `DEST`/`APT` works behind conditions and in scenario preset commands (e.g. `AT 5000 DEST KDEN`) instead of failing when the trigger fires.
-- Airports with no published vNAS ground map are remembered instead of being re-requested from the network every half hour of a session.
-- Airport ground layouts refresh in the background and scenario load pre-warms every referenced airport, so long sessions no longer stutter when a cached layout expires mid-flight.
-- Procedure lookups at airports with no published SIDs, STARs, or approaches no longer scan every cached prior-cycle CIFP file (a mid-session pause at fields like HDN).
 - Scenario ATC positions from a neighboring ARTCC now appear in the controllers list, own their aircraft at spawn, and auto-handoff to the student.
 - Scenario load warns in the terminal when an ATC position can't be resolved instead of dropping it silently.
 - ERAM data blocks use each controller's own leader-length setting when no per-track override is set, instead of forcing length 3 on handoff.
