@@ -78,7 +78,7 @@ A ~30-branch dispatch with order dependencies. After the scenario null-guard (`:
 (`:529`), assignment enforcement (`:536`), and `AS <tcp>` extraction via `TrackCommandHandler.ExtractAsPrefix` (`:552`),
 it parses once (`CommandParser.Parse`, `:554`) and dispatches. Key ordering:
 
-- **Flight-plan amendment verbs are intercepted early** — `ChangeDestinationCommand` (`:563`), `CreateFlightPlanCommand`
+- **Flight-plan amendment verbs are intercepted early** — `ChangeDestinationCommand` (bare form only; preset/conditional forms dispatch via `CommandDispatcher.ApplyCommand`), `CreateFlightPlanCommand`
   (`:597`), `CreateAbbreviatedFlightPlanCommand` (`:610`), `SetRemarksCommand` (`:623`) run before the generic chain so
   they route through `AmendFlightPlan` for recording + CRC strip push.
 - **`SetActivePositionCommand` is special-cased**: it takes the `HandleSetActivePosition` branch only when

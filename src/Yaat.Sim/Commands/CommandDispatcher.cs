@@ -1017,6 +1017,13 @@ public static class CommandDispatcher
                 return TryAirborneFollow(aircraft, follow, ctx);
 
             // --- Flight plan ---
+            // Scenario presets and conditional forms (`AT 5000 APT KOAK`) reach this switch via the
+            // queued-block apply path — yaat-server's interactive intercept only covers the bare,
+            // unconditioned command. The server's flight-plan change tracker picks the mutation up
+            // for CRC/training broadcasts on the next tick.
+            case ChangeDestinationCommand dest:
+                return FlightPlanCommandHandler.TryChangeDestination(aircraft, dest.Airport);
+
             case CancelIfrCommand:
                 if (aircraft.FlightPlan.IsVfr)
                 {
