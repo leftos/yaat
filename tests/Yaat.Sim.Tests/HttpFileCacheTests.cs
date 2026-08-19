@@ -1,5 +1,4 @@
 using System.Net;
-using System.Net.Http.Headers;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 using Yaat.Sim.Data;
@@ -9,7 +8,8 @@ namespace Yaat.Sim.Tests;
 /// <summary>
 /// <see cref="HttpFileCache"/> is the shared network↔disk step behind the vNAS-backed caches. These
 /// pin the two freshness strategies plus the disk-TTL skip-gate and network-failure fallback that the
-/// airport-map / ARTCC-config / video-map callers each relied on before the dedup.
+/// airport-map / ARTCC-config / video-map callers each relied on before the dedup, and the
+/// <see cref="HttpCacheResult.NotFound"/> flag callers use for negative caching.
 /// </summary>
 public class HttpFileCacheTests
 {
@@ -48,6 +48,9 @@ public class HttpFileCacheTests
 
     private static string NewCacheFile() => Path.Combine(Path.GetTempPath(), "hfc-" + Guid.NewGuid(), "cache.txt");
 
+    private static Task<HttpCacheResult> Fetch(HttpClient http, string cachePath, HttpCacheFreshness freshness, TimeSpan? ttl = null) =>
+        HttpFileCache.GetOrRefreshAsync(http, "http://x/y", cachePath, freshness, ttl, NullLogger.Instance);
+
     private static async Task WithCache(string cachePath, Func<Task> body)
     {
         try
@@ -76,16 +79,10 @@ public class HttpFileCacheTests
                 var handler = new FakeHandler { Responder = _ => Ok(body) };
                 using var http = new HttpClient(handler);
 
-                Assert.Equal(
-                    "v1",
-                    await HttpFileCache.GetOrRefreshAsync(http, "http://x/y", cachePath, HttpCacheFreshness.AlwaysRefetch, null, NullLogger.Instance)
-                );
+                Assert.Equal("v1", (await Fetch(http, cachePath, HttpCacheFreshness.AlwaysRefetch)).Content);
 
                 body = "v2";
-                Assert.Equal(
-                    "v2",
-                    await HttpFileCache.GetOrRefreshAsync(http, "http://x/y", cachePath, HttpCacheFreshness.AlwaysRefetch, null, NullLogger.Instance)
-                );
+                Assert.Equal("v2", (await Fetch(http, cachePath, HttpCacheFreshness.AlwaysRefetch)).Content);
 
                 Assert.Equal(0, handler.HeadCount);
             }
@@ -104,22 +101,19 @@ public class HttpFileCacheTests
                 var handler = new FakeHandler { Responder = _ => fail ? throw new HttpRequestException("offline") : Ok("cached") };
                 using var http = new HttpClient(handler);
 
-                Assert.Equal(
-                    "cached",
-                    await HttpFileCache.GetOrRefreshAsync(http, "http://x/y", cachePath, HttpCacheFreshness.AlwaysRefetch, null, NullLogger.Instance)
-                );
+                Assert.Equal("cached", (await Fetch(http, cachePath, HttpCacheFreshness.AlwaysRefetch)).Content);
 
                 fail = true;
-                Assert.Equal(
-                    "cached",
-                    await HttpFileCache.GetOrRefreshAsync(http, "http://x/y", cachePath, HttpCacheFreshness.AlwaysRefetch, null, NullLogger.Instance)
-                );
+                var result = await Fetch(http, cachePath, HttpCacheFreshness.AlwaysRefetch);
+                Assert.Equal("cached", result.Content);
+                // A network failure is not a 404 — callers must not negative-cache it.
+                Assert.False(result.NotFound);
             }
         );
     }
 
     [Fact]
-    public async Task AlwaysRefetch_404_NoCache_ReturnsNull()
+    public async Task AlwaysRefetch_404_NoCache_ReturnsNull_AndReportsNotFound()
     {
         var cachePath = NewCacheFile();
         await WithCache(
@@ -129,9 +123,33 @@ public class HttpFileCacheTests
                 var handler = new FakeHandler { Responder = _ => new HttpResponseMessage(HttpStatusCode.NotFound) };
                 using var http = new HttpClient(handler);
 
-                Assert.Null(
-                    await HttpFileCache.GetOrRefreshAsync(http, "http://x/y", cachePath, HttpCacheFreshness.AlwaysRefetch, null, NullLogger.Instance)
-                );
+                var result = await Fetch(http, cachePath, HttpCacheFreshness.AlwaysRefetch);
+                Assert.Null(result.Content);
+                Assert.True(result.NotFound);
+            }
+        );
+    }
+
+    [Fact]
+    public async Task AlwaysRefetch_404_WithCache_ServesCache_AndReportsNotFound()
+    {
+        var cachePath = NewCacheFile();
+        await WithCache(
+            cachePath,
+            async () =>
+            {
+                var notFound = false;
+                var handler = new FakeHandler { Responder = _ => notFound ? new HttpResponseMessage(HttpStatusCode.NotFound) : Ok("cached") };
+                using var http = new HttpClient(handler);
+
+                Assert.Equal("cached", (await Fetch(http, cachePath, HttpCacheFreshness.AlwaysRefetch)).Content);
+
+                // Origin starts 404ing (map unpublished): the cache is kept and served, and the 404
+                // is still reported so callers can decide their own policy.
+                notFound = true;
+                var result = await Fetch(http, cachePath, HttpCacheFreshness.AlwaysRefetch);
+                Assert.Equal("cached", result.Content);
+                Assert.True(result.NotFound);
             }
         );
     }
@@ -148,17 +166,11 @@ public class HttpFileCacheTests
                 using var http = new HttpClient(handler);
                 var ttl = TimeSpan.FromHours(6);
 
-                Assert.Equal(
-                    "body",
-                    await HttpFileCache.GetOrRefreshAsync(http, "http://x/y", cachePath, HttpCacheFreshness.AlwaysRefetch, ttl, NullLogger.Instance)
-                );
+                Assert.Equal("body", (await Fetch(http, cachePath, HttpCacheFreshness.AlwaysRefetch, ttl)).Content);
                 var afterFirst = handler.GetCount;
 
                 // Second call within the TTL window must serve disk without another GET.
-                Assert.Equal(
-                    "body",
-                    await HttpFileCache.GetOrRefreshAsync(http, "http://x/y", cachePath, HttpCacheFreshness.AlwaysRefetch, ttl, NullLogger.Instance)
-                );
+                Assert.Equal("body", (await Fetch(http, cachePath, HttpCacheFreshness.AlwaysRefetch, ttl)).Content);
                 Assert.Equal(afterFirst, handler.GetCount);
             }
         );
@@ -180,32 +192,12 @@ public class HttpFileCacheTests
                 };
                 using var http = new HttpClient(handler);
 
-                Assert.Equal(
-                    "map-v1",
-                    await HttpFileCache.GetOrRefreshAsync(
-                        http,
-                        "http://x/m",
-                        cachePath,
-                        HttpCacheFreshness.HeadLastModified,
-                        null,
-                        NullLogger.Instance
-                    )
-                );
+                Assert.Equal("map-v1", (await Fetch(http, cachePath, HttpCacheFreshness.HeadLastModified)).Content);
                 var getsAfterFirst = handler.GetCount;
 
                 // Server Last-Modified is unchanged (older than our stamped mtime) → HEAD only, no re-GET.
                 body = "map-v2-should-not-be-served";
-                Assert.Equal(
-                    "map-v1",
-                    await HttpFileCache.GetOrRefreshAsync(
-                        http,
-                        "http://x/m",
-                        cachePath,
-                        HttpCacheFreshness.HeadLastModified,
-                        null,
-                        NullLogger.Instance
-                    )
-                );
+                Assert.Equal("map-v1", (await Fetch(http, cachePath, HttpCacheFreshness.HeadLastModified)).Content);
                 Assert.Equal(getsAfterFirst, handler.GetCount);
                 Assert.True(handler.HeadCount >= 1);
             }
@@ -228,32 +220,12 @@ public class HttpFileCacheTests
                 };
                 using var http = new HttpClient(handler);
 
-                Assert.Equal(
-                    "map-v1",
-                    await HttpFileCache.GetOrRefreshAsync(
-                        http,
-                        "http://x/m",
-                        cachePath,
-                        HttpCacheFreshness.HeadLastModified,
-                        null,
-                        NullLogger.Instance
-                    )
-                );
+                Assert.Equal("map-v1", (await Fetch(http, cachePath, HttpCacheFreshness.HeadLastModified)).Content);
 
                 // Origin now advertises a newer Last-Modified → the next check must re-download.
                 lastModified = DateTimeOffset.UtcNow.AddHours(1);
                 body = "map-v2";
-                Assert.Equal(
-                    "map-v2",
-                    await HttpFileCache.GetOrRefreshAsync(
-                        http,
-                        "http://x/m",
-                        cachePath,
-                        HttpCacheFreshness.HeadLastModified,
-                        null,
-                        NullLogger.Instance
-                    )
-                );
+                Assert.Equal("map-v2", (await Fetch(http, cachePath, HttpCacheFreshness.HeadLastModified)).Content);
             }
         );
     }

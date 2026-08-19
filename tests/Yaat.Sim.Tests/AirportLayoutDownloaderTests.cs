@@ -118,4 +118,66 @@ public class AirportLayoutDownloaderTests
             }
         }
     }
+
+    [Fact]
+    public async Task GetGeoJson_404_IsNegativeCached_NoRefetchWithinTtl()
+    {
+        // Airports vNAS has no map for (OGD, HDN) 404 on every fetch. The downloader must remember
+        // the 404 and stop re-hitting the network — the server's ground-data TTL otherwise re-GETs
+        // them every 30 minutes for the life of the session, on the tick thread.
+        string cacheDir = NewCacheDir();
+        var handler = new FakeHandler { Responder = _ => new HttpResponseMessage(HttpStatusCode.NotFound) };
+
+        try
+        {
+            using var dl = new AirportLayoutDownloader(new HttpClient(handler), cacheDir);
+
+            Assert.Null(await dl.GetGeoJsonAsync("OGD"));
+            Assert.Null(await dl.GetGeoJsonAsync("OGD"));
+            Assert.Null(await dl.GetGeoJsonAsync("OGD"));
+
+            Assert.Equal(1, handler.GetCount);
+        }
+        finally
+        {
+            if (Directory.Exists(cacheDir))
+            {
+                Directory.Delete(cacheDir, recursive: true);
+            }
+        }
+    }
+
+    [Fact]
+    public async Task GetGeoJson_NetworkFailure_IsNotNegativeCached()
+    {
+        // A transient outage must not latch an airport as map-less for hours — only a genuine
+        // HTTP 404 from the origin does.
+        string cacheDir = NewCacheDir();
+        int attempts = 0;
+        var handler = new FakeHandler
+        {
+            Responder = _ =>
+            {
+                attempts++;
+                throw new HttpRequestException("offline");
+            },
+        };
+
+        try
+        {
+            using var dl = new AirportLayoutDownloader(new HttpClient(handler), cacheDir);
+
+            Assert.Null(await dl.GetGeoJsonAsync("OGD"));
+            Assert.Null(await dl.GetGeoJsonAsync("OGD"));
+
+            Assert.Equal(2, attempts);
+        }
+        finally
+        {
+            if (Directory.Exists(cacheDir))
+            {
+                Directory.Delete(cacheDir, recursive: true);
+            }
+        }
+    }
 }

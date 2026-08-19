@@ -87,7 +87,7 @@ public sealed class ArtccAirportResolver
         }
 
         var url = $"{DataApiBase}/{artccId}";
-        var json = await HttpFileCache.GetOrRefreshAsync(_http, url, cachePath, HttpCacheFreshness.AlwaysRefetch, CacheTtl, _log);
+        var json = (await HttpFileCache.GetOrRefreshAsync(_http, url, cachePath, HttpCacheFreshness.AlwaysRefetch, CacheTtl, _log)).Content;
         if (json is not null)
         {
             _jsonCache[artccId] = json;

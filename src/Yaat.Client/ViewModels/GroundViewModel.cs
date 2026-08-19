@@ -361,7 +361,7 @@ public partial class GroundViewModel : ObservableObject
         var url = $"{videoMapBaseUrl}/{artccId}/{videoMapId}.geojson";
 
         using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
-        var json = await HttpFileCache.GetOrRefreshAsync(http, url, cachePath, HttpCacheFreshness.HeadLastModified, diskTtl: null, _log);
+        var json = (await HttpFileCache.GetOrRefreshAsync(http, url, cachePath, HttpCacheFreshness.HeadLastModified, diskTtl: null, _log)).Content;
         return json is null ? null : TowerCabMapParser.Parse(json);
     }
 

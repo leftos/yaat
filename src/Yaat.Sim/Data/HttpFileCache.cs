@@ -29,6 +29,14 @@ public enum HttpCacheFreshness
 }
 
 /// <summary>
+/// Outcome of a <see cref="HttpFileCache.GetOrRefreshAsync"/> call. <see cref="Content"/> is the
+/// served text (from the refresh or the on-disk fallback), or null when nothing is available.
+/// <see cref="NotFound"/> is true when the origin answered this refresh with HTTP 404 — the one
+/// signal callers can safely negative-cache; a network failure or timeout never sets it.
+/// </summary>
+public readonly record struct HttpCacheResult(string? Content, bool NotFound);
+
+/// <summary>
 /// Downloads a text resource to a disk cache and serves it, sharing the freshness/refresh/fallback
 /// logic that several vNAS-backed caches would otherwise each reimplement (the airport ground map,
 /// ARTCC config, video maps, tower-cab maps). Owns only the network↔disk step: callers layer their
@@ -38,14 +46,16 @@ public static class HttpFileCache
 {
     /// <summary>
     /// Ensures <paramref name="cachePath"/> holds a reasonably fresh copy of <paramref name="url"/>
-    /// and returns its text, or null when the resource is unavailable and nothing is cached.
+    /// and returns its text, or a null <see cref="HttpCacheResult.Content"/> when the resource is
+    /// unavailable and nothing is cached.
     ///
     /// When <paramref name="diskTtl"/> is set and the cached file is younger than it, the network is
     /// skipped entirely. Otherwise <paramref name="freshness"/> decides whether to re-download. A
     /// network failure or timeout is logged and the existing on-disk copy is served; an HTTP 404
-    /// leaves the cache untouched.
+    /// leaves the cache untouched and is reported via <see cref="HttpCacheResult.NotFound"/> (GET
+    /// freshness only — the HEAD path treats a failed probe as "keep the cache").
     /// </summary>
-    public static async Task<string?> GetOrRefreshAsync(
+    public static async Task<HttpCacheResult> GetOrRefreshAsync(
         HttpClient http,
         string url,
         string cachePath,
@@ -63,9 +73,10 @@ public static class HttpFileCache
 
         if ((diskTtl is { } ttl) && File.Exists(cachePath) && (DateTime.UtcNow - File.GetLastWriteTimeUtc(cachePath) < ttl))
         {
-            return await File.ReadAllTextAsync(cachePath, cancellationToken);
+            return new HttpCacheResult(await File.ReadAllTextAsync(cachePath, cancellationToken), NotFound: false);
         }
 
+        var notFound = false;
         try
         {
             if (freshness == HttpCacheFreshness.HeadLastModified)
@@ -74,7 +85,7 @@ public static class HttpFileCache
             }
             else
             {
-                await RefreshViaGetAsync(http, url, cachePath, resetTtlClock: diskTtl is not null, log, cancellationToken);
+                notFound = await RefreshViaGetAsync(http, url, cachePath, resetTtlClock: diskTtl is not null, log, cancellationToken);
             }
         }
         catch (HttpRequestException ex)
@@ -86,16 +97,17 @@ public static class HttpFileCache
             log.LogWarning(ex, "Timed out refreshing cached file from {Url}; using cached copy if present", url);
         }
 
-        return File.Exists(cachePath) ? await File.ReadAllTextAsync(cachePath, cancellationToken) : null;
+        var content = File.Exists(cachePath) ? await File.ReadAllTextAsync(cachePath, cancellationToken) : null;
+        return new HttpCacheResult(content, notFound);
     }
 
     /// <summary>
-    /// Unconditional GET with write-if-changed. A 404 leaves the cache untouched. When
-    /// <paramref name="resetTtlClock"/> is set and the body is unchanged, the file's mtime is
-    /// touched so a caller's disk-TTL window restarts (an unchanged refresh still counts as fresh);
-    /// without a TTL the file is left alone to avoid churn.
+    /// Unconditional GET with write-if-changed; returns true when the origin answered 404. A 404
+    /// leaves the cache untouched. When <paramref name="resetTtlClock"/> is set and the body is
+    /// unchanged, the file's mtime is touched so a caller's disk-TTL window restarts (an unchanged
+    /// refresh still counts as fresh); without a TTL the file is left alone to avoid churn.
     /// </summary>
-    private static async Task RefreshViaGetAsync(
+    private static async Task<bool> RefreshViaGetAsync(
         HttpClient http,
         string url,
         string cachePath,
@@ -108,7 +120,7 @@ public static class HttpFileCache
         if (resp.StatusCode == HttpStatusCode.NotFound)
         {
             log.LogInformation("No resource available at {Url} (HTTP 404); leaving cache untouched", url);
-            return;
+            return true;
         }
 
         resp.EnsureSuccessStatusCode();
@@ -121,11 +133,12 @@ public static class HttpFileCache
                 File.SetLastWriteTimeUtc(cachePath, DateTime.UtcNow);
             }
 
-            return;
+            return false;
         }
 
         await File.WriteAllTextAsync(cachePath, body, cancellationToken);
         log.LogDebug("Refreshed cached file from {Url}", url);
+        return false;
     }
 
     /// <summary>

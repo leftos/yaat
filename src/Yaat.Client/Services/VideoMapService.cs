@@ -85,7 +85,7 @@ public sealed class VideoMapService
         var cachePath = Path.Combine(artccCacheDir, $"{mapId}.geojson");
         var url = $"{DataApiBase}/{artccId}/{mapId}.geojson";
 
-        var json = await HttpFileCache.GetOrRefreshAsync(_http, url, cachePath, HttpCacheFreshness.HeadLastModified, diskTtl: null, _log);
+        var json = (await HttpFileCache.GetOrRefreshAsync(_http, url, cachePath, HttpCacheFreshness.HeadLastModified, diskTtl: null, _log)).Content;
         if (json is null)
         {
             return null;
