@@ -229,6 +229,12 @@ a bare `new NavigationDatabase(navData, cifp, artccsBaseDir: "")` in a test pass
 there. (`IssueN513sjNimiRvSidCifpMissTests` exercises the empty-chain degradation; `IssueN513sjNimi6PriorCycleChainTests`
 exercises the chain walk recovering NIMI5's published 315° heading; `CustomProcedureResolutionTests` covers the fragment tier.)
 
+The chain is **skipped when the current cycle lists zero procedures of that kind at the airport** (and a current CIFP is actually
+loaded — with none, the chain is the sole source). It exists to resolve version drift in procedures the airport still publishes;
+an airport with no SIDs at all (HDN) never had a version to drift from, and each chain miss is a full linear scan of every cached
+prior-cycle file — a burst that blew the server tick budget when route tokens were probed at procedure-less fields.
+(`SupplementaryChainSkipTests` pins the skip per kind.)
+
 > Tests that assert on *unresolvable*-procedure behavior must pass `artccsBaseDir: ""`. The shipped ZOA NIMITZ fragment resolves
 > `NIMI5`/`NIMI6` at KOAK in production, so a test that constructs a `NavigationDatabase` with the default ARTCC dir will no longer
 > see the degradation path. Both NIMI test classes now pass `""` explicitly for this reason.

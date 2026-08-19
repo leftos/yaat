@@ -1114,6 +1114,29 @@ public sealed class NavigationDatabase
         return new ProcedureSource(ProcedureSourceKind.ArtccCustom, artcc);
     }
 
+    /// <summary>
+    /// The supplementary-CIFP chain resolves version drift in procedures the airport still
+    /// publishes (LONGZ3 → LONGZ4, or a recently decoded-out SID). An airport with zero procedures
+    /// of the kind in the current cycle never had a version to drift from — walking the chain there
+    /// is a burst of full prior-cycle file scans, observed blowing the server tick budget when
+    /// route tokens are probed at procedure-less fields. Only skipped while a current cycle is
+    /// actually loaded: with no current CIFP at all, the chain is the sole source.
+    /// </summary>
+    private bool SkipSupplementaryChain(int currentCycleCount, string kind, string airportCode)
+    {
+        if (!HasCifpFile || currentCycleCount > 0)
+        {
+            return false;
+        }
+
+        if (_supplementaryCifpFilePaths.Count > 0)
+        {
+            Log.LogDebug("{Airport} has no {Kind}s in the current CIFP cycle; skipping the supplementary-cycle chain", airportCode, kind);
+        }
+
+        return true;
+    }
+
     public CifpSidProcedure? GetSid(string airportCode, string sidId) => GetSid(airportCode, sidId, out _);
 
     /// <summary>
@@ -1124,7 +1147,8 @@ public sealed class NavigationDatabase
     public CifpSidProcedure? GetSid(string airportCode, string sidId, out ProcedureSource? source)
     {
         source = null;
-        var match = FindSidInList(GetSids(airportCode), sidId);
+        var currentCycle = GetSids(airportCode);
+        var match = FindSidInList(currentCycle, sidId);
         if (match is not null)
         {
             return match;
@@ -1134,6 +1158,11 @@ public sealed class NavigationDatabase
         {
             source = CustomProcedureSource(custom, "SID", customMatch.ProcedureId, airportCode);
             return customMatch;
+        }
+
+        if (SkipSupplementaryChain(currentCycle.Count, "SID", airportCode))
+        {
+            return null;
         }
 
         foreach (var path in _supplementaryCifpFilePaths)
@@ -1188,7 +1217,8 @@ public sealed class NavigationDatabase
     public CifpStarProcedure? GetStar(string airportCode, string starId, out ProcedureSource? source)
     {
         source = null;
-        var match = FindStarInList(GetStars(airportCode), starId);
+        var currentCycle = GetStars(airportCode);
+        var match = FindStarInList(currentCycle, starId);
         if (match is not null)
         {
             return match;
@@ -1198,6 +1228,11 @@ public sealed class NavigationDatabase
         {
             source = CustomProcedureSource(custom, "STAR", customMatch.ProcedureId, airportCode);
             return customMatch;
+        }
+
+        if (SkipSupplementaryChain(currentCycle.Count, "STAR", airportCode))
+        {
+            return null;
         }
 
         foreach (var path in _supplementaryCifpFilePaths)
@@ -1353,7 +1388,8 @@ public sealed class NavigationDatabase
     public CifpApproachProcedure? GetApproach(string airportCode, string approachId, out ProcedureSource? source)
     {
         source = null;
-        var match = GetApproaches(airportCode).FirstOrDefault(a => a.ApproachId.Equals(approachId, StringComparison.OrdinalIgnoreCase));
+        var currentCycle = GetApproaches(airportCode);
+        var match = currentCycle.FirstOrDefault(a => a.ApproachId.Equals(approachId, StringComparison.OrdinalIgnoreCase));
         if (match is not null)
         {
             return match;
@@ -1367,6 +1403,11 @@ public sealed class NavigationDatabase
                 source = CustomProcedureSource(custom, "Approach", customMatch.ApproachId, airportCode);
                 return customMatch;
             }
+        }
+
+        if (SkipSupplementaryChain(currentCycle.Count, "Approach", airportCode))
+        {
+            return null;
         }
 
         foreach (var path in _supplementaryCifpFilePaths)
