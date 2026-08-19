@@ -1,6 +1,12 @@
 # Changelog
 
-## Unreleased
+## v0.12.13-beta [2026/08/19]
+
+### Highlights
+- Scenario ATC positions from neighboring ARTCCs now show in the controllers list, own their aircraft at spawn, and hand off to the student automatically.
+- Long sessions no longer stutter when a cached airport layout expires — layouts refresh in the background and scenario load pre-warms every referenced airport.
+- `DEST`/`APT` works behind conditions and in scenario preset commands.
+- ERAM data blocks respect each controller's leader-length setting instead of forcing length 3 on handoff.
 
 ### Fixed
 - Scenario ATC positions from a neighboring ARTCC now appear in the controllers list, own their aircraft at spawn, and auto-handoff to the student.
