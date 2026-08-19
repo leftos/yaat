@@ -14,7 +14,7 @@ public class AircraftEramState
     /// <summary>Leader direction override (1=SW .. 9=NE per CRC enum; 5=Default). Null = sector default.</summary>
     public int? LeaderDirection { get; set; }
 
-    /// <summary>Leader length override (0-8 lines). Null = sector default.</summary>
+    /// <summary>Leader length override (0-3 per CRC's render switch; 5=use display default). Null = controller's display default.</summary>
     public int? LeaderLength { get; set; }
 
     /// <summary>Interim altitude issued via ERAM QQ, in hundreds of feet (the unit CRC renders directly).</summary>

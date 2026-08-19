@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+- Scenario ATC positions from a neighboring ARTCC now appear in the controllers list, own their aircraft at spawn, and auto-handoff to the student.
+- Scenario load warns in the terminal when an ATC position can't be resolved instead of dropping it silently.
+- ERAM data blocks use each controller's own leader-length setting when no per-track override is set, instead of forcing length 3 on handoff.
+
 ## v0.12.12-beta [2026/08/18]
 
 ### Fixed
