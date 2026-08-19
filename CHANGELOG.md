@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.12.12-beta [2026/08/18]
 
 ### Fixed
 - `MLT`/`MRT` given to a departure still on the ground only records the pattern side — the aircraft no longer accelerates down the runway without rotating.
