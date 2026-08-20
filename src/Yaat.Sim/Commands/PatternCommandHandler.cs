@@ -1072,6 +1072,17 @@ internal static class PatternCommandHandler
                 AuthoredRunway(aircraft, groundLayout, runway)
             );
             aircraft.Phases.InsertAfterCurrent(circuit);
+
+            // On a completed chain the insert lands at the current index with nothing to start it
+            // (an active chain's current phase is Active and takes the normal advance path).
+            // Activate it in place so the circuit flies this tick — never PhaseList.Start, which
+            // rewinds to index 0 and re-runs the completed prefix.
+            if (aircraft.Phases.CurrentPhase is { Status: PhaseStatus.Pending } spliced)
+            {
+                var splicedCtx = CommandDispatcher.BuildMinimalContext(aircraft, groundLayout ?? aircraft.Ground.Layout);
+                spliced.Status = PhaseStatus.Active;
+                spliced.OnStart(splicedCtx);
+            }
         }
         else
         {

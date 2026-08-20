@@ -20,15 +20,14 @@ public static class PhaseRunner
             return;
         }
 
-        // Start pending phase list on first tick
+        // Activate a pending current phase in place — a freshly installed list (index 0) and a
+        // circuit spliced past a completed chain (e.g. airborne MRT after the departure chain
+        // finished) both land here. Never PhaseList.Start: that rewinds CurrentIndex to 0 and
+        // re-runs the completed prefix (the aircraft re-taxied an old runway crossing mid-air).
         if (current.Status == PhaseStatus.Pending)
         {
-            phases.Start(ctx);
-            current = phases.CurrentPhase;
-            if (current is null)
-            {
-                return;
-            }
+            current.Status = PhaseStatus.Active;
+            current.OnStart(ctx);
         }
 
         current.ElapsedSeconds += ctx.DeltaSeconds;

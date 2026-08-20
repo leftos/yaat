@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+- `MLT`/`MRT` to a departure that finished its climb-out enters the pattern instead of rewinding the aircraft into its already-completed runway crossing.
+
 ## v0.12.13-beta [2026/08/19]
 
 ### Highlights
