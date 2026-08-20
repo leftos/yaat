@@ -71,7 +71,7 @@ public class SquawkVfrFlashLatchTests(ITestOutputHelper output)
         engine.SendCommand("N427MX", "SQVFR");
         Assert.True(engine.FindAircraft("N427MX")!.Transponder.CommandedSquawkVfr);
 
-        var newCode = engine.RequestNewBeaconCode("N427MX");
+        var newCode = engine.RequestNewBeaconCode("N427MX", assignedByFacilityId: null, assignedBySectorId: null);
 
         var ac = engine.FindAircraft("N427MX");
         Assert.NotNull(ac);

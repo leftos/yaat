@@ -375,6 +375,9 @@ public partial class AircraftModel : ObservableObject
     private string _equipmentSuffix = "";
 
     [ObservableProperty]
+    private string _icaoEquipmentCodes = "";
+
+    [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(FlightPlanDisplay))]
     [NotifyPropertyChangedFor(nameof(HasFlightPlan))]
     [NotifyPropertyChangedFor(nameof(ShowNavRoute))]
@@ -998,6 +1001,7 @@ public partial class AircraftModel : ObservableObject
             PatternDirection = dto.PatternDirection,
             NavigationRoute = DeriveFixNames(dto.NavigationRoute),
             EquipmentSuffix = dto.EquipmentSuffix,
+            IcaoEquipmentCodes = dto.IcaoEquipmentCodes,
             CruiseAltitude = dto.CruiseAltitude,
             BlockFloorAltitude = dto.BlockFloorAltitude,
             IsVfrOnTop = dto.IsVfrOnTop,
@@ -1109,6 +1113,7 @@ public partial class AircraftModel : ObservableObject
         NavRouteShapes = dto.NavRouteShapes ?? [];
         NavigationRoute = DeriveFixNames(dto.NavigationRoute);
         EquipmentSuffix = dto.EquipmentSuffix;
+        IcaoEquipmentCodes = dto.IcaoEquipmentCodes;
         CruiseAltitude = dto.CruiseAltitude;
         BlockFloorAltitude = dto.BlockFloorAltitude;
         IsVfrOnTop = dto.IsVfrOnTop;

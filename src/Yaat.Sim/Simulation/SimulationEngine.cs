@@ -896,11 +896,12 @@ public sealed class SimulationEngine
 
     /// <summary>
     /// Per-second transponder maintenance: advances each aircraft's IDENT timer so the ident flash
-    /// auto-clears after <see cref="AircraftTransponder.IdentDurationSeconds"/>. The SINGLE owner of this
-    /// logic — both the standalone <see cref="TickPostPhysics"/> AND the live server
-    /// (<c>TickProcessor.ProcessPostPhysics</c>) call it, so ident expiry runs identically in both hosts.
+    /// auto-clears after <see cref="AircraftTransponder.IdentDurationSeconds"/>, and latches the
+    /// has-reported-Mode-C flag CRC's lost-Mode-C indication reads. The SINGLE owner of this logic — both
+    /// the standalone <see cref="TickPostPhysics"/> AND the live server
+    /// (<c>TickProcessor.ProcessPostPhysics</c>) call it, so it runs identically in both hosts.
     /// </summary>
-    public void TickTransponderIdents()
+    public void TickTransponders()
     {
         if (Scenario is not { } scenario)
         {
@@ -909,7 +910,7 @@ public sealed class SimulationEngine
 
         foreach (var ac in World.GetSnapshot())
         {
-            ac.Transponder.TickIdent(scenario.ElapsedSeconds);
+            ac.Transponder.Tick(scenario.ElapsedSeconds);
         }
     }
 
@@ -1486,7 +1487,7 @@ public sealed class SimulationEngine
     public void TickPostPhysics()
     {
         TickPilotProactive();
-        TickTransponderIdents();
+        TickTransponders();
         TickVisualDetection();
 
         // Re-evaluate the engine-owned conflict sets. Their returned diffs exist for a broadcasting host to fan out
@@ -2402,6 +2403,10 @@ public sealed class SimulationEngine
         {
             ac.FlightPlan.EquipmentSuffix = amendment.EquipmentSuffix;
         }
+        if (amendment.IcaoEquipmentCodes is not null)
+        {
+            ac.FlightPlan.IcaoEquipmentCodes = amendment.IcaoEquipmentCodes;
+        }
         if (amendment.Departure is not null)
         {
             ac.FlightPlan.Departure = amendment.Departure;
@@ -2450,7 +2455,7 @@ public sealed class SimulationEngine
             // controller assigns a beacon; the pilot keeps squawking the current code until told to
             // squawk the new one (matching the auto-assign-on-filing branch below). The resulting
             // beacon mismatch is shown on the data block until the pilot complies.
-            ac.Transponder.AssignCode(amendment.BeaconCode.Value);
+            ac.Transponder.AssignCode(amendment.BeaconCode.Value, amendment.BeaconAssignedByFacilityId, amendment.BeaconAssignedBySectorId);
         }
 
         // Resolve ground layout if departure/destination changed
@@ -2470,7 +2475,13 @@ public sealed class SimulationEngine
             ac.FlightPlan.HasFlightPlan = true;
             if (ac.Transponder.AssignedCode == 0)
             {
-                ac.Transponder.AssignCode(BeaconCodePool.AssignNextCode(ac.FlightPlan.IsVfr));
+                // Attribute the filing draw to whatever the amendment carries: the ERAM VP path stamps
+                // its sector (7110.65 §5-2-7.a); instructor/STARS filing paths carry null.
+                ac.Transponder.AssignCode(
+                    BeaconCodePool.AssignNextCode(ac.FlightPlan.IsVfr),
+                    amendment.BeaconAssignedByFacilityId,
+                    amendment.BeaconAssignedBySectorId
+                );
             }
         }
 
@@ -2483,10 +2494,11 @@ public sealed class SimulationEngine
     /// <summary>
     /// Releases the aircraft's current assigned beacon code back to the pool and draws a fresh
     /// discrete code (VFR bank for VFR, IFR bank for IFR). Does not flip <c>Transponder.Code</c> —
-    /// the pilot keeps squawking their current code until the controller issues <c>SQ</c>. Returns
-    /// the new assigned code, or 0 if the aircraft is unknown.
+    /// the pilot keeps squawking their current code until the controller issues <c>SQ</c>. The
+    /// assigner is the acting ERAM sector when the request came from an ERAM position (bare
+    /// <c>QB</c>), else null. Returns the new assigned code, or 0 if the aircraft is unknown.
     /// </summary>
-    public uint RequestNewBeaconCode(string callsign)
+    public uint RequestNewBeaconCode(string callsign, string? assignedByFacilityId, string? assignedBySectorId)
     {
         var ac = FindAircraft(callsign);
         if (ac is null)
@@ -2496,7 +2508,7 @@ public sealed class SimulationEngine
 
         BeaconCodePool.Release(ac.Transponder.AssignedCode);
         var newCode = BeaconCodePool.AssignNextCode(ac.FlightPlan.IsVfr);
-        ac.Transponder.AssignCode(newCode);
+        ac.Transponder.AssignCode(newCode, assignedByFacilityId, assignedBySectorId);
         return newCode;
     }
 
@@ -4384,7 +4396,7 @@ public sealed class SimulationEngine
                 AmendFlightPlan(amend.Callsign, amend.Amendment);
                 break;
             case RecordedRequestNewBeaconCode recycle:
-                RequestNewBeaconCode(recycle.Callsign);
+                RequestNewBeaconCode(recycle.Callsign, recycle.AssignedByFacilityId, recycle.AssignedBySectorId);
                 break;
             case RecordedWeatherChange weather:
                 if (weather.WeatherJson is not null)

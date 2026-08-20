@@ -44,11 +44,14 @@ public sealed record RecordedChat(double ElapsedSeconds, string Initials, string
 public sealed record RecordedAmendFlightPlan(double ElapsedSeconds, string Callsign, FlightPlanAmendment Amendment) : RecordedAction(ElapsedSeconds);
 
 /// <summary>
-/// A controller "recycle beacon code" request (CRC Flight Plan Editor button or the YAAT
-/// training-hub <c>RequestNewBeaconCode</c>). Replay re-runs the pool release+draw so the
-/// recycled code is reproduced deterministically on rewind.
+/// A controller "recycle beacon code" request (CRC Flight Plan Editor button, the YAAT training-hub
+/// <c>RequestNewBeaconCode</c>, or a bare ERAM <c>QB</c>). Replay re-runs the pool release+draw so the
+/// recycled code is reproduced deterministically on rewind. The assigner fields carry the acting ERAM
+/// sector when the request came from an ERAM position (CRC's CODE view auto-lists codes it assigned);
+/// recordings written before these fields deserialize them as null.
 /// </summary>
-public sealed record RecordedRequestNewBeaconCode(double ElapsedSeconds, string Callsign) : RecordedAction(ElapsedSeconds);
+public sealed record RecordedRequestNewBeaconCode(double ElapsedSeconds, string Callsign, string? AssignedByFacilityId, string? AssignedBySectorId)
+    : RecordedAction(ElapsedSeconds);
 
 /// <summary>
 /// A weather load (<see cref="WeatherJson"/> non-null) or clear (<see cref="WeatherJson"/> null).
@@ -116,5 +119,8 @@ public record FlightPlanAmendment(
     string? Remarks = null,
     string? Scratchpad1 = null,
     string? Scratchpad2 = null,
-    uint? BeaconCode = null
+    uint? BeaconCode = null,
+    string? BeaconAssignedByFacilityId = null,
+    string? BeaconAssignedBySectorId = null,
+    string? IcaoEquipmentCodes = null
 );

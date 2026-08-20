@@ -6,58 +6,58 @@ namespace Yaat.Sim.Tests;
 
 /// <summary>
 /// Transponder IDENT auto-expiry timing. The per-tick logic lives in
-/// <see cref="AircraftTransponder.TickIdent"/> and is driven by
-/// <see cref="SimulationEngine.TickTransponderIdents"/> (owned by Yaat.Sim so the standalone host
+/// <see cref="AircraftTransponder.Tick"/> and is driven by
+/// <see cref="SimulationEngine.TickTransponders"/> (owned by Yaat.Sim so the standalone host
 /// and the live server run the identical logic — the server no longer hand-writes its own copy).
 /// </summary>
 public class TransponderIdentTests
 {
     [Fact]
-    public void TickIdent_NotIdenting_IsNoOp()
+    public void Tick_NotIdenting_IsNoOp()
     {
         var xpdr = new AircraftTransponder();
 
-        xpdr.TickIdent(nowSeconds: 100);
+        xpdr.Tick(nowSeconds: 100);
 
         Assert.False(xpdr.IsIdenting);
         Assert.Null(xpdr.IdentStartedAt);
     }
 
     [Fact]
-    public void TickIdent_FirstTick_StampsStartTime()
+    public void Tick_FirstTick_StampsStartTime()
     {
         var xpdr = new AircraftTransponder { IsIdenting = true };
 
-        xpdr.TickIdent(nowSeconds: 42);
+        xpdr.Tick(nowSeconds: 42);
 
         Assert.True(xpdr.IsIdenting);
         Assert.Equal(42, xpdr.IdentStartedAt);
     }
 
     [Fact]
-    public void TickIdent_BeforeDurationElapses_StaysIdenting()
+    public void Tick_BeforeDurationElapses_StaysIdenting()
     {
         var xpdr = new AircraftTransponder { IsIdenting = true, IdentStartedAt = 10 };
 
-        xpdr.TickIdent(nowSeconds: 10 + AircraftTransponder.IdentDurationSeconds - 1);
+        xpdr.Tick(nowSeconds: 10 + AircraftTransponder.IdentDurationSeconds - 1);
 
         Assert.True(xpdr.IsIdenting);
         Assert.Equal(10, xpdr.IdentStartedAt);
     }
 
     [Fact]
-    public void TickIdent_AtDuration_ClearsIdent()
+    public void Tick_AtDuration_ClearsIdent()
     {
         var xpdr = new AircraftTransponder { IsIdenting = true, IdentStartedAt = 10 };
 
-        xpdr.TickIdent(nowSeconds: 10 + AircraftTransponder.IdentDurationSeconds);
+        xpdr.Tick(nowSeconds: 10 + AircraftTransponder.IdentDurationSeconds);
 
         Assert.False(xpdr.IsIdenting);
         Assert.Null(xpdr.IdentStartedAt);
     }
 
     [Fact]
-    public void TickTransponderIdents_ClearsExpiredIdentAcrossWorld()
+    public void TickTransponders_ClearsExpiredIdentAcrossWorld()
     {
         var engine = new SimulationEngine(new TestAirportGroundData())
         {
@@ -72,7 +72,7 @@ public class TransponderIdentTests
         engine.World.AddAircraft(stale);
         engine.World.AddAircraft(fresh);
 
-        engine.TickTransponderIdents();
+        engine.TickTransponders();
 
         Assert.False(stale.Transponder.IsIdenting);
         Assert.Null(stale.Transponder.IdentStartedAt);

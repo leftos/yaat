@@ -42,6 +42,14 @@ public class AircraftFlightPlan
     public int RevisionNumber { get; set; }
 
     public string EquipmentSuffix { get; set; } = "A";
+
+    /// <summary>
+    /// ICAO flight-plan field-10a equipment codes (e.g. <c>SDE2E3FGHIJ5M1RWXY</c>). Empty when never
+    /// entered — scenarios file FAA <c>TYPE/SUFFIX</c> only, so this is populated by controller
+    /// amendment (YAAT Flight Plan Editor). CRC derives the ERAM SATCOMM <c>*</c> indicator from the
+    /// satcom codes (J5-J7, M1-M3).
+    /// </summary>
+    public string IcaoEquipmentCodes { get; set; } = "";
     public string FlightRules { get; set; } = "IFR";
     public bool IsVfr => FlightRules.Equals("VFR", StringComparison.OrdinalIgnoreCase);
 
@@ -81,6 +89,7 @@ public class AircraftFlightPlan
             Remarks = Remarks,
             RevisionNumber = RevisionNumber,
             EquipmentSuffix = EquipmentSuffix,
+            IcaoEquipmentCodes = IcaoEquipmentCodes,
             FlightRules = FlightRules,
             AltitudeCruiseFeet = Altitude.CruiseFeet,
             AltitudeBlockFloorFeet = Altitude.BlockFloorFeet,
@@ -102,6 +111,7 @@ public class AircraftFlightPlan
             Remarks = dto.Remarks,
             RevisionNumber = dto.RevisionNumber,
             EquipmentSuffix = dto.EquipmentSuffix,
+            IcaoEquipmentCodes = dto.IcaoEquipmentCodes,
             FlightRules = dto.FlightRules,
             Altitude = new PlannedAltitude(
                 dto.AltitudeCruiseFeet,

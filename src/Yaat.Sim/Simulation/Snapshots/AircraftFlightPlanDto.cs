@@ -17,6 +17,7 @@ public sealed class AircraftFlightPlanDto
     public required string Remarks { get; init; }
     public int RevisionNumber { get; init; }
     public required string EquipmentSuffix { get; init; }
+    public string IcaoEquipmentCodes { get; init; } = "";
     public required string FlightRules { get; init; }
 
     /// <summary>Filed altitude, flattened from <see cref="PlannedAltitude"/> (feet). Ceiling/single value; null = none.</summary>

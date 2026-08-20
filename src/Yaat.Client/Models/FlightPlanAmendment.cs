@@ -5,6 +5,7 @@ namespace Yaat.Client.Models;
 public record FlightPlanAmendment(
     string? AircraftType,
     string? EquipmentSuffix,
+    string? IcaoEquipmentCodes,
     string? Departure,
     string? Destination,
     int? CruiseSpeed,

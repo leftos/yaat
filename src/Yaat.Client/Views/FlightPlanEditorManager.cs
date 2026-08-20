@@ -38,7 +38,8 @@ public static class FlightPlanEditorManager
                         Remarks: amendment.Remarks,
                         Scratchpad1: amendment.Scratchpad1,
                         Scratchpad2: amendment.Scratchpad2,
-                        BeaconCode: amendment.BeaconCode
+                        BeaconCode: amendment.BeaconCode,
+                        IcaoEquipmentCodes: amendment.IcaoEquipmentCodes
                     );
 
                     await vm.Connection.AmendFlightPlanAsync(callsign, dto);

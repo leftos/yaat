@@ -22,6 +22,13 @@ public class AircraftTransponder
     public double? IdentStartedAt { get; set; }
 
     /// <summary>
+    /// Latched true the first tick the transponder is observed in an altitude-reporting mode; never
+    /// clears. CRC's ERAM data blocks render the recently-lost-Mode-C <c>X</c>/<c>XXX</c> forms only when
+    /// the target reports no altitude but this flag is set (<c>EramTargetDto.WasModeCPreviouslyReceived</c>).
+    /// </summary>
+    public bool HasReportedModeC { get; set; }
+
+    /// <summary>
     /// Latched true when the pilot has been told to squawk VFR (<c>SQVFR</c>/<c>SQV</c>). While set, the
     /// YAAT Radar View suppresses the assigned-vs-reported beacon-code mismatch flash — the stale assigned
     /// discrete code is noise the RPO should ignore. Released only when a new beacon code is assigned (see
@@ -30,22 +37,39 @@ public class AircraftTransponder
     public bool CommandedSquawkVfr { get; set; }
 
     /// <summary>
-    /// Assigns an ATC beacon code, releasing the squawk-VFR flash-suppress latch. A fresh assignment is a
-    /// new "assigned but not squawked yet" alert for the RPO, so the mismatch flash resumes.
+    /// The ERAM sector (facility + sector id) that assigned <see cref="AssignedCode"/>, or null when the
+    /// code came from a non-ERAM source (STARS, filing auto-assign, scenario spawn). CRC's ERAM CODE view
+    /// auto-lists flight plans whose assigner record-equals the viewing sector.
     /// </summary>
-    public void AssignCode(uint code)
+    public string? AssignedByFacilityId { get; set; }
+    public string? AssignedBySectorId { get; set; }
+
+    /// <summary>
+    /// Assigns an ATC beacon code, releasing the squawk-VFR flash-suppress latch. A fresh assignment is a
+    /// new "assigned but not squawked yet" alert for the RPO, so the mismatch flash resumes. The assigner
+    /// is the acting ERAM sector for ERAM-issued assignments (QB / AM BCN); every other source passes null.
+    /// </summary>
+    public void AssignCode(uint code, string? assignedByFacilityId, string? assignedBySectorId)
     {
         AssignedCode = code;
+        AssignedByFacilityId = assignedByFacilityId;
+        AssignedBySectorId = assignedBySectorId;
         CommandedSquawkVfr = false;
     }
 
     /// <summary>
-    /// Advances the IDENT timer one sim-second. Stamps <see cref="IdentStartedAt"/> on the first tick the
-    /// ident is observed, then clears the ident once <see cref="IdentDurationSeconds"/> has elapsed. No-op
-    /// when not identing. <paramref name="nowSeconds"/> is the scenario's current <c>ElapsedSeconds</c>.
+    /// Per-tick transponder upkeep. Latches <see cref="HasReportedModeC"/> while the transponder is in an
+    /// altitude-reporting mode, and advances the IDENT timer: stamps <see cref="IdentStartedAt"/> on the
+    /// first tick the ident is observed, then clears the ident once <see cref="IdentDurationSeconds"/> has
+    /// elapsed. <paramref name="nowSeconds"/> is the scenario's current <c>ElapsedSeconds</c>.
     /// </summary>
-    public void TickIdent(double nowSeconds)
+    public void Tick(double nowSeconds)
     {
+        if (Mode.Equals("C", StringComparison.OrdinalIgnoreCase))
+        {
+            HasReportedModeC = true;
+        }
+
         if (!IsIdenting)
         {
             return;
@@ -71,6 +95,9 @@ public class AircraftTransponder
             IsIdenting = IsIdenting,
             IdentStartedAt = IdentStartedAt,
             CommandedSquawkVfr = CommandedSquawkVfr,
+            HasReportedModeC = HasReportedModeC,
+            AssignedByFacilityId = AssignedByFacilityId,
+            AssignedBySectorId = AssignedBySectorId,
         };
 
     public static AircraftTransponder FromSnapshot(AircraftTransponderDto dto) =>
@@ -82,5 +109,8 @@ public class AircraftTransponder
             IsIdenting = dto.IsIdenting,
             IdentStartedAt = dto.IdentStartedAt,
             CommandedSquawkVfr = dto.CommandedSquawkVfr,
+            HasReportedModeC = dto.HasReportedModeC,
+            AssignedByFacilityId = dto.AssignedByFacilityId,
+            AssignedBySectorId = dto.AssignedBySectorId,
         };
 }

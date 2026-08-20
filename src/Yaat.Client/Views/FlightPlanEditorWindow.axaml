@@ -5,8 +5,8 @@
         Title="Flight Plan"
         Background="#1A1A1A"
         SizeToContent="Height"
-        Width="700"
-        MinWidth="560"
+        Width="810"
+        MinWidth="660"
         CanResize="False"
         WindowStartupLocation="CenterOwner">
 
@@ -44,8 +44,8 @@
     </Window.Styles>
 
     <StackPanel Margin="12" Spacing="8">
-        <!-- Row 1: AID BCN [↻] TYP EQ DEP DEST SPD ALT [Submit] -->
-        <Grid ColumnDefinitions="70,60,30,60,40,60,60,50,72,*">
+        <!-- Row 1: AID BCN [↻] TYP EQ ICAO-EQ DEP DEST SPD ALT [Submit] -->
+        <Grid ColumnDefinitions="70,60,30,60,40,110,60,60,50,72,*">
             <StackPanel Grid.Column="0" Spacing="2">
                 <TextBlock Text="AID" Classes="label" />
                 <TextBlock x:Name="AidText" Classes="value" />
@@ -66,23 +66,27 @@
                 <TextBlock Text="EQ" Classes="label" />
                 <TextBox x:Name="EqBox" Classes="field" MaxLength="4" Width="36" />
             </StackPanel>
-            <StackPanel Grid.Column="5" Spacing="2" Margin="4,0,0,0">
+            <StackPanel Grid.Column="5" Spacing="2" Margin="4,0,0,0" ToolTip.Tip="ICAO field-10a equipment codes (e.g. SDE3FGHIJ5M1RWXY). J5-J7/M1-M3 mark the aircraft SATCOMM-capable on ERAM.">
+                <TextBlock Text="ICAO EQ" Classes="label" />
+                <TextBox x:Name="IcaoEqBox" Classes="field" MaxLength="24" Width="106" />
+            </StackPanel>
+            <StackPanel Grid.Column="6" Spacing="2" Margin="4,0,0,0">
                 <TextBlock Text="DEP" Classes="label" />
                 <TextBox x:Name="DepBox" Classes="field" MaxLength="4" Width="56" />
             </StackPanel>
-            <StackPanel Grid.Column="6" Spacing="2" Margin="4,0,0,0">
+            <StackPanel Grid.Column="7" Spacing="2" Margin="4,0,0,0">
                 <TextBlock Text="DEST" Classes="label" />
                 <TextBox x:Name="DestBox" Classes="field" MaxLength="4" Width="56" />
             </StackPanel>
-            <StackPanel Grid.Column="7" Spacing="2" Margin="4,0,0,0">
+            <StackPanel Grid.Column="8" Spacing="2" Margin="4,0,0,0">
                 <TextBlock Text="SPD" Classes="label" />
                 <TextBox x:Name="SpdBox" Classes="field" MaxLength="4" Width="46" />
             </StackPanel>
-            <StackPanel Grid.Column="8" Spacing="2" Margin="4,0,0,0">
+            <StackPanel Grid.Column="9" Spacing="2" Margin="4,0,0,0">
                 <TextBlock Text="ALT" Classes="label" />
                 <TextBox x:Name="AltBox" Classes="field" MaxLength="7" Width="68" />
             </StackPanel>
-            <StackPanel Grid.Column="9" VerticalAlignment="Bottom" Margin="8,0,0,0">
+            <StackPanel Grid.Column="10" VerticalAlignment="Bottom" Margin="8,0,0,0">
                 <Button x:Name="SubmitButton" Content="Amend" />
             </StackPanel>
         </Grid>

@@ -17,6 +17,7 @@ internal static class FlightPlanEditorAmendmentBuilder
     internal static FlightPlanAmendment Build(
         string? typText,
         string? eqText,
+        string? icaoEqText,
         string? depText,
         string? destText,
         string? spdText,
@@ -34,6 +35,7 @@ internal static class FlightPlanEditorAmendmentBuilder
             eq = "A";
         }
 
+        var icaoEq = (icaoEqText ?? "").Trim().ToUpperInvariant();
         var dep = (depText ?? "").Trim().ToUpperInvariant();
         var dest = (destText ?? "").Trim().ToUpperInvariant();
         var rte = (rteText ?? "").Trim().ToUpperInvariant();
@@ -57,6 +59,7 @@ internal static class FlightPlanEditorAmendmentBuilder
         return new FlightPlanAmendment(
             AircraftType: typ,
             EquipmentSuffix: eq,
+            IcaoEquipmentCodes: icaoEq,
             Departure: dep,
             Destination: dest,
             CruiseSpeed: cruiseSpeed,

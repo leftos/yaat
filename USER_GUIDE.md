@@ -890,7 +890,7 @@ Pop-out state for the student vTDLS entry is saved in `preferences.json` under t
 
 Double-click an aircraft row in the Aircraft List to open its Flight Plan Editor (FPE). You can also **Ctrl+Left-Click** an aircraft symbol or datablock in the Ground View or Radar View.
 
-The FPE shows editable flight plan fields: beacon code, aircraft type, equipment suffix, departure, destination, cruise speed, altitude, route, and remarks. The ALT field accepts 3-digit altitude codes (e.g., `035` for 3,500ft) or prefixed formats: `VFR`, `VFR/035`, `OTP/035`.
+The FPE shows editable flight plan fields: beacon code, aircraft type, equipment suffix, ICAO equipment codes, departure, destination, cruise speed, altitude, route, and remarks. The ALT field accepts 3-digit altitude codes (e.g., `035` for 3,500ft) or prefixed formats: `VFR`, `VFR/035`, `OTP/035`. The ICAO EQ field takes ICAO flight-plan field-10a equipment codes (e.g., `SDE2E3FGHIJ5M1RWXY`); entering a satcom code (`J5`–`J7` or `M1`–`M3`) lights the aircraft's SATCOMM `*` indicator on ERAM data blocks in CRC.
 
 Edit any field, then click **Amend** to send the changes to the server. The Amend button is only enabled when at least one field differs from the current flight plan.
 

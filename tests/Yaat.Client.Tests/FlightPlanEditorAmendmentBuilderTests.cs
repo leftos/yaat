@@ -21,6 +21,7 @@ public class FlightPlanEditorAmendmentBuilderTests
         var amendment = FlightPlanEditorAmendmentBuilder.Build(
             typText: "DA42",
             eqText: "A",
+            icaoEqText: "",
             depText: "",
             destText: "KOAK",
             spdText: "250",
@@ -43,6 +44,7 @@ public class FlightPlanEditorAmendmentBuilderTests
         var amendment = FlightPlanEditorAmendmentBuilder.Build(
             typText: "DA42",
             eqText: "A",
+            icaoEqText: "",
             depText: null,
             destText: "KOAK",
             spdText: "250",
@@ -62,6 +64,7 @@ public class FlightPlanEditorAmendmentBuilderTests
         var amendment = FlightPlanEditorAmendmentBuilder.Build(
             typText: "",
             eqText: "",
+            icaoEqText: "",
             depText: "",
             destText: "",
             spdText: "",
@@ -89,6 +92,7 @@ public class FlightPlanEditorAmendmentBuilderTests
         var amendment = FlightPlanEditorAmendmentBuilder.Build(
             typText: "DA42",
             eqText: "A",
+            icaoEqText: "",
             depText: "KOAK",
             destText: "KOAK",
             spdText: "",
@@ -108,6 +112,7 @@ public class FlightPlanEditorAmendmentBuilderTests
         var amendment = FlightPlanEditorAmendmentBuilder.Build(
             typText: "DA42",
             eqText: "A",
+            icaoEqText: "",
             depText: "KOAK",
             destText: "KOAK",
             spdText: "abc",
@@ -126,6 +131,7 @@ public class FlightPlanEditorAmendmentBuilderTests
         var amendment = FlightPlanEditorAmendmentBuilder.Build(
             typText: "DA42",
             eqText: "A",
+            icaoEqText: "",
             depText: "KOAK",
             destText: "KOAK",
             spdText: "250",
@@ -147,6 +153,7 @@ public class FlightPlanEditorAmendmentBuilderTests
         var amendment = FlightPlanEditorAmendmentBuilder.Build(
             typText: "DA42",
             eqText: "",
+            icaoEqText: "",
             depText: "KOAK",
             destText: "KOAK",
             spdText: "250",
@@ -165,6 +172,7 @@ public class FlightPlanEditorAmendmentBuilderTests
         var amendment = FlightPlanEditorAmendmentBuilder.Build(
             typText: "",
             eqText: "",
+            icaoEqText: "",
             depText: "KOAK",
             destText: "KOAK",
             spdText: "250",
@@ -185,6 +193,7 @@ public class FlightPlanEditorAmendmentBuilderTests
         var amendment = FlightPlanEditorAmendmentBuilder.Build(
             typText: "DA42",
             eqText: "A",
+            icaoEqText: "",
             depText: "KOAK",
             destText: "KOAK",
             spdText: "250",
@@ -203,6 +212,7 @@ public class FlightPlanEditorAmendmentBuilderTests
         var amendment = FlightPlanEditorAmendmentBuilder.Build(
             typText: " da42 ",
             eqText: " a ",
+            icaoEqText: "",
             depText: " koak ",
             destText: " ksfo ",
             spdText: " 250 ",
@@ -219,5 +229,40 @@ public class FlightPlanEditorAmendmentBuilderTests
         Assert.Equal("PATTERN", amendment.Route);
         Assert.Equal(250, amendment.CruiseSpeed);
         Assert.Equal("notes", amendment.Remarks);
+    }
+
+    [Fact]
+    public void IcaoEquipment_TrimmedUpperCased_BlankIsExplicitClear()
+    {
+        var amendment = FlightPlanEditorAmendmentBuilder.Build(
+            typText: "B77W",
+            eqText: "L",
+            icaoEqText: " sde2e3fghij5m1rwxy ",
+            depText: "KSFO",
+            destText: "PHNL",
+            spdText: "480",
+            altText: "350",
+            rteText: "",
+            rmkText: "",
+            strippedRemarksPrefix: ""
+        );
+
+        Assert.Equal("SDE2E3FGHIJ5M1RWXY", amendment.IcaoEquipmentCodes);
+
+        var cleared = FlightPlanEditorAmendmentBuilder.Build(
+            typText: "B77W",
+            eqText: "L",
+            icaoEqText: "",
+            depText: "KSFO",
+            destText: "PHNL",
+            spdText: "480",
+            altText: "350",
+            rteText: "",
+            rmkText: "",
+            strippedRemarksPrefix: ""
+        );
+
+        Assert.Equal("", cleared.IcaoEquipmentCodes);
+        Assert.NotNull(cleared.IcaoEquipmentCodes);
     }
 }

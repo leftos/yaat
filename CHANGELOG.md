@@ -5,6 +5,7 @@
 ### Added
 - vStrips and vTDLS tab, window, and browser-page titles show the facility and a pending-count prefix, e.g. `(3) OAK - vStrips`.
 - Server log files survive restarts and redeploys as rotated generations; `tools/fetch-server-logs.ps1 -Files` downloads them.
+- The Flight Plan Editor has an ICAO EQ field for field-10a equipment codes; satcom codes (J5–J7, M1–M3) light ERAM's SATCOMM `*`.
 
 ### Fixed
 - Splitting a strips window (or opening a duplicate facility tab) mid-session shows all existing strips, not just the most recently changed ones.
@@ -22,6 +23,9 @@
 - Setting an aircraft's voice type from CRC applies instead of being ignored.
 - Hold annotations support the full 8-direction compass rose, so displayed hold directions match what was entered.
 - `AM <FLID> RTE ...[` / `...]` departure and destination swaps work when typed in CRC's ERAM.
+- ERAM data blocks show the recently-lost-Mode-C `X`/`XXX` forms when an aircraft squawks standby after reporting Mode C.
+- The ERAM Field-E accepted indicator (`O`/`K` + sector) shows on the transferring sector's display after a handoff accept or forced take.
+- Beacon codes assigned via ERAM `QB`, `AM BCN`, or a `VP` filing auto-list in the assigning sector's CODE view.
 
 ## v0.12.13-beta [2026/08/19]
 

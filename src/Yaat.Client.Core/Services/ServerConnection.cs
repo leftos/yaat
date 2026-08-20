@@ -1053,7 +1053,10 @@ public record AircraftDto(
     // pre-issued against that entry, so the clearance verbs stay offered even with no arrival phase yet.
     bool HasQueuedPatternEntry = false,
     // ClearanceType name of a clearance already pre-issued against that queued entry, empty when none.
-    string PendingLandingClearance = ""
+    string PendingLandingClearance = "",
+    // ICAO field-10a equipment codes from the flight plan (empty when never entered). Feeds the
+    // Flight Plan Editor's ICAO EQ field; CRC derives the ERAM SATCOMM * from the satcom codes.
+    string IcaoEquipmentCodes = ""
 );
 
 public record LoadScenarioResultDto(
@@ -1415,7 +1418,8 @@ public record FlightPlanAmendmentDto(
     string? Remarks = null,
     string? Scratchpad1 = null,
     string? Scratchpad2 = null,
-    uint? BeaconCode = null
+    uint? BeaconCode = null,
+    string? IcaoEquipmentCodes = null
 );
 
 // --- Approach Report DTOs ---

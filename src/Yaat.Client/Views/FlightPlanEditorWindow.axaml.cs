@@ -17,6 +17,7 @@ public partial class FlightPlanEditorWindow : Window
 
     private string _origTyp = "";
     private string _origEq = "";
+    private string _origIcaoEq = "";
     private string _origDep = "";
     private string _origDest = "";
     private string _origSpd = "";
@@ -47,6 +48,7 @@ public partial class FlightPlanEditorWindow : Window
 
         TypBox.TextChanged += OnFieldChanged;
         EqBox.TextChanged += OnFieldChanged;
+        IcaoEqBox.TextChanged += OnFieldChanged;
         DepBox.TextChanged += OnFieldChanged;
         DestBox.TextChanged += OnFieldChanged;
         SpdBox.TextChanged += OnFieldChanged;
@@ -57,6 +59,7 @@ public partial class FlightPlanEditorWindow : Window
         // Input masks (mirror CRC's FlightPlanEditorContent.xaml.cs PreviewTextInput regexes).
         TypBox.TextInput += MaskAlphaUpper;
         EqBox.TextInput += MaskAlphaUpper;
+        IcaoEqBox.TextInput += MaskAlphanumericUpper;
         DepBox.TextInput += MaskAlphanumericUpper;
         DestBox.TextInput += MaskAlphanumericUpper;
         SpdBox.TextInput += MaskDigitsOnly;
@@ -82,6 +85,7 @@ public partial class FlightPlanEditorWindow : Window
 
         _origTyp = aircraft.FiledAircraftType;
         _origEq = aircraft.EquipmentSuffix;
+        _origIcaoEq = aircraft.IcaoEquipmentCodes;
         _origDep = aircraft.Departure;
         _origDest = aircraft.Destination;
         _origSpd = aircraft.CruiseSpeed > 0 ? aircraft.CruiseSpeed.ToString() : "";
@@ -93,6 +97,7 @@ public partial class FlightPlanEditorWindow : Window
         BcnText.Text = aircraft.AssignedBeaconCode.ToString("D4");
         TypBox.Text = _origTyp;
         EqBox.Text = _origEq;
+        IcaoEqBox.Text = _origIcaoEq;
         DepBox.Text = _origDep;
         DestBox.Text = _origDest;
         SpdBox.Text = _origSpd;
@@ -154,6 +159,9 @@ public partial class FlightPlanEditorWindow : Window
             case nameof(AircraftModel.EquipmentSuffix):
                 RefreshEditableField(EqBox, ref _origEq, _aircraft.EquipmentSuffix);
                 break;
+            case nameof(AircraftModel.IcaoEquipmentCodes):
+                RefreshEditableField(IcaoEqBox, ref _origIcaoEq, _aircraft.IcaoEquipmentCodes);
+                break;
             case nameof(AircraftModel.Departure):
                 RefreshEditableField(DepBox, ref _origDep, _aircraft.Departure);
                 break;
@@ -208,6 +216,7 @@ public partial class FlightPlanEditorWindow : Window
     {
         return (TypBox.Text ?? "") != _origTyp
             || (EqBox.Text ?? "") != _origEq
+            || (IcaoEqBox.Text ?? "") != _origIcaoEq
             || (DepBox.Text ?? "") != _origDep
             || (DestBox.Text ?? "") != _origDest
             || (SpdBox.Text ?? "") != _origSpd
@@ -221,6 +230,7 @@ public partial class FlightPlanEditorWindow : Window
         var amendment = FlightPlanEditorAmendmentBuilder.Build(
             typText: TypBox.Text,
             eqText: EqBox.Text,
+            icaoEqText: IcaoEqBox.Text,
             depText: DepBox.Text,
             destText: DestBox.Text,
             spdText: SpdBox.Text,
@@ -234,6 +244,7 @@ public partial class FlightPlanEditorWindow : Window
 
         _origTyp = TypBox.Text ?? "";
         _origEq = EqBox.Text ?? "";
+        _origIcaoEq = IcaoEqBox.Text ?? "";
         _origDep = DepBox.Text ?? "";
         _origDest = DestBox.Text ?? "";
         _origSpd = SpdBox.Text ?? "";
