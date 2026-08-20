@@ -82,12 +82,12 @@ public class MainViewModelStripsTests
         duplicate.Vm.FacilityId = "OAK";
         duplicate.Vm.FacilityName = "Oakland Intl ATCT";
 
-        Assert.Equal("Strips (Oakland Intl ATCT)", studentEntry.TabTitle);
-        Assert.Equal("Strips (Oakland Intl ATCT) #2", duplicate.TabTitle);
+        Assert.Equal("OAK - vStrips", studentEntry.TabTitle);
+        Assert.Equal("OAK - vStrips #2", duplicate.TabTitle);
 
         vm.CloseStripsEntry(duplicate);
 
-        Assert.Equal("Strips (Oakland Intl ATCT)", studentEntry.TabTitle);
+        Assert.Equal("OAK - vStrips", studentEntry.TabTitle);
     }
 
     [AvaloniaFact]
@@ -142,7 +142,9 @@ public class MainViewModelStripsTests
         FacilityName: "Oakland Intl ATCT",
         Bays: [new StripBayConfigDto("bay-gnd", "GROUND", 1, "OAK")],
         SeparatorsLocked: false,
-        UnderlyingAirports: ["OAK"]
+        UnderlyingAirports: ["OAK"],
+        EnableArrivalStrips: true,
+        EnableSeparateArrDepPrinters: true
     );
 
     /// <summary>

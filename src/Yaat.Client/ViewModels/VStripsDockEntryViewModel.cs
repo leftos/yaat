@@ -90,22 +90,33 @@ public partial class VStripsDockEntryViewModel : ObservableObject
                 OnPropertyChanged(nameof(TabTitle));
             }
         };
+        // Pending printer strips show as a "(N) " prefix on the tab/window title, so the
+        // count must re-render the title as strips print and drain.
+        Vm.Printer.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(StripPrinterViewModel.PendingCount))
+            {
+                OnPropertyChanged(nameof(TabTitle));
+            }
+        };
     }
 
     /// <summary>
-    /// Display string for the entry's tab header and popped-out window title.
-    /// Always prefixed with "Strips " + the facility discriminator so multiple
-    /// strip tabs/windows can be told apart at a glance ("Strips (OAK)",
-    /// "Strips (NCT)"). Duplicate-facility entries append " #n" from
-    /// <see cref="DuplicateOrdinal"/> ("Strips (OAK) #2"). Falls back to the
-    /// facility id, then to a bare "Strips" before the first scenario load.
+    /// Display string for the entry's tab header and popped-out window title:
+    /// "(N) OAK - vStrips" — pending-count prefix while the printer holds
+    /// strips, then facility-qualified product name (see
+    /// <see cref="ClientProductTitle"/>; the browser pages add an " (YAAT)"
+    /// suffix, desktop surfaces skip it). Duplicate-facility entries append
+    /// " #n" from <see cref="DuplicateOrdinal"/> ("OAK - vStrips #2"). Falls
+    /// back to the facility name, then to a bare "vStrips" before the first
+    /// scenario load.
     /// </summary>
     public string TabTitle
     {
         get
         {
-            var facility = !string.IsNullOrEmpty(Vm.FacilityName) ? Vm.FacilityName : Vm.FacilityId;
-            var baseTitle = string.IsNullOrEmpty(facility) ? "Strips" : $"Strips ({facility})";
+            var facility = !string.IsNullOrEmpty(Vm.FacilityId) ? Vm.FacilityId : Vm.FacilityName;
+            var baseTitle = ClientProductTitle.Build(Vm.Printer.PendingCount, facility, "vStrips", includeYaatSuffix: false);
             return DuplicateOrdinal >= 2 ? $"{baseTitle} #{DuplicateOrdinal}" : baseTitle;
         }
     }

@@ -14,6 +14,12 @@ window.addEventListener('keydown', (e) => {
     }
 }, { capture: true });
 
+// Called from C# (MainView) via JSImport to reflect the pending-strip count
+// in the browser tab title, e.g. "(3) YAAT vStrips".
+globalThis.yaatSetTitle = (title) => {
+    document.title = title;
+};
+
 const dotnetRuntime = await dotnet
     .withDiagnosticTracing(false)
     .withApplicationArgumentsFromQuery()

@@ -297,6 +297,7 @@ public partial class VStripsViewModel : ObservableObject
                 FacilityId = null;
                 FacilityName = null;
                 SeparatorsLocked = false;
+                Printer.SeparateArrivalCarousel = true;
                 _facilityAirports = [];
                 RebuildMetars();
                 _items.Clear();
@@ -307,6 +308,12 @@ public partial class VStripsViewModel : ObservableObject
             FacilityId = config.FacilityId;
             FacilityName = config.FacilityName;
             SeparatorsLocked = config.SeparatorsLocked;
+
+            // Printer layout follows the facility's vNAS strips config: arrivals get their
+            // own carousel only when the facility both has arrival strips and separates the
+            // printers. Set before the pending reconciles below so the split is right from
+            // the first ReplaceAll.
+            Printer.SeparateArrivalCarousel = (config.EnableArrivalStrips) && (config.EnableSeparateArrDepPrinters);
 
             // Follow the displayed facility: re-scope the METAR bar to its airports.
             _facilityAirports = config.UnderlyingAirports ?? [];

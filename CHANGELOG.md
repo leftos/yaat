@@ -2,9 +2,14 @@
 
 ## Unreleased
 
+### Added
+- vStrips and vTDLS tab, window, and browser-page titles show the facility and a pending-count prefix, e.g. `(3) OAK - vStrips`.
+
 ### Fixed
 - `MLT`/`MRT` to a departure that finished its climb-out enters the pattern instead of rewinding the aircraft into its already-completed runway crossing.
 - The Flight Plan Editor reflects incoming flight-plan amendments while open, refreshing untouched fields and preserving in-progress edits.
+- vStrips shows an arrival printer only at facilities whose vNAS config enables arrival strips; shared-printer facilities get one unified carousel.
+- Requesting a strip for an inbound aircraft prints an arrival-format strip (ETA fields) instead of a departure copy.
 
 ## v0.12.13-beta [2026/08/19]
 

@@ -533,7 +533,9 @@ public class VStripsViewInteractionTests
                 FacilityName: "Fresno ATCT",
                 Bays: [new StripBayConfigDto("bay-gnd", "GROUND", 2, "FAC1"), new StripBayConfigDto("bay-loc", "LOCAL", 2, "FAC1")],
                 SeparatorsLocked: true,
-                UnderlyingAirports: []
+                UnderlyingAirports: [],
+                EnableArrivalStrips: true,
+                EnableSeparateArrDepPrinters: true
             )
         );
         var (_, _) = BootView(vm);
@@ -978,7 +980,9 @@ public class VStripsViewInteractionTests
             FacilityName: "Fresno ATCT",
             Bays: [new StripBayConfigDto("bay-gnd", "GROUND", 2, "FAC1"), new StripBayConfigDto("bay-loc", "LOCAL", 2, "FAC1")],
             SeparatorsLocked: false,
-            UnderlyingAirports: []
+            UnderlyingAirports: [],
+            EnableArrivalStrips: true,
+            EnableSeparateArrDepPrinters: true
         );
 
     /// <summary>
@@ -998,7 +1002,9 @@ public class VStripsViewInteractionTests
                 new StripBayConfigDto("bay-ext", "NCT", 5, "NCT", IsExternal: true),
             ],
             SeparatorsLocked: false,
-            UnderlyingAirports: []
+            UnderlyingAirports: [],
+            EnableArrivalStrips: true,
+            EnableSeparateArrDepPrinters: true
         );
 
     /// <summary>Eight own bays — wide enough to overflow any narrow header.</summary>
@@ -1008,7 +1014,9 @@ public class VStripsViewInteractionTests
             FacilityName: "Fresno ATCT",
             Bays: Enumerable.Range(1, 8).Select(i => new StripBayConfigDto($"bay-{i}", $"BAY {i}", 2, "FAC1")).ToArray(),
             SeparatorsLocked: false,
-            UnderlyingAirports: []
+            UnderlyingAirports: [],
+            EnableArrivalStrips: true,
+            EnableSeparateArrDepPrinters: true
         );
 
     internal static StripItemDto FullStrip(string id) =>

@@ -1311,6 +1311,10 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
                     {
                         titleTab.Header = entry.TabTitle;
                     }
+                    if (_stripsWindows.TryGetValue(entry, out var titleWindow))
+                    {
+                        titleWindow.SetWindowTitle(entry.TabTitle);
+                    }
                     RebuildStripsSubmenu(vm);
                     break;
                 case nameof(VStripsDockEntryViewModel.SplitMode):

@@ -14,6 +14,12 @@ window.addEventListener('keydown', (e) => {
     }
 }, { capture: true });
 
+// Called from C# (MainView) via JSImport to reflect the pending-DCL count
+// in the browser tab title, e.g. "(2) OAK - vTDLS (YAAT)".
+globalThis.yaatSetTitle = (title) => {
+    document.title = title;
+};
+
 const dotnetRuntime = await dotnet
     .withDiagnosticTracing(false)
     .withApplicationArgumentsFromQuery()

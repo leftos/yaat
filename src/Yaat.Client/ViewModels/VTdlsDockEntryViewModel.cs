@@ -41,21 +41,25 @@ public partial class VTdlsDockEntryViewModel : ObservableObject
                 OnPropertyChanged(nameof(TabTitle));
             }
         };
+        // Pending DCLs show as a "(N) " prefix on the tab/window title, so the count
+        // must re-render the title as items arrive and are sent.
+        Vm.DclItems.CollectionChanged += (_, _) => OnPropertyChanged(nameof(TabTitle));
     }
 
     /// <summary>
-    /// Display string for the entry's tab header and popped-out window title.
-    /// Always prefixed with "vTDLS " + the facility discriminator so multiple
-    /// vTDLS tabs/windows can be told apart at a glance ("vTDLS (OAK)",
-    /// "vTDLS (SFO)"). Falls back to the facility id, then to a bare "vTDLS"
-    /// before the first scenario load.
+    /// Display string for the entry's tab header and popped-out window title:
+    /// "(N) OAK - vTDLS" — pending-DCL-count prefix while clearances await
+    /// action, then facility-qualified product name (see
+    /// <see cref="ClientProductTitle"/>; the browser page adds an " (YAAT)"
+    /// suffix, desktop surfaces skip it). Falls back to the facility name,
+    /// then to a bare "vTDLS" before the first scenario load.
     /// </summary>
     public string TabTitle
     {
         get
         {
-            var facility = !string.IsNullOrEmpty(Vm.FacilityName) ? Vm.FacilityName : Vm.FacilityId;
-            return string.IsNullOrEmpty(facility) ? "vTDLS" : $"vTDLS ({facility})";
+            var facility = !string.IsNullOrEmpty(Vm.FacilityId) ? Vm.FacilityId : Vm.FacilityName;
+            return ClientProductTitle.Build(Vm.DclItems.Count, facility, "vTDLS", includeYaatSuffix: false);
         }
     }
 }

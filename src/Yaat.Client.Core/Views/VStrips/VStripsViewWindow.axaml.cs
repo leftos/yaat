@@ -48,9 +48,10 @@ public partial class VStripsViewWindow : Window, IAlwaysOnTopToggle
     }
 
     /// <summary>
-    /// Updates the popped-out window title when the underlying facility
-    /// name changes (e.g. the entry switched facilities in-place). The host
-    /// calls this whenever the tracked entry reports a title change.
+    /// Updates the popped-out window title when the tracked dock entry's
+    /// <c>TabTitle</c> changes — facility switches and pending-strip count
+    /// changes both flow through that one string. The host calls this
+    /// whenever the entry reports a title change.
     /// </summary>
     public void SetWindowTitle(string baseTitle)
     {

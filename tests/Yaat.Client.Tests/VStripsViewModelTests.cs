@@ -39,7 +39,9 @@ public class VStripsViewModelTests
             FacilityName: "Fresno ATCT",
             Bays: [new StripBayConfigDto("bay-gnd", "GROUND", 2, "FAC1"), new StripBayConfigDto("bay-loc", "LOCAL", 2, "FAC1")],
             SeparatorsLocked: false,
-            UnderlyingAirports: []
+            UnderlyingAirports: [],
+            EnableArrivalStrips: true,
+            EnableSeparateArrDepPrinters: true
         );
 
     private static StripItemDto FullStrip(string id, string callsign) =>
@@ -589,7 +591,9 @@ public class VStripsViewModelTests
                 new StripBayConfigDto("bay-nct", "NCT", 3, "NCT", IsExternal: true),
             ],
             SeparatorsLocked: false,
-            UnderlyingAirports: []
+            UnderlyingAirports: [],
+            EnableArrivalStrips: true,
+            EnableSeparateArrDepPrinters: true
         );
 
     [Fact]
@@ -658,7 +662,9 @@ public class VStripsViewModelTests
                 FacilityName: "None",
                 Bays: [new StripBayConfigDto("bay-ext", "EXT", 1, "FAC_EXT", IsExternal: true)],
                 SeparatorsLocked: false,
-                UnderlyingAirports: []
+                UnderlyingAirports: [],
+                EnableArrivalStrips: true,
+                EnableSeparateArrDepPrinters: true
             )
         );
 
@@ -737,7 +743,9 @@ public class VStripsViewModelTests
             FacilityName: facilityName,
             Bays: [new StripBayConfigDto("bay-gnd", "GROUND", 2, "FAC1")],
             SeparatorsLocked: false,
-            UnderlyingAirports: airports
+            UnderlyingAirports: airports,
+            EnableArrivalStrips: true,
+            EnableSeparateArrDepPrinters: true
         );
 
     [Fact]

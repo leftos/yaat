@@ -1,3 +1,4 @@
+using System.Runtime.InteropServices.JavaScript;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Styling;
@@ -8,6 +9,13 @@ using Yaat.Client.ViewModels;
 using Yaat.Sim;
 
 namespace Yaat.VTdls.Web;
+
+/// <summary>Browser interop for the tab title — the JS side lives in wwwroot/main.js.</summary>
+internal static partial class BrowserTitleInterop
+{
+    [JSImport("globalThis.yaatSetTitle")]
+    internal static partial void SetTitle(string title);
+}
 
 public partial class MainView : UserControl
 {
@@ -50,7 +58,16 @@ public partial class MainView : UserControl
                 SaveDarkMode(vm.IsDarkMode);
                 ApplyApplicationTheme(vm.IsDarkMode);
             }
+            if (e.PropertyName == nameof(VTdlsViewModel.FacilityId))
+            {
+                RefreshPageTitle(vm);
+            }
         };
+
+        // Reflect the pending-DCL count and facility in the browser tab title
+        // ("(2) OAK - vTDLS (YAAT)") so a controller working another window sees
+        // new clearance requests land.
+        vm.DclItems.CollectionChanged += (_, _) => RefreshPageTitle(vm);
 
         var tdlsView = this.FindControl<UserControl>("TdlsView");
         if (tdlsView is not null)
@@ -105,6 +122,19 @@ public partial class MainView : UserControl
         if (Application.Current is not null)
         {
             Application.Current.RequestedThemeVariant = dark ? ThemeVariant.Dark : ThemeVariant.Light;
+        }
+    }
+
+    private static void RefreshPageTitle(VTdlsViewModel vm)
+    {
+        try
+        {
+            BrowserTitleInterop.SetTitle(ClientProductTitle.Build(vm.DclItems.Count, vm.FacilityId, "vTDLS", includeYaatSuffix: true));
+        }
+        catch (Exception ex)
+        {
+            // A missing/renamed JS hook must never take the TDLS UI down with it.
+            Log.LogWarning(ex, "Setting document.title failed");
         }
     }
 

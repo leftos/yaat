@@ -1,3 +1,4 @@
+using System.Runtime.InteropServices.JavaScript;
 using Avalonia.Controls;
 using Avalonia.Threading;
 using Microsoft.Extensions.Logging;
@@ -6,6 +7,13 @@ using Yaat.Client.ViewModels;
 using Yaat.Sim;
 
 namespace Yaat.VStrips.Web;
+
+/// <summary>Browser interop for the tab title — the JS side lives in wwwroot/main.js.</summary>
+internal static partial class BrowserTitleInterop
+{
+    [JSImport("globalThis.yaatSetTitle")]
+    internal static partial void SetTitle(string title);
+}
 
 public partial class MainView : UserControl
 {
@@ -27,6 +35,24 @@ public partial class MainView : UserControl
             autoBootstrapFromScenarioLoaded: true
         );
 
+        // Reflect the pending-strip count and facility in the browser tab title
+        // ("(3) OAK - vStrips (YAAT)") so a controller working another window sees
+        // new strips land and can tell facility tabs apart.
+        vm.Printer.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(StripPrinterViewModel.PendingCount))
+            {
+                RefreshPageTitle(vm);
+            }
+        };
+        vm.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(VStripsViewModel.FacilityId))
+            {
+                RefreshPageTitle(vm);
+            }
+        };
+
         var stripsView = this.FindControl<UserControl>("StripsView");
         if (stripsView is not null)
         {
@@ -44,6 +70,19 @@ public partial class MainView : UserControl
             // initials/ARTCC params before loading the WASM, so this branch should never run via the
             // normal flow. Show a recovery hint for the URL-mangled case.
             SetStatus("Missing initials/ARTCC — reload /vstrips/ to sign in and set them.");
+        }
+    }
+
+    private static void RefreshPageTitle(VStripsViewModel vm)
+    {
+        try
+        {
+            BrowserTitleInterop.SetTitle(ClientProductTitle.Build(vm.Printer.PendingCount, vm.FacilityId, "vStrips", includeYaatSuffix: true));
+        }
+        catch (Exception ex)
+        {
+            // A missing/renamed JS hook must never take the strips UI down with it.
+            Log.LogWarning(ex, "Setting document.title failed");
         }
     }
 

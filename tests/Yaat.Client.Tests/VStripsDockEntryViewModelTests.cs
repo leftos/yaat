@@ -17,26 +17,54 @@ public class VStripsDockEntryViewModelTests
     private static VStripsViewModel NewVm() => new(new ServerConnection(), (_, _, _) => Task.CompletedTask, getUserInitials: null);
 
     [Fact]
-    public void TabTitle_UsesFacilityName_WhenAvailable()
+    public void TabTitle_PrefixesPendingPrinterCount_AndTracksIt()
     {
         var vm = NewVm();
-        vm.FacilityName = "OAK ATCT";
-
+        vm.FacilityId = "OAK";
         var entry = new VStripsDockEntryViewModel(vm, isStudentEntry: true);
 
-        Assert.Equal("Strips (OAK ATCT)", entry.TabTitle);
+        var titleChanges = 0;
+        entry.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(VStripsDockEntryViewModel.TabTitle))
+            {
+                titleChanges++;
+            }
+        };
+
+        var dep = new StripItemViewModel(new StripItemDto("STRIP_N248ZV", "N248ZV", false, StripItemType.DepartureStrip, false, [], "OAK", ""));
+        var arr = new StripItemViewModel(new StripItemDto("ARRIVAL_N248ZV", "N248ZV", false, StripItemType.ArrivalStrip, false, [], "OAK", ""));
+        vm.Printer.ReplaceAll([dep.Id, arr.Id], new Dictionary<string, StripItemViewModel> { [dep.Id] = dep, [arr.Id] = arr });
+
+        Assert.Equal("(2) OAK - vStrips", entry.TabTitle);
+        Assert.True(titleChanges > 0, "pending-count change must re-render the tab title");
+
+        vm.Printer.Clear();
+        Assert.Equal("OAK - vStrips", entry.TabTitle);
     }
 
     [Fact]
-    public void TabTitle_FallsBackToFacilityId_WhenNameIsNull()
+    public void TabTitle_PrefersFacilityId_OverName()
     {
         var vm = NewVm();
-        vm.FacilityId = "FAC1";
-        vm.FacilityName = null;
+        vm.FacilityId = "OAK";
+        vm.FacilityName = "Oakland Intl ATCT";
 
         var entry = new VStripsDockEntryViewModel(vm, isStudentEntry: true);
 
-        Assert.Equal("Strips (FAC1)", entry.TabTitle);
+        Assert.Equal("OAK - vStrips", entry.TabTitle);
+    }
+
+    [Fact]
+    public void TabTitle_FallsBackToFacilityName_WhenIdIsNull()
+    {
+        var vm = NewVm();
+        vm.FacilityId = null;
+        vm.FacilityName = "Oakland Intl ATCT";
+
+        var entry = new VStripsDockEntryViewModel(vm, isStudentEntry: true);
+
+        Assert.Equal("Oakland Intl ATCT - vStrips", entry.TabTitle);
     }
 
     [Fact]
@@ -46,7 +74,7 @@ public class VStripsDockEntryViewModelTests
 
         var entry = new VStripsDockEntryViewModel(vm, isStudentEntry: true);
 
-        Assert.Equal("Strips", entry.TabTitle);
+        Assert.Equal("vStrips", entry.TabTitle);
     }
 
     [Fact]

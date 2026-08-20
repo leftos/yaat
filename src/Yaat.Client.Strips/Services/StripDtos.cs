@@ -62,5 +62,12 @@ public record FlightStripsConfigDto(
     // Airports this facility controls — the airport for a tower, all underlying
     // airports for a TRACON. Scopes the current-METAR display to the facility
     // currently being viewed. Empty when the facility has no resolvable airports.
-    string[] UnderlyingAirports
+    string[] UnderlyingAirports,
+    // vNAS flightStripsConfiguration.enableArrivalStrips: whether this facility gets
+    // arrival strips at all. Off hides the printer modal's arrival section.
+    bool EnableArrivalStrips,
+    // vNAS flightStripsConfiguration.enableSeparateArrDepPrinters: when arrival strips
+    // are enabled, whether they show in a separate arrival carousel (true) or in the
+    // same unified carousel as departures (false).
+    bool EnableSeparateArrDepPrinters
 );

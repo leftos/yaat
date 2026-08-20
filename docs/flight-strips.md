@@ -80,7 +80,23 @@ as the `StripItemType` enum, and match CRC vStrips one-for-one:
 YAAT produces types `0` (via `STRIP`), `1` (auto), `2`–`8` (via `SEP`,
 `HSC`, `HSS`, `BLANK`, etc.). Arrival strip auto-printing is triggered
 by `TickProcessor.ProcessAutoArrivalStrips` when the arrival is within
-`StripMutations.ArrivalAutoPrintMinutes` (default 20.0) of destination.
+`StripMutations.ArrivalAutoPrintMinutes` (default 20.0) of destination —
+gated on the owning facility's vNAS `flightStripsConfiguration.enableArrivalStrips`
+(e.g. ZOA's OAK ATCT has it off, so real vStrips never auto-prints arrivals
+there). The manual "Request Strip" path (`RoomEngine.RequestFlightStripForAircraft`)
+ignores the gate: an arrival candidate (airborne, destination = the scenario's
+primary airport) prints an `ARRIVAL_{callsign}` arrival-format strip — re-enqueued
+on repeat requests — while everything else stacks departure copies as before.
+
+Both config flags travel to the client on `FlightStripsConfigDto`
+(`EnableArrivalStrips`, `EnableSeparateArrDepPrinters`) and drive the printer
+modal's carousel split in `StripPrinterViewModel.SeparateArrivalCarousel`:
+
+| enableArrivalStrips | enableSeparateArrDepPrinters | Printer modal |
+|---------------------|------------------------------|---------------|
+| false | — | No arrival section; manual arrival requests land in the single carousel |
+| true | false | Single unified carousel; arrivals print into it |
+| true | true | Separate departure + arrival carousels (e.g. ZOA's NCT) |
 
 ### Departure strip auto-routing by student position
 

@@ -433,10 +433,13 @@
                                 HorizontalAlignment="Center"
                                 Click="OnPrintBlankClick"/>
 
-                        <!-- Arrival printer — stacked below departure. Always shown
-                             as its own section so arrivals are visible and movable. -->
+                        <!-- Arrival printer — stacked below departure. Shown only when the
+                             facility's vNAS strips config separates arrival strips into
+                             their own printer; unified facilities route arrivals into the
+                             main carousel above. -->
                         <StackPanel DockPanel.Dock="Bottom"
-                                    Spacing="6" Margin="0,16,0,0">
+                                    Spacing="6" Margin="0,16,0,0"
+                                    IsVisible="{Binding Printer.SeparateArrivalCarousel}">
                             <Separator Margin="0,4" Background="#4A4A52"/>
                             <TextBlock Text="Arrival Printer:" HorizontalAlignment="Center"
                                        FontSize="14" Foreground="White"/>
@@ -477,10 +480,10 @@
                             </StackPanel>
                         </StackPanel>
 
-                        <!-- Departure printer carousel -->
+                        <!-- Departure printer carousel (the only carousel for unified facilities) -->
                         <StackPanel Spacing="6" Margin="0,16,0,0">
                             <Separator Margin="0,4" Background="#4A4A52"/>
-                            <TextBlock Text="Departure Printer:"
+                            <TextBlock Text="{Binding Printer.DepartureSectionLabel}"
                                        HorizontalAlignment="Center"
                                        FontSize="14" Foreground="White"/>
                             <Grid ColumnDefinitions="Auto,*,Auto" Margin="0,4">

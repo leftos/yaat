@@ -769,13 +769,20 @@ The printer modal is a centered overlay reachable via the **Printer** icon butto
 
 - **Request Strip** — type a callsign and click to ask the server to print that aircraft's strip. Requesting one for an aircraft that already has a strip prints a fresh copy that stacks in the printer, so a lost or late strip can be reprinted.
 - **Print Blank Strip** — adds a blank to the printer queue
-The modal has two sections, **Departure printer** and **Arrival printer**, each with its own carousel and buttons:
+The modal's layout follows the facility's vNAS strips configuration:
 
-- **Departure printer** — ❮ ❯ arrows step through the queued departure strips (and blanks), **N/M** counter shows position
-  - **Move to Bay** — moves the visible strip to the selected bay
-  - **Move All to Bay** — moves every departure strip to the selected bay
-  - **Delete** — discards the visible strip
-- **Arrival printer** — the same controls for arrival strips (auto-printed within 20 minutes of arrival). **Move All to Bay** here moves only the arrival strips, so it no longer prints spurious messages for arrivals when clearing departures.
+- Facilities with **separate arrival/departure printers** (e.g. NCT) show two sections, **Departure printer** and **Arrival printer**, each with its own carousel and buttons.
+- Facilities with arrival strips but a **shared printer** show a single **Printer** carousel that both departures and arrivals print into.
+- Facilities with **arrival strips disabled** (e.g. OAK) show only the single carousel and never auto-print arrival strips — matching real vStrips. **Request Strip** still works for an arrival there: it prints an arrival-format strip into the carousel.
+
+Carousel controls:
+
+- ❮ ❯ arrows step through the queued strips (and blanks), **N/M** counter shows position
+- **Move to Bay** — moves the visible strip to the selected bay
+- **Move All to Bay** — moves every strip in that carousel to the selected bay. With separate printers, the arrival section's button moves only the arrival strips, so it doesn't print spurious messages for arrivals when clearing departures.
+- **Delete** — discards the visible strip
+
+The vStrips tab name, popped-out window title, and browser page title all show the pending printer count as a prefix while anything is queued — e.g. **`(3) OAK - vStrips`** (the browser page adds an ` (YAAT)` suffix). vTDLS titles do the same with the pending DCL count.
 
 #### Auto-printing
 

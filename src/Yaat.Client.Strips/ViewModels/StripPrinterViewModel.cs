@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Globalization;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Yaat.Client.Services;
 
@@ -7,10 +8,11 @@ namespace Yaat.Client.ViewModels;
 /// <summary>
 /// The strip printer surface. The server merges departure and arrival strips
 /// into a single <see cref="FlightStripsStateDto.PrinterItems"/> array on the
-/// wire, so the VM demuxes by <see cref="StripItemDto.Type"/> into separate
-/// carousels — departure strips and blanks on one side, arrivals on the
-/// other — matching the CRC printer modal (docs/crc/img/printer.png). The
-/// VStrips view always renders both sections.
+/// wire; how the VM demuxes them follows the facility's vNAS strips config
+/// (<see cref="SeparateArrivalCarousel"/>): with separate printers, arrivals
+/// split into their own carousel — matching the CRC printer modal
+/// (docs/crc/img/printer.png) — otherwise everything shares the single
+/// departure carousel and the view hides the arrival section.
 ///
 /// <see cref="Queue"/> is the un-split aggregate, kept only so drag-out (a
 /// strip dragged from the printer onto a rack) and reset can locate/remove an
@@ -22,6 +24,18 @@ public partial class StripPrinterViewModel : ObservableObject
     public ObservableCollection<StripItemViewModel> Queue { get; } = [];
     public ObservableCollection<StripItemViewModel> DepartureQueue { get; } = [];
     public ObservableCollection<StripItemViewModel> ArrivalQueue { get; } = [];
+
+    /// <summary>
+    /// True when this facility shows arrival strips in their own carousel — the vNAS
+    /// config's <c>enableArrivalStrips &amp;&amp; enableSeparateArrDepPrinters</c>.
+    /// False routes every printer item into the single departure carousel and hides
+    /// the arrival section. Set by <c>VStripsViewModel.ApplyBayConfig</c> before the
+    /// queued broadcasts reconcile, so the split matches the facility from the start.
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(BadgeText))]
+    [NotifyPropertyChangedFor(nameof(DepartureSectionLabel))]
+    private bool _separateArrivalCarousel = true;
 
     [ObservableProperty]
     private int _visibleDepartureIndex;
@@ -45,12 +59,22 @@ public partial class StripPrinterViewModel : ObservableObject
     public string ArrivalCounter => ArrivalQueue.Count == 0 ? "0/0" : $"{VisibleArrivalIndex + 1}/{ArrivalQueue.Count}";
 
     /// <summary>
-    /// Header notification badge — departure/arrival queue sizes ("3/0"),
-    /// matching the red badge on CRC's printer icon in
-    /// docs/crc/img/header.png. Hidden while both queues are empty.
+    /// Header notification badge — departure/arrival queue sizes ("3/0") with separate
+    /// printers, a single total with a unified carousel — matching the red badge on
+    /// CRC's printer icon in docs/crc/img/header.png. Hidden while both queues are empty.
     /// </summary>
-    public string BadgeText => $"{DepartureQueue.Count}/{ArrivalQueue.Count}";
+    public string BadgeText =>
+        SeparateArrivalCarousel ? $"{DepartureQueue.Count}/{ArrivalQueue.Count}" : DepartureQueue.Count.ToString(CultureInfo.InvariantCulture);
     public bool HasQueuedStrips => (DepartureQueue.Count > 0) || (ArrivalQueue.Count > 0);
+
+    /// <summary>
+    /// Total pending strips across both carousels — drives the "(N) " tab/window/page
+    /// title prefix (see <see cref="Services.ClientProductTitle"/>).
+    /// </summary>
+    public int PendingCount => DepartureQueue.Count + ArrivalQueue.Count;
+
+    /// <summary>Section header over the main carousel — names the split when arrivals have their own.</summary>
+    public string DepartureSectionLabel => SeparateArrivalCarousel ? "Departure Printer:" : "Printer:";
 
     /// <summary>
     /// Callsign the user last asked to bring into view via "Request Strip".
@@ -160,6 +184,7 @@ public partial class StripPrinterViewModel : ObservableObject
         OnPropertyChanged(nameof(DepartureCounter));
         OnPropertyChanged(nameof(ArrivalCounter));
         OnPropertyChanged(nameof(BadgeText));
+        OnPropertyChanged(nameof(PendingCount));
         OnPropertyChanged(nameof(HasQueuedStrips));
     }
 
@@ -176,9 +201,10 @@ public partial class StripPrinterViewModel : ObservableObject
                 continue;
             }
             Queue.Add(vm);
-            // Arrival strips go to the arrival carousel; everything else
-            // (departure strips, blanks) goes to the departure carousel.
-            if (vm.Type == StripItemType.ArrivalStrip)
+            // With separate printers, arrival strips go to the arrival carousel and
+            // everything else (departure strips, blanks) to the departure carousel;
+            // a unified facility routes everything into the single carousel.
+            if (SeparateArrivalCarousel && vm.Type == StripItemType.ArrivalStrip)
             {
                 ArrivalQueue.Add(vm);
             }
@@ -206,6 +232,7 @@ public partial class StripPrinterViewModel : ObservableObject
         OnPropertyChanged(nameof(DepartureCounter));
         OnPropertyChanged(nameof(ArrivalCounter));
         OnPropertyChanged(nameof(BadgeText));
+        OnPropertyChanged(nameof(PendingCount));
         OnPropertyChanged(nameof(HasQueuedStrips));
     }
 
