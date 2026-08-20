@@ -1,6 +1,12 @@
 # Changelog
 
-## Unreleased
+## v0.12.14-beta [2026/08/20]
+
+### Highlights
+- The Flight Plan Editor gains an ICAO EQ field for field-10a equipment codes; satcom-equipped aircraft light the SATCOMM `*` on ERAM data blocks.
+- ERAM round-up: the on-frequency indicator (VCI), fourth-line heading/speed/free-text entry, live route lines and CRR groups, and middle-click actions now work.
+- vStrips and vTDLS tab, window, and browser titles show a pending-count prefix (e.g. `(3) OAK - vStrips`).
+- ASDE-X safety alerts display in CRC and play their aural phrases.
 
 ### Added
 - vStrips and vTDLS tab, window, and browser-page titles show the facility and a pending-count prefix, e.g. `(3) OAK - vStrips`.
