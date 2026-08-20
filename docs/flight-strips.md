@@ -292,6 +292,35 @@ scanned there readable at all — in the *owning* window an external bay
 stays a push-only drop-zone (`SelectBayAsync` refuses it), because its
 contents live on the other facility's page.
 
+### Split view & mid-session seeding
+
+An entry can split into two full panes around a draggable splitter
+(`MainViewModel.SplitStripsEntryAsync` → `VStripsSplitHost`), each with its
+own selected bay. The first split creates a second `VStripsViewModel`
+(`entry.SecondaryVm`); re-orienting keeps it, unsplitting discards it. Both
+hosts of an entry (hidden TabItem + popped-out window) build their own view
+instances over the same VMs.
+
+Any VM created mid-session — a split's secondary pane or a duplicate
+facility tab — has missed every broadcast sent before it existed, and strips
+state is broadcast-only (the initial full dump happens once per connection,
+in `JoinRoom` → `SendInitialStateToClientAsync`; there is no re-fetch RPC on
+`IStripsTransport`). `SeedFromPeer` therefore copies from a peer VM on the
+same transport: the peer's **accumulated item-DTO cache**, its latest
+full-state broadcast, and its METARs.
+
+The cache (`_receivedItemsById`) matters because `StripItemsChanged` is an
+**incremental delta** — a strip's full payload typically arrives once, when
+it's printed — so "the last items broadcast" is never a usable seed (issue
+#366). `ReconcileItems` records every DTO into the cache *unscoped* (no
+`IsInScope` filter) so a seeded pane whose facility differs from the peer's
+still gets the items it needs; `ReconcileFullState` prunes ids the server no
+longer references so deleted strips can't resurrect through a seed or the
+`ApplyBayConfig` re-apply. Footgun to keep in mind: `StripRackViewModel.
+ReplaceAll` silently drops any id it can't resolve in the VM's `_items`
+lookup — racks render empty rather than erroring when the item DTOs were
+never seeded.
+
 ## Commands
 
 Defined in `src/Yaat.Sim/Commands/`:

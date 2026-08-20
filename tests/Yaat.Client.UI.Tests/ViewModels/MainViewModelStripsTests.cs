@@ -227,6 +227,65 @@ public class MainViewModelStripsTests
         AssertSeeded(vm.StripsEntries[^1].Vm);
     }
 
+    private static StripItemDto Departure(string id, string callsign) =>
+        new(id, callsign, false, StripItemType.DepartureStrip, false, [callsign, "", "B738/L"]);
+
+    private static FlightStripsStateDto GroundBayState(params string[] rackIds) =>
+        new([], [new StripBayContentsDto("bay-gnd", [rackIds])], false, false, null, null);
+
+    [AvaloniaFact]
+    public async Task SplitSecondaryPane_SeedsStripsFromMultipleItemBroadcasts()
+    {
+        // Issue #366: item broadcasts are incremental deltas — each strip's
+        // full payload typically arrives once, when it's printed. A pane
+        // created mid-session must be seeded with every strip the peer has
+        // accumulated, not just whatever the most recent delta contained.
+        var vm = NewVm();
+        var entry = vm.StripsEntries[0];
+        vm.UnsplitStripsEntry(entry);
+        var student = entry.Vm;
+        student.SetConnected(true);
+        student.ApplyBayConfig(OakConfig);
+        Dispatcher.UIThread.RunJobs();
+        student.ReconcileItems([Departure("S1", "UAL100")]);
+        student.ReconcileItems([Departure("S2", "SWA200")]);
+        student.ReconcileFullState(GroundBayState("S1", "S2"));
+
+        await vm.SplitStripsEntryAsync(entry, StripsSplitMode.SideBySide);
+        var secondary = entry.SecondaryVm!;
+        secondary.ApplyBayConfig(OakConfig);
+        Dispatcher.UIThread.RunJobs();
+
+        var rack = secondary.Bays.Single(b => b.BayId == "bay-gnd").Racks[0];
+        Assert.Equal(new[] { "S1", "S2" }, rack.Strips.Select(s => s.Id).ToArray());
+    }
+
+    [AvaloniaFact]
+    public async Task SplitSecondaryPane_DoesNotResurrectDeletedStrips()
+    {
+        // A strip deleted before the split (full state no longer references
+        // it) must not reappear in the seeded pane just because its DTO was
+        // once broadcast.
+        var vm = NewVm();
+        var entry = vm.StripsEntries[0];
+        vm.UnsplitStripsEntry(entry);
+        var student = entry.Vm;
+        student.SetConnected(true);
+        student.ApplyBayConfig(OakConfig);
+        Dispatcher.UIThread.RunJobs();
+        student.ReconcileItems([Departure("S1", "UAL100")]);
+        student.ReconcileItems([Departure("S2", "SWA200")]);
+        student.ReconcileFullState(GroundBayState("S2"));
+
+        await vm.SplitStripsEntryAsync(entry, StripsSplitMode.SideBySide);
+        var secondary = entry.SecondaryVm!;
+        secondary.ApplyBayConfig(OakConfig);
+        Dispatcher.UIThread.RunJobs();
+
+        var rack = secondary.Bays.Single(b => b.BayId == "bay-gnd").Racks[0];
+        Assert.Equal(new[] { "S2" }, rack.Strips.Select(s => s.Id).ToArray());
+    }
+
     [AvaloniaFact]
     public void SplitRatio_IsClampedToUsableRange()
     {

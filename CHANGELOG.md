@@ -7,6 +7,7 @@
 - Server log files survive restarts and redeploys as rotated generations; `tools/fetch-server-logs.ps1 -Files` downloads them.
 
 ### Fixed
+- Splitting a strips window (or opening a duplicate facility tab) mid-session shows all existing strips, not just the most recently changed ones.
 - `MLT`/`MRT` to a departure that finished its climb-out enters the pattern instead of rewinding the aircraft into its already-completed runway crossing.
 - The Flight Plan Editor reflects incoming flight-plan amendments while open, refreshing untouched fields and preserving in-progress edits.
 - vStrips shows an arrival printer only at facilities whose vNAS config enables arrival strips; shared-printer facilities get one unified carousel.

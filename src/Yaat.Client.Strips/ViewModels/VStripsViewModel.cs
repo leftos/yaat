@@ -213,7 +213,7 @@ public partial class VStripsViewModel : ObservableObject
         }
         Printer.Clear();
         _lastReceivedFullState = null;
-        _lastReceivedItems = null;
+        _receivedItemsById.Clear();
         _latestMetars = [];
         RebuildMetars();
     }
@@ -247,20 +247,27 @@ public partial class VStripsViewModel : ObservableObject
     /// from <see cref="ApplyRoomState"/> when the main VM receives a RoomStateDto
     /// during JoinRoom.
     /// </summary>
-    // Cache of the most recent server-supplied state / items. Join-existing-room
-    // has a race: the server sends the initial strip broadcasts BEFORE
-    // JoinRoom returns, so they arrive and reconcile against empty bays
-    // (bays aren't populated until ApplyRoomState → ApplyBayConfig runs with
-    // the RoomStateDto return value). Caching lets us re-apply the latest
-    // broadcast once bays exist so racks/printer populate without requiring
-    // the user to trigger a state-broadcast (e.g., "Move to Bay") first.
+    // Cache of the most recent server-supplied state plus every item DTO seen
+    // so far. Join-existing-room has a race: the server sends the initial strip
+    // broadcasts BEFORE JoinRoom returns, so they arrive and reconcile against
+    // empty bays (bays aren't populated until ApplyRoomState → ApplyBayConfig
+    // runs with the RoomStateDto return value). Caching lets us re-apply the
+    // latest broadcast once bays exist so racks/printer populate without
+    // requiring the user to trigger a state-broadcast (e.g., "Move to Bay") first.
+    //
+    // Items must be accumulated, not last-broadcast-only: StripItemsChanged is
+    // an incremental delta, and a strip's full payload typically arrives once,
+    // when it's printed. The dictionary is deliberately UNSCOPED (no IsInScope
+    // filter) so SeedFromPeer can hydrate a pane whose facility scope differs
+    // from the peer that received the broadcasts; ReconcileFullState prunes ids
+    // the server no longer references so deleted strips can't resurrect.
     private FlightStripsStateDto? _lastReceivedFullState;
-    private IReadOnlyList<StripItemDto>? _lastReceivedItems;
+    private readonly Dictionary<string, StripItemDto> _receivedItemsById = new(StringComparer.Ordinal);
 
     /// <summary>
-    /// Seeds this VM from a peer sharing the same transport: the latest
-    /// state/items broadcasts and METARs the peer received before this VM
-    /// existed. Strips state and METARs are broadcast-only, so a VM created
+    /// Seeds this VM from a peer sharing the same transport: every item DTO
+    /// the peer has accumulated, its latest full-state broadcast, and its
+    /// METARs. Strips state and METARs are broadcast-only, so a VM created
     /// mid-session (duplicate facility tab, split secondary pane) would
     /// otherwise render empty racks and no METAR bar until the next server
     /// change. Order-independent with the bay-config fetch — the caches are
@@ -269,9 +276,9 @@ public partial class VStripsViewModel : ObservableObject
     /// </summary>
     public void SeedFromPeer(VStripsViewModel peer)
     {
-        if (peer._lastReceivedItems is { } items)
+        if (peer._receivedItemsById.Count > 0)
         {
-            ReconcileItems(items);
+            ReconcileItems([.. peer._receivedItemsById.Values]);
         }
         if (peer._lastReceivedFullState is { } state)
         {
@@ -302,6 +309,12 @@ public partial class VStripsViewModel : ObservableObject
                 RebuildMetars();
                 _items.Clear();
                 Printer.Clear();
+                // Scenario unloaded — drop cached broadcasts so a subsequent
+                // load can't replay stale items into a fresh bay layout.
+                // Cleared here (on the UI thread) rather than by the caller so
+                // the caches aren't mutated from the SignalR callback thread.
+                _lastReceivedFullState = null;
+                _receivedItemsById.Clear();
                 return;
             }
 
@@ -337,10 +350,11 @@ public partial class VStripsViewModel : ObservableObject
 
             // Re-apply any cached broadcasts that arrived before this bay
             // config was in place. Items must go first so ReconcileFullState
-            // can resolve their ids into the local VM lookup.
-            if (_lastReceivedItems is { } pendingItems)
+            // can resolve their ids into the local VM lookup. Snapshot the
+            // dictionary — ReconcileItems writes back into it.
+            if (_receivedItemsById.Count > 0)
             {
-                ReconcileItems(pendingItems);
+                ReconcileItems([.. _receivedItemsById.Values]);
             }
             if (_lastReceivedFullState is { } pendingState)
             {
@@ -355,10 +369,9 @@ public partial class VStripsViewModel : ObservableObject
     {
         if (config is null)
         {
-            // Scenario unloaded — drop cached broadcasts so a subsequent load
-            // can't replay stale items into a fresh bay layout.
-            _lastReceivedFullState = null;
-            _lastReceivedItems = null;
+            // Scenario unloaded — ApplyBayConfig(null) also drops the cached
+            // broadcasts (on the UI thread) so a subsequent load can't replay
+            // stale items into a fresh bay layout.
             ApplyBayConfig(null);
             return;
         }
@@ -375,7 +388,6 @@ public partial class VStripsViewModel : ObservableObject
 
     private void OnStripItemsChanged(List<StripItemDto> items)
     {
-        _lastReceivedItems = items;
         Dispatcher.UIThread.Post(() => ReconcileItems(items));
     }
 
@@ -505,6 +517,14 @@ public partial class VStripsViewModel : ObservableObject
             }
         }
 
+        // Prune the DTO cache the same way — a deleted strip must not
+        // resurrect when the cache is re-applied or seeded into a new VM.
+        var staleCached = _receivedItemsById.Keys.Where(id => !referenced.Contains(id)).ToList();
+        foreach (var id in staleCached)
+        {
+            _receivedItemsById.Remove(id);
+        }
+
         // Rebuild bay racks.
         foreach (var bayVm in Bays)
         {
@@ -549,12 +569,13 @@ public partial class VStripsViewModel : ObservableObject
     /// </summary>
     public void ReconcileItems(IReadOnlyList<StripItemDto> items)
     {
-        // Record as the latest-known items so ApplyBayConfig can re-apply them
-        // once bays exist, and SeedFromPeer can copy them into a new VM.
-        _lastReceivedItems = items;
-
         foreach (var dto in items)
         {
+            // Accumulate every DTO — even out-of-scope ones — so ApplyBayConfig
+            // can re-apply them once bays exist and SeedFromPeer can hydrate a
+            // new VM whose facility scope may differ from this one's.
+            _receivedItemsById[dto.Id] = dto;
+
             if (!IsInScope(dto))
             {
                 continue;
