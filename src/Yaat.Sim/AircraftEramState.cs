@@ -9,7 +9,15 @@ namespace Yaat.Sim;
 public class AircraftEramState
 {
     public bool IsDwellLocked { get; set; }
-    public bool IsVci { get; set; }
+
+    /// <summary>
+    /// Sector IDs that have marked this aircraft on-frequency — the ERAM VCI indicator, toggled per
+    /// sector via the <c>//&lt;FLID&gt;</c> implied command or by clicking the FDB column-0 symbol
+    /// (docs/crc/eram.md §FDB Column 0). Emitted verbatim as <c>EramTrackDto.OnFrequencySectorIds</c>;
+    /// CRC lights the glyph for a viewing controller iff the list contains that controller's own
+    /// ERAM sector ID.
+    /// </summary>
+    public List<string> OnFrequencySectorIds { get; set; } = [];
 
     /// <summary>Leader direction override (1=SW .. 9=NE per CRC enum; 5=Default). Null = sector default.</summary>
     public int? LeaderDirection { get; set; }
@@ -102,7 +110,7 @@ public class AircraftEramState
         new()
         {
             IsDwellLocked = IsDwellLocked,
-            IsVci = IsVci,
+            OnFrequencySectorIds = OnFrequencySectorIds.Count > 0 ? [.. OnFrequencySectorIds] : null,
             LeaderDirection = LeaderDirection,
             LeaderLength = LeaderLength,
             InterimAltitude = InterimAltitude,
@@ -144,7 +152,7 @@ public class AircraftEramState
         new()
         {
             IsDwellLocked = dto.IsDwellLocked,
-            IsVci = dto.IsVci,
+            OnFrequencySectorIds = dto.OnFrequencySectorIds is not null ? [.. dto.OnFrequencySectorIds] : [],
             LeaderDirection = dto.LeaderDirection,
             LeaderLength = dto.LeaderLength,
             InterimAltitude = dto.InterimAltitude,

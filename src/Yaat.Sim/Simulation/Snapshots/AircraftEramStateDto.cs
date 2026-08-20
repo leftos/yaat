@@ -3,7 +3,9 @@ namespace Yaat.Sim.Simulation.Snapshots;
 public sealed class AircraftEramStateDto
 {
     public required bool IsDwellLocked { get; init; }
-    public required bool IsVci { get; init; }
+
+    // Sector IDs that marked this aircraft on-frequency (the ERAM VCI indicator). Null/empty = none.
+    public List<string>? OnFrequencySectorIds { get; init; }
     public int? LeaderDirection { get; init; }
     public int? LeaderLength { get; init; }
     public int? InterimAltitude { get; init; }

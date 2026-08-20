@@ -339,7 +339,7 @@ public class SnapshotRoundTripTests
                         LegLengthInNm = false,
                         Efc = 0,
                     },
-                    Eram = new AircraftEramStateDto { IsDwellLocked = false, IsVci = false },
+                    Eram = new AircraftEramStateDto { IsDwellLocked = false },
                     Clearance = new AircraftClearanceDto(),
                     Ghost = new AircraftGhostTrackDto { IsUnsupported = false, IsVehicle = false },
                     Targets = new ControlTargetsDto { HasExplicitSpeedCommand = false },

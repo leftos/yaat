@@ -61,6 +61,7 @@ public class RouteSplicerTests
     [Theory]
     [InlineData("KBED↑")]
     [InlineData("KBED[")]
+    [InlineData("KBED")] // raw EramChar.UpArrow — what the CRC wire actually carries
     public void DepartureSwap_Arrow_ReplacesDepartureOnly(string spliceArg)
     {
         var (dep, enroute, dest) = Splice(spliceArg);
@@ -72,6 +73,7 @@ public class RouteSplicerTests
     [Theory]
     [InlineData("SEY.VALRE.HAARP3.KLGA↓")]
     [InlineData("SEY.VALRE.HAARP3.KLGA]")]
+    [InlineData("SEY.VALRE.HAARP3.KLGA")] // raw EramChar.DownArrow — the CRC wire form
     public void DestinationSwap_Arrow_SplicesFromAnchorAndSwapsDest(string spliceArg)
     {
         var (dep, enroute, dest) = Splice(spliceArg);

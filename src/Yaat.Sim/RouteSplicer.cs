@@ -36,9 +36,11 @@ public static class RouteSplicer
             return null;
         }
 
-        // The [ / ] keys (rendered as up/down arrows) swap the departure / destination airport.
-        bool depSwap = spliceArg[^1] is '↑' or '[';
-        bool destSwap = spliceArg[^1] is '↓' or ']';
+        // The [ / ] keys (rendered as up/down arrows) swap the departure / destination airport. On the
+        // CRC wire the keys arrive as the raw EramChar codes UpArrow U+0080 / DownArrow U+0081 (CRC
+        // translates before building the DTO); the glyphs and bracket keys are kept for typed input.
+        bool depSwap = spliceArg[^1] is '↑' or '[' or '\u0080';
+        bool destSwap = spliceArg[^1] is '↓' or ']' or '\u0081';
         if (depSwap || destSwap)
         {
             spliceArg = spliceArg[..^1].Trim();

@@ -4,12 +4,23 @@
 
 ### Added
 - vStrips and vTDLS tab, window, and browser-page titles show the facility and a pending-count prefix, e.g. `(3) OAK - vStrips`.
+- Server log files survive restarts and redeploys as rotated generations; `tools/fetch-server-logs.ps1 -Files` downloads them.
 
 ### Fixed
 - `MLT`/`MRT` to a departure that finished its climb-out enters the pattern instead of rewinding the aircraft into its already-completed runway crossing.
 - The Flight Plan Editor reflects incoming flight-plan amendments while open, refreshing untouched fields and preserving in-progress edits.
 - vStrips shows an arrival printer only at facilities whose vNAS config enables arrival strips; shared-printer facilities get one unified carousel.
 - Requesting a strip for an inbound aircraft prints an arrival-format strip (ETA fields) instead of a departure copy.
+- Middle-clicking an ERAM target completes the pending command on that aircraft, and middle-clicking a limited data block expands it.
+- The ERAM on-frequency indicator (VCI) works — toggled per sector by clicking its spot or with `//`, and rendered on the data block.
+- ERAM fourth-line heading/speed/free-text entry works from the click menus and typed `QS` forms (`H270`, `20L`/`20R`, `PH`, `/S250`, `250+`).
+- ERAM route lines (`RD`/`QU`) and CRR groups (`LF`) draw, update, and expire live instead of only showing what existed at sign-on.
+- ASDE-X safety alerts display in CRC and play their aural phrases.
+- CRC's Invert Numeric Keypad (ERAM) setting is honored for data-block positioning and leader-direction digits.
+- ERAM display edits (dwell lock, leader position, interim altitudes, pointouts, data-block expand) appear immediately while the sim is paused.
+- Setting an aircraft's voice type from CRC applies instead of being ignored.
+- Hold annotations support the full 8-direction compass rose, so displayed hold directions match what was entered.
+- `AM <FLID> RTE ...[` / `...]` departure and destination swaps work when typed in CRC's ERAM.
 
 ## v0.12.13-beta [2026/08/19]
 
