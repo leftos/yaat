@@ -134,8 +134,10 @@ public partial class FlightPlanEditorWindow : Window
         base.OnKeyDown(e);
     }
 
-    // Refresh only the read-only display when the live aircraft changes. Never touch the editable
-    // boxes — that would clobber the instructor's in-progress edits.
+    // Reflect live aircraft changes while the editor is open. The read-only display (BCN,
+    // Create/Amend label) always tracks the live aircraft; editable fields refresh per-field so
+    // an amendment from another controller shows up without clobbering the instructor's
+    // in-progress edits (see RefreshEditableField).
     private void OnAircraftPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
         switch (e.PropertyName)
@@ -146,7 +148,45 @@ public partial class FlightPlanEditorWindow : Window
             case nameof(AircraftModel.HasFlightPlan):
                 SubmitButton.Content = _aircraft.HasFlightPlan ? "Amend" : "Create";
                 break;
+            case nameof(AircraftModel.FiledAircraftType):
+                RefreshEditableField(TypBox, ref _origTyp, _aircraft.FiledAircraftType);
+                break;
+            case nameof(AircraftModel.EquipmentSuffix):
+                RefreshEditableField(EqBox, ref _origEq, _aircraft.EquipmentSuffix);
+                break;
+            case nameof(AircraftModel.Departure):
+                RefreshEditableField(DepBox, ref _origDep, _aircraft.Departure);
+                break;
+            case nameof(AircraftModel.Destination):
+                RefreshEditableField(DestBox, ref _origDest, _aircraft.Destination);
+                break;
+            case nameof(AircraftModel.CruiseSpeed):
+                RefreshEditableField(SpdBox, ref _origSpd, _aircraft.CruiseSpeed > 0 ? _aircraft.CruiseSpeed.ToString() : "");
+                break;
+            case nameof(AircraftModel.CruiseAltitudeDisplay):
+                RefreshEditableField(AltBox, ref _origAlt, _aircraft.CruiseAltitudeDisplay);
+                break;
+            case nameof(AircraftModel.Route):
+                RefreshEditableField(RteBox, ref _origRte, _aircraft.Route);
+                break;
+            case nameof(AircraftModel.Remarks):
+                RefreshEditableField(RmkBox, ref _origRmk, SplitRemarks(_aircraft.Remarks, out _strippedRemarksPrefix));
+                break;
         }
+    }
+
+    // A field the instructor hasn't touched (box text still equals its baseline) refreshes to the
+    // live value. A field mid-edit keeps the instructor's text; only its change-baseline moves, so
+    // HasChanges compares the edit against the live plan rather than the values from open time.
+    private void RefreshEditableField(TextBox box, ref string baseline, string newValue)
+    {
+        bool untouched = (box.Text ?? "") == baseline;
+        baseline = newValue;
+        if (untouched)
+        {
+            box.Text = newValue;
+        }
+        SubmitButton.IsEnabled = HasChanges();
     }
 
     protected override void OnClosed(EventArgs e)
