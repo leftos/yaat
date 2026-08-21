@@ -554,6 +554,7 @@ preference: it applies to the commands *you* issue, and other controllers in the
 | Clear forced quicklook | `FQLCLR 1M` | — | Forced TCP's slew acknowledge |
 | Ack conflict alert | `CAACK` | — | — |
 | Inhibit conflict alert | `CAINH` | `CAI` | — |
+| Inhibit duplicate-beacon indication | `DBINH` | — | STARS owner slew on a DB-flagged track |
 | Contact next controller | `CT OAK_TWR` / `CT 121.9` / `CT 3O` / `CT` | `CONT` | — |
 | Frequency change approved | `FCA` | — | — |
 | Cleared Bravo airspace | `CLBRV` | `CBRV`, `BRAVO` | — |
@@ -1347,6 +1348,7 @@ Changing your active position also updates the radar display:
 | `FQLCLR 1M` | Clear TCP 1M's forced-quicklook entry (what a forced TCP's own slew does) |
 | `CAACK` | Acknowledge conflict alerts for this aircraft |
 | `CAINH` / `CAI` | Toggle conflict alert inhibit on/off |
+| `DBINH` | Inhibit the flashing duplicate-beacon indication on the owner's data block (what the owner's slew does in STARS) |
 | `CT` | Tell pilot to contact the next controller — auto-resolves to the just-accepted handoff target |
 | `CT OAK_TWR` / `CT CONT OAK_TWR` | Tell pilot to contact a specific position by callsign (use to disambiguate when two positions share a STARS scope, e.g. OAK_TWR vs OAK_GND on 3O) |
 | `CT 121.9` | Tell pilot to contact a position by frequency in MHz (±5 kHz tolerance covers 25 kHz and 8.33 kHz spacing) |

@@ -45,6 +45,7 @@ public static class TrackEngine
                 or ForceQuicklookClearCommand
                 or AcknowledgeConflictAlertCommand
                 or InhibitConflictAlertCommand
+                or InhibitDuplicateBeaconCommand
                 or PilotReportedAltitudeCommand
                 or LeaderDirectionCommand
                 or JRingCommand
@@ -536,6 +537,17 @@ public static class TrackEngine
         return new CommandResult(true, $"Pilot reported altitude: {(altHundreds == 0 ? "cleared" : $"{altHundreds * 100}")}");
     }
 
+    /// <summary>
+    /// Inhibits the flashing duplicate-beacon indication on the owner's data block (the owner's
+    /// bare slew on a DB-flagged track). Set, not toggled: the flag only suppresses the current
+    /// indication and is superseded once the duplicate resolves.
+    /// </summary>
+    public static CommandResult HandleInhibitDuplicateBeacon(AircraftState ac)
+    {
+        ac.Stars.IsDuplicateBeaconInhibited = true;
+        return new CommandResult(true, $"Duplicate-beacon indication inhibited for {ac.Callsign}");
+    }
+
     public static CommandResult HandleInhibitConflictAlert(AircraftState ac)
     {
         ac.Stars.IsCaInhibited = !ac.Stars.IsCaInhibited;
@@ -809,6 +821,7 @@ public static class TrackEngine
             CruiseCommand cr => HandleCruise(ac, cr.AltitudeHundreds),
             OnHandoffCommand => HandleOnHandoff(ac),
             InhibitConflictAlertCommand => HandleInhibitConflictAlert(ac),
+            InhibitDuplicateBeaconCommand => HandleInhibitDuplicateBeacon(ac),
             // Server-only branches: caller dispatches before reaching Dispatch
             // (AcknowledgeConflictAlertCommand mutates engine-level ConflictAlerts).
             _ => null,
@@ -850,6 +863,7 @@ public static class TrackEngine
             or ConeCommand
             or OnHandoffCommand
             or InhibitConflictAlertCommand
+            or InhibitDuplicateBeaconCommand
             or AcknowledgeConflictAlertCommand
             or AsdexEditCommand
             or AsdexVerbCommand => false,

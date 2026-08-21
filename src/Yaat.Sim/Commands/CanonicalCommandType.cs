@@ -137,6 +137,7 @@ public enum CanonicalCommandType
     ForceQuicklookClear,
     AcknowledgeConflictAlert,
     InhibitConflictAlert,
+    InhibitDuplicateBeacon,
     PilotReportedAltitude,
     LeaderDirection,
     JRing,

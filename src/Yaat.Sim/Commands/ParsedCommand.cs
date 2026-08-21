@@ -697,6 +697,8 @@ public record AcknowledgeConflictAlertCommand : ParsedCommand;
 
 public record InhibitConflictAlertCommand : ParsedCommand;
 
+public record InhibitDuplicateBeaconCommand : ParsedCommand;
+
 public record PilotReportedAltitudeCommand(int AltitudeHundreds) : ParsedCommand;
 
 public record LeaderDirectionCommand(int Direction) : ParsedCommand;

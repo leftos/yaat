@@ -237,6 +237,7 @@
         { "verb": "ONHS", "aliases": [], "description": "Condition prefix: on hold-short (e.g. `ONHS DEL`)" },
         { "verb": "CAACK", "aliases": [], "description": "Acknowledge conflict alert" },
         { "verb": "CAINH", "aliases": ["cai"], "description": "Inhibit conflict alert" },
+        { "verb": "DBINH", "aliases": [], "description": "Inhibit duplicate-beacon indication" },
         { "verb": "CT", "aliases": ["cont"], "description": "Contact next controller [callsign|freq|tcp]" },
         { "verb": "FCA", "aliases": [], "description": "Frequency change approved" },
         { "verb": "ACCEPTALL", "aliases": [], "description": "Accept all handoffs", "global": true },

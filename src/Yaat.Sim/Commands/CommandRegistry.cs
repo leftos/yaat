@@ -1031,6 +1031,7 @@ public static class CommandRegistry
             ),
             Bare(AcknowledgeConflictAlert, "Acknowledge Conflict Alert", "Track Operations", false, ["CAACK"]),
             Bare(InhibitConflictAlert, "Inhibit Conflict Alert", "Track Operations", false, ["CAINH", "CAI"]),
+            Bare(InhibitDuplicateBeacon, "Inhibit Duplicate Beacon", "Track Operations", false, ["DBINH"]),
             Cmd(
                 PilotReportedAltitude,
                 "Pilot Reported Altitude",

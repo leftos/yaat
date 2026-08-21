@@ -875,6 +875,7 @@ public static class CommandParser
             ForceQuicklookClear => PR.Fail("FQLCLR requires a single TCP code"),
             AcknowledgeConflictAlert when arg is null => PR.Ok(new AcknowledgeConflictAlertCommand()),
             InhibitConflictAlert when arg is null => PR.Ok(new InhibitConflictAlertCommand()),
+            InhibitDuplicateBeacon when arg is null => PR.Ok(new InhibitDuplicateBeaconCommand()),
             PilotReportedAltitude => ParseAltitudeHundreds(arg, h => new PilotReportedAltitudeCommand(h)),
             LeaderDirection when arg is not null && int.TryParse(arg.Trim(), out var ldr) && ldr >= 1 && ldr <= 9 => PR.Ok(
                 new LeaderDirectionCommand(ldr)

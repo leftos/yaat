@@ -20,6 +20,8 @@
 - Only the pointout's recipient can reject it with `UN` + slew; third-party positions get ILL TRK.
 - Pointouts to simulated (unattended) positions auto-acknowledge after the auto-accept delay, matching handoff behavior — they no longer flash at the sender indefinitely in solo training.
 - The STARS voice-type entry (`F9` + `V`/`R`/`T` + slew) sets the track's voice type instead of returning FORMAT.
+- Slewing an owned STARS track that squawks a different discrete code than assigned accepts the observed code as the assigned one, clearing the mismatch indication.
+- Slewing an owned STARS track with a flashing duplicate-beacon indication inhibits the flash (`DBINH` for RPOs).
 
 ## v0.12.14-beta [2026/08/20]
 
