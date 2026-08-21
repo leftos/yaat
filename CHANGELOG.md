@@ -10,6 +10,7 @@
 - The STARS global leader-direction entry (`F7 L##` + slew) sets the track's leader line for all positions, honoring CRC's Invert Numeric Keypad setting.
 - Unrecognized STARS `F7` sub-function entries show FORMAT instead of silently appearing to succeed.
 - STARS keyboard commands accept a tabular-list line number as the FLID (`TERM CNTL`, `HND OFF`, `CA K`, `F7 M`/`Y`), per the STARS FLID definition.
+- A STARS controller receiving a handoff can redirect it to another controller by entering the new handoff ID and slewing the track (implied or via `HND OFF`), instead of being rejected with ILL TRK.
 
 ## v0.12.14-beta [2026/08/20]
 
