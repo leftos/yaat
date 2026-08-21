@@ -292,7 +292,7 @@ Issues filed per root-cause cluster (confirmed high+medium; lows ride along wher
 - [ ] **Temporary-altitude clear** (D): `TA 0` → null (both CRC `M Δ000` and RPO TA-clear). → **#385**
 - [ ] **Standby transponder STARS gating** (I): null beacon/Mode-C on standby, matching the ERAM/ASDE-X converters. → **#386**
 - [ ] **`DisplayRequestedAltitude` semantics** (I): stop forcing `R###` globally (constant false per the live-wire reference, or model the selective per-track intent). → **#387**
-- [ ] **MSAW low-altitude (LA) alert** (C): compute MSAW and publish via `ForcedSpcs`; wire the existing inhibit state to something real. → **#388**
+- [x] ~~**MSAW low-altitude (LA) alert** (C)~~ → **#388, closed as not planned**: real vNAS servers don't implement MSAW LA either (complexity + required data), so the missing alert matches actual vNAS/CRC behavior. Revisit only if the vNAS devs implement it upstream.
 - [ ] **Secondary-display deactivation drops owned tracks** (C4). → **#389**
 - [ ] **Implied aircraft-type amend** `(A/C TYPE)*<SLEW>` (C3, fix with the E capture-order work). → **#390**
 
