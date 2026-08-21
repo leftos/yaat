@@ -4,6 +4,7 @@
 
 ### Fixed
 - Clearing a STARS temporary altitude (`F7 M` with `Δ000`, or a bare/`0` `TA`) blanks the data block's altitude line instead of leaving `A000` forever.
+- STARS pilot-reported altitude (`F7 Y`) shows the entered value in the data block instead of `000*`.
 
 ## v0.12.14-beta [2026/08/20]
 
