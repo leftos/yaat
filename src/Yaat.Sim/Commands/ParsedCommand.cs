@@ -867,7 +867,13 @@ public record CoordinationRecallCommand(string? ListId) : ParsedCommand;
 
 public record CoordinationAcknowledgeCommand(string? ListId) : ParsedCommand;
 
-public record CoordinationAutoAckCommand(string ListId) : ParsedCommand;
+public record CoordinationAutoAckCommand(string ListId, bool? Enable) : ParsedCommand;
+
+public record CoordinationDeleteCommand(string? ListId) : ParsedCommand;
+
+public record CoordinationReorderCommand(string? ListId, int Position) : ParsedCommand;
+
+public record CoordinationModifyCommand(string? ListId, string Text) : ParsedCommand;
 
 // Approach commands
 

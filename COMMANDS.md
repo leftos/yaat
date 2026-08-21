@@ -1485,7 +1485,10 @@ Coordination commands manage departure releases between tower and approach contr
 | `RDH [listId] [text]` | Hold a release without sending; or send a held release |
 | `RDR [listId]` | Recall a sent release, or delete an unsent one |
 | `RDACK [listId]` | Acknowledge a received release |
-| `RDAUTO <listId>` | Toggle auto-acknowledge for a list (global — no callsign needed) |
+| `RDAUTO <listId> [ON|OFF]` | Toggle (or explicitly set) auto-acknowledge for a list (global — no callsign needed) |
+| `RDDEL [listId]` | Delete an existing release outright (the CRC F13 re-entry form) |
+| `RDPOS [listId] <line>` | Move a release to a 1-based line in the list |
+| `RDTXT <text>` | Set a held (unsent) release's message text |
 
 When `listId` is omitted, the server auto-detects the correct coordination list from the sender/receiver TCP. `RDACK` works without a list ID even when the TCP belongs to multiple lists, as long as there is only one unacknowledged release across all lists.
 
@@ -1687,7 +1690,10 @@ These commands don't require an aircraft selection:
 | `SSALL` | Set all aircraft transponders to standby |
 | `ACCEPTALL` | Accept all pending inbound handoffs |
 | `HOALL 3Y` | Handoff all your aircraft to TCP 3Y |
-| `RDAUTO <listId>` | Toggle auto-acknowledge for a coordination list |
+| `RDAUTO <listId> [ON|OFF]` | Toggle or set auto-acknowledge for a coordination list |
+| `RDDEL [listId]` | Delete an existing coordination release |
+| `RDPOS [listId] <line>` | Move a coordination release to a line |
+| `RDTXT <text>` | Set a held release's message text |
 | `CON` / `CON+` / `DECON` | Consolidation commands (see [Consolidation](#consolidation)) |
 | `TAXIALL 30` | Taxi all parked aircraft to runway 30 |
 

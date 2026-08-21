@@ -87,7 +87,10 @@ public static class TrackEngine
                 or CoordinationHoldCommand
                 or CoordinationRecallCommand
                 or CoordinationAcknowledgeCommand
-                or CoordinationAutoAckCommand;
+                or CoordinationAutoAckCommand
+                or CoordinationDeleteCommand
+                or CoordinationReorderCommand
+                or CoordinationModifyCommand;
 
     public static CommandResult NotOwnedError(AircraftState ac, TrackOwner identity)
     {

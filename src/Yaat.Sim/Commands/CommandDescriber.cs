@@ -279,6 +279,9 @@ public static class CommandDescriber
             CoordinationRecallCommand => CanonicalCommandType.CoordinationRecall,
             CoordinationAcknowledgeCommand => CanonicalCommandType.CoordinationAcknowledge,
             CoordinationAutoAckCommand => CanonicalCommandType.CoordinationAutoAck,
+            CoordinationDeleteCommand => CanonicalCommandType.CoordinationDelete,
+            CoordinationReorderCommand => CanonicalCommandType.CoordinationReorder,
+            CoordinationModifyCommand => CanonicalCommandType.CoordinationModify,
             UnsupportedCommand => throw new InvalidOperationException("UnsupportedCommand must be handled before calling ToCanonicalType"),
             _ => throw new InvalidOperationException($"Unhandled ParsedCommand type: {command.GetType().Name}"),
         };
@@ -728,7 +731,12 @@ public static class CommandDescriber
             CoordinationHoldCommand cmd => cmd.ListId is not null ? $"RDH {cmd.ListId}" : "RDH",
             CoordinationRecallCommand cmd => cmd.ListId is not null ? $"RDR {cmd.ListId}" : "RDR",
             CoordinationAcknowledgeCommand cmd => cmd.ListId is not null ? $"RDACK {cmd.ListId}" : "RDACK",
-            CoordinationAutoAckCommand cmd => $"RDAUTO {cmd.ListId}",
+            CoordinationAutoAckCommand cmd => cmd.Enable is null
+                ? $"RDAUTO {cmd.ListId}"
+                : $"RDAUTO {cmd.ListId} {(cmd.Enable.Value ? "ON" : "OFF")}",
+            CoordinationDeleteCommand cmd => cmd.ListId is not null ? $"RDDEL {cmd.ListId}" : "RDDEL",
+            CoordinationReorderCommand cmd => cmd.ListId is not null ? $"RDPOS {cmd.ListId} {cmd.Position}" : $"RDPOS {cmd.Position}",
+            CoordinationModifyCommand cmd => cmd.ListId is not null ? $"RDTXT {cmd.ListId} {cmd.Text}" : $"RDTXT {cmd.Text}",
             // Data / ASDE-X
             AssignRunwayCommand cmd => $"RWY {cmd.RunwayId}",
             Scratchpad1Command cmd => cmd.Text.Length > 0 ? $"SP1 {cmd.Text}" : "SP1",
@@ -1156,7 +1164,12 @@ public static class CommandDescriber
             CoordinationHoldCommand cmd => cmd.ListId is not null ? $"Hold release on {cmd.ListId}" : "Hold release",
             CoordinationRecallCommand cmd => cmd.ListId is not null ? $"Recall release on {cmd.ListId}" : "Recall release",
             CoordinationAcknowledgeCommand cmd => cmd.ListId is not null ? $"Acknowledge release on {cmd.ListId}" : "Acknowledge release",
-            CoordinationAutoAckCommand cmd => $"Toggle auto-ack on {cmd.ListId}",
+            CoordinationAutoAckCommand cmd => cmd.Enable is null
+                ? $"Toggle auto-ack on {cmd.ListId}"
+                : $"Auto-ack {(cmd.Enable.Value ? "on" : "off")} for {cmd.ListId}",
+            CoordinationDeleteCommand cmd => cmd.ListId is not null ? $"Delete coordination message on {cmd.ListId}" : "Delete coordination message",
+            CoordinationReorderCommand cmd => $"Move coordination message to line {cmd.Position}",
+            CoordinationModifyCommand cmd => $"Set coordination message text: {cmd.Text}",
             // Data / ASDE-X
             AssignRunwayCommand cmd => $"Assign runway {cmd.RunwayId}",
             Scratchpad1Command cmd => cmd.Text.Length > 0 ? $"Set scratchpad 1: {cmd.Text}" : "Clear scratchpad 1",

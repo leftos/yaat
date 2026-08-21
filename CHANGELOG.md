@@ -15,6 +15,7 @@
 - TCP shorthand (single letter or subset digit) works on the `HND OFF` and pointout entry paths, matching the implied path.
 - A bare `C` + slew hands off to the host ARTCC when exactly one center position is open.
 - The STARS `**` family works: bare `**` converts an incoming pointout to an accepted handoff, and `**` / `**(TCP)` / `**ALL` (slew or keyboard) force quicklook — the forced TCP clears it by slewing the track. These entries previously misrouted into a pointout to `*` or a scratchpad write. RPOs get the same actions as `POHO`, `FQL`, and `FQLCLR`.
+- The full STARS `F13` coordination grammar works from CRC: receiver acknowledge (typed, bare `F13` single-pending, `A*`/`M*` auto-ack) and the tower hold `/`, send-held, recall, reorder `##`, modify-text, and delete forms — re-entering an existing release now deletes it instead of appending a duplicate. RPOs get `RDDEL`, `RDPOS`, `RDTXT`, and explicit `RDAUTO <list> ON|OFF`.
 
 ## v0.12.14-beta [2026/08/20]
 

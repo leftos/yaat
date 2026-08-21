@@ -294,7 +294,10 @@
         { "verb": "RDH", "aliases": [], "description": "Hold release [channel]" },
         { "verb": "RDR", "aliases": [], "description": "Recall release [channel]" },
         { "verb": "RDACK", "aliases": [], "description": "Acknowledge release [channel]" },
-        { "verb": "RDAUTO", "aliases": [], "description": "Toggle auto-ack for channel", "global": true }
+        { "verb": "RDAUTO", "aliases": [], "description": "Toggle/set auto-ack for channel [ON|OFF]", "global": true },
+        { "verb": "RDDEL", "aliases": [], "description": "Delete release [channel]" },
+        { "verb": "RDPOS", "aliases": [], "description": "Move release to line [channel] <line>" },
+        { "verb": "RDTXT", "aliases": [], "description": "Set held release text" }
       ],
       "notes": []
     },

@@ -959,7 +959,11 @@ public static class CommandParser
             CoordinationHold => PR.Ok(ParseHoldArgs(arg)),
             CoordinationRecall => PR.Ok(new CoordinationRecallCommand(arg?.Trim().ToUpperInvariant())),
             CoordinationAcknowledge => PR.Ok(new CoordinationAcknowledgeCommand(arg?.Trim().ToUpperInvariant())),
-            CoordinationAutoAck => ParseOptionalListId(arg, listId => new CoordinationAutoAckCommand(listId)),
+            CoordinationAutoAck => ParseAutoAckArgs(arg),
+            CoordinationDelete => PR.Ok(new CoordinationDeleteCommand(arg?.Trim().ToUpperInvariant())),
+            CoordinationReorder => ParseReorderArgs(arg),
+            CoordinationModify when !string.IsNullOrWhiteSpace(arg) => PR.Ok(new CoordinationModifyCommand(null, arg.Trim().ToUpperInvariant())),
+            CoordinationModify => PR.Fail("RDTXT requires the message text"),
             // Consolidation
             Consolidate => ParseConsolidate(arg, false),
             ConsolidateFull => ParseConsolidate(arg, true),
@@ -1156,6 +1160,34 @@ public static class CommandParser
         var listId = parts[0].Trim().ToUpperInvariant();
         var text = parts.Length > 1 ? parts[1].Trim() : null;
         return new CoordinationHoldCommand(listId, text);
+    }
+
+    private static PR ParseAutoAckArgs(string? arg)
+    {
+        if (string.IsNullOrWhiteSpace(arg))
+        {
+            return PR.Fail("RDAUTO requires a coordination channel");
+        }
+
+        var tokens = arg.Trim().ToUpperInvariant().Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        return tokens switch
+        {
+            [var listId] => PR.Ok(new CoordinationAutoAckCommand(listId, null)),
+            [var listId, "ON"] => PR.Ok(new CoordinationAutoAckCommand(listId, true)),
+            [var listId, "OFF"] => PR.Ok(new CoordinationAutoAckCommand(listId, false)),
+            _ => PR.Fail("RDAUTO takes a channel and optionally ON or OFF"),
+        };
+    }
+
+    private static PR ParseReorderArgs(string? arg)
+    {
+        var tokens = (arg ?? "").Trim().ToUpperInvariant().Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        return tokens switch
+        {
+            [var pos] when int.TryParse(pos, out var n) && n >= 1 => PR.Ok(new CoordinationReorderCommand(null, n)),
+            [var listId, var pos] when int.TryParse(pos, out var n) && n >= 1 => PR.Ok(new CoordinationReorderCommand(listId, n)),
+            _ => PR.Fail("RDPOS requires [channel] and a line number"),
+        };
     }
 
     private static PR ParseOptionalListId(string? arg, Func<string, ParsedCommand> factory)

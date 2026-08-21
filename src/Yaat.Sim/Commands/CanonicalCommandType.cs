@@ -163,6 +163,9 @@ public enum CanonicalCommandType
     CoordinationRecall,
     CoordinationAcknowledge,
     CoordinationAutoAck,
+    CoordinationDelete,
+    CoordinationReorder,
+    CoordinationModify,
 
     // Broadcast
     Say,

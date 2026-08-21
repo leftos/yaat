@@ -1539,7 +1539,40 @@ public static class CommandRegistry
                 "Coordination",
                 true,
                 ["RDAUTO"],
-                [O(null, [R("channel", "coordination channel")], "Toggle auto-acknowledge for channel")]
+                [
+                    O(null, [R("channel", "coordination channel")], "Toggle auto-acknowledge for channel"),
+                    O("Explicit", [R("channel", "coordination channel"), R("state", "ON or OFF")], "Set auto-acknowledge for channel"),
+                ]
+            ),
+            Cmd(
+                CoordinationDelete,
+                "Delete Release",
+                "Coordination",
+                false,
+                ["RDDEL"],
+                [
+                    O(null, [], "Delete coordination message on default channel"),
+                    O("Channel", [R("channel", "coordination channel")], "Delete coordination message on specific channel"),
+                ]
+            ),
+            Cmd(
+                CoordinationReorder,
+                "Reorder Release",
+                "Coordination",
+                false,
+                ["RDPOS"],
+                [
+                    O(null, [R("line", "line number")], "Move coordination message to line"),
+                    O("Channel", [R("channel", "coordination channel"), R("line", "line number")], "Move on specific channel"),
+                ]
+            ),
+            Cmd(
+                CoordinationModify,
+                "Modify Release Text",
+                "Coordination",
+                false,
+                ["RDTXT"],
+                [O(null, [R("text", "message text")], "Set held coordination message text")]
             ),
         ];
 
