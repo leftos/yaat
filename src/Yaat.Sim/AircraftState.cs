@@ -150,6 +150,15 @@ public class AircraftState
     public AircraftTransponder Transponder { get; set; } = new();
 
     public bool IsOnGround { get; set; }
+
+    /// <summary>
+    /// Latched by the tick loop the first time the aircraft is observed airborne and never
+    /// cleared. Distinguishes a pre-departure aircraft (on ground, never flown — its flight plan
+    /// is still "proposed") from a landed arrival (on ground, but has flown — its plan stays
+    /// active). Snapshot-persisted.
+    /// </summary>
+    public bool HasBeenAirborne { get; set; }
+
     public ControlTargets Targets { get; } = new();
     public CommandQueue Queue { get; set; } = new();
     public PhaseList? Phases { get; set; }
@@ -373,6 +382,7 @@ public class AircraftState
             Ground = AircraftGroundOps.FromSnapshot(dto.Ground, groundLayout),
             Transponder = AircraftTransponder.FromSnapshot(dto.Transponder),
             IsOnGround = dto.IsOnGround,
+            HasBeenAirborne = dto.HasBeenAirborne,
             HasMadeInitialContact = dto.HasMadeInitialContact,
             HasControllerAcknowledgedInitialContact = dto.HasControllerAcknowledgedInitialContact,
             HasLeftStudentFrequency = dto.HasLeftStudentFrequency,
@@ -471,6 +481,7 @@ public class AircraftState
             Ground = Ground.ToSnapshot(),
             Transponder = Transponder.ToSnapshot(),
             IsOnGround = IsOnGround,
+            HasBeenAirborne = HasBeenAirborne,
             HasMadeInitialContact = HasMadeInitialContact,
             HasControllerAcknowledgedInitialContact = HasControllerAcknowledgedInitialContact,
             HasLeftStudentFrequency = HasLeftStudentFrequency,

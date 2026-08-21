@@ -286,6 +286,11 @@ public sealed class SimulationWorld
                 {
                     FlightPhysics.Update(ac, deltaSeconds, Lookup, weather, simTimeSeconds, soloMode, rpoShowPilotSpeech);
                 }
+
+                if (!ac.IsOnGround)
+                {
+                    ac.HasBeenAirborne = true;
+                }
             }
         }
     }

@@ -2583,7 +2583,14 @@ public static class CommandDescriber
 
         if (cmd.FlightRules != "VFR")
         {
-            parts.Add(cmd.FlightRules == "IFR" ? ".E" : ".V");
+            parts.Add(
+                cmd.FlightRules switch
+                {
+                    "IFR" => ".E",
+                    "OTP" => ".P",
+                    _ => ".V",
+                }
+            );
         }
 
         return string.Join(" ", parts);

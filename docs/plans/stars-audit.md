@@ -287,7 +287,7 @@ Issues filed per root-cause cluster (confirmed high+medium; lows ride along wher
 - [x] **Handoff/pointout entry-path parity** (F): clicked-track empty-param Handoff → recall; `ExpandTcpShorthand` on the HND OFF and pointout paths; bare-`C` omitted-sector form. → **#380**
 - [x] **Pointout lifecycle** (C/L): clear Rejected pointouts on owner slew; validate UN reject recipient; auto-ack pointouts to simulated positions (parity with handoff auto-accept). → **#381**
 - [x] **STARS voice type** `<F9>(V|R|T)<SLEW>` → `FlightPlanVoice` (route exists only via ERAM QB / FP editor today). → **#382**
-- [ ] **Flight-plan semantics** (H): VP amend-on-existing; thread the click location through the explicit F6/F9 branches (no more (0,0) spawns); `.P` → OTP; produce `FlightPlanStatus.Proposed` pre-association so the TAB/VFR lists work. Lenient-accept lows ride along. → **#383**
+- [x] **Flight-plan semantics** (H): VP amend-on-existing; thread the click location through the explicit F6/F9 branches (no more (0,0) spawns); `.P` → OTP; produce `FlightPlanStatus.Proposed` pre-association so the TAB/VFR lists work. Lenient-accept lows ride along (plus user-reported: vNAS FORMAT-rejects AIDs shorter than 3 characters). → **#383**
 - [x] **Bare-slew indication clears** (C): beacon-mismatch resolve; duplicate-beacon inhibit (both fields already published + change-tracked). → **#384**
 - [x] **Temporary-altitude clear** (D): `TA 0` → null (both CRC `M Δ000` and RPO TA-clear). → **#385**
 - [x] **Standby transponder STARS gating** (I): null beacon/Mode-C on standby, matching the ERAM/ASDE-X converters. → **#386**

@@ -3008,7 +3008,7 @@ public static class CommandParser
                 flightRules = upper switch
                 {
                     ".V" => "VFR",
-                    ".P" => "VFR", // VFR-on-top treated as VFR
+                    ".P" => "OTP", // VFR-on-top: IFR rules with the OTP altitude notation
                     ".E" => "IFR",
                     _ => "VFR",
                 };

@@ -26,6 +26,12 @@
 - STARS data blocks no longer force the requested-altitude `R###` timeshare on every IFR track; CRC's own area configuration decides, as on the live network.
 - Deactivating or closing a secondary STARS display drops the tracks that position owns (unless another controller works the same position in an active display).
 - The implied STARS aircraft-type amend works: `F16*` (asterisk-padded) or a bare known 4-character type + slew modifies the flight plan's type instead of misrouting into a pointout or scratchpad write.
+- CRC's TAB list shows proposed departures and the VFR list shows pre-target VFR plans: a flight plan is now Proposed until the aircraft first becomes airborne, then Active (landed arrivals stay Active).
+- The STARS VFR-plan entry (`F9`, and the terminal `VP`/`FP` commands) amends an existing flight plan in place instead of rejecting with DUP NEW ID; `DA` stays create-only.
+- The explicit `F6`/`F9` + scope-click forms spawn the unsupported track at the click location instead of at 0°N 0°E.
+- DA's `.P` flight-rules indicator files VFR-on-top (OTP, an IFR plan) instead of flattening to plain VFR.
+- STARS flight-plan entries reject what the live network rejects with FORMAT: AIDs shorter than 3 characters (no more 1-character ghost tracks), non-octal beacon codes, unrecognized DA fields, and malformed or trailing VFR-plan altitude tokens.
+- `INIT CNTL` honors the typed FLID (mismatched FLID + slew rejects with ILL TRK), requires a flight plan (NO FLIGHT), and rejects an already-owned track with the STARS vocabulary DUP TRK.
 
 ## v0.12.14-beta [2026/08/20]
 

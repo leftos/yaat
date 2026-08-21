@@ -321,8 +321,8 @@
       "name": "Flight Plan",
       "rows": [
         { "verb": "APT", "aliases": ["dest"], "description": "Change destination (FAA or ICAO)" },
-        { "verb": "FP", "aliases": [], "description": "Create IFR FP (type alt route)" },
-        { "verb": "VP", "aliases": [], "description": "Create VFR FP (type alt route)" },
+        { "verb": "FP", "aliases": [], "description": "Create/amend IFR FP (type alt route)" },
+        { "verb": "VP", "aliases": [], "description": "Create/amend VFR FP (type alt route)" },
         { "verb": "DA", "aliases": [], "description": "Flight data / abbreviated FP" },
         { "verb": "REMARKS", "aliases": ["rem"], "description": "Set flight plan remarks" },
         { "verb": "CIFR", "aliases": [], "description": "Cancel IFR (convert to VFR)" }

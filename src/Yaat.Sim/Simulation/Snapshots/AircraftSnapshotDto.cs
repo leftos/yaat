@@ -44,6 +44,9 @@ public sealed class AircraftSnapshotDto
 
     public required bool IsOnGround { get; init; }
 
+    /// <summary>Latched once the aircraft has ever been observed airborne (pre-departure discriminator).</summary>
+    public bool HasBeenAirborne { get; init; }
+
     /// <summary>
     /// Cross-phase pilot-comms one-shot: set the first time the aircraft transmits anything
     /// in solo-training mode. Non-required so older snapshots (pre-M10.1.1) deserialize
