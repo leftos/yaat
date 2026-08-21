@@ -1,6 +1,12 @@
 # Changelog
 
-## Unreleased
+## v0.12.15-beta [2026/08/21]
+
+### Highlights
+- The full STARS F13 departure-release grammar works from the CRC keyboard — acknowledge, tower hold, send, recall, reorder, modify, and delete.
+- STARS handoff and pointout entries reach parity: redirect a received handoff, recall or accept with `HND OFF`, convert a pointout to a handoff with `**`, and force quicklook.
+- STARS consolidation (`F7 C`), global leader direction (`F7 L##`), voice-type (`F9`), and temporary-altitude clear entries now work from the CRC keyboard.
+- CRC's TAB list shows proposed departures and the VFR list shows pre-target VFR plans; flight-plan entries validate like the live network.
 
 ### Fixed
 - Clearing a STARS temporary altitude (`F7 M` with `Δ000`, or a bare/`0` `TA`) blanks the data block's altitude line instead of leaving `A000` forever.
