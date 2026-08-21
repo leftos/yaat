@@ -11,6 +11,9 @@
 - Unrecognized STARS `F7` sub-function entries show FORMAT instead of silently appearing to succeed.
 - STARS keyboard commands accept a tabular-list line number as the FLID (`TERM CNTL`, `HND OFF`, `CA K`, `F7 M`/`Y`), per the STARS FLID definition.
 - A STARS controller receiving a handoff can redirect it to another controller by entering the new handoff ID and slewing the track (implied or via `HND OFF`), instead of being rejected with ILL TRK.
+- `HND OFF` + slew recalls an outgoing handoff (or accepts an inbound one) instead of returning INVALID ENTRY.
+- TCP shorthand (single letter or subset digit) works on the `HND OFF` and pointout entry paths, matching the implied path.
+- A bare `C` + slew hands off to the host ARTCC when exactly one center position is open.
 
 ## v0.12.14-beta [2026/08/20]
 
