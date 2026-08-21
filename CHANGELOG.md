@@ -22,6 +22,8 @@
 - The STARS voice-type entry (`F9` + `V`/`R`/`T` + slew) sets the track's voice type instead of returning FORMAT.
 - Slewing an owned STARS track that squawks a different discrete code than assigned accepts the observed code as the assigned one, clearing the mismatch indication.
 - Slewing an owned STARS track with a flashing duplicate-beacon indication inhibits the flash (`DBINH` for RPOs).
+- An aircraft squawking standby shows a primary-only STARS track (no beacon readout, RDR altitude field) instead of keeping its full code and Mode-C altitude.
+- STARS data blocks no longer force the requested-altitude `R###` timeshare on every IFR track; CRC's own area configuration decides, as on the live network.
 
 ## v0.12.14-beta [2026/08/20]
 
