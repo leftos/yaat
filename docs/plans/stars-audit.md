@@ -275,26 +275,26 @@ Also: NEXRAD refresh pushes are keyed by `room.CreatorArtccId` while CRC subscri
 Issues filed per root-cause cluster (confirmed high+medium; lows ride along where the same fix covers them or stay in this report).
 
 **Tier 1 — whole-feature outages:**
-- [ ] **MultiFunc dispatcher** (A/B): re-key consolidation to `C{RECEIVING}{SENDING}[+]` + bare `C` (delete the unreachable `D+`/`D-` grammar, swap the operand order), add the `L##` global-leader branch honoring `InvertNumericKeypad` (Key 5), and return a FORMAT-style error for unrecognized MultiFunc bodies instead of silent success. → **#373**
-- [ ] **PRA wire unit** (H2): drop the spurious `/100` in both `ToStarsTrack` and `ToParkedDataBlock`; add a DTO-level test (the existing test asserts stored state only). → **#374**
-- [ ] **CA inhibit conflict deletion** (H3): capture the conflict ids *before* dispatch (or return the removed ids from `HandleInhibitConflictAlert`) and broadcast `DeleteStarsShortTermConflicts`; drop the `IsAcknowledged` filter. Optionally re-broadcast `IsAcknowledged` flips so other scopes silence (J). → **#375**
-- [ ] **`**` family + `ForcedPointoutsTo` lifecycle** (H4/C): implement pointout→handoff conversion and force-quicklook (own/list/ALL + keyboard form), give `ForcedPointoutsTo` a STARS-side write/clear path (today an ERAM field feeds the STARS DTO), and fix the capture order so `**` never lands in pointout/scratchpad arms. → **#376**
-- [ ] **F13 coordination grammar** (H5/G): parse Tables 34/35 — receiver ack, bare-Enter single-pending ack, `A*`/`M*` auto-ack, tower hold/`## `/text/send-held/recall/reorder/modify/delete — routing to the existing `CoordinationCommandHandler` verbs (all present, all CRC-unreachable today); make delete-existing actually delete. → **#377**
-- [ ] **Manual handoff redirect** (H6): recipient-entered handoff ID + slew on an inbound handoff redirects it (populate `HandoffRedirectedBy`); relax `RequireOwnership` for exactly that case. → **#378**
-- [ ] **FLID by tabular-list line number** (H7): add a line-number arm to `FindAircraft` (the assignments live in `room.LineNumbers`), for TC/HD/CA-K/M/Y keyboard forms. → **#379**
+- [x] **MultiFunc dispatcher** (A/B): re-key consolidation to `C{RECEIVING}{SENDING}[+]` + bare `C` (delete the unreachable `D+`/`D-` grammar, swap the operand order), add the `L##` global-leader branch honoring `InvertNumericKeypad` (Key 5), and return a FORMAT-style error for unrecognized MultiFunc bodies instead of silent success. → **#373**
+- [x] **PRA wire unit** (H2): drop the spurious `/100` in both `ToStarsTrack` and `ToParkedDataBlock`; add a DTO-level test (the existing test asserts stored state only). → **#374**
+- [x] **CA inhibit conflict deletion** (H3): capture the conflict ids *before* dispatch (or return the removed ids from `HandleInhibitConflictAlert`) and broadcast `DeleteStarsShortTermConflicts`; drop the `IsAcknowledged` filter. Optionally re-broadcast `IsAcknowledged` flips so other scopes silence (J). → **#375**
+- [x] **`**` family + `ForcedPointoutsTo` lifecycle** (H4/C): implement pointout→handoff conversion and force-quicklook (own/list/ALL + keyboard form), give `ForcedPointoutsTo` a STARS-side write/clear path (today an ERAM field feeds the STARS DTO), and fix the capture order so `**` never lands in pointout/scratchpad arms. → **#376**
+- [x] **F13 coordination grammar** (H5/G): parse Tables 34/35 — receiver ack, bare-Enter single-pending ack, `A*`/`M*` auto-ack, tower hold/`## `/text/send-held/recall/reorder/modify/delete — routing to the existing `CoordinationCommandHandler` verbs (all present, all CRC-unreachable today); make delete-existing actually delete. → **#377**
+- [x] **Manual handoff redirect** (H6): recipient-entered handoff ID + slew on an inbound handoff redirects it (populate `HandoffRedirectedBy`); relax `RequireOwnership` for exactly that case. → **#378**
+- [x] **FLID by tabular-list line number** (H7): add a line-number arm to `FindAircraft` (the assignments live in `room.LineNumbers`), for TC/HD/CA-K/M/Y keyboard forms. → **#379**
 
 **Tier 2 — secondary forms & display fidelity:**
-- [ ] **Handoff/pointout entry-path parity** (F): clicked-track empty-param Handoff → recall; `ExpandTcpShorthand` on the HND OFF and pointout paths; bare-`C` omitted-sector form. → **#380**
-- [ ] **Pointout lifecycle** (C/L): clear Rejected pointouts on owner slew; validate UN reject recipient; auto-ack pointouts to simulated positions (parity with handoff auto-accept). → **#381**
-- [ ] **STARS voice type** `<F9>(V|R|T)<SLEW>` → `FlightPlanVoice` (route exists only via ERAM QB / FP editor today). → **#382**
+- [x] **Handoff/pointout entry-path parity** (F): clicked-track empty-param Handoff → recall; `ExpandTcpShorthand` on the HND OFF and pointout paths; bare-`C` omitted-sector form. → **#380**
+- [x] **Pointout lifecycle** (C/L): clear Rejected pointouts on owner slew; validate UN reject recipient; auto-ack pointouts to simulated positions (parity with handoff auto-accept). → **#381**
+- [x] **STARS voice type** `<F9>(V|R|T)<SLEW>` → `FlightPlanVoice` (route exists only via ERAM QB / FP editor today). → **#382**
 - [ ] **Flight-plan semantics** (H): VP amend-on-existing; thread the click location through the explicit F6/F9 branches (no more (0,0) spawns); `.P` → OTP; produce `FlightPlanStatus.Proposed` pre-association so the TAB/VFR lists work. Lenient-accept lows ride along. → **#383**
-- [ ] **Bare-slew indication clears** (C): beacon-mismatch resolve; duplicate-beacon inhibit (both fields already published + change-tracked). → **#384**
-- [ ] **Temporary-altitude clear** (D): `TA 0` → null (both CRC `M Δ000` and RPO TA-clear). → **#385**
-- [ ] **Standby transponder STARS gating** (I): null beacon/Mode-C on standby, matching the ERAM/ASDE-X converters. → **#386**
-- [ ] **`DisplayRequestedAltitude` semantics** (I): stop forcing `R###` globally (constant false per the live-wire reference, or model the selective per-track intent). → **#387**
+- [x] **Bare-slew indication clears** (C): beacon-mismatch resolve; duplicate-beacon inhibit (both fields already published + change-tracked). → **#384**
+- [x] **Temporary-altitude clear** (D): `TA 0` → null (both CRC `M Δ000` and RPO TA-clear). → **#385**
+- [x] **Standby transponder STARS gating** (I): null beacon/Mode-C on standby, matching the ERAM/ASDE-X converters. → **#386**
+- [x] **`DisplayRequestedAltitude` semantics** (I): stop forcing `R###` globally (constant false per the live-wire reference, or model the selective per-track intent). → **#387**
 - [x] ~~**MSAW low-altitude (LA) alert** (C)~~ → **#388, closed as not planned**: real vNAS servers don't implement MSAW LA either (complexity + required data), so the missing alert matches actual vNAS/CRC behavior. Revisit only if the vNAS devs implement it upstream.
-- [ ] **Secondary-display deactivation drops owned tracks** (C4). → **#389**
-- [ ] **Implied aircraft-type amend** `(A/C TYPE)*<SLEW>` (C3, fix with the E capture-order work). → **#390**
+- [x] **Secondary-display deactivation drops owned tracks** (C4). → **#389**
+- [x] **Implied aircraft-type amend** `(A/C TYPE)*<SLEW>` (C3, fix with the E capture-order work). → **#390**
 
 **Tier 3 — lows (in-report only; re-verify before acting — all UNVERIFIED):**
 coast Phase2 + COAST/SUSPEND ladder; `IsQueriedUntil`-class re-send decay (generalize: any client-side time-decay needs a re-send or fingerprint term); fingerprint holes (VoiceType/FlightRules, TDM type/heavy/voice); conflict-ack re-broadcast; line-number release on deletion; coordination-list clear on unload; `StarsConfiguration` publisher (SSA SECTOR PLAN); `ForcedSpcs` LN; `(SPC)<SLEW>` manual force; PRA 001-009 shadow; PRA Mode-C precondition; IC/DA/VP lenient-accepts + non-STARS error vocabulary; readout echo on secondary positions; RP Form 1 coasting sources; UN third-party reject; STCA eligibility gate decision (C6); autotrack audit + beacon-assigner attribution (C7); hub-direct mutations bypassing `RecordAndDispatch` (`IsModeCInhibited`, `AssignCode`); CAACK cross-surface side effect.

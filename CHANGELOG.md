@@ -25,6 +25,7 @@
 - An aircraft squawking standby shows a primary-only STARS track (no beacon readout, RDR altitude field) instead of keeping its full code and Mode-C altitude.
 - STARS data blocks no longer force the requested-altitude `R###` timeshare on every IFR track; CRC's own area configuration decides, as on the live network.
 - Deactivating or closing a secondary STARS display drops the tracks that position owns (unless another controller works the same position in an active display).
+- The implied STARS aircraft-type amend works: `F16*` (asterisk-padded) or a bare known 4-character type + slew modifies the flight plan's type instead of misrouting into a pointout or scratchpad write.
 
 ## v0.12.14-beta [2026/08/20]
 
