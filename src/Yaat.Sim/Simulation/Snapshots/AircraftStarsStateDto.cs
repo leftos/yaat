@@ -36,5 +36,6 @@ public sealed class AircraftStarsStateDto
     public int? TpaType { get; init; }
     public double TpaSize { get; init; }
     public int? GlobalLeaderDirection { get; init; }
+    public List<TcpDto>? ForcedPointoutsTo { get; init; }
     public Dictionary<string, SharedStateDto>? SharedState { get; init; }
 }

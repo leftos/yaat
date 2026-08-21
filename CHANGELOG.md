@@ -14,6 +14,7 @@
 - `HND OFF` + slew recalls an outgoing handoff (or accepts an inbound one) instead of returning INVALID ENTRY.
 - TCP shorthand (single letter or subset digit) works on the `HND OFF` and pointout entry paths, matching the implied path.
 - A bare `C` + slew hands off to the host ARTCC when exactly one center position is open.
+- The STARS `**` family works: bare `**` converts an incoming pointout to an accepted handoff, and `**` / `**(TCP)` / `**ALL` (slew or keyboard) force quicklook — the forced TCP clears it by slewing the track. These entries previously misrouted into a pointout to `*` or a scratchpad write. RPOs get the same actions as `POHO`, `FQL`, and `FQLCLR`.
 
 ## v0.12.14-beta [2026/08/20]
 

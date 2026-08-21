@@ -549,6 +549,9 @@ preference: it applies to the commands *you* issue, and other controllers in the
 | Acknowledge | `OK` | — | — |
 | Reject pointout | `PORJ` | — | — |
 | Retract pointout | `PORT` | — | — |
+| Convert pointout to handoff | `POHO` | — | STARS `**` + slew |
+| Force quicklook | `FQL 1M 2B` | — | STARS `**(TCP)`; codes space-separated |
+| Clear forced quicklook | `FQLCLR 1M` | — | Forced TCP's slew acknowledge |
 | Ack conflict alert | `CAACK` | — | — |
 | Inhibit conflict alert | `CAINH` | `CAI` | — |
 | Contact next controller | `CT OAK_TWR` / `CT 121.9` / `CT 3O` / `CT` | `CONT` | — |
@@ -1339,6 +1342,9 @@ Changing your active position also updates the radar display:
 | `OK` | Acknowledge a pending pointout |
 | `PORJ` | Reject a pending inbound pointout |
 | `PORT` | Retract your outbound pending pointout |
+| `POHO` | Convert an incoming pointout to a handoff and accept it — ownership transfers to the pointout recipient (the STARS `**` + slew entry) |
+| `FQL 1M 2B` | Force quicklook at the listed TCPs — each sees a forced FDB until it slews to acknowledge (the STARS `**`/`**(TCP)`/`**ALL` entries) |
+| `FQLCLR 1M` | Clear TCP 1M's forced-quicklook entry (what a forced TCP's own slew does) |
 | `CAACK` | Acknowledge conflict alerts for this aircraft |
 | `CAINH` / `CAI` | Toggle conflict alert inhibit on/off |
 | `CT` | Tell pilot to contact the next controller — auto-resolves to the just-accepted handoff target |

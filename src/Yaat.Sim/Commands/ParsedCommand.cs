@@ -687,6 +687,12 @@ public record RejectPointoutCommand : ParsedCommand;
 
 public record RetractPointoutCommand : ParsedCommand;
 
+public record ConvertPointoutCommand : ParsedCommand;
+
+public record ForceQuicklookCommand(List<string> TcpCodes) : ParsedCommand;
+
+public record ForceQuicklookClearCommand(string TcpCode) : ParsedCommand;
+
 public record AcknowledgeConflictAlertCommand : ParsedCommand;
 
 public record InhibitConflictAlertCommand : ParsedCommand;

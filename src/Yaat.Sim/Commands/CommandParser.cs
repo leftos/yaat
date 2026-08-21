@@ -864,6 +864,15 @@ public static class CommandParser
             Acknowledge when arg is null => PR.Ok(new AcknowledgeCommand()),
             RejectPointout when arg is null => PR.Ok(new RejectPointoutCommand()),
             RetractPointout when arg is null => PR.Ok(new RetractPointoutCommand()),
+            ConvertPointout when arg is null => PR.Ok(new ConvertPointoutCommand()),
+            ForceQuicklook when arg is not null => PR.Ok(
+                new ForceQuicklookCommand([.. arg.Trim().ToUpperInvariant().Split(' ', StringSplitOptions.RemoveEmptyEntries)])
+            ),
+            ForceQuicklook => PR.Fail("FQL requires one or more TCP codes"),
+            ForceQuicklookClear when arg is not null && !arg.Trim().Contains(' ') => PR.Ok(
+                new ForceQuicklookClearCommand(arg.Trim().ToUpperInvariant())
+            ),
+            ForceQuicklookClear => PR.Fail("FQLCLR requires a single TCP code"),
             AcknowledgeConflictAlert when arg is null => PR.Ok(new AcknowledgeConflictAlertCommand()),
             InhibitConflictAlert when arg is null => PR.Ok(new InhibitConflictAlertCommand()),
             PilotReportedAltitude => ParseAltitudeHundreds(arg, h => new PilotReportedAltitudeCommand(h)),

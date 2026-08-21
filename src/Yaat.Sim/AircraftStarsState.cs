@@ -43,6 +43,15 @@ public class AircraftStarsState
     public int? TpaType { get; set; }
     public double TpaSize { get; set; }
     public int? GlobalLeaderDirection { get; set; }
+
+    /// <summary>
+    /// TCPs a controller has forced quicklook at (STARS <c>**</c> family, stars.md Table 21).
+    /// CRC forces the FDB and pointout coloring at each listed TCP
+    /// (<c>Track.IsForcedPointout = ForcedPointoutsTo.Contains(OurTcp)</c>); the forced TCP's own
+    /// bare slew removes its entry.
+    /// </summary>
+    public List<Tcp> ForcedPointoutsTo { get; set; } = [];
+
     public Dictionary<string, StarsTrackSharedState> SharedState { get; set; } = [];
 
     public AircraftStarsStateDto ToSnapshot() =>
@@ -82,6 +91,7 @@ public class AircraftStarsState
             TpaType = TpaType,
             TpaSize = TpaSize,
             GlobalLeaderDirection = GlobalLeaderDirection,
+            ForcedPointoutsTo = ForcedPointoutsTo.Count > 0 ? ForcedPointoutsTo.Select(t => t.ToSnapshot()).ToList() : null,
             SharedState = SharedState.Count > 0 ? SharedState.ToDictionary(kv => kv.Key, kv => kv.Value.ToSnapshot()) : null,
         };
 
@@ -122,6 +132,7 @@ public class AircraftStarsState
             TpaType = dto.TpaType,
             TpaSize = dto.TpaSize,
             GlobalLeaderDirection = dto.GlobalLeaderDirection,
+            ForcedPointoutsTo = dto.ForcedPointoutsTo is not null ? dto.ForcedPointoutsTo.Select(Tcp.FromSnapshot).ToList() : [],
             SharedState = dto.SharedState is not null
                 ? dto.SharedState.ToDictionary(kv => kv.Key, kv => StarsTrackSharedState.FromSnapshot(kv.Value))
                 : [],

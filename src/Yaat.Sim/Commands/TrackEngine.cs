@@ -40,6 +40,9 @@ public static class TrackEngine
                 or AcknowledgeCommand
                 or RejectPointoutCommand
                 or RetractPointoutCommand
+                or ConvertPointoutCommand
+                or ForceQuicklookCommand
+                or ForceQuicklookClearCommand
                 or AcknowledgeConflictAlertCommand
                 or InhibitConflictAlertCommand
                 or PilotReportedAltitudeCommand
@@ -647,6 +650,106 @@ public static class TrackEngine
     }
 
     /// <summary>
+    /// STARS <c>**</c> on a track with an incoming pointout: convert it to a handoff and accept
+    /// it — ownership transfers to the pointout recipient (stars.md Table 21). Mirrors
+    /// <see cref="HandleAccept"/>'s transfer semantics (previous-owner white FDB + accepted
+    /// indicator, ONHO trigger).
+    /// </summary>
+    public static CommandResult HandleConvertPointout(AircraftState ac, TrackOwner newOwner, SimScenarioState scenario)
+    {
+        if (ac.Track.Pointout is null || ac.Track.Pointout.IsRejected)
+        {
+            return new CommandResult(false, $"No pointout to convert for {ac.Callsign}");
+        }
+
+        var previousOwner = ac.Track.Owner;
+        ac.Track.Pointout = null;
+        ac.Track.Owner = newOwner;
+        ac.Track.HandoffPeer = null;
+        ac.Track.HandoffInitiatedAt = null;
+        ac.Track.HandoffRedirectedBy = null;
+        ac.Track.HandoffAccepted = true;
+        MarkPreviousOwnerRetained(ac, previousOwner, scenario);
+        MarkRecentHandoffAccepted(ac, previousOwner, wasForced: false, scenario);
+        return new CommandResult(true, $"Converted pointout to handoff; {ac.Callsign} now tracked by {FormatOwner(newOwner)}");
+    }
+
+    /// <summary>Resolves the pointout recipient to a TrackOwner, then converts (see above).</summary>
+    public static CommandResult ApplyConvertPointout(AircraftState ac, SimScenarioState scenario, ArtccConfigRoot? artccConfig = null)
+    {
+        if (ac.Track.Pointout is null || ac.Track.Pointout.IsRejected)
+        {
+            return new CommandResult(false, $"No pointout to convert for {ac.Callsign}");
+        }
+
+        var recipient = ac.Track.Pointout.Recipient;
+        var newOwner = TrackResolver.ResolveTcpToOwner(scenario, $"{recipient.Subset}{recipient.SectorId}", artccConfig);
+        if (newOwner is null)
+        {
+            return new CommandResult(false, $"Cannot resolve pointout recipient {recipient.Subset}{recipient.SectorId}");
+        }
+
+        return HandleConvertPointout(ac, newOwner, scenario);
+    }
+
+    /// <summary>STARS force quicklook (<c>**</c> family): adds the TCPs to <see cref="AircraftStarsState.ForcedPointoutsTo"/>.</summary>
+    public static CommandResult HandleForceQuicklook(AircraftState ac, List<Tcp> tcps)
+    {
+        foreach (var tcp in tcps)
+        {
+            if (!ac.Stars.ForcedPointoutsTo.Any(t => t.Id == tcp.Id))
+            {
+                ac.Stars.ForcedPointoutsTo.Add(tcp);
+            }
+        }
+
+        return new CommandResult(true, $"Forced quicklook at {string.Join(", ", tcps.Select(t => $"{t.Subset}{t.SectorId}"))}");
+    }
+
+    /// <summary>Resolves the TCP codes, then forces quicklook (see above).</summary>
+    public static CommandResult ApplyForceQuicklook(
+        AircraftState ac,
+        SimScenarioState scenario,
+        List<string> tcpCodes,
+        ArtccConfigRoot? artccConfig = null
+    )
+    {
+        var tcps = new List<Tcp>();
+        foreach (var code in tcpCodes)
+        {
+            var tcp = TrackResolver.FindTcpByCode(scenario, code, artccConfig);
+            if (tcp is null)
+            {
+                return new CommandResult(false, $"Unknown position: {code}");
+            }
+
+            tcps.Add(tcp);
+        }
+
+        return HandleForceQuicklook(ac, tcps);
+    }
+
+    /// <summary>Removes a TCP's forced-quicklook entry (the forced TCP's own slew acknowledge).</summary>
+    public static CommandResult HandleForceQuicklookClear(AircraftState ac, Tcp tcp)
+    {
+        return ac.Stars.ForcedPointoutsTo.RemoveAll(t => t.Id == tcp.Id) > 0
+            ? new CommandResult(true, $"Cleared forced quicklook at {tcp.Subset}{tcp.SectorId}")
+            : new CommandResult(false, $"No forced quicklook at {tcp.Subset}{tcp.SectorId} for {ac.Callsign}");
+    }
+
+    /// <summary>Resolves the TCP code, then clears its forced quicklook (see above).</summary>
+    public static CommandResult ApplyForceQuicklookClear(
+        AircraftState ac,
+        SimScenarioState scenario,
+        string tcpCode,
+        ArtccConfigRoot? artccConfig = null
+    )
+    {
+        var tcp = TrackResolver.FindTcpByCode(scenario, tcpCode, artccConfig);
+        return tcp is null ? new CommandResult(false, $"Unknown position: {tcpCode}") : HandleForceQuicklookClear(ac, tcp);
+    }
+
+    /// <summary>
     /// Top-level dispatch for any <see cref="ParsedCommand"/> classified as a track
     /// command (see <see cref="IsTrackCommand"/>). Routes to the appropriate
     /// <c>HandleX</c> / <c>ApplyX</c> with the resolved identity.
@@ -686,6 +789,9 @@ public static class TrackEngine
             AcknowledgeCommand => HandleAcknowledge(ac),
             RejectPointoutCommand => HandleRejectPointout(ac),
             RetractPointoutCommand => HandleRetractPointout(ac),
+            ConvertPointoutCommand => ApplyConvertPointout(ac, scenario, artccConfig),
+            ForceQuicklookCommand fql => ApplyForceQuicklook(ac, scenario, fql.TcpCodes, artccConfig),
+            ForceQuicklookClearCommand fqlc => ApplyForceQuicklookClear(ac, scenario, fqlc.TcpCode, artccConfig),
             PilotReportedAltitudeCommand pra => HandlePilotReportedAltitude(ac, pra.AltitudeHundreds),
             LeaderDirectionCommand ldr => HandleLeaderDirection(ac, ldr.Direction),
             JRingCommand jr => HandleJRing(ac, jr.Enable, jr.Size),
@@ -720,8 +826,14 @@ public static class TrackEngine
             DropTrackCommand or InitiateHandoffCommand or AcceptHandoffCommand or CancelHandoffCommand => false,
             // TRACK with a position argument names the owner explicitly, so it needs no active position.
             TrackAircraftCommand { TcpCode: not null } => false,
-            // Pointout responses act as the pointout's recipient (ack/reject) or sender (retract).
-            AcknowledgeCommand or RejectPointoutCommand or RetractPointoutCommand => false,
+            // Pointout responses act as the pointout's recipient (ack/reject/convert) or sender (retract);
+            // forced-quicklook commands name their TCPs explicitly.
+            AcknowledgeCommand
+            or RejectPointoutCommand
+            or RetractPointoutCommand
+            or ConvertPointoutCommand
+            or ForceQuicklookCommand
+            or ForceQuicklookClearCommand => false,
             // Pure state mutations that never needed identity.
             Scratchpad1Command
             or Scratchpad2Command

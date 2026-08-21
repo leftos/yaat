@@ -72,8 +72,6 @@ public class AircraftEramState
     /// <summary>Active ERAM pointouts.</summary>
     public List<EramPointoutState> Pointouts { get; set; } = [];
 
-    public List<Tcp> ForcedPointoutsTo { get; set; } = [];
-
     /// <summary>
     /// QH-frozen track (CRC ERAM QH display function, <c>docs/crc/eram.md</c> §Freezing a Track): the data
     /// block is parked at <see cref="FrozenLat"/>/<see cref="FrozenLon"/> and unpaired from the target. A
@@ -145,7 +143,6 @@ public class AircraftEramState
                         })
                         .ToList()
                     : null,
-            ForcedPointoutsTo = ForcedPointoutsTo.Count > 0 ? ForcedPointoutsTo.Select(t => t.ToSnapshot()).ToList() : null,
         };
 
     public static AircraftEramState FromSnapshot(AircraftEramStateDto dto) =>
@@ -186,6 +183,5 @@ public class AircraftEramState
                         IsDSideCleared = p.IsDSideCleared,
                     })
                     .ToList(),
-            ForcedPointoutsTo = dto.ForcedPointoutsTo is not null ? dto.ForcedPointoutsTo.Select(Tcp.FromSnapshot).ToList() : [],
         };
 }

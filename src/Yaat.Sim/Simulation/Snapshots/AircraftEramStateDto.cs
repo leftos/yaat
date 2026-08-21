@@ -25,7 +25,6 @@ public sealed class AircraftEramStateDto
     public string? CrrGroupLabel { get; init; }
 
     public List<EramPointoutStateDto>? Pointouts { get; init; }
-    public List<TcpDto>? ForcedPointoutsTo { get; init; }
 
     // QH-frozen track: parked at a fixed location, unpaired from the target, exempt from coast/auto-drop.
     public bool IsFrozen { get; init; }

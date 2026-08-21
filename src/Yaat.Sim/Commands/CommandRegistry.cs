@@ -1012,6 +1012,23 @@ public static class CommandRegistry
             Bare(Acknowledge, "Acknowledge", "Track Operations", false, ["OK"]),
             Bare(RejectPointout, "Reject Pointout", "Track Operations", false, ["PORJ"]),
             Bare(RetractPointout, "Retract Pointout", "Track Operations", false, ["PORT"]),
+            Bare(ConvertPointout, "Convert Pointout To Handoff", "Track Operations", false, ["POHO"]),
+            Cmd(
+                ForceQuicklook,
+                "Force Quicklook",
+                "Track Operations",
+                false,
+                ["FQL"],
+                [O(null, [R("tcps", "TCP code(s), space-separated")], "Force quicklook at TCP(s) (STARS **)")]
+            ),
+            Cmd(
+                ForceQuicklookClear,
+                "Clear Forced Quicklook",
+                "Track Operations",
+                false,
+                ["FQLCLR"],
+                [O(null, [R("tcp", "TCP code")], "Clear a forced quicklook (STARS slew acknowledge)")]
+            ),
             Bare(AcknowledgeConflictAlert, "Acknowledge Conflict Alert", "Track Operations", false, ["CAACK"]),
             Bare(InhibitConflictAlert, "Inhibit Conflict Alert", "Track Operations", false, ["CAINH", "CAI"]),
             Cmd(
