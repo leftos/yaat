@@ -6,6 +6,9 @@
 - Clearing a STARS temporary altitude (`F7 M` with `Δ000`, or a bare/`0` `TA`) blanks the data block's altitude line instead of leaving `A000` forever.
 - STARS pilot-reported altitude (`F7 Y`) shows the entered value in the data block instead of `000*`.
 - Inhibiting conflict alerts on a STARS track (`CA` + slew, or `CA K <FLID>`) removes the active CA from CRC scopes instead of leaving the other aircraft's data block flashing.
+- STARS consolidation from the CRC keyboard works: `F7 C(RECEIVING)(SENDING)` (basic), with `+` (full), and bare `F7 C` (release) — these entries previously did nothing, silently.
+- The STARS global leader-direction entry (`F7 L##` + slew) sets the track's leader line for all positions, honoring CRC's Invert Numeric Keypad setting.
+- Unrecognized STARS `F7` sub-function entries show FORMAT instead of silently appearing to succeed.
 
 ## v0.12.14-beta [2026/08/20]
 
