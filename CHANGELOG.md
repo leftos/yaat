@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+- Clearing a STARS temporary altitude (`F7 M` with `Δ000`, or a bare/`0` `TA`) blanks the data block's altitude line instead of leaving `A000` forever.
+
 ## v0.12.14-beta [2026/08/20]
 
 ### Highlights

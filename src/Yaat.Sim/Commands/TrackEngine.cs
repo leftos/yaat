@@ -458,8 +458,10 @@ public static class TrackEngine
 
     public static CommandResult HandleTemporaryAltitude(AircraftState ac, int altHundreds)
     {
-        ac.Stars.TemporaryAltitude = altHundreds;
-        return new CommandResult(true, $"Temp alt: {altHundreds * 100}");
+        // 0 is the clear sentinel (CRC "M Δ000", RPO bare/0 TA): CRC blanks the FDB
+        // altitude line only when the wire value is null, so a stored 0 renders "A000".
+        ac.Stars.TemporaryAltitude = altHundreds == 0 ? null : altHundreds;
+        return new CommandResult(true, altHundreds == 0 ? "Temp alt cleared" : $"Temp alt: {altHundreds * 100}");
     }
 
     public static CommandResult HandleCruise(AircraftState ac, int altHundreds)
