@@ -297,7 +297,7 @@ public static class TrackEngine
         shared.IsRecentlyAcceptedIncomingPointout = true;
     }
 
-    public static CommandResult HandlePointOut(AircraftState ac, Tcp targetTcp, Tcp senderTcp)
+    public static CommandResult HandlePointOut(AircraftState ac, Tcp targetTcp, Tcp senderTcp, double elapsedSeconds)
     {
         if (ac.Track.Owner is null)
         {
@@ -309,20 +309,20 @@ public static class TrackEngine
             return new CommandResult(false, $"Pointout already pending for {ac.Callsign}");
         }
 
-        ac.Track.Pointout = new StarsPointout(targetTcp, senderTcp);
+        ac.Track.Pointout = new StarsPointout(targetTcp, senderTcp) { InitiatedAt = elapsedSeconds };
         return new CommandResult(true, $"Point out {ac.Callsign} to {targetTcp}");
     }
 
     public static CommandResult HandlePointOutNoArgs(AircraftState ac, TrackOwner identity)
     {
-        if (ac.Track.Pointout is not { IsPending: true })
+        if (ac.Track.Pointout is null || ac.Track.Pointout.IsAccepted)
         {
             return new CommandResult(false, $"No pending pointout for {ac.Callsign}");
         }
 
         var tcpStr = $"{identity.Subset}{identity.SectorId}";
 
-        if (ac.Track.Pointout.Recipient.ToString() == tcpStr)
+        if (ac.Track.Pointout.IsPending && ac.Track.Pointout.Recipient.ToString() == tcpStr)
         {
             AcceptIncomingPointout(ac);
             return new CommandResult(true, $"Acknowledged {ac.Callsign}");
@@ -501,7 +501,9 @@ public static class TrackEngine
 
     public static CommandResult HandleRetractPointout(AircraftState ac)
     {
-        if (ac.Track.Pointout is not { IsPending: true })
+        // Pending: the sender retracts. Rejected: the sender dismisses the flashing UN indication —
+        // CRC forwards the sender's slew for both states expecting the pointout to clear.
+        if (ac.Track.Pointout is null || ac.Track.Pointout.IsAccepted)
         {
             return new CommandResult(false, $"No pending pointout for {ac.Callsign}");
         }
@@ -649,7 +651,7 @@ public static class TrackEngine
             return new CommandResult(false, "Cannot determine sender TCP");
         }
 
-        return HandlePointOut(ac, targetTcp, senderTcp);
+        return HandlePointOut(ac, targetTcp, senderTcp, scenario.ElapsedSeconds);
     }
 
     /// <summary>

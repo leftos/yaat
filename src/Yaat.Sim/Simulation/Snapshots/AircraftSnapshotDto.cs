@@ -180,6 +180,7 @@ public sealed class PointoutDto
     public required TcpDto Recipient { get; init; }
     public required TcpDto Sender { get; init; }
     public required int Status { get; init; }
+    public double? InitiatedAt { get; init; }
 }
 
 public sealed class EramPointoutStateDto

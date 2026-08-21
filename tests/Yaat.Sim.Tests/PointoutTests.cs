@@ -97,7 +97,7 @@ public class PointoutTests
         var originalPo = MakePendingPointout(2, "N", 1, "D");
         ac.Track.Pointout = originalPo;
 
-        var result = TrackEngine.HandlePointOut(ac, MakeTcp(3, "B"), MakeTcp(1, "D"));
+        var result = TrackEngine.HandlePointOut(ac, MakeTcp(3, "B"), MakeTcp(1, "D"), elapsedSeconds: 0);
 
         Assert.False(result.Success);
         Assert.Same(originalPo, ac.Track.Pointout);
@@ -116,7 +116,7 @@ public class PointoutTests
 
         var newTarget = MakeTcp(3, "B");
         var senderTcp = MakeTcp(1, "D");
-        var result = TrackEngine.HandlePointOut(ac, newTarget, senderTcp);
+        var result = TrackEngine.HandlePointOut(ac, newTarget, senderTcp, elapsedSeconds: 0);
 
         Assert.True(result.Success);
         Assert.Equal("3B", ac.Track.Pointout!.Recipient.ToString());
@@ -134,7 +134,7 @@ public class PointoutTests
 
         var newTarget = MakeTcp(3, "B");
         var senderTcp = MakeTcp(1, "D");
-        var result = TrackEngine.HandlePointOut(ac, newTarget, senderTcp);
+        var result = TrackEngine.HandlePointOut(ac, newTarget, senderTcp, elapsedSeconds: 0);
 
         Assert.True(result.Success);
         Assert.Equal("3B", ac.Track.Pointout!.Recipient.ToString());
