@@ -9,6 +9,7 @@
 - STARS consolidation from the CRC keyboard works: `F7 C(RECEIVING)(SENDING)` (basic), with `+` (full), and bare `F7 C` (release) — these entries previously did nothing, silently.
 - The STARS global leader-direction entry (`F7 L##` + slew) sets the track's leader line for all positions, honoring CRC's Invert Numeric Keypad setting.
 - Unrecognized STARS `F7` sub-function entries show FORMAT instead of silently appearing to succeed.
+- STARS keyboard commands accept a tabular-list line number as the FLID (`TERM CNTL`, `HND OFF`, `CA K`, `F7 M`/`Y`), per the STARS FLID definition.
 
 ## v0.12.14-beta [2026/08/20]
 
