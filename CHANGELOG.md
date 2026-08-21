@@ -19,6 +19,7 @@
 - A rejected (`UN`'d) pointout clears when the sender slews the track, instead of flashing UN forever.
 - Only the pointout's recipient can reject it with `UN` + slew; third-party positions get ILL TRK.
 - Pointouts to simulated (unattended) positions auto-acknowledge after the auto-accept delay, matching handoff behavior — they no longer flash at the sender indefinitely in solo training.
+- The STARS voice-type entry (`F9` + `V`/`R`/`T` + slew) sets the track's voice type instead of returning FORMAT.
 
 ## v0.12.14-beta [2026/08/20]
 
