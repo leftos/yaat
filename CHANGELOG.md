@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+### Added
+- Clicking any YAAT window brings all YAAT windows to the front, like CRC — toggleable under Settings → General → Windows (on by default).
+
 ## v0.12.15-beta [2026/08/21]
 
 ### Highlights

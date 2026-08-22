@@ -348,6 +348,9 @@ public sealed class UserPreferences
     public string TakeControlKey => _data.TakeControlKey;
     public string AlwaysOnTopKey => _data.AlwaysOnTopKey;
     public string QuickBookmarkKey => _data.QuickBookmarkKey;
+
+    /// <summary>When true, activating any YAAT window raises all YAAT windows above other apps (CRC-style group raise).</summary>
+    public bool RaiseWindowsTogether => _data.RaiseWindowsTogether;
     public bool SpeechEnabled => _data.SpeechEnabled;
     public string WhisperModelSize => _data.WhisperModelSize;
     public string LlmModelPath => _data.LlmModelPath;
@@ -910,6 +913,17 @@ public sealed class UserPreferences
         }
 
         _data.SpeechEnabled = enabled;
+        Save();
+    }
+
+    public void SetRaiseWindowsTogether(bool enabled)
+    {
+        if (_data.RaiseWindowsTogether == enabled)
+        {
+            return;
+        }
+
+        _data.RaiseWindowsTogether = enabled;
         Save();
     }
 
@@ -1652,6 +1666,7 @@ public sealed class UserPreferences
             TakeControlKey = GetFieldOr(obj, "takeControlKey", "Ctrl+T"),
             AlwaysOnTopKey = GetFieldOr(obj, "alwaysOnTopKey", "Ctrl+Shift+T"),
             QuickBookmarkKey = GetFieldOr(obj, "quickBookmarkKey", "Ctrl+B"),
+            RaiseWindowsTogether = GetFieldOr(obj, "raiseWindowsTogether", true),
             HiddenTerminalKinds = GetFieldOr<List<string>>(obj, "hiddenTerminalKinds", []),
             GroundShowRunwayLabels = GetFieldOr(obj, "groundShowRunwayLabels", true),
             GroundShowTaxiwayLabels = GetFieldOr(obj, "groundShowTaxiwayLabels", true),
@@ -1955,6 +1970,7 @@ public sealed class UserPreferences
         public string TakeControlKey { get; set; } = "Ctrl+T";
         public string AlwaysOnTopKey { get; set; } = "Ctrl+Shift+T";
         public string QuickBookmarkKey { get; set; } = "Ctrl+B";
+        public bool RaiseWindowsTogether { get; set; } = true;
         public List<string> HiddenTerminalKinds { get; set; } = [];
         public bool GroundShowRunwayLabels { get; set; } = true;
         public bool GroundShowTaxiwayLabels { get; set; } = true;

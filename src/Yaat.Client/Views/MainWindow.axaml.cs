@@ -2059,38 +2059,48 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
             vm.RefreshDisplayFavorites();
         }
 
-        // Flip the pop-out toggles. The OnIs*PoppedOutChanged handlers on
-        // MainViewModel + OnViewModelPropertyChanged here will create or
-        // destroy the corresponding pop-out windows. New windows read the
-        // freshly-staged geometry preferences on construction.
-        vm.IsTerminalPoppedOut = profile.IsTerminalPoppedOut;
-        vm.IsDataGridPoppedOut = profile.IsDataGridPoppedOut;
-        vm.IsGroundViewPoppedOut = profile.IsGroundViewPoppedOut;
-        vm.IsRadarViewPoppedOut = profile.IsRadarViewPoppedOut;
-        vm.IsControllersPoppedOut = profile.IsControllersPoppedOut;
-        vm.IsMetarPoppedOut = profile.IsMetarPoppedOut;
-
-        // Defer geometry push and grid-layout apply so any windows that were
-        // just opened by the toggle flips above have actually entered the
-        // ActiveHelpers registry. Without the Post, the helpers list still
-        // reflects pre-flip state.
-        await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() =>
+        // Profile apply activates windows in a deliberate order — a concurrent
+        // group-raise (triggered by any of these activations) would scramble it.
+        WindowGroupRaiser.IsSuspended = true;
+        try
         {
-            foreach (var helper in WindowGeometryHelper.GetActiveHelpers())
+            // Flip the pop-out toggles. The OnIs*PoppedOutChanged handlers on
+            // MainViewModel + OnViewModelPropertyChanged here will create or
+            // destroy the corresponding pop-out windows. New windows read the
+            // freshly-staged geometry preferences on construction.
+            vm.IsTerminalPoppedOut = profile.IsTerminalPoppedOut;
+            vm.IsDataGridPoppedOut = profile.IsDataGridPoppedOut;
+            vm.IsGroundViewPoppedOut = profile.IsGroundViewPoppedOut;
+            vm.IsRadarViewPoppedOut = profile.IsRadarViewPoppedOut;
+            vm.IsControllersPoppedOut = profile.IsControllersPoppedOut;
+            vm.IsMetarPoppedOut = profile.IsMetarPoppedOut;
+
+            // Defer geometry push and grid-layout apply so any windows that were
+            // just opened by the toggle flips above have actually entered the
+            // ActiveHelpers registry. Without the Post, the helpers list still
+            // reflects pre-flip state.
+            await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() =>
             {
-                if (profile.WindowGeometries.TryGetValue(helper.WindowName, out var geo))
+                foreach (var helper in WindowGeometryHelper.GetActiveHelpers())
                 {
-                    helper.ApplyGeometry(geo);
+                    if (profile.WindowGeometries.TryGetValue(helper.WindowName, out var geo))
+                    {
+                        helper.ApplyGeometry(geo);
+                    }
                 }
-            }
 
-            if (profile.DataGridLayout is not null)
-            {
-                ApplyGridLayoutToLiveGrids(vm);
-            }
+                if (profile.DataGridLayout is not null)
+                {
+                    ApplyGridLayoutToLiveGrids(vm);
+                }
 
-            ReclaimFocusAfterProfileApply();
-        });
+                ReclaimFocusAfterProfileApply();
+            });
+        }
+        finally
+        {
+            WindowGroupRaiser.IsSuspended = false;
+        }
 
         vm.StatusText = $"Applied window profile \"{name}\"{missingSetsNote}";
     }
@@ -2271,31 +2281,41 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
 
         _windowProfileService.StagePreferencesPartial(profile, geometryKeys, includeGrid);
 
-        if (includePopouts)
+        // Same suspension rationale as ApplyWindowProfileByNameAsync: the toggle
+        // flips and the final focus reclaim all activate windows.
+        WindowGroupRaiser.IsSuspended = true;
+        try
         {
-            vm.IsTerminalPoppedOut = profile.IsTerminalPoppedOut;
-            vm.IsDataGridPoppedOut = profile.IsDataGridPoppedOut;
-            vm.IsGroundViewPoppedOut = profile.IsGroundViewPoppedOut;
-            vm.IsRadarViewPoppedOut = profile.IsRadarViewPoppedOut;
-        }
-
-        await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() =>
-        {
-            foreach (var helper in WindowGeometryHelper.GetActiveHelpers())
+            if (includePopouts)
             {
-                if (geometryKeys.Contains(helper.WindowName) && profile.WindowGeometries.TryGetValue(helper.WindowName, out var geo))
+                vm.IsTerminalPoppedOut = profile.IsTerminalPoppedOut;
+                vm.IsDataGridPoppedOut = profile.IsDataGridPoppedOut;
+                vm.IsGroundViewPoppedOut = profile.IsGroundViewPoppedOut;
+                vm.IsRadarViewPoppedOut = profile.IsRadarViewPoppedOut;
+            }
+
+            await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() =>
+            {
+                foreach (var helper in WindowGeometryHelper.GetActiveHelpers())
                 {
-                    helper.ApplyGeometry(geo);
+                    if (geometryKeys.Contains(helper.WindowName) && profile.WindowGeometries.TryGetValue(helper.WindowName, out var geo))
+                    {
+                        helper.ApplyGeometry(geo);
+                    }
                 }
-            }
 
-            if (includeGrid && profile.DataGridLayout is not null)
-            {
-                ApplyGridLayoutToLiveGrids(vm);
-            }
+                if (includeGrid && profile.DataGridLayout is not null)
+                {
+                    ApplyGridLayoutToLiveGrids(vm);
+                }
 
-            ReclaimFocusAfterProfileApply();
-        });
+                ReclaimFocusAfterProfileApply();
+            });
+        }
+        finally
+        {
+            WindowGroupRaiser.IsSuspended = false;
+        }
 
         vm.StatusText = $"Copied layout from profile \"{profile.Name}\"";
     }

@@ -524,6 +524,8 @@
                         <TextBlock Text="Windows"
                                    FontWeight="SemiBold" />
                         <StackPanel Spacing="4">
+                            <CheckBox Content="Bring all windows to front together" IsChecked="{Binding RaiseWindowsTogether}" />
+                            <TextBlock Text="Clicking any YAAT window raises all YAAT windows above other apps, like CRC. Minimized windows stay minimized." TextWrapping="Wrap" Foreground="{DynamicResource SubtleTextBrush}" FontSize="11" Margin="0,0,0,8" />
                             <TextBlock Text="Always on Top" FontWeight="SemiBold" Margin="0,0,0,2" />
                             <TextBlock Text="Pin pop-out windows above all other windows. You can also toggle this with the Always on Top keybind while a window is focused." TextWrapping="Wrap" Foreground="{DynamicResource SubtleTextBrush}" FontSize="11" Margin="0,0,0,4" />
                             <WrapPanel Orientation="Horizontal" Margin="12,0,0,0">

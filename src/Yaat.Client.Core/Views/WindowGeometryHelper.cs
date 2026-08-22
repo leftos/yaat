@@ -101,6 +101,7 @@ public sealed class WindowGeometryHelper
         _preferences.WindowTopmostChanged += OnPreferencesWindowTopmostChanged;
         _systemMenuHelper.Attach();
         _nativeMenuHelper.Attach();
+        WindowGroupRaiser.Attach(_window, _preferences);
 
         Register();
     }
@@ -384,6 +385,13 @@ public sealed class WindowGeometryHelper
     {
         if (e.Property == Window.TopmostProperty)
         {
+            // A group-raise pulses Topmost true→false without changing the
+            // window's real pinned state — reacting would flash the 📌 title
+            // prefix and schedule a pointless save.
+            if (WindowGroupRaiser.IsRaising)
+            {
+                return;
+            }
             ApplyTitle();
             ScheduleAutoSave();
         }

@@ -1790,6 +1790,8 @@ These are your **default** preferences, applied when *you* load a scenario. To c
 | **Instructor TPA cone half-angle (°)** | Width of the instructor J-Ring/Cone overlay's cone (1–30°); raise it to make the wedge easier to read. Never shown on the student's CRC. | 2° |
 | **Scroll / zoom sensitivity** | Scales mouse-wheel / trackpad scroll speed when zooming the Radar and Ground views and stepping the STARS DCB spinners (10–100%). Lower it to tame a too-fast Mac trackpad. | 100% |
 
+**Windows — Bring all windows to front together**: clicking any YAAT window raises all YAAT windows above other apps, like CRC — no more clicking each window individually after Discord or a browser covered them. Minimized windows stay minimized, and the window you clicked keeps focus. **On** by default.
+
 **Windows — Always on Top**: pin pop-out windows above all others (also toggleable with the [Always on Top keybind](#advanced) while a window is focused). Individual toggles for **Main Window, Ground View, Radar View, Aircraft List, Terminal, Flight Strips,** and **Favorites** — all **Off** by default.
 
 #### Colors

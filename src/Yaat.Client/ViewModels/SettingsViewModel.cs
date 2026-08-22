@@ -252,6 +252,9 @@ public partial class SettingsViewModel : ObservableObject
     private string _quickBookmarkKeyDisplay = "Ctrl + B";
 
     [ObservableProperty]
+    private bool _raiseWindowsTogether;
+
+    [ObservableProperty]
     private bool _mainWindowTopmost;
 
     [ObservableProperty]
@@ -703,6 +706,7 @@ public partial class SettingsViewModel : ObservableObject
         _pttKeyDisplay = KeyComboToDisplay(_pttKeyName);
         _audioInputDevice = _preferences.AudioInputDevice;
         _audioOutputDevice = _preferences.AudioOutputDevice;
+        _raiseWindowsTogether = _preferences.RaiseWindowsTogether;
         _mainWindowTopmost = _preferences.MainWindowGeometry?.IsTopmost ?? false;
         _groundViewTopmost = _preferences.GroundViewWindowGeometry?.IsTopmost ?? false;
         _radarViewTopmost = _preferences.RadarViewWindowGeometry?.IsTopmost ?? false;
@@ -865,6 +869,7 @@ public partial class SettingsViewModel : ObservableObject
         _preferences.SetSpeechSettings(SpeechEnabled, WhisperModelSize, LlmModelPath, LlmGpuLayers, _pttKeyName, AutoFocusInputAfterSpeech);
         _preferences.SetSpeechSampleSettings(SpeechSampleCaptureEnabled, SpeechSampleCacheMaxMb);
         _preferences.SetAudioSettings(AudioInputDevice, AudioOutputDevice);
+        _preferences.SetRaiseWindowsTogether(RaiseWindowsTogether);
         _preferences.SetWindowTopmost("Main", MainWindowTopmost);
         _preferences.SetWindowTopmost("GroundView", GroundViewTopmost);
         _preferences.SetWindowTopmost("RadarView", RadarViewTopmost);
