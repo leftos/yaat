@@ -52,34 +52,41 @@ from __future__ import annotations
 import argparse
 import io
 import json
-import os
 import re
 import shutil
 import subprocess
 import sys
 import urllib.request
 import zipfile
+from collections.abc import Iterator
 from pathlib import Path
-from typing import Any, Iterator
+from typing import Any, Self
 
 try:
-    import brotli  # type: ignore[import-not-found]
+    import brotli  # type: ignore  # optional dependency; every reader path goes through _require_brotli
 except ImportError:
     brotli = None
+
+# Everything a bundle read can raise: zip/IO failures, malformed JSON or UTF-8,
+# a missing archive entry, and a corrupt Brotli stream.
+_BUNDLE_READ_ERRORS: tuple[type[Exception], ...] = (OSError, ValueError, KeyError, zipfile.BadZipFile)
+if brotli is not None:
+    _BUNDLE_READ_ERRORS += (brotli.error,)
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 TESTDATA_DIR = REPO_ROOT / "tests" / "Yaat.Sim.Tests" / "TestData"
 DEFAULT_TMP = REPO_ROOT / ".tmp"
 
 
-def _require_brotli() -> None:
+def _require_brotli() -> Any:
+    """Return the brotli module, exiting with a hint when it isn't installed."""
     if brotli is None:
         print(
-            "error: this action needs the 'brotli' package.\n"
-            "       install with: pip install brotli",
+            "error: this action needs the 'brotli' package.\n       install with: pip install brotli",
             file=sys.stderr,
         )
         sys.exit(2)
+    return brotli
 
 
 # ---------------------------------------------------------------------------
@@ -112,10 +119,7 @@ class BundleReader:
                 None,
             )
             if nested is None:
-                raise ValueError(
-                    f"Not a recognized v4 bundle: {path}\n"
-                    f"Top-level entries: {sorted(outer_names)[:10]}"
-                )
+                raise ValueError(f"Not a recognized v4 bundle: {path}\nTop-level entries: {sorted(outer_names)[:10]}")
             self._inner_buf = io.BytesIO(self._outer.read(nested))
             self._inner = zipfile.ZipFile(self._inner_buf)
             self._archive = self._inner
@@ -130,7 +134,7 @@ class BundleReader:
             self._inner_buf.close()
         self._outer.close()
 
-    def __enter__(self) -> BundleReader:
+    def __enter__(self) -> Self:
         return self
 
     def __exit__(self, *_: object) -> None:
@@ -156,9 +160,9 @@ class BundleReader:
         return src.read(name)
 
     def read_brotli_text(self, name: str) -> str:
-        _require_brotli()
+        decompress = _require_brotli().decompress
         compressed = self._archive.read(name)
-        return brotli.decompress(compressed).decode("utf-8")  # type: ignore[union-attr]
+        return decompress(compressed).decode("utf-8")
 
     def find_nearest_snapshot_index(self, target_seconds: float) -> int | None:
         """Largest index where Snapshots[i].ElapsedSeconds <= target_seconds, or None.
@@ -277,7 +281,7 @@ def cmd_info(args: argparse.Namespace) -> int:
         airport_geojsons = m.get("AirportGeoJsonIds") or []
         try:
             callsigns = _aircraft_callsigns_at_t0(reader)
-        except Exception as e:  # brotli missing or decompression error
+        except _BUNDLE_READ_ERRORS as e:
             callsigns = []
             callsign_err = str(e)
         else:
@@ -315,10 +319,7 @@ def cmd_info(args: argparse.Namespace) -> int:
         lines.append(f"  HasWeather:          {m.get('HasWeather')}")
         lines.append(f"  HasArtccConfig:      {m.get('HasArtccConfig', False)}")
         lines.append(f"  Layouts ({len(layouts)}):         {', '.join(layouts) if layouts else '(none)'}")
-        lines.append(
-            f"  Airport GeoJSON ({len(airport_geojsons)}): "
-            f"{', '.join(airport_geojsons) if airport_geojsons else '(none)'}"
-        )
+        lines.append(f"  Airport GeoJSON ({len(airport_geojsons)}): {', '.join(airport_geojsons) if airport_geojsons else '(none)'}")
         lines.append(f"  Logs ({len(logs)}):            {', '.join(logs) if logs else '(none)'}")
         if callsign_err:
             lines.append(f"  Aircraft at t=0:     <error: {callsign_err}>")
@@ -338,8 +339,7 @@ def cmd_snapshot(args: argparse.Namespace) -> int:
         idx = reader.find_nearest_snapshot_index(args.at)
         if idx is None:
             print(
-                f"error: no snapshot at or before t={args.at}s "
-                f"(bundle has {len(reader.manifest.get('Snapshots') or [])} snapshots)",
+                f"error: no snapshot at or before t={args.at}s (bundle has {len(reader.manifest.get('Snapshots') or [])} snapshots)",
                 file=sys.stderr,
             )
             return 1
@@ -349,10 +349,7 @@ def cmd_snapshot(args: argparse.Namespace) -> int:
 
         if args.callsign:
             want = args.callsign.upper()
-            matches = [
-                ac for ac in (snap.get("Aircraft") or [])
-                if (ac.get("Callsign") or "").upper() == want
-            ]
+            matches = [ac for ac in (snap.get("Aircraft") or []) if (ac.get("Callsign") or "").upper() == want]
             if not matches:
                 available = sorted({ac.get("Callsign") for ac in (snap.get("Aircraft") or []) if ac.get("Callsign")})
                 print(
@@ -377,8 +374,7 @@ def cmd_snapshot(args: argparse.Namespace) -> int:
             }
 
         print(
-            f"snapshot[{idx}] at t={actual_t}s (requested --at {args.at}s), "
-            f"action_index={entry['ActionIndex']}",
+            f"snapshot[{idx}] at t={actual_t}s (requested --at {args.at}s), action_index={entry['ActionIndex']}",
             file=sys.stderr,
         )
         write_output(json.dumps(payload, indent=2), args.out)
@@ -482,7 +478,7 @@ def _off_nose(ac: dict[str, Any]) -> float | None:
     lat, lon = pos.get("Lat"), pos.get("Lon")
     flat, flon = fp.get("Lat"), fp.get("Lon")
     th = ac.get("TrueHeadingDeg")
-    if None in (lat, lon, flat, flon, th):
+    if lat is None or lon is None or flat is None or flon is None or th is None:
         return None
     return _norm180(_bearing_deg(lat, lon, flat, flon) - th)
 
@@ -523,9 +519,27 @@ _TRACK_PRESETS: dict[str, list[str]] = {
     "pos": ["phase", "lat", "lon", "hdg", "trk"],
     "proc": ["phase", "sid", "star", "deprwy", "nextfix"],
     "full": [
-        "phase", "alt", "vs", "ias", "hdg", "mhdg", "trk", "bank", "thdg", "ahdg",
-        "turn", "tgt_spd", "aspd", "aalt", "talt", "nextfix", "offnose",
-        "sid", "star", "deprwy", "following",
+        "phase",
+        "alt",
+        "vs",
+        "ias",
+        "hdg",
+        "mhdg",
+        "trk",
+        "bank",
+        "thdg",
+        "ahdg",
+        "turn",
+        "tgt_spd",
+        "aspd",
+        "aalt",
+        "talt",
+        "nextfix",
+        "offnose",
+        "sid",
+        "star",
+        "deprwy",
+        "following",
     ],
 }
 _TRACK_PRESETS["all"] = _TRACK_PRESETS["full"]
@@ -546,10 +560,7 @@ def _resolve_track_fields(spec: str) -> list[str]:
             if tok not in keys:
                 keys.append(tok)
         else:
-            raise ValueError(
-                f"unknown track field or preset '{tok}'. "
-                f"presets: {', '.join(_TRACK_PRESETS)}; fields: {', '.join(_TRACK_FIELDS)}"
-            )
+            raise ValueError(f"unknown track field or preset '{tok}'. presets: {', '.join(_TRACK_PRESETS)}; fields: {', '.join(_TRACK_FIELDS)}")
     return keys or list(_TRACK_PRESETS["default"])
 
 
@@ -609,10 +620,7 @@ def cmd_track(args: argparse.Namespace) -> int:
             if args.end is not None and t > args.end:
                 break
             snap = reader.read_snapshot(i)
-            by_cs = {
-                (ac.get("Callsign") or "").upper(): ac
-                for ac in (snap.get("Aircraft") or [])
-            }
+            by_cs = {(ac.get("Callsign") or "").upper(): ac for ac in (snap.get("Aircraft") or [])}
             present = {cs: by_cs.get(cs) for cs in callsigns}
 
             row: dict[str, Any] = {"t": t, "index": i}
@@ -890,10 +898,14 @@ def _diff_aircraft(
     curr_tgt = curr.get("Targets") or {}
     tgt_changes = _diff_dict_keys(prev_tgt, curr_tgt, _TGT_KEYS)
     if tgt_changes:
-        yield ("TGT", ", ".join(tgt_changes), {
-            "prev": {k: prev_tgt.get(k) for k, _ in _TGT_KEYS},
-            "curr": {k: curr_tgt.get(k) for k, _ in _TGT_KEYS},
-        })
+        yield (
+            "TGT",
+            ", ".join(tgt_changes),
+            {
+                "prev": {k: prev_tgt.get(k) for k, _ in _TGT_KEYS},
+                "curr": {k: curr_tgt.get(k) for k, _ in _TGT_KEYS},
+            },
+        )
 
     # Approach diff
     prev_appr = prev.get("Approach") or {}
@@ -962,7 +974,7 @@ def _enumerate_callsigns(reader: BundleReader) -> list[str]:
     seen: set[str] = set()
     for i in range(len(snaps_meta)):
         snap = reader.read_snapshot(i)
-        for ac in (snap.get("Aircraft") or []):
+        for ac in snap.get("Aircraft") or []:
             cs = ac.get("Callsign")
             if cs:
                 seen.add(cs)
@@ -1066,16 +1078,14 @@ def cmd_phases(args: argparse.Namespace) -> int:
         if not seen_callsign:
             available = _enumerate_callsigns(reader)
             print(
-                f"error: callsign '{args.callsign}' not in any snapshot.\n"
-                f"       available: {', '.join(available) if available else '(none)'}",
+                f"error: callsign '{args.callsign}' not in any snapshot.\n       available: {', '.join(available) if available else '(none)'}",
                 file=sys.stderr,
             )
             return 1
 
         if args.json:
             payload = [
-                {"t": t, "snap": snap, "tag": tag, "detail": detail, "callsign": args.callsign, "raw": raw}
-                for (t, snap, tag, detail, raw) in events
+                {"t": t, "snap": snap, "tag": tag, "detail": detail, "callsign": args.callsign, "raw": raw} for (t, snap, tag, detail, raw) in events
             ]
             write_output(json.dumps(payload, indent=2), args.out)
             return 0
@@ -1106,10 +1116,9 @@ def cmd_commands(args: argparse.Namespace) -> int:
             matched.append(a)
 
         if not matched:
-            available = sorted({a.get("Callsign") for a in actions if a.get("Callsign")})
+            available = sorted({str(a["Callsign"]) for a in actions if a.get("Callsign")})
             print(
-                f"error: no actions for callsign '{args.callsign}'.\n"
-                f"       available: {', '.join(available) if available else '(none)'}",
+                f"error: no actions for callsign '{args.callsign}'.\n       available: {', '.join(available) if available else '(none)'}",
                 file=sys.stderr,
             )
             return 1
@@ -1214,7 +1223,7 @@ def cmd_scenario(args: argparse.Namespace) -> int:
                     f"{(a.get('aircraftType') or '?'):<6} "
                     f"{(a.get('airportId') or '?'):<5} "
                     f"{(fp.get('rules') or '?'):<5} "
-                    f"{(fp.get('departure') or '?')+'->'+(fp.get('destination') or '?'):<14} "
+                    f"{(fp.get('departure') or '?') + '->' + (fp.get('destination') or '?'):<14} "
                     f"{start_desc:<28} "
                     f"{(a.get('spawnDelay') if a.get('spawnDelay') is not None else '-')!s:>7}  "
                     f"{preset_text}"
@@ -1286,8 +1295,7 @@ def cmd_layouts(args: argparse.Namespace) -> int:
             if args.airport not in entry_ids:
                 label = "airport GeoJSON" if args.geojson else "bundle layouts"
                 print(
-                    f"error: airport '{args.airport}' not in {label}.\n"
-                    f"       available: {', '.join(entry_ids) if entry_ids else '(none)'}",
+                    f"error: airport '{args.airport}' not in {label}.\n       available: {', '.join(entry_ids) if entry_ids else '(none)'}",
                     file=sys.stderr,
                 )
                 return 1
@@ -1354,11 +1362,16 @@ _ZIP_URL_RE = re.compile(
 def _gh_fetch_issue_bodies(owner: str, repo: str, issue: int) -> list[str]:
     """Return list of strings (issue body + each comment body) via `gh issue view --json`."""
     cmd = [
-        "gh", "issue", "view", str(issue),
-        "--repo", f"{owner}/{repo}",
-        "--json", "body,comments",
+        "gh",
+        "issue",
+        "view",
+        str(issue),
+        "--repo",
+        f"{owner}/{repo}",
+        "--json",
+        "body,comments",
     ]
-    r = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace")
+    r = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace", check=False)
     if r.returncode != 0:
         raise RuntimeError(f"gh issue view failed: {r.stderr.strip()}")
     data = json.loads(r.stdout)
@@ -1413,8 +1426,7 @@ def cmd_install(args: argparse.Namespace) -> int:
     # Validate naming args
     if not args.desc or not re.fullmatch(r"[a-z0-9][a-z0-9-]*", args.desc):
         print(
-            "error: --desc must be a kebab-case slug (lowercase letters, digits, hyphens).\n"
-            "       example: --desc oak-runway-exit",
+            "error: --desc must be a kebab-case slug (lowercase letters, digits, hyphens).\n       example: --desc oak-runway-exit",
             file=sys.stderr,
         )
         return 2
@@ -1445,8 +1457,7 @@ def cmd_install(args: argparse.Namespace) -> int:
         # Fetch from GitHub issue via gh — requires --issue
         if args.issue is None:
             print(
-                "error: --issue N is required when no local bundle path is provided "
-                "(needed to locate the GitHub issue's attachment)",
+                "error: --issue N is required when no local bundle path is provided (needed to locate the GitHub issue's attachment)",
                 file=sys.stderr,
             )
             return 2
@@ -1480,11 +1491,8 @@ def cmd_install(args: argparse.Namespace) -> int:
     try:
         with BundleReader(dest) as r:
             m = r.manifest
-        print(
-            f"  verified: v{m.get('Version')}, {len(m.get('Snapshots') or [])} snapshots, "
-            f"{m.get('TotalElapsedSeconds')}s, {m.get('ArtccId')}"
-        )
-    except Exception as e:
+        print(f"  verified: v{m.get('Version')}, {len(m.get('Snapshots') or [])} snapshots, {m.get('TotalElapsedSeconds')}s, {m.get('ArtccId')}")
+    except _BUNDLE_READ_ERRORS as e:
         print(f"  warning: post-install validation failed: {e}", file=sys.stderr)
         return 1
     return 0
@@ -1516,7 +1524,7 @@ def _validate_one(reader: BundleReader) -> Iterator[str]:
             continue
         try:
             reader.read_snapshot(i)
-        except Exception as e:
+        except _BUNDLE_READ_ERRORS as e:
             yield f"failed to decompress {name}: {e}"
 
     for required in ("scenario.json.br", "actions.json.br"):
@@ -1525,7 +1533,7 @@ def _validate_one(reader: BundleReader) -> Iterator[str]:
             continue
         try:
             reader.read_brotli_text(required)
-        except Exception as e:
+        except _BUNDLE_READ_ERRORS as e:
             yield f"failed to decompress {required}: {e}"
 
     for aid in m.get("LayoutAirportIds") or []:
@@ -1535,7 +1543,7 @@ def _validate_one(reader: BundleReader) -> Iterator[str]:
             continue
         try:
             reader.read_layout(aid)
-        except Exception as e:
+        except _BUNDLE_READ_ERRORS as e:
             yield f"failed to decompress {name}: {e}"
 
     for aid in m.get("AirportGeoJsonIds") or []:
@@ -1545,7 +1553,7 @@ def _validate_one(reader: BundleReader) -> Iterator[str]:
             continue
         try:
             reader.read_airport_geojson(aid)
-        except Exception as e:
+        except _BUNDLE_READ_ERRORS as e:
             yield f"failed to decompress {name}: {e}"
 
     if m.get("HasWeather") and "weather.json" not in reader.archive_entries:
@@ -1557,7 +1565,7 @@ def _validate_one(reader: BundleReader) -> Iterator[str]:
         else:
             try:
                 reader.read_brotli_text("artcc-config.json.br")
-            except Exception as e:
+            except _BUNDLE_READ_ERRORS as e:
                 yield f"failed to decompress artcc-config.json.br: {e}"
 
 
@@ -1588,7 +1596,7 @@ def cmd_trim(args: argparse.Namespace) -> int:
 
         snapshots = manifest.get("Snapshots") or []
         if not snapshots:
-            print(f"error: bundle has no Snapshots — nothing to trim", file=sys.stderr)
+            print("error: bundle has no Snapshots — nothing to trim", file=sys.stderr)
             return 1
 
         if args.max_seconds is not None:
@@ -1647,11 +1655,7 @@ def cmd_validate(args: argparse.Namespace) -> int:
         errors = list(_validate_one(reader))
     if not errors:
         m = reader.manifest
-        print(
-            f"OK: {args.bundle} - v{m.get('Version')}, "
-            f"{len(m.get('Snapshots') or [])} snapshots, "
-            f"{m.get('TotalElapsedSeconds')}s"
-        )
+        print(f"OK: {args.bundle} - v{m.get('Version')}, {len(m.get('Snapshots') or [])} snapshots, {m.get('TotalElapsedSeconds')}s")
         return 0
     print(f"FAIL: {args.bundle}", file=sys.stderr)
     for e in errors:
@@ -1804,10 +1808,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--issue",
         type=int,
         default=None,
-        help=(
-            "GitHub issue number; required when fetching from GitHub, optional when installing "
-            "a local bundle"
-        ),
+        help=("GitHub issue number; required when fetching from GitHub, optional when installing a local bundle"),
     )
     p_ins.add_argument("--desc", type=str, required=True, help="kebab-case slug for filename")
     p_ins.add_argument("--owner", type=str, default="leftos", help="GitHub owner (default: leftos)")

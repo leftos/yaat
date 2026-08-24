@@ -1,0 +1,7 @@
+# Python tooling under tools/ (bug_bundle.py, refresh-navdata.py, build-*-data.py).
+# Same 150-column limit as the C# side (CSharpier / .editorconfig).
+line-length = 150
+target-version = "py313"
+
+[lint]
+extend-select = ["B", "BLE", "I", "PLW", "PYI", "UP", "W"]
