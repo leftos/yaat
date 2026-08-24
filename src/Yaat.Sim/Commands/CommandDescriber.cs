@@ -1437,7 +1437,6 @@ public static class CommandDescriber
                 or CanonicalCommandType.HalfStripMove
                 or CanonicalCommandType.HalfStripOffset
                 or CanonicalCommandType.HalfStripSlide
-                or CanonicalCommandType.HalfStripEdit
                 or CanonicalCommandType.Scratchpad1
                 or CanonicalCommandType.Scratchpad2
                 or CanonicalCommandType.TemporaryAltitude
