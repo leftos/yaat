@@ -174,10 +174,11 @@ internal static class GroundCommandHandler
         }
 
         Log.LogDebug(
-            "[TryTaxi] {Callsign}: nearest node {NodeId} at ({NLat:F6}, {NLon:F6}), dist={Dist:F4}nm, path=[{Path}], "
+            "[TryTaxi] {Callsign}: nearest node {NodeId} ({NodeType}) at ({NLat:F6}, {NLon:F6}), dist={Dist:F4}nm, path=[{Path}], "
                 + "destRwy={Rwy}, destParking={Pkg}, destSpot={Spot}",
             aircraft.Callsign,
             startNode.Id,
+            startNode.Type,
             startNode.Position.Lat,
             startNode.Position.Lon,
             GeoMath.DistanceNm(aircraft.Position, startNode.Position),
@@ -261,6 +262,35 @@ internal static class GroundCommandHandler
             taxi = taxi with { Path = pathAsCleared, PathTurnHints = pathTurnHintsAsCleared };
             route = ResolveRoute(taxi, out failure);
             failReason = failure?.HumanMessage;
+        }
+
+        // A parallel ramp lane the map does not connect (SFO M3 → M4): the pilot cuts across the apron onto it
+        // and taxis the clearance as issued — from a gate or mid-lane. Only for sibling numbered lanes over
+        // open apron; see RampLaneReposition.
+        if (route is null && failure is not null && !AirportGroundLayout.HasRunwayCenterlineEdge(startNode))
+        {
+            var plan = RampLaneReposition.TryPlan(
+                groundLayout,
+                aircraft.Position,
+                aircraft.TrueHeading,
+                aircraft.Ground.CurrentTaxiway,
+                taxi.Path,
+                failure,
+                new ExplicitPathOptions
+                {
+                    ExplicitHoldShorts = taxi.HoldShorts,
+                    DestinationRunway = taxi.DestinationRunway,
+                    AirportId = groundLayout.AirportId,
+                    PathTurnHints = taxi.PathTurnHints,
+                },
+                category
+            );
+            if (plan is not null)
+            {
+                route = plan.Route;
+                failure = null;
+                failReason = null;
+            }
         }
 
         // Two recoveries for a clearance that names pavement the aircraft cannot use as issued. Each drops
@@ -1146,9 +1176,16 @@ internal static class GroundCommandHandler
             || failure is not { Kind: FailureKind.TaxiwayNotConnected } leadOutFailure
             || !string.Equals(leadOutFailure.InfeasibleTaxiway, taxi.Path[0], StringComparison.OrdinalIgnoreCase)
             || groundLayout.FindNearestNodeOnTaxiway(aircraft.Position, taxi.Path[0], GateAdjacentTaxiwayMaxFt) is not { } leadOutNode
-            || RunwayCenterlineBetween(groundLayout, aircraft.Position, leadOutNode.Position)
+            || groundLayout.RunwayCenterlineBetween(aircraft.Position, leadOutNode.Position)
         )
         {
+            Log.LogDebug(
+                "[TryTaxi] {Callsign}: gate lead-out drop not applicable (path=[{Path}], failure={Kind}/{Twy})",
+                aircraft.Callsign,
+                string.Join(" ", taxi.Path),
+                failure?.Kind,
+                failure?.InfeasibleTaxiway
+            );
             return null;
         }
 
@@ -1227,29 +1264,6 @@ internal static class GroundCommandHandler
         );
         bestDropRoute.Warnings.Add($"unable via {droppedName} — no route via {droppedName} reaches {destLabel}; {droppedName} omitted");
         return new DroppedTaxiwayRoute(droppedName, taxi, bestDropRoute);
-    }
-
-    /// <summary>
-    /// True when the straight line from the aircraft to <paramref name="target"/> crosses a runway centerline —
-    /// the target sits on the far side of a runway, however close it is. Keeps the gate-adjacent radius from
-    /// reaching across a runway hold line (OAK has gates within 400 ft of a holding-position bar).
-    /// </summary>
-    private static bool RunwayCenterlineBetween(AirportGroundLayout groundLayout, LatLon from, LatLon target)
-    {
-        foreach (var runway in groundLayout.Runways)
-        {
-            for (int i = 1; i < runway.Coordinates.Count; i++)
-            {
-                var a = new LatLon(runway.Coordinates[i - 1].Lat, runway.Coordinates[i - 1].Lon);
-                var b = new LatLon(runway.Coordinates[i].Lat, runway.Coordinates[i].Lon);
-                if (GeoMath.SegmentsIntersect(from, target, a, b) is not null)
-                {
-                    return true;
-                }
-            }
-        }
-
-        return false;
     }
 
     /// <summary>

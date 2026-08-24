@@ -21,6 +21,16 @@ public sealed class TaxiSegmentDto
     public required int FromNodeId { get; init; }
     public required int ToNodeId { get; init; }
     public string? TaxiwayName { get; init; }
+
+    /// <summary>
+    /// Position of a <see cref="Yaat.Sim.Data.Airport.VirtualNode"/> endpoint — a free-space leg such as a
+    /// ramp-lane cut whose node is not in the ground layout. Null for graph nodes and on older snapshots;
+    /// restore then resolves the endpoint by id.
+    /// </summary>
+    public double? FromLatitude { get; init; }
+    public double? FromLongitude { get; init; }
+    public double? ToLatitude { get; init; }
+    public double? ToLongitude { get; init; }
 }
 
 public sealed class HoldShortPointDto

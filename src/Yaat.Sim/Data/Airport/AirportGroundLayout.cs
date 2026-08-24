@@ -738,6 +738,32 @@ public sealed class AirportGroundLayout
 
     private Dictionary<string, List<GroundNode>>? _nodesByTaxiway;
 
+    /// <summary>Every taxiway / runway-centerline / RAMP name that at least one edge carries.</summary>
+    public IEnumerable<string> AllTaxiwayNames => _nodesByTaxiway?.Keys ?? Enumerable.Empty<string>();
+
+    /// <summary>
+    /// True when the straight line from <paramref name="from"/> to <paramref name="to"/> crosses a runway
+    /// centerline — the target sits on the far side of a runway, however close it is. Keeps gate-adjacent
+    /// lookups from reaching across a runway hold line (OAK has gates within 400 ft of a holding-position bar).
+    /// </summary>
+    public bool RunwayCenterlineBetween(LatLon from, LatLon to)
+    {
+        foreach (var runway in Runways)
+        {
+            for (int i = 1; i < runway.Coordinates.Count; i++)
+            {
+                var a = new LatLon(runway.Coordinates[i - 1].Lat, runway.Coordinates[i - 1].Lon);
+                var b = new LatLon(runway.Coordinates[i].Lat, runway.Coordinates[i].Lon);
+                if (GeoMath.SegmentsIntersect(from, to, a, b) is not null)
+                {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
     /// <summary>
     /// Resolves a runway designator (e.g. <c>"28R"</c>) to the canonical centerline edge name used as a
     /// taxiway-graph key (e.g. <c>"RWY28R/10L"</c>), so a runway can be routed as a named taxi segment.
@@ -3201,7 +3227,7 @@ public sealed class AirportGroundLayout
         return true;
     }
 
-    private static bool HasRunwayCenterlineEdge(GroundNode node)
+    internal static bool HasRunwayCenterlineEdge(GroundNode node)
     {
         foreach (var edge in node.Edges)
         {

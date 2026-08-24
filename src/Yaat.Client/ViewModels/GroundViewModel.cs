@@ -1371,14 +1371,19 @@ public partial class GroundViewModel : ObservableObject
         // truncates at the runway hold-short instead of walking the last taxiway to its full extent.
         // The DTO taxiway string omits the held-short runway; AssignedRunway carries it, and is set
         // by the taxi clearance only when the route ends at a runway (empty for taxi-to-parking).
-        return TaxiPathfinder.ResolveExplicitPath(
-            _domainLayout,
-            nodeId.Value,
-            routeTaxiways,
-            out _,
-            new ExplicitPathOptions { DestinationRunway = string.IsNullOrEmpty(ac.AssignedRunway) ? null : ac.AssignedRunway },
-            CategoryFor(ac)
-        );
+        var options = new ExplicitPathOptions { DestinationRunway = string.IsNullOrEmpty(ac.AssignedRunway) ? null : ac.AssignedRunway };
+        var category = CategoryFor(ac);
+        var route = TaxiPathfinder.ResolveExplicitPathDetailed(_domainLayout, nodeId.Value, routeTaxiways, out var failure, options, category);
+        if (route is not null || failure is null)
+        {
+            return route;
+        }
+
+        // While the pilot cuts across a ramp onto a parallel lane the map does not connect (SFO M3 → M4),
+        // the nearest graph node is still on the old lane and the named route does not resolve from it.
+        // Reconstruct the same free-space leg the server planned so the overlay follows the crossing.
+        var plan = RampLaneReposition.TryPlan(_domainLayout, ac.Position, ac.Heading, ac.CurrentTaxiway, routeTaxiways, failure, options, category);
+        return plan?.Route;
     }
 
     private static List<string> ParseRouteTaxiways(string taxiRoute)

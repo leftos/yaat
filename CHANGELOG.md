@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+- A taxi onto a parallel ramp taxilane the ground map does not connect to the aircraft's lane (SFO `TAXI M4 …` / `TAXI M5 …` from a Terminal 1 gate, or while already rolling on M3) has the pilot cut across the apron onto that lane and continue as cleared, instead of dropping it with an "unable via M4" warning. The Ground View route overlay follows the crossing. (#396)
+
 ## v0.12.17-beta [2026/08/23]
 
 ### Highlights

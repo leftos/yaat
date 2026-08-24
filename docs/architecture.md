@@ -838,6 +838,7 @@ TaxiPathfinder.cs            # Taxi pathfinder (static): ResolveExplicitPathDeta
 ExplicitPathOptions.cs         # RoutePreference enum + ExplicitPathOptions input bag (pathfinder inputs)
 HoldShortTarget.cs             # Structured HS target: Target (taxiway/runway/spot) + optional OnTaxiway location — the C@J command form (issue #358) — or IsSpot for the $17 spot form (issue #394; MatchKey keeps the $ sigil in HoldShortPoint.TargetName); TryParse/Parse/ToCanonical round-trip both syntaxes
 VirtualNode.cs                 # Factory for virtual ground nodes (negative IDs); CreateEdge, CreateSegment, OffsetBefore/OffsetPast
+RampLaneReposition.cs          # TAXI onto a parallel sibling ramp lane the map does not connect (SFO M3 → M4): free-space VirtualNode leg + graph route from the lane (#396)
 TaxiwayGraphBuilder.cs         # Graph construction from GeoJSON nodes/edges
 GeoJsonParser.cs               # GeoJSON→layout; DetectRunwayCrossings via SplitEdgeAtNode
 CoordinateIndex.cs             # Spatial index for coordinate-based lookups

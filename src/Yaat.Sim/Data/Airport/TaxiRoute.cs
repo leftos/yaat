@@ -336,6 +336,10 @@ public sealed class TaxiRoute
                     FromNodeId = s.FromNodeId,
                     ToNodeId = s.ToNodeId,
                     TaxiwayName = s.TaxiwayName,
+                    FromLatitude = s.FromNodeId < 0 ? s.Edge.FromNode.Position.Lat : null,
+                    FromLongitude = s.FromNodeId < 0 ? s.Edge.FromNode.Position.Lon : null,
+                    ToLatitude = s.ToNodeId < 0 ? s.Edge.ToNode.Position.Lat : null,
+                    ToLongitude = s.ToNodeId < 0 ? s.Edge.ToNode.Position.Lon : null,
                 })
                 .ToList(),
             CurrentSegmentIndex = CurrentSegmentIndex,
@@ -355,6 +359,20 @@ public sealed class TaxiRoute
             Description = ToSummary(),
         };
 
+    /// <summary>
+    /// A snapshot segment endpoint: the layout node by id, or — for a virtual node the layout never held —
+    /// a fresh <see cref="VirtualNode"/> at the recorded position. Null when neither is available.
+    /// </summary>
+    private static GroundNode? ResolveSnapshotNode(AirportGroundLayout layout, int nodeId, double? latitude, double? longitude)
+    {
+        if (layout.Nodes.TryGetValue(nodeId, out var node))
+        {
+            return node;
+        }
+
+        return latitude is { } lat && longitude is { } lon ? VirtualNode.Create(lat, lon) : null;
+    }
+
     public static TaxiRoute? FromSnapshot(TaxiRouteDto dto, AirportGroundLayout? layout)
     {
         if (layout is null)
@@ -365,14 +383,18 @@ public sealed class TaxiRoute
         var segments = new List<TaxiRouteSegment>();
         foreach (var seg in dto.Segments)
         {
-            if (!layout.Nodes.TryGetValue(seg.FromNodeId, out var fromNode))
+            var fromNode = ResolveSnapshotNode(layout, seg.FromNodeId, seg.FromLatitude, seg.FromLongitude);
+            var toNode = ResolveSnapshotNode(layout, seg.ToNodeId, seg.ToLatitude, seg.ToLongitude);
+            if (fromNode is null || toNode is null)
             {
                 return null;
             }
 
-            if (!layout.Nodes.TryGetValue(seg.ToNodeId, out var toNode))
+            // A free-space leg (ramp-lane cut) has no layout edge; rebuild the virtual one from its endpoints.
+            if (fromNode.Id < 0 || toNode.Id < 0)
             {
-                return null;
+                segments.Add(VirtualNode.CreateSegment(fromNode, toNode, seg.TaxiwayName ?? ""));
+                continue;
             }
 
             IGroundEdge? edge = null;

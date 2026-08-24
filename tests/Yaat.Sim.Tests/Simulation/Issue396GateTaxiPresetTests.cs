@@ -21,8 +21,8 @@ namespace Yaat.Sim.Tests.Simulation;
 /// reached an M3 corner-arc node whose sole M3 edge was a U-turn, so resolution failed with "No valid path
 /// from M3 to M2 — transition infeasible" and the aircraft stayed at the gate.</item>
 /// <item>AAL436 (B77W, gate B20S, <c>TAXI M4 M1 A H GL L LF F 28L HS 1L</c>, spawns t=620): ramp lane M4 has no
-/// RAMP edge in the layout (it only joins M1), so resolution failed "Cannot taxi via M4". A tug would push
-/// onto M4; without a pushback model the gate-adjacent lane is dropped with a warning and the rest taxis.</item>
+/// RAMP edge in the layout (it only joins M1), so resolution failed "Cannot taxi via M4". M3/M4/M5 are parallel
+/// taxilanes on one ramp, so the pilot cuts across the apron onto M4 and taxis the clearance as issued.</item>
 /// <item>Every departure's deferred <c>STRIP Local</c> hit the phase gate ("aircraft is parked with engines
 /// off …" / "aircraft is taxiing …") because <c>StripMove</c> was not phase-transparent.</item>
 /// </list>
@@ -102,7 +102,7 @@ public class Issue396GateTaxiPresetTests
     }
 
     [Fact]
-    public void Aal436_UnreachableM4Dropped_Taxis()
+    public void Aal436_TaxiPresetFromGateB20S_RepositionsOntoM4()
     {
         var recording = RecordingLoader.Load(RecordingPath);
         var engine = BuildEngine();
@@ -123,19 +123,12 @@ public class Issue396GateTaxiPresetTests
         var route = aircraft.Ground.AssignedTaxiRoute;
         Assert.NotNull(route);
         _output.WriteLine("AAL436 route: " + string.Join(" ", route.Segments.Select(s => s.TaxiwayName)));
+        Assert.True(route.Segments[0].FromNodeId < 0, "the scripted TAXI M4 must start with a free-space cut across the ramp onto M4");
+        Assert.True(Traverses(route, "M4"), "route must taxi along M4 as cleared");
         Assert.True(Traverses(route, "M1"), "route must reach M1 after leaving the gate");
         Assert.True(Traverses(route, "A"), "route must reach A");
-        Assert.Contains(route.Warnings, w => w.Contains("unable via M4", StringComparison.OrdinalIgnoreCase));
-
-        // The instructor must see why the scripted clearance was altered and which lane the aircraft uses instead.
-        Assert.Contains(
-            terminal,
-            e => e.Callsign == "AAL436" && e.Kind == "Warning" && e.Message.Contains("unable via M4", StringComparison.OrdinalIgnoreCase)
-        );
-        Assert.Contains(
-            terminal,
-            e => e.Callsign == "AAL436" && e.Kind == "Warning" && e.Message.Contains("taxiing via M3", StringComparison.OrdinalIgnoreCase)
-        );
+        Assert.DoesNotContain(route.Warnings, w => w.Contains("unable", StringComparison.OrdinalIgnoreCase));
+        Assert.DoesNotContain(terminal, e => e.Callsign == "AAL436" && e.Message.Contains("unable via M4", StringComparison.OrdinalIgnoreCase));
         Assert.DoesNotContain(terminal, e => e.Callsign == "AAL436" && e.Message.Contains("could not apply", StringComparison.OrdinalIgnoreCase));
     }
 
