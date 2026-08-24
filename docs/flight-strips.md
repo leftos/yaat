@@ -375,9 +375,12 @@ Strip commands never interact with flight physics. Live and CRC-sourced strip
 commands are classified by `TrackEngine.IsStripCommand`, which is checked in
 `RoomEngine.SendCommandAsync` / `RecordAndDispatchStripAsync` *before* the
 dispatcher so they bypass aircraft phase gating and go straight to
-`HandleStripCmd`. (`Annotate` / `HalfStripCreate` / `HalfStripAmend` /
-`HalfStripDelete` also appear on `CommandDescriber.IsPhaseTransparent`, but that
-list is not the routing mechanism — the pre-dispatcher `IsStripCommand` check is.)
+`HandleStripCmd`. (Every strip verb also appears on `CommandDescriber.IsPhaseTransparent`,
+but for live commands that list is not the routing mechanism — the pre-dispatcher
+`IsStripCommand` check is. The list *is* load-bearing for the preset / deferred path
+below, which runs inside the Sim's phase gate: `STRIP`/`SCAN`/`HSM` presets used to be
+refused while taxiing or holding short because only `Annotate` and the half-strip
+create/amend/delete verbs were listed.)
 
 ### Preset / deferred / triggered strip commands
 

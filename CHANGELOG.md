@@ -12,6 +12,7 @@
 - Taxi clearances to a gate or spot now echo the pathfinder's warnings (unapplied hold-shorts, taxiways not in the route, connector notices) like runway clearances.
 - Scenario departures spawned at their runway bar with a route-less `TAXI 1L` preset hold short of 1L (and line up on `POS`) instead of taxiing the runway's length to the reciprocal end.
 - A route-less `TAXI <rwy>` is honoured only when the aircraft is already at that runway; anywhere else it is refused with a pointer at `TAXI <route> <rwy>` or `TAXIAUTO <rwy>`.
+- Strip presets (`STRIP`, `SCAN`, `HSM`, …) fire while an aircraft is taxiing or holding short instead of being refused by the ground phase gate.
 
 ## v0.12.16-beta [2026/08/22]
 

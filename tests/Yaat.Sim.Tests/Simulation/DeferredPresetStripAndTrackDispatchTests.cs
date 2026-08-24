@@ -1,6 +1,8 @@
 using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Phases;
+using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Scenarios;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
@@ -82,6 +84,44 @@ public class DeferredPresetStripAndTrackDispatchTests
         Assert.Equal("1", annotate.Box); // ANNOTATE 10 aliases to box 1
         Assert.Equal(Checkmark, annotate.Text);
         Assert.Empty(ac.PendingWarnings);
+    }
+
+    /// <summary>
+    /// A strip move is host-owned bookkeeping with no effect on the aircraft, so a phase that rejects
+    /// unrecognised commands (parked, taxiing, holding short) must let it through to the strip queue.
+    /// The S2-SFO-3 scenario's <c>WAIT 30 STRIP Local</c> preset fired while every departure was taxiing
+    /// and was refused with "aircraft is taxiing; only HOLD/RES, CROSS, HS, SPD, or FOLLOWG apply".
+    /// </summary>
+    [Theory]
+    [InlineData("STRIP Local", typeof(StripMoveCommand))]
+    [InlineData("SCAN NCT/NCT", typeof(StripScanCommand))]
+    [InlineData("HSM 2", typeof(HalfStripMoveCommand))]
+    public void DeferredStripPreset_WhilePhaseGated_QueuesStripDispatch_NoWarning(string command, Type expectedType)
+    {
+        var engine = BuildEngine();
+        var ac = AddParked(engine, "DAL2272");
+        ac.Phases = new PhaseList();
+        ac.Phases.Add(new AtParkingPhase());
+        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac));
+
+        var stripDispatches = new List<(string Callsign, ParsedCommand Command)>();
+        engine.StripDispatchRequested += (cs, cmd) => stripDispatches.Add((cs, cmd));
+        var warnings = new List<(string Callsign, string Warning)>();
+        engine.WarningEmitted += (cs, w) => warnings.Add((cs, w));
+
+        var loaded = new LoadedAircraft { State = ac, PresetCommands = [new PresetCommand { Command = $"WAIT 2 {command}", TimeOffset = 0 }] };
+        engine.DispatchPresetCommands(loaded);
+        Assert.Single(ac.DeferredDispatches);
+
+        for (int t = 0; t < 4; t++)
+        {
+            engine.TickOneSecond();
+        }
+
+        var fired = Assert.Single(stripDispatches);
+        Assert.IsType(expectedType, fired.Command);
+        Assert.DoesNotContain(warnings, w => w.Warning.Contains("could not apply", StringComparison.OrdinalIgnoreCase));
+        Assert.IsType<AtParkingPhase>(ac.Phases.CurrentPhase);
     }
 
     [Fact]

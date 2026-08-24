@@ -1424,10 +1424,20 @@ public static class CommandDescriber
                 or CanonicalCommandType.SayAltitude
                 or CanonicalCommandType.SayHeading
                 or CanonicalCommandType.SayPosition
+                // Strip operations are host-owned bookkeeping (yaat-server's strip state) with no
+                // effect on the aircraft; every phase must let them through to the strip queue.
                 or CanonicalCommandType.Annotate
+                or CanonicalCommandType.StripMove
+                or CanonicalCommandType.StripScan
+                or CanonicalCommandType.StripDelete
+                or CanonicalCommandType.StripOffset
                 or CanonicalCommandType.HalfStripCreate
                 or CanonicalCommandType.HalfStripAmend
                 or CanonicalCommandType.HalfStripDelete
+                or CanonicalCommandType.HalfStripMove
+                or CanonicalCommandType.HalfStripOffset
+                or CanonicalCommandType.HalfStripSlide
+                or CanonicalCommandType.HalfStripEdit
                 or CanonicalCommandType.Scratchpad1
                 or CanonicalCommandType.Scratchpad2
                 or CanonicalCommandType.TemporaryAltitude
