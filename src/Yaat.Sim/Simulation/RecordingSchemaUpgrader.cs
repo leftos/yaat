@@ -70,7 +70,7 @@ public static class RecordingSchemaUpgrader
         }
 
         var changed = MigrateSnapshots(recording.Snapshots!);
-        changed |= QualifyStripBays(
+        changed |= RewriteRecordedCanonicals(
             recording.Actions,
             ResolveBays(recording.ArtccConfigJson, recording.StudentPositionState?.Position?.Callsign, recording.ScenarioJson)
         );
@@ -83,9 +83,9 @@ public static class RecordingSchemaUpgrader
         return RecordingUpgradeResult.Migrated(RecordingCompression.Compress(bytes));
     }
 
-    // --- strip-bay qualification: recorded canonicals predating the required
-    //     FACILITY/BAY bay token are rewritten in place. Idempotent, so no schema
-    //     gate is needed and re-running the upgrade is a no-op. ---
+    // --- recorded-canonical rewrites: the retired HSE verb becomes HSA's id form, and
+    //     strip canonicals predating the required FACILITY/BAY bay token gain it. Both
+    //     are idempotent, so no schema gate is needed and re-running is a no-op. ---
 
     private static IReadOnlyList<AccessibleBay> ResolveBays(string? artccConfigJson, string? positionCallsign, string? scenarioJson)
     {
@@ -141,13 +141,8 @@ public static class RecordingSchemaUpgrader
         return position?.Callsign;
     }
 
-    private static bool QualifyStripBays(List<RecordedAction> actions, IReadOnlyList<AccessibleBay> bays)
+    private static bool RewriteRecordedCanonicals(List<RecordedAction> actions, IReadOnlyList<AccessibleBay> bays)
     {
-        if (bays.Count == 0)
-        {
-            return false;
-        }
-
         var changed = false;
         for (var i = 0; i < actions.Count; i++)
         {
@@ -155,12 +150,16 @@ public static class RecordingSchemaUpgrader
             {
                 continue;
             }
-            var qualified = StripBayCanonicalQualifier.QualifyCompound(command.Command, bays);
-            if (string.Equals(qualified, command.Command, StringComparison.Ordinal))
+            var rewritten = HalfStripEditCanonicalRewriter.Rewrite(command.Command);
+            if (bays.Count > 0)
+            {
+                rewritten = StripBayCanonicalQualifier.QualifyCompound(rewritten, bays);
+            }
+            if (string.Equals(rewritten, command.Command, StringComparison.Ordinal))
             {
                 continue;
             }
-            actions[i] = command with { Command = qualified };
+            actions[i] = command with { Command = rewritten };
             changed = true;
         }
 
@@ -260,8 +259,8 @@ public static class RecordingSchemaUpgrader
     /// The accessible bays of the recorded session's student position, read from the
     /// archive's own <c>artcc-config.json.br</c> plus the student position in the
     /// first snapshot's scenario block (the scenario JSON does not carry it — the
-    /// server resolves it at load). Empty when either is absent, which leaves the
-    /// action log untouched.
+    /// server resolves it at load). Empty when either is absent, which skips bay
+    /// qualification (the retired-verb rewrite still runs).
     /// </summary>
     private static IReadOnlyList<AccessibleBay> ResolveArchiveBays(ZipArchive zip)
     {
@@ -288,18 +287,12 @@ public static class RecordingSchemaUpgrader
 
     private static byte[] MigrateActionsEntry(byte[] brotliContent, IReadOnlyList<AccessibleBay> bays, out bool changed)
     {
-        if (bays.Count == 0)
-        {
-            changed = false;
-            return brotliContent;
-        }
-
         var json = DecompressBrotli(brotliContent);
         var actions =
             JsonSerializer.Deserialize<List<RecordedAction>>(json, RecordingJsonOptions.Default)
             ?? throw new InvalidOperationException("Failed to deserialize actions entry.");
 
-        changed = QualifyStripBays(actions, bays);
+        changed = RewriteRecordedCanonicals(actions, bays);
         return changed ? RecordingCompression.Compress(JsonSerializer.SerializeToUtf8Bytes(actions, RecordingJsonOptions.Default)) : brotliContent;
     }
 

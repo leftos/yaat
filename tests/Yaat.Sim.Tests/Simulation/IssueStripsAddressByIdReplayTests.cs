@@ -36,7 +36,6 @@ public class IssueStripsAddressByIdReplayTests(ITestOutputHelper output)
         "HSC",
         "HSA",
         "HSD",
-        "HSE",
         "HSM",
         "HSO",
         "HSS",

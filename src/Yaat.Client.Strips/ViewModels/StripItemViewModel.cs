@@ -143,9 +143,9 @@ public partial class StripItemViewModel : ObservableObject, IFindableItem
 
     // Half-strip cell grid: FieldValues[0..5] mapped row-major into a 3×2
     // inline-edit grid (cell 0 = row 0 col 0, cell 1 = row 0 col 1, …,
-    // cell 5 = row 2 col 1). Edits dispatch HSE so empty cells are
-    // preserved without ambiguity around FieldValues[0] doubling as the
-    // half-strip lookup key.
+    // cell 5 = row 2 col 1). Edits dispatch HSA by strip id, a literal
+    // replacement of all six slots, so empty cells are preserved and
+    // FieldValues[0] is never mistaken for a first-line lookup key.
     public string HalfCell0 => Field(0);
     public string HalfCell1 => Field(1);
     public string HalfCell2 => Field(2);

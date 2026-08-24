@@ -45,7 +45,7 @@ public class StripBayCanonicalQualifierTests
     [InlineData("AN STRIP_N346G 8a")]
     [InlineData("STRIPD STRIP_N346G")]
     [InlineData("STRIPO STRIP_N346G")]
-    [InlineData(@"HSE HSTRIP_abc123 a\b")]
+    [InlineData(@"HSA HSTRIP_abc123 a\b")]
     // Id forms address the strip directly, so the trailing token is a label, not a bay.
     [InlineData("SEPE SEP_abc123 Local 1")]
     [InlineData("SEPD SEP_abc123")]

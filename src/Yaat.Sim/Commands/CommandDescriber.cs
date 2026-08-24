@@ -205,7 +205,6 @@ public static class CommandDescriber
             HalfStripMoveCommand => CanonicalCommandType.HalfStripMove,
             HalfStripOffsetCommand => CanonicalCommandType.HalfStripOffset,
             HalfStripSlideCommand => CanonicalCommandType.HalfStripSlide,
-            HalfStripEditCommand => CanonicalCommandType.HalfStripEdit,
             SeparatorCreateCommand => CanonicalCommandType.SeparatorCreate,
             SeparatorDeleteCommand => CanonicalCommandType.SeparatorDelete,
             SeparatorEditCommand => CanonicalCommandType.SeparatorEdit,
@@ -690,7 +689,6 @@ public static class CommandDescriber
             HalfStripMoveCommand cmd => FormatTokenizedCanonical("HSM", cmd.Tokens),
             HalfStripOffsetCommand cmd => FormatHalfStripOffsetOrSlideCanonical("HSO", cmd.FacilityId, cmd.BayName, cmd.Rack, cmd.LookupKey),
             HalfStripSlideCommand cmd => FormatHalfStripOffsetOrSlideCanonical("HSS", cmd.FacilityId, cmd.BayName, cmd.Rack, cmd.LookupKey),
-            HalfStripEditCommand cmd => FormatHalfStripEditCanonical(cmd),
             SeparatorCreateCommand cmd => FormatSeparatorCreateCanonical(cmd),
             SeparatorDeleteCommand cmd => FormatTokenizedCanonical("SEPD", cmd.Tokens),
             SeparatorEditCommand cmd => FormatTokenizedCanonical("SEPE", cmd.Tokens),
@@ -918,12 +916,6 @@ public static class CommandDescriber
         return rack is int r ? $"{facilityId}/{bayName}/{r + 1}" : $"{facilityId}/{bayName}";
     }
 
-    private static string FormatHalfStripEditCanonical(HalfStripEditCommand cmd)
-    {
-        var lines = cmd.Lines ?? [];
-        return lines.Count == 0 ? $"HSE {cmd.StripId}" : $"HSE {cmd.StripId} {string.Join('\\', lines)}";
-    }
-
     private static string FormatHalfStripMutateCanonical(string verb, string? facilityId, string? bayName, int? rack, IReadOnlyList<string>? tokens)
     {
         var baySpec = FormatBaySpec(facilityId, bayName, rack);
@@ -1135,7 +1127,6 @@ public static class CommandDescriber
             HalfStripCreateCommand cmd => DescribeHalfStripCreateNatural(cmd),
             HalfStripAmendCommand cmd => DescribeHalfStripAmendNatural(cmd),
             HalfStripDeleteCommand cmd => DescribeHalfStripDeleteNatural(cmd),
-            HalfStripEditCommand cmd => $"Edit half-strip {cmd.StripId}",
             // Track operations
             SetActivePositionCommand cmd => $"Act as position {cmd.TcpCode}",
             TrackAircraftCommand cmd => cmd.TcpCode is not null ? $"Track ({cmd.TcpCode})" : "Track",

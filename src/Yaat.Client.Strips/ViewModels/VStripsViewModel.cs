@@ -1070,34 +1070,19 @@ public partial class VStripsViewModel : ObservableObject
     }
 
     /// <summary>
-    /// Replace the lines of an existing half-strip. Wraps the
-    /// <c>HSA {stripId} line1\line2…</c> canonical verb. Empty lines are
-    /// preserved so users can blank a line without collapsing the strip.
+    /// Replace every line of an existing half-strip by strip id. Wraps the
+    /// <c>HSA {stripId} line0\line1…</c> canonical verb, which is a literal
+    /// replacement: empty lines are preserved, so both the Edit lines popup and
+    /// the inline 3×2 cell grid (which sends all six slot values on each cell
+    /// commit) can blank a line without collapsing the strip.
     /// </summary>
     public async Task AmendHalfStripAsync(StripItemViewModel strip, IReadOnlyList<string> lines)
-    {
-        if (!strip.IsHalfStrip)
-        {
-            return;
-        }
-        var canonical = VStripsCanonicalBuilder.BuildHalfStripAmend(strip.Id, lines);
-        await _sendCommand("", canonical, _getUserInitials?.Invoke() ?? "");
-    }
-
-    /// <summary>
-    /// Replace a half-strip's full FieldValues array by stripId. Used by
-    /// the inline 3×2 cell grid — when a cell loses focus the view assembles
-    /// the current slot values (with the edit applied) and dispatches HSE
-    /// so empty cells are preserved without ambiguity around FieldValues[0]
-    /// being the lookup key.
-    /// </summary>
-    public async Task EditHalfStripFieldsAsync(StripItemViewModel strip, IReadOnlyList<string> slots)
     {
         if (!strip.IsHalfStrip || string.IsNullOrEmpty(strip.Id))
         {
             return;
         }
-        var canonical = VStripsCanonicalBuilder.BuildHalfStripEdit(strip.Id, slots);
+        var canonical = VStripsCanonicalBuilder.BuildHalfStripAmend(strip.Id, lines);
         await _sendCommand("", canonical, _getUserInitials?.Invoke() ?? "");
     }
 

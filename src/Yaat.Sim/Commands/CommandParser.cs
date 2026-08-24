@@ -900,7 +900,6 @@ public static class CommandParser
             HalfStripMove when arg is not null => ParseHalfStripMove(arg),
             HalfStripOffset => ParseHalfStripOffsetOrSlide(arg ?? "", isSlide: false),
             HalfStripSlide => ParseHalfStripOffsetOrSlide(arg ?? "", isSlide: true),
-            HalfStripEdit when arg is not null => ParseHalfStripEdit(arg),
             SeparatorCreate when arg is not null => ParseSeparatorCreate(arg),
             SeparatorDelete when arg is not null => ParseSeparatorDelete(arg),
             SeparatorEdit when arg is not null => ParseSeparatorEdit(arg),
@@ -991,7 +990,6 @@ public static class CommandParser
             or StripScan
             or HalfStripCreate
             or HalfStripMove
-            or HalfStripEdit
             or SeparatorCreate
             or SeparatorDelete
             or SeparatorEdit
@@ -3281,49 +3279,6 @@ public static class CommandParser
     }
 
     /// <summary>
-    /// HSE: edit a half-strip's full FieldValues array by stripId.
-    /// Wire: <c>HSE &lt;stripId&gt; &lt;line0&gt;\&lt;line1&gt;\…\&lt;line5&gt;</c>.
-    /// First whitespace-token is the stripId (no `\` permitted in ids); the
-    /// remainder is `\`-split with empty entries preserved so the user can
-    /// clear individual cells without collapsing the array.
-    /// </summary>
-    private static PR ParseHalfStripEdit(string arg)
-    {
-        var trimmed = arg.Trim();
-        if (trimmed.Length == 0)
-        {
-            return PR.Fail("HSE requires a strip id");
-        }
-
-        var spaceIdx = trimmed.IndexOf(' ');
-        string stripId;
-        string body;
-        if (spaceIdx < 0)
-        {
-            stripId = trimmed;
-            body = "";
-        }
-        else
-        {
-            stripId = trimmed[..spaceIdx];
-            body = trimmed[(spaceIdx + 1)..];
-        }
-
-        if (stripId.Length == 0)
-        {
-            return PR.Fail("HSE requires a strip id");
-        }
-
-        var lines = body.Length == 0 ? [] : body.Split('\\', StringSplitOptions.TrimEntries);
-        if (lines.Length > HalfStripMaxLines)
-        {
-            return PR.Fail($"HSE supports at most {HalfStripMaxLines} lines (got {lines.Length})");
-        }
-
-        return PR.Ok(new HalfStripEditCommand(stripId, lines));
-    }
-
-    /// <summary>
     /// True when <paramref name="token"/> ends with a `/digit+` rack suffix —
     /// the part before the slash may be empty ("/2"), a bay tail ("1/2"), or
     /// a single-token bay-spec ("GROUND/2"). The post-slash portion must be
@@ -3389,15 +3344,16 @@ public static class CommandParser
         {
             var spaceIdx = trimmed.IndexOf(' ');
             // First-token bay-spec peel does not apply when the head is an
-            // HSTRIP_<guid> strip id — empty half-strips have no first-line
-            // text, so the embedded vStrips UI emits the id as the lookup
-            // key. Mirrors SEP_/BLANK_ id-prefix handling in SEPD/BLANKD.
+            // HSTRIP_<guid> strip id — the strips UI and the CRC translator
+            // always address half-strips by id (empty ones have no first-line
+            // text). Mirrors SEP_/BLANK_ id-prefix handling in SEPD/BLANKD.
             var headIsStripId = spaceIdx > 0 && trimmed.AsSpan(0, spaceIdx).StartsWith("HSTRIP_");
             if (headIsStripId)
             {
-                // HSTRIP_id [line1\line2\...] — id is its own token, the rest
-                // is backslash-separated payload (HSA only; HSD's cap rejects
-                // any payload below).
+                // HSTRIP_id [line0\line1\...] — id is its own token, the rest
+                // is backslash-separated payload with empty entries preserved
+                // so the inline cell grid can clear a single cell (HSA only;
+                // HSD's cap rejects any payload below).
                 var head = trimmed[..spaceIdx];
                 var rest = trimmed[(spaceIdx + 1)..].TrimStart();
                 tokens = rest.Length == 0 ? [head] : [head, .. rest.Split('\\', StringSplitOptions.TrimEntries)];

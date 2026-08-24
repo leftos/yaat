@@ -80,7 +80,7 @@
         <!-- Half-strip cell grid: same flat-on-cream look as the annotation
              boxes, with thin borders between cells. The grid is 3 rows × 2
              cols; cells are tagged "h0".."h5" so the code-behind can resolve
-             the slot index for HSE dispatch and Tab navigation. -->
+             the slot index for the HSA dispatch and Tab navigation. -->
         <Style Selector="TextBox.halfcell">
             <Setter Property="Background" Value="Transparent"/>
             <Setter Property="BorderThickness" Value="0,0,1,1"/>

@@ -137,7 +137,8 @@ public static class VStripsCanonicalBuilder
     /// same first-line text remain distinguishable. Server parser detects
     /// the <c>HSTRIP_</c> prefix and falls back to first-line matching only
     /// when terminal users type a non-id key. Lines are <c>\</c>-joined —
-    /// the same separator HSC uses — so an empty line is preserved.
+    /// the same separator HSC uses — so an empty line is preserved and the
+    /// inline cell grid can clear a single slot without collapsing the array.
     /// </summary>
     public static string BuildHalfStripAmend(string stripId, IReadOnlyList<string> newLines) =>
         newLines.Count == 0 ? $"HSA {stripId}" : $"HSA {stripId} {string.Join('\\', newLines)}";
@@ -148,14 +149,6 @@ public static class VStripsCanonicalBuilder
 
     /// <summary>Delete a half-strip by stripId.</summary>
     public static string BuildHalfStripDelete(string stripId) => $"HSD {stripId}";
-
-    /// <summary>
-    /// Replace a half-strip's full FieldValues by stripId. Empty cells are
-    /// preserved by `\`-separation so the inline grid can clear individual
-    /// slots without collapsing the array.
-    /// </summary>
-    public static string BuildHalfStripEdit(string stripId, IReadOnlyList<string> slots) =>
-        slots.Count == 0 ? $"HSE {stripId}" : $"HSE {stripId} {string.Join('\\', slots)}";
 
     /// <summary>Toggle offset on a half-strip by stripId.</summary>
     public static string BuildHalfStripOffset(string stripId) => $"HSO {stripId}";

@@ -294,6 +294,16 @@ public class HalfStripCommandParserTests
     }
 
     [Fact]
+    public void Hsa_StripIdForm_PreservesEmptyLines()
+    {
+        // The inline cell grid clears individual cells: an empty line between two
+        // filled ones must stay a slot, not collapse the array.
+        var result = CommandParser.Parse(@"HSA HSTRIP_abc123 a\\c");
+        var cmd = Assert.IsType<HalfStripAmendCommand>(result.Value);
+        Assert.Equal(["HSTRIP_abc123", "a", "", "c"], cmd.Tokens);
+    }
+
+    [Fact]
     public void Hso_StripIdForm_TreatsAsLookupKey_NotBay()
     {
         // HSO with two tokens (first = bay) shouldn't peel HSTRIP_xxx as a bay.

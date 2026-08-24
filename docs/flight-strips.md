@@ -355,8 +355,11 @@ word of the bay share a token.
 Recordings made before the qualifier was required are migrated in place by
 `RecordingSchemaUpgrader` via `StripBayCanonicalQualifier`, which resolves
 each recorded bay name against the recording's own embedded ARTCC config
-and student position. The rewrite is idempotent, so no schema-version gate
-is needed and re-running the upgrade is a no-op.
+and student position. The same pass runs `HalfStripEditCanonicalRewriter`,
+which turns the retired `HSE <id> …` verb into `HSA <id> …`. Both rewrites
+are idempotent (they share `CompoundCanonical.RewriteUnits` for `;`/`,`
+compounds), so no schema-version gate is needed and re-running the upgrade
+is a no-op.
 
 Strip commands never interact with flight physics. Live and CRC-sourced strip
 commands are classified by `TrackEngine.IsStripCommand`, which is checked in
@@ -554,6 +557,15 @@ readable; legacy 32-char GUID ids in older recordings keep working
 `SEP_` / `BLANK_` id-prefix handling on `SEPD` / `SEPE` / `SEPM` /
 `BLANKD`.
 
+The `HSA` id form is always a **literal** replacement of every line —
+`HSA HSTRIP_<id> line0\line1\…` writes exactly those lines (empty entries
+preserved) regardless of the dispatch callsign. That is what the inline 3×2
+cell grid emits on every cell commit (all six slots), what the **Edit lines**
+popup emits, and what the CRC → canonical translator emits for
+`UpdateStripItem`. Recordings made while a separate `HSE` verb carried this
+role are rewritten to the `HSA` id form by `HalfStripEditCanonicalRewriter`
+inside `RecordingSchemaUpgrader`.
+
 #### Server dispatch
 
 `HandleHalfStripCreate`:
@@ -595,8 +607,9 @@ readable; legacy 32-char GUID ids in older recordings keep working
    equal to the lookup key, and optionally by bay and rack. The result:
    - 0 matches → `"No half-strip matching '{key}'{scopeSuffix}"`.
    - &gt;1 matches → `"Multiple half-strips match '{key}' — specify bay: bay1/rack, bay2/rack, …"`.
-4. On a unique match, replace the record's `FieldValues` and broadcast
-   the single updated item.
+4. On a unique match, `StripMutations.UpdateStripFields` replaces the
+   record's `FieldValues` under the state lock and the single updated
+   item is broadcast.
 
 `HandleHalfStripDelete`:
 

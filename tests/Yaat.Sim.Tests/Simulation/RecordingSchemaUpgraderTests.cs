@@ -150,6 +150,40 @@ public class RecordingSchemaUpgraderTests
     }
 
     [Fact]
+    public void Upgrade_V4Archive_RewritesRetiredHseActions_EvenWithoutArtccConfig()
+    {
+        // No artcc-config entry → no bay qualification possible, but the retired-verb
+        // rewrite must still run so every recorded HSE becomes HSA's id form.
+        var current = new StateSnapshotDto
+        {
+            ElapsedSeconds = 5,
+            Rng = new RngState(1, 2, 3, 4),
+            Aircraft = [],
+            Scenario = MinimalScenario(5),
+        };
+        List<RecordedAction> actions =
+        [
+            new RecordedCommand(1, "", @"HSE HSTRIP_x a\b", "TS", "c1"),
+            new RecordedCommand(2, "", @"HSA HSTRIP_y already\x", "TS", "c1"),
+            new RecordedCommand(3, "N1", "HSE HSTRIP_x a; AN 3 RV", "TS", "c1"),
+        ];
+        var input = BuildArchive(current, actions);
+
+        var result = RecordingSchemaUpgrader.Upgrade(input);
+
+        Assert.True(result.Changed);
+        Assert.False(result.NeedsResimulation);
+        using var archive = RecordingArchive.Open(new MemoryStream(result.Output));
+        var rewritten = archive.ReadActions().Cast<RecordedCommand>().Select(c => c.Command).ToList();
+        Assert.Equal([@"HSA HSTRIP_x a\b", @"HSA HSTRIP_y already\x", "HSA HSTRIP_x a; AN 3 RV"], rewritten);
+        // Callsign / timing survive the rewrite untouched.
+        Assert.Equal("N1", Assert.IsType<RecordedCommand>(archive.ReadActions()[2]).Callsign);
+
+        var again = RecordingSchemaUpgrader.Upgrade(result.Output);
+        Assert.False(again.Changed);
+    }
+
+    [Fact]
     public void Upgrade_V1RecordingWithoutSnapshots_ReportsNeedsResimulation()
     {
         var v1 = new SessionRecording
@@ -171,13 +205,15 @@ public class RecordingSchemaUpgraderTests
 
     // --- fixtures ---
 
-    private static byte[] BuildArchiveWithLayout(StateSnapshotDto snapshot)
+    private static byte[] BuildArchiveWithLayout(StateSnapshotDto snapshot) => BuildArchive(snapshot, []);
+
+    private static byte[] BuildArchive(StateSnapshotDto snapshot, List<RecordedAction> actions)
     {
         using var ms = new MemoryStream();
         using (var writer = new RecordingArchiveWriter(ms))
         {
             writer.WriteScenario("{}");
-            writer.WriteActions([]);
+            writer.WriteActions(actions);
             writer.WriteSnapshot(0, snapshot.ElapsedSeconds, 0, snapshot);
             writer.WriteLayout(new AirportGroundLayout { AirportId = "KOAK" });
             writer.Finish(

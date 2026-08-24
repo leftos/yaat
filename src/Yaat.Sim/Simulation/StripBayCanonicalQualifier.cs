@@ -18,47 +18,10 @@ public static class StripBayCanonicalQualifier
 {
     private static readonly string[] IdPrefixes = ["STRIP_", "HSTRIP_", "SEP_", "BLANK_", "ARRIVAL_"];
 
-    /// <summary>
-    /// Qualifies every unit of a possibly-compound canonical. Splitting on
-    /// <c>;</c> / <c>,</c> is safe because the compound parser owns those
-    /// separators — no strip payload can contain one.
-    /// </summary>
+    /// <summary>Qualifies every unit of a possibly-compound canonical (see <see cref="CompoundCanonical.RewriteUnits"/>).</summary>
     public static string QualifyCompound(string canonical, IReadOnlyList<AccessibleBay> bays)
     {
-        if (canonical.IndexOfAny([';', ',']) < 0)
-        {
-            return Qualify(canonical, bays);
-        }
-
-        var result = new System.Text.StringBuilder(canonical.Length + 16);
-        var unitStart = 0;
-        for (var i = 0; i <= canonical.Length; i++)
-        {
-            if (i < canonical.Length && canonical[i] is not (';' or ','))
-            {
-                continue;
-            }
-            var unit = canonical[unitStart..i];
-            result.Append(QualifyPreservingPadding(unit, bays));
-            if (i < canonical.Length)
-            {
-                result.Append(canonical[i]);
-            }
-            unitStart = i + 1;
-        }
-        return result.ToString();
-    }
-
-    private static string QualifyPreservingPadding(string unit, IReadOnlyList<AccessibleBay> bays)
-    {
-        var trimmed = unit.Trim();
-        if (trimmed.Length == 0)
-        {
-            return unit;
-        }
-        var lead = unit[..unit.IndexOf(trimmed[0])];
-        var trail = unit[(lead.Length + trimmed.Length)..];
-        return lead + Qualify(trimmed, bays) + trail;
+        return CompoundCanonical.RewriteUnits(canonical, unit => Qualify(unit, bays));
     }
 
     /// <summary>

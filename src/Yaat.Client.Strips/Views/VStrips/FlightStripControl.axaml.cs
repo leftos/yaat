@@ -501,7 +501,7 @@ public partial class FlightStripControl : UserControl
     /// <summary>
     /// Commits the current half-strip cell by composing the full
     /// <see cref="StripItemDto.FieldValues"/> (with this cell's text
-    /// replacing slot N) and dispatching <c>HSE</c>. Skipped when Escape
+    /// replacing slot N) and dispatching <c>HSA</c> by strip id. Skipped when Escape
     /// flagged a cancel — the OneWay binding reverts the TextBox to the
     /// authoritative VM value on the next render.
     /// </summary>
@@ -542,7 +542,7 @@ public partial class FlightStripControl : UserControl
             return; // unchanged — skip the round-trip
         }
 
-        _ = vm.EditHalfStripFieldsAsync(strip, slots);
+        _ = vm.AmendHalfStripAsync(strip, slots);
     }
 
     /// <summary>

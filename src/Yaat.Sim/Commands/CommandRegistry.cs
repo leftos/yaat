@@ -1353,6 +1353,11 @@ public static class CommandRegistry
                     O("Auto-search", [R("body", @"key\new1\new2\...")], "Amend half-strip by first-line key (auto-search across bays)"),
                     O("Explicit bay", [R("bay", "facility/bay[/rack]"), R("body", @"key\new1\new2\...")], "Amend with explicit bay disambiguation"),
                     O("Aircraft-scoped", [], "With aircraft selected: lookup by callsign, replace lines 2-6"),
+                    O(
+                        "Strip id",
+                        [R("stripId", "HSTRIP_… id"), R("lines", @"line1\line2\... (up to 6, empty cells preserved)")],
+                        "Replace every line of the half-strip with this id (what the strips UI and CRC translator emit)"
+                    ),
                 ]
             ),
             Cmd(
@@ -1369,20 +1374,6 @@ public static class CommandRegistry
                         "Delete with explicit bay disambiguation"
                     ),
                     O("Aircraft-scoped", [], "With aircraft selected: delete half-strip whose first line is the callsign"),
-                ]
-            ),
-            Cmd(
-                HalfStripEdit,
-                "Edit Half-Strip Fields",
-                "Strip Operations",
-                false,
-                ["HSE", "HALFSTRIPEDIT"],
-                [
-                    O(
-                        null,
-                        [R("stripId", "half-strip id"), R("fields", @"line0\line1\... (up to 6, empty cells preserved)")],
-                        "Replace a half-strip's full FieldValues array by stripId (drives the inline 3×2 cell grid)"
-                    ),
                 ]
             ),
             Cmd(

@@ -973,8 +973,10 @@ TimelineBookmark.cs            # TimelineBookmark + RecordingBookmarks records (
 RecordingArchiveWriter.cs      # v4 ZIP archive writer: streaming snapshots + deduplicated layouts/source GeoJSON + bundled ArtccConfig
 RecordingManifest.cs           # Archive manifest: snapshot index, LayoutAirportIds, AirportGeoJsonIds, HasArtccConfig, metadata
 RecordingSchemaUpgrader.cs     # Surgical in-place snapshot schema upgrade (via SnapshotSchemaMigrator, never re-sim); handles .br/v4-zip/bug-bundle; drives yaat-server's Yaat.RecordingUpgrader CLI.
-                               # Also rewrites recorded strip canonicals to the required FACILITY/BAY bay token (StripBayCanonicalQualifier), resolving against the recording's own ArtccConfig + student position.
+                               # Also rewrites recorded canonicals in place: retired HSE → HSA id form (HalfStripEditCanonicalRewriter) and the required FACILITY/BAY bay token (StripBayCanonicalQualifier, resolved against the recording's own ArtccConfig + student position).
 StripBayCanonicalQualifier.cs  # Idempotent bay-token qualifier for recorded canonicals: adds the owning facility to STRIP/SCAN/HSC/HSM/SEP/SEPM/BLANK/... dest-specs; leaves id-form and bayless verbs alone.
+HalfStripEditCanonicalRewriter.cs # Idempotent rewrite of the retired `HSE <id> …` half-strip verb into `HSA <id> …` for archived action logs.
+CompoundCanonical.cs           # RewriteUnits: applies a per-unit rewrite across `;`/`,` compound canonicals, preserving separators and padding; returns the input instance when nothing changed.
 RecordingJsonOptions.cs        # Shared JsonSerializerOptions for recording serialization
 
 # Simulation/Replay/

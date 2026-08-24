@@ -778,12 +778,6 @@ public record HalfStripAmendCommand(string? FacilityId, string? BayName, int? Ra
 
 public record HalfStripDeleteCommand(string? FacilityId, string? BayName, int? Rack, IReadOnlyList<string> Tokens) : ParsedCommand;
 
-// HSE: edit a half-strip's full FieldValues array by stripId. Drives the
-// inline 3×2 cell grid so per-cell commits can target a specific strip
-// regardless of whether FieldValues[0] is empty or duplicated across
-// half-strips. Empty entries clear a slot.
-public record HalfStripEditCommand(string StripId, IReadOnlyList<string> Lines) : ParsedCommand;
-
 // HSO / HSS: optional source bay + first-line key (single-word source bay only).
 //
 // HSM is structurally different: bay names can be multi-word ("Local 1") so the
