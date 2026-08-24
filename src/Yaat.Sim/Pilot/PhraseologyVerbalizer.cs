@@ -133,6 +133,12 @@ public static class PhraseologyVerbalizer
             return null;
         }
 
+        // TAXIAUTO is a TAXI with no route named; it reads back through the same rules.
+        if (cmd is TaxiAutoCommand taxiAuto)
+        {
+            cmd = new TaxiCommand([], [], taxiAuto.DestinationRunway, DestinationParking: taxiAuto.DestinationParking);
+        }
+
         if (cmd is ClimbMaintainCommand { Modifier: AltitudeAssignmentModifier.AtOrAbove } atOrAbove)
         {
             return $"maintain at or above {fmt.Altitude(atOrAbove.Altitude)}";
@@ -334,18 +340,19 @@ public static class PhraseologyVerbalizer
     /// matching rule, so a path-only command reads "taxi via …" while a fuller clearance reads
     /// "runway … taxi via … cross runway …". Hold-shorts never reach here — a TAXI carrying them is
     /// direct-rendered in <see cref="VerbalizeCore"/> so the "runway" word is decided per target type.
-    /// An empty path (node-refs only) yields no captures, so the command produces no readback (a
-    /// draw-route debug taxi isn't voiced).
+    /// A TAXI with no route (bare <c>TAXI 1L</c> at the runway, <c>TAXIAUTO 1L</c>) yields only the runway
+    /// capture and reads "taxi to runway …"; one with neither a route nor a runway (a node-ref-only
+    /// draw-route debug taxi) yields no captures and is not voiced.
     /// </summary>
     private static IReadOnlyDictionary<string, string> TaxiArgs(TaxiCommand taxi, CaptureFormatter fmt)
     {
+        var dict = new Dictionary<string, string>();
         string path = fmt.TaxiPath(taxi);
-        if (string.IsNullOrEmpty(path))
+        if (!string.IsNullOrEmpty(path))
         {
-            return Empty();
+            dict["path"] = path;
         }
 
-        var dict = new Dictionary<string, string> { ["path"] = path };
         if (taxi.DestinationRunway is { Length: > 0 } rwy)
         {
             dict["rwy"] = fmt.Runway(rwy);

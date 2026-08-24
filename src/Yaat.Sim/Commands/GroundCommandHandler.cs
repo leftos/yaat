@@ -26,7 +26,23 @@ internal static class GroundCommandHandler
     private const int NodeRefSegmentSlack = 20;
     private const int NodeRefSegmentFactor = 2;
 
+    /// <summary>
+    /// A controller-typed or scenario-preset <c>TAXI</c>. A bare runway destination with no taxiways named
+    /// (<c>TAXI 1L</c>) is honoured only when the aircraft is already at that runway's hold-short — see
+    /// <see cref="TaxiPathfinder.FindAdjacentRunwayRoute"/>; <see cref="TryTaxiAuto"/> is the explicit auto-route.
+    /// </summary>
     internal static CommandResult TryTaxi(AircraftState aircraft, TaxiCommand taxi, AirportGroundLayout? groundLayout, bool autoCrossRunway = false)
+    {
+        return TryTaxiCore(aircraft, taxi, groundLayout, autoCrossRunway, allowRemoteRunwayAutoRoute: false);
+    }
+
+    private static CommandResult TryTaxiCore(
+        AircraftState aircraft,
+        TaxiCommand taxi,
+        AirportGroundLayout? groundLayout,
+        bool autoCrossRunway,
+        bool allowRemoteRunwayAutoRoute
+    )
     {
         if (!aircraft.IsOnGround)
         {
@@ -159,9 +175,23 @@ internal static class GroundCommandHandler
         double startHeadingTrueDeg = aircraft.TrueHeading.Degrees;
         TaxiRoute? ResolveDirect(TaxiCommand command, out string? reason)
         {
-            return (command.DestinationParking is not null || command.DestinationSpot is not null)
-                ? ResolveParkingRoute(groundLayout, startNode, command, out reason, category, startHeadingTrueDeg)
-                : ResolveStandardRoute(groundLayout, startNode, command, out reason, category, startHeadingTrueDeg);
+            if (command.DestinationParking is not null || command.DestinationSpot is not null)
+            {
+                return ResolveParkingRoute(groundLayout, startNode, command, out reason, category, startHeadingTrueDeg);
+            }
+
+            if ((command.Path.Count == 0) && (command.DestinationRunway is not null))
+            {
+                var adjacent = ResolveAdjacentRunwayRoute(groundLayout, startNode, aircraft, command.DestinationRunway, out reason);
+                // TAXIAUTO at the bar has nothing to route either — the full-length auto-route would
+                // otherwise return an empty fallback with no destination hold-short to hold at.
+                if (!allowRemoteRunwayAutoRoute || (adjacent is { Segments.Count: 0 }))
+                {
+                    return adjacent;
+                }
+            }
+
+            return ResolveStandardRoute(groundLayout, startNode, command, out reason, category, startHeadingTrueDeg);
         }
 
         // As-cleared first: the route the named taxiways produce on their own wins when it honors every
@@ -478,7 +508,17 @@ internal static class GroundCommandHandler
         ctx = CommandDispatcher.BuildMinimalContext(aircraft, groundLayout);
         aircraft.Phases.Start(ctx);
 
-        string msg = $"Taxi via {route.ToSummary(BuildTurnHintMap(taxi), taxi.Path)}";
+        string msg;
+        if ((route.Segments.Count == 0) && (taxi.DestinationRunway is not null))
+        {
+            string runwayDisplay = RunwayIdentifier.ToDisplayDesignator(taxi.DestinationRunway);
+            msg = $"Already at runway {runwayDisplay} — holding short (runway {runwayDisplay} assigned)";
+        }
+        else
+        {
+            msg = $"Taxi via {route.ToSummary(BuildTurnHintMap(taxi), taxi.Path)}";
+        }
+
         if (route.Warnings.Count > 0)
         {
             msg += " [" + string.Join("; ", route.Warnings) + "]";
@@ -651,7 +691,7 @@ internal static class GroundCommandHandler
             DestinationParking: autoTaxi.DestinationParking
         );
 
-        return TryTaxi(aircraft, taxi, groundLayout, autoCrossRunway);
+        return TryTaxiCore(aircraft, taxi, groundLayout, autoCrossRunway, allowRemoteRunwayAutoRoute: true);
     }
 
     /// <summary>
@@ -952,6 +992,52 @@ internal static class GroundCommandHandler
         }
 
         return onLast.MaxBy(n => GeoMath.DistanceNm(startNode.Position, n.Position));
+    }
+
+    /// <summary>
+    /// Bare <c>TAXI &lt;rwy&gt;</c> with no taxiways named: the aircraft must already be at that runway. Anything
+    /// else is rejected with a pointer at the two commands that do carry a route, so a mistyped or under-specified
+    /// clearance never taxis an aircraft across the airport on a guessed route (issue #393).
+    /// </summary>
+    private static TaxiRoute? ResolveAdjacentRunwayRoute(
+        AirportGroundLayout groundLayout,
+        GroundNode startNode,
+        AircraftState aircraft,
+        string runwayId,
+        out string? failReason
+    )
+    {
+        failReason = null;
+        string display = RunwayIdentifier.ToDisplayDesignator(runwayId);
+        if (groundLayout.GetRunwayHoldShortNodes(runwayId).Count == 0)
+        {
+            failReason = $"No hold-short nodes for runway {display}";
+            return null;
+        }
+
+        var route = TaxiPathfinder.FindAdjacentRunwayRoute(
+            groundLayout,
+            startNode,
+            (aircraft.Position, aircraft.TrueHeading),
+            runwayId,
+            AircraftCategorization.Categorize(aircraft.AircraftType)
+        );
+        if (route is null)
+        {
+            string where = aircraft.Ground.CurrentTaxiway is { Length: > 0 } currentTaxiway ? $" (on taxiway {currentTaxiway})" : "";
+            failReason =
+                $"{aircraft.Callsign} is not at runway {display}{where} — give a taxi route (TAXI <route> {display}) "
+                + $"or use TAXIAUTO {display} to auto-route";
+            return null;
+        }
+
+        Log.LogDebug(
+            "[TryTaxi] {Callsign}: bare TAXI {Rwy} resolved to the adjacent hold-short ({SegCount} segments)",
+            aircraft.Callsign,
+            display,
+            route.Segments.Count
+        );
+        return route;
     }
 
     private static TaxiRoute? ResolveRunwayRouteByAStar(

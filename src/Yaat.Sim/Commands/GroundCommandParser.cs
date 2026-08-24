@@ -195,7 +195,8 @@ internal static class GroundCommandParser
 
     /// <summary>
     /// Parses TAXI path [RWY runway] [HS runway...].
-    /// Also handles trailing runway: TAXI T U W 30 → path=[T,U,W], dest=30.
+    /// Also handles trailing runway: TAXI T U W 30 → path=[T,U,W], dest=30, and a lone runway:
+    /// TAXI 1L → path=[], dest=1L (only honoured when the aircraft is already at that runway).
     /// Keywords: HS starts hold-short list, RWY sets destination runway.
     /// </summary>
     internal static PR ParseTaxi(string? arg)
@@ -371,8 +372,11 @@ internal static class GroundCommandParser
             }
         }
 
-        // If no explicit RWY keyword, check if last path token is a runway
-        if (detectTrailingRunway && destRunway is null && path.Count >= 2)
+        // If no explicit RWY keyword, check if last path token is a runway. A lone runway token
+        // (TAXI 1L) is a destination too — the aircraft is expected to already be at that runway;
+        // TryTaxi enforces that. A runway followed by taxiways (TAXI 28R G D) stays a path
+        // segment the aircraft taxis along.
+        if (detectTrailingRunway && destRunway is null && path.Count >= 1)
         {
             var last = path[^1];
             if (CommandParser.IsRunwayArg(last))
@@ -387,8 +391,8 @@ internal static class GroundCommandParser
         // the common un-hinted command is unchanged and the parallel list never desyncs from Path.
         List<TurnDirection?>? turnHints = pathTurnHints.Exists(h => h is not null) ? pathTurnHints : null;
 
-        // Allow empty path when parking/spot destination is set (A* will find the route)
-        if (path.Count == 0 && destParking is null && destSpot is null)
+        // Allow an empty path when a destination is set (the handler resolves the route)
+        if (path.Count == 0 && destRunway is null && destParking is null && destSpot is null)
         {
             return PR.Fail("empty taxi route");
         }

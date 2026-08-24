@@ -631,14 +631,17 @@ public class PhraseologyMapperTests
         Assert.Equal("CM 35000", result!.CanonicalCommand);
     }
 
-    [Fact]
-    public void Taxi_ToRunwayWithoutPath_IsUnsupported()
+    [Theory]
+    [InlineData("taxi to runway two eight right", "TAXI 28R")]
+    [InlineData("taxi runway one left", "TAXI 01L")]
+    public void Taxi_ToRunwayWithoutPath_IsBareRunwayTaxi(string transcript, string expected)
     {
-        // "taxi to runway 28R" is not valid phraseology — controllers say either
-        // "runway 28R, taxi via <path>" or "taxi via <path>" and attach the runway/hold-short
-        // inline. The rule engine must not match this; the LLM fallback handles it.
-        var result = PhraseologyMapper.Map("taxi to runway two eight right", NoContext);
-        Assert.Null(result);
+        // A bare "taxi to runway 28R" carries no route; it is the clearance for an aircraft already
+        // at its runway (issue #393) and must stay distinct from the via forms, which still win
+        // whenever a route is spoken (see the ground-command theory below).
+        var result = PhraseologyMapper.Map(transcript, NoContext);
+        Assert.NotNull(result);
+        Assert.Equal(expected, result!.CanonicalCommand);
     }
 
     // --- Callsign extraction ---

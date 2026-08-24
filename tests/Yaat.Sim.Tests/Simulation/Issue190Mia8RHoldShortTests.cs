@@ -37,7 +37,7 @@ public class Issue190Mia8RHoldShortTests(ITestOutputHelper output)
         SimLogBuilder.CreateForTest(output).InitializeSimLog();
 
         var aircraft = MakeGroundAircraftAtNode(data.MiaLayout, TaxiAutoStartNodeId);
-        var result = GroundCommandHandler.TryTaxi(aircraft, new TaxiCommand([], [], DestinationRunway: DestinationRunway), data.MiaLayout);
+        var result = GroundCommandHandler.TryTaxiAuto(aircraft, new TaxiAutoCommand(DestinationRunway: DestinationRunway), data.MiaLayout);
         Assert.True(result.Success, $"TAXIAUTO 08R failed: {result.Message}");
 
         AssertRouteStopsAtDestinationHoldShortBeforeRunwaySurface(aircraft, data.MiaLayout, DestinationRunway);
@@ -86,7 +86,7 @@ public class Issue190Mia8RHoldShortTests(ITestOutputHelper output)
         Assert.NotNull(aircraft);
         MoveAircraftToNode(aircraft, data.MiaLayout, TaxiAutoStartNodeId);
 
-        var taxiResult = GroundCommandHandler.TryTaxi(aircraft, new TaxiCommand([], [], DestinationRunway: DestinationRunway), data.MiaLayout);
+        var taxiResult = GroundCommandHandler.TryTaxiAuto(aircraft, new TaxiAutoCommand(DestinationRunway: DestinationRunway), data.MiaLayout);
         Assert.True(taxiResult.Success, $"TAXIAUTO 08R failed: {taxiResult.Message}");
 
         var result = engine.SendCommand(Callsign, command);

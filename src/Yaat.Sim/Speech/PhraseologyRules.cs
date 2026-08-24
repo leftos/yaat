@@ -680,6 +680,8 @@ public static class PhraseologyRules
     //      TryMatchRule) — turns {cardinal} captures like "north" into "N".
     //
     // Accepted taxi phraseology (pilot-side):
+    //   - "Taxi to runway 28R" — runway only, no route (an aircraft already at its runway; also the
+    //     TAXIAUTO readback)
     //   - "Taxi via delta hotel" — path only
     //   - "Runway 28R, taxi via bravo charlie" — canonical departure clearance readback
     //   - "Taxi to runway 28R via bravo charlie" — pilot colloquialism; not 7110.65 controller
@@ -693,7 +695,11 @@ public static class PhraseologyRules
 
     private static PhraseologyRule[] GroundRules() =>
         [
-            // Taxi — path-only and path-with-runway forms.
+            // Taxi — runway-only, path-only and path-with-runway forms. The runway-only form is the
+            // readback for a bare "TAXI 1L" issued to an aircraft already at its runway (and for
+            // TAXIAUTO); the via forms below carry more captures and win whenever a route is spoken.
+            // Shortcut is the AIM 4-3-18.a.9 mandatory readback (runway assignment alone).
+            new(["taxi", "to?", "runway", "{rwy}"], "TAXI {rwy}", Taxi, PilotShortcuts: ["runway {rwy}"]),
             new(["taxi", "via", "{path...}"], "TAXI {path}", Taxi),
             new(["taxi", "to?", "runway", "{rwy}", "via", "{path...}"], "TAXI {path} {rwy}", Taxi),
             new(["runway", "{rwy}", "taxi", "via", "{path...}"], "TAXI {path} {rwy}", Taxi),

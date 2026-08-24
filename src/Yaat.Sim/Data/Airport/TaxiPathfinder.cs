@@ -10,6 +10,23 @@ using Yaat.Sim.Data.Airport.Pathfinding;
 public static class TaxiPathfinder
 {
     /// <summary>
+    /// How far ahead a bare <c>TAXI &lt;rwy&gt;</c> (no taxiways named) may carry an aircraft to reach that
+    /// runway's hold-short bar: a straight run along the taxiway it already occupies. Anything farther, or
+    /// anything needing a turn onto another taxiway, is a route the controller has to give.
+    /// </summary>
+    public const double AdjacentRunwayHoldShortMaxFt = 600.0;
+
+    /// <summary>
+    /// Within this distance of a bar the aircraft is treated as standing at it — a scenario spawn or a
+    /// creep-to-stop lands a few dozen feet short of, or just past, the painted line, and a bare
+    /// <c>TAXI &lt;rwy&gt;</c> there means "hold where you are", not "back up to the bar".
+    /// </summary>
+    public const double AtRunwayHoldShortRadiusFt = 100.0;
+
+    /// <summary>Slack beyond the runway's paved half-width before a position counts as on the runway.</summary>
+    private const double RunwayPavementMarginFt = 25.0;
+
+    /// <summary>
     /// Resolve a controller-specified taxi route from a sequence of taxiway names.
     /// Handles runway crossings, explicit hold-shorts, and variant resolution
     /// (e.g., W → W1 auto-extension when the destination runway is set).
@@ -115,21 +132,7 @@ public static class TaxiPathfinder
             return null;
         }
 
-        var runwayContext = SearchContext.Compile(
-            layout,
-            startNode.Id,
-            waypointSequence: [],
-            destinationRunway: runwayId,
-            destinationParking: null,
-            destinationSpot: null,
-            destinationNodeId: null,
-            explicitHoldShorts: null,
-            category: category,
-            preference: RoutePreference.FewestTurns,
-            diagnosticLog: null,
-            waypointTurnHints: null,
-            startHeadingTrue: null
-        );
+        var runwayContext = CompileRunwayDestinationContext(layout, startNode, runwayId, category);
 
         var reference = RouteMaterialiser.ResolveRunwayThreshold(layout.AirportId, runwayId) ?? startNode.Position;
         var candidates = holdShortNodes.OrderBy(n => GeoMath.DistanceNm(reference, n.Position)).ToList();
@@ -172,6 +175,182 @@ public static class TaxiPathfinder
     private static bool TraversesDestinationRunwaySurface(TaxiRoute route, string runwayId)
     {
         return route.Segments.Any(segment => (segment.Edge.Edge.IsRunwayCenterline) && (segment.Edge.Edge.MatchesRunway(runwayId)));
+    }
+
+    /// <summary>
+    /// Route for a bare <c>TAXI &lt;rwy&gt;</c>: the aircraft is expected to already be at that runway, so the only
+    /// acceptable destination is the runway's hold-short bar it is standing at (within
+    /// <see cref="AtRunwayHoldShortRadiusFt"/> — a bar behind the aircraft counts only while it is still clear of
+    /// the runway pavement), or one a short, turn-free run ahead on the taxiway it occupies — at most
+    /// <see cref="AdjacentRunwayHoldShortMaxFt"/>, a single taxiway name, never across any runway, never behind
+    /// the aircraft. Candidates are ordered by distance from the <em>aircraft</em>, unlike
+    /// <see cref="FindRunwayRoute"/> (TAXIAUTO), which orders by distance from the threshold to prefer full length:
+    /// here the clearance names no route, so the bar in front of the aircraft is the only one it can mean.
+    /// Returns null when no bar qualifies; the caller rejects the command instead of guessing a route across the
+    /// airport. When the aircraft is already at the bar the route has no segments and a single
+    /// <see cref="HoldShortReason.DestinationRunway"/> point on that bar.
+    /// </summary>
+    public static TaxiRoute? FindAdjacentRunwayRoute(
+        AirportGroundLayout layout,
+        GroundNode startNode,
+        (LatLon Position, TrueHeading Heading) aircraft,
+        string runwayId,
+        AircraftCategory category
+    )
+    {
+        var (position, heading) = aircraft;
+        var holdShortNodes = layout.GetRunwayHoldShortNodes(runwayId);
+        double atBarNm = AtRunwayHoldShortRadiusFt / GeoMath.FeetPerNm;
+        var atBar = holdShortNodes
+            .Where(n => GeoMath.DistanceNm(position, n.Position) <= atBarNm)
+            .Where(n => IsAhead(position, heading, n) || !IsOnRunwayPavement(layout, position, runwayId))
+            .MinBy(n => GeoMath.DistanceNm(position, n.Position));
+        if (atBar is not null)
+        {
+            var route = new TaxiRoute
+            {
+                Segments = [],
+                HoldShortPoints =
+                [
+                    new HoldShortPoint
+                    {
+                        NodeId = atBar.Id,
+                        Reason = HoldShortReason.DestinationRunway,
+                        TargetName = runwayId,
+                    },
+                ],
+                CurrentSegmentIndex = 0,
+            };
+            if (!IsAhead(position, heading, atBar))
+            {
+                route.Warnings.Add(
+                    $"already past the {RunwayIdentifier.ToDisplayDesignator(runwayId)} hold-short line — holding in place, clear of the runway"
+                );
+            }
+
+            return route;
+        }
+
+        var runwayContext = CompileRunwayDestinationContext(layout, startNode, runwayId, category);
+
+        // The start node is the bar itself (the heading-aligned endpoint of the edge the aircraft is on)
+        // while the aircraft is still short of it: route from the node behind the aircraft so the
+        // navigator drives it up to the bar instead of a degenerate bar-to-bar route.
+        if (holdShortNodes.Any(n => n.Id == startNode.Id))
+        {
+            var behind = startNode
+                .Edges.Where(e => !e.IsRunwayCenterline)
+                .Select(e => e.OtherNode(startNode))
+                .Where(n => !IsAhead(position, heading, n))
+                .MinBy(n => GeoMath.DistanceNm(position, n.Position));
+            return behind is null ? null : TryAdjacentRoute(layout, runwayContext, behind.Id, startNode, runwayId, category);
+        }
+
+        double maxNm = AdjacentRunwayHoldShortMaxFt / GeoMath.FeetPerNm;
+        var candidates = holdShortNodes
+            .Where(n => GeoMath.DistanceNm(startNode.Position, n.Position) <= maxNm)
+            .Where(n => IsAhead(startNode.Position, heading, n))
+            .OrderBy(n => GeoMath.DistanceNm(startNode.Position, n.Position));
+
+        foreach (var bar in candidates)
+        {
+            var route = TryAdjacentRoute(layout, runwayContext, startNode.Id, bar, runwayId, category);
+            if (route is not null)
+            {
+                return route;
+            }
+        }
+
+        return null;
+    }
+
+    private static TaxiRoute? TryAdjacentRoute(
+        AirportGroundLayout layout,
+        SearchContext runwayContext,
+        int fromNodeId,
+        GroundNode bar,
+        string runwayId,
+        AircraftCategory category
+    )
+    {
+        var routeToBar = FindRoute(layout, fromNodeId, bar.Id, category);
+        if (routeToBar is null)
+        {
+            return null;
+        }
+
+        var route = RouteMaterialiser.Materialise(routeToBar.Segments.Select(static s => s.Edge).ToList(), runwayContext, []);
+        return IsAdjacentRunwayApproach(route, layout, runwayId) ? route : null;
+    }
+
+    private static bool IsAhead(LatLon from, TrueHeading heading, GroundNode node) =>
+        GeoMath.AbsBearingDifference(GeoMath.BearingTo(from, node.Position), heading.Degrees) < 90.0;
+
+    /// <summary>
+    /// True when <paramref name="position"/> lies on the runway's paved surface (half its width plus a small
+    /// margin from the centerline). A hold-short bar sits well outside this band, so an aircraft that crept
+    /// past the painted line is still "at the bar" only while this is false.
+    /// </summary>
+    private static bool IsOnRunwayPavement(AirportGroundLayout layout, LatLon position, string runwayId)
+    {
+        var runway = layout.FindRunway(runwayId);
+        if (runway is null || runway.Coordinates.Count < 2)
+        {
+            return false;
+        }
+
+        var start = runway.Coordinates[0];
+        var end = runway.Coordinates[^1];
+        var centerline = new TrueHeading(GeoMath.BearingTo(start.Lat, start.Lon, end.Lat, end.Lon));
+        double crossTrackFt =
+            Math.Abs(GeoMath.SignedCrossTrackDistanceNm(position.Lat, position.Lon, start.Lat, start.Lon, centerline)) * GeoMath.FeetPerNm;
+        return crossTrackFt <= (runway.WidthFt / 2.0) + RunwayPavementMarginFt;
+    }
+
+    /// <summary>
+    /// A short run to the bar is only "already at the runway" when it stays on one taxiway, is short, ends at the
+    /// destination bar, and crosses nothing — a route carrying any other hold-short reaches the bar from the far
+    /// side of another runway, which needs a crossing clearance the bare command cannot carry.
+    /// </summary>
+    private static bool IsAdjacentRunwayApproach(TaxiRoute route, AirportGroundLayout layout, string runwayId)
+    {
+        if (
+            (route.Segments.Count == 0)
+            || !EndsAtDestinationRunwayHoldShort(route, layout, runwayId)
+            || TraversesDestinationRunwaySurface(route, runwayId)
+        )
+        {
+            return false;
+        }
+
+        string taxiway = route.Segments[0].TaxiwayName;
+        return route.Segments.All(s => string.Equals(s.TaxiwayName, taxiway, StringComparison.OrdinalIgnoreCase))
+            && route.HoldShortPoints.All(h => h.Reason == HoldShortReason.DestinationRunway)
+            && (route.TotalDistanceNm * GeoMath.FeetPerNm <= AdjacentRunwayHoldShortMaxFt);
+    }
+
+    private static SearchContext CompileRunwayDestinationContext(
+        AirportGroundLayout layout,
+        GroundNode startNode,
+        string runwayId,
+        AircraftCategory category
+    )
+    {
+        return SearchContext.Compile(
+            layout,
+            startNode.Id,
+            waypointSequence: [],
+            destinationRunway: runwayId,
+            destinationParking: null,
+            destinationSpot: null,
+            destinationNodeId: null,
+            explicitHoldShorts: null,
+            category: category,
+            preference: RoutePreference.FewestTurns,
+            diagnosticLog: null,
+            waypointTurnHints: null,
+            startHeadingTrue: null
+        );
     }
 
     /// <summary>

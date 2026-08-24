@@ -62,6 +62,13 @@ public sealed class TaxiingPhase : Phase
     public override void OnStart(PhaseContext ctx)
     {
         var route = ctx.Aircraft.Ground.AssignedTaxiRoute;
+        if (route is not null && IsHoldAtStartOnly(route))
+        {
+            ctx.Aircraft.IsOnGround = true;
+            Log.LogDebug("[Taxi] {Callsign}: started at the destination hold-short, nothing to taxi", ctx.Aircraft.Callsign);
+            return;
+        }
+
         if (route is null || route.IsComplete)
         {
             Log.LogWarning("[Taxi] {Callsign}: OnStart but route is {State}", ctx.Aircraft.Callsign, route is null ? "null" : "already complete");
@@ -85,6 +92,11 @@ public sealed class TaxiingPhase : Phase
     public override bool OnTick(PhaseContext ctx)
     {
         var route = ctx.Aircraft.Ground.AssignedTaxiRoute;
+        if (route is not null && IsHoldAtStartOnly(route))
+        {
+            return TickHoldAtStartOnly(ctx, route);
+        }
+
         if (route is null || route.IsComplete)
         {
             Log.LogDebug("[Taxi] {Callsign}: OnTick exit — route {State}", ctx.Aircraft.Callsign, route is null ? "null" : "complete");
@@ -474,6 +486,40 @@ public sealed class TaxiingPhase : Phase
     }
 
     /// <summary>
+    /// A bare <c>TAXI &lt;rwy&gt;</c> issued at the runway's own bar resolves to a route with no segments and one
+    /// destination hold-short (<see cref="TaxiPathfinder.FindAdjacentRunwayRoute"/>). There is nothing to
+    /// navigate — the aircraft holds where it stands, or lines up straight away when a LUAW/CTO issued behind
+    /// the TAXI has already cleared the bar.
+    /// </summary>
+    private static bool IsHoldAtStartOnly(TaxiRoute route) => (route.Segments.Count == 0) && (route.HoldShortPoints.Count == 1);
+
+    /// <summary>
+    /// Finish a segment-less route: roll to a stop if still moving, then either take the hold (uncleared bar)
+    /// exactly as a route that reaches its bar does, or complete the route so a stored departure clearance
+    /// applies (the bar was pre-cleared by <c>DepartureClearanceHandler.StoreDepartureClearanceDuringTaxi</c>).
+    /// </summary>
+    private static bool TickHoldAtStartOnly(PhaseContext ctx, TaxiRoute route)
+    {
+        if (ctx.Aircraft.IndicatedAirspeed > StartNodeHoldArmSpeedKts)
+        {
+            ctx.Aircraft.IndicatedAirspeed = Math.Max(
+                0,
+                ctx.Aircraft.IndicatedAirspeed - CategoryPerformance.TaxiDecelRate(ctx.Category) * ctx.DeltaSeconds
+            );
+            return false;
+        }
+
+        var holdShort = route.HoldShortPoints[0];
+        if (holdShort.IsCleared)
+        {
+            return CompleteRoute(ctx, route);
+        }
+
+        TakeHoldShort(ctx, route, holdShort);
+        return true;
+    }
+
+    /// <summary>
     /// Take the hold-short sitting on the route's own start node, if any is still binding. Used when a
     /// TAXI re-route is issued to an aircraft at or approaching a runway holding position and the new
     /// route crosses that runway: the bar the route starts on is the one to honour, so the aircraft
@@ -521,22 +567,28 @@ public sealed class TaxiingPhase : Phase
         }
 
         _startNodeHoldDone = true;
+        TakeHoldShort(ctx, route, holdShort);
+        return true;
+    }
+
+    /// <summary>Stop on <paramref name="holdShort"/> (a bar no segment leads to) and queue the hold + resume phases.</summary>
+    private static void TakeHoldShort(PhaseContext ctx, TaxiRoute route, HoldShortPoint holdShort)
+    {
         Log.LogDebug(
             "[Taxi] {Callsign}: holding short at route start node {NodeId} (target {Target}, reason {Reason})",
             ctx.Aircraft.Callsign,
-            startNodeId,
+            holdShort.NodeId,
             holdShort.TargetName,
             holdShort.Reason
         );
 
         ctx.Aircraft.IndicatedAirspeed = 0;
         ctx.Targets.TargetSpeed = 0;
-        ctx.MarkHoldShortNodeOccupied?.Invoke(startNodeId);
+        ctx.MarkHoldShortNodeOccupied?.Invoke(holdShort.NodeId);
 
         var insertList = new List<Phase> { new HoldingShortPhase(holdShort) };
         insertList.AddRange(BuildResumePhases(ctx, route, holdShort, advancePastCurrentSegment: false));
         ctx.Aircraft.Phases?.InsertAfterCurrent(insertList);
-        return true;
     }
 
     /// <summary>

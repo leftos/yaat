@@ -1134,6 +1134,7 @@ YAAT has a comprehensive command system for controlling aircraft. Commands are t
 | `EXP; LV 050 NORM` | Expedite the current climb/descent, then resume the normal rate on reaching 5,000 ft |
 | `TAXI S T U` | Taxi via taxiways S, T, U |
 | `TAXI 28R G D` | Taxi **along** runway 28R, then off onto taxiways G, D (a runway named mid-path is taxied along its centerline) |
+| `TAXI 28R` | Runway only, no route: only for an aircraft already at runway 28R's hold-short — it holds short there. Elsewhere it is refused; give the route (`TAXI B B1 28R`) or use `TAXIAUTO 28R` |
 | `CLAND` | Cleared to land |
 | `CLAND 28R` | Cleared to land on runway 28R (a following aircraft is cleared even before it has its own runway) |
 | `CLAND 33` (during a low approach) | Low approach, then land a diverging runway. During a low approach (`LA`), clearing a light aircraft to a different, non-intersecting runway flies the low pass and turns onto that runway to land (e.g. `LA` then `CLAND 33` for a low approach 28R, land 33). The pilot reads back "change to runway 33, cleared to land". Declined when the runways are too close/divergent or the turn can't be made. |

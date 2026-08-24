@@ -361,7 +361,7 @@ The restriction covers only codes YAAT chooses on its own. `SQ {code}` still mak
 | Command | Primary | Aliases | Concatenated |
 |---------|---------|---------|-------------|
 | Pushback | `PUSH` | — | — |
-| Taxi | `TAXI S T U` | — | — |
+| Taxi | `TAXI S T U` | — | `TAXI 28R` (only at the runway) |
 | Hold position | `HOLD` | `HP` | — |
 | Resume taxi | `RES` | `RESUME` | `RES CROSS 28R 28L HS 20` |
 | Cross runway/HS | `CROSS 28R 28L` | `CROSS` (bare) | `CROSS 28R HS 20` |
@@ -707,6 +707,7 @@ These mutate ASDE-X display state only; they never change the underlying scenari
 | `TAXI S T U W W1` | Taxi via taxiways S, T, U, W, W1. With no destination, the **final** taxiway gives no onward direction, so the aircraft taxis to where the route meets it and holds there — the response notes it (e.g. `[holding at the W/W1 intersection — route ends at W1, no destination given]`). Continue it with a follow-up `TAXI`, a destination (`RWY`/`@parking`), or a turn hint on the last taxiway (`TAXI C >D`), all of which commit a direction and taxi the full leg. |
 | `TAXI T U W 30` | Taxi via T, U, W to runway 30 |
 | `TAXI T U W RWY 30` | Same as above (explicit RWY keyword) |
+| `TAXI 28R` / `TAXI RWY 28R` | Runway only, no route: the aircraft must already be **at** runway 28R — standing at one of its hold-short bars, or a short (≤600 ft) straight run ahead on the taxiway it occupies to that bar. It holds short there (a following `LUAW`/`CTO` lines it up). Anywhere else the command is refused (`… is not at runway 28R — give a taxi route (TAXI <taxiways> 28R) or use TAXIAUTO 28R to auto-route`) so an under-specified clearance never sends an aircraft across the airport on a guessed route. Scenario presets use this form for departures spawned at their bar. |
 | `RWY 30 TAXI T U W` | Same as above (RWY-first syntax) |
 | `TAXI S T U HS 28L` | Taxi via S, T, U with explicit hold-short at runway 28L |
 | `TAXI D C HS E RWY 28R` | Taxi via D, C, hold short of **taxiway** E, then continue to runway 28R. When the cleared taxiways already cross E on the way to the destination, the aircraft holds short there and carries on along them (SFO `TAXI T7A A A1 1R HS H` holds short of H on A, then A1 to 1R). Only when they don't — E is the way *to* the runway, as here — does the hold-short target also steer the route: it is taxied through (D→C→E), not detoured around, as if the command were `TAXI D C E HS E RWY 28R`. With no destination the target always steers (`TAXI A HS H` ends at the A/H junction). (Runway hold-short targets like `HS 28L` never add a routing waypoint.) |

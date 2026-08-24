@@ -22,6 +22,8 @@ public class TaxiCanonicalRoundTripTests
     [InlineData("TAXI A B", "TAXI A B")]
     [InlineData("TAXI A B RWY 28R", "TAXI A B RWY 28R")]
     [InlineData("TAXI T U W 30", "TAXI T U W RWY 30")]
+    [InlineData("TAXI 1L", "TAXI RWY 1L")]
+    [InlineData("TAXI RWY 1L", "TAXI RWY 1L")]
     [InlineData("TAXI A B CROSS 10L RWY 28R", "TAXI A B RWY 28R CROSS 10L")]
     [InlineData("TAXI T6A A F CROSS 1L 1R RWY 28L", "TAXI T6A A F RWY 28L CROSS 1L 1R")]
     [InlineData("TAXI A B HS C", "TAXI A B HS C")]
@@ -37,6 +39,7 @@ public class TaxiCanonicalRoundTripTests
 
     [Theory]
     [InlineData("TAXI A B RWY 28R")]
+    [InlineData("TAXI RWY 1L")]
     [InlineData("TAXI A B CROSS 10L RWY 28R")]
     [InlineData("TAXI C D J HS C@J")]
     [InlineData("TAXI S T U HS 28L RWY 30")]
@@ -61,6 +64,7 @@ public class TaxiCanonicalRoundTripTests
 
     [Theory]
     [InlineData("TAXI A B RWY 28R", "Taxi via A B to runway 28R")]
+    [InlineData("TAXI 1L", "Taxi to runway 1L")]
     [InlineData("TAXI A B CROSS 10L RWY 28R", "Taxi via A B to runway 28R, cross 10L")]
     [InlineData("TAXI C D J HS C@J", "Taxi via C D J, hold short of C at J")]
     [InlineData("TAXI S T U @B12", "Taxi via S T U to parking B12")]
