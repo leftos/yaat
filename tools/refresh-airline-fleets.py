@@ -63,7 +63,7 @@ from pathlib import Path
 # Import the parser sibling-module. parse_airfleets.py lives next to this script.
 _TOOLS_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(_TOOLS_DIR))
-from parse_airfleets import parse_pdf, map_to_icao_type  # noqa: E402
+from parse_airfleets import map_to_icao_type, parse_pdf
 
 REPO_ROOT = _TOOLS_DIR.parent
 OUT_DIR = REPO_ROOT / "src" / "Yaat.Sim" / "Data"
@@ -78,20 +78,30 @@ _DATE_RE = re.compile(r"\b([A-Z][a-z]+),?\s+(\d{1,2})(?:st|nd|rd|th)?,?\s+(\d{4}
 def extract_source_date(pdf_path: Path) -> str | None:
     """Pull the issue publication date from the PDF cover page (e.g. 'May, 1st, 2026' -> '2026-05-01')."""
     try:
-        import pdfplumber  # noqa: PLC0415  (deferred import; pdfplumber already required by parse_airfleets)
+        import pdfplumber
 
         with pdfplumber.open(pdf_path) as pdf:
             text = pdf.pages[0].extract_text() or ""
-    except Exception:
+    except Exception as exc:  # noqa: BLE001 — pdfplumber/pdfminer raise their own hierarchy; the date is optional
+        print(f"warning: could not read the source date from {pdf_path}: {exc}", file=sys.stderr)
         return None
     m = _DATE_RE.search(text)
     if not m:
         return None
     month_name, day, year = m.group(1), m.group(2), m.group(3)
     months = {
-        "January": "01", "February": "02", "March": "03", "April": "04",
-        "May": "05", "June": "06", "July": "07", "August": "08",
-        "September": "09", "October": "10", "November": "11", "December": "12",
+        "January": "01",
+        "February": "02",
+        "March": "03",
+        "April": "04",
+        "May": "05",
+        "June": "06",
+        "July": "07",
+        "August": "08",
+        "September": "09",
+        "October": "10",
+        "November": "11",
+        "December": "12",
     }
     if month_name not in months:
         return None
@@ -131,11 +141,13 @@ def build_map(pdfs: list[Path]) -> tuple[dict, dict]:
     for pdf in pdfs:
         digest = file_sha256(pdf)
         if digest in seen_hashes:
-            duplicates.append({
-                "file": pdf.name,
-                "duplicate_of": seen_hashes[digest].name,
-                "sha256": digest,
-            })
+            duplicates.append(
+                {
+                    "file": pdf.name,
+                    "duplicate_of": seen_hashes[digest].name,
+                    "sha256": digest,
+                }
+            )
             print(f"  skipping duplicate of {seen_hashes[digest].name}: {pdf.name}", file=sys.stderr)
             continue
         seen_hashes[digest] = pdf
@@ -159,11 +171,14 @@ def build_map(pdfs: list[Path]) -> tuple[dict, dict]:
             if not record.icao:
                 continue
             icao = record.icao.upper()
-            entry = airlines_data.setdefault(icao, {
-                "name": record.name,
-                "country": record.country,
-                "types": Counter(),
-            })
+            entry = airlines_data.setdefault(
+                icao,
+                {
+                    "name": record.name,
+                    "country": record.country,
+                    "types": Counter(),
+                },
+            )
             # Prefer the first non-empty name/country we see (records can repeat
             # if an airline appears in multiple regions, e.g. flag carriers).
             if entry["name"] in (None, "(unknown)") and record.name not in (None, "(unknown)"):
@@ -178,20 +193,20 @@ def build_map(pdfs: list[Path]) -> tuple[dict, dict]:
                 else:
                     unmapped += count
 
-        file_records.append({
-            "file": pdf.name,
-            "sha256": digest,
-            "size_bytes": pdf.stat().st_size,
-            "issue": issue,
-            "region": region,
-            "airlines_total": len(records),
-            "airlines_with_icao": with_icao,
-            "aircraft_mapped": mapped_count,
-            "aircraft_unmapped": unmapped,
-        })
-        print(f"  airlines={len(records)}, with_icao={with_icao}, "
-              f"mapped={mapped_count}, unmapped={unmapped}",
-              file=sys.stderr)
+        file_records.append(
+            {
+                "file": pdf.name,
+                "sha256": digest,
+                "size_bytes": pdf.stat().st_size,
+                "issue": issue,
+                "region": region,
+                "airlines_total": len(records),
+                "airlines_with_icao": with_icao,
+                "aircraft_mapped": mapped_count,
+                "aircraft_unmapped": unmapped,
+            }
+        )
+        print(f"  airlines={len(records)}, with_icao={with_icao}, mapped={mapped_count}, unmapped={unmapped}", file=sys.stderr)
 
     # Build sorted output
     by_airline: dict[str, dict] = {}
@@ -221,7 +236,7 @@ def build_map(pdfs: list[Path]) -> tuple[dict, dict]:
         "metadata": {
             "source": f"Airfleets World Fleet Listing Issue {issue}".strip(),
             "source_date": source_date,
-            "generated_utc": dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "generated_utc": dt.datetime.now(dt.UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
             "regions_parsed": sorted(set(regions_seen)),
             "airlines_count": len(by_airline),
             "types_count": len(by_type),

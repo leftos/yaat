@@ -294,9 +294,13 @@ def main() -> int:
     parser.add_argument("--tick-interval", type=float, default=DEFAULT_TICK_INTERVAL_NM, help="Distance between tick marks, nm")
     parser.add_argument("--tick-length", type=float, default=DEFAULT_TICK_LENGTH_NM, help="Total mark length across the centerline, nm")
     parser.add_argument("--set", type=int, dest="preset_id", help="File everything into this SET (1-88) so it can be toggled")
-    parser.add_argument("--set-name", default="28FINAL", help="SET label, max 7 characters. Name the flow — the overlay is meaningless on the reciprocal")
+    parser.add_argument(
+        "--set-name", default="28FINAL", help="SET label, max 7 characters. Name the flow — the overlay is meaningless on the reciprocal"
+    )
     parser.add_argument("--system", choices=["asdex", "said"], default="asdex", help="Which surface display the geometry belongs to")
-    parser.add_argument("--append", action="store_true", help="Merge into the facility's existing file instead of replacing it, for a second flow's group")
+    parser.add_argument(
+        "--append", action="store_true", help="Merge into the facility's existing file instead of replacing it, for a second flow's group"
+    )
     parser.add_argument("--dry-run", action="store_true", help="Print the JSON instead of writing it")
     args = parser.parse_args()
 

@@ -221,7 +221,11 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("path", nargs="?", default=str(TESTDATA_DIR), help=f"Bundle file or directory (default: {TESTDATA_DIR})")
     parser.add_argument("--dry-run", action="store_true", help="Report what would change without writing")
-    parser.add_argument("--verify", action="store_true", help="After (or instead of) migrating, check every domain's container is populated and no stale flat fields remain")
+    parser.add_argument(
+        "--verify",
+        action="store_true",
+        help="After (or instead of) migrating, check every domain's container is populated and no stale flat fields remain",
+    )
     parser.add_argument("-v", "--verbose", action="store_true", help="Per-snapshot progress logging (forces single-process)")
     parser.add_argument("-j", "--jobs", type=int, default=0, help="Parallel worker processes (default: cpu_count-1)")
     args = parser.parse_args()
@@ -266,7 +270,7 @@ def main() -> int:
                 bundle = futures[fut]
                 try:
                     changed, snap_count, error = fut.result()
-                except Exception as exc:  # pragma: no cover - defensive
+                except Exception as exc:  # noqa: BLE001 — a worker can die with anything (BrokenProcessPool, pickling); keep the batch going and report it
                     error = str(exc)
                     changed, snap_count = False, 0
                 if error:

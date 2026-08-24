@@ -19,6 +19,7 @@ Usage:
     uv run tools/build-mva-data.py --facility NCT --overlay .tmp/nct.html  # visual check
     uv run tools/build-mva-data.py --all                                   # every FAA FUS3 facility -> merged Brotli
 """
+
 from __future__ import annotations
 
 import argparse
@@ -28,7 +29,7 @@ import sys
 import urllib.error
 import urllib.request
 import xml.etree.ElementTree as ET
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 GML = "{http://www.opengis.net/gml/3.2}"
@@ -51,13 +52,13 @@ def fetch_xml(facility: str, variant: str, input_path: str | None, url: str | No
     target = url or AIXM_URL.format(facility=facility, variant=variant)
     print(f"  downloading {target}", file=sys.stderr)
     req = urllib.request.Request(target, headers={"User-Agent": "Mozilla/5.0"})
-    with urllib.request.urlopen(req, timeout=120) as resp:  # noqa: S310 (trusted FAA host)
+    with urllib.request.urlopen(req, timeout=120) as resp:
         return resp.read()
 
 
 def fetch_text(url: str) -> str:
     req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
-    with urllib.request.urlopen(req, timeout=120) as resp:  # noqa: S310 (trusted FAA host)
+    with urllib.request.urlopen(req, timeout=120) as resp:
         return resp.read().decode("utf-8", errors="replace")
 
 
@@ -97,7 +98,7 @@ def parse_sectors(xml_bytes: bytes, facility: str, variant: str, source: str) ->
             raise ValueError(f"sector {sector!r}: minimumLimit uom={ml.get('uom')!r}, expected FT")
         if ref is None or (ref.text or "").strip() != "MSL":
             raise ValueError(f"sector {sector!r}: minimumLimitReference != MSL")
-        floor_ft = int(round(float(ml.text)))
+        floor_ft = round(float(ml.text))
 
         patches = vol.findall(".//" + GML + "PolygonPatch")
         if len(patches) != 1:
@@ -146,7 +147,7 @@ def validate(features: list[dict]) -> None:
 
 
 def geojson_text(features: list[dict], facility: str, variant: str, source: str) -> str:
-    generated = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    generated = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
     facility_count = len({f["properties"]["facility"] for f in features})
     # Hand-diffable layout: one compact feature per line under a stable header.
     lines = [
@@ -200,7 +201,7 @@ def build_all(variant: str, list_input: str | None, list_url: str | None, out_pa
             feats = parse_sectors(xml_bytes, fac, variant, AIXM_URL.format(facility=fac, variant=variant))
             validate(feats)  # per-facility: a bad facility is skipped, not fatal to the whole batch
             all_features.extend(feats)
-        except (urllib.error.URLError, ValueError, SystemExit, ET.ParseError) as exc:  # noqa: PERF203
+        except (urllib.error.URLError, ValueError, SystemExit, ET.ParseError) as exc:
             failures.append((fac, str(exc)))
             print(f"  SKIP {fac}: {exc}", file=sys.stderr)
 
@@ -252,7 +253,7 @@ def render_overlay(features: list[dict], facility: str, variant: str, overlay_pa
     # Overlay the vNAS MVA videomap linework (what controllers actually see) for visual comparison.
     if videomap_url:
         req = urllib.request.Request(videomap_url, headers={"User-Agent": "Mozilla/5.0"})
-        with urllib.request.urlopen(req, timeout=120) as resp:  # noqa: S310
+        with urllib.request.urlopen(req, timeout=120) as resp:
             vmap = json.loads(resp.read())
         for feat in vmap.get("features", []):
             geom = feat.get("geometry") or {}
@@ -294,8 +295,7 @@ def main() -> int:
     floors = sorted({f["properties"]["mvaFloorFt"] for f in features})
     holes = sum(1 for f in features if len(f["geometry"]["coordinates"]) > 1)
     print(
-        f"OK: {len(features)} sectors ({holes} with holes), "
-        f"floors {floors[0]}-{floors[-1]} ft ({len(floors)} distinct) -> {out_path}",
+        f"OK: {len(features)} sectors ({holes} with holes), floors {floors[0]}-{floors[-1]} ft ({len(floors)} distinct) -> {out_path}",
         file=sys.stderr,
     )
     if args.overlay:

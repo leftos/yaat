@@ -48,7 +48,8 @@ import urllib.parse
 import urllib.request
 from collections import Counter
 from dataclasses import asdict, dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
+from itertools import pairwise
 from pathlib import Path
 
 import pdfplumber
@@ -57,9 +58,7 @@ DEFAULT_OUTPUT = Path("src/Yaat.Sim/Data/MilitaryRoutes/ap1b-mtr.json.br")
 DEFAULT_AR_OUTPUT = Path("src/Yaat.Sim/Data/MilitaryRoutes/ap1b-ar.json.br")
 SOURCE_URL = "https://www.daip.jcs.mil/pdf/ap1b.pdf"
 NAVAID_URL = "https://services6.arcgis.com/ssFJjBXIUyZDrSYZ/arcgis/rest/services/NAVAIDSystem/FeatureServer/0/query"
-MTR_SEGMENT_URL = (
-    "https://services6.arcgis.com/ssFJjBXIUyZDrSYZ/arcgis/rest/services/MTRSegment/FeatureServer/0/query"
-)
+MTR_SEGMENT_URL = "https://services6.arcgis.com/ssFJjBXIUyZDrSYZ/arcgis/rest/services/MTRSegment/FeatureServer/0/query"
 ARCGIS_PAGE = 1000
 
 ROUTE_HEADER_RE = re.compile(r"^(IR|VR|SR)-(\d{3,4}[A-Z]?)$")
@@ -80,24 +79,24 @@ AR_TRAILER_MARKERS = ("REMARKS", "ATC")
 # "FL240/FL310", "16000/FL260", "1000 AGL/8500". Each side is anchored on a word boundary and
 # limited to altitude-shaped tokens so a stray phone number ("DSN 331-3536/3560") cannot match.
 AR_ALTITUDE_LEVEL = r"(SFC|FL\s?\d{3}|\d{1,3},\d{3}|\d{3,5})"
-AR_ALTITUDE_RE = re.compile(rf"\b{AR_ALTITUDE_LEVEL}\s*(AGL|MSL)?\s*/\s*{AR_ALTITUDE_LEVEL}\s*(AGL|MSL)?", re.I)
+AR_ALTITUDE_RE = re.compile(rf"\b{AR_ALTITUDE_LEVEL}\s*(AGL|MSL)?\s*/\s*{AR_ALTITUDE_LEVEL}\s*(AGL|MSL)?", re.IGNORECASE)
 # Refueling happens between the surface and the top of the published flight levels; anything
 # outside this is a mis-read cell, not an altitude.
 AR_ALTITUDE_RANGE_FT = (0, 60000)
 
 ALTITUDE_LEVEL = r"(SFC|FL\d{3}|\d+(?:\.\d+)?)"
-ALTITUDE_BLOCK_RE = re.compile(rf"{ALTITUDE_LEVEL}\s*(AGL|MSL)?\s+B\s+{ALTITUDE_LEVEL}\s*(AGL|MSL)", re.I)
-ALTITUDE_SINGLE_RE = re.compile(rf"{ALTITUDE_LEVEL}\s*(AGL|MSL)", re.I)
-AT_OR_BELOW_RE = re.compile(r"at or below", re.I)
-AS_ASSIGNED_RE = re.compile(r"as assigned", re.I)
+ALTITUDE_BLOCK_RE = re.compile(rf"{ALTITUDE_LEVEL}\s*(AGL|MSL)?\s+B\s+{ALTITUDE_LEVEL}\s*(AGL|MSL)", re.IGNORECASE)
+ALTITUDE_SINGLE_RE = re.compile(rf"{ALTITUDE_LEVEL}\s*(AGL|MSL)", re.IGNORECASE)
+AT_OR_BELOW_RE = re.compile(r"at or below", re.IGNORECASE)
+AS_ASSIGNED_RE = re.compile(r"as assigned", re.IGNORECASE)
 
-WIDTH_SYMMETRIC_RE = re.compile(r"(\d+(?:\.\d+)?)\s*NM either side of (?:the )?centerline", re.I)
-WIDTH_ASYMMETRIC_RE = re.compile(r"(\d+(?:\.\d+)?)\s*NM left and (\d+(?:\.\d+)?)\s*NM right", re.I)
-WIDTH_SPAN_RE = re.compile(r"from\s+([A-Z]{1,2}\d?)\s+to\s+([A-Z]{1,2}\d?)", re.I)
-PRIMARY_ENTRY_RE = re.compile(r"Primary Entry Point:?\s*\(?([A-Z]{1,2}\d?)\)?", re.I)
-PRIMARY_EXIT_RE = re.compile(r"Primary Exit Point:?\s*\(?([A-Z]{1,2}\d?)\)?", re.I)
-ACTIVITY_RE = re.compile(r"{label} ACTIVITY:\s*(.+?)(?=\s*(?:SCHEDULING ACTIVITY|HOURS OF OPERATION|ROUTE DESCRIPTION)|$)", re.S)
-HOURS_RE = re.compile(r"HOURS OF OPERATION:\s*(.+?)(?=\s*ROUTE DESCRIPTION|$)", re.S)
+WIDTH_SYMMETRIC_RE = re.compile(r"(\d+(?:\.\d+)?)\s*NM either side of (?:the )?centerline", re.IGNORECASE)
+WIDTH_ASYMMETRIC_RE = re.compile(r"(\d+(?:\.\d+)?)\s*NM left and (\d+(?:\.\d+)?)\s*NM right", re.IGNORECASE)
+WIDTH_SPAN_RE = re.compile(r"from\s+([A-Z]{1,2}\d?)\s+to\s+([A-Z]{1,2}\d?)", re.IGNORECASE)
+PRIMARY_ENTRY_RE = re.compile(r"Primary Entry Point:?\s*\(?([A-Z]{1,2}\d?)\)?", re.IGNORECASE)
+PRIMARY_EXIT_RE = re.compile(r"Primary Exit Point:?\s*\(?([A-Z]{1,2}\d?)\)?", re.IGNORECASE)
+ACTIVITY_RE = re.compile(r"{label} ACTIVITY:\s*(.+?)(?=\s*(?:SCHEDULING ACTIVITY|HOURS OF OPERATION|ROUTE DESCRIPTION)|$)", re.DOTALL)
+HOURS_RE = re.compile(r"HOURS OF OPERATION:\s*(.+?)(?=\s*ROUTE DESCRIPTION|$)", re.DOTALL)
 
 # Only the section headings that actually follow the route table. "NOTE:" and "CAUTION:" are
 # tempting but wrong: VR-1001 carries "NOTE: FOLLOWING SEGMENTS USE LIMITED TO DESIGNATED
@@ -310,7 +309,7 @@ def altitude_level_to_feet(token: str) -> int:
         return 0
     if upper.startswith("FL"):
         return int(upper[2:]) * HUNDREDS_OF_FEET
-    return int(round(float(token) * HUNDREDS_OF_FEET))
+    return round(float(token) * HUNDREDS_OF_FEET)
 
 
 def parse_altitude(raw: str) -> AltitudeBlock:
@@ -658,7 +657,7 @@ def enrich_route(route: MilitaryRoute) -> None:
     route.exit_points = [p for p in [exit_point] if p] + [p.label for p in route.points if p.role == "alternateExit"]
 
     for label, pattern in (("ORIGINATING", "originating_activity"), ("SCHEDULING", "scheduling_activity")):
-        match = re.search(ACTIVITY_RE.pattern.format(label=label), route.text, re.S)
+        match = re.search(ACTIVITY_RE.pattern.format(label=label), route.text, re.DOTALL)
         if match is not None:
             setattr(route, pattern, " ".join(match.group(1).split())[:400])
     hours = HOURS_RE.search(route.text)
@@ -689,7 +688,7 @@ def validate_route(route: MilitaryRoute) -> list[str]:
     # of NM from the point it substitutes for. Walking them as consecutive legs invents long-leg
     # warnings (IR-266 Y-B1 at 328 NM, SR-104 EA-AC1 at 302 NM) that describe nothing real.
     mainline = [p for p in route.points if not p.label[-1].isdigit()]
-    for before, after in zip(mainline, mainline[1:]):
+    for before, after in pairwise(mainline):
         assert before.lat is not None and before.lon is not None
         assert after.lat is not None and after.lon is not None
         leg = haversine_nm(before.lat, before.lon, after.lat, after.lon)
@@ -735,7 +734,7 @@ def bands_from_headers(names: tuple[str, ...], xs: list[float]) -> dict[str, tup
     Chapter 5's columns sit 45-70 pt apart while a cell drifts at most 5 pt from its own header,
     so midpoints separate them with room to spare and need no per-column offset table.
     """
-    edges = [-1e9] + [(low + high) / 2 for low, high in zip(xs, xs[1:])] + [1e9]
+    edges = [-1e9] + [(low + high) / 2 for low, high in pairwise(xs)] + [1e9]
     return {name: (edges[i], edges[i + 1]) for i, name in enumerate(names)}
 
 
@@ -756,7 +755,7 @@ def find_ar_bands(rows: list[list[dict]]) -> tuple[dict[str, tuple[float, float]
     return None
 
 
-def iter_ar_rows(pdf: pdfplumber.PDF) -> "list[tuple[list[dict], dict[str, tuple[float, float]], str, int]]":
+def iter_ar_rows(pdf: pdfplumber.PDF) -> list[tuple[list[dict], dict[str, tuple[float, float]], str, int]]:
     """Every chapter 5 table row in document order, tagged with its page's bands and table kind."""
     tagged: list[tuple[list[dict], dict[str, tuple[float, float]], str, int]] = []
     for index, page in enumerate(pdf.pages):
@@ -996,7 +995,7 @@ def is_reversed_pair(first: ArVariant, second: ArVariant) -> bool:
     """
     if len(first.points) != len(second.points) or not first.points:
         return False
-    for near, far in zip(first.points, reversed(second.points)):
+    for near, far in zip(first.points, reversed(second.points), strict=True):
         assert near.lat is not None and near.lon is not None and far.lat is not None and far.lon is not None
         if haversine_nm(near.lat, near.lon, far.lat, far.lon) > AR_REVERSAL_TOLERANCE_NM:
             return False
@@ -1027,37 +1026,32 @@ def validate_ar_route(route: ArRoute) -> list[str]:
             problems.append(f"point {point.label} at ({point.lat:.3f},{point.lon:.3f}) outside the Americas")
 
     block = route.altitude
-    if block is not None and block.parsed and block.floor_ft is not None and block.ceiling_ft is not None:
-        if block.floor_ft > block.ceiling_ft:
-            problems.append(f"altitude floor {block.floor_ft} above ceiling {block.ceiling_ft}")
+    if block is not None and block.parsed and block.floor_ft is not None and block.ceiling_ft is not None and block.floor_ft > block.ceiling_ft:
+        problems.append(f"altitude floor {block.floor_ft} above ceiling {block.ceiling_ft}")
 
     problems.extend(route.warnings)
     return problems
 
 
-def iter_frd_probes(routes: list[MilitaryRoute]) -> "list[FrdProbe]":
+def iter_frd_probes(routes: list[MilitaryRoute]) -> list[FrdProbe]:
     probes: list[FrdProbe] = []
     for route in routes:
         for point in route.points:
             if point.frd_fix is None or point.lat is None or point.lon is None or point.frd_distance is None:
                 continue
             assert point.frd_radial is not None
-            probes.append(
-                FrdProbe(route.designator, point.label, point.frd_fix, point.frd_radial, point.frd_distance, point.lat, point.lon)
-            )
+            probes.append(FrdProbe(route.designator, point.label, point.frd_fix, point.frd_radial, point.frd_distance, point.lat, point.lon))
     return probes
 
 
-def iter_ar_frd_probes(routes: list[ArRoute]) -> "list[FrdProbe]":
+def iter_ar_frd_probes(routes: list[ArRoute]) -> list[FrdProbe]:
     probes: list[FrdProbe] = []
     for route in routes:
         for point in route.all_points:
             if point.facility is None or point.distance is None or point.radial is None or not point.complete:
                 continue
             assert point.lat is not None and point.lon is not None
-            probes.append(
-                FrdProbe(route.designator, point.label, point.facility, point.radial, point.distance, point.lat, point.lon)
-            )
+            probes.append(FrdProbe(route.designator, point.label, point.facility, point.radial, point.distance, point.lat, point.lon))
     return probes
 
 
@@ -1227,7 +1221,7 @@ def document_text(routes: list[MilitaryRoute], source_sha: str, edition: str, or
         "source": SOURCE_URL,
         "sourceSha256": source_sha,
         "edition": edition,
-        "generatedAt": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "generatedAt": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "routeCount": len(payloads),
         "pointCount": sum(len(p["points"]) for p in payloads),
         "byType": dict(Counter(p["type"] for p in payloads)),
@@ -1290,7 +1284,7 @@ def ar_document_text(routes: list[ArRoute], source_sha: str, edition: str, oracl
         "source": SOURCE_URL,
         "sourceSha256": source_sha,
         "edition": edition,
-        "generatedAt": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "generatedAt": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "routeCount": len(payloads),
         "pointCount": sum(len(v["points"]) for p in payloads for v in p["variants"]),
         "byType": dict(Counter(p["arKind"] for p in payloads)),
@@ -1396,8 +1390,7 @@ def check_global_invariants(routes: list[MilitaryRoute], oracle: dict, cross: di
     # regressed, so the gate is on the fraction, not on any single route.
     if cross.get("compared") and cross["divergingFraction"] > MAX_DIVERGING_FRACTION:
         failures.append(
-            f"cross-check: {cross['divergingFraction']:.1%} of shared routes disagree with the FAA layer "
-            f"by more than {CROSS_CHECK_FATAL_NM:.0f} NM"
+            f"cross-check: {cross['divergingFraction']:.1%} of shared routes disagree with the FAA layer by more than {CROSS_CHECK_FATAL_NM:.0f} NM"
         )
 
     # Synthetic fix names are handed to FrdResolver.ParseFrd, which reads a name as an FRD when
@@ -1424,12 +1417,8 @@ def build_report(routes: list[MilitaryRoute], problems: dict[str, list[str]], or
         "points": sum(len(r.points) for r in routes),
         "pointsByType": dict(points_by_kind),
         "altitudeKinds": dict(altitude_kinds),
-        "unparsedAltitudes": sorted(
-            {p.altitude.raw for r in routes for p in r.points if p.altitude is not None and not p.altitude.parsed}
-        )[:80],
-        "frdCoverage": {
-            kind: round(with_frd.get(kind, 0) / points_by_kind[kind], 4) for kind in points_by_kind if points_by_kind[kind]
-        },
+        "unparsedAltitudes": sorted({p.altitude.raw for r in routes for p in r.points if p.altitude is not None and not p.altitude.parsed})[:80],
+        "frdCoverage": {kind: round(with_frd.get(kind, 0) / points_by_kind[kind], 4) for kind in points_by_kind if points_by_kind[kind]},
         "routesWithWidths": sum(1 for r in routes if r.widths),
         "routeProblems": problems,
         "frdOracle": oracle,

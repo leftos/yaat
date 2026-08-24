@@ -152,8 +152,7 @@ def write_tsv(rows: list[Row]) -> None:
         fp.write("# License: ODbL 1.0 (see LICENSE-OPENFLIGHTS.txt in this directory)\n")
         fp.write("# Columns: icao<TAB>callsign<TAB>name<TAB>country\n")
         fp.write("# Regenerate: python tools/refresh-airlines.py\n")
-        for icao, callsign, name, country, _active in rows:
-            fp.write(f"{icao}\t{callsign}\t{name}\t{country}\n")
+        fp.writelines(f"{icao}\t{callsign}\t{name}\t{country}\n" for icao, callsign, name, country, _active in rows)
 
 
 def write_meta(
@@ -164,7 +163,7 @@ def write_meta(
     callsign_collisions: list[list[Row]],
 ) -> None:
     sha = hashlib.sha256(raw).hexdigest()
-    fetched = dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    fetched = dt.datetime.now(dt.UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
     with open(OUT_META, "w", encoding="utf-8", newline="\n") as fp:
         fp.write(f"upstream_url: {UPSTREAM_URL}\n")
         fp.write(f"upstream_sha256: {sha}\n")
@@ -178,8 +177,7 @@ def write_meta(
 
         if skipped:
             fp.write("\n# Skipped rows (failed callsign validation):\n")
-            for line in skipped:
-                fp.write(f"# {line}\n")
+            fp.writelines(f"# {line}\n" for line in skipped)
 
         def _dump(label: str, groups: list[list[Row]]) -> None:
             if not groups:

@@ -158,7 +158,7 @@ def page_index(plans: list[PagePlan]) -> dict[str, Path]:
 
 def fetch(url: str) -> bytes:
     request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
-    with urllib.request.urlopen(request, timeout=60) as response:  # noqa: S310 (trusted host)
+    with urllib.request.urlopen(request, timeout=60) as response:
         return response.read()
 
 

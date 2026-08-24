@@ -21,12 +21,10 @@ import json
 import re
 import sys
 from collections import Counter
-from dataclasses import asdict, dataclass, field
+from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Iterable
 
 import pdfplumber
-
 
 FAMILY_HEADERS = {
     "Airbus A220",
@@ -154,10 +152,7 @@ def parse_header_line(line: str) -> dict:
     #   - 2-char or 2-3 alphanumeric (with digit) = IATA candidate (first one wins)
     code_tokens = [t for t in re.split(r"\s+", parts["codes"]) if t]
     icaos = [t for t in code_tokens if len(t) == 3 and t.isalpha()]
-    iata_candidates = [
-        t for t in code_tokens
-        if t not in icaos and re.match(r"^[A-Z0-9]{2,3}$", t)
-    ]
+    iata_candidates = [t for t in code_tokens if t not in icaos and re.match(r"^[A-Z0-9]{2,3}$", t)]
     if icaos:
         out["icao"] = icaos[-1]
     if iata_candidates:
@@ -232,48 +227,229 @@ _KEYWORD_PREFIXES = ("Reg.", "MSN", "Type", "Man.", "Date", "Callsign", "Ex ", "
 
 # Countries that appear as section headers in Airfleets PDFs. Comprehensive list
 # so no country gets misidentified as an airline name. Order doesn't matter.
-_COUNTRY_HINTS: frozenset[str] = frozenset({
-    "Afghanistan", "Albania", "Algeria", "Andorra", "Angola", "Antigua and Barbuda",
-    "Argentina", "Armenia", "Aruba", "Australia", "Austria", "Azerbaijan",
-    "Bahamas", "Bahrain", "Bangladesh", "Barbados", "Belarus", "Belgium",
-    "Belize", "Benin", "Bermuda", "Bhutan", "Bolivia", "Bosnia and Herzegovina",
-    "Bosnia Herzegovina", "Botswana", "Brazil", "Brunei", "Bulgaria",
-    "Burkina Faso", "Burma", "Burundi", "Cambodia", "Cameroon", "Canada",
-    "Cape Verde", "Cayman Islands", "Central African Republic", "Chad", "Chile",
-    "China", "Colombia", "Comoros", "Congo", "Congo (Brazzaville)",
-    "Congo (Kinshasa)", "Congo, Democratic Republic of", "Cook Islands",
-    "Costa Rica", "Croatia", "Cuba", "Curacao", "Cyprus", "Czech Republic",
-    "Czechia", "Denmark", "Djibouti", "Dominica", "Dominican Republic",
-    "East Timor", "Ecuador", "Egypt", "El Salvador", "Equatorial Guinea",
-    "Eritrea", "Estonia", "Eswatini", "Ethiopia", "Faroe Islands", "Fiji",
-    "Finland", "France", "French Polynesia", "Gabon", "Gambia", "Georgia",
-    "Germany", "Ghana", "Gibraltar", "Greece", "Greenland", "Grenada",
-    "Guatemala", "Guinea", "Guinea-Bissau", "Guyana", "Haiti", "Honduras",
-    "Hong Kong", "Hungary", "Iceland", "India", "Indonesia", "Iran", "Iraq",
-    "Ireland", "Isle of Man", "Israel", "Italy", "Ivory Coast", "Jamaica",
-    "Japan", "Jordan", "Kazakhstan", "Kenya", "Kiribati", "Korea", "Kosovo",
-    "Kuwait", "Kyrgyzstan", "Laos", "Latvia", "Lebanon", "Lesotho", "Liberia",
-    "Libya", "Liechtenstein", "Lithuania", "Luxembourg", "Macao", "Macedonia",
-    "Madagascar", "Malawi", "Malaysia", "Maldives", "Mali", "Malta",
-    "Marshall Islands", "Mauritania", "Mauritius", "Mexico", "Micronesia",
-    "Moldova", "Monaco", "Mongolia", "Montenegro", "Morocco", "Mozambique",
-    "Myanmar", "Namibia", "Nauru", "Nepal", "Netherlands", "New Caledonia",
-    "New Zealand", "Nicaragua", "Niger", "Nigeria", "North Korea",
-    "North Macedonia", "Norway", "Oman", "Pakistan", "Palau", "Palestine",
-    "Panama", "Papua New Guinea", "Paraguay", "Peru", "Philippines", "Poland",
-    "Portugal", "Qatar", "Romania", "Russia", "Rwanda", "Saint Kitts and Nevis",
-    "Saint Lucia", "Saint Vincent and the Grenadines", "Samoa", "San Marino",
-    "Saudi Arabia", "Senegal", "Serbia", "Seychelles", "Sierra Leone",
-    "Singapore", "Slovakia", "Slovenia", "Solomon Islands", "Somalia",
-    "South Africa", "South Korea", "South Sudan", "Spain", "Sri Lanka",
-    "Sudan", "Suriname", "Sweden", "Switzerland", "Syria", "Taiwan",
-    "Tajikistan", "Tanzania", "Thailand", "Timor-Leste", "Togo", "Tonga",
-    "Trinidad and Tobago", "Trinidad Tobago", "Tunisia", "Turkey",
-    "Turkmenistan", "Tuvalu", "Uganda", "Ukraine", "United Arab Emirates",
-    "United Kingdom", "United States", "Uruguay", "USA", "Uzbekistan",
-    "Vanuatu", "Vatican City", "Venezuela", "Vietnam", "Yemen", "Zambia",
-    "Zimbabwe",
-})
+_COUNTRY_HINTS: frozenset[str] = frozenset(
+    {
+        "Afghanistan",
+        "Albania",
+        "Algeria",
+        "Andorra",
+        "Angola",
+        "Antigua and Barbuda",
+        "Argentina",
+        "Armenia",
+        "Aruba",
+        "Australia",
+        "Austria",
+        "Azerbaijan",
+        "Bahamas",
+        "Bahrain",
+        "Bangladesh",
+        "Barbados",
+        "Belarus",
+        "Belgium",
+        "Belize",
+        "Benin",
+        "Bermuda",
+        "Bhutan",
+        "Bolivia",
+        "Bosnia and Herzegovina",
+        "Bosnia Herzegovina",
+        "Botswana",
+        "Brazil",
+        "Brunei",
+        "Bulgaria",
+        "Burkina Faso",
+        "Burma",
+        "Burundi",
+        "Cambodia",
+        "Cameroon",
+        "Canada",
+        "Cape Verde",
+        "Cayman Islands",
+        "Central African Republic",
+        "Chad",
+        "Chile",
+        "China",
+        "Colombia",
+        "Comoros",
+        "Congo",
+        "Congo (Brazzaville)",
+        "Congo (Kinshasa)",
+        "Congo, Democratic Republic of",
+        "Cook Islands",
+        "Costa Rica",
+        "Croatia",
+        "Cuba",
+        "Curacao",
+        "Cyprus",
+        "Czech Republic",
+        "Czechia",
+        "Denmark",
+        "Djibouti",
+        "Dominica",
+        "Dominican Republic",
+        "East Timor",
+        "Ecuador",
+        "Egypt",
+        "El Salvador",
+        "Equatorial Guinea",
+        "Eritrea",
+        "Estonia",
+        "Eswatini",
+        "Ethiopia",
+        "Faroe Islands",
+        "Fiji",
+        "Finland",
+        "France",
+        "French Polynesia",
+        "Gabon",
+        "Gambia",
+        "Georgia",
+        "Germany",
+        "Ghana",
+        "Gibraltar",
+        "Greece",
+        "Greenland",
+        "Grenada",
+        "Guatemala",
+        "Guinea",
+        "Guinea-Bissau",
+        "Guyana",
+        "Haiti",
+        "Honduras",
+        "Hong Kong",
+        "Hungary",
+        "Iceland",
+        "India",
+        "Indonesia",
+        "Iran",
+        "Iraq",
+        "Ireland",
+        "Isle of Man",
+        "Israel",
+        "Italy",
+        "Ivory Coast",
+        "Jamaica",
+        "Japan",
+        "Jordan",
+        "Kazakhstan",
+        "Kenya",
+        "Kiribati",
+        "Korea",
+        "Kosovo",
+        "Kuwait",
+        "Kyrgyzstan",
+        "Laos",
+        "Latvia",
+        "Lebanon",
+        "Lesotho",
+        "Liberia",
+        "Libya",
+        "Liechtenstein",
+        "Lithuania",
+        "Luxembourg",
+        "Macao",
+        "Macedonia",
+        "Madagascar",
+        "Malawi",
+        "Malaysia",
+        "Maldives",
+        "Mali",
+        "Malta",
+        "Marshall Islands",
+        "Mauritania",
+        "Mauritius",
+        "Mexico",
+        "Micronesia",
+        "Moldova",
+        "Monaco",
+        "Mongolia",
+        "Montenegro",
+        "Morocco",
+        "Mozambique",
+        "Myanmar",
+        "Namibia",
+        "Nauru",
+        "Nepal",
+        "Netherlands",
+        "New Caledonia",
+        "New Zealand",
+        "Nicaragua",
+        "Niger",
+        "Nigeria",
+        "North Korea",
+        "North Macedonia",
+        "Norway",
+        "Oman",
+        "Pakistan",
+        "Palau",
+        "Palestine",
+        "Panama",
+        "Papua New Guinea",
+        "Paraguay",
+        "Peru",
+        "Philippines",
+        "Poland",
+        "Portugal",
+        "Qatar",
+        "Romania",
+        "Russia",
+        "Rwanda",
+        "Saint Kitts and Nevis",
+        "Saint Lucia",
+        "Saint Vincent and the Grenadines",
+        "Samoa",
+        "San Marino",
+        "Saudi Arabia",
+        "Senegal",
+        "Serbia",
+        "Seychelles",
+        "Sierra Leone",
+        "Singapore",
+        "Slovakia",
+        "Slovenia",
+        "Solomon Islands",
+        "Somalia",
+        "South Africa",
+        "South Korea",
+        "South Sudan",
+        "Spain",
+        "Sri Lanka",
+        "Sudan",
+        "Suriname",
+        "Sweden",
+        "Switzerland",
+        "Syria",
+        "Taiwan",
+        "Tajikistan",
+        "Tanzania",
+        "Thailand",
+        "Timor-Leste",
+        "Togo",
+        "Tonga",
+        "Trinidad and Tobago",
+        "Trinidad Tobago",
+        "Tunisia",
+        "Turkey",
+        "Turkmenistan",
+        "Tuvalu",
+        "Uganda",
+        "Ukraine",
+        "United Arab Emirates",
+        "United Kingdom",
+        "United States",
+        "Uruguay",
+        "USA",
+        "Uzbekistan",
+        "Vanuatu",
+        "Vatican City",
+        "Venezuela",
+        "Vietnam",
+        "Yemen",
+        "Zambia",
+        "Zimbabwe",
+    }
+)
 
 
 def _looks_like_table_data(text: str) -> bool:
@@ -285,9 +461,7 @@ def _looks_like_table_data(text: str) -> bool:
     if re.match(r"^(19|20)\d{2}(\s+(19|20)\d{2})*$", text):
         return True
     # Mostly digits / parens
-    if re.match(r"^[\d\s\(\)]+$", text):
-        return True
-    return False
+    return bool(re.match(r"^[\d\s\(\)]+$", text))
 
 
 def parse_pdf(pdf_path: Path) -> list[AirlineRecord]:
@@ -441,9 +615,9 @@ def map_to_icao_type(variant: str, families: set[str]) -> str | None:
         return "B712"
 
     # Airbus A220 (Bombardier CSeries)
-    if v.startswith("220-1") or v.startswith("BD-500-1A10") or v.startswith("CS100"):
+    if v.startswith(("220-1", "BD-500-1A10", "CS100")):
         return "BCS1"
-    if v.startswith("220-3") or v.startswith("BD-500-1A11") or v.startswith("CS300"):
+    if v.startswith(("220-3", "BD-500-1A11", "CS300")):
         return "BCS3"
     # Airbus A300/A310
     if v.startswith("300-"):
@@ -505,9 +679,9 @@ def map_to_icao_type(variant: str, families: set[str]) -> str | None:
             return "E295"
         return "E195"
     # ERJ 135/145
-    if v.startswith("135") or v.startswith("ERJ-135"):
+    if v.startswith(("135", "ERJ-135")):
         return "E135"
-    if v.startswith("145") or v.startswith("ERJ-145"):
+    if v.startswith(("145", "ERJ-145")):
         return "E145"
     if v.startswith("EMB-120") or v == "EMB120":
         return "E120"
@@ -520,7 +694,7 @@ def map_to_icao_type(variant: str, families: set[str]) -> str | None:
             return "CRJ1"
         if n.startswith("200"):
             return "CRJ2"
-        if n.startswith("550") or n.startswith("700") or n.startswith("701") or n.startswith("702"):
+        if n.startswith(("550", "700", "701", "702")):
             return "CRJ7"
         if n.startswith("900"):
             return "CRJ9"
@@ -546,9 +720,9 @@ def map_to_icao_type(variant: str, families: set[str]) -> str | None:
         return "MD11"
 
     # DC
-    if v.startswith("DC-9") or v.startswith("DC9"):
+    if v.startswith(("DC-9", "DC9")):
         return "DC9"
-    if v.startswith("DC-10") or v.startswith("DC10"):
+    if v.startswith(("DC-10", "DC10")):
         return "DC10"
 
     # Dash 8 / Q400 — handle "DHC-8 NNN" two-token form (variant captured during parse)
@@ -577,11 +751,11 @@ def map_to_icao_type(variant: str, families: set[str]) -> str | None:
         return "RJ85"
     if v == "RJ100":
         return "RJ1H"
-    if v.startswith("BAE-146-1") or v.startswith("146-1"):
+    if v.startswith(("BAE-146-1", "146-1")):
         return "B461"
-    if v.startswith("BAE-146-2") or v.startswith("146-2"):
+    if v.startswith(("BAE-146-2", "146-2")):
         return "B462"
-    if v.startswith("BAE-146-3") or v.startswith("146-3"):
+    if v.startswith(("BAE-146-3", "146-3")):
         return "B463"
 
     # Fokker
@@ -617,7 +791,7 @@ def map_to_icao_type(variant: str, families: set[str]) -> str | None:
         return "C919"
     if v.startswith("MC-21"):
         return "MC21"
-    if v.startswith("IL-96") or v.startswith("IL96"):
+    if v.startswith(("IL-96", "IL96")):
         return "IL96"
 
     return None
@@ -640,17 +814,19 @@ def write_outputs(airlines: list[AirlineRecord], out_dir: Path) -> None:
 
     raw_data = []
     for a in airlines:
-        raw_data.append({
-            "name": a.name,
-            "country": a.country,
-            "iata": a.iata,
-            "icao": a.icao,
-            "callsign": a.callsign,
-            "raw_header": a.raw_header,
-            "families": sorted(a.families),
-            "types_raw": dict(a.types_raw.most_common()),
-            "types_icao": airline_to_icao_typemap(a),
-        })
+        raw_data.append(
+            {
+                "name": a.name,
+                "country": a.country,
+                "iata": a.iata,
+                "icao": a.icao,
+                "callsign": a.callsign,
+                "raw_header": a.raw_header,
+                "families": sorted(a.families),
+                "types_raw": dict(a.types_raw.most_common()),
+                "types_icao": airline_to_icao_typemap(a),
+            }
+        )
     (out_dir / "airfleets-parsed.json").write_text(json.dumps(raw_data, indent=2))
 
     # Compact ICAO -> {type: count} map (for airlines with an ICAO code)
@@ -670,9 +846,7 @@ def write_outputs(airlines: list[AirlineRecord], out_dir: Path) -> None:
         for variant, count in a.types_raw.items():
             if not map_to_icao_type(variant, a.families):
                 unmapped[variant] += count
-    (out_dir / "airfleets-unmapped-variants.txt").write_text(
-        "\n".join(f"{c:>5}  {v}" for v, c in unmapped.most_common(200))
-    )
+    (out_dir / "airfleets-unmapped-variants.txt").write_text("\n".join(f"{c:>5}  {v}" for v, c in unmapped.most_common(200)))
 
 
 def main() -> int:

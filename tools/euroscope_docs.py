@@ -152,7 +152,7 @@ def download_pdf(url: str, dest: Path, *, force: bool) -> None:
         return
     dest.parent.mkdir(parents=True, exist_ok=True)
     print(f"[get ] {url}")
-    with urllib.request.urlopen(url) as src, dest.open("wb") as out:  # noqa: S310 (trusted PDF URL)
+    with urllib.request.urlopen(url) as src, dest.open("wb") as out:
         shutil.copyfileobj(src, out)
     print(f"[ok  ] saved {dest} ({dest.stat().st_size:,} bytes)")
 
@@ -183,9 +183,7 @@ def normalize_punct(text: str) -> str:
 def is_page_chrome(text: str) -> bool:
     if re.fullmatch(r"\d+", text.strip()):
         return True
-    if re.fullmatch(r"\s*EuroScope User'?s Manual.*", text, re.IGNORECASE):
-        return True
-    return False
+    return bool(re.fullmatch(r"\s*EuroScope User'?s Manual.*", text, re.IGNORECASE))
 
 
 def find_heading_page(doc: fitz.Document, heading: str) -> int | None:
@@ -460,12 +458,7 @@ def render_section(doc: fitz.Document, section: Section, out_root: Path) -> None
         # both as section header and as dialog subsection header).
         deduped: list[Unit] = []
         for u in units:
-            if (
-                u.kind == "heading"
-                and deduped
-                and deduped[-1].kind == "heading"
-                and deduped[-1].text.strip().lower() == u.text.strip().lower()
-            ):
+            if u.kind == "heading" and deduped and deduped[-1].kind == "heading" and deduped[-1].text.strip().lower() == u.text.strip().lower():
                 continue
             deduped.append(u)
         parts.append(render_units(deduped))
@@ -486,9 +479,7 @@ def main() -> int:
     parser.add_argument("--pdf", default=None, help="Local PDF path (skips download).")
     parser.add_argument("--url", default=DEFAULT_PDF_URL, help="PDF URL if not using --pdf.")
     parser.add_argument("--out", default=str(DEFAULT_OUT), help="Output directory for generated docs.")
-    parser.add_argument(
-        "--force-download", action="store_true", help="Re-download the PDF even if .tmp/ has a cached copy."
-    )
+    parser.add_argument("--force-download", action="store_true", help="Re-download the PDF even if .tmp/ has a cached copy.")
     args = parser.parse_args()
 
     out_root = Path(args.out).resolve()

@@ -10,8 +10,8 @@ import json
 import os
 import pathlib
 
-import matplotlib.pyplot as plt
 import matplotlib.lines as mlines
+import matplotlib.pyplot as plt
 
 
 def _cache_geojson_path() -> pathlib.Path:
@@ -80,8 +80,7 @@ def plot_geojson_layer(ax, geojson):
             coords = geom["coordinates"]
             lons = [c[0] for c in coords]
             lats = [c[1] for c in coords]
-            ax.plot(lons, lats, color=C_RUNWAY, linewidth=8, alpha=0.35,
-                    solid_capstyle="butt", zorder=1)
+            ax.plot(lons, lats, color=C_RUNWAY, linewidth=8, alpha=0.35, solid_capstyle="butt", zorder=1)
             # Label at midpoint
             mid = len(coords) // 2
             ax.annotate(
@@ -99,8 +98,7 @@ def plot_geojson_layer(ax, geojson):
             coords = geom["coordinates"]
             lons = [c[0] for c in coords]
             lats = [c[1] for c in coords]
-            ax.plot(lons, lats, color=C_TAXIWAY, linewidth=0.8, alpha=0.5,
-                    zorder=2)
+            ax.plot(lons, lats, color=C_TAXIWAY, linewidth=0.8, alpha=0.5, zorder=2)
             # Label at midpoint
             mid = len(coords) // 2
             name = props.get("name", "")
@@ -140,14 +138,10 @@ def plot_layout_layer(ax, layout):
 
     # Separate nodes by type
     types = {
-        "TaxiwayIntersection": {"lons": [], "lats": [], "c": C_INTERSECTION,
-                                 "marker": "o", "s": 3, "z": 4},
-        "Parking":             {"lons": [], "lats": [], "c": C_PARKING,
-                                 "marker": "o", "s": 4, "z": 4},
-        "Spot":                {"lons": [], "lats": [], "c": C_SPOT,
-                                 "marker": "s", "s": 8, "z": 5},
-        "RunwayHoldShort":     {"lons": [], "lats": [], "c": C_HOLDSHORT,
-                                 "marker": "D", "s": 20, "z": 6},
+        "TaxiwayIntersection": {"lons": [], "lats": [], "c": C_INTERSECTION, "marker": "o", "s": 3, "z": 4},
+        "Parking": {"lons": [], "lats": [], "c": C_PARKING, "marker": "o", "s": 4, "z": 4},
+        "Spot": {"lons": [], "lats": [], "c": C_SPOT, "marker": "s", "s": 8, "z": 5},
+        "RunwayHoldShort": {"lons": [], "lats": [], "c": C_HOLDSHORT, "marker": "D", "s": 20, "z": 6},
     }
 
     for node in layout["nodes"]:
@@ -156,45 +150,45 @@ def plot_layout_layer(ax, layout):
             g["lons"].append(node["lon"])
             g["lats"].append(node["lat"])
 
-    for ntype, g in types.items():
+    for g in types.values():
         if g["lons"]:
             ax.scatter(
-                g["lons"], g["lats"],
-                c=g["c"], marker=g["marker"], s=g["s"],
-                zorder=g["z"], edgecolors="none", alpha=0.9,
+                g["lons"],
+                g["lats"],
+                c=g["c"],
+                marker=g["marker"],
+                s=g["s"],
+                zorder=g["z"],
+                edgecolors="none",
+                alpha=0.9,
             )
 
     # Highlight hold-short nodes with a glow ring
     hs = types["RunwayHoldShort"]
     if hs["lons"]:
         ax.scatter(
-            hs["lons"], hs["lats"],
-            c="none", marker="D", s=60,
-            zorder=5, edgecolors=C_HOLDSHORT, linewidths=0.5, alpha=0.4,
+            hs["lons"],
+            hs["lats"],
+            c="none",
+            marker="D",
+            s=60,
+            zorder=5,
+            edgecolors=C_HOLDSHORT,
+            linewidths=0.5,
+            alpha=0.4,
         )
 
 
 def build_legend(ax):
     """Add a color-coded legend."""
     handles = [
-        mlines.Line2D([], [], color=C_RUNWAY, linewidth=5, alpha=0.4,
-                       label="Runway (GeoJSON)"),
-        mlines.Line2D([], [], color=C_TAXIWAY, linewidth=1.5, alpha=0.5,
-                       label="Taxiway (GeoJSON)"),
-        mlines.Line2D([], [], color=C_EDGE, linewidth=1, alpha=0.4,
-                       label="Graph Edge (computed)"),
-        mlines.Line2D([], [], color=C_INTERSECTION, marker="o",
-                       markersize=4, linestyle="None",
-                       label="Taxiway Intersection"),
-        mlines.Line2D([], [], color=C_PARKING, marker="o",
-                       markersize=4, linestyle="None",
-                       label="Parking"),
-        mlines.Line2D([], [], color=C_SPOT, marker="s",
-                       markersize=5, linestyle="None",
-                       label="Spot"),
-        mlines.Line2D([], [], color=C_HOLDSHORT, marker="D",
-                       markersize=7, linestyle="None",
-                       label="Hold-Short Node"),
+        mlines.Line2D([], [], color=C_RUNWAY, linewidth=5, alpha=0.4, label="Runway (GeoJSON)"),
+        mlines.Line2D([], [], color=C_TAXIWAY, linewidth=1.5, alpha=0.5, label="Taxiway (GeoJSON)"),
+        mlines.Line2D([], [], color=C_EDGE, linewidth=1, alpha=0.4, label="Graph Edge (computed)"),
+        mlines.Line2D([], [], color=C_INTERSECTION, marker="o", markersize=4, linestyle="None", label="Taxiway Intersection"),
+        mlines.Line2D([], [], color=C_PARKING, marker="o", markersize=4, linestyle="None", label="Parking"),
+        mlines.Line2D([], [], color=C_SPOT, marker="s", markersize=5, linestyle="None", label="Spot"),
+        mlines.Line2D([], [], color=C_HOLDSHORT, marker="D", markersize=7, linestyle="None", label="Hold-Short Node"),
     ]
     ax.legend(
         handles=handles,

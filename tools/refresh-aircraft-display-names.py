@@ -106,10 +106,10 @@ def write_outputs(rows: dict[str, str], source_path: Path) -> None:
         encoding="utf-8",
     )
 
-    fetched = dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    fetched = dt.datetime.now(dt.UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
     meta = (
         f"source: {source_path}\n"
-        f"source_mtime: {dt.datetime.fromtimestamp(source_path.stat().st_mtime, dt.timezone.utc).isoformat()}\n"
+        f"source_mtime: {dt.datetime.fromtimestamp(source_path.stat().st_mtime, dt.UTC).isoformat()}\n"
         f"generated_utc: {fetched}\n"
         f"row_count: {len(rows)}\n"
         f"\n"

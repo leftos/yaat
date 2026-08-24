@@ -31,10 +31,10 @@ def fetch_artcc_config(artcc_id: str) -> dict:
             payload = response.read().decode("utf-8")
     except urllib.error.HTTPError as exc:
         print(f"HTTP {exc.code} fetching {url}: {exc.reason}", file=sys.stderr)
-        raise SystemExit(1)
+        raise SystemExit(1) from exc
     except urllib.error.URLError as exc:
         print(f"network error fetching {url}: {exc.reason}", file=sys.stderr)
-        raise SystemExit(1)
+        raise SystemExit(1) from exc
 
     return json.loads(payload)
 

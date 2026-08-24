@@ -39,7 +39,6 @@ import datetime as dt
 import hashlib
 import json
 import os
-import re
 import sys
 import urllib.request
 
@@ -53,8 +52,22 @@ OUT_META = os.path.join(OUT_DIR, "aircraft-types-source.meta")
 
 # Words that are never a useful spoken family name — common fillers and variant modifiers.
 NOISE = {
-    "super", "mk", "mark", "and", "the", "de", "van", "der", "jr",
-    "series", "sp", "xp", "slx", "pro", "plus", "classic",
+    "super",
+    "mk",
+    "mark",
+    "and",
+    "the",
+    "de",
+    "van",
+    "der",
+    "jr",
+    "series",
+    "sp",
+    "xp",
+    "slx",
+    "pro",
+    "plus",
+    "classic",
 }
 
 # Manual inclusions for known two-word families that don't meet the cross-designator
@@ -191,11 +204,7 @@ def pick_family(
         return None
 
     # Unigram path: rank by within-designator frequency, tiebreak by cross-designator coverage.
-    candidates = [
-        (freq, token_cross_count.get(tok, 0), tok)
-        for tok, freq in uni_counts.items()
-        if freq >= MIN_WITHIN_DESIGNATOR_FREQ
-    ]
+    candidates = [(freq, token_cross_count.get(tok, 0), tok) for tok, freq in uni_counts.items() if freq >= MIN_WITHIN_DESIGNATOR_FREQ]
     if not candidates:
         return None
     candidates.sort(key=lambda x: (-x[0], -x[1]))
@@ -242,7 +251,7 @@ def write_tsv(rows: list[tuple[str, str | None, str | None]]) -> int:
 
 def write_meta(raw: bytes, row_count: int, allowed_bigrams: set[str]) -> None:
     sha = hashlib.sha256(raw).hexdigest()
-    fetched = dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    fetched = dt.datetime.now(dt.UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
     with open(OUT_META, "w", encoding="utf-8", newline="\n") as fp:
         fp.write(f"upstream_url: {UPSTREAM_URL}\n")
         fp.write(f"upstream_sha256: {sha}\n")

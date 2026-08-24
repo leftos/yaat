@@ -17,7 +17,7 @@ import json
 import sys
 import urllib.error
 import urllib.request
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 from pathlib import Path
 
 CONFIG_URL = "https://configuration.vnas.vatsim.net/"
@@ -28,7 +28,7 @@ CYCLES_PER_YEAR = 13
 
 
 def current_airac_cycle(today: date | None = None) -> str:
-    today = today or date.today()
+    today = today or datetime.now(UTC).date()
     total_days = (today - AIRAC_EPOCH).days
     if total_days < 0:
         return "2501"
@@ -45,10 +45,10 @@ def fetch_config() -> dict:
             return json.loads(response.read().decode("utf-8"))
     except urllib.error.HTTPError as exc:
         print(f"HTTP {exc.code} fetching {CONFIG_URL}: {exc.reason}", file=sys.stderr)
-        raise SystemExit(1)
+        raise SystemExit(1) from exc
     except urllib.error.URLError as exc:
         print(f"network error fetching {CONFIG_URL}: {exc.reason}", file=sys.stderr)
-        raise SystemExit(1)
+        raise SystemExit(1) from exc
 
 
 def download_navdata(url: str) -> bytes:
@@ -58,10 +58,10 @@ def download_navdata(url: str) -> bytes:
             return response.read()
     except urllib.error.HTTPError as exc:
         print(f"HTTP {exc.code} downloading NavData: {exc.reason}", file=sys.stderr)
-        raise SystemExit(1)
+        raise SystemExit(1) from exc
     except urllib.error.URLError as exc:
         print(f"network error downloading NavData: {exc.reason}", file=sys.stderr)
-        raise SystemExit(1)
+        raise SystemExit(1) from exc
 
 
 def main() -> int:
@@ -87,7 +87,7 @@ def main() -> int:
     manifest = {
         "navDataSerial": serial,
         "airacCycle": airac,
-        "lastRefreshed": datetime.now(timezone.utc).isoformat(),
+        "lastRefreshed": datetime.now(UTC).isoformat(),
     }
     manifest_path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
 
