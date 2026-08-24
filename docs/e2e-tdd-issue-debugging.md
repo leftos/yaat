@@ -77,7 +77,7 @@ Download the recording or bug report bundle from the issue and place it in TestD
 
 Convention: `issue{N}-{short-description}-recording.zip` or `-recording.yaat-bug-report-bundle.zip`. Including the issue number makes it easy to trace back to the GitHub thread.
 
-**Use `tools/bug_bundle.py` to install and triage.** Requires `brotli` (`pip install brotli`).
+**Use `tools/bug_bundle.py` to install and triage.** Requires `brotli` (`pip install brotli`). `install` also runs yaat-server's `Yaat.RecordingUpgrader` on the copied bundle (surgical: current snapshot schema + retired canonicals such as `HSE` → `HSA`), so a recording made on an older client replays with today's grammar; it warns and leaves the file as-is if the sibling `../yaat-server` checkout is missing.
 
 ```bash
 # Install from a local download

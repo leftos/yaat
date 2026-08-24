@@ -21,6 +21,8 @@ Subcommands:
     logs      Extract yaat-client.log / yaat-server.log to .tmp/ (or --out-dir).
     install   Copy bundle into tests/Yaat.Sim.Tests/TestData/ with issue{N}-{desc}-... naming.
               Either a local path, or --issue N to fetch the attachment from a GitHub issue.
+              Then runs yaat-server's Yaat.RecordingUpgrader on it (snapshot schema +
+              retired-canonical rewrite, in place) when the sibling checkout exists.
     trim      Drop snapshots past --max-seconds (or keep first --max-snapshots) to shrink
               the bundle. Actions/scenario/logs preserved. Edits in place unless --out.
     validate  Check manifest schema and verify every declared entry decompresses.
@@ -1376,6 +1378,37 @@ def _download(url: str, dest: Path) -> None:
     print(f"  {len(data):,} bytes", file=sys.stderr)
 
 
+RECORDING_UPGRADER_PROJECT = REPO_ROOT.parent / "yaat-server" / "tools" / "Yaat.RecordingUpgrader"
+
+
+def _upgrade_installed_recording(dest: Path) -> None:
+    """Run yaat-server's Yaat.RecordingUpgrader over a freshly installed bundle.
+
+    Migrates the bundle's snapshots to the current schema and rewrites retired
+    canonicals (e.g. ``HSE`` -> ``HSA``) in place, so a user's recording made on
+    an older client replays with today's grammar. Surgical, never a
+    re-simulation. Skips with a warning when the sibling yaat-server checkout
+    (or dotnet) is unavailable — the install itself still succeeds.
+    """
+    if not (RECORDING_UPGRADER_PROJECT / "Yaat.RecordingUpgrader.csproj").exists():
+        print(
+            f"  warning: {RECORDING_UPGRADER_PROJECT} not found — bundle left at its recorded schema; "
+            "run yaat-server's Yaat.RecordingUpgrader on it manually",
+            file=sys.stderr,
+        )
+        return
+    cmd = ["dotnet", "run", "--project", str(RECORDING_UPGRADER_PROJECT), "--", str(dest)]
+    r = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace", check=False)
+    summary = next((line.strip() for line in reversed(r.stdout.splitlines()) if line.strip()), "")
+    if r.returncode != 0:
+        print(
+            f"  warning: Yaat.RecordingUpgrader failed (exit {r.returncode}): {summary or r.stderr.strip()[-400:]}",
+            file=sys.stderr,
+        )
+        return
+    print(f"  upgraded: {summary}")
+
+
 def cmd_install(args: argparse.Namespace) -> int:
     # Validate naming args
     if not args.desc or not re.fullmatch(r"[a-z0-9][a-z0-9-]*", args.desc):
@@ -1440,6 +1473,8 @@ def cmd_install(args: argparse.Namespace) -> int:
             return 1
         _download(url, dest)
         print(f"installed {dest}")
+
+    _upgrade_installed_recording(dest)
 
     # Quick validate so we know we got a real v4 bundle
     try:

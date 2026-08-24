@@ -141,7 +141,7 @@ python tools/bug_bundle.py validate <bundle.zip>
 | `layouts` | List airport IDs, `--airport X` to dump one, `--all --out-dir D` for all |
 | `logs` | Extract `yaat-client.log`/`yaat-server.log` to `.tmp/` |
 | `trim` | Shrink a bundle by dropping late snapshots (`--max-seconds N` or `--max-snapshots N`, optional `--out`); preserves actions/scenario/weather/logs and rewrites the manifest's snapshot index |
-| `install` | Copy into TestData as `[issue{N}-]{desc}-recording[.yaat-bug-report-bundle].zip` (`--issue` optional for local installs) |
+| `install` | Copy into TestData as `[issue{N}-]{desc}-recording[.yaat-bug-report-bundle].zip` (`--issue` optional for local installs), then run yaat-server's `Yaat.RecordingUpgrader` on it in place (current snapshot schema + retired-canonical rewrite such as `HSE` → `HSA`) |
 | `validate` | Manifest + Brotli decompression integrity check |
 
 ### Tips
@@ -150,6 +150,6 @@ python tools/bug_bundle.py validate <bundle.zip>
 - For single-aircraft triage, `history --callsign X` is the second thing to run. It collapses 5+ targeted `snapshot --at` calls into one chronological view.
 - `snapshot --at T` uses the same nearest-at-or-before-T rule as the C# `RecordingArchive.ReadSnapshotAt` — so `--at 60` returns the snapshot whose `ElapsedSeconds` is the largest value ≤ 60.
 - `history` event tags: `CMD` (action), `PHASES` (chain installed/rebuilt), `PHASE+` (current phase advanced), `PHASE-` (chain cleared), `ROUTE` (NavigationRoute changed), `TGT` (assigned alt/spd/hdg changed), `APPR` (Approach state), `TRACK` (ownership), `RWY` (DestinationRunway), `SPAWN`/`DESPAWN`. Output is ASCII-only (no unicode arrows) so it survives Windows cp1252 stdout.
-- `install` validates the archive post-copy; a post-install warning usually means the bundle is truncated.
+- `install` upgrades the archive in place via `../yaat-server/tools/Yaat.RecordingUpgrader` (needs the sibling checkout + dotnet; prints `upgraded: … MIGRATED/up-to-date`), then validates it; a post-install validation warning usually means the bundle is truncated. A missing-upgrader warning means the bundle keeps its recorded schema and any retired canonicals — run the upgrader by hand before relying on strip-command replay.
 - Output goes to stdout by default (pipeable). Use `--out <path>` to write a file; `logs` always writes files and prints paths.
 - `scenario`, `weather`, `artcc-config`, and `layouts` always pretty-print the JSON they emit (indent=2). Falls back to raw text if the payload isn't valid JSON.
