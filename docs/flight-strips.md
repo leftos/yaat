@@ -17,21 +17,30 @@ UI behavior, and terminology — see [`docs/crc/vstrips.md`](crc/vstrips.md).
 
 ## Overview
 
-CRC's vStrips is a web app that simulates paper flight progress strips.
-Real controllers run vStrips alongside CRC; it subscribes to the
-`FlightStrips` topic on the CRC WebSocket and receives strip state from
-whichever client owns a given position.
+CRC's vStrips is a web app that simulates paper flight progress strips;
+YAAT reimplements it. The **yaat-server** persists strip state per
+training room and broadcasts every change over the training hub
+(`StripItemsChanged` for item deltas, `FlightStripsStateChanged` for the
+full-state rebroadcast deletions need). Two YAAT-side displays
+render it, both built on `Yaat.Client.Strips` and both talking to the
+server over `/hubs/training`:
 
-YAAT plays the role of that client. The **yaat-server** persists strip
-state per training room and broadcasts it to any connected CRC / vStrips
-instance over the CRC protocol. The **Yaat.Client** (instructor / RPO
-desktop app) has no strip rendering UI of its own — it only produces
-strip commands; the actual strip display lives in the trainee's CRC.
-This means strip features in YAAT only become visible when a real CRC +
-vStrips client is attached to the room.
+- the **Strips tab** in the Yaat.Client desktop app (instructor / RPO), and
+- the browser **`/vstrips/`** app (`tools/Yaat.VStrips.Web`, hosted by
+  yaat-server) that trainees open without installing anything.
+
+Every UI action in either display funnels through `VStripsCanonicalBuilder`
+into the same canonical strip commands a terminal user could type, so the
+command pipeline is the only mutation path.
+
+The server also speaks the CRC `FlightStrips` topic
+(`CrcClientState.Strips.cs`, `StripCommandTranslator`) so a CRC-protocol
+client could subscribe and mutate strips too; CRC's own vStrips is not
+used against yaat-server, so treat that path as parity coverage rather
+than the display users see.
 
 ```
-Yaat.Client (instructor)              yaat-server                          CRC + vStrips (trainee)
+Strips tab / vstrips (instructor)     yaat-server                          Strips tab / vstrips (trainee)
 ─────────────────────────             ──────────────────                   ───────────────────────
 user types "HSC Ground Hello\World"
    │
@@ -53,9 +62,10 @@ CommandParser.Parse                   TrainingHub.SendCommand
    │                                   ├── PrependStripToBay(state, bayId, rack, id)
    │                                   └── BroadcastStripItemsAsync
    │                                        │
-   │                                        │  CRC WebSocket: ReceiveStripItems [StripItemDto]
+   │                                        │  SignalR: StripItemsChanged [StripItemDto]
+   │                                        │  (+ CRC WebSocket ReceiveStripItems for CRC-protocol subscribers)
    │                                        ▼
-   │                                                                       vStrips renders the half-strip
+   │                                                                       every strips view renders the half-strip
    ▼
 (command result returned over SignalR; YAAT client shows success/error in StatusText)
 ```
