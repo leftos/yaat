@@ -1400,6 +1400,7 @@ public partial class MainViewModel : ObservableObject
         Ground.SetMeasureState(Measure);
         Radar.SetMeasureState(Measure);
         _commandInput.TaxiwayNamesProvider = CollectLoadedTaxiwayNames;
+        _commandInput.SpotNamesProvider = CollectLoadedSpotNames;
         // Student entry is always the first strips entry. Additional
         // per-facility entries are appended via OpenStripsEntryForFacilityAsync.
         var studentVm = new VStripsViewModel(_connection, SendCommandForViewAsync, () => _preferences.UserInitials)
@@ -1902,6 +1903,27 @@ public partial class MainViewModel : ObservableObject
     /// reconstructs it from the server DTO; this borrows a reference so both consumers see the
     /// same airport the user is currently looking at. Empty when no ground layout is loaded.
     /// </summary>
+    /// <summary>Taxi-spot names of the currently-loaded ground layout, for <c>HS $spot</c> autocomplete.</summary>
+    private HashSet<string> CollectLoadedSpotNames()
+    {
+        var spotNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var layout = Ground.DomainLayout;
+        if (layout is null)
+        {
+            return spotNames;
+        }
+
+        foreach (var node in layout.Nodes.Values)
+        {
+            if (node.Type == GroundNodeType.Spot && !string.IsNullOrEmpty(node.Name))
+            {
+                spotNames.Add(node.Name.ToUpperInvariant());
+            }
+        }
+
+        return spotNames;
+    }
+
     private HashSet<string> CollectLoadedTaxiwayNames()
     {
         var taxiwayNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);

@@ -70,11 +70,18 @@ public static class RouteMaterialiser
             if (FindBoundHoldShort(holdShorts, target) is null)
             {
                 string display = target.ToCanonical();
-                warnings.Add(
-                    ctx.Layout.TryGetRunwayCenterlineName(target.Target, out _)
-                        ? $"HS {display} not applied — no runway {target.Target} hold line on the route"
-                        : $"HS {display} not applied — the route never reaches {display}"
-                );
+                if (target.IsSpot)
+                {
+                    warnings.Add($"HS {display} not applied — the route never reaches {target.ToNatural()}");
+                }
+                else
+                {
+                    warnings.Add(
+                        ctx.Layout.TryGetRunwayCenterlineName(target.Target, out _)
+                            ? $"HS {display} not applied — no runway {target.Target} hold line on the route"
+                            : $"HS {display} not applied — the route never reaches {display}"
+                    );
+                }
             }
         }
 
@@ -88,7 +95,8 @@ public static class RouteMaterialiser
             foreach (var target in ctx.ExplicitHoldShorts)
             {
                 if (
-                    target.OnTaxiway is not null
+                    target.IsSpot
+                    || target.OnTaxiway is not null
                     || ctx.Layout.TryGetRunwayCenterlineName(target.Target, out _)
                     || !ctx.WaypointSequence.Contains(target.Target, StringComparer.OrdinalIgnoreCase)
                 )
@@ -139,7 +147,10 @@ public static class RouteMaterialiser
             if (
                 point.TargetName is { } name
                 && (point.Reason != HoldShortReason.RunwayCrossing)
-                && (string.Equals(name, target.Target, StringComparison.OrdinalIgnoreCase) || RunwayIdentifier.Parse(name).Contains(target.Target))
+                && (
+                    string.Equals(name, target.MatchKey, StringComparison.OrdinalIgnoreCase)
+                    || (!target.IsSpot && RunwayIdentifier.Parse(name).Contains(target.Target))
+                )
             )
             {
                 return point;
@@ -260,11 +271,30 @@ public static class RouteMaterialiser
             // ("G B HS B HS B HS B …"). Mirrors the per-runway enteredRunways guard above.
             // A located target ("HS C@J") additionally requires the node to sit ON the location
             // taxiway, so only the J-side crossing of C binds — not an earlier crossing the route
-            // happens to pass first (issue #358).
+            // happens to pass first (issue #358). A spot target ("HS $17") binds the named Spot node
+            // itself — the route passes through it — and never matches by taxiway (issue #394).
             foreach (var holdShortTarget in ctx.ExplicitHoldShorts)
             {
                 if (taxiwayHoldShortTargets.Contains(holdShortTarget.ToCanonical()))
                 {
+                    continue;
+                }
+
+                if (holdShortTarget.IsSpot)
+                {
+                    if (IsSpotNode(node, holdShortTarget.Target))
+                    {
+                        holdShorts.Add(
+                            new HoldShortPoint
+                            {
+                                NodeId = nodeId,
+                                Reason = HoldShortReason.ExplicitHoldShort,
+                                TargetName = holdShortTarget.MatchKey,
+                            }
+                        );
+                        taxiwayHoldShortTargets.Add(holdShortTarget.ToCanonical());
+                    }
+
                     continue;
                 }
 
@@ -294,6 +324,10 @@ public static class RouteMaterialiser
 
         return holdShorts;
     }
+
+    /// <summary>True when <paramref name="node"/> is the taxi spot named <paramref name="spotName"/>.</summary>
+    internal static bool IsSpotNode(GroundNode node, string spotName) =>
+        node.Type == GroundNodeType.Spot && string.Equals(node.Name, spotName, StringComparison.OrdinalIgnoreCase);
 
     private static (int TruncateAt, int HoldShortNodeId)? FindDestinationRunwaySurfaceEntry(
         List<TaxiRouteSegment> segments,

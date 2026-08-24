@@ -310,7 +310,7 @@ internal static class DepartureClearanceHandler
             {
                 depHoldShort = hs;
             }
-            else if (hs.Reason is HoldShortReason.ExplicitHoldShort)
+            else if (hs.Reason is HoldShortReason.ExplicitHoldShort && !HoldShortTarget.IsSpotTargetName(hs.TargetName))
             {
                 explicitFallback = hs;
             }

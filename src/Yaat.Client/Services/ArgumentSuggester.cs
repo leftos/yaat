@@ -24,6 +24,7 @@ internal static class ArgumentSuggester
         ObservableCollection<SuggestionItem> suggestions,
         string? primaryAirportId,
         IReadOnlyCollection<string> taxiwayNames,
+        IReadOnlyCollection<string> spotNames,
         int maxSuggestions
     )
     {
@@ -42,7 +43,17 @@ internal static class ArgumentSuggester
             return false;
         }
 
-        return AddRegistrySuggestions(parsed, fullText, targetAircraft, aircraft, suggestions, primaryAirportId, taxiwayNames, maxSuggestions);
+        return AddRegistrySuggestions(
+            parsed,
+            fullText,
+            targetAircraft,
+            aircraft,
+            suggestions,
+            primaryAirportId,
+            taxiwayNames,
+            spotNames,
+            maxSuggestions
+        );
     }
 
     private static bool AddRegistrySuggestions(
@@ -53,6 +64,7 @@ internal static class ArgumentSuggester
         ObservableCollection<SuggestionItem> suggestions,
         string? primaryAirportId,
         IReadOnlyCollection<string> taxiwayNames,
+        IReadOnlyCollection<string> spotNames,
         int maxSuggestions
     )
     {
@@ -82,6 +94,7 @@ internal static class ArgumentSuggester
         bool hasLiterals = false;
         bool hasRunway = false;
         bool hasTaxiway = false;
+        bool hasSpot = false;
         bool hasFix = false;
         bool hasApproach = false;
         bool hasCallsign = false;
@@ -97,6 +110,7 @@ internal static class ArgumentSuggester
         {
             hasRunway = IsRunwayHint(modifierHint);
             hasTaxiway = IsTaxiwayHint(modifierHint);
+            hasSpot = IsSpotHint(modifierHint);
         }
         else
         {
@@ -151,6 +165,7 @@ internal static class ArgumentSuggester
                     // Runway and taxiway are not mutually exclusive ("taxiway/runway") — check both.
                     hasRunway |= IsRunwayHint(param.TypeHint);
                     hasTaxiway |= IsTaxiwayHint(param.TypeHint);
+                    hasSpot |= IsSpotHint(param.TypeHint);
                 }
             }
         }
@@ -164,7 +179,18 @@ internal static class ArgumentSuggester
             hasModifiers = true;
         }
 
-        if (!hasLiterals && !hasRunway && !hasTaxiway && !hasFix && !hasApproach && !hasCallsign && !hasPatternLeg && !hasAirway && !hasModifiers)
+        if (
+            !hasLiterals
+            && !hasRunway
+            && !hasTaxiway
+            && !hasSpot
+            && !hasFix
+            && !hasApproach
+            && !hasCallsign
+            && !hasPatternLeg
+            && !hasAirway
+            && !hasModifiers
+        )
         {
             return false;
         }
@@ -182,6 +208,11 @@ internal static class ArgumentSuggester
         if (hasTaxiway)
         {
             AddTaxiwaySuggestions(fullText, parsed.ActiveTokenStart, parsed.ActiveTokenEnd, partial, suggestions, taxiwayNames, maxSuggestions);
+        }
+
+        if (hasSpot)
+        {
+            AddSpotSuggestions(fullText, parsed.ActiveTokenStart, parsed.ActiveTokenEnd, partial, suggestions, spotNames, maxSuggestions);
         }
 
         if (hasApproach)
@@ -358,6 +389,11 @@ internal static class ArgumentSuggester
     private static bool IsTaxiwayHint(string typeHint)
     {
         return typeHint.Contains("taxiway", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsSpotHint(string typeHint)
+    {
+        return typeHint.Contains("spot", StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>
@@ -650,6 +686,49 @@ internal static class ArgumentSuggester
                     Kind = SuggestionKind.Command,
                     Text = name,
                     Description = "Taxiway",
+                    InsertText = insertText,
+                    CaretAfterInsert = caret,
+                }
+            );
+        }
+    }
+
+    /// <summary>
+    /// Taxi-spot tokens (<c>$17</c>) from the loaded ground layout for spot-typed parameters — the
+    /// <c>HS</c> target list accepts a spot hold-short (issue #394). The <c>$</c> sigil is part of the
+    /// inserted text; a partial typed with or without it matches. Empty when no ground layout is loaded.
+    /// </summary>
+    private static void AddSpotSuggestions(
+        string fullText,
+        int activeTokenStart,
+        int activeTokenEnd,
+        string partial,
+        ObservableCollection<SuggestionItem> suggestions,
+        IReadOnlyCollection<string> spotNames,
+        int maxSuggestions
+    )
+    {
+        string namePartial = partial.StartsWith('$') ? partial[1..] : partial;
+        foreach (var name in spotNames.OrderBy(n => n, StringComparer.OrdinalIgnoreCase))
+        {
+            if (suggestions.Count >= maxSuggestions)
+            {
+                return;
+            }
+
+            if (namePartial.Length > 0 && !name.StartsWith(namePartial, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            string token = $"${name}";
+            var (insertText, caret) = CommandInputController.BuildTokenReplacement(fullText, activeTokenStart, activeTokenEnd, token);
+            suggestions.Add(
+                new SuggestionItem
+                {
+                    Kind = SuggestionKind.Command,
+                    Text = token,
+                    Description = "Spot",
                     InsertText = insertText,
                     CaretAfterInsert = caret,
                 }

@@ -800,6 +800,9 @@ public static class PhraseologyRules
             // has a LOCATED twin (issue #358) declared first — "… hold short of charlie at
             // juliett" → HS C@J — so the "at {hson}" tail is consumed instead of being swallowed
             // into the {path...} variadic (which produced a malformed canonical).
+            // Spot twin (issue #394): "… hold short of spot one seven" → HS $17. Declared before the
+            // generic form so "spot" is consumed as the keyword, not captured as the target.
+            new(["taxi", "via", "{path...}", "hold", "short", "of?", "spot", "{spot}"], "TAXI {path} HS ${spot}", Taxi),
             new(
                 ["taxi", "via", "{path...}", "hold", "short", "of?", "runway?", "{holdshort}", "at", "{hson}"],
                 "TAXI {path} HS {holdshort}@{hson}",
@@ -808,6 +811,7 @@ public static class PhraseologyRules
             new(["taxi", "via", "{path...}", "hold", "short", "of?", "runway?", "{holdshort}"], "TAXI {path} HS {holdshort}", Taxi),
             // Leading-runway + hold-short: "runway 30, taxi via B C, hold short of runway 28R".
             // Mirrors the hold-short rule above, with the destination runway stated first.
+            new(["runway", "{rwy}", "taxi", "via", "{path...}", "hold", "short", "of?", "spot", "{spot}"], "TAXI {path} {rwy} HS ${spot}", Taxi),
             new(
                 ["runway", "{rwy}", "taxi", "via", "{path...}", "hold", "short", "of?", "runway?", "{holdshort}", "at", "{hson}"],
                 "TAXI {path} {rwy} HS {holdshort}@{hson}",
@@ -902,6 +906,9 @@ public static class PhraseologyRules
             // utterance is consumed whole instead of the location being silently dropped. "at
             // taxiway juliett" and the colloquial "on juliett" are SttOnly aliases so the pilot AI
             // reads back the codified bare-"at" form.
+            // Spot hold-short (issue #394): "hold short of spot one seven" → HS $17. Declared before
+            // the bare taxiway form so "spot" is the keyword, not a captured taxiway name.
+            new(["hold", "short", "of?", "spot", "{spot}"], "HS ${spot}", HoldShort),
             new(["hold", "short", "of?", "runway", "{rwy}", "at", "{hson}"], "HS {rwy}@{hson}", HoldShort),
             new(["hold", "short", "of?", "{taxiway}", "at", "{hson}"], "HS {taxiway}@{hson}", HoldShort),
             new(["hold", "short", "of?", "runway", "{rwy}", "at", "taxiway", "{hson}"], "HS {rwy}@{hson}", HoldShort, SttOnly: true),

@@ -550,6 +550,11 @@ public static class PhraseologyVerbalizer
     /// </summary>
     private static string RenderHoldShortTarget(HoldShortTarget target, CaptureFormatter fmt)
     {
+        if (target.IsSpot)
+        {
+            return $"spot {fmt.Taxiway(target.Target)}";
+        }
+
         string spoken = CommandParser.IsRunwayArg(target.Target) ? $"runway {fmt.Runway(target.Target)}" : fmt.Taxiway(target.Target);
         return target.OnTaxiway is { } onTaxiway ? $"{spoken} at {fmt.Taxiway(onTaxiway)}" : spoken;
     }
@@ -562,6 +567,11 @@ public static class PhraseologyVerbalizer
     /// </summary>
     private static IReadOnlyDictionary<string, string> HoldShortCommandArgs(HoldShortCommand h, CaptureFormatter fmt)
     {
+        if (h.Target.IsSpot)
+        {
+            return Map("spot", fmt.Taxiway(h.Target.Target));
+        }
+
         bool isRunway = CommandParser.IsRunwayArg(h.Target.Target);
         var dict = new Dictionary<string, string>
         {

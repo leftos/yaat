@@ -41,8 +41,7 @@ public sealed class HoldingShortPhase : Phase
         _holdShort = holdShort;
     }
 
-    public override string Name =>
-        _holdShort.TargetName is not null ? $"Holding Short {RunwayIdentifier.ToDisplayDesignator(_holdShort.TargetName)}" : "Holding Short";
+    public override string Name => _holdShort.TargetName is { } target ? $"Holding Short {HoldShortTarget.Describe(target)}" : "Holding Short";
 
     public override void OnStart(PhaseContext ctx)
     {
@@ -63,7 +62,7 @@ public sealed class HoldingShortPhase : Phase
         );
 
         // Generate notification
-        string target = RunwayIdentifier.ToDisplayDesignator(_holdShort.TargetName ?? "unknown");
+        string target = HoldShortTarget.Describe(_holdShort.TargetName ?? "unknown");
         string taxiway = ctx.Aircraft.Ground.CurrentTaxiway ?? "taxiway";
         string label = _holdShort.Reason == HoldShortReason.ExplicitHoldShort ? $"holding short of {target}" : $"holding short runway {target}";
         string warningText = $"{ctx.Aircraft.Callsign} {label} at {taxiway}";
@@ -198,7 +197,7 @@ public sealed class HoldingShortPhase : Phase
                 : CommandAcceptance.ClearsPhase,
             CanonicalCommandType.Delete => CommandAcceptance.ClearsPhase,
             _ => CommandAcceptance.Rejected(
-                $"aircraft is holding short of {_holdShort.TargetName ?? "the runway"}; only CROSS/LUAW/CTO/HSC, a new TAXI, or DEL apply"
+                $"aircraft is holding short of {HoldShortTarget.Describe(_holdShort.TargetName ?? "the runway")}; only CROSS/LUAW/CTO/HSC, a new TAXI, or DEL apply"
             ),
         };
     }

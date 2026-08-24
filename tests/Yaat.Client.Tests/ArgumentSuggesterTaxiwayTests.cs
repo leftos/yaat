@@ -29,6 +29,7 @@ public class ArgumentSuggesterTaxiwayTests
             suggestions,
             primaryAirportId: null,
             taxiwayNames,
+            spotNames: [],
             maxSuggestions: 20
         );
         return suggestions;

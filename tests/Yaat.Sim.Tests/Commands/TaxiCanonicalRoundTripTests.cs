@@ -31,6 +31,8 @@ public class TaxiCanonicalRoundTripTests
     [InlineData("TAXI S T U HS 28L RWY 30", "TAXI S T U RWY 30 HS 28L")]
     [InlineData("TAXI S T U @B12 NODEL", "TAXI S T U @B12 NODEL")]
     [InlineData("TAXI TE $7A", "TAXI TE $7A")]
+    [InlineData("TAXI T421 C Z B M1 1L HS $17", "TAXI T421 C Z B M1 RWY 1L HS $17")]
+    [InlineData("TAXI K $8 HS $8", "TAXI K $8 HS $8")]
     [InlineData("TAXI >A B <C D", "TAXI >A B <C D")]
     public void Canonical_CarriesFullClearance(string input, string expectedCanonical)
     {
@@ -45,6 +47,8 @@ public class TaxiCanonicalRoundTripTests
     [InlineData("TAXI S T U HS 28L RWY 30")]
     [InlineData("TAXI S T U @B12 NODEL")]
     [InlineData("TAXI >A B <C D RWY 28R CROSS 10L HS E")]
+    [InlineData("TAXI T421 C Z B M1 1L HS $17")]
+    [InlineData("TAXI K $8 HS $8")]
     public void Canonical_RoundTripsThroughParser(string input)
     {
         string canonical = CommandDescriber.DescribeCommand(Parse(input));
@@ -68,6 +72,7 @@ public class TaxiCanonicalRoundTripTests
     [InlineData("TAXI A B CROSS 10L RWY 28R", "Taxi via A B to runway 28R, cross 10L")]
     [InlineData("TAXI C D J HS C@J", "Taxi via C D J, hold short of C at J")]
     [InlineData("TAXI S T U @B12", "Taxi via S T U to parking B12")]
+    [InlineData("TAXI C Z HS $17", "Taxi via C Z, hold short of spot 17")]
     public void Natural_CarriesFullClearance(string input, string expectedNatural)
     {
         Assert.Equal(expectedNatural, CommandDescriber.DescribeNatural(Parse(input)));

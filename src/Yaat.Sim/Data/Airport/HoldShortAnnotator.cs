@@ -219,6 +219,13 @@ internal static class HoldShortAnnotator
             return false;
         }
 
+        // A spot name keeps its $ sigil on both sides, so it only ever matches by literal equality —
+        // never as runway "17" via the designator parse.
+        if (HoldShortTarget.IsSpotTargetName(targetName) || HoldShortTarget.IsSpotTargetName(arg))
+        {
+            return string.Equals(targetName, arg, StringComparison.OrdinalIgnoreCase);
+        }
+
         return RunwayIdentifier.Parse(targetName).Contains(arg) || string.Equals(targetName, arg, StringComparison.OrdinalIgnoreCase);
     }
 
@@ -235,7 +242,7 @@ internal static class HoldShortAnnotator
         // entry side — AddImplicitRunwayHoldShorts pairs the bars and drops the far side. So an
         // existing point is the authoritative near-side bar; never re-derive it from the segments.
         var candidates = route
-            .HoldShortPoints.Where(h => TargetMatches(h.TargetName, target.Target) && NodeOnLocationTaxiway(layout, h.NodeId, target.OnTaxiway))
+            .HoldShortPoints.Where(h => TargetMatches(h.TargetName, target.MatchKey) && NodeOnLocationTaxiway(layout, h.NodeId, target.OnTaxiway))
             .ToList();
         if (candidates.Count > 0)
         {
@@ -279,6 +286,22 @@ internal static class HoldShortAnnotator
 
             if (target.OnTaxiway is { } onTaxiway && !node.Edges.Any(e => e.MatchesTaxiway(onTaxiway)))
             {
+                continue;
+            }
+
+            // A spot target binds the named Spot node itself (issue #394) — never a bar or a taxiway edge.
+            if (target.IsSpot)
+            {
+                if (Pathfinding.RouteMaterialiser.IsSpotNode(node, target.Target))
+                {
+                    return new ExplicitHoldShortPlan
+                    {
+                        Outcome = ExplicitHoldShortOutcome.Add,
+                        NodeId = node.Id,
+                        TargetName = target.MatchKey,
+                    };
+                }
+
                 continue;
             }
 
@@ -414,9 +437,11 @@ internal static class HoldShortAnnotator
     /// <summary>
     /// Computes hold-short stop positions for all hold-short points in the route.
     /// Runway hold-shorts are offset back from the node by half the aircraft length so the
-    /// aircraft's nose stops AT the hold-short line (the aircraft position is its center).
-    /// Taxiway hold-shorts are offset back from the intersection node along the approach edge
-    /// by <paramref name="aircraftLengthFt"/> + buffer.
+    /// aircraft's nose stops AT the hold-short line (the aircraft position is its center). A taxi
+    /// spot (<c>HS $17</c>) is a painted point with nothing to clear beyond it, so it takes the same
+    /// nose-at-the-mark setback — the taxiway setback would put a widebody back in the junction
+    /// behind the spot. Taxiway hold-shorts are offset back from the intersection node along the
+    /// approach edge by <paramref name="aircraftLengthFt"/> + buffer.
     /// </summary>
     internal static void ComputeHoldShortPositions(AirportGroundLayout layout, TaxiRoute route, double aircraftLengthFt)
     {
@@ -431,9 +456,12 @@ internal static class HoldShortAnnotator
                 continue;
             }
 
-            // Runway hold-shorts and destination holds: offset back from node by half the
+            // Runway hold-shorts, destination holds, and spots: offset back from node by half the
             // aircraft length so the aircraft center (position) stops with its nose at the node.
-            if ((hs.Reason is HoldShortReason.RunwayCrossing or HoldShortReason.DestinationRunway) || (hsNode.Type == GroundNodeType.RunwayHoldShort))
+            if (
+                (hs.Reason is HoldShortReason.RunwayCrossing or HoldShortReason.DestinationRunway)
+                || (hsNode.Type is GroundNodeType.RunwayHoldShort or GroundNodeType.Spot)
+            )
             {
                 var vn = VirtualNode.OffsetBefore(layout, route, hs.NodeId, runwayHalfLengthNm, stopAtRunwayHoldShort: false);
                 hs.Latitude = vn.Position.Lat;
@@ -462,7 +490,7 @@ internal static class HoldShortAnnotator
                 string rwy =
                     layout.Nodes.TryGetValue(cr.RunwayNodeId, out var rwyNode) && rwyNode.RunwayId is { } rid ? rid.ToDisplayString() : "the runway";
                 string warning =
-                    $"holding short of {RunwayIdentifier.ToDisplayDesignator(hs.TargetName ?? "")} leaves the tail over RWY {rwy} — unable to clear the runway";
+                    $"holding short of {HoldShortTarget.Describe(hs.TargetName ?? "")} leaves the tail over RWY {rwy} — unable to clear the runway";
                 if (!route.Warnings.Contains(warning))
                 {
                     route.Warnings.Add(warning);

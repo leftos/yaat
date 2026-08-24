@@ -678,7 +678,7 @@ public static class CommandRegistry
                 [O(null, [R("route", "taxiway names")], "Taxi via route")],
                 [
                     Mod("RWY", "runway", false),
-                    Mod("HS", "taxiway/runway", true),
+                    Mod("HS", "taxiway/runway/$spot", true),
                     Mod("CROSS", "runway", true),
                     Mod("NODEL", null, false),
                     Mod("@", "parking", false),
@@ -693,7 +693,7 @@ public static class CommandRegistry
                 false,
                 ["RES", "RESUME"],
                 [O(null, [], "Resume taxi")],
-                [Mod("CROSS", "runway", true), Mod("HS", "taxiway/runway", true)]
+                [Mod("CROSS", "runway", true), Mod("HS", "taxiway/runway/$spot", true)]
             ),
             Cmd(
                 CrossRunway,
@@ -702,9 +702,16 @@ public static class CommandRegistry
                 false,
                 ["CROSS"],
                 [O(null, [], "Cross next hold-short"), O(null, [Rep("runway", "runway designator")], "Cross runway(s)")],
-                [Mod("HS", "taxiway/runway", true)]
+                [Mod("HS", "taxiway/runway/$spot", true)]
             ),
-            Cmd(HoldShort, "Hold Short", "Ground", false, ["HS"], [O(null, [R("taxiway", "taxiway/runway")], "Hold short of taxiway or runway")]),
+            Cmd(
+                HoldShort,
+                "Hold Short",
+                "Ground",
+                false,
+                ["HS"],
+                [O(null, [R("taxiway", "taxiway/runway/$spot")], "Hold short of taxiway, runway, or spot")]
+            ),
             Cmd(
                 AssignRunway,
                 "Assign Runway",

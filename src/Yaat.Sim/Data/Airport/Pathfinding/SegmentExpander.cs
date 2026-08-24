@@ -2278,6 +2278,12 @@ public static class SegmentExpander
         double taxiwayCrossingDistNm = double.MaxValue;
         foreach (var holdShort in ctx.ExplicitHoldShorts)
         {
+            // A spot target is a node the route passes through, not a bar or crossing to aim the walk at.
+            if (holdShort.IsSpot)
+            {
+                continue;
+            }
+
             // A located target only steers the taxiway it holds ON.
             if (holdShort.OnTaxiway is { } onTaxiway && !onTaxiway.Equals(taxiwayName, StringComparison.OrdinalIgnoreCase))
             {

@@ -268,10 +268,13 @@ internal static class GroundCommandParser
     }
 
     /// <summary>
-    /// Shared taxi token parser. Handles path, HS, RWY keywords, @parking, and $spot tokens.
+    /// Shared taxi token parser. Handles path, HS, RWY, CROSS keywords, @parking, and $spot tokens.
     /// If detectTrailingRunway is true and no explicit RWY keyword was found,
     /// treats the last path token as a destination runway if it looks like one.
-    /// Tokens starting with @ set DestinationParking, $ set DestinationSpot.
+    /// Outside an HS clause, tokens starting with @ set DestinationParking and $ set DestinationSpot.
+    /// An HS clause owns every following token until the next keyword: <c>$17</c> there is a spot
+    /// hold-short target and <c>@A12</c> is rejected (ATCTrainer grammar — the path optionally ends
+    /// with a runway, parking, or spot destination, then the hold-short list follows).
     /// </summary>
     internal static PR ParseTaxiTokens(string[] tokens, bool detectTrailingRunway)
     {
@@ -338,6 +341,17 @@ internal static class GroundCommandParser
                 continue;
             }
 
+            if (inHoldShort)
+            {
+                if (!HoldShortTarget.TryParse(token, out var holdShortTarget, out string? holdShortError))
+                {
+                    return PR.Fail(holdShortError!);
+                }
+
+                holdShorts.Add(holdShortTarget);
+                continue;
+            }
+
             // @token = parking destination, $token = spot destination (strip prefix)
             if (token.StartsWith('@') && token.Length > 1)
             {
@@ -359,22 +373,10 @@ internal static class GroundCommandParser
                 continue;
             }
 
-            if (inHoldShort)
-            {
-                if (!HoldShortTarget.TryParse(token, out var holdShortTarget, out string? holdShortError))
-                {
-                    return PR.Fail(holdShortError!);
-                }
-
-                holdShorts.Add(holdShortTarget);
-            }
-            else
-            {
-                // A leading > / < prefixes a per-taxiway turn-direction hint ("> A" = right onto A).
-                var (hint, name) = StripTurnHint(token);
-                path.Add(name.ToUpperInvariant());
-                pathTurnHints.Add(hint);
-            }
+            // A leading > / < prefixes a per-taxiway turn-direction hint ("> A" = right onto A).
+            var (hint, name) = StripTurnHint(token);
+            path.Add(name.ToUpperInvariant());
+            pathTurnHints.Add(hint);
         }
 
         // If no explicit RWY keyword, check if last path token is a runway. A lone runway token

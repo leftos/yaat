@@ -580,7 +580,8 @@ internal static class GroundCommandHandler
     /// name — the candidates <see cref="AugmentPathWithHoldShortTaxiways"/> would append. A located target
     /// (<c>HS C@J</c>) contributes its ON-taxiway (<c>J</c>): the aircraft travels J and holds short OF C,
     /// so C itself must never join the cleared path. Runway targets (<c>HS 28L</c>) have no taxiway nodes
-    /// and are left to the runway-crossing machinery; a second target on an already-collected taxiway
+    /// and are left to the runway-crossing machinery; a spot target (<c>HS $17</c>) is a point the route
+    /// passes through, not a taxiway to steer onto; a second target on an already-collected taxiway
     /// is dropped so the taxiway is folded at most once.
     /// </summary>
     private static List<HoldShortTarget> HoldShortTaxiwaysToFold(AirportGroundLayout groundLayout, TaxiCommand taxi)
@@ -589,6 +590,11 @@ internal static class GroundCommandHandler
         var named = new HashSet<string>(taxi.Path, StringComparer.OrdinalIgnoreCase);
         foreach (var target in taxi.HoldShorts)
         {
+            if (target.IsSpot)
+            {
+                continue;
+            }
+
             string foldTaxiway = target.OnTaxiway ?? target.Target;
             if (named.Contains(foldTaxiway) || (groundLayout.GetNodesOnTaxiway(foldTaxiway).Count == 0))
             {
@@ -1859,7 +1865,7 @@ internal static class GroundCommandHandler
             RunwayExitPhase => "during runway exit",
             FollowingPhase => "while following",
             HoldingShortPhase hs => hs.HoldShort.TargetName is { } target
-                ? $"already short of {RunwayIdentifier.ToDisplayDesignator(target)}"
+                ? $"already short of {HoldShortTarget.Describe(target)}"
                 : "already holding short",
             HoldingInPositionPhase or HoldingAfterPushbackPhase or HoldingAfterExitPhase => "already in position",
             _ => null,
@@ -2428,7 +2434,7 @@ internal static class GroundCommandHandler
             }
 
             holdPhase.SatisfyClearance(ClearanceType.RunwayCrossing);
-            return CommandDispatcher.Ok($"Cross {holdPhase.HoldShort.TargetName ?? "next hold-short"}");
+            return CommandDispatcher.Ok(DescribeHoldShortRelease(holdPhase.HoldShort.TargetName));
         }
 
         var route = aircraft.Ground.AssignedTaxiRoute;
@@ -2458,8 +2464,20 @@ internal static class GroundCommandHandler
         }
 
         next.IsCleared = true;
-        return CommandDispatcher.Ok($"Cross {next.TargetName ?? "next hold-short"}");
+        return CommandDispatcher.Ok(DescribeHoldShortRelease(next.TargetName));
     }
+
+    /// <summary>
+    /// Echo for a bare <c>CROSS</c> release. "Cross" is runway vocabulary (7110.65 §3-7-2.a.3); releasing a
+    /// spot hold-short is the §3-7-2.a.1 "continue taxiing", so the echo names the spot that way instead.
+    /// </summary>
+    private static string DescribeHoldShortRelease(string? targetName) =>
+        targetName switch
+        {
+            null => "Cross next hold-short",
+            var spot when HoldShortTarget.IsSpotTargetName(spot) => $"Continue taxi past {HoldShortTarget.Describe(spot)}",
+            var target => $"Cross {target}",
+        };
 
     internal static CommandResult TryHoldShort(AircraftState aircraft, HoldShortCommand hs, AirportGroundLayout? groundLayout)
     {

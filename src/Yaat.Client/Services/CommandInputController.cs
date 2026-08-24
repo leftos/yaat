@@ -51,6 +51,12 @@ public partial class CommandInputController : ObservableObject
     /// </summary>
     public Func<IReadOnlyCollection<string>>? TaxiwayNamesProvider { get; set; }
 
+    /// <summary>
+    /// Source of the loaded ground layout's taxi-spot names for spot-typed argument suggestions
+    /// (<c>HS $17</c>). Same provider contract as <see cref="TaxiwayNamesProvider"/>.
+    /// </summary>
+    public Func<IReadOnlyCollection<string>>? SpotNamesProvider { get; set; }
+
     public bool IsNavigatingHistory => _isNavigatingHistory;
 
     /// <summary>
@@ -225,6 +231,7 @@ public partial class CommandInputController : ObservableObject
                 Suggestions,
                 PrimaryAirportId,
                 TaxiwayNamesProvider?.Invoke() ?? [],
+                SpotNamesProvider?.Invoke() ?? [],
                 MaxSuggestions
             )
         )

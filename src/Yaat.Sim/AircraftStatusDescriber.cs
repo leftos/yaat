@@ -454,9 +454,13 @@ public static class AircraftStatusDescriber
             {
                 return "holding short";
             }
+            var twy = i.CurrentTaxiway;
+            if (target.StartsWith("spot ", StringComparison.Ordinal))
+            {
+                return string.IsNullOrEmpty(twy) ? $"holding short of {target}" : $"holding short of {target} on {twy}";
+            }
             target = RunwayIdentifier.ToDisplayDesignator(target);
             bool isRunway = char.IsDigit(target[0]);
-            var twy = i.CurrentTaxiway;
             if (isRunway)
             {
                 // A departure in the queue names its entry point the same way the ground datablock does:

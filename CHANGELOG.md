@@ -7,6 +7,10 @@
 - Pilots read back a route-less taxi clearance (`TAXI 1L`, `TAXIAUTO 1L`) as "taxi to runway one left", and speech input accepts "taxi to runway two eight right".
 - Pilots read back taxi clearances to a parking position or spot — "taxi via alpha, bravo to parking bravo one two" — ahead of any cross or hold-short clause, with word-like names spoken as words (`CARGO1` → "cargo one").
 - Speech input accepts "taxi to parking/gate/spot …" before or after the route, with cross and hold-short clauses, and validates the name against the loaded airport's parking and spot names.
+- `HS` autocomplete offers the airport's taxi spots (`$17`); pilots read back "hold short of spot one seven" and voice input accepts it.
+
+### Changed
+- Everything after `HS` in a taxi clearance is a hold-short target: a spot or parking destination goes before `HS` (`TAXI K $8 HS $8`), and `HS @A12` is rejected.
 
 ### Fixed
 - Taxi clearances no longer detour back to a hold-short taxiway the cleared route already crosses (SFO `TAXI T7A A A1 1R HS H` now stays on A to A1).
@@ -20,6 +24,7 @@
 - A TAXI from a gate whose first taxiway is a neighbouring ramp lane the ground map cannot reach (SFO B20S → `TAXI M4 M1 …`) taxis via the rest of the route and warns `unable via M4 — no ramp connection from the gate; taxiing via M3`.
 - A scripted preset that fails when it fires shows `[Preset] could not apply: …` in the terminal, and a scripted taxi echoes its route warnings.
 - In solo training the pilot reads back a taxi route as actually taxied when a cleared taxiway was dropped ("unable mike four, taxi via mike one…").
+- `TAXI … HS $17` holds the aircraft with its nose at taxi spot 17 and continues on `RES` or `CROSS`, instead of taxiing straight to the runway.
 
 ## v0.12.16-beta [2026/08/22]
 
