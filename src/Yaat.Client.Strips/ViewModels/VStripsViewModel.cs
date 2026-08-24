@@ -1071,7 +1071,7 @@ public partial class VStripsViewModel : ObservableObject
 
     /// <summary>
     /// Replace the lines of an existing half-strip. Wraps the
-    /// <c>HSA {key} {line1} {line2}…</c> canonical verb. Empty lines are
+    /// <c>HSA {stripId} line1\line2…</c> canonical verb. Empty lines are
     /// preserved so users can blank a line without collapsing the strip.
     /// </summary>
     public async Task AmendHalfStripAsync(StripItemViewModel strip, IReadOnlyList<string> lines)

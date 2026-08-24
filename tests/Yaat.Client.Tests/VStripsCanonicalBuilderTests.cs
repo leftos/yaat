@@ -132,8 +132,9 @@ public class VStripsCanonicalBuilderTests
     public void BuildHalfStripAmend_PrefixesStripIdThenLines()
     {
         // Half-strip mutations always pass strip.Id (HSTRIP_…) — duplicate
-        // first-line text would otherwise produce ambiguous matches.
-        Assert.Equal("HSA HSTRIP_abc123 NEW LINE2", VStripsCanonicalBuilder.BuildHalfStripAmend("HSTRIP_abc123", ["NEW", "LINE2"]));
+        // first-line text would otherwise produce ambiguous matches. Lines are
+        // backslash-joined: the parser's id form splits on '\' only.
+        Assert.Equal(@"HSA HSTRIP_abc123 NEW\LINE2", VStripsCanonicalBuilder.BuildHalfStripAmend("HSTRIP_abc123", ["NEW", "LINE2"]));
     }
 
     [Fact]

@@ -584,6 +584,12 @@ readable; legacy 32-char GUID ids in older recordings keep working
      line). `lookupKey = Tokens[0]`, `newLines = Tokens[1..]`.
    - **Aircraft-scoped**: `lookupKey = callsign`, `newLines = [callsign, ...Tokens]`.
      Empty `Tokens` is allowed; it clears lines 2+.
+   - **Strip-id form** (`Tokens[0]` starts with `HSTRIP_`): always the global
+     shape — `lookupKey = Tokens[0]`, `newLines = Tokens[1..]` literally, no
+     callsign prepend — regardless of the dispatch callsign. The strips UI and
+     the CRC translator send the full `FieldValues` (callsign line included), and
+     `CrcClientState.HandleUpdateStripItem` dispatches with the strip's own
+     `AircraftId`, so the id must win over the callsign here (#391).
 3. `FindHalfStripMatches` enumerates `StripState.Items`, filters by
    type in `{HalfStripLeft, HalfStripRight}`, first-line case-insensitive
    equal to the lookup key, and optionally by bay and rack. The result:

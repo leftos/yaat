@@ -136,17 +136,11 @@ public static class VStripsCanonicalBuilder
     /// always call this with <c>strip.Id</c> so two half-strips with the
     /// same first-line text remain distinguishable. Server parser detects
     /// the <c>HSTRIP_</c> prefix and falls back to first-line matching only
-    /// when terminal users type a non-id key.
+    /// when terminal users type a non-id key. Lines are <c>\</c>-joined —
+    /// the same separator HSC uses — so an empty line is preserved.
     /// </summary>
-    public static string BuildHalfStripAmend(string stripId, IReadOnlyList<string> newLines)
-    {
-        var sb = new StringBuilder("HSA ").Append(stripId);
-        foreach (var line in newLines)
-        {
-            sb.Append(' ').Append(line);
-        }
-        return sb.ToString();
-    }
+    public static string BuildHalfStripAmend(string stripId, IReadOnlyList<string> newLines) =>
+        newLines.Count == 0 ? $"HSA {stripId}" : $"HSA {stripId} {string.Join('\\', newLines)}";
 
     /// <summary>Move a half-strip by stripId to a destination bay/rack/index.</summary>
     public static string BuildHalfStripMove(string stripId, string destFacilityId, string destBayName, int rack, int index) =>
