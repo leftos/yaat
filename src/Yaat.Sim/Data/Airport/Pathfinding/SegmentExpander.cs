@@ -32,6 +32,15 @@ public static class SegmentExpander
     private const int MaxBridgeHops = 3;
 
     /// <summary>
+    /// Reach of the second, deeper bridge search, run only when every access node within
+    /// <see cref="MaxBridgeHops"/> is a dead end (no admissible onward edge on the taxiway from the bridged
+    /// arrival bearing). SFO gate B4 → M3: the only M3 node within three hops is a corner-arc entry whose
+    /// sole M3 edge is a U-turn, while the M3/RAMP junction sits four hops down the straight gate lead-out.
+    /// Gates with a usable shallow entry never reach this pass, so their routes are unchanged (issue #396).
+    /// </summary>
+    private const int MaxBridgeHopsDeep = 6;
+
+    /// <summary>
     /// Run the segment expander on the given <paramref name="ctx"/>.
     /// Returns either a materialised <see cref="TaxiRoute"/> or a structured
     /// <see cref="PathfindingFailure"/>. Exactly one of the two return values is non-null.
@@ -1016,16 +1025,54 @@ public static class SegmentExpander
             }
         }
 
-        var (candidates, cameFrom) = CollectBridgeCandidates(head.HeadNodeId, taxiwayName, ctx);
-        if (candidates.Count == 0)
+        var best = PickBridgeCandidate(head, taxiwayName, bias, ctx, MaxBridgeHops);
+
+        // Every access node within the shallow reach commits the head to a U-turn onto the taxiway (the
+        // shallow pick still carries BridgeNoOnwardPenaltyNm). The real entry may simply lie a hop or two
+        // further along the gate's lead-out lane, so look deeper before settling for the dead end.
+        if (best.Edges is not null && !best.HasOnward)
+        {
+            var deeper = PickBridgeCandidate(head, taxiwayName, bias, ctx, MaxBridgeHopsDeep);
+            if (deeper.Edges is not null && deeper.HasOnward)
+            {
+                ctx.DiagnosticLog?.Invoke(
+                    $"[bridge] deepened to {MaxBridgeHopsDeep} hops: shallow pick {best.Head!.HeadNodeId} has no admissible continuation on {taxiwayName}"
+                );
+                best = deeper;
+            }
+        }
+
+        if (best.Edges is null || best.Head is null)
         {
             return ([], head);
         }
+
+        ctx.DiagnosticLog?.Invoke(
+            $"[bridge] start={head.HeadNodeId} → {best.Head.HeadNodeId} onto {taxiwayName} ({best.Edges.Count} edges, score={best.Score:F3})"
+        );
+        return (best.Edges, best.Head);
+    }
+
+    /// <summary>
+    /// Collect the access nodes within <paramref name="maxHops"/> of the head and pick the best one.
+    /// <c>Edges</c> is null when no access node is reachable within the cap; <c>HasOnward</c> reports whether
+    /// the chosen candidate has an admissible onward edge on the taxiway from its bridged arrival bearing.
+    /// </summary>
+    private static (List<DirectionalEdge>? Edges, PartialRoute? Head, double Score, bool HasOnward) PickBridgeCandidate(
+        PartialRoute head,
+        string taxiwayName,
+        LatLon? bias,
+        SearchContext ctx,
+        int maxHops
+    )
+    {
+        var (candidates, cameFrom) = CollectBridgeCandidates(head.HeadNodeId, taxiwayName, ctx, maxHops);
 
         List<DirectionalEdge>? bestEdges = null;
         PartialRoute? bestHead = null;
         double bestScore = double.MaxValue;
         double bestCost = double.MaxValue;
+        bool bestHasOnward = false;
 
         foreach (int candidateId in candidates)
         {
@@ -1052,18 +1099,11 @@ public static class SegmentExpander
                 bestCost = cost;
                 bestEdges = candEdges;
                 bestHead = candHead;
+                bestHasOnward = AdmissibleOnwardNeighbors(candHead, taxiwayName, ctx).Any();
             }
         }
 
-        if (bestEdges is null || bestHead is null)
-        {
-            return ([], head);
-        }
-
-        ctx.DiagnosticLog?.Invoke(
-            $"[bridge] start={head.HeadNodeId} → {bestHead.HeadNodeId} onto {taxiwayName} ({bestEdges.Count} edges, score={bestScore:F3})"
-        );
-        return (bestEdges, bestHead);
+        return (bestEdges, bestHead, bestScore, bestHasOnward);
     }
 
     /// <summary>
@@ -1077,7 +1117,8 @@ public static class SegmentExpander
     private static (List<int> Candidates, Dictionary<int, (int ParentId, IGroundEdge Edge)> CameFrom) CollectBridgeCandidates(
         int startId,
         string taxiwayName,
-        SearchContext ctx
+        SearchContext ctx,
+        int maxHops
     )
     {
         var visited = new HashSet<int> { startId };
@@ -1120,7 +1161,7 @@ public static class SegmentExpander
                 // matter where the hold-short bar sits. (Non-hold-short nodes cost a hop as before,
                 // preserving the legacy reach for bridges that traverse no hold-short.)
                 int nextDepth = neighbor.Type == GroundNodeType.RunwayHoldShort ? depth : depth + 1;
-                if (nextDepth < MaxBridgeHops)
+                if (nextDepth < maxHops)
                 {
                     queue.Enqueue((neighbor.Id, nextDepth));
                 }
@@ -1205,24 +1246,8 @@ public static class SegmentExpander
         }
 
         double best = double.MaxValue;
-        foreach (var edge in node.Edges)
+        foreach (var neighbor in AdmissibleOnwardNeighbors(candHead, taxiwayName, ctx))
         {
-            if (!edge.MatchesTaxiway(taxiwayName))
-            {
-                continue;
-            }
-
-            var neighbor = edge.OtherNode(node);
-            if (candHead.VisitedNodeIds.Contains(neighbor.Id))
-            {
-                continue;
-            }
-
-            if (!GeometricAdmissibility.IsAdmissible(candHead, edge, neighbor, ctx.Category))
-            {
-                continue;
-            }
-
             double d = GeoMath.DistanceNm(neighbor.Position, bias);
             if (d < best)
             {
@@ -1236,6 +1261,39 @@ public static class SegmentExpander
         }
 
         return best;
+    }
+
+    /// <summary>
+    /// Nodes reachable from the bridged head by one admissible, not-yet-visited step along
+    /// <paramref name="taxiwayName"/>. Empty when the candidate's only taxiway edges would force an immediate
+    /// U-turn from the bridged arrival bearing — the dead-end entry both the score penalty and the deeper
+    /// bridge pass key on.
+    /// </summary>
+    private static IEnumerable<GroundNode> AdmissibleOnwardNeighbors(PartialRoute candHead, string taxiwayName, SearchContext ctx)
+    {
+        if (!ctx.Layout.Nodes.TryGetValue(candHead.HeadNodeId, out var node))
+        {
+            yield break;
+        }
+
+        foreach (var edge in node.Edges)
+        {
+            if (!edge.MatchesTaxiway(taxiwayName))
+            {
+                continue;
+            }
+
+            var neighbor = edge.OtherNode(node);
+            if (candHead.VisitedNodeIds.Contains(neighbor.Id))
+            {
+                continue;
+            }
+
+            if (GeometricAdmissibility.IsAdmissible(candHead, edge, neighbor, ctx.Category))
+            {
+                yield return neighbor;
+            }
+        }
     }
 
     /// <summary>

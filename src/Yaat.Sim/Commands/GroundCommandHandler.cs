@@ -26,6 +26,16 @@ internal static class GroundCommandHandler
     private const int NodeRefSegmentSlack = 20;
     private const int NodeRefSegmentFactor = 2;
 
+    // A gate's first cleared taxiway may be a neighbouring ramp lane the ground graph does not connect to
+    // the gate (SFO B20S → M4: M4 only joins M1, but its nearest node is 404 ft away across the M3 lane —
+    // exactly where a tug would push the aircraft; 7110.65 §3-7-2 NOTE 2 puts that ramp movement on the
+    // pilot/operator, not ATC). TryTaxi drops such a lead-out lane and warns instead of rejecting the whole
+    // clearance, but only within this range and only when no runway centerline lies between the gate and the
+    // lane: a taxiway across the field (SFO 41-15 → A, 3404 ft, across active runways) stays a hard
+    // rejection. Ramp-alley scale: B4 → M3 is 206 ft; the next real taxiway (B20S → M1) is 563 ft, so the
+    // radius is kept well short of it.
+    private const double GateAdjacentTaxiwayMaxFt = 450.0;
+
     /// <summary>
     /// A controller-typed or scenario-preset <c>TAXI</c>. A bare runway destination with no taxiways named
     /// (<c>TAXI 1L</c>) is honoured only when the aircraft is already at that runway's hold-short — see
@@ -59,6 +69,12 @@ internal static class GroundCommandHandler
             );
             return new CommandResult(false, "No airport ground layout available");
         }
+
+        // The clearance as the controller worded it. When a cleared taxiway has to be dropped below, the
+        // pilot's readback is built from this minus the dropped lane — not from the internally folded /
+        // prepended working copy — so the solo student hears "unable M4, taxi via M1 …" and nothing else.
+        var asCleared = taxi;
+        TaxiCommand? effectiveCommand = null;
 
         // A taxiway named only as a hold-short target ("... HS E") can also be a directional hint.
         // With a destination the clearance is resolved as cleared first and the hint is folded into
@@ -173,55 +189,59 @@ internal static class GroundCommandHandler
         var category = AircraftCategorization.Categorize(aircraft.AircraftType);
 
         double startHeadingTrueDeg = aircraft.TrueHeading.Degrees;
-        TaxiRoute? ResolveDirect(TaxiCommand command, out string? reason)
+        TaxiRoute? ResolveDirect(TaxiCommand command, out PathfindingFailure? routeFailure)
         {
             if (command.DestinationParking is not null || command.DestinationSpot is not null)
             {
-                return ResolveParkingRoute(groundLayout, startNode, command, out reason, category, startHeadingTrueDeg);
+                return ResolveParkingRoute(groundLayout, startNode, command, out routeFailure, category, startHeadingTrueDeg);
             }
 
             if ((command.Path.Count == 0) && (command.DestinationRunway is not null))
             {
-                var adjacent = ResolveAdjacentRunwayRoute(groundLayout, startNode, aircraft, command.DestinationRunway, out reason);
+                var adjacent = ResolveAdjacentRunwayRoute(groundLayout, startNode, aircraft, command.DestinationRunway, out string? adjacentReason);
                 // TAXIAUTO at the bar has nothing to route either — the full-length auto-route would
                 // otherwise return an empty fallback with no destination hold-short to hold at.
                 if (!allowRemoteRunwayAutoRoute || (adjacent is { Segments.Count: 0 }))
                 {
+                    routeFailure = adjacent is null ? DestinationFailure(adjacentReason ?? $"No route to runway {command.DestinationRunway}") : null;
                     return adjacent;
                 }
             }
 
-            return ResolveStandardRoute(groundLayout, startNode, command, out reason, category, startHeadingTrueDeg);
+            return ResolveStandardRoute(groundLayout, startNode, command, out routeFailure, category, startHeadingTrueDeg);
         }
 
         // As-cleared first: the route the named taxiways produce on their own wins when it honors every
         // hold-short hint en route (see AsClearedRejectionReason). Only then is the hint's taxiway folded
         // into the path — the OAK "TAXI D C HS E RWY 28R" shape, where E is the way to the runway.
-        TaxiRoute? ResolveRoute(TaxiCommand command, out string? reason)
+        TaxiRoute? ResolveRoute(TaxiCommand command, out PathfindingFailure? routeFailure)
         {
             if (foldTargets.Count == 0)
             {
-                return ResolveDirect(command, out reason);
+                return ResolveDirect(command, out routeFailure);
             }
 
-            var asCleared = ResolveDirect(command, out reason);
-            string? rejection = asCleared is null ? reason ?? "no route" : AsClearedRejectionReason(asCleared, command, foldTargets);
+            var asClearedRoute = ResolveDirect(command, out routeFailure);
+            string? rejection = asClearedRoute is null
+                ? routeFailure?.HumanMessage ?? "no route"
+                : AsClearedRejectionReason(asClearedRoute, command, foldTargets);
             if (rejection is null)
             {
-                return asCleared;
+                return asClearedRoute;
             }
 
             Log.LogDebug(
                 "[TryTaxi] {Callsign}: as-cleared route ({Segs} segments) does not honor the hold-short hint — {Reason}; folding [{Twys}] into the path",
                 aircraft.Callsign,
-                asCleared?.Segments.Count ?? 0,
+                asClearedRoute?.Segments.Count ?? 0,
                 rejection,
                 string.Join(" ", foldTargets.Select(t => t.OnTaxiway ?? t.Target))
             );
-            return ResolveDirect(AugmentPathWithHoldShortTaxiways(command, foldTargets), out reason);
+            return ResolveDirect(AugmentPathWithHoldShortTaxiways(command, foldTargets), out routeFailure);
         }
 
-        var route = ResolveRoute(taxi, out string? failReason);
+        var route = ResolveRoute(taxi, out PathfindingFailure? failure);
+        string? failReason = failure?.HumanMessage;
 
         // The current-taxiway prepend above is an optimization: start on the taxiway the aircraft
         // occupies rather than bridging onto the first cleared one. When the aircraft sits at the far
@@ -238,7 +258,55 @@ internal static class GroundCommandHandler
                 failReason ?? "no route"
             );
             taxi = taxi with { Path = pathAsCleared, PathTurnHints = pathTurnHintsAsCleared };
-            route = ResolveRoute(taxi, out failReason);
+            route = ResolveRoute(taxi, out failure);
+            failReason = failure?.HumanMessage;
+        }
+
+        // The first cleared taxiway can be a ramp lane next to the gate that the graph simply does not
+        // connect to it — SFO B20S "TAXI M4 M1 …": M4 only joins M1, so the resolver reports it unreachable
+        // although it lies 405 ft away across the M3 lane, where a tug would push the aircraft. YAAT has no
+        // pushback model for a gate TAXI (the aircraft pivots out instead), so drop that lane, route the
+        // rest, and tell the controller. Guarded to a parking start, the first taxiway only, the resolver's
+        // own "not connected" verdict for that very taxiway, and gate-adjacent range (see the constant): a
+        // taxiway across the field stays a hard rejection — clearing via pavement the aircraft cannot reach
+        // is worse than refusing.
+        if (
+            route is null
+            && startNode.Type == GroundNodeType.Parking
+            && taxi.Path.Count >= 2
+            && !taxi.Path[0].StartsWith('#')
+            && !groundLayout.TryGetRunwayCenterlineName(taxi.Path[0], out _)
+            && failure is { Kind: FailureKind.TaxiwayNotConnected } leadOutFailure
+            && string.Equals(leadOutFailure.InfeasibleTaxiway, taxi.Path[0], StringComparison.OrdinalIgnoreCase)
+            && groundLayout.FindNearestNodeOnTaxiway(aircraft.Position, taxi.Path[0], GateAdjacentTaxiwayMaxFt) is { } leadOutNode
+            && !RunwayCenterlineBetween(groundLayout, aircraft.Position, leadOutNode.Position)
+        )
+        {
+            string dropped = taxi.Path[0];
+            var withoutLeadOut = taxi with
+            {
+                Path = [.. taxi.Path.Skip(1)],
+                PathTurnHints = taxi.PathTurnHints is null ? null : [.. taxi.PathTurnHints.Skip(1)],
+            };
+            var leadOutRoute = ResolveRoute(withoutLeadOut, out _);
+            if (leadOutRoute is not null)
+            {
+                string laneUsed = FirstNonRampTaxiway(leadOutRoute) ?? withoutLeadOut.Path[0];
+                Log.LogInformation(
+                    "[TryTaxi] {Callsign}: dropped unreachable gate lead-out taxiway {Twy} (nearest node {NodeId}, {Dist:F0} ft away); taxiing via {Lane}",
+                    aircraft.Callsign,
+                    dropped,
+                    leadOutNode.Id,
+                    GeoMath.DistanceNm(aircraft.Position, leadOutNode.Position) * GeoMath.FeetPerNm,
+                    laneUsed
+                );
+                leadOutRoute.Warnings.Add($"unable via {dropped} — no ramp connection from the gate; taxiing via {laneUsed}");
+                effectiveCommand = WithoutPathToken(asCleared, dropped);
+                taxi = withoutLeadOut;
+                route = leadOutRoute;
+                failure = null;
+                failReason = null;
+            }
         }
 
         // A parking/spot destination whose named path cannot legally reach it (OAK "TAXI C D @GA1":
@@ -279,6 +347,7 @@ internal static class GroundCommandHandler
                     destLabel
                 );
                 bestDropRoute.Warnings.Add($"unable via {droppedName} — no route via {droppedName} reaches {destLabel}; {droppedName} omitted");
+                effectiveCommand = WithoutPathToken(asCleared, droppedName);
                 route = bestDropRoute;
                 failReason = null;
             }
@@ -500,7 +569,7 @@ internal static class GroundCommandHandler
                 aircraft.Phases.Add(new AtParkingPhase());
                 ctx = CommandDispatcher.BuildMinimalContext(aircraft, groundLayout);
                 aircraft.Phases.Start(ctx);
-                return CommandDispatcher.Ok($"Taxi via @{parkingName}");
+                return CommandDispatcher.Ok($"Taxi via @{parkingName}") with { EffectiveCommand = effectiveCommand };
             }
         }
 
@@ -529,7 +598,42 @@ internal static class GroundCommandHandler
             msg += $" (cross {implicitCrossLabel})";
         }
 
-        return CommandDispatcher.Ok(msg);
+        return CommandDispatcher.Ok(msg) with
+        {
+            EffectiveCommand = effectiveCommand,
+        };
+    }
+
+    /// <summary>
+    /// The clearance with its first occurrence of <paramref name="token"/> removed from the path (and the
+    /// matching turn hint dropped so hints stay index-aligned) — the command as applied after a cleared
+    /// taxiway was dropped. Returns the command unchanged when the token is not in the path.
+    /// </summary>
+    private static TaxiCommand WithoutPathToken(TaxiCommand command, string token)
+    {
+        int index = command.Path.FindIndex(t => string.Equals(t, token, StringComparison.OrdinalIgnoreCase));
+        if (index < 0)
+        {
+            return command;
+        }
+
+        var path = new List<string>(command.Path);
+        path.RemoveAt(index);
+        List<TurnDirection?>? hints = null;
+        if (command.PathTurnHints is not null)
+        {
+            hints = new List<TurnDirection?>(command.PathTurnHints);
+            if (index < hints.Count)
+            {
+                hints.RemoveAt(index);
+            }
+        }
+
+        return command with
+        {
+            Path = path,
+            PathTurnHints = hints,
+        };
     }
 
     private static bool HasDestination(TaxiCommand taxi) =>
@@ -884,7 +988,7 @@ internal static class GroundCommandHandler
         AirportGroundLayout groundLayout,
         GroundNode startNode,
         TaxiCommand taxi,
-        out string? failReason,
+        out PathfindingFailure? failure,
         AircraftCategory category,
         double startHeadingTrueDeg
     )
@@ -892,7 +996,9 @@ internal static class GroundCommandHandler
         // Empty path + destination runway → A* to nearest hold-short node
         if (taxi.Path.Count == 0 && taxi.DestinationRunway is not null)
         {
-            return ResolveRunwayRouteByAStar(groundLayout, startNode, taxi.DestinationRunway, out failReason, category);
+            var runwayRoute = ResolveRunwayRouteByAStar(groundLayout, startNode, taxi.DestinationRunway, out string? runwayReason, category);
+            failure = runwayRoute is null ? DestinationFailure(runwayReason ?? $"No route to runway {taxi.DestinationRunway}") : null;
+            return runwayRoute;
         }
 
         // Crossed-runway directional anchor (issue #172 W6): when CROSS <rwy> is the only directional
@@ -902,11 +1008,11 @@ internal static class GroundCommandHandler
         // "TAXI G CROSS 28R" from a taxiway that crosses two runways can head the wrong way.
         GroundNode? crossAnchor = ResolveCrossedRunwayAnchor(groundLayout, startNode, taxi);
 
-        return TaxiPathfinder.ResolveExplicitPath(
+        return TaxiPathfinder.ResolveExplicitPathDetailed(
             groundLayout,
             startNode.Id,
             taxi.Path,
-            out failReason,
+            out failure,
             new ExplicitPathOptions
             {
                 ExplicitHoldShorts = taxi.HoldShorts,
@@ -1066,16 +1172,63 @@ internal static class GroundCommandHandler
         return route;
     }
 
+    /// <summary>
+    /// True when the straight line from the aircraft to <paramref name="target"/> crosses a runway centerline —
+    /// the target sits on the far side of a runway, however close it is. Keeps the gate-adjacent radius from
+    /// reaching across a runway hold line (OAK has gates within 400 ft of a holding-position bar).
+    /// </summary>
+    private static bool RunwayCenterlineBetween(AirportGroundLayout groundLayout, LatLon from, LatLon target)
+    {
+        foreach (var runway in groundLayout.Runways)
+        {
+            for (int i = 1; i < runway.Coordinates.Count; i++)
+            {
+                var a = new LatLon(runway.Coordinates[i - 1].Lat, runway.Coordinates[i - 1].Lon);
+                var b = new LatLon(runway.Coordinates[i].Lat, runway.Coordinates[i].Lon);
+                if (GeoMath.SegmentsIntersect(from, target, a, b) is not null)
+                {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// The first taxiway the route actually travels once it leaves the ramp — what a controller needs to
+    /// hear when a cleared lane was omitted ("taxiing via M3"). Membership arcs ("M3 - RAMP") contribute
+    /// their non-RAMP name; null when the route never leaves RAMP pavement.
+    /// </summary>
+    private static string? FirstNonRampTaxiway(TaxiRoute route)
+    {
+        foreach (var segment in route.Segments)
+        {
+            foreach (string name in segment.TaxiwayName.Split(" - ", StringSplitOptions.RemoveEmptyEntries))
+            {
+                if (!string.Equals(name, "RAMP", StringComparison.OrdinalIgnoreCase))
+                {
+                    return name;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>A destination that cannot be resolved or reached — not tied to any one cleared taxiway.</summary>
+    private static PathfindingFailure DestinationFailure(string message) => new(FailureKind.DestinationUnreachable, message, null, null, null);
+
     private static TaxiRoute? ResolveParkingRoute(
         AirportGroundLayout groundLayout,
         GroundNode startNode,
         TaxiCommand taxi,
-        out string? failReason,
+        out PathfindingFailure? failure,
         AircraftCategory category,
         double startHeadingTrueDeg
     )
     {
-        failReason = null;
+        failure = null;
 
         // Resolve destination node: @ = parking/helipad only, $ = spot only
         GroundNode? destNode;
@@ -1086,7 +1239,7 @@ internal static class GroundCommandHandler
             destLabel = taxi.DestinationSpot;
             if (destNode is null)
             {
-                failReason = $"Cannot find spot '{taxi.DestinationSpot}'";
+                failure = DestinationFailure($"Cannot find spot '{taxi.DestinationSpot}'");
                 return null;
             }
         }
@@ -1096,7 +1249,7 @@ internal static class GroundCommandHandler
             destLabel = taxi.DestinationParking!;
             if (destNode is null)
             {
-                failReason = $"Cannot find parking '{taxi.DestinationParking}'";
+                failure = DestinationFailure($"Cannot find parking '{taxi.DestinationParking}'");
                 return null;
             }
         }
@@ -1107,7 +1260,7 @@ internal static class GroundCommandHandler
             var route = TaxiPathfinder.FindRoute(groundLayout, startNode.Id, destNode.Id, category);
             if (route is null)
             {
-                failReason = $"No route to {(taxi.DestinationSpot is not null ? "spot" : "parking")} '{destLabel}'";
+                failure = DestinationFailure($"No route to {(taxi.DestinationSpot is not null ? "spot" : "parking")} '{destLabel}'");
                 return null;
             }
 
@@ -1115,11 +1268,11 @@ internal static class GroundCommandHandler
         }
 
         // Explicit path given — resolve it, then extend to destination via A*
-        var explicitRoute = TaxiPathfinder.ResolveExplicitPath(
+        var explicitRoute = TaxiPathfinder.ResolveExplicitPathDetailed(
             groundLayout,
             startNode.Id,
             taxi.Path,
-            out failReason,
+            out failure,
             new ExplicitPathOptions
             {
                 ExplicitHoldShorts = taxi.HoldShorts,
@@ -1160,7 +1313,8 @@ internal static class GroundCommandHandler
             if (extension is null)
             {
                 Log.LogDebug("[TryTaxi] Cannot extend from node {EndNode} to {DestLabel}", endNodeId, destLabel);
-                failReason = $"Cannot reach {(taxi.DestinationSpot is not null ? "spot" : "parking")} '{destLabel}' from end of taxi route";
+                string destKind = taxi.DestinationSpot is not null ? "spot" : "parking";
+                failure = DestinationFailure($"Cannot reach {destKind} '{destLabel}' from end of taxi route");
                 return null;
             }
 

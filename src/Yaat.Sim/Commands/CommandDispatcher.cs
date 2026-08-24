@@ -20,12 +20,19 @@ namespace Yaat.Sim.Commands;
 /// <c>ApplyCommand</c> with no handler arm in its current context) so callers can branch on the case
 /// without parsing the user-facing <see cref="Message"/>.
 /// </summary>
+/// <summary>
+/// Outcome of a dispatch. <paramref name="EffectiveCommand"/> is set when a handler applied a rewritten
+/// form of the command — a TAXI whose unreachable gate lead-out lane was dropped — so the solo pilot
+/// reads back the route it will actually taxi (<see cref="Pilot.PilotResponder.BuildReadbackAsApplied"/>)
+/// instead of the pavement the controller named; null when the command applied as issued.
+/// </summary>
 public record CommandResult(
     bool Success,
     string? Message = null,
     CanonicalCommandType? RejectedCommandType = null,
     string? Advisory = null,
-    bool NoDispatcherArm = false
+    bool NoDispatcherArm = false,
+    ParsedCommand? EffectiveCommand = null
 );
 
 public static class CommandDispatcher
@@ -220,7 +227,7 @@ public static class CommandDispatcher
                     if (combinedMessages.Count > 1)
                     {
                         var combined = string.Join(" ; then ", combinedMessages.Where(m => !string.IsNullOrEmpty(m)));
-                        return new CommandResult(true, combined);
+                        return result with { Message = combined };
                     }
                 }
 
@@ -1736,7 +1743,7 @@ public static class CommandDispatcher
                 }
             }
 
-            return messages.Count <= 1 ? towerResult : new CommandResult(true, string.Join(", ", messages));
+            return messages.Count <= 1 ? towerResult : towerResult with { Message = string.Join(", ", messages) };
         }
 
         // Check standard command acceptance against the current phase

@@ -91,6 +91,58 @@ public static class PilotResponder
     public static PilotSpeechText? BuildReadback(CompoundCommand compound, AircraftState aircraft) =>
         BuildReadback(compound, aircraft, PilotPersonality.Verbatim, FrequencyActivityLevel.Moderate);
 
+    /// <summary>
+    /// Readback of a clearance as the aircraft will actually fly it. When the dispatcher applied a rewritten
+    /// TAXI (<see cref="CommandResult.EffectiveCommand"/> — the gate lead-out lane the ground map cannot reach
+    /// was dropped), the pilot reads back the effective route and names what it could not take first:
+    /// "unable mike four, taxi via mike one, alpha …". A crew never reads back pavement it will not use, and
+    /// the hearback check only works if the controller hears the substitution. Any other command, or a
+    /// null <paramref name="effectiveCommand"/>, reads back exactly as issued.
+    /// </summary>
+    public static PilotSpeechText? BuildReadbackAsApplied(
+        CompoundCommand compound,
+        ParsedCommand? effectiveCommand,
+        AircraftState aircraft,
+        PilotPersonality personality,
+        FrequencyActivityLevel activityLevel
+    )
+    {
+        var issuedTaxi = compound.Blocks.SelectMany(b => b.Commands).OfType<TaxiCommand>().FirstOrDefault();
+        if (effectiveCommand is not TaxiCommand effectiveTaxi || issuedTaxi is null)
+        {
+            return BuildReadback(compound, aircraft, personality, activityLevel);
+        }
+
+        var asApplied = new CompoundCommand(
+            compound
+                .Blocks.Select(b => new ParsedBlock(b.Condition, b.Commands.Select(c => ReferenceEquals(c, issuedTaxi) ? effectiveTaxi : c).ToList()))
+                .ToList()
+        )
+        {
+            SourceText = compound.SourceText,
+        };
+        var readback = BuildReadback(asApplied, aircraft, personality, activityLevel);
+        if (readback is null)
+        {
+            return null;
+        }
+
+        var unable = issuedTaxi.Path.Where(t => !t.StartsWith('#') && !effectiveTaxi.Path.Contains(t, StringComparer.OrdinalIgnoreCase)).ToList();
+        if (unable.Count == 0)
+        {
+            return readback;
+        }
+
+        string terminalPrefix = "unable " + string.Join(" ", unable) + ", ";
+        string ttsPrefix = "unable " + string.Join(", ", unable.Select(PhraseologyVerbalizer.SpellTaxiway)) + ", ";
+        return readback with
+        {
+            Terminal = terminalPrefix + readback.Terminal,
+            Tts = ttsPrefix + readback.Tts,
+            RpoTerminal = readback.RpoTerminal is null ? null : terminalPrefix + readback.RpoTerminal,
+        };
+    }
+
     public static PilotSpeechText? BuildReadback(
         CompoundCommand compound,
         AircraftState aircraft,

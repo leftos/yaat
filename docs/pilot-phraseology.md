@@ -86,6 +86,10 @@ House rules every builder follows. **These are intentional — don't "correct" t
   (`GroundCommandHandler` passes `taxi.Path`); with no command context (snapshot / Aircraft List) it falls
   back to the de-padded combined id `28R/10L`.
 
+### Readback of a rewritten clearance
+
+`SimulationEngine.SendCommand` builds the solo readback with `PilotResponder.BuildReadbackAsApplied(compound, result.EffectiveCommand, …)`. When a handler applied a rewritten command — `GroundCommandHandler.TryTaxi` dropping a cleared taxiway (the unreachable gate lead-out lane, issue #396, or the contradictory via before a `@parking` destination) — it returns `CommandResult.EffectiveCommand`, and the readback verbalizes *that* route with the omitted pavement named first: terminal `unable M4, taxi via M1 A A1 runway 1R`, spoken `unable mike four, taxi via mike one, alpha, …`. A crew never reads back pavement it will not use, and the hearback check only works if the controller hears the substitution. A null `EffectiveCommand` reads back exactly as issued (`BuildReadback`).
+
 ## AIM-grounded rules
 
 The decisions established by the phraseology audit, with the authority. Local copies:

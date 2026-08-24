@@ -194,7 +194,20 @@ public sealed class SimulationEngine
     /// Callers wire this into <see cref="DispatchContext.TerminalEmitter"/> when they
     /// dispatch commands outside the engine's own SendCommand/preset/replay paths.
     /// </summary>
-    public void EmitTerminalEntry(TerminalEntry entry) => _terminalEntries.Add(entry);
+    public void EmitTerminalEntry(TerminalEntry entry) => AddTerminalEntry(entry);
+
+    /// <summary>
+    /// Fires for every terminal entry the engine produces — command echoes, preset and deferred outcomes,
+    /// warnings. The entry list behind <see cref="DrainTerminalEntries"/> is cleared at the end of every tick,
+    /// so consumers that need entries as they happen (tests, the solo client) subscribe here instead of polling.
+    /// </summary>
+    public event Action<TerminalEntry>? TerminalEntryEmitted;
+
+    private void AddTerminalEntry(TerminalEntry entry)
+    {
+        _terminalEntries.Add(entry);
+        TerminalEntryEmitted?.Invoke(entry);
+    }
 
     // --- Snapshots ---
 
@@ -813,7 +826,7 @@ public sealed class SimulationEngine
                     Scenario?.AutoCrossRunway ?? false,
                     Scenario?.SoloTrainingMode ?? false,
                     Scenario?.RpoShowPilotSpeech ?? false,
-                    _terminalEntries.Add,
+                    AddTerminalEntry,
                     Scenario?.ArtccConfig,
                     Scenario?.ElapsedSeconds ?? 0,
                     PreserveConditionals: true,
@@ -2150,7 +2163,7 @@ public sealed class SimulationEngine
                 Scenario?.AutoCrossRunway ?? false,
                 Scenario?.SoloTrainingMode ?? false,
                 Scenario?.RpoShowPilotSpeech ?? false,
-                _terminalEntries.Add,
+                AddTerminalEntry,
                 Scenario?.ArtccConfig,
                 Scenario?.ElapsedSeconds ?? 0,
                 PreserveConditionals: false,
@@ -2205,7 +2218,13 @@ public sealed class SimulationEngine
         if (result.Success && soloTrainingMode)
         {
             var activityLevel = World.ActiveFrequency.GetActivityLevel(elapsedSeconds);
-            var readback = Yaat.Sim.Pilot.PilotResponder.BuildReadback(compound, aircraft, PilotPersonality.Varied, activityLevel);
+            var readback = Yaat.Sim.Pilot.PilotResponder.BuildReadbackAsApplied(
+                compound,
+                result.EffectiveCommand,
+                aircraft,
+                PilotPersonality.Varied,
+                activityLevel
+            );
             if (readback is not null)
             {
                 World.ExpectPilotReadback(aircraft.Callsign, elapsedSeconds);
@@ -2680,7 +2699,7 @@ public sealed class SimulationEngine
                     Scenario?.AutoCrossRunway ?? false,
                     Scenario?.SoloTrainingMode ?? false,
                     Scenario?.RpoShowPilotSpeech ?? false,
-                    _terminalEntries.Add,
+                    AddTerminalEntry,
                     Scenario?.ArtccConfig,
                     Scenario?.ElapsedSeconds ?? 0,
                     PreserveConditionals: true,
@@ -2859,7 +2878,7 @@ public sealed class SimulationEngine
 
     private void EmitTerminal(string kind, string callsign, string message)
     {
-        _terminalEntries.Add(new TerminalEntry(kind, callsign, message));
+        AddTerminalEntry(new TerminalEntry(kind, callsign, message));
     }
 
     /// <summary>
@@ -4081,7 +4100,7 @@ public sealed class SimulationEngine
             Scenario!.AutoCrossRunway,
             Scenario!.SoloTrainingMode,
             Scenario!.RpoShowPilotSpeech,
-            _terminalEntries.Add,
+            AddTerminalEntry,
             Scenario!.ArtccConfig,
             Scenario!.ElapsedSeconds,
             PreserveConditionals: false,
@@ -4157,19 +4176,21 @@ public sealed class SimulationEngine
                 scenario.AutoCrossRunway,
                 scenario.SoloTrainingMode,
                 scenario.RpoShowPilotSpeech,
-                _terminalEntries.Add,
+                AddTerminalEntry,
                 scenario.ArtccConfig,
                 scenario.ElapsedSeconds,
                 PreserveConditionals: false,
                 IsScenarioScripted: true
             );
-            CommandDispatcher.DispatchCompound(compound, aircraft, presetCtx);
+            var routeBeforeTimed = aircraft.Ground.AssignedTaxiRoute;
+            var timedOutcome = CommandDispatcher.DispatchCompound(compound, aircraft, presetCtx);
             // A scripted clearance still answers whatever the pilot last asked for, so the pending
             // request closes and stops following up. Scripted commands emit no read-back and are not
             // scored — the student didn't issue them.
             PilotRequestTracker.ApplyControllerResponse(aircraft, compound, scenario.ElapsedSeconds);
 
             EmitTerminal("System", preset.Callsign, $"[Preset] {preset.Command}");
+            ReportPresetOutcome(aircraft, preset.Command, timedOutcome, routeBeforeTimed);
         }
     }
 
@@ -4271,15 +4292,47 @@ public sealed class SimulationEngine
             Scenario!.AutoCrossRunway,
             Scenario!.SoloTrainingMode,
             Scenario!.RpoShowPilotSpeech,
-            _terminalEntries.Add,
+            AddTerminalEntry,
             Scenario!.ArtccConfig,
             Scenario!.ElapsedSeconds,
             PreserveConditionals: false,
             IsScenarioScripted: true
         );
-        CommandDispatcher.DispatchCompound(compound, aircraft, singlePresetCtx);
+        var routeBefore = aircraft.Ground.AssignedTaxiRoute;
+        var presetOutcome = CommandDispatcher.DispatchCompound(compound, aircraft, singlePresetCtx);
 
         EmitTerminal("System", aircraft.Callsign, $"[Preset] {command}");
+        ReportPresetOutcome(aircraft, command, presetOutcome, routeBefore);
+    }
+
+    /// <summary>
+    /// Tells the instructor what a scripted preset actually did. A preset that fails when it fires — a TAXI
+    /// whose route cannot be resolved from the gate, a DVIA with no STAR — used to leave only a server-log
+    /// line behind the optimistic "[Preset] …" echo, so the instructor saw an aircraft that never moved and
+    /// no reason (issue #396). A TAXI that succeeded with route advisories (a dropped unreachable lead-out
+    /// lane, an unhonored turn hint) echoes each advisory as its own warning line — the response message a
+    /// controller-issued TAXI carries them in is never shown for a scripted one. Only a route this dispatch
+    /// installed is echoed (<paramref name="routeBefore"/> is the route object from before the dispatch): a
+    /// deferred "WAIT 5 TAXI …" returns success immediately with the old route still assigned.
+    /// </summary>
+    private void ReportPresetOutcome(AircraftState aircraft, string command, CommandResult outcome, TaxiRoute? routeBefore)
+    {
+        if (!outcome.Success)
+        {
+            _logger.LogWarning("[Preset] {Callsign}: \"{Command}\" could not apply — {Message}", aircraft.Callsign, command, outcome.Message);
+            EmitTerminal("Warning", aircraft.Callsign, $"[Preset] could not apply: {outcome.Message}");
+            return;
+        }
+
+        if (aircraft.Ground.AssignedTaxiRoute is not { Warnings.Count: > 0 } route || ReferenceEquals(route, routeBefore))
+        {
+            return;
+        }
+
+        foreach (string warning in route.Warnings)
+        {
+            EmitTerminal("Warning", aircraft.Callsign, $"[Preset] {warning}");
+        }
     }
 
     public void DispatchPresetCommands(LoadedAircraft loaded)
@@ -4635,7 +4688,7 @@ public sealed class SimulationEngine
             Scenario?.AutoCrossRunway ?? false,
             Scenario?.SoloTrainingMode ?? false,
             Scenario?.RpoShowPilotSpeech ?? false,
-            _terminalEntries.Add,
+            AddTerminalEntry,
             Scenario?.ArtccConfig,
             Scenario?.ElapsedSeconds ?? 0,
             PreserveConditionals: false,

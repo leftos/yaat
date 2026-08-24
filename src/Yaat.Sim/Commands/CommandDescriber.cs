@@ -1425,7 +1425,9 @@ public static class CommandDescriber
                 or CanonicalCommandType.SayHeading
                 or CanonicalCommandType.SayPosition
                 // Strip operations are host-owned bookkeeping (yaat-server's strip state) with no
-                // effect on the aircraft; every phase must let them through to the strip queue.
+                // effect on the aircraft; every phase must let them through to the strip queue. Keep this
+                // in step with TrackEngine.IsStripCommand — a missing member sends a preset "WAIT 30 STRIP
+                // Local" into the phase gate, where AtParkingPhase / TaxiingPhase reject it (issue #396).
                 or CanonicalCommandType.Annotate
                 or CanonicalCommandType.StripMove
                 or CanonicalCommandType.StripScan
@@ -1437,6 +1439,12 @@ public static class CommandDescriber
                 or CanonicalCommandType.HalfStripMove
                 or CanonicalCommandType.HalfStripOffset
                 or CanonicalCommandType.HalfStripSlide
+                or CanonicalCommandType.SeparatorCreate
+                or CanonicalCommandType.SeparatorDelete
+                or CanonicalCommandType.SeparatorEdit
+                or CanonicalCommandType.SeparatorMove
+                or CanonicalCommandType.BlankCreate
+                or CanonicalCommandType.BlankDelete
                 or CanonicalCommandType.Scratchpad1
                 or CanonicalCommandType.Scratchpad2
                 or CanonicalCommandType.TemporaryAltitude

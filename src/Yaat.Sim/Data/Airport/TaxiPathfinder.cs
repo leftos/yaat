@@ -30,14 +30,16 @@ public static class TaxiPathfinder
     /// Resolve a controller-specified taxi route from a sequence of taxiway names.
     /// Handles runway crossings, explicit hold-shorts, and variant resolution
     /// (e.g., W → W1 auto-extension when the destination runway is set).
-    /// Returns null when the path cannot be resolved; <paramref name="failReason"/>
-    /// is set to a human-readable explanation in that case.
+    /// Returns null when the path cannot be resolved; <paramref name="failure"/> then carries the
+    /// structured reason (kind, offending taxiway, human message) so a command handler can react to
+    /// <em>why</em> — e.g. drop a gate-adjacent lead-out lane the graph cannot reach — instead of
+    /// pattern-matching the message.
     /// </summary>
-    public static TaxiRoute? ResolveExplicitPath(
+    public static TaxiRoute? ResolveExplicitPathDetailed(
         AirportGroundLayout layout,
         int fromNodeId,
         List<string> taxiwayNames,
-        out string? failReason,
+        out PathfindingFailure? failure,
         ExplicitPathOptions options,
         AircraftCategory category
     )
@@ -81,15 +83,25 @@ public static class TaxiPathfinder
             startHeadingTrue: options.StartHeadingTrue
         );
 
-        var (route, failure) = SegmentExpander.Run(ctx);
+        (var route, failure) = SegmentExpander.Run(ctx);
+        return failure is null ? route : null;
+    }
 
-        if (failure is not null)
-        {
-            failReason = failure.HumanMessage;
-            return null;
-        }
-
-        failReason = null;
+    /// <summary>
+    /// Message-only form of <see cref="ResolveExplicitPathDetailed"/> for callers that just echo the
+    /// failure; <paramref name="failReason"/> is the failure's human-readable message, or null on success.
+    /// </summary>
+    public static TaxiRoute? ResolveExplicitPath(
+        AirportGroundLayout layout,
+        int fromNodeId,
+        List<string> taxiwayNames,
+        out string? failReason,
+        ExplicitPathOptions options,
+        AircraftCategory category
+    )
+    {
+        var route = ResolveExplicitPathDetailed(layout, fromNodeId, taxiwayNames, out PathfindingFailure? failure, options, category);
+        failReason = failure?.HumanMessage;
         return route;
     }
 

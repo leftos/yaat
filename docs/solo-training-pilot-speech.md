@@ -47,6 +47,8 @@ When solo mode is OFF, `World.DiscardAllPilotTransmissions()` runs each tick to 
 
 ## Awaited readback after dispatch
 
+The readback text itself comes from `PilotResponder.BuildReadbackAsApplied` — when the dispatch rewrote the command (`CommandResult.EffectiveCommand`, e.g. a TAXI whose gate lead-out lane was dropped), the pilot reads back the route it will actually taxi, prefixed "unable <lane>," — see [pilot-phraseology.md](pilot-phraseology.md#readback-of-a-rewritten-clearance).
+
 Successful command dispatch in `SimulationEngine.SendCommand`:
 
 ```csharp

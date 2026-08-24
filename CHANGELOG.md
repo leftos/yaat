@@ -14,8 +14,12 @@
 - Taxi clearances to a gate or spot now echo the pathfinder's warnings (unapplied hold-shorts, taxiways not in the route, connector notices) like runway clearances.
 - Scenario departures spawned at their runway bar with a route-less `TAXI 1L` preset hold short of 1L (and line up on `POS`) instead of taxiing the runway's length to the reciprocal end.
 - A route-less `TAXI <rwy>` is honoured only when the aircraft is already at that runway; anywhere else it is refused with a pointer at `TAXI <route> <rwy>` or `TAXIAUTO <rwy>`.
-- Strip presets (`STRIP`, `SCAN`, `HSM`, …) fire while an aircraft is taxiing or holding short instead of being refused by the ground phase gate.
+- Strip presets (`STRIP`, `SCAN`, `HSM`, separators, blanks, …) fire while an aircraft is parked, taxiing, or holding short instead of being refused by the ground phase gate.
 - `TAXI A RWY 28R @B12` is rejected as contradictory instead of assigning a takeoff runway to a ramp-bound aircraft.
+- Scenario departures at a gate whose lead-out reaches the first cleared taxiway more than three graph hops away (SFO B4 → `TAXI M3 …`) now taxi instead of staying parked.
+- A TAXI from a gate whose first taxiway is a neighbouring ramp lane the ground map cannot reach (SFO B20S → `TAXI M4 M1 …`) taxis via the rest of the route and warns `unable via M4 — no ramp connection from the gate; taxiing via M3`.
+- A scripted preset that fails when it fires shows `[Preset] could not apply: …` in the terminal, and a scripted taxi echoes its route warnings.
+- In solo training the pilot reads back a taxi route as actually taxied when a cleared taxiway was dropped ("unable mike four, taxi via mike one…").
 
 ## v0.12.16-beta [2026/08/22]
 

@@ -662,6 +662,44 @@ public class PilotResponderTests
         Assert.Contains("two eight right", result.Tts);
     }
 
+    // --- Issue #396: a rewritten TAXI reads back the route the aircraft will actually taxi ---
+
+    [Fact]
+    public void BuildReadbackAsApplied_DroppedLeadOut_SaysUnableThenEffectiveRoute()
+    {
+        var ac = MakeAircraft("AAL436");
+        // Controller cleared M4 M1 A; the gate lead-out lane M4 was dropped by TryTaxi, so the aircraft taxis M1 A.
+        var issued = new TaxiCommand(["M4", "M1", "A"], [], DestinationRunway: "1R");
+        var effective = new TaxiCommand(["M1", "A"], [], DestinationRunway: "1R");
+
+        var result = PilotResponder.BuildReadbackAsApplied(
+            Compound(issued),
+            effective,
+            ac,
+            PilotPersonality.Verbatim,
+            FrequencyActivityLevel.Moderate
+        );
+
+        Assert.NotNull(result);
+        Assert.StartsWith("unable M4, ", result!.Terminal);
+        Assert.Contains("M1 A", result.Terminal);
+        Assert.StartsWith("unable mike four, ", result.Tts);
+        Assert.Contains("mike one, alpha", result.Tts);
+        Assert.Equal(1, result.Tts.Split("mike four").Length - 1); // the dropped lane is named once, never read back as route
+    }
+
+    [Fact]
+    public void BuildReadbackAsApplied_NoRewrite_MatchesPlainReadback()
+    {
+        var ac = MakeAircraft("AAL436");
+        var compound = Compound(new TaxiCommand(["M1", "A"], [], DestinationRunway: "1R"));
+
+        var plain = PilotResponder.BuildReadback(compound, ac, PilotPersonality.Verbatim, FrequencyActivityLevel.Moderate);
+        var asApplied = PilotResponder.BuildReadbackAsApplied(compound, null, ac, PilotPersonality.Verbatim, FrequencyActivityLevel.Moderate);
+
+        Assert.Equal(plain, asApplied);
+    }
+
     // --- A4-2: runway L/R/C suffix is never dropped from a taxi readback ---
 
     [Fact]

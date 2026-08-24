@@ -180,4 +180,163 @@ public class DeferredPresetStripAndTrackDispatchTests
         Assert.Equal("AB", ac.Stars.Scratchpad1);
         Assert.DoesNotContain(warnings, w => w.Warning.Contains("could not apply", StringComparison.OrdinalIgnoreCase));
     }
+
+    // --- Issue #396: STRIP <bay> (and the rest of the strip family) must be phase-transparent ---
+
+    private static AircraftState AddParkedAtGate(SimulationEngine engine, string callsign, string parking)
+    {
+        var layout = new TestAirportGroundData().GetLayout("SFO");
+        Assert.NotNull(layout);
+        var gate = layout.FindParkingByName(parking);
+        Assert.True(gate is not null, $"parking {parking} not found in the SFO layout");
+
+        var ac = new AircraftState
+        {
+            Callsign = callsign,
+            AircraftType = "B738",
+            Position = gate.Position,
+            TrueHeading = gate.TrueHeading ?? new TrueHeading(0),
+            Altitude = 13,
+            IndicatedAirspeed = 0,
+            IsOnGround = true,
+            AirportId = "SFO",
+            FlightPlan = new AircraftFlightPlan { Departure = "KSFO", Destination = "KLAX" },
+        };
+        // A scenario spawn at a gate installs AtParkingPhase; without it a TAXI never reaches the tower path.
+        var init = AircraftInitializer.InitializeAtParking(gate, 13);
+        ac.Phases = init.Phases;
+        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac, layout));
+        engine.World.AddAircraft(ac);
+        return ac;
+    }
+
+    private static void AssertStripMoveDispatched(
+        List<(string Callsign, ParsedCommand Command)> stripDispatches,
+        List<TerminalEntry> terminal,
+        string callsign
+    )
+    {
+        var move = Assert.IsType<StripMoveCommand>(Assert.Single(stripDispatches).Command);
+        Assert.Contains("Local", move.Tokens);
+        Assert.DoesNotContain(terminal, e => e.Callsign == callsign && e.Message.Contains("could not apply", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void DeferredStripMovePreset_AtParking_QueuesStripDispatch_NoWarning()
+    {
+        if (TestVnasData.NavigationDb is null || new TestAirportGroundData().GetLayout("SFO") is null)
+        {
+            return;
+        }
+
+        // At a real gate with AtParkingPhase installed — the phase whose gate rejected the deferred STRIP.
+        var engine = BuildEngine();
+        var ac = AddParkedAtGate(engine, "DAL2272", "B4");
+
+        var stripDispatches = new List<(string Callsign, ParsedCommand Command)>();
+        engine.StripDispatchRequested += (cs, cmd) => stripDispatches.Add((cs, cmd));
+        var terminal = new List<TerminalEntry>();
+        engine.TerminalEntryEmitted += terminal.Add;
+
+        var loaded = new LoadedAircraft { State = ac, PresetCommands = [new PresetCommand { Command = "WAIT 2 STRIP Local", TimeOffset = 0 }] };
+        engine.DispatchPresetCommands(loaded);
+        Assert.Single(ac.DeferredDispatches);
+
+        for (int t = 0; t < 4; t++)
+        {
+            engine.TickOneSecond();
+        }
+
+        AssertStripMoveDispatched(stripDispatches, terminal, "DAL2272");
+    }
+
+    [Fact]
+    public void DeferredStripMovePreset_WhileTaxiing_QueuesStripDispatch_NoWarning()
+    {
+        if (TestVnasData.NavigationDb is null || new TestAirportGroundData().GetLayout("SFO") is null)
+        {
+            return;
+        }
+
+        var engine = BuildEngine();
+        var ac = AddParkedAtGate(engine, "SWA162", "B13");
+        var taxi = engine.SendCommand("SWA162", "TAXI Y H B M1 1L");
+        Assert.True(taxi.Success, taxi.Message);
+
+        var stripDispatches = new List<(string Callsign, ParsedCommand Command)>();
+        engine.StripDispatchRequested += (cs, cmd) => stripDispatches.Add((cs, cmd));
+        var terminal = new List<TerminalEntry>();
+        engine.TerminalEntryEmitted += terminal.Add;
+
+        var loaded = new LoadedAircraft { State = ac, PresetCommands = [new PresetCommand { Command = "WAIT 2 STRIP Local", TimeOffset = 0 }] };
+        engine.DispatchPresetCommands(loaded);
+        Assert.Single(ac.DeferredDispatches);
+
+        for (int t = 0; t < 4; t++)
+        {
+            engine.TickOneSecond();
+        }
+
+        AssertStripMoveDispatched(stripDispatches, terminal, "SWA162");
+    }
+
+    /// <summary>
+    /// Every canonical type in the strip family — picked up by enum name so a newly added
+    /// <c>Strip*</c> / <c>HalfStrip*</c> / <c>Separator*</c> / <c>Blank*</c> member is checked without
+    /// anyone remembering to list it here.
+    /// </summary>
+    public static TheoryData<CanonicalCommandType> StripFamilyTypes()
+    {
+        var data = new TheoryData<CanonicalCommandType> { CanonicalCommandType.Annotate };
+        foreach (var type in Enum.GetValues<CanonicalCommandType>())
+        {
+            string name = type.ToString();
+            if (
+                name.StartsWith("Strip", StringComparison.Ordinal)
+                || name.StartsWith("HalfStrip", StringComparison.Ordinal)
+                || name.StartsWith("Separator", StringComparison.Ordinal)
+                || name.StartsWith("Blank", StringComparison.Ordinal)
+            )
+            {
+                data.Add(type);
+            }
+        }
+
+        return data;
+    }
+
+    [Theory]
+    [MemberData(nameof(StripFamilyTypes))]
+    public void EveryStripCommandTypeIsPhaseTransparent(CanonicalCommandType type)
+    {
+        // Strip state is host-owned; no phase has any business gating a strip command.
+        Assert.True(
+            CommandDescriber.IsPhaseTransparent(type),
+            $"{type} must be phase-transparent so preset/deferred strip commands reach the strip arm"
+        );
+    }
+
+    // --- Issue #396: a preset that fails when dispatched must tell the instructor ---
+
+    [Fact]
+    public void ImmediateTaxiPreset_Unresolvable_EmitsCouldNotApplyWarning()
+    {
+        if (TestVnasData.NavigationDb is null || new TestAirportGroundData().GetLayout("SFO") is null)
+        {
+            return;
+        }
+
+        var engine = BuildEngine();
+        var ac = AddParkedAtGate(engine, "UAL123", "B13");
+        var terminal = new List<TerminalEntry>();
+        engine.TerminalEntryEmitted += terminal.Add;
+
+        var loaded = new LoadedAircraft { State = ac, PresetCommands = [new PresetCommand { Command = "TAXI ZZ9 1L", TimeOffset = 0 }] };
+        engine.DispatchPresetCommands(loaded);
+
+        var warning = terminal.FirstOrDefault(e => e.Callsign == "UAL123" && e.Kind == "Warning");
+        Assert.True(warning is not null, "a preset TAXI naming a taxiway that does not exist must surface a terminal warning");
+        Assert.Contains("[Preset] could not apply", warning.Message);
+        Assert.Contains("ZZ9", warning.Message);
+    }
 }
