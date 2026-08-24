@@ -174,7 +174,8 @@ internal static class GroundCommandHandler
         }
 
         Log.LogDebug(
-            "[TryTaxi] {Callsign}: nearest node {NodeId} at ({NLat:F6}, {NLon:F6}), dist={Dist:F4}nm, path=[{Path}], destRwy={Rwy}, destParking={Pkg}, destSpot={Spot}",
+            "[TryTaxi] {Callsign}: nearest node {NodeId} at ({NLat:F6}, {NLon:F6}), dist={Dist:F4}nm, path=[{Path}], "
+                + "destRwy={Rwy}, destParking={Pkg}, destSpot={Spot}",
             aircraft.Callsign,
             startNode.Id,
             startNode.Position.Lat,
@@ -262,93 +263,28 @@ internal static class GroundCommandHandler
             failReason = failure?.HumanMessage;
         }
 
-        // The first cleared taxiway can be a ramp lane next to the gate that the graph simply does not
-        // connect to it — SFO B20S "TAXI M4 M1 …": M4 only joins M1, so the resolver reports it unreachable
-        // although it lies 405 ft away across the M3 lane, where a tug would push the aircraft. YAAT has no
-        // pushback model for a gate TAXI (the aircraft pivots out instead), so drop that lane, route the
-        // rest, and tell the controller. Guarded to a parking start, the first taxiway only, the resolver's
-        // own "not connected" verdict for that very taxiway, and gate-adjacent range (see the constant): a
-        // taxiway across the field stays a hard rejection — clearing via pavement the aircraft cannot reach
-        // is worse than refusing.
-        if (
-            route is null
-            && startNode.Type == GroundNodeType.Parking
-            && taxi.Path.Count >= 2
-            && !taxi.Path[0].StartsWith('#')
-            && !groundLayout.TryGetRunwayCenterlineName(taxi.Path[0], out _)
-            && failure is { Kind: FailureKind.TaxiwayNotConnected } leadOutFailure
-            && string.Equals(leadOutFailure.InfeasibleTaxiway, taxi.Path[0], StringComparison.OrdinalIgnoreCase)
-            && groundLayout.FindNearestNodeOnTaxiway(aircraft.Position, taxi.Path[0], GateAdjacentTaxiwayMaxFt) is { } leadOutNode
-            && !RunwayCenterlineBetween(groundLayout, aircraft.Position, leadOutNode.Position)
-        )
+        // Two recoveries for a clearance that names pavement the aircraft cannot use as issued. Each drops
+        // exactly one cleared taxiway, re-resolves, and records the as-applied command for the readback.
+        if (route is null && startNode.Type == GroundNodeType.Parking)
         {
-            string dropped = taxi.Path[0];
-            var withoutLeadOut = taxi with
+            var leadOut = TryDropGateLeadOut(aircraft, groundLayout, taxi, failure, cmd => ResolveRoute(cmd, out _));
+            if (leadOut is not null)
             {
-                Path = [.. taxi.Path.Skip(1)],
-                PathTurnHints = taxi.PathTurnHints is null ? null : [.. taxi.PathTurnHints.Skip(1)],
-            };
-            var leadOutRoute = ResolveRoute(withoutLeadOut, out _);
-            if (leadOutRoute is not null)
-            {
-                string laneUsed = FirstNonRampTaxiway(leadOutRoute) ?? withoutLeadOut.Path[0];
-                Log.LogInformation(
-                    "[TryTaxi] {Callsign}: dropped unreachable gate lead-out taxiway {Twy} (nearest node {NodeId}, {Dist:F0} ft away); taxiing via {Lane}",
-                    aircraft.Callsign,
-                    dropped,
-                    leadOutNode.Id,
-                    GeoMath.DistanceNm(aircraft.Position, leadOutNode.Position) * GeoMath.FeetPerNm,
-                    laneUsed
-                );
-                leadOutRoute.Warnings.Add($"unable via {dropped} — no ramp connection from the gate; taxiing via {laneUsed}");
-                effectiveCommand = WithoutPathToken(asCleared, dropped);
-                taxi = withoutLeadOut;
-                route = leadOutRoute;
+                effectiveCommand = WithoutPathToken(asCleared, leadOut.DroppedName);
+                taxi = leadOut.Command;
+                route = leadOut.Route;
                 failure = null;
                 failReason = null;
             }
         }
 
-        // A parking/spot destination whose named path cannot legally reach it (OAK "TAXI C D @GA1":
-        // GA1 is east along C, D leads away northwest, and routing over a runway to satisfy both is
-        // forbidden): drop one named taxiway at a time and keep the shortest resolution that reaches
-        // the destination, warning which element was dropped. The controller's destination wins over
-        // a contradictory via — silently failing the whole clearance helps nobody, silently honoring
-        // it via a runway back-taxi is worse.
-        if (route is null && (taxi.DestinationParking is not null || taxi.DestinationSpot is not null) && taxi.Path.Count >= 2)
+        if (route is null)
         {
-            string destLabel = taxi.DestinationParking is not null ? $"@{taxi.DestinationParking}" : $"${taxi.DestinationSpot}";
-            TaxiRoute? bestDropRoute = null;
-            string? droppedName = null;
-            for (int drop = 0; drop < taxi.Path.Count; drop++)
+            var via = TryDropContradictoryVia(aircraft, taxi, cmd => ResolveRoute(cmd, out _));
+            if (via is not null)
             {
-                if (taxi.Path[drop].StartsWith('#'))
-                {
-                    continue;
-                }
-
-                var reducedPath = taxi.Path.Where((_, idx) => idx != drop).ToList();
-                var reducedHints = taxi.PathTurnHints?.Where((_, idx) => idx != drop).ToList();
-                var reduced = taxi with { Path = reducedPath, PathTurnHints = reducedHints };
-                var candidate = ResolveRoute(reduced, out _);
-                if (candidate is not null && (bestDropRoute is null || candidate.TotalDistanceNm < bestDropRoute.TotalDistanceNm))
-                {
-                    bestDropRoute = candidate;
-                    droppedName = taxi.Path[drop];
-                }
-            }
-
-            if (bestDropRoute is not null && droppedName is not null)
-            {
-                Log.LogInformation(
-                    "[TryTaxi] {Callsign}: dropped contradictory path element {Dropped} to reach {Dest}",
-                    aircraft.Callsign,
-                    droppedName,
-                    destLabel
-                );
-                bestDropRoute.Warnings.Add($"unable via {droppedName} — no route via {droppedName} reaches {destLabel}; {droppedName} omitted");
-                effectiveCommand = WithoutPathToken(asCleared, droppedName);
-                route = bestDropRoute;
+                effectiveCommand = WithoutPathToken(asCleared, via.DroppedName);
+                route = via.Route;
                 failReason = null;
             }
         }
@@ -1170,6 +1106,121 @@ internal static class GroundCommandHandler
         }
 
         return route;
+    }
+
+    /// <summary>
+    /// A clearance re-resolved with one cleared taxiway dropped: which one, the command the route was built
+    /// from, and the route. <see cref="TryTaxi"/> derives the pilot-readback command from
+    /// <see cref="DroppedName"/> so the readback names what could not be taken.
+    /// </summary>
+    private sealed record DroppedTaxiwayRoute(string DroppedName, TaxiCommand Command, TaxiRoute Route);
+
+    /// <summary>
+    /// The first cleared taxiway can be a ramp lane next to the gate that the graph simply does not connect to
+    /// it — SFO B20S "TAXI M4 M1 …": M4 only joins M1, so the resolver reports it unreachable although it lies
+    /// 404 ft away across the M3 lane, where a tug would push the aircraft. YAAT has no pushback model for a
+    /// gate TAXI (the aircraft pivots out instead), so drop that lane, route the rest, and tell the controller.
+    /// Guarded to the first taxiway only, the resolver's own "not connected" verdict for that very taxiway,
+    /// gate-adjacent range (<see cref="GateAdjacentTaxiwayMaxFt"/>), and no runway between: a taxiway across the
+    /// field stays a hard rejection — clearing via pavement the aircraft cannot reach is worse than refusing.
+    /// The caller has already established a parking start. Null when the guard fails or the rest does not resolve.
+    /// </summary>
+    private static DroppedTaxiwayRoute? TryDropGateLeadOut(
+        AircraftState aircraft,
+        AirportGroundLayout groundLayout,
+        TaxiCommand taxi,
+        PathfindingFailure? failure,
+        Func<TaxiCommand, TaxiRoute?> resolve
+    )
+    {
+        if (
+            taxi.Path.Count < 2
+            || taxi.Path[0].StartsWith('#')
+            || groundLayout.TryGetRunwayCenterlineName(taxi.Path[0], out _)
+            || failure is not { Kind: FailureKind.TaxiwayNotConnected } leadOutFailure
+            || !string.Equals(leadOutFailure.InfeasibleTaxiway, taxi.Path[0], StringComparison.OrdinalIgnoreCase)
+            || groundLayout.FindNearestNodeOnTaxiway(aircraft.Position, taxi.Path[0], GateAdjacentTaxiwayMaxFt) is not { } leadOutNode
+            || RunwayCenterlineBetween(groundLayout, aircraft.Position, leadOutNode.Position)
+        )
+        {
+            return null;
+        }
+
+        string dropped = taxi.Path[0];
+        var withoutLeadOut = taxi with
+        {
+            Path = [.. taxi.Path.Skip(1)],
+            PathTurnHints = taxi.PathTurnHints is null ? null : [.. taxi.PathTurnHints.Skip(1)],
+        };
+        var route = resolve(withoutLeadOut);
+        if (route is null)
+        {
+            return null;
+        }
+
+        string laneUsed = FirstNonRampTaxiway(route) ?? withoutLeadOut.Path[0];
+        Log.LogInformation(
+            "[TryTaxi] {Callsign}: dropped unreachable gate lead-out taxiway {Twy} (nearest node {NodeId}, {Dist:F0} ft away); "
+                + "taxiing via {Lane}",
+            aircraft.Callsign,
+            dropped,
+            leadOutNode.Id,
+            GeoMath.DistanceNm(aircraft.Position, leadOutNode.Position) * GeoMath.FeetPerNm,
+            laneUsed
+        );
+        route.Warnings.Add($"unable via {dropped} — no ramp connection from the gate; taxiing via {laneUsed}");
+        return new DroppedTaxiwayRoute(dropped, withoutLeadOut, route);
+    }
+
+    /// <summary>
+    /// A parking/spot destination whose named path cannot legally reach it (OAK "TAXI C D @GA1": GA1 is east
+    /// along C, D leads away northwest, and routing over a runway to satisfy both is forbidden): drop one named
+    /// taxiway at a time and keep the shortest resolution that reaches the destination, warning which element
+    /// was dropped. The controller's destination wins over a contradictory via — silently failing the whole
+    /// clearance helps nobody, silently honoring it via a runway back-taxi is worse. The returned command is the
+    /// clearance as issued (the route summary still lists every cleared taxiway). Null when there is no
+    /// parking/spot destination, fewer than two path elements, or no single drop resolves.
+    /// </summary>
+    private static DroppedTaxiwayRoute? TryDropContradictoryVia(AircraftState aircraft, TaxiCommand taxi, Func<TaxiCommand, TaxiRoute?> resolve)
+    {
+        if ((taxi.DestinationParking is null && taxi.DestinationSpot is null) || taxi.Path.Count < 2)
+        {
+            return null;
+        }
+
+        string destLabel = taxi.DestinationParking is not null ? $"@{taxi.DestinationParking}" : $"${taxi.DestinationSpot}";
+        TaxiRoute? bestDropRoute = null;
+        string? droppedName = null;
+        for (int drop = 0; drop < taxi.Path.Count; drop++)
+        {
+            if (taxi.Path[drop].StartsWith('#'))
+            {
+                continue;
+            }
+
+            var reducedPath = taxi.Path.Where((_, idx) => idx != drop).ToList();
+            var reducedHints = taxi.PathTurnHints?.Where((_, idx) => idx != drop).ToList();
+            var candidate = resolve(taxi with { Path = reducedPath, PathTurnHints = reducedHints });
+            if (candidate is not null && (bestDropRoute is null || candidate.TotalDistanceNm < bestDropRoute.TotalDistanceNm))
+            {
+                bestDropRoute = candidate;
+                droppedName = taxi.Path[drop];
+            }
+        }
+
+        if (bestDropRoute is null || droppedName is null)
+        {
+            return null;
+        }
+
+        Log.LogInformation(
+            "[TryTaxi] {Callsign}: dropped contradictory path element {Dropped} to reach " + "{Dest}",
+            aircraft.Callsign,
+            droppedName,
+            destLabel
+        );
+        bestDropRoute.Warnings.Add($"unable via {droppedName} — no route via {droppedName} reaches {destLabel}; {droppedName} omitted");
+        return new DroppedTaxiwayRoute(droppedName, taxi, bestDropRoute);
     }
 
     /// <summary>

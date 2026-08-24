@@ -337,7 +337,8 @@ public static class SegmentExpander
                 null,
                 new PathfindingFailure(
                     FailureKind.TaxiwayNotConnected,
-                    $"Cannot taxi via {wp.Name} from the aircraft's position — it is unreachable without crossing a runway or leaving the movement area.",
+                    $"Cannot taxi via {wp.Name} from the aircraft's position — it is unreachable without crossing a "
+                        + $"runway or leaving the movement area.",
                     wp.Name,
                     null,
                     null
@@ -1036,7 +1037,8 @@ public static class SegmentExpander
             if (deeper.Edges is not null && deeper.HasOnward)
             {
                 ctx.DiagnosticLog?.Invoke(
-                    $"[bridge] deepened to {MaxBridgeHopsDeep} hops: shallow pick {best.Head!.HeadNodeId} has no admissible continuation on {taxiwayName}"
+                    $"[bridge] deepened to {MaxBridgeHopsDeep} hops: shallow pick {best.Head!.HeadNodeId} has no "
+                        + $"admissible continuation on {taxiwayName}"
                 );
                 best = deeper;
             }
@@ -1428,7 +1430,8 @@ public static class SegmentExpander
         }
 
         ctx.DiagnosticLog?.Invoke(
-            $"[segment] twy={fromTaxiway}→{toTaxiway} head={head.HeadNodeId} junctions={junctionCandidates.Count} lookahead={lookaheadTaxiway ?? "(none)"}"
+            $"[segment] twy={fromTaxiway}→{toTaxiway} head={head.HeadNodeId} junctions={junctionCandidates.Count} "
+                + $"lookahead={lookaheadTaxiway ?? "(none)"}"
         );
 
         if (junctionCandidates.Count == 0)
@@ -1503,7 +1506,8 @@ public static class SegmentExpander
             double totalCost = cost + continuationCost + hintCost;
 
             ctx.DiagnosticLog?.Invoke(
-                $"[junction-pick] {fromTaxiway}→{toTaxiway} candidate={junctionNode.Id} cost={cost:F3} continuation+={continuationCost:F3} hint+={hintCost:F3} total={totalCost:F3}"
+                $"[junction-pick] {fromTaxiway}→{toTaxiway} candidate={junctionNode.Id} cost={cost:F3} "
+                    + $"continuation+={continuationCost:F3} hint+={hintCost:F3} total={totalCost:F3}"
             );
 
             if (totalCost < bestCost)
@@ -1545,7 +1549,9 @@ public static class SegmentExpander
                 : (null, null, DetourSuppressedFailure(fromTaxiway, toTaxiway, head));
         }
 
-        ctx.DiagnosticLog?.Invoke($"[committed] twy={fromTaxiway}→{toTaxiway} via={bestHead!.HeadNodeId} edges={bestEdges.Count} cost={bestCost:F3}");
+        ctx.DiagnosticLog?.Invoke(
+            $"[committed] twy={fromTaxiway}→{toTaxiway} via={bestHead!.HeadNodeId} " + $"edges={bestEdges.Count} cost={bestCost:F3}"
+        );
 
         return (bestEdges, bestHead, null);
     }
@@ -1605,7 +1611,8 @@ public static class SegmentExpander
     /// <summary>Minimum signed turn (deg) for an edge to count as a left/right turn rather than straight-through.</summary>
     private const double TurnHintDeadbandDeg = 10.0;
 
-    /// <summary>Signed turn from <paramref name="fromBearing"/> to <paramref name="toBearing"/> in (-180, 180]; positive is right (clockwise).</summary>
+    /// <summary>Signed turn from <paramref name="fromBearing"/> to <paramref name="toBearing"/> in (-180, 180];
+    /// positive is right (clockwise).</summary>
     private static double SignedTurnDeg(double fromBearing, double toBearing)
     {
         double d = (toBearing - fromBearing) % 360.0;
@@ -1831,7 +1838,8 @@ public static class SegmentExpander
         }
 
         ctx.DiagnosticLog?.Invoke(
-            $"[local] BEGIN twy={taxiwayName} start={startHead.HeadNodeId} arr={startHead.ArrivalBearing:F1} hasPrior={startHead.LastEdge is not null} dest={junctionNodeId}"
+            $"[local] BEGIN twy={taxiwayName} start={startHead.HeadNodeId} arr={startHead.ArrivalBearing:F1} "
+                + $"hasPrior={startHead.LastEdge is not null} dest={junctionNodeId}"
         );
 
         var openSet = new PriorityQueue<PartialRoute, double>();
@@ -1858,7 +1866,8 @@ public static class SegmentExpander
             if (expansions > MaxLocalExpansions)
             {
                 ctx.DiagnosticLog?.Invoke(
-                    $"[local] EXHAUSTED twy={taxiwayName} dest={junctionNodeId} expansions={expansions} deepest={deepest?.HeadNodeId ?? -1} depth={deepest?.Depth ?? 0} admitted={admittedTotal} rejected={rejectedTotal}"
+                    $"[local] EXHAUSTED twy={taxiwayName} dest={junctionNodeId} expansions={expansions} "
+                        + $"deepest={deepest?.HeadNodeId ?? -1} depth={deepest?.Depth ?? 0} admitted={admittedTotal} rejected={rejectedTotal}"
                 );
                 break;
             }
@@ -1881,7 +1890,9 @@ public static class SegmentExpander
                 // Found the junction: extract edges accumulated since the start.
                 var edges = ExtractEdgesSince(current, startHead.HeadNodeId, startHead.Depth);
                 ctx.DiagnosticLog?.Invoke(
-                    $"[local] SUCCESS twy={taxiwayName} dest={junctionNodeId} expansions={expansions} edges={edges.Count} cost={current.AccumulatedCost - startHead.AccumulatedCost:F3} admitted={admittedTotal} rejected={rejectedTotal}"
+                    $"[local] SUCCESS twy={taxiwayName} dest={junctionNodeId} expansions={expansions} "
+                        + $"edges={edges.Count} cost={current.AccumulatedCost - startHead.AccumulatedCost:F3} "
+                        + $"admitted={admittedTotal} rejected={rejectedTotal}"
                 );
                 return (edges, current, current.AccumulatedCost - startHead.AccumulatedCost);
             }
@@ -1931,7 +1942,9 @@ public static class SegmentExpander
                     double dep = GeometricAdmissibility.GetDepartureBearing(edge, headNode, nextNode);
                     double delta = RouteCostFunction.HeadingDelta(current.ArrivalBearing, dep);
                     ctx.DiagnosticLog?.Invoke(
-                        $"[local-edge] {current.HeadNodeId}->{nextNode.Id} twy={edge.TaxiwayName} REJECT admis arr={current.ArrivalBearing:F1} dep={dep:F1} delta={delta:F1} limit={CategoryLimits.MaxHeadingChangeDeg(ctx.Category):F0}"
+                        $"[local-edge] {current.HeadNodeId}->{nextNode.Id} twy={edge.TaxiwayName} REJECT admis "
+                            + $"arr={current.ArrivalBearing:F1} dep={dep:F1} delta={delta:F1} "
+                            + $"limit={CategoryLimits.MaxHeadingChangeDeg(ctx.Category):F0}"
                     );
                     rejectedHere++;
                     continue;
@@ -1984,7 +1997,8 @@ public static class SegmentExpander
                 if (bestGScore.TryGetValue(nextKey, out double existing) && (newGScore >= existing - 1e-9))
                 {
                     ctx.DiagnosticLog?.Invoke(
-                        $"[local-edge] {current.HeadNodeId}->{nextNode.Id} twy={edge.TaxiwayName} REJECT g-score new={newGScore:F3} existing={existing:F3}"
+                        $"[local-edge] {current.HeadNodeId}->{nextNode.Id} twy={edge.TaxiwayName} REJECT g-score "
+                            + $"new={newGScore:F3} existing={existing:F3}"
                     );
                     rejectedHere++;
                     continue;
@@ -1995,7 +2009,8 @@ public static class SegmentExpander
                 string twyName = RouteCostFunction.ResolveTaxiwayName(edge, current.HeadNodeId);
 
                 ctx.DiagnosticLog?.Invoke(
-                    $"[local-edge] {current.HeadNodeId}->{nextNode.Id} twy={edge.TaxiwayName} ADMIT arr={current.ArrivalBearing:F1} arr'={arrival:F1} g={newGScore:F3} h={RouteCostFunction.Heuristic(nextNode, destNode):F3}"
+                    $"[local-edge] {current.HeadNodeId}->{nextNode.Id} twy={edge.TaxiwayName} ADMIT "
+                        + $"arr={current.ArrivalBearing:F1} arr'={arrival:F1} g={newGScore:F3} h={RouteCostFunction.Heuristic(nextNode, destNode):F3}"
                 );
 
                 var extended = current with
@@ -2020,12 +2035,14 @@ public static class SegmentExpander
             rejectedTotal += rejectedHere;
 
             ctx.DiagnosticLog?.Invoke(
-                $"[local-pop] node={current.HeadNodeId} depth={current.Depth} arr={current.ArrivalBearing:F1} admit={admittedHere} reject={rejectedHere}"
+                $"[local-pop] node={current.HeadNodeId} depth={current.Depth} arr={current.ArrivalBearing:F1} "
+                    + $"admit={admittedHere} reject={rejectedHere}"
             );
         }
 
         ctx.DiagnosticLog?.Invoke(
-            $"[local] FAIL twy={taxiwayName} dest={junctionNodeId} expansions={expansions} openSet=empty deepest={deepest?.HeadNodeId ?? -1} depth={deepest?.Depth ?? 0} admitted={admittedTotal} rejected={rejectedTotal}"
+            $"[local] FAIL twy={taxiwayName} dest={junctionNodeId} expansions={expansions} openSet=empty "
+                + $"deepest={deepest?.HeadNodeId ?? -1} depth={deepest?.Depth ?? 0} admitted={admittedTotal} rejected={rejectedTotal}"
         );
 
         return (null, null, double.MaxValue);
@@ -2660,7 +2677,8 @@ public static class SegmentExpander
                 null,
                 new PathfindingFailure(
                     FailureKind.DestinationUnreachable,
-                    $"Taxiway {lastTaxiwayName} does not reach runway {RunwayIdentifier.ToDisplayDesignator(destinationRunway)} — specify a connecting taxiway.",
+                    $"Taxiway {lastTaxiwayName} does not reach runway "
+                        + $"{RunwayIdentifier.ToDisplayDesignator(destinationRunway)} — specify a connecting taxiway.",
                     lastTaxiwayName,
                     $"{lastTaxiwayName} → {destinationRunway}",
                     null
@@ -2709,7 +2727,8 @@ public static class SegmentExpander
                 null,
                 new PathfindingFailure(
                     FailureKind.TransitionAmbiguous,
-                    $"Runway {RunwayIdentifier.ToDisplayDesignator(destinationRunway)} is served by both {string.Join(" and ", candidateList)} from {lastTaxiwayName} — specify {string.Join(" or ", candidateList)}",
+                    $"Runway {RunwayIdentifier.ToDisplayDesignator(destinationRunway)} is served by both "
+                        + $"{string.Join(" and ", candidateList)} from {lastTaxiwayName} — specify {string.Join(" or ", candidateList)}",
                     lastTaxiwayName,
                     $"{lastTaxiwayName} → {destinationRunway}",
                     candidateList[0]

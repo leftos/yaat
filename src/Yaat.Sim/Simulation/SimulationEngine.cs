@@ -1028,7 +1028,8 @@ public sealed class SimulationEngine
                 else
                 {
                     _logger.LogDebug(
-                        "Field acquisition attempt failed: {Callsign} cannot see {Airport} at t={T}s (alt={Alt}ft, vis={Vis}sm, ceil={Ceil}ft AGL, bank={Bank}°)",
+                        "Field acquisition attempt failed: {Callsign} cannot see {Airport} at t={T}s (alt={Alt}ft, "
+                            + "vis={Vis}sm, ceil={Ceil}ft AGL, bank={Bank}°)",
                         ac.Callsign,
                         airport,
                         scenario.ElapsedSeconds,
@@ -3724,7 +3725,8 @@ public sealed class SimulationEngine
 
         EmitTerminal("System", state.Callsign, $"[Spawn] Generated overflight ({config.Id})");
         _logger.LogInformation(
-            "Overflight generator '{Id}' spawned {Callsign} ({Type}) {Dist:F1}nm on the {Brg:F0} radial at {Alt:F0}ft, exiting on the {Exit:F0} radial at {ExitDist:F0}nm, t={T}s",
+            "Overflight generator '{Id}' spawned {Callsign} ({Type}) {Dist:F1}nm on the {Brg:F0} radial at {Alt:F0}ft, "
+                + "exiting on the {Exit:F0} radial at {ExitDist:F0}nm, t={T}s",
             config.Id,
             state.Callsign,
             state.AircraftType,
