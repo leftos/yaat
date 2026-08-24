@@ -135,7 +135,9 @@ For any other conflicted file, or for a CHANGELOG.md conflict that doesn't fit t
 
 ### Pre-commit hooks
 
-Both yaat and yaat-server have `prek` hooks. They run on each cherry-picked commit. If a hook modifies files (csharpier/format), re-stage and `git cherry-pick --continue --no-edit`. If a hook reports a hard failure (build with `-p:TreatWarningsAsErrors=true`, large-file check, private-key check), halt and surface the output — fix forward, do not `--no-verify`.
+Both yaat and yaat-server have `prek` hooks, but **git's sequencer does not run pre-commit hooks for a clean cherry-pick** — it commits internally. Hooks fire only for a pick that stopped (conflict) and was finished with `git cherry-pick --continue`, which goes through `git commit`. So a multi-commit range can land with the hook having run for one commit and none of the others (observed 2026-08-23: `7a7ce0f1` landed on `main` referencing an enum member `main` had already removed; the hook build never saw it). Never treat "the hook passed" as proof the landed tree builds — `/ship` Phase 3's explicit build/test gate is the real guard, and when this skill is run on its own, finish with `dotnet build -p:TreatWarningsAsErrors=true` in the target checkout.
+
+When a hook does run (the `--continue` case) and modifies files (csharpier/format), re-stage and `git cherry-pick --continue --no-edit`. If it reports a hard failure (build with `-p:TreatWarningsAsErrors=true`, large-file check, private-key check), halt and surface the output — fix forward, do not `--no-verify`.
 
 If the large-file check fails on a recording bundle (`tests/Yaat.Sim.Tests/TestData/*.zip > 8192 KB`), surface the prek comment in `prek.toml` and suggest trimming the bundle (`/changelog-and-commit` has a precedent for this — trim the manifest's `Snapshots` to the time range the test actually uses).
 

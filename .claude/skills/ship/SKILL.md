@@ -69,7 +69,7 @@ A cherry-pick that merges textually clean can still fail to compile on `main`: `
 Decide the gate from what Phase 2 actually did, in `X:/dev/yaat`:
 
 - **Fast-forward only, both repos** → skip. `main` didn't advance past the base, so the worktree's build already covered this tree.
-- **Any real cherry-pick** → run in the target checkout:
+- **Any real cherry-pick** → run in the target checkout. This gate is not optional and "the prek hook passed" does not satisfy it: git's sequencer commits clean picks **without** running pre-commit hooks (only a conflicted pick finished via `--continue` runs them), so most landed commits were never built by a hook at all. Read the `Build succeeded` / `Build FAILED` line of the log, not just the test summary — `| tee | grep` pipelines report grep's exit code, not the build's:
   ```bash
   cd X:/dev/yaat && dotnet build -p:TreatWarningsAsErrors=true 2>&1 | tee .tmp/ship-build.log
   ```
