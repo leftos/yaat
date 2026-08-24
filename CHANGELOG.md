@@ -1,13 +1,19 @@
 # Changelog
 
-## Unreleased
+## v0.12.17-beta [2026/08/23]
+
+### Highlights
+- Pilots read back taxi clearances to a gate, parking position, or spot ("taxi via alpha, bravo to parking bravo one two"), and voice input accepts "taxi to parking/gate/spot …" with cross and hold-short clauses.
+- `HS $17` holds short of a taxi spot: autocomplete offers the airport's spots, the pilot reads back "hold short of spot one seven", and voice input accepts it. (#394)
+- Ground view datablocks show the beacon-code mismatch line (`1200 0301`) just like the radar datablock. (#397)
+- Scenario departure presets from gates and runway bars taxi as intended: a route-less `TAXI 1L` holds short at the bar, and gate routes that previously stayed parked now taxi. (#393, #396)
 
 ### Added
 - Ground view datablocks show a beacon-code mismatch line (`1200 0301` — reported code solid, assigned code pulsing) just like the radar datablock, so a departure still squawking the wrong code is visible on the surface display before it reaches the scope. (#397)
 - Pilots read back a route-less taxi clearance (`TAXI 1L`, `TAXIAUTO 1L`) as "taxi to runway one left", and speech input accepts "taxi to runway two eight right".
 - Pilots read back taxi clearances to a parking position or spot — "taxi via alpha, bravo to parking bravo one two" — ahead of any cross or hold-short clause, with word-like names spoken as words (`CARGO1` → "cargo one").
 - Speech input accepts "taxi to parking/gate/spot …" before or after the route, with cross and hold-short clauses, and validates the name against the loaded airport's parking and spot names.
-- `HS` autocomplete offers the airport's taxi spots (`$17`); pilots read back "hold short of spot one seven" and voice input accepts it.
+- `HS` autocomplete offers the airport's taxi spots (`$17`); pilots read back "hold short of spot one seven" and voice input accepts it, rejecting spot names the airport doesn't have.
 
 ### Changed
 - Everything after `HS` in a taxi clearance is a hold-short target: a spot or parking destination goes before `HS` (`TAXI K $8 HS $8`), and `HS @A12` is rejected.
@@ -26,7 +32,6 @@
 - A scripted preset that fails when it fires shows `[Preset] could not apply: …` in the terminal, and a scripted taxi echoes its route warnings.
 - In solo training the pilot reads back a taxi route as actually taxied when a cleared taxiway was dropped ("unable mike four, taxi via mike one…").
 - `TAXI … HS $17` holds the aircraft with its nose at taxi spot 17 and continues on `RES` or `CROSS`, instead of taxiing straight to the runway.
-- Voice input rejects a spoken spot hold-short naming a spot the airport doesn't have, instead of arming a hold the route never reaches.
 
 ## v0.12.16-beta [2026/08/22]
 
