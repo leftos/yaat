@@ -400,7 +400,7 @@ public class Issue394HoldShortSpotTests(ITestOutputHelper output)
     /// <summary>A spot target is read back as a spot — never as runway or bare "one seven".</summary>
     [Theory]
     [InlineData("HS $17", "hold short of spot one seven")]
-    [InlineData("TAXI C Z HS $17", "taxi via charlie, zulu hold short of spot one seven")]
+    [InlineData("TAXI C Z HS $17", "taxi via charlie, zulu, hold short of spot one seven")]
     [InlineData("RES HS $17", "resume taxi, hold short of spot one seven")]
     public void Readback_SpotTarget_SaysSpot(string command, string expected)
     {
@@ -415,6 +415,27 @@ public class Issue394HoldShortSpotTests(ITestOutputHelper output)
     {
         var result = PhraseologyMapper.Map("hold short of spot harriet", MapContext.Empty);
         Assert.True(result is null || !result.CanonicalCommand.Contains("$HARRIET"), $"mapped to {result?.CanonicalCommand}");
+    }
+
+    /// <summary>
+    /// With the layout's parking/spot names in context, a spot the airport doesn't have (a
+    /// mis-transcribed number) is rejected like an unknown taxiway; a known spot still maps.
+    /// </summary>
+    [Theory]
+    [InlineData("hold short of spot one seven", "HS $17")]
+    [InlineData("hold short of spot nine nine", null)]
+    public void Stt_SpotHoldShort_ValidatesAgainstLayoutSpots(string transcript, string? expectedCanonical)
+    {
+        var ctx = MapContext.Empty with { DestinationNames = new HashSet<string>(["17", "7A", "8", "SIG3"], StringComparer.OrdinalIgnoreCase) };
+        var result = PhraseologyMapper.Map(transcript, ctx);
+        if (expectedCanonical is null)
+        {
+            Assert.True(result is null || !result.CanonicalCommand.Contains("$99"), $"mapped to {result?.CanonicalCommand}");
+            return;
+        }
+
+        Assert.NotNull(result);
+        Assert.Equal(expectedCanonical, result.CanonicalCommand);
     }
 
     [Theory]

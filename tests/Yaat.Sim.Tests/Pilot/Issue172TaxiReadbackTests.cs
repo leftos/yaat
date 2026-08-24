@@ -44,7 +44,7 @@ public class Issue172TaxiReadbackTests
     public void Taxi_WithHoldShort_VoicesHoldShort()
     {
         var result = PhraseologyVerbalizer.Verbalize(new TaxiCommand(["B", "C"], [HoldShortTarget.Parse("28R")]));
-        Assert.Equal("taxi via bravo, charlie hold short of runway two eight right", result);
+        Assert.Equal("taxi via bravo, charlie, hold short of runway two eight right", result);
     }
 
     [Fact]

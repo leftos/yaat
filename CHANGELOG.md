@@ -11,6 +11,7 @@
 
 ### Changed
 - Everything after `HS` in a taxi clearance is a hold-short target: a spot or parking destination goes before `HS` (`TAXI K $8 HS $8`), and `HS @A12` is rejected.
+- Pilot taxi readbacks pause before the restrictions — "taxi via bravo, charlie, hold short of runway two eight right".
 
 ### Fixed
 - Taxi clearances no longer detour back to a hold-short taxiway the cleared route already crosses (SFO `TAXI T7A A A1 1R HS H` now stays on A to A1).
@@ -25,6 +26,7 @@
 - A scripted preset that fails when it fires shows `[Preset] could not apply: …` in the terminal, and a scripted taxi echoes its route warnings.
 - In solo training the pilot reads back a taxi route as actually taxied when a cleared taxiway was dropped ("unable mike four, taxi via mike one…").
 - `TAXI … HS $17` holds the aircraft with its nose at taxi spot 17 and continues on `RES` or `CROSS`, instead of taxiing straight to the runway.
+- Voice input rejects a spoken spot hold-short naming a spot the airport doesn't have, instead of arming a hold the route never reaches.
 
 ## v0.12.16-beta [2026/08/22]
 

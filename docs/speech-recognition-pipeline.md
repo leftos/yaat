@@ -559,6 +559,13 @@ at startup with `WhisperBiasingPrompt.Default` to match production.
   is loaded the set is empty and every NATO word collapses to its
   single letter — which is the right fallback for the common bare-
   taxiway case.
+- **A spot hold-short's `{spot}` capture is a destination name.** "hold
+  short of spot one seven" → `HS $17` reuses the `{spot}` capture of the
+  taxi-to-spot rules, so the same `ResolveDestinationName` post-pass
+  joins and validates it against `MapContext.DestinationNames` (the
+  layout's parking/spot/helipad names, populated by `BuildSpeechContext`)
+  — a mis-transcribed number falls through to the LLM instead of arming
+  a hold the route never reaches. Empty set ⇒ shape check only.
 - **Runway validation escalates to the top of `Map`.** When a `{rwy}`
   capture fails `TryRecoverRunway`, the post-pass sets a `runwayInvalid`
   flag that propagates through `MatchTokens` / `FindLongestMatch` /

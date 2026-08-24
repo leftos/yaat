@@ -410,8 +410,9 @@ public static class PhraseologyVerbalizer
     /// Renders a TAXI readback whose path includes a runway segment with FAA-correct connectors
     /// (7110.65 §3-7-2.a, §3-1-3.b): the taxiway route is introduced with "via", a runway taxied along
     /// is introduced with "on" — "taxi via bravo, on runway two eight right, golf, delta" (and, runway
-    /// first, "taxi on runway two eight right, golf, delta"). Trailing cross/hold-short/destination-runway
-    /// captures match the rule-driven forms.
+    /// first, "taxi on runway two eight right, golf, delta"). Trailing cross/hold-short clauses are set off
+    /// with a comma, the pause a pilot puts between the route and its restrictions ("…charlie, hold short
+    /// of runway two eight right"); the destination runway leads, matching the rule-driven forms.
     /// </summary>
     private static string RenderTaxiAlongRunway(TaxiCommand taxi, CaptureFormatter fmt)
     {
@@ -448,12 +449,12 @@ public static class PhraseologyVerbalizer
 
         if (taxi.CrossRunways is { Count: > 0 } cross)
         {
-            body += $" cross runway {string.Join(" and ", cross.Select(fmt.Runway))}";
+            body += $", cross runway {string.Join(" and ", cross.Select(fmt.Runway))}";
         }
 
         if (taxi.HoldShorts is { Count: > 0 } holdShorts)
         {
-            body += $" hold short of {string.Join(" and ", holdShorts.Select(h => RenderHoldShortTarget(h, fmt)))}";
+            body += $", hold short of {string.Join(" and ", holdShorts.Select(h => RenderHoldShortTarget(h, fmt)))}";
         }
 
         if (taxi.DestinationRunway is { Length: > 0 } rwy)
