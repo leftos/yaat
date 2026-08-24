@@ -67,16 +67,28 @@ function Run-Step {
     Write-Host "`n=== $Label ===" -ForegroundColor Cyan
     Push-Location $WorkDir
     try {
-        Invoke-Expression $Command
+        # Out-Host keeps the command's output on the console instead of in the function's
+        # return stream, so callers get a clean $true/$false.
+        Invoke-Expression $Command | Out-Host
         if ($LASTEXITCODE -ne 0) {
             Write-Host "FAILED: $Label" -ForegroundColor Red
             $script:failed = $true
-        } else {
-            Write-Host "OK: $Label" -ForegroundColor Green
+            return $false
         }
+        Write-Host "OK: $Label" -ForegroundColor Green
+        return $true
     } finally {
         Pop-Location
     }
+}
+
+# A failed build must end the run here. The test steps use --no-build, so continuing
+# would run whatever binaries the last successful build left behind and print
+# "Passed!" lines that say nothing about the tree under test.
+function Stop-OnBuildFailure {
+    param([string]$Label)
+    Write-Host "`n$Label failed — tests skipped (they would run against stale binaries)." -ForegroundColor Red
+    exit 1
 }
 
 # Exclude the heavy gated-by-intent categories unless -Full. A trait filter of
@@ -95,10 +107,14 @@ if ($Full) {
 # drop a transient .sln in the repo root, which then conflicts with the .slnx
 # on the next invocation ("more than one project or solution file") — see
 # /yaat.sln and /yaat-server.sln in .gitignore.
-Run-Step 'Build yaat' $yaatDir "dotnet build yaat.slnx -c $Config -p:TreatWarningsAsErrors=true"
-Run-Step 'Build yaat-server' $serverDir "dotnet build yaat-server.slnx -c $Config -p:TreatWarningsAsErrors=true"
-Run-Step 'Test yaat' $yaatDir "dotnet test yaat.slnx -c $Config --no-build $testFilter"
-Run-Step 'Test yaat-server' $serverDir "dotnet test yaat-server.slnx -c $Config --no-build $testFilter"
+if (-not (Run-Step 'Build yaat' $yaatDir "dotnet build yaat.slnx -c $Config -p:TreatWarningsAsErrors=true")) {
+    Stop-OnBuildFailure 'Build yaat'
+}
+if (-not (Run-Step 'Build yaat-server' $serverDir "dotnet build yaat-server.slnx -c $Config -p:TreatWarningsAsErrors=true")) {
+    Stop-OnBuildFailure 'Build yaat-server'
+}
+$null = Run-Step 'Test yaat' $yaatDir "dotnet test yaat.slnx -c $Config --no-build $testFilter"
+$null = Run-Step 'Test yaat-server' $serverDir "dotnet test yaat-server.slnx -c $Config --no-build $testFilter"
 
 Write-Host ''
 if ($failed) {
