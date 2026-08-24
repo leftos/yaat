@@ -626,7 +626,7 @@ Commands/NodeRefToken.cs            # Parses user-typed `#<id>` node-reference t
 Commands/RouteChainer.cs            # After DCT to on-route fix, appends remaining route fixes
 Commands/ApproachCommandHandler.cs  # Approach clearance logic (CAPP/JAPP/PTAC/CAPPSI/JAPPSI/CAPPF/JAPPF/PTACF forced variants/CVA visual approach); RF/AF arc expansion in BuildApproachFixes
 Commands/DepartureClearanceHandler.cs  # Departure clearance + CIFP SID resolution, CancelTakeoff, ClearedTakeoffPresent (CTOPP)
-Commands/GroundCommandHandler.cs    # Ground operation command logic (taxi, pushback, hold short). Owns the pre-pathfinder path rewrites: AugmentPathWithHoldShortTaxiways, the current-taxiway prepend, TrimPassedNodeRefPrefix (drops drawn #nodes the aircraft already taxied past), and the post-resolve IsPlausibleNodeRefResolution guard
+Commands/GroundCommandHandler.cs    # Ground operation command logic (taxi, pushback, hold short). Owns the pre-pathfinder path rewrites: the HS-taxiway fold (HoldShortTaxiwaysToFold / AugmentPathWithHoldShortTaxiways — applied only when the as-cleared route fails AsClearedRejectionReason, or the command has no destination), the current-taxiway prepend, TrimPassedNodeRefPrefix (drops drawn #nodes the aircraft already taxied past), and the post-resolve IsPlausibleNodeRefResolution guard
 Commands/TrackEngine.cs             # Pure domain logic for STARS track ops: Track, Drop, Handoff, Accept, Cancel, PointOut, Acknowledge,
                                     # RejectPointout, RetractPointout, Scratchpad1/2, TempAlt, Cruise, PilotReportedAlt,
                                     # InhibitConflictAlert, LeaderDirection, JRing, Cone. All methods mutate AircraftState directly.

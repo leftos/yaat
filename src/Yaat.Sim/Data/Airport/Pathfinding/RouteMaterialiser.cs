@@ -67,12 +67,7 @@ public static class RouteMaterialiser
         // explicit-HS-of-own-destination no-op).
         foreach (var target in ctx.ExplicitHoldShorts)
         {
-            bool bound = holdShorts.Exists(h =>
-                h.TargetName is { } name
-                && (h.Reason != HoldShortReason.RunwayCrossing)
-                && (string.Equals(name, target.Target, StringComparison.OrdinalIgnoreCase) || RunwayIdentifier.Parse(name).Contains(target.Target))
-            );
-            if (!bound)
+            if (FindBoundHoldShort(holdShorts, target) is null)
             {
                 string display = target.ToCanonical();
                 warnings.Add(
@@ -125,6 +120,33 @@ public static class RouteMaterialiser
             DestinationParking = ctx.Destination.ParkingName,
             DestinationSpot = ctx.Destination.SpotName,
         };
+    }
+
+    /// <summary>
+    /// The hold-short point that satisfies <paramref name="target"/>: an
+    /// <see cref="HoldShortReason.ExplicitHoldShort"/> or <see cref="HoldShortReason.DestinationRunway"/>
+    /// point named for the target (runway ids by <see cref="RunwayIdentifier.Contains"/>, so a combined
+    /// "28R/10L" bar satisfies "28R"). A plain <see cref="HoldShortReason.RunwayCrossing"/> never
+    /// satisfies it — a located runway target whose location taxiway did not match leaves the crossing
+    /// un-promoted, which must still read as unbound. Null when nothing on the route binds the target.
+    /// Shared by the "HS not applied" warning and <c>GroundCommandHandler</c>'s as-cleared gate so the
+    /// two never disagree on what "bound" means.
+    /// </summary>
+    public static HoldShortPoint? FindBoundHoldShort(IReadOnlyList<HoldShortPoint> holdShorts, HoldShortTarget target)
+    {
+        foreach (var point in holdShorts)
+        {
+            if (
+                point.TargetName is { } name
+                && (point.Reason != HoldShortReason.RunwayCrossing)
+                && (string.Equals(name, target.Target, StringComparison.OrdinalIgnoreCase) || RunwayIdentifier.Parse(name).Contains(target.Target))
+            )
+            {
+                return point;
+            }
+        }
+
+        return null;
     }
 
     private static List<TaxiRouteSegment> BuildSegments(IReadOnlyList<DirectionalEdge> edges)

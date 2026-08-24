@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Data.Airport.Pathfinding;
 using Yaat.Sim.Data.Faa;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
@@ -43,9 +44,17 @@ internal static class GroundCommandHandler
             return new CommandResult(false, "No airport ground layout available");
         }
 
-        // A taxiway named only as a hold-short target ("... HS E") is also a directional hint:
-        // fold it into the path so the pathfinder routes through it, not just annotates it.
-        taxi = AugmentPathWithHoldShortTaxiways(groundLayout, taxi);
+        // A taxiway named only as a hold-short target ("... HS E") can also be a directional hint.
+        // With a destination the clearance is resolved as cleared first and the hint is folded into
+        // the path only when that route cannot honor it (see ResolveRoute below — issue #395: SFO
+        // "TAXI T7A A A1 1R HS H" crosses H on A and must not detour back to H after A1). Without a
+        // destination the hint is the only direction cue, so it is folded up front.
+        var foldTargets = HoldShortTaxiwaysToFold(groundLayout, taxi);
+        if ((foldTargets.Count > 0) && !HasDestination(taxi))
+        {
+            taxi = AugmentPathWithHoldShortTaxiways(taxi, foldTargets);
+            foldTargets = [];
+        }
 
         // Find starting node. Prefer the heading-aligned endpoint of the
         // nearest taxi edge (handles post-pushback poses where the aircraft
@@ -148,11 +157,38 @@ internal static class GroundCommandHandler
         var category = AircraftCategorization.Categorize(aircraft.AircraftType);
 
         double startHeadingTrueDeg = aircraft.TrueHeading.Degrees;
-        TaxiRoute? ResolveRoute(TaxiCommand command, out string? reason)
+        TaxiRoute? ResolveDirect(TaxiCommand command, out string? reason)
         {
             return (command.DestinationParking is not null || command.DestinationSpot is not null)
                 ? ResolveParkingRoute(groundLayout, startNode, command, out reason, category, startHeadingTrueDeg)
                 : ResolveStandardRoute(groundLayout, startNode, command, out reason, category, startHeadingTrueDeg);
+        }
+
+        // As-cleared first: the route the named taxiways produce on their own wins when it honors every
+        // hold-short hint en route (see AsClearedRejectionReason). Only then is the hint's taxiway folded
+        // into the path — the OAK "TAXI D C HS E RWY 28R" shape, where E is the way to the runway.
+        TaxiRoute? ResolveRoute(TaxiCommand command, out string? reason)
+        {
+            if (foldTargets.Count == 0)
+            {
+                return ResolveDirect(command, out reason);
+            }
+
+            var asCleared = ResolveDirect(command, out reason);
+            string? rejection = asCleared is null ? reason ?? "no route" : AsClearedRejectionReason(asCleared, command, foldTargets);
+            if (rejection is null)
+            {
+                return asCleared;
+            }
+
+            Log.LogDebug(
+                "[TryTaxi] {Callsign}: as-cleared route ({Segs} segments) does not honor the hold-short hint — {Reason}; folding [{Twys}] into the path",
+                aircraft.Callsign,
+                asCleared?.Segments.Count ?? 0,
+                rejection,
+                string.Join(" ", foldTargets.Select(t => t.OnTaxiway ?? t.Target))
+            );
+            return ResolveDirect(AugmentPathWithHoldShortTaxiways(command, foldTargets), out reason);
         }
 
         var route = ResolveRoute(taxi, out string? failReason);
@@ -456,47 +492,130 @@ internal static class GroundCommandHandler
         return CommandDispatcher.Ok(msg);
     }
 
+    private static bool HasDestination(TaxiCommand taxi) =>
+        (taxi.DestinationRunway is not null) || (taxi.DestinationParking is not null) || (taxi.DestinationSpot is not null);
+
     /// <summary>
-    /// Appends each <c>HS</c> target that names a real taxiway (not a runway, not already in the
-    /// path) to the taxi command's <see cref="TaxiCommand.Path"/> so the target steers the route as
-    /// a directional hint rather than only annotating an already-chosen route. The target stays in
-    /// <see cref="TaxiCommand.HoldShorts"/> so the hold-short is still placed at that intersection —
-    /// this turns <c>TAXI D C HS E RWY 28R</c> into the already-supported <c>TAXI D C E HS E RWY 28R</c>
-    /// shape internally. A located target (<c>HS C@J</c>) folds its ON-taxiway (<c>J</c>) instead —
-    /// the aircraft travels J and holds short OF C, so C itself must not be added to the cleared path.
-    /// Runway hold-shorts (e.g. <c>HS 28L</c>) have no taxiway nodes and are left to the
-    /// runway-crossing machinery. Returns the command unchanged when no HS target folds a routable taxiway.
+    /// The <c>HS</c> targets whose taxiway is a real taxiway on the layout that the path does not already
+    /// name — the candidates <see cref="AugmentPathWithHoldShortTaxiways"/> would append. A located target
+    /// (<c>HS C@J</c>) contributes its ON-taxiway (<c>J</c>): the aircraft travels J and holds short OF C,
+    /// so C itself must never join the cleared path. Runway targets (<c>HS 28L</c>) have no taxiway nodes
+    /// and are left to the runway-crossing machinery; a second target on an already-collected taxiway
+    /// is dropped so the taxiway is folded at most once.
     /// </summary>
-    private static TaxiCommand AugmentPathWithHoldShortTaxiways(AirportGroundLayout groundLayout, TaxiCommand taxi)
+    private static List<HoldShortTarget> HoldShortTaxiwaysToFold(AirportGroundLayout groundLayout, TaxiCommand taxi)
     {
-        if (taxi.HoldShorts.Count == 0)
+        var candidates = new List<HoldShortTarget>();
+        var named = new HashSet<string>(taxi.Path, StringComparer.OrdinalIgnoreCase);
+        foreach (var target in taxi.HoldShorts)
+        {
+            string foldTaxiway = target.OnTaxiway ?? target.Target;
+            if (named.Contains(foldTaxiway) || (groundLayout.GetNodesOnTaxiway(foldTaxiway).Count == 0))
+            {
+                continue;
+            }
+
+            named.Add(foldTaxiway);
+            candidates.Add(target);
+        }
+
+        return candidates;
+    }
+
+    /// <summary>
+    /// Appends the taxiway of each fold target (from <see cref="HoldShortTaxiwaysToFold"/>) to the taxi
+    /// command's <see cref="TaxiCommand.Path"/> so the hold-short target steers the route as a directional
+    /// hint rather than only annotating an already-chosen route. The target stays in
+    /// <see cref="TaxiCommand.HoldShorts"/> so the hold-short is still placed at that intersection — this
+    /// turns <c>TAXI D C HS E RWY 28R</c> into the already-supported <c>TAXI D C E HS E RWY 28R</c> shape.
+    /// It is the fallback reading of a clearance with a destination (see <c>ResolveRoute</c> in
+    /// <see cref="TryTaxi"/>) and the only reading of one without.
+    /// </summary>
+    private static TaxiCommand AugmentPathWithHoldShortTaxiways(TaxiCommand taxi, IReadOnlyList<HoldShortTarget> foldTargets)
+    {
+        if (foldTargets.Count == 0)
         {
             return taxi;
         }
 
         List<string> path = [.. taxi.Path];
         List<TurnDirection?>? hints = taxi.PathTurnHints is null ? null : [.. taxi.PathTurnHints];
-        bool changed = false;
-
-        foreach (var target in taxi.HoldShorts)
+        foreach (var target in foldTargets)
         {
-            string foldTaxiway = target.OnTaxiway ?? target.Target;
-            if (path.Contains(foldTaxiway, StringComparer.OrdinalIgnoreCase))
-            {
-                continue;
-            }
-
-            if (groundLayout.GetNodesOnTaxiway(foldTaxiway).Count == 0)
-            {
-                continue;
-            }
-
-            path.Add(foldTaxiway);
+            path.Add(target.OnTaxiway ?? target.Target);
             hints?.Add(null);
-            changed = true;
         }
 
-        return changed ? taxi with { Path = path, PathTurnHints = hints } : taxi;
+        return taxi with
+        {
+            Path = path,
+            PathTurnHints = hints,
+        };
+    }
+
+    /// <summary>
+    /// Why the as-cleared resolution of a command whose HS taxiways were NOT folded into the path does not
+    /// honor the clearance — null when it does. Honoring means the destination was actually reached (a
+    /// runway destination has its <see cref="HoldShortReason.DestinationRunway"/> stop; a parking/spot route
+    /// is only ever non-null when it reaches the spot) and every fold candidate is bound on the route AND
+    /// the route continues on a cleared taxiway past that bar. The continuation test is what separates
+    /// "hold short of H, which A crosses on the way to A1" (SFO, issue #395 — no fold) from "hold short of
+    /// E, then onto E to the runway" (OAK, E beyond the last cleared taxiway — fold): merely touching the
+    /// target's taxiway at a junction and then reaching the runway over free numbered pavement is not the
+    /// cleared route, however cheap the pathfinder found it.
+    /// </summary>
+    private static string? AsClearedRejectionReason(TaxiRoute route, TaxiCommand command, IReadOnlyList<HoldShortTarget> foldTargets)
+    {
+        if ((command.DestinationRunway is not null) && !route.HoldShortPoints.Exists(h => h.Reason == HoldShortReason.DestinationRunway))
+        {
+            return $"route does not reach runway {command.DestinationRunway}";
+        }
+
+        foreach (var target in foldTargets)
+        {
+            var bound = RouteMaterialiser.FindBoundHoldShort(route.HoldShortPoints, target);
+            if (bound is null)
+            {
+                return $"HS {target.ToCanonical()} is not on the route";
+            }
+
+            if (!ContinuesOnClearedTaxiwayPast(route, bound.NodeId, command.Path))
+            {
+                return $"route leaves the cleared taxiways at HS {target.ToCanonical()}";
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// True when some segment after the hold-short bar at <paramref name="holdShortNodeId"/> runs along a
+    /// taxiway the controller named (exact segment name — a junction arc like <c>"C - E"</c> is the turn
+    /// OFF the cleared taxiway, not travel along it). A bar at the route's start node counts as index −1,
+    /// mirroring the materialiser's start-node hold-short handling.
+    /// </summary>
+    private static bool ContinuesOnClearedTaxiwayPast(TaxiRoute route, int holdShortNodeId, IReadOnlyList<string> path)
+    {
+        int holdIndex = -1;
+        if ((route.Segments.Count == 0) || (route.Segments[0].FromNodeId != holdShortNodeId))
+        {
+            holdIndex = route.Segments.FindIndex(s => s.ToNodeId == holdShortNodeId);
+            if (holdIndex < 0)
+            {
+                return false;
+            }
+        }
+
+        for (int i = holdIndex + 1; i < route.Segments.Count; i++)
+        {
+            string name = route.Segments[i].TaxiwayName;
+            if (path.Any(token => !NodeRefToken.IsNodeReference(token) && string.Equals(token, name, StringComparison.OrdinalIgnoreCase)))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /// <summary>
