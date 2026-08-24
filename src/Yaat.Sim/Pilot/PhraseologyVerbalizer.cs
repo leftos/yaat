@@ -169,8 +169,20 @@ public static class PhraseologyVerbalizer
         // express. A TAXI carrying hold-shorts is direct-rendered for a different reason: the rule
         // template's "runway?" literal is spoken unconditionally, so a taxiway HS target would be
         // read back as a runway ("hold short of runway charlie") — the direct clause picks the
-        // "runway" word per target type (AIM 2-3-5.a.3 vs 7110.65 §3-7-2.b).
-        if (cmd is TaxiCommand taxiDirect && (TaxiPathHasRunway(taxiDirect) || taxiDirect.HoldShorts.Count > 0))
+        // "runway" word per target type (AIM 2-3-5.a.3 vs 7110.65 §3-7-2.b). A parking / spot
+        // destination is direct-rendered too: the destination clause has to sit between the route
+        // and any cross / hold-short clause (7110.65 §3-7-2.a.2.b: route first, then the hold-short),
+        // and a rule template per {destination} × {cross} × {hold-short} shape would otherwise be
+        // needed to keep the mandatory crossing / hold-short readback.
+        if (
+            cmd is TaxiCommand taxiDirect
+            && (
+                TaxiPathHasRunway(taxiDirect)
+                || taxiDirect.HoldShorts.Count > 0
+                || taxiDirect.DestinationParking is not null
+                || taxiDirect.DestinationSpot is not null
+            )
+        )
         {
             return RenderTaxiAlongRunway(taxiDirect, fmt);
         }
@@ -428,7 +440,11 @@ public static class PhraseologyVerbalizer
             firstSegment = false;
         }
 
-        string body = $"taxi {string.Join(fmt.TaxiSeparator, parts)}";
+        string body = parts.Count == 0 ? "taxi" : $"taxi {string.Join(fmt.TaxiSeparator, parts)}";
+
+        // Destination before the runway clauses: 7110.65 §3-7-2.a states the route "and then" the
+        // hold short instructions, and AIM 4-4-7.b.2 has the pilot read them back in that sequence.
+        body += RenderTaxiDestinationClause(taxi, fmt);
 
         if (taxi.CrossRunways is { Count: > 0 } cross)
         {
@@ -446,6 +462,20 @@ public static class PhraseologyVerbalizer
         }
 
         return body;
+    }
+
+    /// <summary>
+    /// " to spot seven alpha" / " to parking bravo one two", or empty (7110.65 §3-7-2.a "TAXI TO (location)").
+    /// A spot wins over a parking name, matching <c>CommandDescriber</c>'s canonical form.
+    /// </summary>
+    private static string RenderTaxiDestinationClause(TaxiCommand taxi, CaptureFormatter fmt)
+    {
+        if (taxi.DestinationSpot is { Length: > 0 } spot)
+        {
+            return $" to spot {fmt.Spot(spot)}";
+        }
+
+        return taxi.DestinationParking is { Length: > 0 } parking ? $" to parking {fmt.Parking(parking)}" : "";
     }
 
     /// <summary>
@@ -1171,6 +1201,58 @@ public static class PhraseologyVerbalizer
         return sb.ToString();
     }
 
+    /// <summary>
+    /// Parking / spot name as spoken: codes character by character ("B12" → "bravo one two", "7A" →
+    /// "seven alpha", "41-10" → "four one dash one zero", "FDX1" → "foxtrot delta xray one"), but a
+    /// pronounceable word — four or more letters with a vowel, the "CARGO1" / "JANET" / "HELI1" names
+    /// real layouts carry — is said as the word ("cargo one"). A leading word that merely repeats the
+    /// destination noun is dropped: PHL's "SPOT7" reads "spot seven", not "spot spot seven".
+    /// </summary>
+    public static string SpellDestinationName(string name, string noun)
+    {
+        var runs = new List<string>();
+        var trimmed = name.Trim();
+        int i = 0;
+        while (i < trimmed.Length)
+        {
+            char c = trimmed[i];
+            if (char.IsLetter(c))
+            {
+                int start = i;
+                while (i < trimmed.Length && char.IsLetter(trimmed[i]))
+                {
+                    i++;
+                }
+
+                var letters = trimmed[start..i];
+                if (runs.Count == 0 && string.Equals(letters, noun, StringComparison.OrdinalIgnoreCase) && i < trimmed.Length)
+                {
+                    continue;
+                }
+
+                runs.Add(
+                    IsPronounceableWord(letters) ? letters.ToLowerInvariant() : string.Join(' ', letters.Select(NatoPhoneticAlphabet.SpellChar))
+                );
+                continue;
+            }
+
+            if (char.IsDigit(c))
+            {
+                runs.Add(SpellDigit(c));
+            }
+            else if (c == '-')
+            {
+                runs.Add("dash");
+            }
+
+            i++;
+        }
+
+        return string.Join(' ', runs);
+    }
+
+    private static bool IsPronounceableWord(string letters) => letters.Length >= 4 && letters.Any(c => "AEIOUaeiou".Contains(c));
+
     /// <summary>Approach name like "ILS28R" → "I L S two eight right". Letters via NATO; L/R/C as words.</summary>
     public static string SpellApproach(string approachId)
     {
@@ -1266,6 +1348,8 @@ public static class PhraseologyVerbalizer
         public abstract string Fix(string fix);
         public abstract string FixSequence(IEnumerable<ResolvedFix> fixes);
         public abstract string Taxiway(string tw);
+        public abstract string Parking(string name);
+        public abstract string Spot(string name);
         public abstract string Callsign(string callsign);
         public abstract string Squawk(int code);
         public abstract string TaxiPath(TaxiCommand taxi);
@@ -1299,6 +1383,10 @@ public static class PhraseologyVerbalizer
         public override string FixSequence(IEnumerable<ResolvedFix> fixes) => SpellFixSequence(fixes);
 
         public override string Taxiway(string tw) => SpellTaxiway(tw);
+
+        public override string Parking(string name) => SpellDestinationName(name, "parking");
+
+        public override string Spot(string name) => SpellDestinationName(name, "spot");
 
         public override string Callsign(string callsign) => CallsignParser.IcaoToSpoken(callsign);
 
@@ -1341,6 +1429,10 @@ public static class PhraseologyVerbalizer
             string.Join(", ", fixes.Select(f => FixDisplayText(f.Name)).Where(s => s.Length > 0));
 
         public override string Taxiway(string tw) => tw.Trim().ToUpperInvariant();
+
+        public override string Parking(string name) => name.Trim().ToUpperInvariant();
+
+        public override string Spot(string name) => name.Trim().ToUpperInvariant();
 
         public override string Callsign(string callsign) => callsign.Trim().ToUpperInvariant();
 

@@ -632,6 +632,137 @@ public class PhraseologyMapperTests
     }
 
     [Theory]
+    [InlineData("taxi to parking bravo one two", "TAXI @B12")]
+    [InlineData("taxi to spot seven alpha", "TAXI $7A")]
+    [InlineData("taxi via alpha bravo to parking bravo one two", "TAXI A B @B12")]
+    [InlineData("taxi via alpha bravo to spot seven alpha", "TAXI A B $7A")]
+    [InlineData("taxi to parking bravo one two via alpha bravo", "TAXI A B @B12")]
+    [InlineData("taxi to spot seven alpha via alpha", "TAXI A $7A")]
+    [InlineData("taxi to parking four one dash one zero", "TAXI @41-10")]
+    [InlineData("taxi to gate bravo one two", "TAXI @B12")]
+    [InlineData("taxi to stand bravo one two via alpha", "TAXI A @B12")]
+    [InlineData("taxi via alpha to helipad heli one", "TAXI A @HELI1")]
+    public void Taxi_ToParkingOrSpot_JoinsTheSpokenName(string transcript, string expected)
+    {
+        // The capture is re-joined into the layout's name form. Both orders are accepted (AIM
+        // 4-3-18.b.4.c "taxi to Page via …" and §3-11-1.c "via … to …"); gate / stand / helipad
+        // are STT synonyms for the @ destination.
+        var result = PhraseologyMapper.Map(transcript, NoContext);
+        Assert.NotNull(result);
+        Assert.Equal(expected, result!.CanonicalCommand);
+    }
+
+    [Fact]
+    public void Taxi_ToParking_ValidatesAgainstTheLoadedLayout()
+    {
+        // With a layout loaded the spoken name must be one of its parking / spot / helipad names —
+        // word-like names ("JANET", "CARGO1") pass, an invented gate fails, and "spot seven" resolves
+        // to a layout that names its spots "SPOT7" (PHL).
+        var ctx = new MapContext([], []) { DestinationNames = new HashSet<string>(["JANET", "CARGO1", "SPOT7"], StringComparer.OrdinalIgnoreCase) };
+
+        Assert.Equal("TAXI @JANET", PhraseologyMapper.Map("taxi to parking janet", ctx)!.CanonicalCommand);
+        Assert.Equal("TAXI A @CARGO1", PhraseologyMapper.Map("taxi via alpha to parking cargo one", ctx)!.CanonicalCommand);
+        Assert.Equal("TAXI $SPOT7", PhraseologyMapper.Map("taxi to spot seven", ctx)!.CanonicalCommand);
+        Assert.Null(PhraseologyMapper.Map("taxi to parking bravo one two", ctx));
+
+        // Without a layout a bare English word is still rejected — nothing to validate it against.
+        Assert.Null(PhraseologyMapper.Map("taxi to parking janet", NoContext));
+    }
+
+    [Theory]
+    [InlineData("taxi to parking sierra bravo echo four", "TAXI @SBE4")]
+    [InlineData("taxi to parking delta one two", "TAXI @D12")]
+    public void Taxi_ToParking_TelephonyShapedTailStaysPartOfTheName(string transcript, string expected)
+    {
+        // "echo four" spells ECS4 and "delta one two" spells DAL12, but nobody by those callsigns is
+        // on frequency — the tokens after the noun are the position's name.
+        var result = PhraseologyMapper.Map(transcript, NoContext);
+        Assert.NotNull(result);
+        Assert.Null(result!.Callsign);
+        Assert.Equal(expected, result.CanonicalCommand);
+    }
+
+    [Fact]
+    public void Taxi_ToParking_BareNounNeverLosesItsNameToACallsign()
+    {
+        // Even with DAL12 on frequency, "parking" followed by nothing is not a clearance — the name
+        // reading wins directly after the noun.
+        var result = PhraseologyMapper.Map("taxi to parking delta one two", new MapContext(["DAL12"], []));
+        Assert.NotNull(result);
+        Assert.Null(result!.Callsign);
+        Assert.Equal("TAXI @D12", result.CanonicalCommand);
+    }
+
+    [Fact]
+    public void Taxi_ToParking_TrailingCallsignAfterTheNameIsStillExtracted()
+    {
+        var result = PhraseologyMapper.Map("taxi to parking bravo one two delta one five", new MapContext(["DAL15"], []));
+        Assert.NotNull(result);
+        Assert.Equal("DAL15", result!.Callsign);
+        Assert.Equal("TAXI @B12", result.CanonicalCommand);
+    }
+
+    [Fact]
+    public void Taxi_ToParking_TelephonyShapedNameIsTheCallsignOnlyWhenOnFrequency()
+    {
+        // "bravo one two" spells both gate B12 and airline callsign BRV12. With BRV12 on frequency the
+        // trailing tokens are the callsign and the gate is C3; otherwise the whole spelling is the gate.
+        const string transcript = "taxi to parking charlie three bravo one two";
+
+        var onFrequency = PhraseologyMapper.Map(transcript, new MapContext(["BRV12"], []));
+        Assert.NotNull(onFrequency);
+        Assert.Equal("BRV12", onFrequency!.Callsign);
+        Assert.Equal("TAXI @C3", onFrequency.CanonicalCommand);
+
+        var notOnFrequency = PhraseologyMapper.Map(transcript, NoContext);
+        Assert.NotNull(notOnFrequency);
+        Assert.Null(notOnFrequency!.Callsign);
+        Assert.Equal("TAXI @C3B12", notOnFrequency.CanonicalCommand);
+    }
+
+    [Fact]
+    public void Taxi_ToParkingWithAnEnglishWord_IsRejected()
+    {
+        // "the ramp" is not a name a layout could resolve — reject so the LLM path gets the transcript.
+        Assert.Null(PhraseologyMapper.Map("taxi to parking the ramp", NoContext));
+    }
+
+    [Theory]
+    [InlineData("B 12", "parking", "", "B12")]
+    [InlineData("41 dash 10", "parking", "", "41-10")]
+    [InlineData("ATLANTIC 1", "parking", "", "ATLANTIC1")]
+    [InlineData("B 12 via A", "parking", "", null)]
+    [InlineData("B 12 hold short of runway 28R", "parking", "", null)]
+    [InlineData("the ramp", "parking", "", null)]
+    [InlineData("janet", "parking", "", null)]
+    [InlineData("janet", "parking", "JANET,CARGO1", "JANET")]
+    [InlineData("7", "spot", "SPOT7", "SPOT7")]
+    [InlineData("B 12", "parking", "JANET", null)]
+    public void ResolveDestinationName_JoinsAndValidates(string spoken, string capture, string layoutNames, string? expected)
+    {
+        // A greedy capture that swallowed a route word is a mis-parse; with a layout loaded the name
+        // must be one of its positions (or the noun-prefixed form PHL uses for spots).
+        var names = new HashSet<string>(layoutNames.Split(',', StringSplitOptions.RemoveEmptyEntries), StringComparer.OrdinalIgnoreCase);
+
+        Assert.Equal(expected, PhraseologyMapper.ResolveDestinationName(spoken, capture, names));
+    }
+
+    [Theory]
+    [InlineData("taxi to parking bravo one two hold short of runway two eight right", "TAXI @B12 HS 28R")]
+    [InlineData("taxi via alpha to spot seven alpha cross runway two eight right", "TAXI A $7A CROSS 28R")]
+    [InlineData(
+        "taxi to parking bravo one two via alpha cross runway two eight left hold short of runway two eight right",
+        "TAXI A @B12 CROSS 28L HS 28R"
+    )]
+    [InlineData("taxi via alpha to parking bravo one two hold short of charlie at juliett", "TAXI A @B12 HS C@J")]
+    public void Taxi_ToParkingWithRunwayClauses_KeepsTheWholeClearance(string transcript, string expected)
+    {
+        var result = PhraseologyMapper.Map(transcript, NoContext);
+        Assert.NotNull(result);
+        Assert.Equal(expected, result!.CanonicalCommand);
+    }
+
+    [Theory]
     [InlineData("taxi to runway two eight right", "TAXI 28R")]
     [InlineData("taxi runway one left", "TAXI 01L")]
     public void Taxi_ToRunwayWithoutPath_IsBareRunwayTaxi(string transcript, string expected)

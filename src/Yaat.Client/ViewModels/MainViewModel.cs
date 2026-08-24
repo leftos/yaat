@@ -1858,6 +1858,7 @@ public partial class MainViewModel : ObservableObject
         // to disambiguate multi-letter taxiway names during NATO collapse. Falls back to empty
         // when no ground layout is loaded — single-letter splits still work in that case.
         var taxiwayNames = CollectLoadedTaxiwayNames();
+        var destinationNames = CollectLoadedDestinationNames();
 
         return new SpeechContext(callsigns, programmedFixes, whisperInitialPrompt)
         {
@@ -1865,8 +1866,33 @@ public partial class MainViewModel : ObservableObject
             AvailableRunways = availableRunways,
             AircraftDestinations = aircraftDestinations,
             TaxiwayNames = taxiwayNames,
+            DestinationNames = destinationNames,
             Procedures = procedures,
         };
+    }
+
+    /// <summary>
+    /// Parking, spot, and helipad names of the currently-loaded ground layout — the names a spoken
+    /// "taxi to parking …" / "taxi to spot …" may resolve to. Empty when no ground layout is loaded.
+    /// </summary>
+    private HashSet<string> CollectLoadedDestinationNames()
+    {
+        var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var layout = Ground.DomainLayout;
+        if (layout is null)
+        {
+            return names;
+        }
+
+        foreach (var node in layout.Nodes.Values)
+        {
+            if (node.Type is GroundNodeType.Parking or GroundNodeType.Spot or GroundNodeType.Helipad && !string.IsNullOrEmpty(node.Name))
+            {
+                names.Add(node.Name.ToUpperInvariant());
+            }
+        }
+
+        return names;
     }
 
     /// <summary>

@@ -16,6 +16,28 @@ namespace Yaat.Sim.Tests;
 /// </summary>
 public class GroundCommandParserBareRunwayTests
 {
+    [Fact]
+    public void RunwayBeforeParkingDestination_IsTaxiedAlong()
+    {
+        // The ramp is the destination; the runway is a path segment, not a takeoff assignment.
+        var result = GroundCommandParser.ParseTaxi("G 28R @B12");
+
+        Assert.True(result.IsSuccess, result.Reason);
+        var taxi = Assert.IsType<TaxiCommand>(result.Value);
+        Assert.Equal(["G", "28R"], taxi.Path);
+        Assert.Null(taxi.DestinationRunway);
+        Assert.Equal("B12", taxi.DestinationParking);
+    }
+
+    [Theory]
+    [InlineData("A RWY 28R @B12")]
+    [InlineData("A RWY 28R $7A")]
+    public void RunwayAssignmentWithParkingDestination_IsRejected(string arg)
+    {
+        Assert.False(GroundCommandParser.ParseTaxi(arg).IsSuccess);
+        Assert.False(GroundCommandParser.ParseRwyTaxi($"28R TAXI {arg.Replace("RWY 28R ", "")}").IsSuccess);
+    }
+
     [Theory]
     [InlineData("1L")]
     [InlineData("28L")]

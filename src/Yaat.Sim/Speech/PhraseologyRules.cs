@@ -682,6 +682,8 @@ public static class PhraseologyRules
     // Accepted taxi phraseology (pilot-side):
     //   - "Taxi to runway 28R" — runway only, no route (an aircraft already at its runway; also the
     //     TAXIAUTO readback)
+    //   - "Taxi to parking bravo one two" / "Taxi via alpha bravo to spot seven alpha" / "Taxi to
+    //     gate cargo one via alpha" — parking or spot destination, with or without a route
     //   - "Taxi via delta hotel" — path only
     //   - "Runway 28R, taxi via bravo charlie" — canonical departure clearance readback
     //   - "Taxi to runway 28R via bravo charlie" — pilot colloquialism; not 7110.65 controller
@@ -693,6 +695,76 @@ public static class PhraseologyRules
     // Alphanumeric taxiway names ("B6", "A13") are deferred — "bravo six" normalization collides
     // with AtcNumberParser's digit pass. Those transcripts fall through to the LLM fallback.
 
+    /// <summary>
+    /// Spoken nouns that introduce a parking / spot destination name in a taxi clearance. Shared with
+    /// <see cref="PhraseologyMapper"/>, which treats the tokens after one of these as the position's
+    /// name when deciding whether a trailing telephony-shaped run is a callsign.
+    /// </summary>
+    public static readonly IReadOnlySet<string> DestinationNouns = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+    {
+        "parking",
+        "spot",
+        "gate",
+        "stand",
+        "helipad",
+    };
+
+    /// <summary>
+    /// STT-only twins of the "parking" rules for the synonyms crews actually say — "gate" (AIM 5-2-1),
+    /// "stand", and "helipad" (7110.65 §3-11-1.c) — all mapping to the <c>@</c> destination.
+    /// </summary>
+    private static IEnumerable<PhraseologyRule> ParkingSynonymRules()
+    {
+        foreach (var noun in new[] { "gate", "stand", "helipad" })
+        {
+            yield return new(["taxi", "to?", noun, "{parking...}"], "TAXI @{parking}", Taxi, SttOnly: true);
+            yield return new(["taxi", "to?", noun, "{parking...}", "via", "{path...}"], "TAXI {path} @{parking}", Taxi, SttOnly: true);
+            yield return new(["taxi", "via", "{path...}", "to", noun, "{parking...}"], "TAXI {path} @{parking}", Taxi, SttOnly: true);
+        }
+    }
+
+    /// <summary>
+    /// STT-only parking / spot destination rules that also carry a runway crossing and / or hold-short
+    /// ("taxi via alpha to parking bravo one two, cross runway two eight left, hold short of runway two
+    /// eight right"), in every destination order. Without them the mapper would drop the taxi clause and
+    /// keep only the crossing. The pilot AI direct-renders these shapes, so no TTS twin is needed.
+    /// </summary>
+    private static IEnumerable<PhraseologyRule> ParkingRunwayClauseRules()
+    {
+        (string Noun, string Capture, string Sigil)[] destinations = [("parking", "parking", "@"), ("spot", "spot", "$")];
+        (string[] Pattern, string Template)[] runwayClauses =
+        [
+            (
+                ["cross", "runway", "{crossrwy}", "hold", "short", "of?", "runway?", "{holdshort}", "at", "{hson}"],
+                " CROSS {crossrwy} HS {holdshort}@{hson}"
+            ),
+            (["cross", "runway", "{crossrwy}", "hold", "short", "of?", "runway?", "{holdshort}"], " CROSS {crossrwy} HS {holdshort}"),
+            (["cross", "runway", "{crossrwy}"], " CROSS {crossrwy}"),
+            (["hold", "short", "of?", "runway?", "{holdshort}", "at", "{hson}"], " HS {holdshort}@{hson}"),
+            (["hold", "short", "of?", "runway?", "{holdshort}"], " HS {holdshort}"),
+        ];
+
+        foreach (var (noun, capture, sigil) in destinations)
+        {
+            var name = "{" + capture + "...}";
+            var destination = sigil + "{" + capture + "}";
+            (string[] Pattern, string Template)[] orders =
+            [
+                (["taxi", "to?", noun, name], "TAXI " + destination),
+                (["taxi", "to?", noun, name, "via", "{path...}"], "TAXI {path} " + destination),
+                (["taxi", "via", "{path...}", "to", noun, name], "TAXI {path} " + destination),
+            ];
+
+            foreach (var (orderPattern, orderTemplate) in orders)
+            {
+                foreach (var (clausePattern, clauseTemplate) in runwayClauses)
+                {
+                    yield return new([.. orderPattern, .. clausePattern], orderTemplate + clauseTemplate, Taxi, SttOnly: true);
+                }
+            }
+        }
+    }
+
     private static PhraseologyRule[] GroundRules() =>
         [
             // Taxi — runway-only, path-only and path-with-runway forms. The runway-only form is the
@@ -700,6 +772,22 @@ public static class PhraseologyRules
             // TAXIAUTO); the via forms below carry more captures and win whenever a route is spoken.
             // Shortcut is the AIM 4-3-18.a.9 mandatory readback (runway assignment alone).
             new(["taxi", "to?", "runway", "{rwy}"], "TAXI {rwy}", Taxi, PilotShortcuts: ["runway {rwy}"]),
+            // Parking / spot destinations — 7110.65 §3-7-2.a "TAXI TO (location)", the pilot naming
+            // the position. The name is spoken as words and characters ("cargo one", "bravo one
+            // two", "four one dash one zero"), so it is a variadic capture that PhraseologyMapper
+            // re-joins into the layout's name form. Both orders are accepted: "to (location) via
+            // (route)" (AIM 4-3-18.b.4.c) and "via (route) to (location)" (§3-11-1.c). A variadic
+            // must be followed by a required literal, so the "to"/"via" after it are mandatory.
+            // The pilot AI always reads a parking destination back as "parking"; the airline
+            // vocabulary ("gate", "stand") and "helipad" are STT-only synonyms for the @ form.
+            new(["taxi", "to?", "parking", "{parking...}"], "TAXI @{parking}", Taxi),
+            new(["taxi", "to?", "spot", "{spot...}"], "TAXI ${spot}", Taxi),
+            new(["taxi", "to?", "parking", "{parking...}", "via", "{path...}"], "TAXI {path} @{parking}", Taxi),
+            new(["taxi", "to?", "spot", "{spot...}", "via", "{path...}"], "TAXI {path} ${spot}", Taxi),
+            new(["taxi", "via", "{path...}", "to", "parking", "{parking...}"], "TAXI {path} @{parking}", Taxi),
+            new(["taxi", "via", "{path...}", "to", "spot", "{spot...}"], "TAXI {path} ${spot}", Taxi),
+            .. ParkingSynonymRules(),
+            .. ParkingRunwayClauseRules(),
             new(["taxi", "via", "{path...}"], "TAXI {path}", Taxi),
             new(["taxi", "to?", "runway", "{rwy}", "via", "{path...}"], "TAXI {path} {rwy}", Taxi),
             new(["runway", "{rwy}", "taxi", "via", "{path...}"], "TAXI {path} {rwy}", Taxi),

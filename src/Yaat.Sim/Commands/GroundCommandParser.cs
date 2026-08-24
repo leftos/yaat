@@ -248,6 +248,11 @@ internal static class GroundCommandParser
             return result.IsSuccess ? PR.Fail("invalid RWY taxi path") : result;
         }
 
+        if (taxi.DestinationParking is not null || taxi.DestinationSpot is not null)
+        {
+            return PR.Fail("a taxi clearance cannot name both a runway (RWY) and a parking/spot destination");
+        }
+
         return PR.Ok(
             new TaxiCommand(
                 taxi.Path,
@@ -375,8 +380,9 @@ internal static class GroundCommandParser
         // If no explicit RWY keyword, check if last path token is a runway. A lone runway token
         // (TAXI 1L) is a destination too — the aircraft is expected to already be at that runway;
         // TryTaxi enforces that. A runway followed by taxiways (TAXI 28R G D) stays a path
-        // segment the aircraft taxis along.
-        if (detectTrailingRunway && destRunway is null && path.Count >= 1)
+        // segment the aircraft taxis along, as does a runway before a parking / spot destination
+        // (TAXI G 28R @B12 taxis along 28R to the ramp — the destination is the ramp).
+        if (detectTrailingRunway && destRunway is null && destParking is null && destSpot is null && path.Count >= 1)
         {
             var last = path[^1];
             if (CommandParser.IsRunwayArg(last))
@@ -390,6 +396,13 @@ internal static class GroundCommandParser
         // Carry hints only when at least one taxiway was actually prefixed; otherwise leave null so
         // the common un-hinted command is unchanged and the parallel list never desyncs from Path.
         List<TurnDirection?>? turnHints = pathTurnHints.Exists(h => h is not null) ? pathTurnHints : null;
+
+        // A takeoff-runway assignment and a ramp destination contradict each other (7110.65 §3-7-2.b's
+        // leading-runway form is for an assigned takeoff runway).
+        if (destRunway is not null && (destParking is not null || destSpot is not null))
+        {
+            return PR.Fail("a taxi clearance cannot name both a runway (RWY) and a parking/spot destination");
+        }
 
         // Allow an empty path when a destination is set (the handler resolves the route)
         if (path.Count == 0 && destRunway is null && destParking is null && destSpot is null)

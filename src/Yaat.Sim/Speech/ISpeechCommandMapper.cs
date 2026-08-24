@@ -56,6 +56,15 @@ public sealed record MapContext(IReadOnlyCollection<string> ActiveCallsigns, IRe
     public IReadOnlySet<string> TaxiwayNames { get; init; } = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>
+    /// Parking, spot, and helipad names (uppercase, case-insensitive) of the currently-loaded ground
+    /// layout. <see cref="PhraseologyMapper"/> validates a spoken taxi destination ("taxi to parking
+    /// cargo one") against it, so a misheard or invented name fails the rule and falls through to the
+    /// LLM fallback. Empty when no ground layout is loaded — the mapper then accepts any short
+    /// alphanumeric code instead.
+    /// </summary>
+    public IReadOnlySet<string> DestinationNames { get; init; } = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
     /// SID and STAR patterns for the active aircraft's filed departure and destination airports
     /// (plus the primary scenario airport as fallback). Used by <see cref="SidStarNameNormalizer"/>
     /// to collapse multi-token spoken procedure names ("eagul five" → "EAGUL5") into single

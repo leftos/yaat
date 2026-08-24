@@ -5,6 +5,8 @@
 ### Added
 - Ground view datablocks show a beacon-code mismatch line (`1200 0301` — reported code solid, assigned code pulsing) just like the radar datablock, so a departure still squawking the wrong code is visible on the surface display before it reaches the scope. (#397)
 - Pilots read back a route-less taxi clearance (`TAXI 1L`, `TAXIAUTO 1L`) as "taxi to runway one left", and speech input accepts "taxi to runway two eight right".
+- Pilots read back taxi clearances to a parking position or spot — "taxi via alpha, bravo to parking bravo one two" — ahead of any cross or hold-short clause, with word-like names spoken as words (`CARGO1` → "cargo one").
+- Speech input accepts "taxi to parking/gate/spot …" before or after the route, with cross and hold-short clauses, and validates the name against the loaded airport's parking and spot names.
 
 ### Fixed
 - Taxi clearances no longer detour back to a hold-short taxiway the cleared route already crosses (SFO `TAXI T7A A A1 1R HS H` now stays on A to A1).
@@ -13,6 +15,7 @@
 - Scenario departures spawned at their runway bar with a route-less `TAXI 1L` preset hold short of 1L (and line up on `POS`) instead of taxiing the runway's length to the reciprocal end.
 - A route-less `TAXI <rwy>` is honoured only when the aircraft is already at that runway; anywhere else it is refused with a pointer at `TAXI <route> <rwy>` or `TAXIAUTO <rwy>`.
 - Strip presets (`STRIP`, `SCAN`, `HSM`, …) fire while an aircraft is taxiing or holding short instead of being refused by the ground phase gate.
+- `TAXI A RWY 28R @B12` is rejected as contradictory instead of assigning a takeoff runway to a ramp-bound aircraft.
 
 ## v0.12.16-beta [2026/08/22]
 

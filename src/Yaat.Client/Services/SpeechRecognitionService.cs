@@ -115,6 +115,13 @@ public sealed record SpeechContext(IReadOnlyList<string> ActiveCallsigns, IReadO
     public IReadOnlySet<string> TaxiwayNames { get; init; } = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>
+    /// Uppercase parking / spot / helipad names of the loaded ground layout. Passed through to
+    /// <see cref="MapContext.DestinationNames"/> so a spoken taxi destination is validated against
+    /// the airport. Empty when no ground layout is loaded.
+    /// </summary>
+    public IReadOnlySet<string> DestinationNames { get; init; } = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
     /// SID / STAR procedure patterns for every airport relevant to the active scenario
     /// (filed departures + destinations + primary scenario airport). Passed through to
     /// <see cref="MapContext.Procedures"/> so <see cref="SidStarNameNormalizer"/> can collapse
@@ -543,6 +550,7 @@ public sealed class SpeechRecognitionService : IDisposable
             AvailableRunways = ctx.AvailableRunways,
             AircraftDestinations = ctx.AircraftDestinations,
             TaxiwayNames = ctx.TaxiwayNames,
+            DestinationNames = ctx.DestinationNames,
             Procedures = ctx.Procedures,
         };
 

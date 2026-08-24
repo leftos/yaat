@@ -93,6 +93,29 @@ public static class PhraseologyMapper
     private static readonly HashSet<string> TaxiwayLikeCaptureNames = new(StringComparer.OrdinalIgnoreCase) { "taxiway", "hson" };
 
     /// <summary>
+    /// Captures that hold a parking / spot name. The variadic capture arrives space-joined ("B 12",
+    /// "cargo 1", "41 dash 10") and is re-joined into the layout's name form.
+    /// </summary>
+    private static readonly HashSet<string> DestinationNameCaptureNames = new(StringComparer.OrdinalIgnoreCase) { "parking", "spot" };
+
+    /// <summary>
+    /// Route words that can never be part of a destination name. A greedy <c>{parking...}</c> capture
+    /// that swallowed one of these ("B 12 via A") is a mis-parse, not a name.
+    /// </summary>
+    private static readonly HashSet<string> DestinationNameStopWords = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "via",
+        "to",
+        "taxi",
+        "then",
+        "hold",
+        "short",
+        "cross",
+        "runway",
+        "and",
+    };
+
+    /// <summary>
     /// Map a transcript to a canonical YAAT command. Returns null when no rule matched any part
     /// of the transcript. Equivalent to <see cref="MapWithTrace"/> with the trace discarded —
     /// callers that need to display or persist per-stage diagnostics should call
@@ -548,6 +571,24 @@ public static class PhraseologyMapper
                 }
             }
 
+            // Post-pass: re-join parking / spot names and validate them against the loaded layout
+            // (or, with no layout, against the shape of a real name). Anything else rejects the
+            // rule so the LLM fallback gets the transcript.
+            foreach (var name in DestinationNameCaptureNames)
+            {
+                if (captures.TryGetValue(name, out var rawValue))
+                {
+                    var resolved = ResolveDestinationName(rawValue, name, context.DestinationNames);
+                    if (resolved is null)
+                    {
+                        Log.LogDebug("[Speech] DestinationName: \"{Raw}\" is not a parking/spot name, rule rejected", rawValue);
+                        output = "";
+                        return false;
+                    }
+                    captures[name] = resolved;
+                }
+            }
+
             // Post-pass: validate SID/STAR procedure captures against MapContext.Procedures.
             // SidStarNameNormalizer collapses spoken procedure names into the canonical token
             // before rule matching; any {sid}/{star} capture that didn't come from that collapse
@@ -771,12 +812,58 @@ public static class PhraseologyMapper
         var trailing = CallsignParser.TryParseTrailing(joined, activeCallsigns);
         if (trailing is not null)
         {
-            start = tokens.Count - trailing.TokensConsumed;
+            int trailingStart = tokens.Count - trailing.TokensConsumed;
+
+            // "taxi to parking bravo one two" / "… parking sierra bravo echo four": the tokens after
+            // "parking" / "spot" are the position's name, which an airline telephony plus digits also
+            // spells ("Bravo" = BRV, "Echo" = ECS, "Delta" = DAL). Directly after the noun the name
+            // reading always wins — a bare noun with no name is never a valid clearance. Deeper in the
+            // name the callsign reading wins only when that callsign is actually on frequency.
+            if (IsInsideDestinationName(tokens, trailingStart, out bool directlyAfterNoun))
+            {
+                bool onFrequency = activeCallsigns.Contains(trailing.IcaoCallsign, StringComparer.OrdinalIgnoreCase);
+                if (directlyAfterNoun || !onFrequency)
+                {
+                    Log.LogDebug(
+                        "[Speech] CallsignExtract: \"{Spoken}\" after parking/spot read as the position name, not {Callsign}",
+                        string.Join(' ', tokens.Skip(trailingStart)),
+                        trailing.IcaoCallsign
+                    );
+                    return null;
+                }
+            }
+
+            start = trailingStart;
             end = tokens.Count;
             return trailing.IcaoCallsign;
         }
 
         return null;
+    }
+
+    /// <summary>
+    /// True when <paramref name="index"/> lies inside a destination name: walking back from it reaches
+    /// one of <see cref="PhraseologyRules.DestinationNouns"/> before any route word. A name runs to the
+    /// end of the transcript or to the next "via", so anything between the noun and the index is name.
+    /// </summary>
+    private static bool IsInsideDestinationName(List<string> tokens, int index, out bool directlyAfterNoun)
+    {
+        directlyAfterNoun = false;
+        for (int i = index - 1; i >= 0; i--)
+        {
+            if (PhraseologyRules.DestinationNouns.Contains(tokens[i]))
+            {
+                directlyAfterNoun = i == index - 1;
+                return true;
+            }
+
+            if (DestinationNameStopWords.Contains(tokens[i]))
+            {
+                return false;
+            }
+        }
+
+        return false;
     }
 
     /// <summary>
@@ -951,6 +1038,41 @@ public static class PhraseologyMapper
         }
 
         return null;
+    }
+
+    /// <summary>
+    /// "B 12" → "B12", "cargo 1" → "CARGO1", "41 dash 10" → "41-10", then validated. With a loaded layout
+    /// the joined name must be one of its parking / spot / helipad names — "spot seven" also resolves to a
+    /// layout's "SPOT7" (PHL names its spots that way). With no layout, the name must merely look like a
+    /// code: 1-9 letters, digits and dashes, and not a letters-only English word longer than a ramp code
+    /// ("GA", "FBO"). Null when the capture swallowed a route word or fails validation.
+    /// </summary>
+    public static string? ResolveDestinationName(string spokenName, string captureName, IReadOnlySet<string> layoutNames)
+    {
+        var parts = spokenName.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        if (parts.Any(DestinationNameStopWords.Contains))
+        {
+            return null;
+        }
+
+        var joined = string.Concat(parts.Select(p => string.Equals(p, "dash", StringComparison.OrdinalIgnoreCase) ? "-" : p)).ToUpperInvariant();
+        if (joined.Length is < 1 or > 9 || !joined.Any(char.IsLetterOrDigit) || !joined.All(c => char.IsLetterOrDigit(c) || c == '-'))
+        {
+            return null;
+        }
+
+        if (layoutNames.Count > 0)
+        {
+            if (layoutNames.Contains(joined))
+            {
+                return joined;
+            }
+
+            var nounPrefixed = captureName.ToUpperInvariant() + joined;
+            return layoutNames.Contains(nounPrefixed) ? nounPrefixed : null;
+        }
+
+        return (!joined.Any(char.IsDigit) && joined.Length > 3) ? null : joined;
     }
 
     /// <summary>
