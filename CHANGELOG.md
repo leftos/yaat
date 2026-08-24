@@ -8,6 +8,7 @@
 ### Fixed
 - Taxi clearances no longer detour back to a hold-short taxiway the cleared route already crosses (SFO `TAXI T7A A A1 1R HS H` now stays on A to A1).
 - **Edit lines** on a half-strip (Strips tab or the vStrips web app) keeps each line separate instead of collapsing them into one, and no longer writes the strip id or a duplicate callsign into aircraft-scoped half-strips.
+- Taxi clearances to a gate or spot now echo the pathfinder's warnings (unapplied hold-shorts, taxiways not in the route, connector notices) like runway clearances.
 
 ## v0.12.16-beta [2026/08/22]
 

@@ -1056,8 +1056,12 @@ internal static class GroundCommandHandler
         // cached one), so endNodeId may already be destNode.
         int endNodeId = explicitRoute.Segments.Count > 0 ? explicitRoute.Segments[^1].ToNodeId : startNode.Id;
 
+        // The materialised explicit route already carries the controller-facing warnings ("HS … not
+        // applied", "taxiing via X — not in the route issued", connector notices) and its connector
+        // count; the rebuild below must keep them or a parking clearance echoes none of them.
         List<TaxiRouteSegment> combined;
         List<HoldShortPoint> holdShorts;
+        List<string> warnings = [.. explicitRoute.Warnings];
         if (endNodeId == destNode.Id)
         {
             combined = [.. explicitRoute.Segments];
@@ -1079,6 +1083,7 @@ internal static class GroundCommandHandler
 
             holdShorts = [.. explicitRoute.HoldShortPoints];
             HoldShortAnnotator.AddImplicitRunwayHoldShorts(groundLayout, extension.Segments, holdShorts);
+            warnings.AddRange(extension.Warnings);
         }
 
         // Safety net: the route resolver should eliminate reversals (a→b immediately
@@ -1103,7 +1108,16 @@ internal static class GroundCommandHandler
             }
         }
 
-        return SetDestination(new TaxiRoute { Segments = combined, HoldShortPoints = holdShorts }, taxi);
+        return SetDestination(
+            new TaxiRoute
+            {
+                Segments = combined,
+                HoldShortPoints = holdShorts,
+                Warnings = warnings,
+                MandatoryConnectorCount = explicitRoute.MandatoryConnectorCount,
+            },
+            taxi
+        );
     }
 
     private static TaxiRoute SetDestination(TaxiRoute route, TaxiCommand taxi)
@@ -1114,6 +1128,7 @@ internal static class GroundCommandHandler
             Segments = route.Segments,
             HoldShortPoints = route.HoldShortPoints,
             Warnings = route.Warnings,
+            MandatoryConnectorCount = route.MandatoryConnectorCount,
             DestinationParking = taxi.DestinationParking,
             DestinationSpot = taxi.DestinationSpot,
         };
