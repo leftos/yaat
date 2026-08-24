@@ -68,7 +68,7 @@ public class ParkingTaxiReadbackTests(ITestOutputHelper output)
         // 7110.65 §3-7-2.a: the route, then the hold-short — the mandatory item is read back last.
         var spoken = Spoken(new TaxiCommand(["A", "B"], [HoldShortTarget.Parse("28R")], DestinationParking: "B12"));
 
-        Assert.Equal("taxi via alpha, bravo to parking bravo one two hold short of runway two eight right", spoken);
+        Assert.Equal("taxi via alpha, bravo to parking bravo one two, hold short of runway two eight right", spoken);
     }
 
     [Fact]
@@ -76,7 +76,7 @@ public class ParkingTaxiReadbackTests(ITestOutputHelper output)
     {
         var spoken = Spoken(new TaxiCommand(["A", "B"], [], DestinationParking: "B12", CrossRunways: ["28R"]));
 
-        Assert.Equal("taxi via alpha, bravo to parking bravo one two cross runway two eight right", spoken);
+        Assert.Equal("taxi via alpha, bravo to parking bravo one two, cross runway two eight right", spoken);
     }
 
     [Fact]
