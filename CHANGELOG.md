@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+### Added
+- Ground view datablocks show a beacon-code mismatch line (`1200 0301` — reported code solid, assigned code pulsing) just like the radar datablock, so a departure still squawking the wrong code is visible on the surface display before it reaches the scope. (#397)
+
 ## v0.12.16-beta [2026/08/22]
 
 ### Highlights

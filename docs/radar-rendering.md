@@ -267,8 +267,11 @@ overlap from 6 nm apart, so the overlap is not the alert condition; the peer's *
 
 ### Beacon-code mismatch (squawk mismatch)
 
-`RadarDatablockLayout.TryGetSquawkMismatch(ac, out reported, out assigned)` is the **single shared gate** used by both
-the STARS datablock (`Compute`) and the EuroScope tag (`Layout`). It emulates CRC STARS
+`RadarDatablockLayout.TryGetSquawkMismatch(ac, out reported, out assigned)` is the **single shared gate** used by the
+STARS datablock (`Compute`), the EuroScope tag (`Layout`), **and the Ground View datablock**
+(`Ground/GroundRenderer.cs` `DataBlockLayout.SquawkLine`, drawn through the static
+`TargetRenderer.DrawSquawkMismatchLine` overload — see [ground-rendering.md](ground-rendering.md#datablock-composition)),
+so a change to the gate or the pulse treatment lands on all three surfaces at once. It emulates CRC STARS
 (`DisplayElementTracks.BuildFdb`): when an aircraft is squawking a code that differs from its ATC-assigned code, the
 block shows the **reported code solid** followed by the **assigned code**, and the renderer draws the assigned token
 **dim-pulsing** — dimmed to ~25% brightness on the 500 ms off-phase (`TargetRenderer.DimColor`, mirroring CRC's

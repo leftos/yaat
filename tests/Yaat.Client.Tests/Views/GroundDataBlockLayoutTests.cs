@@ -216,6 +216,140 @@ public class GroundDataBlockLayoutTests
         Assert.Equal(baseline.LineHeight, delta, precision: 3);
     }
 
+    private static AircraftModel CreateMismatchModel()
+    {
+        var ac = CreateModel();
+        ac.BeaconCode = 1200;
+        ac.AssignedBeaconCode = 301;
+        ac.TransponderMode = "C";
+        return ac;
+    }
+
+    [Fact]
+    public void SquawkLine_ShowsReportedThenAssigned_WhenMismatch()
+    {
+        var baselineAc = CreateModel();
+        var ac = CreateMismatchModel();
+        var style = CreateStyle();
+
+        var baseline = DataBlockLayout.Compute(baselineAc, screenX: 100, screenY: 100, offset: new SKPoint(30, -25), style, isAirborne: false);
+        var layout = DataBlockLayout.Compute(ac, screenX: 100, screenY: 100, offset: new SKPoint(30, -25), style, isAirborne: false);
+
+        Assert.Equal("1200 0301", layout.SquawkLine);
+        Assert.Equal("", layout.Line4);
+        Assert.Equal(baseline.LineCount + 1, layout.LineCount);
+    }
+
+    [Fact]
+    public void SquawkLine_Empty_WhenCodesMatch()
+    {
+        var ac = CreateMismatchModel();
+        ac.BeaconCode = 301;
+        var style = CreateStyle();
+
+        var layout = DataBlockLayout.Compute(ac, screenX: 100, screenY: 100, offset: new SKPoint(30, -25), style, isAirborne: false);
+
+        Assert.Equal("", layout.SquawkLine);
+        Assert.Equal(2, layout.LineCount);
+    }
+
+    [Fact]
+    public void SquawkLine_Empty_WhenNoAssignedCode()
+    {
+        var ac = CreateMismatchModel();
+        ac.AssignedBeaconCode = 0;
+        var style = CreateStyle();
+
+        var layout = DataBlockLayout.Compute(ac, screenX: 100, screenY: 100, offset: new SKPoint(30, -25), style, isAirborne: false);
+
+        Assert.Equal("", layout.SquawkLine);
+    }
+
+    [Fact]
+    public void SquawkLine_Empty_WhenStandby_SqStbyShownInstead()
+    {
+        var ac = CreateMismatchModel();
+        ac.TransponderMode = "Standby";
+        var style = CreateStyle();
+
+        var layout = DataBlockLayout.Compute(ac, screenX: 100, screenY: 100, offset: new SKPoint(30, -25), style, isAirborne: false);
+
+        Assert.Equal("", layout.SquawkLine);
+        Assert.Equal("SqStby", layout.Line4);
+        Assert.Equal(3, layout.LineCount);
+    }
+
+    [Fact]
+    public void SquawkLine_Empty_WhenSpecialPurposeCode()
+    {
+        var ac = CreateMismatchModel();
+        ac.BeaconCode = 7700;
+        var style = CreateStyle();
+
+        var layout = DataBlockLayout.Compute(ac, screenX: 100, screenY: 100, offset: new SKPoint(30, -25), style, isAirborne: false);
+
+        Assert.Equal("", layout.SquawkLine);
+    }
+
+    [Fact]
+    public void SquawkLine_Empty_WhenCommandedSquawkVfr()
+    {
+        var ac = CreateMismatchModel();
+        ac.CommandedSquawkVfr = true;
+        var style = CreateStyle();
+
+        var layout = DataBlockLayout.Compute(ac, screenX: 100, screenY: 100, offset: new SKPoint(30, -25), style, isAirborne: false);
+
+        Assert.Equal("", layout.SquawkLine);
+    }
+
+    [Fact]
+    public void SquawkLine_CoexistsWithHoldStatus()
+    {
+        var baselineAc = CreateModel();
+        var ac = CreateMismatchModel();
+        ac.HoldKind = "HoldPosition";
+        var style = CreateStyle();
+
+        var baseline = DataBlockLayout.Compute(baselineAc, screenX: 100, screenY: 100, offset: new SKPoint(30, -25), style, isAirborne: false);
+        var layout = DataBlockLayout.Compute(ac, screenX: 100, screenY: 100, offset: new SKPoint(30, -25), style, isAirborne: false);
+
+        Assert.Equal("1200 0301", layout.SquawkLine);
+        Assert.Equal("HOLD", layout.Line4);
+        Assert.Equal(baseline.LineCount + 2, layout.LineCount);
+    }
+
+    [Fact]
+    public void SquawkLine_PresentWithAltitude_WhenAirborne()
+    {
+        var ac = CreateMismatchModel();
+        ac.Altitude = 1500;
+        var style = CreateStyle();
+
+        var layout = DataBlockLayout.Compute(ac, screenX: 100, screenY: 100, offset: new SKPoint(30, -25), style, isAirborne: true);
+
+        Assert.Equal("015", layout.Line3);
+        Assert.Equal("1200 0301", layout.SquawkLine);
+        Assert.Equal(4, layout.LineCount);
+    }
+
+    [Fact]
+    public void RectGrowsByExactlyLineHeight_WhenSquawkMismatch()
+    {
+        var ac = CreateMismatchModel();
+        var style = CreateStyle();
+
+        ac.BeaconCode = 301;
+        var matched = DataBlockLayout.Compute(ac, screenX: 100, screenY: 100, offset: new SKPoint(30, -25), style, isAirborne: false);
+
+        ac.BeaconCode = 1200;
+        var mismatched = DataBlockLayout.Compute(ac, screenX: 100, screenY: 100, offset: new SKPoint(30, -25), style, isAirborne: false);
+
+        float delta = mismatched.Rect.Bottom - matched.Rect.Bottom;
+        Assert.Equal(matched.LineHeight, delta, precision: 3);
+        Assert.True(mismatched.Rect.Width >= matched.Rect.Width);
+    }
+
     /// <summary>
     /// The block rect is translation-invariant: computing at origin (offset 0) and translating by
     /// (screen + offset) reproduces computing at that screen position with the offset. Deconfliction

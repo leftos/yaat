@@ -26,12 +26,19 @@ internal readonly struct DataBlockLayout
     public readonly string Line1;
     public readonly string Line2;
     public readonly string Line3;
+
+    /// <summary>
+    /// Beacon-code mismatch line <c>"{reported} {assigned}"</c>, drawn right under the altitude line
+    /// (or line 2 on the ground) and before the hold/SqStby status line — the same indication the radar
+    /// datablock gives. Empty when no mismatch applies.
+    /// </summary>
+    public readonly string SquawkLine;
     public readonly string Line4;
 
     /// <summary>Instructor note line (amber), drawn at the bottom of the block. Empty when no note.</summary>
     public readonly string Line5;
 
-    /// <summary>Total drawn lines, including the note line.</summary>
+    /// <summary>Total drawn lines, including the squawk-mismatch and note lines.</summary>
     public readonly int LineCount;
 
     private DataBlockLayout(
@@ -42,6 +49,7 @@ internal readonly struct DataBlockLayout
         string line1,
         string line2,
         string line3,
+        string squawkLine,
         string line4,
         string line5,
         int lineCount
@@ -54,6 +62,7 @@ internal readonly struct DataBlockLayout
         Line1 = line1;
         Line2 = line2;
         Line3 = line3;
+        SquawkLine = squawkLine;
         Line4 = line4;
         Line5 = line5;
         LineCount = lineCount;
@@ -88,6 +97,15 @@ internal readonly struct DataBlockLayout
         string cwtType = RadarDatablockLayout.FormatCwtType(cwt, ac.AircraftType);
         string line2 = string.IsNullOrEmpty(fix) ? cwtType : (cwtType.Length > 0 ? $"{cwtType} {fix}" : fix);
         string line3 = isAirborne ? $"{(int)(ac.Altitude / 100):D3}" : "";
+        // Beacon-code mismatch: reported code + assigned code on their own line, sharing the radar's
+        // gate (discrete code assigned, codes differ, Mode C, no emergency code, no SQVFR latch) so a
+        // departure still on 1200 after being assigned a code is visible before it ever hits the radar.
+        // The renderer dim-pulses the assigned code; the condition itself does not flash, so the
+        // reserved width/height stay stable while active. Mutually exclusive with SqStby by construction
+        // (the gate returns false on Standby); it coexists with a hold/yield status on line4.
+        string squawkLine = RadarDatablockLayout.TryGetSquawkMismatch(ac, out string reportedCode, out string assignedCode)
+            ? $"{reportedCode} {assignedCode}"
+            : "";
         // Ground hold / auto-yield takes precedence on line4 over the SqStby transponder hint —
         // a HOLDPOSITION, GIVEWAY, or auto-detected yield is operationally more important than a
         // stale transponder indication. HoldStatusDisplay is non-empty exactly when one applies;
@@ -99,12 +117,17 @@ internal readonly struct DataBlockLayout
         float w1 = style.Measure(line1);
         float w2 = style.Measure(line2);
         float w3 = line3.Length > 0 ? style.Measure(line3) : 0;
+        float wSquawk = squawkLine.Length > 0 ? style.Measure(squawkLine) : 0;
         float w4 = line4.Length > 0 ? style.Measure(line4) : 0;
         float w5 = line5.Length > 0 ? style.Measure(line5) : 0;
-        float textW = MathF.Max(MathF.Max(w1, w2), MathF.Max(MathF.Max(w3, w4), w5));
+        float textW = MathF.Max(MathF.Max(MathF.Max(w1, w2), MathF.Max(w3, wSquawk)), MathF.Max(w4, w5));
         float lineH = style.LineHeight;
         int lineCount = 2;
         if (line3.Length > 0)
+        {
+            lineCount++;
+        }
+        if (squawkLine.Length > 0)
         {
             lineCount++;
         }
@@ -119,7 +142,7 @@ internal readonly struct DataBlockLayout
 
         var rect = new SKRect(blockX - Pad, blockY - style.Size - Pad, blockX + textW + Pad, blockY + (lineCount - 1) * lineH + Pad);
 
-        return new DataBlockLayout(rect, blockX, blockY, lineH, line1, line2, line3, line4, line5, lineCount);
+        return new DataBlockLayout(rect, blockX, blockY, lineH, line1, line2, line3, squawkLine, line4, line5, lineCount);
     }
 
     public static readonly SKPoint DefaultOffset = new(30, -25);
@@ -2084,6 +2107,22 @@ public sealed class GroundRenderer : IDisposable
                 SKTextAlign.Left,
                 _dataBlockTextFont,
                 _dataBlockTextPaint
+            );
+            row++;
+        }
+
+        // Beacon-code mismatch: reported code solid, assigned code dim-pulsing — the radar's drawer,
+        // so both views pulse in the same cadence and color treatment.
+        if (layout.SquawkLine.Length > 0)
+        {
+            TargetRenderer.DrawSquawkMismatchLine(
+                canvas,
+                layout.SquawkLine,
+                layout.TextX,
+                layout.TextY + layout.LineHeight * row,
+                _dataBlockTextFont,
+                _dataBlockTextPaint,
+                dbColor
             );
             row++;
         }

@@ -748,27 +748,32 @@ public sealed class TargetRenderer : IDisposable
         return x + _dataBlockFont.MeasureText(text);
     }
 
+    private void DrawSquawkMismatchLine(SKCanvas canvas, string line, float x, float baseline, SKColor color) =>
+        DrawSquawkMismatchLine(canvas, line, x, baseline, _dataBlockFont, _dataBlockPaint, color);
+
     /// <summary>
     /// Draws the beacon-code mismatch line <c>"{reported} {assigned}"</c>: the reported code solid in the
     /// block color, then the assigned code dim-pulsing to its right on the 500 ms off-phase — emulating
-    /// CRC STARS (reported solid, assigned blinking via <c>ApplyColorBrightness(color, 25)</c>).
+    /// CRC STARS (reported solid, assigned blinking via <c>ApplyColorBrightness(color, 25)</c>). Shared
+    /// with the ground datablock so both views give the identical indication; <paramref name="paint"/>
+    /// is left in <paramref name="color"/> on return.
     /// </summary>
-    private void DrawSquawkMismatchLine(SKCanvas canvas, string line, float x, float baseline, SKColor color)
+    internal static void DrawSquawkMismatchLine(SKCanvas canvas, string line, float x, float baseline, SKFont font, SKPaint paint, SKColor color)
     {
         int space = line.IndexOf(' ');
         string reported = space < 0 ? line : line[..space];
-        _dataBlockPaint.Color = color;
-        canvas.DrawText(reported, x, baseline, SKTextAlign.Left, _dataBlockFont, _dataBlockPaint);
+        paint.Color = color;
+        canvas.DrawText(reported, x, baseline, SKTextAlign.Left, font, paint);
         if (space < 0)
         {
             return;
         }
 
-        float reportedWidth = _dataBlockFont.MeasureText(reported);
+        float reportedWidth = font.MeasureText(reported);
         bool blinkOff = Environment.TickCount64 / 500 % 2 != 0;
-        _dataBlockPaint.Color = blinkOff ? DimColor(color, 0.25f) : color;
-        canvas.DrawText(line[space..], x + reportedWidth, baseline, SKTextAlign.Left, _dataBlockFont, _dataBlockPaint);
-        _dataBlockPaint.Color = color;
+        paint.Color = blinkOff ? DimColor(color, 0.25f) : color;
+        canvas.DrawText(line[space..], x + reportedWidth, baseline, SKTextAlign.Left, font, paint);
+        paint.Color = color;
     }
 
     /// <summary>Scales a color's RGB toward black by <paramref name="factor"/> (alpha preserved), matching
