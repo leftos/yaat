@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.12.20-beta [2026/08/25]
 
 ### Highlights
 - Arrivals on a long final no longer hold 1.6·Vref (a 747 at 251 kt, a 737 at 230) from 14 nm all the way to 6 nm: uncontrolled pilots now fly a clean speed of about Vref+70 (capped 240 kt heavies / 220 narrowbodies / 210 regional jets), configure to roughly Vref+45 by about 9 nm (varies per aircraft), then 1.3·Vref by 5 nm and Vref by 2–5 nm as before.
