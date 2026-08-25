@@ -1,6 +1,9 @@
 # Changelog
 
-## Unreleased
+## v0.12.19-beta [2026/08/25]
+
+### Highlights
+- `HS $<spot>` for a spot whose name matches a runway number (e.g. spot "9" at an airport with runway 9/27) no longer stops the aircraft at that runway's crossing or reads back a phantom "hold short of runway 9". (#398)
 
 ### Fixed
 - A `HS $<spot>` clause whose spot name matches a runway number (e.g. a spot named "9" at an airport with runway 9/27) no longer plants a phantom hold-short on that runway's crossing — the crossing stays a normal runway crossing (auto-crossable), and only the spot itself is held short of. (#398)
