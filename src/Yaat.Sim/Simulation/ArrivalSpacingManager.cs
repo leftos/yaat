@@ -13,19 +13,19 @@ namespace Yaat.Sim.Simulation;
 public static class ArrivalSpacingManager
 {
     /// <summary>
-    /// Scheduled distance-based approach speed an arrival flies absent any spacing constraint —
-    /// mirrors <see cref="Scenarios.AircraftInitializer.InitializeOnFinal"/>'s OnFinal formula
-    /// (<c>&lt;= 5 NM → Vref, &lt;= 10 NM → 1.4·Vref, else 1.6·Vref</c>). Used as the upper
-    /// bound on the spacing ceiling so the manager never speeds a follower above its own normal
-    /// profile, and so the ceiling window collapses to exactly Vref by the threshold.
+    /// Scheduled distance-based approach speed an arrival flies absent any spacing constraint — the
+    /// uncontrolled <see cref="Phases.Tower.FinalApproachSpeedSchedule"/> evaluated at the follower's distance
+    /// (the same schedule <see cref="Scenarios.AircraftInitializer.InitializeOnFinal"/> spawns from). Used as
+    /// the upper bound on the spacing ceiling so the manager never speeds a follower above its own normal
+    /// profile, and so the ceiling window collapses toward Vref by the threshold.
     /// </summary>
-    public static double ScheduledFinalSpeedKts(double vrefKts, double distanceToThresholdNm) =>
-        distanceToThresholdNm switch
-        {
-            <= 5 => vrefKts,
-            <= 10 => vrefKts * 1.4,
-            _ => vrefKts * 1.6,
-        };
+    public static double ScheduledFinalSpeedKts(
+        string aircraftType,
+        AircraftCategory category,
+        double vrefKts,
+        string callsign,
+        double distanceToThresholdNm
+    ) => Phases.Tower.FinalApproachSpeedSchedule.SpeedAtDistanceKts(aircraftType, category, vrefKts, callsign, distanceToThresholdNm);
 
     /// <summary>
     /// Speed ceiling (kts) for a follower so it equalizes to its leader's speed while holding

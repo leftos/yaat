@@ -169,8 +169,10 @@ positive cruise speed and spawn a field-elevation departure airborne.
 - `InitializeOnRunway` (`:28`) places the aircraft at the runway threshold, heading down the runway, `IsOnGround=true`, speed 0.
 - `InitializeAtParking` (`:51`) places it at the parking node, using the node's `TrueHeading` (or 0).
 - `InitializeOnFinal` (`:71`) computes distance from `DistanceFromRunway`, else from requested altitude via the glideslope, else
-  defaults to 5 nm; positions the aircraft on the extended centerline; sets approach speed scaled by distance
-  (`<=5 nm → final approach speed`, `<=10 nm → ×1.4`, beyond → ×1.6). The glideslope angle comes from
+  defaults to 5 nm; positions the aircraft on the extended centerline; sets the speed from the uncontrolled
+  final-approach schedule evaluated at that distance (`FinalApproachSpeedSchedule.SpeedAtDistanceKts`: `>=10.5 nm →
+  clean ≈ Vref+70 capped by wake class 240/220/210`, `>6 nm → approach-flap ≈ Vref+45`, `>4 nm → 1.3·Vref`, else
+  `Vref+8`; turboprops Vref+55 capped 200, pistons Vref+35 capped 120, ±5 kt per-callsign jitter). The glideslope angle comes from
   `GlideSlopeGeometry.AngleForCategory` (3° standard, 6° helicopter; `src/Yaat.Sim/Phases/GlideSlopeGeometry.cs:17`).
 
 See [phases.md](phases.md) for what each seeded phase does once the aircraft starts ticking, and
@@ -420,7 +422,7 @@ All four drain in `TickPrePhysics` (`SimulationEngine.cs:465`) once per sim-seco
 - **`ApplyArrivalSpacing`** (runs each tick immediately after `ProcessGenerators`) — in-trail speed management for the generator
   stream, the simulated approach controller (TRACON) that feeds correctly-spaced traffic to the tower (LC) student. Placement
   (above) only sets spacing at the *instant* of spawn; without this, a follower spawned farther out flies the faster
-  distance-based `OnFinal` speed (`≤5 NM → Vref, ≤10 → 1.4·Vref, else 1.6·Vref`) and overruns the closer-in, decelerating leader
+  distance-based `OnFinal` speed (the `FinalApproachSpeedSchedule` above) and overruns the closer-in, decelerating leader
   (the QXE831/SWA8154 compression: 5 NM → 1.3 NM, busting the 3 NM floor). For each generator runway it sorts the same-runway
   final corridor (`CorridorAircraft`, closest-first) and, for each **generator-arrival follower in `FinalApproachPhase`**, stamps
   a `ControlTargets.SpeedCeiling`: `clamp(leaderIAS + clamp((gap − target)·25, ±20), followerVref, followerScheduledSpeed)`, where

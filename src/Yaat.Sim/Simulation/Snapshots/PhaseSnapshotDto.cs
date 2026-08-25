@@ -754,6 +754,12 @@ public sealed class FinalApproachPhaseDto : PhaseDto
     /// </summary>
     public bool ConfigSet { get; init; }
 
+    /// <summary>
+    /// True once the clean→approach-flap stage has fired or been skipped. Precedes <see cref="ConfigSet"/>;
+    /// defaults to false on earlier snapshots and <c>FromSnapshot</c> seeds it from the later latches.
+    /// </summary>
+    public bool FlapSet { get; init; }
+
     public required double MapDistNm { get; init; }
 
     /// <summary>

@@ -450,6 +450,20 @@ anchor. Code that hard-codes the threshold breaks offset approaches.
 (`InterceptCoursePhase.cs:106`). `FinalApproachPhase` bleeds the rest to Vref closer in — at a **per-aircraft
 distance**, not a fixed one (see the FAS-reduction-variety note below).
 
+**Uncontrolled long-final schedule.** With no ATC speed, `FinalApproachPhase` runs three stages ahead of the Vref
+bleed, each fired once at the kinematic trigger that lands the bleed on its reach gate
+(`TickPreConfigurationStages` / `TickApproachFlapStage`): **clean → approach-flap** (`FinalApproachSpeedSchedule`:
+clean ≈ Vref+70 capped 240 heavy / 220 large / 210 regional jet, approach-flap = `max(1.3·Vref, min(clean−25,
+Vref+45))`, settled by a per-callsign 9 ± 1.5 nm gate for jets, 8 ± 1 nm turboprops, no stage for pistons), then
+**→ 1.3·Vref** by `ConfigReachGateNm` (5 nm), then **→ Vref** by the per-aircraft reach gate. Stages are additive on
+Vref like airline flap schedules, so a B744 (Vref 157) flies ~227 → 204 → 204 → 157 while an E75L (126) flies
+~196 → 171 → 164 → 126 — nobody at 250 on final, nobody at 180 at 10 nm, spread by type. The `FlapSet` latch
+persists in `FinalApproachPhaseDto` (seeded from `ConfigSet`/`FasSet` on older snapshots). `OnFinal` spawns and the
+generator in-trail spacing ceiling (`ArrivalSpacingManager.ScheduledFinalSpeedKts`) evaluate the same schedule at
+the spawn / current distance. Authority: 7110.65 §5-7-1.a.3(d) (keep aircraft clean as long as circumstances
+permit), §5-7-1.c/d (approach clearance cancels assigned speed; pilots fly their own approach speeds), §5-7-3.c and
+AIM 4-4-12 (210 / 170 kt jet floors), 14 CFR §91.117 (250 below 10,000).
+
 > **FAS reduction is per-aircraft.** `FinalApproachPhase`'s two-stage decel (config `1.3·Vref`, then Vref) no
 > longer settles every aircraft at the same fixed distance. When the scenario has variety enabled, each aircraft's
 > reach gate is lazily assigned on first final approach (`FinalApproachPhase.EffectiveFasReachGateNm` →

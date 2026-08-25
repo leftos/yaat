@@ -749,7 +749,7 @@ public static class AircraftGenerator
         double gsAngle = Phases.GlideSlopeGeometry.AngleForCategory(category);
         double altFromDist = rwy.ElevationFt + (request.FinalDistanceNm * Phases.GlideSlopeGeometry.FeetPerNm(gsAngle));
 
-        var init = AircraftInitializer.InitializeOnFinal(rwy, category, altFromDist, aircraftType: aircraftType);
+        var init = AircraftInitializer.InitializeOnFinal(rwy, category, callsign, altFromDist, aircraftType: aircraftType);
 
         var destination = "";
         if (request.Rules == FlightRulesKind.Ifr)

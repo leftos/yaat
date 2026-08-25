@@ -71,6 +71,7 @@ public static class AircraftInitializer
     public static PhaseInitResult InitializeOnFinal(
         RunwayInfo runway,
         AircraftCategory category,
+        string callsign,
         double? requestedAltitude = null,
         double? requestedSpeed = null,
         double? requestedDistanceNm = null,
@@ -102,12 +103,7 @@ public static class AircraftInitializer
         else
         {
             double fas = AircraftPerformance.ApproachSpeed(aircraftType ?? string.Empty, category);
-            speed = distNm switch
-            {
-                <= 5 => fas,
-                <= 10 => fas * 1.4,
-                _ => fas * 1.6,
-            };
+            speed = FinalApproachSpeedSchedule.SpeedAtDistanceKts(aircraftType ?? string.Empty, category, fas, callsign, distNm);
         }
 
         // Position aircraft on extended centerline

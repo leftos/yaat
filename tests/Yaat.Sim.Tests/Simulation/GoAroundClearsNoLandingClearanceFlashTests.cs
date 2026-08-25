@@ -52,24 +52,34 @@ public class GoAroundClearsNoLandingClearanceFlashTests(ITestOutputHelper output
             return;
         }
 
-        // Replay to just before the recorded GA command (t=1498). On a visual final to OAK with
-        // no landing clearance the NoLndgClnc flash latch is armed (alt ~620 ft AGL, well above
-        // the 200 ft AGL auto-go-around gate).
+        // Replay to just before the recorded GA command (t=1498), then tick physics only (the
+        // recorded GA never fires) until the NoLndgClnc flash latch arms on the visual final to OAK
+        // with no landing clearance (~2 nm / ~640 ft AGL, well above the 200 ft AGL auto-go-around gate).
         engine.Replay(recording, 1497);
 
         var ac = engine.FindAircraft("SWA2224");
         Assert.NotNull(ac);
+        for (int t = 0; (t < 30) && !ac.NoLandingClearanceWarningActive; t++)
+        {
+            engine.TickOneSecond();
+            ac = engine.FindAircraft("SWA2224");
+            Assert.NotNull(ac);
+        }
+
         Assert.True(
             ac.NoLandingClearanceWarningActive,
             $"precondition: NoLndgClnc flash should be armed on final without a landing clearance (alt={ac.Altitude:F0})"
         );
 
+        var gaResult = engine.SendCommand("SWA2224", "GA");
+        Assert.True(gaResult.Success, $"GA failed: {gaResult.Message}");
+
         // Drive through the go-around. The command carries a ~2 s pilot reaction delay, so the
-        // phase rebuilds FinalApproach → GoAround around t=1500.
+        // phase rebuilds FinalApproach → GoAround a few seconds later.
         GoAroundPhase? goAround = null;
         for (int t = 1; t <= 15; t++)
         {
-            engine.ReplayOneSecond();
+            engine.TickOneSecond();
             ac = engine.FindAircraft("SWA2224");
             Assert.NotNull(ac);
             if (ac.Phases?.CurrentPhase is GoAroundPhase ga)

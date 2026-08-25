@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+### Highlights
+- Arrivals on a long final no longer hold 1.6·Vref (a 747 at 251 kt, a 737 at 230) from 14 nm all the way to 6 nm: uncontrolled pilots now fly a clean speed of about Vref+70 (capped 240 kt heavies / 220 narrowbodies / 210 regional jets), configure to roughly Vref+45 by about 9 nm (varies per aircraft), then 1.3·Vref by 5 nm and Vref by 2–5 nm as before.
+
+### Fixed
+- Arrivals spawned on a long final (`OnFinal` beyond 10 nm, e.g. every arrival in S2-SFO-3 | High Intensity) spawned at 1.6·Vref — 251 kt for a B744, above the 250-kt limit below 10,000 ft — and held that speed until ~6.5 nm before slowing. Speeds are now additive on Vref like airline flap schedules: clean ≈ Vref+70 capped by weight class (240/220/210), an approach-flap stage ≈ Vref+45 settled by a per-aircraft 9 ± 1.5 nm gate (8 ± 1 for turboprops; pistons have no intermediate stage), then the existing 1.3·Vref-by-5-nm and Vref-by-2–5-nm stages. Spawns at 4–6 nm start at 1.3·Vref and inside 4 nm at Vref+8 instead of exactly Vref. Generator in-trail spacing uses the same schedule as its speed ceiling.
+
 ## v0.12.19-beta [2026/08/25]
 
 ### Highlights

@@ -3340,8 +3340,15 @@ public sealed class SimulationEngine
                 }
 
                 var (leaderDist, leader) = stream[i - 1];
-                double vref = AircraftPerformance.ApproachSpeed(follower.AircraftType, AircraftCategorization.Categorize(follower.AircraftType));
-                double scheduled = ArrivalSpacingManager.ScheduledFinalSpeedKts(vref, followerDist);
+                var followerCategory = AircraftCategorization.Categorize(follower.AircraftType);
+                double vref = AircraftPerformance.ApproachSpeed(follower.AircraftType, followerCategory);
+                double scheduled = ArrivalSpacingManager.ScheduledFinalSpeedKts(
+                    follower.AircraftType,
+                    followerCategory,
+                    vref,
+                    follower.Callsign,
+                    followerDist
+                );
                 double wakeFloor = WakeTurbulenceData.OnApproachWakeSeparationNm(
                     leader.AircraftType,
                     AircraftCategorization.Categorize(leader.AircraftType),

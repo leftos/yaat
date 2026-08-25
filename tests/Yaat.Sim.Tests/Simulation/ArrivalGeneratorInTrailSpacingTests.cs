@@ -235,7 +235,7 @@ public class ArrivalGeneratorInTrailSpacingTests(ITestOutputHelper output)
     )
     {
         var category = AircraftCategorization.Categorize(type);
-        var init = AircraftInitializer.InitializeOnFinal(runway, category, requestedDistanceNm: distanceNm, aircraftType: type);
+        var init = AircraftInitializer.InitializeOnFinal(runway, category, callsign, requestedDistanceNm: distanceNm, aircraftType: type);
 
         var aircraft = new AircraftState
         {

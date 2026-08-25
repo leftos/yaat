@@ -533,6 +533,7 @@ public static class ScenarioLoader
         var init = AircraftInitializer.InitializeOnFinal(
             rwy,
             category,
+            ac.AircraftId,
             ac.StartingConditions.Altitude,
             ac.StartingConditions.Speed,
             ac.StartingConditions.DistanceFromRunway,

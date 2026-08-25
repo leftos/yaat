@@ -58,10 +58,22 @@ public static class FinalApproachSpeedVariety
     }
 
     /// <summary>FNV-1a hash of the callsign mapped to <c>[0, 1)</c>.</summary>
-    private static double UnitInterval(string callsign)
+    private static double UnitInterval(string callsign) => UnitInterval(callsign, string.Empty);
+
+    /// <summary>
+    /// FNV-1a hash of <paramref name="callsign"/> + <paramref name="salt"/> mapped to <c>[0, 1)</c>. Distinct salts
+    /// give independent per-aircraft draws (the Vref reach gate, the clean-speed jitter, the approach-flap gate)
+    /// so one aircraft isn't "early" on every dimension at once.
+    /// </summary>
+    public static double UnitInterval(string callsign, string salt)
     {
         uint h = 2166136261u;
         foreach (var c in callsign)
+        {
+            h = (h ^ c) * 16777619u;
+        }
+
+        foreach (var c in salt)
         {
             h = (h ^ c) * 16777619u;
         }

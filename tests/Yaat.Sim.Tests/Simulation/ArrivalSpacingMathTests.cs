@@ -9,13 +9,15 @@ namespace Yaat.Sim.Tests.Simulation;
 public class ArrivalSpacingMathTests
 {
     [Theory]
-    [InlineData(140, 3, 140)] // <= 5 NM → Vref
-    [InlineData(140, 5, 140)] // == 5 NM → Vref
-    [InlineData(140, 8, 196)] // <= 10 NM → 1.4·Vref
-    [InlineData(140, 12, 224)] // > 10 NM → 1.6·Vref
-    public void ScheduledFinalSpeed_FollowsOnFinalDistanceProfile(double vref, double dist, double expected)
+    [InlineData(3, 148)] // <= 4 NM → Vref + 8
+    [InlineData(5, 182)] // 4-6 NM → 1.3·Vref
+    [InlineData(8, 185)] // 6-10.5 NM → approach-flap speed (Vref + 45)
+    [InlineData(12, 210)] // >= 10.5 NM → clean (Vref + 70, ±5 jitter)
+    public void ScheduledFinalSpeed_FollowsOnFinalDistanceProfile(double dist, double expected)
     {
-        Assert.Equal(expected, ArrivalSpacingManager.ScheduledFinalSpeedKts(vref, dist), 3);
+        // B738-class Vref 140; the clean-speed jitter is ±5 kt per callsign, so every band is checked as a window.
+        double actual = ArrivalSpacingManager.ScheduledFinalSpeedKts("B738", AircraftCategory.Jet, 140, "TST123", dist);
+        Assert.InRange(actual, expected - 5, expected + 5);
     }
 
     [Fact]

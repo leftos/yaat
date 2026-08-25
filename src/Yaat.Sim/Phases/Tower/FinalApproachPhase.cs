@@ -107,6 +107,13 @@ public sealed class FinalApproachPhase : Phase
     private const double ConfigSpeedMultiplier = 1.3;
 
     /// <summary>
+    /// Headroom (nm) beyond the approach-flap reach gate within which the clean→approach-flap bleed may start.
+    /// The kinematic trigger is <c>gate + bleed distance</c>, capped at <c>gate + this</c>; a 25-kt bleed at
+    /// typical jet decel rates needs ~1 nm, so the cap only binds for unusually slow-decelerating types.
+    /// </summary>
+    private const double ApproachFlapTriggerHeadroomNm = 3.0;
+
+    /// <summary>
     /// Time-to-threshold (seconds) inside which the follower stops chasing the
     /// leader and just stabilizes for landing. Committed to the approach at this
     /// point — either land or go around; chasing risks tripping the unstabilized
@@ -248,6 +255,13 @@ public sealed class FinalApproachPhase : Phase
     private bool _tooHighGoAroundChecked;
     private bool _fasSet;
     private bool _configSet;
+
+    /// <summary>
+    /// True once the clean→approach-flap stage (<see cref="FinalApproachSpeedSchedule.ApproachFlapSpeedKts"/>) has
+    /// fired or been found unnecessary (already at/below that speed, or a category with no distinct stage).
+    /// Precedes the configuration gate.
+    /// </summary>
+    private bool _flapSet;
     private bool _gsCaptured;
     private double _mapDistNm;
 
@@ -313,6 +327,7 @@ public sealed class FinalApproachPhase : Phase
             TooHighGoAroundChecked = _tooHighGoAroundChecked,
             FasSet = _fasSet,
             ConfigSet = _configSet,
+            FlapSet = _flapSet,
             MapDistNm = _mapDistNm,
             GsCaptured = _gsCaptured,
             STurnSpacingCooldownSeconds = _sTurnSpacingCooldownSeconds,
@@ -347,6 +362,9 @@ public sealed class FinalApproachPhase : Phase
         // FasSet=true implies the aircraft already cleared the config band, so seed
         // _configSet from FasSet to avoid re-firing the config gate on restored state.
         phase._configSet = dto.ConfigSet || dto.FasSet;
+        // Likewise the approach-flap stage precedes the configuration gate: any later stage having fired
+        // implies it is done (pre-flap-stage snapshots default FlapSet to false).
+        phase._flapSet = dto.FlapSet || phase._configSet;
         phase._mapDistNm = dto.MapDistNm;
         phase._gsCaptured = dto.GsCaptured;
         phase._sTurnSpacingCooldownSeconds = dto.STurnSpacingCooldownSeconds;
@@ -423,25 +441,11 @@ public sealed class FinalApproachPhase : Phase
             ctx.Targets.TargetSpeed = approachSpeed;
             _fasSet = true;
             _configSet = true;
-        }
-        else if (ctx.Aircraft.IndicatedAirspeed > configSpeed)
-        {
-            double startConfigTrigger = ComputeConfigTriggerDistanceNm(
-                ctx.Aircraft.IndicatedAirspeed,
-                configSpeed,
-                ctx.Aircraft.GroundSpeed,
-                decelRate,
-                reachGate
-            );
-            if (startDist <= startConfigTrigger)
-            {
-                ctx.Targets.TargetSpeed = configSpeed;
-                _configSet = true;
-            }
+            _flapSet = true;
         }
         else
         {
-            _configSet = true;
+            TickPreConfigurationStages(ctx, startDist, approachSpeed, decelRate, reachGate);
         }
 
         double startXte = GeoMath.SignedCrossTrackDistanceNm(ctx.Aircraft.Position, new LatLon(_anchorLat, _anchorLon), _finalApproachCourse);
@@ -607,6 +611,7 @@ public sealed class FinalApproachPhase : Phase
                 ctx.Targets.TargetSpeed = fas;
                 _fasSet = true;
                 _configSet = true;
+                _flapSet = true;
                 Log.LogDebug(
                     "[FinalApproach] {Callsign}: slowing to FAS {Fas:F0}kts at {Dist:F1}nm (trigger={Trigger:F2}nm)",
                     ctx.Aircraft.Callsign,
@@ -617,33 +622,7 @@ public sealed class FinalApproachPhase : Phase
             }
             else if (!_configSet)
             {
-                double configSpeed = fas * ConfigSpeedMultiplier;
-                if (ctx.Aircraft.IndicatedAirspeed > configSpeed)
-                {
-                    double configTrigger = ComputeConfigTriggerDistanceNm(
-                        ctx.Aircraft.IndicatedAirspeed,
-                        configSpeed,
-                        ctx.Aircraft.GroundSpeed,
-                        decelRate,
-                        reachGate
-                    );
-                    if (distNm <= configTrigger)
-                    {
-                        ctx.Targets.TargetSpeed = configSpeed;
-                        _configSet = true;
-                        Log.LogDebug(
-                            "[FinalApproach] {Callsign}: slowing to config speed {Cfg:F0}kts at {Dist:F1}nm (trigger={Trigger:F2}nm)",
-                            ctx.Aircraft.Callsign,
-                            configSpeed,
-                            distNm,
-                            configTrigger
-                        );
-                    }
-                }
-                else
-                {
-                    _configSet = true;
-                }
+                TickPreConfigurationStages(ctx, distNm, fas, decelRate, reachGate);
             }
         }
 
@@ -1070,6 +1049,93 @@ public sealed class FinalApproachPhase : Phase
     /// pre- and post-decel ground speeds (linear approximation of a constant-decel
     /// kinematic integration).
     /// </summary>
+    /// <summary>
+    /// The two uncontrolled stages ahead of the FAS bleed, in order: clean → approach-flap speed
+    /// (<see cref="FinalApproachSpeedSchedule"/>, settled by a per-aircraft ~9 nm gate), then approach-flap →
+    /// configuration speed (1.3·Vref, settled by <see cref="ConfigReachGateNm"/>). Each fires once, at the
+    /// kinematic trigger that lands the bleed on its reach gate, and is skipped when the aircraft is already
+    /// at or below the stage speed. Latches survive snapshot restore.
+    /// </summary>
+    private void TickPreConfigurationStages(PhaseContext ctx, double distNm, double fas, double decelRate, double reachGate)
+    {
+        if (!_flapSet)
+        {
+            TickApproachFlapStage(ctx, distNm, fas, decelRate);
+        }
+
+        if (_configSet)
+        {
+            return;
+        }
+
+        double configSpeed = fas * ConfigSpeedMultiplier;
+        if (ctx.Aircraft.IndicatedAirspeed <= configSpeed)
+        {
+            _configSet = true;
+            return;
+        }
+
+        double configTrigger = ComputeConfigTriggerDistanceNm(
+            ctx.Aircraft.IndicatedAirspeed,
+            configSpeed,
+            ctx.Aircraft.GroundSpeed,
+            decelRate,
+            reachGate
+        );
+        if (distNm <= configTrigger)
+        {
+            ctx.Targets.TargetSpeed = configSpeed;
+            _configSet = true;
+            Log.LogDebug(
+                "[FinalApproach] {Callsign}: slowing to config speed {Cfg:F0}kts at {Dist:F1}nm (trigger={Trigger:F2}nm)",
+                ctx.Aircraft.Callsign,
+                configSpeed,
+                distNm,
+                configTrigger
+            );
+        }
+    }
+
+    private void TickApproachFlapStage(PhaseContext ctx, double distNm, double fas, double decelRate)
+    {
+        double? flapGate = FinalApproachSpeedSchedule.ApproachFlapReachGateNm(ctx.Category, ctx.Aircraft.Callsign);
+        if (flapGate is null)
+        {
+            _flapSet = true;
+            return;
+        }
+
+        double clean = FinalApproachSpeedSchedule.CleanSpeedKts(ctx.AircraftType, ctx.Category, fas, ctx.Aircraft.Callsign);
+        double flapSpeed = FinalApproachSpeedSchedule.ApproachFlapSpeedKts(fas, clean);
+        if (ctx.Aircraft.IndicatedAirspeed <= flapSpeed)
+        {
+            _flapSet = true;
+            return;
+        }
+
+        double flapTrigger = ComputeKinematicTriggerNm(
+            ctx.Aircraft.IndicatedAirspeed,
+            flapSpeed,
+            ctx.Aircraft.GroundSpeed,
+            decelRate,
+            flapGate.Value,
+            flapGate.Value + ApproachFlapTriggerHeadroomNm
+        );
+        if (distNm <= flapTrigger)
+        {
+            ctx.Targets.TargetSpeed = flapSpeed;
+            _flapSet = true;
+            Log.LogDebug(
+                "[FinalApproach] {Callsign}: slowing to approach-flap speed {Flap:F0}kts at {Dist:F1}nm (gate={Gate:F1}nm, trigger={Trigger:F2}nm)",
+                ctx.Aircraft.Callsign,
+                flapSpeed,
+                distNm,
+                flapGate.Value,
+                flapTrigger
+            );
+        }
+    }
+
     private static double ComputeKinematicTriggerNm(
         double ias,
         double targetSpeed,

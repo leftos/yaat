@@ -110,9 +110,10 @@ public class ExpediteRunwayExitTests(ITestOutputHelper output)
     private sealed record RolloutResult(string? ExitTaxiway, int VacateSecond, double VacateAlongTrackNm, double MaxDecelKtsPerSec);
 
     /// <summary>
-    /// Replays QXE6184 to the rollout, optionally issues a command (e.g. "EXP"),
-    /// then ticks physics only (no recorded actions — so the recorded ER W5 at
-    /// t=827 never fires and both runs use default exit selection). Measures the
+    /// Replays QXE6184 to short final (t=800 — before the recorded SWA1822 LUAW at t=801 and
+    /// ER W5 at t=827), ticks physics only until the early rollout (no recorded actions, so
+    /// neither fires and both runs use default exit selection), optionally issues a command
+    /// (e.g. "EXP"), then keeps ticking. Measures the
     /// along-runway distance and sim-second at which the aircraft vacates, plus
     /// the peak deceleration observed during rollout.
     /// </summary>
@@ -126,6 +127,17 @@ public class ExpediteRunwayExitTests(ITestOutputHelper output)
         {
             return null;
         }
+
+        // Early rollout, a few seconds past touchdown — the same point the recorded ER W5 was issued from.
+        const double RolloutStartIas = 108;
+        for (int t = 0; (t < 60) && !((ac.IsOnGround) && (ac.IndicatedAirspeed <= RolloutStartIas)); t++)
+        {
+            engine.TickOneSecond();
+            ac = engine.FindAircraft("QXE6184");
+            Assert.NotNull(ac);
+        }
+
+        Assert.True(ac.IsOnGround && (ac.IndicatedAirspeed <= RolloutStartIas), "QXE6184 should be rolling out within 60 s of the replay start");
 
         if (command is not null)
         {
