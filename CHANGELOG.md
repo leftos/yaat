@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+- A `HS $<spot>` clause whose spot name matches a runway number (e.g. a spot named "9" at an airport with runway 9/27) no longer plants a phantom hold-short on that runway's crossing — the crossing stays a normal runway crossing (auto-crossable), and only the spot itself is held short of. (#398)
+
 ## v0.12.18-beta [2026/08/24]
 
 ### Highlights

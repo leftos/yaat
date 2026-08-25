@@ -457,6 +457,15 @@ public static class RouteMaterialiser
     {
         foreach (var target in explicitHoldShorts)
         {
+            // A spot target ($9) is never a runway hold-short. Without this guard its bare number
+            // (the $ sigil is stripped at parse) collides with a runway whose end is that number
+            // (IAH spot "9" vs runway 9/27), mislabeling the crossing ExplicitHoldShort. Mirrors the
+            // IsSpot guards in FindBoundHoldShort and HoldShortAnnotator.TargetMatches.
+            if (target.IsSpot)
+            {
+                continue;
+            }
+
             if (!runwayId.Contains(target.Target))
             {
                 continue;
