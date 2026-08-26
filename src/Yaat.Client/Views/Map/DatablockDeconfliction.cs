@@ -294,19 +294,17 @@ public static class DatablockDeconfliction
     private static void FreeFormStep(List<Item> movable, IReadOnlyList<Item> allItems, List<SKRect> pinned, in Options o, SKPoint[] offsets)
     {
         int n = movable.Count;
-        var rects = new SKRect[n];
         var blocks = new Block[n];
         for (int i = 0; i < n; i++)
         {
-            rects[i] = Translate(movable[i].RectAtOrigin, Add(movable[i].Anchor, offsets[i]));
-            blocks[i] = new Block(movable[i], offsets[i], rects[i]);
+            blocks[i] = new Block(movable[i], offsets[i], Translate(movable[i].RectAtOrigin, Add(movable[i].Anchor, offsets[i])));
         }
 
         var delta = new SKPoint[n];
         AccumulateBlockForces(blocks, delta, o);
         AccumulatePinnedForces(blocks, pinned, delta, o);
-        AccumulateOrderForces(movable, rects, delta, o);
-        ApplyForces(movable, allItems, rects, delta, o, offsets);
+        AccumulateOrderForces(blocks, delta, o);
+        ApplyForces(blocks, allItems, delta, o, offsets);
     }
 
     private static float MaxLeaderLength(in Options o) => o.LeaderGap + (o.LeaderExtraRings * o.LeaderRingStep);
@@ -444,14 +442,13 @@ public static class DatablockDeconfliction
     /// Gentle restoring force that nudges any pair of blocks whose centers have crossed back toward the
     /// lateral order of their anchors. Kept small so block/pinned repulsion still dominates separation.
     /// </summary>
-    private static void AccumulateOrderForces(List<Item> movable, SKRect[] rects, SKPoint[] delta, in Options o)
+    private static void AccumulateOrderForces(Block[] blocks, SKPoint[] delta, in Options o)
     {
-        int n = movable.Count;
-        for (int i = 0; i < n; i++)
+        for (int i = 0; i < blocks.Length; i++)
         {
-            for (int j = i + 1; j < n; j++)
+            for (int j = i + 1; j < blocks.Length; j++)
             {
-                if (OrderForce(movable[i].Anchor, Center(rects[i]), movable[j].Anchor, Center(rects[j]), o) is { } v)
+                if (OrderForce(blocks[i].Item.Anchor, Center(blocks[i].Rect), blocks[j].Item.Anchor, Center(blocks[j].Rect), o) is { } v)
                 {
                     delta[i] = Add(delta[i], Scale(v, 0.5f));
                     delta[j] = Add(delta[j], Scale(v, -0.5f));
@@ -460,23 +457,18 @@ public static class DatablockDeconfliction
         }
     }
 
-    private static void ApplyForces(
-        List<Item> movable,
-        IReadOnlyList<Item> allItems,
-        SKRect[] rects,
-        SKPoint[] delta,
-        in Options o,
-        SKPoint[] offsets
-    )
+    /// <summary>Integrates one step: forces + spring, then screen and leader clamps, written back to <paramref name="offsets"/>.</summary>
+    private static void ApplyForces(Block[] blocks, IReadOnlyList<Item> allItems, SKPoint[] delta, in Options o, SKPoint[] offsets)
     {
-        for (int i = 0; i < rects.Length; i++)
+        for (int i = 0; i < blocks.Length; i++)
         {
-            var push = Add(delta[i], SymbolPush(rects[i], allItems, o));
-            var spring = Scale(Sub(movable[i].PreferredOffset, offsets[i]), SpringStiffness);
+            var item = blocks[i].Item;
+            var push = Add(delta[i], SymbolPush(blocks[i].Rect, allItems, o));
+            var spring = Scale(Sub(item.PreferredOffset, blocks[i].Offset), SpringStiffness);
             push = Add(push, spring);
-            offsets[i] = Add(offsets[i], Scale(push, Damping));
-            offsets[i] = ClampOffset(movable[i], offsets[i], o.ScreenBounds);
-            offsets[i] = ClampLeader(movable[i], offsets[i], MaxLeaderLength(o));
+            var next = Add(blocks[i].Offset, Scale(push, Damping));
+            next = ClampOffset(item, next, o.ScreenBounds);
+            offsets[i] = ClampLeader(item, next, MaxLeaderLength(o));
         }
     }
 
