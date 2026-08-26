@@ -6,6 +6,7 @@ using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Approach;
 using Yaat.Sim.Phases.Pattern;
 using Yaat.Sim.Phases.Tower;
+using Yaat.Sim.Simulation;
 
 namespace Yaat.Sim.Commands;
 
@@ -1964,11 +1965,9 @@ public static class ApproachCommandHandler
     /// <summary>
     /// Widest angle between the aircraft's track and the landing course that still counts as being on
     /// final. A pattern downwind tracks the reciprocal and a base leg tracks across it, so both fall
-    /// well outside. 7110.65 §5-9-2 TBL 5-9-1 caps a legal final-approach-course intercept at 30°
-    /// (20° close in) and 45° for helicopters, so this is the smallest value that still covers every
-    /// intercept a controller is permitted to set up.
+    /// well outside. Shared with <see cref="RunwayOccupancy"/> so "on final" means one thing.
     /// </summary>
-    private const double OnFinalTrackToleranceDeg = 45.0;
+    private const double OnFinalTrackToleranceDeg = RunwayOccupancy.FinalTrackToleranceDeg;
 
     /// <summary>
     /// True when the aircraft is on final for <paramref name="runway"/>, the position §5-7-1.b.4

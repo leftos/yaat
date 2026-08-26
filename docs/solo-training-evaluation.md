@@ -212,8 +212,10 @@ holding `_previousStates`, `_lastOperationByRunway`, `_recentOperations`, and `_
 
 **Operation detection** (`DetectOperation`, `:1838`). Per aircraft it builds an `AircraftRunwayState` (`:3452`) from
 the assigned runway and current phase, computing `AlongThresholdFt` (signed distance along the runway centerline). A
-**Departure** op is detected when an aircraft starts its takeoff roll (`TakeoffPhase`) on a runway; a **Landing** op
-when an arrival on `FinalApproachPhase`/`LandingPhase` crosses the threshold (`AlongLandingThresholdFt` goes ≥ 0).
+**Departure** op is detected when an aircraft starts its takeoff roll (`IsTakeoffRoll` = on the ground and
+`RunwayOccupancy.ClassifyByPhase` says `Departing`, i.e. `TakeoffPhase`) on a runway; a **Landing** op when an arrival on
+`FinalApproachPhase`/`LandingPhase` crosses the **pavement** threshold (`DetectOperation` compares `AlongThresholdFt`
+across ticks; only the first-observation seed, `IsLandingAfterThreshold`, uses `AlongLandingThresholdFt`).
 First observation seeds an op from the current phase (`TrySeedOperation`, `:1875`).
 
 **Two datums, and picking the wrong one is a scoring bug.** `AlongThresholdFt` is measured from the **pavement**

@@ -4,6 +4,7 @@ using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Phases.Tower;
+using Yaat.Sim.Simulation;
 
 namespace Yaat.Sim.Commands;
 
@@ -35,13 +36,6 @@ public static class RunwaySafetyAdvisor
     private static readonly ILogger Log = SimLog.CreateLogger("RunwaySafetyAdvisor");
 
     /// <summary>
-    /// Lateral slack (feet) beyond the runway half-width for the "is it physically on the
-    /// runway" test applied to <see cref="HoldingInPositionPhase"/> occupants — covers graph-node
-    /// vs centerline placement jitter without reaching to the parallel taxiway.
-    /// </summary>
-    private const double OnRunwayLateralSlackFt = 30.0;
-
-    /// <summary>
     /// Warns the controller when a landing-family clearance (CLAND/COPT/TG/SG/LA/CLANDF/LAHSO) is
     /// issued for a runway another aircraft is holding in position on or taxiing to line up on.
     /// The occupant match is by runway identity (<see cref="RunwayIdentifier.Overlaps"/>), so an
@@ -66,7 +60,7 @@ public static class RunwaySafetyAdvisor
                         && (OccupiedRunwayOf(other) is { } occupied)
                         && SameAirport(occupied.AirportId, runway.AirportId)
                         && occupied.Id.Overlaps(runway.Id)
-                    ) || (other.Phases?.CurrentPhase is HoldingInPositionPhase && IsPhysicallyOnRunway(other, runway))
+                    ) || (other.Phases?.CurrentPhase is HoldingInPositionPhase && RunwayOccupancy.IsOnPavement(other, runway))
                 )
             )
             .Select(other => other.Callsign)
@@ -99,7 +93,7 @@ public static class RunwaySafetyAdvisor
                 && occupied.Id.Contains(runwayDesignator)
                 && (
                     AwaitsTakeoffClearanceOnRunway(other)
-                    || (other.Phases?.CurrentPhase is HoldingInPositionPhase && IsPhysicallyOnRunway(other, occupied))
+                    || (other.Phases?.CurrentPhase is HoldingInPositionPhase && RunwayOccupancy.IsOnPavement(other, occupied))
                 )
             )
             .Select(other => other.Callsign)
@@ -175,21 +169,6 @@ public static class RunwaySafetyAdvisor
 
     private static Phase? NextPhaseOf(PhaseList phases) =>
         (phases.CurrentIndex + 1) < phases.Phases.Count ? phases.Phases[phases.CurrentIndex + 1] : null;
-
-    /// <summary>
-    /// Geometric containment test: on the ground, within the runway's half-width (plus slack) of
-    /// its centerline, between the two ends.
-    /// </summary>
-    private static bool IsPhysicallyOnRunway(AircraftState occupant, RunwayInfo runway)
-    {
-        if (!occupant.IsOnGround)
-        {
-            return false;
-        }
-
-        double distFt = GeoMath.DistanceToSegmentFt(occupant.Position.Lat, occupant.Position.Lon, runway.Lat1, runway.Lon1, runway.Lat2, runway.Lon2);
-        return distFt <= ((runway.WidthFt / 2.0) + OnRunwayLateralSlackFt);
-    }
 
     /// <summary>
     /// The runway a ground aircraft in a line-up-family phase is claiming: the departure runway for

@@ -48,7 +48,7 @@
 using Microsoft.Extensions.Logging;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Faa;
-using Yaat.Sim.Phases.Ground;
+using Yaat.Sim.Simulation;
 
 namespace Yaat.Sim;
 
@@ -943,21 +943,12 @@ public static class GroundConflictDetector
 
     // --- Helpers ---
 
-    private static bool IsOnRunway(AircraftState ac)
-    {
-        string? phase = ac.Phases?.CurrentPhase?.Name;
-        if (phase is "Landing" or "Takeoff" or "LiningUp" or "LinedUpAndWaiting" or "StopAndGo" or "TouchAndGo")
-        {
-            return true;
-        }
-
-        if (phase is "Runway Exit" && ac.Phases?.CurrentPhase is RunwayExitPhase rep)
-        {
-            return rep.IsOnCenterline;
-        }
-
-        return false;
-    }
+    /// <summary>
+    /// On the runway by phase evidence alone (no runway geometry is available here): landing, taking
+    /// off, lining up, or rolling out on the centerline. A generic holding-in-position aircraft is not
+    /// on the runway for priority purposes.
+    /// </summary>
+    private static bool IsOnRunway(AircraftState ac) => RunwayOccupancy.OccupiesSurface(RunwayOccupancy.ClassifyByPhase(ac, runway: null));
 
     /// <summary>
     /// True when the aircraft is intentionally stationary — parked, holding, or

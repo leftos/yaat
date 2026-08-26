@@ -2,6 +2,7 @@
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
+using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Testing;
 
 namespace Yaat.Sim.Tests;
@@ -921,6 +922,34 @@ public class GroundConflictDetectorTests
             exiting.Ground.SpeedLimit is null || exiting.Ground.SpeedLimit > 0,
             $"Runway-exit aircraft should proceed, got limit={exiting.Ground.SpeedLimit?.ToString("F1") ?? "null"}"
         );
+        Assert.Equal(0.0, crosser.Ground.SpeedLimit);
+    }
+
+    /// <summary>
+    /// A departure rolling on the runway has the same priority as an exiting one: the takeoff
+    /// roll is never speed-limited for a taxiing crosser; the crosser holds.
+    /// </summary>
+    [Fact]
+    public void Crossing_TakeoffRollAircraft_HasPriority_TaxiingCrosserYields()
+    {
+        var (layout, _, _, _) = BuildSimpleLayout();
+        var edge01 = layout.Edges[0];
+        var routeCrosser = MakeRoute(MakeSeg(0, 1, "A", edge01));
+
+        var departing = MakeAircraft("DEP", new LatLon(BaseLat, BaseLon), heading: 0, gs: 40, phase: new TakeoffPhase());
+        var crosser = MakeAircraft(
+            "CROSS",
+            new LatLon(BaseLat + 0.9 * OffsetLatPer100Ft, BaseLon),
+            heading: 90,
+            gs: 8,
+            taxiRoute: routeCrosser,
+            phase: new TaxiingPhase()
+        );
+
+        var aircraft = new List<AircraftState> { departing, crosser };
+        GroundConflictDetector.ApplySpeedLimits(aircraft, layout);
+
+        Assert.True(departing.Ground.SpeedLimit is null || departing.Ground.SpeedLimit > 0);
         Assert.Equal(0.0, crosser.Ground.SpeedLimit);
     }
 

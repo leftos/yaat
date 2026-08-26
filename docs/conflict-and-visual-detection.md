@@ -25,7 +25,7 @@ See [tick-loop.md](tick-loop.md) for the full PrePhysics → Physics×4 → Post
 These four hook in at four different points:
 
 - **Ground conflict** — inside the **physics sub-tick, before `FlightPhysics.Update`**:
-  `GroundConflictDetector.ApplySpeedLimits(_aircraft, GroundLayout, deltaSeconds)` at `SimulationWorld.cs:235`. It runs
+  `GroundConflictDetector.ApplySpeedLimits(_aircraft, GroundLayout, deltaSeconds)` at `SimulationWorld.cs:256`. It runs
   4× per sim-second (once per 0.25 s sub-tick) so the freshly-written `Ground.SpeedLimit` is consumed by physics in the
   same sub-tick. This is the only detector that runs more than once per sim-second.
 - **Airborne CA** — **PostPhysics**, server-side. Two sibling passes registered in the PostPhysics fan-out:
@@ -612,10 +612,14 @@ here and have `aviation-sim-expert` review against the local FAA references.
   reported below 10 SM; the airport datum is min(ARP, assigned threshold) so maintain can never out-reach acquisition) —
   that one is weather. The initial-acquisition path keeps all checks.
 
-- **Ground classification keys on phase *name* strings.** `IsOnRunway` (`GroundConflictDetector.cs:804`) and
-  `IsStationaryPhase` (`:825`) match literals like `"LinedUpAndWaiting"`, `"Landing"`, `"Takeoff"`, and the prefix
-  `"Holding Short"`. Renaming a phase silently breaks classification with **no compile error**. See
-  [phases.md](phases.md) for the phase-name contract.
+- **Ground classification keys on phase *name* strings.** `Classify`/`IsStationaryPhase` (`GroundConflictDetector.cs:325`/`:959`)
+  match literals like `"LinedUpAndWaiting"`, `"At Parking"`, and the prefix `"Holding Short"`. Renaming a phase
+  silently breaks classification with **no compile error**. See [phases.md](phases.md) for the phase-name contract.
+  `IsOnRunway` (runway priority in `ResolveCrossing`/`ComputeClosingLimit`) no longer string-matches: it is
+  `RunwayOccupancy.OccupiesSurface(RunwayOccupancy.ClassifyByPhase(ac, runway: null))`
+  (`src/Yaat.Sim/Simulation/RunwayOccupancy.cs`) — phase *types* (takeoff, landing, line-up family, runway exit on the
+  centerline). No geometry is consulted here because the detector has no `RunwayInfo` in hand; a holding-in-position
+  aircraft is therefore never "on the runway" for priority purposes.
 
 - **`WakeTurbulenceData` must be `Initialize()`'d first.** Before `AircraftCwt.json` is loaded, `GetCwt` returns null and
   both the ATPA matrix and the visual traffic range fall back to `AircraftCategory`. This is a static-singleton

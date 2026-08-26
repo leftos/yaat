@@ -8,6 +8,7 @@ using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Pilot;
+using Yaat.Sim.Simulation;
 
 namespace Yaat.Sim.Training;
 
@@ -2009,6 +2010,7 @@ public sealed class SoloTrainingEvaluator
                 aircraft.IsOnGround,
                 aircraft.Position,
                 phase,
+                RunwayOccupancy.ClassifyByPhase(aircraft, runway: null),
                 runway,
                 runwayKey,
                 alongPavementFt,
@@ -3652,6 +3654,7 @@ public sealed class SoloTrainingEvaluator
             return key.ToUpperInvariant();
         }
 
+        /// <param name="RunwayUse">Phase-evidence runway use (<see cref="RunwayOccupancy.ClassifyByPhase"/>); a takeoff roll is <see cref="RunwayUseKind.Departing"/>.</param>
         /// <param name="AlongThresholdFt">Along-track distance from the runway's pavement threshold — the departure/intersection datum.</param>
         /// <param name="ThresholdDisplacementFt">Published displacement of this end's landing threshold; 0 when there is no airport map.</param>
         /// <param name="PavementLengthFt">Physical runway length, for "crossed the runway end".</param>
@@ -3661,6 +3664,7 @@ public sealed class SoloTrainingEvaluator
             bool IsOnGround,
             LatLon Position,
             Phase? Phase,
+            RunwayUseKind? RunwayUse,
             RunwayInfo Runway,
             string RunwayKey,
             double AlongThresholdFt,
@@ -3673,7 +3677,7 @@ public sealed class SoloTrainingEvaluator
             /// <summary>Along-track distance from the *landing* threshold — the arrival datum.</summary>
             public double AlongLandingThresholdFt => AlongThresholdFt - ThresholdDisplacementFt;
 
-            public bool IsTakeoffRoll => IsOnGround && Phase is TakeoffPhase;
+            public bool IsTakeoffRoll => IsOnGround && RunwayUse == RunwayUseKind.Departing;
             public bool IsDepartureAfterRollStart => Phase is TakeoffPhase or InitialClimbPhase;
             public bool IsArrivalApproach => Phase is FinalApproachPhase or LandingPhase;
             public bool IsArrivalOrLanding => Phase is FinalApproachPhase or LandingPhase or RunwayExitPhase;
