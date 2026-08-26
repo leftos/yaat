@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+- Ground View controls bar sits above the map and scrolls sideways when the window is narrow, no longer overlapping the weather readout; the pop-out window has a minimum size. (#403)
+
 ## v0.12.20-beta [2026/08/25]
 
 ### Highlights

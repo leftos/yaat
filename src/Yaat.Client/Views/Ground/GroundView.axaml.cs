@@ -1619,4 +1619,23 @@ public partial class GroundView : UserControl
             _canvas.ScrollSensitivity = vm.Preferences.ScrollSensitivity;
         }
     }
+
+    /// <summary>
+    /// Scrolls the docked controls bar sideways when it is wider than the view (the scrollbar is
+    /// hidden, mirroring the radar DCB). Vertical wheel motion maps to horizontal travel; a
+    /// trackpad's horizontal delta is honoured directly.
+    /// </summary>
+    private void OnToolbarPointerWheelChanged(object? sender, PointerWheelEventArgs e)
+    {
+        var scroller = this.FindControl<ScrollViewer>("ToolbarScroller");
+        if (scroller is null)
+        {
+            return;
+        }
+
+        double delta = e.Delta.X != 0 ? e.Delta.X : e.Delta.Y;
+        double sensitivity = _canvas?.ScrollSensitivity ?? 1.0;
+        scroller.Offset = scroller.Offset.WithX(scroller.Offset.X - (Math.Sign(delta) * 40 * sensitivity));
+        e.Handled = true;
+    }
 }

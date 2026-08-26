@@ -437,7 +437,7 @@ Selecting a preset is identical to typing the equivalent `TAXI` command (`TAXI T
 
 **Debug overlay:** Press **Ctrl+D** to toggle node IDs, names, types, and edge labels on the ground map. Useful for finding node IDs for manual `#nodeId` taxi commands.
 
-**Controls bar** (top-right corner):
+**Controls bar** (above the map, right-aligned; when the window is too narrow for every button, hover the bar and roll the mouse wheel to scroll it sideways):
 - **Layer toggles** — **SAT** (satellite background image), **MAP** (video map overlay), **GND** (YAAT ground layout)
 - **Label filters** — **RWY** and **TWY** toggle labels on/off. **HS**, **PARK**, and **SPOT** are tri-state: labels+icons → icons only → hidden. Hovering over a hidden element temporarily shows it.
 - **ADW** — Arrival/Departure Window marks (see below). On by default; nothing is drawn at airports where no window is published.

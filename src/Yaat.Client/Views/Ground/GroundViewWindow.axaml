@@ -6,7 +6,9 @@
         x:Class="Yaat.Client.Views.Ground.GroundViewWindow"
         x:DataType="vm:MainViewModel"
         Icon="avares://Yaat.Client/Resources/icon.png"
-        Title="Ground View">
+        Title="Ground View"
+        MinWidth="400"
+        MinHeight="300">
 
     <DockPanel>
         <views:RestartNotificationView DockPanel.Dock="Top" />

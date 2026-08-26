@@ -73,6 +73,7 @@ The Task Index above tells you *which files*; these docs explain *how each subsy
 
 - **Sim tests**: `tests/Yaat.Sim.Tests/` — commands, phases, physics, parsers, nav data
 - **Client tests**: `tests/Yaat.Client.Tests/` — view model logic, command input
+- **UI tests**: `tests/Yaat.Client.UI.Tests/` — headless window tests for views and layout
 - **Test data**: `tests/Yaat.Sim.Tests/TestData/` — NavData.dat + `navdata-manifest.json`, FAACIFP18.gz + `cifp-manifest.json`, airport GeoJSON. Refresh pins: `tools/refresh-navdata.py`, FAA CIFP via `CifpPathResolver` at test load.
 - **Shared loader**: `TestVnasData.EnsureInitialized()` — always use this, never synthetic stubs
 
@@ -366,8 +367,8 @@ Views/Map/
   RightClickGesture.cs          # Right-button click-vs-drag tracker shared by radar + ground: menu on release-without-drag, pan otherwise
 
 Views/Ground/
-  GroundView.axaml.cs           # Ground view control with context menus + layer toggles (SAT/MAP/GND)
-  GroundViewWindow.axaml.cs     # Pop-out ground window
+  GroundView.axaml.cs           # Ground view control with context menus + docked toolbar (layer/label toggles, hidden-scrollbar horizontal ScrollViewer); OnToolbarPointerWheelChanged wheel-scrolls when toolbar is narrower than content
+  GroundViewWindow.axaml.cs     # Pop-out ground window with enforced minimum dimensions
   GroundCanvas.cs               # SkiaSharp canvas with StyledProperties + hit-testing
   GroundRenderer.cs             # Stateless SkiaSharp ground renderer (3 layers: satellite, video map, YAAT layout); skips never-driven >155° hairpin fillet arcs; DrawAdwMarks strokes the server-resolved ADW reference ticks (ADW toolbar toggle)
 

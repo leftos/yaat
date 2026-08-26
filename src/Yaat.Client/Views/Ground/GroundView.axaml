@@ -46,108 +46,115 @@
         </Style>
     </UserControl.Styles>
 
-    <Panel>
-        <ground:GroundCanvas x:Name="Canvas"
-                             Layout="{Binding Layout}"
-                             DataBlockState="{Binding DataBlockState}"
-                             SelectedAircraft="{Binding SelectedAircraft}"
-                             HoverTaxiRoute="{Binding HoverTaxiRoute}"
-                             PreviewRoute="{Binding PreviewRoute}"
-                             DrawnRoutePreview="{Binding DrawnRoutePreview}"
-                             DrawHoverPreview="{Binding DrawHoverPreview}"
-                             IsDrawingRoute="{Binding IsDrawingRoute}"
-                             IsMeasuring="{Binding Measure.IsMeasuring}"
-                             RangeBearingLines="{Binding Measure.Lines}"
-                             MeasureAnchor="{Binding Measure.Anchor}"
-                             DrawWaypoints="{Binding DrawWaypoints}"
-                             AirportCenterLat="{Binding AirportCenterLat}"
-                             AirportCenterLon="{Binding AirportCenterLon}"
-                             AirportElevation="{Binding AirportElevation}"
-                             Aircraft="{Binding $parent[Window].((vm:MainViewModel)DataContext).Aircraft}"
-                             WeatherInfo="{Binding WeatherInfo}"
-                             ShowRunwayLabels="{Binding ShowRunwayLabels}"
-                             ShowTaxiwayLabels="{Binding ShowTaxiwayLabels}"
-                             ShowHoldShort="{Binding ShowHoldShort}"
-                             ShowParking="{Binding ShowParking}"
-                             ShowSpot="{Binding ShowSpot}"
-                             ShowAdwMarkings="{Binding ShowAdwMarkings}"
-                             ColorScheme="{Binding ColorScheme}"
-                             BackgroundImage="{Binding BackgroundImage}"
-                             TowerCabMap="{Binding TowerCabMap}"
-                             ShowSatelliteImage="{Binding ShowSatelliteImage}"
-                             SatelliteImageBrightness="{Binding SatelliteImageBrightness}"
-                             ShowVideoMapOverlay="{Binding ShowVideoMapOverlay}"
-                             VideoMapOverlayBrightness="{Binding VideoMapOverlayBrightness}"
-                             ShowYaatLayout="{Binding ShowYaatLayout}"
-                             YaatLayoutBrightness="{Binding YaatLayoutBrightness}"
-                             ShownTaxiRoutes="{Binding ShownTaxiRoutes}"
-                             IsPanZoomLocked="{Binding IsPanZoomLocked}"
-                             DeconflictMode="{Binding DeconflictMode}"
-                             ViewCenterLat="{Binding ViewCenterLat, Mode=TwoWay}"
-                             ViewCenterLon="{Binding ViewCenterLon, Mode=TwoWay}"
-                             ViewZoom="{Binding ViewZoom, Mode=TwoWay}"
-                             ViewRotation="{Binding ViewRotation, Mode=TwoWay}"
-                             HasSavedView="{Binding HasSavedView, Mode=OneWay}" />
-
-        <!-- Label filter bar -->
-        <StackPanel Orientation="Horizontal" Spacing="2"
-                    HorizontalAlignment="Right" VerticalAlignment="Top"
-                    Margin="0,6,6,0"
-                    IsVisible="{Binding Layout, Converter={x:Static ObjectConverters.IsNotNull}}">
-            <Button Classes="gnd-filter" Classes.active="{Binding ShowSatelliteImage}" Content="SAT" Click="OnToggleSatelliteImage" ToolTip.Tip="Toggle satellite background image" />
-            <Button Classes="gnd-filter" Classes.active="{Binding ShowVideoMapOverlay}" Content="MAP" Click="OnToggleVideoMapOverlay" ToolTip.Tip="Toggle video map overlay" />
-            <Button Classes="gnd-filter" Classes.active="{Binding ShowYaatLayout}" Content="GND" Click="OnToggleYaatLayout" ToolTip.Tip="Toggle YAAT ground layout" />
-            <Border Width="1" Background="#555" Margin="4,2" />
-            <Button Classes="gnd-filter" Classes.active="{Binding Measure.IsMeasuring}" Content="RBL" Command="{Binding StartMeasureCommand}" ToolTip.Tip="Measure distance and bearing — click two points or aircraft (Alt+drag, or Ctrl+M)" />
-            <Border Width="1" Background="#555" Margin="4,2" />
-            <Button Classes="gnd-filter" Classes.active="{Binding ShowRunwayLabels}" Content="RWY" Click="OnToggleRunwayLabels" />
-            <Button Classes="gnd-filter" Classes.active="{Binding ShowTaxiwayLabels}" Content="TWY" Click="OnToggleTaxiwayLabels" />
-            <Button Classes="gnd-filter" Classes.active="{Binding ShowHoldShort, Converter={x:Static ground:GroundView.FilterIsActive}}" Classes.partial="{Binding ShowHoldShort, Converter={x:Static ground:GroundView.FilterIsPartial}}" Content="HS" Click="OnToggleHoldShort" />
-            <Button Classes="gnd-filter" Classes.active="{Binding ShowParking, Converter={x:Static ground:GroundView.FilterIsActive}}" Classes.partial="{Binding ShowParking, Converter={x:Static ground:GroundView.FilterIsPartial}}" Content="PARK" Click="OnToggleParking" />
-            <Button Classes="gnd-filter" Classes.active="{Binding ShowSpot, Converter={x:Static ground:GroundView.FilterIsActive}}" Classes.partial="{Binding ShowSpot, Converter={x:Static ground:GroundView.FilterIsPartial}}" Content="SPOT" Click="OnToggleSpot" />
-            <Button Classes="gnd-filter" Classes.active="{Binding ShowAdwMarkings}" Content="ADW" Click="OnToggleAdwMarkings" ToolTip.Tip="Toggle Arrival/Departure Window marks (only drawn where the facility publishes them)" />
-            <Border Width="1" Background="#555" Margin="4,2" />
-            <Button Classes="gnd-filter" Classes.active="{Binding IsDeconflictActive}" Content="{Binding DeconflictModeLabel}" Click="OnToggleDeconflict" ToolTip.Tip="Datablock deconfliction: Off → Snap → Free-form" />
-            <Border Width="1" Background="#555" Margin="4,2" />
-            <Button x:Name="ResetButton" Classes="gnd-filter" Content="RESET" Click="OnResetView" ToolTip.Tip="Reset view to fit airport. Shift+Click to also reset rotation." />
-            <Button Classes="gnd-filter" Classes.active="{Binding IsPanZoomLocked}" Content="{Binding IsPanZoomLocked, Converter={x:Static ground:GroundView.BoolToLockLabel}}" Click="OnToggleLock" />
-        </StackPanel>
-
-        <!-- No layout message -->
-        <TextBlock Text="No airport layout loaded"
-                   Foreground="{DynamicResource SubtleTextBrush}"
-                   HorizontalAlignment="Center"
-                   VerticalAlignment="Center"
-                   IsVisible="{Binding Layout, Converter={x:Static ObjectConverters.IsNull}}" />
-
-        <!-- Draw route status overlay -->
-        <Border IsVisible="{Binding IsDrawingRoute}"
-                Background="#CC000000" Padding="8,4"
-                HorizontalAlignment="Center" VerticalAlignment="Top"
-                CornerRadius="4" Margin="0,8">
-            <TextBlock Text="Click nodes to add waypoints. Right-click node to finish. Backspace to undo. Esc to cancel." Foreground="White" FontSize="12"/>
+    <DockPanel>
+        <!-- Label filter bar: docked above the canvas so it can never share pixels with the
+             renderer's weather readout; scrolls sideways (mouse wheel) when it doesn't fit. -->
+        <Border x:Name="ToolbarContainer" DockPanel.Dock="Top"
+                Background="#1A1A1A"
+                IsVisible="{Binding Layout, Converter={x:Static ObjectConverters.IsNotNull}}"
+                PointerWheelChanged="OnToolbarPointerWheelChanged">
+            <ScrollViewer x:Name="ToolbarScroller" HorizontalScrollBarVisibility="Hidden" VerticalScrollBarVisibility="Disabled">
+                <StackPanel Orientation="Horizontal" Spacing="2" HorizontalAlignment="Right" Margin="6,4">
+                    <Button Classes="gnd-filter" Classes.active="{Binding ShowSatelliteImage}" Content="SAT" Click="OnToggleSatelliteImage" ToolTip.Tip="Toggle satellite background image" />
+                    <Button Classes="gnd-filter" Classes.active="{Binding ShowVideoMapOverlay}" Content="MAP" Click="OnToggleVideoMapOverlay" ToolTip.Tip="Toggle video map overlay" />
+                    <Button Classes="gnd-filter" Classes.active="{Binding ShowYaatLayout}" Content="GND" Click="OnToggleYaatLayout" ToolTip.Tip="Toggle YAAT ground layout" />
+                    <Border Width="1" Background="#555" Margin="4,2" />
+                    <Button Classes="gnd-filter" Classes.active="{Binding Measure.IsMeasuring}" Content="RBL" Command="{Binding StartMeasureCommand}" ToolTip.Tip="Measure distance and bearing — click two points or aircraft (Alt+drag, or Ctrl+M)" />
+                    <Border Width="1" Background="#555" Margin="4,2" />
+                    <Button Classes="gnd-filter" Classes.active="{Binding ShowRunwayLabels}" Content="RWY" Click="OnToggleRunwayLabels" />
+                    <Button Classes="gnd-filter" Classes.active="{Binding ShowTaxiwayLabels}" Content="TWY" Click="OnToggleTaxiwayLabels" />
+                    <Button Classes="gnd-filter" Classes.active="{Binding ShowHoldShort, Converter={x:Static ground:GroundView.FilterIsActive}}" Classes.partial="{Binding ShowHoldShort, Converter={x:Static ground:GroundView.FilterIsPartial}}" Content="HS" Click="OnToggleHoldShort" />
+                    <Button Classes="gnd-filter" Classes.active="{Binding ShowParking, Converter={x:Static ground:GroundView.FilterIsActive}}" Classes.partial="{Binding ShowParking, Converter={x:Static ground:GroundView.FilterIsPartial}}" Content="PARK" Click="OnToggleParking" />
+                    <Button Classes="gnd-filter" Classes.active="{Binding ShowSpot, Converter={x:Static ground:GroundView.FilterIsActive}}" Classes.partial="{Binding ShowSpot, Converter={x:Static ground:GroundView.FilterIsPartial}}" Content="SPOT" Click="OnToggleSpot" />
+                    <Button Classes="gnd-filter" Classes.active="{Binding ShowAdwMarkings}" Content="ADW" Click="OnToggleAdwMarkings" ToolTip.Tip="Toggle Arrival/Departure Window marks (only drawn where the facility publishes them)" />
+                    <Border Width="1" Background="#555" Margin="4,2" />
+                    <Button Classes="gnd-filter" Classes.active="{Binding IsDeconflictActive}" Content="{Binding DeconflictModeLabel}" Click="OnToggleDeconflict" ToolTip.Tip="Datablock deconfliction: Off → Snap → Free-form" />
+                    <Border Width="1" Background="#555" Margin="4,2" />
+                    <Button x:Name="ResetButton" Classes="gnd-filter" Content="RESET" Click="OnResetView" ToolTip.Tip="Reset view to fit airport. Shift+Click to also reset rotation." />
+                    <Button Classes="gnd-filter" Classes.active="{Binding IsPanZoomLocked}" Content="{Binding IsPanZoomLocked, Converter={x:Static ground:GroundView.BoolToLockLabel}}" Click="OnToggleLock" />
+                </StackPanel>
+            </ScrollViewer>
         </Border>
 
-        <!-- Custom taxi route input overlay -->
-        <Border x:Name="TaxiInputOverlay"
-                IsVisible="False"
-                HorizontalAlignment="Center"
-                VerticalAlignment="Bottom"
-                Margin="0,0,0,12"
-                Padding="8,6"
-                CornerRadius="4"
-                Background="#DD1E1E2E"
-                BorderBrush="#555"
-                BorderThickness="1">
-            <TextBox x:Name="TaxiInputBox"
-                     FontFamily="{StaticResource MonoFont}"
-                     FontSize="14"
-                     MinWidth="300"
-                     Background="Transparent"
-                     BorderThickness="0"
-                     Foreground="White"
-                     CaretBrush="White" />
-        </Border>
-    </Panel>
+        <Panel>
+            <ground:GroundCanvas x:Name="Canvas"
+                                 Layout="{Binding Layout}"
+                                 DataBlockState="{Binding DataBlockState}"
+                                 SelectedAircraft="{Binding SelectedAircraft}"
+                                 HoverTaxiRoute="{Binding HoverTaxiRoute}"
+                                 PreviewRoute="{Binding PreviewRoute}"
+                                 DrawnRoutePreview="{Binding DrawnRoutePreview}"
+                                 DrawHoverPreview="{Binding DrawHoverPreview}"
+                                 IsDrawingRoute="{Binding IsDrawingRoute}"
+                                 IsMeasuring="{Binding Measure.IsMeasuring}"
+                                 RangeBearingLines="{Binding Measure.Lines}"
+                                 MeasureAnchor="{Binding Measure.Anchor}"
+                                 DrawWaypoints="{Binding DrawWaypoints}"
+                                 AirportCenterLat="{Binding AirportCenterLat}"
+                                 AirportCenterLon="{Binding AirportCenterLon}"
+                                 AirportElevation="{Binding AirportElevation}"
+                                 Aircraft="{Binding $parent[Window].((vm:MainViewModel)DataContext).Aircraft}"
+                                 WeatherInfo="{Binding WeatherInfo}"
+                                 ShowRunwayLabels="{Binding ShowRunwayLabels}"
+                                 ShowTaxiwayLabels="{Binding ShowTaxiwayLabels}"
+                                 ShowHoldShort="{Binding ShowHoldShort}"
+                                 ShowParking="{Binding ShowParking}"
+                                 ShowSpot="{Binding ShowSpot}"
+                                 ShowAdwMarkings="{Binding ShowAdwMarkings}"
+                                 ColorScheme="{Binding ColorScheme}"
+                                 BackgroundImage="{Binding BackgroundImage}"
+                                 TowerCabMap="{Binding TowerCabMap}"
+                                 ShowSatelliteImage="{Binding ShowSatelliteImage}"
+                                 SatelliteImageBrightness="{Binding SatelliteImageBrightness}"
+                                 ShowVideoMapOverlay="{Binding ShowVideoMapOverlay}"
+                                 VideoMapOverlayBrightness="{Binding VideoMapOverlayBrightness}"
+                                 ShowYaatLayout="{Binding ShowYaatLayout}"
+                                 YaatLayoutBrightness="{Binding YaatLayoutBrightness}"
+                                 ShownTaxiRoutes="{Binding ShownTaxiRoutes}"
+                                 IsPanZoomLocked="{Binding IsPanZoomLocked}"
+                                 DeconflictMode="{Binding DeconflictMode}"
+                                 ViewCenterLat="{Binding ViewCenterLat, Mode=TwoWay}"
+                                 ViewCenterLon="{Binding ViewCenterLon, Mode=TwoWay}"
+                                 ViewZoom="{Binding ViewZoom, Mode=TwoWay}"
+                                 ViewRotation="{Binding ViewRotation, Mode=TwoWay}"
+                                 HasSavedView="{Binding HasSavedView, Mode=OneWay}" />
+
+            <!-- No layout message -->
+            <TextBlock Text="No airport layout loaded"
+                       Foreground="{DynamicResource SubtleTextBrush}"
+                       HorizontalAlignment="Center"
+                       VerticalAlignment="Center"
+                       IsVisible="{Binding Layout, Converter={x:Static ObjectConverters.IsNull}}" />
+
+            <!-- Draw route status overlay -->
+            <Border IsVisible="{Binding IsDrawingRoute}"
+                    Background="#CC000000" Padding="8,4"
+                    HorizontalAlignment="Center" VerticalAlignment="Top"
+                    CornerRadius="4" Margin="0,8">
+                <TextBlock Text="Click nodes to add waypoints. Right-click node to finish. Backspace to undo. Esc to cancel." Foreground="White" FontSize="12"/>
+            </Border>
+
+            <!-- Custom taxi route input overlay -->
+            <Border x:Name="TaxiInputOverlay"
+                    IsVisible="False"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Bottom"
+                    Margin="0,0,0,12"
+                    Padding="8,6"
+                    CornerRadius="4"
+                    Background="#DD1E1E2E"
+                    BorderBrush="#555"
+                    BorderThickness="1">
+                <TextBox x:Name="TaxiInputBox"
+                         FontFamily="{StaticResource MonoFont}"
+                         FontSize="14"
+                         MinWidth="300"
+                         Background="Transparent"
+                         BorderThickness="0"
+                         Foreground="White"
+                         CaretBrush="White" />
+            </Border>
+        </Panel>
+    </DockPanel>
 
 </UserControl>

@@ -14,7 +14,7 @@ For taxi-route *resolution and following* (the pathfinder and navigator), see [`
 |------|------|
 | `Views/Ground/GroundCanvas.cs` | `MapCanvasBase` subclass: `StyledProperty` inputs, pointer input, hit-testing, per-frame `RenderSnapshot` assembly, per-callsign canvas-local display state |
 | `Views/Ground/GroundRenderer.cs` | Stateless SkiaSharp drawing: 3 background layers + route overlays + nodes + aircraft + datablocks. Owns the `SKPaint`s. `Render(...)` is the whole frame |
-| `Views/Ground/GroundView.axaml` + `.axaml.cs` | The user control: binds VM → canvas styled properties, wires canvas events, builds the right-click context menus, hosts the layer/label toolbar |
+| `Views/Ground/GroundView.axaml` + `.axaml.cs` | The user control: binds VM → canvas styled properties, wires canvas events, builds the right-click context menus, hosts the layer/label toolbar (docked above the canvas in a hidden-scrollbar horizontal `ScrollViewer`, wheel-scrolled when narrower than its content) |
 | `Views/Ground/GroundViewWindow.axaml.cs` | Pop-out window host — shares the same `MainViewModel.Ground` view-model instance |
 | `ViewModels/GroundViewModel.cs` | Ground-view state: layout load, per-scenario view settings, taxi-route overlays, draw-route mode, display prefs |
 
