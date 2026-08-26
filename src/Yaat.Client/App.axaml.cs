@@ -16,6 +16,14 @@ public class App : Application
     public static string? AutoConnectTarget { get; set; }
     public static string? AutoLoadScenarioId { get; set; }
 
+    /// <summary>
+    /// Whether <see cref="Views.MainWindow"/> installs the process-wide SharpHook keyboard hook for
+    /// PTT. Only the desktop entry point (<c>Program.Main</c>) turns this on: headless UI test hosts
+    /// must never install an OS-wide native hook, and on a display-less Linux runner libuiohook's
+    /// X11 teardown kills the test host with exit code 1 after every test has passed.
+    /// </summary>
+    public static bool GlobalKeyHookEnabled { get; set; }
+
     private static UiThreadWatchdog? _uiWatchdog;
 
     public override void Initialize()

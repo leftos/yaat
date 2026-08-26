@@ -71,6 +71,9 @@ Four other background-thread → UI-thread crossings exist outside the SignalR h
 - **Global PTT key hook.** `GlobalKeyHookService` fires `KeyDown`/`KeyUp` on a background thread (so PTT works while
   another app is focused). `MainWindow.OnGlobalKeyDown`/`OnGlobalKeyUp` (`MainWindow.axaml.cs:2601`/`2624`) post to the
   UI thread before calling `vm.SpeechService.StartPtt()`/`StopPtt()`, edge-triggered via `_globalPttActive`.
+  The hook is only installed when `App.GlobalKeyHookEnabled` is set, which `Program.Main` does; headless UI test
+  hosts leave it off so they never install a native OS-wide hook (libuiohook's X11 teardown kills a display-less
+  Linux test host with exit code 1).
 - **Speech service callbacks.** `_speechService.StatusChanged` and `CommandReady` fire off-thread;
   `HandleSpeechServiceStatusChange` and `HandleSpeechServiceCommandReady` (`MainViewModel.cs:1535`/`1540`) both post.
 - **Speech context provider (a *pull*, not a callback).** `SpeechRecognitionService.ProcessPipelineAsync` pulls the

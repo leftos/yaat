@@ -326,11 +326,15 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
         ApplyKeybinds(vm.Preferences);
 
         // Start the process-wide keyboard hook so PTT works while the user has another app
-        // focused (CRC, a browser, a PDF, etc.). Dispose handled in OnClosing.
-        _globalKeyHook = new GlobalKeyHookService();
-        _globalKeyHook.KeyDown += OnGlobalKeyDown;
-        _globalKeyHook.KeyUp += OnGlobalKeyUp;
-        _globalKeyHook.Start();
+        // focused (CRC, a browser, a PDF, etc.). Dispose handled in OnClosing. Only the desktop
+        // entry point enables it; headless test hosts must not install a native OS-wide hook.
+        if (App.GlobalKeyHookEnabled)
+        {
+            _globalKeyHook = new GlobalKeyHookService();
+            _globalKeyHook.KeyDown += OnGlobalKeyDown;
+            _globalKeyHook.KeyUp += OnGlobalKeyUp;
+            _globalKeyHook.Start();
+        }
 
         // Wire the "Show speech recognition debugging..." items on both mic-status menus (one for
         // the active indicator, one for the "mic: off" stub). Both open the same SpeechDebugWindow.

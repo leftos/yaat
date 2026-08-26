@@ -112,6 +112,8 @@ public static class Program
             App.AutoConnectTarget ??= "http://localhost:5000";
         }
 
+        App.GlobalKeyHookEnabled = true;
+
         try
         {
             BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
