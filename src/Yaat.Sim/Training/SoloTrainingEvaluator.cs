@@ -1986,6 +1986,12 @@ public sealed class SoloTrainingEvaluator
         private static AircraftRunwayState? TryBuildState(AircraftState aircraft)
         {
             var runway = aircraft.Phases?.AssignedRunway;
+            RunwayUseKind? runwayUse = RunwayOccupancy.ClassifyByPhase(aircraft, runway: null);
+            if (aircraft.IsShadow)
+            {
+                (runway, runwayUse) = ResolveShadowRunwayUse(aircraft);
+            }
+
             if (runway is null)
             {
                 return null;
@@ -2010,7 +2016,7 @@ public sealed class SoloTrainingEvaluator
                 aircraft.IsOnGround,
                 aircraft.Position,
                 phase,
-                RunwayOccupancy.ClassifyByPhase(aircraft, runway: null),
+                runwayUse,
                 runway,
                 runwayKey,
                 alongPavementFt,
@@ -2019,6 +2025,40 @@ public sealed class SoloTrainingEvaluator
                 SameRunwaySeparation.ResolveSrsCategory(aircraft),
                 ResolveCwtCategory(aircraft)
             );
+        }
+
+        /// <summary>
+        /// A shadow has no assigned runway: the runway it is geometrically using at its destination or departure airport
+        /// stands in, and its use kind replaces the phase in every predicate. Airborne, the observer's latches extend the
+        /// window: a just-departed shadow stays a <see cref="RunwayUseKind.Departing"/> on its latched runway through the
+        /// §3-9-6 landmarks, and an arrival inside the 6 nm ring is <see cref="RunwayUseKind.OnFinal"/> (a simulated
+        /// arrival counts from <see cref="FinalApproachPhase"/>, well outside 2 nm).
+        /// </summary>
+        private static (RunwayInfo? Runway, RunwayUseKind? Use) ResolveShadowRunwayUse(AircraftState aircraft)
+        {
+            var layout = aircraft.Ground.Layout;
+            var destinationRunways = RunwayOccupancy.AirportRunways(aircraft.FlightPlan.Destination);
+            var departureRunways = RunwayOccupancy.AirportRunways(aircraft.FlightPlan.Departure);
+            var use =
+                RunwayOccupancy.ClassifyBest(aircraft, destinationRunways, layout)
+                ?? RunwayOccupancy.ClassifyBest(aircraft, departureRunways, layout);
+            if (use is not null)
+            {
+                return (use.Runway, use.Kind);
+            }
+
+            if (aircraft.IsOnGround)
+            {
+                return (null, null);
+            }
+
+            if (aircraft.LiveTraffic is { DepartedOnRunway: true } lt && SimulationEngine.LiveTrafficLatchedRunway(lt) is { } departed)
+            {
+                return (departed, RunwayUseKind.Departing);
+            }
+
+            var final = RunwayOccupancy.ClosestFinal(aircraft, destinationRunways, layout, RunwaySafetyAdvisor.OnFinalAdvisoryNm);
+            return final is null ? (null, null) : (final, RunwayUseKind.OnFinal);
         }
 
         private static RunwayOperation? DetectOperation(
@@ -3469,6 +3509,13 @@ public sealed class SoloTrainingEvaluator
                 return true;
             }
 
+            if (state.Phase is null)
+            {
+                // Live traffic: anything still on the pavement — rolling, turning off at an exit (Crossing) — is not
+                // clear (P/CG CLEAR OF THE RUNWAY); once off the pavement the tracker no longer sees it at all.
+                return state.RunwayUse is not (RunwayUseKind.Landing or RunwayUseKind.OnSurface or RunwayUseKind.Crossing);
+            }
+
             return state.Phase is not (LandingPhase or RunwayExitPhase or StopAndGoPhase or TouchAndGoPhase);
         }
 
@@ -3607,11 +3654,19 @@ public sealed class SoloTrainingEvaluator
             public double AlongLandingThresholdFt => AlongThresholdFt - ThresholdDisplacementFt;
 
             public bool IsTakeoffRoll => IsOnGround && RunwayUse == RunwayUseKind.Departing;
-            public bool IsDepartureAfterRollStart => Phase is TakeoffPhase or InitialClimbPhase;
-            public bool IsArrivalApproach => Phase is FinalApproachPhase or LandingPhase;
-            public bool IsArrivalOrLanding => Phase is FinalApproachPhase or LandingPhase or RunwayExitPhase;
+            public bool IsDepartureAfterRollStart =>
+                Phase is TakeoffPhase or InitialClimbPhase || (Phase is null && RunwayUse == RunwayUseKind.Departing);
+            public bool IsArrivalApproach => Phase is FinalApproachPhase or LandingPhase || IsShadowArrival;
+            public bool IsArrivalOrLanding => Phase is FinalApproachPhase or LandingPhase or RunwayExitPhase || IsShadowArrival;
             public bool IsLandingAfterThreshold =>
-                (AlongLandingThresholdFt >= 0.0) && (Phase is LandingPhase or RunwayExitPhase or HoldingAfterExitPhase);
+                (AlongLandingThresholdFt >= 0.0)
+                && (
+                    Phase is LandingPhase or RunwayExitPhase or HoldingAfterExitPhase
+                    || (Phase is null && RunwayUse is RunwayUseKind.Landing or RunwayUseKind.OnSurface)
+                );
+
+            /// <summary>A phase-less (live-traffic) arrival: on the 6 nm final, short final, or landing.</summary>
+            private bool IsShadowArrival => Phase is null && RunwayUse is RunwayUseKind.OnFinal or RunwayUseKind.ShortFinal or RunwayUseKind.Landing;
         }
 
         private sealed record RunwayOperation(

@@ -504,7 +504,8 @@ RunwayDepartureQueue.cs        # Static per-hold-short departure-queue ranker. U
                                # "28R@E #2" off an intersection) + Info-column "(#N)".
 AircraftPerformance.cs         # Unified perf API: profile-first with category fallback. Altitude-banded
                                # climb/descent rates, Mach-aware speeds, 91.117 waiver support
-GroundConflictDetector.cs      # Static pairwise ground proximity → SpeedLimit overrides. Runway priority via RunwayOccupancy.ClassifyByPhase.
+GroundConflictDetector.cs      # Static pairwise ground proximity → SpeedLimit overrides. Runway priority via RunwayOccupancy.ClassifyByPhase;
+                               # live-traffic shadows = MovementState.External (obstacle, never subject; Ground.ExternalOnRunway by geometry).
                                # Single-pass pair classifier (SameEdgeTrailing/SameEdgeHeadOn/
                                # Converging/Crossing/Pushback/Stationary). Honors Ground.Hold
                                # (HoldPosition or GiveWay) via IsImmobile predicate for
@@ -649,7 +650,8 @@ Commands/TrackResolver.cs           # AS-prefix extraction (e.g. "AS 3Y ACCEPT" 
                                     # and Sim's replay applier.
 Commands/PatternCommandHandler.cs   # Pattern operation command logic (extend, rock wings, GoAround, CTL, sequence, etc.); EF loop detection via turn-arc geometry, same-runway continue no-op, never-route-outbound reject, and the pattern retarget that degrades a too-close EF into a base entry; runway-changing entries void the landing clearance; pre-arms EXT/SA/MNA and landing/option clearances behind a still-queued pattern entry; present-position downwind join (IsAtOrPastDownwindEntry) when the aircraft is already alongside the downwind between the entry point and the base turn (#352)
 Commands/RunwaySafetyAdvisor.cs     # Non-blocking 7110.65 3-9-4 occupied-runway advisories (PendingWarnings → amber terminal): landing-family clearance
-                                    # (pavement test = RunwayOccupancy.IsOnPavement for holding-in-position occupants)
+                                    # (pavement test = RunwayOccupancy.IsOnPavement for holding-in-position occupants; live-traffic shadows by
+                                    # RunwayOccupancy.Classify geometry; WarnIfTrafficOnFinal = 3-9-4.d shadows within 6 nm on LUAW)
                                     # (CLAND/COPT/TG/SG/LA/LAHSO/CLANDF) with traffic holding in position / taxiing to line up on the runway, and the reverse
                                     # (LUAW with a landing-family clearance outstanding). Suppressed when ArtccConfigResolver.AirportHasFullSafetyLogic finds
                                     # an ASDE-X config with runway configurations for the airport (CRC Safety Logic covers the incursion there)
@@ -952,7 +954,8 @@ ScenarioRatingClassifier.cs    # Maps VATSIM rating short/long forms (S3 / Stude
                                # client picker filter and the server-side gating decision.
 
 # Simulation/
-RunwayOccupancy.cs             # Phase-independent runway-use classifier (RunwayUseKind: Departing/Landing/OnSurface/ShortFinal/Crossing).
+RunwayOccupancy.cs             # Phase-independent runway-use classifier (RunwayUseKind: Departing/Landing/OnSurface/ShortFinal/Crossing);
+                               # IsOnFinal (6 nm advisory ring), ClassifyBest (oriented pavements, LandedOnRunway-aware), AirportRunways (FAA/ICAO).
                                # Phase evidence first (ClassifyByPhase), geometry (pavement rectangle + axis alignment on the ground,
                                # TCH + final-approach course in the air) only for phase-less aircraft; landing-threshold distance/time helpers.
                                # Consumed by RunwaySafetyAdvisor, GroundConflictDetector.IsOnRunway, SoloTrainingEvaluator.IsTakeoffRoll.

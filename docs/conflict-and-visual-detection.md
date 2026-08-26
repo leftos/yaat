@@ -618,8 +618,10 @@ here and have `aviation-sim-expert` review against the local FAA references.
   `IsOnRunway` (runway priority in `ResolveCrossing`/`ComputeClosingLimit`) no longer string-matches: it is
   `RunwayOccupancy.OccupiesSurface(RunwayOccupancy.ClassifyByPhase(ac, runway: null))`
   (`src/Yaat.Sim/Simulation/RunwayOccupancy.cs`) — phase *types* (takeoff, landing, line-up family, runway exit on the
-  centerline). No geometry is consulted here because the detector has no `RunwayInfo` in hand; a holding-in-position
-  aircraft is therefore never "on the runway" for priority purposes.
+  centerline). No geometry is consulted for phase-driven aircraft; a holding-in-position aircraft is therefore never "on
+  the runway" for priority purposes. Live-traffic shadows are the exception: they classify as `MovementState.External`
+  (an obstacle, never a subject) and `IsOnRunway` reads `Ground.ExternalOnRunway`, a per-tick flag the detector fills from
+  `RunwayOccupancy.ClassifyBest` over the layout airport's runways — see [live-traffic.md](live-traffic.md).
 
 - **`WakeTurbulenceData` must be `Initialize()`'d first.** Before `AircraftCwt.json` is loaded, `GetCwt` returns null and
   both the ATPA matrix and the visual traffic range fall back to `AircraftCategory`. This is a static-singleton

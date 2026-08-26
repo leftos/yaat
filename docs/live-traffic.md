@@ -99,6 +99,42 @@ squawk note (7700/7600) → coasting note → `SeedState`:
 Nothing is transmitted at assume. The `CommandResult` message summarises the seeded state; caveats go to
 `PendingWarnings` (amber). Tests: `LiveTrafficAssumeTests`.
 
+## Shadows as runway and ground participants
+
+- **Ground conflict** (`GroundConflictDetector`): a moving shadow classifies as `MovementState.External` — an obstacle
+  every simulated ground aircraft yields to (closing-proximity stop/trail limits, crossing resolution; in a mutual stop the
+  simulated aircraft is always the holder), never a subject (`ApplyMinLimit` returns for shadows). A stopped shadow is
+  `Stationary` (passable with wingtip clearance, like a parked aircraft). A surface track coasting longer than
+  `ExternalCoastGraceSeconds` (10 s) is dropped from the sweep so a dead feed target cannot pin traffic. Runway priority:
+  the detector writes the per-tick `[JsonIgnore]` flag `Ground.ExternalOnRunway` from `RunwayOccupancy.ClassifyBest` over
+  the layout airport's runways (`RunwayOccupancy.AirportRunways`), and `IsOnRunway` reads it for shadows.
+- **Runway advisories** (`RunwaySafetyAdvisor`): a shadow **on the runway surface** (`RunwayOccupancy.Classify` =
+  `OnSurface`: lined up, holding, or a landed rollout) makes a landing-family clearance warn "live traffic on runway —
+  not clear" (3-10-3.a.1 / 3-10-5.e; `WarnIfLiveTrafficOnRunway`, both overloads). A shadow still airborne on the final
+  is sequencing (3-10-6.a), not an occupant, and belongs to `WarnIfTrafficOnFinal` (called on LUAW from
+  `DepartureClearanceHandler`): the closest shadow on that runway's final within `OnFinalAdvisoryNm` (6 nm) is the
+  3-9-4.d traffic to issue to the LUAW aircraft (one-way; the text gives the phrase). `RunwayOccupancy.IsOnFinal` = approach
+  side, ≤ 30° off the final course, cross-track inside a 10° wedge (0.3–1 nm), not climbing; `ClosestFinal` picks one
+  runway between parallels (OAK 28L/28R are 0.4 nm apart). Simulated arrivals stay covered by their clearance state.
+- **Solo evaluator** (`SoloTrainingEvaluator.ResolveShadowRunwayUse`): a shadow's runway is the one it geometrically uses
+  at its destination (else departure) airport via `ClassifyBest` (`Crossing` included — on the pavement is not clear),
+  and its `RunwayUseKind` stands in for the phase: `Departing` → departure roll; `OnFinal` (synthesized from
+  `ClosestFinal` within 6 nm, matching a simulated arrival's `FinalApproachPhase` window) / `ShortFinal` / `Landing` →
+  arrival approach; `Landing|OnSurface` → landing after threshold; not clear while `Landing|OnSurface|Crossing`. After
+  liftoff the observer's `DepartedOnRunway` latch keeps it a `Departing` on the latched runway within 1 nm of the
+  departure end, so the §3-9-6 / §3-10-3.a.2 landmarks are scored. Airborne separation already included shadows.
+- **Runway-use observer** (`SimulationEngine.TickLiveTrafficRunwayUse`, once per second in `TickPostPhysics` **and** the
+  server's `ProcessPostPhysics`): classifies each shadow against the primary airport, else its destination/departure
+  airport. The edge airborne `Landing` → on the ground stamps `CompletionReason.Landed` and sets
+  `LiveTraffic.LandedOnRunway`, which makes `Classify` read the rollout as `OnSurface` (geometry cannot tell an 80-kt
+  rollout from a takeoff roll); it clears once airborne again or off the pavement. The edge `Departing` → airborne sets
+  `DepartedOnRunway` (cleared on the ground or > 1 nm past the departure end). `LatchedRunwayAirport/Designator` remember
+  which runway. All are serialized so a restored room keeps the edge state; the later feed removal records a
+  `CompletedAircraftRecord` for the debrief.
+- Not yet: conflict-alert policy for shadows (`ConflictAlertDetector.IsEligible` is field-gated, so an airborne shadow is
+  paired like any Mode-C target today), per-pair CA suppression, arrival-runway inference for display, follow-helper lead
+  runway. Tests: `LiveTrafficParticipationTests`.
+
 ## Recording and replay
 
 `SimulationEngine.ApplyLiveTrafficSample(callsign, sample, spawnState)` applies a sample (creating the aircraft from

@@ -21,6 +21,13 @@ public class AircraftGroundOps
     public AirportGroundLayout? Layout { get; set; }
 
     /// <summary>
+    /// Per-tick: a live-traffic shadow is on a runway by geometry (<see cref="Simulation.RunwayOccupancy"/>), giving it
+    /// runway priority in <see cref="GroundConflictDetector"/>. Written by the detector each tick; never persisted.
+    /// </summary>
+    [JsonIgnore]
+    public bool ExternalOnRunway { get; set; }
+
+    /// <summary>
     /// Airport ID reference for the ground layout. When <see cref="Layout"/> is set,
     /// returns its AirportId. When deserialized from JSON (no layout attached), returns the
     /// stored reference so the layout can be reattached by the caller.

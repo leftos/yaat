@@ -216,6 +216,9 @@ the assigned runway and current phase, computing `AlongThresholdFt` (signed dist
 `RunwayOccupancy.ClassifyByPhase` says `Departing`, i.e. `TakeoffPhase`) on a runway; a **Landing** op when an arrival on
 `FinalApproachPhase`/`LandingPhase` crosses the **pavement** threshold (`DetectOperation` compares `AlongThresholdFt`
 across ticks; only the first-observation seed, `IsLandingAfterThreshold`, uses `AlongLandingThresholdFt`).
+(For a live-traffic shadow — no phases, no assigned runway — the runway is the one it geometrically uses at its
+destination/departure airport and the geometry `RunwayUseKind` stands in for the phase in every predicate; see
+[live-traffic.md](live-traffic.md).)
 First observation seeds an op from the current phase (`TrySeedOperation`, `:1875`).
 
 **Two datums, and picking the wrong one is a scoring bug.** `AlongThresholdFt` is measured from the **pavement**

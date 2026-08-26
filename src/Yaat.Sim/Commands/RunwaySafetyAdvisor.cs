@@ -67,6 +67,7 @@ public static class RunwaySafetyAdvisor
             .ToList();
 
         EmitOccupiedWarning(aircraft, RunwayIdentifier.ToDisplayDesignator(runway.Designator), occupants);
+        WarnIfLiveTrafficOnRunway(aircraft, runway, ctx);
     }
 
     /// <summary>
@@ -100,6 +101,10 @@ public static class RunwaySafetyAdvisor
             .ToList();
 
         EmitOccupiedWarning(aircraft, RunwayIdentifier.ToDisplayDesignator(runwayDesignator), occupants);
+        if (ResolveNamedRunway(aircraft.FlightPlan.Destination, runwayDesignator) is { } namedRunway)
+        {
+            WarnIfLiveTrafficOnRunway(aircraft, namedRunway, ctx);
+        }
     }
 
     /// <summary>
@@ -133,6 +138,79 @@ public static class RunwaySafetyAdvisor
         aircraft.PendingWarnings.Add(warning);
         Log.LogDebug("[RunwaySafety] {Warning}", warning);
     }
+
+    /// <summary>
+    /// 7110.65 §3-9-4.d: when LUAW is authorized with real traffic on the final for that runway, the
+    /// controller must exchange traffic — advise which live aircraft are inside <see cref="OnFinalAdvisoryNm"/>.
+    /// Simulated arrivals are covered by their clearance state (<see cref="WarnIfArrivalCleared"/>); this
+    /// is for shadows, which carry no clearance the sim can see.
+    /// </summary>
+    public static void WarnIfTrafficOnFinal(AircraftState aircraft, RunwayInfo runway, DispatchContext ctx)
+    {
+        if (ShouldSkip(ctx, runway.AirportId))
+        {
+            return;
+        }
+
+        // Geometry sees only the final itself; the rule's "requesting a full-stop / option" downwind traffic has no
+        // observable intent for a shadow. Between parallel finals an arrival is reported for the closest runway only.
+        var airportRunways = RunwayOccupancy.AirportRunways(runway.AirportId);
+        var traffic = ctx.ListAircraft!()
+            .Where(other =>
+                (!ReferenceEquals(other, aircraft))
+                && other.IsShadow
+                && (RunwayOccupancy.ClosestFinal(other, airportRunways, ctx.GroundLayout, OnFinalAdvisoryNm)?.Id.Overlaps(runway.Id) ?? false)
+            )
+            .Select(other => (other.Callsign, DistNm: RunwayOccupancy.DistanceToLandingThresholdNm(other, runway, ctx.GroundLayout)))
+            .OrderBy(t => t.DistNm)
+            .ToList();
+        if (traffic.Count == 0)
+        {
+            return;
+        }
+
+        var display = RunwayIdentifier.ToDisplayDesignator(runway.Designator);
+        var closest = traffic[0];
+        var others = traffic.Count > 1 ? $"; also {string.Join(", ", traffic.Skip(1).Select(t => $"{t.Callsign} {t.DistNm:F1} nm"))}" : "";
+        var warning =
+            $"{aircraft.Callsign}: live traffic on final runway {display} — issue traffic before line up and wait: \"traffic, {closest.Callsign}, {closest.DistNm:F1} mile final\" (7110.65 3-9-4.d){others}";
+        aircraft.PendingWarnings.Add(warning);
+        Log.LogDebug("[RunwaySafety] {Warning}", warning);
+    }
+
+    /// <summary>
+    /// A live-traffic shadow on the runway surface (lined up, holding, or a landed rollout) when a landing-family clearance
+    /// is issued for that runway. 3-10-3.a.1 / 3-9-6.b: the runway is not usable until that aircraft is clear; a shadow
+    /// carries no clearance state, so only its geometry can say. Live traffic still airborne on the final is sequencing
+    /// (3-10-6.a) and belongs to <see cref="WarnIfTrafficOnFinal"/>, not here.
+    /// </summary>
+    private static void WarnIfLiveTrafficOnRunway(AircraftState aircraft, RunwayInfo runway, DispatchContext ctx)
+    {
+        var live = ctx.ListAircraft!()
+            .Where(other => (!ReferenceEquals(other, aircraft)) && ShadowOccupies(other, runway, ctx))
+            .Select(other => other.Callsign)
+            .ToList();
+        if (live.Count == 0)
+        {
+            return;
+        }
+
+        var display = RunwayIdentifier.ToDisplayDesignator(runway.Designator);
+        var warning =
+            $"{aircraft.Callsign}: live traffic on runway {display} ({string.Join(", ", live)}) — the runway is not clear; withhold the landing/option clearance until it is (7110.65 3-10-3.a.1, 3-10-5.e)";
+        aircraft.PendingWarnings.Add(warning);
+        Log.LogDebug("[RunwaySafety] {Warning}", warning);
+    }
+
+    /// <summary>Final-approach ring for <see cref="WarnIfTrafficOnFinal"/> — roughly the 3-9-4.d "traffic on final" window.</summary>
+    public const double OnFinalAdvisoryNm = 6.0;
+
+    /// <summary>A live-traffic shadow on the runway surface (a landed rollout reads OnSurface via the observer's latch, never Departing).</summary>
+    private static bool ShadowOccupies(AircraftState other, RunwayInfo runway, DispatchContext ctx) =>
+        other.IsShadow && RunwayOccupancy.Classify(other, runway, ctx.GroundLayout) is { Kind: RunwayUseKind.OnSurface };
+
+    private static RunwayInfo? ResolveNamedRunway(string airport, string designator) =>
+        RunwayOccupancy.AirportRunways(airport).FirstOrDefault(r => r.Id.Contains(designator))?.ForApproach(designator);
 
     private static bool ShouldSkip(DispatchContext ctx, string airportId) =>
         (ctx.ListAircraft is null) || (ctx.ArtccConfig is { } config && config.AirportHasFullSafetyLogic(airportId));

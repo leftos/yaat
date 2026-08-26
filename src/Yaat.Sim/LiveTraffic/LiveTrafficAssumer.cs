@@ -169,18 +169,7 @@ public static class LiveTrafficAssumer
         return (best, bestKind);
     }
 
-    /// <summary>Runways for an airport given as FAA (OAK) or ICAO (KOAK) code; the nav DB keys on the FAA form.</summary>
-    private static IReadOnlyList<RunwayInfo> RunwaysFor(string airport)
-    {
-        var navDb = NavigationDatabase.Instance;
-        var runways = navDb.GetRunways(airport);
-        if (runways.Count == 0 && airport.Length == 4 && airport.StartsWith('K'))
-        {
-            runways = navDb.GetRunways(airport[1..]);
-        }
-
-        return runways;
-    }
+    private static IReadOnlyList<RunwayInfo> RunwaysFor(string airport) => RunwayOccupancy.AirportRunways(airport);
 
     private static IEnumerable<RunwayInfo> CandidateRunways(AircraftState ac, DispatchContext ctx)
     {

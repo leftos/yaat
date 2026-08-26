@@ -1507,6 +1507,7 @@ public sealed class SimulationEngine
     /// </summary>
     public void TickPostPhysics()
     {
+        TickLiveTrafficRunwayUse();
         TickPilotProactive();
         TickTransponders();
         TickVisualDetection();
@@ -4566,6 +4567,95 @@ public sealed class SimulationEngine
 
         RecordLiveTrafficAction(new RecordedLiveTrafficSample(Scenario?.ElapsedSeconds ?? 0, callsign, sample, spawned ? spawnState : null));
         return true;
+    }
+
+    /// <summary>
+    /// Per-second runway-use observer for shadows on the room's primary airport (else the shadow's destination / departure
+    /// airport, so a satellite-field landing is seen too): the edge from airborne
+    /// <see cref="RunwayUseKind.Landing"/> to <see cref="RunwayUseKind.OnSurface"/> is a landing, stamped
+    /// <see cref="CompletionReason.Landed"/> so the later feed removal records a completion. Called from
+    /// <see cref="TickPostPhysics"/> AND the live server's post-physics step — add it to both when moving it.
+    /// </summary>
+    public void TickLiveTrafficRunwayUse()
+    {
+        var runways = RunwayOccupancy.AirportRunways(Scenario?.PrimaryAirportId);
+        var layout = World.GroundLayout;
+        foreach (var ac in World.GetSnapshot())
+        {
+            if (ac.LiveTraffic is not { } lt)
+            {
+                continue;
+            }
+
+            var use =
+                RunwayOccupancy.ClassifyBest(ac, runways, layout)
+                ?? RunwayOccupancy.ClassifyBest(ac, RunwayOccupancy.AirportRunways(ac.FlightPlan.Destination), layout)
+                ?? RunwayOccupancy.ClassifyBest(ac, RunwayOccupancy.AirportRunways(ac.FlightPlan.Departure), layout);
+            var kind = use?.Kind;
+            if (!ac.IsOnGround || kind is null)
+            {
+                // Airborne again, or off the pavement: the next takeoff roll from this runway is a real one.
+                lt.LandedOnRunway = false;
+            }
+
+            bool touchedDown =
+                lt.LastRunwayUse == RunwayUseKind.Landing && ac.IsOnGround && kind is RunwayUseKind.OnSurface or RunwayUseKind.Departing;
+            if (touchedDown)
+            {
+                lt.LandedOnRunway = true;
+                kind = RunwayUseKind.OnSurface;
+                if (ac.CompletionReason == CompletionReason.Active)
+                {
+                    ac.CompletionReason = CompletionReason.Landed;
+                    ac.CompletedAtSeconds = Scenario?.ElapsedSeconds;
+                    _logger.LogInformation("{Callsign} (live) landed at {Airport}", ac.Callsign, Scenario?.PrimaryAirportId);
+                }
+            }
+
+            if (lt.LastRunwayUse == RunwayUseKind.Departing && !ac.IsOnGround)
+            {
+                lt.DepartedOnRunway = true;
+            }
+            else if (lt.DepartedOnRunway && (ac.IsOnGround || !StillInDepartureWindow(ac, lt)))
+            {
+                lt.DepartedOnRunway = false;
+            }
+
+            if (use is not null)
+            {
+                lt.LatchedRunwayAirport = use.Runway.AirportId;
+                lt.LatchedRunwayDesignator = use.Runway.Designator;
+            }
+
+            lt.LastRunwayUse = kind;
+        }
+    }
+
+    /// <summary>Departure window for the latch: within a mile of the latched runway's departure end (the §3-9-6 landmarks all lie inside it).</summary>
+    private const double DepartureLatchWindowNm = 1.0;
+
+    private static bool StillInDepartureWindow(AircraftState ac, AircraftLiveTraffic lt)
+    {
+        if (LiveTrafficLatchedRunway(lt) is not { } runway)
+        {
+            return false;
+        }
+
+        return GeoMath.DistanceNm(ac.Position, new LatLon(runway.EndLatitude, runway.EndLongitude)) <= DepartureLatchWindowNm;
+    }
+
+    /// <summary>The runway the observer latched for a shadow, oriented to the latched designator; null when none.</summary>
+    public static RunwayInfo? LiveTrafficLatchedRunway(AircraftLiveTraffic lt)
+    {
+        if (lt.LatchedRunwayAirport is null || lt.LatchedRunwayDesignator is null)
+        {
+            return null;
+        }
+
+        return RunwayOccupancy
+            .AirportRunways(lt.LatchedRunwayAirport)
+            .FirstOrDefault(r => r.Id.Contains(lt.LatchedRunwayDesignator))
+            ?.ForApproach(lt.LatchedRunwayDesignator);
     }
 
     /// <summary>Removes a shadow (never an assumed aircraft) and records the removal. Not a completion.</summary>

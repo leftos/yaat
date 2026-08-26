@@ -1,3 +1,4 @@
+using Yaat.Sim.Simulation;
 using Yaat.Sim.Simulation.Snapshots;
 
 namespace Yaat.Sim.LiveTraffic;
@@ -47,6 +48,19 @@ public sealed class AircraftLiveTraffic
     /// <summary>Feed-side identity (e.g. GUFI); opaque to the sim.</summary>
     public string? ExternalId { get; set; }
 
+    /// <summary>Runway use on the room's primary airport at the last observation tick (the landing→surface edge stamps <c>Landed</c>).</summary>
+    public RunwayUseKind? LastRunwayUse { get; set; }
+
+    /// <summary>Set by the observer at the landing→surface edge, cleared once airborne again: the rollout is not a takeoff roll.</summary>
+    public bool LandedOnRunway { get; set; }
+
+    /// <summary>Set by the observer at the roll→airborne edge, cleared past the departure window: the §3-9-6 / §3-10-3.a.2 clock keeps running after liftoff.</summary>
+    public bool DepartedOnRunway { get; set; }
+
+    /// <summary>Airport and designator of the runway the latches refer to (the observer's last non-null runway use).</summary>
+    public string? LatchedRunwayAirport { get; set; }
+    public string? LatchedRunwayDesignator { get; set; }
+
     public AircraftLiveTrafficDto ToSnapshot() =>
         new()
         {
@@ -76,6 +90,11 @@ public sealed class AircraftLiveTraffic
             ClearedSpeedKts = ClearedSpeedKts,
             ClearanceText = ClearanceText,
             ExternalId = ExternalId,
+            LastRunwayUse = LastRunwayUse is { } use ? (int)use : null,
+            LandedOnRunway = LandedOnRunway,
+            DepartedOnRunway = DepartedOnRunway,
+            LatchedRunwayAirport = LatchedRunwayAirport,
+            LatchedRunwayDesignator = LatchedRunwayDesignator,
         };
 
     public static AircraftLiveTraffic FromSnapshot(AircraftLiveTrafficDto dto)
@@ -97,6 +116,11 @@ public sealed class AircraftLiveTraffic
             ClearedSpeedKts = dto.ClearedSpeedKts,
             ClearanceText = dto.ClearanceText,
             ExternalId = dto.ExternalId,
+            LastRunwayUse = dto.LastRunwayUse is { } use ? (RunwayUseKind)use : null,
+            LandedOnRunway = dto.LandedOnRunway,
+            DepartedOnRunway = dto.DepartedOnRunway,
+            LatchedRunwayAirport = dto.LatchedRunwayAirport,
+            LatchedRunwayDesignator = dto.LatchedRunwayDesignator,
         };
         foreach (var h in dto.History ?? [])
         {

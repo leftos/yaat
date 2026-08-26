@@ -34,4 +34,9 @@ public sealed class AircraftLiveTrafficDto
     public double? ClearedSpeedKts { get; init; }
     public string? ClearanceText { get; init; }
     public string? ExternalId { get; init; }
+    public int? LastRunwayUse { get; init; }
+    public bool LandedOnRunway { get; init; }
+    public bool DepartedOnRunway { get; init; }
+    public string? LatchedRunwayAirport { get; init; }
+    public string? LatchedRunwayDesignator { get; init; }
 }

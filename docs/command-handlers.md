@@ -299,7 +299,8 @@ amber in the client — so the advisory surfaces on the tick *after* the command
 - `MilitaryRouteCommandHandler.WarnIfRouteOccupied` — a second aircraft cleared onto an occupied MTR (7110.65 9-2-6.a).
 - `RunwaySafetyAdvisor` (`src/Yaat.Sim/Commands/RunwaySafetyAdvisor.cs`) — 7110.65 3-9-4 occupied-runway advisories: a landing-family clearance
   (CLAND/COPT/TG/SG/LA/LAHSO/CLANDF) onto a runway with traffic holding in position or taxiing to line up, and the reverse (LUAW while an aircraft
-  holds a landing-family clearance for the runway). Gated on the airport's vNAS ARTCC config: suppressed when
+  holds a landing-family clearance for the runway), plus `WarnIfTrafficOnFinal` on LUAW for live-traffic shadows within 6 nm of the
+  final (3-9-4.d) and shadow occupants by geometry. Gated on the airport's vNAS ARTCC config: suppressed when
   `ArtccConfigResolver.AirportHasFullSafetyLogic` finds an ASDE-X config with runway configurations (CRC's Safety Logic covers the incursion there).
   This is why `PatternCommandHandler`'s clearance methods and `DepartureClearanceHandler.TryDepartureClearance` take the full `DispatchContext`.
 

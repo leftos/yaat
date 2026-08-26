@@ -138,6 +138,7 @@ internal static class DepartureClearanceHandler
         if (result.Success && (clearanceType == ClearanceType.LineUpAndWait) && aircraft.Phases?.AssignedRunway is { } runway)
         {
             RunwaySafetyAdvisor.WarnIfArrivalCleared(aircraft, runway, ctx);
+            RunwaySafetyAdvisor.WarnIfTrafficOnFinal(aircraft, runway, ctx);
         }
 
         return result;

@@ -24,6 +24,13 @@ public enum RunwayUseKind
     /// <summary>Airborne inside two miles of the landing threshold on the final approach course (7110.65 §3-7-6).</summary>
     ShortFinal,
 
+    /// <summary>
+    /// Airborne on the final approach course inside the 6 nm traffic-advisory ring (<see cref="RunwayOccupancy.IsOnFinal"/>).
+    /// Never produced by <see cref="RunwayOccupancy.ClassifyByGeometry"/>; consumers that need the wider ring (the solo evaluator)
+    /// synthesize it.
+    /// </summary>
+    OnFinal,
+
     /// <summary>On the pavement but not aligned with it — taxiing across, or leaving via an exit.</summary>
     Crossing,
 }
@@ -77,6 +84,17 @@ public static class RunwayOccupancy
     /// <summary>AGL ceiling for <see cref="RunwayUseKind.ShortFinal"/> — turbine traffic-pattern altitude (AIM 4-3-3).</summary>
     public const double ShortFinalAglCeilingFt = 1500.0;
 
+    /// <summary>Track tolerance for <see cref="IsOnFinal"/> — an engineering tolerance for sampled tracks joining the final, not a rule.</summary>
+    public const double OnFinalTrackToleranceDeg = 30.0;
+
+    /// <summary>
+    /// Cross-track cap for <see cref="IsOnFinal"/>: a 10° wedge from the threshold, floored at 0.3 nm and capped at 1 nm. Parallel
+    /// runways are closer than that (OAK 28L/28R ≈ 0.4 nm), so callers pick the runway with <see cref="ClosestFinal"/>.
+    /// </summary>
+    public const double OnFinalCrossTrackNm = 1.0;
+    public const double OnFinalCrossTrackFloorNm = 0.3;
+    public const double OnFinalWedgeDeg = 10.0;
+
     /// <summary>Threshold-crossing height; below it an airborne aircraft over the pavement is landing.</summary>
     public const double LandingAglCeilingFt = 50.0;
 
@@ -101,6 +119,12 @@ public static class RunwayOccupancy
         if (kind is null)
         {
             kind = ac.Phases is null ? ClassifyByGeometry(ac, runway, layout) : (IsOnPavement(ac, runway) ? RunwayUseKind.Crossing : null);
+        }
+
+        if (kind == RunwayUseKind.Departing && ac.LiveTraffic is { LandedOnRunway: true })
+        {
+            // The runway-use observer saw this shadow land: its rollout is not a takeoff roll (geometry cannot tell).
+            kind = RunwayUseKind.OnSurface;
         }
 
         return kind is { } k ? new RunwayUse(ac.Callsign, runway, k) : null;
@@ -244,6 +268,101 @@ public static class RunwayOccupancy
     {
         double diff = GeoMath.AbsBearingDifference(headingDeg, runway.TrueHeading1.Degrees);
         return Math.Min(diff, 180.0 - diff);
+    }
+
+    /// <summary>
+    /// Airborne, on the approach side of <paramref name="runway"/>'s landing threshold within <paramref name="maxNm"/>,
+    /// within <see cref="OnFinalTrackToleranceDeg"/> of the final course and <see cref="OnFinalCrossTrackNm"/> of the
+    /// extended centreline, and not climbing — the traffic §3-9-4.d / §3-10-5.f wants exchanged. Wider than
+    /// <see cref="RunwayUseKind.ShortFinal"/>, which protects the runway itself.
+    /// </summary>
+    public static bool IsOnFinal(AircraftState ac, RunwayInfo runway, AirportGroundLayout? layout, double maxNm)
+    {
+        if (ac.IsOnGround || ac.VerticalSpeed > NotClimbingMaxFpm)
+        {
+            return false;
+        }
+
+        var end = AlignedEnd(ac.TrueTrack.Degrees, runway);
+        if (GeoMath.AbsBearingDifference(ac.TrueTrack.Degrees, end.TrueHeading.Degrees) > OnFinalTrackToleranceDeg)
+        {
+            return false;
+        }
+
+        var threshold = LandingThreshold.Resolve(end, layout);
+        double distNm = -GeoMath.AlongTrackDistanceNm(ac.Position, threshold, end.TrueHeading);
+        double crossTrackNm = Math.Abs(GeoMath.SignedCrossTrackDistanceNm(ac.Position, threshold, end.TrueHeading));
+        double wedgeNm = Math.Min(OnFinalCrossTrackNm, Math.Max(OnFinalCrossTrackFloorNm, distNm * Math.Tan(OnFinalWedgeDeg * Math.PI / 180.0)));
+        return distNm > 0 && distNm <= maxNm && crossTrackNm <= wedgeNm;
+    }
+
+    /// <summary>
+    /// Among <paramref name="runways"/> (pavements), the one whose final <paramref name="ac"/> is on (<see cref="IsOnFinal"/>) with the
+    /// smallest cross-track — so an arrival between parallel finals is reported for one runway, not both. Null when on none.
+    /// </summary>
+    public static RunwayInfo? ClosestFinal(AircraftState ac, IReadOnlyList<RunwayInfo> runways, AirportGroundLayout? layout, double maxNm)
+    {
+        RunwayInfo? best = null;
+        double bestXtk = double.MaxValue;
+        foreach (var pavement in runways)
+        {
+            var end = AlignedEnd(ac.TrueTrack.Degrees, pavement);
+            if (!IsOnFinal(ac, end, layout, maxNm))
+            {
+                continue;
+            }
+
+            double xtk = Math.Abs(GeoMath.SignedCrossTrackDistanceNm(ac.Position, LandingThreshold.Resolve(end, layout), end.TrueHeading));
+            if (xtk < bestXtk)
+            {
+                bestXtk = xtk;
+                best = end;
+            }
+        }
+
+        return best;
+    }
+
+    /// <summary>
+    /// Runways of an airport given as FAA (OAK) or ICAO (KOAK) code — the nav DB keys on the FAA form. Empty when the
+    /// nav DB is not initialized (best-effort callers such as the ground conflict detector).
+    /// </summary>
+    public static IReadOnlyList<RunwayInfo> AirportRunways(string? airport)
+    {
+        if (string.IsNullOrWhiteSpace(airport) || NavigationDatabase.InstanceOrNull is not { } navDb)
+        {
+            return [];
+        }
+
+        var runways = navDb.GetRunways(airport);
+        if (runways.Count == 0 && airport.Length == 4 && airport.StartsWith('K'))
+        {
+            runways = navDb.GetRunways(airport[1..]);
+        }
+
+        return runways;
+    }
+
+    /// <summary>
+    /// Best (highest-priority) runway use of <paramref name="ac"/> over <paramref name="runways"/> (pavements, oriented to
+    /// the track-aligned end) — <see cref="RunwayUseKind.Crossing"/> included as the lowest priority (on the pavement is on the
+    /// pavement); null when it uses none of them.
+    /// </summary>
+    public static RunwayUse? ClassifyBest(AircraftState ac, IReadOnlyList<RunwayInfo> runways, AirportGroundLayout? layout)
+    {
+        RunwayUse? best = null;
+        foreach (var pavement in runways)
+        {
+            var use = Classify(ac, AlignedEnd(ac.TrueTrack.Degrees, pavement), layout);
+            if (use is null || (best is not null && use.Kind >= best.Kind))
+            {
+                continue;
+            }
+
+            best = use;
+        }
+
+        return best;
     }
 
     /// <summary>The runway end whose heading is closest to <paramref name="trackDeg"/>, oriented for that end.</summary>

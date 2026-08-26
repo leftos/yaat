@@ -25,6 +25,7 @@ Tick(1s)
 │       ├─ PreTick → PhaseRunner.Tick   (per aircraft)
 │       └─ FlightPhysics.Update         (per aircraft, 8 steps)
 └─ PostPhysics                         (SimulationEngine.TickPostPhysics)
+    ├─ TickLiveTrafficRunwayUse        (shadow landing observer — also in the server's ProcessPostPhysics)
     ├─ ConflictAlertDetector.Detect    (airborne)
     ├─ PilotObservationUpdater         (already ran inside FlightPhysics)
     ├─ drain warnings / notifications / pilot readbacks → terminal

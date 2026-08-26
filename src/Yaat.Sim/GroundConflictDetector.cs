@@ -103,6 +103,9 @@ public static class GroundConflictDetector
     public static bool WingspanLateralCheckEnabled { get; set; } = true;
     public static bool WingspanLateralCheckRequireStationary { get; set; } = true;
 
+    /// <summary>Seconds of coast after which a live surface track stops being an obstacle (the feed will remove it).</summary>
+    public const double ExternalCoastGraceSeconds = 10.0;
+
     private enum MovementState
     {
         Stationary,
@@ -110,6 +113,9 @@ public static class GroundConflictDetector
         Pushing,
         Following,
         Untracked,
+
+        /// <summary>A live-traffic shadow: moves as the real aircraft did; an obstacle to everyone, never a subject.</summary>
+        External,
     }
 
     private enum PairKind
@@ -160,6 +166,7 @@ public static class GroundConflictDetector
             }
         }
 
+        var runways = layout is not null ? RunwayOccupancy.AirportRunways(layout.AirportId) : [];
         var entries = new List<(AircraftState Ac, MovementState State, double? MoveDir)>();
         for (int i = 0; i < aircraft.Count; i++)
         {
@@ -167,6 +174,18 @@ public static class GroundConflictDetector
             if (!ac.IsOnGround)
             {
                 continue;
+            }
+
+            if (ac.IsShadow)
+            {
+                // A coasting surface track past the grace period is a ghost: it must not sweep stops through the movement area.
+                if (ac.LiveTraffic!.IsCoasting && ac.LiveTraffic.SecondsSinceSample > ExternalCoastGraceSeconds)
+                {
+                    continue;
+                }
+
+                ac.Ground.ExternalOnRunway =
+                    RunwayOccupancy.ClassifyBest(ac, runways, layout) is { } use && RunwayOccupancy.OccupiesSurface(use.Kind);
             }
 
             var (state, dir) = Classify(ac);
@@ -324,6 +343,12 @@ public static class GroundConflictDetector
 
     private static (MovementState State, double? MoveDirection) Classify(AircraftState ac)
     {
+        if (ac.IsShadow)
+        {
+            // A stopped shadow is a passable obstacle (wingtip clearance applies); a moving one is External.
+            return ac.GroundSpeed > 0 ? (MovementState.External, ac.TrueHeading.Degrees) : (MovementState.Stationary, null);
+        }
+
         string? phaseName = ac.Phases?.CurrentPhase?.Name;
 
         if (phaseName is not null && phaseName.StartsWith("Following", StringComparison.Ordinal))
@@ -948,7 +973,8 @@ public static class GroundConflictDetector
     /// off, lining up, or rolling out on the centerline. A generic holding-in-position aircraft is not
     /// on the runway for priority purposes.
     /// </summary>
-    private static bool IsOnRunway(AircraftState ac) => RunwayOccupancy.OccupiesSurface(RunwayOccupancy.ClassifyByPhase(ac, runway: null));
+    private static bool IsOnRunway(AircraftState ac) =>
+        ac.IsShadow ? ac.Ground.ExternalOnRunway : RunwayOccupancy.OccupiesSurface(RunwayOccupancy.ClassifyByPhase(ac, runway: null));
 
     /// <summary>
     /// True when the aircraft is intentionally stationary — parked, holding, or
@@ -1007,6 +1033,11 @@ public static class GroundConflictDetector
         double? distFt = null
     )
     {
+        if (aircraft.IsShadow)
+        {
+            return;
+        }
+
         double? existing = aircraft.Ground.SpeedLimit;
         if (existing is { } ex)
         {
@@ -1054,6 +1085,12 @@ public static class GroundConflictDetector
     /// </summary>
     private static AircraftState ChooseMutualStopHolder(AircraftState a, double dirA, AircraftState b, double dirB)
     {
+        // A shadow cannot be held (it moves as the real aircraft did): the simulated aircraft is always the holder.
+        if (a.IsShadow != b.IsShadow)
+        {
+            return a.IsShadow ? b : a;
+        }
+
         double offNoseA = HeadingDifference(dirA, GeoMath.BearingTo(a.Position, b.Position));
         double offNoseB = HeadingDifference(dirB, GeoMath.BearingTo(b.Position, a.Position));
 
