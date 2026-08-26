@@ -67,11 +67,39 @@ public static class FlightPhysics
     {
         var cat = AircraftCategorization.Categorize(aircraft.AircraftType);
 
-        // Recompute magnetic declination only when the aircraft has moved materially.
-        // WMM is a degree-12 spherical-harmonic evaluation (~0.06 ms/call) — at 4 Hz per
-        // aircraft this dominates per-tick physics. Declination changes ~0.01°/km IRL,
-        // so reusing a cached value for sub-nm motion is invisible for heading/wind use.
-        // Box threshold in degrees: 0.02° ≈ 1.2 nm of latitude, conservative at all lats.
+        RefreshDeclinationCache(aircraft);
+
+        // Backward compat: airborne aircraft without IAS initialized derive it from GS.
+        if (!aircraft.IsOnGround && aircraft.IndicatedAirspeed <= 0 && aircraft.GroundSpeed > 0)
+        {
+            aircraft.IndicatedAirspeed = aircraft.GroundSpeed;
+        }
+
+        double windPhaseSeconds = WindVariation.PhaseSecondsFor(aircraft.Callsign);
+        UpdateNavigation(aircraft, weather, simTimeSeconds, windPhaseSeconds);
+        UpdateDescentPlanning(aircraft, cat);
+        UpdateClimbPlanning(aircraft, cat);
+        UpdateSpeedPlanning(aircraft, cat);
+        UpdateHeading(aircraft, cat, deltaSeconds);
+        UpdateAltitude(aircraft, cat, deltaSeconds);
+        UpdateSpeed(aircraft, cat, deltaSeconds);
+        AutoCancelSpeedAtFinal(aircraft);
+        UpdatePosition(aircraft, deltaSeconds, weather, simTimeSeconds, windPhaseSeconds);
+        UpdateCommandQueue(aircraft, deltaSeconds, aircraftLookup);
+        UpdateGroundStationaryTimer(aircraft, deltaSeconds);
+        UpdateGiveWayResume(aircraft, aircraftLookup, deltaSeconds);
+        PilotObservationUpdater.Update(aircraft, aircraftLookup, weather, soloTrainingMode, rpoShowPilotSpeech);
+    }
+
+    /// <summary>
+    /// Recomputes the cached magnetic declination when the aircraft has moved materially. WMM is a
+    /// degree-12 spherical-harmonic evaluation (~0.06 ms/call) — at 4 Hz per aircraft this dominates
+    /// per-tick physics. Declination changes ~0.01°/km IRL, so reusing a cached value for sub-nm
+    /// motion is invisible for heading/wind use. Shared with the live-traffic kinematics, which
+    /// bypass <see cref="Update"/> but still need magnetic readouts.
+    /// </summary>
+    public static void RefreshDeclinationCache(AircraftState aircraft)
+    {
         const double DeclinationCacheThresholdDeg = 0.02;
         if (
             aircraft.DeclinationCachePosition is not { } cached
@@ -103,27 +131,6 @@ public static class FlightPhysics
                 aircraft.DeclinationCachePosition = aircraft.Position;
             }
         }
-
-        // Backward compat: airborne aircraft without IAS initialized derive it from GS.
-        if (!aircraft.IsOnGround && aircraft.IndicatedAirspeed <= 0 && aircraft.GroundSpeed > 0)
-        {
-            aircraft.IndicatedAirspeed = aircraft.GroundSpeed;
-        }
-
-        double windPhaseSeconds = WindVariation.PhaseSecondsFor(aircraft.Callsign);
-        UpdateNavigation(aircraft, weather, simTimeSeconds, windPhaseSeconds);
-        UpdateDescentPlanning(aircraft, cat);
-        UpdateClimbPlanning(aircraft, cat);
-        UpdateSpeedPlanning(aircraft, cat);
-        UpdateHeading(aircraft, cat, deltaSeconds);
-        UpdateAltitude(aircraft, cat, deltaSeconds);
-        UpdateSpeed(aircraft, cat, deltaSeconds);
-        AutoCancelSpeedAtFinal(aircraft);
-        UpdatePosition(aircraft, deltaSeconds, weather, simTimeSeconds, windPhaseSeconds);
-        UpdateCommandQueue(aircraft, deltaSeconds, aircraftLookup);
-        UpdateGroundStationaryTimer(aircraft, deltaSeconds);
-        UpdateGiveWayResume(aircraft, aircraftLookup, deltaSeconds);
-        PilotObservationUpdater.Update(aircraft, aircraftLookup, weather, soloTrainingMode, rpoShowPilotSpeech);
     }
 
     private static void UpdateNavigation(AircraftState aircraft, WeatherProfile? weather, double simTimeSeconds, double windPhaseSeconds)

@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using Yaat.Sim.LiveTraffic;
 using Yaat.Sim.Simulation.Snapshots;
 
 namespace Yaat.Sim.Simulation;
@@ -13,6 +14,8 @@ namespace Yaat.Sim.Simulation;
 [JsonDerivedType(typeof(RecordedArrivalGeneratorsChange), "ArrivalGeneratorsChange")]
 [JsonDerivedType(typeof(RecordedAircraftSpawn), "AircraftSpawn")]
 [JsonDerivedType(typeof(RecordedChat), "Chat")]
+[JsonDerivedType(typeof(RecordedLiveTrafficSample), "LiveTrafficSample")]
+[JsonDerivedType(typeof(RecordedLiveTrafficRemoval), "LiveTrafficRemoval")]
 public abstract record RecordedAction(double ElapsedSeconds);
 
 public sealed record RecordedCommand(double ElapsedSeconds, string Callsign, string Command, string Initials, string ConnectionId)
@@ -69,6 +72,20 @@ public sealed record RecordedAircraftSpawn(double ElapsedSeconds, AircraftSnapsh
 {
     public bool IsSynthetic { get; init; }
 }
+
+/// <summary>
+/// One live-traffic sample applied to a shadow aircraft. Applied <b>pre-tick</b> — before the physics of
+/// the second it was recorded in, like <see cref="RecordedAircraftSpawn"/> — because live samples land
+/// in pre-physics; applying them after the second would put every replayed second one sample behind.
+/// <see cref="SpawnState"/> is present only on the sample that created the shadow (it already embeds
+/// the sample); later samples carry null.
+/// </summary>
+public sealed record RecordedLiveTrafficSample(double ElapsedSeconds, string Callsign, LiveTrafficSample Sample, AircraftSnapshotDto? SpawnState)
+    : RecordedAction(ElapsedSeconds);
+
+/// <summary>A shadow aircraft leaving the room (feed drop, staleness, scope, delete). Applied after the second like other actions.</summary>
+public sealed record RecordedLiveTrafficRemoval(double ElapsedSeconds, string Callsign, LiveTrafficRemovalReason Reason)
+    : RecordedAction(ElapsedSeconds);
 
 /// <summary>
 /// CRC-sourced ASDE-X mutation. <see cref="Kind"/> is one of <c>EditDbFields</c>, <c>Tag</c>,

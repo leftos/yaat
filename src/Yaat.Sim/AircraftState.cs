@@ -1,6 +1,7 @@
 using System.Text.Json.Serialization;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.LiveTraffic;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Pilot;
@@ -357,6 +358,17 @@ public class AircraftState
     /// <summary>AP/1B military training route clearance state. See <see cref="AircraftMilitaryRoute"/>.</summary>
     public AircraftMilitaryRoute MilitaryRoute { get; set; } = new();
 
+    /// <summary>
+    /// Live-traffic state while this aircraft is a shadow of a real aircraft (driven by external
+    /// samples via <see cref="LiveTrafficKinematics"/>, not <see cref="FlightPhysics"/>). Null for
+    /// every simulated aircraft; assuming a shadow sets it to null.
+    /// </summary>
+    public AircraftLiveTraffic? LiveTraffic { get; set; }
+
+    /// <summary>True while the aircraft is driven by live-traffic samples rather than the simulation.</summary>
+    [JsonIgnore]
+    public bool IsShadow => LiveTraffic is not null;
+
     // Position history for STARS radar trails (recorded every ~5 sim-seconds)
     public List<(double Lat, double Lon)> PositionHistory { get; } = new(10);
 
@@ -409,6 +421,7 @@ public class AircraftState
             Ghost = AircraftGhostTrack.FromSnapshot(dto.Ghost),
             DataBlock = dto.DataBlock is not null ? AircraftDataBlock.FromSnapshot(dto.DataBlock) : new(),
             MilitaryRoute = dto.MilitaryRoute is not null ? AircraftMilitaryRoute.FromSnapshot(dto.MilitaryRoute) : new(),
+            LiveTraffic = dto.LiveTraffic is not null ? AircraftLiveTraffic.FromSnapshot(dto.LiveTraffic) : null,
             Queue = CommandQueue.FromSnapshot(dto.Queue),
             Phases = dto.Phases is not null ? PhaseList.FromSnapshot(dto.Phases, groundLayout) : null,
             ActiveApproachScore = dto.ActiveApproachScore is not null ? ApproachScore.FromSnapshot(dto.ActiveApproachScore) : null,
@@ -508,6 +521,7 @@ public class AircraftState
             Ghost = Ghost.ToSnapshot(),
             DataBlock = DataBlock.ToSnapshot(),
             MilitaryRoute = MilitaryRoute.ToSnapshot(),
+            LiveTraffic = LiveTraffic?.ToSnapshot(),
             PositionHistory = PositionHistory.Count > 0 ? PositionHistory.Select(p => new PositionDto { Lat = p.Lat, Lon = p.Lon }).ToList() : null,
             ActiveApproachScore = ActiveApproachScore?.ToSnapshot(),
             Targets = Targets.ToSnapshot(),

@@ -110,6 +110,7 @@ bookmarks.json               # plain JSON (optional; user-authored timeline book
 - `RecordedChat(Initials, Message)` — a controller/RPO chat message. Has no simulation-state effect, so replay/reconstruction ignores it; recorded so bug-bundle tooling carries the chat log and forward tape-playback can re-surface it in the terminal.
 - `RecordedSettingChange` — sim-control toggles (e.g. `SetValidateDctFixes`). Replay handlers in both repos apply these. **Pattern: any new sim-control toggle should produce one of these so replays stay faithful.**
 - `RecordedAircraftSpawn` — full `AircraftSnapshotDto` for aircraft created by runtime generators. Replay injects this aircraft directly and skips the RNG-driven generator path when spawn actions are present, so generator implementation changes do not rename or re-type historical arrivals.
+- `RecordedLiveTrafficSample(Callsign, Sample, SpawnState?)` — one live-traffic sample for a shadow aircraft; `SpawnState` (the shadow's snapshot) rides only on the sample that created it. **Pre-tick**, like `RecordedAircraftSpawn` (`SimulationEngine.IsPreTickAction`). `RecordedLiveTrafficRemoval(Callsign, Reason)` applies after the second. See [live-traffic.md](live-traffic.md).
 - Spawn, preset, and other event-shaped actions.
 
 **Snapshot cadence**: snapshots are written on demand by the recording manager (rewind checkpoints, periodic captures). Live replay does not need a snapshot per tick — it ticks forward from the most recent prior snapshot, applying actions at their `ElapsedSeconds`.
@@ -129,7 +130,7 @@ The replay surface on `SimulationEngine`:
 
 `ReplayTrackApplier` handles track / coordination / `AS`-prefix commands during replay. It's wired into `SimulationEngine.ReplayCommand` *before* the aircraft-exists guard, so position-claiming commands (`AS X TRACK …`) work even when the aircraft has just been spawned.
 
-Runtime aircraft spawns are action-driven during replay. `RecordedAircraftSpawn` actions apply before the tick's generator phase, and old archives that predate those actions synthesize them from snapshot deltas for aircraft that were not declared in the scenario JSON.
+Runtime aircraft spawns are action-driven during replay. `RecordedAircraftSpawn` actions apply before the tick's generator phase, and old archives that predate those actions synthesize them from snapshot deltas for aircraft that were not declared in the scenario JSON. `RecordedLiveTrafficSample` shares that pre-tick slot (`SimulationEngine.IsPreTickAction`) in `Replay`, `ReplayOneSecond` and `ReplayOneSubTick`; the server brain has no pre-tick applier yet and ignores live-traffic actions.
 
 ### `SnapshotDiff` — drift detection
 

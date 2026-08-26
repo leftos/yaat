@@ -85,7 +85,7 @@ A short exclusion list on that call keeps a few verbs out of the action log: `PA
 
 (`src/Yaat.Sim/Commands/CommandDispatcher.cs`)
 
-`DispatchCompound(aircraft, compound, ctx)` is the entry point for non-track, non-coordination, non-strip commands. It first checks for a leading `WAIT`/`WAITD`/`BEHIND` and short-circuits to a **deferred dispatch** (see [Deferred dispatch](#deferred-dispatch--wait-behind-and-the-command-run-delay)); otherwise the big moves:
+`DispatchCompound(aircraft, compound, ctx)` is the entry point for non-track, non-coordination, non-strip commands. A live-traffic shadow (`aircraft.IsShadow`) is rejected right here — and in `Dispatch` — before anything else, so even phase-transparent commands cannot reach it (see [live-traffic.md](live-traffic.md)). It then checks for a leading `WAIT`/`WAITD`/`BEHIND` and short-circuits to a **deferred dispatch** (see [Deferred dispatch](#deferred-dispatch--wait-behind-and-the-command-run-delay)); otherwise the big moves:
 
 1. **Phase gate.** If `aircraft.Phases?.CurrentPhase` exists, route through `DispatchWithPhase`. The phase's `CanAcceptCommand` is consulted (see [phases.md](phases.md)). `Rejected` returns immediately. `ClearsPhase` defers clearing until validation passes.
 2. **Dry-run validation.** The full compound is run on a clone of the aircraft (`DryRunValidate`). If any block fails (e.g. unknown fix, illegal intercept), the user gets the error and **state is unchanged**.

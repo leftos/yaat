@@ -154,6 +154,7 @@ Subsystem references — open the matching doc *before* exploring, searching, or
 - [`navigation-database.md`](docs/navigation-database.md) — `NavigationDatabase`, `RouteExpander`, `FrdResolver`, `CustomFixLoader`, `ApproachGateDatabase` (+ RV-SID footgun)
 - [`military-training-routes.md`](docs/military-training-routes.md) — `src/Yaat.Sim/Data/MilitaryRoutes/`, `MilitaryRoutePhase`, `AerialRefuelingAnchorPhase`, `MilitaryRouteCommandHandler`, `tools/build-mtr-data.py` (AP/1B IR/VR/SR + AR)
 - [`flight-physics.md`](docs/flight-physics.md) — `FlightPhysics`, `ControlTargets`, `AircraftPerformance`, `CategoryPerformance`, `WindInterpolator`, kinematics
+- [`live-traffic.md`](docs/live-traffic.md) — `src/Yaat.Sim/LiveTraffic/` (shadow aircraft from an external feed: `AircraftLiveTraffic`, `LiveTrafficKinematics`, `IsShadow` tick bypass + command gate, `RecordedLiveTrafficSample`)
 - [`aircraft-performance.md`](docs/aircraft-performance.md) — per-type performance resolution + the contributor `AircraftProfileOverrides.json` correction layer (`AircraftProfileOverride`, `OverrideAwareProfileCorrectionAdapter`, `CategoryPerformance.BaselineProfile`)
 - [`test-harness.md`](docs/test-harness.md) — writing any Yaat.Sim test / "passes alone but flakes in the suite"
 - [`tick-animator.md`](docs/tick-animator.md) — animating tick-by-tick aircraft state over a ground layout to eyeball test behavior

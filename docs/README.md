@@ -20,6 +20,7 @@
 | Landing / runway exit | [`landing-and-runway-exit.md`](./landing-and-runway-exit.md) |
 | Navigation database / routes | [`navigation-database.md`](./navigation-database.md) |
 | Weather / wind | [`weather-and-wind.md`](./weather-and-wind.md) |
+| Live-traffic shadows | [`live-traffic.md`](./live-traffic.md) |
 | Snapshots / replay / bundles | [`snapshots-and-replay.md`](./snapshots-and-replay.md) |
 | Server rooms / hub | [`server-rooms-and-hub.md`](./server-rooms-and-hub.md), [`training-hub-contract.md`](./training-hub-contract.md) |
 | CRC display state | [`crc-display-state.md`](./crc-display-state.md) |

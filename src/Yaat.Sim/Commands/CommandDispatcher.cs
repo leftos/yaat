@@ -49,6 +49,11 @@ public static class CommandDispatcher
 
     public static CommandResult DispatchCompound(CompoundCommand compound, AircraftState aircraft, DispatchContext ctx)
     {
+        if (aircraft.IsShadow)
+        {
+            return RejectShadow(aircraft);
+        }
+
         // A successful command issued to a ground aircraft by the controller is itself evidence of
         // established controller-pilot contact (the pilot read back the clearance the controller
         // spoke). Setting this here covers every controller dispatch path — user-typed
@@ -68,6 +73,13 @@ public static class CommandDispatcher
         }
         return result;
     }
+
+    /// <summary>
+    /// Live traffic is not controllable: the real pilot is flying it. Gated at the public entries so
+    /// phase-transparent commands (SQ, ident, RTIS) cannot slip through either.
+    /// </summary>
+    private static CommandResult RejectShadow(AircraftState aircraft) =>
+        new(false, $"ASSUME {aircraft.Callsign} first — live traffic is not controllable");
 
     private static CommandResult DispatchCompoundCore(CompoundCommand compound, AircraftState aircraft, DispatchContext ctx)
     {
@@ -544,6 +556,11 @@ public static class CommandDispatcher
 
     public static CommandResult Dispatch(ParsedCommand command, AircraftState aircraft, DispatchContext ctx)
     {
+        if (aircraft.IsShadow)
+        {
+            return RejectShadow(aircraft);
+        }
+
         // Route ground commands through DispatchCompound for phase interaction
         if (CommandDescriber.IsGroundCommand(command))
         {

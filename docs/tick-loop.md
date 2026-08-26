@@ -20,8 +20,9 @@ Tick(1s)
 │   └─ broadcast aircraft-spawned events
 ├─ Physics ×4 (0.25 s sub-ticks)       (SimulationEngine.TickPhysics)
 │   └─ SimulationWorld.Tick(0.25, PreTick)
-│       ├─ PreTick → PhaseRunner.Tick   (per aircraft)
 │       ├─ GroundConflictDetector.ApplySpeedLimits
+│       ├─ [IsShadow] LiveTrafficKinematics.Advance + airborne latch, then continue (no PreTick, no physics — live-traffic.md)
+│       ├─ PreTick → PhaseRunner.Tick   (per aircraft)
 │       └─ FlightPhysics.Update         (per aircraft, 8 steps)
 └─ PostPhysics                         (SimulationEngine.TickPostPhysics)
     ├─ ConflictAlertDetector.Detect    (airborne)

@@ -27,6 +27,7 @@ These live directly on the record, not in a satellite:
 |---|---|---|
 | `Callsign` | `string` (required) | Identity. Case-insensitive across the world set. |
 | `AircraftType` | `string` (required) | **Physical** type — drives physics, performance, Tower Cab datablock. Fixed at spawn. |
+| `IsShadow` | `bool` (computed) | `LiveTraffic != null`: a real aircraft mirrored from a feed. Bypasses phases/physics/pilot AI, rejects commands. See live-traffic.md. |
 | `BaseAircraftType` | `string` (computed) | `AircraftType` with the `H/`, `J/`, `S/` wake prefix stripped (`StripTypePrefix`). |
 | `ScenarioId`, `Cid`, `AirportId` | `string?` / `string` | Scenario linkage; controller-tag CID; operational airport context for airport-relative commands. |
 | `Position` | `LatLon` | Geographic position, degrees. |
@@ -44,7 +45,7 @@ A handful of cross-phase one-shot booleans and debrief timestamps also live at t
 `HasMadeInitialContact`, `HasControllerAcknowledgedInitialContact`, `HasLeftStudentFrequency`, `IsClearedIntoBravo`, `HasAnnouncedLinedUpReady`,
 `NoLandingClearanceWarningActive`, `SpawnedAtSeconds`, `CompletedAtSeconds`, `CompletionReason`, `CompletionDetail`, `PendingPilotRequest`.
 
-### The fourteen satellites + `ControlTargets`
+### The fifteen satellites + `ControlTargets`
 
 Each satellite is a separate class with its own `ToSnapshot`/`FromSnapshot`. Read the listed file for field-level detail.
 
@@ -64,6 +65,7 @@ Each satellite is a separate class with its own `ToSnapshot`/`FromSnapshot`. Rea
 | `Ghost` | `AircraftGhostTrack` | Phantom/overlay tracking: distinguishes overlaid scenario aircraft from pure DA/VP phantom data blocks; `IsVehicle`. | `AircraftGhostTrack.cs:15` |
 | `Voice` | `AircraftVoice` | CRC voice config (Unknown/Full/ReceiveOnly/TextOnly) + `TdlsDumped`. | `AircraftVoice.cs:10` |
 | `MilitaryRoute` | `AircraftMilitaryRoute` | AP/1B route clearance kept as a durable *record*: designator, published direction, entry/exit points, current segment, altitude source + assigned block, MARSA, the beacon code stashed on a VR entry. Deliberately outside `Procedure`, whose SID/STAR state `FlightPhysics.ClearProcedureState` tears down on any heading command — a route clearance has to survive a vector. See military-training-routes.md. | `AircraftMilitaryRoute.cs:47` |
+| `LiveTraffic` | `AircraftLiveTraffic?` | **Nullable, unlike the others.** Present only while the aircraft is a live-traffic shadow: the last external sample plus the dead-reckoning clock `LiveTrafficKinematics.Advance` reads instead of running `FlightPhysics`. Assuming sets it to null. See live-traffic.md. | `LiveTraffic/AircraftLiveTraffic.cs` |
 | `Targets` | `ControlTargets` | The autopilot panel physics reads each tick. See next section. | `ControlTargets.cs:13` |
 
 ### `ControlTargets` — the autopilot panel

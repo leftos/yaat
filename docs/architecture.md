@@ -434,6 +434,8 @@ AircraftState.cs               # Mutable aircraft entity. Identity + kinematics 
                                # Ground.Layout is [JsonIgnore]; Ground.LayoutAirportId preserves the
                                # reference so archive restore can reattach.
                                # PendingObservations: ephemeral pilot-side "watch for condition" state (not persisted in snapshots)
+                               # LiveTraffic (AircraftLiveTraffic?): non-null ⇔ IsShadow — a real aircraft mirrored from a feed,
+                               # driven by LiveTraffic/LiveTrafficKinematics instead of FlightPhysics. See live-traffic.md.
                                # FOOTGUN: changes here must be mirrored in AircraftSnapshotDto + SnapshotSchemaMigrator
 ControlTargets.cs              # Autopilot targets: heading, altitude, speed (IAS), NavigationRoute
 NavRouteFixDto.cs              # Wire record (Name/Lat/Lon/RestrictionLines) for the client "Show nav route" overlay; carries server positions + pre-formatted crossing-restriction labels. Empty Name = synthetic arc vertex. Referenced by both AircraftStateDto (server) and AircraftDto (client)
@@ -537,6 +539,10 @@ WeatherTimeline.cs             # Time-based weather evolution: list of WeatherPe
                                # HasMeaningfulChange: rate-limits broadcasts (direction >1°, speed >0.5kt tolerance)
 WeatherTimelineParser.cs       # Static v1/v2 auto-detection parser: checks for "periods" array → WeatherTimeline, else → WeatherProfile
                                # Returns WeatherParseResult discriminated union (Timeline | Profile | Error)
+LiveTraffic/LiveTrafficSample.cs     # LiveTrafficSample (sim-time observation: pos/alt/GS/track/VS?/source/beacon), LiveTrafficSource (Stars/Eram/Asdex), LiveTrafficRemovalReason
+LiveTraffic/AircraftLiveTraffic.cs   # Shadow satellite: last sample fields, SecondsSinceSample (the only clock Advance reads), previous-sample altitude/time, IsCoasting, ExternalId
+LiveTraffic/LiveTrafficKinematics.cs # CreateShadow / Apply(sample) / Advance(dt): dead-reckons a shadow from its latest sample and writes the air vector (heading+IAS)
+                                     # so the computed GroundSpeed equals the sampled GS under the room wind; coasts after two missed sweeps. See live-traffic.md.
 WindInterpolator.cs            # Static wind utilities: GetWindAt, GetWindComponents (vector lerp through 0/360; take sim time + phase),
                                # IasToTas/TasToIas/MachToIas/IasToMach (ISA compressible-flow equations), ComputeWindCorrectionAngle
 WindVariation.cs               # Deterministic time-varying wind perturbation: bounded value-noise gust/direction wander + VRB model,
@@ -969,7 +975,8 @@ AutoScratchpadResolver.cs      # Pure: the STARS destination fallback shown in t
                                # Display-only — DtoConverter fills AircraftStateDto.AutoScratchpad1; never persisted to AircraftState.
                                # Not truncated to the scratchpad limit — STARS clips only controller-entered text.
 SessionRecording.cs            # v1 (commands) + v2 (commands + snapshots) recording format; ArtccConfigJson optional bundle; StudentPositionState (from snapshot 0) for Sim-side replay restore; TerminalLog (broadcast terminal stream) for terminal-scrub repopulation
-RecordedAction.cs              # Polymorphic recorded actions: Command, Chat, AmendFlightPlan, RequestNewBeaconCode, WeatherChange, SettingChange, AircraftSpawn
+RecordedAction.cs              # Polymorphic recorded actions: Command, Chat, AmendFlightPlan, RequestNewBeaconCode, WeatherChange, SettingChange, AircraftSpawn,
+                               # LiveTrafficSample (pre-tick, like AircraftSpawn — SimulationEngine.IsPreTickAction), LiveTrafficRemoval
                                # RecordedCommand bakes ReactionDelaySeconds + SpawnJitterSeconds (nullable) for replay determinism
 RecordedTerminalEntry.cs       # One broadcast terminal line (kind/callsign/message) with wall-clock Timestamp + scenario-elapsed ElapsedSeconds; persisted as terminal-log.json.br so a loaded recording repopulates the terminal and each line scrubs the replay
 RecordedCommandClassifier.cs   # Shared replay-time RecordedCommand classifier. RecordedCommandKind enum + Classify(string)
@@ -1007,6 +1014,7 @@ CfrDepartureService.cs         # CFR: sets/clears/reports a departure's alert-on
 ConsolidationState.cs          # Thread-safe manual consolidation overrides
 
 # Simulation/Snapshots/
+AircraftLiveTrafficDto.cs      # Nullable AircraftSnapshotDto.LiveTraffic: last sample + dead-reckoning clock of a shadow aircraft (see live-traffic.md)
 StateSnapshotDto.cs            # Top-level snapshot DTO + TimedSnapshot (elapsed + action index + state)
 AircraftSnapshotDto.cs         # Aircraft state DTO (~100 fields) + nested DTOs (TrackOwner, Tcp, Pointout, SharedState, student-frequency eligibility, etc.)
 ControlTargetsDto.cs           # Control targets + NavigationTarget + altitude/speed restriction DTOs

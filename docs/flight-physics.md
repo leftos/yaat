@@ -311,8 +311,9 @@ Full depth is in [command-pipeline.md](command-pipeline.md) and [phases.md](phas
 
 ## Magnetic declination caching
 
-The first thing `Update` does is refresh `aircraft.Declination` from the WMM — but only when the aircraft has moved more than a 0.02° position
-box (≈ 1.2 nm of latitude, `FlightPhysics.cs:55`). WMM is a degree-12 spherical-harmonic evaluation and, at 4 Hz per aircraft, dominates per-tick
+The first thing `Update` does is refresh `aircraft.Declination` from the WMM (`FlightPhysics.RefreshDeclinationCache`, public so the
+live-traffic kinematics that bypass `Update` can share it) — but only when the aircraft has moved more than a 0.02° position box (≈ 1.2 nm of
+latitude). WMM is a degree-12 spherical-harmonic evaluation and, at 4 Hz per aircraft, dominates per-tick
 physics cost; declination changes slowly enough that sub-nm motion can reuse the cached value. Behind that per-aircraft gate, `MagneticDeclination`
 itself memoizes results on a process-wide 0.02° grid (evaluated at cell centres, so the value never depends on evaluation order) — see
 [weather-and-wind.md](weather-and-wind.md#magnetic-declination-magneticdeclinationcs).

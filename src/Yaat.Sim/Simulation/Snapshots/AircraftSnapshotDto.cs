@@ -146,6 +146,9 @@ public sealed class AircraftSnapshotDto
     /// <summary>Military training route clearance. Null on snapshots written before schema v17.</summary>
     public AircraftMilitaryRouteDto? MilitaryRoute { get; init; }
 
+    /// <summary>Live-traffic shadow state. Null for simulated aircraft and on snapshots written before the field existed.</summary>
+    public AircraftLiveTrafficDto? LiveTraffic { get; init; }
+
     // Position history
     public List<PositionDto>? PositionHistory { get; init; }
 

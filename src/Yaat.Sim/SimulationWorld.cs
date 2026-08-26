@@ -272,6 +272,13 @@ public sealed class SimulationWorld
                     ac.Track.HandoffAccepted = false;
                 }
 
+                if (ac.IsShadow)
+                {
+                    LiveTraffic.LiveTrafficKinematics.Advance(ac, deltaSeconds, weather, simTimeSeconds);
+                    LatchAirborne(ac);
+                    continue;
+                }
+
                 preTick?.Invoke(ac, deltaSeconds);
 
                 if (timingCallback is not null)
@@ -287,11 +294,20 @@ public sealed class SimulationWorld
                     FlightPhysics.Update(ac, deltaSeconds, Lookup, weather, simTimeSeconds, soloMode, rpoShowPilotSpeech);
                 }
 
-                if (!ac.IsOnGround)
-                {
-                    ac.HasBeenAirborne = true;
-                }
+                LatchAirborne(ac);
             }
+        }
+    }
+
+    /// <summary>
+    /// The airborne latch decides <c>FlightPlanStatus.Proposed</c> vs <c>Active</c> in the CRC projection,
+    /// so it runs for shadows too — otherwise a live overflight would sit in the TAB list as a proposed plan.
+    /// </summary>
+    private static void LatchAirborne(AircraftState ac)
+    {
+        if (!ac.IsOnGround)
+        {
+            ac.HasBeenAirborne = true;
         }
     }
 

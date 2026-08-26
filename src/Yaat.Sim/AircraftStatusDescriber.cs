@@ -45,6 +45,11 @@ public static class AircraftStatusDescriber
     /// </summary>
     public static (string Text, AircraftStatusSeverity Severity) Describe(AircraftStatusView i)
     {
+        if (i.IsLiveTraffic)
+        {
+            return (i.IsCoasting ? "LIVE CST" : "LIVE", AircraftStatusSeverity.Normal);
+        }
+
         var (normalText, normalSeverity) = ComputeNormalStatus(i);
 
         var alert = CheckAlerts(i);
@@ -102,6 +107,10 @@ public static class AircraftStatusDescriber
     {
         public string CurrentPhase { get; init; } = "";
         public bool IsOnGround { get; init; }
+
+        /// <summary>A shadow of real traffic: nothing the sim does describes it, so the status is just LIVE (or LIVE CST while coasting).</summary>
+        public bool IsLiveTraffic { get; init; }
+        public bool IsCoasting { get; init; }
         public double GroundSpeed { get; init; }
         public double VerticalSpeed { get; init; }
         public double Altitude { get; init; }
@@ -176,6 +185,8 @@ public static class AircraftStatusDescriber
             {
                 CurrentPhase = ac.Phases?.CurrentPhase?.Name ?? "",
                 IsOnGround = ac.IsOnGround,
+                IsLiveTraffic = ac.IsShadow,
+                IsCoasting = ac.LiveTraffic?.IsCoasting ?? false,
                 GroundSpeed = ac.GroundSpeed,
                 VerticalSpeed = ac.VerticalSpeed,
                 Altitude = ac.Altitude,

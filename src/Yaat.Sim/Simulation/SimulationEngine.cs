@@ -7,6 +7,7 @@ using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Airspace;
 using Yaat.Sim.Data.Vnas;
+using Yaat.Sim.LiveTraffic;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Phases.Tower;
@@ -64,7 +65,7 @@ public readonly record struct EramConflictAlertChanges(List<EramActiveConflict> 
 
 public sealed class SimulationEngine
 {
-    private const int PhysicsSubTickRate = 4;
+    public const int PhysicsSubTickRate = 4;
 
     private readonly IAirportGroundData _groundData;
 
@@ -896,6 +897,11 @@ public sealed class SimulationEngine
         bool solo = scenario.SoloTrainingMode;
         foreach (var ac in World.GetSnapshot())
         {
+            if (ac.IsShadow)
+            {
+                continue;
+            }
+
             if (solo)
             {
                 Pilot.PilotProactive.TickAirborneCheckIn(ac, scenario, LookupAirportPosition);
@@ -4437,9 +4443,9 @@ public sealed class SimulationEngine
     {
         while (actionCursor < actions.Count && actions[actionCursor].ElapsedSeconds <= elapsedSeconds)
         {
-            if (actions[actionCursor] is RecordedAircraftSpawn spawn)
+            if (IsPreTickAction(actions[actionCursor]))
             {
-                actionApplier(spawn);
+                actionApplier(actions[actionCursor]);
                 appliedActionIndexes.Add(actionCursor);
             }
 
@@ -4447,12 +4453,24 @@ public sealed class SimulationEngine
         }
     }
 
+    /// <summary>
+    /// Actions that must land before the physics of their second: aircraft spawns and live-traffic
+    /// samples (both happen in pre-physics live). Everything else applies after the second.
+    /// </summary>
+    public static bool IsPreTickAction(RecordedAction action) => action is RecordedAircraftSpawn or RecordedLiveTrafficSample;
+
     private void ApplyRecordedAction(RecordedAction action)
     {
         switch (action)
         {
             case RecordedAircraftSpawn spawn:
                 ApplyRecordedAircraftSpawn(spawn);
+                break;
+            case RecordedLiveTrafficSample sample:
+                ApplyRecordedLiveTrafficSample(sample);
+                break;
+            case RecordedLiveTrafficRemoval removal:
+                ApplyRecordedLiveTrafficRemoval(removal);
                 break;
             case RecordedCommand cmd:
                 ReplayCommand(cmd);
@@ -4511,6 +4529,105 @@ public sealed class SimulationEngine
         }
 
         World.AddAircraft(state);
+    }
+
+    /// <summary>
+    /// Applies a live-traffic sample to the named shadow, creating it from <paramref name="spawnState"/>
+    /// when it does not exist yet, and records the action. Call from pre-physics of the current second
+    /// (the server sync does) so the recorded second matches the pre-tick replay placement. Returns
+    /// false when nothing changed: the sample is stale, the aircraft has been assumed, or it is unknown
+    /// and no spawn state was given.
+    /// </summary>
+    public bool ApplyLiveTrafficSample(string callsign, LiveTrafficSample sample, AircraftSnapshotDto? spawnState)
+    {
+        bool spawned = false;
+        var ac = World.FindAircraft(callsign);
+        if (ac is null)
+        {
+            if (spawnState is null)
+            {
+                _logger.LogWarning("Live sample for unknown aircraft {Callsign} without spawn state; ignored", callsign);
+                return false;
+            }
+
+            ac = SpawnShadow(spawnState);
+            spawned = true;
+        }
+
+        if (!ac.IsShadow)
+        {
+            return false;
+        }
+
+        if (!spawned && !LiveTrafficKinematics.Apply(ac, sample))
+        {
+            return false;
+        }
+
+        RecordLiveTrafficAction(new RecordedLiveTrafficSample(Scenario?.ElapsedSeconds ?? 0, callsign, sample, spawned ? spawnState : null));
+        return true;
+    }
+
+    /// <summary>Removes a shadow (never an assumed aircraft) and records the removal. Not a completion.</summary>
+    public bool RemoveLiveTraffic(string callsign, LiveTrafficRemovalReason reason)
+    {
+        var ac = World.FindAircraft(callsign);
+        if (ac is null || !ac.IsShadow)
+        {
+            return false;
+        }
+
+        World.RemoveAircraft(callsign);
+        RecordLiveTrafficAction(new RecordedLiveTrafficRemoval(Scenario?.ElapsedSeconds ?? 0, callsign, reason));
+        return true;
+    }
+
+    private void RecordLiveTrafficAction(RecordedAction action)
+    {
+        var scenario = Scenario;
+        if (scenario is null || _isReplayingRecordedActions || scenario.IsPlaybackMode)
+        {
+            return;
+        }
+
+        scenario.ActionLog.Add(action);
+    }
+
+    private void ApplyRecordedLiveTrafficSample(RecordedLiveTrafficSample recorded)
+    {
+        var ac = World.FindAircraft(recorded.Callsign);
+        if (ac is null)
+        {
+            if (recorded.SpawnState is null)
+            {
+                _logger.LogWarning("Replayed live sample for unknown aircraft {Callsign} without spawn state; ignored", recorded.Callsign);
+                return;
+            }
+
+            SpawnShadow(recorded.SpawnState);
+            return;
+        }
+
+        if (ac.IsShadow)
+        {
+            LiveTrafficKinematics.Apply(ac, recorded.Sample);
+        }
+    }
+
+    private void ApplyRecordedLiveTrafficRemoval(RecordedLiveTrafficRemoval recorded)
+    {
+        var ac = World.FindAircraft(recorded.Callsign);
+        if (ac is { IsShadow: true })
+        {
+            World.RemoveAircraft(recorded.Callsign);
+        }
+    }
+
+    private AircraftState SpawnShadow(AircraftSnapshotDto spawnState)
+    {
+        var state = AircraftState.FromSnapshot(spawnState, null);
+        World.AddAircraft(state);
+        return state;
     }
 
     private static void NormalizeSyntheticAircraftSpawn(AircraftState state)
