@@ -246,8 +246,8 @@ public static class RunwayOccupancy
         return Math.Min(diff, 180.0 - diff);
     }
 
-    /// <summary>The runway end whose approach course is nearest the given track — the end the aircraft would land on.</summary>
-    private static RunwayInfo AlignedEnd(double trackDeg, RunwayInfo runway)
+    /// <summary>The runway end whose heading is closest to <paramref name="trackDeg"/>, oriented for that end.</summary>
+    public static RunwayInfo AlignedEnd(double trackDeg, RunwayInfo runway)
     {
         double toEnd1 = GeoMath.AbsBearingDifference(trackDeg, runway.TrueHeading1.Degrees);
         double toEnd2 = GeoMath.AbsBearingDifference(trackDeg, runway.TrueHeading2.Degrees);

@@ -49,6 +49,11 @@ public static class CommandDispatcher
 
     public static CommandResult DispatchCompound(CompoundCommand compound, AircraftState aircraft, DispatchContext ctx)
     {
+        if (compound.Blocks is [{ Condition: null, Commands: [AssumeCommand] }])
+        {
+            return LiveTraffic.LiveTrafficAssumer.Assume(aircraft, ctx);
+        }
+
         if (aircraft.IsShadow)
         {
             return RejectShadow(aircraft);
@@ -556,6 +561,11 @@ public static class CommandDispatcher
 
     public static CommandResult Dispatch(ParsedCommand command, AircraftState aircraft, DispatchContext ctx)
     {
+        if (command is AssumeCommand)
+        {
+            return LiveTraffic.LiveTrafficAssumer.Assume(aircraft, ctx);
+        }
+
         if (aircraft.IsShadow)
         {
             return RejectShadow(aircraft);

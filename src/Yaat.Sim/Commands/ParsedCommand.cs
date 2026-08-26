@@ -1079,6 +1079,9 @@ public record AsdexEnableAllAlertsCommand : ParsedCommand;
 // Server/global commands
 public record DeleteCommand : ParsedCommand;
 
+/// <summary>Takes control of a live-traffic shadow (see <c>Yaat.Sim.LiveTraffic.LiveTrafficAssumer</c>).</summary>
+public record AssumeCommand : ParsedCommand;
+
 /// <summary>
 /// Cancel any pending auto-delete on this aircraft and re-arm
 /// <see cref="AircraftGroundOps.AutoDeleteExempt"/>. Bare verb <c>NODEL</c>.

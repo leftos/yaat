@@ -13,10 +13,11 @@ it sees `LiveTrafficSample`s for a callsign and never knows where they came from
 | File | Role |
 |---|---|
 | `LiveTraffic/LiveTrafficSample.cs` | `LiveTrafficSample` (one observation: sim-clock time, lat/lon, altitude, GS, true track, optional VS, source, beacon), `LiveTrafficSource` (`Stars` 4.5 s sweep / `Eram` 12 s / `Asdex` 1 s — `Asdex` means on the ground), `LiveTrafficRemovalReason`. |
-| `LiveTraffic/AircraftLiveTraffic.cs` | The satellite on `AircraftState.LiveTraffic`: last sample fields, `SecondsSinceSample` (the only clock `Advance` reads), the previous sample's altitude/time (vertical-speed derivation), `IsCoasting`, `ExternalId`. `ToSnapshot`/`FromSnapshot` ↔ `AircraftLiveTrafficDto`. |
+| `LiveTraffic/AircraftLiveTraffic.cs` | The satellite on `AircraftState.LiveTraffic`: last sample fields, `SecondsSinceSample` (the only clock `Advance` reads), a bounded `History` of the last 24 samples (vertical-speed derivation, level/hold detection at assume), the feed's latest clearance fields (assigned/interim altitude, cleared heading/speed, clearance text), `IsCoasting`, `ExternalId`. `ToSnapshot`/`FromSnapshot` ↔ `AircraftLiveTrafficDto`. |
 | `LiveTraffic/LiveTrafficKinematics.cs` | `CreateShadow`, `Apply(ac, sample)`, `Advance(ac, dt, weather, simTime)`, coast timing. |
 | `Simulation/Snapshots/AircraftLiveTrafficDto.cs` | Nullable `AircraftSnapshotDto.LiveTraffic`; null for simulated aircraft and for older snapshots (no schema bump). |
 | `Simulation/RecordedAction.cs` | `RecordedLiveTrafficSample(Callsign, Sample, SpawnState?)`, `RecordedLiveTrafficRemoval(Callsign, Reason)`. |
+| `LiveTraffic/LiveTrafficAssumer.cs` | `ASSUME`: the in-place hand-off from shadow to simulated aircraft (below). |
 
 ## Contract
 
@@ -48,6 +49,55 @@ it sees `LiveTrafficSample`s for a callsign and never knows where they came from
 - **Status**: `AircraftStatusDescriber` shows `LIVE` / `LIVE CST` and nothing else for a shadow.
 - **Pilot AI**: `SimulationEngine.TickPilotProactive` skips shadows. The transponder pool never assigns to a shadow — its
   code is whatever the feed reported. A removed shadow is not a completion (`CompletionReason` stays `Active`).
+
+## `ASSUME` — `LiveTrafficAssumer`
+
+`CommandDispatcher.Dispatch`/`DispatchCompound` route a lone `AssumeCommand` to `LiveTrafficAssumer.Assume(aircraft, ctx)`
+*before* the shadow gate (so it is the one command a shadow accepts; `ASSUME ; H 180` is rejected like any compound). It goes
+through the normal `HandleStandardCmd` path on the server, so it is recorded as a `RecordedCommand` and replays through the
+same dispatcher in both brains with no extra arm. **Never refused** (owner decision): the RPO always gets control; on a
+non-shadow it fails with "not live traffic".
+
+Order of business: `Advance(0)` to make the pose current → `LiveTraffic = null`, queue and deferred dispatches cleared →
+squawk note (7700/7600) → coasting note → `SeedState`:
+
+1. **Runway kind** via `RunwayOccupancy.ClassifyByGeometry` over the room layout's, destination's and departure's runways
+   (`RunwayOccupancy.AlignedEnd` orients each pavement to the track). On the ground: `Departing` → `TakeoffPhase`;
+   `OnSurface` > 30 kt → `RunwayExitPhase`; otherwise a phase-less ground aircraft (`Ground.Layout` attached,
+   `GroundSpawnSnap` when off-runway) with `TargetSpeed` = wheel speed. Airborne `Landing` (< 50 ft) → `LandingPhase`
+   with `LandingClearance = ClearedToLand` (the real aircraft has one; §3-10-5).
+2. **VFR** (VFR plan, or 1200 with no plan): heading hold (feed cleared heading first); level → altitude to the 100 ft,
+   climbing/descending → keep the rate to the next §91.159 VFR cruising altitude (`NextVfrCruisingAltitude`, odd/even
+   thousands + 500 by magnetic course; a descent that would end below 3 500 ft MSL levels instead). Done.
+4. **Hold**: a `HOLD` token in `ClearanceText` or the filed route, or ≥ 270° of accumulated turn over ≤ 90 s of history
+   within 3 nm → heading + altitude hold and a "reissue holding or a rejoin" warning (§4-6-1). Done.
+5. **Lateral**, first match wins: established on a final (inside the approach gate = `ApproachGateDatabase`
+   min-intercept − `InterceptPaddingNm`, displaced threshold honoured; ≤ 10° off the final, ≤ 0.3 nm cross-track, not
+   climbing) → `ApproachCommandHandler.TryClearedApproach` with the runway as the `DestinationRunway` hint (no landing
+   clearance implied); else inside the gate, ≤ 30°/≤ 1 nm, field VMC (≥ 1 000 ft / 3 sm from the room METAR, VMC assumed
+   when unknown) → visual approach with field-in-sight set; else aligned within 10 nm → heading hold + "on vectors to the
+   runway final" warning. Then **initial climb** (climbing ≥ 300 fpm, < 3 nm of the track-aligned departure runway end,
+   ≤ 30° aligned) → feed cleared heading else runway heading, filed SID restrictions activated when the route names one
+   (§5-6-3: never turned direct to an enroute fix off the runway — this deliberately precedes the rejoin). Then the filed
+   route: `NextFixAhead` (closest leg → its end fix, one skip when that fix is abeam/behind, ±45° of track,
+   ≥ max(2 nm, 30 s)) installs `NavigationRoute` from that fix; `ArrivalRouteResolver.ApplyAltitudeProfile` within 30 nm
+   of the destination, `TryActivateFiledSid` within 30 nm of the departure. Else heading hold with an "assumed on vectors"
+   warning.
+6. **Speed** (after lateral, so a STAR speed restriction cannot clobber it): below 10 000 ft the seed is clamped between
+   the type's approach speed and 250 KIAS (§5-7-1.b.4 — an arrival slowed for the approach is never sped back up;
+   §91.117); above, 0.75–1.25× the type's default (no Vmo data). Feed `ClearedSpeedKts` overrides; `TargetMach` from the
+   air vector at/above FL240.
+7. **Vertical** (skipped when an approach was installed — the approach owns the vertical path): level when the last 3
+   samples span ≤ 200 ft and |VS| ≤ 400 fpm (Mode C is 100-ft quantised), or while coasting → altitude to the 100 ft
+   (never a hemispheric snap). Climbing → keep the rate to interim/assigned/filed, else the next 1 000 ft up. Descending →
+   keep the rate to interim/assigned, else the first at/at-or-below restriction on the installed route below the aircraft,
+   else `max(MVA floor, destination elevation + 2 000 ft rounded up)`; when none of those exist (no MVA coverage, no
+   destination) the aircraft is **levelled off** with a warning rather than seeded an unbounded descent (§5-6-1.a.3).
+   Targets are rounded *down* to the 100 ft so a descending aircraft never gets a target above itself. `AssignedAltitude`
+   mirrors the target.
+
+Nothing is transmitted at assume. The `CommandResult` message summarises the seeded state; caveats go to
+`PendingWarnings` (amber). Tests: `LiveTrafficAssumeTests`.
 
 ## Recording and replay
 

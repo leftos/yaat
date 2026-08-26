@@ -353,6 +353,7 @@
       "name": "Sim Control",
       "rows": [
         { "verb": "DEL", "aliases": ["x"], "description": "Delete aircraft" },
+        { "verb": "ASSUME", "aliases": [], "description": "Take control of a live-traffic shadow (never refused; seeds a controllable state)" },
         { "verb": "ONHS DEL", "aliases": [], "description": "Auto-delete when aircraft reaches hold-short after landing" },
         { "verb": "CROSS 19R; DEL", "aliases": [], "description": "Auto-delete once clear of the far side of the crossed runway" },
         { "verb": "NODEL", "aliases": [], "description": "Cancel every queued delete (ONHS DEL, CROSS...; DEL); re-arm AutoDeleteExempt" },

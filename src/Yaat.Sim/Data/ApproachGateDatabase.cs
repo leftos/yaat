@@ -20,7 +20,9 @@ public static class ApproachGateDatabase
     private const double DefaultMinInterceptNm = 7.0;
     private const double MinGateFloorNm = 5.0;
     private const double GatePaddingNm = 1.0;
-    private const double InterceptPaddingNm = 2.0;
+
+    /// <summary>Vectors end this far outside the approach gate (§5-9-1.a); subtract it to recover the gate itself.</summary>
+    public const double InterceptPaddingNm = 2.0;
 
     private static readonly ILogger Log = SimLog.CreateLogger("ApproachGateDatabase");
 

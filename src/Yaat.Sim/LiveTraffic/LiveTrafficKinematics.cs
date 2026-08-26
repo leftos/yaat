@@ -82,12 +82,20 @@ public static class LiveTrafficKinematics
             {
                 Log.LogDebug("Live sample for {Callsign} jumps {Jump:F2} nm from the dead-reckoned position", ac.Callsign, jumpNm);
             }
-
-            lt.PreviousSampleAltitude = lt.SampleAltitude;
-            lt.PreviousObservedAtSimSeconds = lt.ObservedAtSimSeconds;
         }
 
         lt.SampleVerticalSpeed = sample.VerticalSpeedFpm ?? DeriveVerticalSpeed(lt, sample);
+        lt.History.Add(new LiveTrafficHistoryPoint(sample.ObservedAtSimSeconds, sample.Lat, sample.Lon, sample.AltitudeFt, sample.TrueTrackDeg));
+        if (lt.History.Count > AircraftLiveTraffic.HistoryCapacity)
+        {
+            lt.History.RemoveAt(0);
+        }
+
+        lt.AssignedAltitudeFt = sample.AssignedAltitudeFt ?? lt.AssignedAltitudeFt;
+        lt.InterimAltitudeFt = sample.InterimAltitudeFt ?? lt.InterimAltitudeFt;
+        lt.ClearedHeadingDeg = sample.ClearedHeadingDeg ?? lt.ClearedHeadingDeg;
+        lt.ClearedSpeedKts = sample.ClearedSpeedKts ?? lt.ClearedSpeedKts;
+        lt.ClearanceText = sample.ClearanceText ?? lt.ClearanceText;
         lt.Source = sample.Source;
         lt.ObservedAtSimSeconds = sample.ObservedAtSimSeconds;
         lt.SecondsSinceSample = 0;
@@ -114,18 +122,19 @@ public static class LiveTrafficKinematics
 
     private static double DeriveVerticalSpeed(AircraftLiveTraffic lt, LiveTrafficSample sample)
     {
-        if (lt.PreviousObservedAtSimSeconds is not { } previousAt || lt.PreviousSampleAltitude is not { } previousAlt)
+        if (lt.History.Count == 0)
         {
             return 0;
         }
 
-        double dt = sample.ObservedAtSimSeconds - previousAt;
+        var previous = lt.History[^1];
+        double dt = sample.ObservedAtSimSeconds - previous.ObservedAtSimSeconds;
         if (dt <= 0)
         {
             return lt.SampleVerticalSpeed;
         }
 
-        double raw = (sample.AltitudeFt - previousAlt) / dt * 60.0;
+        double raw = (sample.AltitudeFt - previous.AltitudeFt) / dt * 60.0;
         return lt.SampleVerticalSpeed == 0 ? raw : (DerivedVerticalSpeedAlpha * raw) + ((1 - DerivedVerticalSpeedAlpha) * lt.SampleVerticalSpeed);
     }
 

@@ -2,6 +2,9 @@ using Yaat.Sim.Simulation.Snapshots;
 
 namespace Yaat.Sim.LiveTraffic;
 
+/// <summary>One past observation kept for vertical-speed derivation, level/hold detection at assume.</summary>
+public readonly record struct LiveTrafficHistoryPoint(double ObservedAtSimSeconds, double Lat, double Lon, double AltitudeFt, double TrueTrackDeg);
+
 /// <summary>
 /// Per-aircraft live-traffic satellite: the last external sample plus the dead-reckoning clock.
 /// Present (non-null on <see cref="AircraftState.LiveTraffic"/>) exactly while the aircraft is a
@@ -11,6 +14,9 @@ namespace Yaat.Sim.LiveTraffic;
 /// </summary>
 public sealed class AircraftLiveTraffic
 {
+    /// <summary>Observations kept in <see cref="History"/> (≈ 90 s of STARS sweeps: enough to see a racetrack turn).</summary>
+    public const int HistoryCapacity = 24;
+
     public LiveTrafficSource Source { get; set; }
 
     /// <summary>Sim-clock second the current sample was placed at (out-of-order samples are ignored).</summary>
@@ -25,12 +31,18 @@ public sealed class AircraftLiveTraffic
     public double SampleTrueTrack { get; set; }
     public double SampleVerticalSpeed { get; set; }
 
-    /// <summary>Altitude and time of the sample before the current one; feeds vertical-speed derivation.</summary>
-    public double? PreviousSampleAltitude { get; set; }
-    public double? PreviousObservedAtSimSeconds { get; set; }
+    /// <summary>Recent samples, oldest first, ending with the current one; capped at <see cref="HistoryCapacity"/>.</summary>
+    public List<LiveTrafficHistoryPoint> History { get; } = [];
 
     /// <summary>Two sweeps of the source have passed without a sample: displayed as CST, still dead-reckoned.</summary>
     public bool IsCoasting { get; set; }
+
+    /// <summary>Latest clearance fields the feed carried (null when it never did); seed the assume hand-off.</summary>
+    public double? AssignedAltitudeFt { get; set; }
+    public double? InterimAltitudeFt { get; set; }
+    public double? ClearedHeadingDeg { get; set; }
+    public double? ClearedSpeedKts { get; set; }
+    public string? ClearanceText { get; set; }
 
     /// <summary>Feed-side identity (e.g. GUFI); opaque to the sim.</summary>
     public string? ExternalId { get; set; }
@@ -47,14 +59,28 @@ public sealed class AircraftLiveTraffic
             SampleGroundSpeed = SampleGroundSpeed,
             SampleTrueTrack = SampleTrueTrack,
             SampleVerticalSpeed = SampleVerticalSpeed,
-            PreviousSampleAltitude = PreviousSampleAltitude,
-            PreviousObservedAtSimSeconds = PreviousObservedAtSimSeconds,
+            History = History
+                .Select(h => new LiveTrafficHistoryPointDto
+                {
+                    ObservedAtSimSeconds = h.ObservedAtSimSeconds,
+                    Lat = h.Lat,
+                    Lon = h.Lon,
+                    AltitudeFt = h.AltitudeFt,
+                    TrueTrackDeg = h.TrueTrackDeg,
+                })
+                .ToList(),
             IsCoasting = IsCoasting,
+            AssignedAltitudeFt = AssignedAltitudeFt,
+            InterimAltitudeFt = InterimAltitudeFt,
+            ClearedHeadingDeg = ClearedHeadingDeg,
+            ClearedSpeedKts = ClearedSpeedKts,
+            ClearanceText = ClearanceText,
             ExternalId = ExternalId,
         };
 
-    public static AircraftLiveTraffic FromSnapshot(AircraftLiveTrafficDto dto) =>
-        new()
+    public static AircraftLiveTraffic FromSnapshot(AircraftLiveTrafficDto dto)
+    {
+        var lt = new AircraftLiveTraffic
         {
             Source = (LiveTrafficSource)dto.Source,
             ObservedAtSimSeconds = dto.ObservedAtSimSeconds,
@@ -64,9 +90,19 @@ public sealed class AircraftLiveTraffic
             SampleGroundSpeed = dto.SampleGroundSpeed,
             SampleTrueTrack = dto.SampleTrueTrack,
             SampleVerticalSpeed = dto.SampleVerticalSpeed,
-            PreviousSampleAltitude = dto.PreviousSampleAltitude,
-            PreviousObservedAtSimSeconds = dto.PreviousObservedAtSimSeconds,
             IsCoasting = dto.IsCoasting,
+            AssignedAltitudeFt = dto.AssignedAltitudeFt,
+            InterimAltitudeFt = dto.InterimAltitudeFt,
+            ClearedHeadingDeg = dto.ClearedHeadingDeg,
+            ClearedSpeedKts = dto.ClearedSpeedKts,
+            ClearanceText = dto.ClearanceText,
             ExternalId = dto.ExternalId,
         };
+        foreach (var h in dto.History ?? [])
+        {
+            lt.History.Add(new LiveTrafficHistoryPoint(h.ObservedAtSimSeconds, h.Lat, h.Lon, h.AltitudeFt, h.TrueTrackDeg));
+        }
+
+        return lt;
+    }
 }

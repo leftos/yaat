@@ -718,6 +718,7 @@ public static class CommandParser
             TurnRightDirectTo => ParseTurnDirectTo(arg, aircraftRoute, TurnDirection.Right),
             // Sim control
             Delete when arg is null => PR.Ok(new DeleteCommand()),
+            Assume when arg is null => PR.Ok(new AssumeCommand()),
             CancelAutoDelete when arg is null => PR.Ok(new CancelAutoDeleteCommand()),
             Pause when arg is null => PR.Ok(new PauseCommand()),
             Unpause when arg is null => PR.Ok(new UnpauseCommand()),

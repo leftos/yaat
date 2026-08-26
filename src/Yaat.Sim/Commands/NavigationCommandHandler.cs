@@ -1271,7 +1271,7 @@ internal static class NavigationCommandHandler
     /// rebuild the route, so fixes the aircraft has already passed are not re-added. Returns false
     /// when the aircraft is VFR or the filed route contains no resolvable SID.
     /// </summary>
-    private static bool TryActivateFiledSid(AircraftState aircraft)
+    internal static bool TryActivateFiledSid(AircraftState aircraft)
     {
         // SIDs are an IFR construct; a VFR aircraft never flies one.
         if (aircraft.FlightPlan.IsVfr)

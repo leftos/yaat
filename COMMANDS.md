@@ -654,6 +654,7 @@ These mutate ASDE-X display state only; they never change the underlying scenari
 | Unpause | `UNPAUSE` | `U`, `UN`, `UNP`, `UP` | — |
 | Sim rate | `SIMRATE 2` | — | — |
 | Delete aircraft | `DEL` | `X` | — |
+| Assume live traffic | `ASSUME` | — | — |
 | Auto-delete on hold-short | `ONHS DEL` | — | Queues a delete that fires when the aircraft reaches HoldingAfterExit after landing. Datablock shows a trailing `*` while armed. |
 | Auto-delete after a crossing | `CROSS 19R; DEL` | — | Queues a delete that fires once the aircraft is clear of the far side of the runway it just crossed. Same `*` marker. |
 | Cancel auto-delete | `NODEL` | — | Strips every queued delete — `ONHS DEL`, `CROSS …; DEL`, `AT <fix> DEL` — and re-arms `AutoDeleteExempt` so scenario-level auto-delete also won't touch the aircraft. Distinct from the `NODEL` *modifier* on `CLAND`/`TAXI`/`EL`/`ER`/`EXIT`/`LAND`, which sets the exempt flag at the time those commands are issued. |
@@ -1704,6 +1705,38 @@ These commands don't require an aircraft selection:
 | `RDTXT <text>` | Set a held release's message text |
 | `CON` / `CON+` / `DECON` | Consolidation commands (see [Consolidation](#consolidation)) |
 | `TAXIALL 30` | Taxi all parked aircraft to runway 30 |
+
+### Live Traffic (ASSUME)
+
+`ASSUME` takes control of a **live-traffic shadow** — a real aircraft mirrored from an external surveillance feed. Until it is
+assumed, a shadow shows `LIVE` (or `LIVE CST` while its track is coasting) and rejects every command with
+`ASSUME <callsign> first — live traffic is not controllable`; track, handoff and coordination commands still work on it.
+
+`ASSUME` is never refused. It converts the aircraft in place (same callsign, squawk, strips and track ownership) and seeds
+a controllable state for whatever it is doing, in this order:
+
+- **Clearances from the feed win**: an interim or assigned altitude, cleared heading, or cleared speed carried by the feed
+  seeds the targets before anything is inferred.
+- **Level** (last samples within 200 ft and ≤ 400 fpm): holds its altitude to the nearest 100 ft — no hemispheric snap.
+  **Climbing**: keeps the observed rate to the assigned/filed altitude. **Descending**: keeps the rate to the assigned
+  altitude, the next STAR restriction, or a floor near the destination (MVA / field + 2 000 ft); with none of those it
+  levels off and tells you to assign an altitude.
+- **In a hold** (a `HOLD` in the clearance or route, or a racetrack signature): heading and altitude are held; reissue the
+  hold or a rejoin.
+- **Established on a final** inside the approach gate: the coded approach is installed — no landing clearance is implied,
+  so `CLAND` it (or it goes around like any arrival). Aligned in VMC but not established: a visual approach. Aligned but
+  outside the gate: heading hold, with a note that it is on vectors to that runway's final.
+- **On its filed route**: direct to the next fix ahead (never a fix behind), then the remainder of the route; STAR
+  restrictions come along near the destination.
+- **Initial climb**: cleared heading, else runway heading. **No route ahead**: heading hold ("assumed on vectors").
+- **VFR** (VFR plan or 1200 with no plan): maintains VFR — level at its altitude, or climbing/descending to the next VFR
+  cruising altitude — no route.
+- **Rolling takeoff**: keeps rolling; **landing** below 50 ft: lands (clearance implied); **rollout**: exits the runway;
+  **on the surface**: a taxiable aircraft — `TAXI`, `HS`, `PARK` work as for any ground aircraft.
+- 7700/7600 squawks are kept and noted. A coasting track is assumed from its dead-reckoned position, with a note.
+
+The pilot says nothing at assume — the real crew has been on frequency all along. The terminal shows what was seeded
+(e.g. `UAL123 assumed — direct SAC then the filed route, descending to 6000`) and any caveats as warnings.
 
 ### Auto-Delete on Hold-Short
 

@@ -60,4 +60,19 @@ public sealed record LiveTrafficSample(
 
     /// <summary>Surface-surveillance samples are on the ground; radar samples are airborne.</summary>
     public bool IsOnGround => Source == LiveTrafficSource.Asdex;
+
+    /// <summary>Controller-assigned altitude carried by the feed's flight-plan block (feet MSL), when present.</summary>
+    public double? AssignedAltitudeFt { get; init; }
+
+    /// <summary>Interim altitude from the feed (feet MSL), when present; takes precedence over the assigned altitude.</summary>
+    public double? InterimAltitudeFt { get; init; }
+
+    /// <summary>Cleared heading from the feed (degrees magnetic), when present.</summary>
+    public double? ClearedHeadingDeg { get; init; }
+
+    /// <summary>Cleared speed from the feed (knots IAS), when present.</summary>
+    public double? ClearedSpeedKts { get; init; }
+
+    /// <summary>Free-text clearance from the feed, when present (scanned for a hold at assume).</summary>
+    public string? ClearanceText { get; init; }
 }

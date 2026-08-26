@@ -788,6 +788,7 @@ public static class CommandRegistry
     private static CommandDefinition[] SimControlCommands() =>
         [
             Bare(Delete, "Delete", "Sim Control", false, ["DEL", "X"]),
+            Bare(Assume, "Assume live traffic", "Sim Control", false, ["ASSUME"]),
             Bare(CancelAutoDelete, "Cancel Auto-Delete", "Sim Control", false, ["NODEL"]),
             Bare(Pause, "Pause", "Sim Control", true, ["PAUSE", "P"]),
             Bare(Unpause, "Unpause", "Sim Control", true, ["UNPAUSE", "U", "UN", "UNP", "UP"]),
