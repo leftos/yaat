@@ -48,8 +48,13 @@ public sealed class GlobalKeyHookService : IDisposable
     /// </summary>
     public bool IsRunning => _hook.IsRunning;
 
+    /// <remarks>
+    /// The hook thread is marked background so it never keeps the process alive on its own: shutdown
+    /// disposes the hook explicitly, and anything that outlives that (a wedged native teardown, a test
+    /// host that never closes the window) must not block process exit.
+    /// </remarks>
     public GlobalKeyHookService()
-        : this(new SimpleGlobalHook()) { }
+        : this(new SimpleGlobalHook(runAsyncOnBackgroundThread: true)) { }
 
     /// <summary>Test seam: lets tests substitute a fake hook (e.g. one whose native teardown hangs).</summary>
     internal GlobalKeyHookService(IGlobalHook hook)

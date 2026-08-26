@@ -18,6 +18,7 @@
 - `TAXI … <ramp lane> @<stand>` whose lane never reaches the stand's sibling lane (OAK `TAXI V T TE @22`) now crosses the apron to it instead of dropping the lane. (#400)
 - Ground View draws that apron crossing on the taxi-route overlay.
 - Rewinding a recording mid-taxi to a stand keeps the aircraft parking on arrival.
+- Quitting YAAT no longer hangs when the global keyboard hook fails to stop.
 
 ### Changed
 - Ramp-lane apron crossings apply to any ramp taxilane (multi-letter like OAK TE/TC, or lettered-numbered like SFO M4), not only numbered ones.
