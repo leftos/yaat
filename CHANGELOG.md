@@ -9,6 +9,12 @@
 - `ERB`/`ELB` without a distance no longer refuses a light aircraft at 2500 ft a few miles out as "too high for base" — the budget uses the aircraft's own (or assigned) base speed and only the altitude above the glideslope at the base-to-final turn.
 - A base entry that is steep but flyable is accepted with a "high for base — may need S-turns or a go-around" warning instead of refused.
 - Aircraft entering base from present position fly one continuous descent to the final turn instead of diving and levelling off.
+- `TAXI … <ramp lane> @<stand>` whose lane never reaches the stand's sibling lane (OAK `TAXI V T TE @22`) now crosses the apron to it instead of dropping the lane. (#400)
+- Ground View draws that apron crossing on the taxi-route overlay.
+- Rewinding a recording mid-taxi to a stand keeps the aircraft parking on arrival.
+
+### Changed
+- Ramp-lane apron crossings apply to any ramp taxilane (multi-letter like OAK TE/TC, or lettered-numbered like SFO M4), not only numbered ones.
 
 ## v0.12.20-beta [2026/08/25]
 

@@ -14,6 +14,8 @@ public sealed class TaxiRouteDto
     public List<HoldShortPointDto>? HoldShortPoints { get; init; }
     public string? Description { get; init; }
     public int? DestinationNodeId { get; init; }
+    public string? DestinationParking { get; init; }
+    public string? DestinationSpot { get; init; }
 }
 
 public sealed class TaxiSegmentDto
@@ -21,6 +23,14 @@ public sealed class TaxiSegmentDto
     public required int FromNodeId { get; init; }
     public required int ToNodeId { get; init; }
     public string? TaxiwayName { get; init; }
+
+    /// <summary>
+    /// A free-space leg between two layout nodes the graph does not join — a destination-end ramp cut
+    /// (issue #400). Restore rebuilds the virtual edge instead of looking one up; false (and absent on older
+    /// snapshots) means the segment is a layout edge, and a missing edge still voids the route so a snapshot
+    /// whose node ids no longer match the layout is dropped rather than turned into stray legs.
+    /// </summary>
+    public bool IsFreeSpace { get; init; }
 
     /// <summary>
     /// Position of a <see cref="Yaat.Sim.Data.Airport.VirtualNode"/> endpoint — a free-space leg such as a

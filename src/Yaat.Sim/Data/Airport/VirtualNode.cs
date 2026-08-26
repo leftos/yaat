@@ -27,6 +27,8 @@ public static class VirtualNode
         };
     }
 
+    private const string EdgeOrigin = "VirtualNode:edge";
+
     /// <summary>
     /// Create a virtual edge connecting two nodes with populated node references.
     /// </summary>
@@ -38,9 +40,12 @@ public static class VirtualNode
             Nodes = [nodeA, nodeB],
             TaxiwayName = taxiwayName,
             DistanceNm = dist,
-            Origin = "VirtualNode:edge",
+            Origin = EdgeOrigin,
         };
     }
+
+    /// <summary>True for an edge made by <see cref="CreateEdge"/> — a free-space leg the layout never held.</summary>
+    public static bool IsVirtualEdge(IGroundEdge edge) => string.Equals(edge.Origin, EdgeOrigin, StringComparison.Ordinal);
 
     /// <summary>
     /// Create a <see cref="TaxiRouteSegment"/> from <paramref name="fromNode"/> to

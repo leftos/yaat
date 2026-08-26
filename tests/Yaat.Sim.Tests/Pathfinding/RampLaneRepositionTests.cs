@@ -26,6 +26,8 @@ public class RampLaneRepositionTests
 
     private static AirportGroundLayout? Layout() => TestVnasData.NavigationDb is null ? null : new TestAirportGroundData().GetLayout(Sfo);
 
+    private static AirportGroundLayout? OakLayout() => TestVnasData.NavigationDb is null ? null : new TestAirportGroundData().GetLayout("OAK");
+
     private static ExplicitPathOptions Options(AirportGroundLayout layout, string? destinationRunway) =>
         new() { AirportId = layout.AirportId, DestinationRunway = destinationRunway };
 
@@ -51,6 +53,59 @@ public class RampLaneRepositionTests
             s.TaxiwayName.Split([' ', '-', '/', ','], StringSplitOptions.RemoveEmptyEntries)
                 .Any(tok => string.Equals(tok, twy, StringComparison.OrdinalIgnoreCase))
         );
+
+    [Theory]
+    [InlineData("M3", true)]
+    [InlineData("M4", true)]
+    [InlineData("M5", true)]
+    [InlineData("A", false)]
+    [InlineData("A1", false)]
+    [InlineData("GL", false)]
+    [InlineData("28L", false)]
+    [InlineData("#12", false)]
+    public void IsRampTaxilane_Sfo(string name, bool expected)
+    {
+        var layout = Layout();
+        if (layout is null)
+        {
+            return;
+        }
+
+        Assert.Equal(expected, RampLaneReposition.IsRampTaxilane(layout, name));
+    }
+
+    /// <summary>
+    /// The name form alone also matches OAK's W1–W7 runway connectors; a lane carrying a runway holding position is
+    /// never a ramp lane. B1 is the GA hangar-row lane (RAMP along its length, no hold-short) and qualifies.
+    /// </summary>
+    [Theory]
+    [InlineData("TE", true)]
+    [InlineData("TC", true)]
+    [InlineData("T", false)]
+    [InlineData("V", false)]
+    [InlineData("W3", false)]
+    [InlineData("B1", true)]
+    public void IsRampTaxilane_Oak(string name, bool expected)
+    {
+        var layout = OakLayout();
+        if (layout is null)
+        {
+            return;
+        }
+
+        Assert.Equal(expected, RampLaneReposition.IsRampTaxilane(layout, name));
+    }
+
+    [Theory]
+    [InlineData("TE", "TC", true)]
+    [InlineData("M3", "M5", true)]
+    [InlineData("m4", "M5", true)]
+    [InlineData("TE", "M4", false)]
+    [InlineData("TE", "TE", false)]
+    public void AreSiblingLanes(string a, string b, bool expected)
+    {
+        Assert.Equal(expected, RampLaneReposition.AreSiblingLanes(a, b));
+    }
 
     [Fact]
     public void GateB20S_TaxiM4_CutsAcrossOntoM4ThenFollowsTheGraph()
@@ -262,8 +317,8 @@ public class RampLaneRepositionTests
 
     /// <summary>
     /// Two parallel north–south lanes 150 ft apart (M3 at lon 0, M9 at lon +150 ft), a gate 250 ft west of M3 with
-    /// a lead-out onto it (an SFO-like alley, long enough that the lead-out's fillet stays clear of the gate), and
-    /// optionally a lettered taxiway K running between the lanes.
+    /// a lead-out onto it (an SFO-like alley, long enough that the lead-out's fillet stays clear of the gate), a gate
+    /// H 250 ft east of M9 so both lanes are ramp-attached, and optionally a lettered taxiway K running between the lanes.
     /// </summary>
     private static string MiniRampGeoJson(bool withTaxiwayBetween)
     {
@@ -284,6 +339,8 @@ public class RampLaneRepositionTests
             { "type": "FeatureCollection", "features": [
               { "type": "Feature", "properties": { "type": "parking", "name": "G", "heading": 270 },
                 "geometry": { "type": "Point", "coordinates": [{{Lon(-250)}}, {{Lat(0)}}] } },
+              { "type": "Feature", "properties": { "type": "parking", "name": "H", "heading": 90 },
+                "geometry": { "type": "Point", "coordinates": [{{Lon(400)}}, {{Lat(0)}}] } },
               {{Line("M3", 0)}},
               {{Line("M9", 150)}}{{between}}
             ] }

@@ -938,6 +938,7 @@ public record AircraftDto(
     // rows that are IsUnsupported && !IsGhostOverlay.
     bool IsGhostOverlay = false,
     bool HasActiveTaxiRoute = false,
+    string TaxiDestination = "",
     // Hold-state mirror of AircraftGroundOps.Hold. HoldKind is null/empty when free
     // to move, "HoldPosition" for unconditional HOLD, "GiveWay" for a controller
     // GIVEWAY relationship (HoldYieldTarget carries the callsign in that case).

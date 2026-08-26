@@ -293,6 +293,38 @@ internal static class GroundCommandHandler
             }
         }
 
+        // The mirror image at the far end (OAK "TAXI V T TE @22"): the clearance resolves along its lanes but the
+        // last lane's ramp end does not join the stand's lane, so the pilot taxis it to the point nearest the stand
+        // and cuts across the apron onto the stand's lane. Only for sibling ramp lanes over open apron.
+        if (
+            route is null
+            && failure is { Kind: FailureKind.DestinationUnreachable, InfeasibleTaxiway: null }
+            && FindTaxiDestinationNode(groundLayout, taxi) is { } cutDestination
+        )
+        {
+            var cut = RampLaneReposition.TryPlanDestinationCut(
+                groundLayout,
+                startNode.Id,
+                taxi.Path,
+                cutDestination,
+                new ExplicitPathOptions
+                {
+                    ExplicitHoldShorts = taxi.HoldShorts,
+                    DestinationRunway = taxi.DestinationRunway,
+                    AirportId = groundLayout.AirportId,
+                    PathTurnHints = taxi.PathTurnHints,
+                    StartHeadingTrue = startHeadingTrueDeg,
+                },
+                category
+            );
+            if (cut is not null)
+            {
+                route = cut.Route;
+                failure = null;
+                failReason = null;
+            }
+        }
+
         // Two recoveries for a clearance that names pavement the aircraft cannot use as issued. Each drops
         // exactly one cleared taxiway, re-resolves, and records the as-applied command for the readback.
         if (route is null && startNode.Type == GroundNodeType.Parking)
@@ -314,6 +346,7 @@ internal static class GroundCommandHandler
             if (via is not null)
             {
                 effectiveCommand = WithoutPathToken(asCleared, via.DroppedName);
+                taxi = via.Command;
                 route = via.Route;
                 failReason = null;
             }
@@ -1221,7 +1254,7 @@ internal static class GroundCommandHandler
     /// taxiway at a time and keep the shortest resolution that reaches the destination, warning which element
     /// was dropped. The controller's destination wins over a contradictory via — silently failing the whole
     /// clearance helps nobody, silently honoring it via a runway back-taxi is worse. The returned command is the
-    /// clearance as issued (the route summary still lists every cleared taxiway). Null when there is no
+    /// clearance as applied (without the dropped taxiway). Null when there is no
     /// parking/spot destination, fewer than two path elements, or no single drop resolves.
     /// </summary>
     private static DroppedTaxiwayRoute? TryDropContradictoryVia(AircraftState aircraft, TaxiCommand taxi, Func<TaxiCommand, TaxiRoute?> resolve)
@@ -1233,6 +1266,7 @@ internal static class GroundCommandHandler
 
         string destLabel = taxi.DestinationParking is not null ? $"@{taxi.DestinationParking}" : $"${taxi.DestinationSpot}";
         TaxiRoute? bestDropRoute = null;
+        TaxiCommand? bestCommand = null;
         string? droppedName = null;
         for (int drop = 0; drop < taxi.Path.Count; drop++)
         {
@@ -1243,15 +1277,17 @@ internal static class GroundCommandHandler
 
             var reducedPath = taxi.Path.Where((_, idx) => idx != drop).ToList();
             var reducedHints = taxi.PathTurnHints?.Where((_, idx) => idx != drop).ToList();
-            var candidate = resolve(taxi with { Path = reducedPath, PathTurnHints = reducedHints });
+            var reduced = taxi with { Path = reducedPath, PathTurnHints = reducedHints };
+            var candidate = resolve(reduced);
             if (candidate is not null && (bestDropRoute is null || candidate.TotalDistanceNm < bestDropRoute.TotalDistanceNm))
             {
                 bestDropRoute = candidate;
+                bestCommand = reduced;
                 droppedName = taxi.Path[drop];
             }
         }
 
-        if (bestDropRoute is null || droppedName is null)
+        if (bestDropRoute is null || bestCommand is null || droppedName is null)
         {
             return null;
         }
@@ -1263,7 +1299,7 @@ internal static class GroundCommandHandler
             destLabel
         );
         bestDropRoute.Warnings.Add($"unable via {droppedName} — no route via {droppedName} reaches {destLabel}; {droppedName} omitted");
-        return new DroppedTaxiwayRoute(droppedName, taxi, bestDropRoute);
+        return new DroppedTaxiwayRoute(droppedName, bestCommand, bestDropRoute);
     }
 
     /// <summary>
@@ -1287,6 +1323,22 @@ internal static class GroundCommandHandler
         return null;
     }
 
+    /// <summary>
+    /// The node a parking / spot clearance ends at: <c>@</c> = helipad or parking only, <c>$</c> = spot only; null
+    /// when absent or unknown.
+    /// </summary>
+    private static GroundNode? FindTaxiDestinationNode(AirportGroundLayout layout, TaxiCommand taxi)
+    {
+        if (taxi.DestinationSpot is not null)
+        {
+            return layout.FindSpotNodeByName(taxi.DestinationSpot);
+        }
+
+        return taxi.DestinationParking is not null
+            ? layout.FindHelipadByName(taxi.DestinationParking) ?? layout.FindParkingByName(taxi.DestinationParking)
+            : null;
+    }
+
     /// <summary>A destination that cannot be resolved or reached — not tied to any one cleared taxiway.</summary>
     private static PathfindingFailure DestinationFailure(string message) => new(FailureKind.DestinationUnreachable, message, null, null, null);
 
@@ -1301,28 +1353,12 @@ internal static class GroundCommandHandler
     {
         failure = null;
 
-        // Resolve destination node: @ = parking/helipad only, $ = spot only
-        GroundNode? destNode;
-        string destLabel;
-        if (taxi.DestinationSpot is not null)
+        string destLabel = taxi.DestinationSpot ?? taxi.DestinationParking!;
+        var destNode = FindTaxiDestinationNode(groundLayout, taxi);
+        if (destNode is null)
         {
-            destNode = groundLayout.FindSpotNodeByName(taxi.DestinationSpot);
-            destLabel = taxi.DestinationSpot;
-            if (destNode is null)
-            {
-                failure = DestinationFailure($"Cannot find spot '{taxi.DestinationSpot}'");
-                return null;
-            }
-        }
-        else
-        {
-            destNode = groundLayout.FindHelipadByName(taxi.DestinationParking!) ?? groundLayout.FindParkingByName(taxi.DestinationParking!);
-            destLabel = taxi.DestinationParking!;
-            if (destNode is null)
-            {
-                failure = DestinationFailure($"Cannot find parking '{taxi.DestinationParking}'");
-                return null;
-            }
+            failure = DestinationFailure($"Cannot find {(taxi.DestinationSpot is not null ? "spot" : "parking")} '{destLabel}'");
+            return null;
         }
 
         if (taxi.Path.Count == 0)

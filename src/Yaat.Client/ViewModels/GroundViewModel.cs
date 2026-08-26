@@ -1371,10 +1371,16 @@ public partial class GroundViewModel : ObservableObject
         // truncates at the runway hold-short instead of walking the last taxiway to its full extent.
         // The DTO taxiway string omits the held-short runway; AssignedRunway carries it, and is set
         // by the taxi clearance only when the route ends at a runway (empty for taxi-to-parking).
-        var options = new ExplicitPathOptions { DestinationRunway = string.IsNullOrEmpty(ac.AssignedRunway) ? null : ac.AssignedRunway };
+        // A parking / spot destination arrives separately so the reconstruction ends at the stand.
+        var destination = FindTaxiDestinationNode(_domainLayout, ac.TaxiDestination);
+        var options = new ExplicitPathOptions
+        {
+            DestinationRunway = string.IsNullOrEmpty(ac.AssignedRunway) ? null : ac.AssignedRunway,
+            DestinationHintNode = destination,
+        };
         var category = CategoryFor(ac);
         var route = TaxiPathfinder.ResolveExplicitPathDetailed(_domainLayout, nodeId.Value, routeTaxiways, out var failure, options, category);
-        if (route is not null || failure is null)
+        if ((route is not null) && !StartsWithReversal(route, ac.Heading))
         {
             return route;
         }
@@ -1382,8 +1388,58 @@ public partial class GroundViewModel : ObservableObject
         // While the pilot cuts across a ramp onto a parallel lane the map does not connect (SFO M3 → M4),
         // the nearest graph node is still on the old lane and the named route does not resolve from it.
         // Reconstruct the same free-space leg the server planned so the overlay follows the crossing.
-        var plan = RampLaneReposition.TryPlan(_domainLayout, ac.Position, ac.Heading, ac.CurrentTaxiway, routeTaxiways, failure, options, category);
-        return plan?.Route;
+        if (failure is not null)
+        {
+            var plan = RampLaneReposition.TryPlan(
+                _domainLayout,
+                ac.Position,
+                ac.Heading,
+                ac.CurrentTaxiway,
+                routeTaxiways,
+                failure,
+                options,
+                category
+            );
+            if (plan is not null)
+            {
+                return plan.Route;
+            }
+        }
+
+        // The destination-end twin (OAK TE → TC for @22): the cleared lane's ramp end does not join the stand's
+        // lane, so the server planned a cut from the lane across the apron. From the aircraft's own end of the
+        // lane the graph may still "reach" the stand only by doubling back down the lane — a route no pilot
+        // taxis — so a rebuilt route that starts with a reversal is replaced by the cut when one exists.
+        if (destination is null)
+        {
+            return route;
+        }
+
+        var cut = RampLaneReposition.TryPlanDestinationCut(_domainLayout, nodeId.Value, routeTaxiways, destination, options, category);
+        return cut?.Route ?? route;
+    }
+
+    /// <summary>A rebuilt route whose first leg leaves more than <see cref="ReversalDeg"/> off the aircraft's nose doubles back on itself.</summary>
+    private static bool StartsWithReversal(TaxiRoute route, TrueHeading heading) =>
+        (route.Segments.Count > 0) && (GeoMath.AbsBearingDifference(route.Segments[0].Edge.DepartureBearing, heading.Degrees) > ReversalDeg);
+
+    private const double ReversalDeg = 135.0;
+
+    /// <summary>The stand a broadcast taxi destination names: <c>@</c> = helipad or parking, <c>$</c> = spot; null when absent or unknown.</summary>
+    private static GroundNode? FindTaxiDestinationNode(AirportGroundLayout layout, string taxiDestination)
+    {
+        if (taxiDestination.Length < 2)
+        {
+            return null;
+        }
+
+        string name = taxiDestination[1..];
+        return taxiDestination[0] switch
+        {
+            '$' => layout.FindSpotNodeByName(name),
+            '@' => layout.FindHelipadByName(name) ?? layout.FindParkingByName(name),
+            _ => null,
+        };
     }
 
     private static List<string> ParseRouteTaxiways(string taxiRoute)

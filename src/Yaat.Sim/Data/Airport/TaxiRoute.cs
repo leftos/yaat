@@ -336,6 +336,7 @@ public sealed class TaxiRoute
                     FromNodeId = s.FromNodeId,
                     ToNodeId = s.ToNodeId,
                     TaxiwayName = s.TaxiwayName,
+                    IsFreeSpace = VirtualNode.IsVirtualEdge(s.Edge.Edge),
                     FromLatitude = s.FromNodeId < 0 ? s.Edge.FromNode.Position.Lat : null,
                     FromLongitude = s.FromNodeId < 0 ? s.Edge.FromNode.Position.Lon : null,
                     ToLatitude = s.ToNodeId < 0 ? s.Edge.ToNode.Position.Lat : null,
@@ -357,6 +358,8 @@ public sealed class TaxiRoute
                 })
                 .ToList(),
             Description = ToSummary(),
+            DestinationParking = DestinationParking,
+            DestinationSpot = DestinationSpot,
         };
 
     /// <summary>
@@ -391,7 +394,7 @@ public sealed class TaxiRoute
             }
 
             // A free-space leg (ramp-lane cut) has no layout edge; rebuild the virtual one from its endpoints.
-            if (fromNode.Id < 0 || toNode.Id < 0)
+            if (fromNode.Id < 0 || toNode.Id < 0 || seg.IsFreeSpace)
             {
                 segments.Add(VirtualNode.CreateSegment(fromNode, toNode, seg.TaxiwayName ?? ""));
                 continue;
@@ -441,6 +444,8 @@ public sealed class TaxiRoute
             Segments = segments,
             HoldShortPoints = holdShorts,
             CurrentSegmentIndex = dto.CurrentSegmentIndex,
+            DestinationParking = dto.DestinationParking,
+            DestinationSpot = dto.DestinationSpot,
         };
     }
 }

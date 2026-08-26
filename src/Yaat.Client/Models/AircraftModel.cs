@@ -659,6 +659,13 @@ public partial class AircraftModel : ObservableObject
     private bool _hasActiveTaxiRoute;
 
     /// <summary>
+    /// The parking / spot the taxi clearance ends at, in command form (<c>@22</c>, <c>$E</c>); empty when none.
+    /// The ground overlay needs it to redraw a ramp cut the taxiway sequence alone cannot describe.
+    /// </summary>
+    [ObservableProperty]
+    private string _taxiDestination = "";
+
+    /// <summary>
     /// Kind of active hold: <c>"HoldPosition"</c> for unconditional stop, <c>"GiveWay"</c>
     /// for a controller-issued GIVEWAY relationship, or null when free to move. Mirrored
     /// from <c>AircraftGroundOps.Hold</c> on the server. Drives the ground datablock
@@ -1009,6 +1016,7 @@ public partial class AircraftModel : ObservableObject
             CruiseSpeed = dto.CruiseSpeed,
             TaxiRoute = dto.TaxiRoute,
             HasActiveTaxiRoute = dto.HasActiveTaxiRoute,
+            TaxiDestination = dto.TaxiDestination,
             HoldKind = dto.HoldKind,
             HoldYieldTarget = dto.HoldYieldTarget,
             AutoYieldTarget = dto.AutoYieldTarget,
@@ -1121,6 +1129,7 @@ public partial class AircraftModel : ObservableObject
         CruiseSpeed = dto.CruiseSpeed;
         TaxiRoute = dto.TaxiRoute;
         HasActiveTaxiRoute = dto.HasActiveTaxiRoute;
+        TaxiDestination = dto.TaxiDestination;
         HoldKind = dto.HoldKind;
         HoldYieldTarget = dto.HoldYieldTarget;
         AutoYieldTarget = dto.AutoYieldTarget;
