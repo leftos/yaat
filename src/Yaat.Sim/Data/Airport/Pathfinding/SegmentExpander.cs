@@ -1,5 +1,3 @@
-using System.Collections.Immutable;
-
 namespace Yaat.Sim.Data.Airport.Pathfinding;
 
 /// <summary>
@@ -185,7 +183,7 @@ public static class SegmentExpander
             if (bridgeEdges.Count > 0)
             {
                 edges.AddRange(bridgeEdges);
-                head = bridgeHead with { VisitedNodeIds = ImmutableHashSet<int>.Empty.Add(bridgeHead.HeadNodeId) };
+                head = bridgeHead with { VisitedNodeIds = VisitedNodeSet.Single(bridgeHead.HeadNodeId) };
             }
         }
         else if (head.HeadNodeId != resolvedWaypoints[0].ResolvedNodeId)
@@ -200,7 +198,7 @@ public static class SegmentExpander
             }
 
             edges.AddRange(leadEdges!);
-            head = leadHead! with { VisitedNodeIds = ImmutableHashSet<int>.Empty.Add(leadHead!.HeadNodeId) };
+            head = leadHead! with { VisitedNodeIds = VisitedNodeSet.Single(leadHead!.HeadNodeId) };
         }
 
         // Walk the waypoint sequence segment by segment, with recursive look-ahead at each
@@ -448,7 +446,7 @@ public static class SegmentExpander
                 // freshly-reset head.
                 current = newHead! with
                 {
-                    VisitedNodeIds = ImmutableHashSet<int>.Empty.Add(newHead!.HeadNodeId),
+                    VisitedNodeIds = VisitedNodeSet.Single(newHead!.HeadNodeId),
                 };
             }
             else
@@ -505,7 +503,7 @@ public static class SegmentExpander
         // cost matches what the real resolution would produce from this junction.
         var probeStart = headAtJunction with
         {
-            VisitedNodeIds = ImmutableHashSet<int>.Empty.Add(headAtJunction.HeadNodeId),
+            VisitedNodeIds = VisitedNodeSet.Single(headAtJunction.HeadNodeId),
         };
         // Probes never reach the detour (it is suppressed when enableLookahead is false), so no
         // connector insertions are recorded — pass a throwaway list.
@@ -973,7 +971,7 @@ public static class SegmentExpander
         // a reset head, so the probe must too, or it under-counts reachability).
         var probeHead = segHead with
         {
-            VisitedNodeIds = ImmutableHashSet<int>.Empty.Add(segHead.HeadNodeId),
+            VisitedNodeIds = VisitedNodeSet.Single(segHead.HeadNodeId),
         };
 
         var (directEdges, _, directCost) = LocalSearchToJunction(probeHead, toTaxiway, destId, ctx);

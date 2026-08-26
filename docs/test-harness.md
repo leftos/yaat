@@ -96,6 +96,8 @@ right one for a new test project.
   session). This turns a class of silent ground-following bugs into loud test failures.
 - Calls `TestVnasData.SetTestDataDir(<BaseDirectory>/TestData)`, then warms CIFP and NavData once (`CifpPathResolver.EnsureCurrentCycle`
   / `NavDataPathResolver.EnsureCurrent` with the bundled fallbacks) so the first test touching `NavigationDb` doesn't pay the resolve.
+- Warms `AirspaceDatabase.Default` and `MilitaryRouteDatabase.Default` on a background task, as the server does at startup —
+  otherwise the first test to tick physics pays the airspace GeoJSON parse inside its own timing.
 
 ### Client.UI — `tests/Yaat.Client.UI.Tests/ModuleInit.cs`
 

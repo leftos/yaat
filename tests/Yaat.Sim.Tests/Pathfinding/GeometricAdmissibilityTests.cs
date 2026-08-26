@@ -1,4 +1,3 @@
-using System.Collections.Immutable;
 using Xunit;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Airport.Pathfinding;
@@ -69,7 +68,7 @@ public class GeometricAdmissibilityTests
 
     private static PartialRoute BuildRoute(int startId, double arrivalBearing, IGroundEdge? lastEdge = null)
     {
-        var visited = ImmutableHashSet<int>.Empty.Add(startId);
+        var visited = VisitedNodeSet.Single(startId);
         return new PartialRoute(
             HeadNodeId: startId,
             ArrivalBearing: arrivalBearing,
@@ -125,7 +124,7 @@ public class GeometricAdmissibilityTests
             Previous: PartialRoute.StartAt(n0.Id),
             Depth: 1,
             AccumulatedCost: 0.0,
-            VisitedNodeIds: ImmutableHashSet<int>.Empty.Add(n0.Id).Add(n1.Id)
+            VisitedNodeIds: VisitedNodeSet.Single(n0.Id).Add(n1.Id)
         );
 
         bool result = GeometricAdmissibility.IsAdmissible(routeAtN1, e12, n2, category);
@@ -173,7 +172,7 @@ public class GeometricAdmissibilityTests
             Previous: PartialRoute.StartAt(n0.Id),
             Depth: 1,
             AccumulatedCost: 0.0,
-            VisitedNodeIds: ImmutableHashSet<int>.Empty.Add(n0.Id).Add(n1.Id)
+            VisitedNodeIds: VisitedNodeSet.Single(n0.Id).Add(n1.Id)
         );
 
         bool result = GeometricAdmissibility.IsAdmissible(routeAtN1, arc, n2, AircraftCategory.Jet);
@@ -205,7 +204,7 @@ public class GeometricAdmissibilityTests
             Previous: PartialRoute.StartAt(n0.Id),
             Depth: 1,
             AccumulatedCost: 0.0,
-            VisitedNodeIds: ImmutableHashSet<int>.Empty.Add(n0.Id).Add(n1.Id)
+            VisitedNodeIds: VisitedNodeSet.Single(n0.Id).Add(n1.Id)
         );
 
         // Reverse traversal but heading delta ~90° < 135° limit — admitted.
@@ -238,7 +237,7 @@ public class GeometricAdmissibilityTests
             Previous: PartialRoute.StartAt(n0.Id),
             Depth: 1,
             AccumulatedCost: 0.0,
-            VisitedNodeIds: ImmutableHashSet<int>.Empty.Add(n0.Id).Add(n1.Id)
+            VisitedNodeIds: VisitedNodeSet.Single(n0.Id).Add(n1.Id)
         );
 
         // Reverse traversal with heading delta ~180° > 135° limit — rejected.
@@ -275,7 +274,7 @@ public class GeometricAdmissibilityTests
             Previous: PartialRoute.StartAt(n0.Id),
             Depth: 1,
             AccumulatedCost: 0.0,
-            VisitedNodeIds: ImmutableHashSet<int>.Empty.Add(n0.Id).Add(n1.Id)
+            VisitedNodeIds: VisitedNodeSet.Single(n0.Id).Add(n1.Id)
         );
 
         bool jetResult = GeometricAdmissibility.IsAdmissible(route, eOut, n2, AircraftCategory.Jet);

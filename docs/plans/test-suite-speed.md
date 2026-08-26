@@ -33,7 +33,7 @@ Decisions:
         find first-seen callsigns; snapshot 0 decoded three times. 43% of all allocations.
       - 8% `MagneticDeclination.GetDeclination` — each `Geo` WMM evaluation allocates ~100 KB `double[,]`; 371 MB per test.
       - 23% `TaxiPathfinder.ResolveExplicitPathDetailed` for one TAXI command (`RunBoundedDetour` 1.3s); `ImmutableHashSet<int>`
-        visited-set churn ~350 MB. **Not changed** — algorithmic, sim-behaviour-sensitive; see follow-ups.
+        visited-set churn ~350 MB (the set was replaced in D; the detour search itself remains a follow-up).
       - 35% of thread CPU in `Thread.PollGCWorker` + finalizer thread 3.3s in `SharedArrayPool.Trim` (gen2 pressure) → Server GC above.
       - One-time per process: CIFP parsing ~860 MB of `ReadLine` strings (SIDs parsed twice: `LoadSids` + `GetSupplementarySids`),
         `AirspaceDatabase.LoadDefault` 0.75s (lazily, on the physics path).
@@ -49,9 +49,13 @@ Decisions:
       climb window, stall counting) — breaking early would change what's proven; `PatternDirectionResetTests` already breaks.
       The cost in the slow classes is the `Replay(recording, N)` seek, not the loop. **No conversions made.**
 
+### D. Follow-ups from the profile
+- [x] Pathfinder: `PartialRoute.VisitedNodeIds` is a `VisitedNodeSet` (sorted `int[]`, copy-on-add) instead of `ImmutableHashSet<int>`
+- [x] CIFP: `CifpAirportIndex` — one byte-range scan per file per process; airport-scoped parsers no longer stream the whole 50 MB file
+      per call (the supplementary-cycle file is a different file, so both cycles were paying a full scan per airport per procedure type)
+- [x] Test `ModuleInit` warms `AirspaceDatabase.Default` / `MilitaryRouteDatabase.Default` on a background task (the server already does)
+- [x] `docs/plans/MAIN.md` index created
+
 ## Follow-ups (not done)
-- Pathfinder allocation: `AutoRouter.RunAstar` builds an `ImmutableHashSet<int>` per expanded `PartialRoute`; a bounded-detour
-  resolution can cost >1s. Needs its own profile + a behaviour-preserving redesign (e.g. bitset visited-sets), not a tweak.
-- `NavigationDatabase.GetSupplementarySids` re-parses the CIFP SID file that `LoadSids` already parsed (~220 MB of strings per process).
-- `AirspaceDatabase.LoadDefault` runs lazily from `FlightPhysics.RegulatorySpeedLimit` — 0.75s inside the first tick of every process.
+- The bounded-detour search itself (`SegmentExpander.RunBoundedDetour`, >1s for one TAXI resolution) — algorithmic; needs its own profile.
 - Snapshot-seek `Replay` variant (see Decisions).

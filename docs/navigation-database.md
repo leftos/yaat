@@ -245,6 +245,12 @@ prior-cycle file — a burst that blew the server tick budget when route tokens 
 `ConcurrentDictionary` keyed by normalized airport (`NavigationDatabase.cs:959`, `:983`, `:1057`). The first access per airport
 pays the parse cost; the cache lives for the process lifetime with no invalidation on AIRAC change mid-run.
 
+That parse no longer streams the whole ~50 MB file: the airport-scoped parsers (`ParseSids`/`ParseStars`/`ParseApproaches`/
+`ParseTerminalWaypoints`/`ParseAirportMagneticVariation`) read through `CifpAirportIndex.ReadAirportLines(path, icao)`, which
+scans each CIFP file **once per process** (keyed by path + length + mtime) into per-airport byte ranges of its `SUSAP` records and
+then seeks straight to them. Most airports are one contiguous block; ~180 in the FAA file are split in two, so an airport maps to a
+list of ranges. The whole-file parsers (`Parse`, `ParseRunwayThresholdElevations`, `ParseNavaids`) still stream the file.
+
 ## Route expansion (`RouteExpander`)
 
 `RouteExpander.Expand(route, navDb, includeAllTransitionsOnMismatch = true)` (`RouteExpander.cs:31`) splits the route on spaces and

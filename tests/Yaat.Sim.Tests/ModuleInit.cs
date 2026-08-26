@@ -1,4 +1,6 @@
 using System.Runtime.CompilerServices;
+using Yaat.Sim.Data.Airspace;
+using Yaat.Sim.Data.MilitaryRoutes;
 using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Testing;
@@ -38,6 +40,15 @@ internal static class ModuleInit
                 AllowDownload: allowNavDownload
             )
         );
+
+        // Warm the lazily-loaded static databases off the test threads, as the server does at
+        // startup (YaatHost): otherwise the first test to tick physics pays the airspace GeoJSON
+        // parse (~0.75 s) inside its own timing, and the MTR load lands on whichever test asks first.
+        _ = Task.Run(static () =>
+        {
+            _ = AirspaceDatabase.Default;
+            _ = MilitaryRouteDatabase.Default;
+        });
     }
 
     private static bool IsCifpDownloadSkipped()

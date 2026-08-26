@@ -22,6 +22,7 @@
 
 ### Changed
 - Loading a recording or bug bundle for replay is faster.
+- Procedure lookups (SIDs, STARs, approaches) read only the airport's CIFP records instead of scanning the whole file, so scenario loads and approach resolution are faster.
 - Ramp-lane apron crossings apply to any ramp taxilane (multi-letter like OAK TE/TC, or lettered-numbered like SFO M4), not only numbered ones.
 
 ## v0.12.20-beta [2026/08/25]

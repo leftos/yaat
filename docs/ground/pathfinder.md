@@ -323,7 +323,8 @@ Both live in `src/Yaat.Sim/Data/Airport/ExplicitPathOptions.cs`.
 | `src/Yaat.Sim/Data/Airport/Pathfinding/GeometricAdmissibility.cs` | Heading-delta gate (`CategoryLimits`, `IsAdmissible`). |
 | `src/Yaat.Sim/Data/Airport/Pathfinding/RouteMaterialiser.cs` | Edges → `TaxiRoute`: hold-short annotation, truncation, warning generation. |
 | `src/Yaat.Sim/Data/Airport/Pathfinding/SearchContext.cs` | Compiled per-call context: start node, destination, authorized taxiways, preferences, diagnostics. |
-| `src/Yaat.Sim/Data/Airport/Pathfinding/PartialRoute.cs` | Immutable linked-list search state: head node, arrival bearing, cumulative cost. |
+| `src/Yaat.Sim/Data/Airport/Pathfinding/PartialRoute.cs` | Immutable linked-list search state: head node, arrival bearing, cumulative cost, `VisitedNodeIds`. |
+| `src/Yaat.Sim/Data/Airport/Pathfinding/VisitedNodeSet.cs` | Per-route visited-node set: immutable sorted `int[]`, copy-on-`Add`, binary-search `Contains` (replaced `ImmutableHashSet<int>`, whose tree nodes were the search's dominant allocation). |
 | `src/Yaat.Sim/Data/Airport/Pathfinding/PathfindingFailure.cs` | Structured failure: `FailureKind` enum + human message. |
 | `src/Yaat.Sim/Data/Airport/AirportGroundLayout.cs` | Graph types: `GroundNode`, `GroundArc`, `IGroundEdge`, `DirectionalEdge`, taxiway/runway lookup helpers. |
 | `src/Yaat.Sim/Data/Airport/TaxiRoute.cs` | Output type: segments, hold-shorts, warnings, destination, current index. |

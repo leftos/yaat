@@ -1,5 +1,3 @@
-using System.Collections.Immutable;
-
 namespace Yaat.Sim.Data.Airport.Pathfinding;
 
 /// <summary>
@@ -13,7 +11,7 @@ public sealed record PartialRoute(
     PartialRoute? Previous,
     int Depth,
     double AccumulatedCost,
-    ImmutableHashSet<int> VisitedNodeIds
+    VisitedNodeSet VisitedNodeIds
 )
 {
     /// <summary>
@@ -28,7 +26,7 @@ public sealed record PartialRoute(
             Previous: null,
             Depth: 0,
             AccumulatedCost: 0.0,
-            VisitedNodeIds: ImmutableHashSet<int>.Empty.Add(nodeId)
+            VisitedNodeIds: VisitedNodeSet.Single(nodeId)
         );
 
     /// <summary>

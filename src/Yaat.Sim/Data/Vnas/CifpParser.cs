@@ -143,7 +143,7 @@ public static partial class CifpParser
         string normalizedIcao = airportIcao.ToUpperInvariant().PadRight(4);
         var waypoints = new Dictionary<string, (double Lat, double Lon)>(StringComparer.OrdinalIgnoreCase);
 
-        foreach (var line in File.ReadLines(cifpFilePath))
+        foreach (var line in CifpAirportIndex.ReadAirportLines(cifpFilePath, normalizedIcao))
         {
             if (line.Length < 50)
             {
@@ -182,7 +182,7 @@ public static partial class CifpParser
         // Each leg tagged with route type and transition name
         var approachLegs = new Dictionary<string, List<RawApproachLeg>>(StringComparer.Ordinal);
 
-        foreach (var line in File.ReadLines(cifpFilePath))
+        foreach (var line in CifpAirportIndex.ReadAirportLines(cifpFilePath, normalizedIcao))
         {
             if (line.Length < 100)
             {
@@ -271,7 +271,7 @@ public static partial class CifpParser
 
         var legsByProcedure = new Dictionary<string, List<RawProcedureLeg>>(StringComparer.Ordinal);
 
-        foreach (var line in File.ReadLines(cifpFilePath))
+        foreach (var line in CifpAirportIndex.ReadAirportLines(cifpFilePath, normalizedIcao))
         {
             if (line.Length < 100)
             {
@@ -1228,7 +1228,7 @@ public static partial class CifpParser
     {
         string normalizedIcao = airportIcao.ToUpperInvariant().PadRight(4);
 
-        foreach (var line in File.ReadLines(cifpFilePath))
+        foreach (var line in CifpAirportIndex.ReadAirportLines(cifpFilePath, normalizedIcao))
         {
             // PA = airport reference point (subsection A). These records are shorter than the
             // ~130-char procedure records, so they don't share the approach parser's length gate.
