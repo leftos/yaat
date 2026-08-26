@@ -9,7 +9,7 @@ Sim.Tests: 8,686 tests, 1,358s CPU over 92s wall (14.8× on 16 cores — already
 Fresh per-test timings: `.tmp/trx-fresh/sim.trx` in the main checkout.
 
 Decisions:
-- Snapshot-seek in `Replay` deliberately **not** pursued — it changes what the parity tests prove.
+- Snapshot-seek already exists as **hybrid replay** (`Replay(recording, 0)` → `RestoreFromSnapshot` → `ReplayOneSecond`; `docs/e2e-tdd-issue-debugging.md` §5b, 51 test files use it). Converting from-zero `Replay(recording, N)` tests to it is a per-test judgment (hybrid tests only the post-T slice and can false-pass a fix that alters the path before T), so no blanket conversion was done.
 - Stay on xunit.v3 **3.2.2** (not 4.0.0): Avalonia.Headless.XUnit 12.1.0 pins `xunit.v3.extensibility.core 3.2.2`.
 
 ## Tasks
@@ -58,4 +58,4 @@ Decisions:
 
 ## Follow-ups (not done)
 - The bounded-detour search itself (`SegmentExpander.RunBoundedDetour`, >1s for one TAXI resolution) — algorithmic; needs its own profile.
-- Snapshot-seek `Replay` variant (see Decisions).
+- Per-test review of from-zero `Replay(recording, N)` sites that could legitimately be hybrid replay (see Decisions).
