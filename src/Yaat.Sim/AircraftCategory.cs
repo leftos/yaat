@@ -497,6 +497,44 @@ public static class CategoryPerformance
     }
 
     /// <summary>
+    /// Maximum sustainable descent rate in the pattern (fpm) — the capability ceiling in the
+    /// terminal configuration (gear, flaps, speedbrake, idle power), as opposed to the normal
+    /// profile in <see cref="PatternDescentRate"/>: a light single or Caravan sustains ~1,500 fpm,
+    /// a jet ~2,000. Drag limits the flight-path <em>angle</em> rather than the rate, so this is
+    /// paired with <see cref="MaxPatternDescentAngleDeg"/> (the binding limit at low speed). Used
+    /// by the ERB altitude-feasibility gate and as <c>BasePhase</c>'s descent clamp so the gate
+    /// never accepts an entry the phase cannot fly.
+    /// </summary>
+    public static double MaxPatternDescentRate(AircraftCategory cat)
+    {
+        return cat switch
+        {
+            AircraftCategory.Jet => 2000,
+            AircraftCategory.Turboprop => 1500,
+            AircraftCategory.Piston => 1500,
+            AircraftCategory.Helicopter => 1000,
+            _ => 1500,
+        };
+    }
+
+    /// <summary>
+    /// Steepest flight-path angle (degrees) sustainable in the pattern with everything hanging
+    /// out and idle power — the drag-limited ceiling that caps the descent rate at low speed
+    /// (a 1,500 fpm ceiling at 60 kt would be a 14° dive). Roughly 2–2.5× the 3° glideslope.
+    /// </summary>
+    public static double MaxPatternDescentAngleDeg(AircraftCategory cat)
+    {
+        return cat switch
+        {
+            AircraftCategory.Jet => 6.5,
+            AircraftCategory.Turboprop => 7.5,
+            AircraftCategory.Piston => 7.5,
+            AircraftCategory.Helicopter => 8.0,
+            _ => 7.5,
+        };
+    }
+
+    /// <summary>
     /// Touch-and-go rollout duration (seconds). The pilot reduces flaps, retrims and
     /// applies takeoff power during this window; reacceleration to Vr begins after.
     /// Helicopter: brief hover transition.

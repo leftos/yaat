@@ -16,6 +16,46 @@ public sealed class BasePhase : Phase
 
     private const double MinTurnRadiusNm = 0.15;
 
+    /// <summary>Floor for the planning speed so a stale zero target can't blow up the descent budget.</summary>
+    private const double MinPlanningSpeedKt = 60.0;
+
+    /// <summary>
+    /// Radius (nm) of the base-to-final turn at the pattern turn rate. Shared with the ERB
+    /// altitude-feasibility gate so its rollout point matches the one flown here.
+    /// </summary>
+    internal static double TurnRadiusNm(double groundSpeedKt, AircraftCategory category)
+    {
+        double turnRate = CategoryPerformance.PatternTurnRate(category);
+        return Math.Max(Math.Max(groundSpeedKt, MinPlanningSpeedKt) / (turnRate * 62.832), MinTurnRadiusNm);
+    }
+
+    /// <summary>
+    /// The speed the base leg is planned at: a standing controller speed assignment outranks
+    /// the type's base speed (7110.65 §5-7-4). Shared with the ERB altitude-feasibility gate so
+    /// the gate budgets the same leg the phase flies.
+    /// </summary>
+    internal static double PlannedSpeedKt(AircraftState aircraft, AircraftCategory category)
+    {
+        double speedKt =
+            aircraft.Targets.HasExplicitSpeedCommand && aircraft.Targets.TargetSpeed is { } assigned
+                ? assigned
+                : AircraftPerformance.BaseSpeed(aircraft.AircraftType, category);
+        return Math.Max(speedKt, MinPlanningSpeedKt);
+    }
+
+    /// <summary>
+    /// Steepest descent (fpm) the base leg may be flown at: the category rate ceiling, or the
+    /// category angle ceiling at this speed, whichever binds — drag limits the path angle, so
+    /// slowing down never buys descent room. Shared with the ERB altitude-feasibility gate.
+    /// </summary>
+    internal static double MaxDescentRateFpm(double speedKt, AircraftCategory category)
+    {
+        return Math.Min(
+            CategoryPerformance.MaxPatternDescentRate(category),
+            GlideSlopeGeometry.RequiredDescentRate(speedKt, CategoryPerformance.MaxPatternDescentAngleDeg(category))
+        );
+    }
+
     private double _thresholdLat;
     private double _thresholdLon;
     private TrueHeading _finalHeading;
@@ -87,19 +127,25 @@ public sealed class BasePhase : Phase
             // than current altitude — controllers issuing ELB/ERB to an
             // aircraft already below GS expect them to maintain or descend,
             // not climb.
-            double gsAngle = GlideSlopeGeometry.AngleForCategory(ctx.Category);
-            double turnRate = CategoryPerformance.PatternTurnRate(ctx.Category);
-            double groundSpeedKt = Math.Max(ctx.Aircraft.GroundSpeed, 60);
-            double turnRadiusNm = Math.Max(groundSpeedKt / (turnRate * 62.832), MinTurnRadiusNm);
+            double plannedSpeedKt = PlannedSpeedKt(ctx.Aircraft, ctx.Category);
+            double turnRadiusNm = TurnRadiusNm(plannedSpeedKt, ctx.Category);
             double rolloutDistNm = finalDist + turnRadiusNm;
-            double gsAlt = thresholdElev + rolloutDistNm * GlideSlopeGeometry.FeetPerNm(gsAngle);
+            double gsAlt = GlideSlopeGeometry.AltitudeAtDistance(rolloutDistNm, thresholdElev, ctx.Category);
             targetAlt = Math.Min(ctx.Aircraft.Altitude, gsAlt);
 
+            // Spread the descent over the base leg actually ahead: the aircraft's present
+            // cross-track from the final centerline. After a downwind that is the pattern
+            // width; for a present-position entry (ERB with no distance, pattern retarget) it
+            // is wherever the aircraft happens to be — sizing by the nominal width there dove
+            // at the nominal rate and levelled off short of the turn.
             double deltaAlt = Math.Max(ctx.Aircraft.Altitude - targetAlt, 0);
-            double baseLen = Waypoints.PatternSizeNm;
-            double timeMin = baseLen / (groundSpeedKt / 60.0);
+            double baseLen = Math.Max(
+                Math.Abs(GeoMath.SignedCrossTrackDistanceNm(ctx.Aircraft.Position, new LatLon(_thresholdLat, _thresholdLon), _finalHeading)),
+                turnRadiusNm
+            );
+            double timeMin = baseLen / (plannedSpeedKt / 60.0);
             double computedRate = timeMin > 0 ? deltaAlt / timeMin : descentRate;
-            descentRate = Math.Clamp(computedRate, descentRate, 1500);
+            descentRate = Math.Clamp(computedRate, descentRate, MaxDescentRateFpm(plannedSpeedKt, ctx.Category));
         }
         else
         {
@@ -197,8 +243,7 @@ public sealed class BasePhase : Phase
         // Turn initiation: begin turn when cross-track from extended centerline
         // equals the turn radius. This produces a geometrically correct 90° arc
         // that rolls out on centerline at the expected final approach distance.
-        double turnRate = CategoryPerformance.PatternTurnRate(ctx.Category);
-        double turnRadiusNm = Math.Max(ctx.Aircraft.GroundSpeed / (turnRate * 62.832), MinTurnRadiusNm);
+        double turnRadiusNm = TurnRadiusNm(ctx.Aircraft.GroundSpeed, ctx.Category);
         bool complete = crossTrack <= turnRadiusNm;
         if (complete)
         {

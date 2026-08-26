@@ -418,6 +418,89 @@ public class ErbElbNoDistanceTests : IDisposable
         Assert.Contains("too high for base", result.Message, StringComparison.OrdinalIgnoreCase);
     }
 
+    /// <summary>
+    /// Issue #401 geometry: 2500 ft, ≈3.4 nm along-track, ≈1.75 nm cross-track. Above the 3°
+    /// glideslope at rollout (~1200 ft) by ~1300 ft, shed over the 1.75 nm base leg at ~85 kt —
+    /// about 1100 fpm, inside a light aircraft's maximum pattern descent capability.
+    /// </summary>
+    [Theory]
+    [InlineData("C182")]
+    [InlineData("C208")]
+    public void ERB_NoDistance_LightAircraftAt2500ftWithFiveMilesOfBaseAndFinal_Accepts(string aircraftType)
+    {
+        var runway = MakeOak28R();
+        var (lat, lon) = PositionFromThreshold(runway, alongTrackOutboundNm: 3.4, crossTrackRightNm: 1.75);
+        var aircraft = MakeAircraft(lat, lon, 2500, heading: 125);
+        aircraft.AircraftType = aircraftType;
+        aircraft.Phases!.AssignedRunway = runway;
+
+        var result = PatternCommandHandler.TryEnterPattern(
+            aircraft,
+            PatternDirection.Right,
+            PatternEntryLeg.Base,
+            runwayId: "28R",
+            finalDistanceNm: null
+        );
+
+        Assert.True(result.Success, result.Message);
+        Assert.IsType<BasePhase>(aircraft.Phases!.Phases[0]);
+        Assert.Empty(aircraft.PendingWarnings);
+    }
+
+    /// <summary>
+    /// Same geometry 500 ft higher: ~1300 fpm on base is more than the 7.5° angle ceiling allows
+    /// at ~80 kt (~1050 fpm) but under 1.5× it — the pilot takes the base and asks for S-turns
+    /// or goes around rather than refusing (AIM 4-4-1.b), so the entry accepts with a warning.
+    /// </summary>
+    [Fact]
+    public void ERB_NoDistance_MarginallyHigh_AcceptsWithWarning()
+    {
+        var runway = MakeOak28R();
+        var (lat, lon) = PositionFromThreshold(runway, alongTrackOutboundNm: 3.4, crossTrackRightNm: 1.75);
+        var aircraft = MakeAircraft(lat, lon, 3000, heading: 125);
+        aircraft.Phases!.AssignedRunway = runway;
+
+        var result = PatternCommandHandler.TryEnterPattern(
+            aircraft,
+            PatternDirection.Right,
+            PatternEntryLeg.Base,
+            runwayId: "28R",
+            finalDistanceNm: null
+        );
+
+        Assert.True(result.Success, result.Message);
+        Assert.IsType<BasePhase>(aircraft.Phases!.Phases[0]);
+        Assert.Contains(aircraft.PendingWarnings, w => w.Contains("high for base", StringComparison.OrdinalIgnoreCase));
+    }
+
+    /// <summary>
+    /// A controller-assigned speed outranks the type's base speed (7110.65 §5-7-4) in the
+    /// feasibility budget, and slowing down buys no descent room: drag limits the path angle,
+    /// so at 60 kt the 7.5° ceiling is only ~800 fpm. The marginal geometry above (accepted
+    /// with a warning at the type's ~80 kt) is refused when the aircraft is pinned at 60 kt.
+    /// </summary>
+    [Fact]
+    public void ERB_NoDistance_AssignedSlowSpeed_DoesNotBuyDescentRoom()
+    {
+        var runway = MakeOak28R();
+        var (lat, lon) = PositionFromThreshold(runway, alongTrackOutboundNm: 3.4, crossTrackRightNm: 1.75);
+        var aircraft = MakeAircraft(lat, lon, 3600, heading: 125);
+        aircraft.Phases!.AssignedRunway = runway;
+        aircraft.Targets.HasExplicitSpeedCommand = true;
+        aircraft.Targets.TargetSpeed = 60;
+
+        var result = PatternCommandHandler.TryEnterPattern(
+            aircraft,
+            PatternDirection.Right,
+            PatternEntryLeg.Base,
+            runwayId: "28R",
+            finalDistanceNm: null
+        );
+
+        Assert.False(result.Success);
+        Assert.Contains("too high for base", result.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
     [Fact]
     public void ERB_NoDistance_AircraftAtTpa_AcceptsDescentFeasible()
     {

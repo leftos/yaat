@@ -316,8 +316,7 @@ centerline through one of three paths in `TryEnterPattern`:
    from the present position with no `PatternEntryPhase` (#284). Gates: the target centerline is still *ahead*
    (cross-track is closing, not overshot), the along-track exceeds `MinPatternRetargetFinalNm` (¼ nm for
    pistons/helicopters per AIM FIG 4-3-2 note 3; jets/turboprops keep the straight-in floor, which makes their
-   retarget window empty so they reject), and the aircraft can descend over the remaining base + final at the
-   category `PatternDescentRate`. The base leg's **side is derived from the aircraft's signed cross-track**, not
+   retarget window empty so they reject), and the base-descent budget (below) is not `Infeasible`. The base leg's **side is derived from the aircraft's signed cross-track**, not
    from `InferDefaultPatternDirection` — an aircraft north of the 28L centerline flies a *right* base to 28L
    regardless of 28L's default left pattern. Aircraft already in `FinalApproachPhase` for the requested runway are
    excluded (mid roll-out their heading reads as "crossing"; the same-runway continue below owns them).
@@ -376,6 +375,25 @@ cut-in + final at the category `PatternDescentRate`, `EF` succeeds but raises an
 entry ("unable to descend for straight-in … — too high") — a controller-facing advisory, not radio phraseology.
 The angle envelope is an airmanship analogy to TBL 5-9-1, not a regulatory VFR-pattern mandate (AIM 4-3-3 does not
 quantify an intercept angle).
+
+**Base-descent budget** (`PatternCommandHandler.EvaluateBaseDescent`, used by the `ERB`/`ELB`-no-distance gate and
+the pattern retarget gate; the present-position downwind join's simpler excess-above-TPA check shares its speed source and
+rate ceiling but has no marginal tier — its fallback is just the longer entry maneuver, not a refusal). It is the predicate of the descent `BasePhase`
+actually flies, so gate and phase cannot disagree: speed = the standing `SPD` assignment if any, else
+`AircraftPerformance.BaseSpeed(type, category)` (never the category constant — a C208 Caravan is not a Dash-8),
+floored at 60 kt (`BasePhase.PlannedSpeedKt`); rollout = along-track + `BasePhase.TurnRadiusNm`; target = the
+glideslope altitude at rollout (`GlideSlopeGeometry.AltitudeAtDistance`, TCH included); only the altitude *above* that
+target has to be shed, over the base leg (the aircraft's cross-track — final rides the glideslope and is not descent
+room; the `EF` diagonal walk above keeps the normal `PatternDescentRate` because `PatternEntryPhase` descends at the
+default physics rate, not at a base-leg maximum). The ceiling is `BasePhase.MaxDescentRateFpm` = min(`CategoryPerformance.MaxPatternDescentRate`
+(Jet 2000 / TP 1500 / piston 1500 / heli 1000 — the terminal-configuration ceiling, distinct from the normal-profile
+`PatternDescentRate`), the rate at `MaxPatternDescentAngleDeg` (jet 6.5° / TP + piston 7.5° / heli 8°) for the planned
+speed) — drag limits the path *angle*, so slowing an aircraft never buys descent room. Required fpm ≤ ceiling →
+`Feasible`; ≤ 1.5× → `Marginal` (accepted, plus a `PendingWarnings` entry "… high for base to … — may need S-turns or a
+go-around"; per AIM 4-4-1.b the pilot requests an amendment rather than refusing the leg, and the too-high-at-MAP auto
+go-around is the fallback); beyond → `Infeasible` (`ERB`: "Unable, too high for base"). `BasePhase` plans its own
+descent from the same helpers — planned speed, `AltitudeAtDistance` target, `MaxDescentRateFpm` clamp — and sizes it
+over its actual cross-track at start rather than the nominal pattern width (#401).
 
 ## Approach intercept — `InterceptCoursePhase`
 

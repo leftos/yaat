@@ -6,6 +6,9 @@
 - Ground View controls bar sits above the map and scrolls sideways when the window is narrow, no longer overlapping the weather readout; the pop-out window has a minimum size. (#403)
 - Free-form datablock deconfliction (DCNF F) no longer drags a datablock away when a departure rolls past another aircraft; blocks hop over/under and settle back beside their aircraft. (#402)
 - Ground View: dragging a datablock that deconfliction had repositioned starts from where the block is drawn instead of jumping to the default slot.
+- `ERB`/`ELB` without a distance no longer refuses a light aircraft at 2500 ft a few miles out as "too high for base" — the budget uses the aircraft's own (or assigned) base speed and only the altitude above the glideslope at the base-to-final turn.
+- A base entry that is steep but flyable is accepted with a "high for base — may need S-turns or a go-around" warning instead of refused.
+- Aircraft entering base from present position fly one continuous descent to the final turn instead of diving and levelling off.
 
 ## v0.12.20-beta [2026/08/25]
 

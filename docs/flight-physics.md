@@ -291,7 +291,7 @@ Snap thresholds are constants on `FlightPhysics`: heading `HeadingSnapDeg = 0.5�
 `SpeedSnapKts = 2 kt` (`FlightPhysics.cs:12`).
 
 `CategoryPerformance` carries many more constants used by the pattern, ground, and rollout subsystems — pattern geometry (`PatternSizeNm`,
-`CrosswindExtensionNm`, `BaseExtensionNm`, `PatternTurnRate`, `PatternDescentRate`, `DownwindSpeed`, `BaseSpeed`), holding (`MaxHoldingSpeed`),
+`CrosswindExtensionNm`, `BaseExtensionNm`, `PatternTurnRate`, `PatternDescentRate`, `MaxPatternDescentRate`, `MaxPatternDescentAngleDeg`, `DownwindSpeed`, `BaseSpeed`), holding (`MaxHoldingSpeed`),
 and the full taxi/exit/crossing speed set (`TaxiSpeed`, `TaxiDecelRate`, `RolloutDecelRate`, `ExitTurnOffSpeed`, …). Those are owned by the
 pattern-geometry, ground, and landing docs; this doc owns the airborne kinematics rows above plus the shared `DefaultSpeed` schedule.
 

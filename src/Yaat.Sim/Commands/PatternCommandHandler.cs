@@ -9,6 +9,18 @@ using Yaat.Sim.Pilot;
 
 namespace Yaat.Sim.Commands;
 
+/// <summary>
+/// Outcome of the base-entry altitude budget (<see cref="PatternCommandHandler.EvaluateBaseDescent"/>):
+/// flyable at the category's maximum pattern descent rate, flyable only with an S-turn or a
+/// go-around caveat, or not flyable at all.
+/// </summary>
+internal enum BaseDescentFeasibility
+{
+    Feasible,
+    Marginal,
+    Infeasible,
+}
+
 internal static class PatternCommandHandler
 {
     private static readonly ILogger Log = SimLog.CreateLogger("PatternCommandHandler");
@@ -657,6 +669,7 @@ internal static class PatternCommandHandler
         // a diagonal leg). Setting useAircraftPositionAsEntry skips PatternEntryPhase
         // below so BasePhase starts immediately from the aircraft's current position.
         bool useAircraftPositionAsEntry = isCloseInFinal || isPatternRetarget;
+        var baseDescentFeasibility = BaseDescentFeasibility.Feasible;
         if (!aircraft.IsOnGround && !isOnWrongSide && effectiveEntryLeg == PatternEntryLeg.Base && effectiveFinalDistanceNm is null)
         {
             TrueHeading reciprocal = waypoints.FinalHeading.ToReciprocal();
@@ -670,11 +683,11 @@ internal static class PatternCommandHandler
                 return new CommandResult(false, "Unable, too close for base");
             }
 
-            // Altitude feasibility: can the aircraft descend from its current
-            // altitude to runway elevation within the base + final path at
-            // category pattern descent rate and base speed? Controllers issuing
-            // "enter base" to an aircraft well above TPA should descend it first
-            // (AIM 4-3-3: pattern entry at TPA). Rejecting here prompts a DM.
+            // Altitude feasibility: can the aircraft get down to the glideslope by the
+            // base-to-final rollout, descending over the base leg at its maximum pattern
+            // rate? A marginal entry (up to 1.5× that rate) is still taken — the pilot's
+            // remedy is to ask for S-turns or a 360, or to go around (AIM 4-4-1.b), so the
+            // RPO gets a warning up front; only the physically impossible rejects.
             double crossTrackAbsNm = Math.Abs(
                 GeoMath.SignedCrossTrackDistanceNm(
                     aircraft.Position,
@@ -682,12 +695,8 @@ internal static class PatternCommandHandler
                     waypoints.FinalHeading
                 )
             );
-            double totalPathNm = crossTrackAbsNm + alongTrackOutbound;
-            double baseSpeedKt = CategoryPerformance.BaseSpeed(category);
-            double pathMinutes = totalPathNm / (baseSpeedKt / 60.0);
-            double maxDescentFt = CategoryPerformance.PatternDescentRate(category) * pathMinutes;
-            double altitudeToLoseFt = aircraft.Altitude - runway.ElevationFt;
-            if (altitudeToLoseFt > maxDescentFt)
+            baseDescentFeasibility = EvaluateBaseDescent(aircraft, runway, category, crossTrackAbsNm, alongTrackOutbound);
+            if (baseDescentFeasibility == BaseDescentFeasibility.Infeasible)
             {
                 return new CommandResult(false, "Unable, too high for base");
             }
@@ -839,6 +848,17 @@ internal static class PatternCommandHandler
         // Consume any EXT/SA/MNA pre-arm issued before this entry built its circuit
         // (e.g. EXT DOWNWIND while ERD 28R sat queued behind DCT VPCOL).
         ApplyPendingEntryModifier(aircraft, circuitPhases);
+
+        // Marginal base entry: flyable, but only above the category's maximum pattern
+        // descent rate. AIM 4-4-1.b has the pilot request an amendment (S-turns, a 360)
+        // rather than press on in silence; the too-high-at-MAP go-around is the fallback.
+        // Warn the RPO up front. The entry still stands.
+        if (baseDescentFeasibility == BaseDescentFeasibility.Marginal)
+        {
+            aircraft.PendingWarnings.Add(
+                $"{aircraft.Callsign} high for base to {RunwayIdentifier.ToDisplayDesignator(runway.Designator)} — may need S-turns or a go-around"
+            );
+        }
 
         // EF capped the straight-in join at the aircraft's along-track (it can't be
         // sent outbound), but the aircraft is too high to descend over the remaining
@@ -2659,10 +2679,9 @@ internal static class PatternCommandHandler
     /// lead-in projects behind the aircraft, so a <see cref="PatternEntryPhase"/> would route
     /// it on a U-turn (issue #352). Such an aircraft joins the downwind from present position
     /// instead. Aircraft further out along the extended downwind are arrivals, not pattern
-    /// members, and take the normal entry — as does an aircraft too high to descend over the
-    /// short remaining downwind + base + final at the category pattern rate (AIM 4-3-3:
-    /// pattern entry at TPA; mirrors the ERB "too high for base" feasibility check), for which
-    /// the longer entry maneuver is the descent room.
+    /// members, and take the normal entry — as does an aircraft too high to shed its excess
+    /// above TPA over the short remaining downwind + base at its maximum pattern descent rate
+    /// (AIM 4-3-3: pattern entry at TPA), for which the longer entry maneuver is the descent room.
     /// </summary>
     internal static bool IsAtOrPastDownwindEntry(
         AircraftState aircraft,
@@ -2695,22 +2714,18 @@ internal static class PatternCommandHandler
         // altitude (AIM 4-3-3 — entries are flown at TPA; the TPA-to-ground descent is the
         // normal circuit profile that the downwind/final phases already own). An aircraft
         // at/below TPA always qualifies; one above it must be able to shed the excess over
-        // the remaining circuit (downwind remainder + base + final) at the category pattern
-        // descent rate and base speed — otherwise the longer entry maneuver IS the descent room.
+        // the remaining circuit (downwind remainder + base — final rides the glideslope) at
+        // its maximum pattern descent rate and its own (or assigned) base speed — otherwise
+        // the longer entry maneuver IS the descent room.
         double excessAboveTpaFt = aircraft.Altitude - waypoints.PatternAltitude;
         if (excessAboveTpaFt <= 0)
         {
             return true;
         }
-        double baseTurnToThresholdNm = GeoMath.AlongTrackDistanceNm(
-            new LatLon(waypoints.BaseTurnLat, waypoints.BaseTurnLon),
-            threshold,
-            waypoints.DownwindHeading
-        );
-        double totalPathNm = Math.Max(0.0, baseTurnBeyondEntryNm - alongPastEntryNm) + patternWidthNm + Math.Max(0.0, baseTurnToThresholdNm);
-        double baseSpeedKt = CategoryPerformance.BaseSpeed(category);
-        double pathMinutes = totalPathNm / (baseSpeedKt / 60.0);
-        double maxDescentFt = CategoryPerformance.PatternDescentRate(category) * pathMinutes;
+        double totalPathNm = Math.Max(0.0, baseTurnBeyondEntryNm - alongPastEntryNm) + patternWidthNm;
+        double speedKt = BasePhase.PlannedSpeedKt(aircraft, category);
+        double pathMinutes = totalPathNm / (speedKt / 60.0);
+        double maxDescentFt = BasePhase.MaxDescentRateFpm(speedKt, category) * pathMinutes;
         return excessAboveTpaFt <= maxDescentFt;
     }
 
@@ -2992,7 +3007,7 @@ internal static class PatternCommandHandler
             && (alongTrackNm > MinPatternRetargetFinalNm(category))
             && (alongTrackNm < MinimumPerpendicularBaseFinalDistanceNm(category))
             && closingOnCenterline
-            && CanDescendOverBaseAndFinal(aircraft, runway, category, Math.Abs(rightOffsetNm), alongTrackNm);
+            && EvaluateBaseDescent(aircraft, runway, category, Math.Abs(rightOffsetNm), alongTrackNm) != BaseDescentFeasibility.Infeasible;
 
         if (!engages)
         {
@@ -3028,24 +3043,49 @@ internal static class PatternCommandHandler
     }
 
     /// <summary>
-    /// Can the aircraft descend from its current altitude to runway elevation over the remaining
-    /// base + final path at the category pattern descent rate and base speed? Mirrors the
-    /// ERB/ELB-no-distance altitude check — an aircraft well above TPA should be descended first
-    /// (AIM 4-3-3: pattern entry at TPA), so rejecting here prompts a DM.
+    /// A base entry needs more than <see cref="BasePhase.MaxDescentRateFpm"/> but no more than
+    /// this multiple of it: still flyable with an S-turn or a go-around, which the pilot requests
+    /// rather than refusing the leg (AIM 4-4-1.b). Beyond it the entry is refused.
     /// </summary>
-    private static bool CanDescendOverBaseAndFinal(
+    private const double MarginalBaseDescentFactor = 1.5;
+
+    /// <summary>
+    /// Can the aircraft get from its present altitude down to the glideslope by the base-to-final
+    /// rollout? The predicate of the descent <see cref="BasePhase"/> actually flies, from the same
+    /// helpers: planned speed (<see cref="BasePhase.PlannedSpeedKt"/>), rollout at
+    /// <paramref name="alongTrackNm"/> plus <see cref="BasePhase.TurnRadiusNm"/> from the threshold,
+    /// the glideslope altitude there as the target, and the altitude above it shed over the
+    /// <paramref name="baseLenNm"/> base leg. Only the base leg is descent room — final rides the
+    /// glideslope. Feasible up to <see cref="BasePhase.MaxDescentRateFpm"/>, marginal up to
+    /// <see cref="MarginalBaseDescentFactor"/> times it, infeasible beyond.
+    /// </summary>
+    internal static BaseDescentFeasibility EvaluateBaseDescent(
         AircraftState aircraft,
         RunwayInfo runway,
         AircraftCategory category,
-        double crossTrackAbsNm,
+        double baseLenNm,
         double alongTrackNm
     )
     {
-        double totalPathNm = crossTrackAbsNm + alongTrackNm;
-        double baseSpeedKt = CategoryPerformance.BaseSpeed(category);
-        double pathMinutes = totalPathNm / (baseSpeedKt / 60.0);
-        double maxDescentFt = CategoryPerformance.PatternDescentRate(category) * pathMinutes;
-        return (aircraft.Altitude - runway.ElevationFt) <= maxDescentFt;
+        double speedKt = BasePhase.PlannedSpeedKt(aircraft, category);
+        double turnRadiusNm = BasePhase.TurnRadiusNm(speedKt, category);
+        double rolloutNm = alongTrackNm + turnRadiusNm;
+        double gsAltAtRolloutFt = GlideSlopeGeometry.AltitudeAtDistance(rolloutNm, runway.ElevationFt, category);
+        double altitudeToLoseOnBaseFt = aircraft.Altitude - gsAltAtRolloutFt;
+        if (altitudeToLoseOnBaseFt <= 0)
+        {
+            return BaseDescentFeasibility.Feasible;
+        }
+
+        double baseMinutes = Math.Max(baseLenNm, turnRadiusNm) / (speedKt / 60.0);
+        double requiredFpm = altitudeToLoseOnBaseFt / baseMinutes;
+        double maxFpm = BasePhase.MaxDescentRateFpm(speedKt, category);
+        if (requiredFpm <= maxFpm)
+        {
+            return BaseDescentFeasibility.Feasible;
+        }
+
+        return requiredFpm <= maxFpm * MarginalBaseDescentFactor ? BaseDescentFeasibility.Marginal : BaseDescentFeasibility.Infeasible;
     }
 
     /// <summary>
