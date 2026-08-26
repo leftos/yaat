@@ -91,10 +91,12 @@ function Stop-OnBuildFailure {
     exit 1
 }
 
-# Exclude the heavy gated-by-intent categories unless -Full. A trait filter of
-# `Category!=X` still includes untagged tests (they have no Category), so this
-# only drops tests explicitly tagged Nightly or PathfinderGrid.
-$testFilter = if ($Full) { '' } else { '--filter "Category!=Nightly&Category!=PathfinderGrid"' }
+# Exclude the heavy gated-by-intent categories unless -Full. `--filter-not-trait`
+# only drops tests explicitly tagged Nightly or PathfinderGrid; untagged tests
+# still run. Test options follow the `--` separator (Microsoft.Testing.Platform
+# runner, selected by global.json); `dotnet test` runs the test assemblies
+# concurrently under it.
+$testFilter = if ($Full) { '' } else { '-- --filter-not-trait "Category=Nightly" --filter-not-trait "Category=PathfinderGrid"' }
 
 Write-Host "Configuration: $Config" -ForegroundColor Yellow
 if ($Full) {

@@ -48,11 +48,11 @@ public class AirportLayoutDownloaderTests
         {
             using var dl = new AirportLayoutDownloader(new HttpClient(handler), cacheDir);
 
-            Assert.Equal("v1", await dl.GetGeoJsonAsync("KSFO"));
+            Assert.Equal("v1", await dl.GetGeoJsonAsync("KSFO", TestContext.Current.CancellationToken));
 
             body = "v2";
             // Must pick up the server-side change despite HEAD 405 and no Last-Modified/ETag.
-            Assert.Equal("v2", await dl.GetGeoJsonAsync("KSFO"));
+            Assert.Equal("v2", await dl.GetGeoJsonAsync("KSFO", TestContext.Current.CancellationToken));
         }
         finally
         {
@@ -84,11 +84,11 @@ public class AirportLayoutDownloaderTests
         try
         {
             using var dl = new AirportLayoutDownloader(new HttpClient(handler), cacheDir);
-            Assert.Equal("cached-body", await dl.GetGeoJsonAsync("KSFO"));
+            Assert.Equal("cached-body", await dl.GetGeoJsonAsync("KSFO", TestContext.Current.CancellationToken));
 
             fail = true;
             // The refresh GET throws, but the on-disk copy must still be served.
-            Assert.Equal("cached-body", await dl.GetGeoJsonAsync("KSFO"));
+            Assert.Equal("cached-body", await dl.GetGeoJsonAsync("KSFO", TestContext.Current.CancellationToken));
         }
         finally
         {
@@ -108,7 +108,7 @@ public class AirportLayoutDownloaderTests
         try
         {
             using var dl = new AirportLayoutDownloader(new HttpClient(handler), cacheDir);
-            Assert.Null(await dl.GetGeoJsonAsync("KZZZ"));
+            Assert.Null(await dl.GetGeoJsonAsync("KZZZ", TestContext.Current.CancellationToken));
         }
         finally
         {
@@ -132,9 +132,9 @@ public class AirportLayoutDownloaderTests
         {
             using var dl = new AirportLayoutDownloader(new HttpClient(handler), cacheDir);
 
-            Assert.Null(await dl.GetGeoJsonAsync("OGD"));
-            Assert.Null(await dl.GetGeoJsonAsync("OGD"));
-            Assert.Null(await dl.GetGeoJsonAsync("OGD"));
+            Assert.Null(await dl.GetGeoJsonAsync("OGD", TestContext.Current.CancellationToken));
+            Assert.Null(await dl.GetGeoJsonAsync("OGD", TestContext.Current.CancellationToken));
+            Assert.Null(await dl.GetGeoJsonAsync("OGD", TestContext.Current.CancellationToken));
 
             Assert.Equal(1, handler.GetCount);
         }
@@ -167,8 +167,8 @@ public class AirportLayoutDownloaderTests
         {
             using var dl = new AirportLayoutDownloader(new HttpClient(handler), cacheDir);
 
-            Assert.Null(await dl.GetGeoJsonAsync("OGD"));
-            Assert.Null(await dl.GetGeoJsonAsync("OGD"));
+            Assert.Null(await dl.GetGeoJsonAsync("OGD", TestContext.Current.CancellationToken));
+            Assert.Null(await dl.GetGeoJsonAsync("OGD", TestContext.Current.CancellationToken));
 
             Assert.Equal(2, attempts);
         }

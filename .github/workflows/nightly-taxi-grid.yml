@@ -41,7 +41,7 @@ jobs:
         run: dotnet build tests/Yaat.Sim.Tests/Yaat.Sim.Tests.csproj --no-restore --configuration Release /warnaserror
 
       - name: Run nightly grid
-        run: dotnet test tests/Yaat.Sim.Tests/Yaat.Sim.Tests.csproj --no-build --configuration Release --filter "Category=Nightly" --logger "trx;LogFileName=nightly-taxi-grid.trx" --logger "console;verbosity=normal"
+        run: dotnet test tests/Yaat.Sim.Tests/Yaat.Sim.Tests.csproj --no-build --configuration Release -- --filter-trait "Category=Nightly" --report-xunit-trx --report-xunit-trx-filename nightly-taxi-grid.trx
 
       - name: Upload test results
         if: always()

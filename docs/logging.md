@@ -159,9 +159,9 @@ Behavior to know:
   catches `FlightPhysics`.
 - `InitializeSimLog()` routes through `SimLog.InitializeForTest` (`SimLogBuilder.cs:80`), so it sets only the AsyncLocal scoped factory and never the
   process-wide static — this is what keeps parallel tests isolated.
-- The builder depends on `MartinCostello.Logging.XUnit` (`builder.AddXUnit(output)`, `SimLogBuilder.cs:53`).
+- The builder depends on `MartinCostello.Logging.XUnit.v3` (`builder.AddXUnit(output)`, `SimLogBuilder.cs:53`).
 
-Run with `dotnet test --logger "console;verbosity=detailed" 2>&1 | tee .tmp/test.log` to actually surface the captured output on the console.
+Captured output reaches the console only when the test project runs as a process (`dotnet test` shows summaries and failures only): `dotnet run --project tests/Yaat.Sim.Tests -c Release -- --filter-method "*<TestName>*" --show-live-output on 2>&1 | tee .tmp/test.log`. See [test-harness.md](test-harness.md#running-tests).
 
 Some test classes wire a factory directly instead of using the builder (e.g. `AtFixTriggerDuringPhasesTests.cs:39-40` builds an `AddXUnit` factory at
 `LogLevel.Debug` and calls `SimLog.InitializeForTest`). That is fine — the rule is only that tests use **`InitializeForTest`**, never `Initialize`.

@@ -6,6 +6,7 @@
     <IsPackable>false</IsPackable>
     <!-- xUnit v3 test projects are executables (required by Avalonia.Headless.XUnit 12.x). -->
     <OutputType>Exe</OutputType>
+    <UseMicrosoftTestingPlatformRunner>true</UseMicrosoftTestingPlatformRunner>
   </PropertyGroup>
 
   <ItemGroup>

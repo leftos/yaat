@@ -95,7 +95,7 @@ public void Probe()
     throw new Xunit.Sdk.XunitException($"canonical={result?.CanonicalCommand} matched=[{string.Join(';', trace.MatchedRulePatterns)}] reason={trace.FailureReason}");
 }
 ```
-Run with `timeout 30 dotnet test tests/Yaat.Sim.Tests/Yaat.Sim.Tests.csproj --filter Probe 2>&1 | tail -15`. Delete the probe after you're done.
+Run with `timeout 30 dotnet test tests/Yaat.Sim.Tests/Yaat.Sim.Tests.csproj -- --filter-method "*Probe*" 2>&1 | tail -15`. Delete the probe after you're done.
 
 For callsign-extract investigation only, use `SpeechRecognitionService.ExtractAndStripCallsign(transcript, activeCallsigns)` from a probe in `tests/Yaat.Client.Tests/SpeechCallsignExtractionTests.cs`.
 
@@ -145,12 +145,12 @@ Don't add rules in `PhraseologyRules.cs` without a failing test first.
 
 4. **Check the verbalizer didn't regress**:
    ```bash
-   timeout 60 dotnet test tests/Yaat.Sim.Tests/Yaat.Sim.Tests.csproj --filter "FullyQualifiedName~Verbalizer|FullyQualifiedName~PhraseologyMapperTrace" 2>&1 | tail -10
+   timeout 60 dotnet test tests/Yaat.Sim.Tests/Yaat.Sim.Tests.csproj -- --filter-method "*Verbalizer*" "*PhraseologyMapperTrace*" 2>&1 | tail -10
    ```
 
 5. **Full speech suite**:
    ```bash
-   timeout 60 dotnet test tests/Yaat.Sim.Tests/Yaat.Sim.Tests.csproj --filter "FullyQualifiedName~Speech|FullyQualifiedName~Callsign|FullyQualifiedName~Verbalizer" 2>&1 | tail -5
+   timeout 60 dotnet test tests/Yaat.Sim.Tests/Yaat.Sim.Tests.csproj -- --filter-method "*Speech*" "*Callsign*" "*Verbalizer*" 2>&1 | tail -5
    ```
 
 6. **Cross-repo sanity** before committing:

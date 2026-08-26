@@ -2,7 +2,6 @@ using System.Reflection;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Xunit;
-using Xunit.Abstractions;
 using Yaat.Sim.Scenarios;
 
 namespace Yaat.Sim.Tests.Scenarios;

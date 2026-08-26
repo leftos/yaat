@@ -136,7 +136,7 @@ t,lat,lon,hdg,gs,phase,twy
 Run it to generate CSV data, then animate:
 
 ```bash
-dotnet test tests/Yaat.Sim.Tests --filter 'DisplayName~Diagnostic_DumpTickCsv'
+dotnet test tests/Yaat.Sim.Tests -- --filter-method "*Diagnostic_DumpTickCsv*"
 # Generates .tmp/oak-30-W6-ticks.csv, oak-30-W4-ticks.csv, oak-28R-default-ticks.csv
 ```
 

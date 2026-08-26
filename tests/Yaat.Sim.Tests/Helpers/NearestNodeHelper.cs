@@ -1,4 +1,4 @@
-using Xunit.Abstractions;
+using Xunit;
 using Yaat.Sim.Data.Airport;
 
 namespace Yaat.Sim.Tests.Helpers;

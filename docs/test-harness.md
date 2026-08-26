@@ -21,7 +21,8 @@ The non-negotiable rules, each detailed below:
 2. **Call `EnsureInitialized()` in the test class *constructor*** if any test reads a data-backed static singleton (race protection).
 3. **Silently skip on missing data** — return early, no `Assert.Skip`, no throw — so a fresh/offline checkout keeps CI green.
 4. **Run suites under a 30 s wall clock** (`timeout 30 dotnet test`) so soft hangs surface as failures.
-5. **For full-suite confidence run `pwsh tools/test-all.ps1`**, not bare `dotnet test` — only that builds the sibling yaat-server.
+5. **Runner options go after `--`** (Microsoft.Testing.Platform): `dotnet test -- --filter-method "*Name*"`; see [Running tests](#running-tests).
+6. **For full-suite confidence run `pwsh tools/test-all.ps1`**, not bare `dotnet test` — only that builds the sibling yaat-server.
 
 ## Real data, never synthetic — `TestVnasData.EnsureInitialized()`
 
@@ -147,6 +148,27 @@ test that ran *after* such a parser test would silently inherit the synthetic DB
 class that asks for it. (For per-test scoping that does not stomp the global, `NavigationDatabase` also offers an `AsyncLocal` scoped
 override — see `NavigationDatabase.Instance` / `InstanceOrNull` — but `EnsureInitialized` deliberately targets the process-wide default.)
 
+## Running tests
+
+All four test projects use xunit.v3 on the Microsoft.Testing.Platform runner (`UseMicrosoftTestingPlatformRunner` in each csproj;
+`global.json` in both repos tells `dotnet test` to use it). Consequences:
+
+- `dotnet test yaat.slnx` runs the test assemblies **concurrently** (Sim, Client, Client.UI in parallel; yaat-server's suite the same way).
+- Runner options follow a `--` separator. The VSTest options are gone — `--filter "..."` and `--logger "..."` fail with `Unknown option`.
+
+| Want | Command |
+|------|---------|
+| One test / substring of `Namespace.Class.Method` | `dotnet test tests/Yaat.Sim.Tests -- --filter-method "*MyTaxiExitTests*"` |
+| One class | `dotnet test tests/Yaat.Sim.Tests -- --filter-class "*.MyTaxiExitTests"` |
+| Several patterns | `-- --filter-method "*Verbalizer*" "*PhraseologyMapperTrace*"` (repeat values after one switch) |
+| Exclude / include a trait | `-- --filter-not-trait "Category=Nightly"` / `-- --filter-trait "Category=Nightly"` |
+| TRX report | `-- --report-xunit-trx --report-xunit-trx-filename results.trx` (lands in `bin/<cfg>/net10.0/TestResults/`) |
+| See `ITestOutputHelper` / `SimLogBuilder` output | run the project as a process: `dotnet run --project tests/Yaat.Sim.Tests -c Release -- --filter-method "*Name*" --show-live-output on` |
+
+`dotnet test` prints only per-assembly summaries and failures; captured test output never reaches its console, which is why the live-output
+row uses `dotnet run --project` (or the built `Yaat.Sim.Tests.exe` directly). `xunit.runner.json` is still honoured by v3 for
+parallelism settings; `showLiveOutput` there is the config-file equivalent of `--show-live-output on`.
+
 ## The `xunit.runner.json` Content-copy gotcha
 
 `xunit.runner.json` only takes effect if it sits **next to the test DLL in `bin/`**. xUnit does not read it from the source tree. Each
@@ -184,7 +206,7 @@ NRE in unrelated parallel tests after disposal. Never call `SimLog.Initialize` f
 captured:
 
 ```bash
-timeout 30 dotnet test --logger "console;verbosity=detailed" 2>&1 | tee .tmp/test.log
+timeout 30 dotnet run --project tests/Yaat.Sim.Tests -c Release -- --filter-method "*<TestName>*" --show-live-output on 2>&1 | tee .tmp/test.log
 ```
 
 See [logging.md](logging.md) for the full `SimLog`/`AppLog` model and the `DeferredLogger` resolution order.
@@ -295,7 +317,8 @@ drops explicitly tagged tests). Pass `pwsh tools/test-all.ps1 -Full` to include 
   optional params so tests that don't care about ground layout/weather/lookup stay terse. See
   [command-pipeline.md](command-pipeline.md) for what `DispatchContext` carries.
 - `RecordingLoader` (`Helpers/RecordingLoader.cs`) — loads v4 recording archives and legacy bug-report bundles transparently
-  (`Load` → base recording with no snapshots; `OpenArchive` → on-demand snapshot reader). The replay surface itself (ReplayFromStartTo /
+  (`Load` → base recording with no snapshots, **memoized per file path for the test process** — `SessionRecording` is init-only and
+  the engine never mutates `Actions`, so parallel classes share one decode; `OpenArchive` → on-demand snapshot reader). The replay surface itself (ReplayFromStartTo /
   FastForwardTo / hybrid replay, WAIT presets, bug-bundle triage) is owned by [e2e-tdd-issue-debugging.md](e2e-tdd-issue-debugging.md) and
   [snapshots-and-replay.md](snapshots-and-replay.md) — go there for the replay flow, not here.
 
@@ -347,7 +370,7 @@ public sealed class MyTaxiExitTests
 }
 ```
 
-Run it: `timeout 30 dotnet test --filter "FullyQualifiedName~MyTaxiExitTests" 2>&1 | tee .tmp/test.log`. Before declaring a change done,
+Run it: `timeout 30 dotnet test -- --filter-method "*MyTaxiExitTests*" 2>&1 | tee .tmp/test.log`. Before declaring a change done,
 verify the cross-repo build with `pwsh tools/test-all.ps1`.
 
 ## Footguns and pitfalls
@@ -367,7 +390,7 @@ verify the cross-repo build with `pwsh tools/test-all.ps1`.
   `NavigationDatabase.ForTesting()` and a later real-data test would otherwise inherit it.
 - **`SimLog` swallows everything by default** (`NullLoggerFactory`). Use `SimLogBuilder.CreateForTest(output).EnableCategory(...)
   .InitializeSimLog()` (which uses `InitializeForTest`, scoped — not `Initialize`, which poisons the process-wide static for parallel
-  tests) and run with `--logger "console;verbosity=detailed"`.
+  tests) and run the project as a process with `--show-live-output on` (see [Running tests](#running-tests)).
 - **Silent-skip on missing data is mandatory.** When NavData/CIFP/GeoJSON/recording/ARTCC-snapshot is absent (fresh checkout, offline),
   return early — **no `Assert.Skip`, no exception** — so CI stays green. `TestVnasData.NavigationDb`, `TestAirportGroundData.GetLayout`,
   and `TestArtccConfig.LoadZoa` all return `null` for exactly this.

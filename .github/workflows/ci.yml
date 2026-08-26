@@ -62,7 +62,7 @@ jobs:
       # everything else; the .github/workflows/nightly-taxi-grid.yml
       # workflow runs the Nightly grid on a schedule.
       - name: Test
-        run: dotnet test --no-build --configuration Release --filter "Category!=Nightly" --logger "trx;LogFileName=results.trx"
+        run: dotnet test --no-build --configuration Release -- --filter-not-trait "Category=Nightly" --report-xunit-trx --report-xunit-trx-filename results.trx
 
       - name: Trigger yaat-server CI
         if: github.event_name == 'push'

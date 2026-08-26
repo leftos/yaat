@@ -1,6 +1,5 @@
 ﻿using System.Diagnostics;
 using Xunit;
-using Xunit.Abstractions;
 using Yaat.Sim.Phases;
 
 namespace Yaat.Sim.Tests;

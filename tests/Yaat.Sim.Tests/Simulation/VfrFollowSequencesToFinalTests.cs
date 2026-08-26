@@ -1,6 +1,5 @@
 using Microsoft.Extensions.Logging;
 using Xunit;
-using Xunit.Abstractions;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Pattern;

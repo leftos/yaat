@@ -23,7 +23,7 @@ Follow these steps exactly. Do not skip or reorder.
 
 Run:
 ```bash
-timeout 30 dotnet test <test-project> --filter "FullyQualifiedName~<TestName>" 2>&1 | tee .tmp/test-red.log
+timeout 30 dotnet test <test-project> -- --filter-method "*<TestName>*" 2>&1 | tee .tmp/test-red.log
 ```
 
 - If the test **passes**, the test doesn't reproduce the bug. Revise the test.
@@ -39,7 +39,7 @@ timeout 30 dotnet test <test-project> --filter "FullyQualifiedName~<TestName>" 2
 
 Run:
 ```bash
-timeout 30 dotnet test <test-project> --filter "FullyQualifiedName~<TestName>" 2>&1 | tee .tmp/test-green.log
+timeout 30 dotnet test <test-project> -- --filter-method "*<TestName>*" 2>&1 | tee .tmp/test-green.log
 ```
 
 - If the test still fails, the fix is incomplete. Iterate on Step 4.

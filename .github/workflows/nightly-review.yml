@@ -88,7 +88,7 @@ jobs:
 
       # Warm a known-good baseline so the agent's verification is fast: the
       # shared Yaat.Sim logic (where most bugs live) compiles and its test
-      # project is ready for targeted `dotnet test --filter` runs.
+      # project is ready for targeted `dotnet test -- --filter-method` runs.
       - name: Pre-build Yaat.Sim tests
         working-directory: yaat
         run: |
@@ -168,7 +168,7 @@ jobs:
               - For every candidate finding, FIRST try to REFUTE it by reading the actual code path end to
                 end. Assume you are wrong until the code proves otherwise.
               - For survivors, VERIFY: build the affected project and run targeted tests
-                (e.g. `dotnet test yaat/tests/Yaat.Sim.Tests/Yaat.Sim.Tests.csproj --filter "..."`). For a
+                (e.g. `dotnet test yaat/tests/Yaat.Sim.Tests/Yaat.Sim.Tests.csproj -- --filter-method "*TestName*"`). For a
                 genuine logic/sim bug, WRITE a failing test that reproduces it (follow the TDD convention in
                 CLAUDE.md and docs/e2e-tdd-issue-debugging.md; use TestVnasData, never synthetic data), run
                 it, and confirm it FAILS against current code. A finding with no reproduction is NOT

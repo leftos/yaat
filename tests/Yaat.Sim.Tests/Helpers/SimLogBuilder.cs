@@ -1,6 +1,6 @@
 using MartinCostello.Logging.XUnit;
 using Microsoft.Extensions.Logging;
-using Xunit.Abstractions;
+using Xunit;
 
 namespace Yaat.Sim.Tests.Helpers;
 

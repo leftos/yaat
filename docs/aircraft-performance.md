@@ -84,7 +84,7 @@ misses instead of a clear error.
 3. Run the validation + behavior tests:
 
    ```bash
-   dotnet test tests/Yaat.Sim.Tests/Yaat.Sim.Tests.csproj --filter "FullyQualifiedName~AircraftProfileOverrideTests"
+   dotnet test tests/Yaat.Sim.Tests/Yaat.Sim.Tests.csproj -- --filter-method "*AircraftProfileOverrideTests*"
    ```
 
    `OverridesJson_LoadsAndIsSane` guards every entry (type resolvable, values in plausible ranges).
