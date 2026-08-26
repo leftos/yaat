@@ -1,6 +1,12 @@
 # Changelog
 
-## Unreleased
+## v0.12.21-beta [2026/08/26]
+
+### Highlights
+- Ground View controls bar sits above the map instead of overlapping the weather readout. (#403)
+- Free-form datablock deconfliction (DCNF F) hops blocks over/under a passing aircraft and settles them back beside their own aircraft instead of dragging them away. (#402)
+- `ERB`/`ELB` without a distance no longer refuses a light aircraft at 2500 ft a few miles out as "too high for base"; steep-but-flyable entries get a warning instead. (#401)
+- `TAXI … <ramp lane> @<stand>` crosses the apron to the stand's lane when the cleared lane doesn't reach it (OAK `TAXI V T TE @22`), and Ground View draws the crossing. (#400)
 
 ### Fixed
 - Ground View controls bar sits above the map and scrolls sideways when the window is narrow, no longer overlapping the weather readout; the pop-out window has a minimum size. (#403)
