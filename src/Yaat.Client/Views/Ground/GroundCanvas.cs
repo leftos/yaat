@@ -1163,7 +1163,7 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
 
                 _isDraggingDataBlock = true;
                 _dragCallsign = dataBlockAc.Callsign;
-                _dragStartOffset = State.ManualOffsets.TryGetValue(dataBlockAc.Callsign, out var off) ? off : DataBlockLayout.DefaultOffset;
+                _dragStartOffset = ResolvedDataBlockOffset(dataBlockAc.Callsign);
                 _dragStartMousePos = pos;
                 _dragThresholdMet = false;
                 e.Handled = true;
@@ -1468,15 +1468,7 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
         {
             var (sx, sy) = Viewport.LatLonToScreen(ac.Position.Lat, ac.Position.Lon);
 
-            SKPoint offset = DataBlockLayout.DefaultOffset;
-            if (State.ManualOffsets.TryGetValue(ac.Callsign, out var customOffset))
-            {
-                offset = customOffset;
-            }
-            else if (DeconflictOffsetFor(ac.Callsign) is { } resolvedOffset)
-            {
-                offset = resolvedOffset;
-            }
+            var offset = ResolvedDataBlockOffset(ac.Callsign);
 
             // Match the draw path's airborne flag (GroundRenderer.DrawOneDataBlock) so an airborne
             // aircraft's altitude line is included in the hit rect — otherwise its block is one line
@@ -1489,6 +1481,20 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
         }
 
         return best;
+    }
+
+    /// <summary>
+    /// The offset the callsign's datablock is currently drawn at: manual drag > deconfliction > default.
+    /// Shared by hit-testing and the drag-start seed so grabbing a deconflicted block never jumps it
+    /// back to the default slot on the first move (mirrors <c>RadarCanvas.ComputeDataBlockPlacement</c>).
+    /// </summary>
+    public SKPoint ResolvedDataBlockOffset(string callsign)
+    {
+        if (State.ManualOffsets.TryGetValue(callsign, out var manual))
+        {
+            return manual;
+        }
+        return DeconflictOffsetFor(callsign) ?? DataBlockLayout.DefaultOffset;
     }
 
     /// <summary>The deconfliction-resolved offset for a callsign, or null when deconfliction is off or absent.</summary>

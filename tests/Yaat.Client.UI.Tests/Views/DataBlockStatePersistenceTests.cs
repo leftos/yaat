@@ -217,6 +217,39 @@ public class DataBlockStatePersistenceTests
         return null!; // unreachable — Assert.Fail throws
     }
 
+    // #402 follow-up: with deconfliction on, the block is drawn at the resolved offset, but the drag
+    // seed was the default offset, so the first drag move teleported the block back to the default
+    // slot. The seed must start from wherever the block is actually drawn.
+    [AvaloniaFact]
+    public void GroundCanvas_DragOfDeconflictedBlock_StartsFromDrawnOffset()
+    {
+        var ac = MakeAircraft();
+        var other = MakeAircraft();
+        other.Callsign = "DAL1";
+        var canvas = MakeGroundCanvas(ac);
+        canvas.Aircraft = new[] { ac, other };
+        canvas.DeconflictMode = DatablockDeconflictMode.FreeForm;
+        var window = ShowInWindow(canvas);
+        canvas.InvalidateVisual();
+        PumpLayout(window);
+
+        var resolved = canvas.ResolvedDataBlockOffset(Callsign);
+        Assert.NotEqual(DataBlockLayout.DefaultOffset, resolved);
+
+        var (sx, sy) = canvas.Viewport.LatLonToScreen(ac.Position.Lat, ac.Position.Lon);
+        var origin = canvas.TranslatePoint(new Point(0, 0), window);
+        Assert.NotNull(origin);
+        var grab = new Point(origin!.Value.X + sx + resolved.X + 1, origin.Value.Y + sy + resolved.Y + 8);
+        var grabInCanvas = new Point(sx + resolved.X + 1, sy + resolved.Y + 8);
+        Assert.Same(ac, canvas.FindDataBlockAtPoint(grabInCanvas));
+        window.MouseDrag(grab, new Point(grab.X + 10, grab.Y + 10));
+
+        Assert.True(canvas.HasManualDataBlockOffset(Callsign));
+        var manual = canvas.ResolvedDataBlockOffset(Callsign);
+        Assert.Equal(resolved.X + 10, manual.X, 0.5);
+        Assert.Equal(resolved.Y + 10, manual.Y, 0.5);
+    }
+
     private static AircraftModel MakeAircraft()
     {
         var ac = new AircraftModel

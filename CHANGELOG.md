@@ -4,6 +4,8 @@
 
 ### Fixed
 - Ground View controls bar sits above the map and scrolls sideways when the window is narrow, no longer overlapping the weather readout; the pop-out window has a minimum size. (#403)
+- Free-form datablock deconfliction (DCNF F) no longer drags a datablock away when a departure rolls past another aircraft; blocks hop over/under and settle back beside their aircraft. (#402)
+- Ground View: dragging a datablock that deconfliction had repositioned starts from where the block is drawn instead of jumping to the default slot.
 
 ## v0.12.20-beta [2026/08/25]
 

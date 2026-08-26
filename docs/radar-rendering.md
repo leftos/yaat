@@ -361,7 +361,15 @@ ground views that repositions overlapping datablocks so labels stay readable. It
 leader directions with previous-frame hysteresis (no jitter), and — when the base ring can't separate a dense cluster —
 onto the same directions at successively longer leader rings (`LeaderExtraRings` × `LeaderRingStep`); the leader line is
 drawn to the block edge by the renderer, so it stretches to follow. `FreeForm` runs damped rect repulsion seeded from the
-prior frame. Both bias the layout toward the aircraft's lateral order — a soft order-inversion penalty in `CompassSnap`'s
+prior frame. Its separation step does **not** blindly use the minimum-translation axis: for every colliding pair (and for a
+movable block against a pinned one) it compares the minimum translation with a *hop* along the other axis that also
+returns the block to its preferred placement, and takes whichever leaves the block(s) closer to preferred
+(`PairSeparation` / `Separation` / `MoveCost`). Pure minimum translation always separates same-row blocks along X, so a
+block whose anchor was travelling along that row — a departure rolling past a holding aircraft — was shoved back exactly as
+fast as its anchor advanced and dragged hundreds of pixels from its aircraft, taking the other block with it (#402). A
+hard `ClampLeader` cap at the outermost compass ring (`LeaderGap + LeaderExtraRings × LeaderRingStep`) is the safety net
+behind that choice, and `SymbolPush` expels anchors using the padded rect so a block parks beside its symbol rather than
+hugging it. Both bias the layout toward the aircraft's lateral order — a soft order-inversion penalty in `CompassSnap`'s
 cost and a gentle restoring force in `FreeForm` keep repositioned blocks reading in the same left-to-right / top-to-bottom
 order as their anchors — and both are deterministic given the same inputs + previous result.
 

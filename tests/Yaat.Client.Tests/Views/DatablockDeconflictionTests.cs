@@ -520,4 +520,143 @@ public class DatablockDeconflictionTests
 
         Assert.True(resolved.ContainsKey("EDGE"));
     }
+
+    // #402: a departure rolling past a stationary aircraft in the same row. Min-translation separation
+    // always picked the X axis for same-row blocks, so the moving block was shoved back exactly as fast
+    // as its anchor advanced and dragged hundreds of pixels from its aircraft (and dragged the
+    // stationary block along with it). Free-form must hop over/under instead and settle back on the
+    // preferred placement once clear.
+    private static readonly SKRect GroundBlock = new(-3, -14, 70, 16);
+
+    private static (float MaxMoverDrift, float MaxOtherDrift, SKPoint FinalMover, SKPoint FinalOther) RollPast(
+        float stepPx,
+        bool otherPinned,
+        SKPoint otherPreferred
+    )
+    {
+        var pref = new SKPoint(30, -25);
+        var big = new SKRect(0, 0, 1600, 900);
+        var prev = new Dictionary<string, SKPoint>();
+        var res = new Dictionary<string, SKPoint>();
+        float maxMover = 0f;
+        float maxOther = 0f;
+        for (float x = 300; x <= 1500; x += stepPx)
+        {
+            var items = new[]
+            {
+                new DatablockDeconfliction.Item
+                {
+                    Callsign = "FDX3647",
+                    Anchor = new SKPoint(600, 500),
+                    RectAtOrigin = GroundBlock,
+                    PreferredOffset = otherPreferred,
+                    IsPinned = otherPinned,
+                    IsPriority = false,
+                },
+                new DatablockDeconfliction.Item
+                {
+                    Callsign = "SWA1421",
+                    Anchor = new SKPoint(x, 500),
+                    RectAtOrigin = GroundBlock,
+                    PreferredOffset = pref,
+                    IsPinned = false,
+                    IsPriority = false,
+                },
+            };
+            DatablockDeconfliction.Resolve(DatablockDeconflictMode.FreeForm, items, DatablockDeconfliction.Options.Default(big), prev, res);
+            prev = new Dictionary<string, SKPoint>(res);
+            maxMover = MathF.Max(maxMover, Dist(res["SWA1421"], pref));
+            maxOther = MathF.Max(maxOther, Dist(res["FDX3647"], otherPreferred));
+        }
+        return (maxMover, maxOther, res["SWA1421"], res["FDX3647"]);
+    }
+
+    private static float Dist(SKPoint a, SKPoint b) => MathF.Sqrt(((a.X - b.X) * (a.X - b.X)) + ((a.Y - b.Y) * (a.Y - b.Y)));
+
+    [Fact]
+    public void FreeForm_MovingAnchorPassingStationary_StaysNearPreferred()
+    {
+        var pref = new SKPoint(30, -25);
+        var (mover, other, finalMover, finalOther) = RollPast(2f, otherPinned: false, otherPreferred: pref);
+
+        Assert.True(mover <= 45f, $"moving block drifted {mover:F0} px from preferred");
+        Assert.True(other <= 45f, $"stationary block was dragged {other:F0} px from preferred");
+        Assert.True(Dist(finalMover, pref) < 1f, $"moving block ended at {finalMover}");
+        Assert.True(Dist(finalOther, pref) < 1f, $"stationary block ended at {finalOther}");
+    }
+
+    [Fact]
+    public void FreeForm_MovingAnchorPassingPinned_StaysNearPreferred()
+    {
+        var pinnedPref = new SKPoint(-80, -25);
+        var (mover, _, finalMover, finalOther) = RollPast(2f, otherPinned: true, otherPreferred: pinnedPref);
+
+        Assert.True(mover <= 45f, $"moving block drifted {mover:F0} px from preferred");
+        Assert.True(Dist(finalMover, new SKPoint(30, -25)) < 1f, $"moving block ended at {finalMover}");
+        Assert.Equal(pinnedPref, finalOther);
+    }
+
+    [Fact]
+    public void FreeForm_FastAnchor_StaysNearPreferred()
+    {
+        var pref = new SKPoint(30, -25);
+        var (mover, other, finalMover, _) = RollPast(10f, otherPinned: false, otherPreferred: pref);
+
+        Assert.True(mover <= 45f, $"moving block drifted {mover:F0} px from preferred");
+        Assert.True(other <= 45f, $"stationary block was dragged {other:F0} px from preferred");
+        Assert.True(Dist(finalMover, pref) < 1f, $"moving block ended at {finalMover}");
+    }
+
+    [Fact]
+    public void FreeForm_RestsAtPreferredAfterInteraction()
+    {
+        // Once the blocks have parted, nothing should hold a block off its preferred placement — the old
+        // symbol-margin push expelled toward the anchor and parked blocks hugging their own symbol.
+        var pref = new SKPoint(30, -25);
+        var (_, _, finalMover, finalOther) = RollPast(2f, otherPinned: false, otherPreferred: pref);
+        Assert.True(Dist(finalMover, pref) < 1f, $"moving block rests at {finalMover}, not {pref}");
+        Assert.True(Dist(finalOther, pref) < 1f, $"stationary block rests at {finalOther}, not {pref}");
+    }
+
+    [Fact]
+    public void FreeForm_SameRowPair_HopsOppositeWays()
+    {
+        var pref = new SKPoint(30, -25);
+        var items = new[]
+        {
+            new DatablockDeconfliction.Item
+            {
+                Callsign = "AAA1",
+                Anchor = new SKPoint(500, 500),
+                RectAtOrigin = GroundBlock,
+                PreferredOffset = pref,
+                IsPinned = false,
+                IsPriority = false,
+            },
+            new DatablockDeconfliction.Item
+            {
+                Callsign = "BBB2",
+                Anchor = new SKPoint(520, 500),
+                RectAtOrigin = GroundBlock,
+                PreferredOffset = pref,
+                IsPinned = false,
+                IsPriority = false,
+            },
+        };
+        var prev = new Dictionary<string, SKPoint>();
+        var res = new Dictionary<string, SKPoint>();
+        for (int i = 0; i < 10; i++)
+        {
+            DatablockDeconfliction.Resolve(DatablockDeconflictMode.FreeForm, items, DatablockDeconfliction.Options.Default(Screen), prev, res);
+            prev = new Dictionary<string, SKPoint>(res);
+        }
+
+        // The spring/repulsion equilibrium leaves at most a ~2 px sliver of overlap; what matters is that
+        // the pair parted vertically (one above the other) instead of sliding apart along the row.
+        var ra = ResolvedRect(items[0], res);
+        var rb = ResolvedRect(items[1], res);
+        Assert.True(Overlap(ra, rb) < 0.1f * ra.Width * ra.Height, $"pair still overlaps: A={res["AAA1"]} B={res["BBB2"]}");
+        Assert.True(MathF.Abs(Center(ra).Y - Center(rb).Y) > 20f, $"pair did not part vertically: A={res["AAA1"]} B={res["BBB2"]}");
+        Assert.True((Dist(res["AAA1"], pref) <= 45f) && (Dist(res["BBB2"], pref) <= 45f), "pair separated by sliding along the row");
+    }
 }

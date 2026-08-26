@@ -134,6 +134,14 @@ Three ways an aircraft's remaining taxi route gets drawn on the ground view, all
 2. **Show all (opt-in, default off)** — `GroundShowAllTaxiRoutes`. Every taxiing aircraft's route is drawn at once.
 3. **Manual per-aircraft override** — the right-click **Taxi route** submenu (`GroundView.axaml.cs`), a radio group of `TaxiRouteDisplayMode`: `AlwaysShow`, `AlwaysHide`, `Follow` (track the global setting — the default).
 
+**Offset precedence is manual drag > deconfliction > default**, resolved in one place —
+`GroundCanvas.ResolvedDataBlockOffset(callsign)` — and used by both `FindDataBlockAtPoint` and the drag-start seed in
+`OnPointerPressed`. Seeding the drag from `DataBlockLayout.DefaultOffset` while the block was drawn at its deconflicted
+offset teleported the block to the default slot on the first drag move; the seed must be wherever the block is drawn
+(radar's `ComputeDataBlockPlacement` has the same contract). The shared `DatablockDeconfliction` engine's free-form rules
+(hop over/under an obstacle instead of sliding along an anchor's line of travel, leader-length cap) are described in
+[radar-rendering.md](radar-rendering.md#datablock-deconfliction).
+
 ### State and effective visibility
 
 `GroundViewModel` keeps two per-session, per-callsign sets (never persisted, never sent to the server, cleared on layout change via `ClearShownTaxiRoutes`):

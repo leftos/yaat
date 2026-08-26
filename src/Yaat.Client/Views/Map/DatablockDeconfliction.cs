@@ -10,14 +10,17 @@ namespace Yaat.Client.Views.Map;
 /// <see cref="DatablockDeconflictMode.CompassSnap"/> snaps each block to one of the eight STARS
 /// compass leader directions, extending the leader onto larger rings when the base ring cannot
 /// deconflict; <see cref="DatablockDeconflictMode.FreeForm"/> slides blocks freely via damped
-/// repulsion. Both bias the resulting layout toward the aircraft's lateral order and are deterministic
-/// and frame-stable when fed the prior frame's result.
+/// repulsion, hopping over/under an obstacle rather than being dragged along an anchor's line of
+/// travel, with leader length capped at the outermost ring. Both bias the resulting layout toward
+/// the aircraft's lateral order and are deterministic and frame-stable when fed the prior frame's
+/// result.
 /// </summary>
 public static class DatablockDeconfliction
 {
     private const float SpringStiffness = 0.06f;
     private const float Damping = 0.5f;
     private const float MatchEpsilon = 0.5f;
+    private const float SelfCoverPenalty = 1000f;
 
     /// <summary>
     /// How far a symbol anchor may sit outside the viewport before its datablock is excluded from the
@@ -108,6 +111,9 @@ public static class DatablockDeconfliction
 
     /// <summary>An already-placed block, kept with its anchor so later blocks can avoid it and stay in order.</summary>
     private readonly record struct Placed(SKRect Rect, SKPoint Anchor);
+
+    /// <summary>One movable block mid free-form step: its item, current offset, and the rect at that offset.</summary>
+    private readonly record struct Block(Item Item, SKPoint Offset, SKRect Rect);
 
     /// <summary>
     /// Resolves an effective text-origin offset for every item. Pinned items are written through with
@@ -289,45 +295,149 @@ public static class DatablockDeconfliction
     {
         int n = movable.Count;
         var rects = new SKRect[n];
+        var blocks = new Block[n];
         for (int i = 0; i < n; i++)
         {
             rects[i] = Translate(movable[i].RectAtOrigin, Add(movable[i].Anchor, offsets[i]));
+            blocks[i] = new Block(movable[i], offsets[i], rects[i]);
         }
 
         var delta = new SKPoint[n];
-        AccumulateBlockForces(rects, delta);
-        AccumulatePinnedForces(rects, pinned, delta);
+        AccumulateBlockForces(blocks, delta, o);
+        AccumulatePinnedForces(blocks, pinned, delta, o);
         AccumulateOrderForces(movable, rects, delta, o);
         ApplyForces(movable, allItems, rects, delta, o, offsets);
     }
 
-    private static void AccumulateBlockForces(SKRect[] rects, SKPoint[] delta)
+    private static float MaxLeaderLength(in Options o) => o.LeaderGap + (o.LeaderExtraRings * o.LeaderRingStep);
+
+    private static void AccumulateBlockForces(Block[] blocks, SKPoint[] delta, in Options o)
     {
-        for (int i = 0; i < rects.Length; i++)
+        for (int i = 0; i < blocks.Length; i++)
         {
-            for (int j = i + 1; j < rects.Length; j++)
+            for (int j = i + 1; j < blocks.Length; j++)
             {
-                if (MinTranslation(rects[i], rects[j]) is { } v)
+                if (PairSeparation(blocks[i], blocks[j], o) is { } v)
                 {
-                    delta[i] = Add(delta[i], Scale(v, 0.5f));
-                    delta[j] = Add(delta[j], Scale(v, -0.5f));
+                    delta[i] = Add(delta[i], v.A);
+                    delta[j] = Add(delta[j], v.B);
                 }
             }
         }
     }
 
-    private static void AccumulatePinnedForces(SKRect[] rects, List<SKRect> pinned, SKPoint[] delta)
+    private static void AccumulatePinnedForces(Block[] blocks, List<SKRect> pinned, SKPoint[] delta, in Options o)
     {
-        for (int i = 0; i < rects.Length; i++)
+        for (int i = 0; i < blocks.Length; i++)
         {
             foreach (var p in pinned)
             {
-                if (MinTranslation(rects[i], p) is { } v)
+                if (Separation(blocks[i], p, o) is { } v)
                 {
                     delta[i] = Add(delta[i], v);
                 }
             }
         }
+    }
+
+    /// <summary>
+    /// Vector that moves a movable block off a pinned obstacle: the minimum translation, unless the
+    /// <see cref="HopVector"/> along the other axis leaves the block closer to its preferred placement.
+    /// Pure minimum translation always separates same-row blocks along X, so a block whose anchor is
+    /// travelling along that row (a departure rolling past a holding aircraft) was shoved back exactly as
+    /// fast as its anchor advanced and dragged hundreds of pixels from its aircraft (#402).
+    /// </summary>
+    private static SKPoint? Separation(in Block self, SKRect other, in Options o)
+    {
+        if (MinTranslation(self.Rect, other) is not { } mtv)
+        {
+            return null;
+        }
+
+        var perp = PerpendicularTranslation(self.Rect, other, mtv);
+        var hop = HopVector(self.Item.PreferredOffset, self.Offset, perp);
+        float afterMtv = MoveCost(self.Item, Add(self.Offset, mtv), o);
+        float afterHop = MoveCost(self.Item, Add(self.Offset, hop), o);
+        return afterHop + 1f < afterMtv ? hop : mtv;
+    }
+
+    /// <summary>
+    /// Escape candidate on the axis perpendicular to the minimum translation: clear the obstacle along
+    /// that axis while returning to the preferred placement on the other, so a block shoved along its
+    /// anchor's direction of travel hops over/under the obstacle instead of being dragged with it.
+    /// </summary>
+    private static SKPoint HopVector(SKPoint preferred, SKPoint offset, SKPoint perp) =>
+        perp.X == 0f ? new SKPoint(preferred.X - offset.X, perp.Y) : new SKPoint(perp.X, preferred.Y - offset.Y);
+
+    /// <summary>
+    /// Per-block vectors that move two movable blocks off each other in opposite directions: half the
+    /// minimum translation each, or each block's <see cref="HopVector"/> on the other axis when the pair's
+    /// summed <see cref="MoveCost"/> is lower that way. Evaluated for the pair as a whole so the two never
+    /// hop the same way.
+    /// </summary>
+    private static (SKPoint A, SKPoint B)? PairSeparation(in Block a, in Block b, in Options o)
+    {
+        if (MinTranslation(a.Rect, b.Rect) is not { } mtv)
+        {
+            return null;
+        }
+
+        var perp = PerpendicularTranslation(a.Rect, b.Rect, mtv);
+        var hopA = HopVector(a.Item.PreferredOffset, a.Offset, Scale(perp, 0.5f));
+        var hopB = HopVector(b.Item.PreferredOffset, b.Offset, Scale(perp, -0.5f));
+        float costMtv = MoveCost(a.Item, Add(a.Offset, Scale(mtv, 0.5f)), o) + MoveCost(b.Item, Add(b.Offset, Scale(mtv, -0.5f)), o);
+        float costHop = MoveCost(a.Item, Add(a.Offset, hopA), o) + MoveCost(b.Item, Add(b.Offset, hopB), o);
+        return costHop + 1f < costMtv ? (hopA, hopB) : (Scale(mtv, 0.5f), Scale(mtv, -0.5f));
+    }
+
+    /// <summary>
+    /// How undesirable a candidate offset is for a block: distance from its preferred placement, plus a
+    /// large penalty when the block (with symbol padding) would cover its own aircraft symbol — the
+    /// free-form analogue of <see cref="Options.WSelf"/>.
+    /// </summary>
+    private static float MoveCost(in Item item, SKPoint candidate, in Options o)
+    {
+        float cost = Dist(candidate, item.PreferredOffset);
+        var rect = Inflate(Translate(item.RectAtOrigin, Add(item.Anchor, candidate)), o.SymbolPad);
+        if (Contains(rect, item.Anchor))
+        {
+            cost += SelfCoverPenalty;
+        }
+        return cost;
+    }
+
+    private static float Dist(SKPoint a, SKPoint b) => MathF.Sqrt(((a.X - b.X) * (a.X - b.X)) + ((a.Y - b.Y) * (a.Y - b.Y)));
+
+    private static SKPoint PerpendicularTranslation(SKRect a, SKRect b, SKPoint mtv)
+    {
+        float ix = MathF.Min(a.Right, b.Right) - MathF.Max(a.Left, b.Left);
+        float iy = MathF.Min(a.Bottom, b.Bottom) - MathF.Max(a.Top, b.Top);
+        float acx = (a.Left + a.Right) / 2f;
+        float acy = (a.Top + a.Bottom) / 2f;
+        float bcx = (b.Left + b.Right) / 2f;
+        float bcy = (b.Top + b.Bottom) / 2f;
+        return mtv.Y == 0f ? new SKPoint(0f, (acy >= bcy ? 1f : -1f) * iy) : new SKPoint((acx >= bcx ? 1f : -1f) * ix, 0f);
+    }
+
+    /// <summary>
+    /// Hard cap on leader length at the outermost compass ring, pulling the block straight back toward
+    /// its anchor by the excess. A safety net behind the axis choice above: no force combination may
+    /// leave a block stranded far from its aircraft.
+    /// </summary>
+    private static SKPoint ClampLeader(in Item item, SKPoint offset, float maxLeader)
+    {
+        var rect = Translate(item.RectAtOrigin, Add(item.Anchor, offset));
+        float cx = Math.Clamp(item.Anchor.X, rect.Left, rect.Right);
+        float cy = Math.Clamp(item.Anchor.Y, rect.Top, rect.Bottom);
+        float dx = item.Anchor.X - cx;
+        float dy = item.Anchor.Y - cy;
+        float len = MathF.Sqrt((dx * dx) + (dy * dy));
+        if (len <= maxLeader)
+        {
+            return offset;
+        }
+        float excess = len - maxLeader;
+        return new SKPoint(offset.X + (dx / len * excess), offset.Y + (dy / len * excess));
     }
 
     /// <summary>
@@ -366,6 +476,7 @@ public static class DatablockDeconfliction
             push = Add(push, spring);
             offsets[i] = Add(offsets[i], Scale(push, Damping));
             offsets[i] = ClampOffset(movable[i], offsets[i], o.ScreenBounds);
+            offsets[i] = ClampLeader(movable[i], offsets[i], MaxLeaderLength(o));
         }
     }
 
@@ -377,7 +488,7 @@ public static class DatablockDeconfliction
         {
             if (Contains(inflated, it.Anchor))
             {
-                push = Add(push, ExpelPoint(rect, it.Anchor));
+                push = Add(push, ExpelPoint(inflated, it.Anchor));
             }
         }
         return push;
