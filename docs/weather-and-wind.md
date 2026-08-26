@@ -218,6 +218,7 @@ Inside a transition window (`WeatherTimeline.cs:70-87`), with `t` = fraction thr
 - API: `GetDeclination(lat, lon)` / `GetDeclination(LatLon)`, `TrueToMagnetic(deg, …)`, `MagneticToTrue(deg, …)`. The convenience overloads forward to the `(lat, lon)` forms.
 - **The WMM epoch is resolved once at startup** as a static field (`EpochDate`, `MagneticDeclination.cs:20-34`): the model covering "now" is stable for the process lifetime, so per-tick LINQ scans of the embedded models are avoided. If the process runs past the newest bundled epoch (a stale package), it clamps to the last valid day rather than throwing.
 - `TryCalculate` returning null → declination `0.0` (safe fallback).
+- **Process-wide grid cache** (`GridCache`, 0.02° cells): `GetDeclination` evaluates the WMM once per cell, **at the cell centre**, and every later lookup in that cell returns the same value. Each `Geo` evaluation allocates ~100 KB of working arrays, and aircraft in a pattern or on the ground keep re-entering the same handful of cells, so this removed most of the per-tick declination cost in replay profiles. The cell-centre rule keeps the value a pure function of the cell — independent of which aircraft (or thread) got there first — so replays stay reproducible; the error bound (~0.01° within a cell) is the same one the per-aircraft box below already accepts. The cache is cleared when it exceeds 200k cells.
 
 ### The per-aircraft declination box-cache (`FlightPhysics.cs:50-85`)
 

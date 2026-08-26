@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.IO.Compression;
 using System.Text.Json;
 using Yaat.Sim.Simulation;
@@ -6,7 +7,15 @@ namespace Yaat.Sim.Tests.Helpers;
 
 public static class RecordingLoader
 {
-    public static SessionRecording? Load(string path)
+    // One decode per recording file per test process. SessionRecording is init-only and the engine
+    // never mutates Actions (AircraftState.FromSnapshot copies the spawn DTOs), so parallel test
+    // classes can share an instance. Test classes that use the same recording (typically 5-10 [Fact]s
+    // each) otherwise re-decode every Brotli snapshot per test.
+    private static readonly ConcurrentDictionary<string, SessionRecording?> Cache = new(StringComparer.OrdinalIgnoreCase);
+
+    public static SessionRecording? Load(string path) => Cache.GetOrAdd(Path.GetFullPath(path), static p => LoadUncached(p));
+
+    private static SessionRecording? LoadUncached(string path)
     {
         if (!File.Exists(path))
         {

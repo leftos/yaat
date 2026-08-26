@@ -552,7 +552,7 @@ MetarComposer.cs               # Static: reconstructs a reported METAR by patchi
 SpeciCriteria.cs               # Static: SPECI decision vs last issued (wind shift, vis/ceiling crossings, precip) — AIM TBL 7-1-1
 MetarIssuer.cs                 # Per-room state machine: routine METAR at :53 + SPECI on change; freezes conditions at issuance
 WindsAloftParser.cs            # Static: parses FAA FD fixed-width text → StationWinds[]; DecodeWind handles 100+kt, light/variable
-MagneticDeclination.cs         # Static: NOAA World Magnetic Model (WMM) declination via the Geo library; TrueToMagnetic/MagneticToTrue conversion
+MagneticDeclination.cs         # Static: NOAA World Magnetic Model (WMM) declination via the Geo library, memoized on a 0.02° grid (cell-centre eval); TrueToMagnetic/MagneticToTrue conversion
 VisualDetection.cs             # Static: TryAcquireAirport, TryAcquireAirportForRunway, TryAcquireTraffic, IsOccludedByBank
                                # Maintained-contact variants (already-in-sight, weather-only incl. visibility-collapse × 1.25 tolerance): TryMaintainAirportContact, TryMaintainTrafficContact
                                # Airport visibility envelope AirportVisibilityRangeNm (vis × 0.869 × 1.5 × max(1, AGL/3000ft) — Koschmieder slab; shared by acquire + maintain; traffic keeps the literal cap)
@@ -972,7 +972,7 @@ RecordedCommandClassifier.cs   # Shared replay-time RecordedCommand classifier. 
                                # (zero RNG draws); live REL draws from World.ReleaseJitterRng and bakes the value.
 TimerCommandReplayer.cs        # Replay-time TIMER apply (set/cancel ActiveTimers on SimScenarioState); live dispatch in RoomEngine
 RecordingCompression.cs        # Brotli compress/decompress; auto-detects Brotli, gzip, or plain JSON on read
-RecordingArchive.cs            # v4 ZIP archive reader: on-demand snapshot loading, layout/source-GeoJSON reading, seek API
+RecordingArchive.cs            # v4 ZIP archive reader: on-demand snapshot loading (JSON deserialized straight from the Brotli stream; spawn synthesis decodes only first-seen aircraft), layout/source-GeoJSON reading, seek API
                                # ToBaseSessionRecording (no snapshots), FindNearestSnapshotIndex, ReadSnapshotAt, ReadArtccConfigJson
                                # ReadBookmarks / static WriteBookmarks (client-injected bookmarks.json; optional, manifest-untracked)
 TimelineBookmark.cs            # TimelineBookmark + RecordingBookmarks records (the bookmarks.json payload)

@@ -21,6 +21,7 @@
 - Quitting YAAT no longer hangs when the global keyboard hook fails to stop.
 
 ### Changed
+- Loading a recording or bug bundle for replay is faster.
 - Ramp-lane apron crossings apply to any ramp taxilane (multi-letter like OAK TE/TC, or lettered-numbered like SFO M4), not only numbered ones.
 
 ## v0.12.20-beta [2026/08/25]

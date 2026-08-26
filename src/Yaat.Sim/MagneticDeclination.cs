@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using Geo;
 using Geo.Geomagnetism;
 
@@ -40,6 +41,40 @@ public static class MagneticDeclination
     /// To convert true→magnetic: magnetic = true - declination.
     /// </summary>
     public static double GetDeclination(double lat, double lon)
+    {
+        if (!double.IsFinite(lat) || !double.IsFinite(lon))
+        {
+            return Evaluate(lat, lon);
+        }
+
+        var cell = ((int)Math.Floor(lat / GridCellDeg), (int)Math.Floor(lon / GridCellDeg));
+        if (GridCache.TryGetValue(cell, out double cached))
+        {
+            return cached;
+        }
+
+        if (GridCache.Count >= GridCacheMaxEntries)
+        {
+            GridCache.Clear();
+        }
+
+        // Evaluate at the cell centre so a cell's value is a pure function of the cell, not of which
+        // aircraft happened to enter it first — replays stay reproducible across runs and threads.
+        double declination = Evaluate((cell.Item1 + 0.5) * GridCellDeg, (cell.Item2 + 0.5) * GridCellDeg);
+        GridCache[cell] = declination;
+        return declination;
+    }
+
+    // Each WMM evaluation allocates ~100 KB of working arrays inside the Geo library, and every
+    // aircraft re-evaluates each time it moves ~1 nm (FlightPhysics' per-aircraft gate). Aircraft in
+    // a pattern or on the ground keep crossing the same few cells, so share results on a grid of
+    // the same 0.02° (~1.2 nm) size the per-aircraft gate already treats as "no visible change"
+    // (declination varies ~0.01°/km, so a cell-centre value is within ~0.01° of any point in it).
+    private const double GridCellDeg = 0.02;
+    private const int GridCacheMaxEntries = 200_000;
+    private static readonly ConcurrentDictionary<(int Lat, int Lon), double> GridCache = new();
+
+    private static double Evaluate(double lat, double lon)
     {
         GeomagnetismResult? result = Calculator.TryCalculate(new Coordinate(lat, lon), EpochDate);
         return result?.Declination ?? 0.0;

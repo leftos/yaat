@@ -15,6 +15,7 @@ public sealed class RecordingArchive : IDisposable
 {
     private readonly ZipArchive _zip;
     private readonly Stream? _ownedStream;
+    private TimedSnapshot? _firstSnapshot;
 
     public RecordingManifest Manifest { get; }
 
@@ -105,8 +106,7 @@ public sealed class RecordingArchive : IDisposable
 
     public List<RecordedAction> ReadActions()
     {
-        var json = ReadBrotliEntry("actions.json.br");
-        return JsonSerializer.Deserialize<List<RecordedAction>>(json, RecordingJsonOptions.Default)
+        return DeserializeBrotliEntry<List<RecordedAction>>("actions.json.br")
             ?? throw new InvalidOperationException("Failed to deserialize actions from recording archive.");
     }
 
@@ -122,8 +122,7 @@ public sealed class RecordingArchive : IDisposable
             return [];
         }
 
-        var json = ReadBrotliEntry("terminal-log.json.br");
-        return JsonSerializer.Deserialize<List<RecordedTerminalEntry>>(json, RecordingJsonOptions.Default)
+        return DeserializeBrotliEntry<List<RecordedTerminalEntry>>("terminal-log.json.br")
             ?? throw new InvalidOperationException("Failed to deserialize terminal log from recording archive.");
     }
 
@@ -191,7 +190,7 @@ public sealed class RecordingArchive : IDisposable
         }
 
         var scenarioJson = ReadScenarioJson();
-        return AddSyntheticAircraftSpawnsFromSnapshots(actions, LoadSnapshotAircraftForSpawnSynthesis(), ReadScenarioAircraftCallsigns(scenarioJson));
+        return AddSyntheticAircraftSpawnsFromSnapshots(actions, ReadScenarioAircraftCallsigns(scenarioJson));
     }
 
     /// <summary>
@@ -199,8 +198,7 @@ public sealed class RecordingArchive : IDisposable
     /// </summary>
     public StateSnapshotDto ReadSnapshot(int index)
     {
-        var json = ReadBrotliEntry($"snapshots/{index:D3}.json.br");
-        return JsonSerializer.Deserialize<StateSnapshotDto>(json, RecordingJsonOptions.Default)
+        return DeserializeBrotliEntry<StateSnapshotDto>($"snapshots/{index:D3}.json.br")
             ?? throw new InvalidOperationException($"Failed to deserialize snapshot {index} from recording archive.");
     }
 
@@ -227,9 +225,8 @@ public sealed class RecordingArchive : IDisposable
     /// </summary>
     public AirportGroundLayout ReadLayout(string airportId)
     {
-        var json = ReadBrotliEntry($"layouts/{airportId}.json.br");
         var layout =
-            JsonSerializer.Deserialize<AirportGroundLayout>(json, RecordingJsonOptions.Default)
+            DeserializeBrotliEntry<AirportGroundLayout>($"layouts/{airportId}.json.br")
             ?? throw new InvalidOperationException($"Failed to deserialize layout for {airportId}.");
         layout.RebuildAdjacencyLists();
         return layout;
@@ -377,7 +374,7 @@ public sealed class RecordingArchive : IDisposable
             return null;
         }
 
-        var scenario = ReadTimedSnapshot(0).State.Scenario;
+        var scenario = FirstSnapshot.State.Scenario;
         return new ReplayStudentPosition(
             scenario.StudentPosition is not null ? TrackOwner.FromSnapshot(scenario.StudentPosition) : null,
             scenario.StudentTcp is not null ? Tcp.FromSnapshot(scenario.StudentTcp) : null,
@@ -398,8 +395,14 @@ public sealed class RecordingArchive : IDisposable
             return false;
         }
 
-        return ReadTimedSnapshot(0).State.Scenario.FinalApproachSpeedVarietyEnabled;
+        return FirstSnapshot.State.Scenario.FinalApproachSpeedVarietyEnabled;
     }
+
+    /// <summary>
+    /// Snapshot 0, decoded once per archive. The student position, the FAS-variety flag, and spawn
+    /// synthesis all read it; each decode is a full Brotli + JSON pass over every aircraft.
+    /// </summary>
+    private TimedSnapshot FirstSnapshot => _firstSnapshot ??= ReadTimedSnapshot(0);
 
     /// <summary>
     /// Materialize the full <see cref="SessionRecording"/> by reading all entries.
@@ -423,7 +426,7 @@ public sealed class RecordingArchive : IDisposable
                 snapshots.Add(timed);
             }
         }
-        actions = AddSyntheticAircraftSpawnsFromSnapshots(actions, snapshots, ReadScenarioAircraftCallsigns(scenarioJson));
+        actions = AddSyntheticAircraftSpawnsFromSnapshots(actions, ReadScenarioAircraftCallsigns(scenarioJson));
 
         return new SessionRecording
         {
@@ -469,44 +472,31 @@ public sealed class RecordingArchive : IDisposable
         }
     }
 
-    private List<TimedSnapshot> LoadSnapshotAircraftForSpawnSynthesis()
+    /// <summary>
+    /// Recordings made before aircraft spawns were logged as actions have no way to replay
+    /// generator/late-spawned traffic, so synthesize a spawn at the first snapshot in which each
+    /// unknown callsign appears. Only those aircraft are deserialized: every other snapshot entry
+    /// is skipped at the JSON-element level (a full <see cref="StateSnapshotDto"/> decode per
+    /// snapshot dominated recording load time and allocation).
+    /// </summary>
+    private List<RecordedAction> AddSyntheticAircraftSpawnsFromSnapshots(List<RecordedAction> actions, IReadOnlySet<string> scenarioAircraftCallsigns)
     {
-        if (Manifest.Snapshots.Count < 2)
-        {
-            return [];
-        }
-
-        var snapshots = new List<TimedSnapshot>(Manifest.Snapshots.Count);
-        for (int i = 0; i < Manifest.Snapshots.Count; i++)
-        {
-            snapshots.Add(ReadTimedSnapshot(i));
-        }
-
-        return snapshots;
-    }
-
-    private static List<RecordedAction> AddSyntheticAircraftSpawnsFromSnapshots(
-        List<RecordedAction> actions,
-        IReadOnlyList<TimedSnapshot>? snapshots,
-        IReadOnlySet<string> scenarioAircraftCallsigns
-    )
-    {
-        if (actions.Any(static a => a is RecordedAircraftSpawn) || snapshots is not { Count: >= 2 })
+        if (actions.Any(static a => a is RecordedAircraftSpawn) || Manifest.Snapshots.Count < 2)
         {
             return actions;
         }
 
         var result = actions.ToList();
-        var seen = snapshots[0].State.Aircraft.Select(static a => a.Callsign).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var seen = FirstSnapshot.State.Aircraft.Select(static a => a.Callsign).ToHashSet(StringComparer.OrdinalIgnoreCase);
 
-        for (int i = 1; i < snapshots.Count; i++)
+        for (int i = 1; i < Manifest.Snapshots.Count; i++)
         {
-            var snapshot = snapshots[i];
-            foreach (var aircraft in snapshot.State.Aircraft)
+            double elapsedSeconds = Manifest.Snapshots[i].ElapsedSeconds;
+            foreach (var aircraft in ReadUnseenSnapshotAircraft(i, seen))
             {
-                if (seen.Add(aircraft.Callsign) && !scenarioAircraftCallsigns.Contains(aircraft.Callsign))
+                if (!scenarioAircraftCallsigns.Contains(aircraft.Callsign))
                 {
-                    result.Add(new RecordedAircraftSpawn(snapshot.ElapsedSeconds, aircraft) { IsSynthetic = true });
+                    result.Add(new RecordedAircraftSpawn(elapsedSeconds, aircraft) { IsSynthetic = true });
                 }
             }
         }
@@ -565,6 +555,76 @@ public sealed class RecordingArchive : IDisposable
         var json = ReadUtf8Entry(entry);
         return JsonSerializer.Deserialize<RecordingManifest>(json, RecordingJsonOptions.Default)
             ?? throw new InvalidOperationException("Failed to deserialize manifest.json from recording archive.");
+    }
+
+    /// <summary>
+    /// Deserialize the aircraft of snapshot <paramref name="index"/> whose callsigns are not yet in
+    /// <paramref name="seen"/>, adding them to it. Every other aircraft element is skipped without
+    /// being materialized.
+    /// </summary>
+    private List<AircraftSnapshotDto> ReadUnseenSnapshotAircraft(int index, HashSet<string> seen)
+    {
+        string entryName = $"snapshots/{index:D3}.json.br";
+        var entry = _zip.GetEntry(entryName) ?? throw new InvalidOperationException($"Recording archive missing entry: {entryName}");
+        using var entryStream = entry.Open();
+        using var brotli = new BrotliStream(entryStream, CompressionMode.Decompress);
+        using var document = JsonDocument.Parse(brotli);
+
+        var unseen = new List<AircraftSnapshotDto>();
+        if (
+            !TryGetPropertyIgnoreCase(document.RootElement, nameof(StateSnapshotDto.Aircraft), out var aircraftArray)
+            || aircraftArray.ValueKind is not JsonValueKind.Array
+        )
+        {
+            return unseen;
+        }
+
+        foreach (var element in aircraftArray.EnumerateArray())
+        {
+            if (
+                !TryGetPropertyIgnoreCase(element, nameof(AircraftSnapshotDto.Callsign), out var callsignElement)
+                || callsignElement.GetString() is not { } callsign
+            )
+            {
+                continue;
+            }
+
+            if (seen.Add(callsign))
+            {
+                var aircraft =
+                    element.Deserialize<AircraftSnapshotDto>(RecordingJsonOptions.Default)
+                    ?? throw new InvalidOperationException($"Failed to deserialize aircraft {callsign} from snapshot {index}.");
+                unseen.Add(aircraft);
+            }
+        }
+
+        return unseen;
+    }
+
+    private static bool TryGetPropertyIgnoreCase(JsonElement element, string name, out JsonElement value)
+    {
+        if (element.ValueKind is JsonValueKind.Object)
+        {
+            foreach (var property in element.EnumerateObject())
+            {
+                if (property.NameEquals(name) || string.Equals(property.Name, name, StringComparison.OrdinalIgnoreCase))
+                {
+                    value = property.Value;
+                    return true;
+                }
+            }
+        }
+
+        value = default;
+        return false;
+    }
+
+    private T? DeserializeBrotliEntry<T>(string entryName)
+    {
+        var entry = _zip.GetEntry(entryName) ?? throw new InvalidOperationException($"Recording archive missing entry: {entryName}");
+        using var entryStream = entry.Open();
+        using var brotli = new BrotliStream(entryStream, CompressionMode.Decompress);
+        return JsonSerializer.Deserialize<T>(brotli, RecordingJsonOptions.Default);
     }
 
     private string ReadBrotliEntry(string entryName)
