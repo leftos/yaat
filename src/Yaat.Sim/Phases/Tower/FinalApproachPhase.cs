@@ -892,6 +892,13 @@ public sealed class FinalApproachPhase : Phase
         // Check landing clearance from PhaseList (set earlier by CTL command)
         bool hasLandingClearance = HasLandingClearance(ctx);
 
+        // Occupied runway on short final: the pilot goes around regardless of clearance (AIM 5-2-5.9).
+        if (OccupiedRunwayGoAround.TryTrigger(ctx))
+        {
+            _goAroundTriggered = true;
+            return false;
+        }
+
         var activeApproach = ctx.Aircraft.Phases?.ActiveApproach;
         if (activeApproach?.MapAltitudeFt is { } mapAltitudeFt)
         {

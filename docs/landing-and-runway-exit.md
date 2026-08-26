@@ -46,6 +46,20 @@ These are **wheel** crossing heights, per AIM 1-1-9.d.7 ("a comfortable wheel cr
 
 `FinalApproachPhase` completes (hands to `LandingPhase`) at `agl < 30`, near the threshold, **or once the aircraft passes the threshold**. That last condition is a safety net: a high/rushed approach that crosses still above the 50 ft AGL completion band hands off to the flare (or a stabilization-gate go-around) instead of flying past the threshold and climbing away, tracking the glideslope that rises again beyond it (distance-to-threshold is unsigned).
 
+## Occupied-runway go-around
+
+`OccupiedRunwayGoAround.TryTrigger` (`Phases/Tower/OccupiedRunwayGoAround.cs`) runs from `FinalApproachPhase.OnTick` right after the
+landing-clearance check, before the no-clearance branches. Gate: session setting `AutoGoAroundOnOccupiedRunway` (default on for live
+sessions, `false` in `SimScenarioState` so old recordings replay unchanged), fixed-wing, not CLANDF, `RunwayOccupancy.SecondsToLandingThreshold`
+≤ 30 s, AGL ≥ 50 ft above the runway end. §3-10-3 is a "does not cross the landing threshold until" rule, so every occupant on the
+pavement is judged where it will be when the arrival reaches the threshold (present ground speed held), by what it did on this runway:
+**landed here** (`LandingPhase`/`RunwayExitPhase`/`StopAndGo`/`TouchAndGo`, or a phase-less `Landing`) → a.1 landmark from the **landing**
+threshold (`SameRunwaySeparation`: Cat I 3,000 ft / Cat II 4,500 ft / no exception when either is Cat III — no motion requirement, a
+stopped stop-and-go beyond the landmark is legal); **departed here** (`TakeoffPhase`/`InitialClimbPhase`, or a phase-less `Departing`) →
+a.2: crossed the runway end, or airborne/rolling and projected past 3,000 / 4,500 / 6,000 ft; **neither** (lined up, holding in
+position, crossing, parked) blocks at any distance. A helicopter arrival never triggers it (§3-10-3.a.3). The pilot line is spoken with its reason
+(`PilotResponder.BuildGoingAroundTrafficOnRunway`, AIM 5-2-5.9 / 5-5-5.a.2) and the go-around itself goes through `GoAroundHelper.Trigger`.
+
 Measured end-to-end through the production tick loop (`TouchdownPointTests`), touchdown lands at **B738 1,367 ft / DH8D 798 ft / C172 401 ft** past the threshold — all inside the AIM 2-1-5.b touchdown zone (100–3,000 ft), with the transports on or just past the AIM 2-3-3.b.4 aiming point markings and the light single near the numbers.
 
 Each figure is `aimPoint + flareFloat`, and **the two are coupled**: raising a crossing height moves the whole path back, so the float has to shrink to match (AIM 1-1-9.d.7 NOTE: "a higher than optimum TCH … may cause the aircraft to touch down further from the threshold"). That coupling is why the jet's `FlareDescentRate` is 370 fpm rather than the 200 it carried while the glidepath had no crossing height at all — 200 fpm bought a 2,300 ft float that faked an aiming point the geometry wasn't providing. `FlareDescentRate` is the sink commanded *at flare initiation*, decaying with height; a transport enters the flare from ~700 fpm and arrests to ~150 by touchdown.

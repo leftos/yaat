@@ -45,6 +45,18 @@ public sealed class PhaseContext
     public bool AutoPullUpToParallel { get; init; }
 
     /// <summary>
+    /// When true, an arrival on short final goes around on its own when its runway is occupied
+    /// (<see cref="Tower.OccupiedRunwayGoAround"/>). Sourced from <c>SimScenarioState.AutoGoAroundOnOccupiedRunway</c>.
+    /// </summary>
+    public bool AutoGoAroundOnOccupiedRunway { get; init; }
+
+    /// <summary>
+    /// Every aircraft in the world, for phases that must look at other traffic on their runway. Null in
+    /// contexts that carry no world (command-time minimal contexts, some tests).
+    /// </summary>
+    public Func<IReadOnlyList<AircraftState>>? ListAircraft { get; init; }
+
+    /// <summary>
     /// When true, the simulator plays all pilots and emits readbacks / proactive comms via
     /// <c>PilotResponder</c>. Phases gate any pilot-side speech (e.g.,
     /// <c>AtParkingPhase</c>'s spawn check-in) on this flag so instructor-mode users see

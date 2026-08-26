@@ -594,6 +594,12 @@ public sealed class ServerConnection : IStripsTransport, ITdlsTransport, IAsyncD
         await _connection!.InvokeAsync("SetAutoPullUpToParallel", enabled);
     }
 
+    public async Task SetAutoGoAroundOnOccupiedRunwayAsync(bool enabled)
+    {
+        EnsureConnected();
+        await _connection!.InvokeAsync("SetAutoGoAroundOnOccupiedRunway", enabled);
+    }
+
     // --- Timeline / Rewind ---
 
     public async Task<RewindResultDto?> RewindToAsync(double elapsedSeconds)
@@ -1079,6 +1085,7 @@ public record LoadScenarioResultDto(
     bool AutoClearedToLand = false,
     bool AutoCrossRunway = false,
     bool AutoPullUpToParallel = false,
+    bool AutoGoAroundOnOccupiedRunway = false,
     bool ValidateDctFixes = true,
     bool SoloTrainingMode = false,
     int SoloParkingInitialCallupRatePercent = 100,
@@ -1157,6 +1164,7 @@ public record RoomStateDto(
     bool AutoClearedToLand = false,
     bool AutoCrossRunway = false,
     bool AutoPullUpToParallel = false,
+    bool AutoGoAroundOnOccupiedRunway = false,
     bool ValidateDctFixes = true,
     bool SoloTrainingMode = false,
     int SoloParkingInitialCallupRatePercent = 100,
@@ -1192,6 +1200,7 @@ public record ScenarioLoadedDto(
     bool AutoClearedToLand = false,
     bool AutoCrossRunway = false,
     bool AutoPullUpToParallel = false,
+    bool AutoGoAroundOnOccupiedRunway = false,
     bool ValidateDctFixes = true,
     bool SoloTrainingMode = false,
     int SoloParkingInitialCallupRatePercent = 100,
@@ -1257,6 +1266,7 @@ public record SessionSettingsDto(
     bool AutoClearedToLand,
     bool AutoCrossRunway,
     bool AutoPullUpToParallel,
+    bool AutoGoAroundOnOccupiedRunway,
     bool ValidateDctFixes,
     bool SoloTrainingMode,
     int SoloParkingInitialCallupRatePercent,

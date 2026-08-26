@@ -201,6 +201,7 @@ public sealed class UserPreferences
     public bool AutoClearedToLandCtr => _data.AutoClearedToLandCtr;
     public bool AutoCrossRunway => _data.AutoCrossRunway;
     public bool AutoPullUpToParallel => _data.AutoPullUpToParallel;
+    public bool AutoGoAroundOnOccupiedRunway => _data.AutoGoAroundOnOccupiedRunway;
     public bool SoloTrainingMode => _data.SoloTrainingMode;
     public int SoloParkingInitialCallupRatePercent => Math.Clamp(_data.SoloParkingInitialCallupRatePercent, 0, 200);
     public int SoloArrivalGeneratorRatePercent => Math.Clamp(_data.SoloArrivalGeneratorRatePercent, 0, 100);
@@ -799,7 +800,8 @@ public sealed class UserPreferences
         bool autoClearedToLandApp,
         bool autoClearedToLandCtr,
         bool autoCrossRunway,
-        bool autoPullUpToParallel
+        bool autoPullUpToParallel,
+        bool autoGoAroundOnOccupiedRunway
     )
     {
         _data.AutoClearedToLandGnd = autoClearedToLandGnd;
@@ -808,6 +810,7 @@ public sealed class UserPreferences
         _data.AutoClearedToLandCtr = autoClearedToLandCtr;
         _data.AutoCrossRunway = autoCrossRunway;
         _data.AutoPullUpToParallel = autoPullUpToParallel;
+        _data.AutoGoAroundOnOccupiedRunway = autoGoAroundOnOccupiedRunway;
         Save();
     }
 
@@ -1646,6 +1649,7 @@ public sealed class UserPreferences
             MvaHintDefaultCtr = GetFieldOr(obj, "mvaHintDefaultCtr", true),
             AutoCrossRunway = GetFieldOr(obj, "autoCrossRunway", false),
             AutoPullUpToParallel = GetFieldOr(obj, "autoPullUpToParallel", true),
+            AutoGoAroundOnOccupiedRunway = GetFieldOr(obj, "autoGoAroundOnOccupiedRunway", true),
             SoloTrainingMode = GetFieldOr(obj, "soloTrainingMode", false),
             SoloParkingInitialCallupRatePercent = GetFieldOr(obj, "soloParkingInitialCallupRatePercent", 100),
             SoloArrivalGeneratorRatePercent = GetFieldOr(obj, "soloArrivalGeneratorRatePercent", 100),
@@ -1924,6 +1928,7 @@ public sealed class UserPreferences
         public bool MvaHintDefaultCtr { get; set; } = true;
         public bool AutoCrossRunway { get; set; }
         public bool AutoPullUpToParallel { get; set; } = true;
+        public bool AutoGoAroundOnOccupiedRunway { get; set; } = true;
 
         // How far the VFR-only command set opens up for IFR aircraft: "None", "EnterFinalOnly",
         // or "All". Stored as a string (like RendererMode) so enum reordering can't misassign it.

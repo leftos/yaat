@@ -20,6 +20,9 @@ public sealed class ScenarioSnapshotDto
     // scenario value (true by default on live sessions).
     public bool AutoPullUpToParallel { get; init; }
 
+    // Optional — defaults to false so snapshots that predate the occupied-runway go-around replay unchanged.
+    public bool AutoGoAroundOnOccupiedRunway { get; init; }
+
     public required bool ValidateDctFixes { get; init; }
     public required bool IsPaused { get; init; }
     public required double SimRate { get; init; }

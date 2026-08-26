@@ -212,6 +212,15 @@
                                    Margin="28,0,0,0" />
                     </StackPanel>
                     <StackPanel Spacing="4">
+                        <CheckBox Content="Auto go-around when the runway is occupied on short final"
+                                  IsChecked="{Binding AutoGoAroundOnOccupiedRunway}" />
+                        <TextBlock Text="Arrivals about 30 seconds from the threshold go around on their own when another aircraft is on their runway, unless it has landed or departed far enough down the runway (7110.65 3-10-3). On by default."
+                                   TextWrapping="Wrap"
+                                   Foreground="{DynamicResource SubtleTextBrush}"
+                                   FontSize="11"
+                                   Margin="28,0,0,0" />
+                    </StackPanel>
+                    <StackPanel Spacing="4">
                         <TextBlock Text="VFR commands for IFR aircraft:"
                                    Foreground="{DynamicResource SubtleTextBrush}" />
                         <ComboBox ItemsSource="{Binding VfrCommandsForIfrOptions}"

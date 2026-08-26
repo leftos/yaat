@@ -2016,7 +2016,7 @@ public sealed class SoloTrainingEvaluator
                 alongPavementFt,
                 displacementFt,
                 runway.PavementLengthFt,
-                ResolveSrsCategory(aircraft),
+                SameRunwaySeparation.ResolveSrsCategory(aircraft),
                 ResolveCwtCategory(aircraft)
             );
         }
@@ -2496,7 +2496,7 @@ public sealed class SoloTrainingEvaluator
             RunwayRelation relation
         )
         {
-            double requiredFt = RequiredDepartureBehindDepartureFt(preceding.SrsCategory, succeeding.SrsCategory);
+            double requiredFt = SameRunwaySeparation.RequiredDepartureBehindDepartureFt(preceding.SrsCategory, succeeding.SrsCategory);
             if (DepartureBehindDepartureSatisfied(precedingState, succeedingState, requiredFt))
             {
                 return null;
@@ -2547,7 +2547,7 @@ public sealed class SoloTrainingEvaluator
             RunwayRelation relation
         )
         {
-            double requiredFt = RequiredArrivalBehindDepartureFt(preceding.SrsCategory, succeeding.SrsCategory);
+            double requiredFt = SameRunwaySeparation.RequiredArrivalBehindDepartureFt(preceding.SrsCategory, succeeding.SrsCategory);
             if (ArrivalBehindDepartureSatisfied(precedingState, requiredFt))
             {
                 return null;
@@ -2573,7 +2573,7 @@ public sealed class SoloTrainingEvaluator
             RunwayRelation relation
         )
         {
-            double? exceptionFt = RequiredLandingBehindLandingExceptionFt(preceding.SrsCategory, succeeding.SrsCategory);
+            double? exceptionFt = SameRunwaySeparation.RequiredLandingBehindLandingExceptionFt(preceding.SrsCategory, succeeding.SrsCategory);
             if (ArrivalBehindLandingSatisfied(precedingState, exceptionFt))
             {
                 return null;
@@ -2923,9 +2923,18 @@ public sealed class SoloTrainingEvaluator
                 relation.Kind == RunwayRelationKind.SameActive
                     ? rule switch
                     {
-                        SameRunwayRule.DepartureBehindDeparture => RequiredDepartureBehindDepartureFt(preceding.SrsCategory, succeeding.SrsCategory),
-                        SameRunwayRule.ArrivalBehindDeparture => RequiredArrivalBehindDepartureFt(preceding.SrsCategory, succeeding.SrsCategory),
-                        SameRunwayRule.ArrivalBehindLanding => RequiredLandingBehindLandingExceptionFt(preceding.SrsCategory, succeeding.SrsCategory),
+                        SameRunwayRule.DepartureBehindDeparture => SameRunwaySeparation.RequiredDepartureBehindDepartureFt(
+                            preceding.SrsCategory,
+                            succeeding.SrsCategory
+                        ),
+                        SameRunwayRule.ArrivalBehindDeparture => SameRunwaySeparation.RequiredArrivalBehindDepartureFt(
+                            preceding.SrsCategory,
+                            succeeding.SrsCategory
+                        ),
+                        SameRunwayRule.ArrivalBehindLanding => SameRunwaySeparation.RequiredLandingBehindLandingExceptionFt(
+                            preceding.SrsCategory,
+                            succeeding.SrsCategory
+                        ),
                         _ => null,
                     }
                     : null;
@@ -3463,86 +3472,6 @@ public sealed class SoloTrainingEvaluator
             return state.Phase is not (LandingPhase or RunwayExitPhase or StopAndGoPhase or TouchAndGoPhase);
         }
 
-        private static double RequiredDepartureBehindDepartureFt(SrsCategory preceding, SrsCategory succeeding)
-        {
-            if (preceding == SrsCategory.III || succeeding == SrsCategory.III)
-            {
-                return 6000.0;
-            }
-
-            if (preceding == SrsCategory.II || succeeding == SrsCategory.II)
-            {
-                return 4500.0;
-            }
-
-            return 3000.0;
-        }
-
-        private static double RequiredArrivalBehindDepartureFt(SrsCategory preceding, SrsCategory succeeding)
-        {
-            if (preceding == SrsCategory.III || succeeding == SrsCategory.III)
-            {
-                return 6000.0;
-            }
-
-            return succeeding == SrsCategory.II ? 4500.0 : 3000.0;
-        }
-
-        private static double? RequiredLandingBehindLandingExceptionFt(SrsCategory preceding, SrsCategory succeeding)
-        {
-            if (preceding == SrsCategory.III || succeeding == SrsCategory.III)
-            {
-                return null;
-            }
-
-            return succeeding == SrsCategory.II ? 4500.0 : 3000.0;
-        }
-
-        private static SrsCategory ResolveSrsCategory(AircraftState aircraft)
-        {
-            var record = FaaAircraftDatabase.Get(aircraft.AircraftType);
-            if (record?.Srs is { Length: > 0 } srs)
-            {
-                if (srs.Equals("I", StringComparison.OrdinalIgnoreCase))
-                {
-                    return SrsCategory.I;
-                }
-
-                if (srs.Equals("II", StringComparison.OrdinalIgnoreCase))
-                {
-                    return SrsCategory.II;
-                }
-
-                if (srs.Equals("III", StringComparison.OrdinalIgnoreCase))
-                {
-                    return SrsCategory.III;
-                }
-            }
-
-            if (record is not null)
-            {
-                bool small = (record.MtowLb ?? double.MaxValue) <= 12500.0;
-                bool prop =
-                    (record.PhysicalClassEngine?.Contains("Piston", StringComparison.OrdinalIgnoreCase) == true)
-                    || (record.PhysicalClassEngine?.Contains("Prop", StringComparison.OrdinalIgnoreCase) == true);
-                bool helicopter =
-                    (record.Class?.Contains("Helicopter", StringComparison.OrdinalIgnoreCase) == true)
-                    || (record.PhysicalClassEngine?.Contains("Turboshaft", StringComparison.OrdinalIgnoreCase) == true);
-
-                if (helicopter || (small && prop && record.NumEngines == 1))
-                {
-                    return SrsCategory.I;
-                }
-
-                if (small && prop && record.NumEngines == 2)
-                {
-                    return SrsCategory.II;
-                }
-            }
-
-            return AircraftCategorization.Categorize(aircraft.AircraftType) == AircraftCategory.Helicopter ? SrsCategory.I : SrsCategory.III;
-        }
-
         private static CwtCategory ResolveCwtCategory(AircraftState aircraft)
         {
             string? cwt = WakeTurbulenceData.GetCwt(aircraft.AircraftType) ?? FaaAircraftDatabase.Get(aircraft.AircraftType)?.Cwt;
@@ -3759,13 +3688,6 @@ public sealed class SoloTrainingEvaluator
             OppositeDirectionSamePavement,
             Intersecting,
             ProjectedConverging,
-        }
-
-        private enum SrsCategory
-        {
-            I,
-            II,
-            III,
         }
 
         private enum CwtCategory

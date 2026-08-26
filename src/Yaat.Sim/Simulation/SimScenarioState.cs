@@ -73,6 +73,14 @@ public sealed class SimScenarioState
     /// </summary>
     public bool AutoPullUpToParallel { get; set; }
 
+    /// <summary>
+    /// When true, a simulated arrival on short final goes around by itself when another aircraft is on
+    /// its runway (7110.65 §3-10-3 landmark exceptions applied). Defaults to false here so pre-feature
+    /// recordings replay faithfully; the user-facing default is on, pushed from the client preference at
+    /// scenario load.
+    /// </summary>
+    public bool AutoGoAroundOnOccupiedRunway { get; set; }
+
     public bool ValidateDctFixes { get; set; } = true;
 
     // When true, every successful command dispatch produces a deterministic pilot-readback
@@ -231,6 +239,7 @@ public sealed class SimScenarioState
             AutoClearedToLand = AutoClearedToLand,
             AutoCrossRunway = AutoCrossRunway,
             AutoPullUpToParallel = AutoPullUpToParallel,
+            AutoGoAroundOnOccupiedRunway = AutoGoAroundOnOccupiedRunway,
             ValidateDctFixes = ValidateDctFixes,
             SoloTrainingMode = SoloTrainingMode,
             SoloParkingInitialCallupRatePercent = SoloParkingInitialCallupRatePercent,

@@ -260,6 +260,7 @@ public sealed class SimulationEngine
             Scenario.AutoClearedToLand = scenarioDto.AutoClearedToLand;
             Scenario.AutoCrossRunway = scenarioDto.AutoCrossRunway;
             Scenario.AutoPullUpToParallel = scenarioDto.AutoPullUpToParallel;
+            Scenario.AutoGoAroundOnOccupiedRunway = scenarioDto.AutoGoAroundOnOccupiedRunway;
             Scenario.ValidateDctFixes = scenarioDto.ValidateDctFixes;
             Scenario.SoloTrainingMode = scenarioDto.SoloTrainingMode;
             Scenario.SoloParkingInitialCallupRatePercent = scenarioDto.SoloParkingInitialCallupRatePercent;
@@ -2967,6 +2968,8 @@ public sealed class SimulationEngine
             ScenarioElapsedSeconds = Scenario?.ElapsedSeconds ?? 0,
             AutoClearedToLand = Scenario?.AutoClearedToLand ?? false,
             AutoPullUpToParallel = Scenario?.AutoPullUpToParallel ?? false,
+            AutoGoAroundOnOccupiedRunway = Scenario?.AutoGoAroundOnOccupiedRunway ?? false,
+            ListAircraft = World.GetSnapshot,
             SoloTrainingMode = Scenario?.SoloTrainingMode ?? false,
             ScenarioId = Scenario?.ScenarioId,
             SoloParkingInitialCallupRatePercent = Scenario?.SoloParkingInitialCallupRatePercent ?? 100,
@@ -4789,6 +4792,12 @@ public sealed class SimulationEngine
                 if (bool.TryParse(setting.Value, out var apup))
                 {
                     scenario.AutoPullUpToParallel = apup;
+                }
+                break;
+            case "AutoGoAroundOnOccupiedRunway":
+                if (bool.TryParse(setting.Value, out var agor))
+                {
+                    scenario.AutoGoAroundOnOccupiedRunway = agor;
                 }
                 break;
             case "AutoAcceptDelay":

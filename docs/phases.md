@@ -95,7 +95,8 @@ What every `OnTick` receives. Beyond `Aircraft` and `Targets`, notable fields:
 - `AircraftLookup` — delegate for finding other aircraft (used by `FollowingPhase`, ground conflict avoidance).
 - `TowerPosition` — the local tower `TrackOwner`. `InitialClimbPhase` uses this to hold RV SID heading until handoff + 5s.
 - `IsHoldShortNodeOccupied` / `OccupiedHoldShortNodes` / `MarkHoldShortNodeOccupied` — ground anti-collision plumbing.
-- `ScenarioElapsedSeconds`, `AutoClearedToLand`, `SoloTrainingMode`, `RpoShowPilotSpeech` — scenario flags.
+- `ScenarioElapsedSeconds`, `AutoClearedToLand`, `AutoPullUpToParallel`, `AutoGoAroundOnOccupiedRunway`, `SoloTrainingMode`, `RpoShowPilotSpeech` — scenario flags.
+- `ListAircraft` — delegate returning every aircraft in the world (used by `OccupiedRunwayGoAround` from `FinalApproachPhase`; null in minimal command-time contexts).
 
 Phases write **directly** to `ctx.Targets` — they do not enqueue commands.
 

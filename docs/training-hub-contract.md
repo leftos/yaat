@@ -113,6 +113,7 @@ both the wrapper name and the hub method's own semantics** — grep for the stri
 | `SetAutoClearedToLandAsync(enabled)` | `SetAutoClearedToLand` | `SetAutoClearedToLand(...)` `:563` |
 | `SetAutoCrossRunwayAsync(enabled)` | `SetAutoCrossRunway` | `SetAutoCrossRunway(...)` `:581` |
 | `SetAutoPullUpToParallelAsync(enabled)` | `SetAutoPullUpToParallel` | `SetAutoPullUpToParallel(...)` |
+| `SetAutoGoAroundOnOccupiedRunwayAsync(enabled)` | `SetAutoGoAroundOnOccupiedRunway` | `SetAutoGoAroundOnOccupiedRunway(...)` |
 | `RewindToAsync(elapsedSeconds)` | **`RewindTo`** | `RewindTo(...)` `:907` |
 | `RewindFromSnapshotAsync(…)` | `RewindFromSnapshot` | `RewindFromSnapshot(...)` `:925` |
 | `TakeControlAsync()` | `TakeControl` | `TakeControl()` `:943` |
@@ -354,7 +355,7 @@ Roughly 13 session-settings fields are duplicated across **four** DTOs and must 
 `LoadScenarioResult` (`TrainingDtos.cs:105`), `RoomStateDto` (`:182`), `ScenarioLoadedDto` (`:213`), and
 `SessionSettingsDto` (`:241`) — with the same set on the client side. The fields:
 `AutoDeleteOverride`, `EffectiveAutoDeleteMode`, `AutoAcceptDelaySeconds`, `AutoClearedToLand`, `AutoCrossRunway`,
-`AutoPullUpToParallel`, `ValidateDctFixes`, `SoloTrainingMode`, `SoloParkingInitialCallupRatePercent`,
+`AutoPullUpToParallel`, `AutoGoAroundOnOccupiedRunway`, `ValidateDctFixes`, `SoloTrainingMode`, `SoloParkingInitialCallupRatePercent`,
 `SoloArrivalGeneratorRatePercent`, `SoloGoAroundProbabilityPercent`, `HasSoloParkingInitialCallupSource`,
 `HasSoloArrivalGeneratorSource`, `RpoShowPilotSpeech`, `CommandRunDelayMinSeconds`, `CommandRunDelayMaxSeconds`.
 The four DTOs feed three different paths — initial join (`RoomStateDto`), scenario load

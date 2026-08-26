@@ -210,6 +210,9 @@ public partial class MainViewModel : ObservableObject
     private bool _sessionAutoPullUpToParallel;
 
     [ObservableProperty]
+    private bool _sessionAutoGoAroundOnOccupiedRunway;
+
+    [ObservableProperty]
     private bool _sessionValidateDctFixes = true;
 
     [ObservableProperty]
@@ -3129,6 +3132,7 @@ public partial class MainViewModel : ObservableObject
         SessionAutoClearedToLand = dto.AutoClearedToLand;
         SessionAutoCrossRunway = dto.AutoCrossRunway;
         SessionAutoPullUpToParallel = dto.AutoPullUpToParallel;
+        SessionAutoGoAroundOnOccupiedRunway = dto.AutoGoAroundOnOccupiedRunway;
         SessionValidateDctFixes = dto.ValidateDctFixes;
         SessionSoloTrainingMode = dto.SoloTrainingMode;
         SessionSoloParkingInitialCallupRatePercent = dto.SoloParkingInitialCallupRatePercent;
@@ -3153,6 +3157,7 @@ public partial class MainViewModel : ObservableObject
                 state.AutoClearedToLand,
                 state.AutoCrossRunway,
                 state.AutoPullUpToParallel,
+                state.AutoGoAroundOnOccupiedRunway,
                 state.ValidateDctFixes,
                 state.SoloTrainingMode,
                 state.SoloParkingInitialCallupRatePercent,
@@ -3177,6 +3182,7 @@ public partial class MainViewModel : ObservableObject
                 dto.AutoClearedToLand,
                 dto.AutoCrossRunway,
                 dto.AutoPullUpToParallel,
+                dto.AutoGoAroundOnOccupiedRunway,
                 dto.ValidateDctFixes,
                 dto.SoloTrainingMode,
                 dto.SoloParkingInitialCallupRatePercent,
@@ -3201,6 +3207,7 @@ public partial class MainViewModel : ObservableObject
                 result.AutoClearedToLand,
                 result.AutoCrossRunway,
                 result.AutoPullUpToParallel,
+                result.AutoGoAroundOnOccupiedRunway,
                 result.ValidateDctFixes,
                 result.SoloTrainingMode,
                 result.SoloParkingInitialCallupRatePercent,
@@ -3273,6 +3280,14 @@ public partial class MainViewModel : ObservableObject
         if (!_isApplyingSessionSettings)
         {
             _ = _connection.SetAutoPullUpToParallelAsync(value);
+        }
+    }
+
+    partial void OnSessionAutoGoAroundOnOccupiedRunwayChanged(bool value)
+    {
+        if (!_isApplyingSessionSettings)
+        {
+            _ = _connection.SetAutoGoAroundOnOccupiedRunwayAsync(value);
         }
     }
 
@@ -3551,6 +3566,18 @@ public partial class MainViewModel : ObservableObject
         catch (Exception ex)
         {
             _log.LogWarning(ex, "Failed to set auto-pull-up-to-parallel");
+        }
+    }
+
+    private async Task SendAutoGoAroundOnOccupiedRunway()
+    {
+        try
+        {
+            await _connection.SetAutoGoAroundOnOccupiedRunwayAsync(_preferences.AutoGoAroundOnOccupiedRunway);
+        }
+        catch (Exception ex)
+        {
+            _log.LogWarning(ex, "Failed to set auto go-around on occupied runway");
         }
     }
 

@@ -21,6 +21,7 @@ public class MainViewModelSessionSettingsTests
                 AutoClearedToLand: true,
                 AutoCrossRunway: true,
                 AutoPullUpToParallel: true,
+                AutoGoAroundOnOccupiedRunway: true,
                 ValidateDctFixes: true,
                 SoloTrainingMode: true,
                 SoloParkingInitialCallupRatePercent: 50,
@@ -37,6 +38,7 @@ public class MainViewModelSessionSettingsTests
         Assert.Equal(5, vm.SessionAutoAcceptDelaySeconds);
         Assert.True(vm.SessionAutoClearedToLand);
         Assert.True(vm.SessionAutoCrossRunway);
+        Assert.True(vm.SessionAutoGoAroundOnOccupiedRunway);
         Assert.True(vm.SessionValidateDctFixes);
         Assert.True(vm.SessionSoloTrainingMode);
         Assert.Equal(40, vm.SessionSoloParkingInitialCallupIntervalSeconds);
@@ -59,6 +61,7 @@ public class MainViewModelSessionSettingsTests
                 AutoClearedToLand: false,
                 AutoCrossRunway: false,
                 AutoPullUpToParallel: false,
+                AutoGoAroundOnOccupiedRunway: false,
                 ValidateDctFixes: true,
                 SoloTrainingMode: false,
                 SoloParkingInitialCallupRatePercent: 100,
@@ -87,6 +90,7 @@ public class MainViewModelSessionSettingsTests
                 AutoClearedToLand: false,
                 AutoCrossRunway: false,
                 AutoPullUpToParallel: false,
+                AutoGoAroundOnOccupiedRunway: false,
                 ValidateDctFixes: false,
                 SoloTrainingMode: false,
                 SoloParkingInitialCallupRatePercent: 100,

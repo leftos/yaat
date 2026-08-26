@@ -1336,6 +1336,17 @@ public static class PilotResponder
     }
 
     /// <summary>
+    /// The runway is occupied on short final: the pilot goes around and SPEAKS the reason (AIM
+    /// §5-2-5.9 — never land on an occupied runway even with a clearance; §5-5-5.a.2 — include the
+    /// reason when the pilot initiates the missed approach).
+    /// </summary>
+    public static PilotSpeechText BuildGoingAroundTrafficOnRunway(AircraftState aircraft)
+    {
+        var spoken = SpokenOwnCallsign(aircraft);
+        return new PilotSpeechText("going around, traffic on the runway.", $"{spoken}, going around, traffic on the runway.");
+    }
+
+    /// <summary>
     /// Pilot transmission when the pilot initiates a go-around. Reason is a short sim-internal
     /// descriptor ("no landing clearance", "too high at missed approach point", etc.) that's
     /// included parenthetically so the controller has the why; the spoken callout itself is the

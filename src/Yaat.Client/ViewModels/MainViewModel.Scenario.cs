@@ -478,6 +478,7 @@ public partial class MainViewModel
         _ = SendAutoClearedToLand();
         _ = SendAutoCrossRunway();
         _ = SendAutoPullUpToParallel();
+        _ = SendAutoGoAroundOnOccupiedRunway();
     }
 
     private void OnScenarioLoaded(ScenarioLoadedDto dto)
@@ -664,7 +665,7 @@ public partial class MainViewModel
         PendingDelayedSpawnCount = 0;
         Ground.ClearLayout();
         Radar.ClearVideoMaps();
-        ApplySessionSettings(new SessionSettingsDto(null, null, -1, false, false, true, true, false, 100, 100, 0, false, false, false));
+        ApplySessionSettings(new SessionSettingsDto(null, null, -1, false, false, true, true, true, false, 100, 100, 0, false, false, false));
 
         // Active position no longer applies without a scenario; hide the indicator.
         SetActiveTcpFromServer(null);
