@@ -171,8 +171,19 @@ second would put every replayed second one sample behind and would create the ai
 Removals apply after the second like other actions. Callers of `ApplyLiveTrafficSample` on a live host must call it from
 pre-physics with `ElapsedSeconds` already at the current second so the recorded second matches this placement.
 
-The server brain (`RecordingManager.ApplyRecordedActionCore`) currently ignores both actions — the room-side sync and its
-pre-tick replay twin land with the server integration step.
+The server brain mirrors this: `RecordingManager.ReconstructViaServerTick` applies each second's `RecordedLiveTrafficSample`s
+(`SimulationEngine.ApplyRecordedLiveTrafficSample`, public for this) *before* `AdvanceOneSecond` and skips them when the generic
+post-second cursor reaches them; forward tape playback does the same through `ApplyPreTickPlaybackActions(nextSecond)`, which
+`SimulationHostedService.ProcessRoomSecond` calls before advancing. Removals apply post-second. A spawn-carrying sample also
+drops the callsign from the change tracker so a recurring callsign is first-seen again. The live sync stays inert during both
+(`IsBroadcastSuppressed` / `IsPlaybackMode`) — otherwise it would spawn unrecorded shadows on top of the tape.
+
+**Feed status.** `ShadowTrafficSync.BroadcastStatusIfChanged` (post-physics) computes `LiveTrafficStatusDto(FeedConfigured,
+Connected, LastMessageAgeSeconds, TracksInScope)` from `LiveTrafficStore.FeedConfigured` (`Swim:Enabled`) / `ReportFeedState`
+and the room's last scoped query, keeps it on `RoomLiveTrafficState.LastStatus` (seeded to joiners via `RoomStateDto`), and
+broadcasts `LiveTrafficStatusChanged` immediately when the feed flags or the count change, else at most every 5 s while the
+age moves. Client: `ServerConnection.LiveTrafficStatusChanged` → `MainViewModel.LiveTrafficStatus` (display is the client step).
+`tools/bug_bundle.py actions` / `history` render the two live-traffic actions compactly (`LIVE` / `LIVERM` tags).
 
 ## Server room integration (yaat-server `src/Yaat.Server/LiveTraffic/`)
 

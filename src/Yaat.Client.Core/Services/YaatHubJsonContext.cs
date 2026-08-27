@@ -61,6 +61,7 @@ namespace Yaat.Client.Services;
 [JsonSerializable(typeof(AircraftAssignmentsDto))]
 [JsonSerializable(typeof(List<SurfaceTempDataExportDto>))]
 [JsonSerializable(typeof(SessionSettingsDto))]
+[JsonSerializable(typeof(LiveTrafficStatusDto))]
 [JsonSerializable(typeof(BookmarksChangedDto))]
 [JsonSerializable(typeof(TimelineBookmarkDto))]
 // Strip-side broadcast payloads (FlightStripsStateDto, List<StripItemDto>)

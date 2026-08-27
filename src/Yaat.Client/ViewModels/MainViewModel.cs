@@ -215,6 +215,10 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty]
     private bool _sessionLiveTrafficEnabled;
 
+    /// <summary>Feed health for the room (null until the server has reported one); seeded on join, then pushed on change.</summary>
+    [ObservableProperty]
+    private LiveTrafficStatusDto? _liveTrafficStatus;
+
     [ObservableProperty]
     private int _sessionLiveTrafficCeilingFt;
 
@@ -1497,6 +1501,7 @@ public partial class MainViewModel : ObservableObject
         _connection.ScenarioUnloaded += OnScenarioUnloaded;
         _connection.AircraftAssignmentsChanged += OnAircraftAssignmentsChanged;
         _connection.SessionSettingsChanged += OnSessionSettingsChanged;
+        _connection.LiveTrafficStatusChanged += OnServerLiveTrafficStatus;
         _connection.KickedFromRoom += OnKickedFromRoom;
         _connection.RoomRetired += OnRoomRetired;
 
@@ -3127,6 +3132,11 @@ public partial class MainViewModel : ObservableObject
         Avalonia.Threading.Dispatcher.UIThread.Post(() => ApplySessionSettings(dto));
     }
 
+    private void OnServerLiveTrafficStatus(LiveTrafficStatusDto dto)
+    {
+        Avalonia.Threading.Dispatcher.UIThread.Post(() => LiveTrafficStatus = dto);
+    }
+
     internal void ApplySessionSettings(SessionSettingsDto dto)
     {
         _isApplyingSessionSettings = true;
@@ -3157,6 +3167,7 @@ public partial class MainViewModel : ObservableObject
 
     private void ApplySessionSettingsFromRoom(RoomStateDto state)
     {
+        LiveTrafficStatus = state.LiveTrafficStatus;
         ApplySessionSettings(
             new SessionSettingsDto(
                 state.AutoDeleteOverride,

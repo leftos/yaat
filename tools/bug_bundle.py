@@ -710,6 +710,10 @@ def cmd_actions(args: argparse.Namespace) -> int:
         for a in actions:
             t = a.get("ElapsedSeconds", "?")
             kind = a.get("$type", "?")
+            live = _format_live_traffic_action(a)
+            if live is not None:
+                lines.append(f"t={t:>7} {kind:<24} {a.get('Callsign', '?')} {live.split(' ', 1)[1]}")
+                continue
             rest = {k: v for k, v in a.items() if k not in {"ElapsedSeconds", "$type"}}
             lines.append(f"t={t:>7} {kind:<24} {json.dumps(rest)}")
         write_output("\n".join(lines), args.out)
@@ -981,11 +985,51 @@ def _enumerate_callsigns(reader: BundleReader) -> list[str]:
     return sorted(seen)
 
 
+_LIVE_TRAFFIC_SOURCE = {0: "STARS", 1: "ERAM", 2: "ASDEX"}
+_LIVE_TRAFFIC_REMOVAL = {0: "Stale", 1: "Dropped", 2: "OutOfScope", 3: "Deleted", 4: "Disabled"}
+
+
+def _format_live_traffic_action(a: dict[str, Any]) -> str | None:
+    """Compact rendering for the live-traffic actions; None for any other kind.
+
+    A LiveTrafficSample carries the whole spawn snapshot on the sample that created the shadow, so the
+    generic extras dump would print an entire aircraft per line. Show the sample fields and a '+spawn'
+    marker instead.
+    """
+    kind = a.get("$type")
+    if kind == "LiveTrafficSample":
+        sample = a.get("Sample") or {}
+        src = sample.get("Source")
+        src_name = _LIVE_TRAFFIC_SOURCE.get(src, str(src)) if src is not None else "?"
+        parts = [
+            f"obs={sample.get('ObservedAtSimSeconds', '?')}",
+            f"{src_name}",
+            f"{sample.get('Lat', 0):.4f}/{sample.get('Lon', 0):.4f}",
+            f"alt={sample.get('AltitudeFt', 0):.0f}",
+            f"gs={sample.get('GroundSpeedKts', 0):.0f}",
+            f"trk={sample.get('TrueTrackDeg', 0):.0f}",
+        ]
+        if sample.get("VerticalSpeedFpm") is not None:
+            parts.append(f"vs={sample['VerticalSpeedFpm']:.0f}")
+        if sample.get("BeaconCode") is not None:
+            parts.append(f"sq={sample['BeaconCode']}")
+        if a.get("SpawnState") is not None:
+            parts.append("+spawn")
+        return "LiveTrafficSample " + " ".join(parts)
+    if kind == "LiveTrafficRemoval":
+        reason = a.get("Reason")
+        return f"LiveTrafficRemoval {_LIVE_TRAFFIC_REMOVAL.get(reason, str(reason))}"
+    return None
+
+
 def _format_action_detail(a: dict[str, Any]) -> str:
     """Compact one-liner for an action: '<Command>' or '<$type> <extras>'."""
     cmd = a.get("Command")
     if cmd:
         return cmd
+    live = _format_live_traffic_action(a)
+    if live is not None:
+        return live
     kind = a.get("$type") or "?"
     extras = {k: v for k, v in a.items() if k not in {"ElapsedSeconds", "$type", "Callsign", "Command", "Initials", "ConnectionId"}}
     if extras:
@@ -1035,7 +1079,7 @@ def cmd_history(args: argparse.Namespace) -> int:
         for a in my_actions:
             t = a.get("ElapsedSeconds", 0)
             kind = a.get("$type") or "?"
-            tag = "CMD" if kind == "Command" else kind[:6].upper()
+            tag = "CMD" if kind == "Command" else ("LIVE" if kind == "LiveTrafficSample" else "LIVERM" if kind == "LiveTrafficRemoval" else kind[:6].upper())
             detail = _format_action_detail(a)
             action_events.append((t, _action_snap_idx(snaps_meta, t), tag, detail, {"action": a}))
 

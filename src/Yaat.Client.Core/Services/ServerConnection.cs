@@ -69,6 +69,7 @@ public sealed class ServerConnection : IStripsTransport, ITdlsTransport, IAsyncD
     public event Action? ScenarioUnloaded;
     public event Action<AircraftAssignmentsDto>? AircraftAssignmentsChanged;
     public event Action<SessionSettingsDto>? SessionSettingsChanged;
+    public event Action<LiveTrafficStatusDto>? LiveTrafficStatusChanged;
     public event Action<string>? KickedFromRoom;
     public event Action<string>? RoomRetired;
     public event Action<int, int>? ExportRecordingProgress;
@@ -216,6 +217,7 @@ public sealed class ServerConnection : IStripsTransport, ITdlsTransport, IAsyncD
         );
         _connection.On<AircraftAssignmentsDto>("AircraftAssignmentsChanged", dto => AircraftAssignmentsChanged?.Invoke(dto));
         _connection.On<SessionSettingsDto>("SessionSettingsChanged", dto => SessionSettingsChanged?.Invoke(dto));
+        _connection.On<LiveTrafficStatusDto>("LiveTrafficStatusChanged", dto => LiveTrafficStatusChanged?.Invoke(dto));
         _connection.On<string>("KickedFromRoom", msg => KickedFromRoom?.Invoke(msg));
         _connection.On<string>("RoomRetired", msg => RoomRetired?.Invoke(msg));
         _connection.On<int, int>("ExportRecordingProgress", (current, total) => ExportRecordingProgress?.Invoke(current, total));
@@ -1203,8 +1205,12 @@ public record RoomStateDto(
     // Student position type (APP/CTR/GND/TWR) for seeding user-local position-based defaults on join.
     string? StudentPositionType = null,
     bool LiveTrafficEnabled = false,
-    int LiveTrafficCeilingFt = 0
+    int LiveTrafficCeilingFt = 0,
+    LiveTrafficStatusDto? LiveTrafficStatus = null
 );
+
+/// <summary>Live-traffic feed health for the room: feed configured / connected, last-message age, tracks in scope.</summary>
+public record LiveTrafficStatusDto(bool FeedConfigured, bool Connected, double? LastMessageAgeSeconds, int TracksInScope);
 
 public record ScenarioLoadedDto(
     string ScenarioId,

@@ -211,6 +211,7 @@ payload DTO → the `ServerConnection` C# event it re-raises:
 | `HeldDeparturesChanged` | `HeldDeparturesChangedDto` (carries `RundownDto`) | `HeldDeparturesChanged` |
 | `TimersChanged` | `TimersChangedDto` | `TimersChanged` |
 | `BookmarksChanged` | `BookmarksChangedDto` (full shared-bookmark list) | `BookmarksChanged` — also seeded on join via `RoomStateDto.Bookmarks` |
+| `LiveTrafficStatusChanged` | `LiveTrafficStatusDto` (feed configured / connected, last-message age, tracks in the room scope) | `LiveTrafficStatusChanged` — also seeded on join via `RoomStateDto.LiveTrafficStatus`; immediate on feed/count change, throttled to 5 s for age churn (`ShadowTrafficSync.BroadcastStatusIfChanged`) |
 | `ConflictAlertsChanged` | `ConflictAlertsChangedDto` (full active terminal-CA pair list) | `ConflictAlertsChanged` — also seeded on join via `RoomStateDto.ConflictAlerts`. Signature-guarded in `TickProcessor` so it fires only when a pair opens or clears, not every sim-second. Terminal CA only; ERAM STCA is not routed here. Carries no separation values — the client derives them per frame from live positions |
 | `PositionDisplayChanged` | `PositionDisplayConfigDto` | `PositionDisplayChanged` |
 | `ScenarioLoaded` | `ScenarioLoadedDto` | `ScenarioLoaded` (+ `StripsConfigChanged`) |
