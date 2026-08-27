@@ -179,10 +179,17 @@ drops the callsign from the change tracker so a recurring callsign is first-seen
 (`IsBroadcastSuppressed` / `IsPlaybackMode`) — otherwise it would spawn unrecorded shadows on top of the tape.
 
 **Feed status.** `ShadowTrafficSync.BroadcastStatusIfChanged` (post-physics) computes `LiveTrafficStatusDto(FeedConfigured,
-Connected, LastMessageAgeSeconds, TracksInScope)` from `LiveTrafficStore.FeedConfigured` (`Swim:Enabled`) / `ReportFeedState`
-and the room's last scoped query, keeps it on `RoomLiveTrafficState.LastStatus` (seeded to joiners via `RoomStateDto`), and
+Connected, LastMessageAgeSeconds, TracksInScope)` from `LiveTrafficStore.FeedConfigured` / `ReportFeedState`
+and the room's last scoped query, keeps it on `RoomLiveTrafficState.LastStatus` (seeded to joiners via `RoomStateDto`; before
+the first tick `TrainingHub.BuildRoomState` synthesises one from the store so a joiner learns the gate immediately), and
 broadcasts `LiveTrafficStatusChanged` immediately when the feed flags or the count change, else at most every 5 s while the
 age moves. Client: `ServerConnection.LiveTrafficStatusChanged` → `MainViewModel.LiveTrafficStatus` (display is the client step).
+
+**Server gate.** `FeedConfigured` is the per-deployment `LiveTrafficOptions.Enabled` flag (`LiveTraffic:Enabled`, env
+`LiveTraffic__Enabled`; default false, `appsettings.Development.json` turns it on, `docker-compose.yml` reads
+`LIVE_TRAFFIC_ENABLED`). `SimControlService.SetLiveTrafficEnabled(true)` refuses with "not enabled on this server" when it is
+off (disabling is always allowed); the client binds the session checkbox's `IsVisible` to `MainViewModel.LiveTrafficAvailable`
+(`LiveTrafficStatus?.FeedConfigured == true`, reset on `ClearRoomState`), so a gated server never shows the toggle.
 `tools/bug_bundle.py actions` / `history` render the two live-traffic actions compactly (`LIVE` / `LIVERM` tags).
 
 ## Server room integration (yaat-server `src/Yaat.Server/LiveTraffic/`)

@@ -292,6 +292,7 @@
                                   IsChecked="{Binding SessionAutoGoAroundOnOccupiedRunway}" />
 
                         <CheckBox Content="Live Traffic (SWIM)"
+                                  IsVisible="{Binding LiveTrafficAvailable}"
                                   IsChecked="{Binding SessionLiveTrafficEnabled}"
                                   ToolTip.Tip="Mirror real aircraft from the server's live-traffic feed as shadow targets. Not available while warped." />
 

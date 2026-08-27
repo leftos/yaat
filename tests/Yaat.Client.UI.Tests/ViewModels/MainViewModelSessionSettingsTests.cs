@@ -144,4 +144,30 @@ public class MainViewModelSessionSettingsTests
         Assert.Equal(65, vm.SessionSoloArrivalGeneratorRatePercent);
         Assert.True(vm.SessionRpoShowPilotSpeech);
     }
+
+    [AvaloniaFact]
+    public void LiveTrafficAvailable_IsFalseUntilTheServerReportsTheGateOn()
+    {
+        var vm = new MainViewModel(new FakeFilePickerService());
+        Assert.False(vm.LiveTrafficAvailable);
+
+        vm.LiveTrafficStatus = new LiveTrafficStatusDto(FeedConfigured: false, Connected: false, LastMessageAgeSeconds: null, TracksInScope: 0);
+        Assert.False(vm.LiveTrafficAvailable);
+
+        vm.LiveTrafficStatus = new LiveTrafficStatusDto(FeedConfigured: true, Connected: false, LastMessageAgeSeconds: null, TracksInScope: 0);
+        Assert.True(vm.LiveTrafficAvailable);
+    }
+
+    [AvaloniaFact]
+    public void LiveTrafficAvailable_RaisesChangeNotification_WhenTheStatusArrives()
+    {
+        var vm = new MainViewModel(new FakeFilePickerService());
+        var raised = new List<string?>();
+        vm.PropertyChanged += (_, e) => raised.Add(e.PropertyName);
+
+        vm.LiveTrafficStatus = new LiveTrafficStatusDto(FeedConfigured: true, Connected: true, LastMessageAgeSeconds: 1, TracksInScope: 3);
+
+        Assert.Contains(nameof(MainViewModel.LiveTrafficAvailable), raised);
+        Assert.True(vm.LiveTrafficAvailable);
+    }
 }

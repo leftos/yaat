@@ -794,6 +794,7 @@ public partial class MainViewModel
         RpoLobbyClients.Clear();
         RoomMembers.Clear();
         ShowRoomMembersPanel = false;
+        LiveTrafficStatus = null;
         _aircraftAssignments = [];
         AssignableMembers.Clear();
         OnPropertyChanged(nameof(HasAnyAssignments));

@@ -217,7 +217,14 @@ public partial class MainViewModel : ObservableObject
 
     /// <summary>Feed health for the room (null until the server has reported one); seeded on join, then pushed on change.</summary>
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(LiveTrafficAvailable))]
     private LiveTrafficStatusDto? _liveTrafficStatus;
+
+    /// <summary>
+    /// Whether this server offers live traffic at all (its <c>LiveTraffic:Enabled</c> gate). Drives the session
+    /// toggle's visibility; false until the server has said otherwise so a gated server never shows the checkbox.
+    /// </summary>
+    public bool LiveTrafficAvailable => LiveTrafficStatus?.FeedConfigured == true;
 
     [ObservableProperty]
     private int _sessionLiveTrafficCeilingFt;
