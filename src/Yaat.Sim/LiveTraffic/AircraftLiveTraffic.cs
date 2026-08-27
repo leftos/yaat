@@ -4,7 +4,14 @@ using Yaat.Sim.Simulation.Snapshots;
 namespace Yaat.Sim.LiveTraffic;
 
 /// <summary>One past observation kept for vertical-speed derivation, level/hold detection at assume.</summary>
-public readonly record struct LiveTrafficHistoryPoint(double ObservedAtSimSeconds, double Lat, double Lon, double AltitudeFt, double TrueTrackDeg);
+public readonly record struct LiveTrafficHistoryPoint(
+    double ObservedAtSimSeconds,
+    double Lat,
+    double Lon,
+    double AltitudeFt,
+    double TrueTrackDeg,
+    double GroundSpeedKts
+);
 
 /// <summary>
 /// Per-aircraft live-traffic satellite: the last external sample plus the dead-reckoning clock.
@@ -80,6 +87,7 @@ public sealed class AircraftLiveTraffic
                     Lat = h.Lat,
                     Lon = h.Lon,
                     AltitudeFt = h.AltitudeFt,
+                    GroundSpeedKts = h.GroundSpeedKts,
                     TrueTrackDeg = h.TrueTrackDeg,
                 })
                 .ToList(),
@@ -124,7 +132,7 @@ public sealed class AircraftLiveTraffic
         };
         foreach (var h in dto.History ?? [])
         {
-            lt.History.Add(new LiveTrafficHistoryPoint(h.ObservedAtSimSeconds, h.Lat, h.Lon, h.AltitudeFt, h.TrueTrackDeg));
+            lt.History.Add(new LiveTrafficHistoryPoint(h.ObservedAtSimSeconds, h.Lat, h.Lon, h.AltitudeFt, h.TrueTrackDeg, h.GroundSpeedKts));
         }
 
         return lt;

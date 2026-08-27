@@ -1,5 +1,6 @@
 using Xunit;
 using Yaat.Sim.Data;
+using Yaat.Sim.LiveTraffic;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Phases.Tower;
@@ -411,6 +412,53 @@ public class RunwayOccupancyTests
 
         Assert.Equal(RunwayUseKind.Landing, Kind(alongAxis));
         Assert.Equal(RunwayUseKind.Landing, Kind(diagonal));
+    }
+
+    /// <summary>A surface shadow aligned on the runway whose last five 1 Hz samples reported <paramref name="speeds"/>.</summary>
+    private static AircraftState SurfaceShadow(params double[] speeds)
+    {
+        var pos = OnRunway(500, 0);
+        AircraftState? ac = null;
+        for (int i = 0; i < speeds.Length; i++)
+        {
+            var sample = new LiveTrafficSample(i, pos.Lat, pos.Lon, ElevationFt, speeds[i], 280, 0, LiveTrafficSource.Asdex, 4521);
+            if (ac is null)
+            {
+                ac = LiveTrafficKinematics.CreateShadow("LIVE1", "B738", sample, new AircraftFlightPlan { HasFlightPlan = true });
+            }
+            else
+            {
+                LiveTrafficKinematics.Apply(ac, sample);
+            }
+        }
+
+        return ac!;
+    }
+
+    [Fact]
+    public void Shadow_AcceleratingThroughTaxiSpeed_IsAlreadyDeparting()
+    {
+        // 6 kt/s from brake release: a jet is at 25 kt four seconds in. The fixed 35 kt gate would call it OnSurface
+        // for two more seconds; the acceleration branch sees the roll now.
+        Assert.Equal(RunwayUseKind.Departing, Kind(SurfaceShadow(1, 7, 13, 19, 25)));
+    }
+
+    [Fact]
+    public void Shadow_MovingSteadilyAlongTheRunway_IsOnSurface_UntilTheSpeedGate()
+    {
+        Assert.Equal(RunwayUseKind.OnSurface, Kind(SurfaceShadow(25, 25, 25, 25, 25)));
+        Assert.Equal(RunwayUseKind.OnSurface, Kind(SurfaceShadow(20, 22, 24, 26, 28)));
+        Assert.Equal(RunwayUseKind.Departing, Kind(SurfaceShadow(36, 36, 36, 36, 36)));
+    }
+
+    [Fact]
+    public void Shadow_AcceleratingBelowTwentyKnots_OrCoasting_IsNotYetDeparting()
+    {
+        Assert.Equal(RunwayUseKind.OnSurface, Kind(SurfaceShadow(1, 5, 9, 13, 17)));
+
+        var coasting = SurfaceShadow(1, 7, 13, 19, 25);
+        coasting.LiveTraffic!.IsCoasting = true;
+        Assert.Equal(RunwayUseKind.OnSurface, Kind(coasting));
     }
 
     [Fact]

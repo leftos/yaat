@@ -1,5 +1,6 @@
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.LiveTraffic;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Phases.Tower;
@@ -113,8 +114,25 @@ public static class RunwayOccupancy
     /// </summary>
     public const double RotorcraftHoverTaxiMaxGroundSpeedKts = 20.0;
 
-    /// <summary>Ground speed (knots) above which an aligned aircraft on the pavement has started its takeoff roll.</summary>
+    /// <summary>
+    /// Ground speed (knots) above which an aligned aircraft on the pavement is unambiguously on its takeoff roll: above
+    /// every taxi and back-taxi speed (crews back-taxi at 20–30 kt, §3-7-2.b.10 "without delay"). A jet reaches it 5–7 s
+    /// after brake release, a light single ~12 s — the fallback once <see cref="RollStartAccelerationKtPerSec"/> can no
+    /// longer be measured, and the only test when there is no sample history.
+    /// </summary>
     public const double DepartingMinGroundSpeedKts = 35.0;
+
+    /// <summary>
+    /// Earlier roll-start test for feed-driven aircraft: at or above this speed (where a taxi has finished accelerating —
+    /// numerically the §3-11-1.b hover-taxi figure) <em>and</em> still accelerating at
+    /// <see cref="RollStartAccelerationKtPerSec"/> over <see cref="RollStartWindowSeconds"/>. 2.5 kt/s (≈ 0.12 g) is
+    /// below the slowest real takeoff (a C172 at ~3 kt/s) and above any taxi-up. The 4 s window is the surveillance
+    /// noise floor, not a preference; the result is "roll start + ~4 s ± 1 s", always late, never early, and halves the
+    /// category spread the fixed gate has (jet 6 s vs light single 12 s) that the §3-9-6 / §3-10-3 clocks inherit.
+    /// </summary>
+    public const double RollStartMinGroundSpeedKts = 20.0;
+    public const double RollStartAccelerationKtPerSec = 2.5;
+    public const double RollStartWindowSeconds = 4.0;
 
     /// <summary>
     /// Vertical-speed cap (fpm) for "not climbing" on short final. Level at MDA and a level low approach are legal
@@ -213,8 +231,7 @@ public static class RunwayOccupancy
                 return RunwayUseKind.Crossing;
             }
 
-            bool rolling = (ac.GroundSpeed >= DepartingMinGroundSpeedKts) && !IsRotorcraft(ac);
-            return rolling ? RunwayUseKind.Departing : RunwayUseKind.OnSurface;
+            return IsRolling(ac) ? RunwayUseKind.Departing : RunwayUseKind.OnSurface;
         }
 
         if (IsRotorcraft(ac))
@@ -267,6 +284,30 @@ public static class RunwayOccupancy
 
         return AxisDeviationDeg(ac.TrueHeading.Degrees, runway) > SurfaceAxisToleranceDeg ? RunwayUseKind.Crossing : RunwayUseKind.OnSurface;
     }
+
+    /// <summary>
+    /// The takeoff roll has started: past <see cref="DepartingMinGroundSpeedKts"/>, or — for a feed-driven aircraft with
+    /// enough history — past <see cref="RollStartMinGroundSpeedKts"/> and accelerating like a takeoff. Rotorcraft never
+    /// roll. Does not latch: a rejected takeoff decelerating back through the gate stops being a departure.
+    /// </summary>
+    public static bool IsRolling(AircraftState ac)
+    {
+        if (IsRotorcraft(ac))
+        {
+            return false;
+        }
+
+        if (ac.GroundSpeed >= DepartingMinGroundSpeedKts)
+        {
+            return true;
+        }
+
+        return (ac.GroundSpeed >= RollStartMinGroundSpeedKts) && (GroundAccelerationKtPerSec(ac) >= RollStartAccelerationKtPerSec);
+    }
+
+    /// <summary>Measured ground acceleration (kt/s) from a shadow's sample history over <see cref="RollStartWindowSeconds"/>; null otherwise.</summary>
+    public static double? GroundAccelerationKtPerSec(AircraftState ac) =>
+        ac.LiveTraffic is { } lt ? LiveTrafficKinematics.GroundAcceleration(lt, RollStartWindowSeconds) : null;
 
     public static bool IsRotorcraft(AircraftState ac) => AircraftCategorization.Categorize(ac.AircraftType) == AircraftCategory.Helicopter;
 

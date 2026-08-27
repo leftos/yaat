@@ -76,6 +76,33 @@ public class LiveTrafficKinematicsTests
     }
 
     [Fact]
+    public void GroundAcceleration_IsTheLeastSquaresSlopeOfTheReportedSpeeds_InsideTheWindow()
+    {
+        var ac = Shadow(Sample(0, Origin, 0, 10, 280, 0, LiveTrafficSource.Asdex));
+        foreach (var (t, gs) in new[] { (1.0, 14.0), (2.0, 21.0), (3.0, 24.0), (4.0, 31.0), (5.0, 35.0) })
+        {
+            LiveTrafficKinematics.Apply(ac, Sample(t, Origin, 0, gs, 280, 0, LiveTrafficSource.Asdex));
+        }
+
+        // Points at t = 1..5 (t = 0 falls outside the 4 s window): slope of a straight-line fit through (14, 21, 24, 31, 35) is 5.2 kt/s.
+        Assert.Equal(5.2, LiveTrafficKinematics.GroundAcceleration(ac.LiveTraffic!, 4.0)!.Value, 2);
+    }
+
+    [Fact]
+    public void GroundAcceleration_IsUnknown_WithTooFewSamples_OrWhileCoasting()
+    {
+        var ac = Shadow(Sample(0, Origin, 0, 10, 280, 0, LiveTrafficSource.Asdex));
+        Assert.Null(LiveTrafficKinematics.GroundAcceleration(ac.LiveTraffic!, 4.0));
+        LiveTrafficKinematics.Apply(ac, Sample(1, Origin, 0, 15, 280, 0, LiveTrafficSource.Asdex));
+        Assert.Null(LiveTrafficKinematics.GroundAcceleration(ac.LiveTraffic!, 4.0));
+        LiveTrafficKinematics.Apply(ac, Sample(2, Origin, 0, 20, 280, 0, LiveTrafficSource.Asdex));
+        Assert.NotNull(LiveTrafficKinematics.GroundAcceleration(ac.LiveTraffic!, 4.0));
+
+        ac.LiveTraffic!.IsCoasting = true;
+        Assert.Null(LiveTrafficKinematics.GroundAcceleration(ac.LiveTraffic, 4.0));
+    }
+
+    [Fact]
     public void CreateShadow_IsShadowWithSampleStateAndReportedBeacon()
     {
         var ac = Shadow(AirborneSample(0));

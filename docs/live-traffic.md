@@ -137,6 +137,14 @@ Nothing is transmitted at assume. The `CommandResult` message summarises the see
   coasting, and not inside an internal-airport approach corridor. `CASUP <other>` (a track command, so it works on a
   shadow) toggles suppression for one pair from either side; stored in `Stars.CaSuppressedWith` (serialized, replayed as
   an ordinary recorded track command). Tests: `LiveTrafficConflictAlertTests`.
+- **Roll start** (`RunwayOccupancy.IsRolling`): a surface shadow aligned on the pavement is `Departing` past 35 kt, or past
+  20 kt while accelerating ≥ 2.5 kt/s over the last 4 s of feed samples (`LiveTrafficKinematics.GroundAcceleration`, a
+  least-squares slope of the reported ground speeds — positions are too noisy; `History` now carries `GroundSpeedKts`).
+  That halves the jet-vs-light-single spread of the §3-9-6 / §3-10-3 clocks and seeds `TakeoffPhase` on `ASSUME` earlier.
+  A decelerating rejected takeoff drops back to `OnSurface`, and `OccupiedRunwayGoAround.WillBeFlying` projects the
+  occupant to rotation speed with the measured acceleration (type ground acceleration when there is none), so an RTO
+  never reads as "about to be airborne". The landing-clearance advisory names a rolling shadow separately with the
+  3-10-3.a.2 landmark wording.
 - **Rotorcraft** (`RunwayOccupancy.ClassifyAirborneRotorcraft`): a helicopter shadow over the pavement below the 100 ft
   air-taxi ceiling is a surface movement (§3-11-3 NOTE) — `Landing` when descending, `OnSurface` below hover-taxi speed
   or along the axis, `Crossing` across it at air-taxi speed; never `ShortFinal` or `Departing`. A preceding rotorcraft has

@@ -33,6 +33,55 @@ public static class LiveTrafficKinematics
     public static double CoastAfterSeconds(LiveTrafficSource source) => 2 * SweepSeconds(source);
 
     /// <summary>
+    /// Ground acceleration (kt/s) as the least-squares slope of the feed's tracker-smoothed ground speeds over the
+    /// samples inside <paramref name="windowSeconds"/> of the latest one. Differencing positions would be hopeless at
+    /// ASDE-X noise (≈ 20 ft, 1 Hz: σ ≈ 7 kt/s over 2 s); the reported speeds are already filtered (σ ≈ 1–2 kt), so a
+    /// 4 s window resolves ≈ 0.7 kt/s. Null while coasting, or with fewer than three samples / under two seconds of
+    /// span — too little to call.
+    /// </summary>
+    public static double? GroundAcceleration(AircraftLiveTraffic lt, double windowSeconds)
+    {
+        if (lt.IsCoasting || (lt.History.Count < 3))
+        {
+            return null;
+        }
+
+        double latest = lt.History[^1].ObservedAtSimSeconds;
+        double sumT = 0,
+            sumV = 0,
+            sumTT = 0,
+            sumTV = 0;
+        int n = 0;
+        double earliest = latest;
+        foreach (var h in lt.History)
+        {
+            if (h.ObservedAtSimSeconds < latest - windowSeconds)
+            {
+                continue;
+            }
+
+            double t = h.ObservedAtSimSeconds - latest;
+            earliest = Math.Min(earliest, h.ObservedAtSimSeconds);
+            sumT += t;
+            sumV += h.GroundSpeedKts;
+            sumTT += t * t;
+            sumTV += t * h.GroundSpeedKts;
+            n++;
+        }
+
+        double denominator = (n * sumTT) - (sumT * sumT);
+        if ((n < 3) || (latest - earliest < MinAccelerationSpanSeconds) || (Math.Abs(denominator) < 1e-9))
+        {
+            return null;
+        }
+
+        return ((n * sumTV) - (sumT * sumV)) / denominator;
+    }
+
+    /// <summary>Shortest sample span (s) a ground-acceleration estimate may rest on.</summary>
+    public const double MinAccelerationSpanSeconds = 2.0;
+
+    /// <summary>
     /// Builds a new shadow aircraft from its first sample. The transponder carries the reported code
     /// (never a pool-assigned one); there are no phases and the command queue stays empty.
     /// </summary>
@@ -85,7 +134,16 @@ public static class LiveTrafficKinematics
         }
 
         lt.SampleVerticalSpeed = sample.VerticalSpeedFpm ?? DeriveVerticalSpeed(lt, sample);
-        lt.History.Add(new LiveTrafficHistoryPoint(sample.ObservedAtSimSeconds, sample.Lat, sample.Lon, sample.AltitudeFt, sample.TrueTrackDeg));
+        lt.History.Add(
+            new LiveTrafficHistoryPoint(
+                sample.ObservedAtSimSeconds,
+                sample.Lat,
+                sample.Lon,
+                sample.AltitudeFt,
+                sample.TrueTrackDeg,
+                sample.GroundSpeedKts
+            )
+        );
         if (lt.History.Count > AircraftLiveTraffic.HistoryCapacity)
         {
             lt.History.RemoveAt(0);

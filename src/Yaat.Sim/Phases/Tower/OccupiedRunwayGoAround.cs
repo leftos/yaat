@@ -153,10 +153,9 @@ internal static class OccupiedRunwayGoAround
 
         if (DepartedHere(occupant, kind, runway))
         {
-            bool willBeFlying = (!occupant.IsOnGround) || (occupant.GroundSpeed >= RunwayOccupancy.DepartingMinGroundSpeedKts);
             return !SameRunwaySeparation.ArrivalBehindDepartureSatisfied(
                 departureCrossedRunwayEnd: projectedFt >= runwayEndFt,
-                willBeFlying,
+                WillBeFlying(occupant, secondsToThreshold),
                 projectedFt,
                 occupantCategory,
                 arrivalCategory
@@ -164,6 +163,25 @@ internal static class OccupiedRunwayGoAround
         }
 
         return true;
+    }
+
+    /// <summary>
+    /// Airborne by the time the arrival crosses the threshold: already airborne, or still accelerating and projected to
+    /// reach rotation speed in time. A rejected takeoff (decelerating) is never "about to fly", however fast it is still
+    /// rolling — that is the one case the go-around must not talk itself out of. The measured acceleration (feed history)
+    /// wins; a simulated or history-less occupant uses its type's ground acceleration.
+    /// </summary>
+    private static bool WillBeFlying(AircraftState occupant, double secondsToThreshold)
+    {
+        if (!occupant.IsOnGround)
+        {
+            return true;
+        }
+
+        var category = AircraftCategorization.Categorize(occupant.AircraftType);
+        double accel = RunwayOccupancy.GroundAccelerationKtPerSec(occupant) ?? AircraftPerformance.GroundAccelRate(occupant.AircraftType, category);
+        return (accel > 0)
+            && (occupant.GroundSpeed + (accel * secondsToThreshold) >= AircraftPerformance.RotationSpeed(occupant.AircraftType, category));
     }
 
     /// <summary>§3-10-3.a.1 applies: the occupant landed on this runway and is rolling out, exiting, or stopped after landing.</summary>

@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
+using Yaat.Sim.LiveTraffic;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Phases.Tower;
@@ -254,6 +255,30 @@ public class OccupiedRunwayGoAroundTests
         var occupant = Occupant("B738", OnRunway(5000), 100, new TakeoffPhase(), onGround: true);
 
         Assert.False(GoesAround(arrival, occupant, setting: true));
+    }
+
+    [Fact]
+    public void RejectedTakeoff_DeceleratingOnTheRunway_GoesAround()
+    {
+        // A live departure that aborted at 80 kt is still doing 60 kt 500 ft down the runway. Projected at constant
+        // speed it would sit past the 3,000 ft landmark when the arrival crosses — but it is stopping, not flying.
+        var arrival = Arrival("B738", 1.0, 250);
+        AircraftState? rto = null;
+        foreach (var (t, gs) in new[] { (0.0, 80.0), (1.0, 75.0), (2.0, 70.0), (3.0, 65.0), (4.0, 60.0) })
+        {
+            var pos = OnRunway(500);
+            var sample = new LiveTrafficSample(t, pos.Lat, pos.Lon, ElevationFt, gs, Runway.TrueHeading.Degrees, 0, LiveTrafficSource.Asdex, 4521);
+            if (rto is null)
+            {
+                rto = LiveTrafficKinematics.CreateShadow("OCC1", "B738", sample, new AircraftFlightPlan { HasFlightPlan = true });
+            }
+            else
+            {
+                LiveTrafficKinematics.Apply(rto, sample);
+            }
+        }
+
+        Assert.True(GoesAround(arrival, rto!, setting: true));
     }
 
     [Fact]

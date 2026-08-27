@@ -8,6 +8,7 @@ public sealed class LiveTrafficHistoryPointDto
     public double Lon { get; init; }
     public double AltitudeFt { get; init; }
     public double TrueTrackDeg { get; init; }
+    public double GroundSpeedKts { get; init; }
 }
 
 /// <summary>

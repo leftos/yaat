@@ -160,6 +160,19 @@ public class LiveTrafficParticipationTests
     }
 
     [Fact]
+    public void LandingClearance_WarnsForALiveDepartureRollingOnTheRunway_WithTheLandmarkWording()
+    {
+        var rolling = Shadow("LIVE1", OnRunway(300), Runway28R.ElevationFt, 60, Runway28R.TrueHeading.Degrees, 0, LiveTrafficSource.Asdex);
+        var arrival = Simulated("ARR1", OnFinal(4), Runway28R.TrueHeading.Degrees, 140, onGround: false, new FinalApproachPhase());
+
+        RunwaySafetyAdvisor.WarnIfRunwayOccupied(arrival, Runway28R, Ctx(arrival, rolling));
+
+        var warning = Assert.Single(arrival.PendingWarnings);
+        Assert.Contains("LIVE1", warning);
+        Assert.Contains("3-10-3.a.2", warning);
+    }
+
+    [Fact]
     public void LandingClearance_DesignatorOnly_WarnsForAShadowOnTheRunwaySurface()
     {
         var rollout = Shadow("LIVE1", OnRunway(2500), Runway28R.ElevationFt, 60, Runway28R.TrueHeading.Degrees, 0, LiveTrafficSource.Asdex);

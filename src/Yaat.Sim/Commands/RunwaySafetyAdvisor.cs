@@ -222,32 +222,35 @@ public static class RunwaySafetyAdvisor
     /// </summary>
     private static void WarnIfLiveTrafficOnRunway(AircraftState aircraft, RunwayInfo runway, DispatchContext ctx)
     {
-        var live = ctx.ListAircraft!()
-            .Where(other => (!ReferenceEquals(other, aircraft)) && ShadowOccupies(other, runway, ctx))
-            .Select(other => other.Callsign)
+        var shadows = ctx.ListAircraft!()
+            .Where(other => (!ReferenceEquals(other, aircraft)) && other.IsShadow)
+            .Select(other => (other.Callsign, Kind: RunwayOccupancy.Classify(other, runway, ctx.GroundLayout)?.Kind))
             .ToList();
-        if (live.Count == 0)
+        var occupying = shadows.Where(s => s.Kind is RunwayUseKind.OnSurface or RunwayUseKind.Landing).Select(s => s.Callsign).ToList();
+        var rolling = shadows.Where(s => s.Kind == RunwayUseKind.Departing).Select(s => s.Callsign).ToList();
+        var display = RunwayIdentifier.ToDisplayDesignator(runway.Designator);
+        if (occupying.Count > 0)
         {
-            return;
+            var warning =
+                $"{aircraft.Callsign}: live traffic on runway {display} ({string.Join(", ", occupying)}) — the runway is not clear; withhold the landing/option clearance until it is (7110.65 3-10-3.a.1, 3-10-5.e)";
+            aircraft.PendingWarnings.Add(warning);
+            Log.LogDebug("[RunwaySafety] {Warning}", warning);
         }
 
-        var display = RunwayIdentifier.ToDisplayDesignator(runway.Designator);
-        var warning =
-            $"{aircraft.Callsign}: live traffic on runway {display} ({string.Join(", ", live)}) — the runway is not clear; withhold the landing/option clearance until it is (7110.65 3-10-3.a.1, 3-10-5.e)";
-        aircraft.PendingWarnings.Add(warning);
-        Log.LogDebug("[RunwaySafety] {Warning}", warning);
+        // A departure that has started its roll lifts the holding-in-position prohibition (3-9-4.c.1, 3-10-5.e.1) but
+        // 3-10-3.a.2 still governs: the arrival may not cross the threshold until it has crossed the runway end or is
+        // airborne past the landmark.
+        if (rolling.Count > 0)
+        {
+            var warning =
+                $"{aircraft.Callsign}: live departure rolling on runway {display} ({string.Join(", ", rolling)}) — the arrival may not cross the threshold until it has crossed the runway end or is airborne past the same-runway landmark (7110.65 3-10-3.a.2)";
+            aircraft.PendingWarnings.Add(warning);
+            Log.LogDebug("[RunwaySafety] {Warning}", warning);
+        }
     }
 
     /// <summary>Final-approach ring for <see cref="WarnIfTrafficOnFinal"/> — roughly the 3-9-4.d "traffic on final" window.</summary>
     public const double OnFinalAdvisoryNm = 6.0;
-
-    /// <summary>
-    /// A live-traffic shadow on the runway (a landed rollout reads OnSurface via the observer's latch, never Departing) or
-    /// still in the air over it below threshold-crossing height — a flare, or a rotorcraft descending onto the runway
-    /// (P/CG CLEAR OF THE RUNWAY: an aircraft that has not touched down is not clear).
-    /// </summary>
-    private static bool ShadowOccupies(AircraftState other, RunwayInfo runway, DispatchContext ctx) =>
-        other.IsShadow && RunwayOccupancy.Classify(other, runway, ctx.GroundLayout) is { Kind: RunwayUseKind.OnSurface or RunwayUseKind.Landing };
 
     private static RunwayInfo? ResolveNamedRunway(string airport, string designator) =>
         RunwayOccupancy.AirportRunways(airport).FirstOrDefault(r => r.Id.Contains(designator))?.ForApproach(designator);
