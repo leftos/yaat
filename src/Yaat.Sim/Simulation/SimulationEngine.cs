@@ -262,6 +262,8 @@ public sealed class SimulationEngine
             Scenario.AutoCrossRunway = scenarioDto.AutoCrossRunway;
             Scenario.AutoPullUpToParallel = scenarioDto.AutoPullUpToParallel;
             Scenario.AutoGoAroundOnOccupiedRunway = scenarioDto.AutoGoAroundOnOccupiedRunway;
+            Scenario.LiveTrafficEnabled = scenarioDto.LiveTrafficEnabled;
+            Scenario.LiveTrafficCeilingFt = scenarioDto.LiveTrafficCeilingFt;
             Scenario.ValidateDctFixes = scenarioDto.ValidateDctFixes;
             Scenario.SoloTrainingMode = scenarioDto.SoloTrainingMode;
             Scenario.SoloParkingInitialCallupRatePercent = scenarioDto.SoloParkingInitialCallupRatePercent;
@@ -5013,6 +5015,18 @@ public sealed class SimulationEngine
                 if (bool.TryParse(setting.Value, out var agor))
                 {
                     scenario.AutoGoAroundOnOccupiedRunway = agor;
+                }
+                break;
+            case "LiveTrafficEnabled":
+                if (bool.TryParse(setting.Value, out var live))
+                {
+                    scenario.LiveTrafficEnabled = live;
+                }
+                break;
+            case "LiveTrafficCeilingFt":
+                if (int.TryParse(setting.Value, out var ceiling))
+                {
+                    scenario.LiveTrafficCeilingFt = ceiling;
                 }
                 break;
             case "AutoAcceptDelay":

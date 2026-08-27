@@ -29,7 +29,9 @@ public class MainViewModelSessionSettingsTests
                 SoloGoAroundProbabilityPercent: 0,
                 HasSoloParkingInitialCallupSource: true,
                 HasSoloArrivalGeneratorSource: true,
-                RpoShowPilotSpeech: true
+                RpoShowPilotSpeech: true,
+                LiveTrafficEnabled: true,
+                LiveTrafficCeilingFt: 7_000
             )
         );
 
@@ -39,6 +41,8 @@ public class MainViewModelSessionSettingsTests
         Assert.True(vm.SessionAutoClearedToLand);
         Assert.True(vm.SessionAutoCrossRunway);
         Assert.True(vm.SessionAutoGoAroundOnOccupiedRunway);
+        Assert.True(vm.SessionLiveTrafficEnabled);
+        Assert.Equal(7_000, vm.SessionLiveTrafficCeilingFt);
         Assert.True(vm.SessionValidateDctFixes);
         Assert.True(vm.SessionSoloTrainingMode);
         Assert.Equal(40, vm.SessionSoloParkingInitialCallupIntervalSeconds);

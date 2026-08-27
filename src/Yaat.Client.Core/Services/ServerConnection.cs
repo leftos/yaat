@@ -600,6 +600,19 @@ public sealed class ServerConnection : IStripsTransport, ITdlsTransport, IAsyncD
         await _connection!.InvokeAsync("SetAutoGoAroundOnOccupiedRunway", enabled);
     }
 
+    /// <summary>Returns the server's verdict: enabling is refused while the room is warped.</summary>
+    public async Task<CommandResultDto> SetLiveTrafficEnabledAsync(bool enabled)
+    {
+        EnsureConnected();
+        return await _connection!.InvokeAsync<CommandResultDto>("SetLiveTrafficEnabled", enabled);
+    }
+
+    public async Task SetLiveTrafficCeilingFtAsync(int ceilingFt)
+    {
+        EnsureConnected();
+        await _connection!.InvokeAsync("SetLiveTrafficCeilingFt", ceilingFt);
+    }
+
     // --- Timeline / Rewind ---
 
     public async Task<RewindResultDto?> RewindToAsync(double elapsedSeconds)
@@ -1102,7 +1115,9 @@ public record LoadScenarioResultDto(
     List<Yaat.Sim.Scenarios.OverflightGeneratorConfig>? OverflightGenerators = null,
     List<ScenarioPositionDto>? Positions = null,
     int CommandRunDelayMinSeconds = 0,
-    int CommandRunDelayMaxSeconds = 0
+    int CommandRunDelayMaxSeconds = 0,
+    bool LiveTrafficEnabled = false,
+    int LiveTrafficCeilingFt = 0
 );
 
 /// <summary>
@@ -1181,7 +1196,9 @@ public record RoomStateDto(
     int CommandRunDelayMinSeconds = 0,
     int CommandRunDelayMaxSeconds = 0,
     // Student position type (APP/CTR/GND/TWR) for seeding user-local position-based defaults on join.
-    string? StudentPositionType = null
+    string? StudentPositionType = null,
+    bool LiveTrafficEnabled = false,
+    int LiveTrafficCeilingFt = 0
 );
 
 public record ScenarioLoadedDto(
@@ -1215,7 +1232,9 @@ public record ScenarioLoadedDto(
     List<Yaat.Sim.Scenarios.OverflightGeneratorConfig>? OverflightGenerators = null,
     List<ScenarioPositionDto>? Positions = null,
     int CommandRunDelayMinSeconds = 0,
-    int CommandRunDelayMaxSeconds = 0
+    int CommandRunDelayMaxSeconds = 0,
+    bool LiveTrafficEnabled = false,
+    int LiveTrafficCeilingFt = 0
 );
 
 public record ScenarioPositionDto(string Id, string Callsign, string Name);
@@ -1276,7 +1295,9 @@ public record SessionSettingsDto(
     bool HasSoloArrivalGeneratorSource,
     bool RpoShowPilotSpeech,
     int CommandRunDelayMinSeconds = 0,
-    int CommandRunDelayMaxSeconds = 0
+    int CommandRunDelayMaxSeconds = 0,
+    bool LiveTrafficEnabled = false,
+    int LiveTrafficCeilingFt = 0
 );
 
 /// <summary>

@@ -114,6 +114,8 @@ both the wrapper name and the hub method's own semantics** — grep for the stri
 | `SetAutoCrossRunwayAsync(enabled)` | `SetAutoCrossRunway` | `SetAutoCrossRunway(...)` `:581` |
 | `SetAutoPullUpToParallelAsync(enabled)` | `SetAutoPullUpToParallel` | `SetAutoPullUpToParallel(...)` |
 | `SetAutoGoAroundOnOccupiedRunwayAsync(enabled)` | `SetAutoGoAroundOnOccupiedRunway` | `SetAutoGoAroundOnOccupiedRunway(...)` |
+| `SetLiveTrafficEnabledAsync(enabled)` | `SetLiveTrafficEnabled` | `SetLiveTrafficEnabled(...)` — returns `CommandResultDto`; refused while `SimRate > 1` (the client reverts its checkbox) |
+| `SetLiveTrafficCeilingFtAsync(ceilingFt)` | `SetLiveTrafficCeilingFt` | `SetLiveTrafficCeilingFt(...)` — 0 = automatic |
 | `RewindToAsync(elapsedSeconds)` | **`RewindTo`** | `RewindTo(...)` `:907` |
 | `RewindFromSnapshotAsync(…)` | `RewindFromSnapshot` | `RewindFromSnapshot(...)` `:925` |
 | `TakeControlAsync()` | `TakeControl` | `TakeControl()` `:943` |
@@ -357,7 +359,8 @@ Roughly 13 session-settings fields are duplicated across **four** DTOs and must 
 `AutoDeleteOverride`, `EffectiveAutoDeleteMode`, `AutoAcceptDelaySeconds`, `AutoClearedToLand`, `AutoCrossRunway`,
 `AutoPullUpToParallel`, `AutoGoAroundOnOccupiedRunway`, `ValidateDctFixes`, `SoloTrainingMode`, `SoloParkingInitialCallupRatePercent`,
 `SoloArrivalGeneratorRatePercent`, `SoloGoAroundProbabilityPercent`, `HasSoloParkingInitialCallupSource`,
-`HasSoloArrivalGeneratorSource`, `RpoShowPilotSpeech`, `CommandRunDelayMinSeconds`, `CommandRunDelayMaxSeconds`.
+`HasSoloArrivalGeneratorSource`, `RpoShowPilotSpeech`, `CommandRunDelayMinSeconds`, `CommandRunDelayMaxSeconds`,
+`LiveTrafficEnabled`, `LiveTrafficCeilingFt`.
 The four DTOs feed three different paths — initial join (`RoomStateDto`), scenario load
 (`LoadScenarioResult` / `ScenarioLoadedDto`), and live update (`SessionSettingsDto`). Add a setting to fewer than all
 four and it silently drops on whichever path you missed.

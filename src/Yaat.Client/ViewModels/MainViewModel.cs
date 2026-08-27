@@ -213,6 +213,12 @@ public partial class MainViewModel : ObservableObject
     private bool _sessionAutoGoAroundOnOccupiedRunway;
 
     [ObservableProperty]
+    private bool _sessionLiveTrafficEnabled;
+
+    [ObservableProperty]
+    private int _sessionLiveTrafficCeilingFt;
+
+    [ObservableProperty]
     private bool _sessionValidateDctFixes = true;
 
     [ObservableProperty]
@@ -3133,6 +3139,8 @@ public partial class MainViewModel : ObservableObject
         SessionAutoCrossRunway = dto.AutoCrossRunway;
         SessionAutoPullUpToParallel = dto.AutoPullUpToParallel;
         SessionAutoGoAroundOnOccupiedRunway = dto.AutoGoAroundOnOccupiedRunway;
+        SessionLiveTrafficEnabled = dto.LiveTrafficEnabled;
+        SessionLiveTrafficCeilingFt = dto.LiveTrafficCeilingFt;
         SessionValidateDctFixes = dto.ValidateDctFixes;
         SessionSoloTrainingMode = dto.SoloTrainingMode;
         SessionSoloParkingInitialCallupRatePercent = dto.SoloParkingInitialCallupRatePercent;
@@ -3167,7 +3175,9 @@ public partial class MainViewModel : ObservableObject
                 state.HasSoloArrivalGeneratorSource,
                 state.RpoShowPilotSpeech,
                 state.CommandRunDelayMinSeconds,
-                state.CommandRunDelayMaxSeconds
+                state.CommandRunDelayMaxSeconds,
+                state.LiveTrafficEnabled,
+                state.LiveTrafficCeilingFt
             )
         );
     }
@@ -3192,7 +3202,9 @@ public partial class MainViewModel : ObservableObject
                 dto.HasSoloArrivalGeneratorSource,
                 dto.RpoShowPilotSpeech,
                 dto.CommandRunDelayMinSeconds,
-                dto.CommandRunDelayMaxSeconds
+                dto.CommandRunDelayMaxSeconds,
+                dto.LiveTrafficEnabled,
+                dto.LiveTrafficCeilingFt
             )
         );
     }
@@ -3217,7 +3229,9 @@ public partial class MainViewModel : ObservableObject
                 result.HasSoloArrivalGeneratorSource,
                 result.RpoShowPilotSpeech,
                 result.CommandRunDelayMinSeconds,
-                result.CommandRunDelayMaxSeconds
+                result.CommandRunDelayMaxSeconds,
+                result.LiveTrafficEnabled,
+                result.LiveTrafficCeilingFt
             )
         );
     }
@@ -3288,6 +3302,50 @@ public partial class MainViewModel : ObservableObject
         if (!_isApplyingSessionSettings)
         {
             _ = _connection.SetAutoGoAroundOnOccupiedRunwayAsync(value);
+        }
+    }
+
+    partial void OnSessionLiveTrafficEnabledChanged(bool value)
+    {
+        if (!_isApplyingSessionSettings)
+        {
+            _ = SendLiveTrafficEnabledAsync(value);
+        }
+    }
+
+    /// <summary>The server refuses to enable live traffic while warped; put the checkbox back and say why.</summary>
+    private async Task SendLiveTrafficEnabledAsync(bool value)
+    {
+        CommandResultDto result;
+        try
+        {
+            result = await _connection.SetLiveTrafficEnabledAsync(value);
+        }
+        catch (Exception ex)
+        {
+            _log.LogWarning(ex, "Failed to set live traffic");
+            return;
+        }
+
+        if (result.Success)
+        {
+            return;
+        }
+
+        Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+        {
+            _isApplyingSessionSettings = true;
+            SessionLiveTrafficEnabled = !value;
+            _isApplyingSessionSettings = false;
+            AddSystemEntry(result.Message ?? "Live traffic setting rejected");
+        });
+    }
+
+    partial void OnSessionLiveTrafficCeilingFtChanged(int value)
+    {
+        if (!_isApplyingSessionSettings)
+        {
+            _ = _connection.SetLiveTrafficCeilingFtAsync(value);
         }
     }
 

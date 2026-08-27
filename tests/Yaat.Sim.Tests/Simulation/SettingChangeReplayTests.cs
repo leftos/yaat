@@ -138,6 +138,43 @@ public class SettingChangeReplayTests(ITestOutputHelper output)
     }
 
     [Fact]
+    public void LiveTrafficSettings_RoundTripThroughReplay()
+    {
+        const string bundlePath = "TestData/66fd6538542e.zip";
+        var baseline = RecordingLoader.Load(bundlePath);
+        if (baseline is null)
+        {
+            output.WriteLine($"Skipped: {bundlePath} not present");
+            return;
+        }
+
+        TestVnasData.EnsureInitialized();
+        if (TestVnasData.NavigationDb is null)
+        {
+            return;
+        }
+
+        var recording = new SessionRecording
+        {
+            Version = baseline.Version,
+            ScenarioJson = baseline.ScenarioJson,
+            RngSeed = baseline.RngSeed,
+            WeatherJson = baseline.WeatherJson,
+            Actions = [new RecordedSettingChange(0, "LiveTrafficEnabled", "True"), new RecordedSettingChange(0, "LiveTrafficCeilingFt", "7500")],
+            TotalElapsedSeconds = 1,
+            ScenarioName = baseline.ScenarioName,
+            ScenarioId = baseline.ScenarioId,
+            ArtccId = baseline.ArtccId,
+        };
+
+        var engine = new SimulationEngine(new TestAirportGroundData());
+        engine.Replay(recording, 1);
+
+        Assert.True(engine.Scenario!.LiveTrafficEnabled, "LiveTrafficEnabled should round-trip through replay");
+        Assert.Equal(7500, engine.Scenario.LiveTrafficCeilingFt);
+    }
+
+    [Fact]
     public void SoloTrainingMode_RoundTripsThroughReplay()
     {
         const string bundlePath = "TestData/66fd6538542e.zip";

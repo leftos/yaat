@@ -81,6 +81,19 @@ public sealed class SimScenarioState
     /// </summary>
     public bool AutoGoAroundOnOccupiedRunway { get; set; }
 
+    /// <summary>
+    /// When true, the room mirrors real aircraft from the server's live-traffic feed as shadow aircraft
+    /// (see <c>docs/live-traffic.md</c>). Defaults to false; recordings replay the samples they carry
+    /// regardless of the flag. Mutually exclusive with a sim rate above 1 — real traffic cannot be warped.
+    /// </summary>
+    public bool LiveTrafficEnabled { get; set; }
+
+    /// <summary>
+    /// MSL ceiling (feet) above which live traffic is not mirrored into the room; 0 means automatic
+    /// (the room facility's tower-cab visibility ceiling, unlimited for center rooms).
+    /// </summary>
+    public int LiveTrafficCeilingFt { get; set; }
+
     public bool ValidateDctFixes { get; set; } = true;
 
     // When true, every successful command dispatch produces a deterministic pilot-readback
@@ -240,6 +253,8 @@ public sealed class SimScenarioState
             AutoCrossRunway = AutoCrossRunway,
             AutoPullUpToParallel = AutoPullUpToParallel,
             AutoGoAroundOnOccupiedRunway = AutoGoAroundOnOccupiedRunway,
+            LiveTrafficEnabled = LiveTrafficEnabled,
+            LiveTrafficCeilingFt = LiveTrafficCeilingFt,
             ValidateDctFixes = ValidateDctFixes,
             SoloTrainingMode = SoloTrainingMode,
             SoloParkingInitialCallupRatePercent = SoloParkingInitialCallupRatePercent,
