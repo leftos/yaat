@@ -62,6 +62,11 @@ public static class ConflictAlertDetector
                 var a = eligible[i];
                 var b = eligible[j];
 
+                if (!IsPairEligible(a, b, context.ApproachCorridors))
+                {
+                    continue;
+                }
+
                 string id = MakeConflictId(a.Callsign, b.Callsign);
                 bool alreadyInConflict = context.ExistingConflictIds.Contains(id);
 
@@ -118,6 +123,40 @@ public static class ConflictAlertDetector
             FieldElevationFt: oriented.ElevationFt
         );
     }
+
+    /// <summary>
+    /// Pair policy on top of <see cref="IsEligible"/>, shared with <see cref="EramConflictDetector"/>. A <c>CASUP</c>
+    /// suppression on either side wins. Live-traffic shadows: never shadow↔shadow (real pairs are separated by things the
+    /// sim cannot see — visual, dependent approaches, MARSA — and inter-source offsets would manufacture continuous
+    /// alerts); shadow↔simulated only when the shadow is IFR, not coasting, and not inside an approach corridor.
+    /// </summary>
+    public static bool IsPairEligible(AircraftState a, AircraftState b, IReadOnlyList<RunwayCorridor> corridors)
+    {
+        if (IsSuppressedWith(a, b.Callsign) || IsSuppressedWith(b, a.Callsign))
+        {
+            return false;
+        }
+
+        if (a.IsShadow && b.IsShadow)
+        {
+            return false;
+        }
+
+        var shadow =
+            a.IsShadow ? a
+            : b.IsShadow ? b
+            : null;
+        if (shadow is null)
+        {
+            return true;
+        }
+
+        bool ifr = shadow.FlightPlan.HasFlightPlan && !shadow.FlightPlan.IsVfr;
+        return ifr && !shadow.LiveTraffic!.IsCoasting && !IsInAnyApproachCorridor(shadow, corridors);
+    }
+
+    private static bool IsSuppressedWith(AircraftState ac, string other) =>
+        ac.Stars.CaSuppressedWith.Exists(c => string.Equals(c, other, StringComparison.OrdinalIgnoreCase));
 
     private static List<AircraftState> FilterEligible(List<AircraftState> aircraft)
     {

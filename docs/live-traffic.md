@@ -131,9 +131,13 @@ Nothing is transmitted at assume. The `CommandResult` message summarises the see
   `DepartedOnRunway` (cleared on the ground or > 1 nm past the departure end). `LatchedRunwayAirport/Designator` remember
   which runway. All are serialized so a restored room keeps the edge state; the later feed removal records a
   `CompletedAircraftRecord` for the debrief.
-- Not yet: conflict-alert policy for shadows (`ConflictAlertDetector.IsEligible` is field-gated, so an airborne shadow is
-  paired like any Mode-C target today), per-pair CA suppression, arrival-runway inference for display, follow-helper lead
-  runway. Tests: `LiveTrafficParticipationTests`.
+- **Conflict alerts** (`ConflictAlertDetector.IsPairEligible`, shared by `EramConflictDetector`): never shadow↔shadow
+  (real pairs are separated by things the sim cannot see — visual, dependent approaches, MARSA — and inter-source
+  offsets would manufacture continuous alerts); shadow↔simulated only when the shadow is IFR (filed, not VFR), not
+  coasting, and not inside an internal-airport approach corridor. `CASUP <other>` (a track command, so it works on a
+  shadow) toggles suppression for one pair from either side; stored in `Stars.CaSuppressedWith` (serialized, replayed as
+  an ordinary recorded track command). Tests: `LiveTrafficConflictAlertTests`.
+- Not yet: arrival-runway inference for display, follow-helper lead runway. Tests: `LiveTrafficParticipationTests`.
 
 ## Recording and replay
 

@@ -266,6 +266,7 @@ public static class CommandDescriber
             ForceQuicklookClearCommand => CanonicalCommandType.ForceQuicklookClear,
             AcknowledgeConflictAlertCommand => CanonicalCommandType.AcknowledgeConflictAlert,
             InhibitConflictAlertCommand => CanonicalCommandType.InhibitConflictAlert,
+            SuppressConflictAlertCommand => CanonicalCommandType.SuppressConflictAlert,
             InhibitDuplicateBeaconCommand => CanonicalCommandType.InhibitDuplicateBeacon,
             PilotReportedAltitudeCommand => CanonicalCommandType.PilotReportedAltitude,
             LeaderDirectionCommand => CanonicalCommandType.LeaderDirection,
@@ -721,6 +722,7 @@ public static class CommandDescriber
             ForceQuicklookClearCommand cmd => $"FQLCLR {cmd.TcpCode}",
             AcknowledgeConflictAlertCommand => "CAACK",
             InhibitConflictAlertCommand => "CAINH",
+            SuppressConflictAlertCommand sup => $"CASUP {sup.OtherCallsign}",
             InhibitDuplicateBeaconCommand => "DBINH",
             PilotReportedAltitudeCommand cmd => $"PRA {cmd.AltitudeHundreds}",
             LeaderDirectionCommand cmd => $"LDR {cmd.Direction}",
@@ -1149,6 +1151,7 @@ public static class CommandDescriber
             ForceQuicklookClearCommand cmd => $"Clear forced quicklook at {cmd.TcpCode}",
             AcknowledgeConflictAlertCommand => "Acknowledge conflict alert",
             InhibitConflictAlertCommand => "Inhibit conflict alert",
+            SuppressConflictAlertCommand sup => $"Suppress conflict alert with {sup.OtherCallsign}",
             InhibitDuplicateBeaconCommand => "Inhibit duplicate-beacon indication",
             PilotReportedAltitudeCommand cmd => DescribePilotReportedAltitudeNatural(cmd),
             LeaderDirectionCommand cmd => $"Set leader line direction {cmd.Direction}",
@@ -1455,6 +1458,7 @@ public static class CommandDescriber
                 or CanonicalCommandType.RetractPointout
                 or CanonicalCommandType.AcknowledgeConflictAlert
                 or CanonicalCommandType.InhibitConflictAlert
+                or CanonicalCommandType.SuppressConflictAlert
                 or CanonicalCommandType.PilotReportedAltitude
                 or CanonicalCommandType.LeaderDirection
                 or CanonicalCommandType.JRing

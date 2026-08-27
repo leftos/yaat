@@ -117,9 +117,14 @@ airport list comes from `starsConfig.InternalAirports`.
 
 The en-route (Center) Short-Term Conflict Alert. A **separate detector and conflict set** from the terminal CA
 above — same "two associated tracks losing separation" theme, but tuned to ERAM's model (docs/crc/eram.md §377-383)
-rather than STARS's. Shares only the eligibility gate (`ConflictAlertDetector.IsEligible` — airborne, Mode C, not
+rather than STARS's. Shares the eligibility gate (`ConflictAlertDetector.IsEligible` — airborne, Mode C, not
 CA-inhibited, supported). Output is `SimulationEngine.EramConflicts` (`EramConflictState`, keyed by `ESTCA_{a}_{b}`),
 maintained by `TickProcessor.ProcessEramConflictAlerts` and published on the `EramShortTermConflicts` topic.
+
+**Pair policy** (`ConflictAlertDetector.IsPairEligible`, used by both detectors after the per-aircraft gate): a `CASUP`
+suppression on either aircraft (`Stars.CaSuppressedWith`) drops the pair; live-traffic shadows never pair with each other and
+pair with a simulated aircraft only when IFR, not coasting, and outside the approach corridors — see
+[live-traffic.md](live-traffic.md).
 
 The model differs from terminal CA on every axis:
 

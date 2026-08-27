@@ -58,6 +58,11 @@ public static class EramConflictDetector
             {
                 var a = eligible[i];
                 var b = eligible[j];
+                if (!ConflictAlertDetector.IsPairEligible(a, b, []))
+                {
+                    continue;
+                }
+
                 string id = MakeConflictId(a.Callsign, b.Callsign);
                 if (IsInConflict(a, b, existingConflictIds.Contains(id)))
                 {

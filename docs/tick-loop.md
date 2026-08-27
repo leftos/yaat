@@ -68,7 +68,7 @@ This is why phases write directly to `ctx.Targets` and never enqueue commands: t
 Two detectors. Both are server-only (clients see results in broadcast snapshots).
 
 - **Ground** — `GroundConflictDetector.ApplySpeedLimits` runs each sub-tick *before* physics. Pairwise check, classifies movement state (taxiing / pushing / stationary / following), applies speed caps when proximity drops below thresholds.
-- **Airborne** — `ConflictAlertDetector.Detect` runs in `TickProcessor.ProcessPostPhysics`. Predicts position 5 s ahead; reports pairs where current or predicted separation crosses thresholds (3 nm / 1000 ft IFR; 0.25 nm / 500 ft VFR). Hysteresis on existing conflicts (must reach 3.3 nm / 1100 ft to clear). Mode-C-only; ignores aircraft on ground or with CA inhibited; suppressed during paired approaches.
+- **Airborne** — `ConflictAlertDetector.Detect` runs in `TickProcessor.ProcessPostPhysics`. Predicts position 5 s ahead; reports pairs where current or predicted separation crosses thresholds (3 nm / 1000 ft IFR; 0.25 nm / 500 ft VFR). Hysteresis on existing conflicts (must reach 3.3 nm / 1100 ft to clear). Mode-C-only; ignores aircraft on ground or with CA inhibited; suppressed during paired approaches; `CASUP` pairs and shadow↔shadow pairs never alert.
 
 ## Broadcast cadence
 

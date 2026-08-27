@@ -1039,6 +1039,14 @@ public static class CommandRegistry
             ),
             Bare(AcknowledgeConflictAlert, "Acknowledge Conflict Alert", "Track Operations", false, ["CAACK"]),
             Bare(InhibitConflictAlert, "Inhibit Conflict Alert", "Track Operations", false, ["CAINH", "CAI"]),
+            Cmd(
+                SuppressConflictAlert,
+                "Suppress Conflict Alert Pair",
+                "Track Operations",
+                false,
+                ["CASUP"],
+                [O("Callsign", [R("callsign", "other aircraft callsign")], "Toggle conflict-alert suppression between this aircraft and another")]
+            ),
             Bare(InhibitDuplicateBeacon, "Inhibit Duplicate Beacon", "Track Operations", false, ["DBINH"]),
             Cmd(
                 PilotReportedAltitude,

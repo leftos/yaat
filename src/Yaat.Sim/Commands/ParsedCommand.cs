@@ -697,6 +697,9 @@ public record AcknowledgeConflictAlertCommand : ParsedCommand;
 
 public record InhibitConflictAlertCommand : ParsedCommand;
 
+/// <summary>Toggles conflict-alert suppression between this aircraft and <see cref="OtherCallsign"/> (a per-pair CAINH).</summary>
+public record SuppressConflictAlertCommand(string OtherCallsign) : ParsedCommand;
+
 public record InhibitDuplicateBeaconCommand : ParsedCommand;
 
 public record PilotReportedAltitudeCommand(int AltitudeHundreds) : ParsedCommand;

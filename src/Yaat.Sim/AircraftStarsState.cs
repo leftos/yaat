@@ -37,6 +37,9 @@ public class AircraftStarsState
     public int? PilotReportedAltitude { get; set; }
     public bool IsAnnotated { get; set; }
     public bool IsCaInhibited { get; set; }
+
+    /// <summary>Callsigns this aircraft's conflict alerts are suppressed against (<c>CASUP</c>); either side of a pair suffices.</summary>
+    public List<string> CaSuppressedWith { get; set; } = [];
     public bool IsModeCInhibited { get; set; }
     public bool IsMsawInhibited { get; set; }
     public bool IsDuplicateBeaconInhibited { get; set; }
@@ -85,6 +88,7 @@ public class AircraftStarsState
             PilotReportedAltitude = PilotReportedAltitude,
             IsAnnotated = IsAnnotated,
             IsCaInhibited = IsCaInhibited,
+            CaSuppressedWith = CaSuppressedWith.Count > 0 ? [.. CaSuppressedWith] : null,
             IsModeCInhibited = IsModeCInhibited,
             IsMsawInhibited = IsMsawInhibited,
             IsDuplicateBeaconInhibited = IsDuplicateBeaconInhibited,
@@ -126,6 +130,7 @@ public class AircraftStarsState
             PilotReportedAltitude = dto.PilotReportedAltitude,
             IsAnnotated = dto.IsAnnotated,
             IsCaInhibited = dto.IsCaInhibited,
+            CaSuppressedWith = dto.CaSuppressedWith is { } sup ? [.. sup] : [],
             IsModeCInhibited = dto.IsModeCInhibited,
             IsMsawInhibited = dto.IsMsawInhibited,
             IsDuplicateBeaconInhibited = dto.IsDuplicateBeaconInhibited,

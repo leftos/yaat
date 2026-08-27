@@ -45,6 +45,7 @@ public static class TrackEngine
                 or ForceQuicklookClearCommand
                 or AcknowledgeConflictAlertCommand
                 or InhibitConflictAlertCommand
+                or SuppressConflictAlertCommand
                 or InhibitDuplicateBeaconCommand
                 or PilotReportedAltitudeCommand
                 or LeaderDirectionCommand
@@ -547,6 +548,31 @@ public static class TrackEngine
         return new CommandResult(true, $"Duplicate-beacon indication inhibited for {ac.Callsign}");
     }
 
+    /// <summary>
+    /// Per-pair conflict-alert suppression (the instructor's answer to a real aircraft the sim cannot see the
+    /// separation for — visual, dependent approaches, MARSA). Stored on the aircraft that received the command;
+    /// the detectors check both sides of a pair.
+    /// </summary>
+    public static CommandResult HandleSuppressConflictAlert(AircraftState ac, string otherCallsign)
+    {
+        var other = otherCallsign.ToUpperInvariant();
+        if (string.Equals(other, ac.Callsign, StringComparison.OrdinalIgnoreCase))
+        {
+            return new CommandResult(false, "CASUP needs another aircraft's callsign");
+        }
+
+        bool removed = ac.Stars.CaSuppressedWith.RemoveAll(c => string.Equals(c, other, StringComparison.OrdinalIgnoreCase)) > 0;
+        if (!removed)
+        {
+            ac.Stars.CaSuppressedWith.Add(other);
+        }
+
+        return new CommandResult(
+            true,
+            removed ? $"Conflict alert restored between {ac.Callsign} and {other}" : $"Conflict alert suppressed between {ac.Callsign} and {other}"
+        );
+    }
+
     public static CommandResult HandleInhibitConflictAlert(AircraftState ac)
     {
         ac.Stars.IsCaInhibited = !ac.Stars.IsCaInhibited;
@@ -820,6 +846,7 @@ public static class TrackEngine
             CruiseCommand cr => HandleCruise(ac, cr.AltitudeHundreds),
             OnHandoffCommand => HandleOnHandoff(ac),
             InhibitConflictAlertCommand => HandleInhibitConflictAlert(ac),
+            SuppressConflictAlertCommand sup => HandleSuppressConflictAlert(ac, sup.OtherCallsign),
             InhibitDuplicateBeaconCommand => HandleInhibitDuplicateBeacon(ac),
             // Server-only branches: caller dispatches before reaching Dispatch
             // (AcknowledgeConflictAlertCommand mutates engine-level ConflictAlerts).
@@ -862,6 +889,7 @@ public static class TrackEngine
             or ConeCommand
             or OnHandoffCommand
             or InhibitConflictAlertCommand
+            or SuppressConflictAlertCommand
             or InhibitDuplicateBeaconCommand
             or AcknowledgeConflictAlertCommand
             or AsdexEditCommand
