@@ -147,6 +147,19 @@ public class LiveTrafficParticipationTests
     }
 
     [Fact]
+    public void LandingClearance_WarnsForAShadowStillInTheAirOverTheRunway()
+    {
+        // Over the pavement below threshold-crossing height the shadow has not touched down and is not clear of the
+        // runway (P/CG CLEAR OF THE RUNWAY) — for a rotorcraft that descent can last a minute.
+        var flaring = Shadow("LIVE1", OnRunway(300), Runway28R.ElevationFt + 30, 130, Runway28R.TrueHeading.Degrees, -300, LiveTrafficSource.Stars);
+        var arrival = Simulated("ARR1", OnFinal(4), Runway28R.TrueHeading.Degrees, 140, onGround: false, new FinalApproachPhase());
+
+        RunwaySafetyAdvisor.WarnIfRunwayOccupied(arrival, Runway28R, Ctx(arrival, flaring));
+
+        Assert.Contains(arrival.PendingWarnings, w => w.Contains("LIVE1", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public void LandingClearance_DesignatorOnly_WarnsForAShadowOnTheRunwaySurface()
     {
         var rollout = Shadow("LIVE1", OnRunway(2500), Runway28R.ElevationFt, 60, Runway28R.TrueHeading.Degrees, 0, LiveTrafficSource.Asdex);

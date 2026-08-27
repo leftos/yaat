@@ -98,6 +98,21 @@ public static class RunwayOccupancy
     /// <summary>Threshold-crossing height; below it an airborne aircraft over the pavement is landing.</summary>
     public const double LandingAglCeilingFt = 50.0;
 
+    /// <summary>
+    /// Air-taxi ceiling (P/CG AIR TAXI, §3-11-1.c, AIM 4-3-17.b.3: "normally not above 100 feet AGL"). A rotorcraft over
+    /// the pavement below it is a surface movement (§3-11-3 NOTE: air-taxiing helicopters "are considered to be taxiing
+    /// aircraft"; AIM 4-3-17.b: taxi, hover taxi and air taxi "are considered to be ground movements"), not an aircraft
+    /// in flight. Hover taxi is a subset of air taxi, so the ceiling is not the 25 ft hover-taxi request height.
+    /// </summary>
+    public const double RotorcraftAirTaxiCeilingFt = 100.0;
+
+    /// <summary>
+    /// Hover-taxi speed (§3-11-1.b, P/CG HOVER TAXI: "below 20 knots"). Below it a rotorcraft is stationary over a point
+    /// and its heading says nothing about whether it is vacating the runway (§3-11-5 point operations, §3-11-6.a diverse
+    /// directions) — a hover check or a crosswind spot landing is still on the runway.
+    /// </summary>
+    public const double RotorcraftHoverTaxiMaxGroundSpeedKts = 20.0;
+
     /// <summary>Ground speed (knots) above which an aligned aircraft on the pavement has started its takeoff roll.</summary>
     public const double DepartingMinGroundSpeedKts = 35.0;
 
@@ -134,7 +149,9 @@ public static class RunwayOccupancy
     /// What the aircraft's current phase says about its runway use, or null when the phase is not a runway phase.
     /// When <paramref name="runway"/> is given the phase's own runway (departure, else assigned) must name the same
     /// pavement; with null the phase alone decides — except <see cref="HoldingInPositionPhase"/>, which YAAT also uses as
-    /// a generic ground-idle hold and therefore only counts when it is physically on the given runway's pavement.
+    /// a generic ground-idle hold and therefore only counts when it is physically on the given runway's pavement, and
+    /// <see cref="AirTaxiPhase"/>, a relocation with no runway of its own that is a surface movement (§3-11-3 NOTE) on
+    /// whichever pavement it is over.
     /// </summary>
     public static RunwayUseKind? ClassifyByPhase(AircraftState ac, RunwayInfo? runway)
     {
@@ -143,6 +160,11 @@ public static class RunwayOccupancy
         if ((phases is null) || (phase is null))
         {
             return null;
+        }
+
+        if (phase is AirTaxiPhase)
+        {
+            return (runway is not null) && IsOverOrOnPavement(ac, runway) ? RunwayUseKind.OnSurface : null;
         }
 
         if (runway is not null)
@@ -158,7 +180,7 @@ public static class RunwayOccupancy
         return phase switch
         {
             TakeoffPhase => RunwayUseKind.Departing,
-            LandingPhase => ac.IsOnGround ? RunwayUseKind.OnSurface : RunwayUseKind.Landing,
+            LandingPhase or HelicopterLandingPhase => ac.IsOnGround ? RunwayUseKind.OnSurface : RunwayUseKind.Landing,
             LineUpPhase or LinedUpAndWaitingPhase or StopAndGoPhase or TouchAndGoPhase => RunwayUseKind.OnSurface,
             RunwayExitPhase { IsOnCenterline: true } => RunwayUseKind.OnSurface,
             HoldingInPositionPhase when (runway is not null) && IsOnPavement(ac, runway) => RunwayUseKind.OnSurface,
@@ -168,9 +190,14 @@ public static class RunwayOccupancy
 
     /// <summary>
     /// Geometry-only classification: pavement containment and axis alignment on the ground; threshold-crossing height
-    /// and the final approach course in the air. Rotorcraft are never <see cref="RunwayUseKind.Landing"/> or
-    /// <see cref="RunwayUseKind.ShortFinal"/> — they air-taxi below 100 ft and arrive at runway points from any
-    /// direction (§3-11-1, §3-11-6).
+    /// and the final approach course in the air. Rotorcraft (<see cref="AircraftCategory.Helicopter"/> — an unmapped
+    /// rotorcraft type falls to the fixed-wing rules, and powered-lift has no category yet) never take off by rolling
+    /// (<see cref="RunwayUseKind.Departing"/>) and are never <see cref="RunwayUseKind.ShortFinal"/> — they do fly
+    /// straight-in finals (§3-11-6.a), but the only consequence of that kind is a fixed-wing sequencing signal, and they
+    /// arrive at runway points from any direction. Over the pavement below <see cref="RotorcraftAirTaxiCeilingFt"/> they
+    /// are a surface movement: descending is <see cref="RunwayUseKind.Landing"/>; below hover-taxi speed
+    /// <see cref="RunwayUseKind.OnSurface"/> regardless of heading; otherwise along the axis <see cref="RunwayUseKind.OnSurface"/>
+    /// and across it <see cref="RunwayUseKind.Crossing"/>.
     /// </summary>
     public static RunwayUseKind? ClassifyByGeometry(AircraftState ac, RunwayInfo runway, AirportGroundLayout? layout)
     {
@@ -186,12 +213,13 @@ public static class RunwayOccupancy
                 return RunwayUseKind.Crossing;
             }
 
-            return ac.GroundSpeed >= DepartingMinGroundSpeedKts ? RunwayUseKind.Departing : RunwayUseKind.OnSurface;
+            bool rolling = (ac.GroundSpeed >= DepartingMinGroundSpeedKts) && !IsRotorcraft(ac);
+            return rolling ? RunwayUseKind.Departing : RunwayUseKind.OnSurface;
         }
 
-        if (AircraftCategorization.Categorize(ac.AircraftType) == AircraftCategory.Helicopter)
+        if (IsRotorcraft(ac))
         {
-            return null;
+            return ClassifyAirborneRotorcraft(ac, runway);
         }
 
         var alignedEnd = AlignedEnd(ac.TrueTrack.Degrees, runway);
@@ -217,6 +245,34 @@ public static class RunwayOccupancy
         bool onFinal = (along < 0) && (-along <= ShortFinalDistanceNm) && (cross <= ShortFinalCrossTrackNm);
         return onFinal ? RunwayUseKind.ShortFinal : null;
     }
+
+    private static RunwayUseKind? ClassifyAirborneRotorcraft(AircraftState ac, RunwayInfo runway)
+    {
+        // Heading, not track: a hovering rotorcraft has no track, and the datum must not flip between the runway's ends.
+        double agl = ac.Altitude - AlignedEnd(ac.TrueHeading.Degrees, runway).ElevationFt;
+        if ((agl > RotorcraftAirTaxiCeilingFt) || !IsOverPavement(ac, runway))
+        {
+            return null;
+        }
+
+        if (ac.VerticalSpeed < -NotClimbingMaxFpm)
+        {
+            return RunwayUseKind.Landing;
+        }
+
+        if (ac.GroundSpeed < RotorcraftHoverTaxiMaxGroundSpeedKts)
+        {
+            return RunwayUseKind.OnSurface;
+        }
+
+        return AxisDeviationDeg(ac.TrueHeading.Degrees, runway) > SurfaceAxisToleranceDeg ? RunwayUseKind.Crossing : RunwayUseKind.OnSurface;
+    }
+
+    public static bool IsRotorcraft(AircraftState ac) => AircraftCategorization.Categorize(ac.AircraftType) == AircraftCategory.Helicopter;
+
+    /// <summary>Pavement containment for an aircraft that may be on the ground or air-taxiing just above it.</summary>
+    private static bool IsOverOrOnPavement(AircraftState ac, RunwayInfo runway) =>
+        ac.IsOnGround ? IsOnPavement(ac, runway) : IsOverPavement(ac, runway);
 
     /// <summary>On the ground and within the runway half-width plus <see cref="LateralSlackFt"/> of the centerline segment.</summary>
     public static bool IsOnPavement(AircraftState ac, RunwayInfo runway) => ac.IsOnGround && IsWithinPavement(ac.Position, runway);

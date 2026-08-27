@@ -959,7 +959,9 @@ ScenarioRatingClassifier.cs    # Maps VATSIM rating short/long forms (S3 / Stude
 RunwayOccupancy.cs             # Phase-independent runway-use classifier (RunwayUseKind: Departing/Landing/OnSurface/ShortFinal/Crossing);
                                # IsOnFinal (6 nm advisory ring), ClassifyBest (oriented pavements, LandedOnRunway-aware), AirportRunways (FAA/ICAO).
                                # Phase evidence first (ClassifyByPhase), geometry (pavement rectangle + axis alignment on the ground,
-                               # TCH + final-approach course in the air) only for phase-less aircraft; landing-threshold distance/time helpers.
+                               # TCH + final-approach course in the air; rotorcraft over the pavement below 100 ft AGL = surface movement — descending
+                               # Landing, < 20 kt OnSurface, else axis — never ShortFinal/Departing) only for phase-less aircraft; AirTaxiPhase /
+                               # HelicopterLandingPhase by phase; landing-threshold distance/time helpers.
                                # Consumed by RunwaySafetyAdvisor, GroundConflictDetector.IsOnRunway, SoloTrainingEvaluator.IsTakeoffRoll.
 SimulationEngine.cs            # Scenario load, tick orchestration, replay (ReplayFromStartTo — full from-scratch replay;
                                # FastForwardTo — advance from current time; ReplayRange — between two timestamps;

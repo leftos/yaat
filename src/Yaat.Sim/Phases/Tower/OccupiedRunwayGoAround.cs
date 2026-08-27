@@ -126,6 +126,14 @@ internal static class OccupiedRunwayGoAround
         double secondsToThreshold
     )
     {
+        // §3-10-3.a.1/a.2's exceptions are written in SRS Categories I–III — fixed-wing classes — and a.3's helicopter
+        // relief is for the succeeding aircraft only. A preceding rotorcraft (hovering, descending, air-taxiing) has no
+        // codified exception at any distance: the runway must be clear.
+        if (RunwayOccupancy.IsRotorcraft(occupant))
+        {
+            return true;
+        }
+
         var occupantCategory = SameRunwaySeparation.ResolveSrsCategory(occupant);
         double downfieldNowFt = GeoMath.AlongTrackDistanceNm(occupant.Position, landingThreshold, runway.TrueHeading) * GeoMath.FeetPerNm;
         double projectedFt = downfieldNowFt + ((occupant.GroundSpeed * GeoMath.FeetPerNm / 3600.0) * secondsToThreshold);

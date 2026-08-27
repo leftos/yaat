@@ -137,6 +137,11 @@ Nothing is transmitted at assume. The `CommandResult` message summarises the see
   coasting, and not inside an internal-airport approach corridor. `CASUP <other>` (a track command, so it works on a
   shadow) toggles suppression for one pair from either side; stored in `Stars.CaSuppressedWith` (serialized, replayed as
   an ordinary recorded track command). Tests: `LiveTrafficConflictAlertTests`.
+- **Rotorcraft** (`RunwayOccupancy.ClassifyAirborneRotorcraft`): a helicopter shadow over the pavement below the 100 ft
+  air-taxi ceiling is a surface movement (§3-11-3 NOTE) — `Landing` when descending, `OnSurface` below hover-taxi speed
+  or along the axis, `Crossing` across it at air-taxi speed; never `ShortFinal` or `Departing`. A preceding rotorcraft has
+  no §3-10-3 landmark exception in `OccupiedRunwayGoAround`, and the landing-clearance advisory treats a shadow still in
+  the air over the runway (`Landing`) as not clear. `ASSUME` on a descending helicopter installs `HelicopterLandingPhase`.
 - Not yet: arrival-runway inference for display, follow-helper lead runway. Tests: `LiveTrafficParticipationTests`.
 
 ## Recording and replay

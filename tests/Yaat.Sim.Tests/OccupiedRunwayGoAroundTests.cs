@@ -288,6 +288,19 @@ public class OccupiedRunwayGoAroundTests
     }
 
     [Fact]
+    public void HelicopterHoveringDownOntoTheRunwayBeyondTheLandmark_GoesAround()
+    {
+        // A preceding rotorcraft has no §3-10-3 exception: it has not landed (a.1) and never rolled (a.2), and the
+        // landmark categories are fixed-wing classes — 4,000 ft down the runway it still blocks.
+        var arrival = Arrival("C172", 0.4, 120);
+        var hovering = Occupant("EC35", OnRunway(4000), 5, phase: null, onGround: false);
+        hovering.Altitude = ElevationFt + 40;
+        hovering.VerticalSpeed = -200;
+
+        Assert.True(GoesAround(arrival, hovering, setting: true));
+    }
+
+    [Fact]
     public void PhaselessOccupantParkedOnThePavement_GoesAround()
     {
         var arrival = Arrival("B738", 0.6, 150);

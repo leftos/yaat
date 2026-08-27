@@ -205,9 +205,13 @@ public static class RunwaySafetyAdvisor
     /// <summary>Final-approach ring for <see cref="WarnIfTrafficOnFinal"/> — roughly the 3-9-4.d "traffic on final" window.</summary>
     public const double OnFinalAdvisoryNm = 6.0;
 
-    /// <summary>A live-traffic shadow on the runway surface (a landed rollout reads OnSurface via the observer's latch, never Departing).</summary>
+    /// <summary>
+    /// A live-traffic shadow on the runway (a landed rollout reads OnSurface via the observer's latch, never Departing) or
+    /// still in the air over it below threshold-crossing height — a flare, or a rotorcraft descending onto the runway
+    /// (P/CG CLEAR OF THE RUNWAY: an aircraft that has not touched down is not clear).
+    /// </summary>
     private static bool ShadowOccupies(AircraftState other, RunwayInfo runway, DispatchContext ctx) =>
-        other.IsShadow && RunwayOccupancy.Classify(other, runway, ctx.GroundLayout) is { Kind: RunwayUseKind.OnSurface };
+        other.IsShadow && RunwayOccupancy.Classify(other, runway, ctx.GroundLayout) is { Kind: RunwayUseKind.OnSurface or RunwayUseKind.Landing };
 
     private static RunwayInfo? ResolveNamedRunway(string airport, string designator) =>
         RunwayOccupancy.AirportRunways(airport).FirstOrDefault(r => r.Id.Contains(designator))?.ForApproach(designator);

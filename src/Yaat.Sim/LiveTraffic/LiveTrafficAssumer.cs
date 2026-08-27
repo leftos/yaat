@@ -114,7 +114,8 @@ public static class LiveTrafficAssumer
         {
             SeedSpeed(ac, lt);
             ac.Phases = new PhaseList { AssignedRunway = runway, LandingClearance = ClearanceType.ClearedToLand };
-            ac.Phases.Add(new LandingPhase());
+            // A rotorcraft settles onto the spot (§3-11-6); the fixed-wing flare/rollout/exit chain would snap it to the centreline.
+            ac.Phases.Add(RunwayOccupancy.IsRotorcraft(ac) ? new HelicopterLandingPhase() : new LandingPhase());
             return $"landing runway {RunwayIdentifier.ToDisplayDesignator(runway.Designator)}";
         }
 

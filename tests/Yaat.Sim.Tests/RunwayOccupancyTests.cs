@@ -88,6 +88,30 @@ public class RunwayOccupancyTests
         };
     }
 
+    /// <summary>An airborne rotorcraft at a hover or air taxi: heading and track are independent, speed is explicit.</summary>
+    private static AircraftState Rotorcraft(
+        LatLon position,
+        double headingDeg,
+        double trackDeg,
+        double aglFt,
+        double verticalSpeedFpm,
+        double groundSpeedKts
+    )
+    {
+        return new AircraftState
+        {
+            Callsign = "TEST",
+            AircraftType = "EC35",
+            Position = position,
+            TrueHeading = new TrueHeading(headingDeg),
+            TrueTrack = new TrueHeading(trackDeg),
+            Altitude = ElevationFt + aglFt,
+            IndicatedAirspeed = groundSpeedKts,
+            VerticalSpeed = verticalSpeedFpm,
+            IsOnGround = false,
+        };
+    }
+
     private static void AttachPhase(AircraftState ac, Phase? phase, RunwayInfo? assignedRunway)
     {
         if (phase is null && assignedRunway is null)
@@ -327,16 +351,105 @@ public class RunwayOccupancyTests
     }
 
     [Fact]
-    public void Helicopters_NeverClassifyAsLandingOrShortFinal()
+    public void Helicopters_NeverClassifyAsShortFinal()
     {
-        var overPavement = Airborne(OnRunway(500, 0), 280, ElevationFt + 30, -100, "EC35");
+        // Rotorcraft arrive at runway points from any direction (§3-11-6), so there is no final to protect.
         var onFinal = Airborne(OnFinal(1.0, 0), 280, ElevationFt + 300, -400, "EC35");
         var onGround = Ground(OnRunway(500, 0), 280, 0, phase: null, assignedRunway: null);
         onGround.AircraftType = "EC35";
 
-        Assert.Null(Kind(overPavement));
         Assert.Null(Kind(onFinal));
         Assert.Equal(RunwayUseKind.OnSurface, Kind(onGround));
+    }
+
+    [Fact]
+    public void Helicopter_AirTaxiingOverThePavement_OccupiesTheRunway()
+    {
+        // Air taxi is a surface movement below 100 ft AGL (P/CG AIR TAXI, §3-11-3 NOTE): along the axis — either
+        // direction — it holds the runway like a rolling aircraft; across it at air-taxi speed it is crossing. Above
+        // air-taxi height it is in flight.
+        var alongAxis = Rotorcraft(OnRunway(500, 0), 280, 280, 40, 0, 40);
+        var reciprocal = Rotorcraft(OnRunway(500, 0), 100, 100, 40, 0, 40);
+        var across = Rotorcraft(OnRunway(500, 0), 10, 10, 40, 0, 40);
+        var aboveAirTaxi = Rotorcraft(OnRunway(500, 0), 280, 280, 150, 0, 40);
+
+        Assert.Equal(RunwayUseKind.OnSurface, Kind(alongAxis));
+        Assert.Equal(RunwayUseKind.OnSurface, Kind(reciprocal));
+        Assert.Equal(RunwayUseKind.Crossing, Kind(across));
+        Assert.Null(Kind(aboveAirTaxi));
+    }
+
+    [Fact]
+    public void Helicopter_HoveringCrosswiseOverThePavement_IsOnTheRunway()
+    {
+        // Below hover-taxi speed (§3-11-1.b) the heading says nothing about vacating: a hover check or a crosswind spot
+        // landing is on the runway. Heading and track deliberately differ (a hover has no track).
+        var hover = Rotorcraft(OnRunway(500, 0), 10, 200, 20, 0, 3);
+        var sidewardHoverTaxi = Rotorcraft(OnRunway(500, 0), 10, 280, 15, 0, 12);
+
+        Assert.Equal(RunwayUseKind.OnSurface, Kind(hover));
+        Assert.Equal(RunwayUseKind.OnSurface, Kind(sidewardHoverTaxi));
+    }
+
+    [Fact]
+    public void Helicopter_ClimbingOutBelowAirTaxiHeight_StillOccupiesTheRunway()
+    {
+        // §3-10-3.a.2: a departure blocks until it has crossed the runway end; a diverse-direction helicopter departure
+        // leaves the pavement laterally and stops blocking the moment it is off it or above 100 ft.
+        var liftingOff = Rotorcraft(OnRunway(500, 0), 280, 280, 60, 500, 30);
+        var clearOfPavement = Rotorcraft(OnRunway(500, 400), 280, 280, 60, 500, 30);
+
+        Assert.Equal(RunwayUseKind.OnSurface, Kind(liftingOff));
+        Assert.Null(Kind(clearOfPavement));
+    }
+
+    [Fact]
+    public void Helicopter_DescendingOntoThePavement_IsLanding_FromAnyDirection()
+    {
+        var alongAxis = Rotorcraft(OnRunway(500, 0), 280, 280, 30, -300, 20);
+        var diagonal = Rotorcraft(OnRunway(500, 0), 340, 340, 30, -300, 20);
+
+        Assert.Equal(RunwayUseKind.Landing, Kind(alongAxis));
+        Assert.Equal(RunwayUseKind.Landing, Kind(diagonal));
+    }
+
+    [Fact]
+    public void Helicopter_GroundTaxiingFastAlongTheRunway_IsNeverDeparting()
+    {
+        // A wheeled helicopter has no takeoff roll (§3-11-1.a ground taxi); 40 kt along the axis is OnSurface, and it
+        // earns no §3-10-3.a.2 departure credit.
+        var wheeled = Ground(OnRunway(500, 0), 280, 40, phase: null, assignedRunway: null);
+        wheeled.AircraftType = "EC35";
+
+        Assert.Equal(RunwayUseKind.OnSurface, Kind(wheeled));
+    }
+
+    [Fact]
+    public void HelicopterLandingPhase_ClassifiesLikeALanding()
+    {
+        var descending = Airborne(OnRunway(500, 0), 280, ElevationFt + 30, -150, "EC35");
+        AttachPhase(descending, new HelicopterLandingPhase(), Runway);
+        var touchedDown = Ground(OnRunway(500, 0), 280, 0, new HelicopterLandingPhase(), Runway);
+        touchedDown.AircraftType = "EC35";
+
+        Assert.Equal(RunwayUseKind.Landing, Kind(descending));
+        Assert.Equal(RunwayUseKind.OnSurface, Kind(touchedDown));
+    }
+
+    [Fact]
+    public void AirTaxiPhase_OccupiesWhateverPavementItIsOver()
+    {
+        // A simulated helicopter air-taxiing across the runway at 100 ft AGL has no runway of its own; it is a surface
+        // movement (§3-11-3 NOTE) on the pavement it is over and nothing once past it.
+        var overRunway = Airborne(OnRunway(500, 0), 10, ElevationFt + 100, 0, "EC35");
+        AttachPhase(overRunway, new AirTaxiPhase(37.1, -122.1, "H1"), assignedRunway: null);
+        var pastRunway = Airborne(OnRunway(500, 400), 10, ElevationFt + 100, 0, "EC35");
+        AttachPhase(pastRunway, new AirTaxiPhase(37.1, -122.1, "H1"), assignedRunway: null);
+
+        Assert.Equal(RunwayUseKind.OnSurface, Kind(overRunway));
+        Assert.Null(Kind(pastRunway));
+        Assert.Equal(RunwayUseKind.OnSurface, RunwayOccupancy.ClassifyByPhase(overRunway, Runway));
+        Assert.Null(RunwayOccupancy.ClassifyByPhase(overRunway, runway: null));
     }
 
     [Fact]

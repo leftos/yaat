@@ -412,6 +412,32 @@ public class LiveTrafficAssumeTests
     }
 
     [Fact]
+    public void HelicopterDescendingOntoTheRunway_LandsUnderHelicopterLandingPhase()
+    {
+        var runway = NavigationDatabase.Instance.GetRunway("OAK", "28R")!;
+        var threshold = new LatLon(runway.ThresholdLatitude, runway.ThresholdLongitude);
+        var pos = GeoMath.ProjectPoint(threshold, runway.TrueHeading, 0.2);
+        var plan = new AircraftFlightPlan
+        {
+            HasFlightPlan = true,
+            Departure = "KLAX",
+            Destination = "KOAK",
+        };
+        var ac = LiveTrafficKinematics.CreateShadow(
+            Callsign,
+            "EC35",
+            Sample(0, pos, runway.ElevationFt + 40, 15, runway.TrueHeading.Degrees, -200),
+            plan
+        );
+
+        var result = Assume(ac);
+
+        Assert.True(result.Success, result.Message);
+        Assert.IsType<HelicopterLandingPhase>(ac.Phases?.CurrentPhase);
+        Assert.Equal(ClearanceType.ClearedToLand, ac.Phases!.LandingClearance);
+    }
+
+    [Fact]
     public void AirborneOverTheRunwayBelow50Ft_LandsUnderLandingPhase_ClearanceImplied()
     {
         var runway = NavigationDatabase.Instance.GetRunway("OAK", "28R")!;
