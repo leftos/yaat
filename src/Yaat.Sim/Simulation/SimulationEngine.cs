@@ -1437,6 +1437,14 @@ public sealed class SimulationEngine
 
         foreach (var ac in toDelete)
         {
+            // An overflight leaving its corridor is a completed transit, not a drop: stamp it so the removal below
+            // records a debrief row (landings and handoffs are stamped where they happen).
+            if ((ac.CompletionReason == CompletionReason.Active) && HasLeftOverflightCorridor(ac, scenario.PrimaryAirportId))
+            {
+                ac.CompletedAtSeconds = scenario.ElapsedSeconds;
+                ac.CompletionReason = CompletionReason.Transited;
+            }
+
             World.RemoveAircraft(ac.Callsign);
             _logger.LogInformation(
                 "Auto-deleted {Callsign} (mode={Mode}) in scenario '{Name}' at t={T}s",

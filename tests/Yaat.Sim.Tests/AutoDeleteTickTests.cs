@@ -1,6 +1,8 @@
 using Xunit;
+using Yaat.Sim.Data;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
+using Yaat.Sim.Training;
 
 namespace Yaat.Sim.Tests;
 
@@ -47,6 +49,49 @@ public class AutoDeleteTickTests
         engine.World.AddAircraft(ac);
 
         Assert.Same(ac, Assert.Single(engine.TickAutoDelete()));
+    }
+
+    [Fact]
+    public void TickAutoDelete_OverflightPastItsExitRadius_IsStampedTransited_AndRecorded()
+    {
+        TestVnasData.EnsureInitialized();
+        var engine = EngineWithMode("OnLanding");
+        engine.Scenario!.PrimaryAirportId = "KOAK";
+        engine.Scenario.ElapsedSeconds = 600;
+        var (oakLat, oakLon) = NavigationDatabase.Instance.GetFixPosition("KOAK")!.Value;
+        var oak = new LatLon(oakLat, oakLon);
+        var transit = Aircraft("N1");
+        transit.IsGeneratedOverflight = true;
+        transit.OverflightExitDistanceNm = 20;
+        transit.Position = GeoMath.ProjectPoint(oak, new TrueHeading(90), 25);
+        transit.SpawnedAtSeconds = 100;
+        engine.World.AddAircraft(transit);
+
+        Assert.Same(transit, Assert.Single(engine.TickAutoDelete()));
+
+        Assert.Equal(CompletionReason.Transited, transit.CompletionReason);
+        Assert.Equal(600, transit.CompletedAtSeconds);
+        var record = Assert.Single(engine.World.GetCompletedAircraft());
+        Assert.Equal("N1", record.Callsign);
+        Assert.Equal(CompletionReason.Transited, record.Reason);
+    }
+
+    [Fact]
+    public void TickAutoDelete_OverflightStillInsideItsExitRadius_Stays()
+    {
+        TestVnasData.EnsureInitialized();
+        var engine = EngineWithMode("OnLanding");
+        engine.Scenario!.PrimaryAirportId = "KOAK";
+        var (oakLat, oakLon) = NavigationDatabase.Instance.GetFixPosition("KOAK")!.Value;
+        var oak = new LatLon(oakLat, oakLon);
+        var transit = Aircraft("N1");
+        transit.IsGeneratedOverflight = true;
+        transit.OverflightExitDistanceNm = 20;
+        transit.Position = GeoMath.ProjectPoint(oak, new TrueHeading(90), 15);
+        engine.World.AddAircraft(transit);
+
+        Assert.Empty(engine.TickAutoDelete());
+        Assert.Equal(CompletionReason.Active, transit.CompletionReason);
     }
 
     private static AircraftState Aircraft(string callsign) =>

@@ -18,6 +18,12 @@ public enum CompletionReason
 
     /// <summary>Aircraft was explicitly deleted (DEL command, scenario unload) without a prior completion stamp.</summary>
     Dropped,
+
+    /// <summary>
+    /// A generated overflight flew out of the scenario past its exit radius. Set by
+    /// <see cref="Simulation.SimulationEngine.TickAutoDelete"/> — the transit did what it was spawned to do.
+    /// </summary>
+    Transited,
 }
 
 /// <summary>

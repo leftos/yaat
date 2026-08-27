@@ -10,6 +10,7 @@
 - Quitting YAAT no longer hangs when the global keyboard hook fails to stop.
 - CRC ASDE-X Safety Logic no longer flags a back-taxiing aircraft as a runway incursion, and measures an arrival's height from its runway rather than the field elevation.
 - A helicopter air-taxiing over, hovering on, or settling onto a runway counts as runway traffic for the occupied-runway warnings, ground yielding, and the auto go-around.
+- Generated overflights that fly out of the scenario now appear in the session report's Aircraft tab as "Transited" instead of vanishing without a row.
 
 ### Changed
 - Loading a recording or bug bundle for replay is faster.

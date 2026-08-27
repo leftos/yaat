@@ -106,6 +106,7 @@ internal sealed record AircraftDebriefRow(
             "HandedOff" when !string.IsNullOrEmpty(dto.CompletionDetail) => $"Handed off {dto.CompletionDetail}",
             "HandedOff" => "Handed off",
             "Dropped" => "Dropped",
+            "Transited" => "Transited",
             _ => "Active",
         };
 
