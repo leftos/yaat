@@ -653,7 +653,8 @@ Commands/TrackResolver.cs           # AS-prefix extraction (e.g. "AS 3Y ACCEPT" 
 Commands/PatternCommandHandler.cs   # Pattern operation command logic (extend, rock wings, GoAround, CTL, sequence, etc.); EF loop detection via turn-arc geometry, same-runway continue no-op, never-route-outbound reject, and the pattern retarget that degrades a too-close EF into a base entry; runway-changing entries void the landing clearance; pre-arms EXT/SA/MNA and landing/option clearances behind a still-queued pattern entry; present-position downwind join (IsAtOrPastDownwindEntry) when the aircraft is already alongside the downwind between the entry point and the base turn (#352)
 Commands/RunwaySafetyAdvisor.cs     # Non-blocking 7110.65 3-9-4 occupied-runway advisories (PendingWarnings → amber terminal): landing-family clearance
                                     # (pavement test = RunwayOccupancy.IsOnPavement for holding-in-position occupants; live-traffic shadows by
-                                    # RunwayOccupancy.Classify geometry; WarnIfTrafficOnFinal = 3-9-4.d shadows within 6 nm on LUAW)
+                                    # RunwayOccupancy.Classify geometry; WarnIfTrafficOnFinal = 3-9-4.d shadows within 6 nm on LUAW;
+                                    # WarnIfAnotherHoldingInPosition = 3-9-4.h second LUAW on the same pavement, not safety-logic gated)
                                     # (CLAND/COPT/TG/SG/LA/LAHSO/CLANDF) with traffic holding in position / taxiing to line up on the runway, and the reverse
                                     # (LUAW with a landing-family clearance outstanding). Suppressed when ArtccConfigResolver.AirportHasFullSafetyLogic finds
                                     # an ASDE-X config with runway configurations for the airport (CRC Safety Logic covers the incursion there)

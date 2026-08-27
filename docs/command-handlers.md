@@ -302,6 +302,8 @@ amber in the client — so the advisory surfaces on the tick *after* the command
   holds a landing-family clearance for the runway), plus `WarnIfTrafficOnFinal` on LUAW for live-traffic shadows within 6 nm of the
   final (3-9-4.d) and shadow occupants by geometry. Gated on the airport's vNAS ARTCC config: suppressed when
   `ArtccConfigResolver.AirportHasFullSafetyLogic` finds an ASDE-X config with runway configurations (CRC's Safety Logic covers the incursion there).
+  `WarnIfAnotherHoldingInPosition` (also on LUAW) is the 3-9-4.h reminder — a second aircraft lined up on the same pavement while the first
+  still awaits its takeoff clearance — and is not safety-logic gated (the sim has no daylight or LA/LM staffing state, so it always fires).
   This is why `PatternCommandHandler`'s clearance methods and `DepartureClearanceHandler.TryDepartureClearance` take the full `DispatchContext`.
 
 ## Adding a new command's effect

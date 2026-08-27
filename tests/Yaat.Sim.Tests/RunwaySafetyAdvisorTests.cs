@@ -107,6 +107,64 @@ public class RunwaySafetyAdvisorTests
         Assert.Contains("HOLD1", warnings[0]);
     }
 
+    private static List<string> WarningsAfterSecondLuaw(AircraftState second, AircraftState first)
+    {
+        var ctx = TestDispatch.Context(new Random(1), listAircraft: () => [second, first]);
+        RunwaySafetyAdvisor.WarnIfAnotherHoldingInPosition(second, Runway, ctx);
+        return second.PendingWarnings;
+    }
+
+    [Fact]
+    public void SecondLuaw_WithAnotherAircraftHoldingInPosition_Warns()
+    {
+        // 3-9-4.h: two aircraft lined up on the same runway at once needs the local assist/monitor staffed.
+        var first = Occupant("LUAW1", OnRunway(200, 0), new LinedUpAndWaitingPhase());
+        var second = Occupant("LUAW2", OnRunway(4000, 0), new LinedUpAndWaitingPhase());
+
+        var warnings = WarningsAfterSecondLuaw(second, first);
+
+        Assert.Single(warnings);
+        Assert.Contains("LUAW1", warnings[0]);
+        Assert.Contains("3-9-4.h", warnings[0]);
+    }
+
+    [Fact]
+    public void SecondLuaw_BehindADepartureAlreadyClearedForTakeoff_IsSilent()
+    {
+        var rolling = Occupant("DEP1", OnRunway(200, 0), new LinedUpAndWaitingPhase());
+        rolling.Phases!.CurrentPhase!.Requirements[0].IsSatisfied = true;
+        var second = Occupant("LUAW2", OnRunway(4000, 0), new LinedUpAndWaitingPhase());
+
+        Assert.Empty(WarningsAfterSecondLuaw(second, rolling));
+    }
+
+    [Fact]
+    public void SecondLuaw_OnTheOppositeEndOfTheSamePavement_Warns()
+    {
+        var first = Occupant("LUAW1", OnRunway(200, 0), new LinedUpAndWaitingPhase());
+        first.Phases!.AssignedRunway = Runway.ForApproach("10");
+        var second = Occupant("LUAW2", OnRunway(4000, 0), new LinedUpAndWaitingPhase());
+
+        Assert.Single(WarningsAfterSecondLuaw(second, first));
+    }
+
+    [Fact]
+    public void SecondLuaw_OnADifferentRunway_IsSilent()
+    {
+        var first = Occupant("LUAW1", OnRunway(200, 0), new LinedUpAndWaitingPhase());
+        first.Phases!.AssignedRunway = TestRunwayFactory.Make(
+            designator: "33",
+            thresholdLat: 37.02,
+            thresholdLon: -122.02,
+            endLat: 37.04,
+            endLon: -122.03,
+            heading: 330
+        );
+        var second = Occupant("LUAW2", OnRunway(4000, 0), new LinedUpAndWaitingPhase());
+
+        Assert.Empty(WarningsAfterSecondLuaw(second, first));
+    }
+
     [Fact]
     public void DesignatorOverload_HoldingInPositionOnItsOwnRunway_Warns()
     {

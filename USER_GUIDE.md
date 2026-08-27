@@ -152,7 +152,7 @@ Warning messages appear when the simulator detects potential issues:
 
 - **Missed FRD condition**: `Missed condition at SUNOL R090 D020 (closest: 2.3 NM)` — an aircraft passed through an FRD trigger point without getting close enough.
 - **Illegal approach intercept**: `Illegal intercept: turned on final 5.2nm from threshold (min 9.0nm) [7110.65 §5-9-1]` — an aircraft was vectored onto final closer than the minimum intercept distance.
-- **Occupied-runway clearance**: a landing-family clearance (`CLAND`/`COPT`/`TG`/`SG`/`LA`/`LAHSO`/`CLANDF`) issued while traffic is holding in position or taxiing to line up on that runway, or `LUAW` authorized while an aircraft already holds such a clearance for it (7110.65 3-9-4). The clearance still goes through — this is a mentor reminder. Not shown at airports whose vNAS config has ASDE-X safety logic (e.g. SFO).
+- **Occupied-runway clearance**: a landing-family clearance (`CLAND`/`COPT`/`TG`/`SG`/`LA`/`LAHSO`/`CLANDF`) issued while traffic is holding in position or taxiing to line up on that runway, or `LUAW` authorized while an aircraft already holds such a clearance for it (7110.65 3-9-4). The clearance still goes through — this is a mentor reminder. Not shown at airports whose vNAS config has ASDE-X safety logic (e.g. SFO). A second `LUAW` on a runway that already has an aircraft holding in position warns at every airport (3-9-4.h: only with the local assist/monitor position staffed).
 
 ### Command Bar
 

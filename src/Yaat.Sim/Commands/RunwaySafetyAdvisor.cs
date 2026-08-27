@@ -140,6 +140,42 @@ public static class RunwaySafetyAdvisor
     }
 
     /// <summary>
+    /// 7110.65 §3-9-4.h: aircraft may not simultaneously line up and wait on the same runway between sunrise and
+    /// sunset unless the local assist/local monitor position is staffed (and §3-9-4.g.4 allows only one at a time at
+    /// an intersection at night). The sim has no clock-based daylight or staffing state, so a second LUAW on a pavement
+    /// that already has an aircraft holding in position (either end, without a takeoff clearance) always draws the
+    /// reminder. Not tied to the safety-logic gate — the rule is about the tower seeing two aircraft on one runway.
+    /// </summary>
+    public static void WarnIfAnotherHoldingInPosition(AircraftState aircraft, RunwayInfo runway, DispatchContext ctx)
+    {
+        if (ctx.ListAircraft is null)
+        {
+            return;
+        }
+
+        var holding = ctx.ListAircraft()
+            .Where(other =>
+                (!ReferenceEquals(other, aircraft))
+                && AwaitsTakeoffClearanceOnRunway(other)
+                && (OccupiedRunwayOf(other) is { } occupied)
+                && SameAirport(occupied.AirportId, runway.AirportId)
+                && occupied.Id.Overlaps(runway.Id)
+            )
+            .Select(other => other.Callsign)
+            .ToList();
+        if (holding.Count == 0)
+        {
+            return;
+        }
+
+        var display = RunwayIdentifier.ToDisplayDesignator(runway.Designator);
+        var warning =
+            $"{aircraft.Callsign}: {string.Join(", ", holding)} already holding in position on runway {display} — do not authorize simultaneous line up and wait on the same runway between sunrise and sunset unless the local assist/local monitor position is staffed (7110.65 3-9-4.h)";
+        aircraft.PendingWarnings.Add(warning);
+        Log.LogDebug("[RunwaySafety] {Warning}", warning);
+    }
+
+    /// <summary>
     /// 7110.65 §3-9-4.d: when LUAW is authorized with real traffic on the final for that runway, the
     /// controller must exchange traffic — advise which live aircraft are inside <see cref="OnFinalAdvisoryNm"/>.
     /// Simulated arrivals are covered by their clearance state (<see cref="WarnIfArrivalCleared"/>); this

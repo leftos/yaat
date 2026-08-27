@@ -133,11 +133,13 @@ internal static class DepartureClearanceHandler
         var result = TryDepartureClearanceCore(aircraft, currentPhase, clearanceType, departure, assignedAltitude, ctx.GroundLayout, logger);
 
         // 7110.65 3-9-4: do not authorize LUAW when an aircraft holds a landing-family clearance
-        // for the same runway (advisory only — the clearance stands). CTO is deliberately outside
-        // the check: takeoff with an arrival cleared to land is ordinary anticipated separation.
+        // for the same runway, or is already holding in position on it (advisory only — the
+        // clearance stands). CTO is deliberately outside the check: takeoff with an arrival
+        // cleared to land is ordinary anticipated separation.
         if (result.Success && (clearanceType == ClearanceType.LineUpAndWait) && aircraft.Phases?.AssignedRunway is { } runway)
         {
             RunwaySafetyAdvisor.WarnIfArrivalCleared(aircraft, runway, ctx);
+            RunwaySafetyAdvisor.WarnIfAnotherHoldingInPosition(aircraft, runway, ctx);
             RunwaySafetyAdvisor.WarnIfTrafficOnFinal(aircraft, runway, ctx);
         }
 

@@ -4,6 +4,7 @@
 
 ### Added
 - Simulated arrivals go around on short final ("going around, traffic on the runway") when another aircraft is on their runway, honoring the 7110.65 3-10-3 landmark exceptions behind a landed or departing aircraft. New session setting **Auto go-around on occupied runway**, on by default.
+- `LUAW` on a runway that already has an aircraft holding in position draws an RPO reminder (7110.65 3-9-4.h: simultaneous line up and wait needs the local assist/monitor staffed).
 
 ### Fixed
 - Quitting YAAT no longer hangs when the global keyboard hook fails to stop.
