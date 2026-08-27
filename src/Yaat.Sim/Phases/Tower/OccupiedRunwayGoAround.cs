@@ -138,18 +138,29 @@ internal static class OccupiedRunwayGoAround
         double downfieldNowFt = GeoMath.AlongTrackDistanceNm(occupant.Position, landingThreshold, runway.TrueHeading) * GeoMath.FeetPerNm;
         double projectedFt = downfieldNowFt + ((occupant.GroundSpeed * GeoMath.FeetPerNm / 3600.0) * secondsToThreshold);
 
+        // The occupant is judged where it will be when the arrival crosses the threshold: still on the pavement then
+        // (the classifier already said so now) and, for a departure, flying by then if it is airborne or rolling now.
         if (LandedHere(occupant, kind, runway))
         {
-            double? exceptionFt = SameRunwaySeparation.RequiredLandingBehindLandingExceptionFt(occupantCategory, arrivalCategory);
-            return (exceptionFt is null) || (projectedFt < exceptionFt.Value);
+            return !SameRunwaySeparation.ArrivalBehindLandingSatisfied(
+                landerClearOfRunway: false,
+                landerOnGround: true,
+                projectedFt,
+                occupantCategory,
+                arrivalCategory
+            );
         }
 
         if (DepartedHere(occupant, kind, runway))
         {
-            bool crossedRunwayEnd = projectedFt >= runwayEndFt;
             bool willBeFlying = (!occupant.IsOnGround) || (occupant.GroundSpeed >= RunwayOccupancy.DepartingMinGroundSpeedKts);
-            double requiredFt = SameRunwaySeparation.RequiredArrivalBehindDepartureFt(occupantCategory, arrivalCategory);
-            return !(crossedRunwayEnd || (willBeFlying && (projectedFt >= requiredFt)));
+            return !SameRunwaySeparation.ArrivalBehindDepartureSatisfied(
+                departureCrossedRunwayEnd: projectedFt >= runwayEndFt,
+                willBeFlying,
+                projectedFt,
+                occupantCategory,
+                arrivalCategory
+            );
         }
 
         return true;
@@ -157,21 +168,13 @@ internal static class OccupiedRunwayGoAround
 
     /// <summary>§3-10-3.a.1 applies: the occupant landed on this runway and is rolling out, exiting, or stopped after landing.</summary>
     private static bool LandedHere(AircraftState occupant, RunwayUseKind kind, RunwayInfo runway) =>
-        occupant.Phases?.CurrentPhase switch
-        {
-            LandingPhase or RunwayExitPhase or StopAndGoPhase or TouchAndGoPhase => UsesThisRunway(occupant, runway),
-            null => kind == RunwayUseKind.Landing,
-            _ => false,
-        };
+        SameRunwaySeparation.IsLandingFamilyOccupant(occupant.Phases?.CurrentPhase, kind)
+        && ((occupant.Phases is null) || UsesThisRunway(occupant, runway));
 
     /// <summary>§3-10-3.a.2 applies: the occupant is departing from this runway.</summary>
     private static bool DepartedHere(AircraftState occupant, RunwayUseKind kind, RunwayInfo runway) =>
-        occupant.Phases?.CurrentPhase switch
-        {
-            TakeoffPhase or InitialClimbPhase => UsesThisRunway(occupant, runway),
-            null => kind == RunwayUseKind.Departing,
-            _ => false,
-        };
+        SameRunwaySeparation.IsDepartureFamilyOccupant(occupant.Phases?.CurrentPhase, kind)
+        && ((occupant.Phases is null) || UsesThisRunway(occupant, runway));
 
     /// <summary>The occupant's phase runway (departure, else assigned) is this pavement — an exit from a crossing runway earns no credit here.</summary>
     private static bool UsesThisRunway(AircraftState occupant, RunwayInfo runway)

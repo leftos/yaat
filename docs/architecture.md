@@ -530,7 +530,8 @@ EramConflictDetector.cs        # Static ERAM (en-route) STCA detection: 5nm late
 EramConflictState.cs           # Per-facility ERAM conflict-alert state (active STCA pairs) driving the Center data-block flash
 Asdex/AsdexSafetyLogicDetector.cs  # Static ASDE-X Safety Logic detection: closed-runway, occupied-runway, taxi-onto-active-runway, taxiway-landing incursions → CRC surface alerts;
                                     # alignment is an axis test (back-taxi = runway user), arrival AGL measured from AsdexRunwaySurface.ElevationFt (server resolves it from the nav-DB runway)
-Training/SameRunwaySeparation.cs   # SrsCategory + 7110.65 §3-9-6/§3-10-3 landmark distances, shared by the evaluator and OccupiedRunwayGoAround
+Training/SameRunwaySeparation.cs   # SrsCategory + 7110.65 §3-9-6/§3-10-3 landmark distances and the satisfied-predicates (crossed end / airborne /
+                                   # landed-and-past-landmark) + landing/departure-family occupant tests, shared by the evaluator and OccupiedRunwayGoAround
 Training/SoloTrainingEvaluator.cs  # Solo-training scorecard: FAA separation, wake, runway-operation separation, structured traffic-advisory/safety-alert/wake-advisory/field-proof events, ARTCC WakeDirectives, Class C outer-area/no-minima advisory scoring, active timeline, report buckets
 Training/AircraftCompletion.cs     # Per-aircraft lifecycle stamps: spawn time, completion time, completion reason (Landed / Handed off / Dropped / Departed), filed route + operation classification used by the Session Report Aircraft tab.
 Training/AircraftDebriefCoachingTemplates.cs  # Pure templates: one-line coaching note per completion reason + severity profile, consumed when aggregating per-aircraft debrief blocks from existing findings.

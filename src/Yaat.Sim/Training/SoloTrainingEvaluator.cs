@@ -2537,7 +2537,15 @@ public sealed class SoloTrainingEvaluator
         )
         {
             double requiredFt = SameRunwaySeparation.RequiredDepartureBehindDepartureFt(preceding.SrsCategory, succeeding.SrsCategory);
-            if (DepartureBehindDepartureSatisfied(precedingState, succeedingState, requiredFt))
+            if (
+                SameRunwaySeparation.DepartureBehindDepartureSatisfied(
+                    HasCrossedRunwayEnd(precedingState),
+                    !precedingState.IsOnGround,
+                    precedingState.AlongThresholdFt - succeedingState.AlongThresholdFt,
+                    preceding.SrsCategory,
+                    succeeding.SrsCategory
+                )
+            )
             {
                 return null;
             }
@@ -2588,7 +2596,15 @@ public sealed class SoloTrainingEvaluator
         )
         {
             double requiredFt = SameRunwaySeparation.RequiredArrivalBehindDepartureFt(preceding.SrsCategory, succeeding.SrsCategory);
-            if (ArrivalBehindDepartureSatisfied(precedingState, requiredFt))
+            if (
+                SameRunwaySeparation.ArrivalBehindDepartureSatisfied(
+                    HasCrossedRunwayEnd(precedingState),
+                    !precedingState.IsOnGround,
+                    precedingState.AlongLandingThresholdFt,
+                    preceding.SrsCategory,
+                    succeeding.SrsCategory
+                )
+            )
             {
                 return null;
             }
@@ -2614,7 +2630,15 @@ public sealed class SoloTrainingEvaluator
         )
         {
             double? exceptionFt = SameRunwaySeparation.RequiredLandingBehindLandingExceptionFt(preceding.SrsCategory, succeeding.SrsCategory);
-            if (ArrivalBehindLandingSatisfied(precedingState, exceptionFt))
+            if (
+                SameRunwaySeparation.ArrivalBehindLandingSatisfied(
+                    IsLandingClearOfRunway(precedingState),
+                    precedingState.IsOnGround,
+                    precedingState.AlongLandingThresholdFt,
+                    preceding.SrsCategory,
+                    succeeding.SrsCategory
+                )
+            )
             {
                 return null;
             }
@@ -2832,7 +2856,13 @@ public sealed class SoloTrainingEvaluator
                     }
                     else
                     {
-                        satisfied = DepartureBehindDepartureSatisfied(precedingState, succeedingState, violation.RequiredDistanceFt!.Value);
+                        satisfied = SameRunwaySeparation.DepartureBehindDepartureSatisfied(
+                            HasCrossedRunwayEnd(precedingState),
+                            !precedingState.IsOnGround,
+                            precedingState.AlongThresholdFt - succeedingState.AlongThresholdFt,
+                            violation.Preceding.SrsCategory,
+                            violation.Succeeding.SrsCategory
+                        );
                         actualText = FormatDepartureSpacingActual(precedingState, succeedingState);
                     }
                     break;
@@ -2863,7 +2893,13 @@ public sealed class SoloTrainingEvaluator
                     }
                     else
                     {
-                        satisfied = ArrivalBehindDepartureSatisfied(precedingState, violation.RequiredDistanceFt!.Value);
+                        satisfied = SameRunwaySeparation.ArrivalBehindDepartureSatisfied(
+                            HasCrossedRunwayEnd(precedingState),
+                            !precedingState.IsOnGround,
+                            precedingState.AlongLandingThresholdFt,
+                            violation.Preceding.SrsCategory,
+                            violation.Succeeding.SrsCategory
+                        );
                         actualText = FormatThresholdDistanceActual(precedingState, fromLandingThreshold: true);
                     }
                     break;
@@ -2881,7 +2917,13 @@ public sealed class SoloTrainingEvaluator
                     }
                     else
                     {
-                        satisfied = ArrivalBehindLandingSatisfied(precedingState, violation.RequiredDistanceFt);
+                        satisfied = SameRunwaySeparation.ArrivalBehindLandingSatisfied(
+                            IsLandingClearOfRunway(precedingState),
+                            precedingState.IsOnGround,
+                            precedingState.AlongLandingThresholdFt,
+                            violation.Preceding.SrsCategory,
+                            violation.Succeeding.SrsCategory
+                        );
                         actualText = FormatRunwayClearOrThresholdActual(precedingState);
                     }
                     break;
@@ -3458,42 +3500,6 @@ public sealed class SoloTrainingEvaluator
             };
         }
 
-        private static bool DepartureBehindDepartureSatisfied(
-            AircraftRunwayState precedingState,
-            AircraftRunwayState succeedingState,
-            double requiredFt
-        )
-        {
-            if (HasCrossedRunwayEnd(precedingState))
-            {
-                return true;
-            }
-
-            double spacingFt = precedingState.AlongThresholdFt - succeedingState.AlongThresholdFt;
-            return !precedingState.IsOnGround && (spacingFt >= requiredFt);
-        }
-
-        /// <summary>
-        /// 7110.65 §3-10-3.a.2. The gate is "the other aircraft has departed and crossed the runway end"
-        /// — the pavement end — but the airborne exception is stated as a "minimum distance from the
-        /// <em>landing threshold</em>", because what it protects is the arrival crossing that threshold.
-        /// So the two halves legitimately use different datums.
-        /// </summary>
-        private static bool ArrivalBehindDepartureSatisfied(AircraftRunwayState precedingState, double requiredFt) =>
-            HasCrossedRunwayEnd(precedingState) || (!precedingState.IsOnGround && (precedingState.AlongLandingThresholdFt >= requiredFt));
-
-        private static bool ArrivalBehindLandingSatisfied(AircraftRunwayState precedingState, double? requiredExceptionFt)
-        {
-            if (IsLandingClearOfRunway(precedingState))
-            {
-                return true;
-            }
-
-            // 7110.65 §3-10-3's "(n) feet down the runway" runs from the landing threshold — a preceding
-            // arrival never occupied the pavement behind a displaced one, so it cannot be credited for it.
-            return requiredExceptionFt.HasValue && precedingState.IsOnGround && (precedingState.AlongLandingThresholdFt >= requiredExceptionFt.Value);
-        }
-
         private static bool HasCrossedRunwayEnd(AircraftRunwayState state) => state.AlongThresholdFt >= state.PavementLengthFt;
 
         private static bool HasPassedIntersection(AircraftRunwayState state, ActiveSameRunwayViolation violation) =>
@@ -3516,7 +3522,7 @@ public sealed class SoloTrainingEvaluator
                 return state.RunwayUse is not (RunwayUseKind.Landing or RunwayUseKind.OnSurface or RunwayUseKind.Crossing);
             }
 
-            return state.Phase is not (LandingPhase or RunwayExitPhase or StopAndGoPhase or TouchAndGoPhase);
+            return !SameRunwaySeparation.IsLandingFamilyOccupant(state.Phase, state.RunwayUse);
         }
 
         private static CwtCategory ResolveCwtCategory(AircraftState aircraft)
@@ -3654,8 +3660,7 @@ public sealed class SoloTrainingEvaluator
             public double AlongLandingThresholdFt => AlongThresholdFt - ThresholdDisplacementFt;
 
             public bool IsTakeoffRoll => IsOnGround && RunwayUse == RunwayUseKind.Departing;
-            public bool IsDepartureAfterRollStart =>
-                Phase is TakeoffPhase or InitialClimbPhase || (Phase is null && RunwayUse == RunwayUseKind.Departing);
+            public bool IsDepartureAfterRollStart => SameRunwaySeparation.IsDepartureFamilyOccupant(Phase, RunwayUse);
             public bool IsArrivalApproach => Phase is FinalApproachPhase or LandingPhase || IsShadowArrival;
             public bool IsArrivalOrLanding => Phase is FinalApproachPhase or LandingPhase or RunwayExitPhase || IsShadowArrival;
             public bool IsLandingAfterThreshold =>
