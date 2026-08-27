@@ -528,7 +528,8 @@ ConflictAlertDetector.cs       # Static STARS CA detection: 3nm/1000ft threshold
                                # IsPairEligible = CASUP pair suppression + live-traffic shadow policy (shared with the ERAM detector)
 EramConflictDetector.cs        # Static ERAM (en-route) STCA detection: 5nm lateral (3nm at/below FL230) + 1000ft vertical, 4-min extrapolation, uses assigned/interim data-block altitudes, scoped per ERAM facility
 EramConflictState.cs           # Per-facility ERAM conflict-alert state (active STCA pairs) driving the Center data-block flash
-Asdex/AsdexSafetyLogicDetector.cs  # Static ASDE-X Safety Logic detection: closed-runway, occupied-runway, taxi-onto-active-runway, taxiway-landing incursions → CRC surface alerts
+Asdex/AsdexSafetyLogicDetector.cs  # Static ASDE-X Safety Logic detection: closed-runway, occupied-runway, taxi-onto-active-runway, taxiway-landing incursions → CRC surface alerts;
+                                    # alignment is an axis test (back-taxi = runway user), arrival AGL measured from AsdexRunwaySurface.ElevationFt (server resolves it from the nav-DB runway)
 Training/SameRunwaySeparation.cs   # SrsCategory + 7110.65 §3-9-6/§3-10-3 landmark distances, shared by the evaluator and OccupiedRunwayGoAround
 Training/SoloTrainingEvaluator.cs  # Solo-training scorecard: FAA separation, wake, runway-operation separation, structured traffic-advisory/safety-alert/wake-advisory/field-proof events, ARTCC WakeDirectives, Class C outer-area/no-minima advisory scoring, active timeline, report buckets
 Training/AircraftCompletion.cs     # Per-aircraft lifecycle stamps: spawn time, completion time, completion reason (Landed / Handed off / Dropped / Departed), filed route + operation classification used by the Session Report Aircraft tab.

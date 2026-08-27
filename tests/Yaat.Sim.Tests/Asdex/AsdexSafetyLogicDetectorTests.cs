@@ -23,7 +23,7 @@ public class AsdexSafetyLogicDetectorTests
     ];
 
     // MagneticVariationDeg = 0, so the magnetic runway-id heading (280) equals true heading.
-    private static AsdexRunwaySurface Runway(bool closed = false) => new("28R", RunwayArea, closed, 0);
+    private static AsdexRunwaySurface Runway(bool closed = false) => new("28R", RunwayArea, closed, 0, FieldElevationFt);
 
     private static AircraftState Aircraft(
         string callsign,
@@ -133,13 +133,51 @@ public class AsdexSafetyLogicDetectorTests
         // Runway 28R at a +15 deg-east-variation airport: true runway heading is 295. An aircraft
         // tracking 328 true is 33 deg off the true heading (within the 35 deg budget) but 48 deg
         // off the raw magnetic 280 (outside it) — so it only counts as aligned in the true frame.
-        var runway = new AsdexRunwaySurface("28R", RunwayArea, IsClosed: true, MagneticVariationDeg: 15);
+        var runway = new AsdexRunwaySurface("28R", RunwayArea, IsClosed: true, MagneticVariationDeg: 15, ElevationFt: FieldElevationFt);
         var lander = Aircraft("AAL1", 37.0005, -122.0050, 328, onGround: true, FieldElevationFt, speedKts: 20);
 
         var alerts = AsdexSafetyLogicDetector.Detect([runway], [], [lander], FieldElevationFt);
 
         var alert = Assert.Single(alerts);
         Assert.Equal(AsdexAlertKind.ClosedRunway, alert.Kind);
+    }
+
+    [Fact]
+    public void BackTaxi_OppositeHeading_IsARunwayUser_NotACrosser()
+    {
+        // An aircraft back-taxiing on 28R (heading 100, the reciprocal) is using the runway, not
+        // crossing it (P/CG BACK-TAXI). With a rolling departure it is an occupied-runway conflict,
+        // never a "RWY INCURSION" taxi-onto alert.
+        var departure = OnRunwayAligned("AAL1", speed: 90);
+        var backTaxi = Aircraft("N123", 37.0005, -122.0040, 100, onGround: true, FieldElevationFt, speedKts: 15);
+
+        var alerts = AsdexSafetyLogicDetector.Detect([Runway()], [], [departure, backTaxi], FieldElevationFt);
+
+        var alert = Assert.Single(alerts);
+        Assert.Equal(AsdexAlertKind.OccupiedRunway, alert.Kind);
+    }
+
+    [Fact]
+    public void ClosedRunway_LoneBackTaxi_Alerts()
+    {
+        var backTaxi = Aircraft("N123", 37.0005, -122.0050, 100, onGround: true, FieldElevationFt, speedKts: 15);
+
+        var alerts = AsdexSafetyLogicDetector.Detect([Runway(closed: true)], [], [backTaxi], FieldElevationFt);
+
+        Assert.Equal(AsdexAlertKind.ClosedRunway, Assert.Single(alerts).Kind);
+    }
+
+    [Fact]
+    public void ArrivalAgl_MeasuredFromTheRunwayElevation_NotTheField()
+    {
+        // A runway 500 ft above the airport reference point (a long sloping field): an arrival 250 ft
+        // above the pavement is a low arrival even though it is 737 ft above the field elevation.
+        var highRunway = new AsdexRunwaySurface("28R", RunwayArea, IsClosed: true, MagneticVariationDeg: 0, ElevationFt: FieldElevationFt + 500);
+        var arrival = Aircraft("AAL1", 37.0005, -122.0050, 280, onGround: false, FieldElevationFt + 750, speedKts: 130);
+
+        var alerts = AsdexSafetyLogicDetector.Detect([highRunway], [], [arrival], FieldElevationFt);
+
+        Assert.Equal(AsdexAlertKind.ClosedRunway, Assert.Single(alerts).Kind);
     }
 
     [Fact]

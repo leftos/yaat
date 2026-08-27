@@ -24,10 +24,11 @@ public enum AsdexAlertKind
 }
 
 /// <summary>One active runway in the ASDE-X safety-logic configuration: its identifier (e.g.
-/// "28R"), footprint polygon (lat/lon ring, as supplied by CRC), closed state, and the local
+/// "28R"), footprint polygon (lat/lon ring, as supplied by CRC), closed state, the local
 /// magnetic variation (east-positive declination) so the magnetic runway-id heading can be
-/// compared against the aircraft's true heading.</summary>
-public sealed record AsdexRunwaySurface(string Id, IReadOnlyList<LatLon> Area, bool IsClosed, double MagneticVariationDeg);
+/// compared against the aircraft's true heading, and the pavement elevation (ft MSL) that an
+/// arrival's height over the runway is measured from.</summary>
+public sealed record AsdexRunwaySurface(string Id, IReadOnlyList<LatLon> Area, bool IsClosed, double MagneticVariationDeg, double ElevationFt);
 
 /// <summary>A taxiway centerline segment from the airport ground graph, used to approximate
 /// taxiway-landing detection (the ground layout carries centerlines, not area polygons).</summary>
@@ -53,8 +54,9 @@ public sealed record AsdexSafetyAlert(
 ///   occupied/closed-runway alert fires once the arrival is over the runway footprint rather
 ///   than on short final.
 /// - "Using" vs "crossing" a runway is distinguished by alignment of the aircraft's true heading
-///   with the runway's true heading — the magnetic heading parsed from the identifier plus the
-///   local magnetic variation (±<see cref="AlignmentToleranceDeg"/>).
+///   with the runway's axis — the magnetic heading parsed from the identifier plus the local
+///   magnetic variation, in either direction (±<see cref="AlignmentToleranceDeg"/>), so a
+///   back-taxiing aircraft is a runway user rather than a crosser.
 /// - Taxiway-landing uses centerline proximity (the ground layout has no taxiway polygons) and
 ///   alerts on any taxiway, since "configured taxiway" data is not available.
 /// </summary>
@@ -63,7 +65,7 @@ public static class AsdexSafetyLogicDetector
     /// <summary>Arrival is treated as airborne over the runway up to this AGL (7110.65 §3-6-4).</summary>
     private const double ArrivalAglCeilingFt = 300;
 
-    /// <summary>Heading tolerance (deg) for treating an aircraft as aligned with a runway.</summary>
+    /// <summary>Heading tolerance (deg, either direction along the axis) for treating an aircraft as aligned with a runway.</summary>
     private const double AlignmentToleranceDeg = 35;
 
     /// <summary>Half-width (nm) within which a landing aircraft counts as over a taxiway (~28 m).</summary>
@@ -92,7 +94,7 @@ public static class AsdexSafetyLogicDetector
             // the surface at any speed (rolling, or lined up and waiting) or arriving at low AGL.
             // Ground speed does NOT gate this — a stationary lined-up departure still claims the
             // runway, which is exactly the LUAW-incursion case Safety Logic must catch.
-            var claimants = occupants.Where(ac => ClaimsRunway(ac, runway, fieldElevationFt)).ToList();
+            var claimants = occupants.Where(ac => ClaimsRunway(ac, runway)).ToList();
 
             // Condition 1 — closed runway. Any aircraft using a closed runway is an incursion;
             // this is also the only alert the "LIMITED" configuration generates.
@@ -192,10 +194,11 @@ public static class AsdexSafetyLogicDetector
         );
     }
 
-    /// <summary>True if the aircraft heading is within tolerance of the runway's true heading.
-    /// The runway-id heading is magnetic, so the local magnetic variation is applied before
-    /// comparing against the aircraft's true heading. When the id has no parseable heading,
-    /// every occupant is treated as aligned so a conflict is not silently dropped.</summary>
+    /// <summary>True if the aircraft heading is within tolerance of the runway's axis in either
+    /// direction — a back-taxi (P/CG BACK-TAXI) uses the runway just as a departure does. The
+    /// runway-id heading is magnetic, so the local magnetic variation is applied before comparing
+    /// against the aircraft's true heading. When the id has no parseable heading, every occupant
+    /// is treated as aligned so a conflict is not silently dropped.</summary>
     private static bool IsAligned(AircraftState ac, AsdexRunwaySurface runway)
     {
         if (!TryRunwayHeading(runway.Id, out double magneticHeading))
@@ -204,20 +207,20 @@ public static class AsdexSafetyLogicDetector
         }
 
         double trueHeading = magneticHeading + runway.MagneticVariationDeg;
-        return AngularDifference(ac.TrueHeading.Degrees, trueHeading) <= AlignmentToleranceDeg;
+        return AxisDifference(ac.TrueHeading.Degrees, trueHeading) <= AlignmentToleranceDeg;
     }
 
     /// <summary>True if the aircraft is aligned with the runway and actively using it: on the
     /// surface at any speed (rolling or holding in position) or arriving airborne at/below the
-    /// AGL ceiling. A high overflight is excluded by the AGL ceiling.</summary>
-    private static bool ClaimsRunway(AircraftState ac, AsdexRunwaySurface runway, double fieldElevationFt)
+    /// AGL ceiling over the runway's own elevation. A high overflight is excluded by the AGL ceiling.</summary>
+    private static bool ClaimsRunway(AircraftState ac, AsdexRunwaySurface runway)
     {
         if (!IsAligned(ac, runway))
         {
             return false;
         }
 
-        return ac.IsOnGround || (ac.Altitude - fieldElevationFt) <= ArrivalAglCeilingFt;
+        return ac.IsOnGround || (ac.Altitude - runway.ElevationFt) <= ArrivalAglCeilingFt;
     }
 
     private static bool TryRunwayHeading(string runwayId, out double headingDegrees)
@@ -241,10 +244,11 @@ public static class AsdexSafetyLogicDetector
         return headingDegrees is > 0 and <= 360;
     }
 
-    private static double AngularDifference(double a, double b)
+    /// <summary>Smallest angle (0–90°) between heading <paramref name="a"/> and the line through heading <paramref name="b"/>.</summary>
+    private static double AxisDifference(double a, double b)
     {
-        double diff = Math.Abs(a - b) % 360.0;
-        return diff > 180.0 ? 360.0 - diff : diff;
+        double diff = Math.Abs(a - b) % 180.0;
+        return diff > 90.0 ? 180.0 - diff : diff;
     }
 
     private static AsdexTaxiwaySegment? NearestTaxiwayWithin(LatLon point, IReadOnlyList<AsdexTaxiwaySegment> taxiways, double maxDistanceNm)

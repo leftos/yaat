@@ -7,6 +7,7 @@
 
 ### Fixed
 - Quitting YAAT no longer hangs when the global keyboard hook fails to stop.
+- CRC ASDE-X Safety Logic no longer flags a back-taxiing aircraft as a runway incursion, and measures an arrival's height from its runway rather than the field elevation.
 
 ### Changed
 - Loading a recording or bug bundle for replay is faster.
