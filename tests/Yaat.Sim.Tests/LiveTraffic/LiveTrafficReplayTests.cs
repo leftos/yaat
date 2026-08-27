@@ -114,6 +114,39 @@ public class LiveTrafficReplayTests(ITestOutputHelper output)
         Assert.Null(replay.World.FindAircraft("UAL123"));
     }
 
+    /// <summary>
+    /// A feed sample is usually a few seconds old when it arrives. It is placed at its own observation
+    /// second and aged to the current one, so the target sits where the aircraft is now, not where it was
+    /// observed — and replay, applying the same sample at the same second, ages it identically.
+    /// </summary>
+    [Fact]
+    public void StaleOnArrivalSample_IsAgedToTheCurrentSecond_LiveAndOnReplay()
+    {
+        var baseline = LoadBaseline(output);
+        if (baseline is null)
+        {
+            return;
+        }
+
+        var live = new SimulationEngine(new TestAirportGroundData());
+        live.Replay(WithActions(baseline, [], 0), 0);
+        var spawnState = LiveTrafficKinematics
+            .CreateShadow("UAL123", "B738", Sample(4, Origin, 90), new AircraftFlightPlan { HasFlightPlan = true })
+            .ToSnapshot();
+
+        // Observed at t=4, applied in pre-physics of t=10: six seconds of travel at 240 kt ≈ 0.4 nm east.
+        LiveSecond(live, 10, () => live.ApplyLiveTrafficSample("UAL123", Sample(4, Origin, 90), spawnState));
+
+        var shadow = live.World.FindAircraft("UAL123")!;
+        Assert.InRange(shadow.LiveTraffic!.SecondsSinceSample, 6.99, 7.01);
+        var expected = GeoMath.ProjectPoint(Origin, new TrueHeading(90), 240 * 7 / 3600.0);
+        Assert.InRange(GeoMath.DistanceNm(expected, shadow.Position), 0, 0.001);
+
+        var replay = new SimulationEngine(new TestAirportGroundData());
+        replay.Replay(WithActions(baseline, live.Scenario!.ActionLog.ToList(), 12), 10);
+        Assert.InRange(GeoMath.DistanceNm(shadow.Position, replay.World.FindAircraft("UAL123")!.Position), 0, 0.001);
+    }
+
     [Fact]
     public void ReplayOneSecond_AppliesSamplesPreTick()
     {

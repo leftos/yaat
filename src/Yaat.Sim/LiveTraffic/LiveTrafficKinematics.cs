@@ -197,6 +197,20 @@ public static class LiveTrafficKinematics
     }
 
     /// <summary>
+    /// Ages the current sample to <paramref name="simNowSeconds"/> and re-derives the pose from it, so a
+    /// sample that was already seconds old when it arrived (feed latency) puts the target where it is now
+    /// rather than where it was when observed. Every live or replayed sample goes through this after
+    /// <see cref="Apply"/>; because it is a function of the sample time and the sim clock only, live and
+    /// replay age the same sample identically.
+    /// </summary>
+    public static void Resync(AircraftState ac, double simNowSeconds, WeatherProfile? weather)
+    {
+        var lt = ac.LiveTraffic ?? throw new InvalidOperationException($"{ac.Callsign} is not a shadow aircraft");
+        lt.SecondsSinceSample = Math.Max(0, simNowSeconds - lt.ObservedAtSimSeconds);
+        Advance(ac, 0, weather, simNowSeconds);
+    }
+
+    /// <summary>
     /// One physics sub-tick for a shadow: advances the sample clock, re-derives position and altitude
     /// from the latest sample, and fills the per-tick caches <see cref="FlightPhysics.Update"/> would
     /// otherwise own (declination, wind components) so magnetic readouts and the ground-speed getter work.

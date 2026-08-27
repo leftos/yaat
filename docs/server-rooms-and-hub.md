@@ -118,7 +118,8 @@ Stateless singleton; every method takes the `TrainingRoom`.
 
 - **`ProcessPrePhysics`** (`:40`): `sim.TickPrePhysics()` then, for each newly-spawned aircraft, broadcasts
   `AircraftSpawned` and runs `AfterAircraftSpawned` (auto-strip / auto-TDLS); drains terminal entries; runs
-  `ProcessDelayedHandoffs`.
+  `ProcessDelayedHandoffs`; last, `ShadowTrafficSync.Sync` (`Pre.LiveTraffic`) spawns / feeds / removes live-traffic
+  shadows — the pre-physics mutator of the aircraft set (see [live-traffic.md](live-traffic.md)).
 - **`ProcessPhysics`** (`:71`): delegates straight to `sim.TickPhysics(delta)`.
 - **`ProcessPostPhysics`** (`:80`): a fixed fan-out whose order matters. Notably
   `ProcessFlightPlanCreatorAutoTrack` runs **before** `ProcessDeferredAutoTrack` (`:88`-`:89`) so an explicit VP/DA

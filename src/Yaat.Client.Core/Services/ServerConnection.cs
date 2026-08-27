@@ -1076,7 +1076,12 @@ public record AircraftDto(
     string PendingLandingClearance = "",
     // ICAO field-10a equipment codes from the flight plan (empty when never entered). Feeds the
     // Flight Plan Editor's ICAO EQ field; CRC derives the ERAM SATCOMM * from the satcom codes.
-    string IcaoEquipmentCodes = ""
+    string IcaoEquipmentCodes = "",
+    // Live-traffic shadow (a real aircraft mirrored from the server's feed): not commandable until assumed.
+    // LiveTrafficStale = the feed has missed its sweeps and the position is dead-reckoned (CST).
+    bool IsLiveTraffic = false,
+    bool LiveTrafficStale = false,
+    string? LiveTrafficSource = null
 );
 
 public record LoadScenarioResultDto(

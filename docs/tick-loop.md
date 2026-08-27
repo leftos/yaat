@@ -17,7 +17,8 @@ Tick(1s)
 ├─ PrePhysics                          (SimulationEngine.TickPrePhysics)
 │   ├─ delayed spawns / generators
 │   ├─ scenario triggers / presets
-│   └─ broadcast aircraft-spawned events
+│   ├─ broadcast aircraft-spawned events
+│   └─ live-traffic shadow sync (server only: ShadowTrafficSync, last so samples record at this second)
 ├─ Physics ×4 (0.25 s sub-ticks)       (SimulationEngine.TickPhysics)
 │   └─ SimulationWorld.Tick(0.25, PreTick)
 │       ├─ GroundConflictDetector.ApplySpeedLimits

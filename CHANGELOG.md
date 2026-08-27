@@ -5,7 +5,7 @@
 ### Added
 - Simulated arrivals go around on short final ("going around, traffic on the runway") when another aircraft is on their runway, honoring the 7110.65 3-10-3 landmark exceptions behind a landed or departing aircraft. New session setting **Auto go-around on occupied runway**, on by default.
 - `LUAW` on a runway that already has an aircraft holding in position draws an RPO reminder (7110.65 3-9-4.h: simultaneous line up and wait needs the local assist/monitor staffed).
-- Session flyout gains a **Live Traffic (SWIM)** toggle with a server-side altitude ceiling; `WARP` above 1× is refused while it is on. Server plumbing only for now — no live aircraft appear until the feed is connected.
+- Session flyout gains a **Live Traffic (SWIM)** toggle with a server-side altitude ceiling; `WARP` above 1× is refused while it is on. With it on, real aircraft inside the room's airspace (the tower's or TRACON's airports and Class B/C, or the center's boundary) appear as read-only shadow targets that follow the feed, coast when it drops out, and disappear when they leave; `DEL` hides one. No aircraft appear until the SWIM feed itself is connected.
 
 ### Fixed
 - Quitting YAAT no longer hangs when the global keyboard hook fails to stop.

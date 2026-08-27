@@ -36,6 +36,10 @@ it sees `LiveTrafficSample`s for a callsign and never knows where they came from
   the real atmosphere, so the derived IAS carries the wind-model error; accepted. On the surface (`Asdex`) IAS carries
   the wheel speed and heading = track. `Advance` also fills the caches `FlightPhysics.Update` would own:
   `FlightPhysics.RefreshDeclinationCache` (magnetic readouts) and `WindComponents`.
+- **A sample is aged to the second it is applied in.** `SimulationEngine.ApplyLiveTrafficSample` / `ApplyRecordedLiveTrafficSample`
+  call `LiveTrafficKinematics.Resync(ac, ElapsedSeconds, weather)` after `Apply`: `SecondsSinceSample = now − ObservedAtSimSeconds`,
+  then `Advance(0)`. A sample that was already 6 s old when it arrived (feed latency) therefore puts the target where the aircraft
+  is now, and replay — same sample, same second — ages it identically.
 - **Fresh samples win.** `Apply` adopts a newer sample unconditionally (jump > 0.3 nm is logged at Debug), resets the
   clock and the coast flag, refreshes the beacon, and derives vertical speed from Δalt/Δt (EMA-smoothed against the
   previous derived value) when the feed has none. A sample not newer than the stored `ObservedAtSimSeconds` is ignored
@@ -169,6 +173,40 @@ pre-physics with `ElapsedSeconds` already at the current second so the recorded 
 
 The server brain (`RecordingManager.ApplyRecordedActionCore`) currently ignores both actions — the room-side sync and its
 pre-tick replay twin land with the server integration step.
+
+## Server room integration (yaat-server `src/Yaat.Server/LiveTraffic/`)
+
+- **`LiveTrafficStore`** — process-wide singleton of `LiveTrack`s (one immutable record per real aircraft, up to one `LiveView`
+  per source; `Freshest` picks the latest). 1° grid index on the freshest position; `Query(ILiveTrafficScope, buffer)`. The feed
+  writers land with the SWIM ingest step; tests fill it directly.
+- **`RoomLiveTrafficScope.Build`** — what the room sees. The student's *own* facility is found by position callsign in the
+  facility tree (`TrackOwner.FacilityId` is the STARS facility — a tower position's owner is its TRACON). Center room → the
+  `ArtccBoundaryDatabase` polygon + 15 nm, no ceiling. Tower / TRACON room → 25 nm around each of the facility's towers ∪ their
+  Class B/C volumes, under `max(tower-cab aircraftVisibilityCeiling, Class B/C top + 2 000)` (tower; AIM 3-2-4 — the outer
+  area runs up to the delegated airspace ceiling) or 15 000 ft (TRACON; delegated airspace tops out ~10–17k). No facility or
+  geometry → 60 nm around the primary airport under the TRACON ceiling. A non-zero `LiveTrafficCeilingFt` setting always wins.
+  Reviewed by aviation-sim-expert 2026-08-26; the 15 nm center buffer is deliberately thin while the bundled boundaries are
+  coarse boxes (30–40 nm once `tools/build-artcc-boundaries.py` exists).
+- **`ShadowTrafficSync.Sync`** — the last pre-physics step (`TickProcessor` `Pre.LiveTraffic`), so a sample lands at second *t*,
+  is recorded at *t*, and replays pre-tick at *t*. Inert while `IsBroadcastSuppressed` (rewind reconstruction) or in tape
+  playback — the recorded samples own the world then. **Time anchor**: `(wallUtc, ElapsedSeconds)` set on the first sync and
+  re-set whenever the cadence breaks (elapsed did not advance by exactly one, or > 5 s of wall clock passed — pause, rewind,
+  stall); a sample lands at `anchor.Elapsed + (ObservedAtUtc − anchor.Wall)`, clamped to ≤ now. Per track (callsign order): a
+  callsign owned by a simulated or assumed aircraft is skipped with one terminal line; a `DEL`-suppressed one is skipped; a new
+  one spawns through `SimulationEngine.ApplyLiveTrafficSample` with the `LiveTrafficAircraftFactory` template (type from the
+  feed, else the FP, else `ZZZZ`; reported beacon `MarkUsed`; no track owner; `ExternalId` = GUFI; surface tracks get the primary
+  `AirportId`) followed by the shared spawn broadcast + `AfterAircraftSpawned`; an existing shadow just gets the sample.
+- **Removal** — staleness is **sample age, never store presence**: a view older than its source's window (STARS 15 s ≈ 3 scans,
+  ERAM 50 s ≈ 4 sweeps — twice the sim's ERAM coast, kept as SWIM-cadence margin — ASDE-X 5 s) is skipped, so a feed that keeps
+  repeating an old view neither spawns nor refreshes a shadow, and a shadow whose last applied `ObservedAtSimSeconds` is older
+  than the window is removed (coasting meanwhile): `Dropped` when the store lost the track, `Stale` when it still holds a stale
+  view, else `OutOfScope`. Teardown mirrors auto-delete in order: `RemoveLiveTraffic`
+  (world + recording) → assignments → delayed queue → change tracker → beacon `Release` → `AircraftDeleted` + CRC disconnect.
+  `DEL` on a shadow removes it as `Deleted` and adds it to `RoomLiveTrafficState.Suppressed` until live traffic is toggled;
+  turning the setting off removes every shadow as `Disabled` (assumed aircraft stay).
+- **Wire** — `AircraftStateDto.IsLiveTraffic` / `LiveTrafficStale` / `LiveTrafficSource` (+ client `AircraftDto`), all three in
+  `TrainingDtoFingerprint`. Shadows are excluded from auto-TDLS, auto arrival strips and the rolling-call strip
+  (`IsDepartureAircraft` / `IsArrivalCandidate` / `IsApproachDepartureCandidate`).
 
 ## Tests
 

@@ -49,6 +49,9 @@
     <Content Include="Data\Airspace\*.geojson*">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
+    <Content Include="Data\Artcc\*.geojson*">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
     <Content Include="Data\Mva\*.geojson*">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>

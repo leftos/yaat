@@ -4570,13 +4570,40 @@ public sealed class SimulationEngine
             return false;
         }
 
+        uint codeBefore = spawned ? 0 : ac.Transponder.Code;
         if (!spawned && !LiveTrafficKinematics.Apply(ac, sample))
         {
             return false;
         }
 
-        RecordLiveTrafficAction(new RecordedLiveTrafficSample(Scenario?.ElapsedSeconds ?? 0, callsign, sample, spawned ? spawnState : null));
+        double now = Scenario?.ElapsedSeconds ?? 0;
+        LiveTrafficKinematics.Resync(ac, now, World.Weather);
+        TrackShadowBeacon(codeBefore, ac.Transponder.Code);
+        RecordLiveTrafficAction(new RecordedLiveTrafficSample(now, callsign, sample, spawned ? spawnState : null));
         return true;
+    }
+
+    /// <summary>
+    /// A shadow squawks whatever the feed reports, so the pool must learn each code it adopts (a simulated
+    /// aircraft must never be issued a real one) and forget the code it gave up — on spawn, on every change,
+    /// and on removal.
+    /// </summary>
+    private void TrackShadowBeacon(uint before, uint after)
+    {
+        if (before == after)
+        {
+            return;
+        }
+
+        if (before != 0)
+        {
+            BeaconCodePool.Release(before);
+        }
+
+        if (after != 0)
+        {
+            BeaconCodePool.MarkUsed(after);
+        }
     }
 
     /// <summary>
@@ -4678,6 +4705,7 @@ public sealed class SimulationEngine
         }
 
         World.RemoveAircraft(callsign);
+        TrackShadowBeacon(ac.Transponder.Code, 0);
         RecordLiveTrafficAction(new RecordedLiveTrafficRemoval(Scenario?.ElapsedSeconds ?? 0, callsign, reason));
         return true;
     }
@@ -4693,7 +4721,12 @@ public sealed class SimulationEngine
         scenario.ActionLog.Add(action);
     }
 
-    private void ApplyRecordedLiveTrafficSample(RecordedLiveTrafficSample recorded)
+    /// <summary>
+    /// Replay twin of <see cref="ApplyLiveTrafficSample"/> (no recording). Public so the server brain's
+    /// reconstruction and tape playback apply the same action the same way — including the
+    /// <see cref="LiveTrafficKinematics.Resync"/> that ages the sample to the replayed second.
+    /// </summary>
+    public void ApplyRecordedLiveTrafficSample(RecordedLiveTrafficSample recorded)
     {
         var ac = World.FindAircraft(recorded.Callsign);
         if (ac is null)
@@ -4704,22 +4737,36 @@ public sealed class SimulationEngine
                 return;
             }
 
-            SpawnShadow(recorded.SpawnState);
-            return;
+            ac = SpawnShadow(recorded.SpawnState);
+            TrackShadowBeacon(0, ac.Transponder.Code);
+        }
+        else
+        {
+            if (!ac.IsShadow)
+            {
+                return;
+            }
+
+            uint codeBefore = ac.Transponder.Code;
+            if (!LiveTrafficKinematics.Apply(ac, recorded.Sample))
+            {
+                return;
+            }
+
+            TrackShadowBeacon(codeBefore, ac.Transponder.Code);
         }
 
-        if (ac.IsShadow)
-        {
-            LiveTrafficKinematics.Apply(ac, recorded.Sample);
-        }
+        LiveTrafficKinematics.Resync(ac, Scenario?.ElapsedSeconds ?? 0, World.Weather);
     }
 
-    private void ApplyRecordedLiveTrafficRemoval(RecordedLiveTrafficRemoval recorded)
+    /// <summary>Replay twin of <see cref="RemoveLiveTraffic"/> (no recording); public for the server brain.</summary>
+    public void ApplyRecordedLiveTrafficRemoval(RecordedLiveTrafficRemoval recorded)
     {
         var ac = World.FindAircraft(recorded.Callsign);
         if (ac is { IsShadow: true })
         {
             World.RemoveAircraft(recorded.Callsign);
+            TrackShadowBeacon(ac.Transponder.Code, 0);
         }
     }
 

@@ -27,6 +27,9 @@ public enum LiveTrafficRemovalReason
 
     /// <summary>An instructor deleted it.</summary>
     Deleted,
+
+    /// <summary>Live traffic was turned off for the room.</summary>
+    Disabled,
 }
 
 /// <summary>
