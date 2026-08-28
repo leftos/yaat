@@ -263,8 +263,12 @@ measurements: yaat-server `docs/plans/live-traffic-swim/04-swim-ingest.md`; depl
   reuse under a new callsign dropping the old flight's view (turnaround), SFDPS `DROPPED`/`COMPLETED`/`CANCELLED` ending the ERAM
   view, vehicles / `UNKN` / `OPS*` / `PO\d+` ignored. A GUFI-keyed flight-plan index (SFDPS publishes plans hours ahead; 6 h TTL)
   fills route / filed altitude / speed / equipment into tracks fill-if-empty when TAIS or ASDE-X links the GUFI. `Reap()` (every
-  60 s) removes views past 10× their timeout, evicts viewless tracks together with every index entry, and expires uncorrelated
-  plans; every change is published to `LiveTrafficStore` as an immutable `LiveTrack`.
+  60 s) removes views past 10× their timeout, evicts viewless tracks together with every index entry (10 min after the last
+  activity, or 6 h for an entry whose plan is still waiting to activate — an ERAM COMPLETED/DROPPED/CANCELLED marks the entry
+  `Ended` so a finished flight never lingers for the plan TTL), and expires uncorrelated plans; every change is published to
+  `LiveTrafficStore` as an immutable `LiveTrack`. `SwimCorrelatorSoakTests` drives generated nationwide-shaped traffic under
+  a fake clock (a small fleet for 9 simulated hours on every run; the full fleet for 24 h under the `Nightly` trait) and asserts
+  that store, plan index and identity indices plateau.
 - **Health** — `LiveTrafficStore.ReportFeedState` (any product connected, last message time) feeds the room status broadcasts;
   meter `Yaat.Server.Swim` carries message counts by root element, drops, broker lag, handle time and store gauges; a
   `SWIM store: …` log line every minute summarises the correlator's counters.
