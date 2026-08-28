@@ -1,3 +1,6 @@
+// The in-process server is only referenced when the sibling yaat-server checkout exists (see the
+// csproj); a yaat-only clone compiles the tool without this scene.
+#if HAS_YAAT_SERVER
 using Avalonia.Controls;
 using Avalonia.Threading;
 using Microsoft.Extensions.DependencyInjection;
@@ -105,3 +108,4 @@ internal sealed class LiveTrafficScene : ScenarioSceneBase
         }
     }
 }
+#endif

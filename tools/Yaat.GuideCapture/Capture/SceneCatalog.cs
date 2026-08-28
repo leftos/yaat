@@ -16,7 +16,9 @@ internal static class SceneCatalog
         new AircraftListScene(),
         new GroundViewScene(),
         new RadarViewScene(),
+#if HAS_YAAT_SERVER
         new LiveTrafficScene(),
+#endif
         // Popouts
         new MainWindowPoppedOutScene(),
         new GroundViewPopoutScene(),
