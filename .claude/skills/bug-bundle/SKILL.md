@@ -134,6 +134,7 @@ python tools/bug_bundle.py validate <bundle.zip>
 | `track` | Time-series per callsign across snapshots. Columns via `--fields` (keys or presets `default`/`nav`/`vert`/`pos`/`proc`/`full`; `--json` emits all). Also `--callsigns A B`, `--pair A B`, `--start/--end` |
 | `actions` | Recorded user actions timeline (`--json`) |
 | `history` | Per-callsign chronological events: commands + phase / route / target / approach / track / runway changes (`--callsign X`, `--start/--end`, `--include-global`, `--json`) |
+| `live-status` | Live-traffic feed health over the session (`LiveTrafficStatus` actions: wall clock, connected, message age, in-scope count) and the real-world UTC window to slice the SWIM raw log by (`--callsign X` narrows it to that shadow's observations and names the feed facility; `--pad` minutes, `--all`, `--start/--end`). Prints the `swim-slice.ps1` line to run (yaat `docs/live-traffic.md`, *Reproducing a report*) |
 | `phases` | Per-callsign phase-transition timeline only (`--callsign X`, `--start/--end`, `--json`) |
 | `commands` | Actions filtered to one recipient callsign (`--callsign X`, `--start/--end`, `--json`) |
 | `scenario` | Pretty-print `scenario.json.br`. Optional `--aircraft CS [CS ...]` filter and `--show {full,presets,spawns,summary}` (default `full`). |
@@ -149,6 +150,7 @@ python tools/bug_bundle.py validate <bundle.zip>
 - `info` is the first thing to run; it tells you duration, aircraft involved, ARTCC, and whether logs are included.
 - For single-aircraft triage, `history --callsign X` is the second thing to run. It collapses 5+ targeted `snapshot --at` calls into one chronological view.
 - `snapshot --at T` uses the same nearest-at-or-before-T rule as the C# `RecordingArchive.ReadSnapshotAt` — so `--at 60` returns the snapshot whose `ElapsedSeconds` is the largest value ≤ 60.
+- Live-traffic actions render with `LIVE` (sample: `via=<facility> utc=<observed>`), `LIVERM` (removal) and `LIVEST` (feed status) tags.
 - `history` event tags: `CMD` (action), `PHASES` (chain installed/rebuilt), `PHASE+` (current phase advanced), `PHASE-` (chain cleared), `ROUTE` (NavigationRoute changed), `TGT` (assigned alt/spd/hdg changed), `APPR` (Approach state), `TRACK` (ownership), `RWY` (DestinationRunway), `SPAWN`/`DESPAWN`. Output is ASCII-only (no unicode arrows) so it survives Windows cp1252 stdout.
 - `install` upgrades the archive in place via `../yaat-server/tools/Yaat.RecordingUpgrader` (needs the sibling checkout + dotnet; prints `upgraded: … MIGRATED/up-to-date`), then validates it; a post-install validation warning usually means the bundle is truncated. A missing-upgrader warning means the bundle keeps its recorded schema and any retired canonicals — run the upgrader by hand before relying on strip-command replay.
 - Output goes to stdout by default (pipeable). Use `--out <path>` to write a file; `logs` always writes files and prints paths.

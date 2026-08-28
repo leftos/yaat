@@ -16,6 +16,7 @@ namespace Yaat.Sim.Simulation;
 [JsonDerivedType(typeof(RecordedChat), "Chat")]
 [JsonDerivedType(typeof(RecordedLiveTrafficSample), "LiveTrafficSample")]
 [JsonDerivedType(typeof(RecordedLiveTrafficRemoval), "LiveTrafficRemoval")]
+[JsonDerivedType(typeof(RecordedLiveTrafficStatus), "LiveTrafficStatus")]
 public abstract record RecordedAction(double ElapsedSeconds);
 
 public sealed record RecordedCommand(double ElapsedSeconds, string Callsign, string Command, string Initials, string ConnectionId)
@@ -86,6 +87,20 @@ public sealed record RecordedLiveTrafficSample(double ElapsedSeconds, string Cal
 /// <summary>A shadow aircraft leaving the room (feed drop, staleness, scope, delete). Applied after the second like other actions.</summary>
 public sealed record RecordedLiveTrafficRemoval(double ElapsedSeconds, string Callsign, LiveTrafficRemovalReason Reason)
     : RecordedAction(ElapsedSeconds);
+
+/// <summary>
+/// The room's live-traffic feed status at the moment it was broadcast (connection, message age, in-scope count) plus the
+/// wall clock it was taken at. Diagnostic only: replay ignores it; bug bundles use the series to show feed health over the
+/// session and to map sim seconds to the real-world window the raw feed logs are sliced by.
+/// </summary>
+public sealed record RecordedLiveTrafficStatus(
+    double ElapsedSeconds,
+    DateTimeOffset WallUtc,
+    bool FeedConfigured,
+    bool Connected,
+    double? LastMessageAgeSeconds,
+    int TracksInScope
+) : RecordedAction(ElapsedSeconds);
 
 /// <summary>
 /// CRC-sourced ASDE-X mutation. <see cref="Kind"/> is one of <c>EditDbFields</c>, <c>Tag</c>,

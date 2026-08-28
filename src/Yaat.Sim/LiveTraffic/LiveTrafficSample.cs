@@ -61,6 +61,19 @@ public sealed record LiveTrafficSample(
 {
     public LatLon Position => new(Lat, Lon);
 
+    /// <summary>
+    /// Feed facility instance that produced the observation (TRACON, ARTCC or airport id) — diagnostic provenance
+    /// only, so a recorded sample maps back to the raw feed messages; the sim never reads it. Null in recordings
+    /// written before the field existed.
+    /// </summary>
+    public string? Instance { get; init; }
+
+    /// <summary>
+    /// The source's own observation time (UTC) for the report — the real-world instant behind
+    /// <see cref="ObservedAtSimSeconds"/>, so a recording can be lined up with the raw feed window. Diagnostic only.
+    /// </summary>
+    public DateTimeOffset? ObservedAtUtc { get; init; }
+
     /// <summary>Surface-surveillance samples are on the ground; radar samples are airborne.</summary>
     public bool IsOnGround => Source == LiveTrafficSource.Asdex;
 

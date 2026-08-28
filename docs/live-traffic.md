@@ -194,7 +194,11 @@ age moves. Client: `ServerConnection.LiveTrafficStatusChanged` → `MainViewMode
 `LIVE_TRAFFIC_ENABLED`). `SimControlService.SetLiveTrafficEnabled(true)` refuses with "not enabled on this server" when it is
 off (disabling is always allowed); the client binds the session checkbox's `IsVisible` to `MainViewModel.LiveTrafficAvailable`
 (`LiveTrafficStatus?.FeedConfigured == true`, reset on `ClearRoomState`), so a gated server never shows the toggle.
-`tools/bug_bundle.py actions` / `history` render the two live-traffic actions compactly (`LIVE` / `LIVERM` tags).
+`tools/bug_bundle.py actions` / `history` render the live-traffic actions compactly (`LIVE` / `LIVERM` / `LIVEST` tags).
+Every sample also carries its feed provenance — `Instance` (the TRACON / ARTCC / airport that produced the observation) and
+`ObservedAtUtc` (the source's own time) — and the room records a `RecordedLiveTrafficStatus` (wall clock, connected, message
+age, in-scope count) with every status broadcast while live traffic is on. Neither affects replay; they are what maps a
+bundle's sim seconds back to the real-world feed window (see *Reproducing a report* below).
 
 ## Server room integration (yaat-server `src/Yaat.Server/LiveTraffic/`)
 
@@ -272,6 +276,29 @@ measurements: yaat-server `docs/plans/live-traffic-swim/04-swim-ingest.md`; depl
 - **Health** — `LiveTrafficStore.ReportFeedState` (any product connected, last message time) feeds the room status broadcasts;
   meter `Yaat.Server.Swim` carries message counts by root element, drops, broker lag, handle time and store gauges; a
   `SWIM store: …` log line every minute summarises the correlator's counters.
+
+## Reproducing a report (yaat-server plan 07)
+
+"Live traffic did something odd at 17:42Z at NCT" is answered offline from the server's rolling raw log, never by waiting
+for the sky to repeat itself:
+
+1. `python tools/bug_bundle.py live-status <bundle> --callsign X` — the feed-health series over the session and, from the
+   callsign's samples, the UTC window and facility instance to slice by (prints the `swim-slice.ps1` line to run).
+2. `.\swim-slice.ps1 -From <utc> -To <utc> -Artcc ZOA -Facility NCT` — copies the raw-log hour files covering the window
+   off the droplet's `yaat-swim-raw` volume (must be inside the retention window; SCDS has no history) and runs yaat-server
+   `tools/Yaat.SwimSlice cut`: the facility's TAIS and ASDE-X batches, the SFDPS flights inside its geometry, and every
+   flight-plan message for the callsigns/GUFIs the slice carries (from before the window too, so correlation is warm).
+3. `dotnet run --project tools/Yaat.SwimSlice -- trace --callsign X <slice>` (yaat-server) — the raw TAIS/ASDE-X/SFDPS records
+   for the callsign interleaved with the correlator's decisions (view written, sticky-rejected, backwards, unresolved, rekeyed,
+   dropped, terminated, ended, evicted) and the store's final view of it.
+4. A test: `SwimSliceReplay.Load(files, store, ladd, clock)` + `AdvanceTo(utc)` asserts on the store at an instant;
+   `SwimReplayHarness.Attach(room, files, ladd)` + `StepRoom(n)` pushes the slice through a real `RoomEngineTestHarness` room
+   (its own store and clock) so shadows spawn, coast and get removed exactly as live. Fix; keep a regression fixture only as a
+   hand-built raw log from the scrubbed parser fixtures (`SwimReplayHarness.WriteRawLog`).
+
+Raw captures and slices are FAA data: they live under yaat-server `.tmp/` and are never committed or attached to issues.
+The same `SwimIngestPipeline` (parse → LADD → correlate) runs live ingest, the harness and the capture test, so what the
+harness shows is what the server did.
 
 ## Client (yaat `src/Yaat.Client*`)
 

@@ -50,6 +50,7 @@ but scenario/actions/snapshots/layouts/airport-geojson need brotli to decompress
 from __future__ import annotations
 
 import argparse
+from datetime import datetime, timedelta
 import io
 import json
 import re
@@ -721,6 +722,73 @@ def cmd_actions(args: argparse.Namespace) -> int:
 
 
 # ---------------------------------------------------------------------------
+# Subcommand: live-status
+# ---------------------------------------------------------------------------
+
+
+def cmd_live_status(args: argparse.Namespace) -> int:
+    """Feed-health series (LiveTrafficStatus actions) and the real-world window behind a sim-time range.
+
+    Each status carries the wall clock it was taken at, so ElapsedSeconds maps to UTC; with --callsign the
+    window is narrowed to that shadow's observations (ObservedAtUtc on its samples) and the facility instance
+    that produced them is listed, which is exactly what swim-slice.ps1 needs.
+    """
+    with BundleReader(args.bundle) as reader:
+        actions = reader.read_actions()
+        statuses = [a for a in actions if a.get("$type") == "LiveTrafficStatus"]
+        if not statuses:
+            print("no LiveTrafficStatus actions: live traffic was off, or the bundle predates status recording", file=sys.stderr)
+            return 1
+        if args.start is not None:
+            statuses = [a for a in statuses if a.get("ElapsedSeconds", 0) >= args.start]
+        if args.end is not None:
+            statuses = [a for a in statuses if a.get("ElapsedSeconds", 0) <= args.end]
+
+        anchors = [(a.get("ElapsedSeconds", 0), _parse_utc(a.get("WallUtc"))) for a in statuses]
+        anchors = [(t, w) for t, w in anchors if w is not None]
+        lines: list[str] = []
+        if args.all:
+            for a in statuses:
+                lines.append(f"t={a.get('ElapsedSeconds', 0):>7} {_format_live_traffic_status(a)}")
+        else:
+            prev_key: tuple[Any, Any] | None = None
+            for a in statuses:
+                key = (a.get("Connected"), a.get("TracksInScope"))
+                if key != prev_key:
+                    lines.append(f"t={a.get('ElapsedSeconds', 0):>7} {_format_live_traffic_status(a)}")
+                    prev_key = key
+            lines.append(f"({len(statuses)} statuses; --all lists every one)")
+
+        window_from: datetime | None = anchors[0][1] if anchors else None
+        window_to: datetime | None = anchors[-1][1] if anchors else None
+        instances: set[str] = set()
+        if args.callsign:
+            cs = args.callsign.upper()
+            observed = []
+            for a in actions:
+                if a.get("$type") == "LiveTrafficSample" and (a.get("Callsign") or "").upper() == cs:
+                    sample = a.get("Sample") or {}
+                    if sample.get("Instance"):
+                        instances.add(sample["Instance"])
+                    at = _parse_utc(sample.get("ObservedAtUtc"))
+                    if at is not None:
+                        observed.append(at)
+            if observed:
+                window_from, window_to = min(observed), max(observed)
+                lines.append(f"{cs}: {len(observed)} samples observed {window_from.strftime('%H:%M:%S')}Z .. {window_to.strftime('%H:%M:%S')}Z via {', '.join(sorted(instances))}")
+            else:
+                lines.append(f"{cs}: no samples with an observation time (older bundle?) — window from the status series")
+
+        if window_from is not None and window_to is not None:
+            pad_from = (window_from - timedelta(minutes=args.pad)).strftime("%Y-%m-%dT%H:%M:%SZ")
+            pad_to = (window_to + timedelta(minutes=args.pad)).strftime("%Y-%m-%dT%H:%M:%SZ")
+            facility = f" -Artcc <artcc> -Facility {sorted(instances)[0]}" if len(instances) == 1 else " -Artcc <artcc> [-Facility <id>]"
+            lines.append(f"slice: .\\swim-slice.ps1 -From {pad_from} -To {pad_to}{facility}")
+        write_output("\n".join(lines), args.out)
+    return 0
+
+
+# ---------------------------------------------------------------------------
 # Subcommand: history / phases / commands
 # ---------------------------------------------------------------------------
 
@@ -1013,13 +1081,46 @@ def _format_live_traffic_action(a: dict[str, Any]) -> str | None:
             parts.append(f"vs={sample['VerticalSpeedFpm']:.0f}")
         if sample.get("BeaconCode") is not None:
             parts.append(f"sq={sample['BeaconCode']}")
+        if sample.get("Instance"):
+            parts.append(f"via={sample['Instance']}")
+        if sample.get("ObservedAtUtc"):
+            parts.append(f"utc={_short_utc(sample['ObservedAtUtc'])}")
         if a.get("SpawnState") is not None:
             parts.append("+spawn")
         return "LiveTrafficSample " + " ".join(parts)
     if kind == "LiveTrafficRemoval":
         reason = a.get("Reason")
         return f"LiveTrafficRemoval {_LIVE_TRAFFIC_REMOVAL.get(reason, str(reason))}"
+    if kind == "LiveTrafficStatus":
+        return "LiveTrafficStatus " + _format_live_traffic_status(a)
     return None
+
+
+def _format_live_traffic_status(a: dict[str, Any]) -> str:
+    """One-line feed-health rendering: wall clock, connection, message age, in-scope count."""
+    feed = "feed=off" if not a.get("FeedConfigured", True) else ("connected" if a.get("Connected") else "DISCONNECTED")
+    age = a.get("LastMessageAgeSeconds")
+    age_str = f"age={age:.0f}s" if age is not None else "age=-"
+    return f"wall={_short_utc(a.get('WallUtc'))} {feed} {age_str} in-scope={a.get('TracksInScope', '?')}"
+
+
+def _short_utc(value: Any) -> str:
+    """'2026-08-28T17:35:26.123+00:00' -> '17:35:26Z' (date dropped; the full stamp is in --json)."""
+    if not isinstance(value, str) or "T" not in value:
+        return str(value)
+    clock = value.split("T", 1)[1]
+    for sep in ("+", "Z"):
+        clock = clock.split(sep, 1)[0]
+    return clock.split(".", 1)[0] + "Z"
+
+
+def _parse_utc(value: Any) -> datetime | None:
+    if not isinstance(value, str):
+        return None
+    try:
+        return datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
 
 
 def _format_action_detail(a: dict[str, Any]) -> str:
@@ -1035,6 +1136,13 @@ def _format_action_detail(a: dict[str, Any]) -> str:
     if extras:
         return f"{kind} {json.dumps(extras, separators=(',', ':'))}"
     return kind
+
+
+_ACTION_TAGS = {"Command": "CMD", "LiveTrafficSample": "LIVE", "LiveTrafficRemoval": "LIVERM", "LiveTrafficStatus": "LIVEST"}
+
+
+def _action_tag(kind: str) -> str:
+    return _ACTION_TAGS.get(kind, kind[:6].upper())
 
 
 def _action_snap_idx(snaps_meta: list[dict[str, Any]], action_t: float) -> int | None:
@@ -1079,7 +1187,7 @@ def cmd_history(args: argparse.Namespace) -> int:
         for a in my_actions:
             t = a.get("ElapsedSeconds", 0)
             kind = a.get("$type") or "?"
-            tag = "CMD" if kind == "Command" else ("LIVE" if kind == "LiveTrafficSample" else "LIVERM" if kind == "LiveTrafficRemoval" else kind[:6].upper())
+            tag = _action_tag(kind)
             detail = _format_action_detail(a)
             action_events.append((t, _action_snap_idx(snaps_meta, t), tag, detail, {"action": a}))
 
@@ -1776,6 +1884,16 @@ def build_parser() -> argparse.ArgumentParser:
     p_hist.add_argument("--include-global", action="store_true", help="also show actions without a Callsign field")
     p_hist.add_argument("--json", action="store_true", help="structured JSON output")
     p_hist.set_defaults(func=cmd_history)
+
+    p_live = sub.add_parser("live-status", help="live-traffic feed health over the session + the real-world window to slice the raw feed by")
+    _add_bundle_arg(p_live)
+    _add_out_arg(p_live)
+    p_live.add_argument("--callsign", type=str, default=None, help="narrow the window to this shadow's observations")
+    p_live.add_argument("--start", type=float, default=None, help="only statuses at t >= START")
+    p_live.add_argument("--end", type=float, default=None, help="only statuses at t <= END")
+    p_live.add_argument("--pad", type=float, default=5.0, help="minutes added on both sides of the suggested slice window (default 5)")
+    p_live.add_argument("--all", action="store_true", help="list every status, not just changes in connection / in-scope count")
+    p_live.set_defaults(func=cmd_live_status)
 
     p_ph = sub.add_parser("phases", help="per-callsign phase-transition timeline")
     _add_bundle_arg(p_ph)

@@ -86,6 +86,8 @@ deploy-targets.ps1                # Per-deployment map (DropletIp, ServerPath, S
 deploy-to-droplet.ps1             # Deploys yaat-server to a droplet (CI-built ghcr image by default; -BuildOnDroplet / -BuildImageOnly variants)
 deploy-secrets.ps1                # Merges yaat-server/.env + .env.<target> over the droplet's env file (key names only printed, timestamped backup, -DryRun)
 deploy-ladd.ps1                   # Ships yaat-server/ladd/ladd.json (FAA LADD block list, restricted) to <ServerPath>/ladd/; -Restart recreates the container
+swim-slice.ps1                    # Live-traffic repro: copies the SWIM raw-log hours covering -From/-To off the droplet's yaat-swim-raw volume (or -Local) and
+                                  # runs yaat-server tools/Yaat.SwimSlice cut [-Artcc [-Facility]]; output under yaat-server/.tmp/swim-slices (FAA data, never shared)
 tools/codex-yaat.ps1              # Launches Codex from the YAAT repo root and adds ..\yaat-server as an extra writable/readable directory.
 tools/setup-codex.ps1             # Creates user-local Codex skill junctions and registers MCP servers without committing local state or token values.
 tools/refresh-faa-airspace.ps1    # Reads vNAS training scenario primary airports by ARTCC, then downloads matching FAA AIS Class Airspace GeoJSON/Brotli.
@@ -549,7 +551,8 @@ WeatherTimeline.cs             # Time-based weather evolution: list of WeatherPe
                                # HasMeaningfulChange: rate-limits broadcasts (direction >1°, speed >0.5kt tolerance)
 WeatherTimelineParser.cs       # Static v1/v2 auto-detection parser: checks for "periods" array → WeatherTimeline, else → WeatherProfile
                                # Returns WeatherParseResult discriminated union (Timeline | Profile | Error)
-LiveTraffic/LiveTrafficSample.cs     # LiveTrafficSample (sim-time observation: pos/alt/GS/track/VS?/source/beacon), LiveTrafficSource (Stars/Eram/Asdex), LiveTrafficRemovalReason
+LiveTraffic/LiveTrafficSample.cs     # LiveTrafficSample (sim-time observation: pos/alt/GS/track/VS?/source/beacon; Instance + ObservedAtUtc = feed provenance for bundles),
+                                     # LiveTrafficSource (Stars/Eram/Asdex), LiveTrafficRemovalReason
 LiveTraffic/AircraftLiveTraffic.cs   # Shadow satellite: last sample fields, SecondsSinceSample (the only clock Advance reads), previous-sample altitude/time, IsCoasting, ExternalId
 LiveTraffic/LiveTrafficAssumer.cs    # ASSUME hand-off: shadow → simulated aircraft in place; feed clearances first, then level/climb/descent, hold, final/visual,
                                      # route rejoin (NextFixAhead), initial climb, VFR, runway/surface kinds. Never refused. See live-traffic.md.
@@ -997,7 +1000,8 @@ AutoScratchpadResolver.cs      # Pure: the STARS destination fallback shown in t
                                # Not truncated to the scratchpad limit — STARS clips only controller-entered text.
 SessionRecording.cs            # v1 (commands) + v2 (commands + snapshots) recording format; ArtccConfigJson optional bundle; StudentPositionState (from snapshot 0) for Sim-side replay restore; TerminalLog (broadcast terminal stream) for terminal-scrub repopulation
 RecordedAction.cs              # Polymorphic recorded actions: Command, Chat, AmendFlightPlan, RequestNewBeaconCode, WeatherChange, SettingChange, AircraftSpawn,
-                               # LiveTrafficSample (pre-tick, like AircraftSpawn — SimulationEngine.IsPreTickAction), LiveTrafficRemoval
+                               # LiveTrafficSample (pre-tick, like AircraftSpawn — SimulationEngine.IsPreTickAction), LiveTrafficRemoval,
+                               # LiveTrafficStatus (feed health + wall clock per status broadcast; diagnostic only, replay ignores it)
                                # RecordedCommand bakes ReactionDelaySeconds + SpawnJitterSeconds (nullable) for replay determinism
 RecordedTerminalEntry.cs       # One broadcast terminal line (kind/callsign/message) with wall-clock Timestamp + scenario-elapsed ElapsedSeconds; persisted as terminal-log.json.br so a loaded recording repopulates the terminal and each line scrubs the replay
 RecordedCommandClassifier.cs   # Shared replay-time RecordedCommand classifier. RecordedCommandKind enum + Classify(string)

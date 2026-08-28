@@ -4710,7 +4710,11 @@ public sealed class SimulationEngine
         return true;
     }
 
-    private void RecordLiveTrafficAction(RecordedAction action)
+    /// <summary>
+    /// Appends a live-traffic action to the recording unless the room is replaying or playing a tape. Public for the
+    /// server's diagnostic actions (<see cref="RecordedLiveTrafficStatus"/>), which have no sim-side twin.
+    /// </summary>
+    public void RecordLiveTrafficAction(RecordedAction action)
     {
         var scenario = Scenario;
         if (scenario is null || _isReplayingRecordedActions || scenario.IsPlaybackMode)
