@@ -1634,6 +1634,8 @@ public sealed class UserPreferences
             WindowProfiles = GetFieldOr<List<SavedWindowProfile>>(obj, "windowProfiles", []),
             ShowOnlyActiveAircraft = GetFieldOr(obj, "showOnlyActiveAircraft", false),
             LiveTrafficListFilter = GetFieldOr(obj, "liveTrafficListFilter", nameof(Models.LiveTrafficListFilter.All)),
+            TerminalTimestampMode = GetFieldOr(obj, "terminalTimestampMode", nameof(Models.TerminalTimestampMode.WallClock)),
+            RendererMode = GetFieldOr(obj, "rendererMode", nameof(Models.RendererMode.Auto)),
             ShowTimelineBar = GetFieldOr(obj, "showTimelineBar", false),
             DataGridAlternatingRowColor = GetFieldOr(obj, "dataGridAlternatingRowColor", true),
             LastScenarioFolder = GetFieldOr<string?>(obj, "lastScenarioFolder", null),
