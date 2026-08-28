@@ -248,6 +248,14 @@ measurements: yaat-server `docs/plans/live-traffic-swim/04-swim-ingest.md`; depl
   reports carry a position and little else; every SFDPS message is a delta), so the typed records under `Messages/` are nullable
   throughout. Fixtures in `tests/Yaat.Server.Tests/LiveTraffic/Swim/Fixtures/` are real messages from the 2026-08-28 capture
   (airline callsigns only, ICAO24s replaced).
+- **Privacy (LADD)** — the SCDS agreement obliges subscribers to filter aircraft on the FAA's Limiting Aircraft Data Displayed
+  list (registration, call sign, Mode S address, historical data included). `LaddList.Load` reads the deployment's `yaat-ladd/1`
+  JSON (`LiveTraffic:LaddListPath`, built by yaat-server `tools/refresh-ladd.py`, shipped by `deploy-ladd.ps1`) and **fails
+  closed**: a missing, unreadable, empty or > 45-day-old list makes the ingest service log `SWIM ingest refused`, set
+  `FeedConfigured=false` (room toggle hidden) and never open a flow. `LaddFilter.Apply` runs between parse and correlate and drops
+  every TAIS record, ASDE-X report or SFDPS flight carrying a listed identity, so blocked aircraft never reach the correlator's
+  indices, the store, a recording or a room; identities accumulate across monthly lists (ever listed = blocked), which is what
+  makes replaying an old raw log safe with the current list. The list itself is restricted data: never in the repo or the image.
 - **Correlation** — `SwimTrackCorrelator` keys tracks by callsign and resolves identity-less records through
   `(TRACON, track number)`, `(airport, ASDE-X track)`, ICAO24 and ERAM GUFI indices learned from earlier records. One `LiveView`
   per source with **sticky instance** ownership (another TRACON/ARTCC may overwrite only after 12 s / 24 s / 2 s of silence),

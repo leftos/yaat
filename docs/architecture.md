@@ -82,6 +82,10 @@ The Task Index above tells you *which files*; these docs explain *how each subsy
 ```
 AGENTS.md                         # Codex project wrapper; points Codex back to CLAUDE.md and maps Claude agents/commands/hooks to Codex behavior.
 Setup-CrcEnvironment.ps1          # Adds YAAT1 to CRC's DevEnvironments.json (-Servers overrides for self-hosted)
+deploy-targets.ps1                # Per-deployment map (DropletIp, ServerPath, ServerUrl, RemoteEnvFile) + Resolve-DeployTarget; dot-sourced by the deploy scripts
+deploy-to-droplet.ps1             # Deploys yaat-server to a droplet (CI-built ghcr image by default; -BuildOnDroplet / -BuildImageOnly variants)
+deploy-secrets.ps1                # Merges yaat-server/.env + .env.<target> over the droplet's env file (key names only printed, timestamped backup, -DryRun)
+deploy-ladd.ps1                   # Ships yaat-server/ladd/ladd.json (FAA LADD block list, restricted) to <ServerPath>/ladd/; -Restart recreates the container
 tools/codex-yaat.ps1              # Launches Codex from the YAAT repo root and adds ..\yaat-server as an extra writable/readable directory.
 tools/setup-codex.ps1             # Creates user-local Codex skill junctions and registers MCP servers without committing local state or token values.
 tools/refresh-faa-airspace.ps1    # Reads vNAS training scenario primary airports by ARTCC, then downloads matching FAA AIS Class Airspace GeoJSON/Brotli.
