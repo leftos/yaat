@@ -171,8 +171,9 @@ second would put every replayed second one sample behind and would create the ai
 Removals apply after the second like other actions. Callers of `ApplyLiveTrafficSample` on a live host must call it from
 pre-physics with `ElapsedSeconds` already at the current second so the recorded second matches this placement.
 
-The server brain mirrors this: `RecordingManager.ReconstructViaServerTick` applies each second's `RecordedLiveTrafficSample`s
-(`SimulationEngine.ApplyRecordedLiveTrafficSample`, public for this) between `RoomEngine.BeginSecond` (the `ElapsedSeconds`
+The server brain mirrors this: `RecordingManager.ReconstructViaServerTick` applies each second's pre-tick actions
+(`SimulationEngine.IsPreTickAction` — `RecordedAircraftSpawn` and `RecordedLiveTrafficSample`, the latter via
+`SimulationEngine.ApplyRecordedLiveTrafficSample`, public for this) between `RoomEngine.BeginSecond` (the `ElapsedSeconds`
 increment) and `RunSecondPhysics`, and skips them when the generic post-second cursor reaches them; forward tape playback does
 the same through `ApplyPreTickPlaybackActions(second)`, which `SimulationHostedService.ProcessRoomSecond` calls in the same
 slot. The increment must come first: `ApplyRecordedLiveTrafficSample` resyncs against `ElapsedSeconds`, and a sample carrying
