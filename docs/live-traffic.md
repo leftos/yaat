@@ -239,7 +239,7 @@ measurements: yaat-server `docs/plans/live-traffic-swim/04-swim-ingest.md`; depl
 - **Transport** — `SwimIngestHostedService` runs, per configured product (`Swim:Stdds` / `Swim:Sfdps`, only while
   `LiveTraffic:Enabled`), a `SolaceSwimFeedSource` (Solace .NET API, AutoAck queue flow, TLS against the bundled DigiCert root,
   exponential reconnect) feeding a bounded drop-oldest channel, and a worker that appends the raw body to the rolling
-  `SwimRawLogWriter` window (Brotli per product-hour, size/age capped — the only history SCDS offers), peeks the root element for
+  `SwimRawLogWriter` window (Brotli per product-hour, one stream per file — a restart inside the hour opens a file named by its first message's second rather than appending — size/age capped; the only history SCDS offers), peeks the root element for
   metrics, parses, and correlates. `SwimReplaySource` drives the same pipeline from raw-log files (the parser/correlator harness
   and the seam for the repro harness in plan 07).
 - **Parsing** — `SwimMessageParser` dispatches on the document element's local name (`TATrackAndFlightPlan`, `asdexMsg`,
