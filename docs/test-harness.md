@@ -157,6 +157,8 @@ All four test projects use xunit.v3 on the Microsoft.Testing.Platform runner (`U
 
 - `dotnet test yaat.slnx` runs the test assemblies **concurrently** (Sim, Client, Client.UI in parallel; yaat-server's suite the same way).
 - Runner options follow a `--` separator. The VSTest options are gone — `--filter "..."` and `--logger "..."` fail with `Unknown option`.
+- **One project per invocation.** `dotnet test tests/A tests/B` does not run both: it reports `Zero tests ran` and exits 0, which
+  reads as a pass. Run the projects separately (or the solution) and check each summary's `total:` is non-zero.
 
 | Want | Command |
 |------|---------|
