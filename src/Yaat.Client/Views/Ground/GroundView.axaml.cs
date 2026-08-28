@@ -499,8 +499,41 @@ public partial class GroundView : UserControl
         }
 
         var initials = GetInitials();
+        var target = new GroundMenuTarget(ac, prevSelected, callsign, initials);
         var menu = new ContextMenu();
 
+        AddAircraftHeaderItems(menu, vm, target);
+        menu.Items.Add(new Separator());
+        menu.Items.Add(FavoritesContextMenu.Build(FindMainViewModel(), ac, callsign, initials));
+        menu.Items.Add(new Separator());
+
+        if (ac is { IsLiveTraffic: true })
+        {
+            // A shadow takes no ground / flight commands until assumed; surface shadows are not assumable at all.
+            if (LiveTrafficMenuItems.Add(menu, ac, cmd => vm.SendRawCommandAsync(callsign, initials, cmd)))
+            {
+                menu.Items.Add(new Separator());
+            }
+        }
+        else
+        {
+            AddSimulatedAircraftItems(menu, vm, target);
+        }
+
+        AddDisplayItems(menu, vm, callsign);
+        menu.Items.Add(new Separator());
+        menu.Items.Add(CreateMenuItem("Delete", () => vm.DeleteAsync(callsign, initials)));
+
+        // RPO control
+        FindMainViewModel()?.BuildRpoMenuItems(menu, [callsign]);
+
+        ShowContextMenu(menu);
+    }
+
+    /// <summary>The bold callsign header plus the free-text Command…, Note… and measurement items every aircraft gets.</summary>
+    private void AddAircraftHeaderItems(ContextMenu menu, GroundViewModel vm, GroundMenuTarget target)
+    {
+        var (ac, _, callsign, initials) = target;
         var headerText = ac is not null ? $"{callsign} — {ac.AircraftType}" : callsign;
         menu.Items.Add(
             new MenuItem
@@ -561,25 +594,11 @@ public partial class GroundView : UserControl
                 )
             );
         }
+    }
 
-        menu.Items.Add(new Separator());
-
-        menu.Items.Add(FavoritesContextMenu.Build(FindMainViewModel(), ac, callsign, initials));
-        menu.Items.Add(new Separator());
-
-        if (ac is { IsLiveTraffic: true })
-        {
-            // A shadow takes no ground / flight commands until assumed; surface shadows are not assumable at all.
-            if (LiveTrafficMenuItems.Add(menu, ac, cmd => vm.SendRawCommandAsync(callsign, initials, cmd)))
-            {
-                menu.Items.Add(new Separator());
-            }
-        }
-        else
-        {
-            AddSimulatedAircraftItems(menu, vm, new GroundMenuTarget(ac, prevSelected, callsign, initials));
-        }
-
+    /// <summary>Taxi-route visibility and datablock show/hide/reset — display-only items shared by shadows and simulated aircraft.</summary>
+    private void AddDisplayItems(ContextMenu menu, GroundViewModel vm, string callsign)
+    {
         var taxiRouteMode = vm.GetTaxiRouteMode(callsign);
         var taxiRouteMenu = new MenuItem { Header = "Taxi route" };
         taxiRouteMenu.Items.Add(CreateTaxiRouteModeItem(vm, callsign, "Always show", TaxiRouteDisplayMode.AlwaysShow, taxiRouteMode));
@@ -612,14 +631,6 @@ public partial class GroundView : UserControl
                 )
             );
         }
-
-        menu.Items.Add(new Separator());
-        menu.Items.Add(CreateMenuItem("Delete", () => vm.DeleteAsync(callsign, initials)));
-
-        // RPO control
-        FindMainViewModel()?.BuildRpoMenuItems(menu, [callsign]);
-
-        ShowContextMenu(menu);
     }
 
     /// <summary>
@@ -643,7 +654,36 @@ public partial class GroundView : UserControl
         }
 
         AddRelativeGroundItems(menu, vm, prevSelected, callsign, initials, isRelative);
+        AddParkingAndTaxiItems(menu, vm, target, phase, isRelative);
+        AddHoldingItems(menu, vm, target, phase, isRelative);
+        AddRunwayItems(menu, vm, target, phase);
 
+        if (AircraftCommandApplicability.CanDrawTaxiRoute(ac))
+        {
+            menu.Items.Add(new Separator());
+            var presetSubmenu = BuildPresetTaxiSubmenu(vm, ac, callsign, initials);
+            if (presetSubmenu is not null)
+            {
+                menu.Items.Add(presetSubmenu);
+            }
+
+            menu.Items.Add(
+                CreateMenuItem(
+                    "Draw taxi route...",
+                    () =>
+                    {
+                        vm.StartDrawRoute(ac!);
+                        return Task.CompletedTask;
+                    }
+                )
+            );
+        }
+    }
+
+    /// <summary>At Parking (push back variants, follow) and Pushback / Taxiing (hold position, hold short, follow, break, deferred CTO).</summary>
+    private void AddParkingAndTaxiItems(ContextMenu menu, GroundViewModel vm, GroundMenuTarget target, string phase, bool isRelative)
+    {
+        var (ac, _, callsign, initials) = target;
         if (phase == "At Parking")
         {
             menu.Items.Add(CreateMenuItem("Push back", () => vm.PushbackAsync(callsign, initials)));
@@ -697,7 +737,12 @@ public partial class GroundView : UserControl
                 AddCtoSubmenu(menu, vm, ac, callsign, initials, ac.AssignedRunway, VfrCommandsForIfrMode());
             }
         }
+    }
 
+    /// <summary>Following, Holding Short, Holding In Position and the after-exit / after-pushback holds.</summary>
+    private void AddHoldingItems(ContextMenu menu, GroundViewModel vm, GroundMenuTarget target, string phase, bool isRelative)
+    {
+        var (ac, _, callsign, initials) = target;
         if (phase.StartsWith("Following", StringComparison.Ordinal))
         {
             menu.Items.Add(CreateMenuItem("Hold position", () => vm.HoldPositionAsync(callsign, initials)));
@@ -736,7 +781,12 @@ public partial class GroundView : UserControl
                 AddFollowBehindSubmenus(menu, ac, callsign, initials, includeGiveWay: ac.HasActiveTaxiRoute);
             }
         }
+    }
 
+    /// <summary>Line-up / takeoff clearances, the landing family, runway exits and cancel-takeoff.</summary>
+    private void AddRunwayItems(ContextMenu menu, GroundViewModel vm, GroundMenuTarget target, string phase)
+    {
+        var (ac, _, callsign, initials) = target;
         if (phase == "LinedUpAndWaiting")
         {
             var rwyId = ac?.AssignedRunway;
@@ -790,27 +840,6 @@ public partial class GroundView : UserControl
         if (phase == "Takeoff")
         {
             menu.Items.Add(CreateMenuItem("Cancel takeoff clearance", () => vm.CancelTakeoffClearanceAsync(callsign, initials)));
-        }
-
-        if (AircraftCommandApplicability.CanDrawTaxiRoute(ac))
-        {
-            menu.Items.Add(new Separator());
-            var presetSubmenu = BuildPresetTaxiSubmenu(vm, ac, callsign, initials);
-            if (presetSubmenu is not null)
-            {
-                menu.Items.Add(presetSubmenu);
-            }
-
-            menu.Items.Add(
-                CreateMenuItem(
-                    "Draw taxi route...",
-                    () =>
-                    {
-                        vm.StartDrawRoute(ac!);
-                        return Task.CompletedTask;
-                    }
-                )
-            );
         }
     }
 
