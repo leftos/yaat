@@ -152,7 +152,8 @@ the `Send*` preference pushes.
 The session-settings flyout binds 13 `[ObservableProperty]` fields (`SessionAutoDeleteIndex`,
 `SessionAutoAcceptDelaySeconds`, `SessionAutoClearedToLand`, `SessionAutoCrossRunway`, `SessionValidateDctFixes`,
 `SessionSoloTrainingMode`, the three solo-pacing rates, the two `HasSolo*Source` flags, `SessionRpoShowPilotSpeech`,
-…). Each has an `OnXxxChanged` partial that re-sends the new value to the server. The problem: when the **server**
+`SessionLiveTrafficEnabled` + `SessionLiveTrafficCeilingFt` — see [live-traffic.md](live-traffic.md) "Client" for the
+status-bar indicator and the Aircraft List tri-state that hang off them — …). Each has an `OnXxxChanged` partial that re-sends the new value to the server. The problem: when the **server**
 broadcasts a settings change, applying it to the bound property would re-trigger `OnXxxChanged`, which would re-send
 it — a ping-pong.
 

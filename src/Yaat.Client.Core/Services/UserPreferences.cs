@@ -430,6 +430,10 @@ public sealed class UserPreferences
     public TerminalTimestampMode TerminalTimestampMode =>
         Enum.TryParse<TerminalTimestampMode>(_data.TerminalTimestampMode, out var mode) ? mode : TerminalTimestampMode.WallClock;
 
+    /// <summary>How the Aircraft List treats live-traffic shadows. Defaults to listing them.</summary>
+    public LiveTrafficListFilter LiveTrafficListFilter =>
+        Enum.TryParse<LiveTrafficListFilter>(_data.LiveTrafficListFilter, out var filter) ? filter : LiveTrafficListFilter.All;
+
     /// <summary>GPU rendering backend override (macOS only). Defaults to <see cref="RendererMode.Auto"/>.</summary>
     public RendererMode RendererMode => Enum.TryParse<RendererMode>(_data.RendererMode, out var renderer) ? renderer : RendererMode.Auto;
 
@@ -992,6 +996,12 @@ public sealed class UserPreferences
     public void SetTerminalTimestampMode(TerminalTimestampMode mode)
     {
         _data.TerminalTimestampMode = mode.ToString();
+        Save();
+    }
+
+    public void SetLiveTrafficListFilter(LiveTrafficListFilter filter)
+    {
+        _data.LiveTrafficListFilter = filter.ToString();
         Save();
     }
 
@@ -1623,6 +1633,7 @@ public sealed class UserPreferences
             WindowGeometries = GetFieldOr<Dictionary<string, SavedWindowGeometry>>(obj, "windowGeometries", []),
             WindowProfiles = GetFieldOr<List<SavedWindowProfile>>(obj, "windowProfiles", []),
             ShowOnlyActiveAircraft = GetFieldOr(obj, "showOnlyActiveAircraft", false),
+            LiveTrafficListFilter = GetFieldOr(obj, "liveTrafficListFilter", nameof(Models.LiveTrafficListFilter.All)),
             ShowTimelineBar = GetFieldOr(obj, "showTimelineBar", false),
             DataGridAlternatingRowColor = GetFieldOr(obj, "dataGridAlternatingRowColor", true),
             LastScenarioFolder = GetFieldOr<string?>(obj, "lastScenarioFolder", null),
@@ -2033,6 +2044,9 @@ public sealed class UserPreferences
         // Which timestamp the terminal shows per line: "WallClock", "SimElapsed", or "Both".
         // Stored as a string (like HiddenTerminalKinds) so enum reordering can't misassign it.
         public string TerminalTimestampMode { get; set; } = nameof(Models.TerminalTimestampMode.WallClock);
+
+        // Aircraft List treatment of live-traffic shadows: "All", "HideLive", or "OnlyLive" (string for the same reason).
+        public string LiveTrafficListFilter { get; set; } = nameof(Models.LiveTrafficListFilter.All);
 
         // GPU rendering backend override, applied on macOS only. Stored as a string so enum
         // reordering can't misassign it. "Auto" lets the platform pick (Metal on macOS).

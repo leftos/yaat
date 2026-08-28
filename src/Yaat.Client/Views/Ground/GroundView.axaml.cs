@@ -498,16 +498,8 @@ public partial class GroundView : UserControl
             vm.SelectedAircraft = ac;
         }
 
-        // When a different on-ground aircraft is selected, the direct "give way / follow"
-        // items replace the candidate Follow…/Give way to… submenus.
-        var isRelative =
-            ac is not null
-            && RelativeTrafficActions.HasRelativeContext(prevSelected, callsign)
-            && RelativeTrafficActions.ShouldOfferGroundActions(prevSelected!, ac);
-
         var initials = GetInitials();
         var menu = new ContextMenu();
-        var phase = ac?.CurrentPhase ?? "";
 
         var headerText = ac is not null ? $"{callsign} — {ac.AircraftType}" : callsign;
         menu.Items.Add(
@@ -574,6 +566,76 @@ public partial class GroundView : UserControl
 
         menu.Items.Add(FavoritesContextMenu.Build(FindMainViewModel(), ac, callsign, initials));
         menu.Items.Add(new Separator());
+
+        if (ac is { IsLiveTraffic: true })
+        {
+            // A shadow takes no ground / flight commands until assumed; surface shadows are not assumable at all.
+            if (LiveTrafficMenuItems.Add(menu, ac, cmd => vm.SendRawCommandAsync(callsign, initials, cmd)))
+            {
+                menu.Items.Add(new Separator());
+            }
+        }
+        else
+        {
+            AddSimulatedAircraftItems(menu, vm, new GroundMenuTarget(ac, prevSelected, callsign, initials));
+        }
+
+        var taxiRouteMode = vm.GetTaxiRouteMode(callsign);
+        var taxiRouteMenu = new MenuItem { Header = "Taxi route" };
+        taxiRouteMenu.Items.Add(CreateTaxiRouteModeItem(vm, callsign, "Always show", TaxiRouteDisplayMode.AlwaysShow, taxiRouteMode));
+        taxiRouteMenu.Items.Add(CreateTaxiRouteModeItem(vm, callsign, "Always hide", TaxiRouteDisplayMode.AlwaysHide, taxiRouteMode));
+        taxiRouteMenu.Items.Add(CreateTaxiRouteModeItem(vm, callsign, "Follow “Show all” setting", TaxiRouteDisplayMode.Follow, taxiRouteMode));
+        menu.Items.Add(taxiRouteMenu);
+
+        var isDbHidden = _canvas?.IsDataBlockHidden(callsign) ?? false;
+        menu.Items.Add(
+            CreateMenuItem(
+                isDbHidden ? "Show datablock" : "Hide datablock",
+                () =>
+                {
+                    _canvas?.ToggleHiddenDataBlock(callsign);
+                    return Task.CompletedTask;
+                }
+            )
+        );
+
+        if (_canvas?.HasManualDataBlockOffset(callsign) ?? false)
+        {
+            menu.Items.Add(
+                CreateMenuItem(
+                    "Reset datablock position",
+                    () =>
+                    {
+                        _canvas?.ResetDataBlockOffset(callsign);
+                        return Task.CompletedTask;
+                    }
+                )
+            );
+        }
+
+        menu.Items.Add(new Separator());
+        menu.Items.Add(CreateMenuItem("Delete", () => vm.DeleteAsync(callsign, initials)));
+
+        // RPO control
+        FindMainViewModel()?.BuildRpoMenuItems(menu, [callsign]);
+
+        ShowContextMenu(menu);
+    }
+
+    /// <summary>
+    /// The phase-aware command items for a simulated (non-shadow) aircraft: release checks, pushback, taxi holds,
+    /// hold-short / crossing, takeoff and landing clearances, runway exits and taxi-route drawing.
+    /// </summary>
+    private void AddSimulatedAircraftItems(ContextMenu menu, GroundViewModel vm, GroundMenuTarget target)
+    {
+        var (ac, prevSelected, callsign, initials) = target;
+        var phase = ac?.CurrentPhase ?? "";
+        // When a different on-ground aircraft is selected, the direct "give way / follow"
+        // items replace the candidate Follow…/Give way to… submenus.
+        var isRelative =
+            ac is not null
+            && RelativeTrafficActions.HasRelativeContext(prevSelected, callsign)
+            && RelativeTrafficActions.ShouldOfferGroundActions(prevSelected!, ac);
 
         if (ac is { IsOnGround: true, CfrWindowStartUtc: not null })
         {
@@ -750,47 +812,6 @@ public partial class GroundView : UserControl
                 )
             );
         }
-
-        var taxiRouteMode = vm.GetTaxiRouteMode(callsign);
-        var taxiRouteMenu = new MenuItem { Header = "Taxi route" };
-        taxiRouteMenu.Items.Add(CreateTaxiRouteModeItem(vm, callsign, "Always show", TaxiRouteDisplayMode.AlwaysShow, taxiRouteMode));
-        taxiRouteMenu.Items.Add(CreateTaxiRouteModeItem(vm, callsign, "Always hide", TaxiRouteDisplayMode.AlwaysHide, taxiRouteMode));
-        taxiRouteMenu.Items.Add(CreateTaxiRouteModeItem(vm, callsign, "Follow “Show all” setting", TaxiRouteDisplayMode.Follow, taxiRouteMode));
-        menu.Items.Add(taxiRouteMenu);
-
-        var isDbHidden = _canvas?.IsDataBlockHidden(callsign) ?? false;
-        menu.Items.Add(
-            CreateMenuItem(
-                isDbHidden ? "Show datablock" : "Hide datablock",
-                () =>
-                {
-                    _canvas?.ToggleHiddenDataBlock(callsign);
-                    return Task.CompletedTask;
-                }
-            )
-        );
-
-        if (_canvas?.HasManualDataBlockOffset(callsign) ?? false)
-        {
-            menu.Items.Add(
-                CreateMenuItem(
-                    "Reset datablock position",
-                    () =>
-                    {
-                        _canvas?.ResetDataBlockOffset(callsign);
-                        return Task.CompletedTask;
-                    }
-                )
-            );
-        }
-
-        menu.Items.Add(new Separator());
-        menu.Items.Add(CreateMenuItem("Delete", () => vm.DeleteAsync(callsign, initials)));
-
-        // RPO control
-        FindMainViewModel()?.BuildRpoMenuItems(menu, [callsign]);
-
-        ShowContextMenu(menu);
     }
 
     /// <summary>
@@ -1639,3 +1660,6 @@ public partial class GroundView : UserControl
         e.Handled = true;
     }
 }
+
+/// <summary>The aircraft a ground context menu is being built for, with the selection it may act relative to.</summary>
+internal readonly record struct GroundMenuTarget(AircraftModel? Aircraft, AircraftModel? PrevSelected, string Callsign, string Initials);

@@ -345,4 +345,54 @@ public class AircraftCommandApplicabilityTests
     {
         Assert.Equal(expected, AircraftCommandApplicability.CanDrawTaxiRoute(Ac(phase, onGround)));
     }
+
+    // --- Live traffic shadows ---
+
+    private static AircraftModel Shadow(bool onGround)
+    {
+        var ac = Ac("", onGround, rules: "VFR", assignedRunway: "28R", landingClearance: "CL");
+        ac.IsLiveTraffic = true;
+        return ac;
+    }
+
+    [Fact]
+    public void AirborneShadow_OnlyAssumeApplies()
+    {
+        var ac = Shadow(onGround: false);
+        Assert.True(AircraftCommandApplicability.CanAssume(ac));
+        Assert.False(AircraftCommandApplicability.IsControllable(ac));
+        Assert.False(AircraftCommandApplicability.CanClearToLand(ac));
+        Assert.False(AircraftCommandApplicability.CanGoAround(ac));
+        Assert.False(AircraftCommandApplicability.CanCancelLandingClearance(ac));
+        Assert.False(AircraftCommandApplicability.CanEnterPattern(ac, VfrCommandsForIfr.All));
+        Assert.False(AircraftCommandApplicability.CanEnterFinal(ac, VfrCommandsForIfr.All));
+        Assert.False(AircraftCommandApplicability.CanIssuePatternManeuvers(ac, VfrCommandsForIfr.All));
+        Assert.False(AircraftCommandApplicability.CanIssueVfrOption(ac, VfrCommandsForIfr.All));
+    }
+
+    [Fact]
+    public void SurfaceShadow_NothingApplies_NotEvenAssume()
+    {
+        var ac = Shadow(onGround: true);
+        ac.CurrentPhase = "Taxiing";
+        Assert.False(AircraftCommandApplicability.CanAssume(ac));
+        Assert.False(AircraftCommandApplicability.CanLineUpAndWait(ac));
+        Assert.False(AircraftCommandApplicability.CanClearForTakeoff(ac));
+        Assert.False(AircraftCommandApplicability.CanCancelTakeoff(ac));
+        Assert.False(AircraftCommandApplicability.CanExitRunway(ac));
+        Assert.False(AircraftCommandApplicability.CanDrawTaxiRoute(ac));
+        Assert.False(AircraftCommandApplicability.ShowVfrTakeoffModifiers(ac, VfrCommandsForIfr.All));
+    }
+
+    [Fact]
+    public void AssumedAircraft_IsControllableAgain()
+    {
+        var ac = Shadow(onGround: false);
+        ac.IsLiveTraffic = false;
+        ac.CurrentPhase = "FinalApproach";
+        Assert.False(AircraftCommandApplicability.CanAssume(ac));
+        Assert.True(AircraftCommandApplicability.IsControllable(ac));
+        Assert.True(AircraftCommandApplicability.CanClearToLand(ac));
+        Assert.True(AircraftCommandApplicability.CanEnterFinal(ac, VfrCommandsForIfr.None));
+    }
 }

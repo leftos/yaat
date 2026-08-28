@@ -16,6 +16,7 @@ internal static class SceneCatalog
         new AircraftListScene(),
         new GroundViewScene(),
         new RadarViewScene(),
+        new LiveTrafficScene(),
         // Popouts
         new MainWindowPoppedOutScene(),
         new GroundViewPopoutScene(),

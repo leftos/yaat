@@ -139,6 +139,26 @@ public partial class RadarView
         menu.Items.Add(FavoritesContextMenu.Build(FindMainViewModel(), ac, callsign, initials));
         menu.Items.Add(new Separator());
 
+        if (ac is { IsLiveTraffic: true })
+        {
+            // A shadow takes no flight commands until assumed: no relative-traffic or phase groups, and the
+            // Sim Control submenu shrinks to Delete (hide) — Warp is refused for it server-side.
+            if (LiveTrafficMenuItems.Add(menu, ac, cmd => vm.SendRawCommandAsync(callsign, initials, cmd)))
+            {
+                menu.Items.Add(new Separator());
+            }
+
+            menu.Items.Add(BuildTrackSubmenu(vm, callsign, initials));
+            menu.Items.Add(BuildDataBlockSubmenu(vm, callsign, initials));
+            menu.Items.Add(BuildCoordinationSubmenu(vm, callsign, initials));
+            menu.Items.Add(BuildDisplaySubmenu(vm, callsign));
+            menu.Items.Add(new Separator());
+            menu.Items.Add(CreateMenuItem("Delete", () => vm.DeleteAsync(callsign, initials)));
+            FindMainViewModel()?.BuildRpoMenuItems(menu, [callsign]);
+            ShowContextMenu(menu);
+            return;
+        }
+
         AddRelativeTrafficItems(menu, vm, prevSelected, callsign, initials);
 
         var profile = ContextMenuProfileService.GetProfile(ac?.CurrentPhase, ac?.IsOnGround ?? false);

@@ -130,7 +130,7 @@ The replay surface on `SimulationEngine`:
 
 `ReplayTrackApplier` handles track / coordination / `AS`-prefix commands during replay. It's wired into `SimulationEngine.ReplayCommand` *before* the aircraft-exists guard, so position-claiming commands (`AS X TRACK …`) work even when the aircraft has just been spawned.
 
-Runtime aircraft spawns are action-driven during replay. `RecordedAircraftSpawn` actions apply before the tick's generator phase, and old archives that predate those actions synthesize them from snapshot deltas for aircraft that were not declared in the scenario JSON. `RecordedLiveTrafficSample` shares that pre-tick slot (`SimulationEngine.IsPreTickAction`) in `Replay`, `ReplayOneSecond` and `ReplayOneSubTick`; the server brain has no pre-tick applier yet and ignores live-traffic actions.
+Runtime aircraft spawns are action-driven during replay. `RecordedAircraftSpawn` actions apply before the tick's generator phase, and old archives that predate those actions synthesize them from snapshot deltas for aircraft that were not declared in the scenario JSON. `RecordedLiveTrafficSample` shares that pre-tick slot (`SimulationEngine.IsPreTickAction`) in `Replay`, `ReplayOneSecond` and `ReplayOneSubTick`; the server brain applies them in the same slot via `RecordingManager.ReconstructViaServerTick` / `ApplyPreTickPlaybackActions` (see [live-traffic.md](live-traffic.md)).
 
 ### `SnapshotDiff` — drift detection
 

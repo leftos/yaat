@@ -243,7 +243,8 @@
         { "verb": "FCA", "aliases": [], "description": "Frequency change approved" },
         { "verb": "ACCEPTALL", "aliases": [], "description": "Accept all handoffs", "global": true },
         { "verb": "HOALL", "aliases": [], "description": "Handoff all to position", "global": true },
-        { "verb": "GHOST", "aliases": [], "description": "Ghost track (cs rwy | cs apt rwy | cs lat lon)", "global": true }
+        { "verb": "GHOST", "aliases": [], "description": "Ghost track (cs rwy | cs apt rwy | cs lat lon)", "global": true },
+        { "verb": "ASSUME", "aliases": [], "description": "Assume control of a live-traffic shadow (becomes a simulated aircraft)" }
       ],
       "notes": []
     },

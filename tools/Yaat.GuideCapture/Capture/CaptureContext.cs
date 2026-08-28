@@ -7,6 +7,8 @@ internal sealed class CaptureContext
 {
     public required string ServerUrl { get; init; }
 
+    public required IServiceProvider ServerServices { get; init; }
+
     public string RepoRoot { get; } = FindRepoRoot();
 
     private static string FindRepoRoot()

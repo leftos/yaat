@@ -213,11 +213,16 @@ public partial class MainViewModel : ObservableObject
     private bool _sessionAutoGoAroundOnOccupiedRunway;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsLiveTrafficStatusVisible))]
+    [NotifyPropertyChangedFor(nameof(LiveTrafficStatusText))]
+    [NotifyPropertyChangedFor(nameof(SimRateToolTip))]
     private bool _sessionLiveTrafficEnabled;
 
     /// <summary>Feed health for the room (null until the server has reported one); seeded on join, then pushed on change.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(LiveTrafficAvailable))]
+    [NotifyPropertyChangedFor(nameof(IsLiveTrafficStatusVisible))]
+    [NotifyPropertyChangedFor(nameof(LiveTrafficStatusText))]
     private LiveTrafficStatusDto? _liveTrafficStatus;
 
     /// <summary>
@@ -225,6 +230,31 @@ public partial class MainViewModel : ObservableObject
     /// toggle's visibility; false until the server has said otherwise so a gated server never shows the checkbox.
     /// </summary>
     public bool LiveTrafficAvailable => LiveTrafficStatus?.FeedConfigured == true;
+
+    /// <summary>The status-bar feed indicator shows only while the session has live traffic on.</summary>
+    public bool IsLiveTrafficStatusVisible => SessionLiveTrafficEnabled && LiveTrafficStatus is not null;
+
+    /// <summary>"LIVE · 42 tracks · 3 s" while the feed is up; "LIVE · disconnected" / "LIVE · not configured" otherwise.</summary>
+    public string LiveTrafficStatusText => FormatLiveTrafficStatus(LiveTrafficStatus);
+
+    /// <summary>Why the sim-rate picker is locked: live traffic runs at real time only.</summary>
+    public string? SimRateToolTip => SessionLiveTrafficEnabled ? "Sim rate is fixed at 1× while Live Traffic is on" : null;
+
+    public static string FormatLiveTrafficStatus(LiveTrafficStatusDto? status)
+    {
+        if (status is null || !status.FeedConfigured)
+        {
+            return "LIVE · not configured";
+        }
+
+        if (!status.Connected)
+        {
+            return "LIVE · disconnected";
+        }
+
+        var tracks = status.TracksInScope == 1 ? "1 track" : $"{status.TracksInScope} tracks";
+        return status.LastMessageAgeSeconds is { } age ? $"LIVE · {tracks} · {Math.Round(age)} s" : $"LIVE · {tracks}";
+    }
 
     [ObservableProperty]
     private int _sessionLiveTrafficCeilingFt;
@@ -855,6 +885,46 @@ public partial class MainViewModel : ObservableObject
         RefreshAircraftView();
     }
 
+    /// <summary>Aircraft List treatment of live-traffic shadows (all / hide live / only live); persisted.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(LiveTrafficListShowAll))]
+    [NotifyPropertyChangedFor(nameof(LiveTrafficListHideLive))]
+    [NotifyPropertyChangedFor(nameof(LiveTrafficListOnlyLive))]
+    private LiveTrafficListFilter _liveTrafficListFilter;
+
+    partial void OnLiveTrafficListFilterChanged(LiveTrafficListFilter value)
+    {
+        _preferences.SetLiveTrafficListFilter(value);
+        RefreshAircraftView();
+    }
+
+    // Radio-item adapters for the status-bar flyout: a radio only ever reports true for the item that was picked.
+    public bool LiveTrafficListShowAll
+    {
+        get => LiveTrafficListFilter == LiveTrafficListFilter.All;
+        set => SetLiveTrafficListFilterIf(value, LiveTrafficListFilter.All);
+    }
+
+    public bool LiveTrafficListHideLive
+    {
+        get => LiveTrafficListFilter == LiveTrafficListFilter.HideLive;
+        set => SetLiveTrafficListFilterIf(value, LiveTrafficListFilter.HideLive);
+    }
+
+    public bool LiveTrafficListOnlyLive
+    {
+        get => LiveTrafficListFilter == LiveTrafficListFilter.OnlyLive;
+        set => SetLiveTrafficListFilterIf(value, LiveTrafficListFilter.OnlyLive);
+    }
+
+    private void SetLiveTrafficListFilterIf(bool picked, LiveTrafficListFilter filter)
+    {
+        if (picked)
+        {
+            LiveTrafficListFilter = filter;
+        }
+    }
+
     /// <summary>
     /// Predicate backing <see cref="AircraftView"/>'s filter. Phantom STARS data blocks
     /// created by CRC <c>DA</c>/<c>VP</c> typing (<see cref="AircraftModel.IsUnsupported"/>
@@ -863,9 +933,10 @@ public partial class MainViewModel : ObservableObject
     /// "No altitude asgn". Ghost overlays attached to real scenario aircraft via AID+slew
     /// (<c>IsUnsupported &amp;&amp; IsGhostOverlay</c>) stay visible so the operator can
     /// still track the underlying aircraft. Delayed-spawn aircraft are hidden only when
-    /// the "Show only active" toggle is on.
+    /// the "Show only active" toggle is on. Live-traffic shadows follow the tri-state
+    /// <paramref name="liveFilter"/>; an assumed aircraft is no longer a shadow and is listed as simulated.
     /// </summary>
-    public static bool IsAircraftVisible(AircraftModel ac, bool showOnlyActive, string filter)
+    public static bool IsAircraftVisible(AircraftModel ac, bool showOnlyActive, string filter, LiveTrafficListFilter liveFilter)
     {
         if (ac.IsUnsupported && !ac.IsGhostOverlay)
         {
@@ -873,6 +944,11 @@ public partial class MainViewModel : ObservableObject
         }
 
         if (showOnlyActive && ac.IsDelayed)
+        {
+            return false;
+        }
+
+        if ((liveFilter == LiveTrafficListFilter.HideLive && ac.IsLiveTraffic) || (liveFilter == LiveTrafficListFilter.OnlyLive && !ac.IsLiveTraffic))
         {
             return false;
         }
@@ -1391,8 +1467,10 @@ public partial class MainViewModel : ObservableObject
         }
 
         AircraftView = new DataGridCollectionView(Aircraft);
-        AircraftView.Filter = obj => obj is not AircraftModel ac || IsAircraftVisible(ac, _showOnlyActiveAircraft, _aircraftFilterText);
+        AircraftView.Filter = obj =>
+            obj is not AircraftModel ac || IsAircraftVisible(ac, _showOnlyActiveAircraft, _aircraftFilterText, _liveTrafficListFilter);
         _showOnlyActiveAircraft = _preferences.ShowOnlyActiveAircraft;
+        _liveTrafficListFilter = _preferences.LiveTrafficListFilter;
         _showTimelineBar = _preferences.ShowTimelineBar;
         _dataGridAlternatingRowColor = _preferences.DataGridAlternatingRowColor;
 

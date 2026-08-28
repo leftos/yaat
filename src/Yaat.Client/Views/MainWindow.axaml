@@ -380,7 +380,7 @@
                 BorderBrush="#3F3F46"
                 BorderThickness="0,1,0,0"
                 Padding="8,2">
-            <Grid ColumnDefinitions="*,Auto">
+            <Grid ColumnDefinitions="*,Auto,Auto">
                 <TextBlock Grid.Column="0"
                            Text="{Binding StatusText}"
                            Foreground="{DynamicResource SubtleTextBrush}"
@@ -427,6 +427,37 @@
                             <Separator />
                             <MenuItem x:Name="MicOffMenuDebugItem"
                                       Header="Show speech recognition debugging..." />
+                        </MenuFlyout>
+                    </TextBlock.ContextFlyout>
+                </TextBlock>
+
+                <!-- Live-traffic feed health for the room, shown only while the session toggle is on. Right-click
+                     carries the toggle and the aircraft-list filter (all / hide live / only live). -->
+                <TextBlock Grid.Column="2"
+                           x:Name="LiveTrafficStatusText"
+                           Text="{Binding LiveTrafficStatusText}"
+                           FontSize="11"
+                           Margin="8,0,0,0"
+                           Foreground="{DynamicResource SubtleTextBrush}"
+                           IsVisible="{Binding IsLiveTrafficStatusVisible}">
+                    <TextBlock.ContextFlyout>
+                        <MenuFlyout>
+                            <MenuItem Header="Live Traffic (SWIM)"
+                                      ToggleType="CheckBox"
+                                      IsChecked="{Binding SessionLiveTrafficEnabled}" />
+                            <Separator />
+                            <MenuItem Header="Aircraft list: show all"
+                                      ToggleType="Radio"
+                                      GroupName="LiveTrafficListFilter"
+                                      IsChecked="{Binding LiveTrafficListShowAll}" />
+                            <MenuItem Header="Aircraft list: hide live traffic"
+                                      ToggleType="Radio"
+                                      GroupName="LiveTrafficListFilter"
+                                      IsChecked="{Binding LiveTrafficListHideLive}" />
+                            <MenuItem Header="Aircraft list: only live traffic"
+                                      ToggleType="Radio"
+                                      GroupName="LiveTrafficListFilter"
+                                      IsChecked="{Binding LiveTrafficListOnlyLive}" />
                         </MenuFlyout>
                     </TextBlock.ContextFlyout>
                 </TextBlock>

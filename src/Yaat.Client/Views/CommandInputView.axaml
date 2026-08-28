@@ -170,6 +170,8 @@
                   Margin="8,0,0,0"
                   ItemsSource="{Binding SimRateOptions}"
                   SelectedIndex="{Binding SelectedSimRateIndex}"
+                  IsEnabled="{Binding !SessionLiveTrafficEnabled}"
+                  ToolTip.Tip="{Binding SimRateToolTip}"
                   MinWidth="70">
             <ComboBox.ItemTemplate>
                 <DataTemplate>
@@ -295,6 +297,14 @@
                                   IsVisible="{Binding LiveTrafficAvailable}"
                                   IsChecked="{Binding SessionLiveTrafficEnabled}"
                                   ToolTip.Tip="Mirror real aircraft from the server's live-traffic feed as shadow targets. Not available while warped." />
+
+                        <StackPanel Spacing="2" IsVisible="{Binding LiveTrafficAvailable}">
+                            <TextBlock Text="Live Traffic Ceiling:" Foreground="{DynamicResource SubtleTextBrush}" FontSize="11" />
+                            <StackPanel Orientation="Horizontal" Spacing="4">
+                                <NumericUpDown Value="{Binding SessionLiveTrafficCeilingFt}" Minimum="0" Maximum="60000" Increment="1000" Width="110" FormatString="0" Foreground="{DynamicResource TextControlForeground}" />
+                                <TextBlock Text="ft (0 = automatic)" Foreground="{DynamicResource SubtleTextBrush}" FontSize="11" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </StackPanel>
 
                         <CheckBox Content="Validate DCT Fixes"
                                   IsChecked="{Binding SessionValidateDctFixes}" />

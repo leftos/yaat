@@ -322,6 +322,14 @@ public sealed class GroundRenderer : IDisposable
 
     private readonly SKPaint _aircraftPaint = new() { Style = SKPaintStyle.Fill, IsAntialias = true };
 
+    // Live-traffic shadows are drawn as an outline: the silhouette is real surveillance, not a sim body.
+    private readonly SKPaint _shadowAircraftPaint = new()
+    {
+        Style = SKPaintStyle.Stroke,
+        StrokeWidth = 1.5f,
+        IsAntialias = true,
+    };
+
     private readonly SKPaint _dataBlockLeaderPaint = new()
     {
         StrokeWidth = 1,
@@ -1722,7 +1730,8 @@ public sealed class GroundRenderer : IDisposable
             bool isSelected = ac == selectedAircraft;
             bool isAirborne = !ac.IsOnGround;
 
-            _aircraftPaint.Color = _aircraftColor;
+            var paint = ac.IsLiveTraffic ? _shadowAircraftPaint : _aircraftPaint;
+            paint.Color = ac.LiveTrafficStale ? _aircraftColor.WithAlpha(TargetRenderer.StaleAlpha) : _aircraftColor;
 
             var (lengthPx, widthPx) = ComputeAircraftPixelSize(ac.AircraftType, pxPerFt);
             if (isSelected)
@@ -1737,11 +1746,11 @@ public sealed class GroundRenderer : IDisposable
             if (isHeli)
             {
                 float rotorPx = ComputeRotorPixelRadius(ac.AircraftType, pxPerFt);
-                DrawHelicopterSilhouette(canvas, sx, sy, headingDeg, lengthPx, widthPx, rotorPx, _aircraftPaint);
+                DrawHelicopterSilhouette(canvas, sx, sy, headingDeg, lengthPx, widthPx, rotorPx, paint);
             }
             else
             {
-                DrawFixedWingSilhouette(canvas, sx, sy, headingDeg, lengthPx, widthPx, _aircraftPaint);
+                DrawFixedWingSilhouette(canvas, sx, sy, headingDeg, lengthPx, widthPx, paint);
             }
         }
     }
@@ -2422,6 +2431,7 @@ public sealed class GroundRenderer : IDisposable
         _nodeLabelPaint.Dispose();
         _nodeLabelFont.Dispose();
         _aircraftPaint.Dispose();
+        _shadowAircraftPaint.Dispose();
         _hoverPaint.Dispose();
         _dataBlockLeaderPaint.Dispose();
         _dataBlockTextPaint.Dispose();

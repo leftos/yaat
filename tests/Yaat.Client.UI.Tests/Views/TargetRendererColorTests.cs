@@ -14,7 +14,17 @@ public class TargetRendererColorTests
     private static readonly SKColor Tint = SKColors.Orange;
 
     private static TargetRenderer.TargetColorInputs Inputs(bool isSelected, bool isHighlighted, bool isOnGround, SKColor? tint, SKColor? student) =>
-        new(isSelected, isHighlighted, isOnGround, tint, student, Selected);
+        new(isSelected, isHighlighted, isOnGround, tint, student, Selected, IsStale: false);
+
+    [Fact]
+    public void StaleShadow_KeepsItsColorsAtHalfAlpha()
+    {
+        var live = TargetRenderer.ResolveTargetColors(Inputs(false, false, false, Tint, null));
+        var stale = TargetRenderer.ResolveTargetColors(Inputs(false, false, false, Tint, null) with { IsStale = true });
+
+        Assert.Equal(live.Symbol.WithAlpha(TargetRenderer.StaleAlpha), stale.Symbol);
+        Assert.Equal(live.DataBlock.WithAlpha(TargetRenderer.StaleAlpha), stale.DataBlock);
+    }
 
     [Fact]
     public void Selection_DoesNotChange_GroundDatablockColor()

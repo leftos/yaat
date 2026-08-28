@@ -16,6 +16,9 @@ internal sealed class InProcessServer : IAsyncDisposable
 
     public string Url { get; private set; } = string.Empty;
 
+    /// <summary>The hosted server's root services, so scenes can reach singletons the wire has no setter for (e.g. the live-traffic store).</summary>
+    public IServiceProvider Services => _app?.Services ?? throw new InvalidOperationException("Server not started");
+
     public async Task StartAsync()
     {
         var port = PickFreeLoopbackPort();
@@ -25,7 +28,9 @@ internal sealed class InProcessServer : IAsyncDisposable
         // enables the /auth/dev token issuer — the capture client then mints a session without a VATSIM
         // browser round-trip. (The appsettings.Development.json that would set this lives in the server's
         // output dir, not the capture tool's, so it's passed explicitly here.)
-        var args = new[] { "--urls", Url, "--environment", "Development", "--Yaat:Auth:RequireVatsimAuth", "false" };
+        // LiveTraffic:Enabled marks the feed as configured so the Live Traffic session toggle is offered; the store
+        // itself is fed by LiveTrafficScene (there is no SWIM ingest in the capture tool).
+        var args = new[] { "--urls", Url, "--environment", "Development", "--Yaat:Auth:RequireVatsimAuth", "false", "--LiveTraffic:Enabled", "true" };
         _app = await YaatHost.BuildAsync(args);
         await _app.StartAsync();
     }

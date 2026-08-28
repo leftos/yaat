@@ -211,18 +211,33 @@ public partial class DataGridView : UserControl
             return;
         }
 
-        AddPhaseAwareItems(menu, ac, vm, callsign, initials);
+        if (ac.IsLiveTraffic)
+        {
+            // A shadow takes no flight / ground / pilot commands until assumed.
+            if (LiveTrafficMenuItems.Add(menu, ac, cmd => vm.Connection.SendCommandAsync(callsign, cmd, initials)))
+            {
+                menu.Items.Add(new Separator());
+            }
 
-        menu.Items.Add(new Separator());
-        menu.Items.Add(BuildTrackSubmenu(vm, callsign, initials));
-        menu.Items.Add(BuildSquawkSubmenu(vm, callsign, initials));
-        menu.Items.Add(BuildAskPilotSubmenu(vm, callsign, initials));
-        menu.Items.Add(BuildCoordinationSubmenu(vm, callsign, initials));
+            menu.Items.Add(BuildTrackSubmenu(vm, callsign, initials));
+            menu.Items.Add(BuildCoordinationSubmenu(vm, callsign, initials));
+            menu.Items.Add(new Separator());
+        }
+        else
+        {
+            AddPhaseAwareItems(menu, ac, vm, callsign, initials);
 
-        menu.Items.Add(new Separator());
-        var editItem = new MenuItem { Header = "Edit flight plan" };
-        editItem.Click += (_, _) => FlightPlanEditorManager.Open(ac, vm);
-        menu.Items.Add(editItem);
+            menu.Items.Add(new Separator());
+            menu.Items.Add(BuildTrackSubmenu(vm, callsign, initials));
+            menu.Items.Add(BuildSquawkSubmenu(vm, callsign, initials));
+            menu.Items.Add(BuildAskPilotSubmenu(vm, callsign, initials));
+            menu.Items.Add(BuildCoordinationSubmenu(vm, callsign, initials));
+
+            menu.Items.Add(new Separator());
+            var editItem = new MenuItem { Header = "Edit flight plan" };
+            editItem.Click += (_, _) => FlightPlanEditorManager.Open(ac, vm);
+            menu.Items.Add(editItem);
+        }
 
         var deleteItem = new MenuItem { Header = "Delete" };
         deleteItem.Click += async (_, _) => await vm.Connection.SendCommandAsync(callsign, "DEL", initials);

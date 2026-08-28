@@ -30,8 +30,8 @@ public class AircraftViewFilterTests
     public void Filter_HidesUnsupportedPhantoms_RegardlessOfShowOnlyActive()
     {
         var ac = Model(isUnsupported: true);
-        Assert.False(MainViewModel.IsAircraftVisible(ac, showOnlyActive: false, filter: ""));
-        Assert.False(MainViewModel.IsAircraftVisible(ac, showOnlyActive: true, filter: ""));
+        Assert.False(MainViewModel.IsAircraftVisible(ac, showOnlyActive: false, filter: "", LiveTrafficListFilter.All));
+        Assert.False(MainViewModel.IsAircraftVisible(ac, showOnlyActive: true, filter: "", LiveTrafficListFilter.All));
     }
 
     [Fact]
@@ -41,31 +41,31 @@ public class AircraftViewFilterTests
         // the pinned ghost position; the YAAT Aircraft List must keep the row visible
         // so the operator can still track the underlying aircraft.
         var ac = Model(isUnsupported: true, isGhostOverlay: true);
-        Assert.True(MainViewModel.IsAircraftVisible(ac, showOnlyActive: false, filter: ""));
-        Assert.True(MainViewModel.IsAircraftVisible(ac, showOnlyActive: true, filter: ""));
+        Assert.True(MainViewModel.IsAircraftVisible(ac, showOnlyActive: false, filter: "", LiveTrafficListFilter.All));
+        Assert.True(MainViewModel.IsAircraftVisible(ac, showOnlyActive: true, filter: "", LiveTrafficListFilter.All));
     }
 
     [Fact]
     public void Filter_IncludesAircraftWhenIsUnsupportedFalse()
     {
         var ac = Model(isUnsupported: false);
-        Assert.True(MainViewModel.IsAircraftVisible(ac, showOnlyActive: false, filter: ""));
+        Assert.True(MainViewModel.IsAircraftVisible(ac, showOnlyActive: false, filter: "", LiveTrafficListFilter.All));
     }
 
     [Fact]
     public void Filter_HidesDelayedOnlyWhenShowOnlyActive()
     {
         var ac = Model(status: "Delayed (45s)");
-        Assert.True(MainViewModel.IsAircraftVisible(ac, showOnlyActive: false, filter: ""));
-        Assert.False(MainViewModel.IsAircraftVisible(ac, showOnlyActive: true, filter: ""));
+        Assert.True(MainViewModel.IsAircraftVisible(ac, showOnlyActive: false, filter: "", LiveTrafficListFilter.All));
+        Assert.False(MainViewModel.IsAircraftVisible(ac, showOnlyActive: true, filter: "", LiveTrafficListFilter.All));
     }
 
     [Fact]
     public void Filter_TextSearchStillAppliesToVisibleAircraft()
     {
         var ac = Model(callsign: "UAL238");
-        Assert.True(MainViewModel.IsAircraftVisible(ac, showOnlyActive: false, filter: "UAL"));
-        Assert.False(MainViewModel.IsAircraftVisible(ac, showOnlyActive: false, filter: "DAL"));
+        Assert.True(MainViewModel.IsAircraftVisible(ac, showOnlyActive: false, filter: "UAL", LiveTrafficListFilter.All));
+        Assert.False(MainViewModel.IsAircraftVisible(ac, showOnlyActive: false, filter: "DAL", LiveTrafficListFilter.All));
     }
 
     [Fact]
@@ -85,7 +85,32 @@ public class AircraftViewFilterTests
         // underlying activity stay searchable via the Aircraft List filter's SmartStatus match.
         var ac = Model();
         ac.SmartStatus = "No landing clnc · Final 28R";
-        Assert.True(MainViewModel.IsAircraftVisible(ac, showOnlyActive: false, filter: "landing"));
-        Assert.True(MainViewModel.IsAircraftVisible(ac, showOnlyActive: false, filter: "final"));
+        Assert.True(MainViewModel.IsAircraftVisible(ac, showOnlyActive: false, filter: "landing", LiveTrafficListFilter.All));
+        Assert.True(MainViewModel.IsAircraftVisible(ac, showOnlyActive: false, filter: "final", LiveTrafficListFilter.All));
+    }
+
+    // --- Live traffic tri-state ---
+
+    [Theory]
+    [InlineData(LiveTrafficListFilter.All, true, true)]
+    [InlineData(LiveTrafficListFilter.All, false, true)]
+    [InlineData(LiveTrafficListFilter.HideLive, true, false)]
+    [InlineData(LiveTrafficListFilter.HideLive, false, true)]
+    [InlineData(LiveTrafficListFilter.OnlyLive, true, true)]
+    [InlineData(LiveTrafficListFilter.OnlyLive, false, false)]
+    public void Filter_LiveTrafficTriState(LiveTrafficListFilter liveFilter, bool isLiveTraffic, bool expected)
+    {
+        var ac = Model();
+        ac.IsLiveTraffic = isLiveTraffic;
+        Assert.Equal(expected, MainViewModel.IsAircraftVisible(ac, showOnlyActive: false, filter: "", liveFilter));
+    }
+
+    [Fact]
+    public void Filter_AssumedAircraft_CountsAsSimulated()
+    {
+        var ac = Model();
+        ac.IsLiveTraffic = false; // the assume hand-off flips the flag in the same update
+        Assert.True(MainViewModel.IsAircraftVisible(ac, showOnlyActive: false, filter: "", LiveTrafficListFilter.HideLive));
+        Assert.False(MainViewModel.IsAircraftVisible(ac, showOnlyActive: false, filter: "", LiveTrafficListFilter.OnlyLive));
     }
 }

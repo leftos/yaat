@@ -37,6 +37,7 @@ YAAT (Yet Another ATC Trainer) is an instructor/[RPO](#glossary) desktop client 
   - [Timeline / Rewind](#timeline--rewind)
   - [Bookmarks](#bookmarks)
   - [Save / Load Recordings](#save--load-recordings)
+  - [Live Traffic](#live-traffic)
 - [Multi-User Features](#multi-user-features)
   - [Aircraft Assignments](#aircraft-assignments)
   - [Room Members](#room-members)
@@ -1407,6 +1408,22 @@ Two mentor/instructor actions under the **Tools** menu manage it:
 - **Export ASDE-X / SAID Temp Data...** — pick a folder and YAAT writes one `{FACILITY}.json` per facility, in the format the project ships geometry in. Draw something worth keeping, export it, and send it in so every install gets it.
 - **Reset ASDE-X / SAID Temp Data to Defaults...** — discards everything drawn and puts each facility back on the geometry shipped with the project. This changes the server, not just your room, and cannot be undone — but it is the only way to undo a bad draw or bring back something that was deleted.
 
+### Live Traffic
+
+![Radar View with four live-traffic shadows (dashed targets) among the scenario aircraft and the LIVE indicator in the status bar](docs/user-guide/img/live-traffic.png)
+
+On servers that carry a live-traffic (FAA SWIM) feed, the session-settings (⚙) flyout offers **Live Traffic (SWIM)**. With it on, the real aircraft inside your room's airspace — the tower's or TRACON's airports and Class B/C, or the center's boundary — appear as **shadow targets**: they follow the feed sweep by sweep and dead-reckon between sweeps, exactly where the aircraft is right now.
+
+- **How they look** — on the radar a shadow's position symbol is drawn **dashed** instead of solid; on the Ground View its silhouette is an outline instead of a filled shape. The datablock is a normal datablock, and the Info column reads `LIVE`. When the feed misses its sweeps the shadow **coasts**: it keeps moving on its last vector at half brightness and the Info column reads `LIVE CST`; a shadow that stays stale, leaves the airspace, or is dropped by the feed disappears.
+- **They take no commands** — a shadow is somebody else's aircraft. Heading, altitude, speed, clearances and taxi instructions are all refused (`ASSUME UAL123 first — live traffic is not controllable`), and the right-click menus only offer **Assume control**, the Track submenu (track, handoff, point-out), Coordination, display items and **Delete**. Track and coordination commands work as on any target; `DEL` hides that shadow for the rest of the session.
+- **Assume control** — right-click an *airborne* shadow and pick **Assume control** (or type `ASSUME UAL123`) to turn it into a simulated aircraft in place: it keeps its position, altitude, speed, heading, squawk and flight plan, and from then on flies its route and takes every command. **Assume and track** does the same and then tracks it. Surface shadows (ASDE-X targets on the ground) cannot be assumed. Assuming is one-way — the feed is ignored for that callsign afterwards.
+- **Altitude ceiling** — **Live Traffic Ceiling** next to the toggle caps which aircraft are mirrored (0 = automatic: the tower cab's visibility ceiling, 15,000 ft for a TRACON, the center's boundary for a center room).
+- **Aircraft List** — right-click the `LIVE · …` indicator in the status bar to choose whether the list shows everything, hides live traffic, or shows only live traffic; the choice is remembered.
+- **Status bar** — while the toggle is on, the bottom-right of the window shows the feed's health for your room: `LIVE · 42 tracks · 3 s` (tracks currently mirrored and the age of the feed's last message), `LIVE · disconnected` while the server has lost the feed, or `LIVE · not configured`.
+- **Real time only** — the sim-rate picker is locked at 1× while live traffic is on, and the toggle is refused while the session is warped.
+- **Recordings and rewinding** — shadows are recorded sweep by sweep, so a saved recording or a bug bundle replays them exactly as you saw them, and rewinding keeps them in step.
+- **Privacy** — aircraft on the FAA's LADD (Limiting Aircraft Data Displayed) list are never shown.
+
 ---
 
 ## Multi-User Features
@@ -1939,7 +1956,7 @@ Optional shortcuts in **Settings > Scenarios > Simulation Shortcuts** simplify t
 
 - **Auto-clear aircraft to land** — Aircraft on final are automatically cleared to land without requiring a CLAND command. Configured per position type (GND, TWR, APP, CTR). Defaults: GND on, TWR off, APP on, CTR on — so only tower controllers must issue explicit landing clearances.
 - **Aircraft cross runways automatically** — Taxiing aircraft cross runways without stopping for a CROSS command. Explicit hold-short commands and destination runway hold-shorts still apply.
-- **Live Traffic (SWIM)** *(session flyout only)* — Mirrors real aircraft from the server's live-traffic feed into the room as read-only shadow targets (they follow the feed, coast when it drops out, and disappear when they leave the room's airspace); `DEL` hides one. Only shown when the server you are connected to has live traffic enabled (each deployment carries its own `LiveTraffic:Enabled` flag; servers run from source have it on). Off by default; cannot be combined with `WARP` above 1×, and shows nothing until the server's SWIM feed is connected.
+- **Live Traffic (SWIM)** *(session flyout only)* — Mirrors real aircraft from the server's live-traffic feed into the room as read-only shadow targets (they follow the feed, coast when it drops out, and disappear when they leave the room's airspace); `DEL` hides one, **Assume control** makes one yours. See [Live Traffic](#live-traffic). Only shown when the server you are connected to has live traffic enabled (each deployment carries its own `LiveTraffic:Enabled` flag; servers run from source have it on). Off by default; cannot be combined with `WARP` above 1×, and shows nothing until the server's SWIM feed is connected. **Live Traffic Ceiling** below it caps the mirrored altitude (0 = automatic).
 - **Pull up to parallel runway after landing** — When an aircraft lands and vacates between two parallel runways, it automatically taxis up to hold short of the parallel runway (e.g. SFO 19L exit G → 19R, OAK 28L exit G/H → 28R) instead of stopping at the landing runway's exit — but only when the parallel hold-short is the next thing along the same taxiway with no intersection in between. A bare `CROSS` then takes it across without a prior TAXI. **On by default**; the aircraft still always waits for an explicit CROSS before entering the parallel.
 - **VFR commands for IFR aircraft** — Most arrivals at a busy field are visuals, and moving one to the parallel runway shouldn't take three commands. This chooses how much of the VFR-only set (pattern entry and maneuvers, touch-and-go, stop-and-go, low approach, cleared for the option, VFR holds, `FOLLOW`, `CM A`/`CM B`, and the pattern `CTO` modifiers) an IFR aircraft can receive without a `CIFR` first:
   - **Never — require CIFR first** — the strict behavior: cancel IFR before any of them.

@@ -201,6 +201,7 @@ Models/
   GroundColorScheme.cs          # Theme/color scheme for strips
   RendererMode.cs               # User-selectable GPU backend (Auto/Metal/OpenGl/Software); macOS-only — the default OpenGL path is emulated over Metal and burns CPU on Apple Silicon, so Metal renders directly; ignored on Windows/Linux
   TerminalEntry.cs              # Terminal/radio log entry (Kind: Command/Response/System/Say/Warning/Error/Chat/PilotSpeech/Tdls/Strip)
+  LiveTrafficListFilter.cs      # Aircraft List treatment of live-traffic shadows (All / HideLive / OnlyLive); persisted in UserPreferences
 
 ViewModels/
   ConnectViewModel.cs           # Room/identity connection flow
@@ -262,7 +263,7 @@ Services/
   MenuGroup.cs                  # Enum of context menu groups (Heading, Altitude, Speed, Tower, etc.)
   ContextMenuProfile.cs         # Record: Primary/Secondary/Hidden menu groups for a phase
   ContextMenuProfileService.cs  # Static: maps phase name + isOnGround → ContextMenuProfile (which radar submenu GROUPS show)
-  AircraftCommandApplicability.cs # Static: single source of truth for whether a tower/ground/landing/pattern command fits an aircraft's state (CanClearForTakeoff/CanClearToLand/CanIssueVfrOption/CanEnterPattern/CanEnterFinal/CanIssuePatternManeuvers/CanExitRunway/CanDrawTaxiRoute/...); consumed by all three right-click surfaces + phase classifiers used by ContextMenuProfileService. The VfrCommandsForIfr-aware predicates are enforcement, not clutter suppression — the sim does not gate on flight rules
+  AircraftCommandApplicability.cs # Static: single source of truth for whether a tower/ground/landing/pattern command fits an aircraft's state (CanClearForTakeoff/CanClearToLand/CanIssueVfrOption/CanEnterPattern/CanEnterFinal/CanIssuePatternManeuvers/CanExitRunway/CanDrawTaxiRoute/...), all false for a live-traffic shadow (IsControllable) which only gets CanAssume; consumed by all three right-click surfaces + phase classifiers used by ContextMenuProfileService. The VfrCommandsForIfr-aware predicates are enforcement, not clutter suppression — the sim does not gate on flight rules
   VfrCommandGate.cs             # Static: checks a canonical command against the controller's VfrCommandsForIfr setting before MainViewModel.SendCommandAsync puts it on the wire; re-parses via CommandParser so no verb list is duplicated (issue #317)
   RelativeTrafficActions.cs     # Static pure gating for selected→right-clicked traffic menu items (RTIS/FOLLOW in radar, GIVEWAY/FOLLOWG on ground): HasRelativeContext, ShouldOfferFollow (airborne + LastReportedTrafficCallsign match), ShouldOfferGroundActions
   BuildInfo.cs                  # Static: version (from AssemblyInformationalVersion) + release-vs-dev detection (VelopackLocator.Current); used by title bar, About window, and startup log line
@@ -330,6 +331,7 @@ Views/
   MetarView.axaml.cs            # METAR tab content: per-airport METAR list over MainViewModel.Metars with a per-scenario favorite-station star toggle
   MetarWindow.axaml.cs          # Pop-out host for MetarView (View > Pop Out METAR)
   FavoritesContextMenu.cs       # Builds the Favorite Commands submenu attached to aircraft right-click menus (list/ground/radar)
+  LiveTrafficMenuItems.cs       # "Assume control" / "Assume and track" items for an assumable live-traffic shadow, shared by the three right-click menus
   FavoritesContextMenuModel.cs  # Pure model behind FavoritesContextMenu: resolves active favorites against the clicked aircraft for headless tests
   DataGridView.axaml.cs         # Aircraft data grid (extracted from MainWindow)
   DataGridView.ContextMenu.cs   # Partial: phase-aware right-click menu builders
@@ -1116,15 +1118,16 @@ Headless screenshot harness for `USER_GUIDE.md`. Boots an in-process `yaat-serve
 ```
 Program.cs                     # Entry: parses --scene/--out, starts InProcessServer, dispatches scenes; calls Environment.Exit so headless threads don't keep the process alive
 ModuleInit.cs                  # Redirects YAAT_APPDATA_DIR to a temp folder + seeds preferences.json (CID/initials/ARTCC) so MainViewModel.AttemptConnectAsync passes its identity gates
-Server/InProcessServer.cs      # Port allocation (TcpListener trick) + YaatHost.BuildAsync + StartAsync/StopAsync lifecycle
+Server/InProcessServer.cs      # Port allocation (TcpListener trick) + YaatHost.BuildAsync + StartAsync/StopAsync lifecycle; exposes Services and starts with LiveTraffic:Enabled so the live-traffic scene can feed the store
 Capture/Scene.cs               # Abstract scene: BeforeWindowAsync, CreateWindow, AfterShowAsync, GetCaptureTarget for popout children
 Capture/Runner.cs              # Per-scene flow: setup → show → settle → capture PNG; Width/Height of 0 means "use the window's natural size"
-Capture/CaptureContext.cs      # Per-run state: ServerUrl, RepoRoot (walks up to yaat.slnx)
+Capture/CaptureContext.cs      # Per-run state: ServerUrl, ServerServices (the in-process server's DI root), RepoRoot (walks up to yaat.slnx)
 Capture/SceneActions.cs        # WaitUntilAsync + WaitForConnectionAsync / CreateRoomAsync / LoadScenarioAsync helpers shared by scenarios
 Capture/SceneCatalog.cs        # Static catalog of every scene
 Scenes/                        # ScenarioSceneBase (connect → room → load → tab) + per-scene subclasses
                                # MainWindow*Scene — empty / connected-empty / overview / popped-out
                                # AircraftListScene / GroundViewScene / RadarViewScene / FlightStripsScene
+                               # LiveTrafficScene — RadarViewScene + Live Traffic on + four fake SWIM tracks upserted into LiveTrafficStore (dashed shadows, LIVE status bar)
                                # GroundViewPopoutScene / RadarViewPopoutScene
                                # FlightPlanEditorScene
                                # FavoritesBarScene / FavoritesPanelScene

@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using Yaat.Client.Models;
 using Yaat.Sim.Commands;
 
@@ -117,6 +118,27 @@ public static class AircraftCommandApplicability
         return phase is "S-Turns" || phase.StartsWith("Turn", StringComparison.Ordinal);
     }
 
+    // --- Live traffic ---
+
+    /// <summary>
+    /// Whether the sim will accept flight / ground commands for this aircraft at all. A live-traffic shadow
+    /// (<see cref="AircraftModel.IsLiveTraffic"/>) is read-only until assumed — the server rejects every such
+    /// command with "ASSUME first" — so no maneuver predicate below offers anything for it.
+    /// </summary>
+    public static bool IsControllable([NotNullWhen(true)] AircraftModel? ac)
+    {
+        return ac is not null && !ac.IsLiveTraffic;
+    }
+
+    /// <summary>
+    /// Assume control of a live-traffic shadow (<c>ASSUME</c>): airborne shadows only. Surface shadows come from
+    /// ASDE-X with no flight plan or air vector to seed a simulated aircraft from, so they are never assumable.
+    /// </summary>
+    public static bool CanAssume(AircraftModel? ac)
+    {
+        return ac is { IsLiveTraffic: true, IsOnGround: false };
+    }
+
     /// <summary>True when the aircraft is operating under VFR.</summary>
     public static bool IsVfr(AircraftModel? ac)
     {
@@ -129,7 +151,7 @@ public static class AircraftCommandApplicability
     /// </summary>
     private static bool AllowsVfrOnly(AircraftModel? ac, VfrCommandsForIfr mode)
     {
-        return ac is not null && (IsVfr(ac) || mode == VfrCommandsForIfr.All);
+        return IsControllable(ac) && (IsVfr(ac) || mode == VfrCommandsForIfr.All);
     }
 
     // --- Departures ---
@@ -137,7 +159,7 @@ public static class AircraftCommandApplicability
     /// <summary>Line up and wait — a departure that has reached, or is taxiing to, its runway.</summary>
     public static bool CanLineUpAndWait(AircraftModel? ac)
     {
-        if (ac is null || !ac.IsOnGround)
+        if (!IsControllable(ac) || !ac.IsOnGround)
         {
             return false;
         }
@@ -153,7 +175,7 @@ public static class AircraftCommandApplicability
     /// </summary>
     public static bool CanClearForTakeoff(AircraftModel? ac)
     {
-        if (ac is null || !ac.IsOnGround)
+        if (!IsControllable(ac) || !ac.IsOnGround)
         {
             return false;
         }
@@ -178,7 +200,7 @@ public static class AircraftCommandApplicability
     /// <summary>Cancel takeoff clearance — a departure that has been cleared/lined up.</summary>
     public static bool CanCancelTakeoff(AircraftModel? ac)
     {
-        if (ac is null || !ac.IsOnGround)
+        if (!IsControllable(ac) || !ac.IsOnGround)
         {
             return false;
         }
@@ -196,7 +218,7 @@ public static class AircraftCommandApplicability
     /// </summary>
     public static bool CanClearToLand(AircraftModel? ac)
     {
-        if (ac is null)
+        if (!IsControllable(ac))
         {
             return false;
         }
@@ -221,7 +243,7 @@ public static class AircraftCommandApplicability
     /// </summary>
     public static bool CanGoAround(AircraftModel? ac)
     {
-        if (ac is null)
+        if (!IsControllable(ac))
         {
             return false;
         }
@@ -236,7 +258,7 @@ public static class AircraftCommandApplicability
     /// </summary>
     public static bool CanCancelLandingClearance(AircraftModel? ac)
     {
-        return ac is not null && (!string.IsNullOrEmpty(ac.LandingClearance) || !string.IsNullOrEmpty(ac.PendingLandingClearance));
+        return IsControllable(ac) && (!string.IsNullOrEmpty(ac.LandingClearance) || !string.IsNullOrEmpty(ac.PendingLandingClearance));
     }
 
     /// <summary>
@@ -245,7 +267,7 @@ public static class AircraftCommandApplicability
     /// </summary>
     public static bool CanExitRunway(AircraftModel? ac)
     {
-        if (ac is null)
+        if (!IsControllable(ac))
         {
             return false;
         }
@@ -267,7 +289,7 @@ public static class AircraftCommandApplicability
     /// </summary>
     public static bool CanDrawTaxiRoute(AircraftModel? ac)
     {
-        if (ac is null || !ac.IsOnGround)
+        if (!IsControllable(ac) || !ac.IsOnGround)
         {
             return false;
         }
@@ -294,7 +316,7 @@ public static class AircraftCommandApplicability
     /// </summary>
     private static bool IsPatternEntryEligible(AircraftModel? ac)
     {
-        if (ac is null || ac.IsOnGround)
+        if (!IsControllable(ac) || ac.IsOnGround)
         {
             return false;
         }

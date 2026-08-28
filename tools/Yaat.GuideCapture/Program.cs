@@ -60,7 +60,7 @@ public static class Program
         Console.WriteLine($"  Server listening on {server.Url}");
 
         using var session = HeadlessUnitTestSession.StartNew(typeof(Program));
-        var ctx = new CaptureContext { ServerUrl = server.Url };
+        var ctx = new CaptureContext { ServerUrl = server.Url, ServerServices = server.Services };
 
         // The ContinueWith hop keeps this method's continuation off the
         // session's dispatcher thread: Avalonia 12.1 completes Dispatch's

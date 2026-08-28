@@ -70,6 +70,16 @@ public sealed class TargetRenderer : IDisposable
         IsAntialias = true,
     };
 
+    // Live-traffic shadows: the same outline circle drawn dashed, so a target the sim does not own reads as
+    // "not mine" at a glance without changing its color or datablock.
+    private readonly SKPaint _shadowSymbolPaint = new()
+    {
+        StrokeWidth = 1.5f,
+        Style = SKPaintStyle.Stroke,
+        IsAntialias = true,
+        PathEffect = SKPathEffect.CreateDash([2.5f, 2.5f], 0),
+    };
+
     // Drawn thicker than the 1px PTL so the line to the data block stays
     // distinguishable from the predicted-track vector when both emanate from the symbol.
     private readonly SKPaint _leaderPaint = new()
@@ -462,7 +472,15 @@ public sealed class TargetRenderer : IDisposable
         // white defaults, so the datablock reflects how the student's scope colors the track.
         SKColor? studentColor = SyncStudentColors ? StudentDatablockColorFor(ac) : null;
         var (symbolColor, dbColor) = ResolveTargetColors(
-            new TargetColorInputs(isSelected, isHighlighted, isOnGround, tintColor, studentColor, SelectedOverrideColor ?? SelectedColor)
+            new TargetColorInputs(
+                isSelected,
+                isHighlighted,
+                isOnGround,
+                tintColor,
+                studentColor,
+                SelectedOverrideColor ?? SelectedColor,
+                ac.LiveTrafficStale
+            )
         );
         bool isMinified = minifiedCallsigns is not null && minifiedCallsigns.Contains(ac.Callsign);
 
@@ -481,7 +499,7 @@ public sealed class TargetRenderer : IDisposable
             DrawConflictRing(canvas, vp, ac);
         }
 
-        DrawPositionSymbol(canvas, sx, sy, symbolColor);
+        DrawPositionSymbol(canvas, sx, sy, symbolColor, ac.IsLiveTraffic);
         var blockRect = DrawLeaderAndDataBlock(canvas, sx, sy, ac, dbColor, dataBlockOffsets, deconflictOffsets, isMinified, isSelected);
 
         if (drawBubble && ac.SpeechBubble is { } bubble)
@@ -502,15 +520,20 @@ public sealed class TargetRenderer : IDisposable
         bool IsOnGround,
         SKColor? TintColor,
         SKColor? StudentColor,
-        SKColor SelectedColor
+        SKColor SelectedColor,
+        bool IsStale
     );
+
+    /// <summary>Alpha applied to a coasting live-traffic shadow's symbol and datablock (feed sweeps missed, position dead-reckoned).</summary>
+    internal const byte StaleAlpha = 128;
 
     /// <summary>
     /// Resolves the position-symbol and datablock (text + leader) colors for one target. Selection
     /// brightens the position symbol to <see cref="TargetColorInputs.SelectedColor"/> but leaves the
     /// datablock text and leader at their unselected color — the white rectangular border is the
     /// datablock's selection cue. An RPO tint outranks the student-scope color, which outranks the
-    /// ground/white defaults; a middle-click highlight overrides the datablock color entirely.
+    /// ground/white defaults; a middle-click highlight overrides the datablock color entirely. A stale
+    /// (coasting) live-traffic shadow keeps whatever color it resolved to at <see cref="StaleAlpha"/>.
     /// </summary>
     internal static (SKColor Symbol, SKColor DataBlock) ResolveTargetColors(TargetColorInputs i)
     {
@@ -518,7 +541,7 @@ public sealed class TargetRenderer : IDisposable
         var baseDbColor = i.TintColor ?? i.StudentColor ?? (i.IsOnGround ? GroundColor : DataBlockColor);
         var symbolColor = i.IsSelected ? i.SelectedColor : baseSymbolColor;
         var dbColor = i.IsHighlighted ? SKColors.Cyan : baseDbColor;
-        return (symbolColor, dbColor);
+        return i.IsStale ? (symbolColor.WithAlpha(StaleAlpha), dbColor.WithAlpha(StaleAlpha)) : (symbolColor, dbColor);
     }
 
     private static SKColor? StudentDatablockColorFor(AircraftModel ac) =>
@@ -672,10 +695,11 @@ public sealed class TargetRenderer : IDisposable
         return ptlOwn && !string.IsNullOrEmpty(ac.Owner);
     }
 
-    private void DrawPositionSymbol(SKCanvas canvas, float cx, float cy, SKColor color)
+    private void DrawPositionSymbol(SKCanvas canvas, float cx, float cy, SKColor color, bool isLiveTraffic)
     {
-        _symbolPaint.Color = color;
-        canvas.DrawCircle(cx, cy, SymbolSize, _symbolPaint);
+        var paint = isLiveTraffic ? _shadowSymbolPaint : _symbolPaint;
+        paint.Color = color;
+        canvas.DrawCircle(cx, cy, SymbolSize, paint);
     }
 
     /// <summary>
@@ -1268,6 +1292,7 @@ public sealed class TargetRenderer : IDisposable
     public void Dispose()
     {
         _symbolPaint.Dispose();
+        _shadowSymbolPaint.Dispose();
         _leaderPaint.Dispose();
         _dataBlockPaint.Dispose();
         _dataBlockFont.Dispose();

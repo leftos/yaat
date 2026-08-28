@@ -196,6 +196,22 @@ public partial class AircraftModel : ObservableObject
     private bool _isGhostOverlay;
 
     /// <summary>
+    /// True for a live-traffic shadow: a real aircraft mirrored from the server's SWIM feed. Read-only until
+    /// assumed (<c>ASSUME</c>) — the sim rejects every flight/ground command for it, so the menus offer only
+    /// Assume, track/handoff and Delete (hide). Flips to false in the same update that makes it a simulated aircraft.
+    /// </summary>
+    [ObservableProperty]
+    private bool _isLiveTraffic;
+
+    /// <summary>True while the shadow's feed has missed its sweeps and the position is dead-reckoned (coasting).</summary>
+    [ObservableProperty]
+    private bool _liveTrafficStale;
+
+    /// <summary>Feed the shadow's latest sample came from ("Stars" / "Eram" / "Asdex"); null for simulated aircraft.</summary>
+    [ObservableProperty]
+    private string? _liveTrafficSource;
+
+    /// <summary>
     /// True while the displayed altitude rounds to 000 — the aircraft is below the acquisition
     /// floor (AGL &lt; 100 ft, field-elevation adjusted server-side). The radar withholds the target
     /// while set (matching CRC STARS coast/skip); the ground view keeps a ghost overlay visible
@@ -1066,6 +1082,9 @@ public partial class AircraftModel : ObservableObject
             CrossingRunwayId = dto.CrossingRunwayId,
             IsUnsupported = dto.IsUnsupported,
             IsGhostOverlay = dto.IsGhostOverlay,
+            IsLiveTraffic = dto.IsLiveTraffic,
+            LiveTrafficStale = dto.LiveTrafficStale,
+            LiveTrafficSource = dto.LiveTrafficSource,
             BelowDisplayFloor = dto.BelowDisplayFloor,
             IsEstablishedOnApproach = dto.IsEstablishedOnApproach,
         };
@@ -1179,6 +1198,9 @@ public partial class AircraftModel : ObservableObject
         CrossingRunwayId = dto.CrossingRunwayId;
         IsUnsupported = dto.IsUnsupported;
         IsGhostOverlay = dto.IsGhostOverlay;
+        IsLiveTraffic = dto.IsLiveTraffic;
+        LiveTrafficStale = dto.LiveTrafficStale;
+        LiveTrafficSource = dto.LiveTrafficSource;
         BelowDisplayFloor = dto.BelowDisplayFloor;
         IsEstablishedOnApproach = dto.IsEstablishedOnApproach;
         DistanceFromFix = computeDistance?.Invoke(this);

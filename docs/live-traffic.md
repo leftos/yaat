@@ -172,9 +172,12 @@ Removals apply after the second like other actions. Callers of `ApplyLiveTraffic
 pre-physics with `ElapsedSeconds` already at the current second so the recorded second matches this placement.
 
 The server brain mirrors this: `RecordingManager.ReconstructViaServerTick` applies each second's `RecordedLiveTrafficSample`s
-(`SimulationEngine.ApplyRecordedLiveTrafficSample`, public for this) *before* `AdvanceOneSecond` and skips them when the generic
-post-second cursor reaches them; forward tape playback does the same through `ApplyPreTickPlaybackActions(nextSecond)`, which
-`SimulationHostedService.ProcessRoomSecond` calls before advancing. Removals apply post-second. A spawn-carrying sample also
+(`SimulationEngine.ApplyRecordedLiveTrafficSample`, public for this) between `RoomEngine.BeginSecond` (the `ElapsedSeconds`
+increment) and `RunSecondPhysics`, and skips them when the generic post-second cursor reaches them; forward tape playback does
+the same through `ApplyPreTickPlaybackActions(second)`, which `SimulationHostedService.ProcessRoomSecond` calls in the same
+slot. The increment must come first: `ApplyRecordedLiveTrafficSample` resyncs against `ElapsedSeconds`, and a sample carrying
+feed latency resynced at *t−1* dead-reckons one second behind the live session (#404 — invisible with zero-latency samples
+because of the `max(0, …)` clamp in `LiveTrafficKinematics.Resync`). Removals apply post-second. A spawn-carrying sample also
 drops the callsign from the change tracker so a recurring callsign is first-seen again. The live sync stays inert during both
 (`IsBroadcastSuppressed` / `IsPlaybackMode`) — otherwise it would spawn unrecorded shadows on top of the tape.
 
@@ -226,7 +229,33 @@ off (disabling is always allowed); the client binds the session checkbox's `IsVi
   `TrainingDtoFingerprint`. Shadows are excluded from auto-TDLS, auto arrival strips and the rolling-call strip
   (`IsDepartureAircraft` / `IsArrivalCandidate` / `IsApproachDepartureCandidate`).
 
+## Client (yaat `src/Yaat.Client*`)
+
+- **Model** — `AircraftModel.IsLiveTraffic` / `LiveTrafficStale` / `LiveTrafficSource`, copied in `FromDto` and `UpdateFromDto`.
+  The assume hand-off flips `IsLiveTraffic` in the same `AircraftUpdated`, so every surface below re-evaluates at once.
+- **Applicability** — `AircraftCommandApplicability.IsControllable(ac)` (`!IsLiveTraffic`) gates every maneuver predicate, so
+  the phase-aware menu builders offer nothing for a shadow; `CanAssume(ac)` = airborne shadow. `LiveTrafficMenuItems.Add`
+  (Views/) appends "Assume control" / "Assume and track" (two commands — the server doesn't couple `ASSUME` and `TRACK`) and
+  each right-click surface (`RadarView.ContextMenus`, `DataGridView.axaml.cs`, `GroundView.axaml.cs`) branches on
+  `IsLiveTraffic` to keep only Track / Coordination / Data Block / Display / Delete for shadows.
+- **Rendering** — `TargetRenderer.DrawPositionSymbol` draws a shadow with `_shadowSymbolPaint` (dashed outline circle);
+  `ResolveTargetColors` applies `StaleAlpha` (128) to symbol and datablock when `LiveTrafficStale`. `GroundRenderer.DrawAircraft`
+  uses the stroke `_shadowAircraftPaint` for shadows with the same stale alpha. Datablock content is untouched (`Status` = `LIVE` /
+  `LIVE CST` from `AircraftStatusDescriber`).
+- **Aircraft List** — `MainViewModel.IsAircraftVisible(ac, showOnlyActive, filter, LiveTrafficListFilter)`; the tri-state
+  (`All` / `HideLive` / `OnlyLive`, `Yaat.Client.Models.LiveTrafficListFilter`) persists via `UserPreferences.LiveTrafficListFilter`
+  and is picked from the status-bar indicator's context flyout (three radio adapters `LiveTrafficListShowAll/HideLive/OnlyLive`).
+- **Session flyout / status bar** — `SessionLiveTrafficEnabled` + `SessionLiveTrafficCeilingFt` (both under the echo guard;
+  a refused enable reverts the checkbox and prints the reason). The sim-rate picker binds `IsEnabled` to
+  `!SessionLiveTrafficEnabled` (`SimRateToolTip`). `LiveTrafficStatusText` (`FormatLiveTrafficStatus`) renders
+  `LiveTrafficStatusDto` as `LIVE · n tracks · age s` / `LIVE · disconnected` / `LIVE · not configured`, visible only while the
+  session flag is on (`IsLiveTrafficStatusVisible`).
+
 ## Tests
+
+`tests/Yaat.Client.Tests/`: `AircraftCommandApplicabilityTests` (shadow → only Assume; surface shadow → nothing; assumed →
+normal), `AircraftViewFilterTests` (tri-state), `LiveTrafficStatusTextTests`; `tests/Yaat.Client.UI.Tests/Views/TargetRendererColorTests`
+(stale alpha).
 
 `tests/Yaat.Sim.Tests/LiveTraffic/`: `LiveTrafficKinematicsTests` (dead reckoning, 4 Hz motion, air vector under a
 100-kt crosswind, coast timing, out-of-order/jump samples, derived VS, surface pose, snapshot round trip, status,

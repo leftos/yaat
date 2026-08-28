@@ -22,7 +22,7 @@ All paths are under `src/Yaat.Client/`.
 | `Views/Map/MapViewport.cs` | Equirectangular lat/lon ↔ screen projection, rotation, zoom |
 | `Views/Radar/RadarCanvas.cs` | The radar `Control`: styled properties, pointer handlers, hit-testing, Range/Zoom sync, datablock drag |
 | `Views/Radar/RadarRenderer.cs` | Per-frame orchestrator: clears, then draws maps → rings → fixes → paths → targets → overlays |
-| `Views/Radar/TargetRenderer.cs` | Aircraft symbols, leader lines, datablocks, PTLs, history trails, speech bubbles |
+| `Views/Radar/TargetRenderer.cs` | Aircraft symbols (dashed for live-traffic shadows, half alpha while coasting — [live-traffic.md](live-traffic.md)), leader lines, datablocks, PTLs, history trails, speech bubbles |
 | `Views/Radar/VideoMapRenderer.cs` | Video-map polylines with A/B brightness categories |
 | `Views/Radar/RadarDatablockLayout.cs` | Pure layout struct for the STARS full datablock (up to 5 lines) |
 | `Views/Radar/EuroScopeTagLayout.cs` | Pure layout for the EuroScope tag (4 lines + ModeC + NoLndgClnc) with per-field rects |
