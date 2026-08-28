@@ -9,6 +9,7 @@ A fresh agent should start from **Current focus**, then **Next up**, and treat *
 - [ ] Pilot AI for solo training — see [pilot-ai-self-training/README.md](./pilot-ai-self-training/README.md) (M10.x readbacks/TTS shipped; M11–M12 subplans are the roadmap)
 
 ## Next up
+- [ ] Live traffic via SWIM (#150) — see [open-issues/150-live-traffic-swim.md](./open-issues/150-live-traffic-swim.md) → yaat-server `docs/plans/live-traffic-swim/08-remaining-work.md` (all slices shipped 2026-08-28; **blocked** on FAA ADX access to the LADD list before the feed can go live on YAAT1, then a first-month soak)
 - [ ] RPO limited-access mode + VATUSA ARTCC auto-fill — see [rpo-limited-access-and-vatusa-artcc.md](./rpo-limited-access-and-vatusa-artcc.md) (17 open)
 - [ ] CRC protocol support gaps — see [crc-protocol-support.md](./crc-protocol-support.md) (13 open of 174; status table of the CRC hub protocol)
 - [ ] Controller AI for solo training — see [controller-ai.md](./controller-ai.md) (design plan, not started)
