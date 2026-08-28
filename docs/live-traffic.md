@@ -199,8 +199,8 @@ off (disabling is always allowed); the client binds the session checkbox's `IsVi
 ## Server room integration (yaat-server `src/Yaat.Server/LiveTraffic/`)
 
 - **`LiveTrafficStore`** — process-wide singleton of `LiveTrack`s (one immutable record per real aircraft, up to one `LiveView`
-  per source; `Freshest` picks the latest). 1° grid index on the freshest position; `Query(ILiveTrafficScope, buffer)`. The feed
-  writers land with the SWIM ingest step; tests fill it directly.
+  per source; `Freshest` picks the latest). 1° grid index on the freshest position; `Query(ILiveTrafficScope, buffer)`. Written by
+  the SWIM ingest below; tests fill it directly.
 - **`RoomLiveTrafficScope.Build`** — what the room sees. The student's *own* facility is found by position callsign in the
   facility tree (`TrackOwner.FacilityId` is the STARS facility — a tower position's owner is its TRACON). Center room → the
   `ArtccBoundaryDatabase` polygon + 15 nm, no ceiling. Tower / TRACON room → 25 nm around each of the facility's towers ∪ their
@@ -229,6 +229,37 @@ off (disabling is always allowed); the client binds the session checkbox's `IsVi
 - **Wire** — `AircraftStateDto.IsLiveTraffic` / `LiveTrafficStale` / `LiveTrafficSource` (+ client `AircraftDto`), all three in
   `TrainingDtoFingerprint`. Shadows are excluded from auto-TDLS, auto arrival strips and the rolling-call strip
   (`IsDepartureAircraft` / `IsArrivalCandidate` / `IsApproachDepartureCandidate`).
+
+## SWIM ingest (yaat-server `src/Yaat.Server/LiveTraffic/Swim/`)
+
+The feed is the FAA SWIM Cloud Distribution Service (SCDS): two Solace queues, nationwide — STDDS (TAIS terminal tracks +
+TRACON flight-plan blocks, SMES/ASDE-X surface position reports) and SFDPS (FIXM en-route tracks + full flight plans). Design and
+measurements: yaat-server `docs/plans/live-traffic-swim/04-swim-ingest.md`; deployment: yaat-server `SELF_HOSTING.md`.
+
+- **Transport** — `SwimIngestHostedService` runs, per configured product (`Swim:Stdds` / `Swim:Sfdps`, only while
+  `LiveTraffic:Enabled`), a `SolaceSwimFeedSource` (Solace .NET API, AutoAck queue flow, TLS against the bundled DigiCert root,
+  exponential reconnect) feeding a bounded drop-oldest channel, and a worker that appends the raw body to the rolling
+  `SwimRawLogWriter` window (Brotli per product-hour, size/age capped — the only history SCDS offers), peeks the root element for
+  metrics, parses, and correlates. `SwimReplaySource` drives the same pipeline from raw-log files (the parser/correlator harness
+  and the seam for the repro harness in plan 07).
+- **Parsing** — `SwimMessageParser` dispatches on the document element's local name (`TATrackAndFlightPlan`, `asdexMsg`,
+  `MessageCollection`) to one forward-only `XmlReader` pass each; unknown children are skipped, unknown roots and malformed bodies
+  yield null. Records are partial by design (TAIS sends track-only, plan-only and enhanced-data-only records; ASDE-X partial
+  reports carry a position and little else; every SFDPS message is a delta), so the typed records under `Messages/` are nullable
+  throughout. Fixtures in `tests/Yaat.Server.Tests/LiveTraffic/Swim/Fixtures/` are real messages from the 2026-08-28 capture
+  (airline callsigns only, ICAO24s replaced).
+- **Correlation** — `SwimTrackCorrelator` keys tracks by callsign and resolves identity-less records through
+  `(TRACON, track number)`, `(airport, ASDE-X track)`, ICAO24 and ERAM GUFI indices learned from earlier records. One `LiveView`
+  per source with **sticky instance** ownership (another TRACON/ARTCC may overwrite only after 12 s / 24 s / 2 s of silence),
+  backwards-position and older-observation skips, TAIS `terminated`+`delete` and `drop` status dropping the STARS view, track-number
+  reuse under a new callsign dropping the old flight's view (turnaround), SFDPS `DROPPED`/`COMPLETED`/`CANCELLED` ending the ERAM
+  view, vehicles / `UNKN` / `OPS*` / `PO\d+` ignored. A GUFI-keyed flight-plan index (SFDPS publishes plans hours ahead; 6 h TTL)
+  fills route / filed altitude / speed / equipment into tracks fill-if-empty when TAIS or ASDE-X links the GUFI. `Reap()` (every
+  60 s) removes views past 10× their timeout, evicts viewless tracks together with every index entry, and expires uncorrelated
+  plans; every change is published to `LiveTrafficStore` as an immutable `LiveTrack`.
+- **Health** — `LiveTrafficStore.ReportFeedState` (any product connected, last message time) feeds the room status broadcasts;
+  meter `Yaat.Server.Swim` carries message counts by root element, drops, broker lag, handle time and store gauges; a
+  `SWIM store: …` log line every minute summarises the correlator's counters.
 
 ## Client (yaat `src/Yaat.Client*`)
 
