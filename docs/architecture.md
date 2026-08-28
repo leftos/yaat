@@ -90,6 +90,7 @@ swim-slice.ps1                    # Live-traffic repro: copies the SWIM raw-log 
                                   # runs yaat-server tools/Yaat.SwimSlice cut [-Artcc [-Facility]]; output under yaat-server/.tmp/swim-slices (FAA data, never shared)
 tools/codex-yaat.ps1              # Launches Codex from the YAAT repo root and adds ..\yaat-server as an extra writable/readable directory.
 tools/setup-codex.ps1             # Creates user-local Codex skill junctions and registers MCP servers without committing local state or token values.
+tools/build-artcc-boundaries.py   # Downloads the NASR 28-day ARB CSV (or --zip) and writes src/Yaat.Sim/Data/Artcc/ArtccBoundaries.geojson (--strata LOW,HIGH; re-run per cycle)
 tools/refresh-faa-airspace.ps1    # Reads vNAS training scenario primary airports by ARTCC, then downloads matching FAA AIS Class Airspace GeoJSON/Brotli.
 tools/refresh-airport-airlines.ps1 # Builds Data/airport-airlines.json.br from BTS T-100 segment ZIPs, OurAirports, and OpenFlights carrier/route crosswalks.
 tools/refresh-airline-fleets.py   # Parses Airfleets PDFs into Data/airline-fleets.json + .meta provenance sidecar.
@@ -814,8 +815,9 @@ Data/Airspace/AirspaceVolume.cs / AirspaceBoundaryCrossing.cs / AirspaceClass.cs
 Data/Airspace/AirspaceAvoidance.cs # VFR self-restriction geometry: level-off altitude beneath a shelf floor (round hundred, 91.159-conforming above 3000 AGL) and the turn-away direction. See airspace-database.md.
 Data/Airspace/faa-training-primary-class-bc.geojson.br # Checked-in Brotli FAA AIS fixture for B/C airspace at all vNAS training primary airports.
 Data/Artcc/ArtccBoundaryDatabase.cs # Lateral ARTCC boundaries (one polygon per center) from Data/Artcc/*.geojson[.br]; FindById / FindContaining; same bundled-fixture + bbox + PointInRing shape as AirspaceDatabase. Center-room live-traffic scoping.
-Data/Artcc/ArtccBoundary.cs        # One center's rings + bbox: Contains, DistanceToEdgeNm (the server's 15 nm center-room buffer)
-Data/Artcc/ArtccBoundaries.geojson # 24 coarse per-ARTCC boxes seeded from vatsim-server-rs (neighbours overlap — hence center rooms only)
+Data/Artcc/ArtccBoundary.cs        # One center's rings + bbox: Contains (any ring), DistanceToEdgeNm (the server's 30 nm center-room buffer)
+Data/Artcc/ArtccBoundaries.geojson # 26 US ARTCC/CERAP MultiPolygons from FAA NASR ARB (LOW + HIGH rings; UNLIMITED where that is all there is);
+                                   # built by tools/build-artcc-boundaries.py, re-run per 28-day cycle
 Data/Mva/MvaDatabase.cs / MvaSector.cs / MvaRelation.cs # FAA AIXM-derived MVA sectors: exterior-minus-holes containment + altitude Classify (Below/At/Above). See minimum-vectoring-altitude.md.
 Data/Mva/FAA_MVA_FUS3.geojson.br # Committed FAA MVA charts (FUS3), all 148 published facilities: 3,268 sectors with MSL floors + facility tags, Brotli-compressed, built by tools/build-mva-data.py --all.
 Data/MilitaryRoutes/MilitaryRoute.cs / MilitaryRoutePoint.cs / MilitaryRouteAltitude.cs / MilitaryRouteType.cs # DoD AP/1B route model: one-way point sequence, per-segment altitude block, protected widths, and (chapter 5) per-direction variants with an anchor orbit pattern. See military-training-routes.md.

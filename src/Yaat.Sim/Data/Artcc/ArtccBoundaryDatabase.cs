@@ -6,9 +6,10 @@ namespace Yaat.Sim.Data.Artcc;
 
 /// <summary>
 /// Lateral ARTCC boundaries, loaded once from the bundled <c>Data/Artcc/ArtccBoundaries.geojson</c>
-/// (one feature per center, <c>properties.id</c> = ARTCC id). The bundled set is coarse — one
-/// polygon per center with generous margins, so neighbours overlap — which is why center rooms are
-/// the only consumer: a tower or TRACON room scopes by its facility's airspace volumes instead.
+/// (one feature per center, <c>properties.id</c> = ARTCC id), built by <c>tools/build-artcc-boundaries.py</c> from
+/// the FAA NASR ARB subscriber file: one ring per stratum (LOW and HIGH; a lone UNLIMITED volume for Honolulu / San
+/// Juan / the oceanic centers), so <see cref="ArtccBoundary.Contains"/> is the union of the strata. Center rooms are
+/// the consumer: a tower or TRACON room scopes by its facility's airspace volumes instead.
 /// Same shape as <see cref="Airspace.AirspaceDatabase"/>: bundled fixture, bbox pre-filter, ring test.
 /// </summary>
 public sealed class ArtccBoundaryDatabase

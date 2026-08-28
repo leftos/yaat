@@ -195,6 +195,11 @@ age moves. Client: `ServerConnection.LiveTrafficStatusChanged` → `MainViewMode
 off (disabling is always allowed); the client binds the session checkbox's `IsVisible` to `MainViewModel.LiveTrafficAvailable`
 (`LiveTrafficStatus?.FeedConfigured == true`, reset on `ClearRoomState`), so a gated server never shows the toggle.
 `tools/bug_bundle.py actions` / `history` render the live-traffic actions compactly (`LIVE` / `LIVERM` / `LIVEST` tags).
+**Export scrub:** when a LADD list is in force (`ILaddListSource`, the ingest service), `RecordingManager.ExportRecordingArchive`
+runs `LaddRecordingScrubber` first — a listed shadow becomes `LADD01`, `LADD02`, … on every action, command text, chat and
+terminal line, its spawn state loses the feed identity, and the snapshots are regenerated from the scrubbed actions. Replay stays
+deterministic (the shadow still flies); the live room's own log is untouched. Covers the aircraft listed *after* it was in a
+room, which the parse-time filter cannot.
 Every sample also carries its feed provenance — `Instance` (the TRACON / ARTCC / airport that produced the observation) and
 `ObservedAtUtc` (the source's own time) — and the room records a `RecordedLiveTrafficStatus` (wall clock, connected, message
 age, in-scope count) with every status broadcast while live traffic is on. Neither affects replay; they are what maps a
@@ -207,12 +212,13 @@ bundle's sim seconds back to the real-world feed window (see *Reproducing a repo
   the SWIM ingest below; tests fill it directly.
 - **`RoomLiveTrafficScope.Build`** — what the room sees. The student's *own* facility is found by position callsign in the
   facility tree (`TrackOwner.FacilityId` is the STARS facility — a tower position's owner is its TRACON). Center room → the
-  `ArtccBoundaryDatabase` polygon + 15 nm, no ceiling. Tower / TRACON room → 25 nm around each of the facility's towers ∪ their
+  `ArtccBoundaryDatabase` polygon + 30 nm, no ceiling. Tower / TRACON room → 25 nm around each of the facility's towers ∪ their
   Class B/C volumes, under `max(tower-cab aircraftVisibilityCeiling, Class B/C top + 2 000)` (tower; AIM 3-2-4 — the outer
   area runs up to the delegated airspace ceiling) or 15 000 ft (TRACON; delegated airspace tops out ~10–17k). No facility or
   geometry → 60 nm around the primary airport under the TRACON ceiling. A non-zero `LiveTrafficCeilingFt` setting always wins.
-  Reviewed by aviation-sim-expert 2026-08-26; the 15 nm center buffer is deliberately thin while the bundled boundaries are
-  coarse boxes (30–40 nm once `tools/build-artcc-boundaries.py` exists).
+  Reviewed by aviation-sim-expert 2026-08-26. The boundaries are the FAA NASR ARB LOW+HIGH strata (one ring each, union for
+  containment) built by `tools/build-artcc-boundaries.py` (re-run per 28-day cycle; Honolulu, San Juan and the oceanic centers
+  carry a single UNLIMITED volume; Guam has no ARB segments and is absent), so the 30 nm buffer only covers the handoff band.
 - **`ShadowTrafficSync.Sync`** — the last pre-physics step (`TickProcessor` `Pre.LiveTraffic`), so a sample lands at second *t*,
   is recorded at *t*, and replays pre-tick at *t*. Inert while `IsBroadcastSuppressed` (rewind reconstruction) or in tape
   playback — the recorded samples own the world then. **Time anchor**: `(wallUtc, ElapsedSeconds)` set on the first sync and
