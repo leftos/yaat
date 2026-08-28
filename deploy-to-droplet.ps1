@@ -22,8 +22,8 @@
 #                  only apply to this mode.
 #
 # -Target  Which deployment to act on (default "yaat1"). Selects the droplet IP, server path,
-#          public URL, and remote compose env file from the $targets map below. Add a new
-#          entry to $targets to deploy another domain (e.g. yaat2). Each target's secrets
+#          public URL, and remote compose env file from deploy-targets.ps1. Add a new
+#          entry there to deploy another domain (e.g. yaat2). Each target's secrets
 #          (ADMIN_PASSWORD, DISCORD_STATUS_WEBHOOK_URL) are read from a local .env.<target>
 #          file if present, falling back to .env.
 #
@@ -117,29 +117,9 @@ param(
 
 $ErrorActionPreference = "Stop"
 
-# Per-deployment configuration. Add an entry here for each domain you deploy.
-# RemoteEnvFile is the env file docker compose reads ON the droplet (--env-file); it must define
-# YAAT_DOMAIN, VATSIM_CLIENT_ID, JWT_SIGNING_KEY, etc. (see yaat-server/.env.example). ".env" is the
-# compose default, so a single-deployment droplet can keep using ".env".
-$targets = @{
-  yaat1 = @{
-    DropletIp     = "143.198.111.198"
-    ServerPath    = "/home/yaat/yaat-server"
-    ServerUrl     = "https://yaat1.leftos.dev"
-    RemoteEnvFile = ".env.yaat1"
-  }
-  # yaat2 = @{
-  #   DropletIp     = "<droplet-ip>"
-  #   ServerPath    = "/home/yaat/yaat-server"
-  #   ServerUrl     = "https://yaat2.leftos.dev"
-  #   RemoteEnvFile = ".env.yaat2"
-  # }
-}
-
-if (-not $targets.ContainsKey($Target)) {
-  throw "Unknown target '$Target'. Known targets: $($targets.Keys -join ', '). Add it to the `$targets map in deploy-to-droplet.ps1."
-}
-$cfg = $targets[$Target]
+# Per-deployment configuration lives in deploy-targets.ps1 (shared with deploy-secrets.ps1).
+. (Join-Path $PSScriptRoot "deploy-targets.ps1")
+$cfg = Resolve-DeployTarget -Target $Target
 
 # Configuration
 $dropletIp = $cfg.DropletIp
