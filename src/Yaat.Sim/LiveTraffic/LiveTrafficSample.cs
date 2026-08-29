@@ -98,4 +98,10 @@ public sealed record LiveTrafficSample(
 
     /// <summary>Free-text clearance from the feed, when present (scanned for a hold at assume).</summary>
     public string? ClearanceText { get; init; }
+
+    /// <summary>The feed's own airborne-hold flag (true = in a hold), when it said either way; null when silent.</summary>
+    public bool? AirborneHold { get; init; }
+
+    /// <summary>The fix the feed has the aircraft holding at, while it does.</summary>
+    public string? HoldFix { get; init; }
 }

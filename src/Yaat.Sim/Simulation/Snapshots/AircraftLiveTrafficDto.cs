@@ -35,6 +35,8 @@ public sealed class AircraftLiveTrafficDto
     public double? ClearedHeadingDeg { get; init; }
     public double? ClearedSpeedKts { get; init; }
     public string? ClearanceText { get; init; }
+    public bool? AirborneHold { get; init; }
+    public string? HoldFix { get; init; }
     public string? ExternalId { get; init; }
     public int? LastRunwayUse { get; init; }
     public bool LandedOnRunway { get; init; }

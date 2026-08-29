@@ -154,6 +154,16 @@ public static class LiveTrafficKinematics
         lt.ClearedHeadingDeg = sample.ClearedHeadingDeg ?? lt.ClearedHeadingDeg;
         lt.ClearedSpeedKts = sample.ClearedSpeedKts ?? lt.ClearedSpeedKts;
         lt.ClearanceText = sample.ClearanceText ?? lt.ClearanceText;
+        if (sample.AirborneHold is { } hold)
+        {
+            lt.AirborneHold = hold;
+            if (!hold)
+            {
+                lt.HoldFix = null;
+            }
+        }
+
+        lt.HoldFix = sample.HoldFix ?? lt.HoldFix;
         lt.Source = sample.Source;
         lt.ObservedAtSimSeconds = sample.ObservedAtSimSeconds;
         lt.SecondsSinceSample = 0;

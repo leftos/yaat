@@ -132,7 +132,11 @@ public static class LiveTrafficAssumer
             ac.Targets.TargetTrueHeading = ac.TrueHeading;
             ac.Targets.TargetAltitude = RoundTo100(ac.Altitude);
             ac.Targets.AssignedAltitude = ac.Targets.TargetAltitude;
-            notes.Add("in a hold — reissue holding or a rejoin (§4-6-1)");
+            notes.Add(
+                lt.HoldFix is { } fix
+                    ? $"in a hold at {fix} per the feed — reissue holding or a rejoin (§4-6-1)"
+                    : "in a hold — reissue holding or a rejoin (§4-6-1)"
+            );
             return "holding, heading and altitude held";
         }
 
@@ -650,9 +654,13 @@ public static class LiveTrafficAssumer
 
     // --- hold / VFR / squawk ---
 
+    /// <summary>
+    /// The feed's own hold flag (ERAM <c>airborneHold</c>) is authoritative when set; otherwise a <c>HOLD</c> token in the
+    /// clearance or route, or a racetrack signature in the history, stands in for it.
+    /// </summary>
     private static bool DetectHold(AircraftState ac, AircraftLiveTraffic lt)
     {
-        if (MentionsHold(lt.ClearanceText) || MentionsHold(ac.FlightPlan.Route))
+        if ((lt.AirborneHold == true) || MentionsHold(lt.ClearanceText) || MentionsHold(ac.FlightPlan.Route))
         {
             return true;
         }

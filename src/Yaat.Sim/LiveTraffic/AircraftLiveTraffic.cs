@@ -58,6 +58,10 @@ public sealed class AircraftLiveTraffic
     public double? ClearedSpeedKts { get; set; }
     public string? ClearanceText { get; set; }
 
+    /// <summary>The feed's airborne-hold flag as last stated (null until it says either way) and the fix while holding.</summary>
+    public bool? AirborneHold { get; set; }
+    public string? HoldFix { get; set; }
+
     /// <summary>Feed-side identity (e.g. GUFI); opaque to the sim.</summary>
     public string? ExternalId { get; set; }
 
@@ -104,6 +108,8 @@ public sealed class AircraftLiveTraffic
             ClearedHeadingDeg = ClearedHeadingDeg,
             ClearedSpeedKts = ClearedSpeedKts,
             ClearanceText = ClearanceText,
+            AirborneHold = AirborneHold,
+            HoldFix = HoldFix,
             ExternalId = ExternalId,
             LastRunwayUse = LastRunwayUse is { } use ? (int)use : null,
             LandedOnRunway = LandedOnRunway,
@@ -131,6 +137,8 @@ public sealed class AircraftLiveTraffic
             ClearedHeadingDeg = dto.ClearedHeadingDeg,
             ClearedSpeedKts = dto.ClearedSpeedKts,
             ClearanceText = dto.ClearanceText,
+            AirborneHold = dto.AirborneHold,
+            HoldFix = dto.HoldFix,
             ExternalId = dto.ExternalId,
             LastRunwayUse = dto.LastRunwayUse is { } use ? (RunwayUseKind)use : null,
             LandedOnRunway = dto.LandedOnRunway,

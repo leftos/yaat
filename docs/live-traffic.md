@@ -74,8 +74,9 @@ squawk note (7700/7600) → coasting note → `SeedState`:
 2. **VFR** (VFR plan, or 1200 with no plan): heading hold (feed cleared heading first); level → altitude to the 100 ft,
    climbing/descending → keep the rate to the next §91.159 VFR cruising altitude (`NextVfrCruisingAltitude`, odd/even
    thousands + 500 by magnetic course; a descent that would end below 3 500 ft MSL levels instead). Done.
-4. **Hold**: a `HOLD` token in `ClearanceText` or the filed route, or ≥ 270° of accumulated turn over ≤ 90 s of history
-   within 3 nm → heading + altitude hold and a "reissue holding or a rejoin" warning (§4-6-1). Done.
+4. **Hold**: the feed's own flag (`LiveTrafficSample.AirborneHold`, ERAM `airborneHold`, with `HoldFix` named in the
+   warning), else a `HOLD` token in `ClearanceText` or the filed route, or ≥ 270° of accumulated turn over ≤ 90 s of
+   history within 3 nm → heading + altitude hold and a "reissue holding or a rejoin" warning (§4-6-1). Done.
 5. **Lateral**, first match wins: established on a final (inside the approach gate = `ApproachGateDatabase`
    min-intercept − `InterceptPaddingNm`, displaced threshold honoured; ≤ 10° off the final, ≤ 0.3 nm cross-track, not
    climbing) → `ApproachCommandHandler.TryClearedApproach` with the runway as the `DestinationRunway` hint (no landing

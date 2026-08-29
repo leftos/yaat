@@ -306,6 +306,27 @@ public class LiveTrafficAssumeTests
     }
 
     [Fact]
+    public void AirborneHoldFromTheFeed_HoldsHeadingAndAltitude_AndNamesTheFix()
+    {
+        var plan = new AircraftFlightPlan
+        {
+            HasFlightPlan = true,
+            Departure = "KOAK",
+            Destination = "KRDD",
+            Route = "OAK SAC RBL",
+        };
+        var sac = NavigationDatabase.Instance.ResolveFixOrFrd("SAC")!.Value;
+        var ac = Shadow(Sample(0, new LatLon(sac.Lat + 0.05, sac.Lon), 8_000, 210, 180, 0) with { AirborneHold = true, HoldFix = "SAC" }, plan);
+
+        var result = Assume(ac);
+
+        Assert.True(result.Success, result.Message);
+        Assert.Empty(ac.Targets.NavigationRoute);
+        Assert.Equal(8_000, ac.Targets.TargetAltitude);
+        Assert.Contains(ac.PendingWarnings, w => w.Contains("hold at SAC", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
     public void HoldInClearanceText_HoldsHeadingAndAltitude_NeverRejoins()
     {
         var plan = new AircraftFlightPlan
