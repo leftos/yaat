@@ -240,6 +240,21 @@ public class LiveTrafficKinematicsTests
     }
 
     [Fact]
+    public void SourceFlaggedCoast_IsCoastingFromTheSampleOn_AndClearsOnAFreshReturn()
+    {
+        var ac = Shadow(AirborneSample(0) with { SourceCoasting = true });
+        Assert.True(ac.LiveTraffic!.IsCoasting);
+
+        LiveTrafficKinematics.Advance(ac, 1.0, null, 1.0);
+        Assert.True(ac.LiveTraffic.IsCoasting);
+        Assert.True(GeoMath.DistanceNm(Origin, ac.Position) > 0.05); // still dead-reckoned while coasting
+
+        LiveTrafficKinematics.Apply(ac, AirborneSample(4.5));
+        Assert.False(ac.LiveTraffic.IsCoasting);
+        Assert.False(ac.LiveTraffic.SourceCoasting);
+    }
+
+    [Fact]
     public void OutOfOrderSample_IsIgnored()
     {
         var ac = Shadow(AirborneSample(5));

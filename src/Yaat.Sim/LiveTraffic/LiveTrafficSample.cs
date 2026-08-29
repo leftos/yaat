@@ -77,6 +77,13 @@ public sealed record LiveTrafficSample(
     /// <summary>Surface-surveillance samples are on the ground; radar samples are airborne.</summary>
     public bool IsOnGround => Source == LiveTrafficSource.Asdex;
 
+    /// <summary>
+    /// The source itself flagged the track as coasting (STARS <c>coasting</c> status, ERAM <c>coastIndicator</c>): the
+    /// position is the tracker's own extrapolation after target loss, not a radar return, so the shadow is CST from this
+    /// sample on rather than after two missed sweeps.
+    /// </summary>
+    public bool SourceCoasting { get; init; }
+
     /// <summary>Controller-assigned altitude carried by the feed's flight-plan block (feet MSL), when present.</summary>
     public double? AssignedAltitudeFt { get; init; }
 

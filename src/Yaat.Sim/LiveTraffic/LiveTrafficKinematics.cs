@@ -161,7 +161,8 @@ public static class LiveTrafficKinematics
         lt.SampleAltitude = sample.AltitudeFt;
         lt.SampleGroundSpeed = sample.GroundSpeedKts;
         lt.SampleTrueTrack = sample.TrueTrackDeg;
-        lt.IsCoasting = false;
+        lt.SourceCoasting = sample.SourceCoasting;
+        lt.IsCoasting = sample.SourceCoasting;
 
         if (sample.BeaconCode is { } code && code != ac.Transponder.Code)
         {
@@ -220,7 +221,7 @@ public static class LiveTrafficKinematics
         var lt = ac.LiveTraffic ?? throw new InvalidOperationException($"{ac.Callsign} is not a shadow aircraft");
         lt.SecondsSinceSample += deltaSeconds;
         double t = lt.SecondsSinceSample;
-        lt.IsCoasting = t > CoastAfterSeconds(lt.Source);
+        lt.IsCoasting = lt.SourceCoasting || (t > CoastAfterSeconds(lt.Source));
 
         var track = new TrueHeading(lt.SampleTrueTrack);
         ac.Position = GeoMath.ProjectPoint(lt.SamplePosition, track, lt.SampleGroundSpeed * t / 3600.0);

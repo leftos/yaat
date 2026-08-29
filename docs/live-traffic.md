@@ -45,7 +45,8 @@ it sees `LiveTrafficSample`s for a callsign and never knows where they came from
   previous derived value) when the feed has none. A sample not newer than the stored `ObservedAtSimSeconds` is ignored
   (out of order, or a lower-priority source arriving late). Sample time is **sim seconds**, never wall-clock.
 - **Coast, don't freeze.** After two missed sweeps of the sample's source (`CoastAfterSeconds`: STARS 9 s, ERAM 24 s,
-  ASDE-X 2 s) `IsCoasting` is set; the aircraft keeps dead-reckoning (a frozen target displayed as a normal track is a
+  ASDE-X 2 s) — or at once when the source itself flagged the sample as a coast (`LiveTrafficSample.SourceCoasting`:
+  STARS `coasting` status, ERAM `coastIndicator`) — `IsCoasting` is set; the aircraft keeps dead-reckoning (a frozen target displayed as a normal track is a
   3.75 nm lie at 450 kt). Removal is the feed host's decision (`SimulationEngine.RemoveLiveTraffic`).
 - **Commands are rejected** at the top of `CommandDispatcher.Dispatch` and `DispatchCompound` — before the transparent
   fast path, so `SQ`/ident cannot slip through — with `ASSUME <cs> first — live traffic is not controllable`. Track,

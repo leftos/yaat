@@ -42,8 +42,14 @@ public sealed class AircraftLiveTraffic
     /// <summary>Recent samples, oldest first, ending with the current one; capped at <see cref="HistoryCapacity"/>.</summary>
     public List<LiveTrafficHistoryPoint> History { get; } = [];
 
-    /// <summary>Two sweeps of the source have passed without a sample: displayed as CST, still dead-reckoned.</summary>
+    /// <summary>
+    /// Two sweeps of the source have passed without a sample, or the source flagged the sample itself as a coast:
+    /// displayed as CST, still dead-reckoned, excluded from conflict alerting.
+    /// </summary>
     public bool IsCoasting { get; set; }
+
+    /// <summary>The current sample carried the source's own coast flag (<see cref="LiveTrafficSample.SourceCoasting"/>).</summary>
+    public bool SourceCoasting { get; set; }
 
     /// <summary>Latest clearance fields the feed carried (null when it never did); seed the assume hand-off.</summary>
     public double? AssignedAltitudeFt { get; set; }
@@ -92,6 +98,7 @@ public sealed class AircraftLiveTraffic
                 })
                 .ToList(),
             IsCoasting = IsCoasting,
+            SourceCoasting = SourceCoasting,
             AssignedAltitudeFt = AssignedAltitudeFt,
             InterimAltitudeFt = InterimAltitudeFt,
             ClearedHeadingDeg = ClearedHeadingDeg,
@@ -118,6 +125,7 @@ public sealed class AircraftLiveTraffic
             SampleTrueTrack = dto.SampleTrueTrack,
             SampleVerticalSpeed = dto.SampleVerticalSpeed,
             IsCoasting = dto.IsCoasting,
+            SourceCoasting = dto.SourceCoasting,
             AssignedAltitudeFt = dto.AssignedAltitudeFt,
             InterimAltitudeFt = dto.InterimAltitudeFt,
             ClearedHeadingDeg = dto.ClearedHeadingDeg,

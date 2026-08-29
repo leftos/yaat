@@ -1079,6 +1079,8 @@ def _format_live_traffic_action(a: dict[str, Any]) -> str | None:
         ]
         if sample.get("VerticalSpeedFpm") is not None:
             parts.append(f"vs={sample['VerticalSpeedFpm']:.0f}")
+        if sample.get("SourceCoasting"):
+            parts.append("cst")
         if sample.get("BeaconCode") is not None:
             parts.append(f"sq={sample['BeaconCode']}")
         if sample.get("Instance"):

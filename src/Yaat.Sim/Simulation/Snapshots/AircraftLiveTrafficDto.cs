@@ -29,6 +29,7 @@ public sealed class AircraftLiveTrafficDto
     public double SampleVerticalSpeed { get; init; }
     public List<LiveTrafficHistoryPointDto>? History { get; init; }
     public bool IsCoasting { get; init; }
+    public bool SourceCoasting { get; init; }
     public double? AssignedAltitudeFt { get; init; }
     public double? InterimAltitudeFt { get; init; }
     public double? ClearedHeadingDeg { get; init; }
