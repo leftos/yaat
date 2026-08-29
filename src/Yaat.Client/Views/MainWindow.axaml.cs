@@ -131,6 +131,8 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
             startLiveItem.Click += OnStartLiveSessionClick;
         }
 
+        WireLiveSessionBadge();
+
         var loadWeatherItem = this.FindControl<MenuItem>("LoadWeatherMenuItem");
         if (loadWeatherItem is not null)
         {
@@ -1962,6 +1964,27 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
         {
             await LoadScenarioFromApiAsync(vm, result.ApiScenarioId, result.ApiScenarioName);
         }
+    }
+
+    private void WireLiveSessionBadge()
+    {
+        var badge = this.FindControl<Border>("LiveSessionBadge");
+        if (badge is null)
+        {
+            return;
+        }
+
+        badge.PointerPressed += async (_, _) =>
+        {
+            if (DataContext is not MainViewModel vm || !vm.IsLiveSession)
+            {
+                return;
+            }
+
+            await vm.RefreshLiveTrafficWindowAsync();
+            var flyout = new LiveTrafficDvrFlyout(vm);
+            flyout.ShowAt(badge);
+        };
     }
 
     private async void OnStartLiveSessionClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)

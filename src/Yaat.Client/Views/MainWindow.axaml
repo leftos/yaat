@@ -279,7 +279,7 @@
                 <Border Grid.Column="12" Background="#553A8C" CornerRadius="3" Padding="6,1" IsVisible="{Binding ShowPlaybackBadge}" VerticalAlignment="Center">
                     <TextBlock Text="PLAYBACK" FontSize="11" Foreground="White" />
                 </Border>
-                <Border Grid.Column="12" Background="{Binding LiveSessionBadgeBrush}" CornerRadius="3" Padding="6,1" IsVisible="{Binding IsLiveSession}" VerticalAlignment="Center" ToolTip.Tip="Live session: real traffic from the SWIM feed">
+                <Border Grid.Column="12" x:Name="LiveSessionBadge" Background="{Binding LiveSessionBadgeBrush}" CornerRadius="3" Padding="6,1" IsVisible="{Binding IsLiveSession}" VerticalAlignment="Center" ToolTip.Tip="Live session: real traffic from the SWIM feed. Click to move through the feed log.">
                     <TextBlock Text="{Binding LiveSessionBadgeText}" FontSize="11" Foreground="White" />
                 </Border>
                 <Button Grid.Column="13" Content="Take Control" FontSize="11" Padding="6,2" Margin="4,0,0,0" Command="{Binding TakeControlCommand}" IsVisible="{Binding ShowTakeControl}" />

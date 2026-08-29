@@ -652,6 +652,20 @@ public sealed class ServerConnection : IStripsTransport, ITdlsTransport, IAsyncD
         return await _connection!.InvokeAsync<LoadScenarioResultDto>("StartLiveSession", request);
     }
 
+    /// <summary>Live session only: stand the room at a feed instant inside the server's raw-log window (DVR seek).</summary>
+    public async Task<CommandResultDto> SeekLiveTrafficAsync(DateTimeOffset feedUtc)
+    {
+        EnsureConnected();
+        return await _connection!.InvokeAsync<CommandResultDto>("SeekLiveTraffic", feedUtc);
+    }
+
+    /// <summary>What the server's raw feed log can replay: the retained span and the replay cap.</summary>
+    public async Task<LiveTrafficWindowDto> GetLiveTrafficWindowAsync()
+    {
+        EnsureConnected();
+        return await _connection!.InvokeAsync<LiveTrafficWindowDto>("GetLiveTrafficWindow");
+    }
+
     /// <summary>The ARTCC's facility tree with positions and tower-cab airports, for the live-session picker.</summary>
     public async Task<FacilityTreeDto?> GetArtccFacilityTreeAsync(string artccId)
     {
@@ -1236,10 +1250,31 @@ public record RoomStateDto(
 );
 
 /// <summary>Live-traffic feed health for the room: feed configured / connected, last-message age, tracks in scope.</summary>
-public record LiveTrafficStatusDto(bool FeedConfigured, bool Connected, double? LastMessageAgeSeconds, int TracksInScope);
+public record LiveTrafficStatusDto(
+    bool FeedConfigured,
+    bool Connected,
+    double? LastMessageAgeSeconds,
+    int TracksInScope,
+    // The feed instant the room stands at (real time, or the replay position while behind); null while live traffic is off.
+    DateTimeOffset? FeedTimeUtc,
+    // How far behind real time the room stands while it replays the raw log; null while it reads the live store.
+    double? BehindSeconds,
+    // The replay's lead-in is still running: shadows are frozen until the store is ready.
+    bool Preparing
+);
+
+/// <summary>What the raw feed log can replay for a room: the retained span, and how many rooms may replay at once.</summary>
+public record LiveTrafficWindowDto(
+    bool Available,
+    DateTimeOffset? StartUtc,
+    DateTimeOffset? EndUtc,
+    int ActiveReplays,
+    int MaxReplays,
+    string? Reason
+);
 
 /// <summary>What the client asks for when it opens a live-traffic session: the position to stand at and the airport to show.</summary>
-public record LiveSessionRequestDto(string PositionId, string PrimaryAirportId, int CeilingFt);
+public record LiveSessionRequestDto(string PositionId, string PrimaryAirportId, int CeilingFt, DateTimeOffset? StartUtc);
 
 /// <summary>One position as the live-session picker lists it; <c>Frequency</c> in Hz as vNAS stores it.</summary>
 public record PositionSummaryDto(string Id, string Name, string Callsign, long Frequency, bool Starred);

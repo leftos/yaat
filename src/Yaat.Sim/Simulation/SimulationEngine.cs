@@ -5081,6 +5081,9 @@ public sealed class SimulationEngine
                     scenario.LiveTrafficCeilingFt = ceiling;
                 }
                 break;
+            case "LiveTrafficFeedTimeUtc":
+                // Diagnostic: where the room stood in the feed. Replay is driven by the recorded samples themselves.
+                break;
             case "AutoAcceptDelay":
                 if (int.TryParse(setting.Value, out var seconds))
                 {

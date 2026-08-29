@@ -21,6 +21,8 @@ public partial class LiveSessionWindow : Window
     private readonly ListBox _positionList;
     private readonly ComboBox _airportBox;
     private readonly NumericUpDown _ceilingBox;
+    private readonly TextBox _startAtBox;
+    private readonly TextBlock _startAtHint;
     private readonly Button _startButton;
     private FacilityTreeDto? _root;
 
@@ -38,7 +40,10 @@ public partial class LiveSessionWindow : Window
         _positionList = this.FindControl<ListBox>("PositionList")!;
         _airportBox = this.FindControl<ComboBox>("AirportBox")!;
         _ceilingBox = this.FindControl<NumericUpDown>("CeilingBox")!;
+        _startAtBox = this.FindControl<TextBox>("StartAtBox")!;
+        _startAtHint = this.FindControl<TextBlock>("StartAtHint")!;
         _startButton = this.FindControl<Button>("StartButton")!;
+        _startAtBox.TextChanged += (_, _) => UpdateStartEnabled();
 
         this.FindControl<Button>("CancelButton")!.Click += (_, _) => Close(null);
         _startButton.Click += (_, _) => Finish();
@@ -193,7 +198,46 @@ public partial class LiveSessionWindow : Window
         UpdateStartEnabled();
     }
 
-    private void UpdateStartEnabled() => _startButton.IsEnabled = _positionList.SelectedItem is PositionEntry && _airportBox.SelectedItem is string;
+    private void UpdateStartEnabled()
+    {
+        var startAt = ParseStartAt(_startAtBox.Text, DateTimeOffset.UtcNow, out var error);
+        _startAtHint.Text = error ?? (startAt is { } t ? $"= {t:yyyy-MM-dd HH:mm}Z" : "");
+        _startButton.IsEnabled = (_positionList.SelectedItem is PositionEntry) && (_airportBox.SelectedItem is string) && (error is null);
+    }
+
+    /// <summary>
+    /// "HH:mm" (or "HH:mm:ss") as the most recent such UTC instant not after now — yesterday's when the time of day has not
+    /// come yet today. Blank means now (null); anything else is an error.
+    /// </summary>
+    public static DateTimeOffset? ParseStartAt(string? text, DateTimeOffset now, out string? error)
+    {
+        error = null;
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return null;
+        }
+
+        if (
+            !TimeSpan.TryParseExact(
+                text.Trim(),
+                [@"h\:mm", @"hh\:mm", @"h\:mm\:ss", @"hh\:mm\:ss"],
+                System.Globalization.CultureInfo.InvariantCulture,
+                out var timeOfDay
+            )
+        )
+        {
+            error = "Use HH:mm (UTC)";
+            return null;
+        }
+
+        var candidate = new DateTimeOffset(now.Year, now.Month, now.Day, 0, 0, 0, TimeSpan.Zero) + timeOfDay;
+        if (candidate > now)
+        {
+            candidate = candidate.AddDays(-1);
+        }
+
+        return candidate;
+    }
 
     private void Finish()
     {
@@ -209,6 +253,7 @@ public partial class LiveSessionWindow : Window
                 PositionLabel = entry.Position.Callsign,
                 AirportId = airport,
                 CeilingFt = (int)(_ceilingBox.Value ?? 0),
+                StartUtc = ParseStartAt(_startAtBox.Text, DateTimeOffset.UtcNow, out _),
             }
         );
     }

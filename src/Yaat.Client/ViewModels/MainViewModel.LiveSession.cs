@@ -32,24 +32,51 @@ public partial class MainViewModel
     public string StartLiveSessionToolTip =>
         LiveTrafficAvailable ? "Open a room at a position with real traffic from the SWIM feed." : "Live traffic is not enabled on this server.";
 
-    /// <summary>LIVE while running on the feed; PAUSED / PLAYBACK while the room is off real time; feed loss is called out.</summary>
-    public string LiveSessionBadgeText => DescribeLiveSession(IsLiveSession, IsPaused, IsPlaybackMode, LiveTrafficStatus?.Connected == true);
+    /// <summary>
+    /// LIVE while running on the feed, LIVE −mm:ss while replaying behind real time, PREPARING while the replay's lead-in
+    /// runs; PAUSED / PLAYBACK while the room is off real time; feed loss is called out.
+    /// </summary>
+    public string LiveSessionBadgeText =>
+        DescribeLiveSession(
+            IsLiveSession,
+            IsPaused,
+            IsPlaybackMode,
+            LiveTrafficStatus?.Connected == true,
+            LiveTrafficStatus?.BehindSeconds,
+            LiveTrafficStatus?.Preparing == true
+        );
 
     public string LiveSessionBadgeBrush =>
         IsPlaybackMode ? PlaybackBadgeColor
         : IsPaused ? PausedBadgeColor
+        : LiveTrafficStatus?.Preparing == true ? PausedBadgeColor
         : LiveTrafficStatus?.Connected == true ? LiveBadgeColor
         : FeedLostBadgeColor;
+
+    /// <summary>The room stands behind real time (replaying the raw log): Go Live is offered even while running.</summary>
+    public bool IsBehindRealTime => IsLiveSession && LiveTrafficStatus?.BehindSeconds is not null;
+
+    /// <summary>The feed instant the room stands at, for the DVR flyout; null while live traffic is off.</summary>
+    public DateTimeOffset? LiveFeedTimeUtc => LiveTrafficStatus?.FeedTimeUtc;
+
+    public string LiveFeedTimeText => LiveFeedTimeUtc is { } t ? $"{t:HH:mm:ss}Z" : "—";
 
     /// <summary>The generic PLAYBACK badge belongs to scenario rooms; a live session shows its own badge instead.</summary>
     public bool ShowPlaybackBadge => IsPlaybackMode && !IsLiveSession;
 
     public bool ShowTakeControl => IsPlaybackMode && !IsLiveSession;
 
-    /// <summary>"Go Live" is offered whenever a live session is off real time — in playback or paused.</summary>
-    public bool ShowGoLive => IsLiveSession && (IsPlaybackMode || IsPaused);
+    /// <summary>"Go Live" is offered whenever a live session is off real time — in playback, paused, or replaying behind.</summary>
+    public bool ShowGoLive => IsLiveSession && (IsPlaybackMode || IsPaused || LiveTrafficStatus?.BehindSeconds is not null);
 
-    public static string DescribeLiveSession(bool isLiveSession, bool isPaused, bool isPlaybackMode, bool feedConnected)
+    public static string DescribeLiveSession(
+        bool isLiveSession,
+        bool isPaused,
+        bool isPlaybackMode,
+        bool feedConnected,
+        double? behindSeconds,
+        bool preparing
+    )
     {
         if (!isLiveSession)
         {
@@ -66,7 +93,58 @@ public partial class MainViewModel
             return "PAUSED";
         }
 
+        if (preparing)
+        {
+            return "PREPARING";
+        }
+
+        if (behindSeconds is { } behind && behind >= 1)
+        {
+            var span = TimeSpan.FromSeconds(behind);
+            var text = span.TotalHours >= 1 ? $"{(int)span.TotalHours}:{span.Minutes:D2}:{span.Seconds:D2}" : $"{span.Minutes:D2}:{span.Seconds:D2}";
+            return feedConnected ? $"LIVE −{text}" : $"LIVE −{text} · feed lost";
+        }
+
         return feedConnected ? "LIVE" : "LIVE · feed lost";
+    }
+
+    /// <summary>The raw-log span the server can replay; fetched when the DVR flyout opens.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(LiveWindowText))]
+    private LiveTrafficWindowDto? _liveTrafficWindow;
+
+    public string LiveWindowText =>
+        LiveTrafficWindow is { Available: true, StartUtc: { } start, EndUtc: { } end }
+            ? $"Feed log: {start:HH:mm}Z – {end:HH:mm}Z · {LiveTrafficWindow.ActiveReplays}/{LiveTrafficWindow.MaxReplays} rooms replaying"
+            : LiveTrafficWindow?.Reason ?? "Feed log: unknown";
+
+    public async Task RefreshLiveTrafficWindowAsync()
+    {
+        try
+        {
+            LiveTrafficWindow = await _connection.GetLiveTrafficWindowAsync();
+        }
+        catch (Exception ex)
+        {
+            _log.LogWarning(ex, "Live-traffic window query failed");
+            LiveTrafficWindow = new LiveTrafficWindowDto(false, null, null, 0, 0, ex.Message);
+        }
+    }
+
+    /// <summary>Stands the room at a feed instant inside the window; the server drops every non-shadow aircraft and re-acquires the shadows there.</summary>
+    public async Task SeekLiveTrafficAsync(DateTimeOffset feedUtc)
+    {
+        try
+        {
+            StatusText = $"Moving live traffic to {feedUtc:HH:mm:ss}Z…";
+            var result = await _connection.SeekLiveTrafficAsync(feedUtc);
+            StatusText = result.Success ? $"Live traffic at {feedUtc:HH:mm:ss}Z" : result.Message ?? "Seek refused";
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Live-traffic seek failed");
+            StatusText = $"Seek error: {ex.Message}";
+        }
     }
 
     /// <summary>
@@ -79,7 +157,9 @@ public partial class MainViewModel
         try
         {
             StatusText = $"Starting live session at {choice.PositionLabel} / {choice.AirportId}…";
-            var result = await _connection.StartLiveSessionAsync(new LiveSessionRequestDto(choice.PositionId, choice.AirportId, choice.CeilingFt));
+            var result = await _connection.StartLiveSessionAsync(
+                new LiveSessionRequestDto(choice.PositionId, choice.AirportId, choice.CeilingFt, choice.StartUtc)
+            );
             if (!result.Success)
             {
                 var reason = result.Warnings.FirstOrDefault() ?? "Live session refused";

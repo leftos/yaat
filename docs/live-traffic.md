@@ -264,7 +264,26 @@ pausing) — the tape's future was only feed samples the store re-supplies; `Roo
 a rewind's `Reset`) exceeds `ReacquireGapSeconds` (15 s, the STARS removal window) — or is unknown — `ReacquireAfterGap` removes
 every shadow (`LiveTrafficRemovalReason.Reanchored`) so the same second re-spawns them from the store with fresh history (no derived
 vertical speed, ground-roll detection or CA prediction straddles the gap), and prints `live traffic rejoined — real traffic moved on
-mm:ss; N shadows re-acquired from the feed`. Gaps under 15 s keep their shadows; the next sample re-places them. Scrubbing inside the server's raw-log window ("DVR") is designed in
+mm:ss; N shadows re-acquired from the feed`. Gaps under 15 s keep their shadows; the next sample re-places them.
+
+**DVR (behind real time).** A live session that pauses does not jump: the first sync after a gap longer than
+`ReacquireGapSeconds` opens a `RoomLiveTrafficReplay` at `LastSyncWallUtc` (`ShadowTrafficSync.TryStartReplay`; the shadows the
+room holds are consistent with that instant and are kept). The replay is a private `LiveTrafficStore` + `SwimTrackCorrelator`
++ `SwimIngestPipeline` (the LADD list in force) on a `ManualClock`, fed by a background task from `SwimRawLogFollower` — the
+raw-log directory read as one stamp-ordered stream that follows the hour file the writer is still appending to — starting
+`LeadIn` (10 min) before the instant so plans and sticky state exist; `IsReady` flips once the lead-in is applied (until then
+the sync returns early and the badge says PREPARING). While a replay is on, the sync's "now" is `replay.TargetUtc`, the source
+store is the replay's, and each synced second calls `replay.Advance(1 s)`; a paused room advances nothing, so pause = DVR and
+resume continues behind real time. `LiveTrafficReplayFactory` (DI singleton) opens replays from `SwimOptions.RawLog`, refuses an
+instant outside `Window()` (oldest file hour .. now) or past `MaxConcurrent` (2), and a refusal falls back to the live reacquire
+with the reason on the terminal. `RoomEngine.SeekLiveTrafficAsync(utc)` (hub `SeekLiveTraffic`, `StartLiveSession.StartUtc`)
+drops every non-shadow aircraft (they belong to the timeline being left), removes the shadows (`Reanchored`), opens a fresh
+replay there and records `RecordedSettingChange("LiveTrafficFeedTimeUtc")` (a no-op on replay — the recorded samples drive it).
+`GoLive` disposes the replay and sets `RoomLiveTrafficState.RejoinLive` so the next sync reacquires from the shared store
+instead of opening another replay. `LiveTrafficStatusDto` carries `FeedTimeUtc`, `BehindSeconds` (null while live) and
+`Preparing`; the client badge shows `LIVE −mm:ss` / `PREPARING`, and clicking it opens `LiveTrafficDvrFlyout` (window from
+`GetLiveTrafficWindow`, slider + HH:mm → `SeekLiveTraffic`, Go Live). Replays are disposed on Go Live, seek, live traffic off and
+room close (`TrainingRoomManager.RemoveRoom`). Tests: `SwimRawLogFollowerTests`, `LiveTrafficDvrTests`. Scrubbing inside the server's raw-log window ("DVR") is designed in
 yaat-server `docs/plans/live-traffic-swim/09-live-sessions.md` and not built.
 
 ## SWIM ingest (yaat-server `src/Yaat.Server/LiveTraffic/Swim/`)

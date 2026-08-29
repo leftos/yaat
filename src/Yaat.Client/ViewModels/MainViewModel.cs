@@ -230,6 +230,10 @@ public partial class MainViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(LiveSessionBadgeText))]
     [NotifyPropertyChangedFor(nameof(LiveSessionBadgeBrush))]
     [NotifyPropertyChangedFor(nameof(CanStartLiveSession))]
+    [NotifyPropertyChangedFor(nameof(ShowGoLive))]
+    [NotifyPropertyChangedFor(nameof(IsBehindRealTime))]
+    [NotifyPropertyChangedFor(nameof(LiveFeedTimeUtc))]
+    [NotifyPropertyChangedFor(nameof(LiveFeedTimeText))]
     private LiveTrafficStatusDto? _liveTrafficStatus;
 
     /// <summary>

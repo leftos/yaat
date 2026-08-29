@@ -151,10 +151,26 @@ public class MainViewModelSessionSettingsTests
         var vm = new MainViewModel(new FakeFilePickerService());
         Assert.False(vm.LiveTrafficAvailable);
 
-        vm.LiveTrafficStatus = new LiveTrafficStatusDto(FeedConfigured: false, Connected: false, LastMessageAgeSeconds: null, TracksInScope: 0);
+        vm.LiveTrafficStatus = new LiveTrafficStatusDto(
+            FeedConfigured: false,
+            Connected: false,
+            LastMessageAgeSeconds: null,
+            TracksInScope: 0,
+            FeedTimeUtc: null,
+            BehindSeconds: null,
+            Preparing: false
+        );
         Assert.False(vm.LiveTrafficAvailable);
 
-        vm.LiveTrafficStatus = new LiveTrafficStatusDto(FeedConfigured: true, Connected: false, LastMessageAgeSeconds: null, TracksInScope: 0);
+        vm.LiveTrafficStatus = new LiveTrafficStatusDto(
+            FeedConfigured: true,
+            Connected: false,
+            LastMessageAgeSeconds: null,
+            TracksInScope: 0,
+            FeedTimeUtc: null,
+            BehindSeconds: null,
+            Preparing: false
+        );
         Assert.True(vm.LiveTrafficAvailable);
     }
 
@@ -165,7 +181,15 @@ public class MainViewModelSessionSettingsTests
         var raised = new List<string?>();
         vm.PropertyChanged += (_, e) => raised.Add(e.PropertyName);
 
-        vm.LiveTrafficStatus = new LiveTrafficStatusDto(FeedConfigured: true, Connected: true, LastMessageAgeSeconds: 1, TracksInScope: 3);
+        vm.LiveTrafficStatus = new LiveTrafficStatusDto(
+            FeedConfigured: true,
+            Connected: true,
+            LastMessageAgeSeconds: 1,
+            TracksInScope: 3,
+            FeedTimeUtc: null,
+            BehindSeconds: null,
+            Preparing: false
+        );
 
         Assert.Contains(nameof(MainViewModel.LiveTrafficAvailable), raised);
         Assert.True(vm.LiveTrafficAvailable);

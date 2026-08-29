@@ -11,19 +11,25 @@ public class LiveTrafficStatusTextTests
     public void NotConfigured_AndNull_ReadNotConfigured()
     {
         Assert.Equal("LIVE · not configured", MainViewModel.FormatLiveTrafficStatus(null));
-        Assert.Equal("LIVE · not configured", MainViewModel.FormatLiveTrafficStatus(new LiveTrafficStatusDto(false, false, null, 0)));
+        Assert.Equal(
+            "LIVE · not configured",
+            MainViewModel.FormatLiveTrafficStatus(new LiveTrafficStatusDto(false, false, null, 0, null, null, false))
+        );
     }
 
     [Fact]
     public void Disconnected_ReadsDisconnected()
     {
-        Assert.Equal("LIVE · disconnected", MainViewModel.FormatLiveTrafficStatus(new LiveTrafficStatusDto(true, false, 120, 3)));
+        Assert.Equal("LIVE · disconnected", MainViewModel.FormatLiveTrafficStatus(new LiveTrafficStatusDto(true, false, 120, 3, null, null, false)));
     }
 
     [Fact]
     public void Connected_ShowsTracksAndAge()
     {
-        Assert.Equal("LIVE · 42 tracks · 3 s", MainViewModel.FormatLiveTrafficStatus(new LiveTrafficStatusDto(true, true, 2.6, 42)));
-        Assert.Equal("LIVE · 1 track", MainViewModel.FormatLiveTrafficStatus(new LiveTrafficStatusDto(true, true, null, 1)));
+        Assert.Equal(
+            "LIVE · 42 tracks · 3 s",
+            MainViewModel.FormatLiveTrafficStatus(new LiveTrafficStatusDto(true, true, 2.6, 42, null, null, false))
+        );
+        Assert.Equal("LIVE · 1 track", MainViewModel.FormatLiveTrafficStatus(new LiveTrafficStatusDto(true, true, null, 1, null, null, false)));
     }
 }

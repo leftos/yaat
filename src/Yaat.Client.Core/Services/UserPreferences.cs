@@ -2205,6 +2205,10 @@ public sealed class LiveSessionChoice
     public string PositionLabel { get; set; } = "";
     public string AirportId { get; set; } = "";
     public int CeilingFt { get; set; }
+
+    /// <summary>A past feed instant to open the session at (DVR); never remembered — a fresh session starts at now.</summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public DateTimeOffset? StartUtc { get; set; }
 }
 
 public sealed class RecentScenario
