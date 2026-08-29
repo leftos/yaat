@@ -271,7 +271,7 @@ measurements: yaat-server `docs/plans/live-traffic-swim/04-swim-ingest.md`; depl
 - **Correlation** — `SwimTrackCorrelator` keys tracks by callsign and resolves identity-less records through
   `(TRACON, track number)`, `(airport, ASDE-X track)`, ICAO24 and ERAM GUFI indices learned from earlier records. One `LiveView`
   per source with **sticky instance** ownership (another TRACON/ARTCC may overwrite only after 12 s / 24 s / 2 s of silence),
-  backwards-position and older-observation skips, a **stale skip** for positions already 5× the source timeout old when they
+  backwards-position (radar sources only — surface turnarounds are real) and older-observation skips, a **stale skip** for positions already 5× the source timeout old when they
   arrive (a durable queue draining its backlog after a reconnect — the record's identity and plan parts still apply), TAIS `terminated`+`delete` and `drop` status dropping the STARS view, track-number
   reuse under a new callsign dropping the old flight's view (turnaround), SFDPS `DROPPED`/`COMPLETED`/`CANCELLED` ending the ERAM
   view, vehicles / `UNKN` / `OPS*` / `PO\d+` ignored. ASDE-X also tracks arrivals on final and departures after liftoff, and
