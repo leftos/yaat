@@ -1,0 +1,63 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="Yaat.Client.Views.LiveSessionWindow"
+        Icon="avares://Yaat.Client/Resources/icon.png"
+        Title="Start Live Session"
+        Width="620"
+        Height="520"
+        MinWidth="480"
+        MinHeight="380"
+        WindowStartupLocation="CenterOwner"
+        CanResize="True">
+
+    <DockPanel Margin="12">
+
+        <StackPanel DockPanel.Dock="Bottom"
+                    Orientation="Horizontal"
+                    HorizontalAlignment="Right"
+                    Spacing="8"
+                    Margin="0,8,0,0">
+            <Button Content="Start"
+                    x:Name="StartButton"
+                    Width="80"
+                    IsEnabled="False" />
+            <Button Content="Cancel"
+                    x:Name="CancelButton"
+                    Width="80" />
+        </StackPanel>
+
+        <TextBlock DockPanel.Dock="Top"
+                   Text="Pick the position to work. Real traffic from the SWIM feed fills the room; there is no authored scenario. Aircraft on the FAA LADD block list never appear."
+                   TextWrapping="Wrap"
+                   Foreground="{DynamicResource SubtleTextBrush}"
+                   Margin="0,0,0,8" />
+
+        <Grid DockPanel.Dock="Bottom"
+              ColumnDefinitions="Auto,*,Auto,Auto"
+              RowDefinitions="Auto"
+              Margin="0,8,0,0">
+            <TextBlock Grid.Column="0" Text="Primary airport:" VerticalAlignment="Center" Margin="0,0,8,0" />
+            <ComboBox Grid.Column="1"
+                      x:Name="AirportBox"
+                      MinWidth="120"
+                      HorizontalAlignment="Left"
+                      ToolTip.Tip="The room's primary airport: the ground view, surface (ASDE-X) traffic, flight strips and the radar centre follow it." />
+            <TextBlock Grid.Column="2" Text="Ceiling (ft MSL, 0 = auto):" VerticalAlignment="Center" Margin="16,0,8,0" />
+            <NumericUpDown Grid.Column="3"
+                           x:Name="CeilingBox"
+                           Minimum="0"
+                           Maximum="60000"
+                           Increment="1000"
+                           FormatString="0"
+                           Width="130"
+                           ToolTip.Tip="Only real aircraft at or below this altitude are shown. 0 uses the facility's own ceiling." />
+        </Grid>
+
+        <Grid ColumnDefinitions="*,8,*" RowDefinitions="Auto,*">
+            <TextBlock Grid.Row="0" Grid.Column="0" Text="Facility" FontWeight="Bold" Margin="0,0,0,4" />
+            <TextBlock Grid.Row="0" Grid.Column="2" Text="Position" FontWeight="Bold" Margin="0,0,0,4" />
+            <TreeView Grid.Row="1" Grid.Column="0" x:Name="FacilityTree" />
+            <ListBox Grid.Row="1" Grid.Column="2" x:Name="PositionList" />
+        </Grid>
+    </DockPanel>
+</Window>

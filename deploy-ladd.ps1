@@ -24,7 +24,7 @@ $serverRepo = Join-Path (Split-Path $PSScriptRoot -Parent) "yaat-server"
 $localFile = Join-Path $serverRepo "ladd" "ladd.json"
 
 if (-not (Test-Path $localFile)) {
-  throw "No LADD list at $localFile. Build it first: python tools/refresh-ladd.py <IndustryLADD file> --published <date> (in yaat-server)."
+  throw "No LADD list at $localFile. Build it first: python tools/refresh-ladd.py <LADD zip> --download-aircraft-db (in yaat-server)."
 }
 
 $list = Get-Content $localFile -Raw | ConvertFrom-Json

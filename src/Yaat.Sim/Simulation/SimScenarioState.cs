@@ -163,6 +163,12 @@ public sealed class SimScenarioState
     // (not during playback/reconstruction) so it captures the original session exactly once.
     public List<RecordedTerminalEntry> TerminalLog { get; } = [];
     public bool IsPlaybackMode { get; set; }
+
+    /// <summary>
+    /// The scenario was synthesized for a live-traffic session (<see cref="Scenarios.Scenario.LiveSession"/>): playback
+    /// of the room's own tape runs back into live traffic instead of pausing at the tape end.
+    /// </summary>
+    public bool IsLiveSession { get; set; }
     public int PlaybackCursor { get; set; }
     public double PlaybackEndSeconds { get; set; }
     public string? ArtccId { get; set; }

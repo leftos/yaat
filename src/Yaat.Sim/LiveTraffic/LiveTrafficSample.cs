@@ -30,6 +30,12 @@ public enum LiveTrafficRemovalReason
 
     /// <summary>Live traffic was turned off for the room.</summary>
     Disabled,
+
+    /// <summary>
+    /// The room rejoined real time after a gap (pause, rewind, stall) longer than a radar outage: every shadow is dropped
+    /// and re-acquired from the feed rather than teleported, so no history straddles the gap.
+    /// </summary>
+    Reanchored,
 }
 
 /// <summary>

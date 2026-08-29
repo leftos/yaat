@@ -242,6 +242,31 @@ bundle's sim seconds back to the real-world feed window (see *Reproducing a repo
   `TrainingDtoFingerprint`. Shadows are excluded from auto-TDLS, auto arrival strips and the rolling-call strip
   (`IsDepartureAircraft` / `IsArrivalCandidate` / `IsApproachDepartureCandidate`).
 
+### Live sessions (no authored scenario)
+
+`TrainingHub.StartLiveSession(LiveSessionRequestDto)` → `RoomEngine.StartLiveSessionAsync`: refuses (a failed
+`LoadScenarioResult` whose first warning is the reason) when the server has no feed (`SimControlService.LiveTrafficFeedConfigured`),
+the position is not in the room's ARTCC, or the airport is unknown to the nav database (FAA/ICAO twin accepted); otherwise
+`LiveSessionScenario.Build` serializes a zero-aircraft `Scenario { Id = live:<artcc>:<position>:<airport>, LiveSession = true }`
+that goes through the ordinary `ScenarioLifecycleService.LoadScenarioAsync` (so facility resolution, ground layout, recording and
+rewind are untouched), then `SetLiveTrafficEnabled(true)`, the ceiling, and `Resume`. `Scenario.LiveSession` (JSON `liveSession`)
+→ `ScenarioLoadResult.IsLiveSession` → `SimScenarioState.IsLiveSession` (set at every state construction site: `SimulationEngine`,
+`ScenarioLifecycleService` load + rewind) → `IsLiveSession` on `LoadScenarioResult` / `ScenarioLoadedDto` / `RoomStateDto`. It is
+a property of the loaded scenario, not a session setting: it survives rewinds and recordings because the JSON does.
+`GetArtccFacilityTree(artccId)` returns the `FacilityTreeDto` tree the picker uses: `AirportId` only when the facility id
+resolves as an airport (`LiveSessionScenario.IsKnownAirport` — an `AtctTracon` like MC1 is not one), `PrimaryAirportId` =
+`ArtccConfigService.PrimaryFacilityAirport` (first underlying airport of the first STARS area: SFO for NCT and O90, SMF for MC1),
+`Airports` = `ResolveFacilityAirports`. Time model: a paused live session freezes its shadows (the tick loop skips the room);
+`SimulationHostedService.ProcessRoomSecond` at the tape end calls `TakeControl` and keeps running for a live session (instead of
+pausing) — the tape's future was only feed samples the store re-supplies; `RoomEngine.GoLive` (hub `GoLive`) = `TakeControl` +
+`Resume`, refused outside a live session. **Rejoining real time is a reacquire, not a teleport** (aviation review): when
+`ShadowTrafficSync.Anchor` finds the sync non-continuous and the wall gap since `RoomLiveTrafficState.LastSyncWallUtc` (kept across
+a rewind's `Reset`) exceeds `ReacquireGapSeconds` (15 s, the STARS removal window) — or is unknown — `ReacquireAfterGap` removes
+every shadow (`LiveTrafficRemovalReason.Reanchored`) so the same second re-spawns them from the store with fresh history (no derived
+vertical speed, ground-roll detection or CA prediction straddles the gap), and prints `live traffic rejoined — real traffic moved on
+mm:ss; N shadows re-acquired from the feed`. Gaps under 15 s keep their shadows; the next sample re-places them. Scrubbing inside the server's raw-log window ("DVR") is designed in
+yaat-server `docs/plans/live-traffic-swim/09-live-sessions.md` and not built.
+
 ## SWIM ingest (yaat-server `src/Yaat.Server/LiveTraffic/Swim/`)
 
 The feed is the FAA SWIM Cloud Distribution Service (SCDS): two Solace queues, nationwide — STDDS (TAIS terminal tracks +
@@ -334,6 +359,16 @@ harness shows is what the server did.
 - **Aircraft List** — `MainViewModel.IsAircraftVisible(ac, showOnlyActive, filter, LiveTrafficListFilter)`; the tri-state
   (`All` / `HideLive` / `OnlyLive`, `Yaat.Client.Models.LiveTrafficListFilter`) persists via `UserPreferences.LiveTrafficListFilter`
   and is picked from the status-bar indicator's context flyout (three radio adapters `LiveTrafficListShowAll/HideLive/OnlyLive`).
+- **Live sessions** (`MainViewModel.LiveSession.cs`) — **Scenario > Start Live Session…** opens `LiveSessionWindow` (facility
+  `TreeView` from `GetArtccFacilityTreeAsync`, positions of the selected facility starred-first, airport combo from
+  `LiveSessionAirportDefaults.Resolve` — the tower-cab airports under the position's facility, falling back to the whole ARTCC —
+  and a ceiling). It returns a `LiveSessionChoice` (persisted as `UserPreferences.LastLiveSession` for pre-selection);
+  `StartLiveSessionAsync` sends `LiveSessionRequestDto`, applies the `LoadScenarioResultDto` through `ApplyScenarioResult`
+  like any load, then runs `LoadLiveWeatherCommand`. `IsLiveSession` mirrors the server flag from all three activation DTOs
+  (`ApplyScenarioResult`, `OnScenarioLoaded`, `ApplyRoomState`; cleared in `ClearScenarioState`) and drives the timeline badge
+  (`LiveSessionBadgeText`: `LIVE` / `PAUSED` / `PLAYBACK` / `LIVE · feed lost`, `DescribeLiveSession` is the pure projection)
+  plus `ShowGoLive` (paused or playback) — `GoLiveCommand` → `GoLiveAsync`. A live session hides the scenario `PLAYBACK`
+  badge and Take Control (`ShowPlaybackBadge` / `ShowTakeControl`). `CanStartLiveSession` = `CanLoadScenario && LiveTrafficAvailable`.
 - **Session flyout / status bar** — `SessionLiveTrafficEnabled` + `SessionLiveTrafficCeilingFt` (both under the echo guard;
   a refused enable reverts the checkbox and prints the reason). The sim-rate picker binds `IsEnabled` to
   `!SessionLiveTrafficEnabled` (`SimRateToolTip`). `LiveTrafficStatusText` (`FormatLiveTrafficStatus`) renders
@@ -344,7 +379,11 @@ harness shows is what the server did.
 
 `tests/Yaat.Client.Tests/`: `AircraftCommandApplicabilityTests` (shadow → only Assume; surface shadow → nothing; assumed →
 normal), `AircraftViewFilterTests` (tri-state), `LiveTrafficStatusTextTests`; `tests/Yaat.Client.UI.Tests/Views/TargetRendererColorTests`
-(stale alpha).
+(stale alpha); `tests/Yaat.Client.UI.Tests/ViewModels/MainViewModelLiveSessionTests` (badge projection, Go Live chrome) and
+`Services/LiveSessionAirportDefaultsTests` (tower / TRACON / center airport defaults). yaat-server
+`tests/Yaat.Server.Tests/LiveTraffic/LiveSessionTests`: the synthesized scenario round-trips through `ScenarioLoader`, `StartLiveSessionAsync`
+loads + enables + resumes, refusals (no feed / unknown position / unknown airport), the facility tree, the live-session tape-end rule
+against `SimulationHostedService.ProcessRoomSecond` (and the authored-scenario pause it keeps), `GoLive`.
 
 `tests/Yaat.Sim.Tests/LiveTraffic/`: `LiveTrafficKinematicsTests` (dead reckoning, 4 Hz motion, air vector under a
 100-kt crosswind, coast timing, out-of-order/jump samples, derived VS, surface pose, snapshot round trip, status,

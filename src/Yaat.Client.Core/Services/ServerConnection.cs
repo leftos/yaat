@@ -635,6 +635,30 @@ public sealed class ServerConnection : IStripsTransport, ITdlsTransport, IAsyncD
         await _connection!.InvokeAsync("TakeControl");
     }
 
+    /// <summary>Live session only: take control of the tape and resume, rejoining real time.</summary>
+    public async Task<CommandResultDto> GoLiveAsync()
+    {
+        EnsureConnected();
+        return await _connection!.InvokeAsync<CommandResultDto>("GoLive");
+    }
+
+    /// <summary>
+    /// Opens a live-traffic session at a position/airport: the server synthesizes a zero-aircraft scenario, loads it,
+    /// turns live traffic on and starts the clock. A refusal is a failed result whose first warning is the reason.
+    /// </summary>
+    public async Task<LoadScenarioResultDto> StartLiveSessionAsync(LiveSessionRequestDto request)
+    {
+        EnsureConnected();
+        return await _connection!.InvokeAsync<LoadScenarioResultDto>("StartLiveSession", request);
+    }
+
+    /// <summary>The ARTCC's facility tree with positions and tower-cab airports, for the live-session picker.</summary>
+    public async Task<FacilityTreeDto?> GetArtccFacilityTreeAsync(string artccId)
+    {
+        EnsureConnected();
+        return await _connection!.InvokeAsync<FacilityTreeDto?>("GetArtccFacilityTree", artccId);
+    }
+
     public async Task<TimelineInfoDto?> GetTimelineInfoAsync()
     {
         EnsureConnected();
@@ -1124,7 +1148,8 @@ public record LoadScenarioResultDto(
     int CommandRunDelayMinSeconds = 0,
     int CommandRunDelayMaxSeconds = 0,
     bool LiveTrafficEnabled = false,
-    int LiveTrafficCeilingFt = 0
+    int LiveTrafficCeilingFt = 0,
+    bool IsLiveSession = false
 );
 
 /// <summary>
@@ -1206,11 +1231,34 @@ public record RoomStateDto(
     string? StudentPositionType = null,
     bool LiveTrafficEnabled = false,
     int LiveTrafficCeilingFt = 0,
-    LiveTrafficStatusDto? LiveTrafficStatus = null
+    LiveTrafficStatusDto? LiveTrafficStatus = null,
+    bool IsLiveSession = false
 );
 
 /// <summary>Live-traffic feed health for the room: feed configured / connected, last-message age, tracks in scope.</summary>
 public record LiveTrafficStatusDto(bool FeedConfigured, bool Connected, double? LastMessageAgeSeconds, int TracksInScope);
+
+/// <summary>What the client asks for when it opens a live-traffic session: the position to stand at and the airport to show.</summary>
+public record LiveSessionRequestDto(string PositionId, string PrimaryAirportId, int CeilingFt);
+
+/// <summary>One position as the live-session picker lists it; <c>Frequency</c> in Hz as vNAS stores it.</summary>
+public record PositionSummaryDto(string Id, string Name, string Callsign, long Frequency, bool Starred);
+
+/// <summary>
+/// One node of an ARTCC's facility tree for the live-session picker. <c>AirportId</c> is the facility's own airport (a tower
+/// whose id is an airport); <c>PrimaryAirportId</c> the first airport of its first STARS area (a TRACON's primary);
+/// <c>Airports</c> every airport its STARS configuration names.
+/// </summary>
+public record FacilityTreeDto(
+    string Id,
+    string Type,
+    string Name,
+    string? AirportId,
+    string? PrimaryAirportId,
+    List<string> Airports,
+    List<PositionSummaryDto> Positions,
+    List<FacilityTreeDto> Children
+);
 
 public record ScenarioLoadedDto(
     string ScenarioId,
@@ -1245,7 +1293,8 @@ public record ScenarioLoadedDto(
     int CommandRunDelayMinSeconds = 0,
     int CommandRunDelayMaxSeconds = 0,
     bool LiveTrafficEnabled = false,
-    int LiveTrafficCeilingFt = 0
+    int LiveTrafficCeilingFt = 0,
+    bool IsLiveSession = false
 );
 
 public record ScenarioPositionDto(string Id, string Callsign, string Name);

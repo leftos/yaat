@@ -28,6 +28,7 @@ public class ScenarioLoadResult
     public bool HasArrivalGenerators { get; init; }
     public string? AutoDeleteMode { get; init; }
     public string? MinimumRating { get; init; }
+    public bool IsLiveSession { get; init; }
     public List<string> Warnings { get; init; } = [];
 
     /// <summary>
@@ -125,6 +126,7 @@ public static class ScenarioLoader
             HasArrivalGenerators = (scenario.AircraftGenerators.Count > 0) || (scenario.VfrArrivalGenerators.Count > 0),
             AutoDeleteMode = scenario.AutoDeleteMode,
             MinimumRating = scenario.MinimumRating,
+            IsLiveSession = scenario.LiveSession,
             Warnings = warnings,
             InitialStripBayByCallsign = ResolveStripBayAssignments(scenario),
         };

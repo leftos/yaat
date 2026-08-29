@@ -466,6 +466,7 @@ public partial class MainViewModel
             )
         );
         StashScenarioGeneratorsAndPositions(result.AircraftGenerators, result.VfrArrivalGenerators, result.OverflightGenerators, result.Positions);
+        IsLiveSession = result.IsLiveSession;
         ApplySimState(result.IsPaused, result.SimRate);
         ApplySessionSettingsFromLoadScenarioResult(result);
 
@@ -502,6 +503,7 @@ public partial class MainViewModel
                 )
             );
             StashScenarioGeneratorsAndPositions(dto.AircraftGenerators, dto.VfrArrivalGenerators, dto.OverflightGenerators, dto.Positions);
+            IsLiveSession = dto.IsLiveSession;
             ApplySimState(dto.IsPaused, dto.SimRate);
 
             // Apply session settings from the server (set by the loading RPO).
@@ -651,6 +653,7 @@ public partial class MainViewModel
         ActiveScenarioId = null;
         ActiveScenarioName = null;
         ActiveScenarioPrimaryAirportId = null;
+        IsLiveSession = false;
         _studentPositionType = null;
         _isAutoClearedToLand = false;
         Radar.ShowMvaHints = false;

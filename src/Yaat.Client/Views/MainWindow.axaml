@@ -107,6 +107,10 @@
                           ToolTip.Tip="Loading a scenario requires a mentor or instructor.">
                     <MenuItem Header="(No recent scenarios)" IsEnabled="False" />
                 </MenuItem>
+                <MenuItem Header="Start Live _Session..."
+                          x:Name="StartLiveSessionMenuItem"
+                          IsEnabled="{Binding CanStartLiveSession}"
+                          ToolTip.Tip="{Binding StartLiveSessionToolTip}" />
                 <MenuItem Header="_Restart Scenario"
                           Command="{Binding RestartScenarioCommand}"
                           ToolTip.Tip="Re-run this scenario from the start with new traffic." />
@@ -272,10 +276,14 @@
                     <Slider Grid.Row="2" x:Name="TimelineSlider" Minimum="0" Maximum="{Binding TimelineMaximum}" VerticalAlignment="Center" />
                 </Grid>
                 <TextBlock Grid.Column="11" Text="{Binding TapeEndDisplay}" VerticalAlignment="Center" FontSize="12" FontFamily="{StaticResource MonoFont}" Margin="0,0,4,0" IsVisible="{Binding IsPlaybackMode}" />
-                <Border Grid.Column="12" Background="#553A8C" CornerRadius="3" Padding="6,1" IsVisible="{Binding IsPlaybackMode}" VerticalAlignment="Center">
+                <Border Grid.Column="12" Background="#553A8C" CornerRadius="3" Padding="6,1" IsVisible="{Binding ShowPlaybackBadge}" VerticalAlignment="Center">
                     <TextBlock Text="PLAYBACK" FontSize="11" Foreground="White" />
                 </Border>
-                <Button Grid.Column="13" Content="Take Control" FontSize="11" Padding="6,2" Margin="4,0,0,0" Command="{Binding TakeControlCommand}" IsVisible="{Binding IsPlaybackMode}" />
+                <Border Grid.Column="12" Background="{Binding LiveSessionBadgeBrush}" CornerRadius="3" Padding="6,1" IsVisible="{Binding IsLiveSession}" VerticalAlignment="Center" ToolTip.Tip="Live session: real traffic from the SWIM feed">
+                    <TextBlock Text="{Binding LiveSessionBadgeText}" FontSize="11" Foreground="White" />
+                </Border>
+                <Button Grid.Column="13" Content="Take Control" FontSize="11" Padding="6,2" Margin="4,0,0,0" Command="{Binding TakeControlCommand}" IsVisible="{Binding ShowTakeControl}" />
+                <Button Grid.Column="13" Content="Go Live" FontSize="11" Padding="6,2" Margin="4,0,0,0" Command="{Binding GoLiveCommand}" IsVisible="{Binding ShowGoLive}" ToolTip.Tip="Leave playback / pause and rejoin real time" />
                 <Border Grid.Column="14"
                         Background="#2D3748"
                         BorderBrush="#4A5568"

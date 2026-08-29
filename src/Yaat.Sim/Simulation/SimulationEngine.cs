@@ -628,6 +628,7 @@ public sealed class SimulationEngine
             OriginalScenarioJson = json,
             PrimaryAirportId = result.PrimaryAirportId,
             ArtccId = result.ArtccId,
+            IsLiveSession = result.IsLiveSession,
             InitialContactTransfers = NavigationDatabase.Instance.InitialContactTransfers,
             WakeDirectives = NavigationDatabase.Instance.WakeDirectives,
             HasSoloParkingInitialCallupSource = result.HasParkingSpawns,

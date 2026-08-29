@@ -48,6 +48,13 @@ public class Scenario
 
     [JsonPropertyName("minimumRating")]
     public string? MinimumRating { get; set; }
+
+    /// <summary>
+    /// True for a scenario synthesized to host a live-traffic session (no authored traffic; the room's shadows are the
+    /// traffic). Carried in the JSON so rewinds, recordings and bundles reload it unchanged.
+    /// </summary>
+    [JsonPropertyName("liveSession")]
+    public bool LiveSession { get; set; }
 }
 
 public class ScenarioAircraft

@@ -1054,7 +1054,7 @@ def _enumerate_callsigns(reader: BundleReader) -> list[str]:
 
 
 _LIVE_TRAFFIC_SOURCE = {0: "STARS", 1: "ERAM", 2: "ASDEX"}
-_LIVE_TRAFFIC_REMOVAL = {0: "Stale", 1: "Dropped", 2: "OutOfScope", 3: "Deleted", 4: "Disabled"}
+_LIVE_TRAFFIC_REMOVAL = {0: "Stale", 1: "Dropped", 2: "OutOfScope", 3: "Deleted", 4: "Disabled", 5: "Reanchored"}
 
 
 def _format_live_traffic_action(a: dict[str, Any]) -> str | None:

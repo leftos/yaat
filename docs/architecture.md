@@ -262,6 +262,7 @@ Services/
   TowerCabMapParser.cs          # Parses tower cab GeoJSON video maps into filled polygons + colored lines
   LiveWeatherService.cs         # Fetches live METARs + FD winds from aviationweather.gov → WeatherProfile
   ArtccAirportResolver.cs       # Fetches vNAS ARTCC config → underlying airport IDs (cached); recurses the facility tree for every STARS config
+  LiveSessionAirportDefaults.cs # Pure: which airports the live-session picker offers for a position (tower-cab airports under its facility, else the ARTCC) and the default
   FdRegionMapping.cs            # Static ARTCC → FD region code mapping
   UserPreferences.cs            # JSON to %LOCALAPPDATA%/yaat/preferences.json (incl. macros, loaded favorite-set ids (FavoriteSetsChanged event) + legacy favorites fields kept readable for FavoriteLegacyMigration, favorite video maps per ARTCC/airport/scenario, favorite METAR stations per scenario, and the macOS renderer-backend override read by Program.BuildAvaloniaApp)
   FavoriteStore.cs              # Identity model for favorite commands: FavoriteCommand entities (8-hex ids) + FavoriteSet containers (Global/Airport/Scenario/Named, id-list membership), file-per-entity persistence under %LOCALAPPDATA%/yaat/favorites/ ([Label].{id}.json, rename-follows-label), ComposeDisplay (visible containers in order), Changed event
@@ -296,6 +297,7 @@ ViewModels/
   MainViewModel.HoldForRelease.cs # Partial: hold-for-release rundown mirror + REL release commands (HeldDeparturesChanged handler, RoomStateDto.Rundown seed)
   MainViewModel.Timers.cs       # Partial: TIMER countdown mirror + cancel command (TimersChanged handler, RoomStateDto.Timers seed, command-bar timers panel)
   MainViewModel.Weather.cs      # Partial: weather load/clear commands + WeatherChanged handler; retains raw METARs (Metars) for the METAR window, sorted per-scenario favorites first then alphabetical
+  MainViewModel.LiveSession.cs  # Partial: live-traffic sessions — IsLiveSession mirror (from LoadScenarioResult/ScenarioLoaded/RoomState), LIVE/PAUSED/PLAYBACK badge + Go Live command, StartLiveSessionAsync (result applied like a scenario load, then live weather), CanStartLiveSession
   MainViewModel.Controllers.cs  # Partial: online-controller list (OnlineControllers + CRC-grouped ControllerGroups) for the Controllers tab; refresh via GetOnlineControllers, re-fetched on CRC membership + scenario load/unload
   MainViewModel.ActivePosition.cs # Partial: active-position (TCP) indicator/dropdown in the input bar (ActiveTcp + ActiveTcpOptions); seeded from the bootstrap PositionDisplayConfig, follows PositionDisplayChanged (standalone AS only), picking a TCP sends AS [TCP]
   MainViewModel.Favorites.cs    # Partial: favorite commands (quick-access bar/panel, ground overrides, blank spacers) over FavoriteStore — DisplayFavorites of FavoriteDisplayEntry (favorite + container id), membership-based Add/Update/Delete, container-scoped reorder/blank-insert, FavoriteContainerOption picker rows (on-demand airport/scenario containers), zip import/export passthroughs
@@ -339,6 +341,7 @@ Views/
   MetarWindow.axaml.cs          # Pop-out host for MetarView (View > Pop Out METAR)
   FavoritesContextMenu.cs       # Builds the Favorite Commands submenu attached to aircraft right-click menus (list/ground/radar)
   LiveTrafficMenuItems.cs       # "Assume control" / "Assume and track" items for an assumable live-traffic shadow, shared by the three right-click menus
+  LiveSessionWindow.axaml.cs    # Start Live Session picker: facility TreeView (GetArtccFacilityTree) → positions (starred first) → airport combo (LiveSessionAirportDefaults) + ceiling; returns LiveSessionChoice, pre-selects UserPreferences.LastLiveSession
   FavoritesContextMenuModel.cs  # Pure model behind FavoritesContextMenu: resolves active favorites against the clicked aircraft for headless tests
   DataGridView.axaml.cs         # Aircraft data grid (extracted from MainWindow)
   DataGridView.ContextMenu.cs   # Partial: phase-aware right-click menu builders

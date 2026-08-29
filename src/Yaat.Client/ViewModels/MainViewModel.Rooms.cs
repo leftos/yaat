@@ -744,6 +744,7 @@ public partial class MainViewModel
                     state.AllAircraft
                 )
             );
+            IsLiveSession = state.IsLiveSession;
             ApplySimState(state.IsPaused, (int)state.SimRate, state.ElapsedSeconds, state.IsPlayback, state.TapeEnd);
 
             // MVA tint is a user-local display default (unlike room-shared auto-cleared-to-land, which
@@ -756,6 +757,7 @@ public partial class MainViewModel
             // Room with no scenario loaded: still reset the aircraft list from
             // whatever the server says (normally empty) so we don't carry
             // stale aircraft from a prior room.
+            IsLiveSession = false;
             Aircraft.Clear();
             ClearBookmarks();
             foreach (var dto in state.AllAircraft)

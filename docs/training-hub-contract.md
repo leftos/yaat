@@ -119,6 +119,9 @@ both the wrapper name and the hub method's own semantics** — grep for the stri
 | `RewindToAsync(elapsedSeconds)` | **`RewindTo`** | `RewindTo(...)` `:907` |
 | `RewindFromSnapshotAsync(…)` | `RewindFromSnapshot` | `RewindFromSnapshot(...)` `:925` |
 | `TakeControlAsync()` | `TakeControl` | `TakeControl()` `:943` |
+| `GoLiveAsync()` | `GoLive` | `GoLive()` → `CommandResultDto`; live session only (`TakeControl` + `Resume`) — refused with "Not a live session" otherwise |
+| `StartLiveSessionAsync(LiveSessionRequestDto)` | `StartLiveSession` | `StartLiveSession(...)` → `LoadScenarioResult` (same shape and broadcast fan-out as `LoadScenario`; a refusal is `Success=false` with the reason as the first warning); mentor/instructor-gated. `LoadScenarioResult` / `ScenarioLoadedDto` / `RoomStateDto` carry `IsLiveSession` (a property of the loaded scenario, not a session setting) |
+| `GetArtccFacilityTreeAsync(artccId)` | `GetArtccFacilityTree` | `GetArtccFacilityTree(...)` → `FacilityTreeDto?` (facility tree with `PositionSummaryDto`s; `AirportId` when the facility id is an airport, `PrimaryAirportId` from its first STARS area, `Airports` from its STARS configuration) |
 | `GetTimelineInfoAsync()` | `GetTimelineInfo` | `GetTimelineInfo()` |
 | `GetTerminalLogAsync()` | `GetTerminalLog` | `GetTerminalLog()` → `List<TerminalBroadcastDto>` (recorded terminal stream; client repopulates the terminal after a recording load) |
 | `ExportRecordingAsync()` | `ExportRecording` | `ExportRecording()` `:961` (stream) |

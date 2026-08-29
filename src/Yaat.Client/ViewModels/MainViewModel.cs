@@ -140,6 +140,7 @@ public partial class MainViewModel : ObservableObject
     [NotifyCanExecuteChangedFor(nameof(UnloadScenarioCommand))]
     [NotifyCanExecuteChangedFor(nameof(RestartScenarioCommand))]
     [NotifyPropertyChangedFor(nameof(CanLoadScenario))]
+    [NotifyPropertyChangedFor(nameof(CanStartLiveSession))]
     [NotifyCanExecuteChangedFor(nameof(CreateRoomCommand))]
     [NotifyCanExecuteChangedFor(nameof(ShowRoomsCommand))]
     [NotifyCanExecuteChangedFor(nameof(LoadWeatherCommand))]
@@ -171,6 +172,9 @@ public partial class MainViewModel : ObservableObject
     private AircraftModel? _selectedAircraft;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(LiveSessionBadgeText))]
+    [NotifyPropertyChangedFor(nameof(LiveSessionBadgeBrush))]
+    [NotifyPropertyChangedFor(nameof(ShowGoLive))]
     private bool _isPaused;
 
     [ObservableProperty]
@@ -223,6 +227,9 @@ public partial class MainViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(LiveTrafficAvailable))]
     [NotifyPropertyChangedFor(nameof(IsLiveTrafficStatusVisible))]
     [NotifyPropertyChangedFor(nameof(LiveTrafficStatusText))]
+    [NotifyPropertyChangedFor(nameof(LiveSessionBadgeText))]
+    [NotifyPropertyChangedFor(nameof(LiveSessionBadgeBrush))]
+    [NotifyPropertyChangedFor(nameof(CanStartLiveSession))]
     private LiveTrafficStatusDto? _liveTrafficStatus;
 
     /// <summary>
@@ -343,6 +350,11 @@ public partial class MainViewModel : ObservableObject
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(TimelineMaximum))]
+    [NotifyPropertyChangedFor(nameof(LiveSessionBadgeText))]
+    [NotifyPropertyChangedFor(nameof(LiveSessionBadgeBrush))]
+    [NotifyPropertyChangedFor(nameof(ShowGoLive))]
+    [NotifyPropertyChangedFor(nameof(ShowPlaybackBadge))]
+    [NotifyPropertyChangedFor(nameof(ShowTakeControl))]
     private bool _isPlaybackMode;
 
     [ObservableProperty]
@@ -414,6 +426,7 @@ public partial class MainViewModel : ObservableObject
     [NotifyCanExecuteChangedFor(nameof(UnloadScenarioCommand))]
     [NotifyCanExecuteChangedFor(nameof(RestartScenarioCommand))]
     [NotifyPropertyChangedFor(nameof(CanLoadScenario))]
+    [NotifyPropertyChangedFor(nameof(CanStartLiveSession))]
     [NotifyCanExecuteChangedFor(nameof(LoadWeatherCommand))]
     [NotifyCanExecuteChangedFor(nameof(ClearWeatherCommand))]
     [NotifyPropertyChangedFor(nameof(IsInRoom))]
@@ -427,6 +440,7 @@ public partial class MainViewModel : ObservableObject
     [NotifyCanExecuteChangedFor(nameof(UnloadScenarioCommand))]
     [NotifyCanExecuteChangedFor(nameof(RestartScenarioCommand))]
     [NotifyPropertyChangedFor(nameof(CanLoadScenario))]
+    [NotifyPropertyChangedFor(nameof(CanStartLiveSession))]
     private string? _activeScenarioId;
 
     [ObservableProperty]
@@ -1383,6 +1397,7 @@ public partial class MainViewModel : ObservableObject
     [NotifyCanExecuteChangedFor(nameof(UnloadScenarioCommand))]
     [NotifyCanExecuteChangedFor(nameof(RestartScenarioCommand))]
     [NotifyPropertyChangedFor(nameof(CanLoadScenario))]
+    [NotifyPropertyChangedFor(nameof(CanStartLiveSession))]
     [NotifyPropertyChangedFor(nameof(ShowRpoWaiting))]
     private bool _isNonMentor;
 

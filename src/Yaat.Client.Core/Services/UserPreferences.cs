@@ -172,6 +172,9 @@ public sealed class UserPreferences
     public bool ShowTimelineBar => _data.ShowTimelineBar;
     public bool DataGridAlternatingRowColor => _data.DataGridAlternatingRowColor;
     public string? LastScenarioFolder => _data.LastScenarioFolder;
+
+    /// <summary>The position/airport the last live session was opened at; the picker pre-selects it.</summary>
+    public LiveSessionChoice? LastLiveSession => _data.LastLiveSession;
     public string? LastWeatherFolder => _data.LastWeatherFolder;
     public IReadOnlyList<MacroDefinition> Macros => _macros;
 
@@ -611,6 +614,12 @@ public sealed class UserPreferences
     public void SetShowTimelineBar(bool value)
     {
         _data.ShowTimelineBar = value;
+        Save();
+    }
+
+    public void SetLastLiveSession(LiveSessionChoice choice)
+    {
+        _data.LastLiveSession = choice;
         Save();
     }
 
@@ -1639,6 +1648,7 @@ public sealed class UserPreferences
             ShowTimelineBar = GetFieldOr(obj, "showTimelineBar", false),
             DataGridAlternatingRowColor = GetFieldOr(obj, "dataGridAlternatingRowColor", true),
             LastScenarioFolder = GetFieldOr<string?>(obj, "lastScenarioFolder", null),
+            LastLiveSession = GetFieldOr<LiveSessionChoice?>(obj, "lastLiveSession", null),
             LastWeatherFolder = GetFieldOr<string?>(obj, "lastWeatherFolder", null),
             Macros = GetFieldOr<List<SavedMacro>>(obj, "macros", []),
             CrcAliasDirectory = GetFieldOr<string?>(obj, "crcAliasDirectory", null),
@@ -1913,6 +1923,7 @@ public sealed class UserPreferences
         public bool DataGridAlternatingRowColor { get; set; } = true;
         public string? LastActiveRoomId { get; set; }
         public string? LastScenarioFolder { get; set; }
+        public LiveSessionChoice? LastLiveSession { get; set; }
         public string? LastWeatherFolder { get; set; }
         public List<SavedMacro> Macros { get; set; } = [];
         public string? CrcAliasDirectory { get; set; }
@@ -2185,6 +2196,15 @@ public sealed class SavedWindowProfile
     /// <summary>Pre-identity-model loaded-set names; converted to ids and nulled by the one-time migration.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public List<string>? LoadedFavoriteSetNames { get; set; }
+}
+
+/// <summary>A live-session pick: the position to stand at, its display label, the airport to show and the ceiling.</summary>
+public sealed class LiveSessionChoice
+{
+    public string PositionId { get; set; } = "";
+    public string PositionLabel { get; set; } = "";
+    public string AirportId { get; set; } = "";
+    public int CeilingFt { get; set; }
 }
 
 public sealed class RecentScenario

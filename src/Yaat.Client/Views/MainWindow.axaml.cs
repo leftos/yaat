@@ -125,6 +125,12 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
             loadItem.Click += OnLoadScenarioClick;
         }
 
+        var startLiveItem = this.FindControl<MenuItem>("StartLiveSessionMenuItem");
+        if (startLiveItem is not null)
+        {
+            startLiveItem.Click += OnStartLiveSessionClick;
+        }
+
         var loadWeatherItem = this.FindControl<MenuItem>("LoadWeatherMenuItem");
         if (loadWeatherItem is not null)
         {
@@ -1956,6 +1962,23 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
         {
             await LoadScenarioFromApiAsync(vm, result.ApiScenarioId, result.ApiScenarioName);
         }
+    }
+
+    private async void OnStartLiveSessionClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        if (DataContext is not MainViewModel vm)
+        {
+            return;
+        }
+
+        var window = new LiveSessionWindow(vm.Preferences, vm.Connection);
+        var choice = await window.ShowDialog<LiveSessionChoice?>(this);
+        if (choice is null)
+        {
+            return;
+        }
+
+        await vm.StartLiveSessionAsync(choice);
     }
 
     private void OnRecentScenariosSubmenuOpened(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
