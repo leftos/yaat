@@ -281,7 +281,7 @@ measurements: yaat-server `docs/plans/live-traffic-swim/04-swim-ingest.md`; depl
   the ASDE-X view means "on the surface" (`LiveTrafficSample.IsOnGround`), so a report whose Mode S ground bit (`status/gbs`)
   is clear and whose altitude is more than 400 ft above the field (`AirportElevationLookup`, uncorrected pressure altitude
   hence the margin) drops the surface view and leaves STARS/ERAM in charge until the aircraft is back on the ground. An ERAM
-  **callsign amendment** (`flightIdentificationPrevious`, or a GUFI that already names a callsign ERAM has been reporting)
+  **callsign amendment** (`flightIdentificationPrevious`; never inferred from a GUFI seen under another callsign)
   folds the old entry into the new callsign — views the new one lacks, empty plan fields, every index key — and retires
   the old, so a target never shows twice. A GUFI-keyed flight-plan index (SFDPS publishes plans hours ahead; 6 h TTL)
   fills route / filed altitude / speed / equipment into tracks fill-if-empty when TAIS or ASDE-X links the GUFI. `Reap()` (every
