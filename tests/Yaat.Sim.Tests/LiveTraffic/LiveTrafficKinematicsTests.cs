@@ -1,4 +1,5 @@
 using Xunit;
+using Yaat.Sim.Data;
 using Yaat.Sim.LiveTraffic;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
@@ -252,6 +253,21 @@ public class LiveTrafficKinematicsTests
         LiveTrafficKinematics.Apply(ac, AirborneSample(4.5));
         Assert.False(ac.LiveTraffic.IsCoasting);
         Assert.False(ac.LiveTraffic.SourceCoasting);
+    }
+
+    [Fact]
+    public void DeadReckonedDescent_FloorsAtTheFieldElevation_NotSeaLevel()
+    {
+        var navDb = NavigationDatabase.Instance;
+        var den = navDb.FindNearestSizeableAirport(new LatLon(39.8617, -104.6731), 10_000, 5)!.Value;
+        double field = navDb.GetAirportElevation(den.Id)!.Value;
+        Assert.True(field > 5_000, $"{den.Id} elevation {field}");
+
+        // Short final at DEN, sinking at 1 500 fpm, then the feed goes quiet for a minute.
+        var ac = Shadow(Sample(0, new LatLon(den.Lat, den.Lon), field + 200, 130, 170, -1500, LiveTrafficSource.Stars));
+        LiveTrafficKinematics.Advance(ac, 60, null, 60);
+
+        Assert.Equal(field, ac.Altitude, 0);
     }
 
     [Fact]

@@ -39,6 +39,12 @@ public sealed class AircraftLiveTraffic
     public double SampleTrueTrack { get; set; }
     public double SampleVerticalSpeed { get; set; }
 
+    /// <summary>
+    /// Field elevation of the nearest airport when the sample was applied (0 with none within range): the floor a
+    /// dead-reckoned descent is clamped to, so a coasting arrival never sinks below the field at a high-elevation airport.
+    /// </summary>
+    public double FloorAltitudeFt { get; set; }
+
     /// <summary>Recent samples, oldest first, ending with the current one; capped at <see cref="HistoryCapacity"/>.</summary>
     public List<LiveTrafficHistoryPoint> History { get; } = [];
 
@@ -90,6 +96,7 @@ public sealed class AircraftLiveTraffic
             SampleGroundSpeed = SampleGroundSpeed,
             SampleTrueTrack = SampleTrueTrack,
             SampleVerticalSpeed = SampleVerticalSpeed,
+            FloorAltitudeFt = FloorAltitudeFt,
             History = History
                 .Select(h => new LiveTrafficHistoryPointDto
                 {
@@ -130,6 +137,7 @@ public sealed class AircraftLiveTraffic
             SampleGroundSpeed = dto.SampleGroundSpeed,
             SampleTrueTrack = dto.SampleTrueTrack,
             SampleVerticalSpeed = dto.SampleVerticalSpeed,
+            FloorAltitudeFt = dto.FloorAltitudeFt,
             IsCoasting = dto.IsCoasting,
             SourceCoasting = dto.SourceCoasting,
             AssignedAltitudeFt = dto.AssignedAltitudeFt,

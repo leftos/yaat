@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging;
+using Yaat.Sim.Data;
 
 namespace Yaat.Sim.LiveTraffic;
 
@@ -19,6 +20,9 @@ public static class LiveTrafficKinematics
 
     /// <summary>Weight of the newest altitude-delta estimate when smoothing a derived vertical speed.</summary>
     private const double DerivedVerticalSpeedAlpha = 0.5;
+
+    /// <summary>How far an airport may be for its elevation to floor a shadow's dead-reckoned altitude.</summary>
+    public const double FloorLookupRangeNm = 5;
 
     /// <summary>Nominal update interval of each source; two missed sweeps mean the track is coasting.</summary>
     public static double SweepSeconds(LiveTrafficSource source) =>
@@ -171,6 +175,7 @@ public static class LiveTrafficKinematics
         lt.SampleAltitude = sample.AltitudeFt;
         lt.SampleGroundSpeed = sample.GroundSpeedKts;
         lt.SampleTrueTrack = sample.TrueTrackDeg;
+        lt.FloorAltitudeFt = NavigationDatabase.InstanceOrNull?.FindNearestAirportElevation(sample.Position, FloorLookupRangeNm) ?? 0;
         lt.SourceCoasting = sample.SourceCoasting;
         lt.IsCoasting = sample.SourceCoasting;
 
@@ -235,7 +240,7 @@ public static class LiveTrafficKinematics
 
         var track = new TrueHeading(lt.SampleTrueTrack);
         ac.Position = GeoMath.ProjectPoint(lt.SamplePosition, track, lt.SampleGroundSpeed * t / 3600.0);
-        ac.Altitude = Math.Max(0, lt.SampleAltitude + (lt.SampleVerticalSpeed * t / 60.0));
+        ac.Altitude = Math.Max(lt.FloorAltitudeFt, lt.SampleAltitude + (lt.SampleVerticalSpeed * t / 60.0));
         ac.VerticalSpeed = lt.SampleVerticalSpeed;
         ac.TrueTrack = track;
 
