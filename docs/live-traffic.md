@@ -256,7 +256,9 @@ measurements: yaat-server `docs/plans/live-traffic-swim/04-swim-ingest.md`; depl
   and the seam for the repro harness in plan 07).
 - **Parsing** — `SwimMessageParser` dispatches on the document element's local name (`TATrackAndFlightPlan`, `asdexMsg`,
   `MessageCollection`) to one forward-only `XmlReader` pass each; unknown children are skipped, unknown roots and malformed bodies
-  yield null. Emptied FIXM attributes (`nasRouteText=""`, `arrivalPoint=""`) read as absent, never as a value, and `ZZZZ`
+  yield null. Every element a parser walks past unread is counted by `parent/child` path (`SwimSchemaDrift`; `unreadElements`
+  on `/admin/live-traffic`, listed by `Yaat.SwimSlice summary`) — a new path after a schema revision is a field that moved.
+  Emptied FIXM attributes (`nasRouteText=""`, `arrivalPoint=""`) read as absent, never as a value, and `ZZZZ`
   never replaces a real airport. Records are partial by design (TAIS sends track-only, plan-only and enhanced-data-only records; ASDE-X partial
   reports carry a position and little else; every SFDPS message is a delta), so the typed records under `Messages/` are nullable
   throughout. Fixtures in `tests/Yaat.Server.Tests/LiveTraffic/Swim/Fixtures/` are real messages from the 2026-08-28 capture
