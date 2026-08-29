@@ -274,7 +274,10 @@ measurements: yaat-server `docs/plans/live-traffic-swim/04-swim-ingest.md`; depl
   view, vehicles / `UNKN` / `OPS*` / `PO\d+` ignored. ASDE-X also tracks arrivals on final and departures after liftoff, and
   the ASDE-X view means "on the surface" (`LiveTrafficSample.IsOnGround`), so a report whose Mode S ground bit (`status/gbs`)
   is clear and whose altitude is more than 400 ft above the field (`AirportElevationLookup`, uncorrected pressure altitude
-  hence the margin) drops the surface view and leaves STARS/ERAM in charge until the aircraft is back on the ground. A GUFI-keyed flight-plan index (SFDPS publishes plans hours ahead; 6 h TTL)
+  hence the margin) drops the surface view and leaves STARS/ERAM in charge until the aircraft is back on the ground. An ERAM
+  **callsign amendment** (`flightIdentificationPrevious`, or a GUFI that already names a callsign ERAM has been reporting)
+  folds the old entry into the new callsign — views the new one lacks, empty plan fields, every index key — and retires
+  the old, so a target never shows twice. A GUFI-keyed flight-plan index (SFDPS publishes plans hours ahead; 6 h TTL)
   fills route / filed altitude / speed / equipment into tracks fill-if-empty when TAIS or ASDE-X links the GUFI. `Reap()` (every
   60 s) removes views past 10× their timeout, evicts viewless tracks together with every index entry (10 min after the last
   activity, or 6 h for an entry whose plan is still waiting to activate — an ERAM COMPLETED/DROPPED/CANCELLED marks the entry
