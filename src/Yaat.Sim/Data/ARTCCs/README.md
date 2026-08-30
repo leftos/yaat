@@ -290,6 +290,34 @@ intersection departures while ADW is in use.
 
 Worked example: [`ZMA/Airports/mia.json`](ZMA/Airports/mia.json).
 
+### `exitDirections`
+
+Default exit (turn-off) direction overrides, one per landing runway **end**. The airport map's
+`turnoff` property carries a single value per physical runway and YAAT derives the reciprocal end by
+flipping it — both landing directions vacate toward the same physical side. Where that assumption is
+wrong (KMIA authors `turnoff: left` on `8L - 26R`, so 8L arrivals correctly vacate left but 26R
+arrivals get the flipped right, while the facility wants 26R left too), this section pins the side
+for a specific end without touching the other one.
+
+```json
+"exitDirections": [
+  { "runway": "26R", "side": "left", "notes": "MIA facility request — 26R arrivals vacate left." }
+]
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `exitDirections[].runway` | string | Yes | Landing runway end the override applies to, e.g. `"26R"`. Zero-pad-normalized at load, so `"9"` and `"09"` are the same end |
+| `exitDirections[].side` | string | Yes | `"left"` or `"right"`, relative to the landing aircraft's nose at rollout |
+| `exitDirections[].notes` | string | No | Facility rationale (SOP reference, request provenance). Informational only |
+
+An override beats both the map-authored `turnoff` and the layout heuristics (high-speed exits,
+parking proximity). It only sets the **default**: an explicit `EL`/`ER`/`EXIT` command on an
+aircraft still wins, and when no exit on the overridden side can be reached, the exit search still
+falls back to the other side rather than rolling out forever. An entry with a blank runway or a side
+other than `left`/`right` is skipped with a warning; a duplicate runway within one file warns and the
+last entry wins.
+
 ---
 
 ## Procedures

@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Phases;
 
 namespace Yaat.Sim.Data;
 
@@ -87,8 +88,52 @@ public static class AirportSidecarLoader
                 OneWayEdges = ParseOneWayEdges(file, filePath, result),
                 BlockedTurns = ParseBlockedTurns(file, filePath, result),
                 Adw = ParseAdw(file, filePath, result),
+                ExitDirections = ParseExitDirections(file, filePath, result),
             }
         );
+    }
+
+    private static List<ExitDirectionOverride> ParseExitDirections(AirportSidecarFile file, string filePath, AirportSidecarLoadResult result)
+    {
+        var overrides = new List<ExitDirectionOverride>();
+        var indexByRunway = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        for (int i = 0; i < file.ExitDirections.Count; i++)
+        {
+            var entry = file.ExitDirections[i];
+            string location = $"{filePath}: exitDirections[{i}]";
+
+            if (string.IsNullOrWhiteSpace(entry.Runway))
+            {
+                result.Warnings.Add($"{location} missing runway, skipping");
+                continue;
+            }
+
+            ExitSide? side = entry.Side.Trim().ToLowerInvariant() switch
+            {
+                "left" => ExitSide.Left,
+                "right" => ExitSide.Right,
+                _ => null,
+            };
+            if (side is null)
+            {
+                result.Warnings.Add($"{location} ({entry.Runway}): side must be 'left' or 'right', got '{entry.Side}', skipping");
+                continue;
+            }
+
+            string runway = RunwayIdentifier.NormalizeDesignator(entry.Runway.Trim().ToUpperInvariant());
+            var parsed = new ExitDirectionOverride(runway, side.Value, entry.Notes);
+            if (indexByRunway.TryGetValue(runway, out int existing))
+            {
+                result.Warnings.Add($"{location} ({runway}): duplicate runway in this file, last entry wins");
+                overrides[existing] = parsed;
+                continue;
+            }
+
+            indexByRunway[runway] = overrides.Count;
+            overrides.Add(parsed);
+        }
+
+        return overrides;
     }
 
     private static List<AdwWindow> ParseAdw(AirportSidecarFile file, string filePath, AirportSidecarLoadResult result)

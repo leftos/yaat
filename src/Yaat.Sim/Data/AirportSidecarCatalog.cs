@@ -1,3 +1,6 @@
+using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Phases;
+
 namespace Yaat.Sim.Data;
 
 /// <summary>
@@ -19,6 +22,7 @@ public sealed class AirportSidecarCatalog
     private readonly Dictionary<string, List<OneWayConstraint>> _oneWayByAirport = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, List<BlockedTurn>> _blockedTurnsByAirport = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, List<AdwWindow>> _adwByAirport = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, Dictionary<string, ExitSide>> _exitDirectionsByAirport = new(StringComparer.OrdinalIgnoreCase);
 
     public AirportSidecarCatalog(IEnumerable<AirportSidecar> airports)
     {
@@ -36,6 +40,27 @@ public sealed class AirportSidecarCatalog
             MergeOneWayConstraints(key, airport.OneWayEdges);
             MergeBlockedTurns(key, airport.BlockedTurns);
             MergeAdw(key, airport.Adw);
+            MergeExitDirections(key, airport.ExitDirections);
+        }
+    }
+
+    private void MergeExitDirections(string key, IReadOnlyList<ExitDirectionOverride> overrides)
+    {
+        if (overrides.Count == 0)
+        {
+            return;
+        }
+
+        if (!_exitDirectionsByAirport.TryGetValue(key, out var byRunway))
+        {
+            byRunway = new Dictionary<string, ExitSide>(StringComparer.OrdinalIgnoreCase);
+            _exitDirectionsByAirport[key] = byRunway;
+        }
+
+        // Last file wins on a per-runway clash, mirroring the loader's within-file rule.
+        foreach (var entry in overrides)
+        {
+            byRunway[entry.Runway] = entry.Side;
         }
     }
 
@@ -233,5 +258,27 @@ public sealed class AirportSidecarCatalog
 
         string key = NavigationDatabase.NormalizeAirport(airportId);
         return _adwByAirport.TryGetValue(key, out var list) ? list : [];
+    }
+
+    /// <summary>
+    /// Sidecar-authored default exit (turn-off) side for one landing runway end, or null when none is
+    /// authored. Consulted by <see cref="Yaat.Sim.Data.Airport.AirportGroundLayout.InferPreferredExitSide"/>
+    /// ahead of the GeoJSON-authored turnoff and the layout heuristics. The designator is
+    /// zero-pad-normalized before lookup, so "9" and "09" resolve identically.
+    /// </summary>
+    public ExitSide? GetExitDirection(string airportId, string runwayDesignator)
+    {
+        if (string.IsNullOrWhiteSpace(airportId) || string.IsNullOrWhiteSpace(runwayDesignator))
+        {
+            return null;
+        }
+
+        string key = NavigationDatabase.NormalizeAirport(airportId);
+        if (!_exitDirectionsByAirport.TryGetValue(key, out var byRunway))
+        {
+            return null;
+        }
+
+        return byRunway.TryGetValue(RunwayIdentifier.NormalizeDesignator(runwayDesignator), out var side) ? side : null;
     }
 }

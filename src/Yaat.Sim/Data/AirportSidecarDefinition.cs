@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using Yaat.Sim.Phases;
 
 namespace Yaat.Sim.Data;
 
@@ -83,6 +84,36 @@ public sealed class AdwEntry
 public sealed record AdwWindow(string ArrivalRunway, string DepartureRunway, double OuterNm, double InnerNm, string? Notes);
 
 /// <summary>
+/// One default exit (turn-off) direction override for a single runway <em>end</em>, as a section of
+/// the unified per-airport sidecar (<see cref="AirportSidecarFile"/>). The GeoJSON <c>turnoff</c>
+/// property carries one value per physical runway and the parser flips it for the reciprocal end,
+/// assuming both landing directions vacate to the same physical side; this entry overrides that per
+/// end for layouts where the assumption doesn't hold. It wins over both the GeoJSON-authored side and
+/// the layout heuristics; an explicit <c>EL</c>/<c>ER</c> command on an aircraft still wins over it.
+/// </summary>
+public sealed class ExitDirectionEntry
+{
+    /// <summary>Landing runway end the override applies to, e.g. <c>"26R"</c>.</summary>
+    [JsonPropertyName("runway")]
+    public string Runway { get; set; } = "";
+
+    /// <summary>Side to vacate toward, relative to the landing aircraft's nose: <c>"left"</c> or <c>"right"</c>.</summary>
+    [JsonPropertyName("side")]
+    public string Side { get; set; } = "";
+
+    /// <summary>Facility rationale (SOP reference, request provenance). Informational only.</summary>
+    [JsonPropertyName("notes")]
+    public string? Notes { get; set; }
+}
+
+/// <summary>
+/// One airport's validated exit-direction override, produced by <see cref="AirportSidecarLoader"/>
+/// from an <see cref="ExitDirectionEntry"/>. The runway designator is zero-pad-normalized so it
+/// matches <see cref="Yaat.Sim.Data.Airport.RunwayIdentifier"/> lookups.
+/// </summary>
+public sealed record ExitDirectionOverride(string Runway, ExitSide Side, string? Notes);
+
+/// <summary>
 /// On-disk shape of a unified per-airport ground sidecar: one airport per JSON file under
 /// <c>Data/ARTCCs/{ARTCC}/Airports/{airport}.json</c>. Consolidates the per-airport ground-routing
 /// overrides (avoided taxiways, preset taxi routes, implicit connectors) that were previously split
@@ -110,6 +141,9 @@ internal sealed class AirportSidecarFile
 
     [JsonPropertyName("adw")]
     public List<AdwEntry> Adw { get; set; } = [];
+
+    [JsonPropertyName("exitDirections")]
+    public List<ExitDirectionEntry> ExitDirections { get; set; } = [];
 }
 
 /// <summary>
@@ -124,4 +158,5 @@ public sealed record AirportSidecar(string AirportId)
     public IReadOnlyList<OneWayConstraint> OneWayEdges { get; init; } = [];
     public IReadOnlyList<BlockedTurn> BlockedTurns { get; init; } = [];
     public IReadOnlyList<AdwWindow> Adw { get; init; } = [];
+    public IReadOnlyList<ExitDirectionOverride> ExitDirections { get; init; } = [];
 }

@@ -2696,15 +2696,30 @@ public sealed class AirportGroundLayout
     }
 
     /// <summary>
+    /// Returns the preferred exit side for a runway, reading any per-end sidecar override from the
+    /// global <see cref="NavigationDatabase"/>. See the explicit-catalog overload for the priority order.
+    /// </summary>
+    public ExitSide? InferPreferredExitSide(string runwayDesignator, TrueHeading runwayHeading) =>
+        InferPreferredExitSide(runwayDesignator, runwayHeading, NavigationDatabase.InstanceOrNull?.AirportSidecars ?? AirportSidecarCatalog.Empty);
+
+    /// <summary>
     /// Returns the preferred exit side for a runway. Priority:
-    /// 1. Airport-authored <see cref="GroundRunway.PreferredTurnoff"/> (from GeoJSON "turnoff")
-    /// 2. High-speed exits (≤45°), validated by parking proximity
-    /// 3. Parallel runway HS inheritance (for runways with no HS exits)
-    /// 4. Parking proximity (fallback)
+    /// 1. Sidecar <c>exitDirections</c> override for this end (<see cref="AirportSidecarCatalog.GetExitDirection"/>)
+    /// 2. Airport-authored GeoJSON "turnoff" (<see cref="GroundRunway.TurnoffForEnd"/>)
+    /// 3. High-speed exits (≤45°), validated by parking proximity
+    /// 4. Parking proximity
+    /// 5. Parallel runway HS inheritance (for runways with no HS exits)
     /// Returns null if no preference can be determined.
     /// </summary>
-    public ExitSide? InferPreferredExitSide(string runwayDesignator, TrueHeading runwayHeading)
+    public ExitSide? InferPreferredExitSide(string runwayDesignator, TrueHeading runwayHeading, AirportSidecarCatalog sidecars)
     {
+        // The sidecar override is authored per end, so it beats the GeoJSON turnoff — whose
+        // reciprocal-end value is only derived by flipping the first-named end's side.
+        if (sidecars.GetExitDirection(AirportId, runwayDesignator) is { } overridden)
+        {
+            return overridden;
+        }
+
         // Authored data wins: when the airport file specifies a side for this end, trust it over inference.
         if (FindRunway(runwayDesignator)?.TurnoffForEnd(runwayDesignator) is { } authored)
         {

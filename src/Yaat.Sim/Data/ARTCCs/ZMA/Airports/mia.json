@@ -1,5 +1,12 @@
 {
   "airportId": "KMIA",
+  "exitDirections": [
+    {
+      "runway": "26R",
+      "side": "left",
+      "notes": "MIA facility request (ATCTrainer Discord, yaat#405) — 26R arrivals vacate left; the GeoJSON turnoff only authors 8L."
+    }
+  ],
   "adw": [
     {
       "arrivalRunway": "30",
