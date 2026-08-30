@@ -17,6 +17,8 @@ public sealed class AtParkingPhase : Phase
 
     public override string Name => "At Parking";
 
+    public override bool IsIdleAwaitingCommands => true;
+
     public override void OnStart(PhaseContext ctx)
     {
         ctx.Targets.TargetSpeed = 0;

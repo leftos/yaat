@@ -1255,4 +1255,116 @@ public class GroundPhaseTests
 
         Assert.Equal(0, aircraft.Targets.TargetSpeed);
     }
+
+    [Fact]
+    public void TaxiingPhase_WhenHeld_StopsRolling()
+    {
+        // Issue #407: HOLD POSITION on a taxiing aircraft set Ground.Hold and the
+        // controller saw "Hold position" success, but TaxiingPhase only nudged
+        // IndicatedAirspeed down without pinning Targets.TargetSpeed — generic
+        // physics kept re-accelerating toward the stale taxi target every sub-tick,
+        // so the aircraft never stopped (two held aircraft met head-on at OAK).
+        var layout = BuildCrossingLayout();
+        var aircraft = MakeGroundAircraft(37.620, -122.380, heading: 0);
+
+        var route = new TaxiRoute
+        {
+            Segments = [new TaxiRouteSegment { TaxiwayName = "A", Edge = layout.Edges[0].Directed(layout.Nodes[0], layout.Nodes[1]) }],
+            HoldShortPoints = [],
+        };
+        aircraft.Ground.AssignedTaxiRoute = route;
+        aircraft.Phases = new PhaseList();
+        var taxi = new TaxiingPhase();
+        aircraft.Phases.Add(taxi);
+        var ctx = MakeContext(aircraft, layout);
+        aircraft.Phases.Start(ctx);
+
+        aircraft.IndicatedAirspeed = 15;
+        aircraft.Targets.TargetSpeed = 12.5;
+        aircraft.Ground.Hold = HoldDirective.HoldPosition;
+        taxi.OnTick(ctx);
+
+        Assert.Equal(0, aircraft.Targets.TargetSpeed);
+
+        for (int i = 0; (i < 30) && (aircraft.IndicatedAirspeed > 0); i++)
+        {
+            taxi.OnTick(ctx);
+        }
+
+        Assert.Equal(0, aircraft.IndicatedAirspeed);
+        Assert.Equal(0, aircraft.Targets.TargetSpeed);
+        Assert.NotNull(aircraft.Targets.DesiredDecelRate);
+
+        // ControlTargets persist across phases: the taxi braking rate pinned while held must
+        // not leak into later airborne decelerations once the taxi phase ends.
+        taxi.OnEnd(ctx, PhaseStatus.Completed);
+        Assert.Null(aircraft.Targets.DesiredDecelRate);
+    }
+
+    // -------------------------------------------------------------------------
+    // Held-stop contract across every ground motion phase
+    // -------------------------------------------------------------------------
+
+    /// <summary>
+    /// The hold contract for every ground motion phase: while Ground.Hold is set, the phase must
+    /// leave Targets.TargetSpeed pinned at 0 after its tick — a stale nonzero target lets
+    /// FlightPhysics.UpdateSpeed re-accelerate toward it every sub-tick, fighting the phase's own
+    /// stop (the issue-407 failure mode in TaxiingPhase, previously fixed one-off in
+    /// RunwayExitPhase). Behavioral companion to <see cref="GroundPhaseConvention"/>'s source-text
+    /// IsImmobile check, which TaxiingPhase passed while still broken.
+    /// </summary>
+    [Theory]
+    [InlineData("Taxiing")]
+    [InlineData("RunwayExit")]
+    [InlineData("Pushback")]
+    [InlineData("PushbackToSpot")]
+    [InlineData("CrossingRunway")]
+    [InlineData("ClearRunway")]
+    [InlineData("AirTaxi")]
+    [InlineData("Following")]
+    public void GroundMotionPhase_WhenHeld_LeavesNoSpeedTarget(string phaseName)
+    {
+        var layout = BuildCrossingLayout();
+        var aircraft = MakeGroundAircraft(37.620, -122.380, heading: 0);
+        var route = new TaxiRoute
+        {
+            Segments = [new TaxiRouteSegment { TaxiwayName = "A", Edge = layout.Edges[0].Directed(layout.Nodes[0], layout.Nodes[1]) }],
+            HoldShortPoints = [],
+        };
+
+        Phase phase = phaseName switch
+        {
+            "Taxiing" => new TaxiingPhase(),
+            "RunwayExit" => new RunwayExitPhase(),
+            "Pushback" => new PushbackPhase(),
+            "PushbackToSpot" => new PushbackToSpotPhase(route, null),
+            "CrossingRunway" => new CrossingRunwayPhase(layout.Nodes[0].Id, layout.Nodes[1].Id, "28R"),
+            "ClearRunway" => new ClearRunwayPhase(layout.Nodes[0].Id, layout.Nodes[1].Id),
+            "AirTaxi" => new AirTaxiPhase(37.621, -122.380, null),
+            "Following" => new FollowingPhase("OTHER"),
+            _ => throw new System.ArgumentOutOfRangeException(nameof(phaseName)),
+        };
+
+        if (phase is TaxiingPhase)
+        {
+            aircraft.Ground.AssignedTaxiRoute = route;
+        }
+
+        aircraft.Phases = new PhaseList();
+        aircraft.Phases.Add(phase);
+        var ctx = MakeContext(aircraft, layout);
+        aircraft.Phases.Start(ctx);
+
+        aircraft.IndicatedAirspeed = 15;
+        aircraft.Targets.TargetSpeed = 12.5;
+        aircraft.Ground.Hold = HoldDirective.HoldPosition;
+        phase.OnTick(ctx);
+        phase.OnTick(ctx);
+
+        Assert.True(
+            aircraft.Targets.TargetSpeed is null or 0,
+            $"{phase.GetType().Name} left Targets.TargetSpeed={aircraft.Targets.TargetSpeed} while held — "
+                + "physics will re-accelerate toward the stale target every sub-tick."
+        );
+    }
 }

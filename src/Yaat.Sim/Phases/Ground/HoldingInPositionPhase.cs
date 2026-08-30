@@ -17,6 +17,8 @@ public sealed class HoldingInPositionPhase : Phase
 
     public override string Name => "Holding In Position";
 
+    public override bool IsIdleAwaitingCommands => true;
+
     public override void OnStart(PhaseContext ctx)
     {
         ctx.Targets.TargetSpeed = 0;

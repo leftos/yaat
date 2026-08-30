@@ -64,6 +64,7 @@ public static class GroundConflictDetector
     private const double OppositeStopDistanceFt = 300.0;
     private const double PushbackBufferFt = 200.0;
     private const double SlowTaxiSpeedKts = 5.0;
+    private const double HeldStationarySpeedKts = 3.0;
     private const double FtPerNm = 6076.12;
     private const double ConvergenceLookaheadFt = 1500.0;
     private const double ConvergenceSlowdownFt = 400.0;
@@ -367,7 +368,11 @@ public static class GroundConflictDetector
         // for either). Treat them as Stationary so other aircraft can pass laterally
         // beside them when wingspan clearance allows. Without this, a held aircraft
         // on a taxiway would block every passing aircraft via closing-proximity.
-        if (ac.Ground.IsImmobile)
+        // Only while actually near-stationary, though: during the deceleration window
+        // (or any state that leaves a held aircraft rolling) it must keep participating
+        // as a mover, or a held head-on pair drops out of resolution entirely and the
+        // aircraft drive through each other (issue #407).
+        if ((ac.Ground.IsImmobile) && (ac.GroundSpeed < HeldStationarySpeedKts))
         {
             return (MovementState.Stationary, null);
         }

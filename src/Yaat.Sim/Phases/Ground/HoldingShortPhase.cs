@@ -43,6 +43,8 @@ public sealed class HoldingShortPhase : Phase
 
     public override string Name => _holdShort.TargetName is { } target ? $"Holding Short {HoldShortTarget.Describe(target)}" : "Holding Short";
 
+    public override bool IsIdleAwaitingCommands => true;
+
     public override void OnStart(PhaseContext ctx)
     {
         ctx.Aircraft.IndicatedAirspeed = 0;

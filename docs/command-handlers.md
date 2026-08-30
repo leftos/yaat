@@ -377,7 +377,11 @@ Enum + registry + scheme + parser are covered in `architecture.md`. Inside the d
 - **A mixed parallel block gates on its interactive command, not its first.** `SQ, SQNORM, PUSH` is one block of three parallel commands. Because
   `PUSH` is not transparent, the block loses the `IsAllTransparent` fast path and reaches the gate — where the *driver* (`PUSH`), not the leading
   `SQ`, is checked against `CanAcceptCommand`, and the transparent siblings are applied via `ApplyParallelSibling`. Order within the block does not
-  matter. Regression coverage: `PhaseTransparentCommandTests.ParallelBlock_*_AtParking_AppliesAll`.
+  matter. Regression coverage: `PhaseTransparentCommandTests.ParallelBlock_*_AtParking_AppliesAll`. The `;`-sequenced form is handled one step
+  earlier: `DispatchCompoundCore` **peels** a leading all-transparent block (`SQ; SQNORM; PUSH; …`), applies it immediately, and re-dispatches the
+  remainder, so the gate is always driven by a block that contains a phase-interactive command (issue #407 — before the peel, a lone leading `SQ`
+  fell through `FindPhaseGateDriverIndex`'s fallback, drove the gate, and `AtParkingPhase` rejected the whole compound). Unlike the atomic `,`
+  block, a sequential head commits before a later block can fail. Regression coverage: `SequentialTransparentCompoundTests`.
 - **Installing a phase has a lifecycle.** Build a fresh `PhaseList`, `Clear()` the old one with a `PhaseContext`, `Add` phases, then `Start()` with
   another `PhaseContext` (see `DispatchJfac`, `TryAirborneFollow` at `CommandDispatcher.cs:2387` — the install sequence is at `:2452`, `DispatchHoldingPattern`). Use
   `BuildMinimalContext` (`:1666`) to construct the `PhaseContext`. Skip the `Clear()`/`Start()` and you leave stale phase indices or unstarted phases.

@@ -78,6 +78,9 @@ public sealed class CrossingRunwayPhase : Phase
         if (ctx.Aircraft.Ground.IsImmobile)
         {
             ctx.Aircraft.IndicatedAirspeed = 0;
+            // Pin the target too: a stale nonzero TargetSpeed left by the navigator would let
+            // generic physics creep the aircraft forward each sub-tick between the IAS resets.
+            ctx.Targets.TargetSpeed = 0;
             return false;
         }
 

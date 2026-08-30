@@ -1241,11 +1241,20 @@ public static class FlightPhysics
         // skipped, but triggered blocks still need to be watched. This lets commands
         // such as "SPD 210 UNTIL 10" fire their ATFN/RNS block during approach
         // phases, while fix and ground triggers can still fire via their event
-        // callbacks.
-        if (aircraft.Phases?.CurrentPhase is not null)
+        // callbacks. Exception: while the aircraft idles in a terminal command-waiting
+        // phase (Phase.IsIdleAwaitingCommands), untriggered blocks advance too — the
+        // phase never completes on its own, so the queue is the only source of progress.
+        if (aircraft.Phases?.CurrentPhase is { } activePhase)
         {
             int triggerStart = queue.CurrentBlock is { IsApplied: true } ? queue.CurrentBlockIndex + 1 : queue.CurrentBlockIndex;
-            ApplyReadyConditionalBlocks(aircraft, queue, triggerStart, deltaSeconds, aircraftLookup);
+            if (activePhase.IsIdleAwaitingCommands)
+            {
+                AdvanceQueueWhileIdle(aircraft, queue, triggerStart, deltaSeconds, aircraftLookup);
+            }
+            else
+            {
+                ApplyReadyConditionalBlocks(aircraft, queue, triggerStart, deltaSeconds, aircraftLookup);
+            }
             return;
         }
 
@@ -1414,6 +1423,137 @@ public static class FlightPhysics
                 holdApplies = true;
             }
         }
+    }
+
+    /// <summary>
+    /// Queue advancement while the aircraft sits in a terminal command-waiting phase
+    /// (<see cref="Phase.IsIdleAwaitingCommands"/>). Triggered blocks are handled exactly like
+    /// <see cref="ApplyReadyConditionalBlocks"/>; additionally, untriggered blocks are applied in
+    /// strict `;` order — an idle phase never completes on its own, so without this the blocks
+    /// queued behind PUSH / TAXI-to-hold-short strand forever (issue #407). An untriggered block
+    /// never leapfrogs an earlier unfired block, is held while any of its non-transparent commands
+    /// is Rejected by the idle phase (it stays queued and visible), counts a WAIT down before firing
+    /// its payload, and stops advancing the moment an applied block leaves the idle phase.
+    /// </summary>
+    private static void AdvanceQueueWhileIdle(
+        AircraftState aircraft,
+        CommandQueue queue,
+        int startIndex,
+        double deltaSeconds,
+        Func<string, AircraftState?>? aircraftLookup
+    )
+    {
+        bool holdApplies = false;
+        bool frontierBroken = false;
+        for (int i = startIndex; i < queue.Blocks.Count; i++)
+        {
+            var block = queue.Blocks[i];
+            if (block.IsApplied)
+            {
+                continue;
+            }
+
+            if (block.Trigger is not null)
+            {
+                // Mirror ApplyReadyConditionalBlocks: latch the trigger once met; an unmet trigger
+                // is skipped (later triggered siblings may still fire out of order) but pins the
+                // frontier so no untriggered block behind it can jump the sequence.
+                if (!block.TriggerMet)
+                {
+                    block.TriggerMet = IsTriggerMet(aircraft, block, deltaSeconds, aircraftLookup);
+                    if (!block.TriggerMet)
+                    {
+                        TrackFrdMiss(aircraft, block);
+                        frontierBroken = true;
+                        continue;
+                    }
+
+                    if (block.Trigger.Type is BlockTriggerType.OnHandoff)
+                    {
+                        aircraft.Track.HandoffAccepted = false;
+                    }
+                }
+
+                if (holdApplies)
+                {
+                    continue;
+                }
+
+                if (!ApplyOrCountdownWait(aircraft, block, deltaSeconds))
+                {
+                    holdApplies = true;
+                }
+
+                continue;
+            }
+
+            if (frontierBroken || holdApplies)
+            {
+                break;
+            }
+
+            if (!TryApplyIdleUntriggeredBlock(aircraft, block, deltaSeconds))
+            {
+                break;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Applies one untriggered block while the aircraft idles. Returns <c>false</c> when the idle
+    /// scan must stop: the aircraft left its idle phase (an earlier applied block installed a new
+    /// one), the idle phase rejects a command in the block (it stays queued and visible), or an
+    /// untriggered WAIT is still counting down. Consecutive returns of <c>true</c> deliberately do
+    /// NOT wait for the previous block's tracked commands to complete — completion tracking does
+    /// not run while a phase is active, so gating on it would re-strand pre-arm chains like
+    /// <c>PUSH; CM 5000; TAXI ...</c> whose altitude target cannot complete on the ground.
+    /// </summary>
+    private static bool TryApplyIdleUntriggeredBlock(AircraftState aircraft, CommandBlock block, double deltaSeconds)
+    {
+        // An applied block may have installed a new phase (TAXI → TaxiingPhase) or cleared the
+        // chain; only keep advancing while the aircraft is still idling.
+        if (aircraft.Phases?.CurrentPhase is not { IsIdleAwaitingCommands: true } idlePhase)
+        {
+            return false;
+        }
+
+        if (block.ParsedCommands is not { Count: > 0 } parsed)
+        {
+            return false;
+        }
+
+        // Acceptance pre-check: phase-transparent commands (squawk family, say/report, ...)
+        // always pass — every ground hold phase nominally "Rejects" them, yet they apply fine
+        // through BuildApplyAction. A WAIT is queue mechanics (its countdown is handled below),
+        // not a phase-interactive instruction — no phase accepts CanonicalCommandType.Wait.
+        foreach (var cmd in parsed)
+        {
+            if (cmd is UnsupportedCommand or WaitCommand)
+            {
+                continue;
+            }
+
+            var canonical = CommandDescriber.ToCanonicalType(cmd);
+            if (CommandDescriber.IsPhaseTransparent(canonical))
+            {
+                continue;
+            }
+
+            if (idlePhase.CanAcceptCommand(canonical).IsRejected)
+            {
+                return false;
+            }
+        }
+
+        // An untriggered WAIT holds its payload until the countdown elapses (a triggered WAIT
+        // is handled by ApplyOrCountdownWait on the triggered path).
+        if (block.IsWaitBlock && !CheckWaitComplete(block, aircraft, deltaSeconds))
+        {
+            return false;
+        }
+
+        ApplyBlock(aircraft, block);
+        return true;
     }
 
     /// <summary>

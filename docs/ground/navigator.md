@@ -32,6 +32,8 @@ Phases run **before** physics each sub-tick (see [`../tick-loop.md`](../tick-loo
 - On Bézier arcs and slow-turns: writes `ctx.Aircraft.Position` and `ctx.Aircraft.TrueHeading` **directly** from closed-form curve state.
 - `ctx.Aircraft.Ground.LastNavDiag` — a `NavTickDiag` per-tick record (`GroundNavigator.cs:26`) consumed by `TickRecorder` CSV traces and `Yaat.LayoutInspector --tick-table`.
 
+**The hold-speed contract.** While `Ground.IsImmobile` (HOLDPOSITION / GIVEWAY) the owning phase early-returns *before* `_nav.Tick`, so the navigator's last `TargetSpeed` write goes stale. Every ground motion phase's `IsImmobile` branch must therefore pin `ctx.Targets.TargetSpeed = 0` — not merely decrement `IndicatedAirspeed` — or `FlightPhysics.UpdateSpeed` re-accelerates toward the stale target each sub-tick and the "held" aircraft keeps rolling (issue #407: two held aircraft taxied through each other head-on; steering and segment advance were frozen too, so one coasted past its assigned turn). Behavioral pin: `GroundPhaseTests.GroundMotionPhase_WhenHeld_LeavesNoSpeedTarget`.
+
 **Returns** a `NavigatorResult` (`GroundNavigator.cs:12`): `Navigating` (still moving toward the target) or `ArrivedAtNode` (the owning phase should advance `CurrentSegmentIndex`).
 
 ### Relationship to sibling ground phases

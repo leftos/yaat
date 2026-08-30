@@ -44,6 +44,8 @@ public sealed class HoldingAfterExitPhase : Phase
 
     public override string Name => "Holding After Exit";
 
+    public override bool IsIdleAwaitingCommands => true;
+
     public override void OnStart(PhaseContext ctx)
     {
         ctx.Targets.TargetSpeed = 0;

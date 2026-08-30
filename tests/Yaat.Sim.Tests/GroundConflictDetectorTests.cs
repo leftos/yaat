@@ -818,6 +818,51 @@ public class GroundConflictDetectorTests
     }
 
     /// <summary>
+    /// Issue #407: the Hold → Stationary classification assumed a held aircraft is
+    /// actually stopped. When a bug (or the deceleration window) leaves a held
+    /// aircraft still rolling, treating it as Stationary removed BOTH aircraft of a
+    /// held head-on pair from conflict resolution and they drove through each other.
+    /// A held aircraft that is still moving must keep participating as a mover.
+    /// </summary>
+    [Fact]
+    public void HeldButStillMoving_HeadOnPair_StillGetsSpeedLimits()
+    {
+        var (layout, _, _, _) = BuildSimpleLayout();
+        var edge01 = layout.Edges[0];
+
+        // Nose-to-nose on the same taxiway, 250 ft apart, both "held" but both
+        // still rolling at taxi speed (the OAK N262QX / N28697 geometry).
+        var north = MakeAircraft(
+            "NORTH",
+            new LatLon(BaseLat, BaseLon),
+            heading: 0,
+            gs: 12,
+            taxiRoute: MakeRoute(MakeSeg(0, 1, "A", edge01)),
+            phase: new TaxiingPhase()
+        );
+        north.Ground.Hold = HoldDirective.HoldPosition;
+
+        var south = MakeAircraft(
+            "SOUTH",
+            new LatLon(BaseLat + 2.5 * OffsetLatPer100Ft, BaseLon),
+            heading: 180,
+            gs: 12,
+            taxiRoute: MakeRoute(MakeSeg(1, 0, "A", edge01)),
+            phase: new TaxiingPhase()
+        );
+        south.Ground.Hold = HoldDirective.HoldPosition;
+
+        var aircraft = new List<AircraftState> { north, south };
+        GroundConflictDetector.ApplySpeedLimits(aircraft, layout);
+
+        Assert.True(
+            (north.Ground.SpeedLimit is not null) || (south.Ground.SpeedLimit is not null),
+            "Two held-but-still-moving aircraft converging head-on got no conflict speed limits — "
+                + "the Stationary classification must only apply to held aircraft that are actually near-stationary."
+        );
+    }
+
+    /// <summary>
     /// Diagnostic enrichment for GIVEWAY relationships. When the controller has
     /// said "N123, give way to MOVER" and both aircraft are in the conflict
     /// detector's search range, the DebugSink should emit a

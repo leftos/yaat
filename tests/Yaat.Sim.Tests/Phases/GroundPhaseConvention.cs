@@ -66,6 +66,45 @@ public sealed class GroundPhaseConvention
         );
     }
 
+    /// <summary>
+    /// Pins the <see cref="Yaat.Sim.Phases.Phase.IsIdleAwaitingCommands"/> set to exactly the
+    /// stationary whitelist above plus LinedUpAndWaitingPhase. A new stationary/command-waiting
+    /// phase must opt in (or be consciously excluded here); a motion phase must never carry the
+    /// override — it would let untriggered queued blocks fire mid-maneuver.
+    /// </summary>
+    [Fact]
+    public void IdleAwaitingCommands_SetMatchesStationaryWhitelist()
+    {
+        var expected = new HashSet<string>(System.StringComparer.Ordinal)
+        {
+            "AtParkingPhase",
+            "HoldingAfterPushbackPhase",
+            "HoldingAfterExitPhase",
+            "HoldingInPositionPhase",
+            "HoldingShortPhase",
+            "LinedUpAndWaitingPhase",
+        };
+
+        var actual = new HashSet<string>(System.StringComparer.Ordinal);
+        foreach (var type in typeof(Yaat.Sim.Phases.Phase).Assembly.GetTypes())
+        {
+            if (!type.IsAbstract && typeof(Yaat.Sim.Phases.Phase).IsAssignableFrom(type))
+            {
+                var prop = type.GetProperty(nameof(Yaat.Sim.Phases.Phase.IsIdleAwaitingCommands));
+                if (prop?.DeclaringType == type)
+                {
+                    actual.Add(type.Name);
+                }
+            }
+        }
+
+        Assert.True(
+            expected.SetEquals(actual),
+            $"IsIdleAwaitingCommands overrides drifted from the pinned idle set. "
+                + $"Missing: [{string.Join(", ", expected.Except(actual))}]; unexpected: [{string.Join(", ", actual.Except(expected))}]."
+        );
+    }
+
     private static string LocateGroundPhasesDir()
     {
         // Walk up from the test assembly's output dir looking for the source tree.

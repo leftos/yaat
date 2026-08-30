@@ -124,6 +124,12 @@ public sealed class TaxiingPhase : Phase
 
         if (ctx.Aircraft.Ground.IsImmobile)
         {
+            // Pin the target, not just the indicated speed: the navigator is skipped while held, so
+            // whatever TargetSpeed it last wrote would otherwise stay live and generic physics would
+            // re-accelerate toward it every sub-tick, fighting the decrement below (issue #407 — two
+            // "held" aircraft kept taxiing into a head-on).
+            ctx.Targets.TargetSpeed = 0;
+            ctx.Targets.DesiredDecelRate = CategoryPerformance.TaxiDecelRate(ctx.Category);
             ctx.Aircraft.IndicatedAirspeed = Math.Max(
                 0,
                 ctx.Aircraft.IndicatedAirspeed - CategoryPerformance.TaxiDecelRate(ctx.Category) * ctx.DeltaSeconds
@@ -180,6 +186,11 @@ public sealed class TaxiingPhase : Phase
     public override void OnEnd(PhaseContext ctx, PhaseStatus endStatus)
     {
         Log.LogDebug("[Taxi] {Callsign}: OnEnd ({Status})", ctx.Aircraft.Callsign, endStatus);
+
+        // The hold branch pins DesiredDecelRate to the taxi braking rate; ControlTargets
+        // persist across phases, so clear it here or every later airborne deceleration
+        // (descents, approach speed reductions) would brake at ground rates.
+        ctx.Targets.DesiredDecelRate = null;
 
         // Completing into a moving runway crossing: keep rolling — the CrossingRunwayPhase
         // owns the speed and must not re-accelerate from a dead stop on the runway approach.

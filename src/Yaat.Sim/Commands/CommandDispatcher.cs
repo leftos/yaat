@@ -118,6 +118,43 @@ public static class CommandDispatcher
             return ApplyTransparentCompound(compound, aircraft, ctx);
         }
 
+        // A `;`-sequenced compound led by an all-transparent block (`SQ; SQNORM; PUSH; ...`):
+        // peel the transparent block off, apply it immediately, and dispatch the remainder
+        // fresh — so the phase gate is driven by the first block that actually contains a
+        // phase-interactive command, and WAIT-deferral / give-way / modifier entry checks see
+        // the remainder as if it had been typed alone. Without the peel, the lone transparent
+        // command became the phase-gate driver and a restrictive phase (AtParkingPhase)
+        // rejected the whole compound (issue #407). Sequencing a transparent command is
+        // instantaneous, so applying it up front preserves `;` semantics; unlike a `,` block
+        // (one atomic instant, gated before anything applies), a sequential head may commit
+        // before a later block fails — that partial progress is inherent to `;`.
+        if (compound.Blocks.Count > 1 && IsFullyTransparentBlock(compound.Blocks[0]))
+        {
+            var headResult = ApplyTransparentCompound(new CompoundCommand([compound.Blocks[0]]) { SourceText = compound.SourceText }, aircraft, ctx);
+            if (!headResult.Success)
+            {
+                return headResult;
+            }
+
+            var remainder = new CompoundCommand(compound.Blocks.Skip(1).ToList()) { SourceText = compound.SourceText };
+            var tailResult = DispatchCompoundCore(remainder, aircraft, ctx);
+            string headMsg = headResult.Message ?? "";
+            if (string.IsNullOrEmpty(headMsg))
+            {
+                return tailResult;
+            }
+
+            return tailResult.Success
+                ? tailResult with
+                {
+                    Message = string.IsNullOrEmpty(tailResult.Message) ? headMsg : $"{headMsg} ; then {tailResult.Message}",
+                }
+                : tailResult with
+                {
+                    Message = $"{headMsg}; but {tailResult.Message}",
+                };
+        }
+
         // Pattern modifiers (EXT / SA / MNA) on an aircraft with no active phase must apply directly,
         // without the All/None-dimension ClearConflictingBlocks fast path — which would otherwise wipe
         // a queued pattern entry (e.g. an ERD sitting behind DCT VPCOL) the moment the modifiers'
@@ -496,6 +533,15 @@ public static class CommandDispatcher
     /// pattern entry they exist to modify.
     /// </summary>
     private static bool NeedsVerticalSupersede(ParsedCommand cmd) => cmd is ExpediteCommand { Altitude: not null };
+
+    /// <summary>
+    /// A condition-free block whose every command is phase-transparent (broad
+    /// <see cref="CommandDescriber.IsPhaseTransparent"/> list). Such a block leading a
+    /// `;`-sequenced compound peels off and applies immediately in
+    /// <see cref="DispatchCompoundCore"/> instead of driving the phase gate.
+    /// </summary>
+    private static bool IsFullyTransparentBlock(ParsedBlock block) =>
+        block.Condition is null && block.Commands.Count > 0 && block.Commands.All(IsTransparentCommand);
 
     private static bool IsAllTransparent(CompoundCommand compound)
     {
@@ -1809,8 +1855,9 @@ public static class CommandDispatcher
     /// Transparent siblings must not drive the gate: a block reaches <see cref="DispatchWithPhase"/>
     /// only because it holds at least one non-transparent command, so gating on a leading transparent
     /// one makes every phase that doesn't whitelist it (e.g. <c>AtParkingPhase</c> vs <c>Squawk</c>)
-    /// reject the whole block. Falls back to 0 for an all-transparent block — unreachable in practice,
-    /// since <see cref="IsAllTransparent"/> claims those first.
+    /// reject the whole block. Falls back to 0 for an all-transparent block — unreachable now that
+    /// <see cref="IsAllTransparent"/> claims all-transparent compounds and the transparent-block peel
+    /// in <see cref="DispatchCompoundCore"/> strips an all-transparent Blocks[0] before the gate runs.
     /// </summary>
     private static int FindPhaseGateDriverIndex(ParsedBlock block)
     {

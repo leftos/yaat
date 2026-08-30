@@ -41,6 +41,18 @@ public abstract class Phase
     public virtual bool ManagesSpeed => false;
 
     /// <summary>
+    /// True for terminal "parked/holding, awaiting a controller command" phases whose
+    /// OnTick never returns true on its own (AtParking, HoldingAfterPushback, HoldingShort,
+    /// LinedUpAndWaiting, ...). While such a phase is current, FlightPhysics.UpdateCommandQueue
+    /// advances untriggered queued blocks — the aircraft has nothing else it will ever do, so
+    /// the queue is its only source of progress (issue #407: `PUSH; SQ; SQNORM; TAXI ...`
+    /// stranded forever once the pushback settled into HoldingAfterPushback). Airborne
+    /// command-waiting maneuvers (holds, S-turns) stay false: there the maneuver itself is
+    /// the commanded activity and queued blocks must not cancel it.
+    /// </summary>
+    public virtual bool IsIdleAwaitingCommands => false;
+
+    /// <summary>
     /// Speed-axis commands: a pure speed instruction that adjusts the speed target
     /// without touching the lateral or vertical path. Single source of truth for
     /// phases whose <see cref="CanAcceptCommand"/> treats speed changes as additive.

@@ -16,6 +16,8 @@ public sealed class LinedUpAndWaitingPhase : Phase
 
     public override string Name => "LinedUpAndWaiting";
 
+    public override bool IsIdleAwaitingCommands => true;
+
     public override PhaseDto ToSnapshot() =>
         new LinedUpAndWaitingPhaseDto
         {

@@ -15,6 +15,8 @@ public sealed class HoldingAfterPushbackPhase : Phase
 
     public override string Name => "Holding After Pushback";
 
+    public override bool IsIdleAwaitingCommands => true;
+
     public override void OnStart(PhaseContext ctx)
     {
         ctx.Targets.TargetSpeed = 0;
