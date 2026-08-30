@@ -10,10 +10,11 @@ namespace Yaat.Client.Views.Map;
 /// <see cref="DatablockDeconflictMode.CompassSnap"/> snaps each block to one of the eight STARS
 /// compass leader directions, extending the leader onto larger rings when the base ring cannot
 /// deconflict; <see cref="DatablockDeconflictMode.FreeForm"/> slides blocks freely via damped
-/// repulsion, hopping over/under an obstacle rather than being dragged along an anchor's line of
-/// travel, with leader length capped at the outermost ring. Both bias the resulting layout toward
-/// the aircraft's lateral order and are deterministic and frame-stable when fed the prior frame's
-/// result.
+/// repulsion toward per-block deconflicted targets (assigned each frame with the same candidate
+/// machinery CompassSnap uses), hopping over/under an obstacle rather than being dragged along an anchor's
+/// line of travel. Both bias the resulting layout toward the aircraft's lateral order, extend leaders
+/// onto outer rings when a cluster is too dense for the base span, and are deterministic and
+/// frame-stable when fed the prior frame's result.
 /// </summary>
 public static class DatablockDeconfliction
 {
@@ -80,6 +81,25 @@ public static class DatablockDeconfliction
         public required float LeaderGap { get; init; }
         public required int FreeFormIterations { get; init; }
 
+        /// <summary>Base preference cost of a free-form slide-escape candidate.</summary>
+        public required float WSlide { get; init; }
+
+        /// <summary>Per-pixel cost added to a slide-escape candidate for its distance from the preferred placement.</summary>
+        public required float WSlideDist { get; init; }
+
+        /// <summary>
+        /// Free-form target-assignment hysteresis. Must stay below <see cref="WDefault"/> so a block
+        /// whose preferred placement frees up always reclaims it from a compass-slot incumbent.
+        /// </summary>
+        public required float FreeFormHysteresisMargin { get; init; }
+
+        /// <summary>
+        /// Outermost candidate ring. Rings beyond <see cref="LeaderExtraRings"/> are only chosen when
+        /// every inner candidate overlaps — a cluster dense enough that the normal leader span cannot
+        /// fit every block extends leaders further out instead of stacking blocks on each other.
+        /// </summary>
+        public required int MaxExtraRings { get; init; }
+
         /// <summary>Standard weights validated for typical traffic densities.</summary>
         public static Options Default(SKRect screenBounds) =>
             new()
@@ -103,6 +123,10 @@ public static class DatablockDeconfliction
                 PriorityBias = 200f,
                 LeaderGap = 18f,
                 FreeFormIterations = 12,
+                WSlide = 10f,
+                WSlideDist = 0.25f,
+                FreeFormHysteresisMargin = 25f,
+                MaxExtraRings = 8,
             };
     }
 
@@ -112,8 +136,11 @@ public static class DatablockDeconfliction
     /// <summary>An already-placed block, kept with its anchor so later blocks can avoid it and stay in order.</summary>
     private readonly record struct Placed(SKRect Rect, SKPoint Anchor);
 
-    /// <summary>One movable block mid free-form step: its item, current offset, and the rect at that offset.</summary>
-    private readonly record struct Block(Item Item, SKPoint Offset, SKRect Rect);
+    /// <summary>
+    /// One movable block mid free-form step: its item, current offset, the rect at that offset, and the
+    /// deconflicted target the forces pull it toward (assigned per frame by <see cref="AssignTargets"/>).
+    /// </summary>
+    private readonly record struct Block(Item Item, SKPoint Offset, SKPoint Target, SKRect Rect);
 
     /// <summary>
     /// Resolves an effective text-origin offset for every item. Pinned items are written through with
@@ -193,7 +220,7 @@ public static class DatablockDeconfliction
     {
         SortMovable(movable);
         var placed = new List<Placed>(movable.Count);
-        var candidates = new List<Candidate>((o.LeaderExtraRings + 1) * CompassDirs.Length + 1);
+        var candidates = new List<Candidate>(((o.MaxExtraRings + 1) * CompassDirs.Length) + 1);
 
         foreach (var item in movable)
         {
@@ -280,9 +307,22 @@ public static class DatablockDeconfliction
             offsets[i] = previousResolved.TryGetValue(movable[i].Callsign, out var prev) ? prev : movable[i].PreferredOffset;
         }
 
+        var targets = new SKPoint[n];
+        AssignTargets(movable, allItems, pinnedRects, o, previousResolved, targets);
+
+        // An assigned slot on an extended ring sits past the normal leader cap; each block's leader
+        // clamp must allow at least its own target's leader so the clamp never drags it off the slot.
+        var maxLeaders = new float[n];
+        for (int i = 0; i < n; i++)
+        {
+            var item = movable[i];
+            float targetLeader = LeaderLength(item.Anchor, Translate(item.RectAtOrigin, Add(item.Anchor, targets[i])));
+            maxLeaders[i] = MathF.Max(MaxLeaderLength(o), targetLeader + 0.5f);
+        }
+
         for (int iter = 0; iter < o.FreeFormIterations; iter++)
         {
-            FreeFormStep(movable, allItems, pinnedRects, o, offsets);
+            FreeFormStep(movable, allItems, pinnedRects, o, offsets, targets, maxLeaders);
         }
 
         for (int i = 0; i < n; i++)
@@ -291,20 +331,205 @@ public static class DatablockDeconfliction
         }
     }
 
-    private static void FreeFormStep(List<Item> movable, IReadOnlyList<Item> allItems, List<SKRect> pinned, in Options o, SKPoint[] offsets)
+    /// <summary>
+    /// Assigns each movable block the deconflicted offset the force pass pulls it toward. A greedy
+    /// candidate pass shaped like <see cref="ResolveCompassSnap"/>: preferred + compass-ring slots, plus
+    /// minimal slide escapes so a transiently-blocked block rests just past its obstacle instead of
+    /// being yanked onto a distant compass slot. With every block previously springing to the one shared
+    /// preferred offset, a dense cluster's equilibrium was a single overlapping column that (with mixed
+    /// block heights) never even converged (#406); per-block targets make a deconflicted layout the
+    /// fixed point. Hysteresis keeps an established compass/preferred slot while it stays competitive
+    /// (slides are excluded as incumbents — they move with the geometry), and its margin stays below
+    /// <see cref="Options.WDefault"/> so a freed preferred placement is always reclaimed.
+    /// </summary>
+    private static void AssignTargets(
+        List<Item> movable,
+        IReadOnlyList<Item> allItems,
+        List<SKRect> pinnedRects,
+        in Options o,
+        IReadOnlyDictionary<string, SKPoint> previousResolved,
+        SKPoint[] targets
+    )
+    {
+        var placed = new List<Placed>(movable.Count);
+        var candidates = new List<Candidate>(((o.MaxExtraRings + 1) * CompassDirs.Length) + 3);
+
+        for (int i = 0; i < movable.Count; i++)
+        {
+            var item = movable[i];
+            BuildCandidates(item, o, candidates);
+            int incumbent = previousResolved.TryGetValue(item.Callsign, out var prev) ? MatchCandidate(candidates, prev) : -1;
+            AddSlideCandidates(item, placed, pinnedRects, o, candidates);
+
+            int bestIdx = 0;
+            float bestCost = float.MaxValue;
+            for (int c = 0; c < candidates.Count; c++)
+            {
+                float cost = CandidateCost(item, candidates[c], placed, pinnedRects, allItems, o);
+                if (cost < bestCost)
+                {
+                    bestCost = cost;
+                    bestIdx = c;
+                }
+            }
+
+            if ((incumbent >= 0) && (incumbent != bestIdx))
+            {
+                float incCost = CandidateCost(item, candidates[incumbent], placed, pinnedRects, allItems, o);
+                if (incCost <= bestCost + o.FreeFormHysteresisMargin)
+                {
+                    bestIdx = incumbent;
+                }
+            }
+
+            var chosen = candidates[bestIdx];
+            placed.Add(new Placed(Translate(item.RectAtOrigin, Add(item.Anchor, chosen.Offset)), item.Anchor));
+            targets[i] = chosen.Offset;
+        }
+    }
+
+    /// <summary>
+    /// Adds up to two minimal slide-to-clear escapes from the preferred placement: the smallest shift,
+    /// in each direction along one axis, that clears every already-placed and pinned rect. These are the
+    /// natural targets for a transient conflict (a block briefly blocked by a passing neighbor hops just
+    /// past it), where the nearest clear compass slot can be 60+ px away and would visibly yank the
+    /// block. Only the axis perpendicular to the anchor-alignment axis of the deepest obstacle is
+    /// offered — a same-row neighbor yields up/down escapes, a same-column one left/right. The anchor
+    /// axis (not the rect-overlap axis, which flips with overlap depth) is what stays stable while an
+    /// anchor drives past: a slide along the row would clear the neighbor by backing away from it, and
+    /// against a moving anchor that candidate is recomputed a little further along every frame — the
+    /// #402 drag reborn as a target. Skipped entirely when the preferred placement is already clear
+    /// (candidate 0 wins anyway).
+    /// </summary>
+    private static void AddSlideCandidates(in Item item, List<Placed> placed, List<SKRect> pinned, in Options o, List<Candidate> dest)
+    {
+        var prefRect = Translate(item.RectAtOrigin, Add(item.Anchor, item.PreferredOffset));
+        if (DeepestObstacleRef(prefRect, placed, pinned) is not { } obstacleRef)
+        {
+            return;
+        }
+
+        bool rowNeighbor = MathF.Abs(item.Anchor.X - obstacleRef.X) >= MathF.Abs(item.Anchor.Y - obstacleRef.Y);
+        float maxTravel = MaxLeaderLength(o);
+        var dirs = rowNeighbor ? VerticalSlideDirs : HorizontalSlideDirs;
+        foreach (var (dx, dy) in dirs)
+        {
+            if (SlideEscape(item, placed, pinned, dx, dy, maxTravel) is { } offset)
+            {
+                dest.Add(new Candidate(offset, o.WSlide + (o.WSlideDist * Dist(offset, item.PreferredOffset)), false));
+            }
+        }
+    }
+
+    private static readonly (float X, float Y)[] VerticalSlideDirs = [(0f, -1f), (0f, 1f)];
+    private static readonly (float X, float Y)[] HorizontalSlideDirs = [(-1f, 0f), (1f, 0f)];
+
+    /// <summary>
+    /// Reference point (anchor for placed blocks, rect center for pinned ones) of the obstacle that
+    /// overlaps <paramref name="rect"/> the most, or null when the rect is clear.
+    /// </summary>
+    private static SKPoint? DeepestObstacleRef(SKRect rect, List<Placed> placed, List<SKRect> pinned)
+    {
+        SKPoint? reference = null;
+        float deepest = 0f;
+        foreach (var p in placed)
+        {
+            Consider(p.Rect, p.Anchor);
+        }
+        foreach (var r in pinned)
+        {
+            Consider(r, Center(r));
+        }
+        return reference;
+
+        void Consider(SKRect other, SKPoint refPoint)
+        {
+            float area = IntersectArea(rect, other);
+            if (area > deepest)
+            {
+                deepest = area;
+                reference = refPoint;
+            }
+        }
+    }
+
+    /// <summary>
+    /// The preferred offset shifted along one axis by the minimum needed to clear all placed and pinned
+    /// rects, or null when the preferred placement is already clear or clearing needs more travel than
+    /// <paramref name="maxTravel"/>.
+    /// </summary>
+    private static SKPoint? SlideEscape(in Item item, List<Placed> placed, List<SKRect> pinned, float dx, float dy, float maxTravel)
+    {
+        var offset = item.PreferredOffset;
+        bool moved = false;
+        for (int guard = 0; guard < 8; guard++)
+        {
+            var rect = Translate(item.RectAtOrigin, Add(item.Anchor, offset));
+            float push = 0f;
+            foreach (var p in placed)
+            {
+                push = MathF.Max(push, ClearanceAlong(rect, p.Rect, dx, dy));
+            }
+            foreach (var r in pinned)
+            {
+                push = MathF.Max(push, ClearanceAlong(rect, r, dx, dy));
+            }
+
+            if (push <= 0f)
+            {
+                return moved ? offset : null;
+            }
+
+            moved = true;
+            offset = new SKPoint(offset.X + (dx * (push + 1f)), offset.Y + (dy * (push + 1f)));
+            if (Dist(offset, item.PreferredOffset) > maxTravel)
+            {
+                return null;
+            }
+        }
+        return null;
+    }
+
+    /// <summary>How far <paramref name="rect"/> must travel along (dx, dy) to stop intersecting <paramref name="other"/> (0 when clear).</summary>
+    private static float ClearanceAlong(SKRect rect, SKRect other, float dx, float dy)
+    {
+        if (IntersectArea(rect, other) <= 0f)
+        {
+            return 0f;
+        }
+        if (dy < 0f)
+        {
+            return rect.Bottom - other.Top;
+        }
+        if (dy > 0f)
+        {
+            return other.Bottom - rect.Top;
+        }
+        return dx < 0f ? rect.Right - other.Left : other.Right - rect.Left;
+    }
+
+    private static void FreeFormStep(
+        List<Item> movable,
+        IReadOnlyList<Item> allItems,
+        List<SKRect> pinned,
+        in Options o,
+        SKPoint[] offsets,
+        SKPoint[] targets,
+        float[] maxLeaders
+    )
     {
         int n = movable.Count;
         var blocks = new Block[n];
         for (int i = 0; i < n; i++)
         {
-            blocks[i] = new Block(movable[i], offsets[i], Translate(movable[i].RectAtOrigin, Add(movable[i].Anchor, offsets[i])));
+            blocks[i] = new Block(movable[i], offsets[i], targets[i], Translate(movable[i].RectAtOrigin, Add(movable[i].Anchor, offsets[i])));
         }
 
         var delta = new SKPoint[n];
         AccumulateBlockForces(blocks, delta, o);
         AccumulatePinnedForces(blocks, pinned, delta, o);
         AccumulateOrderForces(blocks, delta, o);
-        ApplyForces(blocks, allItems, delta, o, offsets);
+        ApplyForces(blocks, allItems, delta, o, offsets, maxLeaders);
     }
 
     private static float MaxLeaderLength(in Options o) => o.LeaderGap + (o.LeaderExtraRings * o.LeaderRingStep);
@@ -353,19 +578,19 @@ public static class DatablockDeconfliction
         }
 
         var perp = PerpendicularTranslation(self.Rect, other, mtv);
-        var hop = HopVector(self.Item.PreferredOffset, self.Offset, perp);
-        float afterMtv = MoveCost(self.Item, Add(self.Offset, mtv), o);
-        float afterHop = MoveCost(self.Item, Add(self.Offset, hop), o);
+        var hop = HopVector(self.Target, self.Offset, perp);
+        float afterMtv = MoveCost(self.Item, self.Target, Add(self.Offset, mtv), o);
+        float afterHop = MoveCost(self.Item, self.Target, Add(self.Offset, hop), o);
         return afterHop + 1f < afterMtv ? hop : mtv;
     }
 
     /// <summary>
     /// Escape candidate on the axis perpendicular to the minimum translation: clear the obstacle along
-    /// that axis while returning to the preferred placement on the other, so a block shoved along its
+    /// that axis while returning to the assigned target on the other, so a block shoved along its
     /// anchor's direction of travel hops over/under the obstacle instead of being dragged with it.
     /// </summary>
-    private static SKPoint HopVector(SKPoint preferred, SKPoint offset, SKPoint perp) =>
-        perp.X == 0f ? new SKPoint(preferred.X - offset.X, perp.Y) : new SKPoint(perp.X, preferred.Y - offset.Y);
+    private static SKPoint HopVector(SKPoint target, SKPoint offset, SKPoint perp) =>
+        perp.X == 0f ? new SKPoint(target.X - offset.X, perp.Y) : new SKPoint(perp.X, target.Y - offset.Y);
 
     /// <summary>
     /// Per-block vectors that move two movable blocks off each other in opposite directions: half the
@@ -381,21 +606,22 @@ public static class DatablockDeconfliction
         }
 
         var perp = PerpendicularTranslation(a.Rect, b.Rect, mtv);
-        var hopA = HopVector(a.Item.PreferredOffset, a.Offset, Scale(perp, 0.5f));
-        var hopB = HopVector(b.Item.PreferredOffset, b.Offset, Scale(perp, -0.5f));
-        float costMtv = MoveCost(a.Item, Add(a.Offset, Scale(mtv, 0.5f)), o) + MoveCost(b.Item, Add(b.Offset, Scale(mtv, -0.5f)), o);
-        float costHop = MoveCost(a.Item, Add(a.Offset, hopA), o) + MoveCost(b.Item, Add(b.Offset, hopB), o);
+        var hopA = HopVector(a.Target, a.Offset, Scale(perp, 0.5f));
+        var hopB = HopVector(b.Target, b.Offset, Scale(perp, -0.5f));
+        float costMtv =
+            MoveCost(a.Item, a.Target, Add(a.Offset, Scale(mtv, 0.5f)), o) + MoveCost(b.Item, b.Target, Add(b.Offset, Scale(mtv, -0.5f)), o);
+        float costHop = MoveCost(a.Item, a.Target, Add(a.Offset, hopA), o) + MoveCost(b.Item, b.Target, Add(b.Offset, hopB), o);
         return costHop + 1f < costMtv ? (hopA, hopB) : (Scale(mtv, 0.5f), Scale(mtv, -0.5f));
     }
 
     /// <summary>
-    /// How undesirable a candidate offset is for a block: distance from its preferred placement, plus a
+    /// How undesirable a candidate offset is for a block: distance from its assigned target, plus a
     /// large penalty when the block (with symbol padding) would cover its own aircraft symbol — the
     /// free-form analogue of <see cref="Options.WSelf"/>.
     /// </summary>
-    private static float MoveCost(in Item item, SKPoint candidate, in Options o)
+    private static float MoveCost(in Item item, SKPoint target, SKPoint candidate, in Options o)
     {
-        float cost = Dist(candidate, item.PreferredOffset);
+        float cost = Dist(candidate, target);
         var rect = Inflate(Translate(item.RectAtOrigin, Add(item.Anchor, candidate)), o.SymbolPad);
         if (Contains(rect, item.Anchor))
         {
@@ -458,17 +684,24 @@ public static class DatablockDeconfliction
     }
 
     /// <summary>Integrates one step: forces + spring, then screen and leader clamps, written back to <paramref name="offsets"/>.</summary>
-    private static void ApplyForces(Block[] blocks, IReadOnlyList<Item> allItems, SKPoint[] delta, in Options o, SKPoint[] offsets)
+    private static void ApplyForces(
+        Block[] blocks,
+        IReadOnlyList<Item> allItems,
+        SKPoint[] delta,
+        in Options o,
+        SKPoint[] offsets,
+        float[] maxLeaders
+    )
     {
         for (int i = 0; i < blocks.Length; i++)
         {
             var item = blocks[i].Item;
             var push = Add(delta[i], SymbolPush(blocks[i].Rect, allItems, o));
-            var spring = Scale(Sub(item.PreferredOffset, blocks[i].Offset), SpringStiffness);
+            var spring = Scale(Sub(blocks[i].Target, blocks[i].Offset), SpringStiffness);
             push = Add(push, spring);
             var next = Add(blocks[i].Offset, Scale(push, Damping));
             next = ClampOffset(item, next, o.ScreenBounds);
-            offsets[i] = ClampLeader(item, next, MaxLeaderLength(o));
+            offsets[i] = ClampLeader(item, next, maxLeaders[i]);
         }
     }
 
@@ -534,7 +767,7 @@ public static class DatablockDeconfliction
 
     /// <summary>
     /// Builds the candidate offsets for one block: the preferred offset (candidate 0), then the eight
-    /// compass directions at the base ring and on <see cref="Options.LeaderExtraRings"/> larger rings.
+    /// compass directions at the base ring and on up to <see cref="Options.MaxExtraRings"/> larger rings.
     /// The preference cost keeps the preferred offset strongly favored and the base ring tried before
     /// any extension, while leaving direction choice to overlap/leader/order so a longer leader is only
     /// taken when it actually clears a conflict.
@@ -543,7 +776,7 @@ public static class DatablockDeconfliction
     {
         dest.Clear();
         dest.Add(new Candidate(item.PreferredOffset, 0f, true));
-        for (int ring = 0; ring <= o.LeaderExtraRings; ring++)
+        for (int ring = 0; ring <= o.MaxExtraRings; ring++)
         {
             float gap = o.LeaderGap + (ring * o.LeaderRingStep);
             float ringPenalty = ring * o.LeaderRingPenalty;

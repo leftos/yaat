@@ -659,4 +659,90 @@ public class DatablockDeconflictionTests
         Assert.True(MathF.Abs(Center(ra).Y - Center(rb).Y) > 20f, $"pair did not part vertically: A={res["AAA1"]} B={res["BBB2"]}");
         Assert.True((Dist(res["AAA1"], pref) <= 45f) && (Dist(res["BBB2"], pref) <= 45f), "pair separated by sliding along the row");
     }
+
+    // #406: ~11 aircraft parked at the OAK terminal gates, anchors 15-25 px apart, every block on the
+    // shared default preferred offset. The pure force model piled all blocks into one overlapping
+    // right-side column (the shared attractor) and, with mixed 2-/3-line block heights, never converged
+    // at all — the hop-vs-mtv choice flipped forever, reshuffling the pile every frame. Free-form must
+    // settle a dense static cluster to a stable, overlap-free layout.
+    private static List<DatablockDeconfliction.Item> DenseMixedCluster()
+    {
+        (string cs, float x, float y)[] cluster =
+        [
+            ("SWA919", 585, 465),
+            ("ASA847", 578, 478),
+            ("NKS2904", 570, 492),
+            ("SWA2436", 596, 470),
+            ("SWA969", 604, 462),
+            ("SWA1391", 610, 476),
+            ("QXE2225", 590, 484),
+            ("FFT2196", 600, 490),
+            ("SWA1905", 615, 468),
+            ("SKW3996", 562, 505),
+            ("SWA1118", 620, 458),
+        ];
+
+        var pref = new SKPoint(30, -25);
+        var items = new List<DatablockDeconfliction.Item>(cluster.Length);
+        for (int k = 0; k < cluster.Length; k++)
+        {
+            var (cs, x, y) = cluster[k];
+            // Alternate 3-line (105x40) and 2-line (95x27) ground blocks like a real gate row (some
+            // aircraft show a SqStby line, some don't).
+            var rect = k % 2 == 0 ? new SKRect(0, -12, 95, 15) : new SKRect(0, -12, 105, 28);
+            items.Add(
+                new DatablockDeconfliction.Item
+                {
+                    Callsign = cs,
+                    Anchor = new SKPoint(x, y),
+                    RectAtOrigin = rect,
+                    PreferredOffset = pref,
+                    IsPinned = false,
+                    IsPriority = false,
+                }
+            );
+        }
+        return items;
+    }
+
+    private static (Dictionary<string, SKPoint> Final, float LateFrameMaxMove) RunDenseMixedCluster(int frames, int settleAfter)
+    {
+        var items = DenseMixedCluster();
+        var bounds = new SKRect(0, 0, 888, 666);
+        var prev = new Dictionary<string, SKPoint>();
+        var res = new Dictionary<string, SKPoint>();
+        float lateMaxMove = 0f;
+        for (int frame = 0; frame < frames; frame++)
+        {
+            DatablockDeconfliction.Resolve(DatablockDeconflictMode.FreeForm, items, DatablockDeconfliction.Options.Default(bounds), prev, res);
+            if (frame >= settleAfter)
+            {
+                float moved = 0f;
+                foreach (var item in items)
+                {
+                    moved += Dist(res[item.Callsign], prev[item.Callsign]);
+                }
+                lateMaxMove = MathF.Max(lateMaxMove, moved);
+            }
+            prev = new Dictionary<string, SKPoint>(res);
+            res = new Dictionary<string, SKPoint>();
+        }
+        return (prev, lateMaxMove);
+    }
+
+    [Fact]
+    public void FreeForm_DenseMixedCluster_Converges()
+    {
+        var (_, lateMaxMove) = RunDenseMixedCluster(frames: 90, settleAfter: 60);
+        Assert.True(lateMaxMove < 1f, $"cluster still moving {lateMaxMove:F1} px/frame after 60 settle frames");
+    }
+
+    [Fact]
+    public void FreeForm_DenseMixedCluster_NoResidualOverlap()
+    {
+        var (final, _) = RunDenseMixedCluster(frames: 90, settleAfter: 60);
+        var items = DenseMixedCluster();
+        float overlap = TotalOverlap(items, final);
+        Assert.True(overlap < 50f, $"cluster settled with {overlap:F0} px^2 of block-on-block overlap");
+    }
 }

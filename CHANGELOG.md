@@ -11,6 +11,7 @@
 - Airport sidecars can override the default runway exit direction per runway end (`exitDirections`); KMIA 26R arrivals now vacate left per facility request.
 
 ### Fixed
+- Free-form datablock deconfliction (DCNF F) settles a dense cluster of parked aircraft into a stable, readable layout — extending leaders outward when the normal span can't fit every block — instead of piling the datablocks into an overlapping stack that reshuffles endlessly. Snap mode (DCNF S) gains the same extended leaders for clusters its normal rings can't separate. (#406)
 - Quitting YAAT no longer hangs when the global keyboard hook fails to stop.
 - CRC ASDE-X Safety Logic no longer flags a back-taxiing aircraft as a runway incursion, and measures an arrival's height from its runway rather than the field elevation.
 - A helicopter air-taxiing over, hovering on, or settling onto a runway counts as runway traffic for the occupied-runway warnings, ground yielding, and the auto go-around.
