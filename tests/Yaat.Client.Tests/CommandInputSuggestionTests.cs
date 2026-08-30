@@ -272,6 +272,82 @@ public class CommandInputSuggestionTests
         Assert.Equal("FOLLOW AAL1234 ".Length, accepted.Value.Caret);
     }
 
+    // --- Auto-highlight of the top suggestion ---
+    // Once the user has typed a non-empty partial for the active token, the top match is
+    // pre-selected (IDE-style) so Enter (with auto-expand enabled) and Tab both take the
+    // visibly highlighted suggestion. An empty insertion slot stays unselected — Enter on
+    // "EXT " must send bare EXT, not auto-expand to the first pattern leg.
+
+    [Fact]
+    public void TypedPartial_AutoHighlightsTopSuggestion()
+    {
+        var controller = Controller();
+        IReadOnlyCollection<AircraftModel> aircraft = [Ac("N569SX")];
+
+        controller.UpdateSuggestions("EXT DOWN", "EXT DOWN".Length, aircraft, Scheme);
+
+        Assert.True(controller.IsSuggestionsVisible);
+        Assert.Single(controller.Suggestions);
+        Assert.Equal("DOWNWIND", controller.Suggestions[0].Text);
+        Assert.Equal(0, controller.SelectedSuggestionIndex);
+    }
+
+    [Fact]
+    public void InsertionPoint_DoesNotAutoHighlight()
+    {
+        var controller = Controller();
+        IReadOnlyCollection<AircraftModel> aircraft = [Ac("N569SX")];
+
+        controller.UpdateSuggestions("EXT ", "EXT ".Length, aircraft, Scheme);
+
+        Assert.True(controller.IsSuggestionsVisible);
+        Assert.Equal(3, controller.Suggestions.Count);
+        Assert.Equal(-1, controller.SelectedSuggestionIndex);
+    }
+
+    [Fact]
+    public void ConditionArgPartial_AutoHighlightsTopSuggestion()
+    {
+        var controller = Controller();
+        IReadOnlyCollection<AircraftModel> aircraft = [Ac("AAL1234"), Ac("SWA456")];
+
+        controller.UpdateSuggestions("GIVEWAY AA", "GIVEWAY AA".Length, aircraft, Scheme);
+
+        Assert.True(controller.IsSuggestionsVisible);
+        Assert.Single(controller.Suggestions);
+        Assert.Equal("AAL1234", controller.Suggestions[0].Text);
+        Assert.Equal(0, controller.SelectedSuggestionIndex);
+    }
+
+    [Fact]
+    public void ConditionArgInsertionPoint_DoesNotAutoHighlight()
+    {
+        var controller = Controller();
+        IReadOnlyCollection<AircraftModel> aircraft = [Ac("AAL1234"), Ac("SWA456")];
+
+        controller.UpdateSuggestions("GIVEWAY ", "GIVEWAY ".Length, aircraft, Scheme);
+
+        Assert.True(controller.IsSuggestionsVisible);
+        Assert.Equal(2, controller.Suggestions.Count);
+        Assert.Equal(-1, controller.SelectedSuggestionIndex);
+    }
+
+    [Fact]
+    public void AutoHighlightedSuggestion_AcceptsWithoutExplicitSelection()
+    {
+        // The Enter accept path calls AcceptSuggestion without touching SelectedSuggestionIndex;
+        // the auto-highlight alone must make it succeed.
+        var controller = Controller();
+        IReadOnlyCollection<AircraftModel> aircraft = [Ac("N569SX")];
+
+        var text = "EXT DOWN";
+        controller.UpdateSuggestions(text, text.Length, aircraft, Scheme);
+        var accepted = controller.AcceptSuggestion(text);
+
+        Assert.NotNull(accepted);
+        Assert.Equal("EXT DOWNWIND ", accepted.Value.Text);
+    }
+
     // --- Chat-prefix suppression ---
     // Chat messages can contain ',' / ';' (the command fragment separators), so a chat line like
     // "/tell him, FH 270" would otherwise have its trailing fragment parsed as a FlyHeading command.

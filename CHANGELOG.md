@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+- Command-bar autocomplete highlights the top match as you type; Enter (with auto-expand on) inserts it — `EXT DOWN` sends `EXT DOWNWIND` without Tab.
+
 ## v0.12.22-beta [2026/08/30]
 
 ### Highlights

@@ -162,6 +162,7 @@ public partial class CommandInputController : ObservableObject
             }
 
             IsSuggestionsVisible = Suggestions.Count > 0;
+            AutoHighlightTopSuggestion(argPartial);
             return;
         }
 
@@ -244,6 +245,21 @@ public partial class CommandInputController : ObservableObject
         }
 
         IsSuggestionsVisible = Suggestions.Count > 0;
+        AutoHighlightTopSuggestion(activePartial);
+    }
+
+    /// <summary>
+    /// Pre-selects the top suggestion (IDE-style) once the user has typed a non-empty partial
+    /// for the active token, so Enter (with auto-expand enabled) and Tab both take the visibly
+    /// highlighted match. An empty insertion slot stays unselected — Enter on "EXT " must send
+    /// bare EXT, not auto-expand to the first pattern leg.
+    /// </summary>
+    private void AutoHighlightTopSuggestion(string activePartial)
+    {
+        if (IsSuggestionsVisible && activePartial.Length > 0)
+        {
+            SelectedSuggestionIndex = 0;
+        }
     }
 
     public (string Text, int Caret)? AcceptSuggestion(string currentText)

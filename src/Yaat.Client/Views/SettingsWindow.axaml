@@ -335,7 +335,7 @@
                         <StackPanel Spacing="4">
                             <CheckBox Content="Auto-expand highlighted suggestion on Enter"
                                       IsChecked="{Binding AutoExpandSuggestionOnEnter}" />
-                            <TextBlock Text="When a suggestion is highlighted (via Up/Down or click), pressing Enter inserts it before sending the command — equivalent to pressing Tab then Enter. When off, Enter sends the typed text as-is."
+                            <TextBlock Text="The top suggestion is highlighted automatically once you've typed part of a value (or manually via Up/Down); pressing Enter inserts the highlighted suggestion before sending — equivalent to pressing Tab then Enter. When off, Enter sends the typed text as-is."
                                        TextWrapping="Wrap"
                                        Foreground="{DynamicResource SubtleTextBrush}"
                                        FontSize="11" />

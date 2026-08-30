@@ -1565,6 +1565,8 @@ As you type in the command bar, a popup appears with matching suggestions:
   - **Fix names** — for DCT, DCTF, HFIX, CFIX, DEPART, AT conditions
 - **Macros** (yellow) — when typing `!`, matching macro names with parameter hints
 
+Once you've typed part of a value, the top match is highlighted automatically — pressing **Tab** (or **Enter**, with the auto-expand setting on) inserts it. At an empty insertion point (e.g. after `EXT` + space) nothing is pre-highlighted, so Enter sends the command as typed.
+
 Suggestions are context-aware: after `;` or `,` separators, suggestions reset. When the input starts with a callsign, suggestions use that aircraft's data (route fixes, flight rules). Autocomplete and signature help are turned off entirely when the line is a [chat message](#chat-messages) (it starts with `'`, `/`, or `>`), so chat text that happens to read like a command never pops a suggestion popup.
 
 #### Fix Suggestion Priority
@@ -1772,7 +1774,7 @@ These are your **default** preferences, applied when *you* load a scenario. To c
 | Setting | What it does | Default |
 |---------|--------------|---------|
 | **Signature Help Placement** | Whether the command signature-help tooltip appears **Above** or **Below** the command input. | Above |
-| **Auto-expand highlighted suggestion on Enter** | When a suggestion is highlighted, Enter inserts it before sending (like Tab then Enter). When off, Enter sends the typed text as-is. | On |
+| **Auto-expand highlighted suggestion on Enter** | The top suggestion is highlighted automatically once you've typed part of a value; Enter inserts the highlighted suggestion before sending (like Tab then Enter). When off, Enter sends the typed text as-is. | On |
 
 **Radar Display**:
 
