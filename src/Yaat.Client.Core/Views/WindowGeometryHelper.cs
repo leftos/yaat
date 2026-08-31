@@ -2,6 +2,8 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Platform;
 using Avalonia.Threading;
+using Microsoft.Extensions.Logging;
+using Yaat.Client.Logging;
 using Yaat.Client.Services;
 
 namespace Yaat.Client.Views;
@@ -12,6 +14,8 @@ namespace Yaat.Client.Views;
 /// </summary>
 public sealed class WindowGeometryHelper
 {
+    private static readonly ILogger Log = AppLog.CreateLogger("WindowGeometry");
+
     private const string TopmostTitlePrefix = "📌 ";
 
     // Process-wide registry of live helpers. Lets external callers (e.g. the
@@ -30,6 +34,8 @@ public sealed class WindowGeometryHelper
 
     private NormalWindowGeometry _lastNormalGeometry;
     private NormalWindowGeometry? _previousNormalGeometry;
+    private SavedWindowGeometry? _startupGeometry;
+    private DateTime _openedAtUtc = DateTime.MaxValue;
     private bool _wasMaximizedBeforeMinimize;
     private string _baseTitle = string.Empty;
     private bool _applyingTitle;
@@ -81,6 +87,7 @@ public sealed class WindowGeometryHelper
         if (geo is not null && geo.Width > 0 && geo.Height > 0)
         {
             ApplyGeometryToWindow(geo, isStartupRestore: true);
+            _startupGeometry = geo;
         }
         else
         {
@@ -94,6 +101,7 @@ public sealed class WindowGeometryHelper
         _baseTitle = _window.Title ?? string.Empty;
         ApplyTitle();
 
+        _window.Opened += OnWindowOpened;
         _window.PropertyChanged += OnWindowPropertyChanged;
         _window.PositionChanged += OnPositionChanged;
         _window.SizeChanged += OnWindowSizeChanged;
@@ -239,16 +247,19 @@ public sealed class WindowGeometryHelper
 
     private void ApplyGeometryToWindow(SavedWindowGeometry geo, bool isStartupRestore)
     {
-        var screens = _window.Screens.All;
-        if (screens.Count > 0)
+        var screenInfos = GetScreenSnapshot();
+        if (screenInfos.Count > 0)
         {
-            var screenInfos = new ScreenInfo[screens.Count];
-            for (var i = 0; i < screens.Count; i++)
-            {
-                screenInfos[i] = new ScreenInfo(screens[i].WorkingArea, screens[i].Scaling);
-            }
-
             var resolved = ResolveGeometry(geo, screenInfos);
+
+            Log.LogDebug(
+                "{Window} apply ({Mode}): saved={Saved} resolved={Resolved} screens=[{Screens}]",
+                _windowName,
+                isStartupRestore ? "startup" : "profile",
+                Describe(geo),
+                resolved,
+                DescribeScreens(screenInfos)
+            );
 
             if (isStartupRestore)
             {
@@ -276,6 +287,7 @@ public sealed class WindowGeometryHelper
         }
         else
         {
+            Log.LogWarning("{Window} apply: no screens reported; setting size only (saved={Saved})", _windowName, Describe(geo));
             _window.Width = geo.Width;
             _window.Height = geo.Height;
         }
@@ -289,6 +301,104 @@ public sealed class WindowGeometryHelper
             _window.Activate();
         }
     }
+
+    // Position drift tolerated between where a startup restore placed the window and where
+    // it actually ended up once shown, before the post-open verify re-applies the geometry.
+    // Covers sub-pixel rounding; anything larger means the OS or toolkit moved the window.
+    private const int StartupDriftTolerancePx = 2;
+    private const double StartupDriftToleranceDip = 2.0;
+
+    /// <summary>
+    /// Whether a shown window sits where <see cref="ResolveGeometry"/> placed it, within
+    /// rounding tolerance. Position compares in device pixels, size in DIPs.
+    /// </summary>
+    public static bool IsAtResolvedGeometry(ResolvedGeometry resolved, PixelPoint actualPosition, double actualWidth, double actualHeight) =>
+        (Math.Abs(actualPosition.X - resolved.X) <= StartupDriftTolerancePx)
+        && (Math.Abs(actualPosition.Y - resolved.Y) <= StartupDriftTolerancePx)
+        && (Math.Abs(actualWidth - resolved.Width) <= StartupDriftToleranceDip)
+        && (Math.Abs(actualHeight - resolved.Height) <= StartupDriftToleranceDip);
+
+    private void OnWindowOpened(object? sender, EventArgs e)
+    {
+        _window.Opened -= OnWindowOpened;
+        _openedAtUtc = DateTime.UtcNow;
+        // Post at Background so the verify runs after the show-time position/size events
+        // the windowing system queues while the frame is realized.
+        Dispatcher.UIThread.Post(VerifyStartupGeometry, DispatcherPriority.Background);
+    }
+
+    /// <summary>
+    /// One-shot check after the window first shows: if the OS or toolkit moved the window
+    /// away from where the startup restore placed it (GitHub #408 — main window landing
+    /// offset past the left screen edge on the first launch of the day), re-resolve the
+    /// saved geometry against the current screens and re-apply it once. Re-applying the
+    /// same geometry is exactly the reporter's manual workaround (loading a profile with
+    /// identical coordinates), automated.
+    /// </summary>
+    private void VerifyStartupGeometry()
+    {
+        if (_startupGeometry is not { } saved)
+        {
+            return;
+        }
+
+        if (saved.IsMaximized || _window.WindowState != WindowState.Normal)
+        {
+            Log.LogDebug("{Window} post-open verify skipped: state={State}", _windowName, _window.WindowState);
+            return;
+        }
+
+        var screens = GetScreenSnapshot();
+        if (screens.Count == 0)
+        {
+            Log.LogWarning("{Window} post-open verify skipped: no screens reported", _windowName);
+            return;
+        }
+
+        var resolved = ResolveGeometry(saved, screens);
+        var actualPosition = _window.Position;
+        var actualWidth = _window.Width;
+        var actualHeight = _window.Height;
+
+        if (IsAtResolvedGeometry(resolved, actualPosition, actualWidth, actualHeight))
+        {
+            Log.LogDebug("{Window} post-open verify OK at {Position} {Width}x{Height}", _windowName, actualPosition, actualWidth, actualHeight);
+            return;
+        }
+
+        Log.LogWarning(
+            "{Window} landed at {Position} {Width}x{Height} instead of {Resolved} (saved={Saved}, screens=[{Screens}]); re-applying",
+            _windowName,
+            actualPosition,
+            actualWidth,
+            actualHeight,
+            resolved,
+            Describe(saved),
+            DescribeScreens(screens)
+        );
+
+        _window.Width = resolved.Width;
+        _window.Height = resolved.Height;
+        _window.Position = new PixelPoint(resolved.X, resolved.Y);
+    }
+
+    private IReadOnlyList<ScreenInfo> GetScreenSnapshot()
+    {
+        var screens = _window.Screens.All;
+        var screenInfos = new ScreenInfo[screens.Count];
+        for (var i = 0; i < screens.Count; i++)
+        {
+            screenInfos[i] = new ScreenInfo(screens[i].WorkingArea, screens[i].Scaling);
+        }
+
+        return screenInfos;
+    }
+
+    private static string Describe(SavedWindowGeometry geo) =>
+        $"({geo.X},{geo.Y}) {geo.Width}x{geo.Height} screen={geo.ScreenIndex}" + (geo.IsMaximized ? " max" : "") + (geo.IsMinimized ? " min" : "");
+
+    private static string DescribeScreens(IReadOnlyList<ScreenInfo> screens) =>
+        string.Join("; ", screens.Select(s => $"{s.WorkingArea} @{s.Scaling:0.##}x"));
 
     /// <summary>
     /// Calls <see cref="FlushSavedGeometry"/> on every registered helper.
@@ -407,8 +517,19 @@ public sealed class WindowGeometryHelper
         }
     }
 
+    // How long after first show a position change is still logged as suspect — moves this
+    // early are the OS/toolkit settling (monitor wake, DPI change, off-screen rescue), not
+    // the user dragging the window. Diagnostic breadcrumb for GitHub #408.
+    private static readonly TimeSpan EarlyMoveLogWindow = TimeSpan.FromSeconds(10);
+
     private void OnPositionChanged(object? sender, PixelPointEventArgs e)
     {
+        var sinceOpened = DateTime.UtcNow - _openedAtUtc;
+        if ((sinceOpened >= TimeSpan.Zero) && (sinceOpened < EarlyMoveLogWindow))
+        {
+            Log.LogInformation("{Window} moved to {Position} within {Seconds:0}s of opening", _windowName, e.Point, EarlyMoveLogWindow.TotalSeconds);
+        }
+
         // A minimize can report its iconic position before WindowState flips to
         // Minimized — never let that sentinel replace the last normal geometry.
         var current = CaptureCurrentGeometry();
@@ -444,6 +565,7 @@ public sealed class WindowGeometryHelper
     private void OnClosing(object? sender, WindowClosingEventArgs e)
     {
         _autoSaveTimer.Stop();
+        _window.Opened -= OnWindowOpened;
         _preferences.WindowTopmostChanged -= OnPreferencesWindowTopmostChanged;
         SaveCurrentGeometry();
         Unregister();
@@ -451,7 +573,9 @@ public sealed class WindowGeometryHelper
 
     private void SaveCurrentGeometry()
     {
-        _preferences.SetWindowGeometry(_windowName, CreateSavedGeometry());
+        var geo = CreateSavedGeometry();
+        Log.LogDebug("{Window} save: {Saved} (state={State})", _windowName, Describe(geo), _window.WindowState);
+        _preferences.SetWindowGeometry(_windowName, geo);
     }
 
     public void ToggleTopmost()

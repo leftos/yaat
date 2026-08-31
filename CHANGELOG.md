@@ -18,6 +18,7 @@
 - Sim-control commands (`PAUSE`, `SPAWN`, `SIMRATE`, ...) in a chain are rejected with a clear error instead of silently doing nothing.
 - `CASUP` (conflict-alert pair suppression) works when typed live, not just in replays.
 - `HOLDP` documentation shows the argument order the parser accepts (`fix inbound leg turn`).
+- A window that opens offset from where it was saved (reported as the edge-snapped main window drifting off the left screen edge on the day's first launch) snaps back to its saved spot right after opening, and the client log now records every window restore, save, and early move for diagnosis. (#408)
 
 ## v0.12.22-beta [2026/08/30]
 

@@ -130,3 +130,45 @@ public class WindowGeometryResolveTests
         Assert.Equal(300, resolved.Y);
     }
 }
+
+/// <summary>
+/// Tests for GitHub issue #408: after a startup restore, the window is verified against the
+/// resolved geometry once it is shown; a window the OS or toolkit moved (beyond rounding
+/// tolerance) gets the saved geometry re-applied. These cover the drift decision itself.
+/// </summary>
+public class WindowGeometryStartupDriftTests
+{
+    private static readonly WindowGeometryHelper.ResolvedGeometry Resolved = new(-7, 0, 610, 1000);
+
+    [Fact]
+    public void ExactLanding_IsAccepted()
+    {
+        Assert.True(WindowGeometryHelper.IsAtResolvedGeometry(Resolved, new PixelPoint(-7, 0), 610, 1000));
+    }
+
+    [Fact]
+    public void SubPixelRoundingJitter_IsAccepted()
+    {
+        Assert.True(WindowGeometryHelper.IsAtResolvedGeometry(Resolved, new PixelPoint(-6, 1), 610.5, 999.5));
+    }
+
+    [Fact]
+    public void WindowShovedPastLeftEdge_IsRejected()
+    {
+        // Issue #408's symptom: the top-left main window ends up offset past the left screen edge.
+        Assert.False(WindowGeometryHelper.IsAtResolvedGeometry(Resolved, new PixelPoint(-100, 0), 610, 1000));
+    }
+
+    [Fact]
+    public void VerticalDrift_IsRejected()
+    {
+        Assert.False(WindowGeometryHelper.IsAtResolvedGeometry(Resolved, new PixelPoint(-7, -406), 610, 1000));
+    }
+
+    [Fact]
+    public void HeightCappedByWrongScreen_IsRejected()
+    {
+        // A stale ScreenIndex can cap the restored height to a smaller monitor's work area.
+        Assert.False(WindowGeometryHelper.IsAtResolvedGeometry(Resolved, new PixelPoint(-7, 0), 610, 877));
+    }
+}
