@@ -264,6 +264,7 @@ public sealed class SimulationEngine
             Scenario.AutoGoAroundOnOccupiedRunway = scenarioDto.AutoGoAroundOnOccupiedRunway;
             Scenario.LiveTrafficEnabled = scenarioDto.LiveTrafficEnabled;
             Scenario.LiveTrafficCeilingFt = scenarioDto.LiveTrafficCeilingFt;
+            Scenario.LiveTrafficFilter = scenarioDto.LiveTrafficFilter;
             Scenario.ValidateDctFixes = scenarioDto.ValidateDctFixes;
             Scenario.SoloTrainingMode = scenarioDto.SoloTrainingMode;
             Scenario.SoloParkingInitialCallupRatePercent = scenarioDto.SoloParkingInitialCallupRatePercent;
@@ -5082,6 +5083,9 @@ public sealed class SimulationEngine
                 {
                     scenario.LiveTrafficCeilingFt = ceiling;
                 }
+                break;
+            case "LiveTrafficFilter":
+                scenario.LiveTrafficFilter = setting.Value ?? "";
                 break;
             case "LiveTrafficFeedTimeUtc":
                 // Diagnostic: where the room stood in the feed. Replay is driven by the recorded samples themselves.

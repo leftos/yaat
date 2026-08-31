@@ -36,6 +36,9 @@ public enum LiveTrafficRemovalReason
     /// and re-acquired from the feed rather than teleported, so no history straddles the gap.
     /// </summary>
     Reanchored,
+
+    /// <summary>The room's live-traffic filter excludes the aircraft (set or tightened after it spawned).</summary>
+    Filtered,
 }
 
 /// <summary>

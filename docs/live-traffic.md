@@ -235,6 +235,24 @@ bundle's sim seconds back to the real-world feed window (see *Reproducing a repo
   Reviewed by aviation-sim-expert 2026-08-26. The boundaries are the FAA NASR ARB LOW+HIGH strata (one ring each, union for
   containment) built by `tools/build-artcc-boundaries.py` (re-run per 28-day cycle; Honolulu, San Juan and the oceanic centers
   carry a single UNLIMITED volume; Guam has no ARB segments and is absent), so the 30 nm buffer only covers the handoff band.
+- **`LiveTrafficFilter`** (`Yaat.Sim.LiveTraffic`, shared) — which traffic the room shadows, carried on
+  `SimScenarioState.LiveTrafficFilter` as a canonical string (`RULES=VFR;APT=OAK,SFO;MATCH=DEP;NOPLAN=1;CENTER=SUNOL;RADIUS=15`,
+  empty = everything; `TryParse`/`Serialize`/`Describe`). Set via `LiveSessionRequestDto.Filter` at Start Live Session or the
+  hub's `SetLiveTrafficFilter` mid-session; `SimControlService.SetLiveTrafficFilter` validates (parse + radius-centre
+  resolution) and canonicalizes before recording it as a `RecordedSettingChange`, so recorded values always parse. The rules
+  part (`LiveTrafficFilterMatcher.Matches` via `LiveTrafficAircraftFactory.RulesOf`: a plan answers; no plan + a §5-2-11.a
+  VFR conspicuity code (1200/1202/1203/1255/1277) = VFR; no plan + a discrete or missing code = **Unknown** — usually VFR
+  flight following on an assigned code or an uncorrelated IFR plan, so a one-sided rules filter excludes it rather than
+  guessing; only "both" shows it) and the flight-plan-airport part (FAA↔ICAO twins via `AirportIdsMatchResolved`;
+  no-plan targets excluded unless `NOPLAN=1`, and a plan that doesn't carry the *side being asked about* — TAIS plans
+  often hold a single airport — falls to the same toggle instead of hard-missing) gate the per-track spawn/refresh path;
+  a shadow that stops matching is torn down promptly (`Filtered`, one aggregated terminal line naming the count). The
+  radius part **replaces the lateral scope** (`RoomLiveTrafficScope.Build` swaps in a single circle at
+  `ResolveFilterCenter` — airport, fix, or FRD — keeping the ceiling; the surface airport survives only if the primary
+  airport lies inside the radius, so distant ground targets aren't stamped with the wrong field), letting a room watch a
+  fix outside its facility's footprint — the set-filter terminal line warns that the home field is no longer covered.
+  Aviation-reviewed 2026-08-31; the deferred findings (three-state flight-rules on the shadow's datablock, gating CA to
+  the facility volume) are tracked in yaat `docs/plans/MAIN.md`.
 - **`ShadowTrafficSync.Sync`** — the last pre-physics step (`TickProcessor` `Pre.LiveTraffic`), so a sample lands at second *t*,
   is recorded at *t*, and replays pre-tick at *t*. Inert while `IsBroadcastSuppressed` (rewind reconstruction) or in tape
   playback — the recorded samples own the world then. **Time anchor**: `(wallUtc, ElapsedSeconds)` set on the first sync and
@@ -411,6 +429,12 @@ harness shows is what the server did.
   (`LiveSessionBadgeText`: `LIVE` / `PAUSED` / `PLAYBACK` / `LIVE · feed lost`, `DescribeLiveSession` is the pure projection)
   plus `ShowGoLive` (paused or playback) — `GoLiveCommand` → `GoLiveAsync`. A live session hides the scenario `PLAYBACK`
   badge and Take Control (`ShowPlaybackBadge` / `ShowTakeControl`). `CanStartLiveSession` = `CanLoadScenario && LiveTrafficAvailable`.
+- **Filters UI** — `LiveTrafficFilterEditor` (Views/, structured fields over the canonical string; `SetFilterText` /
+  `TryGetFilterText` with inline error) is hosted by `LiveSessionWindow`'s **Filters** tab (with the ceiling, which moved
+  there from the Position row; `LiveSessionChoice.Filter` persists it) and by `LiveTrafficFilterWindow`, opened from
+  **Live Traffic Filters…** in the session-settings flyout; applying sets `SessionLiveTrafficFilter` →
+  `SetLiveTrafficFilterAsync` (refusals land in the status bar), and `SessionLiveTrafficFilterSummary` shows the
+  `Describe()` form under the button.
 - **Session flyout / status bar** — `SessionLiveTrafficEnabled` + `SessionLiveTrafficCeilingFt` (both under the echo guard;
   a refused enable reverts the checkbox and prints the reason). The sim-rate picker binds `IsEnabled` to
   `!SessionLiveTrafficEnabled` (`SimRateToolTip`). `LiveTrafficStatusText` (`FormatLiveTrafficStatus`) renders

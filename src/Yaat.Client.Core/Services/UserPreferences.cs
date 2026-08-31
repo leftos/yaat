@@ -2198,13 +2198,16 @@ public sealed class SavedWindowProfile
     public List<string>? LoadedFavoriteSetNames { get; set; }
 }
 
-/// <summary>A live-session pick: the position to stand at, its display label, the airport to show and the ceiling.</summary>
+/// <summary>A live-session pick: the position to stand at, its display label, the airport to show, the ceiling and the traffic filter.</summary>
 public sealed class LiveSessionChoice
 {
     public string PositionId { get; set; } = "";
     public string PositionLabel { get; set; } = "";
     public string AirportId { get; set; } = "";
     public int CeilingFt { get; set; }
+
+    /// <summary>Traffic filter in <see cref="Yaat.Sim.LiveTraffic.LiveTrafficFilter"/> canonical form; empty = everything in scope.</summary>
+    public string Filter { get; set; } = "";
 
     /// <summary>A past feed instant to open the session at (DVR); never remembered — a fresh session starts at now.</summary>
     [System.Text.Json.Serialization.JsonIgnore]

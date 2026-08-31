@@ -23,9 +23,10 @@ public sealed class ScenarioSnapshotDto
     // Optional — defaults to false so snapshots that predate the occupied-runway go-around replay unchanged.
     public bool AutoGoAroundOnOccupiedRunway { get; init; }
 
-    // Optional — snapshots that predate live traffic restore with the feature off and an automatic ceiling.
+    // Optional — snapshots that predate live traffic restore with the feature off, an automatic ceiling and no filter.
     public bool LiveTrafficEnabled { get; init; }
     public int LiveTrafficCeilingFt { get; init; }
+    public string LiveTrafficFilter { get; init; } = "";
 
     public required bool ValidateDctFixes { get; init; }
     public required bool IsPaused { get; init; }

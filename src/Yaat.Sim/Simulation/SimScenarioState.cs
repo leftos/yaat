@@ -94,6 +94,12 @@ public sealed class SimScenarioState
     /// </summary>
     public int LiveTrafficCeilingFt { get; set; }
 
+    /// <summary>
+    /// Which live traffic the room shadows, in <see cref="LiveTraffic.LiveTrafficFilter"/>'s canonical string form;
+    /// empty means everything in scope.
+    /// </summary>
+    public string LiveTrafficFilter { get; set; } = "";
+
     public bool ValidateDctFixes { get; set; } = true;
 
     // When true, every successful command dispatch produces a deterministic pilot-readback
@@ -261,6 +267,7 @@ public sealed class SimScenarioState
             AutoGoAroundOnOccupiedRunway = AutoGoAroundOnOccupiedRunway,
             LiveTrafficEnabled = LiveTrafficEnabled,
             LiveTrafficCeilingFt = LiveTrafficCeilingFt,
+            LiveTrafficFilter = LiveTrafficFilter,
             ValidateDctFixes = ValidateDctFixes,
             SoloTrainingMode = SoloTrainingMode,
             SoloParkingInitialCallupRatePercent = SoloParkingInitialCallupRatePercent,

@@ -58,6 +58,12 @@ public partial class CommandInputView : UserControl
             saveFavItem.Click += OnSaveAsFavoriteClick;
         }
 
+        var liveFiltersButton = this.FindControl<Button>("LiveTrafficFiltersButton");
+        if (liveFiltersButton is not null)
+        {
+            liveFiltersButton.Click += OnLiveTrafficFiltersClick;
+        }
+
         // Drive popup IsOpen from code-behind so it respects this view's visibility.
         // Two CommandInputView instances share the same VM — the hidden embedded one
         // must not open its popup (would appear at 0,0).
@@ -253,6 +259,21 @@ public partial class CommandInputView : UserControl
         if (DataContext is MainViewModel vm)
         {
             vm.CommandInput.SignatureHelp.NextOverload();
+        }
+    }
+
+    private async void OnLiveTrafficFiltersClick(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is not MainViewModel vm || TopLevel.GetTopLevel(this) is not Window window)
+        {
+            return;
+        }
+
+        var dialog = new LiveTrafficFilterWindow(vm.Preferences, vm.SessionLiveTrafficFilter);
+        var result = await dialog.ShowDialog<string?>(window);
+        if (result is not null)
+        {
+            vm.SessionLiveTrafficFilter = result;
         }
     }
 

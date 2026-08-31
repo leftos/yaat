@@ -270,6 +270,15 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty]
     private int _sessionLiveTrafficCeilingFt;
 
+    /// <summary>Room live-traffic filter in canonical string form (empty = everything in scope); mirrored from session settings.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(SessionLiveTrafficFilterSummary))]
+    private string _sessionLiveTrafficFilter = "";
+
+    /// <summary>Human form of the filter for the session-settings flyout.</summary>
+    public string SessionLiveTrafficFilterSummary =>
+        Yaat.Sim.LiveTraffic.LiveTrafficFilter.TryParse(SessionLiveTrafficFilter, out var filter, out _) ? filter.Describe() : "invalid";
+
     [ObservableProperty]
     private bool _sessionValidateDctFixes = true;
 
@@ -3255,6 +3264,7 @@ public partial class MainViewModel : ObservableObject
         SessionAutoGoAroundOnOccupiedRunway = dto.AutoGoAroundOnOccupiedRunway;
         SessionLiveTrafficEnabled = dto.LiveTrafficEnabled;
         SessionLiveTrafficCeilingFt = dto.LiveTrafficCeilingFt;
+        SessionLiveTrafficFilter = dto.LiveTrafficFilter;
         SessionValidateDctFixes = dto.ValidateDctFixes;
         SessionSoloTrainingMode = dto.SoloTrainingMode;
         SessionSoloParkingInitialCallupRatePercent = dto.SoloParkingInitialCallupRatePercent;
@@ -3292,7 +3302,8 @@ public partial class MainViewModel : ObservableObject
                 state.CommandRunDelayMinSeconds,
                 state.CommandRunDelayMaxSeconds,
                 state.LiveTrafficEnabled,
-                state.LiveTrafficCeilingFt
+                state.LiveTrafficCeilingFt,
+                state.LiveTrafficFilter
             )
         );
     }
@@ -3319,7 +3330,8 @@ public partial class MainViewModel : ObservableObject
                 dto.CommandRunDelayMinSeconds,
                 dto.CommandRunDelayMaxSeconds,
                 dto.LiveTrafficEnabled,
-                dto.LiveTrafficCeilingFt
+                dto.LiveTrafficCeilingFt,
+                dto.LiveTrafficFilter
             )
         );
     }
@@ -3346,7 +3358,8 @@ public partial class MainViewModel : ObservableObject
                 result.CommandRunDelayMinSeconds,
                 result.CommandRunDelayMaxSeconds,
                 result.LiveTrafficEnabled,
-                result.LiveTrafficCeilingFt
+                result.LiveTrafficCeilingFt,
+                result.LiveTrafficFilter
             )
         );
     }
@@ -3461,6 +3474,32 @@ public partial class MainViewModel : ObservableObject
         if (!_isApplyingSessionSettings)
         {
             _ = _connection.SetLiveTrafficCeilingFtAsync(value);
+        }
+    }
+
+    partial void OnSessionLiveTrafficFilterChanged(string value)
+    {
+        if (!_isApplyingSessionSettings)
+        {
+            _ = SendLiveTrafficFilterAsync(value);
+        }
+    }
+
+    private async Task SendLiveTrafficFilterAsync(string value)
+    {
+        try
+        {
+            var result = await _connection.SetLiveTrafficFilterAsync(value);
+            if (!result.Success)
+            {
+                StatusText = result.Message ?? "Live traffic filter rejected";
+                AddSystemEntry($"Live traffic filter rejected: {result.Message}");
+            }
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Set live traffic filter failed");
+            StatusText = $"Live traffic filter error: {ex.Message}";
         }
     }
 

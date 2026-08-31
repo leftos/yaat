@@ -1,0 +1,32 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:views="using:Yaat.Client.Views"
+        x:Class="Yaat.Client.Views.LiveTrafficFilterWindow"
+        Icon="avares://Yaat.Client/Resources/icon.png"
+        Title="Live Traffic Filters"
+        Width="460"
+        Height="360"
+        MinWidth="420"
+        MinHeight="320"
+        WindowStartupLocation="CenterOwner"
+        CanResize="True">
+
+    <DockPanel Margin="12">
+        <StackPanel DockPanel.Dock="Bottom"
+                    Orientation="Horizontal"
+                    HorizontalAlignment="Right"
+                    Spacing="8"
+                    Margin="0,8,0,0">
+            <Button Content="Apply" x:Name="ApplyButton" Width="80" />
+            <Button Content="Cancel" x:Name="CancelButton" Width="80" />
+        </StackPanel>
+
+        <TextBlock DockPanel.Dock="Top"
+                   Text="Which real aircraft this room shadows. Tightening a filter removes the excluded aircraft; loosening one lets them appear on the next update."
+                   TextWrapping="Wrap"
+                   Foreground="{DynamicResource SubtleTextBrush}"
+                   Margin="0,0,0,8" />
+
+        <views:LiveTrafficFilterEditor x:Name="Editor" />
+    </DockPanel>
+</Window>

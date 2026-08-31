@@ -306,6 +306,16 @@
                             </StackPanel>
                         </StackPanel>
 
+                        <StackPanel Spacing="2" IsVisible="{Binding LiveTrafficAvailable}">
+                            <Button x:Name="LiveTrafficFiltersButton"
+                                    Content="Live Traffic Filters…"
+                                    ToolTip.Tip="Which real aircraft the room shadows: flight rules, flight-plan airports, a radius." />
+                            <TextBlock Text="{Binding SessionLiveTrafficFilterSummary, StringFormat='Filter: {0}'}"
+                                       Foreground="{DynamicResource SubtleTextBrush}"
+                                       FontSize="11"
+                                       TextWrapping="Wrap" />
+                        </StackPanel>
+
                         <CheckBox Content="Validate DCT Fixes"
                                   IsChecked="{Binding SessionValidateDctFixes}" />
 

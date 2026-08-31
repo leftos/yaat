@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+### Added
+- Live traffic (internal testing): traffic filters in Start Live Session and the session flyout — VFR/IFR, flight-plan airports (dep/dest), or a radius around any airport/fix/FRD.
+
 ### Fixed
 - Live traffic (internal testing): shadow aircraft no longer churn in and out or show `LIVE CST` on healthy tracks — coast and removal follow the feed's own coast and drop signals.
 - Live traffic: landed arrivals disappear promptly instead of dead-reckoning down the runway, and taxiing aircraft no longer flick airborne during brief surface-update lapses.

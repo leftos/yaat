@@ -158,7 +158,7 @@ public partial class MainViewModel
         {
             StatusText = $"Starting live session at {choice.PositionLabel} / {choice.AirportId}…";
             var result = await _connection.StartLiveSessionAsync(
-                new LiveSessionRequestDto(choice.PositionId, choice.AirportId, choice.CeilingFt, choice.StartUtc)
+                new LiveSessionRequestDto(choice.PositionId, choice.AirportId, choice.CeilingFt, choice.StartUtc, choice.Filter)
             );
             if (!result.Success)
             {

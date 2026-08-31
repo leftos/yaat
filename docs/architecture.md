@@ -345,6 +345,8 @@ Views/
   LiveTrafficMenuItems.cs       # "Assume control" / "Assume and track" items for an assumable live-traffic shadow, shared by the three right-click menus
   LiveTrafficDvrFlyout.cs       # Click-the-live-badge DVR control: feed log window (GetLiveTrafficWindow), slider + HH:mm → SeekLiveTraffic, Go Live
   LiveSessionWindow.axaml.cs    # Start Live Session picker: facility TreeView (GetArtccFacilityTree) → positions (starred first) → airport combo (LiveSessionAirportDefaults) + ceiling; returns LiveSessionChoice, pre-selects UserPreferences.LastLiveSession
+  LiveTrafficFilterEditor.axaml(.cs) # Structured editor UserControl over the canonical filter string, hosted by the Start Live Session Filters tab and the mid-session dialog
+  LiveTrafficFilterWindow.axaml(.cs) # Mid-session filter dialog opened from the session-settings flyout
   FavoritesContextMenuModel.cs  # Pure model behind FavoritesContextMenu: resolves active favorites against the clicked aircraft for headless tests
   DataGridView.axaml.cs         # Aircraft data grid (extracted from MainWindow)
   DataGridView.ContextMenu.cs   # Partial: phase-aware right-click menu builders
@@ -565,6 +567,7 @@ LiveTraffic/LiveTrafficAssumer.cs    # ASSUME hand-off: shadow → simulated air
                                      # route rejoin (NextFixAhead), initial climb, VFR, runway/surface kinds. Never refused. See live-traffic.md.
 LiveTraffic/LiveTrafficKinematics.cs # CreateShadow / Apply(sample) / Resync(simNow) / Advance(dt): dead-reckons a shadow from its latest sample and writes the air vector (heading+IAS)
                                      # so the computed GroundSpeed equals the sampled GS under the room wind; coasts after two missed sweeps. See live-traffic.md.
+LiveTraffic/LiveTrafficFilter.cs     # Shared live-traffic filter model (rules VFR/IFR/both, flight-plan airport list, radius); canonical-string TryParse/Serialize/Describe; carried on SimScenarioState.LiveTrafficFilter
 WindInterpolator.cs            # Static wind utilities: GetWindAt, GetWindComponents (vector lerp through 0/360; take sim time + phase),
                                # IasToTas/TasToIas/MachToIas/IasToMach (ISA compressible-flow equations), ComputeWindCorrectionAngle
 WindVariation.cs               # Deterministic time-varying wind perturbation: bounded value-noise gust/direction wander + VRB model,
@@ -995,7 +998,7 @@ SimulationEngine.cs            # Scenario load, tick orchestration, replay (Repl
                                # ApplyPostDispatch is the single post-command hook both hosts call (see solo-training-pilot-speech.md).
                                # TerminalEntryEmitted event fires for every terminal entry (command echoes, preset outcomes, warnings) so
                                # subscribers react as entries happen instead of polling DrainTerminalEntries (issue #396)
-SimScenarioState.cs            # Per-scenario runtime state: queues, settings, ATC positions, coordination, ArtccConfig (loaded from bundle on replay)
+SimScenarioState.cs            # Per-scenario runtime state: queues, settings, ATC positions, coordination, ArtccConfig (loaded from bundle on replay), LiveTrafficFilter (carried from room settings)
 ScenarioPacing.cs              # Shared solo-training pacing helpers for parking call-up intervals and arrival generator rates
 ArrivalSpacingManager.cs       # Pure in-trail spacing math (SpeedCeiling) for the generator stream — simulated approach-controller speed equalization; SimulationEngine.ApplyArrivalSpacing drives it
 ScratchpadRuleEngine.cs        # Applies the facility's vNAS scratchpad rules (airport/route/altitude match → Template) to SP1/SP2

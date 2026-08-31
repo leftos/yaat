@@ -615,6 +615,13 @@ public sealed class ServerConnection : IStripsTransport, ITdlsTransport, IAsyncD
         await _connection!.InvokeAsync("SetLiveTrafficCeilingFt", ceilingFt);
     }
 
+    /// <summary>Sets the room's live-traffic filter (canonical string; empty clears). Refused with the reason on a bad filter.</summary>
+    public async Task<CommandResultDto> SetLiveTrafficFilterAsync(string filter)
+    {
+        EnsureConnected();
+        return await _connection!.InvokeAsync<CommandResultDto>("SetLiveTrafficFilter", filter);
+    }
+
     // --- Timeline / Rewind ---
 
     public async Task<RewindResultDto?> RewindToAsync(double elapsedSeconds)
@@ -1163,6 +1170,7 @@ public record LoadScenarioResultDto(
     int CommandRunDelayMaxSeconds = 0,
     bool LiveTrafficEnabled = false,
     int LiveTrafficCeilingFt = 0,
+    string LiveTrafficFilter = "",
     bool IsLiveSession = false
 );
 
@@ -1245,6 +1253,7 @@ public record RoomStateDto(
     string? StudentPositionType = null,
     bool LiveTrafficEnabled = false,
     int LiveTrafficCeilingFt = 0,
+    string LiveTrafficFilter = "",
     LiveTrafficStatusDto? LiveTrafficStatus = null,
     bool IsLiveSession = false
 );
@@ -1273,8 +1282,11 @@ public record LiveTrafficWindowDto(
     string? Reason
 );
 
-/// <summary>What the client asks for when it opens a live-traffic session: the position to stand at and the airport to show.</summary>
-public record LiveSessionRequestDto(string PositionId, string PrimaryAirportId, int CeilingFt, DateTimeOffset? StartUtc);
+/// <summary>
+/// What the client asks for when it opens a live-traffic session: the position to stand at, the airport to show,
+/// and the traffic filter in <see cref="Yaat.Sim.LiveTraffic.LiveTrafficFilter"/> canonical form (null/empty = everything).
+/// </summary>
+public record LiveSessionRequestDto(string PositionId, string PrimaryAirportId, int CeilingFt, DateTimeOffset? StartUtc, string? Filter);
 
 /// <summary>One position as the live-session picker lists it; <c>Frequency</c> in Hz as vNAS stores it.</summary>
 public record PositionSummaryDto(string Id, string Name, string Callsign, long Frequency, bool Starred);
@@ -1329,6 +1341,7 @@ public record ScenarioLoadedDto(
     int CommandRunDelayMaxSeconds = 0,
     bool LiveTrafficEnabled = false,
     int LiveTrafficCeilingFt = 0,
+    string LiveTrafficFilter = "",
     bool IsLiveSession = false
 );
 
@@ -1392,7 +1405,8 @@ public record SessionSettingsDto(
     int CommandRunDelayMinSeconds = 0,
     int CommandRunDelayMaxSeconds = 0,
     bool LiveTrafficEnabled = false,
-    int LiveTrafficCeilingFt = 0
+    int LiveTrafficCeilingFt = 0,
+    string LiveTrafficFilter = ""
 );
 
 /// <summary>

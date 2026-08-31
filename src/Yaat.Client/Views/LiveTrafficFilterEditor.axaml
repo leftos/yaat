@@ -1,0 +1,45 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="Yaat.Client.Views.LiveTrafficFilterEditor">
+    <StackPanel Spacing="10">
+
+        <StackPanel Orientation="Horizontal" Spacing="8">
+            <TextBlock Text="Flight rules:" VerticalAlignment="Center" />
+            <ComboBox x:Name="RulesBox" MinWidth="130" />
+        </StackPanel>
+
+        <StackPanel Spacing="4">
+            <TextBlock Text="Flight-plan airports (blank = any):" />
+            <StackPanel Orientation="Horizontal" Spacing="8">
+                <ComboBox x:Name="MatchBox" MinWidth="180" ToolTip.Tip="Which end of the flight plan must name one of the airports." />
+                <TextBox x:Name="AirportsBox"
+                         MinWidth="180"
+                         PlaceholderText="e.g. OAK, SFO"
+                         ToolTip.Tip="Comma-separated airport codes; FAA and ICAO forms both match (OAK = KOAK)." />
+            </StackPanel>
+            <CheckBox x:Name="NoPlanBox"
+                      Content="Also include aircraft without a flight plan"
+                      ToolTip.Tip="Aircraft with no plan (1200 squawks, uncorrelated tracks) can never match an airport, so an airport filter hides them unless this is on." />
+        </StackPanel>
+
+        <StackPanel Spacing="4">
+            <TextBlock Text="Only within a radius (blank = the facility's own scope):" />
+            <StackPanel Orientation="Horizontal" Spacing="8">
+                <NumericUpDown x:Name="RadiusBox"
+                               Minimum="0"
+                               Maximum="400"
+                               Increment="5"
+                               Width="110"
+                               FormatString="0.#"
+                               Foreground="{DynamicResource TextControlForeground}" />
+                <TextBlock Text="nm of" VerticalAlignment="Center" />
+                <TextBox x:Name="CenterBox"
+                         MinWidth="140"
+                         PlaceholderText="airport / fix / FRD"
+                         ToolTip.Tip="An airport, any fix, or a fix-radial-distance like OAK090010. Replaces the facility scope, so the room can watch anywhere. The altitude ceiling still applies." />
+            </StackPanel>
+        </StackPanel>
+
+        <TextBlock x:Name="ErrorText" Foreground="OrangeRed" TextWrapping="Wrap" IsVisible="False" />
+    </StackPanel>
+</UserControl>

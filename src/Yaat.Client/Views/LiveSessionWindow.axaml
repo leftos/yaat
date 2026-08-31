@@ -1,12 +1,13 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:views="using:Yaat.Client.Views"
         x:Class="Yaat.Client.Views.LiveSessionWindow"
         Icon="avares://Yaat.Client/Resources/icon.png"
         Title="Start Live Session"
         Width="620"
-        Height="520"
+        Height="560"
         MinWidth="480"
-        MinHeight="380"
+        MinHeight="420"
         WindowStartupLocation="CenterOwner"
         CanResize="True">
 
@@ -26,44 +27,63 @@
                     Width="80" />
         </StackPanel>
 
-        <TextBlock DockPanel.Dock="Top"
-                   Text="Pick the position to work. Real traffic from the SWIM feed fills the room; there is no authored scenario. Aircraft on the FAA LADD block list never appear."
-                   TextWrapping="Wrap"
-                   Foreground="{DynamicResource SubtleTextBrush}"
-                   Margin="0,0,0,8" />
+        <TabControl>
+            <TabItem Header="Position">
+                <DockPanel Margin="0,8,0,0">
+                    <TextBlock DockPanel.Dock="Top"
+                               Text="Pick the position to work. Real traffic from the SWIM feed fills the room; there is no authored scenario. Aircraft on the FAA LADD block list never appear."
+                               TextWrapping="Wrap"
+                               Foreground="{DynamicResource SubtleTextBrush}"
+                               Margin="0,0,0,8" />
 
-        <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Spacing="8" Margin="0,8,0,0">
-            <TextBlock Text="Start at (UTC, HH:mm, blank = now):" VerticalAlignment="Center" />
-            <TextBox x:Name="StartAtBox" Width="80" PlaceholderText="now" ToolTip.Tip="Open the session at a past time inside the server's feed log (up to 24 h back): the room replays real traffic from there, behind real time, until you Go Live." />
-            <TextBlock x:Name="StartAtHint" VerticalAlignment="Center" Foreground="{DynamicResource SubtleTextBrush}" />
-        </StackPanel>
+                    <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Spacing="8" Margin="0,8,0,0">
+                        <TextBlock Text="Start at (UTC, HH:mm, blank = now):" VerticalAlignment="Center" />
+                        <TextBox x:Name="StartAtBox" Width="80" PlaceholderText="now" ToolTip.Tip="Open the session at a past time inside the server's feed log (up to 24 h back): the room replays real traffic from there, behind real time, until you Go Live." />
+                        <TextBlock x:Name="StartAtHint" VerticalAlignment="Center" Foreground="{DynamicResource SubtleTextBrush}" />
+                    </StackPanel>
 
-        <Grid DockPanel.Dock="Bottom"
-              ColumnDefinitions="Auto,*,Auto,Auto"
-              RowDefinitions="Auto"
-              Margin="0,8,0,0">
-            <TextBlock Grid.Column="0" Text="Primary airport:" VerticalAlignment="Center" Margin="0,0,8,0" />
-            <ComboBox Grid.Column="1"
-                      x:Name="AirportBox"
-                      MinWidth="120"
-                      HorizontalAlignment="Left"
-                      ToolTip.Tip="The room's primary airport: the ground view, surface (ASDE-X) traffic, flight strips and the radar centre follow it." />
-            <TextBlock Grid.Column="2" Text="Ceiling (ft MSL, 0 = auto):" VerticalAlignment="Center" Margin="16,0,8,0" />
-            <NumericUpDown Grid.Column="3"
-                           x:Name="CeilingBox"
-                           Minimum="0"
-                           Maximum="60000"
-                           Increment="1000"
-                           FormatString="0"
-                           Width="130"
-                           ToolTip.Tip="Only real aircraft at or below this altitude are shown. 0 uses the facility's own ceiling." />
-        </Grid>
+                    <Grid DockPanel.Dock="Bottom"
+                          ColumnDefinitions="Auto,*"
+                          RowDefinitions="Auto"
+                          Margin="0,8,0,0">
+                        <TextBlock Grid.Column="0" Text="Primary airport:" VerticalAlignment="Center" Margin="0,0,8,0" />
+                        <ComboBox Grid.Column="1"
+                                  x:Name="AirportBox"
+                                  MinWidth="120"
+                                  HorizontalAlignment="Left"
+                                  ToolTip.Tip="The room's primary airport: the ground view, surface (ASDE-X) traffic, flight strips and the radar centre follow it." />
+                    </Grid>
 
-        <Grid ColumnDefinitions="*,8,*" RowDefinitions="Auto,*">
-            <TextBlock Grid.Row="0" Grid.Column="0" Text="Facility" FontWeight="Bold" Margin="0,0,0,4" />
-            <TextBlock Grid.Row="0" Grid.Column="2" Text="Position" FontWeight="Bold" Margin="0,0,0,4" />
-            <TreeView Grid.Row="1" Grid.Column="0" x:Name="FacilityTree" />
-            <ListBox Grid.Row="1" Grid.Column="2" x:Name="PositionList" />
-        </Grid>
+                    <Grid ColumnDefinitions="*,8,*" RowDefinitions="Auto,*">
+                        <TextBlock Grid.Row="0" Grid.Column="0" Text="Facility" FontWeight="Bold" Margin="0,0,0,4" />
+                        <TextBlock Grid.Row="0" Grid.Column="2" Text="Position" FontWeight="Bold" Margin="0,0,0,4" />
+                        <TreeView Grid.Row="1" Grid.Column="0" x:Name="FacilityTree" />
+                        <ListBox Grid.Row="1" Grid.Column="2" x:Name="PositionList" />
+                    </Grid>
+                </DockPanel>
+            </TabItem>
+
+            <TabItem Header="Filters">
+                <StackPanel Margin="0,8,0,0" Spacing="10">
+                    <TextBlock Text="Which real aircraft the room shadows. Everything can be changed later from the session settings."
+                               TextWrapping="Wrap"
+                               Foreground="{DynamicResource SubtleTextBrush}" />
+
+                    <views:LiveTrafficFilterEditor x:Name="FilterEditor" />
+
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <TextBlock Text="Ceiling (ft MSL, 0 = auto):" VerticalAlignment="Center" />
+                        <NumericUpDown x:Name="CeilingBox"
+                                       Minimum="0"
+                                       Maximum="60000"
+                                       Increment="1000"
+                                       FormatString="0"
+                                       Width="130"
+                                       Foreground="{DynamicResource TextControlForeground}"
+                                       ToolTip.Tip="Only real aircraft at or below this altitude are shown. 0 uses the facility's own ceiling." />
+                    </StackPanel>
+                </StackPanel>
+            </TabItem>
+        </TabControl>
     </DockPanel>
 </Window>

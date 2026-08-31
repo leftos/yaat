@@ -21,6 +21,7 @@ public partial class LiveSessionWindow : Window
     private readonly ListBox _positionList;
     private readonly ComboBox _airportBox;
     private readonly NumericUpDown _ceilingBox;
+    private readonly LiveTrafficFilterEditor _filterEditor;
     private readonly TextBox _startAtBox;
     private readonly TextBlock _startAtHint;
     private readonly Button _startButton;
@@ -40,10 +41,12 @@ public partial class LiveSessionWindow : Window
         _positionList = this.FindControl<ListBox>("PositionList")!;
         _airportBox = this.FindControl<ComboBox>("AirportBox")!;
         _ceilingBox = this.FindControl<NumericUpDown>("CeilingBox")!;
+        _filterEditor = this.FindControl<LiveTrafficFilterEditor>("FilterEditor")!;
         _startAtBox = this.FindControl<TextBox>("StartAtBox")!;
         _startAtHint = this.FindControl<TextBlock>("StartAtHint")!;
         _startButton = this.FindControl<Button>("StartButton")!;
         _startAtBox.TextChanged += (_, _) => UpdateStartEnabled();
+        _filterEditor.Changed += (_, _) => UpdateStartEnabled();
 
         this.FindControl<Button>("CancelButton")!.Click += (_, _) => Close(null);
         _startButton.Click += (_, _) => Finish();
@@ -60,6 +63,7 @@ public partial class LiveSessionWindow : Window
         };
 
         _ceilingBox.Value = preferences.LastLiveSession?.CeilingFt ?? 0;
+        _filterEditor.SetFilterText(preferences.LastLiveSession?.Filter);
         _ = LoadTreeAsync();
     }
 
@@ -202,7 +206,8 @@ public partial class LiveSessionWindow : Window
     {
         var startAt = ParseStartAt(_startAtBox.Text, DateTimeOffset.UtcNow, out var error);
         _startAtHint.Text = error ?? (startAt is { } t ? $"= {t:yyyy-MM-dd HH:mm}Z" : "");
-        _startButton.IsEnabled = (_positionList.SelectedItem is PositionEntry) && (_airportBox.SelectedItem is string) && (error is null);
+        bool filterOk = _filterEditor.TryGetFilterText(out _, out _);
+        _startButton.IsEnabled = (_positionList.SelectedItem is PositionEntry) && (_airportBox.SelectedItem is string) && (error is null) && filterOk;
     }
 
     /// <summary>
@@ -246,6 +251,11 @@ public partial class LiveSessionWindow : Window
             return;
         }
 
+        if (!_filterEditor.TryGetFilterText(out var filter, out _))
+        {
+            return;
+        }
+
         Close(
             new LiveSessionChoice
             {
@@ -253,6 +263,7 @@ public partial class LiveSessionWindow : Window
                 PositionLabel = entry.Position.Callsign,
                 AirportId = airport,
                 CeilingFt = (int)(_ceilingBox.Value ?? 0),
+                Filter = filter,
                 StartUtc = ParseStartAt(_startAtBox.Text, DateTimeOffset.UtcNow, out _),
             }
         );
