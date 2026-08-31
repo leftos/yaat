@@ -67,3 +67,6 @@ __pycache__/
 
 # Local Claude Code multi-repo launcher (sees ../yaat-server)
 claude-ws.ps1
+
+# Local ad-hoc scenario generator (personal, not shipped)
+tools/make-oak-northfield-scenario.py
