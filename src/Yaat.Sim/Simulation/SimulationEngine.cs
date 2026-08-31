@@ -4591,6 +4591,11 @@ public sealed class SimulationEngine
         double now = Scenario?.ElapsedSeconds ?? 0;
         ac.LiveTraffic!.AppliedAtSimSeconds = now;
         LiveTrafficKinematics.Resync(ac, now, World.Weather);
+        if (Scenario is not null)
+        {
+            LiveTrafficOwnerResolver.Apply(ac, sample, Scenario);
+        }
+
         TrackShadowBeacon(codeBefore, ac.Transponder.Code);
         RecordLiveTrafficAction(new RecordedLiveTrafficSample(now, callsign, sample, spawned ? spawnState : null));
         return true;
@@ -4775,6 +4780,10 @@ public sealed class SimulationEngine
 
         ac.LiveTraffic!.AppliedAtSimSeconds = Scenario?.ElapsedSeconds ?? 0;
         LiveTrafficKinematics.Resync(ac, Scenario?.ElapsedSeconds ?? 0, World.Weather);
+        if (Scenario is not null)
+        {
+            LiveTrafficOwnerResolver.Apply(ac, recorded.Sample, Scenario);
+        }
     }
 
     /// <summary>Replay twin of <see cref="RemoveLiveTraffic"/> (no recording); public for the server brain.</summary>

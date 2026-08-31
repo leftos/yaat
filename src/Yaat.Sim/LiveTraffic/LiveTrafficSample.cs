@@ -113,4 +113,18 @@ public sealed record LiveTrafficSample(
 
     /// <summary>The fix the feed has the aircraft holding at, while it does.</summary>
     public string? HoldFix { get; init; }
+
+    /// <summary>
+    /// Real-world controlling facility (a TRACON or centre id; null with a set sector = the overlying centre).
+    /// Resolved into the shadow's <see cref="TrackOwner"/> at apply; recorded so replays reproduce the datablocks.
+    /// </summary>
+    public string? OwnerFacility { get; init; }
+
+    /// <summary>Real-world controlling position: a STARS cps (<c>2F</c>) or an ERAM sector.</summary>
+    public string? OwnerSector { get; init; }
+
+    /// <summary>Receiving facility of an in-progress real-world handoff; drives the pending-handoff display.</summary>
+    public string? PendingOwnerFacility { get; init; }
+
+    public string? PendingOwnerSector { get; init; }
 }

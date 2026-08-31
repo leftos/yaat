@@ -280,6 +280,20 @@ bundle's sim seconds back to the real-world feed window (see *Reproducing a repo
   (world + recording) → assignments → delayed queue → change tracker → beacon `Release` → `AircraftDeleted` + CRC disconnect.
   `DEL` on a shadow removes it as `Deleted` and adds it to `RoomLiveTrafficState.Suppressed` until live traffic is toggled;
   turning the setting off removes every shadow as `Disabled` (assumed aircraft stay).
+- **Real-world ownership** (yaat-server plan 11) — the feed's controlling position becomes the shadow's `TrackOwner`.
+  The correlator reads TAIS `cps` gated by `ocr` (ownership change reason): a completed state makes cps the owner, but
+  `ocr=pending` makes cps the **receiving** sector of an in-progress handoff (vatsim-server-rs parity — applying cps
+  unconditionally jumps ownership at handoff-initiate); cps shape decides the kind (2-char digit+sector = a sector at
+  the publishing TRACON, one letter = the overlying centre). SFDPS `controllingUnit`/`controllingSector` set the ERAM
+  owner and the handoff element the pending one. All four ride on `LiveTrafficSample` (recorded → replays reproduce
+  the datablocks) and `LiveTrafficOwnerResolver` (Yaat.Sim) resolves them against the scenario's ArtccConfig into a
+  `TrackOwner` (real position callsign when a TCP/sector matches, synthetic with the right subset/sector otherwise) plus
+  the `HandoffPeer`/`OnHandoff` pending display. **The feed yields silently**: `AircraftTrack.Owner`'s setter clears
+  `OwnerFromLiveFeed` on any ordinary write, so a controller's TRACK takes the target and only a DROP (owner back to
+  null) lets the feed re-apply; `ProcessAutoAccept` skips feed-owned tracks so real-world handoffs complete only when
+  the feed says so. `RoomControllerCollector.Collect` fills the CRC OpenPositions topic and the client controller list
+  with synthesized "Real World" positions (ARTCC root + student facility subtree, radar-capable only) during live
+  sessions, so owned tracks point at positions that exist. Tests: `ShadowOwnershipTests`.
 - **Wire** — `AircraftStateDto.IsLiveTraffic` / `LiveTrafficStale` / `LiveTrafficSource` (+ client `AircraftDto`), all three in
   `TrainingDtoFingerprint`. Shadows are excluded from auto-TDLS, auto arrival strips and the rolling-call strip
   (`IsDepartureAircraft` / `IsArrivalCandidate` / `IsApproachDepartureCandidate`).

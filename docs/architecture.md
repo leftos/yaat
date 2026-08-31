@@ -570,6 +570,7 @@ LiveTraffic/LiveTrafficAssumer.cs    # ASSUME hand-off: shadow → simulated air
 LiveTraffic/LiveTrafficKinematics.cs # CreateShadow / Apply(sample) / Resync(simNow) / Advance(dt): dead-reckons a shadow from its latest sample and writes the air vector (heading+IAS)
                                      # so the computed GroundSpeed equals the sampled GS under the room wind; coasts after two missed sweeps. See live-traffic.md.
 LiveTraffic/LiveTrafficFilter.cs     # Shared live-traffic filter model (rules VFR/IFR/both, flight-plan airport list, radius); canonical-string TryParse/Serialize/Describe; carried on SimScenarioState.LiveTrafficFilter
+LiveTraffic/LiveTrafficOwnerResolver.cs # Real-world ownership on shadows: sample owner/pending fields -> TrackOwner via the scenario's ArtccConfig (TCP/ERAM-sector match, synthetic fallback) + HandoffPeer pending display; feed yields to any ordinary Track.Owner write (OwnerFromLiveFeed). See live-traffic.md.
 WindInterpolator.cs            # Static wind utilities: GetWindAt, GetWindComponents (vector lerp through 0/360; take sim time + phase),
                                # IasToTas/TasToIas/MachToIas/IasToMach (ISA compressible-flow equations), ComputeWindCorrectionAngle
 WindVariation.cs               # Deterministic time-varying wind perturbation: bounded value-noise gust/direction wander + VRB model,

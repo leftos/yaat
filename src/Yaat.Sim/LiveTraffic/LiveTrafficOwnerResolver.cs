@@ -1,0 +1,127 @@
+using Yaat.Sim.Data.Vnas;
+using Yaat.Sim.Simulation;
+
+namespace Yaat.Sim.LiveTraffic;
+
+/// <summary>
+/// Turns a sample's real-world ownership (facility + position from the feed) into the shadow's
+/// <see cref="TrackOwner"/> and pending-handoff display, resolving against the scenario's ARTCC config so a
+/// feed sector lines up with the configured vNAS position (and its callsign) when one matches. Runs on every
+/// sample in both brains — samples are recorded, so replays reproduce the same ownership. The feed yields
+/// silently: a controller's TRACK clears <see cref="AircraftTrack.OwnerFromLiveFeed"/> (any ordinary owner
+/// write does) and the feed stays out until a DROP returns the track to unowned.
+/// </summary>
+public static class LiveTrafficOwnerResolver
+{
+    public static void Apply(AircraftState ac, LiveTrafficSample sample, SimScenarioState scenario)
+    {
+        var track = ac.Track;
+        if ((track.Owner is not null) && !track.OwnerFromLiveFeed)
+        {
+            return;
+        }
+
+        var owner = Resolve(scenario, sample.OwnerFacility, sample.OwnerSector);
+        track.SetOwnerFromLiveFeed(owner);
+        var pending = (owner is null) ? null : Resolve(scenario, sample.PendingOwnerFacility, sample.PendingOwnerSector);
+        if (pending is not null)
+        {
+            track.HandoffPeer = pending;
+            track.OnHandoff = true;
+            track.HandoffAccepted = false;
+            track.HandoffInitiatedAt ??= scenario.ElapsedSeconds;
+        }
+        else
+        {
+            track.HandoffPeer = null;
+            track.OnHandoff = false;
+            track.HandoffAccepted = false;
+            track.HandoffInitiatedAt = null;
+        }
+    }
+
+    /// <summary>
+    /// A STARS owner is a TRACON facility + cps (subset digit + sector); an ERAM owner is a centre (the sample's
+    /// facility is the ARTCC id, or null for TAIS's single-letter centre alias) + sector. A configured position
+    /// whose TCP / ERAM sector matches contributes its real callsign; otherwise a synthetic owner still carries
+    /// the right facility/subset/sector so the datablock symbol renders.
+    /// </summary>
+    public static TrackOwner? Resolve(SimScenarioState scenario, string? facility, string? sector)
+    {
+        if (string.IsNullOrEmpty(sector))
+        {
+            return null;
+        }
+
+        // US centres are Zxx; TRACON ids never are. TAIS's one-letter centre alias arrives with a null facility.
+        bool eram =
+            (facility is null)
+            || string.Equals(facility, scenario.ArtccId, StringComparison.OrdinalIgnoreCase)
+            || ((facility.Length == 3) && (facility[0] == 'Z'));
+        if (eram)
+        {
+            var centre = facility ?? scenario.ArtccId ?? "";
+            var node = FindFacility(scenario.ArtccConfig?.Facility, centre) ?? scenario.ArtccConfig?.Facility;
+            var position = node?.Positions.FirstOrDefault(p =>
+                string.Equals(p.EramConfiguration?.SectorId, sector, StringComparison.OrdinalIgnoreCase)
+            );
+            return new TrackOwner(position?.Callsign ?? $"{centre}_{sector}", centre, null, sector, TrackOwnerType.Eram);
+        }
+
+        if ((sector.Length < 2) || !char.IsAsciiDigit(sector[0]))
+        {
+            return null;
+        }
+
+        int subset = sector[0] - '0';
+        var sectorId = sector[1..];
+        var starsNode = FindFacility(scenario.ArtccConfig?.Facility, facility!);
+        var tcp = starsNode?.StarsConfiguration?.Tcps.FirstOrDefault(t =>
+            (t.Subset == subset) && string.Equals(t.SectorId, sectorId, StringComparison.OrdinalIgnoreCase)
+        );
+        // A TCP's position can live below the STARS facility itself (a tower position holds its TRACON's TCP).
+        var starsPosition = (tcp is null) ? null : FindPositionByTcp(starsNode!, tcp.Id);
+        return new TrackOwner(starsPosition?.Callsign ?? $"{facility}_{sector}", facility, subset, sectorId, TrackOwnerType.Stars);
+    }
+
+    private static PositionConfig? FindPositionByTcp(FacilityConfig node, string tcpId)
+    {
+        if (node.Positions.FirstOrDefault(p => string.Equals(p.StarsConfiguration?.TcpId, tcpId, StringComparison.Ordinal)) is { } own)
+        {
+            return own;
+        }
+
+        foreach (var child in node.ChildFacilities)
+        {
+            if (FindPositionByTcp(child, tcpId) is { } found)
+            {
+                return found;
+            }
+        }
+
+        return null;
+    }
+
+    private static FacilityConfig? FindFacility(FacilityConfig? node, string id)
+    {
+        if (node is null)
+        {
+            return null;
+        }
+
+        if (string.Equals(node.Id, id, StringComparison.OrdinalIgnoreCase))
+        {
+            return node;
+        }
+
+        foreach (var child in node.ChildFacilities)
+        {
+            if (FindFacility(child, id) is { } found)
+            {
+                return found;
+            }
+        }
+
+        return null;
+    }
+}
