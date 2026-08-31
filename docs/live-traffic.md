@@ -13,7 +13,7 @@ it sees `LiveTrafficSample`s for a callsign and never knows where they came from
 | File | Role |
 |---|---|
 | `LiveTraffic/LiveTrafficSample.cs` | `LiveTrafficSample` (one observation: sim-clock time, lat/lon, altitude, GS, true track, optional VS, source, beacon), `LiveTrafficSource` (`Stars` 4.5 s sweep / `Eram` 12 s / `Asdex` 1 s — `Asdex` means on the ground), `LiveTrafficRemovalReason`. |
-| `LiveTraffic/AircraftLiveTraffic.cs` | The satellite on `AircraftState.LiveTraffic`: last sample fields, `FloorAltitudeFt` (nearest field elevation within 5 nm at the last sample — the dead-reckoning floor), `SecondsSinceSample` (the only clock `Advance` reads), a bounded `History` of the last 24 samples (vertical-speed derivation, level/hold detection at assume), the feed's latest clearance fields (assigned/interim altitude, cleared heading/speed, clearance text), `IsCoasting`, `ExternalId`. `ToSnapshot`/`FromSnapshot` ↔ `AircraftLiveTrafficDto`. |
+| `LiveTraffic/AircraftLiveTraffic.cs` | The satellite on `AircraftState.LiveTraffic`: last sample fields, `FloorAltitudeFt` (nearest field elevation within 5 nm at the last sample — the dead-reckoning floor), `SecondsSinceSample` (the dead-reckoning clock `Advance` projects by), `AppliedAtSimSeconds` + per-tick `DeliverySilenceSeconds` (the freshness clock — coast, removal, ghost rules), a bounded `History` of the last 24 samples (vertical-speed derivation, level/hold detection at assume), the feed's latest clearance fields (assigned/interim altitude, cleared heading/speed, clearance text), `IsCoasting`, `ExternalId`. `ToSnapshot`/`FromSnapshot` ↔ `AircraftLiveTrafficDto`. |
 | `LiveTraffic/LiveTrafficKinematics.cs` | `CreateShadow`, `Apply(ac, sample)`, `Advance(ac, dt, weather, simTime)`, coast timing. |
 | `Simulation/Snapshots/AircraftLiveTrafficDto.cs` | Nullable `AircraftSnapshotDto.LiveTraffic`; null for simulated aircraft and for older snapshots (no schema bump). |
 | `Simulation/RecordedAction.cs` | `RecordedLiveTrafficSample(Callsign, Sample, SpawnState?)`, `RecordedLiveTrafficRemoval(Callsign, Reason)`. |
@@ -44,10 +44,21 @@ it sees `LiveTrafficSample`s for a callsign and never knows where they came from
   clock and the coast flag, refreshes the beacon, and derives vertical speed from Δalt/Δt (EMA-smoothed against the
   previous derived value) when the feed has none. A sample not newer than the stored `ObservedAtSimSeconds` is ignored
   (out of order, or a lower-priority source arriving late). Sample time is **sim seconds**, never wall-clock.
-- **Coast, don't freeze.** After two missed sweeps of the sample's source (`CoastAfterSeconds`: STARS 9 s, ERAM 24 s,
-  ASDE-X 2 s) — or at once when the source itself flagged the sample as a coast (`LiveTrafficSample.SourceCoasting`:
-  STARS `coasting` status, ERAM `coastIndicator`) — `IsCoasting` is set; the aircraft keeps dead-reckoning (a frozen target displayed as a normal track is a
-  3.75 nm lie at 450 kt). Removal is the feed host's decision (`SimulationEngine.RemoveLiveTraffic`).
+- **Coast, don't freeze.** The authentic coast is the source's own flag (`LiveTrafficSample.SourceCoasting`: STARS
+  `coasting` status, ERAM `coastIndicator`) — CST at once. **Delivery silence** past `CoastAfterSeconds` (STARS 45 s,
+  ERAM 45 s, ASDE-X 30 s; measured from `AppliedAtSimSeconds`, the second the last new sample was applied, cached per
+  tick as `DeliverySilenceSeconds`) is only a backstop for a pipe that went quiet: SCDS publishes *selectively* — healthy
+  tracks measure per-track delivery gaps of p50 8 / p90 22 / p99 45 s (TAIS and ASDE-X; SFDPS p99 16 s, measured
+  2026-08-31), so short silence usually means "unchanged" and a tight silence-CST fires constantly on healthy traffic.
+  While coasting the aircraft keeps dead-reckoning (a frozen target displayed as a normal track is a
+  3.75 nm lie at 450 kt). Never measured from observation age: SCDS delivers observations ≈ 10 s late (terminal) /
+  ≈ 50 s late (en-route), so an observation-age coast would mark every live track CST permanently.
+  `LiveTrafficKinematics.Apply` seeds `AppliedAtSimSeconds` with the observation second (zero-latency baseline for
+  direct kinematics use); the engine's two apply paths stamp the actual second, identically live and on replay.
+  Dead reckoning clamps: a climb/descent projects only to the feed's interim/assigned altitude (never past a level-off
+  by more than the data supports), and an ASDE-X surface sample is never extrapolated past
+  `AsdexProjectionCapSeconds` (15 s) — a frozen surface target beats a straight-line taxi through turns.
+  Removal is the feed host's decision (`SimulationEngine.RemoveLiveTraffic`).
 - **Commands are rejected** at the top of `CommandDispatcher.Dispatch` and `DispatchCompound` — before the transparent
   fast path, so `SQ`/ident cannot slip through — with `ASSUME <cs> first — live traffic is not controllable`. Track,
   coordination and delete commands never reach the dispatcher and stay allowed (tracking a real target is normal work).
@@ -110,8 +121,9 @@ Nothing is transmitted at assume. The `CommandResult` message summarises the see
 - **Ground conflict** (`GroundConflictDetector`): a moving shadow classifies as `MovementState.External` — an obstacle
   every simulated ground aircraft yields to (closing-proximity stop/trail limits, crossing resolution; in a mutual stop the
   simulated aircraft is always the holder), never a subject (`ApplyMinLimit` returns for shadows). A stopped shadow is
-  `Stationary` (passable with wingtip clearance, like a parked aircraft). A surface track coasting longer than
-  `ExternalCoastGraceSeconds` (10 s) is dropped from the sweep so a dead feed target cannot pin traffic. Runway priority:
+  `Stationary` (passable with wingtip clearance, like a parked aircraft). A coasting surface track whose delivery silence
+  exceeds `ExternalCoastGraceFraction` (0.6) of its source's removal window (ASDE-X 36 s, STARS 54 s) is dropped from the
+  sweep so a dead feed target cannot pin traffic (explicitly ended tracks are removed promptly anyway). Runway priority:
   the detector writes the per-tick `[JsonIgnore]` flag `Ground.ExternalOnRunway` from `RunwayOccupancy.ClassifyBest` over
   the layout airport's runways (`RunwayOccupancy.AirportRunways`), and `IsOnRunway` reads it for shadows.
 - **Runway advisories** (`RunwaySafetyAdvisor`): a shadow **on the runway surface** (`RunwayOccupancy.Classify` =
@@ -140,7 +152,9 @@ Nothing is transmitted at assume. The `CommandResult` message summarises the see
 - **Conflict alerts** (`ConflictAlertDetector.IsPairEligible`, shared by `EramConflictDetector`): never shadow↔shadow
   (real pairs are separated by things the sim cannot see — visual, dependent approaches, MARSA — and inter-source
   offsets would manufacture continuous alerts); shadow↔simulated only when the shadow is IFR (filed, not VFR), not
-  coasting, and not inside an internal-airport approach corridor. `CASUP <other>` (a track command, so it works on a
+  coasting, its observation is at most `ShadowCaMaxSampleAgeSeconds` (30 s) old — past that the dead-reckoned position
+  error rivals the separation standard, which sidelines ERAM shadows (SFDPS delivers ≈ 35–70 s behind) — and not inside
+  an internal-airport approach corridor. `CASUP <other>` (a track command, so it works on a
   shadow) toggles suppression for one pair from either side; stored in `Stars.CaSuppressedWith` (serialized, replayed as
   an ordinary recorded track command). Tests: `LiveTrafficConflictAlertTests`.
 - **Roll start** (`RunwayOccupancy.IsRolling`): a surface shadow aligned on the pavement is `Departing` past 35 kt, or past
@@ -230,11 +244,20 @@ bundle's sim seconds back to the real-world feed window (see *Reproducing a repo
   one spawns through `SimulationEngine.ApplyLiveTrafficSample` with the `LiveTrafficAircraftFactory` template (type from the
   feed, else the FP, else `ZZZZ`; reported beacon `MarkUsed`; no track owner; `ExternalId` = GUFI; surface tracks get the primary
   `AirportId`) followed by the shared spawn broadcast + `AfterAircraftSpawned`; an existing shadow just gets the sample.
-- **Removal** — staleness is **sample age, never store presence**: a view older than its source's window (STARS 15 s ≈ 3 scans,
-  ERAM 50 s ≈ 4 sweeps — twice the sim's ERAM coast, kept as SWIM-cadence margin — ASDE-X 5 s) is skipped, so a feed that keeps
-  repeating an old view neither spawns nor refreshes a shadow, and a shadow whose last applied `ObservedAtSimSeconds` is older
-  than the window is removed (coasting meanwhile): `Dropped` when the store lost the track, `Stale` when it still holds a stale
-  view, else `OutOfScope`. Teardown mirrors auto-delete in order: `RemoveLiveTraffic`
+- **Removal** — tiered, **explicit lifecycle first, silence last, never observation age**: (1) a store row present but
+  *viewless* was ended by the feed itself (TAIS `terminated`/`drop`, SFDPS `DROPPED`/`COMPLETED`) → removed promptly
+  (`Dropped`; a landed arrival must not dead-reckon down the runway for a backstop window) — a row *absent* is not that
+  signal (a freshly opened DVR replay store starts empty; the live store only forgets at reap) and falls to the backstop;
+  (2) a track the store still delivers but outside the room's scope → removed at `ShadowTrafficSync.OutOfScopeRemovalSeconds`
+  (15 s, `OutOfScope`); (3) the silence backstop (`LiveTrafficKinematics.RemovalAfterSeconds`: STARS 90 s, ERAM 150 s,
+  ASDE-X 60 s — generous because SCDS publishes selectively, see the coast bullet) removes a shadow with no *new* sample
+  applied (`AircraftLiveTraffic.AppliedAtSimSeconds`) for the window (`Stale`, or `Dropped` when the row is gone too).
+  The spawn/refresh gate mirrors the backstop: a view not delivered (`LiveView.ReceivedAtUtc`) within its source's window
+  is skipped. A feed repeating the same old view still ages out — repeats are never newer than the stored sample, so they
+  refresh nothing — and the correlator's stale skip (`StaleMultiple` with `StaleSkipFloor` = 60 s) bounds how old the
+  observation behind a fresh delivery can be. The driving view per track is `ShadowTrafficSync.PreferredView`: the ASDE-X
+  view while it is still delivered (surface vs airborne must not flap on the ~1 s observation-ordering margin between
+  products), else `Freshest`. Teardown mirrors auto-delete in order: `RemoveLiveTraffic`
   (world + recording) → assignments → delayed queue → change tracker → beacon `Release` → `AircraftDeleted` + CRC disconnect.
   `DEL` on a shadow removes it as `Deleted` and adds it to `RoomLiveTrafficState.Suppressed` until live traffic is toggled;
   turning the setting off removes every shadow as `Disabled` (assumed aircraft stay).
@@ -261,7 +284,7 @@ resolves as an airport (`LiveSessionScenario.IsKnownAirport` — an `AtctTracon`
 pausing) — the tape's future was only feed samples the store re-supplies; `RoomEngine.GoLive` (hub `GoLive`) = `TakeControl` +
 `Resume`, refused outside a live session. **Rejoining real time is a reacquire, not a teleport** (aviation review): when
 `ShadowTrafficSync.Anchor` finds the sync non-continuous and the wall gap since `RoomLiveTrafficState.LastSyncWallUtc` (kept across
-a rewind's `Reset`) exceeds `ReacquireGapSeconds` (15 s, the STARS removal window) — or is unknown — `ReacquireAfterGap` removes
+a rewind's `Reset`) exceeds `ReacquireGapSeconds` (15 s) — or is unknown — `ReacquireAfterGap` removes
 every shadow (`LiveTrafficRemovalReason.Reanchored`) so the same second re-spawns them from the store with fresh history (no derived
 vertical speed, ground-roll detection or CA prediction straddles the gap), and prints `live traffic rejoined — real traffic moved on
 mm:ss; N shadows re-acquired from the feed`. Gaps under 15 s keep their shadows; the next sample re-places them.

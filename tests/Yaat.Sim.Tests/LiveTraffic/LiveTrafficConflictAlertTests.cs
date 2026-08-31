@@ -83,6 +83,16 @@ public class LiveTrafficConflictAlertTests
     }
 
     [Fact]
+    public void ShadowWithAnOldObservation_DoesNotAlert()
+    {
+        // An en-route observation delivered ~50 s behind: the projection error rivals the separation standard.
+        var shadow = Shadow("LIVE1", B, ifr: true);
+        shadow.LiveTraffic!.SecondsSinceSample = ConflictAlertDetector.ShadowCaMaxSampleAgeSeconds + 1;
+
+        Assert.Empty(Detect(shadow, Simulated("SIM1", A)));
+    }
+
+    [Fact]
     public void Casup_SuppressesThePair_FromEitherSide_AndToggles()
     {
         var shadow = Shadow("LIVE1", B, ifr: true);

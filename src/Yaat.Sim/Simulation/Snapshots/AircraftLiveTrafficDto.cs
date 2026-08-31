@@ -20,6 +20,10 @@ public sealed class AircraftLiveTrafficDto
 {
     public int Source { get; init; }
     public double ObservedAtSimSeconds { get; init; }
+
+    /// <summary>Sim second the sample was applied (delivery time); null in snapshots written before the field existed.</summary>
+    public double? AppliedAtSimSeconds { get; init; }
+
     public double SecondsSinceSample { get; init; }
     public double SampleLat { get; init; }
     public double SampleLon { get; init; }

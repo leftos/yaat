@@ -102,7 +102,8 @@ internal sealed class LiveTrafficScene : ScenarioSceneBase
                 t.VsFpm,
                 now,
                 "NCT",
-                Coasting: false
+                Coasting: false,
+                ReceivedAtUtc: now
             );
             store.Upsert(new LiveTrack(t.Callsign, view, null, null, t.Beacon, null, $"GUFI-{t.Callsign}", null, t.Type, null));
         }

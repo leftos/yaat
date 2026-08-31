@@ -104,8 +104,13 @@ public static class GroundConflictDetector
     public static bool WingspanLateralCheckEnabled { get; set; } = true;
     public static bool WingspanLateralCheckRequireStationary { get; set; } = true;
 
-    /// <summary>Seconds of coast after which a live surface track stops being an obstacle (the feed will remove it).</summary>
-    public const double ExternalCoastGraceSeconds = 10.0;
+    /// <summary>
+    /// Fraction of the source's removal window of delivery silence after which a coasting live surface track stops
+    /// being an obstacle (the feed host removes it at the full window). A fraction rather than a fixed grace so the
+    /// ghost threshold always lands between the coast threshold and removal for every source (ASDE-X 36 s, STARS 54 s;
+    /// explicitly ended tracks are removed promptly and never linger this long).
+    /// </summary>
+    public const double ExternalCoastGraceFraction = 0.6;
 
     private enum MovementState
     {
@@ -180,7 +185,11 @@ public static class GroundConflictDetector
             if (ac.IsShadow)
             {
                 // A coasting surface track past the grace period is a ghost: it must not sweep stops through the movement area.
-                if (ac.LiveTraffic!.IsCoasting && ac.LiveTraffic.SecondsSinceSample > ExternalCoastGraceSeconds)
+                var live = ac.LiveTraffic!;
+                if (
+                    live.IsCoasting
+                    && (live.DeliverySilenceSeconds > ExternalCoastGraceFraction * LiveTraffic.LiveTrafficKinematics.RemovalAfterSeconds(live.Source))
+                )
                 {
                     continue;
                 }

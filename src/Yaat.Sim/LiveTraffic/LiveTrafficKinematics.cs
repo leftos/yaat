@@ -24,7 +24,14 @@ public static class LiveTrafficKinematics
     /// <summary>How far an airport may be for its elevation to floor a shadow's dead-reckoned altitude.</summary>
     public const double FloorLookupRangeNm = 5;
 
-    /// <summary>Nominal update interval of each source; two missed sweeps mean the track is coasting.</summary>
+    /// <summary>
+    /// Longest an ASDE-X surface sample is extrapolated. A taxiing aircraft follows a graph the projection knows
+    /// nothing about, so past this the target freezes — a visibly frozen surface target is more honest than a
+    /// smoothly moving wrong one (a 59 s backlog sample would otherwise taxi ~2 000 ft in a straight line).
+    /// </summary>
+    public const double AsdexProjectionCapSeconds = 15;
+
+    /// <summary>Nominal update interval of each source (observation cadence, before SCDS delivery jitter).</summary>
     public static double SweepSeconds(LiveTrafficSource source) =>
         source switch
         {
@@ -34,7 +41,41 @@ public static class LiveTrafficKinematics
             _ => throw new ArgumentOutOfRangeException(nameof(source), source, "Unknown live-traffic source"),
         };
 
-    public static double CoastAfterSeconds(LiveTrafficSource source) => 2 * SweepSeconds(source);
+    /// <summary>
+    /// Seconds of delivery silence before a track coasts — a generous backstop, not the primary signal. SCDS is
+    /// <em>selective</em>: per-track delivery gaps on healthy tracks measure p50 8 / p90 22 / p99 45 s for TAIS and
+    /// ASDE-X (suppressed unchanged reports; SFDPS is the steadiest at p99 16 s, measured 2026-08-31), so silence
+    /// usually means "nothing changed" — dead reckoning stays valid — while the authentic loss signals are the feed's
+    /// own coast flags (<see cref="LiveTrafficSample.SourceCoasting"/> → CST at once) and explicit track drops (the
+    /// feed host removes the shadow promptly). A silence CST therefore only says the pipe itself went quiet; erring
+    /// long is the safe side because a false CST attaches 7110.65 duties (§5-3-4, §5-4-5.e, §5-13-7) that do not
+    /// apply to a healthy track.
+    /// </summary>
+    public static double CoastAfterSeconds(LiveTrafficSource source) =>
+        source switch
+        {
+            LiveTrafficSource.Stars => 45,
+            LiveTrafficSource.Eram => 45,
+            LiveTrafficSource.Asdex => 30,
+            _ => throw new ArgumentOutOfRangeException(nameof(source), source, "Unknown live-traffic source"),
+        };
+
+    /// <summary>
+    /// Seconds of delivery silence before the feed host removes a shadow that the store still carries — the backstop
+    /// beyond <see cref="CoastAfterSeconds"/> for a feed that died without saying so. Explicit lifecycle beats it:
+    /// a track the store dropped (TAIS <c>terminated</c>/<c>drop</c>, SFDPS <c>DROPPED</c>/<c>COMPLETED</c>, reaped)
+    /// is removed on the next sync, and one that merely left the room's scope goes at
+    /// <c>ShadowTrafficSync.OutOfScopeRemovalSeconds</c>. The server's <c>ShadowTrafficSync</c> delegates here so the
+    /// sim's ghost rules and the room's removal share one schedule.
+    /// </summary>
+    public static double RemovalAfterSeconds(LiveTrafficSource source) =>
+        source switch
+        {
+            LiveTrafficSource.Stars => 90,
+            LiveTrafficSource.Eram => 150,
+            LiveTrafficSource.Asdex => 60,
+            _ => throw new ArgumentOutOfRangeException(nameof(source), source, "Unknown live-traffic source"),
+        };
 
     /// <summary>
     /// Ground acceleration (kt/s) as the least-squares slope of the feed's tracker-smoothed ground speeds over the
@@ -170,6 +211,8 @@ public static class LiveTrafficKinematics
         lt.HoldFix = sample.HoldFix ?? lt.HoldFix;
         lt.Source = sample.Source;
         lt.ObservedAtSimSeconds = sample.ObservedAtSimSeconds;
+        // Zero-latency baseline; the engine's apply paths overwrite it with the actual second of delivery.
+        lt.AppliedAtSimSeconds = sample.ObservedAtSimSeconds;
         lt.SecondsSinceSample = 0;
         lt.SamplePosition = sample.Position;
         lt.SampleAltitude = sample.AltitudeFt;
@@ -236,11 +279,31 @@ public static class LiveTrafficKinematics
         var lt = ac.LiveTraffic ?? throw new InvalidOperationException($"{ac.Callsign} is not a shadow aircraft");
         lt.SecondsSinceSample += deltaSeconds;
         double t = lt.SecondsSinceSample;
-        lt.IsCoasting = lt.SourceCoasting || (t > CoastAfterSeconds(lt.Source));
+        // Coast measures delivery silence (time since the last applied sample), not observation age: the feed
+        // carries a constant delivery latency that says nothing about whether the track is still updating.
+        lt.DeliverySilenceSeconds = Math.Max(0, simTimeSeconds - lt.AppliedAtSimSeconds);
+        lt.IsCoasting = lt.SourceCoasting || (lt.DeliverySilenceSeconds > CoastAfterSeconds(lt.Source));
 
+        double tProj = (lt.Source == LiveTrafficSource.Asdex) ? Math.Min(t, AsdexProjectionCapSeconds) : t;
         var track = new TrueHeading(lt.SampleTrueTrack);
-        ac.Position = GeoMath.ProjectPoint(lt.SamplePosition, track, lt.SampleGroundSpeed * t / 3600.0);
-        ac.Altitude = Math.Max(lt.FloorAltitudeFt, lt.SampleAltitude + (lt.SampleVerticalSpeed * t / 60.0));
+        ac.Position = GeoMath.ProjectPoint(lt.SamplePosition, track, lt.SampleGroundSpeed * tProj / 3600.0);
+
+        // A climb/descent projects only to the feed's interim/assigned altitude (what the real trackers do with
+        // their predicted position): at a 50 s en-route horizon an unclamped 2 000 fpm projection overshoots a
+        // level-off by more than the 1 000 ft separation standard. The observed altitude side of the clamp keeps
+        // a stale clearance from dragging the target off its own Mode C.
+        double altitude = lt.SampleAltitude + (lt.SampleVerticalSpeed * tProj / 60.0);
+        if ((lt.InterimAltitudeFt ?? lt.AssignedAltitudeFt) is { } clearedTo)
+        {
+            altitude = lt.SampleVerticalSpeed switch
+            {
+                > 0 => Math.Min(altitude, Math.Max(clearedTo, lt.SampleAltitude)),
+                < 0 => Math.Max(altitude, Math.Min(clearedTo, lt.SampleAltitude)),
+                _ => altitude,
+            };
+        }
+
+        ac.Altitude = Math.Max(lt.FloorAltitudeFt, altitude);
         ac.VerticalSpeed = lt.SampleVerticalSpeed;
         ac.TrueTrack = track;
 

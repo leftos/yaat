@@ -9,6 +9,8 @@ A fresh agent should start from **Current focus**, then **Next up**, and treat *
 - [ ] Pilot AI for solo training — see [pilot-ai-self-training/README.md](./pilot-ai-self-training/README.md) (M10.x readbacks/TTS shipped; M11–M12 subplans are the roadmap)
 
 ## Next up
+- [ ] Live-traffic follow-ups from the 2026-08-31 aviation review (receipt-recency model shipped): (a) gate/qualify `RunwaySafetyAdvisor.WarnIfTrafficOnFinal` / `WarnIfLiveTrafficOnRunway` on a coasting shadow (7110.65 5-13-7); (b) deliberate validation pass over the three behaviors the fix un-deadened (shadow-vs-simulated conflict alerts, `GroundAcceleration`, assume coast note); (c) surface per-track observation age to the instructor (5-1-1 judgment)
+- [ ] Live session: selecting ZOA > NCT > OAK_APP picks SJC as the primary airport instead of OAK — debug the position-to-primary-airport resolution (reported 2026-08-31)
 - [ ] Live traffic via SWIM (#150) — see [open-issues/150-live-traffic-swim.md](./open-issues/150-live-traffic-swim.md) → yaat-server `docs/plans/live-traffic-swim/08-remaining-work.md` (all slices shipped 2026-08-28; **blocked** on FAA ADX access to the LADD list before the feed can go live on YAAT1, then a first-month soak)
 - [ ] RPO limited-access mode + VATUSA ARTCC auto-fill — see [rpo-limited-access-and-vatusa-artcc.md](./rpo-limited-access-and-vatusa-artcc.md) (17 open)
 - [ ] CRC protocol support gaps — see [crc-protocol-support.md](./crc-protocol-support.md) (13 open of 174; status table of the CRC hub protocol)

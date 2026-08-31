@@ -30,8 +30,25 @@ public sealed class AircraftLiveTraffic
     /// <summary>Sim-clock second the current sample was placed at (out-of-order samples are ignored).</summary>
     public double ObservedAtSimSeconds { get; set; }
 
-    /// <summary>Accumulated from tick dt — the only clock <see cref="LiveTrafficKinematics.Advance"/> reads.</summary>
+    /// <summary>
+    /// Sim-clock second the current sample was *applied* — when the feed delivered it, as opposed to when the source
+    /// observed it. The feed carries a delivery latency (SCDS ≈ 10 s terminal, ≈ 50 s en-route), so freshness — coast,
+    /// removal — is measured from this clock, while dead reckoning still projects from <see cref="ObservedAtSimSeconds"/>.
+    /// <see cref="LiveTrafficKinematics.Apply"/> seeds it with the observation second; the engine's apply paths stamp
+    /// the actual second so live and replay age identically.
+    /// </summary>
+    public double AppliedAtSimSeconds { get; set; }
+
+    /// <summary>Accumulated from tick dt — the dead-reckoning clock <see cref="LiveTrafficKinematics.Advance"/> projects by.</summary>
     public double SecondsSinceSample { get; set; }
+
+    /// <summary>
+    /// Seconds since the feed last delivered a new sample, recomputed every <see cref="LiveTrafficKinematics.Advance"/>
+    /// (per-tick derived value, not serialized). This is the freshness clock — coast and the ground-conflict ghost rule
+    /// read it — as opposed to <see cref="SecondsSinceSample"/>, which ages from the observation and carries the feed's
+    /// delivery latency.
+    /// </summary>
+    public double DeliverySilenceSeconds { get; set; }
 
     public LatLon SamplePosition { get; set; }
     public double SampleAltitude { get; set; }
@@ -89,6 +106,7 @@ public sealed class AircraftLiveTraffic
         {
             Source = (int)Source,
             ObservedAtSimSeconds = ObservedAtSimSeconds,
+            AppliedAtSimSeconds = AppliedAtSimSeconds,
             SecondsSinceSample = SecondsSinceSample,
             SampleLat = SamplePosition.Lat,
             SampleLon = SamplePosition.Lon,
@@ -131,6 +149,7 @@ public sealed class AircraftLiveTraffic
         {
             Source = (LiveTrafficSource)dto.Source,
             ObservedAtSimSeconds = dto.ObservedAtSimSeconds,
+            AppliedAtSimSeconds = dto.AppliedAtSimSeconds ?? dto.ObservedAtSimSeconds,
             SecondsSinceSample = dto.SecondsSinceSample,
             SamplePosition = new LatLon(dto.SampleLat, dto.SampleLon),
             SampleAltitude = dto.SampleAltitude,

@@ -560,7 +560,7 @@ WeatherTimelineParser.cs       # Static v1/v2 auto-detection parser: checks for 
                                # Returns WeatherParseResult discriminated union (Timeline | Profile | Error)
 LiveTraffic/LiveTrafficSample.cs     # LiveTrafficSample (sim-time observation: pos/alt/GS/track/VS?/source/beacon; Instance + ObservedAtUtc = feed provenance for bundles),
                                      # LiveTrafficSource (Stars/Eram/Asdex), LiveTrafficRemovalReason
-LiveTraffic/AircraftLiveTraffic.cs   # Shadow satellite: last sample fields, SecondsSinceSample (the only clock Advance reads), previous-sample altitude/time, IsCoasting, ExternalId
+LiveTraffic/AircraftLiveTraffic.cs   # Shadow satellite: last sample fields, SecondsSinceSample (dead-reckoning clock), AppliedAtSimSeconds + DeliverySilenceSeconds (freshness clock — coast/removal), IsCoasting, ExternalId
 LiveTraffic/LiveTrafficAssumer.cs    # ASSUME hand-off: shadow → simulated aircraft in place; feed clearances first, then level/climb/descent, hold, final/visual,
                                      # route rejoin (NextFixAhead), initial climb, VFR, runway/surface kinds. Never refused. See live-traffic.md.
 LiveTraffic/LiveTrafficKinematics.cs # CreateShadow / Apply(sample) / Resync(simNow) / Advance(dt): dead-reckons a shadow from its latest sample and writes the air vector (heading+IAS)

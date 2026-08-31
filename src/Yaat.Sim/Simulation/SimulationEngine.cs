@@ -4578,6 +4578,7 @@ public sealed class SimulationEngine
         }
 
         double now = Scenario?.ElapsedSeconds ?? 0;
+        ac.LiveTraffic!.AppliedAtSimSeconds = now;
         LiveTrafficKinematics.Resync(ac, now, World.Weather);
         TrackShadowBeacon(codeBefore, ac.Transponder.Code);
         RecordLiveTrafficAction(new RecordedLiveTrafficSample(now, callsign, sample, spawned ? spawnState : null));
@@ -4761,6 +4762,7 @@ public sealed class SimulationEngine
             TrackShadowBeacon(codeBefore, ac.Transponder.Code);
         }
 
+        ac.LiveTraffic!.AppliedAtSimSeconds = Scenario?.ElapsedSeconds ?? 0;
         LiveTrafficKinematics.Resync(ac, Scenario?.ElapsedSeconds ?? 0, World.Weather);
     }
 

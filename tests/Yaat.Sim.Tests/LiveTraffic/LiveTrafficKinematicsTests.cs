@@ -203,15 +203,15 @@ public class LiveTrafficKinematicsTests
     }
 
     [Fact]
-    public void CoastsAfterTwoMissedSweeps_AndKeepsMoving()
+    public void CoastsAfterDeliverySilence_AndKeepsMoving()
     {
         var ac = Shadow(AirborneSample(0));
         var engine = EngineWith(null, ac);
 
-        TickSeconds(engine, 8);
+        TickSeconds(engine, 45);
         Assert.False(ac.LiveTraffic!.IsCoasting);
 
-        TickSeconds(engine, 2);
+        TickSeconds(engine, 1);
         Assert.True(ac.LiveTraffic.IsCoasting);
 
         var before = ac.Position;
@@ -220,15 +220,35 @@ public class LiveTrafficKinematicsTests
     }
 
     [Fact]
+    public void SamplesDeliveredLate_DoNotCoast_WhileTheyKeepComing()
+    {
+        var ac = Shadow(AirborneSample(0));
+        var engine = EngineWith(null, ac);
+        TickSeconds(engine, 15);
+
+        // The feed delivers ~11 s behind real time (SCDS latency): observed at 4, applied at 15.
+        Assert.True(engine.ApplyLiveTrafficSample("UAL123", AirborneSample(4), null));
+
+        Assert.False(ac.LiveTraffic!.IsCoasting);
+        Assert.InRange(ac.LiveTraffic.SecondsSinceSample, 10.99, 11.01); // placement still ages from the observation
+
+        TickSeconds(engine, 45); // at the STARS silence backstop, not past it
+        Assert.False(ac.LiveTraffic.IsCoasting);
+
+        TickSeconds(engine, 1); // 46 s of delivery silence: the pipe has gone quiet on this track
+        Assert.True(ac.LiveTraffic.IsCoasting);
+    }
+
+    [Fact]
     public void FreshSample_ResetsCoastAndAdoptsPositionUnconditionally()
     {
         var ac = Shadow(AirborneSample(0));
         var engine = EngineWith(null, ac);
-        TickSeconds(engine, 12);
+        TickSeconds(engine, 46);
         Assert.True(ac.LiveTraffic!.IsCoasting);
 
         var jumped = GeoMath.ProjectPoint(Origin, new TrueHeading(180), 1.0);
-        Assert.True(LiveTrafficKinematics.Apply(ac, Sample(12, jumped, 9_000, 200, 180, -300, LiveTrafficSource.Stars)));
+        Assert.True(LiveTrafficKinematics.Apply(ac, Sample(46, jumped, 9_000, 200, 180, -300, LiveTrafficSource.Stars)));
 
         Assert.False(ac.LiveTraffic.IsCoasting);
         Assert.Equal(jumped, ac.Position);
@@ -253,6 +273,40 @@ public class LiveTrafficKinematicsTests
         LiveTrafficKinematics.Apply(ac, AirborneSample(4.5));
         Assert.False(ac.LiveTraffic.IsCoasting);
         Assert.False(ac.LiveTraffic.SourceCoasting);
+    }
+
+    [Fact]
+    public void DeadReckonedClimb_LevelsAtTheFeedAssignedAltitude()
+    {
+        var ac = Shadow(AirborneSample(0, verticalSpeedFpm: 2000) with { AssignedAltitudeFt = 11_000 });
+        LiveTrafficKinematics.Advance(ac, 120, null, 120);
+        Assert.Equal(11_000, ac.Altitude);
+    }
+
+    [Fact]
+    public void DeadReckonedDescent_LevelsAtTheFeedInterimAltitude()
+    {
+        var ac = Shadow(AirborneSample(0, verticalSpeedFpm: -2000) with { InterimAltitudeFt = 9_000, AssignedAltitudeFt = 5_000 });
+        LiveTrafficKinematics.Advance(ac, 120, null, 120);
+        Assert.Equal(9_000, ac.Altitude);
+    }
+
+    [Fact]
+    public void DeadReckonedClimb_IgnoresAStaleClearanceBelowTheObservedAltitude()
+    {
+        var ac = Shadow(AirborneSample(0, verticalSpeedFpm: 2000) with { AssignedAltitudeFt = 5_000 });
+        LiveTrafficKinematics.Advance(ac, 120, null, 120);
+        Assert.Equal(10_000, ac.Altitude); // holds the observed altitude, never dragged toward the stale clearance
+    }
+
+    [Fact]
+    public void SurfaceSample_FreezesPastTheProjectionCap()
+    {
+        var ac = Shadow(Sample(0, Origin, 0, 20, 90, 0, LiveTrafficSource.Asdex));
+        LiveTrafficKinematics.Advance(ac, 60, null, 60);
+
+        double capped = 20 * LiveTrafficKinematics.AsdexProjectionCapSeconds / 3600.0;
+        Assert.InRange(GeoMath.DistanceNm(Origin, ac.Position), capped - 0.01, capped + 0.01);
     }
 
     [Fact]

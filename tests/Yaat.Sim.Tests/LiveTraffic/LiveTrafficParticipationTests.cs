@@ -105,7 +105,8 @@ public class LiveTrafficParticipationTests
         var shadow = Shadow("LIVE1", OnRunway(2000), Runway28R.ElevationFt, 15, Runway28R.TrueHeading.Degrees, 0, LiveTrafficSource.Asdex);
         shadow.Position = GeoMath.ProjectPoint(shadow.Position, Runway28R.TrueHeading + 90, 0.2);
         shadow.LiveTraffic!.IsCoasting = true;
-        shadow.LiveTraffic.SecondsSinceSample = GroundConflictDetector.ExternalCoastGraceSeconds + 1;
+        shadow.LiveTraffic.DeliverySilenceSeconds =
+            (GroundConflictDetector.ExternalCoastGraceFraction * LiveTrafficKinematics.RemovalAfterSeconds(LiveTrafficSource.Asdex)) + 1;
         var ahead = GeoMath.ProjectPoint(shadow.Position, Runway28R.TrueHeading, 150 / GeoMath.FeetPerNm);
         var taxiing = Simulated("SIM1", ahead, Runway28R.TrueHeading.Degrees + 180, 10, onGround: true, new TaxiingPhase());
 

@@ -152,8 +152,21 @@ public static class ConflictAlertDetector
         }
 
         bool ifr = shadow.FlightPlan.HasFlightPlan && !shadow.FlightPlan.IsVfr;
-        return ifr && !shadow.LiveTraffic!.IsCoasting && !IsInAnyApproachCorridor(shadow, corridors);
+        return ifr
+            && !shadow.LiveTraffic!.IsCoasting
+            && (shadow.LiveTraffic.SecondsSinceSample <= ShadowCaMaxSampleAgeSeconds)
+            && !IsInAnyApproachCorridor(shadow, corridors);
     }
+
+    /// <summary>
+    /// Oldest observation a shadow may run CA on. Beyond this the dead-reckoned position error rivals the standard
+    /// being alerted against (a turn begun after a 50 s-old en-route observation is ≈ 3 nm off the straight-line
+    /// projection at 450 kt), so an ERAM shadow — SFDPS delivers ≈ 35–70 s behind the observation — sits out
+    /// shadow↔simulated CA. Terminal observation age is delivery latency (≈ 11 s) plus TAIS's selective-publication
+    /// gap (p90 ≈ 22 s), so 30 s keeps typical terminal shadows in (≈ 1.3 nm worst-case turn error at 250 kt against
+    /// the 3 nm standard) without letting the en-route horizon through.
+    /// </summary>
+    public const double ShadowCaMaxSampleAgeSeconds = 30;
 
     private static bool IsSuppressedWith(AircraftState ac, string other) =>
         ac.Stars.CaSuppressedWith.Exists(c => string.Equals(c, other, StringComparison.OrdinalIgnoreCase));

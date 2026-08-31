@@ -638,8 +638,9 @@ public class LiveTrafficAssumeTests
     [Fact]
     public void Coasting_AssumesFromTheDeadReckonedPose_WithANote()
     {
-        var ac = Shadow(Sample(0, EnRoute, 11_000, 300, 90, 0), new AircraftFlightPlan { HasFlightPlan = true });
-        LiveTrafficKinematics.Advance(ac, 20, null, 20);
+        // The feed went quiet 50 s before "now" (elapsed 0, where the dispatch context clock sits).
+        var ac = Shadow(Sample(-50, EnRoute, 11_000, 300, 90, 0), new AircraftFlightPlan { HasFlightPlan = true });
+        LiveTrafficKinematics.Advance(ac, 50, null, 0);
         Assert.True(ac.LiveTraffic!.IsCoasting);
         var pose = ac.Position;
 

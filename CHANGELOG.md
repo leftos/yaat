@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+- Live traffic (internal testing): shadow aircraft no longer churn in and out or show `LIVE CST` on healthy tracks — coast and removal follow the feed's own coast and drop signals.
+- Live traffic: landed arrivals disappear promptly instead of dead-reckoning down the runway, and taxiing aircraft no longer flick airborne during brief surface-update lapses.
+- Live traffic: surface (ASDE-X) reports are no longer half-discarded at ingest, and dead-reckoned climbs and descents level off at the feed's assigned altitude.
+
 ## v0.12.22-beta [2026/08/30]
 
 ### Highlights
