@@ -82,7 +82,8 @@ squawk note (7700/7600) → coasting note → `SeedState`:
    `OnSurface` > 30 kt → `RunwayExitPhase`; otherwise a phase-less ground aircraft (`Ground.Layout` attached,
    `GroundSpawnSnap` when off-runway) with `TargetSpeed` = wheel speed. Airborne `Landing` (< 50 ft) → `LandingPhase`
    with `LandingClearance = ClearedToLand` (the real aircraft has one; §3-10-5).
-2. **VFR** (VFR plan, or 1200 with no plan): heading hold (feed cleared heading first); level → altitude to the 100 ft,
+2. **VFR** (`LiveTrafficAircraftFactory.RulesOf` ≠ IFR: VFR plan, a §5-2-11.a conspicuity code, or a no-plan track whose
+   rules are unknown — best-guessed VFR, §5-2-7.a): heading hold (feed cleared heading first); level → altitude to the 100 ft,
    climbing/descending → keep the rate to the next §91.159 VFR cruising altitude (`NextVfrCruisingAltitude`, odd/even
    thousands + 500 by magnetic course; a descent that would end below 3 500 ft MSL levels instead). Done.
 4. **Hold**: the feed's own flag (`LiveTrafficSample.AirborneHold`, ERAM `airborneHold`, with `HoldFix` named in the
@@ -344,7 +345,9 @@ measurements: yaat-server `docs/plans/live-traffic-swim/04-swim-ingest.md`; depl
   yield null. Every element a parser walks past unread is counted by `parent/child` path (`SwimSchemaDrift`; `unreadElements`
   on `/admin/live-traffic`, listed by `Yaat.SwimSlice summary`) — a new path after a schema revision is a field that moved.
   Emptied FIXM attributes (`nasRouteText=""`, `arrivalPoint=""`) read as absent, never as a value, and `ZZZZ`
-  never replaces a real airport. Records are partial by design (TAIS sends track-only, plan-only and enhanced-data-only records; ASDE-X partial
+  never replaces a real airport. TAIS plan semantics (wire evidence 2026-08-31): the single `<airport>` follows the plan
+  `<type>` — `A` arrival = destination, `P` proposed departure = **origin**, `E` enroute = none — and `flightRules` `E` is
+  the enroute-hosted **IFR** plan (`V` = VFR, `P` = VFR-on-top, also IFR). Records are partial by design (TAIS sends track-only, plan-only and enhanced-data-only records; ASDE-X partial
   reports carry a position and little else; every SFDPS message is a delta), so the typed records under `Messages/` are nullable
   throughout. Fixtures in `tests/Yaat.Server.Tests/LiveTraffic/Swim/Fixtures/` are real messages from the 2026-08-28 capture
   (airline callsigns only, ICAO24s replaced).

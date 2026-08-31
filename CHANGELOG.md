@@ -8,6 +8,7 @@
 - The user guide gains a plain-language command-chaining walkthrough: when the next step starts, what happens on failure, what can't be chained.
 
 ### Fixed
+- Live traffic (internal testing): enroute IFR plans are no longer labeled VFR, TAIS-only departures get the right origin airport, and no-plan discrete-code targets lean VFR.
 - Live traffic (internal testing): shadow aircraft no longer churn in and out or show `LIVE CST` on healthy tracks — coast and removal follow the feed's own coast and drop signals.
 - Live traffic: landed arrivals disappear promptly instead of dead-reckoning down the runway, and taxiing aircraft no longer flick airborne during brief surface-update lapses.
 - Live traffic: surface (ASDE-X) reports are no longer half-discarded at ingest, and dead-reckoned climbs and descents level off at the feed's assigned altitude.
