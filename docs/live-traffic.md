@@ -299,6 +299,13 @@ bundle's sim seconds back to the real-world feed window (see *Reproducing a repo
   in `LiveTrafficOwnerResolver.Apply` under the same feed-yield gate as ownership: null = the feed has never said
   (leave the pad alone), empty = the feed cleared it, and a controller's TRACK stops feed writes until DROP.
   Tests: `ShadowScratchpadTests`.
+- **Real-world display state** (same conveyor + feed-yield gate; tests: `ShadowDisplayStateTests`) — TAIS `lld`
+  (leader-line direction; kept only from the owning TRACON — anti-flap — and a placeholder means back to default) →
+  `GlobalLeaderDirection`; TAIS `assignedBeaconCode` → `Transponder.AssignedCode` (the FP beacon, distinct from the
+  reported code); SFDPS `enRoute/pointout` (one entry per `receivingUnit`; en-route state without the element clears,
+  a message without en-route state says nothing) → `AircraftEramState.Pointouts`. Owner precedence: a coarse owner
+  (single-letter centre cps, no facility) never replaces a specific one, for owner and pending alike; a completed
+  ocr still ends a pending handoff even when its coarse owner write is skipped.
 - **Wire** — `AircraftStateDto.IsLiveTraffic` / `LiveTrafficStale` / `LiveTrafficSource` (+ client `AircraftDto`), all three in
   `TrainingDtoFingerprint`. Shadows are excluded from auto-TDLS, auto arrival strips and the rolling-call strip
   (`IsDepartureAircraft` / `IsArrivalCandidate` / `IsApproachDepartureCandidate`).

@@ -136,4 +136,23 @@ public sealed record LiveTrafficSample(
 
     /// <summary>Real-world STARS secondary scratchpad from the feed; same null/empty semantics as <see cref="Scratchpad1"/>.</summary>
     public string? Scratchpad2 { get; init; }
+
+    /// <summary>
+    /// Real-world leader-line direction (TAIS <c>lld</c>) as a compass point (<c>N</c>…<c>NW</c>).
+    /// Null = the feed has never said; empty = back to the facility default.
+    /// </summary>
+    public string? LeaderLineDirection { get; init; }
+
+    /// <summary>Assigned (flight-plan) beacon code from the feed, distinct from the reported <see cref="BeaconCode"/>.</summary>
+    public uint? AssignedBeaconCode { get; init; }
+
+    /// <summary>
+    /// Real-world ERAM point-outs active on the flight (SFDPS <c>enRoute/pointout</c>). Null = the feed has
+    /// never carried en-route state; empty = the en-route state says none are active (accept/decline/clear
+    /// all just drop the element).
+    /// </summary>
+    public IReadOnlyList<LiveTrafficPointout>? Pointouts { get; init; }
 }
+
+/// <summary>One real-world ERAM point-out: originating unit/sector → receiving unit/sector.</summary>
+public sealed record LiveTrafficPointout(string FromFacility, string FromSector, string ToFacility, string ToSector);

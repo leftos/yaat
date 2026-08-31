@@ -50,6 +50,72 @@ public static class LiveTrafficOwnerResolver
         {
             ac.Stars.Scratchpad2 = (sample.Scratchpad2.Length == 0) ? null : sample.Scratchpad2;
         }
+
+        if (sample.LeaderLineDirection is not null)
+        {
+            // The int encoding is CRC's LeaderDirection enum (SW=1 … NE=9, 5=default); empty/unknown = back to default.
+            ac.Stars.GlobalLeaderDirection = sample.LeaderLineDirection switch
+            {
+                "SW" => 1,
+                "S" => 2,
+                "SE" => 3,
+                "W" => 4,
+                "E" => 6,
+                "NW" => 7,
+                "N" => 8,
+                "NE" => 9,
+                _ => null,
+            };
+        }
+
+        if (sample.AssignedBeaconCode is { } assignedBeacon)
+        {
+            ac.Transponder.AssignedCode = assignedBeacon;
+        }
+
+        if (sample.Pointouts is { } pointouts)
+        {
+            ApplyPointouts(ac, pointouts);
+        }
+    }
+
+    /// <summary>
+    /// Mirrors the feed's point-outs onto the ERAM state wholesale — the feed carries no ack/suppress state, and
+    /// an unchanged set is left alone so the display objects don't churn. Locked: hub threads mutate the same list.
+    /// </summary>
+    private static void ApplyPointouts(AircraftState ac, IReadOnlyList<LiveTrafficPointout> pointouts)
+    {
+        var eram = ac.Eram.Pointouts;
+        lock (eram)
+        {
+            bool unchanged =
+                (eram.Count == pointouts.Count)
+                && eram.Zip(pointouts)
+                    .All(pair =>
+                        (pair.First.OriginatingFacility == pair.Second.FromFacility)
+                        && (pair.First.OriginatingSector == pair.Second.FromSector)
+                        && (pair.First.ReceivingFacility == pair.Second.ToFacility)
+                        && (pair.First.ReceivingSector == pair.Second.ToSector)
+                    );
+            if (unchanged)
+            {
+                return;
+            }
+
+            eram.Clear();
+            foreach (var p in pointouts)
+            {
+                eram.Add(
+                    new EramPointoutState
+                    {
+                        OriginatingFacility = p.FromFacility,
+                        OriginatingSector = p.FromSector,
+                        ReceivingFacility = p.ToFacility,
+                        ReceivingSector = p.ToSector,
+                    }
+                );
+            }
+        }
     }
 
     /// <summary>
