@@ -332,6 +332,7 @@ Enum + registry + scheme + parser are covered in `architecture.md`. Inside the d
 
 ## Footguns / Pitfalls
 
+- **The chaining contract lives in [command-chaining.md](command-chaining.md)** — per-category completion, the three advancement regimes, the fire-time abort-remainder rule, and the historical regression classes. A handler failure returned from a queued block's fire-time apply now discards that compound's remaining blocks.
 - **Two switch surfaces, not one.** Add a phase-interactive verb to only `ApplyCommand` and a queued/triggered instance hits the
   no-dispatcher-arm fallback when it re-fires after a phase transition. Tower verbs that can be queued need an arm in **both** `ApplyCommand` and `TryApplyTowerCommand`.
 - **`PhaseShouldBeCleared` is a sentinel value, not an exception** — detected by `ReferenceEquals`. The no-dispatcher-arm case is the typed

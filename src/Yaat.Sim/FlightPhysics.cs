@@ -1308,8 +1308,9 @@ public static class FlightPhysics
                 }
             }
 
-            // Apply the block's commands (a triggered WAIT holds the payload until its countdown elapses).
-            if (!ApplyOrCountdownWait(aircraft, block, deltaSeconds))
+            // Apply the block's commands (a triggered WAIT holds the payload until its countdown
+            // elapses; a Failed apply has already discarded the chain remainder — stop for this tick).
+            if (ApplyOrCountdownWait(aircraft, block, deltaSeconds) == BlockApplyOutcome.WaitCounting)
             {
                 // The current block is a WAIT still counting down. Latch the triggers of the following
                 // `;`-sequenced blocks now (without applying them) so a ReachFix trigger survives the
@@ -1418,7 +1419,14 @@ public static class FlightPhysics
                 continue;
             }
 
-            if (!ApplyOrCountdownWait(aircraft, block, deltaSeconds))
+            var outcome = ApplyOrCountdownWait(aircraft, block, deltaSeconds);
+            if (outcome == BlockApplyOutcome.Failed)
+            {
+                // Chain remainder already discarded; the queue list mutated under this loop —
+                // stop scanning for the tick (latched triggers re-fire next sub-tick).
+                return;
+            }
+            if (outcome == BlockApplyOutcome.WaitCounting)
             {
                 holdApplies = true;
             }
@@ -1479,7 +1487,13 @@ public static class FlightPhysics
                     continue;
                 }
 
-                if (!ApplyOrCountdownWait(aircraft, block, deltaSeconds))
+                var outcome = ApplyOrCountdownWait(aircraft, block, deltaSeconds);
+                if (outcome == BlockApplyOutcome.Failed)
+                {
+                    // Chain remainder already discarded; stop scanning the mutated queue this tick.
+                    return;
+                }
+                if (outcome == BlockApplyOutcome.WaitCounting)
                 {
                     holdApplies = true;
                 }
@@ -1552,8 +1566,8 @@ public static class FlightPhysics
             return false;
         }
 
-        ApplyBlock(aircraft, block);
-        return true;
+        // A failed apply has already discarded the chain remainder; stop the idle scan this tick.
+        return ApplyBlock(aircraft, block);
     }
 
     /// <summary>
@@ -1690,7 +1704,10 @@ public static class FlightPhysics
             cmd.IsComplete = cmd.Type switch
             {
                 TrackedCommandType.Heading => IsHeadingReached(aircraft),
-                TrackedCommandType.Altitude => aircraft.Targets.TargetAltitude is null,
+                // On the ground the altitude loop never runs (UpdateAltitude early-returns), so the
+                // target can't be reached and nulled; treat a grounded altitude assignment as
+                // accepted-and-pending — the chain advances while TargetAltitude stays armed for departure.
+                TrackedCommandType.Altitude => (aircraft.Targets.TargetAltitude is null) || aircraft.IsOnGround,
                 TrackedCommandType.Speed => aircraft.Targets.TargetSpeed is null,
                 TrackedCommandType.Navigation => aircraft.Targets.NavigationRoute.Count == 0,
                 TrackedCommandType.Immediate => true,
@@ -2000,7 +2017,15 @@ public static class FlightPhysics
         }
     }
 
-    private static void ApplyBlock(AircraftState aircraft, CommandBlock block)
+    /// <summary>
+    /// Fires a queued block's <see cref="CommandBlock.ApplyAction"/>. Returns <c>true</c> on success.
+    /// On failure the remainder of the block's own chain is discarded
+    /// (<see cref="CommandQueue.DiscardChainRemainder"/>) — the follow-on instructions were premised
+    /// on the failed one — and one warning names both the failure and the discarded blocks. Every
+    /// fire-time apply path funnels through here so the abort covers all of them; callers must stop
+    /// scanning the (now mutated) queue for the rest of the tick when this returns <c>false</c>.
+    /// </summary>
+    private static bool ApplyBlock(AircraftState aircraft, CommandBlock block)
     {
         block.IsApplied = true;
         var result = block.ApplyAction?.Invoke(aircraft);
@@ -2019,7 +2044,14 @@ public static class FlightPhysics
                     : (!string.IsNullOrEmpty(block.Description) ? block.Description : block.NaturalDescription)
             );
             var reason = !string.IsNullOrEmpty(result.Message) ? result.Message : "command failed";
-            aircraft.PendingWarnings.Add($"{aircraft.Callsign} {src}: {reason}");
+            var discarded = aircraft.Queue.DiscardChainRemainder(block);
+            var warning = $"{aircraft.Callsign} {src}: {reason}";
+            if (discarded.Count > 0)
+            {
+                warning += $" — rest of transmission discarded: {string.Join("; ", discarded)}";
+            }
+            aircraft.PendingWarnings.Add(warning);
+            return false;
         }
 
         if (result is { Success: true, Message: not null })
@@ -2040,24 +2072,37 @@ public static class FlightPhysics
             var desc = RunwayIdentifier.ToDisplayDesignator(block.NaturalDescription.Length > 0 ? block.NaturalDescription : block.Description);
             aircraft.PendingNotifications.Add($"[Executing] {desc}");
         }
+
+        return true;
+    }
+
+    /// <summary>
+    /// Outcome of one <see cref="ApplyOrCountdownWait"/> attempt. <see cref="Failed"/> means the block
+    /// fired and its handler failed — the chain remainder is already discarded and the caller must stop
+    /// scanning the mutated queue for the rest of the tick.
+    /// </summary>
+    private enum BlockApplyOutcome
+    {
+        WaitCounting,
+        Applied,
+        Failed,
     }
 
     /// <summary>
     /// Applies a triggered block, but first counts down a post-trigger WAIT so the payload fires the
     /// wait's duration <em>after</em> the trigger fires — not on the trigger itself (issue #286).
-    /// Returns <c>true</c> when the payload was applied this tick, <c>false</c> while the wait is still
-    /// counting down. Only engages for a block that is both triggered and a wait block; a standalone
-    /// (untriggered) WAIT keeps applying immediately and counting down as the current block.
+    /// Returns <see cref="BlockApplyOutcome.WaitCounting"/> while the wait is still counting down. Only
+    /// engages for a block that is both triggered and a wait block; a standalone (untriggered) WAIT
+    /// keeps applying immediately and counting down as the current block.
     /// </summary>
-    private static bool ApplyOrCountdownWait(AircraftState aircraft, CommandBlock block, double deltaSeconds)
+    private static BlockApplyOutcome ApplyOrCountdownWait(AircraftState aircraft, CommandBlock block, double deltaSeconds)
     {
         if (block.Trigger is not null && block.IsWaitBlock && !CheckWaitComplete(block, aircraft, deltaSeconds))
         {
-            return false;
+            return BlockApplyOutcome.WaitCounting;
         }
 
-        ApplyBlock(aircraft, block);
-        return true;
+        return ApplyBlock(aircraft, block) ? BlockApplyOutcome.Applied : BlockApplyOutcome.Failed;
     }
 
     /// <summary>
@@ -2106,9 +2151,10 @@ public static class FlightPhysics
             {
                 pendingWaitAhead = true;
             }
-            else if (!pendingWaitAhead)
+            else if (!pendingWaitAhead && !ApplyBlock(aircraft, block))
             {
-                ApplyBlock(aircraft, block);
+                // Chain remainder already discarded; stop scanning the mutated queue.
+                return;
             }
         }
     }
@@ -2177,9 +2223,10 @@ public static class FlightPhysics
             {
                 pendingWaitAhead = true;
             }
-            else if (!pendingWaitAhead)
+            else if (!pendingWaitAhead && !ApplyBlock(aircraft, block))
             {
-                ApplyBlock(aircraft, block);
+                // Chain remainder already discarded; stop scanning the mutated queue.
+                return;
             }
         }
     }
@@ -2291,7 +2338,9 @@ public static class FlightPhysics
                 block.Description
             );
 
-            ApplyBlock(aircraft, block);
+            // A failed apply discards the chain remainder inside ApplyBlock; this path fires at most
+            // one block and returns either way, so no further scan needs guarding here.
+            _ = ApplyBlock(aircraft, block);
             return;
         }
     }

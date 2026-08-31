@@ -1,7 +1,6 @@
-using System.Reflection;
 using Xunit;
 using Yaat.Sim.Commands;
-using Yaat.Sim.Phases;
+using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests;
 
@@ -11,14 +10,7 @@ namespace Yaat.Sim.Tests;
 /// </summary>
 public class CommandDescriberCompletenessTests(ITestOutputHelper output)
 {
-    /// <summary>
-    /// All concrete (non-abstract) ParsedCommand record types in Yaat.Sim.
-    /// </summary>
-    private static readonly Type[] AllParsedCommandTypes = typeof(ParsedCommand)
-        .Assembly.GetTypes()
-        .Where(t => t.IsSubclassOf(typeof(ParsedCommand)) && !t.IsAbstract)
-        .OrderBy(t => t.Name)
-        .ToArray();
+    private static readonly Type[] AllParsedCommandTypes = ParsedCommandDummyFactory.AllParsedCommandTypes;
 
     [Fact]
     public void ToCanonicalType_CoversAllParsedCommandTypes_ExceptUnsupported()
@@ -126,119 +118,5 @@ public class CommandDescriberCompletenessTests(ITestOutputHelper output)
         Assert.True(unconstructible.Count == 0, $"CreateDummy cannot build: {string.Join(", ", unconstructible)}");
     }
 
-    /// <summary>
-    /// Creates a dummy instance of a ParsedCommand subtype using reflection.
-    /// Provides minimal valid constructor arguments.
-    /// </summary>
-    private static ParsedCommand? CreateDummy(Type type)
-    {
-        var ctor = type.GetConstructors().OrderBy(c => c.GetParameters().Length).FirstOrDefault();
-        if (ctor is null)
-        {
-            return null;
-        }
-
-        var args = ctor.GetParameters().Select(p => MakeDummyArg(p.ParameterType)).ToArray();
-
-        try
-        {
-            return (ParsedCommand)ctor.Invoke(args);
-        }
-        catch
-        {
-            return null;
-        }
-    }
-
-    private static object? MakeDummyArg(Type paramType)
-    {
-        if (paramType == typeof(string))
-        {
-            return "TEST";
-        }
-
-        if (paramType == typeof(int))
-        {
-            return 100;
-        }
-
-        if (paramType == typeof(uint))
-        {
-            return 1200u;
-        }
-
-        if (paramType == typeof(double))
-        {
-            return 1.0;
-        }
-
-        if (paramType == typeof(bool))
-        {
-            return false;
-        }
-
-        if (paramType == typeof(MagneticHeading))
-        {
-            return new MagneticHeading(180);
-        }
-
-        if (paramType == typeof(TrueHeading))
-        {
-            return new TrueHeading(180);
-        }
-
-        if (paramType == typeof(TurnDirection))
-        {
-            return TurnDirection.Left;
-        }
-
-        if (paramType == typeof(PatternDirection))
-        {
-            return PatternDirection.Left;
-        }
-
-        if (paramType == typeof(SpeedModifier))
-        {
-            return SpeedModifier.None;
-        }
-
-        if (paramType == typeof(DepartureInstruction))
-        {
-            return new DefaultDeparture();
-        }
-
-        if (paramType == typeof(CrossFixAltitudeType))
-        {
-            return CrossFixAltitudeType.At;
-        }
-
-        if (paramType.IsGenericType && paramType.GetGenericTypeDefinition() == typeof(List<>))
-        {
-            return Activator.CreateInstance(paramType);
-        }
-
-        if (paramType.IsGenericType && paramType.GetGenericTypeDefinition() == typeof(IReadOnlyList<>))
-        {
-            // Return an empty concrete List<T> — the record will see it as IReadOnlyList<T>.
-            var listType = typeof(List<>).MakeGenericType(paramType.GetGenericArguments()[0]);
-            return Activator.CreateInstance(listType);
-        }
-
-        if (paramType.IsGenericType && paramType.GetGenericTypeDefinition() == typeof(Nullable<>))
-        {
-            return null;
-        }
-
-        if (Nullable.GetUnderlyingType(paramType) is not null)
-        {
-            return null;
-        }
-
-        if (!paramType.IsValueType)
-        {
-            return null;
-        }
-
-        return Activator.CreateInstance(paramType);
-    }
+    private static ParsedCommand? CreateDummy(Type type) => ParsedCommandDummyFactory.CreateDummy(type);
 }

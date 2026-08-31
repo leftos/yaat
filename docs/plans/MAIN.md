@@ -31,6 +31,9 @@ A fresh agent should start from **Current focus**, then **Next up**, and treat *
 - [ ] "Show nav route" overlay limitations — see [nav-route-overlay-followups.md](./nav-route-overlay-followups.md)
 - [ ] BEHIND grammar extensions — see [open-issues-deferred/behind-grammar-extensions.md](./open-issues-deferred/behind-grammar-extensions.md) (18 open; deferred)
 - [ ] Fillet S-turn connectors — see [open-issues/fillet-s-turn-connectors.md](./open-issues/fillet-s-turn-connectors.md) (superseded by the pathfinder fix; optional nicety)
+- [ ] Bounded HOLDP (EFC model) — time/circuit-limited holds per 7110.65 §4-6-1.c; `HoldingPatternPhase.MaxCircuits` already self-completes, only the HOLDP argument + release path are missing (from the 2026-08-31 chain-hardening aviation review)
+- [ ] Live identity-gate divergence: `TrackCommandHandler.HandleTrackCommand` requires AS identity for inhibit/acknowledge-conflict-alert; `TrackEngine.RequiresIdentity` does not — same live-vs-replay class as the fixed CASUP gap
+- [ ] FOLLOWG chain E2E — two-aircraft test proving `FOLLOWG X; CROSS <rwy>` fires the crossing at the hold-short (predicate-level pin exists in `IndefiniteHoldMarkerTests`; regime-C firing covered generically)
 
 ## Reference (shipped, kept for context)
 - [x] Distance measuring tool — [distance-measuring-tool.md](./distance-measuring-tool.md)

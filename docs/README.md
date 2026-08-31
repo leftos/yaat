@@ -15,6 +15,7 @@
 | Ground / taxi / exits | [`ground/README.md`](./ground/README.md) |
 | Phases | [`phases.md`](./phases.md) |
 | Command input → queue | [`command-pipeline.md`](./command-pipeline.md), [`command-handlers.md`](./command-handlers.md) |
+| Chaining (`;`/`,`) contract | [`command-chaining.md`](./command-chaining.md) |
 | Flight physics | [`flight-physics.md`](./flight-physics.md) |
 | Approach / pattern geometry | [`approach-and-pattern-geometry.md`](./approach-and-pattern-geometry.md) |
 | Landing / runway exit | [`landing-and-runway-exit.md`](./landing-and-runway-exit.md) |

@@ -453,8 +453,51 @@ public static class CommandDispatcher
             // If there's a trigger, the physics tick will check and apply when met
         }
 
+        WarnIndefiniteHoldChain(compound, aircraft);
+
         var fullMessage = string.Join(" ; then ", messages);
         return new CommandResult(true, fullMessage);
+    }
+
+    /// <summary>
+    /// Warns at dispatch time when untriggered blocks are chained behind a command that installs a
+    /// never-self-completing phase (see <see cref="CommandDescriber.InstallsIndefiniteHoldPhase"/>):
+    /// untriggered blocks do not advance while a phase is active, and these phases never end on their
+    /// own, so the trailing commands sit queued until the hold/follow is cancelled. The chain still
+    /// queues — "after the hold, do X" is preserved; this is feedback, not a rejection. Triggered
+    /// trailing blocks still fire mid-phase (regime B) and get no warning.
+    /// </summary>
+    private static void WarnIndefiniteHoldChain(CompoundCommand compound, AircraftState aircraft)
+    {
+        for (int i = 0; i < compound.Blocks.Count; i++)
+        {
+            var installer = compound.Blocks[i].Commands.Find(CommandDescriber.InstallsIndefiniteHoldPhase);
+            if (installer is null)
+            {
+                continue;
+            }
+
+            var trailing = new List<string>();
+            for (int j = i + 1; j < compound.Blocks.Count; j++)
+            {
+                if (compound.Blocks[j].Condition is null)
+                {
+                    trailing.Add(string.Join(", ", compound.Blocks[j].Commands.Select(CommandDescriber.DescribeCommand)));
+                }
+            }
+
+            if (trailing.Count > 0)
+            {
+                var verb = CommandDescriber.DescribeCommand(installer);
+                var noun = installer is FollowCommand ? "follow" : "hold";
+                aircraft.PendingWarnings.Add(
+                    $"{aircraft.Callsign}: commands after {verb} will not execute until the {noun} is cancelled or further clearance is issued: "
+                        + string.Join("; ", trailing)
+                );
+            }
+
+            return;
+        }
     }
 
     /// <summary>

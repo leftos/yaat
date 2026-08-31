@@ -1157,7 +1157,46 @@ In solo training, VFR aircraft respect FAA Class B/C entry gates: Class B requir
 
 ### Compound Commands
 
-Compound commands let you give several instructions in one command line. Think of the line as a list of **blocks**. A block may contain one command, or several commands that start together. Blocks may start immediately, wait their turn, or wait for a trigger such as an altitude, fix, taxiway, or distance from final.
+Compound commands let you issue a whole clearance in one line, the way you would say it on frequency: *"climb and maintain five thousand, then fly heading two-two-zero"* becomes `CM 050; FH 220`. YAAT works through the line step by step — each step starts when the previous one is done, or when its own trigger condition is met.
+
+Think of the line as a list of **steps** (the docs call them *blocks*). A step may contain one command, or several commands that start together. Steps may start immediately, wait their turn, or wait for a trigger such as an altitude, fix, taxiway, or distance from final.
+
+#### When does the next step start?
+
+The rules YAAT uses to decide "the previous step is done" are intuitive once spelled out:
+
+- **Turns and route legs finish when they finish.** After `FH 270; FH 180`, the second turn starts once the aircraft is established on 270. After `DCT SUNOL; SPD 180`, the speed comes once SUNOL is reached.
+- **Climbs, descents, and speed changes don't hold up the line** when they share a step with a turn or route. In `FH 270, CM 100; FH 180`, the second turn starts as soon as the aircraft is on heading 270 — the climb to 10,000 keeps running in the background. If you want something to wait for an altitude, say so with `LV` (e.g. `CM 100; LV 100 DCT SUNOL`).
+- **A step with only climbs/descents/speeds** (no turn or route) does hold the line until those targets are reached: `CM 050; FH 220` turns only after leveling at 5,000.
+- **An altitude given on the ground counts as done immediately.** `CM 050; SQ; TAXI B` on a departure reads back the climb, squawks, and taxis — the 5,000 stays assigned and the aircraft climbs to it after takeoff. The chain never gets stuck waiting for a parked aircraft to "reach" 5,000.
+- **Procedures run to their natural end.** A step that starts a procedure — a taxi route, takeoff, pattern entry, approach, crossing — keeps control until that procedure completes, and the next un-triggered step fires at the natural pause: `PUSH; TAXI B3 HS B; CTO` pushes back, taxis, holds short, and takes off when the runway crossing/clearance logic allows. Triggered steps (`AT B3 …`, `ATFN 10 …`) can still fire *during* a procedure.
+- **One-shot commands** (squawk, ident, reports, handoffs, display changes) take effect instantly and never delay the next step.
+
+#### When a chained command fails
+
+Only the first step of a line is checked when you press Enter — later steps are checked when their turn comes, because whether they make sense can depend on where the aircraft is by then. If a later step turns out to be impossible (a taxiway that doesn't exist at this airport, a handoff to an unknown position), YAAT **discards the rest of that line** and posts an amber terminal warning naming both the failed command and everything it dropped:
+
+```
+UAL123 CM 5000; TAXI ZZ; SQ: Cannot find taxiway ZZ in layout. — rest of transmission discarded: SQ
+```
+
+The reasoning matches a real amended clearance: the instructions after the failed one were premised on it, so silently running them anyway would do something you didn't ask for. Conditionals you issued on *separate* lines are not touched — only the remainder of the failed line is dropped. Re-issue the corrected chain when you see the warning.
+
+#### Chaining behind a hold or a follow
+
+`HOLDP`, the VFR holds (`HPPL`, `HFIXR`, …), and `FOLLOW` keep going until *you* end them — there is no natural finish for the next step to wait for. So in `HOLDP OAK 180 1M R; FH 090`, the heading cannot fly until the hold ends, and YAAT tells you so the moment you send it:
+
+```
+UAL123: commands after HOLDP OAK 180 1M R will not execute until the hold is cancelled or further clearance is issued: FH 090
+```
+
+The chain is still accepted — "after the hold, fly 090" is a perfectly good plan, and the heading fires when you end the hold. If you want something to happen *during* the hold, give it a trigger: `HOLDP OAK 180 1M R; LV 40 SPD 210` slows the aircraft passing 4,000 without ending the hold.
+
+The ground follow `FOLLOWG` is not in this club: it finishes naturally at the runway hold-short (or when the lead departs), so `FOLLOWG UAL123; CROSS 28R` — follow the traffic, then cross once you're at the bars — chains normally with no warning.
+
+#### Commands that can't be chained
+
+Simulation and room controls — `PAUSE`, `UNPAUSE`, `SIMRATE`, `SPAWN`, `TIMER`, `NOTE`, flight-plan creation, the `…ALL` bulk commands, and similar — act on the session, not the aircraft, so "do this, then pause" has no sensible meaning mid-chain. Chaining one is rejected up front with *"PAUSE cannot be part of a chained command"* and nothing from that line is applied. Two useful exceptions that **do** chain: `DEL` (`CROSS 19R; DEL` — cross, then remove the aircraft) and `DEST`/`APT` (`AT 5000 APT OAK` — change destination at altitude).
 
 #### Use `,` for simultaneous instructions
 
@@ -1275,7 +1314,7 @@ YAAT automatically cancels ATC speed assignments at 5 NM final, and new speed as
 
 #### Queue and phase clearing
 
-YAAT validates a compound command before applying it. If a later block is invalid, the aircraft state is left unchanged.
+YAAT validates the first step of a compound command before applying it — if that fails, the aircraft state is left unchanged. Later steps are validated when their turn comes; a failure then discards the rest of the line with a warning (see [When a chained command fails](#when-a-chained-command-fails)).
 
 When a new command replaces queued work, YAAT clears only conflicting control surfaces:
 

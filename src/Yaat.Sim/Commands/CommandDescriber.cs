@@ -425,6 +425,29 @@ public static class CommandDescriber
         return dims;
     }
 
+    /// <summary>
+    /// True for a command whose handler installs a phase that does not complete on its own under
+    /// controller-issued use — HoldingPatternCommand → HoldingPatternPhase (HOLDP always sets
+    /// MaxCircuits = null; the self-completing MaxCircuits=1 HILPT is installed by CAPP/JAPP, not
+    /// this command), the HPP*/HFIX* family → VfrHoldPhase, FollowCommand → VfrFollowPhase (exits
+    /// only on lead-landed/lead-lost — warning conservatively is fine). Untriggered blocks chained
+    /// behind one of these stall until the hold/follow ends, so dispatch warns
+    /// (<c>CommandDispatcher.WarnIndefiniteHoldChain</c>). Deliberately NOT listed:
+    /// FollowGroundCommand — FollowingPhase self-completes on both exits (runway hold-short, lead
+    /// departed) into an IsIdleAwaitingCommands phase where chained blocks fire, so
+    /// "FOLLOWG X; CROSS 28R" is a working idiom, not a stall; and ClearedToConductRefuelingCommand —
+    /// only its anchor case never completes, and anchor-vs-track needs a military-route lookup
+    /// unavailable here (a false positive would mis-warn; a false negative only skips a courtesy).
+    /// </summary>
+    internal static bool InstallsIndefiniteHoldPhase(ParsedCommand command) =>
+        command
+            is HoldingPatternCommand
+                or HoldPresentPosition360Command
+                or HoldPresentPositionHoverCommand
+                or HoldAtFixOrbitCommand
+                or HoldAtFixHoverCommand
+                or FollowCommand;
+
     internal static TrackedCommandType ClassifyCommand(ParsedCommand command)
     {
         return command switch

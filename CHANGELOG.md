@@ -4,11 +4,18 @@
 
 ### Added
 - Live traffic (internal testing): traffic filters in Start Live Session and the session flyout — VFR/IFR, flight-plan airports (dep/dest), or a radius around any airport/fix/FRD.
+- Chaining commands behind `HOLDP`, a VFR hold, or `FOLLOW` warns up front that the trailing commands wait for the hold to end; conditional tails still fire during it.
+- The user guide gains a plain-language command-chaining walkthrough: when the next step starts, what happens on failure, what can't be chained.
 
 ### Fixed
 - Live traffic (internal testing): shadow aircraft no longer churn in and out or show `LIVE CST` on healthy tracks — coast and removal follow the feed's own coast and drop signals.
 - Live traffic: landed arrivals disappear promptly instead of dead-reckoning down the runway, and taxiing aircraft no longer flick airborne during brief surface-update lapses.
 - Live traffic: surface (ASDE-X) reports are no longer half-discarded at ingest, and dead-reckoned climbs and descents level off at the feed's assigned altitude.
+- A chained command failing mid-line discards the rest of the line with a warning naming the dropped commands, instead of running them anyway.
+- An altitude issued on the ground no longer stalls the rest of a chain — the climb stays assigned for after departure.
+- Sim-control commands (`PAUSE`, `SPAWN`, `SIMRATE`, ...) in a chain are rejected with a clear error instead of silently doing nothing.
+- `CASUP` (conflict-alert pair suppression) works when typed live, not just in replays.
+- `HOLDP` documentation shows the argument order the parser accepts (`fix inbound leg turn`).
 
 ## v0.12.22-beta [2026/08/30]
 

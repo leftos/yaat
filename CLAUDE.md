@@ -143,6 +143,7 @@ Subsystem references — open the matching doc *before* exploring, searching, or
 - [`snapshots-and-replay.md`](docs/snapshots-and-replay.md) — `Simulation/Snapshots/`, `Simulation/Replay/`, `RecordingArchive`, `SnapshotSchemaMigrator`, bug bundles
 - [`tick-loop.md`](docs/tick-loop.md) — per-tick execution order (PrePhysics → Physics×4 → PostPhysics) + broadcast cadence
 - [`command-pipeline.md`](docs/command-pipeline.md) — `SendCommandAsync`, `CommandSchemeParser`, `CommandDispatcher`, `RoomEngine`, `*CommandHandler.cs` (input→queue)
+- [`command-chaining.md`](docs/command-chaining.md) — the `;`/`,` chaining contract: per-category completion, the three advancement regimes, fire-time abort, non-compoundable rejection (read before touching `UpdateCommandQueue`/`CommandBlock`)
 - [`command-handlers.md`](docs/command-handlers.md) — `CommandDispatcher.cs` + `*CommandHandler.cs` internals
 - [`aircraft-data-model.md`](docs/aircraft-data-model.md) — `AircraftState`, `ControlTargets`, `Aircraft*.cs` satellites, `SimulationWorld`; adding a per-aircraft field
 - [`training-hub-contract.md`](docs/training-hub-contract.md) — `/hubs/training` JSON wire contract; adding a hub method or `AircraftUpdated` field

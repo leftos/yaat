@@ -155,6 +155,12 @@ Commands can be combined using `,` (parallel) and `;` (sequential):
 
 Chaining also works for the STARS ownership commands — track (`HO`, `ACCEPT`, `TRACK`, `DROP`, `PO`, …), coordination (`RD…`), strip, and TDLS — so `HO 3G; ACCEPT` initiates a handoff and then accepts an inbound one on a single line. These are immediate, so `;` and `,` both just run them in order; the response reads `<first> ; then <second>` for `;` and `<first>, <second>` for `,`.
 
+**Failure mid-chain aborts the remainder.** Only the first block of a chain is validated when you send it; later blocks are validated when their turn comes. If one of them fails then (unknown taxiway, unresolvable handoff position, …), the rest of *that* chain is discarded and an amber warning names both the failed command and the discarded ones — the follow-on instructions were premised on the failed one, so they must not execute as if it had succeeded. Conditionals queued by other, separate transmissions are unaffected.
+
+**Chaining behind a hold or follow.** `HOLDP`, the VFR holds (`HPPL`/`HPPR`/`HPPH`/`HFIXL`/…), and `FOLLOW` install behavior that continues until you end it — an *untriggered* command chained behind one (`HOLDP OAK 180 1M R; FH 090`) cannot execute until the hold is cancelled or further clearance is issued, and the dispatch warns you so up front. The chain still queues (the `FH 090` flies once the hold ends), and *conditional* tails (`HOLDP …; LV 40 FH 090`) fire normally during the hold. The ground follow `FOLLOWG` is different: it ends on its own at the runway hold-short (or when the lead departs), so `FOLLOWG UAL123; CROSS 28R` chains normally with no warning.
+
+**Commands that cannot be chained.** Sim-control and room-wide commands — `PAUSE`, `UNPAUSE`, `SIMRATE`, `SPAWN`, spawn/flight-plan creation, `TIMER`, `NOTE`/`RMK`, `CONSO`/`DECONSO`, the `…ALL` bulk commands, and similar — are rejected in a chain with *"{verb} cannot be part of a chained command"*. `DEL` and `DEST`/`APT` **do** chain (`CROSS 19R; DEL`, `AT 5000 APT OAK`).
+
 ### Conditional Blocks
 
 Use `LV` (level at altitude) and `AT` (at fix) to trigger blocks on specific conditions instead of waiting for the previous block. Conditional blocks in a chain are watched while the earlier block continues, until YAAT reaches an ordinary untriggered block:
@@ -417,7 +423,7 @@ The restriction covers only codes YAAT chooses on its own. `SQ {code}` still mak
 | Descend via | `DVIA` | — | — |
 | Climb via | `CVIA` | — | — |
 | Depart fix | `DEPART SUNOL 270` | `DEP`, `D` | — |
-| Holding pattern | `HOLDP SUNOL R 180 1M` | `HOLD` (with args) | — |
+| Holding pattern | `HOLDP SUNOL 180 1M R` | `HOLD` (with args) | — |
 | Expect approach | `EAPP I28R` | `EXPECT` | — |
 | Follow traffic | `FOLLOW UAL456` / `FOLLOW` | `FOL` | Callsign optional — bare `FOLLOW` defaults to last in-sight traffic |
 | Follow traffic (forced) | `FOLLOWF UAL456` / `FOLLOWF` | `FOLF` | RPO-only; folds `RTISF` in, no prior `RTIS` needed. Bare form follows a pending/last-called `RTIS` traffic |
@@ -1290,14 +1296,14 @@ The protected corridor either side of the centerline is drawn on the radar under
 
 | Command | Effect |
 |---------|--------|
-| `HOLDP SUNOL R 180 1M` | Hold at SUNOL, right turns, 180° inbound, 1-minute legs |
-| `HOLDP SUNOL L 090 5` | Hold at SUNOL, left turns, 090° inbound, 5nm legs |
-| `HOLDP SUNOL R 180` | Hold at SUNOL, right turns, 180° inbound (default 1-minute legs) |
-| `HOLD SUNOL R 180 1M` | Same as HOLDP (parser detects holding pattern from arguments) |
+| `HOLDP SUNOL 180 1M R` | Hold at SUNOL, 180° inbound, 1-minute legs, right turns |
+| `HOLDP SUNOL 090 5 L` | Hold at SUNOL, 090° inbound, 5nm legs, left turns |
+| `HOLDP SUNOL 180 R` | Hold at SUNOL, 180° inbound, right turns (default 1-minute legs) |
+| `HOLD SUNOL 180 1M R` | Same as HOLDP (parser detects holding pattern from arguments) |
 
-Hold format: `HOLDP {fix} {L/R} {inbound_course} {leg_length}`. Leg length ending in `M` is minutes; plain number is nautical miles. Any RPO command (heading, altitude, approach, etc.) exits the hold.
+Hold format: `HOLDP {fix} {inbound_course} {leg_length} {L/R}` (three-token form: `HOLDP {fix} {inbound_course} {L/R|leg_length}`; direction defaults to right turns per 7110.65, leg to 1 minute). Leg length ending in `M` is minutes; plain number is nautical miles. Any RPO command (heading, altitude, approach, etc.) exits the hold.
 
-The explicit verb is `HOLDP`. However, `HOLD` followed by holding pattern arguments (fix name + L/R + course) is automatically recognized as a holding pattern rather than a ground hold-position command.
+The explicit verb is `HOLDP`. However, `HOLD` followed by holding pattern arguments (fix name + inbound course + direction/leg) is automatically recognized as a holding pattern rather than a ground hold-position command.
 
 ### Hold Commands
 

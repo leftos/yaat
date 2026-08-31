@@ -321,6 +321,52 @@ public class CommandQueue
 
     public bool IsComplete => CurrentBlockIndex >= Blocks.Count;
 
+    /// <summary>
+    /// Aborts the remainder of a chained compound after <paramref name="failedBlock"/> failed at fire
+    /// time: every later, not-yet-applied block from the same dispatch (equal
+    /// <see cref="CommandBlock.SourceCommandText"/> — stamped identically on all blocks of one compound
+    /// and preserved by split/rehydrate) is removed, and the failed block's tracked commands are marked
+    /// complete so the queue advances past it instead of stalling on targets its handler never set.
+    /// Blocks queued by other dispatches (independent conditionals) survive; earlier blocks — applied or
+    /// still awaiting their trigger — are untouched. Returns the removed blocks' descriptions for the
+    /// caller's warning.
+    /// </summary>
+    public List<string> DiscardChainRemainder(CommandBlock failedBlock)
+    {
+        var discarded = new List<string>();
+        int failedIndex = Blocks.IndexOf(failedBlock);
+        if (failedIndex < 0)
+        {
+            return discarded;
+        }
+
+        for (int i = Blocks.Count - 1; i > failedIndex; i--)
+        {
+            var block = Blocks[i];
+            if (block.IsApplied || !string.Equals(block.SourceCommandText, failedBlock.SourceCommandText, StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            discarded.Add(!string.IsNullOrEmpty(block.Description) ? block.Description : block.NaturalDescription);
+            Blocks.RemoveAt(i);
+        }
+
+        discarded.Reverse();
+
+        foreach (var cmd in failedBlock.Commands)
+        {
+            cmd.IsComplete = true;
+        }
+
+        if (CurrentBlockIndex > Blocks.Count)
+        {
+            CurrentBlockIndex = Blocks.Count;
+        }
+
+        return discarded;
+    }
+
     public CommandQueueDto ToSnapshot() => new() { Blocks = Blocks.Select(b => b.ToSnapshot()).ToList(), CurrentBlockIndex = CurrentBlockIndex };
 
     public static CommandQueue FromSnapshot(CommandQueueDto dto)

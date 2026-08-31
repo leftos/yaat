@@ -32,6 +32,7 @@ The Task Index above tells you *which files*; these docs explain *how each subsy
 | Area | Deep-dive doc(s) |
 |------|------------------|
 | Command dispatch & per-domain handlers | [command-pipeline.md](command-pipeline.md), [command-handlers.md](command-handlers.md) |
+| Chained-command (`;`/`,`) contract | [command-chaining.md](command-chaining.md) |
 | Command input (autocomplete / signature help) | [command-input-ux.md](command-input-ux.md) |
 | Aircraft data model & `SimulationWorld` | [aircraft-data-model.md](aircraft-data-model.md) |
 | Flight physics, airspeed frames & constants | [flight-physics.md](flight-physics.md) |
@@ -505,6 +506,7 @@ CommandQueue.cs                # CommandBlock (trigger + closure + TrackedComman
                                # CommandDimension flags (Lateral|Vertical|Speed) for dimension-aware queue clearing
                                # ReadyToAdvance: lateral gates block advancement; altitude/speed are fire-and-forget
                                # SourceCommandText on CommandBlock/DeferredDispatch for snapshot restore
+                               # DiscardChainRemainder: fire-time failure aborts the same-dispatch chain remainder (see docs/command-chaining.md)
 AircraftCategory.cs            # Enum + AircraftCategorization (static Init from AircraftSpecs.json)
                                # CategoryPerformance: fallback aviation constants (taxi, pattern geometry, flare, etc.)
                                # CornerSpeedForAngle: piecewise taxi speed curve (0-30° max, 30-90° corner, 90-150° tight corner)
@@ -652,6 +654,9 @@ Commands/VfrCommandPolicy.cs        # VfrCommandsForIfr enum (None/EnterFinalOnl
 Commands/CommandDescriber.cs        # Static: DescribeCommand, DescribeNatural, classification helpers
                                     # GetDimension, GetCommandDimension, GetCompoundDimensions for queue clearing; strip family
                                     # commands are phase-transparent (STRIP/STRIPD/SCAN/etc., half-strip, separators, blanks)
+                                    # InstallsIndefiniteHoldPhase: HP/VFR-hold/FOLLOW installers → dispatch-time chain warning
+Commands/CompoundPolicy.cs          # Shared client+server chained-command policy: IsNonCompoundable rejection set +
+                                    # FindNonCompoundableInChain ("{verb} cannot be part of a chained command"); DEL/DEST excluded (they chain)
 Commands/TrafficAdvisoryMatcher.cs  # Shared RTIS/SAFAL target matching: clock + VFR relative-octant/pattern-leg/landmark forms, best-candidate-by-weighted-error + Exact/Imprecise grade
 Commands/AltitudeResolver.cs        # Plain int or AGL format → feet MSL
 Commands/CfrWindow.cs               # CFR types: ReleaseWindow, CfrAlertKind, CfrAction/CfrPhase, FAA-fixed −2/+1 window constants (7110.65 §4-3-4.e.5)

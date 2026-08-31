@@ -2814,8 +2814,18 @@ public sealed class SimulationEngine
                     var result = TrackEngine.Dispatch(trackCommand, aircraft, identity: null, scenario, scenario.ArtccConfig);
                     if (result is { Success: false })
                     {
+                        // Abort the chain remainder — the follow-on blocks were premised on this
+                        // track command succeeding (e.g. "AT FIXIE HO 2B; FH 090" must not fly the
+                        // heading after a failed handoff). Same contract as FlightPhysics.ApplyBlock.
+                        var discarded = aircraft.Queue.DiscardChainRemainder(block);
                         var label = !string.IsNullOrEmpty(block.SourceCommandText) ? block.SourceCommandText : block.NaturalDescription;
-                        aircraft.PendingWarnings.Add($"{aircraft.Callsign} {label}: {result.Message}");
+                        var warning = $"{aircraft.Callsign} {label}: {result.Message}";
+                        if (discarded.Count > 0)
+                        {
+                            warning += $" — rest of transmission discarded: {string.Join("; ", discarded)}";
+                        }
+                        aircraft.PendingWarnings.Add(warning);
+                        break;
                     }
                 }
             }
