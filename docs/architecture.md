@@ -86,6 +86,8 @@ deploy-targets.ps1                # Per-deployment map (DropletIp, ServerPath, S
 deploy-to-droplet.ps1             # Deploys yaat-server to a droplet (CI-built ghcr image by default; -BuildOnDroplet / -BuildImageOnly variants)
 deploy-secrets.ps1                # Merges yaat-server/.env + .env.<target> over the droplet's env file (key names only printed, timestamped backup, -DryRun)
 deploy-ladd.ps1                   # Ships yaat-server/ladd/ladd.json (FAA LADD block list, restricted) to <ServerPath>/ladd/; -Restart recreates the container
+update-ladd.ps1                   # Monthly LADD routine in one command: fetch-ladd.py (ADX SOAP download) -> refresh-ladd.py -> deploy-ladd.ps1 ->
+                                  # deploy-to-droplet.ps1 -WaitForEmptyRooms -> deploy-ladd.ps1 -Restart; -Zip uses an already-downloaded zip
 swim-slice.ps1                    # Live-traffic repro: copies the SWIM raw-log hours covering -From/-To off the droplet's yaat-swim-raw volume (or -Local) and
                                   # runs yaat-server tools/Yaat.SwimSlice cut [-Artcc [-Facility]]; output under yaat-server/.tmp/swim-slices (FAA data, never shared)
 tools/codex-yaat.ps1              # Launches Codex from the YAAT repo root and adds ..\yaat-server as an extra writable/readable directory.
