@@ -109,65 +109,7 @@ internal static class FixSuggester
         }
 
         // Tier 2: All navdata fixes
-        AddNavdataFixSuggestions(fullText, activeTokenStart, activeTokenEnd, partial, "", suggestions, NavigationDatabase.Instance, maxSuggestions);
-    }
-
-    /// <summary>
-    /// Adds @fix suggestions (used by AT condition and ADD @fix variant). The displayed
-    /// text and InsertText include the leading "@" character.
-    /// </summary>
-    internal static void AddAtFixSuggestionsForActiveToken(
-        string fullText,
-        int activeTokenStart,
-        int activeTokenEnd,
-        string fixPartial,
-        AircraftModel? selectedAircraft,
-        ObservableCollection<SuggestionItem> suggestions,
-        int maxSuggestions
-    )
-    {
-        if (selectedAircraft is not null)
-        {
-            var routeFixes = CollectRouteFixNames(selectedAircraft);
-            foreach (var fix in routeFixes)
-            {
-                if (suggestions.Count >= maxSuggestions)
-                {
-                    break;
-                }
-
-                if (fixPartial.Length > 0 && !fix.StartsWith(fixPartial, StringComparison.OrdinalIgnoreCase))
-                {
-                    continue;
-                }
-
-                var (insertText, caret) = CommandInputController.BuildTokenReplacement(fullText, activeTokenStart, activeTokenEnd, "@" + fix);
-                suggestions.Add(
-                    new SuggestionItem
-                    {
-                        Kind = SuggestionKind.RouteFix,
-                        Text = $"@{fix}",
-                        Description = "Route",
-                        InsertText = insertText,
-                        CaretAfterInsert = caret,
-                    }
-                );
-            }
-        }
-
-        if (fixPartial.Length > 0)
-        {
-            AddNavdataFixSuggestions(
-                fullText,
-                activeTokenStart,
-                activeTokenEnd,
-                fixPartial,
-                "@",
-                suggestions,
-                NavigationDatabase.Instance,
-                maxSuggestions
-            );
-        }
+        AddNavdataFixSuggestions(fullText, activeTokenStart, activeTokenEnd, partial, suggestions, NavigationDatabase.Instance, maxSuggestions);
     }
 
     internal static List<string> CollectRouteFixNames(AircraftModel aircraft)
@@ -232,7 +174,6 @@ internal static class FixSuggester
         int activeTokenStart,
         int activeTokenEnd,
         string token,
-        string fixTextPrefix,
         ObservableCollection<SuggestionItem> suggestions,
         NavigationDatabase fixDb,
         int maxSuggestions
@@ -268,8 +209,7 @@ internal static class FixSuggester
         {
             if (s.Kind == SuggestionKind.RouteFix)
             {
-                var rawName = fixTextPrefix.Length > 0 && s.Text.StartsWith(fixTextPrefix) ? s.Text[fixTextPrefix.Length..] : s.Text;
-                existing.Add(rawName);
+                existing.Add(s.Text);
             }
         }
 
@@ -286,13 +226,12 @@ internal static class FixSuggester
                 continue;
             }
 
-            var displayText = fixTextPrefix + name;
-            var (insertText, caret) = CommandInputController.BuildTokenReplacement(fullText, activeTokenStart, activeTokenEnd, displayText);
+            var (insertText, caret) = CommandInputController.BuildTokenReplacement(fullText, activeTokenStart, activeTokenEnd, name);
             suggestions.Add(
                 new SuggestionItem
                 {
                     Kind = SuggestionKind.Fix,
-                    Text = displayText,
+                    Text = name,
                     Description = "",
                     InsertText = insertText,
                     CaretAfterInsert = caret,

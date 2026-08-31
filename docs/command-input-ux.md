@@ -129,7 +129,7 @@ Runway, approach, and fix suggestions are sourced per-context: runways from `Nav
 | 0 | `I` (IFR) / `V` (VFR). |
 | 1 | `S` (Small) / `L` (Large) / `H` (Heavy). |
 | 2 | Engine, gated by the weight token: Small → `P`/`T`, Large → `T`/`J`, Heavy → `J` (`AddEngineOptions`, line 167). |
-| 3 | Position: `@fix` (fix flyout if partial starts with `@`), `-bearing` hint, or runway designators (`AddPositionSuggestions`, line 202). |
+| 3 | Position: `@spot` (primary-airport parking/helipad/spot names via `CommandInputController.ParkingNamesProvider` if partial starts with `@`; the `@fix alt` variant has no autocomplete), `-bearing` hint, or runway designators (`AddPositionSuggestions`, line 202). |
 | >= 4 | Variant-dependent: bearing variant (`-`) needs >= 6; fix variant (`@`) needs >= 5; runway variant offers a distance hint at 4, then type/`*`airline overrides (`AddTypeAndAirlineOverrides`, line 338). |
 
 Type and airline names come from `AircraftGenerator.GetTypesForCombo` / `GetAirlines`, scoped to the parsed weight + engine. **Changing the `ADD` grammar requires touching this file** — it is not metadata-driven.
@@ -143,7 +143,6 @@ Type and airline names come from `AircraftGenerator.GetTypesForCombo` / `GetAirl
 
 > **`AddNavdataFixSuggestions` early-returns when no prefix is typed** (`FixSuggester.cs:239`) — it never floods the ~40k navdata fixes. This is the enforcement point of the project's **no global navdata/CIFP pickers** rule: suggestions are per-aircraft scoped (Tier 1) plus a prefix-gated scan (Tier 2). Do not "helpfully" show all fixes.
 
-`AddAtFixSuggestionsForActiveToken` (line 119) is the `@`-prefixed variant used by the `AT` condition and the `ADD @fix` position; it prepends `@` to both the displayed text and the inserted text, and only hits Tier 2 when a fix prefix is present.
 
 ## Signature help
 

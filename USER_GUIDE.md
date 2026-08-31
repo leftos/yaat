@@ -1604,6 +1604,7 @@ As you type in the command bar, a popup appears with matching suggestions:
   - **CTO modifiers** — direction and traffic pattern modifiers for cleared-for-takeoff (IFR: heading only; VFR: all modifiers including pattern, on-course, direct-to)
   - **Runway designators** — for ELD, ERD, EF, CROSS, CLAND, LAHSO, CVA
   - **Fix names** — for DCT, DCTF, HFIX, CFIX, DEPART, AT conditions
+  - **Parking spots** — for the ADD command's `@` position, offering the primary airport's parking/helipad/spot names
 - **Macros** (yellow) — when typing `!`, matching macro names with parameter hints
 
 Once you've typed part of a value, the top match is highlighted automatically — pressing **Tab** (or **Enter**, with the auto-expand setting on) inserts it. At an empty insertion point (e.g. after `EXT` + space) nothing is pre-highlighted, so Enter sends the command as typed.

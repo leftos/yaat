@@ -12,9 +12,9 @@ internal static class AddCommandSuggester
         CommandInputParseResult parsed,
         string fullText,
         CommandScheme scheme,
-        AircraftModel? selectedAircraft,
         ObservableCollection<SuggestionItem> suggestions,
         string? primaryAirportId,
+        IReadOnlyCollection<string> parkingNames,
         int maxSuggestions
     )
     {
@@ -96,9 +96,9 @@ internal static class AddCommandSuggester
                     parsed.ActiveTokenEnd,
                     partial,
                     completedArgs,
-                    selectedAircraft,
                     suggestions,
                     primaryAirportId,
+                    parkingNames,
                     maxSuggestions
                 );
                 break;
@@ -211,9 +211,9 @@ internal static class AddCommandSuggester
         int activeTokenEnd,
         string partial,
         int completedArgs,
-        AircraftModel? selectedAircraft,
         ObservableCollection<SuggestionItem> suggestions,
         string? primaryAirportId,
+        IReadOnlyCollection<string> parkingNames,
         int maxSuggestions
     )
     {
@@ -221,17 +221,8 @@ internal static class AddCommandSuggester
         {
             if (partial.StartsWith('@'))
             {
-                // User is typing @fixname — show fix suggestions
-                var fixPartial = partial.Length > 1 ? partial[1..] : "";
-                FixSuggester.AddAtFixSuggestionsForActiveToken(
-                    fullText,
-                    activeTokenStart,
-                    activeTokenEnd,
-                    fixPartial,
-                    selectedAircraft,
-                    suggestions,
-                    maxSuggestions
-                );
+                var spotPartial = partial.Length > 1 ? partial[1..] : "";
+                AddParkingSuggestions(fullText, activeTokenStart, activeTokenEnd, spotPartial, suggestions, parkingNames, maxSuggestions);
             }
             else if (partial.Contains('.'))
             {
@@ -360,6 +351,48 @@ internal static class AddCommandSuggester
                     }
                 );
             }
+        }
+    }
+
+    /// <summary>
+    /// Suggests the primary airport's parking/helipad/spot names for the <c>@{spot}</c> position
+    /// variant. The name universe comes from the loaded ground layout via
+    /// <see cref="CommandInputController.ParkingNamesProvider"/>, matching what the server's
+    /// spawn-at-parking lookup can resolve.
+    /// </summary>
+    private static void AddParkingSuggestions(
+        string fullText,
+        int activeTokenStart,
+        int activeTokenEnd,
+        string spotPartial,
+        ObservableCollection<SuggestionItem> suggestions,
+        IReadOnlyCollection<string> parkingNames,
+        int maxSuggestions
+    )
+    {
+        foreach (var name in parkingNames.Order(StringComparer.OrdinalIgnoreCase))
+        {
+            if (suggestions.Count >= maxSuggestions)
+            {
+                break;
+            }
+
+            if (spotPartial.Length > 0 && !name.StartsWith(spotPartial, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            var (insertText, caret) = CommandInputController.BuildTokenReplacement(fullText, activeTokenStart, activeTokenEnd, "@" + name);
+            suggestions.Add(
+                new SuggestionItem
+                {
+                    Kind = SuggestionKind.Command,
+                    Text = $"@{name}",
+                    Description = "Parking — spawn parked at this spot",
+                    InsertText = insertText,
+                    CaretAfterInsert = caret,
+                }
+            );
         }
     }
 

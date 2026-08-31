@@ -1527,6 +1527,7 @@ public partial class MainViewModel : ObservableObject
         Radar.SetMeasureState(Measure);
         _commandInput.TaxiwayNamesProvider = CollectLoadedTaxiwayNames;
         _commandInput.SpotNamesProvider = CollectLoadedSpotNames;
+        _commandInput.ParkingNamesProvider = CollectLoadedParkingNames;
         // Student entry is always the first strips entry. Additional
         // per-facility entries are appended via OpenStripsEntryForFacilityAsync.
         var studentVm = new VStripsViewModel(_connection, SendCommandForViewAsync, () => _preferences.UserInitials)
@@ -2049,6 +2050,32 @@ public partial class MainViewModel : ObservableObject
         }
 
         return spotNames;
+    }
+
+    /// <summary>
+    /// Parking, helipad, and taxi-spot names of the currently-loaded (primary-airport) ground
+    /// layout, for the ADD command's <c>@{spot}</c> position autocomplete. The type set mirrors
+    /// what the server's spawn-at-parking lookup (<c>FindParkingByName</c> falling back to
+    /// <c>FindSpotByName</c>) can resolve.
+    /// </summary>
+    private HashSet<string> CollectLoadedParkingNames()
+    {
+        var parkingNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var layout = Ground.DomainLayout;
+        if (layout is null)
+        {
+            return parkingNames;
+        }
+
+        foreach (var node in layout.Nodes.Values)
+        {
+            if ((node.Type is GroundNodeType.Parking or GroundNodeType.Helipad or GroundNodeType.Spot) && !string.IsNullOrEmpty(node.Name))
+            {
+                parkingNames.Add(node.Name.ToUpperInvariant());
+            }
+        }
+
+        return parkingNames;
     }
 
     private HashSet<string> CollectLoadedTaxiwayNames()

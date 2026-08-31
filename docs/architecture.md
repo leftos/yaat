@@ -256,7 +256,7 @@ Services/
   (UpdateService.cs lives in Yaat.Client.Core; MainViewModel constructs it with channel: null)
   ArgumentSuggester.cs           # Command argument autocomplete from CommandRegistry metadata (literal options + contextual fix/runway suggestions)
   FixSuggester.cs               # Fix name suggestions from FixDb
-  AddCommandSuggester.cs        # ADD command callsign/model suggestions
+  AddCommandSuggester.cs        # ADD positional state machine: rules/weight/engine options, position (@spot parking names, runways, arrival routes), type/airline overrides
   SuggestionItem.cs             # Suggestion display model (text, kind, description)
   ScenarioDifficultyHelper.cs   # Scenario difficulty classification
   VideoMapService.cs            # Video map download/cache/parse (conditional HTTP freshness check)

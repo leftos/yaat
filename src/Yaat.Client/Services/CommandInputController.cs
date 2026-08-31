@@ -57,6 +57,12 @@ public partial class CommandInputController : ObservableObject
     /// </summary>
     public Func<IReadOnlyCollection<string>>? SpotNamesProvider { get; set; }
 
+    /// <summary>
+    /// Source of the loaded ground layout's parking/helipad/spot names for the ADD command's
+    /// <c>@{spot}</c> position autocomplete. Same provider contract as <see cref="TaxiwayNamesProvider"/>.
+    /// </summary>
+    public Func<IReadOnlyCollection<string>>? ParkingNamesProvider { get; set; }
+
     public bool IsNavigatingHistory => _isNavigatingHistory;
 
     /// <summary>
@@ -218,7 +224,15 @@ public partial class CommandInputController : ObservableObject
             AddCommandVerbSuggestions(activeTokenText, text, scheme, targetAircraft, parsed);
         }
         else if (
-            AddCommandSuggester.TryAddAddArgumentSuggestions(parsed, text, scheme, targetAircraft, Suggestions, PrimaryAirportId, MaxSuggestions)
+            AddCommandSuggester.TryAddAddArgumentSuggestions(
+                parsed,
+                text,
+                scheme,
+                Suggestions,
+                PrimaryAirportId,
+                ParkingNamesProvider?.Invoke() ?? [],
+                MaxSuggestions
+            )
         )
         {
             // ADD command positional argument suggestions
