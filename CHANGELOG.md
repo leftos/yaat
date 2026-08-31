@@ -1,10 +1,5 @@
 # Changelog
 
-## Unreleased
-
-### Fixed
-- Command-bar autocomplete highlights the top match as you type; Enter (with auto-expand on) inserts it — `EXT DOWN` sends `EXT DOWNWIND` without Tab.
-
 ## v0.12.22-beta [2026/08/30]
 
 ### Highlights
@@ -21,6 +16,7 @@
 - Airport sidecars can override the default runway exit direction per runway end (`exitDirections`); KMIA 26R arrivals now vacate left per facility request.
 
 ### Fixed
+- Command-bar autocomplete highlights the top match as you type; Enter (with auto-expand on) inserts it — `EXT DOWN` sends `EXT DOWNWIND` without Tab.
 - Free-form datablock deconfliction (DCNF F) settles a dense cluster of parked aircraft into a stable, readable layout — extending leaders outward when the normal span can't fit every block — instead of piling the datablocks into an overlapping stack that reshuffles endlessly. Snap mode (DCNF S) gains the same extended leaders for clusters its normal rings can't separate. (#406)
 - `HOLD` actually stops a taxiing aircraft — it brakes to a halt, and while still rolling it keeps its place in ground conflict resolution. (#407)
 - Squawk commands ahead of `PUSH` (`SQ; SQNORM; PUSH; ...`) no longer get the whole compound rejected as "parked with engines off". (#407)
