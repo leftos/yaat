@@ -3,7 +3,7 @@
 ## Unreleased
 
 ### Added
-- Live traffic (internal testing): shadows show their real-world controllers — feed ownership and pending handoffs on the datablock, a filled controller list; TRACK/ASSUME take over silently.
+- Live traffic (internal testing): shadows show their real-world controllers — feed ownership, pending handoffs and the real facility's scratchpads on the datablock, a filled controller list; TRACK/ASSUME take over silently.
 - Live traffic (internal testing): traffic filters in Start Live Session and the session flyout — VFR/IFR, flight-plan airports (dep/dest), or a radius around any airport/fix/FRD.
 - Chaining commands behind `HOLDP`, a VFR hold, or `FOLLOW` warns up front that the trailing commands wait for the hold to end; conditional tails still fire during it.
 - The user guide gains a plain-language command-chaining walkthrough: when the next step starts, what happens on failure, what can't be chained.

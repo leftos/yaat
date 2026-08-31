@@ -127,4 +127,13 @@ public sealed record LiveTrafficSample(
     public string? PendingOwnerFacility { get; init; }
 
     public string? PendingOwnerSector { get; init; }
+
+    /// <summary>
+    /// Real-world STARS primary scratchpad from the feed. Null = the feed has never said; empty = the feed
+    /// cleared it. Applied to the shadow's STARS state while the feed owns the track.
+    /// </summary>
+    public string? Scratchpad1 { get; init; }
+
+    /// <summary>Real-world STARS secondary scratchpad from the feed; same null/empty semantics as <see cref="Scratchpad1"/>.</summary>
+    public string? Scratchpad2 { get; init; }
 }

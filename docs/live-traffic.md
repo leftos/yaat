@@ -294,6 +294,11 @@ bundle's sim seconds back to the real-world feed window (see *Reproducing a repo
   the feed says so. `RoomControllerCollector.Collect` fills the CRC OpenPositions topic and the client controller list
   with synthesized "Real World" positions (ARTCC root + student facility subtree, radar-capable only) during live
   sessions, so owned tracks point at positions that exist. Tests: `ShadowOwnershipTests`.
+- **Real-world scratchpads** — TAIS `scratchPad1`/`scratchPad2` ride `LiveTrack.ScratchPad1/2` →
+  `LiveTrafficSample.Scratchpad1/2` (recorded, so replays reproduce them) and land on `AircraftStarsState.Scratchpad1/2`
+  in `LiveTrafficOwnerResolver.Apply` under the same feed-yield gate as ownership: null = the feed has never said
+  (leave the pad alone), empty = the feed cleared it, and a controller's TRACK stops feed writes until DROP.
+  Tests: `ShadowScratchpadTests`.
 - **Wire** — `AircraftStateDto.IsLiveTraffic` / `LiveTrafficStale` / `LiveTrafficSource` (+ client `AircraftDto`), all three in
   `TrainingDtoFingerprint`. Shadows are excluded from auto-TDLS, auto arrival strips and the rolling-call strip
   (`IsDepartureAircraft` / `IsArrivalCandidate` / `IsApproachDepartureCandidate`).

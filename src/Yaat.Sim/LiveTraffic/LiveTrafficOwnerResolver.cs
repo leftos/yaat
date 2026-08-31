@@ -9,7 +9,8 @@ namespace Yaat.Sim.LiveTraffic;
 /// feed sector lines up with the configured vNAS position (and its callsign) when one matches. Runs on every
 /// sample in both brains — samples are recorded, so replays reproduce the same ownership. The feed yields
 /// silently: a controller's TRACK clears <see cref="AircraftTrack.OwnerFromLiveFeed"/> (any ordinary owner
-/// write does) and the feed stays out until a DROP returns the track to unowned.
+/// write does) and the feed stays out until a DROP returns the track to unowned. The feed's real-world
+/// scratchpads ride the same gate: they land on the shadow's STARS state until a controller takes the track.
 /// </summary>
 public static class LiveTrafficOwnerResolver
 {
@@ -37,6 +38,17 @@ public static class LiveTrafficOwnerResolver
             track.OnHandoff = false;
             track.HandoffAccepted = false;
             track.HandoffInitiatedAt = null;
+        }
+
+        // Null = the feed has never said (leave whatever is there); empty = the feed cleared the pad.
+        if (sample.Scratchpad1 is not null)
+        {
+            ac.Stars.Scratchpad1 = (sample.Scratchpad1.Length == 0) ? null : sample.Scratchpad1;
+        }
+
+        if (sample.Scratchpad2 is not null)
+        {
+            ac.Stars.Scratchpad2 = (sample.Scratchpad2.Length == 0) ? null : sample.Scratchpad2;
         }
     }
 
