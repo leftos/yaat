@@ -97,6 +97,7 @@ What every `OnTick` receives. Beyond `Aircraft` and `Targets`, notable fields:
 - `TowerPosition` — the local tower `TrackOwner`. `InitialClimbPhase` uses this to hold RV SID heading until handoff + 5s.
 - `IsHoldShortNodeOccupied` / `OccupiedHoldShortNodes` / `MarkHoldShortNodeOccupied` — ground anti-collision plumbing.
 - `ScenarioElapsedSeconds`, `AutoClearedToLand`, `AutoPullUpToParallel`, `AutoGoAroundOnOccupiedRunway`, `AutoRejectTakeoffOnOccupiedRunway`, `SoloTrainingMode`, `RpoShowPilotSpeech` — scenario flags.
+- `PilotContacts` (+ `ToEligibilityContext()`) — who answers pilot calls (`PilotContactRoster`: AI-staffed positions and the solo student). The initial-contact sites resolve their addressee through it instead of gating on `SoloTrainingMode`; a hand-built context that leaves it unset derives the student-only roster from the solo fields. See [solo-training-pilot-speech.md](solo-training-pilot-speech.md#who-the-pilot-calls--pilotcontactroster-pilotpilotcontactrostercs).
 - `ListAircraft` — delegate returning every aircraft in the world (used by `OccupiedRunwayGoAround` from `FinalApproachPhase`; null in minimal command-time contexts).
 
 Phases write **directly** to `ctx.Targets` — they do not enqueue commands.

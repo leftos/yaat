@@ -1,11 +1,14 @@
 using Microsoft.Extensions.Logging;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Pilot;
 
 namespace Yaat.Sim.Phases;
 
 public sealed class PhaseContext
 {
+    private PilotContactRoster? _pilotContacts;
+
     public required AircraftState Aircraft { get; init; }
     public required ControlTargets Targets { get; init; }
     public required AircraftCategory Category { get; init; }
@@ -137,10 +140,21 @@ public sealed class PhaseContext
     public InitialContactTransferCatalog InitialContactTransfers { get; init; } = InitialContactTransferCatalog.Empty;
 
     /// <summary>
-    /// vNAS radio name for the student position, e.g. "Oakland Tower". Null falls back to
-    /// generic "tower", "ground", "approach", or "center" wording.
+    /// Who answers pilot calls this session (<see cref="PilotContactRoster"/>): the AI-staffed positions and, in solo
+    /// training, the student with their vNAS radio name. Production builders set it from
+    /// <c>SimScenarioState.PilotContacts</c>; a hand-built context that leaves it unset derives the student-only
+    /// roster from <see cref="SoloTrainingMode"/> / <see cref="StudentPosition"/> (generic facility wording), which is
+    /// exactly the pre-roster behavior.
     /// </summary>
-    public string? StudentRadioName { get; init; }
+    public PilotContactRoster PilotContacts
+    {
+        get => _pilotContacts ??= PilotContactRoster.ForStudent(SoloTrainingMode, StudentPosition, StudentPositionType, null);
+        init => _pilotContacts = value;
+    }
+
+    /// <summary>The SOP initial-contact inputs the roster's student branch evaluates.</summary>
+    public InitialContactEligibilityContext ToEligibilityContext() =>
+        new(StudentPosition, StudentPositionType, ArtccId, PrimaryAirportId, InitialContactTransfers);
 
     /// <summary>
     /// The local tower position (TrackOwner), if the student is controlling tower.

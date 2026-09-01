@@ -95,13 +95,14 @@ public sealed class HoldingShortPhase : Phase
         // "ready" call there. The crossing hold is surfaced on the controller-facing warning lane
         // above instead (issue #194).
         if (
-            ctx.SoloTrainingMode
-            && !_hasAnnouncedReady
+            !_hasAnnouncedReady
             && _holdShort.Reason == HoldShortReason.DestinationRunway
             && _holdShort.TargetName is { Length: > 0 } runwayId
+            && ctx.PilotContacts.ResolveFor(ctx.Aircraft, "TWR", PilotContactRoster.SurfaceAirportOf(ctx.Aircraft), ctx.ToEligibilityContext(), false)
+                is { } answering
         )
         {
-            var facilityCallName = PilotResponder.ResolveContextFacilityCallName(ctx.StudentPositionType, ctx.StudentRadioName, "TWR", "tower");
+            var facilityCallName = PilotResponder.ResolveAnsweringCallName(answering, "TWR", "tower");
             var line = PilotResponder.BuildHoldingShortReady(ctx.Aircraft, runwayId, facilityCallName);
             PilotResponder.QueueSoloPilotTransmission(ctx.Aircraft, line, PilotTransmissionKind.Proactive, PilotResponder.SourceResponse);
             PilotRequestTracker.RecordRequest(
@@ -112,7 +113,7 @@ public sealed class HoldingShortPhase : Phase
                 PilotRequestContext.Runway(runwayId, facilityCallName)
             );
             _hasAnnouncedReady = true;
-            ctx.Aircraft.HasMadeInitialContact = true;
+            answering.MarkInitialContact(ctx.Aircraft);
         }
     }
 

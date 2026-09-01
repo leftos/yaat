@@ -127,6 +127,20 @@ The server already "plays" unstaffed positions. An AI-staffed position must be t
   brain (memos retained for the session; `Reset()` on resume so intent re-derives).
 - Headless implementation is pure config.
 
+**CA0a notes (2026-09-01, from the implementation + aviation review):**
+
+- Tower-cab positions at one airport usually share a TCP (OAK_GND / OAK_TWR / OAK_DEL are all `3O`), so
+  `TrackResolver.ResolveTcpToOwner` and `PositionRegistry.IsTcpControlledByCrc` cannot tell them apart:
+  staffing and roster logic compare cab positions by **callsign / position id**, never by
+  `TrackOwner.MatchesPosition`, and cab positions issue no track verbs in v1.
+- `_DEL` stays out of `ControlRole.Ground` unless a `RoleOverrides` entry puts it there (this matches
+  the classifier's fold only for the *pilot* call name, not for staffing): a taxi request must never be
+  addressed to "… Clearance Delivery" (AIM TBL 4-2-1; CD does not issue taxi, AIM 4-3-14.c). Likewise a
+  `DEP` position keeps its own "… Departure" call name rather than the `APP` fold.
+- Pilot-side contact goes through `PilotContactRoster` (see `docs/solo-training-pilot-speech.md`): tower-cab AI
+  positions are matched on the airport the call is physically made at, every candidate obeys the ARTCC's
+  initial-contact transfer SOP, and the AI contact latch is per position id.
+
 With a human neighbor, AI positions interact exactly as with any controller: `HO` and wait for a
 manual ACCEPT (patience watchdog → reminder line; in soak → `HandoffUnaccepted` anomaly), ACCEPT the
 human's handoffs after the deterministic delay, honor the human's HFR/REL, and never command

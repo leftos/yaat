@@ -67,9 +67,19 @@ public static class PilotInitialContactEligibility
     private static bool EstablishesTwoWayComms(CompoundCommand command) =>
         command.Blocks.Any(block => block.Commands.Any(c => c is not (SayCommand or ShowQueuedCommand)));
 
-    public static bool CanInitiateWithStudent(AircraftState aircraft, InitialContactEligibilityContext context)
+    public static bool CanInitiateWithStudent(AircraftState aircraft, InitialContactEligibilityContext context) =>
+        CanInitiateWith(aircraft, context.StudentPosition, context.StudentPositionType, context);
+
+    /// <summary>
+    /// Whether the pilot may initiate contact with <paramref name="position"/> — the solo student or an AI-staffed
+    /// position — under the ARTCC's SOP: always when no position is given, nobody owns the track, or the owner is that
+    /// position; otherwise only when the initial-contact transfer catalog allows the owner-type → position transfer at
+    /// the observed handoff timing. The transferring controller hands the pilot over (7110.65 §2-1-17); the pilot does
+    /// not self-initiate with the next position, whoever staffs it.
+    /// </summary>
+    public static bool CanInitiateWith(AircraftState aircraft, TrackOwner? position, string? positionType, InitialContactEligibilityContext context)
     {
-        if (context.StudentPosition is not { } studentPosition)
+        if (position is not { } target)
         {
             return true;
         }
@@ -79,15 +89,15 @@ public static class PilotInitialContactEligibility
             return true;
         }
 
-        if (owner.MatchesPosition(studentPosition))
+        if (owner.MatchesPosition(target))
         {
             return true;
         }
 
         var ownerPositionType = AtcPositionTypeClassifier.Classify(owner.Callsign);
-        var studentPositionType = context.StudentPositionType ?? AtcPositionTypeClassifier.Classify(studentPosition.Callsign);
+        var targetPositionType = positionType ?? AtcPositionTypeClassifier.Classify(target.Callsign);
         var observedTiming =
-            aircraft.Track.HandoffPeer?.MatchesPosition(studentPosition) == true
+            aircraft.Track.HandoffPeer?.MatchesPosition(target) == true
                 ? InitialContactTransferTiming.HandoffInitiated
                 : InitialContactTransferTiming.NoHandoffNecessary;
 
@@ -96,13 +106,14 @@ public static class PilotInitialContactEligibility
             CandidateAirportIds(aircraft, context.PrimaryAirportId).ToList(),
             ownerPositionType,
             owner.Callsign,
-            studentPositionType,
-            studentPosition.Callsign,
+            targetPositionType,
+            target.Callsign,
             observedTiming
         );
     }
 
-    private static IEnumerable<string> CandidateAirportIds(AircraftState aircraft, string? primaryAirportId)
+    /// <summary>The airports an aircraft may be "at" for SOP / AI-position scoping: destination, current airport, ground layout, primary.</summary>
+    public static IEnumerable<string> CandidateAirportIds(AircraftState aircraft, string? primaryAirportId)
     {
         if (!string.IsNullOrWhiteSpace(aircraft.FlightPlan.Destination))
         {

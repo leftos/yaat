@@ -114,6 +114,56 @@ Towered-field pilots do not self-announce every pattern leg on entry. Two kinds 
 
 Output channel follows the usual split: solo mode lands in `PendingNotifications` (gray pilot speech, AI voices the pilot); RPO mode lands in `PendingWarnings` (orange controller-facing nag) unless `RpoShowPilotSpeech` routes it to `PendingPilotSpeech`. Never delete the `PendingWarnings` text — it is the default fallback when pilot-speech mode is off.
 
+## Who the pilot calls — `PilotContactRoster` (`Pilot/PilotContactRoster.cs`)
+
+Pilot-initiated calls are addressed to whoever **answers** pilots this session, not to solo mode as such. The roster
+(`SimScenarioState.PilotContacts`, memoized on solo mode / student position / AI staffing version / ARTCC config, and
+handed to phases as `PhaseContext.PilotContacts`) holds every AI-staffed position (`SimScenarioState.AiStaffedPositions`,
+published by the host that runs the controller AI) plus the solo student. The five initial-contact sites resolve their
+addressee with `ResolveFor(aircraft, expectedPositionType, atAirportId, eligibility, checkEligibility)`:
+
+| Site | Wants | At airport | SOP eligibility check |
+|---|---|---|---|
+| `AtParkingPhase` ready-to-taxi | `GND` | `PilotContactRoster.SurfaceAirportOf` (ground layout, else spawn airport) | yes (`CanInitiateWith`, as before for the student) |
+| `HoldingShortPhase` ready for departure | `TWR` | `SurfaceAirportOf` | no (as before) |
+| `LinedUpAndWaitingPhase` lined-up reminder | `TWR` | the departure runway's airport | no (as before) |
+| `FinalApproachPhase` spawn-on-final check-in | `TWR` | the runway's airport, else the approach clearance's | yes |
+| `PatternEntryPhase` closed-traffic request | `TWR` | the pattern runway's airport | yes |
+
+Resolution order: an AI position of the wanted type covering the aircraft first; else the student (when solo training
+is on); else, for a **ground** call only, an AI local position covering the airport — a tower working the cab alone
+works ground too, and is addressed by the generic word like a tower-only student; else null — nobody to call, so no
+call and no `PilotPendingRequest`, which is the pre-roster instructor-mode behavior. Coverage for a **tower-cab** AI
+position (GND/TWR) is the airport the call is physically made at, never the filed destination — an OAK departure filed
+to SFO calls Oakland Ground even with AI SFO Ground staffed; radar-role AI positions match the destination/current/
+primary candidates (`PilotInitialContactEligibility.CandidateAirportIds`). Where the site asks for the SOP check, it
+applies to **every** candidate (`PilotInitialContactEligibility.CanInitiateWith(aircraft, position, type, ctx)`): an
+arrival still owned by approach with no handoff inbound does not call the tower whoever staffs it — the transferring
+controller hands the pilot over (7110.65 §2-1-17), the pilot never self-initiates with the next position. An AI entry
+whose callsign is the student's own position is dropped while solo training is on (compare by callsign: tower-cab
+positions share a TCP). `PilotResponder.ResolveAnsweringCallName` picks the addressee's vNAS radio name only when
+its type matches the call — a tower-only student still gets "ground, ready to taxi" — exactly the old
+`StudentRadioName` rule.
+
+**`HasMadeInitialContact` stays student-scoped; the AI latch is per position.** A call answered by an AI position
+adds only that position's id to `AircraftState.AiInitialContactPositionIds` (`PilotAnsweringPosition.MarkInitialContact`
+/ `HasInitialContact`), so a departure handled by AI Ground and AI Local still makes its airborne check-in with a
+student radar position — the same rule scripted clearances follow (`IsScenarioScripted`) — and an aircraft that called
+AI Oakland Ground still makes a fresh call to AI San Francisco Local on final at SFO (AIM 4-2-3.a.1.1: each new
+facility or controller is a new initial contact). The radar-side proactive calls (`TickAirborneCheckIn`,
+`TickArrivalApproachRequest`, `TickAirspaceBoundaryRespect`) stay student-only until AI radar positions exist, with
+one guard added for the mixed case: `TickAirborneCheckIn` skips aircraft inside the tower's arrival side
+(`TowerCabPhases.IsArrivalSide`: final, landing, pattern, go-around, tower maneuvers on final), so an arrival whose
+on-final call an AI tower answered does not also make an initial call to the student approach position from a
+three-mile final (AIM 5-4-3.a) — departures in initial climb still check in with departure (AIM 5-2-9).
+`TickPendingRequests` (follow-ups) and both `PendingPilotTransmissions` drain gates
+(`SimulationEngine.TickPostPhysics`, `TickProcessor.BroadcastPilotTransmissions`) key on `PilotContacts.AnyAnswering`.
+Known v1 limitations (tracked in `docs/plans/MAIN.md`): one shared `SimulationWorld.ActiveFrequency` airtime model for
+every answering position (an AI Ground answering a taxi request clears the awaiting-response gate held for a pilot
+waiting on tower); first-by-position-id wins between two same-type AI positions at one airport (no LC1/LC2 split);
+pilots holding short self-switch to the tower without a `CT` (AIM 4-3-14.a-conformant on the pilot side; the AI
+Ground's own §2-1-17 transfer duty lands with the CA2 brain).
+
 ## Initial contact and scripted clearances
 
 `AircraftState.HasMadeInitialContact` gates the proactive check-ins (`PilotProactive.TickAirborneCheckIn` and the parking/pattern call-ups) — once set, the pilot has already established two-way comms with the student and won't volunteer another check-in. It is set two ways:
@@ -151,6 +201,14 @@ public record CommandResult(bool Success, string? Message = null, CanonicalComma
 Five request kinds: `Taxi`, `Takeoff`, `Landing`, `Approach`, `AirspaceEntry`. Each maps controller commands to terminal states (e.g. `ClearedForTakeoffCommand` → Satisfied for Takeoff; `ExpectApproachCommand` → Standby for Approach; `LineUpAndWaitCommand` → Superseded for Takeoff).
 
 ## `ApplyPostDispatch` — one hook, two hosts
+
+`ApplyPostDispatch(aircraft, compound, result, DispatchOrigin origin)` takes who issued the command
+(`Commands/DispatchOrigin.cs`; hosts derive it from the connection id — `AiConnectionId.Format(positionId)` =
+`"AI:{positionId}"` — so recorded AI commands replay with the same origin). The pilot-voice side (request resolution,
+frequency-gate release, read-back, "unable") runs whenever `PilotContacts.AnyAnswering`; two-way-comms registration
+(`RegisterControllerContact`) and solo-evaluator scoring run only for a `Human` origin. Both replay mirrors
+(`SimulationEngine.ReplayCommand`, `RecordingManager.ReplayCommand`) apply the same split and pass
+`IsScenarioScripted` for an AI origin.
 
 Everything that happens *after* a user-issued command dispatches lives in `SimulationEngine.ApplyPostDispatch(aircraft, compound, result)`: two-way-comms registration, `SoloTrainingEvaluator.RecordControllerCommand`, `PilotRequestTracker.ApplyControllerResponse`, `SimulationWorld.AcknowledgeControllerResponse`, `QueueSoloUnableIfNeeded` on failure, and the pilot read-back.
 

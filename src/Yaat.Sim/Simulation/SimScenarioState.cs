@@ -24,6 +24,63 @@ public sealed class SimScenarioState
     /// </summary>
     public DateTime MagneticModelDateUtc { get; set; } = MagneticDeclination.EvaluationDateUtc;
 
+    private IReadOnlyList<ControllerAi.AiPositionConfig> _aiStaffedPositions = [];
+    private Pilot.PilotContactRoster? _pilotContacts;
+    private (bool Solo, TrackOwner? Student, string? StudentType, int StaffingVersion, Data.Vnas.ArtccConfigRoot? Config)? _pilotContactsKey;
+
+    /// <summary>
+    /// The AI-staffed positions currently answering pilots, sorted by position id. Kept current by the host that
+    /// runs the controller AI (empty when it is off). Never snapshotted — the host re-publishes it every tick.
+    /// </summary>
+    public IReadOnlyList<ControllerAi.AiPositionConfig> AiStaffedPositions => _aiStaffedPositions;
+
+    /// <summary>
+    /// Bumps whenever any staffed position's configuration changes — membership, role, identity, radio name, or airports
+    /// (<see cref="ControllerAi.AiPositionConfig"/> value equality); the pilot-contact roster memo keys on it.
+    /// </summary>
+    public int AiStaffingVersion { get; private set; }
+
+    public void SetAiStaffedPositions(IReadOnlyList<ControllerAi.AiPositionConfig> positions)
+    {
+        var sorted = positions.OrderBy(p => p.PositionId, StringComparer.Ordinal).ToList();
+        if (sorted.SequenceEqual(_aiStaffedPositions))
+        {
+            return;
+        }
+
+        _aiStaffedPositions = sorted;
+        AiStaffingVersion++;
+    }
+
+    /// <summary>True when the track owner is one of the AI-staffed positions.</summary>
+    public bool IsAiStaffed(TrackOwner? owner) => owner is not null && _aiStaffedPositions.Any(p => p.Identity.MatchesPosition(owner));
+
+    /// <summary>
+    /// Who answers pilot calls this session — see <see cref="Pilot.PilotContactRoster"/>. Memoized on its inputs (solo
+    /// mode, student position and type, the AI staffing version, the ARTCC config instance) so it is correct at
+    /// every read without a rebuild hook at each writer, and cheaper than the per-sub-tick radio-name lookup it replaced.
+    /// </summary>
+    public Pilot.PilotContactRoster PilotContacts
+    {
+        get
+        {
+            var key = (SoloTrainingMode, StudentPosition, StudentPositionType, AiStaffingVersion, ArtccConfig);
+            if (_pilotContacts is null || _pilotContactsKey != key)
+            {
+                _pilotContacts = Pilot.PilotContactRoster.Build(
+                    SoloTrainingMode,
+                    StudentPosition,
+                    StudentPositionType,
+                    _aiStaffedPositions,
+                    ArtccConfig
+                );
+                _pilotContactsKey = key;
+            }
+
+            return _pilotContacts;
+        }
+    }
+
     // Queues
     public List<DelayedSpawn> DelayedQueue { get; } = [];
     public List<ScheduledTrigger> TriggerQueue { get; } = [];

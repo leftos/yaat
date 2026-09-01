@@ -18,6 +18,7 @@
 - `CTOC` during a helicopter liftoff sets it back down (low) or stops it in a hover (established) instead of failing.
 - Aircraft removed with `DEL` now appear in the Session Report Aircraft tab as dropped instead of vanishing.
 - Recordings and bug bundles replay with the magnetic declination of the day they were made, so a replay months later reproduces the original headings and positions exactly instead of drifting with the magnetic model.
+- In solo training, answering a "ready to taxi" call with `TAXIAUTO` now closes the pilot's request instead of leaving the pilot re-asking every two minutes.
 
 ## v0.12.24-beta [2026/08/31]
 

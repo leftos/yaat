@@ -225,6 +225,16 @@ public class AircraftState
     public bool HasMadeInitialContact { get; set; }
 
     /// <summary>
+    /// The AI-side counterpart of <see cref="HasMadeInitialContact"/>, keyed per answering position: the vNAS position
+    /// ids of every AI-staffed position this pilot has already made an initial call to. Per position because AIM
+    /// 4-2-3.a.1.1 makes each new facility or controller a fresh initial contact — an aircraft that called AI Oakland
+    /// Ground still checks in with AI San Francisco Local on final at SFO. Kept apart from the student flag so a
+    /// departure handled by AI Ground and AI Local still checks in with a human student radar position later (the rule
+    /// scripted clearances follow). Snapshot-serialized in sorted order so snapshots stay byte-stable.
+    /// </summary>
+    public SortedSet<string> AiInitialContactPositionIds { get; set; } = new(StringComparer.Ordinal);
+
+    /// <summary>
     /// Set when the controller has used this aircraft's callsign in a successful live command.
     /// In solo training this satisfies the Class C "two-way radio communications established"
     /// entry gate after the pilot's initial contact (AIM §3-2-4).
@@ -403,6 +413,7 @@ public class AircraftState
             IsOnGround = dto.IsOnGround,
             HasBeenAirborne = dto.HasBeenAirborne,
             HasMadeInitialContact = dto.HasMadeInitialContact,
+            AiInitialContactPositionIds = new SortedSet<string>(dto.AiInitialContactPositionIds ?? [], StringComparer.Ordinal),
             HasControllerAcknowledgedInitialContact = dto.HasControllerAcknowledgedInitialContact,
             HasLeftStudentFrequency = dto.HasLeftStudentFrequency,
             SpawnedAtSeconds = dto.SpawnedAtSeconds,
@@ -503,6 +514,7 @@ public class AircraftState
             IsOnGround = IsOnGround,
             HasBeenAirborne = HasBeenAirborne,
             HasMadeInitialContact = HasMadeInitialContact,
+            AiInitialContactPositionIds = AiInitialContactPositionIds.Count == 0 ? null : AiInitialContactPositionIds.ToList(),
             HasControllerAcknowledgedInitialContact = HasControllerAcknowledgedInitialContact,
             HasLeftStudentFrequency = HasLeftStudentFrequency,
             SpawnedAtSeconds = SpawnedAtSeconds,

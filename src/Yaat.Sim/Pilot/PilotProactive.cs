@@ -41,6 +41,14 @@ public static class PilotProactive
             return;
         }
 
+        // Inside the tower's arrival-side jurisdiction (final, landing, pattern, go-around) the pilot is the tower's:
+        // an aircraft on a three-mile final never makes an initial call to approach, even when a tower staffed by the
+        // AI answered its on-final call and the human student is the radar position (AIM 5-4-3.a).
+        if (Phases.TowerCabPhases.IsArrivalSide(aircraft.Phases?.CurrentPhase))
+        {
+            return;
+        }
+
         var positionType = scenario.StudentPositionType;
         if (string.IsNullOrEmpty(positionType) || positionType == "GND")
         {
@@ -224,7 +232,9 @@ public static class PilotProactive
 
     public static void TickPendingRequests(AircraftState aircraft, SimScenarioState scenario)
     {
-        if (!scenario.SoloTrainingMode)
+        // Follow-ups re-voice an unanswered request; they belong wherever someone answers pilots (the solo student
+        // or an AI position), not only in solo training.
+        if (!scenario.PilotContacts.AnyAnswering)
         {
             return;
         }

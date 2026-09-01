@@ -919,14 +919,16 @@ public sealed class SimulationEngine
                 continue;
             }
 
+            // The radar-side proactive calls stay student-only until the AI approach/center brains exist; the
+            // request follow-ups gate themselves on whether anyone (student or AI position) answers pilots.
             if (solo)
             {
                 Pilot.PilotProactive.TickAirborneCheckIn(ac, scenario, LookupAirportPosition);
                 Pilot.PilotProactive.TickArrivalApproachRequest(ac, scenario, LookupAirportPosition);
                 Pilot.PilotProactive.TickAirspaceBoundaryRespect(ac, scenario, AirspaceDatabase.Default, LookupAirportPosition);
-                Pilot.PilotProactive.TickPendingRequests(ac, scenario);
             }
 
+            Pilot.PilotProactive.TickPendingRequests(ac, scenario);
             Pilot.PilotProactive.TickReportTriggers(ac, scenario);
         }
     }
@@ -1579,7 +1581,9 @@ public sealed class SimulationEngine
             FirePilotSpeechEmitted(callsign, speech);
         }
 
-        if (Scenario is { SoloTrainingMode: true } activeScenario)
+        // Pilot transmissions are addressed to whoever answers pilots — the solo student or an AI position; with nobody
+        // answering (an instructor room with the AI off) they are discarded, the pre-roster instructor-mode behavior.
+        if (Scenario is { } activeScenario && activeScenario.PilotContacts.AnyAnswering)
         {
             foreach (var transmission in World.DrainReadyPilotTransmissions(activeScenario.ElapsedSeconds))
             {
@@ -2174,7 +2178,7 @@ public sealed class SimulationEngine
         // number of seconds and acknowledge immediately so the controller knows the command landed and
         // the sim isn't frozen. The aircraft begins complying when the deferral fires.
         CommandResult result;
-        var reactionDelay = TryDeferCommandForReaction(aircraft, parseResult.Value!);
+        var reactionDelay = TryDeferCommandForReaction(aircraft, parseResult.Value!, DispatchOrigin.Human);
         if (reactionDelay is double reactionSeconds)
         {
             // In solo training mode the student is the pilot's only audience: showing the exact sampled
@@ -2206,7 +2210,7 @@ public sealed class SimulationEngine
             result = CommandDispatcher.DispatchCompound(parseResult.Value!, aircraft, dispatchCtx);
         }
 
-        ApplyPostDispatch(aircraft, parseResult.Value!, result);
+        ApplyPostDispatch(aircraft, parseResult.Value!, result, DispatchOrigin.Human);
 
         return result;
     }
@@ -2224,18 +2228,36 @@ public sealed class SimulationEngine
     ///
     /// The read-back hook lives here, on the user-issued path only, so deferred / preset / replay
     /// dispatches don't re-fire read-backs.
+    ///
+    /// <paramref name="origin"/> decides which of these are the student's: only a
+    /// <see cref="DispatchOrigin.Human"/> dispatch registers controller contact and is evaluator-scored;
+    /// an AI-controller dispatch still resolves the pilot's pending request, releases the frequency gate,
+    /// and gets the read-back / "unable" whenever anyone answers pilots (<c>PilotContacts.AnyAnswering</c>).
     /// </summary>
-    public void ApplyPostDispatch(AircraftState aircraft, CompoundCommand compound, CommandResult result)
+    public void ApplyPostDispatch(AircraftState aircraft, CompoundCommand compound, CommandResult result, DispatchOrigin origin)
     {
         bool soloTrainingMode = Scenario?.SoloTrainingMode ?? false;
+        // The pilot-voice side (request resolution, frequency gates, read-backs, "unable") runs whenever someone answers
+        // pilots — the solo student or an AI position (identical to solo mode when the AI is off). Student-only
+        // bookkeeping — two-way-comms registration and evaluator scoring — never runs for an AI-controller dispatch.
+        bool answering = Scenario?.PilotContacts.AnyAnswering ?? false;
+        bool human = origin == DispatchOrigin.Human;
         double elapsedSeconds = Scenario?.ElapsedSeconds ?? 0;
 
         if (result.Success)
         {
-            Pilot.PilotInitialContactEligibility.RegisterControllerContact(aircraft, Scenario, compound);
-            if (soloTrainingMode)
+            if (human)
+            {
+                Pilot.PilotInitialContactEligibility.RegisterControllerContact(aircraft, Scenario, compound);
+            }
+
+            if (human && soloTrainingMode)
             {
                 SoloTrainingEvaluator.RecordControllerCommand(aircraft, compound, elapsedSeconds, World.GetSnapshot());
+            }
+
+            if (answering)
+            {
                 PilotRequestTracker.ApplyControllerResponse(aircraft, compound, elapsedSeconds);
                 // The controller has just spoken to this aircraft, so the
                 // awaiting-controller-response gate (if it was set after this pilot's
@@ -2244,12 +2266,12 @@ public sealed class SimulationEngine
                 World.AcknowledgeControllerResponse(aircraft.Callsign);
             }
         }
-        else if (soloTrainingMode)
+        else if (answering)
         {
             QueueSoloUnableIfNeeded(aircraft, result);
         }
 
-        if (result.Success && soloTrainingMode)
+        if (result.Success && answering)
         {
             var activityLevel = World.ActiveFrequency.GetActivityLevel(elapsedSeconds);
             var readback = Yaat.Sim.Pilot.PilotResponder.BuildReadbackAsApplied(
@@ -2285,9 +2307,11 @@ public sealed class SimulationEngine
     /// Sampling draws from <see cref="SimulationWorld.ReactionDelayRng"/> (never the shared RNG) so it
     /// can't perturb replay-critical emergent events. The returned value is the actual delay applied
     /// (after the order-preserving clamp); the server bakes it into the recorded command so replays
-    /// reproduce it exactly rather than re-sampling.
+    /// reproduce it exactly rather than re-sampling. The deferral carries <paramref name="origin"/> as
+    /// its <c>IsScenarioScripted</c> flag, so an AI command that fires after the delay still never marks
+    /// student contact.
     /// </summary>
-    public double? TryDeferCommandForReaction(AircraftState aircraft, CompoundCommand compound)
+    public double? TryDeferCommandForReaction(AircraftState aircraft, CompoundCommand compound, DispatchOrigin origin)
     {
         var scenario = Scenario;
         if (scenario is null || scenario.CommandRunDelayMaxSeconds <= 0)
@@ -2326,7 +2350,15 @@ public sealed class SimulationEngine
         }
 
         double seconds = Math.Max(sampled, clampFloor);
-        aircraft.DeferredDispatches.Add(new DeferredDispatch(seconds, compound) { SourceText = compound.SourceText, IsReactionDelay = true });
+        // An AI-controller command that fires after its reaction delay is still not the student establishing contact.
+        aircraft.DeferredDispatches.Add(
+            new DeferredDispatch(seconds, compound)
+            {
+                SourceText = compound.SourceText,
+                IsReactionDelay = true,
+                IsScenarioScripted = origin == DispatchOrigin.ControllerAi,
+            }
+        );
         return seconds;
     }
 
@@ -3027,7 +3059,7 @@ public sealed class SimulationEngine
             PrimaryAirportId = Scenario?.PrimaryAirportId,
             AtisLetter = PilotResponder.ResolvePrimaryFieldAtisLetter(Scenario),
             InitialContactTransfers = Scenario?.InitialContactTransfers ?? Yaat.Sim.Data.InitialContactTransferCatalog.Empty,
-            StudentRadioName = PilotResponder.ResolveStudentRadioName(Scenario),
+            PilotContacts = Scenario?.PilotContacts ?? PilotContactRoster.Empty,
             IsHoldShortNodeOccupied = occupiedNodes is not null ? nodeId => occupiedNodes.Contains(nodeId) : null,
             OccupiedHoldShortNodes = occupiedNodes,
             MarkHoldShortNodeOccupied = occupiedNodes is not null ? nodeId => occupiedNodes.Add(nodeId) : null,
@@ -4997,20 +5029,26 @@ public sealed class SimulationEngine
         // Recorded command-run delay: reproduce the exact delay sampled at the live run rather than
         // re-rolling (a re-roll would draw from a divergent RNG state and break determinism). The
         // deferral fires through ProcessDeferredDispatches during replay ticking, exactly as it did live.
+        // The recorded connection id says who issued the command; an AI-controller command replays with the same
+        // origin it had live (no student contact, no evaluator scoring).
+        var origin = AiConnectionId.OriginOf(cmd.ConnectionId);
+        bool human = origin == DispatchOrigin.Human;
+        bool answering = Scenario?.PilotContacts.AnyAnswering ?? false;
+
         if (cmd.ReactionDelaySeconds is double recordedReactionSeconds)
         {
             aircraft.DeferredDispatches.Add(
-                new DeferredDispatch(recordedReactionSeconds, replayResult.Value!) { SourceText = cmd.Command, IsReactionDelay = true }
+                new DeferredDispatch(recordedReactionSeconds, replayResult.Value!)
+                {
+                    SourceText = cmd.Command,
+                    IsReactionDelay = true,
+                    IsScenarioScripted = !human,
+                }
             );
             // Mirror the live SendCommand path: a deferred command still counts as accepted, so it
             // establishes two-way comms at issue time (not when the deferral later fires). Without this
             // a replayed/reconstructed vector never clears the Class B/C boundary-hold gate.
-            Pilot.PilotInitialContactEligibility.RegisterControllerContact(aircraft, Scenario, replayResult.Value!);
-            if (Scenario?.SoloTrainingMode == true)
-            {
-                SoloTrainingEvaluator.RecordControllerCommand(aircraft, replayResult.Value!, Scenario?.ElapsedSeconds ?? 0, World.GetSnapshot());
-                PilotRequestTracker.ApplyControllerResponse(aircraft, replayResult.Value!, Scenario?.ElapsedSeconds ?? 0);
-            }
+            ApplyReplayPostDispatch(aircraft, replayResult.Value!, human, answering);
             return;
         }
 
@@ -5029,19 +5067,14 @@ public sealed class SimulationEngine
             Scenario?.ArtccConfig,
             Scenario?.ElapsedSeconds ?? 0,
             PreserveConditionals: false,
-            IsScenarioScripted: false
+            IsScenarioScripted: !human
         );
         var replayDispatchResult = CommandDispatcher.DispatchCompound(replayResult.Value!, aircraft, replayCtx);
         if (replayDispatchResult.Success)
         {
             // Mirror the live SendCommand path so a replayed/reconstructed instruction establishes the
             // two-way comms that clears the Class B/C boundary-hold gate.
-            Pilot.PilotInitialContactEligibility.RegisterControllerContact(aircraft, Scenario, replayResult.Value!);
-            if (replayCtx.SoloTrainingMode)
-            {
-                SoloTrainingEvaluator.RecordControllerCommand(aircraft, replayResult.Value!, Scenario?.ElapsedSeconds ?? 0, World.GetSnapshot());
-                PilotRequestTracker.ApplyControllerResponse(aircraft, replayResult.Value!, Scenario?.ElapsedSeconds ?? 0);
-            }
+            ApplyReplayPostDispatch(aircraft, replayResult.Value!, human, answering);
         }
         else
         {
@@ -5055,6 +5088,30 @@ public sealed class SimulationEngine
                 cmd.Command,
                 replayDispatchResult.Message
             );
+        }
+    }
+
+    /// <summary>
+    /// The replay half of <see cref="ApplyPostDispatch"/>: contact registration and evaluator scoring for a human
+    /// command, pending-request resolution whenever someone answers pilots. Read-backs are deliberately not re-fired
+    /// on replay.
+    /// </summary>
+    private void ApplyReplayPostDispatch(AircraftState aircraft, CompoundCommand compound, bool human, bool answering)
+    {
+        double elapsedSeconds = Scenario?.ElapsedSeconds ?? 0;
+        if (human)
+        {
+            Pilot.PilotInitialContactEligibility.RegisterControllerContact(aircraft, Scenario, compound);
+        }
+
+        if (human && Scenario?.SoloTrainingMode == true)
+        {
+            SoloTrainingEvaluator.RecordControllerCommand(aircraft, compound, elapsedSeconds, World.GetSnapshot());
+        }
+
+        if (answering)
+        {
+            PilotRequestTracker.ApplyControllerResponse(aircraft, compound, elapsedSeconds);
         }
     }
 

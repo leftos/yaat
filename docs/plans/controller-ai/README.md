@@ -152,6 +152,27 @@ Future (noted, not planned): a nightly xUnit `[Trait("Category","Soak")]` wrappe
   everywhere and refine where knowledge exists. Tower tier (OAK, then SFO) first.
 - **Clean-room design:** the old `controller-ai.md` was written extremely early and was not used as
   design input; it is archived, not extended.
+- **AI positions are student stand-ins (2026-09-01).** Pilots initiate contact with whichever position is
+  responsible for them when that position is staffed by a pilot-answering agent — the solo student or an AI
+  position — through `PilotContactRoster` (CA0a), not through a solo-mode gate; AI-addressed calls use the same
+  pilot-transmission channel the student's do (so they are voiced when watching live). `HasMadeInitialContact`
+  stays student-scoped (`AiInitialContactPositionIds` latches AI contact per position — each new facility is a fresh
+  initial contact, AIM 4-2-3.a.1.1), and an AI-issued command is `DispatchOrigin.ControllerAi` (never student contact,
+  never evaluator-scored). Aviation-reviewed 2026-09-01: tower-cab AI positions are matched on the airport the call is
+  physically made at (never the filed destination); every candidate obeys the ARTCC's initial-contact transfer SOP
+  (an arrival owned by approach with no handoff does not call an AI tower, 7110.65 §2-1-17); a ground call falls back
+  to an AI tower working the cab alone; an aircraft inside the tower's arrival side never makes an airborne check-in
+  with a student radar position (`TowerCabPhases.IsArrivalSide`). With the AI on in an instructor room, human
+  commands get pilot read-backs and pilot calls reach the terminal/TTS (AIM 4-4-7) — intended: an AI-staffed room is
+  a solo-style room. v1 limitations (MAIN.md follow-ups): one shared frequency/airtime model (an AI Ground's answer
+  clears the awaiting-response gate held for a pilot waiting on tower); first-by-id between two same-type AI positions
+  at one airport; the AI Ground's own §2-1-17.a duty to transfer the pilot to tower (`CT`/"monitor tower") is CA2
+  brain work and a soak anomaly; `AiPositionResolver` must never hand a taxi request a Clearance Delivery radio name
+  (AIM TBL 4-2-1 — `_DEL` stays out of Ground by default) nor a departure check-in an "…Approach" name for a `DEP`
+  position.
+- **Watching the AI live gets a per-position TTS voice (CA3/H4).** Each AI position's instructions are voiced with a
+  randomly assigned unique speaker id via `BroadcastPilotTransmission`'s speaker-id mechanism; the instruction text
+  comes from the phraseology rules.
 
 ## Reused infrastructure (don't reinvent these)
 

@@ -122,7 +122,7 @@ public static class PilotRequestTracker
         {
             PilotPendingRequestKind.Taxi => command switch
             {
-                PushbackCommand or TaxiCommand or AirTaxiCommand or LandCommand or ClearedTakeoffPresentCommand =>
+                PushbackCommand or TaxiCommand or TaxiAutoCommand or AirTaxiCommand or LandCommand or ClearedTakeoffPresentCommand =>
                     PilotPendingRequestResponseState.Satisfied,
                 _ => PilotPendingRequestResponseState.None,
             },

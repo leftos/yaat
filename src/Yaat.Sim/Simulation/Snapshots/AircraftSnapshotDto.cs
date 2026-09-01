@@ -55,6 +55,12 @@ public sealed class AircraftSnapshotDto
     public bool HasMadeInitialContact { get; init; }
 
     /// <summary>
+    /// Position ids of the AI-staffed positions the pilot already made an initial call to, sorted. Null when none, so
+    /// older snapshots (and sessions without the controller AI) serialize exactly as before.
+    /// </summary>
+    public List<string>? AiInitialContactPositionIds { get; init; }
+
+    /// <summary>
     /// Controller callsign-use acknowledgement for VFR Class C entry. Non-required so older
     /// snapshots deserialize cleanly with the default <see langword="false"/>.
     /// </summary>

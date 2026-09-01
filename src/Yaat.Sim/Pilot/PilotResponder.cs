@@ -1889,6 +1889,14 @@ public static class PilotResponder
         return CleanFacilityCallName(radioName, fallbackFacility);
     }
 
+    /// <summary>
+    /// How the pilot addresses the position that answers it: the position's vNAS radio name when it is the
+    /// <paramref name="expectedPositionType"/> ("Oakland Ground"), else the generic facility word — a parked aircraft
+    /// still says "ground" when a tower-only student answers everything.
+    /// </summary>
+    public static string ResolveAnsweringCallName(PilotAnsweringPosition answering, string expectedPositionType, string fallbackFacility) =>
+        ResolveContextFacilityCallName(answering.PositionType, answering.RadioName, expectedPositionType, fallbackFacility);
+
     public static string ResolveContextFacilityCallName(
         string? studentPositionType,
         string? studentRadioName,

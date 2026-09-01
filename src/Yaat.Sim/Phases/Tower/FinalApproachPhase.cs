@@ -553,26 +553,17 @@ public sealed class FinalApproachPhase : Phase
         // HasMadeInitialContact gate excludes them. Pattern traffic is also excluded:
         // PatternEntryPhase fires its own initial-call (closed-traffic request), and the
         // uncleared short-final reminder below handles the mid-final pilot speech.
+        var atAirportId = ctx.Runway?.AirportId ?? clearance?.AirportCode;
         if (
-            ctx.SoloTrainingMode
-            && !ctx.Aircraft.HasMadeInitialContact
-            && !_isPatternTraffic
-            && PilotInitialContactEligibility.CanInitiateWithStudent(
-                ctx.Aircraft,
-                new InitialContactEligibilityContext(
-                    ctx.StudentPosition,
-                    ctx.StudentPositionType,
-                    ctx.ArtccId,
-                    ctx.PrimaryAirportId,
-                    ctx.InitialContactTransfers
-                )
-            )
+            !_isPatternTraffic
+            && ctx.PilotContacts.ResolveFor(ctx.Aircraft, "TWR", atAirportId, ctx.ToEligibilityContext(), true) is { } answering
+            && !answering.HasInitialContact(ctx.Aircraft)
         )
         {
             var rwyId = ctx.Runway?.Designator ?? clearance?.RunwayId ?? "the runway";
             var ifrWithApch = !ctx.Aircraft.FlightPlan.IsVfr && clearance is not null;
             var distMiles = (int)Math.Round(startDist);
-            var facilityCallName = PilotResponder.ResolveContextFacilityCallName(ctx.StudentPositionType, ctx.StudentRadioName, "TWR", "tower");
+            var facilityCallName = PilotResponder.ResolveAnsweringCallName(answering, "TWR", "tower");
             var line = PilotResponder.BuildOnFinal(
                 ctx.Aircraft,
                 rwyId,
@@ -590,7 +581,7 @@ public sealed class FinalApproachPhase : Phase
                 line,
                 PilotRequestContext.Runway(rwyId, facilityCallName)
             );
-            ctx.Aircraft.HasMadeInitialContact = true;
+            answering.MarkInitialContact(ctx.Aircraft);
         }
 
         // Solo-training pilot-decision go-around. Single roll per approach: AI aircraft on

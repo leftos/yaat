@@ -35,9 +35,11 @@ tracks only *what I last said and what I'm waiting for*; the guards read the wor
 - **Stable iteration:** the snapshot is sorted `StringComparer.Ordinal` by callsign before rule
   evaluation; brains tick in the fixed order of [01](01-architecture.md) (Ground → Local → Approach
   → Center, ordinal PositionId within role).
-- **Dedicated RNG stream:** `SimScenarioState.AiRng : SerializableRandom`, seeded from
-  `ControllerAiConfig.Seed`, snapshotted like the existing pilot-delay stream — AI variability never
-  perturbs pilot/physics RNG draws and vice versa.
+- **Dedicated RNG stream:** `AiControllerService.AiRng : SerializableRandom`, seeded from
+  `ControllerAiConfig.Seed` and re-seeded on `Reset()` (decision 2026-09-01: owned by the service, not
+  snapshotted — consistent with [01](01-architecture.md)'s accepted "not bit-identical across a rewind"
+  limitation and avoids a snapshot schema change) — AI variability never perturbs pilot/physics RNG
+  draws and vice versa.
 - **Stateless jitter where possible:** per-aircraft think-time jitter uses the FNV-1a callsign-hash
   pattern (the `ReleaseAutoCtoJitterSeconds` precedent) — replay-safe, no RNG state.
 - **Determinism regression test (CA0 acceptance, permanent):** same scenario + seed twice →

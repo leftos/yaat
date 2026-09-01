@@ -36,15 +36,18 @@ namespace Yaat.Sim.Commands;
 /// blocks and leaves other deferred dispatches intact. Every other dispatch (fresh live
 /// command, preset, replay) passes false.</para>
 ///
-/// <para><see cref="IsScenarioScripted"/> is true when the dispatch originates from scenario
-/// scripting (a preset), not from a live or replayed controller action. Scripted automation
-/// is not the student establishing two-way comms, so a successful scripted ground clearance
-/// must NOT mark <see cref="AircraftState.HasMadeInitialContact"/> — otherwise a runway-spawn
-/// CTO-preset departure would never make its post-takeoff check-in. Live and replayed
-/// controller commands pass false (they additionally record contact via
+/// <para><see cref="IsScenarioScripted"/> is true when the dispatch is not the human student
+/// talking: scenario scripting (a preset) or an AI-controller dispatch
+/// (<see cref="DispatchOrigin.ControllerAi"/>, derived from the <see cref="AiConnectionId"/>
+/// connection id live and on replay). Neither is the student establishing two-way comms, so a
+/// successful scripted ground clearance must NOT mark
+/// <see cref="AircraftState.HasMadeInitialContact"/> — otherwise a runway-spawn CTO-preset
+/// departure, or one cleared by AI Local, would never make its post-takeoff check-in with a
+/// student radar position. Human-origin live and replayed commands pass false (they
+/// additionally record contact via
 /// <see cref="Pilot.PilotInitialContactEligibility.RegisterControllerContact"/>). A deferred
 /// payload inherits the value from the deferral that produced it (a preset WAIT/BEHIND stays
-/// scripted; a reaction-delay deferral of a live command stays non-scripted).</para>
+/// scripted; a reaction-delay deferral carries its command's origin).</para>
 /// </summary>
 public sealed record DispatchContext(
     AirportGroundLayout? GroundLayout,

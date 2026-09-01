@@ -77,7 +77,13 @@ Adding a new room-state verb means adding a branch to this chain — check the e
 
 Track commands take a separate path (see **Track command bypass** below): the **live** server switch (`TrackCommandHandler.HandleTrackCommand`) and the **replay** switch (`TrackEngine.Dispatch`) are two parallel dispatch tables that share only the `TrackEngine.Handle*` leaf logic — not a single adapter.
 
-After validation, every command is recorded for replay: `Record(new RecordedCommand(scenario.ElapsedSeconds, callsign, command, initials, connectionId) { ReactionDelaySeconds = … })` — the pilot-reaction delay, if any, is baked in so replays reproduce it exactly (see [Deferred dispatch](#deferred-dispatch--wait-behind-and-the-command-run-delay)). **Including rejected ones** — replay needs a faithful history, not a clean one.
+After validation, every command is recorded for replay: `Record(new RecordedCommand(scenario.ElapsedSeconds, callsign, command, initials, connectionId) { ReactionDelaySeconds = … })` — the pilot-reaction delay, if any, is baked in so replays reproduce it exactly (see [Deferred dispatch](#deferred-dispatch--wait-behind-and-the-command-run-delay)). Only **successful** commands are recorded (`if (result.Success && …) Record(...)`); pause/unpause/sim-rate/CFR/bookmark verbs are excluded.
+
+The connection id also says **who** issued the command: an AI-controller position dispatches under
+`AiConnectionId.Format(positionId)` (`"AI:{positionId}"`, `Commands/DispatchOrigin.cs`), and `HandleStandardCmd` derives
+`DispatchOrigin.ControllerAi` from it — the dispatch runs with `IsScenarioScripted: true` (not the student establishing
+contact) and `ApplyPostDispatch` skips two-way-comms registration and evaluator scoring. Because the origin is derived
+from the recorded connection id, `RecordingManager.ReplayCommand` replays an AI command exactly as it ran live.
 
 A short exclusion list on that call keeps a few verbs out of the action log: `PAUSE`/`UNPAUSE`/`SIMRATE` (transport state, not simulation state), `CFR` (a wall-clock alert window), and `BM` (bookmarks are timeline-global metadata that the rewind paths carry over verbatim, so replaying an add would duplicate every bookmark on each rewind).
 

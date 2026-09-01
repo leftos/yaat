@@ -50,16 +50,19 @@ public sealed class AtParkingPhase : Phase
     {
         ctx.Aircraft.IndicatedAirspeed = 0;
 
-        if (ctx.SoloTrainingMode && !ctx.Aircraft.Ground.InitialCallupDecisionProcessed && ElapsedSeconds >= ReadyToTaxiDelaySeconds)
+        if (!ctx.Aircraft.Ground.InitialCallupDecisionProcessed && ElapsedSeconds >= ReadyToTaxiDelaySeconds)
         {
-            if (!PilotInitialContactEligibility.CanInitiateWithStudent(ctx.Aircraft, BuildEligibilityContext(ctx)))
+            // Nobody answering (instructor room, no AI) or the SOP says this aircraft does not call the student yet:
+            // retry next tick, exactly as before the roster.
+            var atAirportId = PilotContactRoster.SurfaceAirportOf(ctx.Aircraft);
+            if (ctx.PilotContacts.ResolveFor(ctx.Aircraft, "GND", atAirportId, ctx.ToEligibilityContext(), true) is not { } answering)
             {
                 return false;
             }
 
             if (TryReserveInitialCallupSlot(ctx))
             {
-                var facilityCallName = PilotResponder.ResolveContextFacilityCallName(ctx.StudentPositionType, ctx.StudentRadioName, "GND", "ground");
+                var facilityCallName = PilotResponder.ResolveAnsweringCallName(answering, "GND", "ground");
                 var line = PilotResponder.BuildReadyToTaxi(ctx.Aircraft, facilityCallName, ctx.AtisLetter);
                 PilotResponder.QueueSoloPilotTransmission(ctx.Aircraft, line, PilotTransmissionKind.Proactive, PilotResponder.SourceResponse);
                 PilotRequestTracker.RecordRequest(
@@ -70,7 +73,7 @@ public sealed class AtParkingPhase : Phase
                     PilotRequestContext.Facility(facilityCallName)
                 );
                 ctx.Aircraft.Ground.HasAnnouncedReady = true;
-                ctx.Aircraft.HasMadeInitialContact = true;
+                answering.MarkInitialContact(ctx.Aircraft);
                 ctx.Aircraft.Ground.InitialCallupDecisionProcessed = true;
             }
         }
@@ -87,9 +90,6 @@ public sealed class AtParkingPhase : Phase
 
         return ctx.TryReserveSoloParkingInitialCallupSlot?.Invoke(ctx.ScenarioElapsedSeconds) ?? true;
     }
-
-    private static InitialContactEligibilityContext BuildEligibilityContext(PhaseContext ctx) =>
-        new(ctx.StudentPosition, ctx.StudentPositionType, ctx.ArtccId, ctx.PrimaryAirportId, ctx.InitialContactTransfers);
 
     public override CommandAcceptance CanAcceptCommand(CanonicalCommandType cmd)
     {

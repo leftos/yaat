@@ -137,26 +137,16 @@ public sealed class PatternEntryPhase : Phase
         // Initial-contact closed-traffic request for VFR pattern aircraft. Anchors distance/bearing
         // to the runway threshold (closest stable airport reference available to the phase).
         if (
-            ctx.SoloTrainingMode
-            && ctx.Aircraft.FlightPlan.IsVfr
+            ctx.Aircraft.FlightPlan.IsVfr
             && !_hasAnnouncedInitialCall
-            && !ctx.Aircraft.HasMadeInitialContact
             && ctx.Runway is not null
-            && PilotInitialContactEligibility.CanInitiateWithStudent(
-                ctx.Aircraft,
-                new InitialContactEligibilityContext(
-                    ctx.StudentPosition,
-                    ctx.StudentPositionType,
-                    ctx.ArtccId,
-                    ctx.PrimaryAirportId,
-                    ctx.InitialContactTransfers
-                )
-            )
+            && ctx.PilotContacts.ResolveFor(ctx.Aircraft, "TWR", ctx.Runway.AirportId, ctx.ToEligibilityContext(), true) is { } answering
+            && !answering.HasInitialContact(ctx.Aircraft)
         )
         {
             var airportPos = new LatLon(ctx.Runway.ThresholdLatitude, ctx.Runway.ThresholdLongitude);
             int altitudeFt = (int)Math.Round(ctx.Aircraft.Altitude);
-            var facilityCallName = PilotResponder.ResolveContextFacilityCallName(ctx.StudentPositionType, ctx.StudentRadioName, "TWR", "tower");
+            var facilityCallName = PilotResponder.ResolveAnsweringCallName(answering, "TWR", "tower");
             var line = PilotResponder.BuildClosedTrafficRequest(ctx.Aircraft, airportPos, altitudeFt, facilityCallName, ctx.AtisLetter);
             PilotResponder.QueueSoloPilotTransmission(ctx.Aircraft, line, PilotTransmissionKind.Proactive, PilotResponder.SourceResponse);
             PilotRequestTracker.RecordRequest(
@@ -167,7 +157,7 @@ public sealed class PatternEntryPhase : Phase
                 PilotRequestContext.Runway(ctx.Runway.Designator, facilityCallName)
             );
             _hasAnnouncedInitialCall = true;
-            ctx.Aircraft.HasMadeInitialContact = true;
+            answering.MarkInitialContact(ctx.Aircraft);
         }
     }
 

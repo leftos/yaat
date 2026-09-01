@@ -89,14 +89,14 @@ public sealed class LinedUpAndWaitingPhase : Phase
         ctx.Targets.TargetSpeed = 0;
 
         if (
-            ctx.SoloTrainingMode
-            && !ctx.Aircraft.HasAnnouncedLinedUpReady
+            !ctx.Aircraft.HasAnnouncedLinedUpReady
             && ctx.Aircraft.Phases?.DepartureClearance is null
             && ElapsedSeconds >= LinedUpReadyDelaySeconds
             && (ctx.Aircraft.Phases?.DepartureRunway ?? ctx.Runway) is { } rwy
+            && ctx.PilotContacts.ResolveFor(ctx.Aircraft, "TWR", rwy.AirportId, ctx.ToEligibilityContext(), false) is { } answering
         )
         {
-            var facilityCallName = PilotResponder.ResolveContextFacilityCallName(ctx.StudentPositionType, ctx.StudentRadioName, "TWR", "tower");
+            var facilityCallName = PilotResponder.ResolveAnsweringCallName(answering, "TWR", "tower");
             var line = PilotResponder.BuildLinedUpReady(ctx.Aircraft, rwy.Designator, facilityCallName);
             PilotResponder.QueueSoloPilotTransmission(ctx.Aircraft, line, PilotTransmissionKind.Proactive, PilotResponder.SourceResponse);
             PilotRequestTracker.RecordRequest(
@@ -107,7 +107,7 @@ public sealed class LinedUpAndWaitingPhase : Phase
                 PilotRequestContext.Runway(rwy.Designator, facilityCallName)
             );
             ctx.Aircraft.HasAnnouncedLinedUpReady = true;
-            ctx.Aircraft.HasMadeInitialContact = true;
+            answering.MarkInitialContact(ctx.Aircraft);
         }
 
         return Requirements[0].IsSatisfied;

@@ -651,6 +651,7 @@ Commands/CommandDispatcher.cs       # Static: DispatchCompound (phase interactio
 Commands/ConditionalList.cs         # Unified conditional list: pending queue trigger blocks + DeferredDispatches (WAIT/WAITD/BEHIND)
                                     # Enumerate/ToLines/Delete — backs SHOWAT/SHOWCOND, Pending Cmds column, DELAT/DELCOND/DC; excludes reaction-delay deferrals
 Commands/DispatchContext.cs         # Record: GroundLayout, Rng, Weather, FindAircraft/ListAircraft, ValidateDctFixes, AutoCrossRunway, PreserveConditionals, IsScenarioScripted
+Commands/DispatchOrigin.cs          # DispatchOrigin (Human | ControllerAi) + AiConnectionId ("AI:{positionId}" synthetic connection id; origin derived from it live and on replay)
                                     # Bundled at SimulationEngine/RoomEngine call sites; threaded through all internal helpers
 Commands/FlightCommandHandler.cs    # Heading, altitude, speed, squawk, direct-to, warp, wait/say commands
 Commands/NavigationCommandHandler.cs # Multi-block navigation: JRADO/JRADI, depart/cross fix, JARR STAR resolution,
@@ -702,7 +703,8 @@ Commands/FlightPlanCommandHandler.cs # Flight-plan amendment validation: TryChan
 Phases/Phase.cs                # Abstract: OnStart/OnTick/OnEnd, CanAcceptCommand→CommandAcceptance, OnCommandAccepted (release internal state machines on accept), ManagesSpeed (suppresses auto schedule), IsIdleAwaitingCommands (terminal phases awaiting controller input; lets queue advance untriggered blocks while idle)
 Phases/PhaseList.cs            # Mutable list: AssignedRunway, TaxiRoute, LandingClearance, ActiveApproach, DepartureClearance, mutations
 Phases/PhaseRunner.cs          # Static lifecycle: start→tick→advance; auto-appends exit/pattern phases
-Phases/PhaseContext.cs         # Readonly tick context; includes Weather, TowerPosition for RV SID heading hold
+Phases/PhaseContext.cs         # Readonly tick context; includes Weather, TowerPosition for RV SID heading hold, PilotContacts (who answers pilot calls) + ToEligibilityContext()
+Phases/TowerCabPhases.cs       # Phase families inside local control's jurisdiction: IsArrivalSide (final, landing, pattern, go-around, tower maneuvers on final) — the airborne check-in guard; departures deliberately excluded
 Phases/PhaseStatus.cs          # Enum: phase lifecycle status
 Phases/CommandAcceptance.cs    # Enum: Allowed, Rejected, ClearsPhase
 Phases/ClearanceRequirement.cs # Clearance requirement definitions
@@ -769,6 +771,10 @@ RunwayExitPhase.cs             # Rolls on centerline until exit found; builds Ta
 HoldingAfterExitPhase.cs       # Post-exit hold: broadcasts "clear of runway", faces away from runway, awaits taxi command
 ClearRunwayPhase.cs            # CLRWY: pulls a tail-over-runway aircraft (hold-short of a taxiway sitting closer than its own length past a crossed runway) forward until just clear (½ length past the bars), then holds
 
+# ControllerAi/ — AI controller positions (docs/plans/controller-ai/); CA0a ships the identity records the pilot-contact roster consumes
+ControllerAi/ControlRole.cs    # Ground | Local | Approach | Center (+ ControlRoles: tick rank, GND/TWR/APP/CTR position type, alias parsing)
+ControllerAi/AiPositionConfig.cs  # One AI-staffed position: real TrackOwner identity + TCP, position id/callsign, radio name, facility, airports it answers for
+
 # Pilot/ — solo-training pilot AI (deterministic readbacks). Phraseology/forms reference: docs/pilot-phraseology.md; delivery plumbing: docs/solo-training-pilot-speech.md
 Pilot/PhraseologyVerbalizer.cs # Static: inverts a PhraseologyRule for a given accepted ParsedCommand → Verbalize() spoken-English / VerbalizeTerminal() compact readback (shared rule, per-token formatter strategy).
                                # Picks the first-declared rule per CanonicalCommandType by default; Varied mode can use PilotShortcuts when the frequency is busy.
@@ -776,7 +782,8 @@ Pilot/FrequencyActivityMeter.cs # Rolling 60-second pilot-transmission counter; 
 Pilot/FrequencyState.cs        # Sim-level active-frequency queue. Serializes solo pilot SAY/audio transmissions and gives awaited command readbacks priority over proactive calls.
 Pilot/PilotTransmission.cs     # Record: Callsign, Text, SpeechText, SourceKind, Kind. Transient typed side queue for solo-training SAY/audio broadcasts.
 Pilot/PilotPendingRequest.cs   # Snapshot-serialized pending pilot request model for solo-training follow-up reminders.
-Pilot/PilotRequestTracker.cs   # Records pilot-originated requests, applies controller responses, and schedules normal/standby follow-up reminders.
+Pilot/PilotRequestTracker.cs   # Records pilot-originated requests, applies controller responses (TAXI/TAXIAUTO/PUSH… satisfy a Taxi request), and schedules normal/standby follow-up reminders.
+Pilot/PilotContactRoster.cs    # Who answers pilot calls: AI-staffed positions (student stand-ins) + the solo student; ResolveFor(aircraft, GND|TWR, atAirportId, eligibility, checkEligibility) picks the addressee (tower-cab AI positions match the physical airport only; every candidate obeys the SOP transfer rules; ground calls fall back to an AI tower working alone); PilotAnsweringPosition.MarkInitialContact keeps HasMadeInitialContact student-scoped and latches AI contact per position id
 Pilot/PilotResponder.cs        # Static: BuildReadback(CompoundCommand, AircraftState) → PilotSpeechText? (compact terminal + spoken TTS) for solo-training mode.
                                # Uses PhraseologyVerbalizer for rule-backed commands; ground spawn / "going around" / airborne-spawn / VFR closed-traffic check-ins live here directly
                                # Adds light deterministic Quiet-frequency flavor and preserves runway/callsign-critical readback content.
@@ -786,7 +793,7 @@ Pilot/PilotResponder.cs        # Static: BuildReadback(CompoundCommand, Aircraft
                                # command RSP lines stay immediate while delayed SAY lines represent what the pilot says on frequency.
                                # RouteRpoTransmission(aircraft, soloMode, rpoShowPilotSpeech, pilotSpeechText, warningText) — three-way helper
                                # used by every sim-initiated pilot transmission site to pick the right destination collection.
-Pilot/PilotProactive.cs        # Static: TickAirborneCheckIn(AircraftState, SimScenarioState, airportLookup) — fires once-per-aircraft when first ticked airborne in solo mode.
+Pilot/PilotProactive.cs        # Static: TickAirborneCheckIn(AircraftState, SimScenarioState, airportLookup) — fires once-per-aircraft when first ticked airborne in solo mode; skipped inside the tower's arrival side (TowerCabPhases.IsArrivalSide).
                                # Idempotent via HasMadeInitialContact. Called from SimulationEngine.TickPostPhysics. Also inserts solo-training VFR Class B/C boundary holds from FAA AIS airspace data and ticks pending-request reminders.
 Pilot/PilotPersonality.cs      # Enum controlling readback variation. Verbatim emits textbook form; Varied enables activity-aware solo-training shortcuts.
 Pilot/PilotSayBuilder.cs       # Static: pilot-style transmission text for SAY-class verbs (SALT/SHDG/SPOS/SSPD/SMACH/SEAPP).
@@ -1019,7 +1026,8 @@ SimulationEngine.cs            # Scenario load, tick orchestration, replay (Repl
                                # TerminalEntryEmitted event fires for every terminal entry (command echoes, preset outcomes, warnings) so
                                # subscribers react as entries happen instead of polling DrainTerminalEntries (issue #396)
 SimScenarioState.cs            # Per-scenario runtime state: queues, settings, ATC positions, coordination, ArtccConfig (loaded from bundle on replay), LiveTrafficFilter (carried from room settings),
-                               # MagneticModelDateUtc (the WMM evaluation day: today for a live load, the recorded day for a replay; snapshotted + in the recording manifest)
+                               # MagneticModelDateUtc (the WMM evaluation day: today for a live load, the recorded day for a replay; snapshotted + in the recording manifest),
+                               # AiStaffedPositions (published by the AI host; never snapshotted) + PilotContacts (memoized PilotContactRoster) + IsAiStaffed
 ScenarioPacing.cs              # Shared solo-training pacing helpers for parking call-up intervals and arrival generator rates
 ArrivalSpacingManager.cs       # Pure in-trail spacing math (SpeedCeiling) for the generator stream — simulated approach-controller speed equalization; SimulationEngine.ApplyArrivalSpacing drives it
 ScratchpadRuleEngine.cs        # Applies the facility's vNAS scratchpad rules (airport/route/altitude match → Template) to SP1/SP2

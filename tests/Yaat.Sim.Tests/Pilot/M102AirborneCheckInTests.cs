@@ -1,6 +1,8 @@
 using Xunit;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Vnas;
+using Yaat.Sim.Phases;
+using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Pilot;
 using Yaat.Sim.Simulation;
 
@@ -705,6 +707,37 @@ public class M102AirborneCheckInTests
 
         ac.Track.Owner = student;
         ac.Track.HandoffPeer = null;
+        PilotProactive.TickAirborneCheckIn(ac, sc, AirportLookup("KOAK", AirportPos));
+
+        Assert.Single(ac.PendingPilotTransmissions);
+        Assert.True(ac.HasMadeInitialContact);
+    }
+
+    [Fact]
+    public void TickAirborneCheckIn_InsideTheTowersArrivalSide_DoesNotFire()
+    {
+        // On final the pilot is the tower's (AIM 5-4-3.a): no initial call to an approach student, even when nothing
+        // else has latched HasMadeInitialContact (an AI tower answered the on-final call, for instance).
+        var ac = MakeAircraft("AAL123", altitude: 1000);
+        ac.Phases = new PhaseList();
+        ac.Phases.Add(new FinalApproachPhase());
+        var sc = MakeScenario("APP", primaryAirport: "KOAK");
+
+        PilotProactive.TickAirborneCheckIn(ac, sc, AirportLookup("KOAK", AirportPos));
+
+        Assert.Empty(ac.PendingPilotTransmissions);
+        Assert.False(ac.HasMadeInitialContact);
+    }
+
+    [Fact]
+    public void TickAirborneCheckIn_InInitialClimb_StillFires()
+    {
+        // Departures are outside the arrival-side family: they do check in with departure control (AIM 5-2-9).
+        var ac = MakeAircraft("AAL123", altitude: 2000);
+        ac.Phases = new PhaseList();
+        ac.Phases.Add(new InitialClimbPhase());
+        var sc = MakeScenario("APP", primaryAirport: "KOAK");
+
         PilotProactive.TickAirborneCheckIn(ac, sc, AirportLookup("KOAK", AirportPos));
 
         Assert.Single(ac.PendingPilotTransmissions);
