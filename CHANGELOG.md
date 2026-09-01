@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+- An aircraft on an extended downwind holds altitude past the base-turn point instead of climbing back toward pattern altitude.
+
 ## v0.12.24-beta [2026/08/31]
 
 ### Highlights
