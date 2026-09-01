@@ -38,7 +38,10 @@ public class ExtendedDownwindNoClimbTests
         // the base-to-final rollout point (base extension actually flown + one turn radius). This
         // is the altitude the aircraft has legitimately descended to by the base turn.
         double baseExtNm = GeoMath.AlongTrackDistanceNm(new LatLon(wp.BaseTurnLat, wp.BaseTurnLon), abeam, downwindHdg);
-        double turnRadiusNm = BasePhase.TurnRadiusNm(BasePhase.PlannedSpeedKt(MakeJet(abeam, downwindHdg, 0), AircraftCategory.Jet), AircraftCategory.Jet);
+        double turnRadiusNm = BasePhase.TurnRadiusNm(
+            BasePhase.PlannedSpeedKt(MakeJet(abeam, downwindHdg, 0), AircraftCategory.Jet),
+            AircraftCategory.Jet
+        );
         double baseTurnInterceptAlt = GlideSlopeGeometry.AltitudeAtDistance(baseExtNm + turnRadiusNm, rwy.ElevationFt, AircraftCategory.Jet);
 
         // Place the aircraft 0.6 nm PAST the nominal base turn (extended downwind), level at the
