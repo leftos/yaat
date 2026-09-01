@@ -70,7 +70,11 @@ public class ArrivalGeneratorStaggeredStartTests(ITestOutputHelper output)
         }
 
         var engine = new SimulationEngine(groundData);
-        var warnings = engine.LoadScenario(TwoGeneratorScenario(randomizeInterval), rngSeed: 42);
+        var warnings = engine.LoadScenario(
+            TwoGeneratorScenario(randomizeInterval),
+            rngSeed: 42,
+            magneticModelDateUtc: MagneticDeclination.EvaluationDateUtc
+        );
         foreach (var w in warnings)
         {
             output.WriteLine($"[load-warn] {w}");

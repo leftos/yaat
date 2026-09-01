@@ -357,6 +357,7 @@ public sealed class RecordingArchive : IDisposable
             ArtccId = Manifest.ArtccId,
             RecordedAtUtc = Manifest.RecordedAtUtc,
             RecordedBy = Manifest.RecordedBy,
+            MagneticModelDateUtc = Manifest.ResolveMagneticModelDateUtc(),
             StudentPositionState = ReadInitialStudentPosition(),
             FinalApproachSpeedVarietyEnabled = ReadInitialFinalApproachSpeedVariety(),
         };
@@ -445,6 +446,7 @@ public sealed class RecordingArchive : IDisposable
             ArtccId = Manifest.ArtccId,
             RecordedAtUtc = Manifest.RecordedAtUtc,
             RecordedBy = Manifest.RecordedBy,
+            MagneticModelDateUtc = Manifest.ResolveMagneticModelDateUtc(),
             StudentPositionState = ReadInitialStudentPosition(),
             FinalApproachSpeedVarietyEnabled = ReadInitialFinalApproachSpeedVariety(),
         };

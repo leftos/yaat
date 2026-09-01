@@ -45,7 +45,7 @@ public class NavigationRoutePopulationTests
             }
             """;
 
-        return ScenarioLoader.Load(scenarioJson, null, new SerializableRandom(42));
+        return ScenarioLoader.Load(scenarioJson, null, new SerializableRandom(42), MagneticDeclination.EvaluationDateUtc);
     }
 
     private static string[] RouteFixNames(ScenarioLoadResult result)

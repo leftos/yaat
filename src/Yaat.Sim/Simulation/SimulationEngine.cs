@@ -258,6 +258,11 @@ public sealed class SimulationEngine
         if (Scenario is not null)
         {
             Scenario.ElapsedSeconds = scenarioDto.ElapsedSeconds;
+            if (scenarioDto.MagneticModelDateUtc is { } magneticModelDateUtc)
+            {
+                Scenario.MagneticModelDateUtc = magneticModelDateUtc;
+            }
+
             Scenario.AutoClearedToLand = scenarioDto.AutoClearedToLand;
             Scenario.AutoCrossRunway = scenarioDto.AutoCrossRunway;
             Scenario.AutoPullUpToParallel = scenarioDto.AutoPullUpToParallel;
@@ -606,7 +611,12 @@ public sealed class SimulationEngine
 
     // --- Scenario loading ---
 
-    public List<string> LoadScenario(string json, int rngSeed)
+    /// <summary>
+    /// Loads a scenario into a fresh world. <paramref name="magneticModelDateUtc"/> is the UTC day the magnetic model
+    /// is evaluated at for the whole session (<see cref="SimScenarioState.MagneticModelDateUtc"/>): today for a new
+    /// session, the recorded date when replaying.
+    /// </summary>
+    public List<string> LoadScenario(string json, int rngSeed, DateTime magneticModelDateUtc)
     {
         World.Clear();
         World.Rng = new SerializableRandom(rngSeed);
@@ -616,7 +626,7 @@ public sealed class SimulationEngine
         SoloTrainingEvaluator.Reset();
         BeaconCodePool.Clear();
 
-        var result = ScenarioLoader.Load(json, _groundData, World.Rng);
+        var result = ScenarioLoader.Load(json, _groundData, World.Rng, magneticModelDateUtc);
 
         // No ARTCC config reaches Yaat.Sim, so the pool has no banks here and falls back to sequential
         // codes. The server configures banks from the facility before running its own assignment pass.
@@ -627,6 +637,7 @@ public sealed class SimulationEngine
             ScenarioId = ScenarioIdentity.ResolveScenarioId(result.Id, json),
             ScenarioName = result.Name,
             RngSeed = rngSeed,
+            MagneticModelDateUtc = magneticModelDateUtc,
             OriginalScenarioJson = json,
             PrimaryAirportId = result.PrimaryAirportId,
             ArtccId = result.ArtccId,
@@ -781,6 +792,7 @@ public sealed class SimulationEngine
         // can route resolved RTIS/RFIS pilot transmissions to the correct pending list.
         World.SoloTrainingMode = Scenario?.SoloTrainingMode ?? false;
         World.RpoShowPilotSpeech = Scenario?.RpoShowPilotSpeech ?? false;
+        World.MagneticModelDateUtc = Scenario?.MagneticModelDateUtc ?? MagneticDeclination.EvaluationDateUtc;
 
         sw.Restart();
         RehydrateRestoredQueueBlocks();
@@ -1917,7 +1929,7 @@ public sealed class SimulationEngine
     public void ReplayWithScenarioOverride(SessionRecording recording, double targetSeconds, Action<SimScenarioState> configureAfterLoad)
     {
         TickTimings.Clear();
-        LoadScenario(recording.ScenarioJson, recording.RngSeed);
+        LoadScenario(recording.ScenarioJson, recording.RngSeed, recording.MagneticModelDateUtc ?? MagneticDeclination.EvaluationDateUtc);
 
         // The scenario JSON does not carry the resolved runtime student position (the server sets it
         // at load via InitializeTrackPositions). Restore it from the recording so CanInitiateWithStudent,
@@ -3552,7 +3564,7 @@ public sealed class SimulationEngine
             var distanceNm = VfrSpawnSiting.RollInRange(minDistanceNm, maxDistanceNm, World.Rng);
             var altitudeFt = VfrSpawnSiting.RollInRange(minAltitudeFt, maxAltitudeFt, World.Rng);
 
-            var bearingTrue = MagneticDeclination.MagneticToTrue(bearingMagnetic, airport);
+            var bearingTrue = MagneticDeclination.MagneticToTrue(bearingMagnetic, airport, Scenario!.MagneticModelDateUtc);
             var (lat, lon) = GeoMath.ProjectPoint(airport.Lat, airport.Lon, new TrueHeading(bearingTrue), distanceNm);
             var position = new LatLon(lat, lon);
 
@@ -3717,7 +3729,7 @@ public sealed class SimulationEngine
         }
 
         var exitBearingMagnetic = VfrSpawnSiting.RollBearing(config.ToBearingFrom, config.ToBearingTo, World.Rng);
-        var exitBearingTrue = MagneticDeclination.MagneticToTrue(exitBearingMagnetic, airport);
+        var exitBearingTrue = MagneticDeclination.MagneticToTrue(exitBearingMagnetic, airport, Scenario!.MagneticModelDateUtc);
         var exitPoint = GeoMath.ProjectPoint(airport, new TrueHeading(exitBearingTrue), exitDistanceNm);
 
         // Name the exit point as an FRD off the field so the route overlay labels it rather than drawing it
@@ -3791,7 +3803,7 @@ public sealed class SimulationEngine
         }
 
         var courseTrue = GeoMath.BearingTo(spawn, exitPoint);
-        var courseMagnetic = MagneticDeclination.TrueToMagnetic(courseTrue, spawn);
+        var courseMagnetic = MagneticDeclination.TrueToMagnetic(courseTrue, spawn, Scenario!.MagneticModelDateUtc);
         var snapped = HemisphericAltitude.Snap(courseMagnetic, rolledAltitudeFt, config.AltitudeMin, config.AltitudeMax);
 
         if (snapped is null)

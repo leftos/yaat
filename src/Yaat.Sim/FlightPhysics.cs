@@ -6,6 +6,17 @@ using Yaat.Sim.Phases;
 
 namespace Yaat.Sim;
 
+/// <summary>
+/// Per-tick scenario inputs <see cref="FlightPhysics.Update(AircraftState, double, Func{string, AircraftState?}?, WeatherProfile?, double, PhysicsTickOptions)"/>
+/// needs beyond the aircraft itself: the pilot-transmission routing flags and the session's magnetic-model day
+/// (<see cref="Simulation.SimScenarioState.MagneticModelDateUtc"/>) for the declination refresh.
+/// </summary>
+public readonly record struct PhysicsTickOptions(bool SoloTrainingMode, bool RpoShowPilotSpeech, DateTime MagneticModelDateUtc)
+{
+    /// <summary>Instructor topology, no RPO speech, process-day magnetic model — the standalone/test default.</summary>
+    public static PhysicsTickOptions Default => new(false, false, MagneticDeclination.EvaluationDateUtc);
+}
+
 public static class FlightPhysics
 {
     private static readonly ILogger Log = SimLog.CreateLogger("FlightPhysics");
@@ -36,12 +47,12 @@ public static class FlightPhysics
 
     public static void Update(AircraftState aircraft, double deltaSeconds)
     {
-        Update(aircraft, deltaSeconds, aircraftLookup: null, weather: null, simTimeSeconds: 0, soloTrainingMode: false, rpoShowPilotSpeech: false);
+        Update(aircraft, deltaSeconds, aircraftLookup: null, weather: null, simTimeSeconds: 0, PhysicsTickOptions.Default);
     }
 
     public static void Update(AircraftState aircraft, double deltaSeconds, Func<string, AircraftState?>? aircraftLookup)
     {
-        Update(aircraft, deltaSeconds, aircraftLookup, weather: null, simTimeSeconds: 0, soloTrainingMode: false, rpoShowPilotSpeech: false);
+        Update(aircraft, deltaSeconds, aircraftLookup, weather: null, simTimeSeconds: 0, PhysicsTickOptions.Default);
     }
 
     public static void Update(
@@ -52,7 +63,7 @@ public static class FlightPhysics
         double simTimeSeconds
     )
     {
-        Update(aircraft, deltaSeconds, aircraftLookup, weather, simTimeSeconds, soloTrainingMode: false, rpoShowPilotSpeech: false);
+        Update(aircraft, deltaSeconds, aircraftLookup, weather, simTimeSeconds, PhysicsTickOptions.Default);
     }
 
     public static void Update(
@@ -61,13 +72,14 @@ public static class FlightPhysics
         Func<string, AircraftState?>? aircraftLookup,
         WeatherProfile? weather,
         double simTimeSeconds,
-        bool soloTrainingMode,
-        bool rpoShowPilotSpeech
+        PhysicsTickOptions options
     )
     {
+        bool soloTrainingMode = options.SoloTrainingMode;
+        bool rpoShowPilotSpeech = options.RpoShowPilotSpeech;
         var cat = AircraftCategorization.Categorize(aircraft.AircraftType);
 
-        RefreshDeclinationCache(aircraft);
+        RefreshDeclinationCache(aircraft, options.MagneticModelDateUtc);
 
         // Backward compat: airborne aircraft without IAS initialized derive it from GS.
         if (!aircraft.IsOnGround && aircraft.IndicatedAirspeed <= 0 && aircraft.GroundSpeed > 0)
@@ -98,7 +110,7 @@ public static class FlightPhysics
     /// motion is invisible for heading/wind use. Shared with the live-traffic kinematics, which
     /// bypass <see cref="Update"/> but still need magnetic readouts.
     /// </summary>
-    public static void RefreshDeclinationCache(AircraftState aircraft)
+    public static void RefreshDeclinationCache(AircraftState aircraft, DateTime magneticModelDateUtc)
     {
         const double DeclinationCacheThresholdDeg = 0.02;
         if (
@@ -127,7 +139,7 @@ public static class FlightPhysics
             }
             else
             {
-                aircraft.Declination = MagneticDeclination.GetDeclination(aircraft.Position);
+                aircraft.Declination = MagneticDeclination.GetDeclination(aircraft.Position, magneticModelDateUtc);
                 aircraft.DeclinationCachePosition = aircraft.Position;
             }
         }

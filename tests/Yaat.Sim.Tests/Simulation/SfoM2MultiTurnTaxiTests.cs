@@ -140,7 +140,7 @@ public class SfoM2MultiTurnTaxiTests(ITestOutputHelper output)
         const int spawnHdgMag = 280;
 
         string json = BuildScenarioJson(spawnLat, spawnLon, spawnHdgMag);
-        var warnings = engine.LoadScenario(json, rngSeed: 42);
+        var warnings = engine.LoadScenario(json, rngSeed: 42, magneticModelDateUtc: MagneticDeclination.EvaluationDateUtc);
         foreach (var w in warnings)
         {
             output.WriteLine($"[WARN] {w}");
@@ -292,7 +292,7 @@ public class SfoM2MultiTurnAcceptanceTests(ITestOutputHelper output)
 
         // Same spawn as the sibling test: ~20 ft north of M2 node 1529, heading 280° magnetic.
         string json = SfoM2MultiTurnTaxiTests.BuildScenarioJson(37.607759, -122.384926, 280);
-        engine.LoadScenario(json, rngSeed: 42);
+        engine.LoadScenario(json, rngSeed: 42, magneticModelDateUtc: MagneticDeclination.EvaluationDateUtc);
 
         int taxiStartedAt = -1;
         int lineUpAt = -1;

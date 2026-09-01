@@ -44,7 +44,7 @@ public class S2Oak3FollowSequencingTests
         }
 
         var json = File.ReadAllText(path);
-        return ScenarioLoader.Load(json, groundData: null, rng: new SerializableRandom(42));
+        return ScenarioLoader.Load(json, groundData: null, rng: new SerializableRandom(42), MagneticDeclination.EvaluationDateUtc);
     }
 
     [Fact]

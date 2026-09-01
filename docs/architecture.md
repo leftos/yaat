@@ -481,7 +481,7 @@ FlightPlanVoice.cs             # Couples FP remarks ↔ voice type (AircraftVoic
                                # A VATSIM convention (no FAA field). Driven by ERAM QB /v|/r|/t and the SetVoiceType hub; derived on amend + load.
 RouteSplicer.cs                # ERAM AM RTE route-splice grammar (docs/crc/eram.md Table 8): join/resume/replace over [dep]+enroute+[dest]
                                # with a dotted anchor list, plus [ / ] (↑/↓) departure/destination swap. Splice semantics only (no SID/STAR expansion).
-FlightPhysics.cs               # Static 8-step Update: navigation→descentPlan→climbPlan→speedPlan→heading→altitude→speed→position→queue
+FlightPhysics.cs               # Static 8-step Update: navigation→descentPlan→climbPlan→speedPlan→heading→altitude→speed→position→queue; PhysicsTickOptions carries the per-tick scenario inputs (solo/RPO routing flags, magnetic-model day)
                                # UpdateSpeedPlanning: proactive speed look-ahead for procedure fixes (mirrors descent/climb planning)
                                # Auto speed schedule: skipped when ActiveApproach or ManagesSpeed (pattern phases)
                                # 14 CFR 91.117: 250 KIAS cap below 10,000 ft in UpdateSpeed() and ApplyFixConstraints()
@@ -592,7 +592,8 @@ MetarComposer.cs               # Static: reconstructs a reported METAR by patchi
 SpeciCriteria.cs               # Static: SPECI decision vs last issued (wind shift, vis/ceiling crossings, precip) — AIM TBL 7-1-1
 MetarIssuer.cs                 # Per-room state machine: routine METAR at :53 + SPECI on change; freezes conditions at issuance
 WindsAloftParser.cs            # Static: parses FAA FD fixed-width text → StationWinds[]; DecodeWind handles 100+kt, light/variable
-MagneticDeclination.cs         # Static: NOAA World Magnetic Model (WMM) declination via the Geo library, memoized on a 0.02° grid (cell-centre eval); TrueToMagnetic/MagneticToTrue conversion
+MagneticDeclination.cs         # Static: NOAA World Magnetic Model (WMM) declination via the Geo library, memoized on a 0.02° grid (cell-centre eval) per evaluation day; TrueToMagnetic/MagneticToTrue conversion.
+                               # Sim state passes the scenario's MagneticModelDateUtc (recorded with the session so replays never drift); display-only callers use EvaluationDateUtc (the process day)
 VisualDetection.cs             # Static: TryAcquireAirport, TryAcquireAirportForRunway, TryAcquireTraffic, IsOccludedByBank
                                # Maintained-contact variants (already-in-sight, weather-only incl. visibility-collapse × 1.25 tolerance): TryMaintainAirportContact, TryMaintainTrafficContact
                                # Airport visibility envelope AirportVisibilityRangeNm (vis × 0.869 × 1.5 × max(1, AGL/3000ft) — Koschmieder slab; shared by acquire + maintain; traffic keeps the literal cap)
@@ -1017,7 +1018,8 @@ SimulationEngine.cs            # Scenario load, tick orchestration, replay (Repl
                                # spawn, removes) — the live server and replay both route through it.
                                # TerminalEntryEmitted event fires for every terminal entry (command echoes, preset outcomes, warnings) so
                                # subscribers react as entries happen instead of polling DrainTerminalEntries (issue #396)
-SimScenarioState.cs            # Per-scenario runtime state: queues, settings, ATC positions, coordination, ArtccConfig (loaded from bundle on replay), LiveTrafficFilter (carried from room settings)
+SimScenarioState.cs            # Per-scenario runtime state: queues, settings, ATC positions, coordination, ArtccConfig (loaded from bundle on replay), LiveTrafficFilter (carried from room settings),
+                               # MagneticModelDateUtc (the WMM evaluation day: today for a live load, the recorded day for a replay; snapshotted + in the recording manifest)
 ScenarioPacing.cs              # Shared solo-training pacing helpers for parking call-up intervals and arrival generator rates
 ArrivalSpacingManager.cs       # Pure in-trail spacing math (SpeedCeiling) for the generator stream — simulated approach-controller speed equalization; SimulationEngine.ApplyArrivalSpacing drives it
 ScratchpadRuleEngine.cs        # Applies the facility's vNAS scratchpad rules (airport/route/altitude match → Template) to SP1/SP2
@@ -1048,7 +1050,7 @@ RecordingArchive.cs            # v4 ZIP archive reader: on-demand snapshot loadi
                                # ReadBookmarks / static WriteBookmarks (client-injected bookmarks.json; optional, manifest-untracked)
 TimelineBookmark.cs            # TimelineBookmark + RecordingBookmarks records (the bookmarks.json payload)
 RecordingArchiveWriter.cs      # v4 ZIP archive writer: streaming snapshots + deduplicated layouts/source GeoJSON + bundled ArtccConfig
-RecordingManifest.cs           # Archive manifest: snapshot index, LayoutAirportIds, AirportGeoJsonIds, HasArtccConfig, metadata
+RecordingManifest.cs           # Archive manifest: snapshot index, LayoutAirportIds, AirportGeoJsonIds, HasArtccConfig, metadata, MagneticModelDateUtc (+ ResolveMagneticModelDateUtc: recorded day → RecordedAtUtc day → process day)
 RecordingSchemaUpgrader.cs     # Surgical in-place snapshot schema upgrade (via SnapshotSchemaMigrator, never re-sim); handles .br/v4-zip/bug-bundle; drives yaat-server's Yaat.RecordingUpgrader CLI.
                                # Also rewrites recorded canonicals in place: retired HSE → HSA id form (HalfStripEditCanonicalRewriter) and the required FACILITY/BAY bay token (StripBayCanonicalQualifier, resolved against the recording's own ArtccConfig + student position).
 StripBayCanonicalQualifier.cs  # Idempotent bay-token qualifier for recorded canonicals: adds the owning facility to STRIP/SCAN/HSC/HSM/SEP/SEPM/BLANK/... dest-specs; leaves id-form and bayless verbs alone.

@@ -118,7 +118,11 @@ public class Issue236SfoAF1BConnectorTests(ITestOutputHelper output)
         output.WriteLine($"Spawn: ({spawn.Lat:F6}, {spawn.Lon:F6})");
 
         var engine = new SimulationEngine(groundData);
-        engine.LoadScenario(BuildScenarioJson(spawn.Lat, spawn.Lon, headingMag: 178), rngSeed: 42);
+        engine.LoadScenario(
+            BuildScenarioJson(spawn.Lat, spawn.Lon, headingMag: 178),
+            rngSeed: 42,
+            magneticModelDateUtc: MagneticDeclination.EvaluationDateUtc
+        );
 
         double peakIasOnF1 = 0.0;
         int f1Ticks = 0;

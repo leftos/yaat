@@ -62,7 +62,7 @@ public sealed class TwoPilotControllerResponseGateE2ETests
 
         var scenarioJson = File.ReadAllText(scenarioPath);
         var engine = new SimulationEngine(groundData);
-        var warnings = engine.LoadScenario(scenarioJson, rngSeed: 42);
+        var warnings = engine.LoadScenario(scenarioJson, rngSeed: 42, magneticModelDateUtc: MagneticDeclination.EvaluationDateUtc);
         foreach (var w in warnings)
         {
             _output.WriteLine($"[load-warn] {w}");

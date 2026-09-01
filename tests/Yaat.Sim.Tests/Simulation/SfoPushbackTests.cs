@@ -56,7 +56,7 @@ public class SfoPushbackTests(ITestOutputHelper output)
 
         TestVnasData.EnsureInitialized();
 
-        var warnings = engine.LoadScenario(scenarioJson, rngSeed: 42);
+        var warnings = engine.LoadScenario(scenarioJson, rngSeed: 42, magneticModelDateUtc: MagneticDeclination.EvaluationDateUtc);
         foreach (var w in warnings)
         {
             _output.WriteLine($"[WARN] {w}");
@@ -146,7 +146,7 @@ public class SfoPushbackTests(ITestOutputHelper output)
 
         TestVnasData.EnsureInitialized();
 
-        engine.LoadScenario(scenarioJson, rngSeed: 42);
+        engine.LoadScenario(scenarioJson, rngSeed: 42, magneticModelDateUtc: MagneticDeclination.EvaluationDateUtc);
 
         // Tick to t=12s so SWA1360 spawns
         for (int t = 0; t < 12; t++)
@@ -237,7 +237,7 @@ public class SfoPushbackTests(ITestOutputHelper output)
 
         TestVnasData.EnsureInitialized();
 
-        engine.LoadScenario(scenarioJson, rngSeed: 42);
+        engine.LoadScenario(scenarioJson, rngSeed: 42, magneticModelDateUtc: MagneticDeclination.EvaluationDateUtc);
 
         for (int t = 0; t < 12; t++)
         {

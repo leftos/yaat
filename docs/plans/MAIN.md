@@ -5,10 +5,11 @@ A fresh agent should start from **Current focus**, then **Next up**, and treat *
 [`archive/`](./archive/); issue-specific plans live in [`open-issues/`](./open-issues/) and are deleted once implemented.
 
 ## Current focus (session 2026-09-01 — controller AI, milestones H0 → CA0)
-- [ ] **H0 — headless host + soak-runner skeleton (no AI)** — see [controller-ai/README.md](./controller-ai/README.md) milestone table + [07-soak-runner.md](./controller-ai/07-soak-runner.md)
-  - [ ] yaat: `SimulationEngine.DeleteAircraft` stamps `CompletionReason.Dropped` on DEL (live + replay; today DEL'd aircraft vanish from the completed list) + `Yaat.Sim.Soak.CapturingSimLogProvider`
-  - [ ] yaat-server: seeded scenario-load core (all three RNG streams seeded; today only `Rng` is), `RoomEngine.AdvanceLiveSecond`, `ServerDataBootstrap`, `Simulation/Headless/HeadlessRoomHost` (+ `CollectingTrainingBroadcast`, null stubs), `Soak/` episode loop + recording sink, `tools/Yaat.SoakRunner run`, determinism test; migrate `Yaat.RecordingUpgrader` onto the host
-  - [ ] Record the measured ×realtime in the README H0 row
+- [x] **H0 — headless host + soak-runner skeleton (no AI)** — shipped 2026-09-01; see [controller-ai/README.md](./controller-ai/README.md) milestone table + [07-soak-runner.md](./controller-ai/07-soak-runner.md)
+  - [x] yaat: `SimulationEngine.DeleteAircraft` stamps `CompletionReason.Dropped` on DEL (live + replay) + `Yaat.Sim.Soak.CapturingSimLogProvider`
+  - [x] yaat-server: seeded scenario-load core (all three RNG streams seeded), `RoomEngine.AdvanceLiveSecond`, `ServerDataBootstrap`, `Simulation/Headless/HeadlessRoomHost` (+ `CollectingTrainingBroadcast`, null stubs), `Soak/` episode loop + recording sink, `tools/Yaat.SoakRunner run`, determinism tests; `Yaat.RecordingUpgrader` migrated onto the host
+  - [x] Measured ~420× realtime (README H0 row)
+  - [x] Replays stay deterministic across calendar time (steer 2026-09-01): `SimScenarioState.MagneticModelDateUtc` (snapshotted, in the recording manifest + room checkpoint, restored on load); pre-feature recordings fall back to the manifest's `RecordedAtUtc` day. Residual: FRD resolution inside the command parser still uses the process day (no scenario in scope)
 - [ ] **CA0a — `DispatchOrigin` + pilot-contact roster** (AI positions are student stand-ins: pilots call whichever answering position is responsible; `HasMadeInitialContact` stays student-scoped; drain gates key on `PilotContacts.AnyAnswering`) — aviation review before commit
 - [ ] **CA0b — controller-AI core + observer brains** (`ControlRole`, `AiPositionResolver`, `AiControllerService`, sinks, `IAiStaffing`, jurisdiction, anomaly log, watchdog rules, runner `--positions`, routing-parity spike, determinism tests)
 - [ ] Captured steer (CA3/H4): when watching the AI live with TTS on, each AI position speaks its own instructions with a randomly assigned unique TTS voice (`BroadcastPilotTransmission` speaker id + a controller-phraseology verbalizer)

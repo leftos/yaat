@@ -271,7 +271,9 @@ public static class PilotProactive
 
         // Already laterally inside the footprint means the entry can only be vertical, and no turn avoids
         // a shelf that is directly overhead — level off beneath it and stay on course instead.
-        int? levelOffCeiling = volume.ContainsLateral(aircraft.Position) ? ResolveLevelOffCeiling(aircraft, volume) : null;
+        int? levelOffCeiling = volume.ContainsLateral(aircraft.Position)
+            ? ResolveLevelOffCeiling(aircraft, volume, scenario.MagneticModelDateUtc)
+            : null;
         var mode = levelOffCeiling is null ? AirspaceHoldMode.Orbit : AirspaceHoldMode.LevelOff;
 
         AnnounceUnableAssignedAltitude(aircraft, volume, levelOffCeiling);
@@ -320,11 +322,11 @@ public static class PilotProactive
     /// the volume's primary airport; without it the AGL check falls back to MSL, which is conservative
     /// everywhere the fixture covers.
     /// </summary>
-    private static int? ResolveLevelOffCeiling(AircraftState aircraft, AirspaceVolume volume)
+    private static int? ResolveLevelOffCeiling(AircraftState aircraft, AirspaceVolume volume, DateTime magneticModelDateUtc)
     {
         var navDb = Data.NavigationDatabase.Instance;
         double surfaceElevation = navDb?.GetAirportElevation(volume.Ident) ?? navDb?.GetAirportElevation(volume.IcaoId) ?? 0;
-        double magneticCourse = aircraft.TrueTrack.ToMagnetic(MagneticDeclination.GetDeclination(aircraft.Position)).Degrees;
+        double magneticCourse = aircraft.TrueTrack.ToMagnetic(MagneticDeclination.GetDeclination(aircraft.Position, magneticModelDateUtc)).Degrees;
         return AirspaceAvoidance.LevelOffCeilingFt(volume.LowerFtMsl, magneticCourse, surfaceElevation);
     }
 

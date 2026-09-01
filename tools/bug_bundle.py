@@ -317,6 +317,7 @@ def cmd_info(args: argparse.Namespace) -> int:
         lines.append(f"  ScenarioId:          {m.get('ScenarioId')}")
         lines.append(f"  RecordedAtUtc:       {m.get('RecordedAtUtc')}")
         lines.append(f"  RecordedBy:          {m.get('RecordedBy')}")
+        lines.append(f"  MagneticModelDate:   {m.get('MagneticModelDateUtc') or '(pre-feature: replay uses RecordedAtUtc day)'}")
         lines.append(f"  HasWeather:          {m.get('HasWeather')}")
         lines.append(f"  HasArtccConfig:      {m.get('HasArtccConfig', False)}")
         lines.append(f"  Layouts ({len(layouts)}):         {', '.join(layouts) if layouts else '(none)'}")

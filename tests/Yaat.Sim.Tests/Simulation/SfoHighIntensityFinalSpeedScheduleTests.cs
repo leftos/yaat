@@ -46,7 +46,7 @@ public class SfoHighIntensityFinalSpeedScheduleTests
         }
 
         var engine = new SimulationEngine(new TestAirportGroundData());
-        var errors = engine.LoadScenario(recording.ScenarioJson, 522837118);
+        var errors = engine.LoadScenario(recording.ScenarioJson, 522837118, recording.MagneticModelDateUtc ?? MagneticDeclination.EvaluationDateUtc);
         Assert.Empty(errors);
         engine.Scenario!.FinalApproachSpeedVarietyEnabled = true;
 

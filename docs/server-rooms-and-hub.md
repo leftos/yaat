@@ -34,12 +34,15 @@ per room. Each wall-clock tick (`RunTickLoop`, `:92`):
 1. Snapshots all rooms (`_rooms.GetAllRooms()`, `:100`) and stamps each room's continuous-pause clock via
    `UpdatePausedSince` (`:106`).
 2. For each room with a running scenario (skips paused / no-scenario / no-engine, `:109`):
-   - `simSeconds = Math.Max(1, (int)scenario.SimRate)` (`:117`).
-   - For each sim-second: `ProcessPrePhysics()` once, then `ProcessPhysics(subDelta)` **`PhysicsSubTickRate` = 4** times
-     (`subDelta = 0.25`, `:120`/`:128`), then `ProcessPostPhysics()` once, then `scenario.ElapsedSeconds += 1.0`
-     (`:136`).
-   - Records position history every 5 sim-seconds (10-entry ring, `:139`-`:149`), advances the weather timeline
-     (`:153`) and applies playback actions in playback mode (`:164`).
+   - `simSeconds = Math.Max(1, (int)scenario.SimRate)`.
+   - For each sim-second: `room.Engine.AdvanceLiveSecond()` — `BeginSecond` (increment-at-start), playback pre-tick
+     actions, `RunSecondPhysics` (`ProcessPrePhysics()` once, `ProcessPhysics(subDelta)` **`PhysicsSubTickRate` = 4**
+     times with `subDelta = 0.25`, `ProcessPostPhysics()` once), then the per-second bookkeeping that is not physics:
+     position-history sampling every `RoomEngine.PositionHistorySampleSeconds` (5 s) into a
+     `PositionHistoryCapacity` (10) ring, the weather-timeline advance, `EnsureLiveMetarIssuer` + METAR issuance
+     (broadcast only when a station re-issues), and playback post-tick actions. The headless soak host
+     (`Simulation/Headless/HeadlessRoomHost`) calls the same method, so a headless run evolves exactly like a live room;
+     reconstruction keeps calling the narrower `AdvanceOneSecond`.
    - **Ends with one `BroadcastSimState(room)` per processed wall-tick** (after the sim-second loop, in
      `ProcessRoomSecond`) so the client's elapsed clock stays live — the timeline label/scrubber and the base for
      the relative +15/−15 skips. The end-of-tape branch sets the paused state first, so that final tick's broadcast
@@ -127,11 +130,13 @@ Stateless singleton; every method takes the `TrainingRoom`.
   `ProcessDeferredAutoTrack` claims a departure only once it first appears on STARS — i.e. crosses the acquisition
   floor (`FieldElevationResolver.IsBelowDisplayFloor`), not the instant its wheels leave the ground — so a track is
   never owned before it is displayed (e.g. a closed-traffic pattern departure is not handed to Departure on climb-out).
-  The rest in order:
-  `ClearExpiredIdents`, `ProcessAutoAccept`, the two auto-tracks, `ProcessCoordinationTimers`, `ProcessTowerLists`,
-  `ProcessVisualDetection`, `ProcessConflictAlerts`, `ProcessSoloTrainingEvaluation`, `ProcessPilotProactive`, the
-  warnings/notifications/pilot-speech/readback/transmission broadcast drains, `ProcessApproachScores`, the auto-strip and
-  auto-TDLS processors, and `ProcessAutoDelete` (`:82`-`:107`).
+  The full `Run("Post.X", …)` sequence (each bucket is a `TickProcessor.TickTimings` key when profiling is on):
+  `LiveTrafficRunwayUse`, `Transponders` (ident expiry), `AutoAccept`, `PointoutAutoAck`, `FlightPlanCreatorAutoTrack`,
+  `DeferredAutoTrack`, `CoordinationTimers`, `TowerLists`, `VisualDetection`, `ConflictAlerts`, `EramConflictAlerts`,
+  `AsdexAlerts`, `SoloTrainingEvaluation`, `PilotProactive`, the warnings / notifications / pilot-speech / readback /
+  transmission broadcast drains, `ApproachScores`, the auto-strip processors, the four TDLS processors,
+  `DeferredStripDispatch`, `AutoDelete`, `SurfaceCoastExpiry`, and the rundown / live-traffic-status / timers
+  "broadcast if changed" tail.
 
 Several of these guard on `room.IsBroadcastSuppressed` before broadcasting (e.g. `ProcessCoordinationTimers` `:961`,
 `ProcessConflictAlerts` `:1449`, `ProcessAutoDelete` `:1614`). A new broadcast from a tick-processor method must add the

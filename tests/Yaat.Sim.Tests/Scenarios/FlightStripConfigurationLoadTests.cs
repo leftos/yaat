@@ -55,7 +55,7 @@ public class FlightStripConfigurationLoadTests
     [Fact]
     public void Load_ResolvesStripBayAssignment_ByCallsign()
     {
-        var result = ScenarioLoader.Load(ScenarioWithStripConfig, groundData: null, new Random(0));
+        var result = ScenarioLoader.Load(ScenarioWithStripConfig, groundData: null, new Random(0), MagneticDeclination.EvaluationDateUtc);
 
         // ac1 → callsign N111 is configured; ac3 is referenced but not a real aircraft (skipped);
         // ac2/N222 is not configured.
@@ -79,7 +79,7 @@ public class FlightStripConfigurationLoadTests
             }
             """;
 
-        var result = ScenarioLoader.Load(noConfig, groundData: null, new Random(0));
+        var result = ScenarioLoader.Load(noConfig, groundData: null, new Random(0), MagneticDeclination.EvaluationDateUtc);
 
         Assert.Empty(result.InitialStripBayByCallsign);
     }

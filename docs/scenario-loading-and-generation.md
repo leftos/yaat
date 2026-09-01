@@ -480,25 +480,32 @@ typed commands — a malformed preset is rejected and logged (`[Preset] Unparsea
 
 ## Server orchestration and the rewind-reload twin path
 
-There are two server entry points that build a scenario, and they are deliberately near-identical:
+There are two server entry points that build a scenario, and they share one load core:
 
-- **`LoadScenarioAsync`** (`ScenarioLifecycleService.cs:107`) — the live load. Picks a fresh `rngSeed`, runs `ScenarioLoader.Load`,
-  ensures the ARTCC config is loaded, builds `SimScenarioState`, sets the ground layout, resolves track positions / coordination
-  channels / strip bays / TDLS configs, then spawns immediate aircraft (+ presets + auto-track), queues delayed aircraft, stamps
-  deferred aircraft, queues triggers, and initializes generators. The ARTCC-tab path does **not** call this directly — instead
+- **`LoadScenarioAsync`** (`ScenarioLifecycleService.cs`) — the live load: draws a fresh `rngSeed` and today's magnetic-model
+  day and calls **`LoadScenarioSeededAsync`**, the same load with an explicit `(rngSeed, magneticModelDateUtc)` that the headless
+  soak host uses so a run reproduces from scenario + seed + date. Both go through the private `LoadSeeded` (creates the engine,
+  seeds all three world RNG streams — `Rng`, `ReactionDelayRng`, `ReleaseJitterRng` — like the standalone
+  `SimulationEngine.LoadScenario`, runs `ScenarioLoader.Load`) and `PopulateRoom` (builds `SimScenarioState`, applies the room's
+  session settings then the live load's pacing overrides, sets the ground layout, warms per-aircraft layouts, resolves track
+  positions / coordination channels / strip bays / TDLS configs, spawns immediate aircraft (+ presets + auto-track), queues delayed
+  aircraft, stamps deferred aircraft, queues triggers, initializes generators). The live wrapper then adds what a rewind must not
+  do: the CRC open-positions/consolidation broadcasts, the load-time pacing record, and the DTO build. The ARTCC-tab path does
+  **not** call this directly — instead
   the client first calls the `GetScenarioJsonById` query, which routes to `ResolveGatedJsonAsync` (`:51`): that pulls the
   **canonical** JSON from the server catalog (not the client payload), applies the rating gate against the canonical
   MinimumRating, and returns the JSON. The client then runs the normal difficulty/pacing setup and loads it back via
   `LoadScenario` — so catalog loads get the same difficulty prompt as local-file loads, and client JSON tampering still can't
   obtain gated content (the gate is enforced at fetch).
-- **`ReloadForRewindAsync`** (`:638`) — the rewind twin. Takes the **provided** `rngSeed` (not a fresh one) and the saved
-  scenario JSON, runs the *same* `ScenarioLoader.Load` + spawn/queue setup, but skips broadcasting (caller sets
-  `IsBroadcastSuppressed`) and the pacing-override recording. After reload, the caller in `RecordingManager`
-  (`yaat-server: …/RecordingManager.cs:148`) either restores the nearest snapshot and replays the remaining seconds, or replays
-  from scratch.
+- **`ReloadForRewindAsync`** / **`ReloadForRewind`** — the rewind twin. Takes the **provided** `rngSeed` and
+  `magneticModelDateUtc` (the session's, or the recording manifest's for an imported archive) and the saved scenario JSON, runs
+  the same `LoadSeeded` + `PopulateRoom` core, but skips broadcasting (caller sets `IsBroadcastSuppressed`) and the
+  pacing-override recording. After reload, the caller in `RecordingManager` either restores the nearest snapshot and replays the
+  remaining seconds, or replays from scratch.
 
-The shared seed is what makes rewind deterministic: re-running `ScenarioLoader.Load` with the same seed reconstructs the exact
-immediate-aircraft set, beacon codes, and generated-type choices, so the replayed action log lands on the same aircraft. See
+The shared seed and model date are what make rewind deterministic: re-running `ScenarioLoader.Load` with the same seed
+reconstructs the exact immediate-aircraft set, beacon codes, and generated-type choices, and the same magnetic-model day
+reproduces every magnetic→true conversion, so the replayed action log lands on the same aircraft flying the same headings. See
 [server-rooms-and-hub.md](server-rooms-and-hub.md) for the room lifecycle around these calls and
 [snapshots-and-replay.md](snapshots-and-replay.md) for the replay machinery that runs on top of the reload.
 

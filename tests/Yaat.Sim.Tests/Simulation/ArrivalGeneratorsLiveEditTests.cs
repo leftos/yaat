@@ -56,7 +56,7 @@ public class ArrivalGeneratorsLiveEditTests(ITestOutputHelper output)
         }
 
         var engine = new SimulationEngine(groundData);
-        var warnings = engine.LoadScenario(MinimalScenarioJson, rngSeed: 42);
+        var warnings = engine.LoadScenario(MinimalScenarioJson, rngSeed: 42, magneticModelDateUtc: MagneticDeclination.EvaluationDateUtc);
         foreach (var w in warnings)
         {
             output.WriteLine($"[load-warn] {w}");
@@ -220,7 +220,7 @@ public class ArrivalGeneratorsLiveEditTests(ITestOutputHelper output)
         // Simulate the recording pipeline: apply the change directly via the
         // RecordedAction handler that replay would use.
         var freshEngine = new SimulationEngine(new TestAirportGroundData());
-        freshEngine.LoadScenario(MinimalScenarioJson, rngSeed: 42);
+        freshEngine.LoadScenario(MinimalScenarioJson, rngSeed: 42, magneticModelDateUtc: MagneticDeclination.EvaluationDateUtc);
         for (int t = 0; t < 10; t++)
         {
             freshEngine.TickOneSecond();

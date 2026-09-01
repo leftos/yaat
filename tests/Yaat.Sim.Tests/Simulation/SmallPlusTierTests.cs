@@ -159,7 +159,7 @@ public class SmallPlusTierTests
         }
 
         var engine = new SimulationEngine(groundData);
-        engine.LoadScenario(SmallPlusScenarioJson(), rngSeed: 42);
+        engine.LoadScenario(SmallPlusScenarioJson(), rngSeed: 42, magneticModelDateUtc: MagneticDeclination.EvaluationDateUtc);
 
         for (int t = 0; t < 1200; t++)
         {

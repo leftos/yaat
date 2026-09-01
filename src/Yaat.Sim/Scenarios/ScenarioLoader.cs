@@ -67,7 +67,12 @@ public static class ScenarioLoader
         ReadCommentHandling = JsonCommentHandling.Skip,
     };
 
-    public static ScenarioLoadResult Load(string json, IAirportGroundData? groundData, Random rng)
+    /// <summary>
+    /// Parses a scenario into loadable aircraft. <paramref name="magneticModelDateUtc"/> is the session's magnetic-model
+    /// evaluation day (<see cref="Simulation.SimScenarioState.MagneticModelDateUtc"/>) used to convert scenario-authored
+    /// magnetic headings to true.
+    /// </summary>
+    public static ScenarioLoadResult Load(string json, IAirportGroundData? groundData, Random rng, DateTime magneticModelDateUtc)
     {
         var scenario = JsonSerializer.Deserialize<Scenario>(json, JsonOptions);
 
@@ -83,7 +88,7 @@ public static class ScenarioLoader
 
         foreach (var ac in scenario.Aircraft)
         {
-            var loaded = LoadAircraft(ac, warnings, groundData, scenario.PrimaryAirportId, scenario.PrimaryApproach, rng);
+            var loaded = LoadAircraft(ac, warnings, groundData, scenario.PrimaryAirportId, scenario.PrimaryApproach, rng, magneticModelDateUtc);
             if (loaded is null)
             {
                 continue;
@@ -307,7 +312,8 @@ public static class ScenarioLoader
         IAirportGroundData? groundData,
         string? primaryAirportId,
         string? primaryApproach,
-        Random rng
+        Random rng,
+        DateTime magneticModelDateUtc
     )
     {
         var cond = ac.StartingConditions;
@@ -412,7 +418,7 @@ public static class ScenarioLoader
         if (cond.Heading is not null)
         {
             // Scenario headings are in the magnetic (controller/pilot) reference frame
-            double trueHeadingDeg = MagneticDeclination.MagneticToTrue(cond.Heading.Value, lat, lon);
+            double trueHeadingDeg = MagneticDeclination.MagneticToTrue(cond.Heading.Value, lat, lon, magneticModelDateUtc);
             state.TrueHeading = new TrueHeading(trueHeadingDeg);
             state.TrueTrack = state.TrueHeading;
         }

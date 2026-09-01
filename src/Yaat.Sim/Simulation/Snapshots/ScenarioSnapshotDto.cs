@@ -8,6 +8,11 @@ public sealed class ScenarioSnapshotDto
     public required string ScenarioId { get; init; }
     public required string ScenarioName { get; init; }
     public required int RngSeed { get; init; }
+
+    // Optional — null in snapshots that predate the recorded magnetic-model date; the loader then keeps the date
+    // it resolved from the recording manifest (or today for a live session).
+    public DateTime? MagneticModelDateUtc { get; init; }
+
     public string? PrimaryAirportId { get; init; }
     public required double ElapsedSeconds { get; init; }
 

@@ -15,6 +15,15 @@ public sealed class SimScenarioState
     public string? PrimaryAirportId { get; set; }
     public double ElapsedSeconds { get; set; }
 
+    /// <summary>
+    /// The UTC day the World Magnetic Model is evaluated at for everything that feeds simulation state (aircraft
+    /// declination, magnetic→true heading conversions at load and spawn). Set once when the session loads — today
+    /// for a live session, the recorded date for a replay — and carried in every snapshot and the recording
+    /// manifest, so a recording or bug bundle replays a year later with the same declinations instead of drifting
+    /// with the model's secular variation.
+    /// </summary>
+    public DateTime MagneticModelDateUtc { get; set; } = MagneticDeclination.EvaluationDateUtc;
+
     // Queues
     public List<DelayedSpawn> DelayedQueue { get; } = [];
     public List<ScheduledTrigger> TriggerQueue { get; } = [];
@@ -267,6 +276,7 @@ public sealed class SimScenarioState
             ScenarioId = ScenarioId,
             ScenarioName = ScenarioName,
             RngSeed = RngSeed,
+            MagneticModelDateUtc = MagneticModelDateUtc,
             PrimaryAirportId = PrimaryAirportId,
             ElapsedSeconds = ElapsedSeconds,
             AutoClearedToLand = AutoClearedToLand,

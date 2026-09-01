@@ -50,7 +50,7 @@ public class Issue167AdjustPushbackFaceTests(ITestOutputHelper output)
         }
 
         TestVnasData.EnsureInitialized();
-        engine.LoadScenario(scenarioJson, rngSeed: 42);
+        engine.LoadScenario(scenarioJson, rngSeed: 42, magneticModelDateUtc: MagneticDeclination.EvaluationDateUtc);
 
         // Tick to t=12s so SWA1360 (delay=10s) has spawned at B12
         for (int t = 0; t < 12; t++)

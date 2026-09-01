@@ -76,7 +76,7 @@ public class VfrGeneratorsE2ETests(ITestOutputHelper output)
         }
 
         var engine = new SimulationEngine(groundData);
-        foreach (var w in engine.LoadScenario(scenarioJson, rngSeed: 42))
+        foreach (var w in engine.LoadScenario(scenarioJson, rngSeed: 42, magneticModelDateUtc: MagneticDeclination.EvaluationDateUtc))
         {
             output.WriteLine($"[load-warn] {w}");
         }

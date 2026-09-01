@@ -220,7 +220,7 @@ public class ArrivalGeneratorInTrailSpacingTests(ITestOutputHelper output)
         }
 
         var engine = new SimulationEngine(groundData);
-        engine.LoadScenario(File.ReadAllText(ScenarioPath), rngSeed: 1);
+        engine.LoadScenario(File.ReadAllText(ScenarioPath), rngSeed: 1, magneticModelDateUtc: MagneticDeclination.EvaluationDateUtc);
         return engine.Scenario is null ? null : engine;
     }
 

@@ -45,7 +45,7 @@ public class S2Oak2CoordinateGroundDepartureTests
         }
 
         var engine = new SimulationEngine(groundData);
-        engine.LoadScenario(recording.ScenarioJson, recording.RngSeed);
+        engine.LoadScenario(recording.ScenarioJson, recording.RngSeed, recording.MagneticModelDateUtc ?? MagneticDeclination.EvaluationDateUtc);
         return engine.Scenario is null ? null : engine;
     }
 

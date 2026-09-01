@@ -307,7 +307,8 @@ public static class LiveTrafficKinematics
         ac.VerticalSpeed = lt.SampleVerticalSpeed;
         ac.TrueTrack = track;
 
-        FlightPhysics.RefreshDeclinationCache(ac);
+        // A shadow's declination is a display readout of live traffic, not replayed simulation state, so the process day suffices.
+        FlightPhysics.RefreshDeclinationCache(ac, MagneticDeclination.EvaluationDateUtc);
         ac.WindComponents = WindInterpolator.GetWindComponents(weather, ac.Altitude, simTimeSeconds, WindVariation.PhaseSecondsFor(ac.Callsign));
 
         WritePose(ac, lt);

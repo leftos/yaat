@@ -64,6 +64,12 @@ public sealed class SimulationWorld
     public bool SoloTrainingMode { get; set; }
 
     /// <summary>
+    /// Cached scenario magnetic-model day (<see cref="Simulation.SimScenarioState.MagneticModelDateUtc"/>) — set by
+    /// <c>SimulationEngine</c> before each tick; read by <see cref="FlightPhysics"/> for the per-aircraft declination refresh.
+    /// </summary>
+    public DateTime MagneticModelDateUtc { get; set; } = MagneticDeclination.EvaluationDateUtc;
+
+    /// <summary>
     /// Cached scenario flag — set by <c>SimulationEngine</c> before each tick. When true (and
     /// <see cref="SoloTrainingMode"/> is false), sim-initiated pilot transmissions are routed
     /// to <c>PendingPilotSpeech</c> instead of <c>PendingWarnings</c>.
@@ -262,8 +268,7 @@ public sealed class SimulationWorld
 
             var weather = Weather;
             var studentTcp = StudentTcp;
-            var soloMode = SoloTrainingMode;
-            var rpoShowPilotSpeech = RpoShowPilotSpeech;
+            var physicsOptions = new PhysicsTickOptions(SoloTrainingMode, RpoShowPilotSpeech, MagneticModelDateUtc);
             foreach (var ac in _aircraft)
             {
                 // Student TCP accepts don't trigger ONHO conditions
@@ -285,13 +290,13 @@ public sealed class SimulationWorld
                 {
                     var acSw = Stopwatch.StartNew();
                     bool onGround = ac.IsOnGround;
-                    FlightPhysics.Update(ac, deltaSeconds, Lookup, weather, simTimeSeconds, soloMode, rpoShowPilotSpeech);
+                    FlightPhysics.Update(ac, deltaSeconds, Lookup, weather, simTimeSeconds, physicsOptions);
                     acSw.Stop();
                     timingCallback(onGround ? "World.Physics.Ground" : "World.Physics.Air", acSw.Elapsed.TotalMilliseconds);
                 }
                 else
                 {
-                    FlightPhysics.Update(ac, deltaSeconds, Lookup, weather, simTimeSeconds, soloMode, rpoShowPilotSpeech);
+                    FlightPhysics.Update(ac, deltaSeconds, Lookup, weather, simTimeSeconds, physicsOptions);
                 }
 
                 LatchAirborne(ac);

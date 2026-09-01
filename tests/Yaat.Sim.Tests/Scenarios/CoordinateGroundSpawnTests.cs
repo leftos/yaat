@@ -81,7 +81,7 @@ public class CoordinateGroundSpawnTests
     {
         var groundData = new TestAirportGroundData();
 
-        var result = ScenarioLoader.Load(CoordinatesAtFieldElevation, groundData, new Random(0));
+        var result = ScenarioLoader.Load(CoordinatesAtFieldElevation, groundData, new Random(0), MagneticDeclination.EvaluationDateUtc);
 
         var state = Assert.Single(result.ImmediateAircraft).State;
         Assert.True(state.IsOnGround, "Coordinates spawn at field elevation must be on the ground");
@@ -95,7 +95,7 @@ public class CoordinateGroundSpawnTests
     [Fact]
     public void CoordinatesAtCruiseAltitude_OmittedSpeed_StaysAirborne()
     {
-        var result = ScenarioLoader.Load(CoordinatesAtCruise, new TestAirportGroundData(), new Random(0));
+        var result = ScenarioLoader.Load(CoordinatesAtCruise, new TestAirportGroundData(), new Random(0), MagneticDeclination.EvaluationDateUtc);
 
         var state = Assert.Single(result.ImmediateAircraft).State;
         Assert.False(state.IsOnGround);
@@ -105,7 +105,12 @@ public class CoordinateGroundSpawnTests
     [Fact]
     public void CoordinatesAtFieldElevation_ExplicitSpeed_StaysAirborne()
     {
-        var result = ScenarioLoader.Load(CoordinatesAtFieldElevationExplicitSpeed, new TestAirportGroundData(), new Random(0));
+        var result = ScenarioLoader.Load(
+            CoordinatesAtFieldElevationExplicitSpeed,
+            new TestAirportGroundData(),
+            new Random(0),
+            MagneticDeclination.EvaluationDateUtc
+        );
 
         var state = Assert.Single(result.ImmediateAircraft).State;
         Assert.False(state.IsOnGround);

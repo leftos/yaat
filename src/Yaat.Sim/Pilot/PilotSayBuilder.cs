@@ -36,8 +36,11 @@ public static class PilotSayBuilder
 
     public static string BuildHeading(AircraftState aircraft)
     {
-        // A pilot reports magnetic heading, not the airframe's true heading.
-        double declination = MagneticDeclination.GetDeclination(aircraft.Position);
+        // A pilot reports magnetic heading, not the airframe's true heading. The physics-cached declination carries the
+        // session's magnetic-model date; an aircraft that has not ticked yet falls back to the process day.
+        double declination = aircraft.DeclinationCachePosition is not null
+            ? aircraft.Declination
+            : MagneticDeclination.GetDeclination(aircraft.Position);
         int hdg = NormalizeHeading(RoundToNearest(aircraft.TrueHeading.ToMagnetic(declination).Degrees, 5));
         bool isTurning = Math.Abs(aircraft.BankAngle) > 1.0;
         string? turnDir = isTurning ? (aircraft.BankAngle < 0 ? "left" : "right") : null;

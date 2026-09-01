@@ -122,7 +122,7 @@ public class VfrColdCallSpawnTests
 
         var scenarioJson = BuildSingleAircraftScenario(includeFlightPlan: false);
 
-        var result = ScenarioLoader.Load(scenarioJson, groundData: null, new Random(42));
+        var result = ScenarioLoader.Load(scenarioJson, groundData: null, new Random(42), MagneticDeclination.EvaluationDateUtc);
         ScenarioLoader.AssignSpawnBeacons(new BeaconCodePool(), result.AllAircraftStates);
         var loaded = result.ImmediateAircraft.FirstOrDefault(a => a.State.Callsign == "N123XX");
         Assert.NotNull(loaded);
@@ -146,7 +146,7 @@ public class VfrColdCallSpawnTests
 
         var scenarioJson = BuildSingleAircraftScenario(includeFlightPlan: true);
 
-        var result = ScenarioLoader.Load(scenarioJson, groundData: null, new Random(42));
+        var result = ScenarioLoader.Load(scenarioJson, groundData: null, new Random(42), MagneticDeclination.EvaluationDateUtc);
         ScenarioLoader.AssignSpawnBeacons(new BeaconCodePool(), result.AllAircraftStates);
         var loaded = result.ImmediateAircraft.FirstOrDefault(a => a.State.Callsign == "N123XX");
         Assert.NotNull(loaded);
@@ -187,7 +187,12 @@ public class VfrColdCallSpawnTests
                 End = 436,
             },
         ]);
-        var result = ScenarioLoader.Load(BuildSingleAircraftScenario(includeFlightPlan: true), groundData: null, new Random(42));
+        var result = ScenarioLoader.Load(
+            BuildSingleAircraftScenario(includeFlightPlan: true),
+            groundData: null,
+            new Random(42),
+            MagneticDeclination.EvaluationDateUtc
+        );
         ScenarioLoader.AssignSpawnBeacons(pool, result.AllAircraftStates);
 
         var state = result.ImmediateAircraft.First(a => a.State.Callsign == "N123XX").State;
