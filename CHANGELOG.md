@@ -5,6 +5,7 @@
 ### Added
 - Typing a fix/radial/distance after `ADD`'s `@` shows a live preview — parsed breakdown, unknown-fix and radial-range validation, and a required-altitude hint.
 - A commanded pattern size (`PS`) tighter than the aircraft can turn draws a pilot "unable" call and is flown at the flyable minimum.
+- An aircraft on short final that is not lined up with its assigned runway goes around ("we're not lined up") instead of continuing to the flare.
 
 ### Fixed
 - `ADD` with a pasted Copy FRD position now redirects to the working form — `@{FRD} {altitude}` — instead of a generic bearing or runway error.

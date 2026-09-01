@@ -25,6 +25,48 @@ public sealed class FinalApproachPhase : Phase
     private const double NoClearanceWarningDistNm = 1.0;
     private const double MinimumsNoClearanceWarningBufferFt = 1000.0;
 
+    /// <summary>Arm the lateral-alignment go-around inside this distance from the assigned runway's landing threshold (nm).</summary>
+    private const double LateralGateArmDistNm = 1.0;
+
+    /// <summary>
+    /// Cross-track beyond which short final reads as not aligned (nm, ≈486 ft) — matches
+    /// <c>LandingPhase.StabilizedXteNm</c> so nothing clears this gate only to fail the landing
+    /// gate on lateral alone; ≈ ¾ of full-scale localizer deflection 1 nm out; about half the
+    /// closest-parallel spacing this gate protects (OAK 28L/28R ≈ 1,000 ft).
+    /// </summary>
+    private const double LateralGateXteNm = 0.08;
+
+    /// <summary>
+    /// Continuous seconds off-course-and-not-converging before the go-around fires — looser than
+    /// LandingPhase's 1 s stabilization grace because this gate fires much earlier on less information.
+    /// </summary>
+    private const double LateralGateSustainSeconds = 3.0;
+
+    /// <summary>
+    /// Floor (seconds) on the time-to-threshold used by the convergence test, so a very
+    /// close-in sample can't demand an unbounded closure rate. The sim deliberately supports
+    /// tight joins (short approach, close-in retargets) that roll out on centerline well
+    /// inside ¼ nm; anything that realigns by the threshold is left to LandingPhase's
+    /// stabilization gate to judge.
+    /// </summary>
+    private const double LateralGateMinTimeToThresholdSec = 3.0;
+
+    /// <summary>
+    /// The gate only accumulates while the aircraft's track is within this many degrees of the
+    /// runway course — i.e. established inbound. A base-to-final rollout (a tight SA turn puts
+    /// 1,000+ ft of cross-track at 0.2 nm mid-turn), an EF rejoin, or a CLAND sidestep/retarget
+    /// sweep all carry a large track-to-course angle while maneuvering exactly as commanded;
+    /// they are not "established and misaligned", which is what this gate exists to catch.
+    /// </summary>
+    private const double LateralGateEstablishedTrackDeg = 45.0;
+
+    /// <summary>
+    /// Seconds the gate stays disarmed after a controller-commanded runway retarget
+    /// (<see cref="RetargetRunway"/>) — the aircraft starts far off the new centerline by
+    /// construction and needs the sidestep to establish before alignment can be judged.
+    /// </summary>
+    private const double LateralGateRetargetGraceSec = 30.0;
+
     /// <summary>
     /// Distance from threshold at which the red <c>NoLndgClnc</c> datablock flash arms for a
     /// visual approach (no published minimums). Set earlier than the pilot's verbal short-final
@@ -237,6 +279,30 @@ public sealed class FinalApproachPhase : Phase
     private double _anchorLat;
 
     private double _anchorLon;
+
+    /// <summary>
+    /// The aircraft's signed cross-track (nm) from the phase's own guidance reference line —
+    /// the ramp-lerped FAC/anchor — as of the most recent guidance tick. The lateral-alignment
+    /// gate measures deviation against this when the guidance targets the assigned runway, so
+    /// an offset approach (angular FAC offset AND a laterally displaced anchor, e.g. a
+    /// parallel-offset LDA) is judged by how far the aircraft is from the line it is meant to
+    /// fly, not from a centerline the procedure deliberately parallels. Transient — recomputed
+    /// every tick before the gate runs.
+    /// </summary>
+    private double _lastGuidanceXteNm;
+
+    /// <summary>
+    /// Accumulated seconds continuously off-course and not converging (lateral-alignment
+    /// gate). Transient — a snapshot restore restarts the sustain window.
+    /// </summary>
+    private double _lateralOffCourseSec;
+
+    /// <summary>
+    /// Remaining seconds of post-retarget disarm for the lateral-alignment gate
+    /// (<see cref="LateralGateRetargetGraceSec"/>). Transient.
+    /// </summary>
+    private double _lateralGateGraceSec;
+
     private double _gsAngleDeg;
     private bool _goAroundTriggered;
 
@@ -291,6 +357,15 @@ public sealed class FinalApproachPhase : Phase
     /// </summary>
     public bool SkipInterceptCheck { get; init; }
 
+    /// <summary>
+    /// Set by controller-commanded tight joins (the #292 low-approach runway retarget builds a
+    /// sharp turn onto a short final): starts the phase with the lateral-alignment gate held
+    /// off for <see cref="LateralGateRetargetGraceSec"/> so the commanded join can establish
+    /// before alignment is judged. Transient — not persisted; a snapshot restored mid-join
+    /// re-judges alignment immediately, which at worst produces a conservative go-around.
+    /// </summary>
+    public bool StartWithLateralGateGrace { get; set; }
+
     public override string Name => "FinalApproach";
 
     /// <summary>
@@ -332,6 +407,8 @@ public sealed class FinalApproachPhase : Phase
             GsCaptured = _gsCaptured,
             STurnSpacingCooldownSeconds = _sTurnSpacingCooldownSeconds,
             GoAroundRolled = _goAroundRolled,
+            LateralOffCourseSeconds = _lateralOffCourseSec,
+            LateralGateGraceSeconds = _lateralGateGraceSec,
         };
 
     public static FinalApproachPhase FromSnapshot(FinalApproachPhaseDto dto)
@@ -369,6 +446,8 @@ public sealed class FinalApproachPhase : Phase
         phase._gsCaptured = dto.GsCaptured;
         phase._sTurnSpacingCooldownSeconds = dto.STurnSpacingCooldownSeconds;
         phase._goAroundRolled = dto.GoAroundRolled;
+        phase._lateralOffCourseSec = dto.LateralOffCourseSeconds ?? 0;
+        phase._lateralGateGraceSec = dto.LateralGateGraceSeconds ?? 0;
         return phase;
     }
 
@@ -380,6 +459,12 @@ public sealed class FinalApproachPhase : Phase
         }
 
         Pattern.PatternReportHelper.EmitTurningLeg(ctx, ReportTrigger.Final);
+
+        if (StartWithLateralGateGrace)
+        {
+            _lateralGateGraceSec = LateralGateRetargetGraceSec;
+            StartWithLateralGateGrace = false;
+        }
 
         // Fly the approach to the landing threshold, not the pavement end: on a displaced end the
         // glidepath has to reach the surface where landings may begin (AIM 2-3-3.b.8.2). Falls back to
@@ -530,7 +615,14 @@ public sealed class FinalApproachPhase : Phase
     /// re-scored, and with the one-shot pilot-decision go-around roll already consumed so a
     /// maneuver can't hand the aircraft a second chance to spontaneously go around.
     /// </summary>
-    internal FinalApproachPhase CloneForResume() => new() { SkipInterceptCheck = true, _goAroundRolled = true };
+    internal FinalApproachPhase CloneForResume() =>
+        new()
+        {
+            SkipInterceptCheck = true,
+            _goAroundRolled = true,
+            // Keep a commanded retarget/join's establishment allowance across an auto-S-turn resume.
+            _lateralGateGraceSec = _lateralGateGraceSec,
+        };
 
     /// <summary>
     /// Re-aim this active phase at a different runway without resetting glideslope /
@@ -551,6 +643,13 @@ public sealed class FinalApproachPhase : Phase
         _anchorLat = threshold.Lat;
         _anchorLon = threshold.Lon;
         _gsAngleDeg = gsAngleDeg;
+
+        // The controller just moved the target: the aircraft starts far off the NEW
+        // centerline by construction, maneuvering to it as instructed. Hold the
+        // lateral-alignment gate off long enough for the sidestep/retarget to
+        // establish before it may judge the alignment.
+        _lateralOffCourseSec = 0;
+        _lateralGateGraceSec = LateralGateRetargetGraceSec;
     }
 
     public override void OnEnd(PhaseContext ctx, PhaseStatus endStatus)
@@ -768,6 +867,7 @@ public sealed class FinalApproachPhase : Phase
         // line. Lead distance based on turn radius — the kinematically natural look-ahead.
         double signedXte = GeoMath.SignedCrossTrackDistanceNm(ctx.Aircraft.Position, lateralAnchor, lateralCourse);
         double absXte = Math.Abs(signedXte);
+        _lastGuidanceXteNm = signedXte;
 
         // Turn radius in nm: R = V_kts / (ω_deg/s × 20π)
         double turnRate = _isPatternTraffic
@@ -896,6 +996,11 @@ public sealed class FinalApproachPhase : Phase
         if (OccupiedRunwayGoAround.TryTrigger(ctx))
         {
             _goAroundTriggered = true;
+            return false;
+        }
+
+        if (CheckLateralAlignmentGate(ctx, forceLanding))
+        {
             return false;
         }
 
@@ -1470,6 +1575,111 @@ public sealed class FinalApproachPhase : Phase
     }
 
     private static void TriggerGoAround(PhaseContext ctx, string reason) => GoAroundHelper.Trigger(ctx, reason);
+
+    /// <summary>
+    /// Lateral-alignment go-around: on very short final, an aircraft too far off the ASSIGNED
+    /// runway's centerline and not converging fast enough to realign by the threshold goes
+    /// around. 7110.65 §3-10-5.d is the on-point authority ("aligned with the wrong surface" —
+    /// "go-around, you appear to be aligned with the wrong runway"; the automation it emulates
+    /// is Approach Runway Verification, §5-14-9); AIM 5-5-5.a.1(b) is the pilot-side authority
+    /// (missed approach when a safe landing is not possible; for the IFR case, 14 CFR 91.175(c)
+    /// via AIM 5-4-7.d — "the intended runway … normal maneuvers"). Deviation is measured
+    /// against the phase's own guidance line while that guidance targets the assigned runway
+    /// (so a published offset approach — angular FAC offset or a laterally displaced anchor —
+    /// is judged by the line the procedure intends), and against the runway centerline outright
+    /// when the guidance targets some other runway — the stale-datum case. NOTE the
+    /// established-track window means only a *nearby parallel or small-angle offset* wrong
+    /// surface is caught; a crossing/diverging wrong runway keeps the track outside 45° and
+    /// never accumulates. The convergence term is the "normal maneuvers" test: with
+    /// `required = |xte| / timeToThreshold` it reduces to `sin(track-off) &lt; |xte| / dist` —
+    /// the extended ground track must cross the centerline at or before the threshold —
+    /// which keeps a legitimately-correcting base rollout, sidestep, or resumed S-turn out of
+    /// the gate. CLANDF commits to the runway and suppresses the gate, like every other
+    /// go-around. Returns true when the go-around fired.
+    /// </summary>
+    private bool CheckLateralAlignmentGate(PhaseContext ctx, bool forceLanding)
+    {
+        if (forceLanding || ctx.Runway is not { } assignedRunway)
+        {
+            _lateralOffCourseSec = 0;
+            return false;
+        }
+
+        var assignedThreshold = LandingThreshold.Resolve(assignedRunway, ctx.GroundLayout);
+        double distNm = GeoMath.DistanceNm(ctx.Aircraft.Position.Lat, ctx.Aircraft.Position.Lon, assignedThreshold.Lat, assignedThreshold.Lon);
+        double signedXteNm = GeoMath.SignedCrossTrackDistanceNm(ctx.Aircraft.Position, assignedThreshold, assignedRunway.TrueHeading);
+        // Along-track (not slant) distance: at large xte close-in the slant overstates the
+        // realignment budget exactly where it matters, and it keeps the gate armed past the
+        // threshold. Also the datum every "seconds to threshold" figure below is built on.
+        double alongNm = Math.Sqrt(Math.Max((distNm * distNm) - (signedXteNm * signedXteNm), 0));
+
+        // Deviation datum: the phase's guidance line when it targets the assigned runway
+        // (its ramp-lerped cross-track was captured this tick as _lastGuidanceXteNm), else
+        // the assigned centerline itself — an approach chain aimed at a different runway is
+        // precisely what the gate must not excuse.
+        var activeApproach = ctx.Aircraft.Phases?.ActiveApproach;
+        bool guidanceTargetsAssigned = (activeApproach?.RunwayId is not { } guidanceRunwayId) || assignedRunway.IsActiveEnd(guidanceRunwayId);
+        double deviationNm = guidanceTargetsAssigned ? _lastGuidanceXteNm : signedXteNm;
+        bool offCourse = Math.Abs(deviationNm) > LateralGateXteNm;
+
+        // Only an aircraft established inbound can be "misaligned" — a commanded joining
+        // maneuver (base-to-final rollout, EF rejoin, retarget sweep) carries a large
+        // track-to-course angle and takes care of its own alignment.
+        bool establishedInbound = ctx.Aircraft.TrueTrack.AbsAngleTo(assignedRunway.TrueHeading) <= LateralGateEstablishedTrackDeg;
+
+        if (_lateralGateGraceSec > 0)
+        {
+            // A commanded retarget/join gets time to establish — but the moment it is
+            // established and on course the maneuver has succeeded, so release early
+            // rather than coasting the rest of the grace with the gate blind.
+            _lateralGateGraceSec = (establishedInbound && !offCourse) ? 0 : Math.Max(0, _lateralGateGraceSec - ctx.DeltaSeconds);
+            _lateralOffCourseSec = 0;
+            return false;
+        }
+
+        bool notConverging = false;
+        if (offCourse && establishedInbound)
+        {
+            // Analytic cross-track rate (noise-free at tick cadence): + = drifting right of course.
+            double gsNmPerSec = Math.Max(ctx.Aircraft.GroundSpeed, 40.0) / 3600.0;
+            double trackVsCourseRad = (ctx.Aircraft.TrueTrack.Degrees - assignedRunway.TrueHeading.Degrees) * (Math.PI / 180.0);
+            double crossRateNmPerSec = gsNmPerSec * Math.Sin(trackVsCourseRad);
+            double closureNmPerSec = deviationNm > 0 ? -crossRateNmPerSec : crossRateNmPerSec;
+
+            // "Realign in time": back on the line by the threshold (see the summary for the
+            // sin-vs-ratio reduction). Tight commanded joins legitimately roll out very late;
+            // whether a by-the-threshold realignment is stabilized enough is LandingPhase's
+            // call — though only outside ~0.1 nm, where the time floor keeps the required
+            // rate finite.
+            double secondsToThreshold = alongNm / gsNmPerSec;
+            double requiredNmPerSec = Math.Abs(deviationNm) / Math.Max(secondsToThreshold, LateralGateMinTimeToThresholdSec);
+            notConverging = closureNmPerSec < requiredNmPerSec;
+        }
+
+        if ((alongNm > LateralGateArmDistNm) || !offCourse || !establishedInbound || !notConverging)
+        {
+            _lateralOffCourseSec = 0;
+            return false;
+        }
+
+        _lateralOffCourseSec += ctx.DeltaSeconds;
+        if (_lateralOffCourseSec < LateralGateSustainSeconds)
+        {
+            return false;
+        }
+
+        double xteFt = Math.Abs(signedXteNm) * GeoMath.FeetPerNm;
+        _goAroundTriggered = true;
+        Log.LogDebug(
+            "[FinalApproach] {Callsign}: go-around triggered (not aligned with {Runway}: {XteFt:F0} ft off centerline at {Dist:F2}nm)",
+            ctx.Aircraft.Callsign,
+            assignedRunway.Designator,
+            xteFt,
+            alongNm
+        );
+        GoAroundHelper.Trigger(ctx, PilotResponder.BuildGoingAroundNotAligned(ctx.Aircraft, assignedRunway.Designator, xteFt));
+        return true;
+    }
 
     /// <summary>
     /// CLANDF forced-landing vertical/speed guidance. Commits to the glideslope and commands

@@ -51,7 +51,11 @@ public class Issue228EnterFinalShortFinalTests(ITestOutputHelper output)
         }
 
         var groundData = new TestAirportGroundData();
-        SimLogBuilder.CreateForTest(output).EnableCategory("PatternCommandHandler", LogLevel.Debug).InitializeSimLog();
+        SimLogBuilder
+            .CreateForTest(output)
+            .EnableCategory("PatternCommandHandler", LogLevel.Debug)
+            .EnableCategory("FinalApproachPhase", LogLevel.Debug)
+            .InitializeSimLog();
 
         return new SimulationEngine(groundData);
     }
@@ -112,6 +116,7 @@ public class Issue228EnterFinalShortFinalTests(ITestOutputHelper output)
             double minDist = double.MaxValue;
             double maxAlt = double.MinValue;
             double maxDist = double.MinValue;
+            bool sawGoAround = false;
             for (int t = 2320; t <= 2360; t++)
             {
                 engine.ReplayRange(t, t + 1, recording.Actions);
@@ -126,20 +131,28 @@ public class Issue228EnterFinalShortFinalTests(ITestOutputHelper output)
                 maxAlt = Math.Max(maxAlt, cur.Altitude);
                 minDist = Math.Min(minDist, dist);
                 maxDist = Math.Max(maxDist, dist);
+                sawGoAround |= cur.Phases?.CurrentPhase is GoAroundPhase;
                 output.WriteLine(
                     $"t={t} alt={cur.Altitude:F0} dist={dist:F2}nm hdg={cur.TrueHeading.Degrees:F0} phase={cur.Phases?.CurrentPhase?.GetType().Name}"
                 );
             }
 
-            output.WriteLine($"minAlt={minAlt:F0} maxAlt={maxAlt:F0} minDist={minDist:F2} maxDist={maxDist:F2}");
+            output.WriteLine($"minAlt={minAlt:F0} maxAlt={maxAlt:F0} minDist={minDist:F2} maxDist={maxDist:F2} sawGoAround={sawGoAround}");
 
+            // The recorded state is a pre-#412 tight-pattern overshoot: at the EF the aircraft
+            // is ~880 ft right of the 28L centerline at 160 ft. Continuing the approach from
+            // there now (correctly) trips the lateral-alignment go-around — also a valid
+            // continuation of the CURRENT approach. The #228 failure signature is neither:
+            // it tore the approach down into a PatternEntry reposition (asserted absent above)
+            // and toured outbound without descending or going around.
             Assert.True(
-                minAlt <= 60,
-                $"Aircraft never descended to the runway (min alt {minAlt:F0} ft) — it flew the bogus outbound re-entry instead of continuing final."
+                (minAlt <= 60) || sawGoAround,
+                $"Aircraft neither descended to the runway (min alt {minAlt:F0} ft) nor went around — "
+                    + "it flew the bogus outbound re-entry instead of continuing final."
             );
             Assert.True(
-                minDist <= 0.3,
-                $"Aircraft never reached the 28L threshold (min dist {minDist:F2} nm) — it toured outbound instead of continuing final."
+                minDist <= 0.5,
+                $"Aircraft never approached the 28L threshold (min dist {minDist:F2} nm) — it toured outbound instead of continuing final."
             );
         }
     }

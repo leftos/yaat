@@ -25,6 +25,20 @@ vectors / pattern entry down to the seam where the ground rollout takes over. It
   the `FinalApproachPhase` final-approach-course alignment ramp — see
   [landing-and-runway-exit.md](landing-and-runway-exit.md). `FinalApproachPhase` is the **seam**: every approach and
   pattern sequence in this doc converges onto it, and it is where the airborne geometry hands off to the rollout.
+- **Lateral-alignment go-around** (`FinalApproachPhase.CheckLateralAlignmentGate`, issue #412 follow-up): inside
+  1 nm (along-track) of the **live assigned runway's** landing threshold, an aircraft more than 0.08 nm off its
+  guidance line (the assigned centerline outright when the approach chain targets a *different* runway — the
+  stale-datum case; the ramp-lerped FAC/anchor line when it targets the assigned one, so published offset
+  approaches judge against the line they intend), tracking within 45° of the course (established, not mid-join),
+  and whose extended ground track will not cross the line by the threshold (`sin(track-off) < |xte|/dist`), goes
+  around after 3 s — spoken "going around, we're not lined up", terminal names the runway and offset (7110.65
+  §3-10-5.d "aligned with the wrong surface", the ARV automation of §5-14-9; AIM 5-5-5.a.1(b)/(a.2)). The 45°
+  establishment window means only a nearby **parallel or small-angle offset** wrong surface is caught — a
+  crossing/diverging wrong runway keeps the track outside the window. Commanded tight joins are exempt by
+  construction: the establishment window skips base-to-final rollouts and retarget sweeps,
+  `RetargetRunway`/`StartWithLateralGateGrace` hold the gate off 30 s (released early once established on
+  course) after a sidestep or the #292 low-approach runway change, and CLANDF suppresses it entirely. Marginal
+  by-the-threshold realignments are left to `LandingPhase.CheckStabilizationGate` to judge.
 
 ## Coordinate primitives you must trust
 

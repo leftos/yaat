@@ -788,6 +788,12 @@ public sealed class FinalApproachPhaseDto : PhaseDto
     /// <summary>Remaining cooldown (seconds) before another spacing S-turn may fire (AIM 4-3-5). Defaults to 0.</summary>
     public double STurnSpacingCooldownSeconds { get; init; }
 
+    /// <summary>Accumulated seconds off-course for the lateral-alignment go-around gate (null in pre-gate snapshots).</summary>
+    public double? LateralOffCourseSeconds { get; init; }
+
+    /// <summary>Remaining lateral-alignment-gate hold-off after a commanded retarget/join (null in pre-gate snapshots).</summary>
+    public double? LateralGateGraceSeconds { get; init; }
+
     /// <summary>True once the one-shot pilot-decision go-around roll has been performed or suppressed. Defaults to false.</summary>
     public bool GoAroundRolled { get; init; }
 }

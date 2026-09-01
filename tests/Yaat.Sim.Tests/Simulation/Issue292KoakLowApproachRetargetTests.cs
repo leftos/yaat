@@ -40,7 +40,11 @@ public class Issue292KoakLowApproachRetargetTests(ITestOutputHelper output)
             return null;
         }
 
-        SimLogBuilder.CreateForTest(output).EnableCategory("LowApproachPhase", Microsoft.Extensions.Logging.LogLevel.Debug).InitializeSimLog();
+        SimLogBuilder
+            .CreateForTest(output)
+            .EnableCategory("LowApproachPhase", Microsoft.Extensions.Logging.LogLevel.Debug)
+            .EnableCategory("FinalApproachPhase", Microsoft.Extensions.Logging.LogLevel.Debug)
+            .InitializeSimLog();
         return new SimulationEngine(new TestAirportGroundData());
     }
 

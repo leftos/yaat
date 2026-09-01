@@ -1347,6 +1347,23 @@ public static class PilotResponder
     }
 
     /// <summary>
+    /// Not aligned with the assigned runway on short final: the pilot goes around and SPEAKS
+    /// the reason (AIM §5-5-5.a.1(b) — missed approach when a safe landing is not possible;
+    /// §5-5-5.a.2 — include the reason). The terminal names the runway and the measured
+    /// offset — the controller needs to see WHICH centerline the aircraft was tracking; the
+    /// spoken form stays colloquial.
+    /// </summary>
+    public static PilotSpeechText BuildGoingAroundNotAligned(AircraftState aircraft, string runwayId, double offCenterlineFt)
+    {
+        var spoken = SpokenOwnCallsign(aircraft);
+        string displayRwy = Data.Airport.RunwayIdentifier.ToDisplayDesignator(runwayId);
+        return new PilotSpeechText(
+            $"going around, not lined up with runway {displayRwy} ({offCenterlineFt:F0} ft off centerline).",
+            $"{spoken}, going around, we're not lined up."
+        );
+    }
+
+    /// <summary>
     /// Pilot transmission when the pilot initiates a go-around. Reason is a short sim-internal
     /// descriptor ("no landing clearance", "too high at missed approach point", etc.) that's
     /// included parenthetically so the controller has the why; the spoken callout itself is the

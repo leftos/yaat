@@ -3721,6 +3721,14 @@ internal static class PatternCommandHandler
             AuthoredRunway(aircraft, ctx.GroundLayout, runwayB)
         );
 
+        // The sharp turn onto B's short final starts far off B's centerline by design —
+        // hold the lateral-alignment go-around off while the commanded join establishes.
+        // Only the first final belongs to this join; any later circuit judges normally.
+        if (circuitB.OfType<FinalApproachPhase>().FirstOrDefault() is { } joinFinal)
+        {
+            joinFinal.StartWithLateralGateGrace = true;
+        }
+
         var bTail = new List<Phase> { patternEntryB };
         bTail.AddRange(circuitB);
         phases.ReplaceUpcoming(bTail);
