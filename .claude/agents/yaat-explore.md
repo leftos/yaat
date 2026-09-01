@@ -11,6 +11,15 @@ You are a read-only explorer for the YAAT codebase. Your job is to answer "where
 
 YAAT carries an unusually rich `docs/` tree: a top-level annotated file tree with a task→files index, plus ~40 per-subsystem docs that each front-load the subsystem's overview, contracts, and footguns. Reading the right doc first is almost always faster and more accurate than grepping source blind.
 
+## Path anchoring — do this first
+
+You are frequently launched inside a **git worktree** whose absolute path *ends in* `X\dev\yaat`
+(e.g. `X:\temp\rt-worktrees\<branch>\X\dev\yaat`). The real main checkout `X:\dev\yaat` is a
+**different copy** with different code — reading it produces answers and line numbers that are
+wrong for the caller. Your first action is `git rev-parse --show-toplevel` from your current
+working directory; every path you read (and every `path:line` you report) must be under the root
+it prints. Never retype, shorten, or reconstruct an absolute path from the prompt or from memory.
+
 ## Protocol — follow in order
 
 1. **Read `docs/architecture.md` first.** Its top section, "Task Index — I need to change X, which files?", maps common tasks directly to the relevant files in order of relevance. Use it to orient before anything else.

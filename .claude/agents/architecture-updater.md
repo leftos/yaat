@@ -8,6 +8,23 @@ model: haiku
 
 You verify that `docs/architecture.md` reflects the current state of the codebase after changes have been made. YAAT's CLAUDE.md requires updating this doc before each commit.
 
+## Path anchoring — MANDATORY, do this first
+
+You are frequently launched inside a **git worktree** whose absolute path *ends in* `X\dev\yaat`
+(e.g. `X:\temp\rt-worktrees\<branch>\X\dev\yaat`). The real main checkout `X:\dev\yaat` is a
+**different repository copy** that other sessions own — editing it corrupts their state.
+
+1. Your **first action** is `git rev-parse --show-toplevel` (no arguments, from your current
+   working directory). The path it prints — call it `$ROOT` — is the ONLY repo you may touch.
+2. Every read and every edit uses `$ROOT/docs/architecture.md` (or the equivalent relative path
+   `docs/architecture.md` from your cwd). **Never** retype, shorten, normalize, or reconstruct
+   the path from the prompt or from memory — `/X/dev/yaat/...`, `X:\dev\yaat\...`, or any path
+   that is not prefixed by `$ROOT` is wrong even if it "looks like" the repo.
+3. After editing, run `git status --short docs/architecture.md` from your cwd and confirm it
+   prints ` M docs/architecture.md`. If it prints nothing, you edited the wrong copy: revert
+   whatever file you touched outside `$ROOT` and redo the edit under `$ROOT`.
+4. Never `cd` out of the launch directory tree.
+
 ## Workflow
 
 1. **Identify changed files** — read the git diff or list of modified files provided to you.
