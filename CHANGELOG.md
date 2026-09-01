@@ -1,6 +1,12 @@
 # Changelog
 
-## Unreleased
+## v0.12.24-beta [2026/08/31]
+
+### Highlights
+- Typing a position after `ADD`'s `@` shows a live preview — parsed breakdown, validation, and an altitude hint.
+- An aircraft on short final that isn't lined up with its runway goes around instead of continuing to land.
+- Jets and turboprops fly the traffic pattern 500 ft above the airport's published pattern altitude.
+- Pattern turns to final no longer overshoot onto a parallel runway, and pattern descents touch down at the aiming point.
 
 ### Added
 - Typing a fix/radial/distance after `ADD`'s `@` shows a live preview — parsed breakdown, unknown-fix and radial-range validation, and a required-altitude hint.
