@@ -51,6 +51,13 @@ public sealed class PhaseContext
     public bool AutoGoAroundOnOccupiedRunway { get; init; }
 
     /// <summary>
+    /// When true, a departure on its takeoff roll rejects the takeoff on its own when a blocking
+    /// occupant is on the runway ahead (<see cref="Tower.RejectedTakeoff"/>). Sourced from
+    /// <c>SimScenarioState.AutoRejectTakeoffOnOccupiedRunway</c>.
+    /// </summary>
+    public bool AutoRejectTakeoffOnOccupiedRunway { get; init; }
+
+    /// <summary>
     /// Every aircraft in the world, for phases that must look at other traffic on their runway. Null in
     /// contexts that carry no world (command-time minimal contexts, some tests).
     /// </summary>

@@ -1347,6 +1347,30 @@ public static class PilotResponder
     }
 
     /// <summary>
+    /// Rejected takeoff for a runway occupant: the pilot aborts the roll and SPEAKS the reason —
+    /// the controller needs to know it was traffic, not a mechanical. "Abort" is the P/CG term
+    /// for terminating a preplanned maneuver ("e.g., an aborted takeoff"); "reject" stays the
+    /// internal/code name.
+    /// </summary>
+    public static PilotSpeechText BuildRejectingTakeoffTrafficOnRunway(AircraftState aircraft)
+    {
+        var spoken = SpokenOwnCallsign(aircraft);
+        return new PilotSpeechText("aborting takeoff, traffic on the runway.", $"{spoken}, aborting takeoff, traffic on the runway.");
+    }
+
+    /// <summary>
+    /// Stopped on the runway after a rejected takeoff, awaiting instructions — the controller's
+    /// cue that the runway is now blocked and the aircraft needs an exit or taxi instruction
+    /// (AIM 4-3-18.a: movement on the movement area needs ATC approval; the sim's crew always
+    /// waits for the instruction rather than self-vacating).
+    /// </summary>
+    public static PilotSpeechText BuildStoppedOnRunway(AircraftState aircraft)
+    {
+        var spoken = SpokenOwnCallsign(aircraft);
+        return new PilotSpeechText("stopped on the runway, standing by.", $"{spoken} is stopped on the runway, standing by.");
+    }
+
+    /// <summary>
     /// Not aligned with the assigned runway on short final: the pilot goes around and SPEAKS
     /// the reason (AIM §5-5-5.a.1(b) — missed approach when a safe landing is not possible;
     /// §5-5-5.a.2 — include the reason). The terminal names the runway and the measured

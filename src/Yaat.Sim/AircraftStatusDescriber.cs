@@ -280,6 +280,7 @@ public static class AircraftStatusDescriber
             "LiningUp" => $"lining up {lineupRwy}",
             "LinedUpAndWaiting" => $"LUAW {lineupRwy}",
             "Takeoff" or "Takeoff-H" => $"takeoff {lineupRwy}",
+            "Rejected Takeoff" => $"rejecting takeoff {lineupRwy}",
             "InitialClimb" => FormatInitialClimbStatus(i),
             "InterceptCourse" => string.IsNullOrEmpty(i.ActiveApproachId) ? "intercepting course" : $"intercepting {i.ActiveApproachId}",
             "ApproachNav" => FormatApproachNavStatus(i),

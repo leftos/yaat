@@ -82,6 +82,14 @@ public sealed class SimScenarioState
     public bool AutoGoAroundOnOccupiedRunway { get; set; }
 
     /// <summary>
+    /// When true, a simulated departure on its takeoff roll rejects the takeoff by itself when a
+    /// blocking occupant is on the runway ahead (<see cref="Phases.Tower.RejectedTakeoff"/>).
+    /// Defaults to false here so pre-feature recordings replay faithfully; the user-facing default
+    /// is on, pushed from the client preference at scenario load.
+    /// </summary>
+    public bool AutoRejectTakeoffOnOccupiedRunway { get; set; }
+
+    /// <summary>
     /// When true, the room mirrors real aircraft from the server's live-traffic feed as shadow aircraft
     /// (see <c>docs/live-traffic.md</c>). Defaults to false; recordings replay the samples they carry
     /// regardless of the flag. Mutually exclusive with a sim rate above 1 — real traffic cannot be warped.
@@ -265,6 +273,7 @@ public sealed class SimScenarioState
             AutoCrossRunway = AutoCrossRunway,
             AutoPullUpToParallel = AutoPullUpToParallel,
             AutoGoAroundOnOccupiedRunway = AutoGoAroundOnOccupiedRunway,
+            AutoRejectTakeoffOnOccupiedRunway = AutoRejectTakeoffOnOccupiedRunway,
             LiveTrafficEnabled = LiveTrafficEnabled,
             LiveTrafficCeilingFt = LiveTrafficCeilingFt,
             LiveTrafficFilter = LiveTrafficFilter,

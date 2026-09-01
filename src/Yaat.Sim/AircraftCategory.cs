@@ -668,6 +668,64 @@ public static class CategoryPerformance
             _ => 7.5,
         };
 
+    /// <summary>
+    /// Max-effort deceleration (kts/s) for a rejected takeoff: RTO autobrake / full manual
+    /// braking plus speedbrakes and maximum reverse on a dry runway — above
+    /// <see cref="ExpediteExitDecelRate"/>, which is a landing autobrake-MAX figure. 14 CFR
+    /// 25.109 accelerate-stop performance; the FAA/industry Takeoff Safety Training Aid puts a
+    /// transport RTO at ~0.35–0.45 g average on dry pavement (1 kt/s ≈ 0.052 g). Not modeled:
+    /// wet/contaminated surfaces, brake energy/fuse-plug limits. Helicopter: no rolling
+    /// takeoff, no reject.
+    /// </summary>
+    public static double RejectedTakeoffDecelRate(AircraftCategory cat) =>
+        cat switch
+        {
+            AircraftCategory.Jet => 8.0, // ~0.42 g — RTO autobrake + full reverse + speedbrakes, dry
+            AircraftCategory.Turboprop => 6.5, // ~0.34 g — max beta/reverse is strong, but many types lack anti-skid
+            AircraftCategory.Piston => 5.5, // ~0.29 g — max braking, no anti-skid, no reverse; POH short-field ≈ 0.25–0.30 g
+            AircraftCategory.Helicopter => 0,
+            _ => 8.0,
+        };
+
+    /// <summary>
+    /// Speed (KIAS) dividing the low-speed from the high-speed takeoff-roll regime (FAA/industry
+    /// Takeoff Safety Training Aid; AC 120-62). Below it the crew rejects for anything abnormal —
+    /// including any blocking occupant on the runway ahead, however far. At or above it a reject
+    /// is reserved for an airplane unsafe or unable to fly (a runway blocked beyond the overfly
+    /// margin qualifies). The doctrinal figure is 80 kt for transport jets; other categories
+    /// scale by the same ≈0.53·Vr ratio.
+    /// </summary>
+    public static double LowSpeedRejectThresholdKts(AircraftCategory cat) =>
+        cat switch
+        {
+            AircraftCategory.Jet => 80,
+            AircraftCategory.Turboprop => 60,
+            AircraftCategory.Piston => 35,
+            AircraftCategory.Helicopter => 0,
+            _ => 80,
+        };
+
+    /// <summary>
+    /// Along-runway margin (ft) beyond the liftoff point that a blocking occupant must sit past
+    /// for the takeoff to continue over it. Derived from certified climb performance, not
+    /// §3-9-6.a's stationary-departure distances: the takeoff distance ends at a 35 ft screen
+    /// (14 CFR 25.113), and the sim models all engines operating (gradients 8–15%), so 3,000 ft
+    /// past the Vr point gives 200+ ft over the tallest tails (A380 ≈ 79 ft) while also
+    /// absorbing the unmodeled rotation-to-liftoff ground run. The 25.121(b) one-engine-out
+    /// second-segment floor (2.4%) would thin that to tail-height order — engine failure is not
+    /// modeled, and the margin is not sized for it. Not modeled: visibility (the sim pilot
+    /// always sees the occupant), intersecting runways (§3-9-8).
+    /// </summary>
+    public static double RejectedTakeoffOverflyMarginFt(AircraftCategory cat) =>
+        cat switch
+        {
+            AircraftCategory.Jet => 3000,
+            AircraftCategory.Turboprop => 2000,
+            AircraftCategory.Piston => 1500,
+            AircraftCategory.Helicopter => 0,
+            _ => 3000,
+        };
+
     /// <summary>Pushback speed (knots). All categories reverse at ~5 kts.</summary>
     public static double PushbackSpeed(AircraftCategory cat)
     {

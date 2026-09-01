@@ -217,6 +217,9 @@ public partial class MainViewModel : ObservableObject
     private bool _sessionAutoGoAroundOnOccupiedRunway;
 
     [ObservableProperty]
+    private bool _sessionAutoRejectTakeoffOnOccupiedRunway;
+
+    [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsLiveTrafficStatusVisible))]
     [NotifyPropertyChangedFor(nameof(LiveTrafficStatusText))]
     [NotifyPropertyChangedFor(nameof(SimRateToolTip))]
@@ -3300,6 +3303,7 @@ public partial class MainViewModel : ObservableObject
         SessionAutoCrossRunway = dto.AutoCrossRunway;
         SessionAutoPullUpToParallel = dto.AutoPullUpToParallel;
         SessionAutoGoAroundOnOccupiedRunway = dto.AutoGoAroundOnOccupiedRunway;
+        SessionAutoRejectTakeoffOnOccupiedRunway = dto.AutoRejectTakeoffOnOccupiedRunway;
         SessionLiveTrafficEnabled = dto.LiveTrafficEnabled;
         SessionLiveTrafficCeilingFt = dto.LiveTrafficCeilingFt;
         SessionLiveTrafficFilter = dto.LiveTrafficFilter;
@@ -3329,6 +3333,7 @@ public partial class MainViewModel : ObservableObject
                 state.AutoCrossRunway,
                 state.AutoPullUpToParallel,
                 state.AutoGoAroundOnOccupiedRunway,
+                state.AutoRejectTakeoffOnOccupiedRunway,
                 state.ValidateDctFixes,
                 state.SoloTrainingMode,
                 state.SoloParkingInitialCallupRatePercent,
@@ -3357,6 +3362,7 @@ public partial class MainViewModel : ObservableObject
                 dto.AutoCrossRunway,
                 dto.AutoPullUpToParallel,
                 dto.AutoGoAroundOnOccupiedRunway,
+                dto.AutoRejectTakeoffOnOccupiedRunway,
                 dto.ValidateDctFixes,
                 dto.SoloTrainingMode,
                 dto.SoloParkingInitialCallupRatePercent,
@@ -3385,6 +3391,7 @@ public partial class MainViewModel : ObservableObject
                 result.AutoCrossRunway,
                 result.AutoPullUpToParallel,
                 result.AutoGoAroundOnOccupiedRunway,
+                result.AutoRejectTakeoffOnOccupiedRunway,
                 result.ValidateDctFixes,
                 result.SoloTrainingMode,
                 result.SoloParkingInitialCallupRatePercent,
@@ -3468,6 +3475,14 @@ public partial class MainViewModel : ObservableObject
         if (!_isApplyingSessionSettings)
         {
             _ = _connection.SetAutoGoAroundOnOccupiedRunwayAsync(value);
+        }
+    }
+
+    partial void OnSessionAutoRejectTakeoffOnOccupiedRunwayChanged(bool value)
+    {
+        if (!_isApplyingSessionSettings)
+        {
+            _ = _connection.SetAutoRejectTakeoffOnOccupiedRunwayAsync(value);
         }
     }
 
@@ -3828,6 +3843,18 @@ public partial class MainViewModel : ObservableObject
         catch (Exception ex)
         {
             _log.LogWarning(ex, "Failed to set auto go-around on occupied runway");
+        }
+    }
+
+    private async Task SendAutoRejectTakeoffOnOccupiedRunway()
+    {
+        try
+        {
+            await _connection.SetAutoRejectTakeoffOnOccupiedRunwayAsync(_preferences.AutoRejectTakeoffOnOccupiedRunway);
+        }
+        catch (Exception ex)
+        {
+            _log.LogWarning(ex, "Failed to set auto rejected takeoff on occupied runway");
         }
     }
 

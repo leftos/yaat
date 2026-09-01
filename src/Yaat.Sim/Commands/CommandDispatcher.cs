@@ -2051,7 +2051,7 @@ public static class CommandDispatcher
             case CancelTakeoffClearanceCommand:
                 // Cancelling the takeoff clearance moots any pending expedite intent.
                 aircraft.Ground.IsExpeditingLineup = false;
-                return DepartureClearanceHandler.TryCancelTakeoff(aircraft, currentPhase);
+                return DepartureClearanceHandler.TryCancelTakeoff(aircraft, currentPhase, ctx);
 
             case LineUpAndWaitCommand luawCmd:
             {

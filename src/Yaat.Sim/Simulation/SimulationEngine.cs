@@ -262,6 +262,7 @@ public sealed class SimulationEngine
             Scenario.AutoCrossRunway = scenarioDto.AutoCrossRunway;
             Scenario.AutoPullUpToParallel = scenarioDto.AutoPullUpToParallel;
             Scenario.AutoGoAroundOnOccupiedRunway = scenarioDto.AutoGoAroundOnOccupiedRunway;
+            Scenario.AutoRejectTakeoffOnOccupiedRunway = scenarioDto.AutoRejectTakeoffOnOccupiedRunway;
             Scenario.LiveTrafficEnabled = scenarioDto.LiveTrafficEnabled;
             Scenario.LiveTrafficCeilingFt = scenarioDto.LiveTrafficCeilingFt;
             Scenario.LiveTrafficFilter = scenarioDto.LiveTrafficFilter;
@@ -2998,6 +2999,7 @@ public sealed class SimulationEngine
             AutoClearedToLand = Scenario?.AutoClearedToLand ?? false,
             AutoPullUpToParallel = Scenario?.AutoPullUpToParallel ?? false,
             AutoGoAroundOnOccupiedRunway = Scenario?.AutoGoAroundOnOccupiedRunway ?? false,
+            AutoRejectTakeoffOnOccupiedRunway = Scenario?.AutoRejectTakeoffOnOccupiedRunway ?? false,
             ListAircraft = World.GetSnapshot,
             SoloTrainingMode = Scenario?.SoloTrainingMode ?? false,
             ScenarioId = Scenario?.ScenarioId,
@@ -5089,6 +5091,12 @@ public sealed class SimulationEngine
                 if (bool.TryParse(setting.Value, out var agor))
                 {
                     scenario.AutoGoAroundOnOccupiedRunway = agor;
+                }
+                break;
+            case "AutoRejectTakeoffOnOccupiedRunway":
+                if (bool.TryParse(setting.Value, out var arto))
+                {
+                    scenario.AutoRejectTakeoffOnOccupiedRunway = arto;
                 }
                 break;
             case "LiveTrafficEnabled":

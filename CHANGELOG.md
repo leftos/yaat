@@ -2,9 +2,17 @@
 
 ## Unreleased
 
+### Added
+- A departure rolling toward an aircraft blocking its runway now rejects the takeoff, brakes to a stop, and holds in position (on by default).
+- A cleared departure that hasn't started rolling declines the clearance ("unable, traffic on the runway") when another aircraft blocks the runway ahead.
+- Solo training scores a rejected takeoff for a runway occupant, a stop that can't clear the traffic, and a runway overrun.
+
 ### Fixed
 - An aircraft on an extended downwind holds altitude past the base-turn point instead of climbing back toward pattern altitude.
 - Occupied-runway advisories (landing/option and takeoff clearances) now warn about traffic frozen on the runway by `HOLDPOSITION` or `GIVEWAY`, such as a stopped crossing.
+- `CTOC` mid-roll aborts realistically: reaction delay, maximum braking on the centerline, a "stopped on the runway" report, then holding in position.
+- `CTOC` at or past V1 draws "unable" and the takeoff continues — unless the runway is blocked ahead beyond what the departure can overfly.
+- `CTOC` during a helicopter liftoff sets it back down (low) or stops it in a hover (established) instead of failing.
 
 ## v0.12.24-beta [2026/08/31]
 

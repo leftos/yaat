@@ -1088,11 +1088,11 @@ public class DepartureClearanceHandlerTests
     }
 
     [Fact]
-    public void TryCancelTakeoff_DuringTakeoffPhase_GroundRoll_ClearsPhasesAndStops()
+    public void TryCancelTakeoff_DuringTakeoffPhase_GroundRoll_InstallsRejectedTakeoff()
     {
-        // Locks in: CTOC mid-roll abort works. The plan flagged this as a question
-        // ("verify CTOC actually aborts mid-roll vs just clearing the clearance flag").
-        // It does both: TakeoffPhase + IsOnGround branch clears phases and zeros TargetSpeed.
+        // CTOC mid-roll below V1 routes through the rejected-takeoff machinery (issue #410):
+        // the phase list survives, RejectedTakeoffPhase brakes the roll on the centerline, and
+        // a HoldingInPositionPhase terminal follows — not the old "clear everything to null".
         var ac = MakeAircraft();
         ac.IsOnGround = true;
         ac.IndicatedAirspeed = 80; // mid-roll, well below V1
@@ -1100,12 +1100,13 @@ public class DepartureClearanceHandlerTests
         ac.Phases!.Add(takeoff);
         ac.Phases.Start(MinCtx(ac));
 
-        var result = DepartureClearanceHandler.TryCancelTakeoff(ac, takeoff);
+        var result = DepartureClearanceHandler.TryCancelTakeoff(ac, takeoff, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
         Assert.Contains("Abort takeoff", result.Message!);
-        Assert.Null(ac.Phases);
-        Assert.Equal(0, ac.Targets.TargetSpeed);
+        Assert.NotNull(ac.Phases);
+        Assert.IsType<RejectedTakeoffPhase>(ac.Phases.CurrentPhase);
+        Assert.Null(ac.Targets.AssignedAltitude);
     }
 
     [Fact]
@@ -1123,10 +1124,10 @@ public class DepartureClearanceHandlerTests
         ac.Phases!.Add(takeoff);
         ac.Phases.Start(MinCtx(ac));
 
-        var result = DepartureClearanceHandler.TryCancelTakeoff(ac, takeoff);
+        var result = DepartureClearanceHandler.TryCancelTakeoff(ac, takeoff, TestDispatch.Context(Random.Shared));
 
         Assert.False(result.Success);
-        Assert.Contains("Past V1", result.Message!);
+        Assert.Contains("past V1", result.Message!);
         // Phases preserved — takeoff continues.
         Assert.NotNull(ac.Phases);
     }
@@ -1171,7 +1172,7 @@ public class DepartureClearanceHandlerTests
         Assert.True(destHs.IsCleared, "precondition: store should have pre-cleared the destination hold-short");
         Assert.NotNull(ac.Phases.DepartureClearance);
 
-        var result = DepartureClearanceHandler.TryCancelTakeoff(ac, taxiing);
+        var result = DepartureClearanceHandler.TryCancelTakeoff(ac, taxiing, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success, $"expected success, got: {result.Message}");
         Assert.Contains("cancelled", result.Message!, StringComparison.OrdinalIgnoreCase);
@@ -1209,7 +1210,7 @@ public class DepartureClearanceHandlerTests
             null
         );
 
-        var result = DepartureClearanceHandler.TryCancelTakeoff(ac, taxiing);
+        var result = DepartureClearanceHandler.TryCancelTakeoff(ac, taxiing, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
         Assert.False(destHs.IsCleared, "store flipped destination hold-short — CTOC must revert it");
@@ -1234,7 +1235,7 @@ public class DepartureClearanceHandlerTests
 
         DepartureClearanceHandler.StoreDepartureClearanceDuringTaxi(ac, ClearanceType.LineUpAndWait, new DefaultDeparture(), null);
 
-        var result = DepartureClearanceHandler.TryCancelTakeoff(ac, taxiing);
+        var result = DepartureClearanceHandler.TryCancelTakeoff(ac, taxiing, TestDispatch.Context(Random.Shared));
 
         Assert.False(result.Success);
         Assert.Contains("No takeoff clearance to cancel", result.Message!);
@@ -1248,7 +1249,7 @@ public class DepartureClearanceHandlerTests
         var ac = MakeTaxiingAircraftWithRoute([]);
         var taxiing = (TaxiingPhase)ac.Phases!.CurrentPhase!;
 
-        var result = DepartureClearanceHandler.TryCancelTakeoff(ac, taxiing);
+        var result = DepartureClearanceHandler.TryCancelTakeoff(ac, taxiing, TestDispatch.Context(Random.Shared));
 
         Assert.False(result.Success);
         Assert.Contains("No takeoff clearance to cancel", result.Message!);
@@ -1428,7 +1429,7 @@ public class DepartureClearanceHandlerTests
         ac.Phases.Add(luaw);
         ac.Phases.Add(new TakeoffPhase());
 
-        var result = DepartureClearanceHandler.TryCancelTakeoff(ac, lineup);
+        var result = DepartureClearanceHandler.TryCancelTakeoff(ac, lineup, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success, $"expected success, got: {result.Message}");
         Assert.Contains("cancelled", result.Message!, StringComparison.OrdinalIgnoreCase);
@@ -1453,7 +1454,7 @@ public class DepartureClearanceHandlerTests
         ac.Phases!.Add(lineup);
         ac.Phases.Add(takeoff);
 
-        var result = DepartureClearanceHandler.TryCancelTakeoff(ac, lineup);
+        var result = DepartureClearanceHandler.TryCancelTakeoff(ac, lineup, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success, $"expected success, got: {result.Message}");
         Assert.Contains("cancelled", result.Message!, StringComparison.OrdinalIgnoreCase);
@@ -1484,7 +1485,7 @@ public class DepartureClearanceHandlerTests
         ac.Phases.Add(lineup);
         ac.Phases.Add(new TakeoffPhase());
 
-        var cancel = DepartureClearanceHandler.TryCancelTakeoff(ac, lineup);
+        var cancel = DepartureClearanceHandler.TryCancelTakeoff(ac, lineup, TestDispatch.Context(Random.Shared));
         Assert.True(cancel.Success);
         Assert.True(lineup.HoldPosition);
 
@@ -1505,7 +1506,7 @@ public class DepartureClearanceHandlerTests
         ac.Phases!.Add(lineup);
         ac.Phases.Add(heliTakeoff);
 
-        var result = DepartureClearanceHandler.TryCancelTakeoff(ac, lineup);
+        var result = DepartureClearanceHandler.TryCancelTakeoff(ac, lineup, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
         Assert.False(lineup.RollingMode);

@@ -356,6 +356,16 @@ public sealed class SoloTrainingEvaluator
 
         RecordPhase("Solo.SafetyOveruse", sw);
 
+        foreach (var overrunSample in SampleRejectedTakeoffEvents(aircraft, scenarioElapsedSeconds))
+        {
+            observedThisTick.Add(overrunSample.Id);
+            var notice = Upsert(overrunSample, scenarioElapsedSeconds);
+            if (notice is not null)
+            {
+                notices.Add(notice);
+            }
+        }
+
         var runwayEvaluation = _sameRunwayTracker.Evaluate(aircraft, scenarioElapsedSeconds, serviceContext);
         foreach (
             var wakeAdvisorySample in SampleWakeAdvisoryProofs(
@@ -1573,6 +1583,92 @@ public sealed class SoloTrainingEvaluator
 
     private static bool WithinWarningMargin(double horizontalNm, double verticalFt, SeparationRequirement requirement) =>
         (horizontalNm < requirement.RequiredHorizontalNm * WarningMargin) && (verticalFt < requirement.RequiredVerticalFt * WarningMargin);
+
+    /// <summary>
+    /// Findings for rejected-takeoff episodes (issue #410), sampled from the braking phase's own
+    /// state while it is current — so each event goes inactive once the aircraft stops. A
+    /// pilot-initiated reject (blocked runway) is the trainable §3-9-6.a event on its own; the
+    /// stop running past the blocking occupant, and an overrun of the pavement end, each escalate
+    /// to a Safety finding. A CTOC-commanded abort (AutoTriggered false) is the controller
+    /// *fixing* the situation and scores nothing by itself.
+    /// </summary>
+    private static IEnumerable<TrainingEventSample> SampleRejectedTakeoffEvents(List<AircraftState> aircraft, double scenarioElapsedSeconds)
+    {
+        foreach (var ac in aircraft)
+        {
+            if (ac.Phases?.CurrentPhase is not RejectedTakeoffPhase reject)
+            {
+                continue;
+            }
+
+            string? runwayId = ac.Phases.DepartureRunway?.Designator ?? ac.Phases.AssignedRunway?.Designator;
+            string runwayClause = runwayId is not null ? $" (runway {runwayId})" : "";
+
+            if (reject.AutoTriggered)
+            {
+                yield return new TrainingEventSample(
+                    $"RTO_{NormalizeCallsign(ac.Callsign)}",
+                    SoloTrainingEventCategory.RunwayWake,
+                    SoloTrainingEventSeverity.Warning,
+                    "Departure rejected its takeoff for a runway occupant",
+                    $"{ac.Callsign} rejected its takeoff because another aircraft blocked the runway ahead{runwayClause} — "
+                        + "a departure must not roll toward an occupied runway.",
+                    "7110.65 3-9-6.a",
+                    scenarioElapsedSeconds,
+                    [ac.Callsign],
+                    runwayId,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null
+                );
+            }
+
+            if (reject.CannotStopShortOf is { } blocked)
+            {
+                yield return new TrainingEventSample(
+                    $"RTO_NO_SEPARATION_{NormalizeCallsign(ac.Callsign)}",
+                    SoloTrainingEventCategory.RunwayWake,
+                    SoloTrainingEventSeverity.Safety,
+                    "Rejected takeoff cannot stop short of the traffic",
+                    $"{ac.Callsign} rejected its takeoff but cannot stop short of {blocked} on the runway{runwayClause}.",
+                    "7110.65 3-9-6.a",
+                    scenarioElapsedSeconds,
+                    [ac.Callsign, blocked],
+                    runwayId,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null
+                );
+            }
+
+            if (reject.OverrunReported)
+            {
+                yield return new TrainingEventSample(
+                    $"RTO_OVERRUN_{NormalizeCallsign(ac.Callsign)}",
+                    SoloTrainingEventCategory.RunwayWake,
+                    SoloTrainingEventSeverity.Safety,
+                    "Rejected takeoff overran the runway",
+                    $"{ac.Callsign} rejected its takeoff for a blocked runway and could not stop on the remaining pavement{runwayClause}.",
+                    "7110.65 3-9-6.a",
+                    scenarioElapsedSeconds,
+                    [ac.Callsign],
+                    runwayId,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null
+                );
+            }
+        }
+    }
 
     private SoloTrainingEvent? Upsert(TrainingEventSample sample, double scenarioElapsedSeconds)
     {

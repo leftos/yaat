@@ -96,7 +96,7 @@ What every `OnTick` receives. Beyond `Aircraft` and `Targets`, notable fields:
 - `AircraftLookup` — delegate for finding other aircraft (used by `FollowingPhase`, ground conflict avoidance).
 - `TowerPosition` — the local tower `TrackOwner`. `InitialClimbPhase` uses this to hold RV SID heading until handoff + 5s.
 - `IsHoldShortNodeOccupied` / `OccupiedHoldShortNodes` / `MarkHoldShortNodeOccupied` — ground anti-collision plumbing.
-- `ScenarioElapsedSeconds`, `AutoClearedToLand`, `AutoPullUpToParallel`, `AutoGoAroundOnOccupiedRunway`, `SoloTrainingMode`, `RpoShowPilotSpeech` — scenario flags.
+- `ScenarioElapsedSeconds`, `AutoClearedToLand`, `AutoPullUpToParallel`, `AutoGoAroundOnOccupiedRunway`, `AutoRejectTakeoffOnOccupiedRunway`, `SoloTrainingMode`, `RpoShowPilotSpeech` — scenario flags.
 - `ListAircraft` — delegate returning every aircraft in the world (used by `OccupiedRunwayGoAround` from `FinalApproachPhase`; null in minimal command-time contexts).
 
 Phases write **directly** to `ctx.Targets` — they do not enqueue commands.
@@ -133,7 +133,7 @@ When a command lands on an in-phase aircraft:
 
 Files are under `Phases/Tower/`, `Phases/Ground/`, `Phases/Pattern/`, `Phases/Approach/`. Quick map:
 
-**Tower** — `LineUpPhase`, `LinedUpAndWaitingPhase`, `TakeoffPhase`, `InitialClimbPhase`, `DepartureProcedurePhase` (charted heading/course SID legs — see below), `FinalApproachPhase`, `LandingPhase`, `RunwayHoldingPhase` (LAHSO), `GoAroundPhase`, `LowApproachPhase`, `TouchAndGoPhase`, `StopAndGoPhase`, `HelicopterTakeoffPhase`, `HelicopterLandingPhase`, `VfrHoldPhase`, `MakeTurnPhase`, `STurnPhase`.
+**Tower** — `LineUpPhase`, `LinedUpAndWaitingPhase`, `TakeoffPhase`, `RejectedTakeoffPhase` (reaction window → max-effort braking on the centerline → `HoldingInPositionPhase`; installed by `RejectedTakeoff.Install`, shared by the auto trigger in `TakeoffPhase.TickGroundRoll` and the CTOC mid-roll abort), `InitialClimbPhase`, `DepartureProcedurePhase` (charted heading/course SID legs — see below), `FinalApproachPhase`, `LandingPhase`, `RunwayHoldingPhase` (LAHSO), `GoAroundPhase`, `LowApproachPhase`, `TouchAndGoPhase`, `StopAndGoPhase`, `HelicopterTakeoffPhase`, `HelicopterLandingPhase`, `VfrHoldPhase`, `MakeTurnPhase`, `STurnPhase`.
 
 **Ground** — `TaxiingPhase`, `HoldingShortPhase`, `CrossingRunwayPhase`, `RunwayExitPhase`, `PushbackPhase`, `PushbackToSpotPhase`, `AirTaxiPhase`, `AtParkingPhase`, `FollowingPhase`, `HoldingInPositionPhase`, `HoldingAfterPushbackPhase`, `HoldingAfterExitPhase`.
 

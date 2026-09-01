@@ -1608,7 +1608,7 @@ internal static class DepartureClearanceHandler
         }
     }
 
-    internal static CommandResult TryCancelTakeoff(AircraftState aircraft, Phase currentPhase)
+    internal static CommandResult TryCancelTakeoff(AircraftState aircraft, Phase currentPhase, DispatchContext ctx)
     {
         if (currentPhase is LinedUpAndWaitingPhase luawCancel)
         {
@@ -1653,26 +1653,82 @@ internal static class DepartureClearanceHandler
         }
         if (currentPhase is TakeoffPhase && aircraft.IsOnGround)
         {
-            // Abort takeoff during ground roll. Past V1 (≈ Vr - 5 kts) the
-            // aircraft is committed — stopping on remaining runway is no
-            // longer guaranteed, so reject the abort and let the takeoff
-            // continue. The controller has to issue a different instruction
-            // (heading/altitude override post-rotation) instead.
+            // Abort takeoff during ground roll (7110.65 §3-9-11 — mid-roll only for safety).
+            // Past V1 (≈ Vr − 5 kts, compared in INDICATED — the on-ground IAS field carries
+            // groundspeed, so a headwind moves the gate) the aircraft is committed and the
+            // pilot answers "unable" — unless a blocking occupant ahead cannot be overflown, in
+            // which case continuing means a certain collision and the pilot rejects anyway
+            // (AIM 4-4-1.a; 14 CFR 91.3(a) — the pilot in command is the final authority).
             var cat = AircraftCategorization.Categorize(aircraft.AircraftType);
             double v1 = AircraftPerformance.DecisionSpeed(aircraft.AircraftType, cat);
-            if (aircraft.IndicatedAirspeed >= v1)
+            double indicated = GroundFrame.IasForGroundSpeed(aircraft, aircraft.IndicatedAirspeed);
+            AircraftState? blocked = null;
+            double blockedDistanceFt = double.MaxValue;
+            if ((indicated >= v1) && !RejectedTakeoff.TryFindBlockedBeyondOverfly(aircraft, cat, ctx, out blocked, out blockedDistanceFt))
             {
-                return new CommandResult(false, $"Past V1 ({v1:F0} kts) — committed to takeoff, cannot abort");
+                return new CommandResult(false, $"Unable — past V1 ({v1:F0} kts), continuing the takeoff");
             }
 
-            var ctx = CommandDispatcher.BuildMinimalContext(aircraft);
-            aircraft.Phases?.Clear(ctx);
-            aircraft.Phases = null;
-            aircraft.Targets.TargetSpeed = 0;
-            aircraft.Targets.AssignedAltitude = null;
-            return CommandDispatcher.Ok("Abort takeoff, hold position");
+            var reject = RejectedTakeoff.Install(CommandDispatcher.BuildMinimalContext(aircraft, ctx.GroundLayout));
+            if ((reject is not null) && (blocked is not null))
+            {
+                RejectedTakeoff.WarnIfCannotStopShort(aircraft, cat, blocked, blockedDistanceFt, reject);
+            }
+
+            return CommandDispatcher.Ok($"Abort takeoff, hold position{CommandDispatcher.RunwayLabel(aircraft)}");
+        }
+        if (currentPhase is TakeoffPhase)
+        {
+            return new CommandResult(false, "Aircraft is airborne — the takeoff clearance is complete");
+        }
+        if (currentPhase is HelicopterTakeoffPhase heloTakeoff)
+        {
+            return CancelHelicopterTakeoff(aircraft, heloTakeoff);
         }
         return new CommandResult(false, "No takeoff clearance to cancel");
+    }
+
+    /// <summary>
+    /// CTOC during a helicopter's vertical liftoff. No V1 gate — §3-9-11's mid-roll restriction
+    /// is written on "started takeoff roll", which a rotorcraft never does (Vr = 0), so it can
+    /// stop its departure anywhere: barely off the ground it sets back down and holds in
+    /// position; established in the climb it stops where it is and hovers (the <c>CTOPP</c>
+    /// present-position-hover shape) awaiting instructions. Either way the takeoff clearance is
+    /// spent. Stated simplification: a stationary OGE hover between ~50 and 400 ft sits in the
+    /// height-velocity avoid region a real single would not park in — a real crew would return
+    /// to the pad or hold with forward airspeed; the hover reuses the existing CTOPP machinery.
+    /// </summary>
+    private static CommandResult CancelHelicopterTakeoff(AircraftState aircraft, HelicopterTakeoffPhase heloTakeoff)
+    {
+        if (aircraft.Phases is null)
+        {
+            return new CommandResult(false, "No takeoff clearance to cancel");
+        }
+
+        heloTakeoff.SetAssignedDeparture(null);
+        aircraft.Targets.AssignedAltitude = null;
+        var heloCtx = CommandDispatcher.BuildMinimalContext(aircraft);
+
+        double fieldElevation =
+            aircraft.Phases.AssignedRunway?.ElevationFt ?? CommandDispatcher.ResolveFieldElevation(aircraft, aircraft.Ground.Layout);
+        double agl = aircraft.Altitude - fieldElevation;
+        const double SetDownAglFt = 50.0;
+        if (agl < SetDownAglFt)
+        {
+            // Barely lifted: set back down on the spot and hold.
+            aircraft.IsOnGround = true;
+            aircraft.Altitude = fieldElevation;
+            aircraft.IndicatedAirspeed = 0;
+            aircraft.Phases.ReplaceUpcoming([new HoldingInPositionPhase()]);
+            aircraft.Phases.AdvanceToNext(heloCtx);
+            FlightPhysics.NotifyPhaseAdvanced(aircraft);
+            return CommandDispatcher.Ok("Takeoff clearance cancelled, setting down and holding position");
+        }
+
+        // Established in the vertical climb: stop here and hover until the next instruction.
+        heloTakeoff.CompletionAgl = agl;
+        aircraft.Phases.ReplaceUpcoming([new VfrHoldPhase { OrbitDirection = null }]);
+        return CommandDispatcher.Ok("Takeoff clearance cancelled, holding hover");
     }
 
     /// <summary>

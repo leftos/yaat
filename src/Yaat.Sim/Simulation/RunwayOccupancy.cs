@@ -200,6 +200,7 @@ public static class RunwayOccupancy
             TakeoffPhase => RunwayUseKind.Departing,
             LandingPhase or HelicopterLandingPhase => ac.IsOnGround ? RunwayUseKind.OnSurface : RunwayUseKind.Landing,
             LineUpPhase or LinedUpAndWaitingPhase or StopAndGoPhase or TouchAndGoPhase => RunwayUseKind.OnSurface,
+            RejectedTakeoffPhase => RunwayUseKind.OnSurface,
             RunwayExitPhase { IsOnCenterline: true } => RunwayUseKind.OnSurface,
             HoldingInPositionPhase when (runway is not null) && IsOnPavement(ac, runway) => RunwayUseKind.OnSurface,
             _ => null,
@@ -347,7 +348,8 @@ public static class RunwayOccupancy
         return DistanceToLandingThresholdNm(ac, runway, layout) / groundSpeed * 3600.0;
     }
 
-    private static bool IsWithinPavement(LatLon position, RunwayInfo runway)
+    /// <summary>A position within the runway half-width plus <see cref="LateralSlackFt"/> of the centerline segment.</summary>
+    public static bool IsWithinPavement(LatLon position, RunwayInfo runway)
     {
         double distFt = GeoMath.DistanceToSegmentFt(position, new LatLon(runway.Lat1, runway.Lon1), new LatLon(runway.Lat2, runway.Lon2));
         return distFt <= (runway.WidthFt / 2.0) + LateralSlackFt;

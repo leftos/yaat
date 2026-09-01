@@ -450,6 +450,7 @@ public sealed class PhaseList
             StopAndGoPhaseDto d => StopAndGoPhase.FromSnapshot(d),
             TouchAndGoPhaseDto d => TouchAndGoPhase.FromSnapshot(d),
             TakeoffPhaseDto d => TakeoffPhase.FromSnapshot(d),
+            RejectedTakeoffPhaseDto d => RejectedTakeoffPhase.FromSnapshot(d),
             InitialClimbPhaseDto d => InitialClimbPhase.FromSnapshot(d),
             LineUpPhaseDto d => LineUpPhase.FromSnapshot(d),
             LinedUpAndWaitingPhaseDto d => LinedUpAndWaitingPhase.FromSnapshot(d),

@@ -269,6 +269,7 @@ public sealed class PatternWaypointsDto
 [JsonDerivedType(typeof(StopAndGoPhaseDto), "StopAndGo")]
 [JsonDerivedType(typeof(TouchAndGoPhaseDto), "TouchAndGo")]
 [JsonDerivedType(typeof(TakeoffPhaseDto), "Takeoff")]
+[JsonDerivedType(typeof(RejectedTakeoffPhaseDto), "RejectedTakeoff")]
 [JsonDerivedType(typeof(InitialClimbPhaseDto), "InitialClimb")]
 [JsonDerivedType(typeof(LineUpPhaseDto), "LineUp")]
 [JsonDerivedType(typeof(LinedUpAndWaitingPhaseDto), "LinedUpAndWaiting")]
@@ -662,6 +663,18 @@ public sealed class TakeoffPhaseDto : PhaseDto
     public required double ThresholdLat { get; init; }
     public required double ThresholdLon { get; init; }
     public DepartureInstructionDto? Departure { get; init; }
+}
+
+public sealed class RejectedTakeoffPhaseDto : PhaseDto
+{
+    public required double ReactionRemainingSeconds { get; init; }
+    public required double RunwayHeadingDeg { get; init; }
+    public required double ThresholdLat { get; init; }
+    public required double ThresholdLon { get; init; }
+    public required double PavementLengthFt { get; init; }
+    public required bool OverrunReported { get; init; }
+    public required bool AutoTriggered { get; init; }
+    public string? CannotStopShortOf { get; init; }
 }
 
 public sealed class InitialClimbPhaseDto : PhaseDto

@@ -107,6 +107,13 @@ public sealed class TakeoffPhase : Phase
 
     private bool TickGroundRoll(PhaseContext ctx)
     {
+        // A blocking occupant ahead can end the roll before Vr: the reject installs its own
+        // phases (RejectedTakeoffPhase → HoldingInPositionPhase) and this phase is over.
+        if (RejectedTakeoff.TryTrigger(ctx))
+        {
+            return false;
+        }
+
         // Steer toward runway centerline
         double signedXte = GeoMath.SignedCrossTrackDistanceNm(ctx.Aircraft.Position, new LatLon(_thresholdLat, _thresholdLon), _runwayHeading);
         double correction = Math.Clamp(signedXte * CenterlineGainDegPerNm, -MaxCenterlineCorrectionDeg, MaxCenterlineCorrectionDeg);

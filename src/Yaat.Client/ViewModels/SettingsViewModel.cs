@@ -216,6 +216,9 @@ public partial class SettingsViewModel : ObservableObject
     private bool _autoGoAroundOnOccupiedRunway;
 
     [ObservableProperty]
+    private bool _autoRejectTakeoffOnOccupiedRunway;
+
+    [ObservableProperty]
     private int _selectedVfrCommandsForIfrIndex;
 
     [ObservableProperty]
@@ -680,6 +683,7 @@ public partial class SettingsViewModel : ObservableObject
         _autoCrossRunway = _preferences.AutoCrossRunway;
         _autoPullUpToParallel = _preferences.AutoPullUpToParallel;
         _autoGoAroundOnOccupiedRunway = _preferences.AutoGoAroundOnOccupiedRunway;
+        _autoRejectTakeoffOnOccupiedRunway = _preferences.AutoRejectTakeoffOnOccupiedRunway;
         _selectedVfrCommandsForIfrIndex = (int)_preferences.VfrCommandsForIfr;
         _soloTrainingMode = _preferences.SoloTrainingMode;
         _soloGoAroundProbabilityPercent = _preferences.SoloGoAroundProbabilityPercent;
@@ -863,7 +867,8 @@ public partial class SettingsViewModel : ObservableObject
             AutoClearedToLandCtr,
             AutoCrossRunway,
             AutoPullUpToParallel,
-            AutoGoAroundOnOccupiedRunway
+            AutoGoAroundOnOccupiedRunway,
+            AutoRejectTakeoffOnOccupiedRunway
         );
         _preferences.SetVfrCommandsForIfr((VfrCommandsForIfr)SelectedVfrCommandsForIfrIndex);
         _preferences.SetAircraftSelectKey(_aircraftSelectKeyName);
