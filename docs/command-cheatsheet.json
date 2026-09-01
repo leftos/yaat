@@ -76,7 +76,7 @@
       "id": "transponder",
       "name": "Transponder",
       "rows": [
-        { "verb": "SQ", "aliases": ["squawk"], "description": "Squawk code (random if bare)" },
+        { "verb": "SQ", "aliases": ["squawk"], "description": "Squawk code (assigned if bare)" },
         { "verb": "SQVFR", "aliases": ["sqv"], "description": "Squawk VFR (1200)" },
         { "verb": "SQNORM", "aliases": ["sn", "sqa", "sqon"], "description": "Squawk normal" },
         { "verb": "SQSBY", "aliases": ["ss", "sqs"], "description": "Squawk standby" },

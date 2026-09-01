@@ -1,6 +1,12 @@
 # Changelog
 
-## Unreleased
+## v0.12.23-beta [2026/08/31]
+
+### Highlights
+- An aircraft cleared for takeoff no longer taxis through traffic holding in position on the runway — it stops behind and departs once clear, and `CTO` warns about the conflict up front.
+- Chained commands are hardened: a failure mid-line discards the rest with a warning, holds warn that trailing commands wait, and sim-control commands are rejected in chains — with a new plain-language chaining walkthrough in the user guide.
+- The `ADD` command's `@` position autocompletes the primary airport's parking, helipad, and spot names.
+- Live traffic (internal testing): shadows show their real-world controllers — ownership, handoffs, scratchpads, leader lines, beacon codes — and live sessions gain traffic filters. (#408 window-restore fix also ships.)
 
 ### Added
 - Live traffic (internal testing): shadows show their real-world controllers — feed ownership, pending handoffs, scratchpads, leader lines, assigned beacon codes and point-outs; TRACK/ASSUME take over silently.
@@ -21,6 +27,7 @@
 - Sim-control commands (`PAUSE`, `SPAWN`, `SIMRATE`, ...) in a chain are rejected with a clear error instead of silently doing nothing.
 - `CASUP` (conflict-alert pair suppression) works when typed live, not just in replays.
 - `HOLDP` documentation shows the argument order the parser accepts (`fix inbound leg turn`).
+- The in-app command cheatsheet no longer claims bare `SQ` squawks a random code — it returns the aircraft to its assigned code.
 - A window that opens offset from where it was saved (reported as the edge-snapped main window drifting off the left screen edge on the day's first launch) snaps back to its saved spot right after opening, and the client log now records every window restore, save, and early move for diagnosis. (#408)
 
 ## v0.12.22-beta [2026/08/30]
