@@ -222,6 +222,7 @@ internal static class AddCommandSuggester
             if (partial.StartsWith('@'))
             {
                 var spotPartial = partial.Length > 1 ? partial[1..] : "";
+                TryAddFrdPreview(fullText, activeTokenStart, activeTokenEnd, spotPartial, suggestions);
                 AddParkingSuggestions(fullText, activeTokenStart, activeTokenEnd, spotPartial, suggestions, parkingNames, maxSuggestions);
             }
             else if (partial.Contains('.'))
@@ -262,7 +263,19 @@ internal static class AddCommandSuggester
         }
         else if (isFixVariant)
         {
-            if (completedArgs >= 5)
+            if (completedArgs == 4 && IsCompleteFrdToken(words[4][1..]))
+            {
+                AddAddOptions(
+                    fullText,
+                    activeTokenStart,
+                    activeTokenEnd,
+                    partial,
+                    suggestions,
+                    maxSuggestions,
+                    ("{altitude}", "Required — hundreds of feet (035 = 3500 ft), literal feet (3500), or AGL (KOAK+010)")
+                );
+            }
+            else if (completedArgs >= 5)
             {
                 AddTypeAndAirlineOverrides(words, fullText, activeTokenStart, activeTokenEnd, partial, suggestions, maxSuggestions);
             }
@@ -394,6 +407,77 @@ internal static class AddCommandSuggester
                 }
             );
         }
+    }
+
+    /// <summary>
+    /// Live validation row for a fix/radial/distance position being typed after <c>@</c> (e.g. a
+    /// pasted radar-scope "Copy FRD" string). Shows the parsed breakdown when the anchor fix
+    /// resolves, and what is missing or wrong otherwise. A radial-only token whose anchor is not a
+    /// known fix is left to the parking suggestions — spot names like "GA101" parse as fix+radial
+    /// too.
+    /// </summary>
+    private static void TryAddFrdPreview(
+        string fullText,
+        int activeTokenStart,
+        int activeTokenEnd,
+        string spotPartial,
+        ObservableCollection<SuggestionItem> suggestions
+    )
+    {
+        var parsed = FrdResolver.ParseFrd(spotPartial);
+        if (parsed is not { Radial: int radial })
+        {
+            return;
+        }
+
+        var upperFix = parsed.Value.Fix.ToUpperInvariant();
+        int? distance = parsed.Value.Distance;
+        bool fixKnown = NavigationDatabase.Instance.GetFixPosition(upperFix) is not null;
+
+        string description;
+        if (!fixKnown)
+        {
+            if (distance is null)
+            {
+                return;
+            }
+
+            description = $"FRD — fix '{upperFix}' not found in navdata";
+        }
+        else if (radial is < 1 or > 360)
+        {
+            description = "FRD — radial must be 001–360";
+        }
+        else if (distance is null)
+        {
+            description = $"FRD {upperFix} {radial:000}°M — add a 3-digit distance (e.g. {upperFix}{radial:000}010)";
+        }
+        else
+        {
+            description = $"FRD — {upperFix} {radial:000}°M / {distance.Value} nm; add {{altitude}} to spawn here";
+        }
+
+        var token = "@" + spotPartial.ToUpperInvariant();
+        var (insertText, caret) = CommandInputController.BuildTokenReplacement(fullText, activeTokenStart, activeTokenEnd, token);
+        suggestions.Add(
+            new SuggestionItem
+            {
+                Kind = SuggestionKind.Command,
+                Text = token,
+                Description = description,
+                InsertText = insertText,
+                CaretAfterInsert = caret,
+            }
+        );
+    }
+
+    /// <summary>
+    /// True when the <c>@</c>-stripped position token is a complete fix/radial/distance string, so
+    /// the next slot must be the spawn altitude rather than a type/airline override.
+    /// </summary>
+    private static bool IsCompleteFrdToken(string token)
+    {
+        return FrdResolver.ParseFrd(token) is { Radial: not null, Distance: not null };
     }
 
     private static void AddArrivalRouteSuggestions(

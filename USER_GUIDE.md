@@ -1605,6 +1605,7 @@ As you type in the command bar, a popup appears with matching suggestions:
   - **Runway designators** — for ELD, ERD, EF, CROSS, CLAND, LAHSO, CVA
   - **Fix names** — for DCT, DCTF, HFIX, CFIX, DEPART, AT conditions
   - **Parking spots** — for the ADD command's `@` position, offering the primary airport's parking/helipad/spot names
+  - **FRD preview** — typing a fix/radial/distance after ADD's `@` (e.g. a pasted Copy FRD string) shows a live breakdown — anchor fix, radial, distance — flags an unknown fix or out-of-range radial, and reminds you of the required altitude
 - **Macros** (yellow) — when typing `!`, matching macro names with parameter hints
 
 Once you've typed part of a value, the top match is highlighted automatically — pressing **Tab** (or **Enter**, with the auto-expand setting on) inserts it. At an empty insertion point (e.g. after `EXT` + space) nothing is pre-highlighted, so Enter sends the command as typed.

@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+### Added
+- Typing a fix/radial/distance after `ADD`'s `@` shows a live preview — parsed breakdown, unknown-fix and radial-range validation, and a required-altitude hint.
+
 ### Fixed
 - `ADD` with a pasted Copy FRD position now redirects to the working form — `@{FRD} {altitude}` — instead of a generic bearing or runway error.
 - `ADD` signature help lists every position variant — at fix/FRD, parking, on runway, on final, departure with route — not just bearing and STAR arrival.
