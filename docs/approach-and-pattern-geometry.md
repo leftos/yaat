@@ -85,7 +85,21 @@ departure half. Full datum table: [`landing-and-runway-exit.md`](landing-and-run
 **Size/altitude resolution.** `ResolveAuthoredOverrides` (`PatternGeometry.cs:152`) composes a command override
 (e.g. TPA/PSIZE) over the airport-authored `GroundRunway` data: command wins, then authored data fills in.
 Authored `PatternAltitudeAglFt` is interpreted as **feet AGL above field elevation** and translated to MSL via
-`runway.AirportElevationFt`. When a size override is applied, only `BaseExtensionNm` scales **proportionally** by
+`runway.AirportElevationFt` — but it is the airport's *established* pattern altitude, and the AIM 4-3-3.a
+category rule is applied to it rather than taking it verbatim: turbine aircraft (Jet/Turboprop) fly
+**authored + 500** (AIM 4-3-3.a.2), helicopters stay at or below their absolute **500 AGL** (AIM 4-3-3.a.3),
+props fly it as published. With no authored value the category defaults apply (prop 1,000; turbine 1,500;
+helicopter 500). A command TPA override wins verbatim for every category — every altitude is flyable, so unlike
+the pattern-size flyability floor there is no clamp.
+
+**Past-abeam descent target.** The downwind's past-abeam descent and `BasePhase`'s circuit-entry target both aim
+at the **glideslope-intercept altitude at the base-to-final rollout point** — the base extension actually flown
+plus one turn radius from the threshold (`GlideSlopeGeometry.AltitudeAtDistance`), capped at the current
+altitude. This replaced the old fixed fractions (60% of TPA on downwind, 50% on a waypoint-less base entry),
+which stopped tracking the glide path once the flyability floor decoupled pattern width from TPA. The
+extended-downwind `_altitudeFloor` uses the same rollout-distance expression (the aircraft flies base + final,
+not the base-turn-to-threshold diagonal). AIM FIG 4-3-2 key 2: pattern altitude to abeam, then a continuous
+descent. When a size override is applied, only `BaseExtensionNm` scales **proportionally** by
 `patternSize / defaultSize` (a smaller pattern has a tighter base leg); the crosswind turn stays anchored at the
 DER. The resolved size is carried on `PatternWaypoints.PatternSizeNm` so the downwind/base descent geometry uses
 the actual offset, not the bare category default. Pattern altitude defaults to
@@ -185,11 +199,12 @@ altitude. Its triggers are all measured as along-track distance from the thresho
 - **Abeam detection / descent start** (`DownwindPhase.cs:199`): when `aircraftAlongTrack ≥ _abeamAlongTrack − tol`,
   it sets `_pastAbeam`, calls `ApplyPastAbeamDescentTargets`, and begins decelerating from `DownwindSpeed` toward
   `BaseSpeed`.
-- **Past-abeam descent target** (`ApplyPastAbeamDescentTargets`, `DownwindPhase.cs:379`): for a normal pattern,
-  the mid-altitude target is **60 % of the way** from threshold elevation up to pattern altitude
-  (`thresholdElev + (TPA − thresholdElev)·0.6`); the **altitude floor** for an extended downwind is the
-  glideslope-intercept altitude at the diagonal distance `sqrt(patternSize² + baseExt²)` from the base-turn point
-  to the threshold, via `GlideSlopeGeometry.FeetPerNm`.
+- **Past-abeam descent target** (`ApplyPastAbeamDescentTargets`): for a normal pattern, the target is the
+  **glideslope-intercept altitude at the base-to-final rollout point** — the base extension actually flown plus
+  one turn radius from the threshold (`GlideSlopeGeometry.AltitudeAtDistance`), capped at the current altitude.
+  The **altitude floor** for an extended/held downwind is recomputed per tick from the aircraft's own along-track
+  position (`min(TPA, glide altitude at position + turn radius)`), so a long extension levels back at pattern
+  altitude rather than pinning to the nominal base-turn geometry.
 - **Base-turn trigger / completion** (`DownwindPhase.cs:286`): completes when
   `aircraftAlongTrack ≥ _baseTurnAlongTrack − tol`.
 - **Midfield broadcast** (`DownwindPhase.cs:166`): at half the abeam along-track, if no landing clearance, the

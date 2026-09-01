@@ -760,6 +760,7 @@ internal static class DepartureClearanceHandler
         var (sizeOv, altOv) = PatternGeometry.ResolveAuthoredOverrides(
             patternRunway,
             authoredPatternRunway,
+            cat,
             aircraft.Pattern.SizeOverrideNm,
             aircraft.Pattern.AltitudeOverrideFt
         );
@@ -866,6 +867,7 @@ internal static class DepartureClearanceHandler
         var (sizeOv, altOv) = PatternGeometry.ResolveAuthoredOverrides(
             runway,
             authoredRunway,
+            cat,
             aircraft.Pattern.SizeOverrideNm,
             aircraft.Pattern.AltitudeOverrideFt
         );

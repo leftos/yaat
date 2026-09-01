@@ -116,45 +116,50 @@ public sealed class BasePhase : Phase
         // final, so rollout is at (finalDist + r) from the threshold.
         double descentRate = CategoryPerformance.PatternDescentRate(ctx.Category);
         double thresholdElev = ctx.Runway?.ElevationFt ?? ctx.FieldElevation;
-        double targetAlt;
+        double plannedSpeedKt = PlannedSpeedKt(ctx.Aircraft, ctx.Category);
+        double turnRadiusNm = TurnRadiusNm(plannedSpeedKt, ctx.Category);
 
-        if (FinalDistanceNm is { } finalDist)
-        {
-            // Aim for the 3° glide-slope altitude at rollout — stabilizes the
-            // aircraft on the glide path the moment it rolls out on final,
-            // regardless of whether base is short (SA-shortened, steep descent)
-            // or long (extended base, no descent needed). Never aim higher
-            // than current altitude — controllers issuing ELB/ERB to an
-            // aircraft already below GS expect them to maintain or descend,
-            // not climb.
-            double plannedSpeedKt = PlannedSpeedKt(ctx.Aircraft, ctx.Category);
-            double turnRadiusNm = TurnRadiusNm(plannedSpeedKt, ctx.Category);
-            double rolloutDistNm = finalDist + turnRadiusNm;
-            double gsAlt = GlideSlopeGeometry.AltitudeAtDistance(rolloutDistNm, thresholdElev, ctx.Category);
-            targetAlt = Math.Min(ctx.Aircraft.Altitude, gsAlt);
-
-            // Spread the descent over the base leg actually ahead: the aircraft's present
-            // cross-track from the final centerline. After a downwind that is the pattern
-            // width; for a present-position entry (ERB with no distance, pattern retarget) it
-            // is wherever the aircraft happens to be — sizing by the nominal width there dove
-            // at the nominal rate and levelled off short of the turn.
-            double deltaAlt = Math.Max(ctx.Aircraft.Altitude - targetAlt, 0);
-            double baseLen = Math.Max(
-                Math.Abs(GeoMath.SignedCrossTrackDistanceNm(ctx.Aircraft.Position, new LatLon(_thresholdLat, _thresholdLon), _finalHeading)),
+        // Circuit entry (downwind→base) carries no explicit FinalDistanceNm; derive it from
+        // the aircraft's own along-track distance from the threshold along the final course.
+        // At a normal circuit's base turn that equals the base extension; after an extended
+        // downwind (TB well past the base-turn point) it reads how far out the aircraft
+        // actually is, so the rollout aim doesn't assume the nominal geometry. Floored at one
+        // turn radius so a degenerate position can't shrink the aim inside the turn itself.
+        double finalDist =
+            FinalDistanceNm
+            ?? Math.Max(
+                GeoMath.AlongTrackDistanceNm(
+                    ctx.Aircraft.Position,
+                    new LatLon(Waypoints.ThresholdLat, Waypoints.ThresholdLon),
+                    Waypoints.FinalHeading.ToReciprocal()
+                ),
                 turnRadiusNm
             );
-            double timeMin = baseLen / (plannedSpeedKt / 60.0);
-            double computedRate = timeMin > 0 ? deltaAlt / timeMin : descentRate;
-            descentRate = Math.Clamp(computedRate, descentRate, MaxDescentRateFpm(plannedSpeedKt, ctx.Category));
-        }
-        else
-        {
-            // Wrong-side / midfield-crossing entry: BasePhase runs after a
-            // downwind leg, so aircraft is already at TPA and finalDist is
-            // not known up front. Fall back to halfway-between-pattern-and-
-            // threshold heuristic.
-            targetAlt = thresholdElev + (Waypoints.PatternAltitude - thresholdElev) * 0.5;
-        }
+
+        // Aim for the 3° glide-slope altitude at rollout — stabilizes the
+        // aircraft on the glide path the moment it rolls out on final,
+        // regardless of whether base is short (SA-shortened, steep descent)
+        // or long (extended base, no descent needed). Never aim higher
+        // than current altitude — controllers issuing ELB/ERB to an
+        // aircraft already below GS expect them to maintain or descend,
+        // not climb.
+        double rolloutDistNm = finalDist + turnRadiusNm;
+        double gsAlt = GlideSlopeGeometry.AltitudeAtDistance(rolloutDistNm, thresholdElev, ctx.Category);
+        double targetAlt = Math.Min(ctx.Aircraft.Altitude, gsAlt);
+
+        // Spread the descent over the base leg actually ahead: the aircraft's present
+        // cross-track from the final centerline. After a downwind that is the pattern
+        // width; for a present-position entry (ERB with no distance, pattern retarget) it
+        // is wherever the aircraft happens to be — sizing by the nominal width there dove
+        // at the nominal rate and levelled off short of the turn.
+        double deltaAlt = Math.Max(ctx.Aircraft.Altitude - targetAlt, 0);
+        double baseLen = Math.Max(
+            Math.Abs(GeoMath.SignedCrossTrackDistanceNm(ctx.Aircraft.Position, new LatLon(_thresholdLat, _thresholdLon), _finalHeading)),
+            turnRadiusNm
+        );
+        double timeMin = baseLen / (plannedSpeedKt / 60.0);
+        double computedRate = timeMin > 0 ? deltaAlt / timeMin : descentRate;
+        descentRate = Math.Clamp(computedRate, descentRate, MaxDescentRateFpm(plannedSpeedKt, ctx.Category));
 
         ctx.Targets.DesiredVerticalRate = -descentRate;
         ctx.Targets.TargetAltitude = targetAlt;

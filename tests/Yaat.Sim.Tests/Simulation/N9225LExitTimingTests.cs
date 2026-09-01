@@ -84,7 +84,9 @@ public class N9225LExitTimingTests(ITestOutputHelper output)
 
         output.WriteLine($"N9225L exit taxiway={exitTaxiway ?? "(none)"} stopped@={stopSecond?.ToString() ?? "n/a"} maxFloorRun={maxFloorRun}s");
 
-        Assert.Equal("G", exitTaxiway);
+        // E is the first exit past the touchdown point now that the pattern descent rolls out
+        // on the glide path (issue #412 follow-up) instead of arriving high and floating to G.
+        Assert.Equal("E", exitTaxiway);
         Assert.NotNull(stopSecond);
         Assert.True(
             maxFloorRun <= MaxConsecutiveReacquireFloorSeconds,

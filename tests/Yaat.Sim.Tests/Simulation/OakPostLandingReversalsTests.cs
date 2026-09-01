@@ -224,7 +224,8 @@ public class OakPostLandingReversalsTests(ITestOutputHelper output)
 
             // Anchor on STATE, not the clock (see N9225L_TaxiD_AtNEW1_HasNoReversals): replay to just
             // before the recorded taxi, then tick (which does not fire recorded commands) until N9225L
-            // settles into HoldingAfterExit — a deterministic position off the runway on G.
+            // settles into HoldingAfterExit — a deterministic position off the runway (exit E since
+            // the issue #412 descent fix put the touchdown at the aiming point).
             engine.Replay(recording, 423);
 
             var ac = engine.FindAircraft("N9225L");
@@ -247,10 +248,10 @@ public class OakPostLandingReversalsTests(ITestOutputHelper output)
             var segments = ac.Ground.AssignedTaxiRoute.Segments;
             output.WriteLine($"N9225L AssignedTaxiRoute: {segments.Count} segments, {ac.Ground.AssignedTaxiRoute.TotalDistanceNm:F2} nm");
 
-            // The wrong-way loop's signature is threading taxiway E and re-crossing runway 28R/10L on
-            // the way to NEW1. The direct route is G → D → ramp; C is only touched at the interchange.
+            // The wrong-way loop's signature is re-crossing runway 28R/10L (or reversing) on the
+            // way to NEW1. Exiting at E, the direct route legitimately starts on E before joining
+            // C/D, so only the runway-crossing and reversal signatures identify the bad probe.
             Assert.DoesNotContain(segments, s => s.Edge.Edge.IsRunwayCenterline);
-            Assert.DoesNotContain(segments, s => s.TaxiwayName == "E");
             Assert.Equal(0, CountReversals(segments));
 
             TickUntilAtParking(engine, "N9225L", maxTicks: 600);

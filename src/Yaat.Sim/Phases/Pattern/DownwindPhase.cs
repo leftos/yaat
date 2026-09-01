@@ -290,13 +290,16 @@ public sealed class DownwindPhase : Phase
 
         if (IsExtended)
         {
-            // Level off at the glideslope intercept altitude so the
-            // aircraft doesn't descend below a normal approach path
-            // while waiting for the TB command.
-            if (_pastAbeam && ctx.Aircraft.Altitude <= _altitudeFloor)
+            // Level off at the glideslope altitude for the aircraft's actual position so it
+            // doesn't descend below a normal approach path while waiting for the TB command.
+            if (_pastAbeam)
             {
-                ctx.Targets.TargetAltitude = _altitudeFloor;
-                ctx.Targets.DesiredVerticalRate = null;
+                _altitudeFloor = ExtendedDownwindFloor(ctx, aircraftAlongTrack);
+                if (ctx.Aircraft.Altitude <= _altitudeFloor)
+                {
+                    ctx.Targets.TargetAltitude = _altitudeFloor;
+                    ctx.Targets.DesiredVerticalRate = null;
+                }
             }
 
             return false;
@@ -332,10 +335,14 @@ public sealed class DownwindPhase : Phase
                 _followExtensionWarningIssued = true;
             }
 
-            if (_pastAbeam && ctx.Aircraft.Altitude <= _altitudeFloor)
+            if (_pastAbeam)
             {
-                ctx.Targets.TargetAltitude = _altitudeFloor;
-                ctx.Targets.DesiredVerticalRate = null;
+                _altitudeFloor = ExtendedDownwindFloor(ctx, aircraftAlongTrack);
+                if (ctx.Aircraft.Altitude <= _altitudeFloor)
+                {
+                    ctx.Targets.TargetAltitude = _altitudeFloor;
+                    ctx.Targets.DesiredVerticalRate = null;
+                }
             }
 
             return false;
@@ -441,12 +448,12 @@ public sealed class DownwindPhase : Phase
             >= _baseTurnAlongTrack - AlongTrackToleranceNm;
 
     /// <summary>
-    /// Computes the mid-altitude target, vertical rate, and altitude floor for the
-    /// past-abeam descent and writes them onto <paramref name="ctx"/>. Branches on
-    /// <see cref="ShortApproachArmed"/>: normal pattern uses 60% TPA midpoint and the
-    /// category default rate; SA uses the GS-intercept altitude implied by
-    /// <see cref="CategoryPerformance.MinShortApproachFinalNm"/> with a steeper rate
-    /// derived from the remaining downwind distance and current ground speed.
+    /// Computes the descent target, vertical rate, and altitude floor for the past-abeam
+    /// descent and writes them onto <paramref name="ctx"/>. Branches on
+    /// <see cref="ShortApproachArmed"/>: a normal pattern aims at the glideslope-intercept
+    /// altitude at the base-to-final rollout point at the category default rate; SA uses the
+    /// GS-intercept altitude implied by <see cref="CategoryPerformance.MinShortApproachFinalNm"/>
+    /// with a steeper rate derived from the remaining downwind distance and current ground speed.
     /// Called both at abeam-detect (OnTick) and live SA/MNA (Apply/RemoveShortApproach).
     /// </summary>
     private void ApplyPastAbeamDescentTargets(PhaseContext ctx, double aircraftAlongTrack)
@@ -464,6 +471,7 @@ public sealed class DownwindPhase : Phase
         double midAlt;
         double baseExtForFloor;
         double descentRate;
+        double turnRadiusNm = BasePhase.TurnRadiusNm(BasePhase.PlannedSpeedKt(ctx.Aircraft, ctx.Category), ctx.Category);
 
         if (ShortApproachArmed)
         {
@@ -486,24 +494,43 @@ public sealed class DownwindPhase : Phase
         }
         else
         {
-            // Target: 60% of the way from threshold to pattern altitude
-            midAlt = thresholdElev + (Waypoints.PatternAltitude - thresholdElev) * 0.6;
-            // The extension the aircraft actually flies — PatternGeometry scales BaseExtensionNm
-            // by patternSize/defaultSize, so the bare category constant understates the diagonal
-            // whenever the size was resized (authored, PSIZE, or the flyability floor) and the
-            // extended-downwind altitude floor would sit below the real glideslope intercept.
+            // Aim at the glideslope-intercept altitude at the base-to-final rollout point —
+            // the extension actually flown (PatternGeometry scales BaseExtensionNm with the
+            // resized pattern) plus one turn radius from the threshold. This is the same aim
+            // point BasePhase stabilizes on: pattern altitude is held to abeam (AIM FIG 4-3-2
+            // key 2), then the descent tracks the glide path the rollout will capture,
+            // regardless of TPA. Never above the current altitude — an aircraft already
+            // below the intercept holds rather than climbs.
             baseExtForFloor = Math.Max(_baseTurnAlongTrack - _abeamAlongTrack, 0);
+            double gsInterceptAlt = GlideSlopeGeometry.AltitudeAtDistance(baseExtForFloor + turnRadiusNm, thresholdElev, ctx.Category);
+            midAlt = Math.Min(ctx.Aircraft.Altitude, gsInterceptAlt);
             descentRate = baseDescentRate;
         }
 
         ctx.Targets.TargetAltitude = midAlt;
         ctx.Targets.DesiredVerticalRate = -descentRate;
 
-        // Altitude floor for extended downwind: GS intercept altitude at the
-        // diagonal distance from base-turn point to threshold (uses the same
-        // geometry SA selects, so the floor is consistent with the descent target).
-        double finalApproachDist = Math.Sqrt(patternSize * patternSize + baseExtForFloor * baseExtForFloor);
-        _altitudeFloor = thresholdElev + finalApproachDist * GlideSlopeGeometry.FeetPerNm(gsAngle);
+        // Initial altitude floor: the descent target itself (never above it — an uncapped
+        // floor would command a climb the moment a hold engaged, e.g. a helicopter whose 6°
+        // intercept sits above its 500 AGL pattern). The extended/held-downwind branches in
+        // OnTick recompute the floor per tick from the aircraft's actual along-track position,
+        // so a long extension levels back at pattern altitude instead of pinning here.
+        _altitudeFloor = midAlt;
+    }
+
+    /// <summary>
+    /// Per-tick altitude floor for an extended or held-out downwind: the glideslope altitude
+    /// for the aircraft's own along-track position (plus one turn radius of anticipation),
+    /// capped at pattern altitude. A controller's "extend downwind, I'll call your base"
+    /// (7110.65 §3-8-1) expects the aircraft to hold height, not descend the nominal profile
+    /// toward a base turn that keeps moving away.
+    /// </summary>
+    private double ExtendedDownwindFloor(PhaseContext ctx, double aircraftAlongTrack)
+    {
+        double thresholdElev = ctx.Runway?.ElevationFt ?? ctx.FieldElevation;
+        double turnRadiusNm = BasePhase.TurnRadiusNm(BasePhase.PlannedSpeedKt(ctx.Aircraft, ctx.Category), ctx.Category);
+        double gsAlt = GlideSlopeGeometry.AltitudeAtDistance(Math.Max(aircraftAlongTrack, 0) + turnRadiusNm, thresholdElev, ctx.Category);
+        return Math.Min(Waypoints?.PatternAltitude ?? gsAlt, gsAlt);
     }
 
     public override CommandAcceptance CanAcceptCommand(CanonicalCommandType cmd)

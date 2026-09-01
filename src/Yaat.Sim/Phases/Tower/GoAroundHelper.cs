@@ -174,6 +174,7 @@ internal static class GoAroundHelper
         var (_, altitudeOverrideFt) = PatternGeometry.ResolveAuthoredOverrides(
             runway,
             layout?.FindRunway(runway.Designator),
+            ctx.Category,
             commandSizeNm: null,
             ctx.Aircraft.Pattern.AltitudeOverrideFt
         );

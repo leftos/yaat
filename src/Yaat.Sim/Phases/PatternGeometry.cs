@@ -171,12 +171,24 @@ public static class PatternGeometry
     /// override is set; otherwise the caller passes nulls and PatternGeometry.Compute falls back
     /// to the per-category default.
     ///
-    /// Authored <see cref="GroundRunway.PatternAltitudeAglFt"/> is interpreted as feet AGL above
-    /// field elevation and translated to MSL using <paramref name="runway"/>.ElevationFt.
+    /// Authored <see cref="GroundRunway.PatternAltitudeAglFt"/> is the airport's *established*
+    /// pattern altitude (feet AGL above field elevation) — the value the AIM 4-3-3.a category
+    /// rule is applied to, not a verbatim replacement: turbine aircraft fly 500 ft above it
+    /// (AIM 4-3-3.a.2 — of the clause's two figures, "established + 500" is read as the
+    /// general rule and "1,500 AGL" as its value at a standard 1,000 ft field; where a field
+    /// authors a low pattern the +500 keeps the turbine spread over the light traffic rather
+    /// than pushed into the airspace the low pattern exists to avoid), helicopters stay at or
+    /// below their absolute 500 AGL (AIM 4-3-3.a.3 — when a field authors below 500 the
+    /// helicopter ends up co-altitude with the aeroplane pattern, the accepted degenerate
+    /// case; a fixed 500 would put it above them, which is worse), and props fly it as
+    /// published. A command override is a controller instruction and wins verbatim for every
+    /// category — unlike the pattern-size flyability floor, every altitude is flyable, so
+    /// there is no clamp here.
     /// </summary>
     public static (double? SizeNm, double? AltitudeMslFt) ResolveAuthoredOverrides(
         RunwayInfo runway,
         GroundRunway? authoredRunway,
+        AircraftCategory category,
         double? commandSizeNm,
         double? commandAltitudeMslFt
     )
@@ -185,7 +197,15 @@ public static class PatternGeometry
         double? alt = commandAltitudeMslFt;
         if ((alt is null) && (authoredRunway?.PatternAltitudeAglFt is double agl))
         {
-            alt = runway.AirportElevationFt + agl;
+            double effectiveAgl = category switch
+            {
+                AircraftCategory.Jet or AircraftCategory.Turboprop => agl + 500,
+                AircraftCategory.Helicopter => Math.Min(CategoryPerformance.PatternAltitudeAgl(AircraftCategory.Helicopter), agl),
+                AircraftCategory.Piston => agl,
+                // Any future category defaults turbine-side, matching CategoryPerformance.PatternAltitudeAgl's default.
+                _ => agl + 500,
+            };
+            alt = runway.AirportElevationFt + effectiveAgl;
         }
         return (size, alt);
     }

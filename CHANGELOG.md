@@ -10,6 +10,8 @@
 - `ADD` with a pasted Copy FRD position now redirects to the working form — `@{FRD} {altitude}` — instead of a generic bearing or runway error.
 - `ADD` signature help lists every position variant — at fix/FRD, parking, on runway, on final, departure with route — not just bearing and STAR arrival.
 - Pattern-entry aircraft no longer overshoot the turn to final onto a parallel runway — pattern width now scales with the aircraft's turn radius.
+- Jets and turboprops fly the traffic pattern 500 ft above an airport's published pattern altitude (1,500 ft AGL by default); helicopters keep their 500 ft pattern.
+- Pattern descents aim at the glide-path intercept for the turn to final, so aircraft touch down at the aiming point, and an extended downwind holds altitude instead of sinking toward the nominal base turn.
 
 ## v0.12.23-beta [2026/08/31]
 

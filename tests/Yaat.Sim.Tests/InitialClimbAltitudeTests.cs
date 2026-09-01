@@ -127,7 +127,7 @@ public class InitialClimbAltitudeTests
     public void Vfr_NoCruise_UsesPatternAltitude_Turboprop()
     {
         double alt = RunResolve(new DefaultDeparture(), null, isVfr: true, cruiseAltitude: 0, AircraftCategory.Turboprop);
-        Assert.Equal(FieldElevation + 1000, alt);
+        Assert.Equal(FieldElevation + 1500, alt);
     }
 
     [Fact]

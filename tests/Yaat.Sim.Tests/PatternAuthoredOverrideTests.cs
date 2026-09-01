@@ -20,7 +20,13 @@ public class PatternAuthoredOverrideTests
     public void ResolveOverrides_NoCommandNoData_ReturnsNullPair()
     {
         var rwy = TestRunwayFactory.Make(elevationFt: 9);
-        var (size, alt) = PatternGeometry.ResolveAuthoredOverrides(rwy, authoredRunway: null, commandSizeNm: null, commandAltitudeMslFt: null);
+        var (size, alt) = PatternGeometry.ResolveAuthoredOverrides(
+            rwy,
+            authoredRunway: null,
+            AircraftCategory.Piston,
+            commandSizeNm: null,
+            commandAltitudeMslFt: null
+        );
         Assert.Null(size);
         Assert.Null(alt);
     }
@@ -32,7 +38,13 @@ public class PatternAuthoredOverrideTests
         var rwy = TestRunwayFactory.Make(elevationFt: 9);
         var authored = MakeAuthored(aglFt: 600, sizeNm: 0.5);
 
-        var (size, alt) = PatternGeometry.ResolveAuthoredOverrides(rwy, authored, commandSizeNm: null, commandAltitudeMslFt: null);
+        var (size, alt) = PatternGeometry.ResolveAuthoredOverrides(
+            rwy,
+            authored,
+            AircraftCategory.Piston,
+            commandSizeNm: null,
+            commandAltitudeMslFt: null
+        );
 
         Assert.Equal(0.5, size);
         Assert.Equal(609, alt);
@@ -44,7 +56,13 @@ public class PatternAuthoredOverrideTests
         var rwy = TestRunwayFactory.Make(elevationFt: 9);
         var authored = MakeAuthored(aglFt: 600, sizeNm: 0.5);
 
-        var (size, alt) = PatternGeometry.ResolveAuthoredOverrides(rwy, authored, commandSizeNm: 1.0, commandAltitudeMslFt: 1500);
+        var (size, alt) = PatternGeometry.ResolveAuthoredOverrides(
+            rwy,
+            authored,
+            AircraftCategory.Piston,
+            commandSizeNm: 1.0,
+            commandAltitudeMslFt: 1500
+        );
 
         Assert.Equal(1.0, size);
         Assert.Equal(1500, alt);
@@ -57,12 +75,24 @@ public class PatternAuthoredOverrideTests
         var authored = MakeAuthored(aglFt: 600, sizeNm: 0.5);
 
         // command altitude only — size falls through to authored
-        var (size1, alt1) = PatternGeometry.ResolveAuthoredOverrides(rwy, authored, commandSizeNm: null, commandAltitudeMslFt: 1500);
+        var (size1, alt1) = PatternGeometry.ResolveAuthoredOverrides(
+            rwy,
+            authored,
+            AircraftCategory.Piston,
+            commandSizeNm: null,
+            commandAltitudeMslFt: 1500
+        );
         Assert.Equal(0.5, size1);
         Assert.Equal(1500, alt1);
 
         // command size only — altitude falls through to authored
-        var (size2, alt2) = PatternGeometry.ResolveAuthoredOverrides(rwy, authored, commandSizeNm: 1.0, commandAltitudeMslFt: null);
+        var (size2, alt2) = PatternGeometry.ResolveAuthoredOverrides(
+            rwy,
+            authored,
+            AircraftCategory.Piston,
+            commandSizeNm: 1.0,
+            commandAltitudeMslFt: null
+        );
         Assert.Equal(1.0, size2);
         Assert.Equal(609, alt2);
     }
@@ -75,7 +105,13 @@ public class PatternAuthoredOverrideTests
         var rwy = TestRunwayFactory.Make(elevationFt: 9);
         var authored = MakeAuthored(aglFt: 600, sizeNm: null);
 
-        var (_, alt) = PatternGeometry.ResolveAuthoredOverrides(rwy, authored, commandSizeNm: null, commandAltitudeMslFt: null);
+        var (_, alt) = PatternGeometry.ResolveAuthoredOverrides(
+            rwy,
+            authored,
+            AircraftCategory.Piston,
+            commandSizeNm: null,
+            commandAltitudeMslFt: null
+        );
         var wp = PatternGeometry.Compute(
             rwy,
             AircraftCategory.Piston,

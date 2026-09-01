@@ -100,8 +100,8 @@ public class OakRunwayExitTooFarTests(ITestOutputHelper output)
 
         Assert.NotNull(lastTaxiway);
         Assert.True(
-            lastTaxiway is "G" or "H",
-            $"Expected exit at G or H for C172 landing on OAK 28R with no exit instruction, "
+            lastTaxiway is "E" or "G" or "H",
+            $"Expected an exit at/before H for C172 landing on OAK 28R with no exit instruction, "
                 + $"got {lastTaxiway}. AIM 4-3-21.1: exit at first available taxiway."
         );
     }

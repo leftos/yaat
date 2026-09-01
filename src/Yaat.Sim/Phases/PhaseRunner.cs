@@ -142,6 +142,7 @@ public static class PhaseRunner
                 var (sizeOv, altOv) = PatternGeometry.ResolveAuthoredOverrides(
                     runway,
                     authoredRunway,
+                    ctx.Category,
                     ctx.Aircraft.Pattern.SizeOverrideNm,
                     ctx.Aircraft.Pattern.AltitudeOverrideFt
                 );

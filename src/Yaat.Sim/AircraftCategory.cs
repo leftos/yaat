@@ -367,13 +367,19 @@ public static class CategoryPerformance
         };
     }
 
-    /// <summary>Traffic pattern altitude above field (feet AGL). Helicopter: 500ft per AIM §4-3-3.</summary>
+    /// <summary>
+    /// Traffic pattern altitude above field (feet AGL). AIM 4-3-3.a: propeller-driven 1,000
+    /// (a.1); large and turbine-powered 1,500 (a.2). A turboprop satisfies both clauses —
+    /// a.2 is the controlling one, per its "turbine-powered" wording, so every turboprop
+    /// flies the turbine figure. Helicopters 500 (a.3, an absolute figure, not relative to
+    /// the aeroplane TPA).
+    /// </summary>
     public static double PatternAltitudeAgl(AircraftCategory cat)
     {
         return cat switch
         {
             AircraftCategory.Jet => 1500,
-            AircraftCategory.Turboprop => 1000,
+            AircraftCategory.Turboprop => 1500,
             AircraftCategory.Piston => 1000,
             AircraftCategory.Helicopter => 500,
             _ => 1500,

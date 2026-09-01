@@ -235,6 +235,7 @@ internal static class PatternCommandHandler
                 var (sizeOv, altOv) = PatternGeometry.ResolveAuthoredOverrides(
                     runway,
                     (groundLayout ?? aircraft.Ground.Layout)?.FindRunway(runway.Designator),
+                    category,
                     aircraft.Pattern.SizeOverrideNm,
                     aircraft.Pattern.AltitudeOverrideFt
                 );
@@ -268,6 +269,7 @@ internal static class PatternCommandHandler
             var (sizeOvCi, altOvCi) = PatternGeometry.ResolveAuthoredOverrides(
                 runway,
                 (groundLayout ?? aircraft.Ground.Layout)?.FindRunway(runway.Designator),
+                category,
                 aircraft.Pattern.SizeOverrideNm,
                 aircraft.Pattern.AltitudeOverrideFt
             );
@@ -357,6 +359,7 @@ internal static class PatternCommandHandler
             var (sizeOvAa, altOvAa) = PatternGeometry.ResolveAuthoredOverrides(
                 runway,
                 (groundLayout ?? aircraft.Ground.Layout)?.FindRunway(runway.Designator),
+                category,
                 aircraft.Pattern.SizeOverrideNm,
                 aircraft.Pattern.AltitudeOverrideFt
             );
@@ -459,6 +462,7 @@ internal static class PatternCommandHandler
             var (sizeOv, altOv) = PatternGeometry.ResolveAuthoredOverrides(
                 runway,
                 (groundLayout ?? aircraft.Ground.Layout)?.FindRunway(runway.Designator),
+                category,
                 aircraft.Pattern.SizeOverrideNm,
                 aircraft.Pattern.AltitudeOverrideFt
             );
@@ -654,6 +658,7 @@ internal static class PatternCommandHandler
             var (sizeOv, altOv) = PatternGeometry.ResolveAuthoredOverrides(
                 runway,
                 (groundLayout ?? aircraft.Ground.Layout)?.FindRunway(runway.Designator),
+                category,
                 aircraft.Pattern.SizeOverrideNm,
                 aircraft.Pattern.AltitudeOverrideFt
             );
@@ -726,6 +731,7 @@ internal static class PatternCommandHandler
         var (circuitSizeOv, circuitAltOv) = PatternGeometry.ResolveAuthoredOverrides(
             runway,
             (groundLayout ?? aircraft.Ground.Layout)?.FindRunway(runway.Designator),
+            category,
             aircraft.Pattern.SizeOverrideNm,
             aircraft.Pattern.AltitudeOverrideFt
         );
@@ -950,6 +956,7 @@ internal static class PatternCommandHandler
         var (sizeOv, altOv) = PatternGeometry.ResolveAuthoredOverrides(
             runway,
             (groundLayout ?? aircraft.Ground.Layout)?.FindRunway(runway.Designator),
+            category,
             aircraft.Pattern.SizeOverrideNm,
             aircraft.Pattern.AltitudeOverrideFt
         );
@@ -1577,6 +1584,7 @@ internal static class PatternCommandHandler
         var (sizeOv, altOv) = PatternGeometry.ResolveAuthoredOverrides(
             runway,
             (groundLayout ?? aircraft.Ground.Layout)?.FindRunway(runway.Designator),
+            category,
             aircraft.Pattern.SizeOverrideNm,
             aircraft.Pattern.AltitudeOverrideFt
         );
@@ -2228,6 +2236,7 @@ internal static class PatternCommandHandler
             var (sizeOv, altOv) = PatternGeometry.ResolveAuthoredOverrides(
                 runway,
                 (groundLayout ?? aircraft.Ground.Layout)?.FindRunway(runway.Designator),
+                category,
                 sizeNm,
                 aircraft.Pattern.AltitudeOverrideFt
             );
@@ -3026,6 +3035,7 @@ internal static class PatternCommandHandler
         var (sizeOv, altOv) = PatternGeometry.ResolveAuthoredOverrides(
             runway,
             (groundLayout ?? aircraft.Ground.Layout)?.FindRunway(runway.Designator),
+            category,
             aircraft.Pattern.SizeOverrideNm,
             aircraft.Pattern.AltitudeOverrideFt
         );
@@ -3682,6 +3692,7 @@ internal static class PatternCommandHandler
         var (sizeOvB, altOvB) = PatternGeometry.ResolveAuthoredOverrides(
             runwayB,
             (ctx.GroundLayout ?? aircraft.Ground.Layout)?.FindRunway(runwayB.Designator),
+            category,
             aircraft.Pattern.SizeOverrideNm,
             aircraft.Pattern.AltitudeOverrideFt
         );

@@ -167,7 +167,13 @@ public class Issue210UpwindLengthTests(ITestOutputHelper output)
         var authored = layout.FindRunway("28L");
         output.WriteLine($"authored 28L: PatternAltitudeAglFt={authored?.PatternAltitudeAglFt} PatternSizeNm={authored?.PatternSizeNm}");
 
-        var (sizeOv, altOv) = PatternGeometry.ResolveAuthoredOverrides(rwy28L, authored, commandSizeNm: null, commandAltitudeMslFt: null);
+        var (sizeOv, altOv) = PatternGeometry.ResolveAuthoredOverrides(
+            rwy28L,
+            authored,
+            AircraftCategory.Piston,
+            commandSizeNm: null,
+            commandAltitudeMslFt: null
+        );
         output.WriteLine($"resolved override: sizeOv={sizeOv} altOv={altOv}");
 
         output.WriteLine("--- WITH authored override (size 0.5, alt 609 MSL) ---");
