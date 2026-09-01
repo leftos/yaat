@@ -530,7 +530,10 @@ public sealed class DownwindPhase : Phase
         double thresholdElev = ctx.Runway?.ElevationFt ?? ctx.FieldElevation;
         double turnRadiusNm = BasePhase.TurnRadiusNm(BasePhase.PlannedSpeedKt(ctx.Aircraft, ctx.Category), ctx.Category);
         double gsAlt = GlideSlopeGeometry.AltitudeAtDistance(Math.Max(aircraftAlongTrack, 0) + turnRadiusNm, thresholdElev, ctx.Category);
-        return Math.Min(Waypoints?.PatternAltitude ?? gsAlt, gsAlt);
+        // A floor is a do-not-descend-below limit — never a climb target. Cap it at the aircraft's
+        // current altitude so an extended downwind holds height (or keeps descending to the
+        // position-appropriate glide path) but never climbs back up the pattern.
+        return Math.Min(Math.Min(Waypoints?.PatternAltitude ?? gsAlt, gsAlt), ctx.Aircraft.Altitude);
     }
 
     public override CommandAcceptance CanAcceptCommand(CanonicalCommandType cmd)
