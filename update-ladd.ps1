@@ -5,8 +5,9 @@
 #   .\update-ladd.ps1 [-Target yaat1] [-Zip <path>]
 #
 # Steps (each reuses the existing tool for that stage):
-#   1. yaat-server/tools/fetch-ladd.py fetch      - ADX SOAP download (ADX_USERNAME/ADX_PASSWORD from
-#      yaat-server's .env); -Zip skips this and uses an already-downloaded LADD zip instead.
+#   1. yaat-server/tools/fetch-ladd.py fetch      - syncs the weekly lists from the ADX portal's document
+#      library and zips them (ADX_USERNAME/ADX_PASSWORD from yaat-server's .env); -Zip skips this and
+#      uses an already-downloaded LADD zip instead.
 #   2. yaat-server/tools/refresh-ladd.py <zip> --download-aircraft-db - rebuild ladd/ladd.json.
 #   3. deploy-ladd.ps1 -Target <target>           - stage the list on the droplet (no restart yet).
 #   4. deploy-to-droplet.ps1 -WaitForEmptyRooms   - block until /admin/status reports zero rooms, so no
