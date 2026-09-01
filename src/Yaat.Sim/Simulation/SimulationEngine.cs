@@ -3,6 +3,7 @@ using System.Text;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using Yaat.Sim.Commands;
+using Yaat.Sim.ControllerAi;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Airspace;
@@ -283,6 +284,11 @@ public sealed class SimulationEngine
             Scenario.RpoShowPilotSpeech = scenarioDto.RpoShowPilotSpeech;
             Scenario.MetarReissuanceEnabled = scenarioDto.MetarReissuanceEnabled;
             Scenario.WeatherSourceJson = scenarioDto.WeatherSourceJson;
+            // The config is state; the service (brains, staffing, sink) is the host's and is built from the config the host
+            // enabled. A host that lets the enabled positions change mid-session must rebuild the service alongside.
+            Scenario.ControllerAi = scenarioDto.ControllerAi is { } controllerAi ? ControllerAiConfig.FromSnapshot(controllerAi) : null;
+            Scenario.AiAnomalies.Clear();
+            ControllerAi?.Reset();
 
             // Rebuild the forward-evolving weather timeline from the persisted source — otherwise it
             // is lost on a snapshot-based rewind and the weather freezes. World.Weather keeps the
@@ -1635,6 +1641,34 @@ public sealed class SimulationEngine
     /// Convenience wrapper that runs all three phases for one sim-second.
     /// Used by the client and tests. Drains and discards terminal entries.
     /// </summary>
+    /// <summary>The controller AI hosted on this engine, or null when the session runs without one. Set by the host after load.</summary>
+    public AiControllerService? ControllerAi { get; set; }
+
+    /// <summary>
+    /// One AI tick, run by the host after the sim-second it observes (<see cref="TickOneSecond"/> standalone,
+    /// <c>RoomEngine.AdvanceLiveSecond</c> on the server). Never runs during replay or tape playback — an AI-driven
+    /// recording carries the AI's commands as recorded actions, and re-running the brains would double them.
+    /// </summary>
+    public void TickControllerAi()
+    {
+        if (Scenario is not { ControllerAi: not null, IsPlaybackMode: false } scenario || _isReplayingRecordedActions || ControllerAi is not { } ai)
+        {
+            return;
+        }
+
+        ai.Tick(
+            new AiTickInputs(
+                scenario,
+                World,
+                World.GetSnapshot(),
+                ResolveGroundLayout,
+                RunwayOccupancy.AirportRunways,
+                ConflictAlerts.Conflicts.Values.ToList(),
+                EramConflicts.Conflicts.Values.ToList()
+            )
+        );
+    }
+
     public void TickOneSecond()
     {
         var scenario = Scenario;
@@ -2172,13 +2206,89 @@ public sealed class SimulationEngine
             return new CommandResult(false, $"Failed to parse command: {command} — {parseResult.Reason}");
         }
 
+        return DispatchLiveCommand(aircraft, parseResult.Value!, DispatchOrigin.Human).Result;
+    }
+
+    /// <summary>
+    /// Dispatches one command from an AI position exactly the way the live server routes a command from that
+    /// position's synthetic connection: track verbs (and any <c>AS</c>-prefixed command) through the track engine under
+    /// the prefix's identity, coordination verbs refused (they mutate server-only state), everything else through the
+    /// aviation dispatcher under <see cref="DispatchOrigin.ControllerAi"/>. A successful command is appended to the
+    /// action log with the AI connection id, so a recording of an AI-driven session replays it identically.
+    /// </summary>
+    public CommandResult DispatchAiCommand(AiPositionConfig from, string callsign, string command)
+    {
+        var scenario = Scenario;
+        if (scenario is null)
+        {
+            return new CommandResult(false, "No scenario loaded");
+        }
+
+        var aircraft = FindAircraft(callsign);
+        if (aircraft is null)
+        {
+            return new CommandResult(false, $"Aircraft '{callsign}' not found");
+        }
+
+        var connectionId = AiConnectionId.Format(from.PositionId);
+        CommandResult result;
+        double? reactionDelaySeconds = null;
+        var asPrefixCheck = TrackResolver.ExtractAsPrefix(command);
+        var firstParse = CommandParser.Parse(asPrefixCheck.Remainder);
+        bool isTrack =
+            firstParse.IsSuccess
+            && firstParse.Value is not null
+            && (TrackEngine.IsTrackCommand(firstParse.Value) || asPrefixCheck.AsOverrideTcp is not null);
+        if (isTrack)
+        {
+            result =
+                _replayTrackApplier.Apply(command, aircraft, connectionId, scenario) ?? new CommandResult(false, $"'{command}' dispatched nothing");
+        }
+        else
+        {
+            var (kind, _) = RecordedCommandClassifier.Classify(command);
+            if (kind != RecordedCommandKind.Compound && kind != RecordedCommandKind.SayOrShow)
+            {
+                return new CommandResult(false, $"'{command}' ({kind}) has no engine-side handler; only the live server dispatches it");
+            }
+
+            var parseResult = CommandParser.ParseCompound(command, aircraft.FlightPlan.Route);
+            if (!parseResult.IsSuccess)
+            {
+                return new CommandResult(false, $"Failed to parse command: {command} — {parseResult.Reason}");
+            }
+
+            (result, reactionDelaySeconds) = DispatchLiveCommand(aircraft, parseResult.Value!, DispatchOrigin.ControllerAi);
+        }
+
+        if (result.Success)
+        {
+            RecordAction(
+                new RecordedCommand(scenario.ElapsedSeconds, callsign, command, "AI", connectionId) { ReactionDelaySeconds = reactionDelaySeconds }
+            );
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    /// The live dispatch pipeline shared by every controller-issued command: the pilot-reaction deferral, else the
+    /// dispatcher, then <see cref="ApplyPostDispatch"/>. Returns the sampled reaction delay (null when none) so the
+    /// caller can bake it into the recorded command.
+    /// </summary>
+    private (CommandResult Result, double? ReactionDelaySeconds) DispatchLiveCommand(
+        AircraftState aircraft,
+        CompoundCommand compound,
+        DispatchOrigin origin
+    )
+    {
         bool soloTrainingMode = Scenario?.SoloTrainingMode ?? false;
 
         // Pilot-reaction delay (command-run delay): when active, defer the whole dispatch by a sampled
         // number of seconds and acknowledge immediately so the controller knows the command landed and
         // the sim isn't frozen. The aircraft begins complying when the deferral fires.
         CommandResult result;
-        var reactionDelay = TryDeferCommandForReaction(aircraft, parseResult.Value!, DispatchOrigin.Human);
+        var reactionDelay = TryDeferCommandForReaction(aircraft, compound, origin);
         if (reactionDelay is double reactionSeconds)
         {
             // In solo training mode the student is the pilot's only audience: showing the exact sampled
@@ -2205,14 +2315,14 @@ public sealed class SimulationEngine
                 Scenario?.ArtccConfig,
                 Scenario?.ElapsedSeconds ?? 0,
                 PreserveConditionals: false,
-                IsScenarioScripted: false
+                IsScenarioScripted: origin == DispatchOrigin.ControllerAi
             );
-            result = CommandDispatcher.DispatchCompound(parseResult.Value!, aircraft, dispatchCtx);
+            result = CommandDispatcher.DispatchCompound(compound, aircraft, dispatchCtx);
         }
 
-        ApplyPostDispatch(aircraft, parseResult.Value!, result, DispatchOrigin.Human);
+        ApplyPostDispatch(aircraft, compound, result, origin);
 
-        return result;
+        return (result, reactionDelay);
     }
 
     /// <summary>
@@ -4643,7 +4753,7 @@ public sealed class SimulationEngine
         }
 
         TrackShadowBeacon(codeBefore, ac.Transponder.Code);
-        RecordLiveTrafficAction(new RecordedLiveTrafficSample(now, callsign, sample, spawned ? spawnState : null));
+        RecordAction(new RecordedLiveTrafficSample(now, callsign, sample, spawned ? spawnState : null));
         return true;
     }
 
@@ -4791,15 +4901,16 @@ public sealed class SimulationEngine
 
         World.RemoveAircraft(callsign);
         TrackShadowBeacon(ac.Transponder.Code, 0);
-        RecordLiveTrafficAction(new RecordedLiveTrafficRemoval(Scenario?.ElapsedSeconds ?? 0, callsign, reason));
+        RecordAction(new RecordedLiveTrafficRemoval(Scenario?.ElapsedSeconds ?? 0, callsign, reason));
         return true;
     }
 
     /// <summary>
-    /// Appends a live-traffic action to the recording unless the room is replaying or playing a tape. Public for the
-    /// server's diagnostic actions (<see cref="RecordedLiveTrafficStatus"/>), which have no sim-side twin.
+    /// Appends an engine-originated action (a live-traffic sample or removal, an AI-controller command) to the recording
+    /// unless the room is replaying or playing a tape. Public for the server's diagnostic actions
+    /// (<see cref="RecordedLiveTrafficStatus"/>), which have no sim-side twin.
     /// </summary>
-    public void RecordLiveTrafficAction(RecordedAction action)
+    public void RecordAction(RecordedAction action)
     {
         var scenario = Scenario;
         if (scenario is null || _isReplayingRecordedActions || scenario.IsPlaybackMode)

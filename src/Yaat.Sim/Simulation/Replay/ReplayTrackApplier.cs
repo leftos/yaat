@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Yaat.Sim.Commands;
+using Yaat.Sim.Data.Vnas;
 
 namespace Yaat.Sim.Simulation.Replay;
 
@@ -23,11 +24,16 @@ internal sealed class ReplayTrackApplier
         _activeOwnerByConnection.Clear();
     }
 
-    public void Apply(string rawCommand, AircraftState? aircraft, string connectionId, SimScenarioState? scenario)
+    /// <summary>
+    /// Applies one track / AS command. Returns the dispatch result so a live caller (the AI command sink) can report
+    /// it; replay ignores it. Null when there was nothing to dispatch (no scenario, a bare AS that only set the
+    /// connection's active position, or an aircraft that has not spawned yet).
+    /// </summary>
+    public CommandResult? Apply(string rawCommand, AircraftState? aircraft, string connectionId, SimScenarioState? scenario)
     {
         if (scenario is null)
         {
-            return;
+            return null;
         }
 
         var (remainder, asOverrideTcp) = TrackResolver.ExtractAsPrefix(rawCommand);
@@ -36,7 +42,7 @@ internal sealed class ReplayTrackApplier
         if (!parseResult.IsSuccess || parseResult.Value is null)
         {
             Log.LogDebug("Replay: failed to parse track command remainder '{Remainder}' (raw='{Raw}')", remainder, rawCommand);
-            return;
+            return new CommandResult(false, $"Failed to parse track command: {rawCommand}");
         }
 
         var parsed = parseResult.Value;
@@ -47,22 +53,27 @@ internal sealed class ReplayTrackApplier
             if (owner is null)
             {
                 Log.LogDebug("Replay: AS '{Tcp}' did not resolve to a position", setPos.TcpCode);
-                return;
+                return new CommandResult(false, $"AS '{setPos.TcpCode}' did not resolve to a position");
             }
 
             _activeOwnerByConnection[connectionId] = owner;
-            return;
+            return null;
         }
 
         if (aircraft is null)
         {
-            return;
+            return null;
         }
 
         var identity = ResolveEffectiveIdentity(asOverrideTcp, connectionId, scenario);
-        TrackEngine.Dispatch(parsed, aircraft, identity, scenario, scenario.ArtccConfig);
+        return TrackEngine.Dispatch(parsed, aircraft, identity, scenario, scenario.ArtccConfig);
     }
 
+    /// <summary>
+    /// The AS override when given; else the position the connection selected earlier; else, for an AI-controller
+    /// connection, the position its connection id names (resolved from the ARTCC config, so it needs no student
+    /// facility and no AS prefix); else the student.
+    /// </summary>
     private TrackOwner? ResolveEffectiveIdentity(string? asOverrideTcp, string connectionId, SimScenarioState scenario)
     {
         if (asOverrideTcp is not null)
@@ -73,6 +84,11 @@ internal sealed class ReplayTrackApplier
         if (_activeOwnerByConnection.TryGetValue(connectionId, out var active))
         {
             return active;
+        }
+
+        if (AiConnectionId.TryParse(connectionId, out var positionId) && scenario.ArtccConfig?.ResolvePosition(positionId) is { } aiPosition)
+        {
+            return aiPosition;
         }
 
         return scenario.StudentPosition;

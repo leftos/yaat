@@ -12,6 +12,21 @@ public static class TestAiPositions
 
     public static AiPositionConfig SfoGround(ArtccConfigRoot config) => TowerCab(config, "SFO_GND", ControlRole.Ground, "SFO");
 
+    /// <summary>The combined-area NCT_APP as the resolver builds it (Approach, TCP from the config, every underlying airport).</summary>
+    public static AiPositionConfig NorCalApproach(ArtccConfigRoot config) =>
+        AiPositionResolver
+            .Catalog(config, "OAK", new Dictionary<string, ControlRole>(StringComparer.Ordinal))
+            .Where(p => p.Callsign == "NCT_APP")
+            .OrderByDescending(p => p.AirportIds.Count)
+            .ThenBy(p => p.PositionId, StringComparer.Ordinal)
+            .First();
+
+    /// <summary>The resolver's OAK catalog entry with this callsign (first by position id when the callsign repeats).</summary>
+    public static AiPositionConfig FromCatalog(ArtccConfigRoot config, string primaryAirportId, string callsign) =>
+        AiPositionResolver
+            .Catalog(config, primaryAirportId, new Dictionary<string, ControlRole>(StringComparer.Ordinal))
+            .First(p => string.Equals(p.Callsign, callsign, StringComparison.OrdinalIgnoreCase));
+
     public static AiPositionConfig TowerCab(ArtccConfigRoot config, string callsign, ControlRole role, string airportId)
     {
         var position = config.FindPositionByCallsign(callsign) ?? throw new InvalidOperationException($"{callsign} not in the ZOA fixture");

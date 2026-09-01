@@ -319,6 +319,14 @@ public static class RunwayOccupancy
     /// <summary>On the ground and within the runway half-width plus <see cref="LateralSlackFt"/> of the centerline segment.</summary>
     public static bool IsOnPavement(AircraftState ac, RunwayInfo runway) => ac.IsOnGround && IsWithinPavement(ac.Position, runway);
 
+    /// <summary>
+    /// On the pavement of one of <paramref name="runways"/> and aligned with its axis (within
+    /// <see cref="SurfaceAxisToleranceDeg"/>): taxiing along it, back-taxiing, or holding on it — a use of the runway
+    /// "for purposes other than crossing", which 7110.65 §3-1-3.a.4 gives to local control whatever the ground phase.
+    /// </summary>
+    public static bool IsAlongRunway(AircraftState ac, IReadOnlyList<RunwayInfo> runways) =>
+        runways.Any(runway => IsOnPavement(ac, runway) && (AxisDeviationDeg(ac.TrueHeading.Degrees, runway) <= SurfaceAxisToleranceDeg));
+
     /// <summary>True for the kinds that make the aircraft a runway occupant for clearance and priority purposes.</summary>
     public static bool OccupiesSurface(RunwayUseKind? kind) => kind is RunwayUseKind.Departing or RunwayUseKind.Landing or RunwayUseKind.OnSurface;
 

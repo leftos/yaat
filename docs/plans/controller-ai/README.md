@@ -108,7 +108,7 @@ Core (CA) and harness (H) series interleave; each row is independently shippable
 | | # | Milestone | Summary |
 |---|---|---|---|
 | [x] | H0 | Headless host + skeleton | **Shipped 2026-09-01.** `HeadlessRoomHost`, seeded load (`LoadScenarioSeededAsync` — the live load with an explicit seed + magnetic-model day; all three world RNG streams seeded), `RoomEngine.AdvanceLiveSecond` (the production per-second body, shared with the hosted loop), SoakRunner `run` with **no AI**: tick loop, streamed recording, SimLog tap, tick-exception detection, `TickTimings` dump. Measured **~420× realtime** on S1-OAK-2/3/4 (30 aircraft, 1 sim-hour in 8.6 s wall, Release) — well above the 50–200× estimate. Deviations from [07](07-soak-runner.md): the seeded core is a shared `PopulateRoom`, not a rewind-reload wrapper; the loop lives in `src/Yaat.Server/Soak/` (testable without an Exe reference); `findings.jsonl` waits for H1 (the tick exception lives in `report.json` + a bookmark). Two prerequisite fixes landed with it: `DEL` stamps `CompletionReason.Dropped`, and the magnetic-model evaluation day is recorded per session so replays never drift |
-| [ ] | CA0 | Core foundations + observer mode | `ControlRole`, resolver, `AiControllerService`, sinks, jurisdiction, anomaly log, `AiRng`, the routing-parity spike, the determinism regression test. Ships watchdog-only rules — finds bugs with zero commands issued |
+| [x] | CA0 | Core foundations + observer mode | **Shipped 2026-09-01** in two commits. CA0a: `DispatchOrigin` + `PilotContactRoster` (pilots call whichever answering position is responsible; AI commands never mark student contact or score). CA0b: `ControlRole`, `AiPositionResolver` (cab + TRACON + ARTCC catalog; `_DEL` skipped unless overridden), `ControllerAiConfig` (snapshotted), `IAiStaffing` (`HeadlessAiStaffing`, server `RoomAiStaffing`), `PositionJurisdiction` + `AiWorldView`, `AiAnomalyLog`, `AiControllerService` (owns `AiRng`), `EngineAiCommandSink` / server `HeadlessAiCommandSink`, the four observer rules + `ObserverBrain`, `SimulationEngine.TickControllerAi` (called from `RoomEngine.AdvanceLiveSecond`; never in replay/playback), SoakRunner `--positions GC,LC` + `anomalies.jsonl`, the routing-parity spike (`AiSinkRoutingParityTests`: TAXIAUTO/CTO/TRACK/DROP identical through the room and the engine; coordination verbs are the exemption — engine refuses), and the determinism tests (engine + headless). Deviations from 01/03: `AiRng` lives on the service (not snapshotted); `AiTickContext` carries no coordination bus yet; AI track commands carry no `AS` prefix — the `AI:{positionId}` connection id resolves to the position in both replay resolvers; pacing/`AiIntent`-driven command rules wait for CA1 |
 | [ ] | CA1 | Ground brain v1 | [04](04-ground-brain.md); soak: parking→hold-short + runway-exit→parking |
 | [ ] | K1 | Facility-knowledge schema + OAK | [10](10-facility-knowledge.md): `FacilityOps` schema + `FacilityOpsDatabase` + hand-authored `KOAK.json`; overlay consult sites in the Ground/Tower brains. Lands with CA1/CA2 |
 | [ ] | CA2 | Tower brain v1 + coordination + precedence | [05](05-tower-brain.md), coordination bus, auto-accept/pointout skips, auto-CTO suppression, `IAiStaffing`. First full gate-to-gate loop |
@@ -173,6 +173,20 @@ Future (noted, not planned): a nightly xUnit `[Trait("Category","Soak")]` wrappe
 - **Watching the AI live gets a per-position TTS voice (CA3/H4).** Each AI position's instructions are voiced with a
   randomly assigned unique speaker id via `BroadcastPilotTransmission`'s speaker-id mechanism; the instruction text
   comes from the phraseology rules.
+- **Per-frequency radio model before CA2 (user steer 2026-09-01).** Several AI positions run concurrently by design
+  (brains tick Ground → Local → Approach → Center; plan 02's coordination bus is off-frequency), but the radio is one
+  shared `SimulationWorld.ActiveFrequency`, so every pilot and controller transmission competes for the same airtime
+  and the readback gate is global. Before two AI positions talk to pilots at once (CA2), land a milestone that gives
+  each aircraft a `TunedPosition` (set at spawn by the responsible position, by `CT`, by the AIM 4-3-14.a self-switch
+  to tower at the hold-short, by handoff + `CT`; snapshotted), keys `FrequencyState` per position (replacing the single
+  `HasLeftStudentFrequency` bool), and tags pilot and AI-controller transmissions with their frequency so the client
+  plays only what the human monitors (student: own position; instructor: a selectable monitor set) and AI
+  instructions occupy airtime on their own frequency with the per-position voice. The same milestone adds **radio
+  discipline** (user steer 2026-09-01): an exchange owns its frequency until it completes or times out — controller
+  instruction → pilot A readback, and pilot A request → controller response → pilot A readback — so pilot B's
+  proactive calls and follow-ups queue behind it and an AI controller never keys up while a readback is pending
+  (today's `FrequencyState` protects only the 8 s "awaiting controller response" window after a request). Tracked in
+  `docs/plans/MAIN.md`.
 
 ## Reused infrastructure (don't reinvent these)
 

@@ -771,9 +771,24 @@ RunwayExitPhase.cs             # Rolls on centerline until exit found; builds Ta
 HoldingAfterExitPhase.cs       # Post-exit hold: broadcasts "clear of runway", faces away from runway, awaits taxi command
 ClearRunwayPhase.cs            # CLRWY: pulls a tail-over-runway aircraft (hold-short of a taxiway sitting closer than its own length past a crossed runway) forward until just clear (½ length past the bars), then holds
 
-# ControllerAi/ — AI controller positions (docs/plans/controller-ai/); CA0a ships the identity records the pilot-contact roster consumes
+# ControllerAi/ — the controller AI (docs/plans/controller-ai/): CA0 = identity, resolver, staffing, jurisdiction, anomaly ledger, service, sinks, observer brains (no commands yet)
 ControllerAi/ControlRole.cs    # Ground | Local | Approach | Center (+ ControlRoles: tick rank, GND/TWR/APP/CTR position type, alias parsing)
-ControllerAi/AiPositionConfig.cs  # One AI-staffed position: real TrackOwner identity + TCP, position id/callsign, radio name, facility, airports it answers for
+ControllerAi/AiPositionConfig.cs  # One AI-staffed position: real TrackOwner identity + TCP, position id/callsign, radio name, facility, airports it answers for (deep value equality)
+ControllerAi/ControllerAiConfig.cs  # Session config: seed, enabled position ids, role overrides; ToSnapshot/FromSnapshot (ControllerAiConfigDto on the scenario snapshot)
+ControllerAi/AiPositionResolver.cs  # ARTCC config → playable positions for a primary airport (cab facility + its TRACON + ARTCC): Catalog / Resolve / InferRole (_DEL skipped unless overridden)
+ControllerAi/IAiStaffing.cs    # Which configured positions are active + who is human (IsHumanHeld, IsAssignedToHuman); HeadlessAiStaffing = solo student only
+ControllerAi/PositionJurisdiction.cs  # Which AI position is responsible for an aircraft (phase family → cab role, along-a-runway → Local per 3-1-3.a.4; unstaffed cab falls through to the radar track owner; RunwayOccupancy for phase-less; human assignments excluded) + AiWorldView (callsign-sorted snapshot, per-position jurisdiction)
+ControllerAi/AiTickContext.cs  # AiTickInputs (host → service), AiTickContext (what a brain sees), IPositionBrain, AiAircraftMemo (stuck-watchdog anchor)
+ControllerAi/AiCommands.cs     # AiIntent, AiCommandRequest (no AS prefix — the AI connection id names the position), AiCommandOutcome, IAiCommandSink
+ControllerAi/AiAnomaly.cs      # AiAnomalyKind / AiAnomalyEvent / AiAnomalyLog: (kind, position, subject) episodes Open/Close/Record, Drain in order, never snapshotted
+ControllerAi/AiControllerService.cs  # Per-second AI tick: staffing refresh → publish AiStaffedPositions → outcomes → CommandRejected → world view → brains in (rank, id) order; owns AiRng (re-seeded on Reset)
+ControllerAi/EngineAiCommandSink.cs  # Pure-engine sink: synchronous SimulationEngine.DispatchAiCommand, outcomes drained next tick
+ControllerAi/Rules/IDecisionRule.cs  # AiRuleScope (tick, position, jurisdiction, memos, CloseVanished) + IDecisionRule
+ControllerAi/Rules/StuckAircraftRule.cs  # Movement phase with < 50 ft net progress for 180 s (600 s while the conflict detector has it yielding; never under HOLD / hold-for-release)
+ControllerAi/Rules/UnansweredPilotRequestRule.cs  # A request this role answers still open after the pilot had to ask again (STANDBY re-bases the pilot's clock); held-for-release takeoffs exempt
+ControllerAi/Rules/HandoffUnacceptedRule.cs  # Radar roles: a handoff to/from the position pending past AutoAcceptDelay + 60 s
+ControllerAi/Rules/ConflictAlertInAiJurisdictionRule.cs  # A terminal CA on an aircraft in the jurisdiction, keyed by conflict id; closes on clear or acknowledge
+ControllerAi/Brains/ObserverBrain.cs  # Issues no commands: runs the four watchdog rules over its jurisdiction
 
 # Pilot/ — solo-training pilot AI (deterministic readbacks). Phraseology/forms reference: docs/pilot-phraseology.md; delivery plumbing: docs/solo-training-pilot-speech.md
 Pilot/PhraseologyVerbalizer.cs # Static: inverts a PhraseologyRule for a given accepted ParsedCommand → Verbalize() spoken-English / VerbalizeTerminal() compact readback (shared rule, per-token formatter strategy).
@@ -1006,7 +1021,7 @@ ScenarioRatingClassifier.cs    # Maps VATSIM rating short/long forms (S3 / Stude
                                # client picker filter and the server-side gating decision.
 
 # Simulation/
-RunwayOccupancy.cs             # Phase-independent runway-use classifier (RunwayUseKind: Departing/Landing/OnSurface/ShortFinal/Crossing);
+RunwayOccupancy.cs             # Phase-independent runway-use classifier (RunwayUseKind: Departing/Landing/OnSurface/ShortFinal/Crossing);; IsAlongRunway (on the pavement + aligned: a use of the runway other than crossing, 3-1-3.a.4)
                                # IsOnFinal (6 nm advisory ring), ClassifyBest (oriented pavements, LandedOnRunway-aware), AirportRunways (FAA/ICAO).
                                # Phase evidence first (ClassifyByPhase), geometry (pavement rectangle + axis alignment on the ground,
                                # TCH + final-approach course in the air; rotorcraft over the pavement below 100 ft AGL = surface movement — descending
@@ -1014,7 +1029,7 @@ RunwayOccupancy.cs             # Phase-independent runway-use classifier (Runway
                                # HelicopterLandingPhase by phase; IsRolling = 35 kt, or 20 kt + 2.5 kt/s over 4 s of feed samples; landing-threshold
                                # distance/time helpers.
                                # Consumed by RunwaySafetyAdvisor, GroundConflictDetector.IsOnRunway, SoloTrainingEvaluator.IsTakeoffRoll.
-SimulationEngine.cs            # Scenario load, tick orchestration, replay (ReplayFromStartTo — full from-scratch replay;
+SimulationEngine.cs            # Scenario load, tick orchestration, replay (ReplayFromStartTo — full from-scratch replay;; ControllerAi + TickControllerAi() (post-second AI tick; never in replay/playback) + DispatchAiCommand (the live pipeline under DispatchOrigin.ControllerAi, recorded with the AI connection id) + RecordAction
                                # FastForwardTo — advance from current time; ReplayRange — between two timestamps;
                                # ReplayRangeWithVerification — diff-against-bundled-snapshots; ReplayOneSecond/SubTick — stepping);
                                # CaptureSnapshot/RestoreFromSnapshot; reattaches GroundLayouts to delayed spawns on restore.
@@ -1067,7 +1082,7 @@ CompoundCanonical.cs           # RewriteUnits: applies a per-unit rewrite across
 RecordingJsonOptions.cs        # Shared JsonSerializerOptions for recording serialization
 
 # Simulation/Replay/
-ReplayTrackApplier.cs          # Replay-time dispatcher for track + AS-prefix commands. Maintains per-connection active-position map;
+ReplayTrackApplier.cs          # Replay-time dispatcher for track + AS-prefix commands. Maintains per-connection active-position map;; returns the dispatch result; an AI connection id resolves to its position without an AS prefix
                                # routes parsed commands through TrackEngine.Dispatch with identity resolved via TrackResolver.
 SnapshotDiff.cs                # Pure-function diff between an engine's live aircraft state and a captured snapshot's DTOs.
                                # Used by ReplayRangeWithVerification to surface drift between replay and recorded snapshots.
@@ -1086,7 +1101,7 @@ ControlTargetsDto.cs           # Control targets + NavigationTarget + altitude/s
 CommandQueueDto.cs             # CommandBlock/TrackedCommand/BlockTrigger/DeferredDispatch DTOs
 PhaseSnapshotDto.cs            # Polymorphic PhaseDto with [JsonDerivedType] for all ~35 Phase subclasses
                                # RunwayInfoDto, ApproachClearanceDto, DepartureClearanceDto, PatternWaypointsDto, etc.
-ScenarioSnapshotDto.cs         # SimScenarioState DTO: queues, generators, settings, coordination channels
+ScenarioSnapshotDto.cs         # SimScenarioState DTO: queues, generators, settings, coordination channels; ControllerAi (ControllerAiConfigDto, null when off)
 ServerSnapshotDto.cs           # Server-side state: consolidation overrides, conflict alerts, beacon code pool
 TaxiRouteDto.cs                # Taxi route segments + hold-short points (re-resolved from ground layout on restore)
 SnapshotSchemaMigrator.cs      # Sequential migration chain for snapshot DTO versioning; SnapshotSchemaException

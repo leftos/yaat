@@ -217,3 +217,24 @@ cadence (never sub-tick).
   (`IsScenarioScripted` should already exclude them on the engine path; the `SendCommandAsync` path
   needs explicit verification).
 - Rewind-determinism limitation (memo reset) — accepted v1, revisit only if triage demands it.
+
+## CA0 implementation notes (2026-09-01)
+
+- `AiTickContext` ships without a `Coordination` member; the coordination bus arrives with CA2. `AiRng` is owned by
+  `AiControllerService` (seeded from `ControllerAiConfig.Seed`, re-seeded on `Reset()`), not by the scenario, and is
+  not snapshotted.
+- `SimulationEngine.TickControllerAi()` is a separate public entry the host calls after its sim-second
+  (`RoomEngine.AdvanceLiveSecond` does; pure-engine tests call `TickOneSecond(); TickControllerAi();`). It guards on
+  `Scenario.ControllerAi`, playback mode and the replay flag, so an AI-driven recording replays its recorded AI
+  commands instead of re-running the brains.
+- `AiCommandRequest` carries no `AS` prefix. The AI connection id (`AiConnectionId.Format(positionId)`) names the
+  acting position, and both replay resolvers (`ReplayTrackApplier.ResolveEffectiveIdentity`,
+  `TrackCommandHandler.ResolveEffectiveIdentity`) resolve it from the ARTCC config, so no student facility is needed.
+- Engine-side sink coverage (`SimulationEngine.DispatchAiCommand`): aviation compounds through the live pipeline under
+  `DispatchOrigin.ControllerAi` (with the reaction-delay deferral baked into the recorded command), track verbs
+  through `TrackEngine`; every other recorded-command kind (coordination, strips, consolidation, spawn control, …)
+  is refused with "only the live server dispatches it". The parity spike (`AiSinkRoutingParityTests`) pins
+  TAXIAUTO / CTO / TRACK / DROP identical through the room and the engine.
+- `SimScenarioState.AiAnomalies` is the ledger; `SoakEpisodeRunner` streams its transitions to `anomalies.jsonl`
+  and folds opened/instant counts into `report.json` tiers (progress = stuck + unanswered + handoff; safety =
+  conflict alert; controller = rejected command).

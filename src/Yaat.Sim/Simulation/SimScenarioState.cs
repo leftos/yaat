@@ -55,6 +55,12 @@ public sealed class SimScenarioState
     /// <summary>True when the track owner is one of the AI-staffed positions.</summary>
     public bool IsAiStaffed(TrackOwner? owner) => owner is not null && _aiStaffedPositions.Any(p => p.Identity.MatchesPosition(owner));
 
+    /// <summary>The controller AI's configuration when it is on for this session (snapshotted); null when off.</summary>
+    public ControllerAi.ControllerAiConfig? ControllerAi { get; set; }
+
+    /// <summary>The controller AI's anomaly ledger. Never snapshotted — cleared on load and restore, re-derived by the rules.</summary>
+    public ControllerAi.AiAnomalyLog AiAnomalies { get; } = new();
+
     /// <summary>
     /// Who answers pilot calls this session — see <see cref="Pilot.PilotContactRoster"/>. Memoized on its inputs (solo
     /// mode, student position and type, the AI staffing version, the ARTCC config instance) so it is correct at
@@ -334,6 +340,7 @@ public sealed class SimScenarioState
             ScenarioName = ScenarioName,
             RngSeed = RngSeed,
             MagneticModelDateUtc = MagneticModelDateUtc,
+            ControllerAi = ControllerAi?.ToSnapshot(),
             PrimaryAirportId = PrimaryAirportId,
             ElapsedSeconds = ElapsedSeconds,
             AutoClearedToLand = AutoClearedToLand,

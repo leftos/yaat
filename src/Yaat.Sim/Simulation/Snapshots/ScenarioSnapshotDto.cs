@@ -13,6 +13,9 @@ public sealed class ScenarioSnapshotDto
     // it resolved from the recording manifest (or today for a live session).
     public DateTime? MagneticModelDateUtc { get; init; }
 
+    // Optional — null when the controller AI is off and in every snapshot that predates it.
+    public ControllerAiConfigDto? ControllerAi { get; init; }
+
     public string? PrimaryAirportId { get; init; }
     public required double ElapsedSeconds { get; init; }
 
@@ -207,4 +210,14 @@ public sealed class CoordinationItemDto
     public required string ExitFix { get; init; }
     public required bool WasAutomaticRelease { get; init; }
     public required int SequenceNumber { get; init; }
+}
+
+/// <summary>Snapshot of <c>ControllerAiConfig</c>: the AI's seed, the staffed position ids, and role overrides as role names.</summary>
+public sealed class ControllerAiConfigDto
+{
+    public required int Seed { get; init; }
+
+    public List<string> EnabledPositionIds { get; init; } = [];
+
+    public Dictionary<string, string> RoleOverrides { get; init; } = new(StringComparer.Ordinal);
 }

@@ -84,3 +84,13 @@ Result: no every-tick spam, realistic cadence, bounded per-tick work.
 - Every decision rule is TDD'd (failing test first, real navdata via
   `TestVnasData.EnsureInitialized()`, real airport layouts).
 - Every rule set gets `aviation-sim-expert` review before implementation and re-review after.
+
+## CA0 observer thresholds (2026-09-01)
+
+| Rule | Opens when | Closes when |
+|---|---|---|
+| `StuckAircraftRule` | a movement phase (taxi, pushback, crossing, clear-runway, runway exit, follow, air-taxi, line-up, takeoff) shows < 50 ft net displacement from its last progress anchor for 180 s — 600 s while the ground-conflict detector has it yielding (`Ground.SpeedLimit` set: a departure queue is sequencing, 7110.65 §3-8-1). A controller-ordered stop (`Ground.Hold`, a hold for release) never counts | the aircraft moves ≥ 50 ft, enters a non-movement phase, is ordered to hold, or leaves |
+| `UnansweredPilotRequestRule` | a request this role answers (taxi → Ground; takeoff/landing → Local; approach/airspace entry → radar) is still open after the pilot has had to ask again (`LastRequestedAtSeconds > FirstRequestedAtSeconds`; the pilot's own clock — `NormalFollowUpDelaySeconds` 120 s, re-based to 90 s by a STANDBY — so an acknowledged wait never counts). A takeoff request is never overdue while the departure is held for release (AIM 5-2-7) | the request is answered or dropped |
+| `HandoffUnacceptedRule` | (radar roles) a handoff to or from the position is pending longer than `AutoAcceptDelay` + 60 s (a house threshold — §2-1-17.a is qualitative) | accepted, recalled, or the aircraft leaves |
+| `ConflictAlertInAiJurisdictionRule` | a terminal conflict alert names an aircraft in the position's jurisdiction (one episode per AI position involved) | the engine clears the alert or a controller acknowledges it |
+| `CommandRejected` (service) | the dispatcher rejects an AI command | point event |

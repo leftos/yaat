@@ -141,6 +141,21 @@ The server already "plays" unstaffed positions. An AI-staffed position must be t
   positions are matched on the airport the call is physically made at, every candidate obeys the ARTCC's
   initial-contact transfer SOP, and the AI contact latch is per position id.
 
+**CA0b jurisdiction notes (2026-09-01, aviation-reviewed):**
+
+- `PositionJurisdiction.RoleForPhase` maps the phase family to Ground / Local; on top of it, an aircraft on a
+  runway's pavement and aligned with it (`RunwayOccupancy.IsAlongRunway`: back-taxi, `CLRWY` pull-forward, an
+  on-runway hold) is Local's whatever ground phase drives it — §3-1-3.a.4 gives every use of the runway other than a
+  crossing to local control. A crossing (on the pavement, not aligned) stays Ground's.
+- Partial staffing falls through: when no staffed cab position covers the phase family, the AI radar position that
+  owns the track is responsible (an AI approach keeps its arrivals through final and its departures through the
+  initial climb when nobody plays the tower). Aircraft assigned to a human connection (`Room.AircraftAssignments`)
+  are outside every AI jurisdiction (`IAiStaffing.IsAssignedToHuman`).
+- Two transfer points are simplified for the observer milestone and move with the brains that issue the transfers:
+  a runway exit becomes Ground's the moment the aircraft leaves the centerline (AIM 4-3-21.b/c has the pilot stay with
+  the tower until fully clear and told to change), and a hold-short at the departure runway becomes Local's before
+  Ground's `CT`.
+
 With a human neighbor, AI positions interact exactly as with any controller: `HO` and wait for a
 manual ACCEPT (patience watchdog → reminder line; in soak → `HandoffUnaccepted` anomaly), ACCEPT the
 human's handoffs after the deterministic delay, honor the human's HFR/REL, and never command

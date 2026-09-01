@@ -7,11 +7,12 @@ namespace Yaat.Sim.Phases;
 public static class TowerCabPhases
 {
     /// <summary>
-    /// The arrival side of local control: on final, landing, in the traffic pattern, going around, or flying a
-    /// tower-issued maneuver on final. An aircraft here never initiates contact with approach or center — approach
-    /// hands it to the tower before final (AIM 5-4-3.a), and the tower keeps it through the go-around and the pattern.
-    /// Departures (takeoff roll, initial climb, departure procedure) are deliberately outside this family: they do
-    /// check in with departure control (AIM 5-2-9).
+    /// The arrival and pattern side of local control: on final, landing, in the traffic pattern (including the exit
+    /// leg of a pattern departure), going around, or flying a tower-issued maneuver on final. An aircraft here never
+    /// initiates contact with approach or center — the transferring controller hands it over before it enters the next
+    /// jurisdiction (7110.65 §2-1-17.a), and the tower keeps it through the go-around and the pattern. Departures
+    /// (takeoff roll, initial climb, departure procedure) are deliberately outside this family: they do check in with
+    /// departure control once the tower sends them (AIM 5-2-8).
     /// </summary>
     public static bool IsArrivalSide(Phase? phase) =>
         phase
@@ -31,5 +32,6 @@ public static class TowerCabPhases
                 or BasePhase
                 or MidfieldCrossingPhase
                 or TeardropReentryPhase
-                or VfrFollowPhase;
+                or VfrFollowPhase
+                or PatternExitPhase;
 }
