@@ -100,6 +100,11 @@ TrainingHub.GetSessionReport (poll)                                  │   ← R
 (`SimulationWorld.cs:136`), a FIFO list of `CompletedAircraftRecord` capped at `CompletedAircraftCapacity = 500`
 (`SimulationWorld.cs:25`): when an aircraft is removed, its callsign, type, filed endpoints, spawn/completion times,
 and completion reason/detail are preserved so a landed/handed-off/dropped aircraft still appears on the debrief.
+Only a stamped aircraft is recorded (`CompletionReason != Active`): landings stamp `Landed` (`LandingPhase`), `CT`/`FCA`
+stamp `HandedOff` (`ContactCommandHandler`), corridor exits stamp `Transited` (`TickAutoDelete`), and `DEL` stamps
+`Dropped` through `SimulationEngine.DeleteAircraft` — the live server (`RoomEngine.RemoveSimulatedAircraft`) and replay
+both route through it, so a deleted aircraft never vanishes without a row. Scenario unload (`World.Clear()`) still
+records nothing.
 
 ## The event model
 

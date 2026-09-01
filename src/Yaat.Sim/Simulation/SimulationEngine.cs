@@ -4715,6 +4715,27 @@ public sealed class SimulationEngine
             ?.ForApproach(lt.LatchedRunwayDesignator);
     }
 
+    /// <summary>
+    /// The sim-side half of a <c>DEL</c>: stamps <see cref="CompletionReason.Dropped"/> on a still-active aircraft so
+    /// <see cref="SimulationWorld.RemoveAircraft"/> records a debrief row instead of a silent vanish, clears a
+    /// still-queued delayed spawn, and removes the aircraft from the world. The live server
+    /// (<c>RoomEngine.RemoveSimulatedAircraft</c>) and replay (<see cref="ReplayCommand"/>) both call this so the two
+    /// cannot drift. Landed / HandedOff / Transited stamps are preserved.
+    /// </summary>
+    public void DeleteAircraft(string callsign)
+    {
+        var ac = World.FindAircraft(callsign);
+        if (ac is { CompletionReason: CompletionReason.Active })
+        {
+            ac.CompletedAtSeconds = Scenario?.ElapsedSeconds;
+            ac.CompletionReason = CompletionReason.Dropped;
+            ac.CompletionDetail = "DEL";
+        }
+
+        Scenario?.DelayedQueue.RemoveAll(e => e.Aircraft.State.Callsign.Equals(callsign, StringComparison.OrdinalIgnoreCase));
+        World.RemoveAircraft(callsign);
+    }
+
     /// <summary>Removes a shadow (never an assumed aircraft) and records the removal. Not a completion.</summary>
     public bool RemoveLiveTraffic(string callsign, LiveTrafficRemovalReason reason)
     {
@@ -4865,8 +4886,7 @@ public sealed class SimulationEngine
 
             case RecordedCommandKind.Delete:
                 // Before aircraft-exists guard: target may be in the delayed queue only.
-                Scenario?.DelayedQueue.RemoveAll(e => e.Aircraft.State.Callsign.Equals(cmd.Callsign, StringComparison.OrdinalIgnoreCase));
-                World.RemoveAircraft(cmd.Callsign);
+                DeleteAircraft(cmd.Callsign);
                 return;
 
             case RecordedCommandKind.SpawnNow:

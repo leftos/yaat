@@ -16,6 +16,7 @@
 - `CTOC` mid-roll aborts realistically: reaction delay, maximum braking on the centerline, a "stopped on the runway" report, then holding in position.
 - `CTOC` at or past V1 draws "unable" and the takeoff continues — unless the runway is blocked ahead beyond what the departure can overfly.
 - `CTOC` during a helicopter liftoff sets it back down (low) or stops it in a hover (established) instead of failing.
+- Aircraft removed with `DEL` now appear in the Session Report Aircraft tab as dropped instead of vanishing.
 
 ## v0.12.24-beta [2026/08/31]
 

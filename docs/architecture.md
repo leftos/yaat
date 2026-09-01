@@ -1013,6 +1013,8 @@ SimulationEngine.cs            # Scenario load, tick orchestration, replay (Repl
                                # RehydrateRestoredQueueBlocks rebuilds restored blocks' ParsedCommands/ApplyAction from SourceCommandText
                                # each TickPhysics (shared by both hosts) so queued commands survive rewind/replay/restore.
                                # ApplyPostDispatch is the single post-command hook both hosts call (see solo-training-pilot-speech.md).
+                               # DeleteAircraft is the sim-side half of DEL (stamps CompletionReason.Dropped, clears a queued delayed
+                               # spawn, removes) — the live server and replay both route through it.
                                # TerminalEntryEmitted event fires for every terminal entry (command echoes, preset outcomes, warnings) so
                                # subscribers react as entries happen instead of polling DrainTerminalEntries (issue #396)
 SimScenarioState.cs            # Per-scenario runtime state: queues, settings, ATC positions, coordination, ArtccConfig (loaded from bundle on replay), LiveTrafficFilter (carried from room settings)
@@ -1078,6 +1080,10 @@ ScenarioSnapshotDto.cs         # SimScenarioState DTO: queues, generators, setti
 ServerSnapshotDto.cs           # Server-side state: consolidation overrides, conflict alerts, beacon code pool
 TaxiRouteDto.cs                # Taxi route segments + hold-short points (re-resolved from ground layout on restore)
 SnapshotSchemaMigrator.cs      # Sequential migration chain for snapshot DTO versioning; SnapshotSchemaException
+
+# Soak/ — soak-testing harness pieces shared by the yaat-server soak runner and live attach (docs/plans/controller-ai/08)
+CapturedLogRecord.cs           # One captured log entry (level, category, formatted message, exception text, UTC stamp)
+CapturingSimLogProvider.cs     # Bounded ring-buffer ILoggerProvider: Warning+ tap registered on the same factory as SimLog.Initialize; Drain() per tick, DroppedCount on overflow
 
 # Testing/
 TestVnasData.cs                # Shared test data loader: NavData, CIFP, AircraftSpecs, AircraftCwt, FaaAcd, AircraftProfiles
