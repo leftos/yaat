@@ -23,7 +23,7 @@ A fresh agent should start from **Current focus**, then **Next up**, and treat *
 - [ ] Live traffic via SWIM (#150) — see [open-issues/150-live-traffic-swim.md](./open-issues/150-live-traffic-swim.md) → yaat-server `docs/plans/live-traffic-swim/08-remaining-work.md` (all slices shipped 2026-08-28; **blocked** on FAA ADX access to the LADD list before the feed can go live on YAAT1, then a first-month soak)
 - [ ] RPO limited-access mode + VATUSA ARTCC auto-fill — see [rpo-limited-access-and-vatusa-artcc.md](./rpo-limited-access-and-vatusa-artcc.md) (17 open)
 - [ ] CRC protocol support gaps — see [crc-protocol-support.md](./crc-protocol-support.md) (13 open of 174; status table of the CRC hub protocol)
-- [ ] Controller AI for solo training — see [controller-ai.md](./controller-ai.md) (design plan, not started)
+- [ ] Controller AI + soak-testing harness — see [controller-ai/README.md](./controller-ai/README.md) (design complete 2026-09-01, not started; supersedes the old solo-training controller-AI plan)
 - [ ] vTDLS emulation v1 — see [vtdls-emulation.md](./vtdls-emulation.md) (pre-work landed; remaining PDC flow)
 
 ## Backlog
@@ -43,7 +43,7 @@ A fresh agent should start from **Current focus**, then **Next up**, and treat *
 - [x] Command/tick synchronization — [command-tick-synchronization.md](./command-tick-synchronization.md)
 - [x] Bug-finding expedition 2026-07 — [bug-hunt-2026-07.md](./bug-hunt-2026-07.md)
 - [x] Taxi crossing / hold-short precedence (#172) — [open-issues/172-taxi-crossing-holdshort-and-directionality.md](./open-issues/172-taxi-crossing-holdshort-and-directionality.md)
-- [x] Archived: [asdex-safety-logic.md](./archive/asdex-safety-logic.md), [eram-audit.md](./archive/eram-audit.md), [post-physics-ownership-refactor.md](./archive/post-physics-ownership-refactor.md)
+- [x] Archived: [asdex-safety-logic.md](./archive/asdex-safety-logic.md), [eram-audit.md](./archive/eram-audit.md), [post-physics-ownership-refactor.md](./archive/post-physics-ownership-refactor.md), [controller-ai-solo-training.md](./archive/controller-ai-solo-training.md) (superseded by [controller-ai/](./controller-ai/README.md))
 
 ## Blockers
 - None recorded.

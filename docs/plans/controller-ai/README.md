@@ -1,0 +1,225 @@
+# Controller AI + Soak-Testing Harness
+
+This folder coordinates the controller-AI plan. Each subsystem has its own subdesign file; this
+README is the coordination doc — context, architecture, locked decisions, milestone tracking, reused
+infrastructure, and the deferred list.
+
+**Supersedes** the early-stage `controller-ai.md` plan (now in
+[`archive/controller-ai-solo-training.md`](../archive/controller-ai-solo-training.md)) —
+that document predates most of the current sim architecture and was not used as design input. The
+solo-training AI co-play idea it described survives as milestone CA7's consumer of the tower brain.
+
+## Context
+
+YAAT has a fully automated pilot side (PilotProactive, PilotResponder, the phase system) but the
+controller seat is always human. This feature adds **AI controllers** — deterministic rule-based
+position brains for Ground, Tower/Local, Approach/Terminal, and Center/Enroute — whose primary
+purpose is **internal soak-testing**: run scenarios for many sim-hours with the AI controlling
+everything and surface sim bugs (tick exceptions, stuck aircraft, ground gridlock, silent despawns,
+separation anomalies) with triage-ready artifacts. It is internal-only: dev/local builds, never
+active on published builds or public servers.
+
+The controller seat is a genuinely empty seat today — the only sim-issued ATC clearance in
+production is the narrow hold-for-release auto-CTO. The brains fill that seat by issuing the same
+canonical commands a human RPO types, through the same dispatch pipeline; phases execute everything,
+exactly as they do for humans.
+
+## Demo (the smallest compelling thing)
+
+A single command line:
+
+```
+Yaat.SoakRunner run --scenario oak_ground_easy.json --seed 42 --sim-hours 4 --positions GC,LC
+```
+
+runs a seeded 4-sim-hour KOAK session headless at maximum speed — AI Ground taxiing departures and
+answering arrivals, AI Local sequencing takeoffs and landings — and exits with a findings report. A
+stuck-taxi bug shows up as one `stuck-aircraft` finding with a duration, a repro one-liner, and a
+replayable recording whose timeline bookmark jumps straight to the moment it happened:
+
+```
+python tools/bug_bundle.py history episodes/ep00/recording.zip --callsign N152SP
+```
+
+Re-running the same seed reproduces the run byte-for-byte.
+
+## Architecture
+
+```
+            ┌───────────────────────────────────────────────────────────┐
+            │  Position brains (Yaat.Sim.ControllerAi)                  │
+            │  GroundBrain → LocalBrain → ApproachBrain → CenterBrain   │
+            │  guarded rules + per-aircraft intent memo, seeded, paced  │
+            └──────────────────────────┬────────────────────────────────┘
+                                       │ AiCommandRequest (canonical text, AS-prefixed)
+                                       ▼
+            ┌───────────────────────────────────────────────────────────┐
+            │  Host dispatch — RoomEngine.SendCommandAsync("AI:{pos}")  │
+            │  production routing + RecordedCommand + terminal + b'cast │
+            └──────────────────────────┬────────────────────────────────┘
+                                       │ same tick loop as production
+                                       ▼
+   ┌─────────────────────┐   ┌─────────────────────────────┐   ┌─────────────────────────┐
+   │ HeadlessRoomHost    │   │ TickProcessor.ProcessPost-  │   │ Recording (v4 archive)  │
+   │ (soak runner, 07)   │   │ Physics — auto-accept,      │   │ streamed snapshots +    │
+   │ episodes × seeds    │   │ conflicts, pilot AI, …      │   │ finding bookmarks       │
+   └──────────┬──────────┘   └──────────────┬──────────────┘   └─────────────────────────┘
+              │                             │
+              ▼                             ▼
+   ┌───────────────────────────────────────────────────────────┐
+   │  Detectors (Yaat.Sim.Soak, 08) — shared by runner + live  │
+   │  Tier A hard failures · Tier B progress · Tier C safety   │
+   │  → FindingAggregator → findings.jsonl + summary + triage  │
+   └───────────────────────────────────────────────────────────┘
+```
+
+**Key choice #1 — brains issue canonical commands only; phases execute.** The mirror of the pilot
+AI: no parallel execution model, no direct state mutation, one integration point.
+
+**Key choice #2 — host dispatches; brains never run in replay.** AI commands are recorded exactly
+like human commands (`RoomEngine.SendCommandAsync`, synthetic `"AI:{position}"` connection id);
+replays re-drive the recorded commands with the AI off, so brain logic can evolve without breaking
+historical recordings, and a soak finding's recording is its own reproduction.
+
+**Key choice #3 — real position identities.** Each AI position is a `TrackOwner`/TCP resolved from
+ArtccConfig, using the real TRACK/HO/ACCEPT/HFR/REL machinery — exercising track-sharing and release
+code paths is soak coverage, and it is what lets a human take over any single position mid-session.
+
+## Subdesigns
+
+| Doc | Contents |
+|---|---|
+| [01-architecture.md](01-architecture.md) | Core abstractions, command sink + dispatch/replay contract, hosting, enablement |
+| [02-positions-and-handoffs.md](02-positions-and-handoffs.md) | Identity/TCP resolution, jurisdiction query, gate-to-gate flows, auto-service precedence, partial staffing, GC↔LC coordination bus |
+| [03-decision-framework.md](03-decision-framework.md) | Rules + memo FSM, determinism, pacing, anomaly log, rejection policy |
+| [04-ground-brain.md](04-ground-brain.md) | Ground v1 rule set + non-goals |
+| [05-tower-brain.md](05-tower-brain.md) | Tower v1 rule set (CTO/LUAW/CLAND/GA gates) + non-goals |
+| [06-approach-center.md](06-approach-center.md) | Approach/Center later-milestone sketches |
+| [07-soak-runner.md](07-soak-runner.md) | HeadlessRoomHost, CLI, episode model, artifacts, throughput plan |
+| [08-detectors-and-findings.md](08-detectors-and-findings.md) | Detector framework, full detector table, findings schema, soak-triage |
+| [09-live-attach.md](09-live-attach.md) | Dev-only gating, room enablement, finding surfacing |
+| [10-facility-knowledge.md](10-facility-knowledge.md) | Codified facility SOP/LOA knowledge (schema, extraction tool, overlay contract) |
+
+## Milestones
+
+Core (CA) and harness (H) series interleave; each row is independently shippable and testable.
+(There is no CA4 — the core design's original "soak harness" milestone became the H series.)
+
+| | # | Milestone | Summary |
+|---|---|---|---|
+| [ ] | H0 | Headless host + skeleton | `HeadlessRoomHost`, seeded load, SoakRunner `run` with **no AI**: tick loop, streamed recording, SimLog tap, tick-exception detection, `TickTimings` throughput dump. Independently useful ("replay any scenario N sim-hours headless and record it") and validates the throughput estimate |
+| [ ] | CA0 | Core foundations + observer mode | `ControlRole`, resolver, `AiControllerService`, sinks, jurisdiction, anomaly log, `AiRng`, the routing-parity spike, the determinism regression test. Ships watchdog-only rules — finds bugs with zero commands issued |
+| [ ] | CA1 | Ground brain v1 | [04](04-ground-brain.md); soak: parking→hold-short + runway-exit→parking |
+| [ ] | K1 | Facility-knowledge schema + OAK | [10](10-facility-knowledge.md): `FacilityOps` schema + `FacilityOpsDatabase` + hand-authored `KOAK.json`; overlay consult sites in the Ground/Tower brains. Lands with CA1/CA2 |
+| [ ] | CA2 | Tower brain v1 + coordination + precedence | [05](05-tower-brain.md), coordination bus, auto-accept/pointout skips, auto-CTO suppression, `IAiStaffing`. First full gate-to-gate loop |
+| [ ] | H1 | Smallest useful soak | Detector framework (TDD) + Tier A + stuck-aircraft + ai-rejection, findings.jsonl + summary, per-finding snapshots + bookmarks. Target: GC+LC, one scenario, one seed |
+| [ ] | H2 | Scale | Generator traffic source, episode loop, seed matrices, `--parallel`, `report` aggregation, disk budget |
+| [ ] | CA3 | Live-room hosting | `RoomAiCommandSink`, `ProcessControllerAi`, `RoomAiStaffing`, human-takeover verified end-to-end (cross-repo) |
+| [ ] | H4 | Live attach | Config gate, `AIPOS` wiring, `RoomSoakMonitor` in the live tick, terminal surfacing |
+| [ ] | H3 | Full detector set | Tier B remainder + Tier C, threshold config + per-scenario overrides, false-positive burn-down |
+| [ ] | K2 | Extraction tool + SFO knowledge | [10](10-facility-knowledge.md): `tools/facility_ops_extract.py` (LLM-assisted offline, human-reviewed); `KSFO.json` proves the schema on the harder tower |
+| [ ] | H5 | Determinism + triage | `verify` subcommand (snapshot-restore → replay-to-finding → assert recurrence), `bug_bundle.py soak-triage`, `docs/soak-testing.md` |
+| [ ] | K3 | TRACON/Center/LOA contracts | [10](10-facility-knowledge.md): `sectorContracts`/`loaContracts` halves + `NCT.json`/`ZOA.json`, scoped to what CA5/CA6 consume |
+| [ ] | CA5 | Approach brain v1 | [06](06-approach-center.md); HO/ACCEPT both ways, HFR/REL to satellite towers, RD participation |
+| [ ] | CA6 | Center brain v1 | [06](06-approach-center.md) |
+| [ ] | CA7 | Refinements | Pattern ops (TG/EF/ERB), LUAW broadening, anticipated separation, crossing-request canonical-command decision, solo-training co-play consumer |
+
+Future (noted, not planned): a nightly xUnit `[Trait("Category","Soak")]` wrapper invoking
+`EpisodeRunner` on a small matrix.
+
+## Decisions committed
+
+- **Rule-based, deterministic, seeded — no LLM in the core.** A soak failure replays exactly; runs
+  are cheap and fast.
+- **Brains + detectors in Yaat.Sim; runner + host in yaat-server** (RoomEngine path). Verified:
+  bare `SimulationEngine.SendCommand` does not record, and handoff/track machinery is server-side —
+  a pure-sim runner cannot do recorded gate-to-gate soak. Cross-repo feature, both halves land
+  together.
+- **Host dispatches; brains never run during replay** (key choice #2 above).
+- **Real handoff machinery, real identities, partial staffing** (key choice #3 above).
+- **Ground + Tower first**, then Approach, then Center.
+- **Traffic: existing scenarios + seeded generators**; endless soak = bounded episodes with
+  incrementing seeds.
+- **Findings tiers:** hard failures and progress invariants can fail a run; separation/safety events
+  are advisory only (they may be the AI's own fault — attribution via the decision log).
+- **Artifacts:** per-episode v4 recordings, streamed snapshots, finding bookmarks, findings.jsonl,
+  `bug_bundle.py soak-triage`.
+- **Internal-only gating is process-level:** `Yaat:ControllerAi:Enabled` (default false, DI-gated,
+  refused in Production) — no remote-enable path exists when off.
+- **Facility SOP knowledge is codified data, applied as an overlay** ([10](10-facility-knowledge.md)):
+  schema-validated per-facility JSON in the repo (navdata-cross-checked), drafted by an
+  LLM-assisted offline tool with human review, never a runtime LLM; brains stay generically correct
+  everywhere and refine where knowledge exists. Tower tier (OAK, then SFO) first.
+- **Clean-room design:** the old `controller-ai.md` was written extremely early and was not used as
+  design input; it is archived, not extended.
+
+## Reused infrastructure (don't reinvent these)
+
+- **`CommandDispatcher.DispatchCompound` + `RoomEngine.SendCommandAsync`** — the single command
+  entry points; the AI adds zero new dispatch paths. Precedents for in-sim automation:
+  `DispatchSinglePreset`, `AutoIssueTakeoffClearance`.
+- **`TrackOwner`/TCP + `AS <tcp>`** — position identity and acting-position replay, unchanged.
+- **`RunwayOccupancy.ClassifyBest`** — the "who is on/short of/final for runway X" oracle.
+- **`RunwayDepartureQueue`** — who's-next ordinals at each hold-short node.
+- **Phase system + `CommandAcceptance`/`CommandResult`** — execution and structured accept/reject
+  feedback for free.
+- **`PilotProactive` / `PilotRequestTracker`** — the pilot requests the AI answers, and the
+  bookkeeping that closes them.
+- **`ProcessDeferredAutoTrack` / `ProcessAutoAccept`** — kept; AI positions are added as a skip
+  (staffed), not a replacement.
+- **`RngSeed`/`SerializableRandom` + `RecordedCommand`/ActionLog + `RecordingArchiveWriter`
+  (streaming `WriteSnapshot`, `WriteBookmarks`)** — determinism and artifacts end-to-end.
+- **`RoomEngineTestHarness`** — the wiring blueprint for `HeadlessRoomHost` (stays test-only).
+- **`ConflictAlertDetector`/`EramConflictDetector`/`GroundConflictDetector`/`RunwaySafetyAdvisor`/
+  `SoloTrainingEvaluator`/`AircraftStatusDescriber`/PendingWarnings drains** — existing bug oracles
+  the detectors tap rather than re-derive.
+- **`TickTimings`** — throughput instrumentation; **`bug_bundle.py`** — the triage surface.
+- **`TestVnasData.EnsureInitialized()` + real layouts** — every brain/detector test.
+- **`AircraftProfileOverrides` correction-layer pattern + `NavigationDatabase` static-singleton
+  loading** — the mold for `FacilityOpsDatabase` ([10](10-facility-knowledge.md)).
+- **`zoa-reference-cli`** (`C:\Users\Leftos\source\repos\zoa-reference-cli`, `sop` command) — the
+  SOP/LOA catalog and PDF source for knowledge extraction.
+
+## Deferred indefinitely (and why)
+
+| Feature | Reason |
+|---|---|
+| LLM-driven or hybrid brains | Nondeterministic, slow, costly — wrong shape for soak throughput; revisit only if rule coverage plateaus |
+| Voice/speech for AI controllers | Cosmetic for soak; the pilot-speech stack stays student-facing |
+| Intersecting/converging runway ops, LAHSO, opposite-direction | Geometry + rule complexity with little added sim coverage; v1 refuses such scenarios explicitly |
+| Crossing-request as a first-class canonical command | Needs a UI affordance decision; the coordination bus + terminal lines suffice for AI↔AI and AI↔human v1 |
+| Rewind-exact brain state (`ControllerAiStateDto`) | Memo reset + re-derivation is correct; add only if triage demands bit-identical resume |
+| Rolling-window/continuous-recording soak | The bounded-episode model makes it unnecessary |
+| Nightly xUnit soak category | Wrapper over `EpisodeRunner` whenever wanted; runner-first keeps iteration fast |
+| Exposing any of this to end users | Internal tool; revisit only after it has proven itself (per original intent: "for now? maybe?") |
+
+## Cross-plan risks
+
+1. **Headless routing parity** for track/coordination verbs (CA0 spike; may need a shared-router
+   extraction — cross-repo).
+2. **Dispatch outside the tick body**: verify `RoomEngine.SendCommandAsync` call-site assumptions
+   from the runner loop and the live hook (the auto-CTO precedent is engine-internal).
+3. **GC/LC jurisdiction seam**: no per-aircraft tuned-frequency model; `CT` semantics must be
+   verified before it anchors the transfer point.
+4. **Solo-evaluator isolation**: AI commands must never score as student actions.
+5. **800 ms shared tick budget** (all rooms, one loop): AI + detectors instrumented via
+   `TickTimings` from day one.
+6. **Throughput**: H0 validates the 50–200× real-time estimate before the matrix design is trusted.
+7. **False positives**: stuck-phase allowlist completeness; H3 burn-down pass.
+8. **Separation-finding attribution**: mitigated by tiering + the per-command decision log, never
+   fully automatable.
+9. **Implementation verifications flagged**: taxi-to-parking canonical; which dispatch paths need
+   `PilotRequestTracker.ApplyControllerResponse`. (SRS Category I/II/III resolution already exists —
+   `SameRunwaySeparation.ResolveSrsCategory` reads the FAA database's SRS column; note its
+   (I-behind-II) cell returns 4,500 ft where §3-9-6.a.2 permits 3,000 ft — conservative,
+   pre-existing, acceptable.)
+
+## Verification approach
+
+- **Determinism first**: CA0's regression test (same scenario + seed → byte-identical action logs)
+  lands before any decision rule.
+- **TDD per rule/detector** with real navdata and layouts; `aviation-sim-expert` review of every
+  rule set before implementation and re-review after.
+- **H5 `verify`** closes the loop: a captured finding's recording must reproduce the finding on
+  replay.
+- Cross-repo: `pwsh tools/test-all.ps1` after any Yaat.Sim signature change.

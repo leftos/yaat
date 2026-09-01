@@ -1,5 +1,10 @@
 # Controller AI for Solo Training — Design Plan
 
+> **SUPERSEDED (2026-09-01)** by [`../controller-ai/README.md`](../controller-ai/README.md) — a
+> clean-room redesign covering all four positions plus the soak-testing harness. This document
+> predates most of the current sim architecture; kept for historical context only. The solo-training
+> AI co-play idea lives on as milestone CA7 of the new plan.
+
 ## Context
 
 In YAAT solo-training mode a student controls **one** tower position; the other positions that an
