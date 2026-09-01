@@ -1,5 +1,6 @@
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
@@ -230,10 +231,8 @@ public class DataBlockStatePersistenceTests
         canvas.Aircraft = new[] { ac, other };
         canvas.DeconflictMode = DatablockDeconflictMode.FreeForm;
         var window = ShowInWindow(canvas);
-        canvas.InvalidateVisual();
-        PumpLayout(window);
 
-        var resolved = canvas.ResolvedDataBlockOffset(Callsign);
+        var resolved = SettleDeconfliction(canvas, window, Callsign);
         Assert.NotEqual(DataBlockLayout.DefaultOffset, resolved);
 
         var (sx, sy) = canvas.Viewport.LatLonToScreen(ac.Position.Lat, ac.Position.Lon);
@@ -248,6 +247,40 @@ public class DataBlockStatePersistenceTests
         var manual = canvas.ResolvedDataBlockOffset(Callsign);
         Assert.Equal(resolved.X + 10, manual.X, 0.5);
         Assert.Equal(resolved.Y + 10, manual.Y, 0.5);
+    }
+
+    /// <summary>
+    /// Renders frames until the free-form deconfliction offset stops moving. The solver advances
+    /// one damped-spring step per render (seeded from the previous frame's result), and headless
+    /// renders happen only on render-timer ticks — which RunJobs/UpdateLayout do not force — so
+    /// how many steps ran before a snapshot depended on wall-clock timer ticks, i.e. machine
+    /// load and what ran earlier in the process (the order-dependent flake this helper removes).
+    /// Forces ticks explicitly and requires two consecutive stable frames before returning.
+    /// </summary>
+    private static SKPoint SettleDeconfliction(GroundCanvas canvas, Window window, string callsign)
+    {
+        var prev = canvas.ResolvedDataBlockOffset(callsign);
+        var stableFrames = 0;
+        for (var i = 0; i < 120; i++)
+        {
+            canvas.InvalidateVisual();
+            Dispatcher.UIThread.RunJobs();
+            AvaloniaHeadlessPlatform.ForceRenderTimerTick();
+            Dispatcher.UIThread.RunJobs();
+            window.UpdateLayout();
+
+            var cur = canvas.ResolvedDataBlockOffset(callsign);
+            bool stable = (Math.Abs(cur.X - prev.X) < 0.01) && (Math.Abs(cur.Y - prev.Y) < 0.01);
+            stableFrames = stable ? stableFrames + 1 : 0;
+            if (stableFrames >= 2)
+            {
+                return cur;
+            }
+            prev = cur;
+        }
+
+        Assert.Fail($"deconfliction did not settle after 120 frames — last offset ({prev.X:F2}, {prev.Y:F2})");
+        return default; // unreachable — Assert.Fail throws
     }
 
     private static AircraftModel MakeAircraft()
