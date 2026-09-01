@@ -609,7 +609,7 @@ def parse_widths(text: str) -> list[WidthSpan]:
     marker = text.find("ROUTE WIDTH")
     if marker < 0:
         return []
-    clause = text[marker : marker + 900].split("Special Operating")[0].split("Remarks:")[0]
+    clause = text[marker : marker + 900].split("Special Operating", maxsplit=1)[0].split("Remarks:", maxsplit=1)[0]
 
     spans: list[WidthSpan] = []
     for segment in clause.split(";"):
@@ -976,7 +976,7 @@ def parse_airspace_polygon(text: str) -> list[tuple[float, float]]:
     marker = text.find("ATC ASSIGNED AIRSPACE")
     if marker < 0:
         return []
-    clause = text[marker:].split("REMARKS")[0]
+    clause = text[marker:].split("REMARKS", maxsplit=1)[0]
     vertices: list[tuple[float, float]] = []
     for latitude, longitude in re.findall(r"([NS]\s?\d{2,3}\D\d{2}\.\d{1,2}')\s*([EW]\s?\d{2,3}\D\d{2}\.\d{1,2}')", clause):
         lat = parse_coordinate(latitude, LATITUDE_RE, "S")

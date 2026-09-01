@@ -26,18 +26,18 @@ import csv
 import datetime as dt
 import hashlib
 import io
-import os
 import re
 import sys
 import urllib.request
+from pathlib import Path
 
 UPSTREAM_URL = "https://raw.githubusercontent.com/jpatokal/openflights/master/data/airlines.dat"
 USER_AGENT = "yaat-refresh-airlines/1.0"
 
-REPO_ROOT = os.path.normpath(os.path.join(os.path.dirname(__file__), ".."))
-OUT_DIR = os.path.join(REPO_ROOT, "src", "Yaat.Sim", "Speech", "Data")
-OUT_TSV = os.path.join(OUT_DIR, "airlines.tsv")
-OUT_META = os.path.join(OUT_DIR, "airlines-source.meta")
+REPO_ROOT = Path(__file__).resolve().parent.parent
+OUT_DIR = REPO_ROOT / "src" / "Yaat.Sim" / "Speech" / "Data"
+OUT_TSV = OUT_DIR / "airlines.tsv"
+OUT_META = OUT_DIR / "airlines-source.meta"
 
 # Known-bad upstream rows. OpenFlights has hand-entry errors where airline names containing
 # commas (e.g. "Alaska Airlines, Inc.") caused fields to shift: the "Inc." suffix ended up
@@ -145,8 +145,8 @@ def find_callsign_collisions(rows: list[Row]) -> list[list[Row]]:
 
 
 def write_tsv(rows: list[Row]) -> None:
-    os.makedirs(OUT_DIR, exist_ok=True)
-    with open(OUT_TSV, "w", encoding="utf-8", newline="\n") as fp:
+    OUT_DIR.mkdir(parents=True, exist_ok=True)
+    with OUT_TSV.open("w", encoding="utf-8", newline="\n") as fp:
         fp.write("# Airline ICAO-to-telephony map, derived from OpenFlights airlines.dat.\n")
         fp.write("# Source: https://openflights.org/data.html\n")
         fp.write("# License: ODbL 1.0 (see LICENSE-OPENFLIGHTS.txt in this directory)\n")
@@ -164,7 +164,7 @@ def write_meta(
 ) -> None:
     sha = hashlib.sha256(raw).hexdigest()
     fetched = dt.datetime.now(dt.UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
-    with open(OUT_META, "w", encoding="utf-8", newline="\n") as fp:
+    with OUT_META.open("w", encoding="utf-8", newline="\n") as fp:
         fp.write(f"upstream_url: {UPSTREAM_URL}\n")
         fp.write(f"upstream_sha256: {sha}\n")
         fp.write(f"upstream_bytes: {len(raw)}\n")

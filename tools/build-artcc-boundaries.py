@@ -51,9 +51,7 @@ def load_zip(data: bytes) -> tuple[list[dict[str, str]], list[dict[str, str]]]:
 
 
 def build_features(base: list[dict[str, str]], seg: list[dict[str, str]], strata: list[str]) -> tuple[list[dict], str]:
-    facilities = {
-        r["LOCATION_ID"]: r for r in base if r["COUNTRY_CODE"] == COUNTRY and r["LOCATION_TYPE"] in LOCATION_TYPES
-    }
+    facilities = {r["LOCATION_ID"]: r for r in base if r["COUNTRY_CODE"] == COUNTRY and r["LOCATION_TYPE"] in LOCATION_TYPES}
     rings: dict[str, dict[str, list[tuple[int, float, float]]]] = {}
     effective = ""
     for r in seg:
@@ -61,9 +59,7 @@ def build_features(base: list[dict[str, str]], seg: list[dict[str, str]], strata
         if loc not in facilities:
             continue
         effective = effective or r["EFF_DATE"]
-        rings.setdefault(loc, {}).setdefault(r["ALTITUDE"], []).append(
-            (int(r["POINT_SEQ"]), float(r["LAT_DECIMAL"]), float(r["LONG_DECIMAL"]))
-        )
+        rings.setdefault(loc, {}).setdefault(r["ALTITUDE"], []).append((int(r["POINT_SEQ"]), float(r["LAT_DECIMAL"]), float(r["LONG_DECIMAL"])))
 
     features = []
     for loc in sorted(facilities):
@@ -108,7 +104,7 @@ def main() -> int:
         data = args.zip.read_bytes()
         source = str(args.zip)
     else:
-        cycle = args.cycle or current_cycle(dt.date.today())
+        cycle = args.cycle or current_cycle(dt.datetime.now(dt.UTC).date())
         url = cycle_url(cycle)
         print(f"downloading {url}", file=sys.stderr)
         with urllib.request.urlopen(url, timeout=60) as resp:

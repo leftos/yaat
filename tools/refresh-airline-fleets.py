@@ -63,7 +63,7 @@ from pathlib import Path
 # Import the parser sibling-module. parse_airfleets.py lives next to this script.
 _TOOLS_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(_TOOLS_DIR))
-from parse_airfleets import map_to_icao_type, parse_pdf
+from parse_airfleets import map_to_icao_type, parse_pdf  # noqa: E402 — needs the sys.path insert above
 
 REPO_ROOT = _TOOLS_DIR.parent
 OUT_DIR = REPO_ROOT / "src" / "Yaat.Sim" / "Data"

@@ -50,7 +50,6 @@ but scenario/actions/snapshots/layouts/airport-geojson need brotli to decompress
 from __future__ import annotations
 
 import argparse
-from datetime import datetime, timedelta
 import io
 import json
 import re
@@ -60,6 +59,7 @@ import sys
 import urllib.request
 import zipfile
 from collections.abc import Iterator
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, Self
 
@@ -235,7 +235,7 @@ def write_output(text: str, out_path: Path | None) -> None:
             sys.stdout.write("\n")
     else:
         out_path.parent.mkdir(parents=True, exist_ok=True)
-        with open(out_path, "w", encoding="utf-8", newline="\n") as fp:
+        with out_path.open("w", encoding="utf-8", newline="\n") as fp:
             fp.write(text)
         print(f"wrote {out_path}", file=sys.stderr)
 
@@ -255,7 +255,7 @@ def pretty_json(text: str) -> str:
 
 def write_bytes_output(data: bytes, out_path: Path) -> None:
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    with open(out_path, "wb") as fp:
+    with out_path.open("wb") as fp:
         fp.write(data)
     print(f"wrote {out_path} ({len(data):,} bytes)", file=sys.stderr)
 
@@ -904,8 +904,10 @@ def cmd_live_status(args: argparse.Namespace) -> int:
                     if at is not None:
                         observed.append(at)
             if observed:
-                window_from, window_to = min(observed), max(observed)
-                lines.append(f"{cs}: {len(observed)} samples observed {window_from.strftime('%H:%M:%S')}Z .. {window_to.strftime('%H:%M:%S')}Z via {', '.join(sorted(instances))}")
+                window_from = min(observed).strftime("%H:%M:%S")
+                window_to = max(observed).strftime("%H:%M:%S")
+                via = ", ".join(sorted(instances))
+                lines.append(f"{cs}: {len(observed)} samples observed {window_from}Z .. {window_to}Z via {via}")
             else:
                 lines.append(f"{cs}: no samples with an observation time (older bundle?) — window from the status series")
 
@@ -1726,11 +1728,7 @@ def cmd_install(args: argparse.Namespace) -> int:
         if not src.exists():
             print(f"error: source file not found: {src}", file=sys.stderr)
             return 1
-        # Decide extension based on source
-        if src.name.endswith(".yaat-bug-report-bundle.zip"):
-            ext = "-recording.yaat-bug-report-bundle.zip"
-        else:
-            ext = "-recording.zip"
+        ext = "-recording.yaat-bug-report-bundle.zip" if src.name.endswith(".yaat-bug-report-bundle.zip") else "-recording.zip"
         dest = TESTDATA_DIR / f"{prefix}{args.desc}{ext}"
         if dest.exists() and not args.force:
             print(f"error: {dest} already exists (use --force to overwrite)", file=sys.stderr)
@@ -1757,11 +1755,7 @@ def cmd_install(args: argparse.Namespace) -> int:
             return 1
         url = urls[0]
         print(f"found {len(urls)} .zip url(s); using first: {url}", file=sys.stderr)
-        # Ext inferred from URL filename
-        if ".yaat-bug-report-bundle.zip" in url.lower():
-            ext = "-recording.yaat-bug-report-bundle.zip"
-        else:
-            ext = "-recording.zip"
+        ext = "-recording.yaat-bug-report-bundle.zip" if ".yaat-bug-report-bundle.zip" in url.lower() else "-recording.zip"
         dest = TESTDATA_DIR / f"{prefix}{args.desc}{ext}"
         if dest.exists() and not args.force:
             print(f"error: {dest} already exists (use --force to overwrite)", file=sys.stderr)

@@ -759,7 +759,7 @@ def map_to_icao_type(variant: str, families: set[str]) -> str | None:
         return "B463"
 
     # Fokker
-    if v.startswith("F-50") or v == "F50" or v == "50":
+    if v.startswith("F-50") or v in ("F50", "50"):
         return "F50"
     if v.startswith("F-70") or v == "F70":
         return "F70"

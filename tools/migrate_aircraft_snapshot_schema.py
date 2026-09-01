@@ -43,7 +43,7 @@ CONFIG_PATH = REPO_ROOT / "tools" / "aircraft_schema_migration.json"
 
 
 def load_config() -> dict[str, Any]:
-    with open(CONFIG_PATH, encoding="utf-8") as fp:
+    with CONFIG_PATH.open(encoding="utf-8") as fp:
         return json.load(fp)
 
 

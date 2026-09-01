@@ -32,6 +32,7 @@ VICE_URL = "https://pharr.org/vice/"
 # Scraping
 # ---------------------------------------------------------------------------
 
+
 def fetch_tables(url: str) -> list[tuple[str, list[list[str]]]]:
     """Fetch a page and return (heading, rows) for each HTML table."""
     resp = requests.get(url, timeout=30)
@@ -61,6 +62,7 @@ def fetch_tables(url: str) -> list[tuple[str, list[list[str]]]]:
 # ---------------------------------------------------------------------------
 # ATCTrainer normalization
 # ---------------------------------------------------------------------------
+
 
 def build_atctrainer() -> list[dict]:
     """Scrape and normalize ATCTrainer commands."""
@@ -111,16 +113,12 @@ def build_atctrainer() -> list[dict]:
             elif "Example" in row_type:
                 cmd["examples"] = [x.strip() for x in val.split("\n") if x.strip()]
             elif "Alias" in row_type:
-                cmd["aliases"] = [
-                    a.strip().upper()
-                    for a in re.split(r'[,\s]+', val)
-                    if a.strip()
-                ]
+                cmd["aliases"] = [a.strip().upper() for a in re.split(r"[,\s]+", val) if a.strip()]
             elif "Delay" in row_type:
                 cmd["delayable"] = "yes" in val.lower()
             j += 1
 
-        primary = re.split(r'[\s{(\[]+', cmd["syntax"])[0].strip()
+        primary = re.split(r"[\s{(\[]+", cmd["syntax"])[0].strip()
         cmd["primary"] = primary if primary else cmd["syntax"].split()[0] if cmd["syntax"] else "?"
 
         commands.append(cmd)
@@ -142,6 +140,7 @@ def build_atctrainer() -> list[dict]:
 # ---------------------------------------------------------------------------
 # VICE normalization
 # ---------------------------------------------------------------------------
+
 
 def build_vice() -> list[dict]:
     """Scrape and normalize VICE keyboard ATC commands."""
@@ -170,20 +169,22 @@ def build_vice() -> list[dict]:
                 args_hint = cmd_text[1:]
             else:
                 parts = cmd_text.split("/")
-                m = re.match(r'^([A-Z]+)(.*)', parts[0])
+                m = re.match(r"^([A-Z]+)(.*)", parts[0])
                 if m:
                     primary = m.group(1)
                     args_hint = m.group(2)
                     if len(parts) > 1:
                         args_hint += "/" + "/".join(parts[1:])
 
-            commands.append({
-                "primary": primary,
-                "raw_syntax": cmd_text,
-                "args_hint": args_hint,
-                "description": func,
-                "example": example,
-            })
+            commands.append(
+                {
+                    "primary": primary,
+                    "raw_syntax": cmd_text,
+                    "args_hint": args_hint,
+                    "description": func,
+                    "example": example,
+                }
+            )
 
     return commands
 
@@ -191,6 +192,7 @@ def build_vice() -> list[dict]:
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
+
 
 def main():
     print("Fetching ATCTrainer...")
@@ -201,9 +203,9 @@ def main():
     vice = build_vice()
     print(f"  {len(vice)} commands")
 
-    with open(OUT_DIR / "atctrainer-commands.json", "w", newline="\n") as f:
+    with (OUT_DIR / "atctrainer-commands.json").open("w", newline="\n") as f:
         json.dump(atc, f, indent=2)
-    with open(OUT_DIR / "vice-commands.json", "w", newline="\n") as f:
+    with (OUT_DIR / "vice-commands.json").open("w", newline="\n") as f:
         json.dump(vice, f, indent=2)
 
     print(f"\nWrote {OUT_DIR / 'atctrainer-commands.json'}")

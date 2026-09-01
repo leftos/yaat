@@ -90,7 +90,7 @@ def main() -> int:
     parser.add_argument("--dry-run", action="store_true", help="Print what would change without writing")
     args = parser.parse_args()
 
-    with open(PROFILES_PATH, encoding="utf-8") as f:
+    with PROFILES_PATH.open(encoding="utf-8") as f:
         profiles = json.load(f)
 
     changed = 0
@@ -124,7 +124,7 @@ def main() -> int:
         print("\n--dry-run: no changes written")
         return 0
 
-    with open(PROFILES_PATH, "w", encoding="utf-8") as f:
+    with PROFILES_PATH.open("w", encoding="utf-8") as f:
         json.dump(profiles, f, indent=2)
         f.write("\n")
     print(f"\nWrote {PROFILES_PATH}")

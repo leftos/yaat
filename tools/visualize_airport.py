@@ -60,12 +60,12 @@ C_TEXT = "#ccccdd"
 
 
 def load_geojson():
-    with open(GEOJSON_PATH, encoding="utf-8") as f:
+    with GEOJSON_PATH.open(encoding="utf-8") as f:
         return json.load(f)
 
 
 def load_layout():
-    with open(LAYOUT_PATH, encoding="utf-8") as f:
+    with LAYOUT_PATH.open(encoding="utf-8") as f:
         return json.load(f)
 
 

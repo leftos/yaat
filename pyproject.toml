@@ -1,0 +1,61 @@
+# Python tooling config for the scripts in tools/ and docs/ — no Python package is built from this repo.
+#
+#   Lint:   uvx ruff check          (prek runs this on commit)
+#   Format: uvx ruff format
+
+[project]
+name = "yaat-tools"
+version = "0.0.0"
+requires-python = ">=3.13"
+
+[tool.uv]
+package = false
+
+[tool.ruff]
+line-length = 150
+target-version = "py313"
+extend-exclude = ["reference"]
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+    "B",   # bugbear
+    "UP",  # pyupgrade
+    "SIM", # simplify
+    "C4",  # comprehensions
+    "C90", # mccabe complexity
+    "RUF", # ruff-specific
+    "BLE", # blind except
+    "PL",  # pylint
+    "DTZ", # naive datetimes
+    "RET", # return hygiene
+    "ISC", # implicit string concatenation
+    "PTH", # pathlib over os.path
+]
+
+[tool.ruff.lint.mccabe]
+max-complexity = 8
+
+[tool.ruff.lint.per-file-ignores]
+# Grandfathered complexity/magic-value debt in pre-config scripts — new scripts must meet the limits.
+"docs/command-aliases/build.py" = ["C901", "PLR0912", "PLR2004"]
+"tools/bug_bundle.py" = ["C901", "PLC0415", "PLR0911", "PLR0912", "PLR0915", "PLR2004"]
+"tools/build-artcc-boundaries.py" = ["C901", "PLR2004"]
+"tools/build-mtr-data.py" = ["C901", "PLC0415", "PLR0912", "PLR0913", "PLR0915", "PLR0917", "PLR2004"]
+"tools/build-mva-data.py" = ["C901", "PLC0415", "PLR2004"]
+"tools/build-surface-temp-data.py" = ["PLR2004"]
+"tools/build_aircraft_sibling_map.py" = ["C901"]
+# RUF001: the doc scrapers map/emit the ambiguous punctuation glyphs deliberately.
+"tools/euroscope_docs.py" = ["C901", "PLR0911", "PLR0912", "PLR0913", "PLR0915", "PLR0917", "PLR2004", "RUF001"]
+"tools/refresh-crc-docs.py" = ["RUF001"]
+"tools/migrate_aircraft_snapshot_schema.py" = ["C901", "PLR0912", "PLR0915", "PLR2004"]
+"tools/parse_airfleets.py" = ["C901", "PLR0911", "PLR0912", "PLR0915", "PLR2004"]
+"tools/populate_cruise_altitude.py" = ["PLR0911", "PLR2004"]
+"tools/refresh-aircraft-types.py" = ["C901", "PLR2004"]
+"tools/refresh-airline-fleets.py" = ["C901", "PLC0415", "PLR0912", "PLR0915"]
+"tools/refresh-airlines.py" = ["PLR2004"]
+"tools/stash-procedure.py" = ["C901", "PLR0911", "PLR0912", "PLR0915", "PLR2004"]
+"tools/visualize_airport.py" = ["C901"]

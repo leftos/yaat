@@ -38,17 +38,17 @@ import collections
 import datetime as dt
 import hashlib
 import json
-import os
 import sys
 import urllib.request
+from pathlib import Path
 
 UPSTREAM_URL = "https://data-api.vnas.vatsim.net/Files/AircraftSpecs.json"
 USER_AGENT = "yaat-refresh-aircraft-types/1.0"
 
-REPO_ROOT = os.path.normpath(os.path.join(os.path.dirname(__file__), ".."))
-OUT_DIR = os.path.join(REPO_ROOT, "src", "Yaat.Sim", "Speech", "Data")
-OUT_TSV = os.path.join(OUT_DIR, "aircraft-types.tsv")
-OUT_META = os.path.join(OUT_DIR, "aircraft-types-source.meta")
+REPO_ROOT = Path(__file__).resolve().parent.parent
+OUT_DIR = REPO_ROOT / "src" / "Yaat.Sim" / "Speech" / "Data"
+OUT_TSV = OUT_DIR / "aircraft-types.tsv"
+OUT_META = OUT_DIR / "aircraft-types-source.meta"
 
 # Words that are never a useful spoken family name — common fillers and variant modifiers.
 NOISE = {
@@ -188,7 +188,7 @@ def pick_family(
                 uni_counts[t] += 1
         for i in range(len(tokens) - 1):
             a, b = tokens[i], tokens[i + 1]
-            if is_name_token(a) and is_name_token(b) and a != manufacturer and b != manufacturer:
+            if is_name_token(a) and is_name_token(b) and manufacturer not in (a, b):
                 bg = f"{a} {b}"
                 if bg in allowed_bigrams:
                     bi_counts[bg] += 1
@@ -231,9 +231,9 @@ def process(data: list[dict]) -> tuple[list[tuple[str, str | None, str | None]],
 
 
 def write_tsv(rows: list[tuple[str, str | None, str | None]]) -> int:
-    os.makedirs(OUT_DIR, exist_ok=True)
+    OUT_DIR.mkdir(parents=True, exist_ok=True)
     written = 0
-    with open(OUT_TSV, "w", encoding="utf-8", newline="\n") as fp:
+    with OUT_TSV.open("w", encoding="utf-8", newline="\n") as fp:
         fp.write("# ICAO aircraft type designators → spoken manufacturer/family names.\n")
         fp.write("# Source: vNAS AircraftSpecs.json (data-api.vnas.vatsim.net).\n")
         fp.write("# Columns: designator<TAB>manufacturer<TAB>family\n")
@@ -252,7 +252,7 @@ def write_tsv(rows: list[tuple[str, str | None, str | None]]) -> int:
 def write_meta(raw: bytes, row_count: int, allowed_bigrams: set[str]) -> None:
     sha = hashlib.sha256(raw).hexdigest()
     fetched = dt.datetime.now(dt.UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
-    with open(OUT_META, "w", encoding="utf-8", newline="\n") as fp:
+    with OUT_META.open("w", encoding="utf-8", newline="\n") as fp:
         fp.write(f"upstream_url: {UPSTREAM_URL}\n")
         fp.write(f"upstream_sha256: {sha}\n")
         fp.write(f"upstream_bytes: {len(raw)}\n")
