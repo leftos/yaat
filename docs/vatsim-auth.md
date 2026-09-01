@@ -78,7 +78,28 @@ CRC trainees on `/hubs/client` are unaffected — they're not rating-gated.
 A scenario's `minimumRating` is checked against the caller's verified rating via
 `ScenarioRatingClassifier.IsRatingSufficient(callerRating, minimumRating)` in
 `ScenarioLifecycleService.ResolveGatedJsonAsync` (and `TrainingHub.GetScenarios` for catalog filtering).
-The per-ARTCC bcrypt key system is gone — rating is the sole gate.
+The per-ARTCC bcrypt key system is gone — rating is the sole rating gate.
+
+## ARTCC gate (which catalogs they may work)
+
+The room's ARTCC selects the scenario catalog it lists, so the server checks it: `CreateRoom`'s `artccId` must be
+in the caller's **permitted ARTCCs** — the token's `artcc` claim (VATUSA home facility, else subdivision) plus any
+**operator grant** for the CID — or the hub throws a `HubException`. `GetScenarioJsonById` re-checks the canonical
+scenario's `artccId` against the same set *before* the rating gate, so a scenario id lifted from another ARTCC's
+public catalog can't be loaded from a room of a different ARTCC. `GetMyPermittedArtccs` returns the set (home
+first) so the desktop client shows an ARTCC picker on Create Room only when there is more than one.
+
+Grants are the hand-vetted visiting-mentor list — e.g. a ZOA-home controller the ZMA Training Administrator has
+approved to mentor at ZMA. They live in the **private yaat-server repo** at `src/Yaat.Server/Data/artcc-grants.json`
+(`yaat-artcc-grants/1`: `grants[].cid`, `artccs`, plus free-text `name`/`note` for audit), ship inside the Docker
+image, and are read once at startup (`ArtccGrantList` → `ArtccAccessPolicy`); `Yaat:ArtccGrantsPath` overrides the
+path. A missing file means home-ARTCC access only; an unreadable or malformed one is logged as an error and treated
+the same — the file can never widen or break home access. A grant widens ARTCC access **only**: the mentor tier
+still comes from VATUSA `isMentor` / the rating. Deliberately outside the gate: **joining** — `JoinRoom`/`PullRpo`
+never look at ARTCCs, so a visiting mentor/instructor joins any facility's room and a visiting non-mentor is pulled
+into one exactly as at home (the joiner's member ARTCC is display-only; a joiner without a grant simply can't *load*
+that ARTCC's catalog scenarios — the host does); the Local Files tab (`LoadScenario` raw JSON — custom scenarios for
+any ARTCC still load); and rooms restored from a checkpoint (validated when they were created).
 
 ## Tokens
 
@@ -127,6 +148,7 @@ client** with its own callback. Config (secrets via env / `appsettings.Local.jso
 | `Yaat:Vatusa:Enabled` / `ApiKey` | VATUSA mentor lookup (disable for non-US; ApiKey optional) |
 | `Yaat:Auth:RequireVatsimAuth` | `true` (default, fail-secure). `false` enables `/auth/dev` for local dev |
 | `Yaat:Auth:JwtSigningKey` | HS256 key (≥32 bytes). Required in Production; a fixed dev key is used if blank in Development |
+| `Yaat:ArtccGrantsPath` | Operator ARTCC grants file (visiting mentors); blank → the committed `Data/artcc-grants.json` in the image |
 
 ### Multi-domain Docker deployment
 
@@ -165,9 +187,10 @@ set `RequireVatsimAuth=true` + the `Vatsim:*` config.
 
 - Server: `src/Yaat.Server/Auth/*` (`VatsimAuthService`, `VatusaService`, `YaatTokenService`,
   `AuthEndpoints`, `AuthStateStore`, `AuthExchangeStore`, `RefreshTokenRegistry`,
-  `TrainingHubAccessRequirement`, `VatsimUser`), `YaatHost.cs` (JwtBearer + `token_use` gate +
-  forwarded headers + policy wiring), `Hubs/TrainingHub.cs` (gate + claim reading),
-  `Simulation/ScenarioLifecycleService.cs` (scenario gate), `YaatOptions.cs`.
+  `TrainingHubAccessRequirement`, `VatsimUser`, `ArtccGrantList`, `ArtccAccessPolicy`), `YaatHost.cs` (JwtBearer +
+  `token_use` gate + forwarded headers + policy wiring + grants load), `Hubs/TrainingHub.cs` (gate + claim reading +
+  ARTCC gate), `Simulation/ScenarioLifecycleService.cs` (ARTCC + rating scenario gate), `YaatOptions.cs`,
+  `Data/artcc-grants.json`.
 - Shared: `src/Yaat.Sim/Scenarios/ScenarioRatingClassifier.cs`.
 - Desktop: `src/Yaat.Client.Core/Services/VatsimAuthClient.cs`, `ServerConnection.cs`.
 - Web: `tools/Yaat.VStrips.Web/wwwroot/index.html`, `tools/Yaat.VTdls.Web/wwwroot/index.html`,

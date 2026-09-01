@@ -249,10 +249,10 @@ public partial class MainViewModel
     }
 
     /// <summary>
-    /// ARTCC-tab load path. Fetches the canonical scenario JSON from the server (gated by the
-    /// training-key check against the canonical MinimumRating), then runs it through the standard
+    /// ARTCC-tab load path. Fetches the canonical scenario JSON from the server (gated by the caller's
+    /// permitted ARTCCs and rating against the canonical fields), then runs it through the standard
     /// JSON load pipeline — so catalog loads get the same difficulty and solo-pacing setup as
-    /// local-file loads. Surfaces the gate denial inline when the key doesn't unlock the scenario.
+    /// local-file loads. Surfaces the gate denial inline when the scenario is out of reach.
     /// </summary>
     public async Task LoadScenarioFromIdAsync(string apiScenarioId, string? displayName = null)
     {

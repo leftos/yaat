@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using System.Diagnostics;
 using Avalonia.Controls;
 using Avalonia.Threading;
+using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
 using Yaat.Client.Models;
@@ -39,7 +40,7 @@ public partial class MainViewModel
             ServerUpdateNotice = verdict.IsUpdateRecommended ? verdict.Message : null;
 
             StatusText = "Signing in with VATSIM...";
-            var identity = await _auth.EnsureSignedInAsync(url, ct);
+            var identity = await _auth.EnsureSignedInAsync(url, _preferences.ArtccId, ct);
             if (identity is null)
             {
                 IsConnecting = false;
@@ -53,17 +54,8 @@ public partial class MainViewModel
             IsNonMentor = !(identity.IsMentor || Yaat.Sim.Scenarios.ScenarioRatingClassifier.IsInstructorOrAbove(identity.Rating));
 
             // ARTCC is resolved authoritatively from VATUSA (home facility) with a VATSIM-subdivision
-            // fallback, so the apps no longer prompt for it. Overwrite any stored value each sign-in.
-            if (!string.IsNullOrWhiteSpace(identity.Artcc))
-            {
-                bool artccChanged = !string.Equals(_preferences.ArtccId, identity.Artcc, StringComparison.OrdinalIgnoreCase);
-                _preferences.SetArtccId(identity.Artcc);
-                if (artccChanged)
-                {
-                    // The ARTCC picks which CRC alias file pairs with the personal one, so reload them.
-                    _ = LoadCrcAliasesAsync();
-                }
-            }
+            // fallback, so the apps no longer prompt for it. It becomes the ARTCC in effect each sign-in.
+            SetActiveArtcc(identity.Artcc);
 
             if (_preferences.UserInitials.Length != 2)
             {
@@ -80,14 +72,25 @@ public partial class MainViewModel
                 return "Set your 2-letter initials in Settings before connecting";
             }
 
-            if (string.IsNullOrWhiteSpace(_preferences.ArtccId))
-            {
-                IsConnecting = false;
-                return "Your ARTCC couldn't be determined from VATSIM/VATUSA. Make sure your VATSIM profile lists a subdivision.";
-            }
-
             StatusText = "Connecting...";
             await _connection.ConnectAsync(url, () => _auth.GetValidAccessTokenAsync(url), ct);
+
+            // The ARTCCs this controller may work are only known server-side (home from the token plus
+            // operator grants), so a controller with no resolvable home ARTCC is refused here, after
+            // connecting, rather than before — a grant alone is enough to get in.
+            await RefreshPermittedArtccsAsync();
+            if (string.IsNullOrWhiteSpace(_preferences.ArtccId))
+            {
+                SetActiveArtcc(PermittedArtccs.FirstOrDefault());
+            }
+
+            if (string.IsNullOrWhiteSpace(_preferences.ArtccId))
+            {
+                await _connection.DisconnectAsync();
+                IsConnecting = false;
+                return "Your ARTCC couldn't be determined from VATSIM/VATUSA and no ARTCC grant is on file for your CID. Make sure your VATSIM profile lists a subdivision.";
+            }
+
             _connectedServerUrl = url;
             IsConnected = true;
             IsConnecting = false;
@@ -121,6 +124,62 @@ public partial class MainViewModel
             IsConnected = false;
             return $"Error: {ex.Message}";
         }
+    }
+
+    /// <summary>
+    /// The ARTCCs whose scenario catalogs this controller may open a room for — the token's home ARTCC
+    /// first, then any operator grants — as the server reports them on connect. Session state, not a
+    /// preference: the home ARTCC can change on a token refresh and grants change per deployment.
+    /// </summary>
+    public ObservableCollection<string> PermittedArtccs { get; } = [];
+
+    /// <summary>The ARTCC the next Create Room uses; home by default, chosen from <see cref="PermittedArtccs"/>.</summary>
+    [ObservableProperty]
+    private string? _selectedCreateArtccId;
+
+    /// <summary>Whether the room list shows the Create Room ARTCC picker (more than one permitted ARTCC).</summary>
+    public bool HasMultiplePermittedArtccs => PermittedArtccs.Count > 1;
+
+    private string? HomeArtccId => _identity?.Artcc;
+
+    /// <summary>
+    /// Makes <paramref name="artccId"/> the ARTCC in effect — the value every ARTCC-scoped consumer reads
+    /// (scenario picker, live-session picker, weather, CRC alias pairing, web-client URLs). Home at sign-in,
+    /// the room's ARTCC while in a room. Blank is ignored; a change re-pairs the CRC alias file.
+    /// </summary>
+    private void SetActiveArtcc(string? artccId)
+    {
+        if (string.IsNullOrWhiteSpace(artccId) || string.Equals(_preferences.ArtccId, artccId, StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        _preferences.SetArtccId(artccId);
+        // The ARTCC picks which CRC alias file pairs with the personal one, so reload them.
+        _ = LoadCrcAliasesAsync();
+    }
+
+    private async Task RefreshPermittedArtccsAsync()
+    {
+        List<string> permitted;
+        try
+        {
+            permitted = await _connection.GetMyPermittedArtccsAsync();
+        }
+        catch (Exception ex)
+        {
+            _log.LogWarning(ex, "Failed to fetch the permitted ARTCCs; assuming the home ARTCC only");
+            permitted = string.IsNullOrWhiteSpace(_preferences.ArtccId) ? [] : [_preferences.ArtccId];
+        }
+
+        PermittedArtccs.Clear();
+        foreach (var artcc in permitted)
+        {
+            PermittedArtccs.Add(artcc);
+        }
+
+        OnPropertyChanged(nameof(HasMultiplePermittedArtccs));
+        SelectedCreateArtccId = PermittedArtccs.FirstOrDefault();
     }
 
     private static string DeriveInitials(string name)
@@ -168,6 +227,11 @@ public partial class MainViewModel
         AddSystemEntry($"Disconnected from {url}");
         _connectedServerUrl = "";
         ClearRoomState();
+
+        // The permitted ARTCCs were this server's answer; the next connect asks again.
+        PermittedArtccs.Clear();
+        OnPropertyChanged(nameof(HasMultiplePermittedArtccs));
+        SelectedCreateArtccId = null;
     }
 
     private bool CanDisconnect() => IsConnected || IsConnecting;
@@ -266,11 +330,16 @@ public partial class MainViewModel
     [RelayCommand(CanExecute = nameof(CanCreateRoom))]
     private async Task CreateRoomAsync()
     {
+        // The room's ARTCC selects its scenario catalog (the server validates it against the home ARTCC plus
+        // operator grants); the member row keeps the home ARTCC so Room Members shows where a visiting
+        // mentor is from.
+        var roomArtccId = SelectedCreateArtccId ?? _preferences.ArtccId;
+        var memberArtccId = HomeArtccId ?? roomArtccId;
         try
         {
-            var roomId = await _connection.CreateRoomAsync(_preferences.UserInitials, _preferences.ArtccId, Yaat.Sim.ClientKind.Main);
+            var roomId = await _connection.CreateRoomAsync(_preferences.UserInitials, roomArtccId, Yaat.Sim.ClientKind.Main);
 
-            var state = await _connection.JoinRoomAsync(roomId, _preferences.UserInitials, _preferences.ArtccId, Yaat.Sim.ClientKind.Main);
+            var state = await _connection.JoinRoomAsync(roomId, _preferences.UserInitials, memberArtccId, Yaat.Sim.ClientKind.Main);
 
             if (state is null)
             {
@@ -287,6 +356,8 @@ public partial class MainViewModel
         {
             _log.LogError(ex, "CreateRoom failed");
             StatusText = $"Create room error: {ex.Message}";
+            // A server refusal (e.g. an ARTCC the caller may not work) must not be only gray status-bar text.
+            AddWarningEntry($"[WARN] Create room failed: {ex.Message}");
         }
     }
 
@@ -718,6 +789,10 @@ public partial class MainViewModel
 
     public void ApplyRoomState(RoomStateDto state)
     {
+        // The room's ARTCC is the one in effect for the session — before the scenario bootstrap below,
+        // which reads it for the radar/ground views.
+        SetActiveArtcc(state.CreatorArtccId);
+
         ActiveRoomId = state.RoomId;
         _preferences.LastActiveRoomId = state.RoomId;
         ActiveRoomName = $"({state.CreatorArtccId}) {state.CreatorInitials}'s Room";
@@ -787,8 +862,14 @@ public partial class MainViewModel
         _ = FetchAssignmentsAsync();
     }
 
-    private void ClearRoomState()
+    internal void ClearRoomState()
     {
+        // Out of a room the home ARTCC is back in effect (a grants-only controller falls back to their
+        // first grant), and the next Create Room defaults to it again.
+        var homeArtcc = HomeArtccId ?? PermittedArtccs.FirstOrDefault();
+        SetActiveArtcc(homeArtcc);
+        SelectedCreateArtccId = homeArtcc ?? SelectedCreateArtccId;
+
         ActiveRoomId = null;
         ActiveRoomName = null;
         CrcLobbyClients.Clear();

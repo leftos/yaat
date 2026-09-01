@@ -837,6 +837,13 @@
             <StackPanel Orientation="Horizontal"
                         Spacing="8"
                         HorizontalAlignment="Right">
+                <!-- Shown only when the server permits more than one ARTCC (home + operator grants). -->
+                <ComboBox IsVisible="{Binding HasMultiplePermittedArtccs}"
+                          ItemsSource="{Binding PermittedArtccs}"
+                          SelectedItem="{Binding SelectedCreateArtccId}"
+                          MinWidth="80"
+                          VerticalAlignment="Center"
+                          ToolTip.Tip="ARTCC for the new room. Its scenario catalog, live sessions and weather follow this choice." />
                 <Button Content="Create Room"
                         Command="{Binding
                             CreateRoomCommand}" />

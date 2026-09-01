@@ -38,7 +38,13 @@ public sealed class VatsimAuthClient
     /// Ensures a valid session for the server, running the VATSIM login (or dev token issuance) if
     /// needed. Returns the resolved identity, or null if login failed or was cancelled.
     /// </summary>
-    public async Task<VatsimIdentity?> EnsureSignedInAsync(string serverUrl, CancellationToken ct)
+    /// <summary>
+    /// Signs in to <paramref name="serverUrl"/>, reusing a stored session when its refresh token still works.
+    /// <paramref name="devArtcc"/> only matters for a server with VATSIM auth disabled: the dev token issuer
+    /// mints whatever ARTCC it is told, so the client passes its stored one — otherwise the dev identity has
+    /// no home ARTCC and the server's ARTCC gate refuses to open a room.
+    /// </summary>
+    public async Task<VatsimIdentity?> EnsureSignedInAsync(string serverUrl, string? devArtcc, CancellationToken ct)
     {
         var key = NormalizeServer(serverUrl);
 
@@ -49,7 +55,7 @@ public sealed class VatsimAuthClient
         }
 
         var required = await IsAuthRequiredAsync(key, ct);
-        var session = required ? await BrowserLoginAsync(key, ct) : await DevLoginAsync(key, ct);
+        var session = required ? await BrowserLoginAsync(key, ct) : await DevLoginAsync(key, devArtcc, ct);
         if (session is null)
         {
             return null;
@@ -212,12 +218,18 @@ public sealed class VatsimAuthClient
         }
     }
 
-    private async Task<StoredSession?> DevLoginAsync(string serverUrl, CancellationToken ct)
+    private async Task<StoredSession?> DevLoginAsync(string serverUrl, string? devArtcc, CancellationToken ct)
     {
         try
         {
+            var url = $"{serverUrl}/auth/dev";
+            if (!string.IsNullOrWhiteSpace(devArtcc))
+            {
+                url += $"?artcc={Uri.EscapeDataString(devArtcc)}";
+            }
+
             using var content = new StringContent("");
-            using var response = await _http.PostAsync($"{serverUrl}/auth/dev", content, ct);
+            using var response = await _http.PostAsync(url, content, ct);
             if (!response.IsSuccessStatusCode)
             {
                 _log.LogWarning("Dev token request failed with status {Status} for {Server}", (int)response.StatusCode, serverUrl);

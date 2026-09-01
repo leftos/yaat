@@ -909,7 +909,7 @@ Use **View > Copy View Settings...** to open a comparison dialog that copies vie
 
 **Scenario > Load Scenario...** opens a dialog with two tabs:
 
-- **ARTCC Scenarios** (default) — lists training scenarios from the [vNAS](#glossary) data API for your configured ARTCC. Use the Airport filter to narrow by primary airport. Requires an ARTCC ID set in Settings.
+- **ARTCC Scenarios** (default) — lists training scenarios from the [vNAS](#glossary) data API for the room's ARTCC: normally your home ARTCC, or the one you picked when creating the room if you've been granted another ARTCC's scenarios (see [Visiting another ARTCC](#visiting-another-artcc)). Use the Airport filter to narrow by primary airport.
 - **Local Files** — browse a local folder for ATCTrainer-format JSON scenario files. Supports Facility and Rating filters.
 
 Select a scenario and click **Load** (or double-click). Aircraft spawn at their configured starting positions. The window title shows the room name and scenario name. To switch scenarios, load a new one — a confirmation dialog appears if one is already active.
@@ -1504,6 +1504,12 @@ All three support callsign prefix: `AAL123 TAKE`, `AAL123 GIVE AB`, `AAL123 GIVE
 
 Assignments are cleared when a member leaves, an aircraft is deleted, or the scenario is unloaded.
 
+### Visiting another ARTCC
+
+Your scenarios normally come from your home ARTCC, which YAAT resolves from your VATSIM/VATUSA profile. A visiting controller whom another facility's Training Administrator has approved to mentor there can ask the server operator for access to that ARTCC's scenarios as well. Once granted, the room list shows an ARTCC picker next to **Create Room**: pick the ARTCC for the session and the room is created for it — the scenario list, live-session picker, weather, and CRC alias file all follow the room's ARTCC, and switch back to your home ARTCC when you leave. Without a grant there is no picker and nothing changes. A grant only widens which scenarios you can load; whether you can run sessions at all still comes from your VATUSA mentor role or instructor rating.
+
+Joining is never restricted by ARTCC: as a visitor you can join another facility's room (mentors and instructors) or be pulled into one from the lobby (everyone else) exactly as at home, whether or not you hold a grant there — you just can't load that ARTCC's catalog scenarios yourself; the room's host does.
+
 ### Room Members
 
 Open **Room > Members...** for one window that shows everyone in the current training room and everyone available to pull into it. It has four sections:
@@ -1760,7 +1766,7 @@ The tables below list every setting on each tab, what it does, and its default. 
 | Setting | What it does | Default |
 |---------|--------------|---------|
 | **Initials (2 letters)** | Your operating initials, shown in the terminal panel so other RPOs can see who issued each command. Suggested from your name at sign-in and auto-uppercased; stays editable. | *(from your name)* |
-| **ARTCC** | Read-only. Filled in automatically from your VATSIM/VATUSA profile (US controllers from VATUSA, everyone else from their VATSIM subdivision) and re-resolves on its own if you transfer facilities. | *(auto)* |
+| **ARTCC** | Read-only. Filled in automatically from your VATSIM/VATUSA profile (US controllers from VATUSA, everyone else from their VATSIM subdivision) and re-resolves on its own if you transfer facilities. While you're in a room it shows that room's ARTCC (see [Visiting another ARTCC](#visiting-another-artcc)). | *(auto)* |
 
 Your VATSIM CID, name, and controller rating also come from **VATSIM sign-in** when you connect — they are not entered by hand. See [Signing in with VATSIM](#signing-in-with-vatsim).
 

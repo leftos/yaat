@@ -88,7 +88,7 @@ public partial class LoadScenarioWindow : Window
         // Load ARTCC scenarios if we have an ARTCC ID and a live connection.
         if (string.IsNullOrWhiteSpace(_artccId))
         {
-            _artccStatusText.Text = "Set ARTCC ID in Settings first.";
+            _artccStatusText.Text = "ARTCC not set — create or join a room first.";
         }
         else if (_connection is null)
         {
@@ -157,7 +157,7 @@ public partial class LoadScenarioWindow : Window
         if (hidden > 0)
         {
             var noun = hidden == 1 ? "scenario" : "scenarios";
-            _artccGateText.Text = $"{hidden} {noun} hidden — requires training access key for {_artccId}. Set the key in Settings → Identity.";
+            _artccGateText.Text = $"{hidden} {noun} hidden — requires a higher VATSIM rating.";
             _artccGateText.IsVisible = true;
         }
         else

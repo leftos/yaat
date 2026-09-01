@@ -117,8 +117,10 @@ CRC + YAAT lobbies.
   show a minimal fallback prompt. `SendCommand`/`JoinRoom`/`CreateRoom` keep passing the resolved value.
 - [ ] **Web: drop the field.** Remove the ARTCC `<input>` from both `wwwroot/index.html` landing
   forms; use `session.artcc`. Keep a fallback field shown only when `session.artcc` is empty.
-- [ ] **Known tradeoff (accepted):** "no override" means a controller can't run another ARTCC's
-  scenario catalog (e.g. a ZOA mentor can't load ZLA). Flagged at decision time.
+- [x] **Known tradeoff (revisited 2026-09-01):** "no override" originally meant a controller couldn't run
+  another ARTCC's scenario catalog (e.g. a ZOA mentor couldn't load ZLA). Superseded by server-side ARTCC
+  grants — a hand-vetted CID → extra-ARTCC list in the private yaat-server repo, enforced on `CreateRoom` and
+  `GetScenarioJsonById`, with a Create Room ARTCC picker; see `docs/vatsim-auth.md` § ARTCC gate.
 
 ## Part D — Docs & tests
 

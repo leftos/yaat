@@ -311,6 +311,17 @@ public sealed class ServerConnection : IStripsTransport, ITdlsTransport, IAsyncD
         return await _connection!.InvokeAsync<TrainingRoomInfoDto?>("FindRoomForMyCid");
     }
 
+    /// <summary>
+    /// The ARTCCs whose scenario catalogs this controller may open a room for: the home ARTCC the server
+    /// resolved from VATSIM/VATUSA first, then any ARTCC the server operator has granted. Create Room offers
+    /// a picker only when there is more than one.
+    /// </summary>
+    public async Task<List<string>> GetMyPermittedArtccsAsync()
+    {
+        EnsureConnected();
+        return await _connection!.InvokeAsync<List<string>>("GetMyPermittedArtccs");
+    }
+
     // --- Scenario lifecycle ---
 
     public async Task<LoadScenarioResultDto> LoadScenarioAsync(
@@ -334,10 +345,10 @@ public sealed class ServerConnection : IStripsTransport, ITdlsTransport, IAsyncD
 
     /// <summary>
     /// ARTCC-tab load path, step 1. Resolves the canonical scenario JSON from the server's catalog,
-    /// gated by the caller's verified VATSIM rating, so the client can run the difficulty/pacing setup
-    /// before loading it back via <see cref="LoadScenarioAsync"/>. A non-null AccessDeniedReason means
-    /// the caller's rating is below the scenario's minimum (or the client isn't in a room) and no JSON
-    /// is returned.
+    /// gated by the caller's permitted ARTCCs (home + operator grants) and verified VATSIM rating, so the
+    /// client can run the difficulty/pacing setup before loading it back via <see cref="LoadScenarioAsync"/>.
+    /// A non-null AccessDeniedReason means the scenario belongs to another ARTCC, the caller's rating is
+    /// below its minimum, or the client isn't in a room — and no JSON is returned.
     /// </summary>
     public async Task<ScenarioJsonResultDto> GetScenarioJsonByIdAsync(string scenarioId)
     {
@@ -1191,7 +1202,7 @@ public sealed record ScenarioSummaryDto(string Id, string Name, string ArtccId, 
 /// <summary>
 /// Wire shape for ServerConnection.GetScenariosAsync. Mirrors the server's
 /// ScenarioCatalogResponseDto. HiddenByGateCount > 0 triggers the picker's
-/// "N scenarios hidden — requires training access key" affordance.
+/// "N scenarios hidden — requires a higher rating" affordance.
 /// </summary>
 public sealed record ScenarioCatalogResponseDto(ScenarioSummaryDto[] Visible, int HiddenByGateCount);
 

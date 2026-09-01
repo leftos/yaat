@@ -190,8 +190,8 @@ Logging/
   FileLoggerProvider.cs         # Writes to YaatPaths.AppDataRoot/<logFileName> (yaat-client.log); rotates the previous 3 sessions to .log.1/.2/.3 on launch so a relaunch can't destroy a crash/freeze log
 
 Services/
-  ServerConnection.cs           # SignalR client to /hubs/training (JSON). Implements IStripsTransport from Strips. Inline DTOs for everything outside the strip surface (rooms, aircraft, weather, CRC, recordings). Includes PilotTransmissionBroadcastDto + PilotTransmissionReceived for solo-training audio. ConnectAsync takes an access-token provider (the YAAT session token).
-  VatsimAuthClient.cs           # Client side of server-mediated VATSIM Connect: system-browser + loopback handoff (or /auth/dev when a server is in dev-bypass), token refresh, per-server session persistence to auth-sessions.json. Supplies the SignalR access token.
+  ServerConnection.cs           # SignalR client to /hubs/training (JSON). Implements IStripsTransport from Strips. Inline DTOs for everything outside the strip surface (rooms, aircraft, weather, CRC, recordings). Includes PilotTransmissionBroadcastDto + PilotTransmissionReceived for solo-training audio. ConnectAsync takes an access-token provider (the YAAT session token). GetMyPermittedArtccsAsync = the ARTCCs the caller may create rooms for (home + operator grants).
+  VatsimAuthClient.cs           # Client side of server-mediated VATSIM Connect: system-browser + loopback handoff (or /auth/dev when a server is in dev-bypass — passes the stored ARTCC so the dev token carries an artcc claim), token refresh, per-server session persistence to auth-sessions.json. Supplies the SignalR access token.
   YaatReconnectPolicy.cs        # IRetryPolicy for the SignalR HubConnection: keeps retrying through a full server restart/deploy (up to ~15 min) instead of giving up after ~40s, so a session resumes automatically once the server is back.
   UserPreferences.cs            # JSON to YaatPaths.AppDataRoot/preferences.json (%LOCALAPPDATA%/yaat/). Stores PilotVoiceEnabled/Volume/RadioFxEnabled, default off.
   CfrAlertMonitor.cs            # Per-aircraft CFR release-window latch; evaluates each window vs real UTC (via CfrAlertEvaluator) and reports early/late/expired violations once. Wall-clock, alert-only (#230)
@@ -293,7 +293,7 @@ Services/
 
 ViewModels/
   MainViewModel.cs              # Root VM; SendCommandAsync pipeline; nav data init
-  MainViewModel.Rooms.cs        # Partial: room lifecycle (create/join/leave), aircraft assignments
+  MainViewModel.Rooms.cs        # Partial: room lifecycle (create/join/leave), aircraft assignments; PermittedArtccs + the Create Room ARTCC picker; SetActiveArtcc — UserPreferences.ArtccId is the ARTCC in effect (home at sign-in, the room's while in a room)
   MainViewModel.Aircraft.cs     # Partial: aircraft management (spawn/delete/update), terminal broadcast handling, and PilotTransmissionBroadcast gate to PilotVoiceService.
   MainViewModel.Scenario.cs     # Partial: scenario load/unload/restart. Load+Unload are mentor-only (CanLoadScenario/CanUnloadScenario gate on IsNonMentor); Restart is open to any room member. Rejections raise a terminal warning via ReportScenarioActionFailure, not just StatusText.
   MainViewModel.ArrivalGenerators.cs # Partial: live arrival-generator editing (open editor window, push edits to sim, Save As)

@@ -246,6 +246,13 @@ room's `World` or its `ChangeTracker` from a hub callback thread expecting tick-
 
 ## `TrainingHub` — the RPC surface (`Hubs/TrainingHub.cs`)
 
+Identity comes only from the session-token claims (`CallerCid`, `CallerRating`, `CallerArtcc`, `CallerIsMentorOrInstructor`).
+`CreateRoom` validates the client's `artccId` against `CallerPermittedArtccs` (`ArtccAccessPolicy`: token home ARTCC plus
+operator grants from `Data/artcc-grants.json`) and stores it normalised as `CreatorArtccId` — the ARTCC `GetScenarios` lists
+and `StartLiveSession` resolves positions in — so a room's ARTCC is always one its creator may work. `GetScenarioJsonById`
+re-checks the canonical scenario's `artccId` against the same set before the rating gate. See
+[vatsim-auth.md](vatsim-auth.md) § ARTCC gate.
+
 A thin hub that resolves the caller to a `RoomEngine` via `ResolveEngine(connectionId)` (`:1340`) — which routes admins
 through their single-room filter and regular clients through `GetRoomForClient` — then opens a `BeginRoomScope` and
 delegates (e.g. `SendCommand`, `:508`). Methods return a failure DTO (e.g. `CommandResultDto(false, "Not in a room")`)

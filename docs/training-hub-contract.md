@@ -88,13 +88,14 @@ both the wrapper name and the hub method's own semantics** — grep for the stri
 
 | Client wrapper (`ServerConnection.cs`) | Invoke string | Server method (`TrainingHub.cs`) |
 |---|---|---|
-| `CreateRoomAsync(initials, artccId, kind)` | `CreateRoom` | `CreateRoom(initials, artccId, kind)` — CID/rating from token claims |
+| `CreateRoomAsync(initials, artccId, kind)` | `CreateRoom` | `CreateRoom(initials, artccId, kind)` — CID/rating from token claims; `artccId` must be a permitted ARTCC (token home + operator grants) or it throws `HubException` |
+| `GetMyPermittedArtccsAsync()` | `GetMyPermittedArtccs` | `GetMyPermittedArtccs()` — home ARTCC first, then operator grants |
 | `JoinRoomAsync(roomId, initials, artccId, kind)` | `JoinRoom` | `JoinRoom(roomId, initials, artccId, kind)` |
 | `LeaveRoomAsync()` | `LeaveRoom` | `LeaveRoom()` |
 | `GetActiveRoomsAsync()` | `GetActiveRooms` | `GetActiveRooms()` |
 | `FindRoomForMyCidAsync()` | `FindRoomForMyCid` | `FindRoomForMyCid()` — CID from token claims |
 | `LoadScenarioAsync(json, …rates)` | `LoadScenario` | `LoadScenario(...)` |
-| `GetScenarioJsonByIdAsync(id)` | `GetScenarioJsonById` | `GetScenarioJsonById(id)` — gated by caller rating |
+| `GetScenarioJsonByIdAsync(id)` | `GetScenarioJsonById` | `GetScenarioJsonById(id)` — gated by the scenario's ARTCC (caller's permitted set), then caller rating |
 | `GetScenariosAsync()` | `GetScenarios` | `GetScenarios()` — filtered by caller rating |
 | `UnloadScenarioAircraftAsync()` | `UnloadScenarioAircraft` | `UnloadScenarioAircraft()` `:449` |
 | `ConfirmUnloadScenarioAsync()` | `ConfirmUnloadScenario` | `ConfirmUnloadScenario()` `:460` |
@@ -184,6 +185,9 @@ Seven methods call `RequireMentorOrInstructor()` (`TrainingHub.cs:97`) — `Crea
 "Not in a room" sentinel above, the guard **throws a `HubException`** ("This action requires a mentor or
 instructor.") *before* any room lookup, so the client sees a thrown exception rather than a `Success == false`
 DTO. `HubException` is the one exception type SignalR relays verbatim regardless of `EnableDetailedErrors`.
+`CreateRoom` throws the same way when the requested `artccId` isn't in the caller's permitted set (token home ARTCC
+plus operator grants — see [vatsim-auth.md](vatsim-auth.md) § ARTCC gate); the client's `CreateRoomAsync` raises a
+terminal warning for it.
 
 Callers must therefore catch, and — this is the bug that reached users — must make the rejection *visible*.
 Setting only `StatusText` puts it in small gray text at the bottom of the window, which reads as "nothing

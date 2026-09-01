@@ -3,11 +3,14 @@
 ## Unreleased
 
 ### Added
+- Mentors the server operator has granted access to another ARTCC's scenarios can pick that ARTCC when creating a room; the scenario list, live-session picker, weather, and CRC alias file then follow the room's ARTCC.
 - A departure rolling toward an aircraft blocking its runway now rejects the takeoff, brakes to a stop, and holds in position (on by default).
 - A cleared departure that hasn't started rolling declines the clearance ("unable, traffic on the runway") when another aircraft blocks the runway ahead.
 - Solo training scores a rejected takeoff for a runway occupant, a stop that can't clear the traffic, and a runway overrun.
 
 ### Fixed
+- The server now refuses to open a room, or fetch a catalog scenario, for an ARTCC the signed-in controller isn't entitled to, instead of trusting the client's ARTCC.
+- The Load Scenario dialog's "scenarios hidden" note no longer refers to the retired training access key.
 - An aircraft on an extended downwind holds altitude past the base-turn point instead of climbing back toward pattern altitude.
 - Occupied-runway advisories (landing/option and takeoff clearances) now warn about traffic frozen on the runway by `HOLDPOSITION` or `GIVEWAY`, such as a stopped crossing.
 - `CTOC` mid-roll aborts realistically: reaction delay, maximum braking on the centerline, a "stopped on the runway" report, then holding in position.

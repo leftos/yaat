@@ -34,9 +34,9 @@
             <TabItem Header="ARTCC Scenarios" x:Name="ArtccTab">
                 <DockPanel Margin="0,8,0,0">
 
-                    <!-- Filter + status. Rating filter is server-side now: scenarios the user's
-                         training key doesn't unlock never leave the server, so there's no rating
-                         dropdown here. The HiddenByGateCount surfaces in ArtccGateText if > 0. -->
+                    <!-- Filter + status. Rating filter is server-side: scenarios above the user's
+                         verified rating never leave the server, so there's no rating dropdown here.
+                         The HiddenByGateCount surfaces in ArtccGateText if > 0. -->
                     <StackPanel DockPanel.Dock="Top"
                                 Orientation="Horizontal"
                                 Spacing="12"
