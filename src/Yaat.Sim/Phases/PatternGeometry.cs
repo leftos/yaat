@@ -1,4 +1,6 @@
+using Microsoft.Extensions.Logging;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Phases.Pattern;
 using Yaat.Sim.Simulation.Snapshots;
 
 namespace Yaat.Sim.Phases;
@@ -155,6 +157,8 @@ public sealed class PatternWaypoints
 /// </summary>
 public static class PatternGeometry
 {
+    private static readonly ILogger Log = SimLog.CreateLogger("PatternGeometry");
+
     /// <summary>Minimum pattern size (NM) — below this, deconfliction is skipped.</summary>
     public const double MinPatternSizeNm = 0.4;
 
@@ -186,6 +190,36 @@ public static class PatternGeometry
         return (size, alt);
     }
 
+    /// <summary>
+    /// Minimum flyable pattern width (nm) for the given aircraft: the downwind→base and
+    /// base→final turns each consume one turn radius of lateral room, so a pattern narrower
+    /// than r(downwind speed) + r(base speed) cannot roll out on the final approach course —
+    /// the aircraft is geometrically forced through it (and onto a close parallel's final;
+    /// AIM FIG 4-3-3 key 7 prohibits exactly that track). Speeds are the per-type leg speeds
+    /// inflated by the local wind — a partial allowance (not a worst-case bound) for the
+    /// ground-speed-anticipated turns (see <see cref="BasePhase.TurnRadiusNm"/>) widening on
+    /// the tailwind-quartering side.
+    ///
+    /// The calm-wind floor exceeds <see cref="CategoryPerformance.PatternSizeNm"/> for Jet
+    /// (~1.96 vs 1.5) and Turboprop (~1.11 vs 1.0) at category speeds, so those defaults are
+    /// effectively sizeRatio anchors for the base-extension scaling — the floor is the width
+    /// actually flown.
+    /// </summary>
+    public static double MinFlyablePatternSizeNm(string aircraftType, AircraftCategory category, double windSpeedKt)
+    {
+        double downwindKt = AircraftPerformance.DownwindSpeed(aircraftType, category) + windSpeedKt;
+        double baseKt = AircraftPerformance.BaseSpeed(aircraftType, category) + windSpeedKt;
+        return BasePhase.TurnRadiusNm(downwindKt, category) + BasePhase.TurnRadiusNm(baseKt, category);
+    }
+
+    /// <param name="aircraftType">
+    /// ICAO type designator of the aircraft the pattern is built for — sizes the flyability
+    /// floor from the type's actual leg speeds (falls back to category speeds when unknown).
+    /// </param>
+    /// <param name="windSpeedKt">
+    /// Wind speed (kt) at the aircraft, used to inflate the floor's planning speeds; pass
+    /// <see cref="AircraftState.WindSpeedKts"/> (0 when no weather is loaded).
+    /// </param>
     /// <param name="authoredRunway">
     /// The same ground runway <see cref="ResolveAuthoredOverrides"/> takes, used here for the published
     /// threshold displacement. Null when no airport map is loaded, in which case the pattern is built to
@@ -194,6 +228,8 @@ public static class PatternGeometry
     public static PatternWaypoints Compute(
         RunwayInfo runway,
         AircraftCategory category,
+        string aircraftType,
+        double windSpeedKt,
         PatternDirection direction,
         double? sizeOverrideNm,
         double? altitudeOverrideFt,
@@ -217,6 +253,25 @@ public static class PatternGeometry
 
         // Deconfliction: shrink pattern if downwind would encroach on another runway
         patternSize = ApplyRunwayDeconfliction(runway, direction, crosswindHdg, patternSize, airportRunways);
+
+        // Flyability floor — wins over the category default, authored/command sizes, AND the
+        // deconfliction shrink: an unflyable width overshoots the final onto whatever lies
+        // beyond it (issue #412: a PAY3 forced through OAK 28L's authored 0.5 nm pattern onto
+        // the parallel 28R final), which is strictly worse than a wide downwind overlying a
+        // neighboring runway. AIM 4-3-3.b: pattern size varies with aircraft performance.
+        double floorNm = MinFlyablePatternSizeNm(aircraftType, category, windSpeedKt);
+        if (patternSize < floorNm)
+        {
+            Log.LogInformation(
+                "Pattern for {Runway} widened from {Requested:F2} nm to the {Type} flyability floor {Floor:F2} nm (wind {Wind:F0} kt)",
+                runway.Designator,
+                patternSize,
+                aircraftType,
+                floorNm,
+                windSpeedKt
+            );
+            patternSize = floorNm;
+        }
 
         // The base extension scales proportionally with pattern size (a smaller pattern has a tighter
         // base leg). The crosswind turn, by contrast, is anchored at the runway's departure end (DER):

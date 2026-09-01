@@ -116,6 +116,8 @@ public class PatternCircuitE2ETests : IDisposable
         var phases = PatternBuilder.BuildCircuit(
             rwy,
             AircraftCategory.Jet,
+            "",
+            0,
             PatternDirection.Left,
             PatternEntryLeg.Upwind,
             false,
@@ -148,13 +150,15 @@ public class PatternCircuitE2ETests : IDisposable
     public void FullCircuit_FromDownwind_SkipsUpwindCrosswind()
     {
         var rwy = DefaultRunway();
-        var wp = PatternGeometry.Compute(rwy, AircraftCategory.Jet, PatternDirection.Left, null, null, null, authoredRunway: null);
+        var wp = PatternGeometry.Compute(rwy, AircraftCategory.Jet, "", 0, PatternDirection.Left, null, null, null, authoredRunway: null);
         var ac = MakeAircraft(rwy, altitude: wp.PatternAltitude, heading: wp.DownwindHeading.Degrees);
         ac.Position = new LatLon(wp.DownwindAbeamLat, wp.DownwindAbeamLon);
 
         var phases = PatternBuilder.BuildCircuit(
             rwy,
             AircraftCategory.Jet,
+            "",
+            0,
             PatternDirection.Left,
             PatternEntryLeg.Downwind,
             false,
@@ -190,7 +194,7 @@ public class PatternCircuitE2ETests : IDisposable
     public void TouchAndGo_AutoCyclesIntoNextCircuit()
     {
         var rwy = DefaultRunway();
-        var wp = PatternGeometry.Compute(rwy, AircraftCategory.Jet, PatternDirection.Left, null, null, null, authoredRunway: null);
+        var wp = PatternGeometry.Compute(rwy, AircraftCategory.Jet, "", 0, PatternDirection.Left, null, null, null, authoredRunway: null);
         var ac = MakeAircraft(rwy, altitude: wp.PatternAltitude, heading: wp.DownwindHeading.Degrees);
         ac.Position = new LatLon(wp.DownwindAbeamLat, wp.DownwindAbeamLon);
 
@@ -198,6 +202,8 @@ public class PatternCircuitE2ETests : IDisposable
         var phases = PatternBuilder.BuildCircuit(
             rwy,
             AircraftCategory.Jet,
+            "",
+            0,
             PatternDirection.Left,
             PatternEntryLeg.Downwind,
             true,
@@ -270,6 +276,8 @@ public class PatternCircuitE2ETests : IDisposable
         var phases = PatternBuilder.BuildCircuit(
             rwy,
             AircraftCategory.Jet,
+            "",
+            0,
             PatternDirection.Left,
             PatternEntryLeg.Final,
             false,
@@ -311,7 +319,7 @@ public class PatternCircuitE2ETests : IDisposable
         // pattern altitude. Auto-triggered go-arounds should hand off to UpwindPhase
         // 300ft below pattern altitude so the turn matches a normal departure.
         var rwy = DefaultRunway();
-        var wp = PatternGeometry.Compute(rwy, AircraftCategory.Jet, PatternDirection.Left, null, null, null, authoredRunway: null);
+        var wp = PatternGeometry.Compute(rwy, AircraftCategory.Jet, "", 0, PatternDirection.Left, null, null, null, authoredRunway: null);
         var ac = MakeAircraft(rwy, altitude: rwy.ElevationFt + 400, heading: rwy.TrueHeading.Degrees, ias: 150);
         ac.Phases!.TrafficDirection = PatternDirection.Left;
         ac.Phases.Add(new FinalApproachPhase());
@@ -429,6 +437,8 @@ public class PatternCircuitE2ETests : IDisposable
         var phases = PatternBuilder.BuildCircuit(
             rwy,
             AircraftCategory.Jet,
+            "",
+            0,
             PatternDirection.Left,
             PatternEntryLeg.Upwind,
             false,
@@ -455,6 +465,8 @@ public class PatternCircuitE2ETests : IDisposable
         var phases = PatternBuilder.BuildCircuit(
             rwy,
             AircraftCategory.Jet,
+            "",
+            0,
             PatternDirection.Left,
             PatternEntryLeg.Downwind,
             false,
@@ -479,6 +491,8 @@ public class PatternCircuitE2ETests : IDisposable
         var phases = PatternBuilder.BuildCircuit(
             rwy,
             AircraftCategory.Jet,
+            "",
+            0,
             PatternDirection.Left,
             PatternEntryLeg.Base,
             false,
@@ -502,6 +516,8 @@ public class PatternCircuitE2ETests : IDisposable
         var phases = PatternBuilder.BuildCircuit(
             rwy,
             AircraftCategory.Jet,
+            "",
+            0,
             PatternDirection.Left,
             PatternEntryLeg.Final,
             false,
@@ -524,6 +540,8 @@ public class PatternCircuitE2ETests : IDisposable
         var phases = PatternBuilder.BuildCircuit(
             rwy,
             AircraftCategory.Jet,
+            "",
+            0,
             PatternDirection.Left,
             PatternEntryLeg.Final,
             true,
@@ -546,6 +564,8 @@ public class PatternCircuitE2ETests : IDisposable
         var phases = PatternBuilder.BuildNextCircuit(
             rwy,
             AircraftCategory.Jet,
+            "",
+            0,
             PatternDirection.Right,
             null,
             null,
@@ -566,6 +586,8 @@ public class PatternCircuitE2ETests : IDisposable
         var phases = PatternBuilder.BuildNextCircuit(
             rwy,
             AircraftCategory.Jet,
+            "",
+            0,
             PatternDirection.Right,
             null,
             null,
@@ -584,8 +606,8 @@ public class PatternCircuitE2ETests : IDisposable
     {
         var rwy = DefaultRunway();
         var phaseList = new PhaseList { AssignedRunway = rwy };
-        var oldWp = PatternGeometry.Compute(rwy, AircraftCategory.Jet, PatternDirection.Left, null, null, null, authoredRunway: null);
-        var newWp = PatternGeometry.Compute(rwy, AircraftCategory.Jet, PatternDirection.Right, null, null, null, authoredRunway: null);
+        var oldWp = PatternGeometry.Compute(rwy, AircraftCategory.Jet, "", 0, PatternDirection.Left, null, null, null, authoredRunway: null);
+        var newWp = PatternGeometry.Compute(rwy, AircraftCategory.Jet, "", 0, PatternDirection.Right, null, null, null, authoredRunway: null);
 
         var downwind = new DownwindPhase { Waypoints = oldWp };
         var basep = new BasePhase { Waypoints = oldWp };

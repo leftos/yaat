@@ -112,6 +112,13 @@ public class AircraftState
     }
 
     /// <summary>
+    /// Total wind speed in knots at the aircraft's position/altitude. Derived from the cached
+    /// <see cref="WindComponents"/>, so it round-trips through snapshots and replays. Zero when
+    /// no weather is loaded.
+    /// </summary>
+    public double WindSpeedKts => Math.Sqrt((WindComponents.N * WindComponents.N) + (WindComponents.E * WindComponents.E));
+
+    /// <summary>
     /// Ground speed in knots. On the ground: equals IndicatedAirspeed, which carries wheel
     /// speed there (see that property's frame note). Airborne: derived from IAS → TAS
     /// (altitude correction) plus cached wind vector.

@@ -1061,7 +1061,7 @@ public static class CommandDispatcher
                     groundLayout: ctx.GroundLayout
                 );
             case PatternSizeCommand cmd:
-                return PatternCommandHandler.TrySetPatternSize(aircraft, cmd.SizeNm, ctx.GroundLayout);
+                return PatternCommandHandler.TrySetPatternSize(aircraft, cmd.SizeNm, ctx.SoloTrainingMode, ctx.RpoShowPilotSpeech, ctx.GroundLayout);
             case Plan270Command:
                 return PatternCommandHandler.TryPlan270(aircraft);
 
@@ -2196,7 +2196,7 @@ public static class CommandDispatcher
             case CircleAirportCommand:
                 return PatternCommandHandler.TryChangePatternDirection(aircraft, PatternDirection.Left, null, null, ctx.GroundLayout);
             case PatternSizeCommand ps:
-                return PatternCommandHandler.TrySetPatternSize(aircraft, ps.SizeNm, ctx.GroundLayout);
+                return PatternCommandHandler.TrySetPatternSize(aircraft, ps.SizeNm, ctx.SoloTrainingMode, ctx.RpoShowPilotSpeech, ctx.GroundLayout);
             case MakeNormalApproachCommand:
                 return PatternCommandHandler.TryMakeNormalApproach(aircraft);
             case Cancel270Command:

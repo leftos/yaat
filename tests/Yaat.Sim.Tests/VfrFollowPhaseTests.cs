@@ -604,6 +604,8 @@ public class VfrFollowPhaseTests : IDisposable
         var waypoints = PatternGeometry.Compute(
             runway,
             AircraftCategory.Piston,
+            "",
+            0,
             PatternDirection.Left,
             sizeOverrideNm: null,
             altitudeOverrideFt: null,
@@ -643,6 +645,8 @@ public class VfrFollowPhaseTests : IDisposable
         var waypoints = PatternGeometry.Compute(
             runway,
             AircraftCategory.Piston,
+            "",
+            0,
             PatternDirection.Left,
             sizeOverrideNm: null,
             altitudeOverrideFt: null,
@@ -691,6 +695,8 @@ public class VfrFollowPhaseTests : IDisposable
         var waypoints = PatternGeometry.Compute(
             runway,
             AircraftCategory.Piston,
+            "",
+            0,
             PatternDirection.Left,
             sizeOverrideNm: null,
             altitudeOverrideFt: null,
@@ -789,6 +795,8 @@ public class VfrFollowPhaseTests : IDisposable
         var waypoints = PatternGeometry.Compute(
             runway,
             AircraftCategory.Piston,
+            "",
+            0,
             PatternDirection.Left,
             sizeOverrideNm: null,
             altitudeOverrideFt: null,
@@ -858,6 +866,8 @@ public class VfrFollowPhaseTests : IDisposable
         var waypoints = PatternGeometry.Compute(
             runway,
             AircraftCategory.Piston,
+            "",
+            0,
             PatternDirection.Left,
             sizeOverrideNm: null,
             altitudeOverrideFt: null,

@@ -249,6 +249,8 @@ public sealed class VfrFollowPhase : Phase
         var circuit = PatternBuilder.BuildCircuit(
             leadRunway,
             ctx.Category,
+            ctx.Aircraft.AircraftType,
+            ctx.Aircraft.WindSpeedKts,
             leadWaypoints.Direction,
             PatternEntryLeg.Downwind,
             touchAndGo: false,
@@ -475,6 +477,8 @@ public sealed class VfrFollowPhase : Phase
         var circuit = PatternBuilder.BuildCircuit(
             runway,
             ctx.Category,
+            ctx.Aircraft.AircraftType,
+            ctx.Aircraft.WindSpeedKts,
             direction,
             PatternEntryLeg.Final,
             touchAndGo: false,

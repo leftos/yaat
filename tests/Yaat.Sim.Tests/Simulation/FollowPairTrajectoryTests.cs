@@ -96,7 +96,7 @@ public class FollowPairTrajectoryTests
         IReadOnlyList<RunwayInfo> allRunways
     )
     {
-        var circuit = PatternBuilder.BuildCircuit(rwy, cat, dir, entry, false, null, null, null, allRunways, authoredRunway: null);
+        var circuit = PatternBuilder.BuildCircuit(rwy, cat, "", 0, dir, entry, false, null, null, null, allRunways, authoredRunway: null);
         ac.Phases = new PhaseList
         {
             AssignedRunway = rwy,
@@ -340,6 +340,8 @@ public class FollowPairTrajectoryTests
         var circuit = PatternBuilder.BuildCircuit(
             rwy,
             AircraftCategory.Piston,
+            "",
+            0,
             PatternDirection.Right,
             PatternEntryLeg.Final,
             false,
@@ -382,7 +384,7 @@ public class FollowPairTrajectoryTests
 
         const PatternDirection Dir = PatternDirection.Right;
         const AircraftCategory Cat = AircraftCategory.Piston;
-        var wp = PatternGeometry.Compute(rwy, Cat, Dir, null, null, allRunways, authoredRunway: null);
+        var wp = PatternGeometry.Compute(rwy, Cat, "", 0, Dir, null, null, allRunways, authoredRunway: null);
         var abeam = new LatLon(wp.DownwindAbeamLat, wp.DownwindAbeamLon);
 
         // Follower: established on the downwind track (0.15 nm outside it), 1.1 nm PAST the
@@ -427,7 +429,7 @@ public class FollowPairTrajectoryTests
 
         const PatternDirection Dir = PatternDirection.Right;
         const AircraftCategory Cat = AircraftCategory.Piston;
-        var wp = PatternGeometry.Compute(rwy, Cat, Dir, null, null, allRunways, authoredRunway: null);
+        var wp = PatternGeometry.Compute(rwy, Cat, "", 0, Dir, null, null, allRunways, authoredRunway: null);
         var baseTurn = new LatLon(wp.BaseTurnLat, wp.BaseTurnLon);
 
         var follower = MakeVfr(
@@ -469,7 +471,7 @@ public class FollowPairTrajectoryTests
 
         const PatternDirection Dir = PatternDirection.Right;
         const AircraftCategory Cat = AircraftCategory.Piston;
-        var wp = PatternGeometry.Compute(rwy, Cat, Dir, null, null, allRunways, authoredRunway: null);
+        var wp = PatternGeometry.Compute(rwy, Cat, "", 0, Dir, null, null, allRunways, authoredRunway: null);
         var baseTurn = new LatLon(wp.BaseTurnLat, wp.BaseTurnLon);
 
         // Lead 0.2 nm short of its base turn; follower 1.5 nm behind it on the same downwind.
@@ -527,7 +529,7 @@ public class FollowPairTrajectoryTests
 
         const PatternDirection Dir = PatternDirection.Right;
         const AircraftCategory Cat = AircraftCategory.Piston;
-        var wp = PatternGeometry.Compute(rwy, Cat, Dir, null, null, allRunways, authoredRunway: null);
+        var wp = PatternGeometry.Compute(rwy, Cat, "", 0, Dir, null, null, allRunways, authoredRunway: null);
         var abeam = new LatLon(wp.DownwindAbeamLat, wp.DownwindAbeamLon);
 
         // On the downwind line at the abeam point, tracking the downwind heading, no phases.
@@ -562,7 +564,7 @@ public class FollowPairTrajectoryTests
 
         const PatternDirection Dir = PatternDirection.Right;
         const AircraftCategory Cat = AircraftCategory.Piston;
-        var wp = PatternGeometry.Compute(rwy, Cat, Dir, null, null, allRunways, authoredRunway: null);
+        var wp = PatternGeometry.Compute(rwy, Cat, "", 0, Dir, null, null, allRunways, authoredRunway: null);
         var abeam = new LatLon(wp.DownwindAbeamLat, wp.DownwindAbeamLon);
 
         // Follower 3.5 nm out on the pattern side, positioned on the reciprocal of the standard
@@ -608,7 +610,7 @@ public class FollowPairTrajectoryTests
 
         const PatternDirection Dir = PatternDirection.Right;
         const AircraftCategory Cat = AircraftCategory.Piston;
-        var wp = PatternGeometry.Compute(rwy, Cat, Dir, null, null, allRunways, authoredRunway: null);
+        var wp = PatternGeometry.Compute(rwy, Cat, "", 0, Dir, null, null, allRunways, authoredRunway: null);
 
         // Follower on the WRONG side for right traffic (south of the runway), abeam midfield.
         var midpoint = new LatLon((rwy.ThresholdLatitude + rwy.EndLatitude) / 2.0, (rwy.ThresholdLongitude + rwy.EndLongitude) / 2.0);
@@ -651,7 +653,7 @@ public class FollowPairTrajectoryTests
 
         const PatternDirection Dir = PatternDirection.Right;
         const AircraftCategory Cat = AircraftCategory.Piston;
-        var wp = PatternGeometry.Compute(rwy, Cat, Dir, null, null, allRunways, authoredRunway: null);
+        var wp = PatternGeometry.Compute(rwy, Cat, "", 0, Dir, null, null, allRunways, authoredRunway: null);
         var baseTurn = new LatLon(wp.BaseTurnLat, wp.BaseTurnLon);
 
         var lead = MakeVfr(
@@ -702,7 +704,7 @@ public class FollowPairTrajectoryTests
 
         const PatternDirection Dir = PatternDirection.Right;
         const AircraftCategory Cat = AircraftCategory.Piston;
-        var wp = PatternGeometry.Compute(rwy, Cat, Dir, null, null, allRunways, authoredRunway: null);
+        var wp = PatternGeometry.Compute(rwy, Cat, "", 0, Dir, null, null, allRunways, authoredRunway: null);
         var baseTurn = new LatLon(wp.BaseTurnLat, wp.BaseTurnLon);
 
         // Lead mid-base (0.3 nm past the base turn along the base heading), slightly below TPA.
@@ -759,8 +761,8 @@ public class FollowPairTrajectoryTests
         const AircraftCategory Cat = AircraftCategory.Piston;
         // 28L flies LEFT traffic (south side), 28R flies RIGHT traffic (north side) — the
         // standard split for close parallels so the patterns don't overlap.
-        var wpL = PatternGeometry.Compute(rwy28L, Cat, PatternDirection.Left, null, null, allRunways, authoredRunway: null);
-        var wpR = PatternGeometry.Compute(rwy28R, Cat, PatternDirection.Right, null, null, allRunways, authoredRunway: null);
+        var wpL = PatternGeometry.Compute(rwy28L, Cat, "", 0, PatternDirection.Left, null, null, allRunways, authoredRunway: null);
+        var wpR = PatternGeometry.Compute(rwy28R, Cat, "", 0, PatternDirection.Right, null, null, allRunways, authoredRunway: null);
         var baseTurnL = new LatLon(wpL.BaseTurnLat, wpL.BaseTurnLon);
 
         var follower = MakeVfr(
@@ -815,7 +817,7 @@ public class FollowPairTrajectoryTests
 
         const PatternDirection Dir = PatternDirection.Right;
         const AircraftCategory FollowerCat = AircraftCategory.Jet;
-        var wp = PatternGeometry.Compute(rwy, FollowerCat, Dir, null, null, allRunways, authoredRunway: null);
+        var wp = PatternGeometry.Compute(rwy, FollowerCat, "", 0, Dir, null, null, allRunways, authoredRunway: null);
         var baseTurn = new LatLon(wp.BaseTurnLat, wp.BaseTurnLon);
 
         // Fast follower (Citation-class jet) on ITS downwind, 0.5 nm before its base turn.
@@ -868,7 +870,7 @@ public class FollowPairTrajectoryTests
 
         const PatternDirection Dir = PatternDirection.Right;
         const AircraftCategory Cat = AircraftCategory.Piston;
-        var wp = PatternGeometry.Compute(rwy, Cat, Dir, null, null, allRunways, authoredRunway: null);
+        var wp = PatternGeometry.Compute(rwy, Cat, "", 0, Dir, null, null, allRunways, authoredRunway: null);
         var baseTurn = new LatLon(wp.BaseTurnLat, wp.BaseTurnLon);
 
         var follower = MakeVfr(

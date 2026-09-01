@@ -196,8 +196,18 @@ public class DisplacedThresholdLandingTests
         var authored = layout.FindRunway("30L");
         Assert.NotNull(authored);
 
-        var pavementPattern = PatternGeometry.Compute(rwy, AircraftCategory.Jet, PatternDirection.Left, null, null, null, authoredRunway: null);
-        var landingPattern = PatternGeometry.Compute(rwy, AircraftCategory.Jet, PatternDirection.Left, null, null, null, authored);
+        var pavementPattern = PatternGeometry.Compute(
+            rwy,
+            AircraftCategory.Jet,
+            "",
+            0,
+            PatternDirection.Left,
+            null,
+            null,
+            null,
+            authoredRunway: null
+        );
+        var landingPattern = PatternGeometry.Compute(rwy, AircraftCategory.Jet, "", 0, PatternDirection.Left, null, null, null, authored);
 
         double thresholdMovedFt =
             GeoMath.DistanceNm(pavementPattern.ThresholdLat, pavementPattern.ThresholdLon, landingPattern.ThresholdLat, landingPattern.ThresholdLon)

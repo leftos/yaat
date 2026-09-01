@@ -53,7 +53,7 @@ public class Issue242NarrowPatternOvershootTests : IDisposable
         var rwy = Rwy();
         const double sizeNm = 0.5; // OAK 28L's real (unclamped) pattern width
 
-        var wp = PatternGeometry.Compute(rwy, AircraftCategory.Piston, PatternDirection.Left, sizeNm, null, null, authoredRunway: null);
+        var wp = PatternGeometry.Compute(rwy, AircraftCategory.Piston, "", 0, PatternDirection.Left, sizeNm, null, null, authoredRunway: null);
 
         // Simulate the cross-runway join outcome: the aircraft is on the downwind heading but INSIDE the
         // computed 0.5 NM downwind line (≈0.28 NM from the centerline), as N104NT was. The abeam point is
@@ -83,6 +83,8 @@ public class Issue242NarrowPatternOvershootTests : IDisposable
         var phases = PatternBuilder.BuildCircuit(
             rwy,
             AircraftCategory.Piston,
+            "",
+            0,
             PatternDirection.Left,
             PatternEntryLeg.Downwind,
             touchAndGo: false,

@@ -241,6 +241,8 @@ internal static class PatternCommandHandler
                 waypoints = PatternGeometry.Compute(
                     runway,
                     category,
+                    aircraft.AircraftType,
+                    aircraft.WindSpeedKts,
                     direction,
                     sizeOv,
                     altOv,
@@ -272,6 +274,8 @@ internal static class PatternCommandHandler
             waypoints ??= PatternGeometry.Compute(
                 runway,
                 category,
+                aircraft.AircraftType,
+                aircraft.WindSpeedKts,
                 direction,
                 sizeOvCi,
                 altOvCi,
@@ -359,6 +363,8 @@ internal static class PatternCommandHandler
             waypoints ??= PatternGeometry.Compute(
                 runway,
                 category,
+                aircraft.AircraftType,
+                aircraft.WindSpeedKts,
                 direction,
                 sizeOvAa,
                 altOvAa,
@@ -459,6 +465,8 @@ internal static class PatternCommandHandler
             waypoints ??= PatternGeometry.Compute(
                 runway,
                 category,
+                aircraft.AircraftType,
+                aircraft.WindSpeedKts,
                 direction,
                 sizeOv,
                 altOv,
@@ -652,6 +660,8 @@ internal static class PatternCommandHandler
             waypoints ??= PatternGeometry.Compute(
                 runway,
                 category,
+                aircraft.AircraftType,
+                aircraft.WindSpeedKts,
                 direction,
                 sizeOv,
                 altOv,
@@ -722,6 +732,8 @@ internal static class PatternCommandHandler
         var circuitPhases = PatternBuilder.BuildCircuit(
             runway,
             category,
+            aircraft.AircraftType,
+            aircraft.WindSpeedKts,
             direction,
             effectiveEntryLeg,
             touchAndGo,
@@ -944,6 +956,8 @@ internal static class PatternCommandHandler
         var waypoints = PatternGeometry.Compute(
             runway,
             category,
+            aircraft.AircraftType,
+            aircraft.WindSpeedKts,
             newDirection,
             sizeOv,
             altOv,
@@ -1007,6 +1021,8 @@ internal static class PatternCommandHandler
                     PatternBuilder.BuildCircuit(
                         runway,
                         category,
+                        aircraft.AircraftType,
+                        aircraft.WindSpeedKts,
                         newDirection,
                         PatternEntryLeg.Downwind,
                         touchAndGo: true,
@@ -1032,6 +1048,8 @@ internal static class PatternCommandHandler
                     PatternBuilder.BuildCircuit(
                         runway,
                         category,
+                        aircraft.AircraftType,
+                        aircraft.WindSpeedKts,
                         newDirection,
                         activeLeg,
                         touchAndGo: true,
@@ -1082,6 +1100,8 @@ internal static class PatternCommandHandler
             var circuit = PatternBuilder.BuildCircuit(
                 runway,
                 category,
+                aircraft.AircraftType,
+                aircraft.WindSpeedKts,
                 newDirection,
                 PatternEntryLeg.Upwind,
                 true,
@@ -1565,6 +1585,8 @@ internal static class PatternCommandHandler
         var circuitPhases = PatternBuilder.BuildCircuit(
             runway,
             category,
+            aircraft.AircraftType,
+            aircraft.WindSpeedKts,
             direction,
             leg,
             touchAndGo,
@@ -2175,7 +2197,13 @@ internal static class PatternCommandHandler
         return CommandDispatcher.Ok($"Plan {dirStr} 270 at next turn");
     }
 
-    internal static CommandResult TrySetPatternSize(AircraftState aircraft, double sizeNm, AirportGroundLayout? groundLayout = null)
+    internal static CommandResult TrySetPatternSize(
+        AircraftState aircraft,
+        double sizeNm,
+        bool soloTrainingMode,
+        bool rpoShowPilotSpeech,
+        AirportGroundLayout? groundLayout
+    )
     {
         if (sizeNm is < 0.25 or > 10.0)
         {
@@ -2183,11 +2211,18 @@ internal static class PatternCommandHandler
         }
 
         aircraft.Pattern.SizeOverrideNm = sizeNm;
+        var category = AircraftCategorization.Categorize(aircraft.AircraftType);
+
+        // A commanded size below the turn-radius flyability floor cannot roll out on final
+        // (PatternGeometry.MinFlyablePatternSizeNm) — the pattern is built at the floor
+        // instead, and the pilot says so rather than silently ignoring the instruction
+        // (AIM 4-4-1.b; AIM 4-3-5).
+        double floorNm = PatternGeometry.MinFlyablePatternSizeNm(aircraft.AircraftType, category, aircraft.WindSpeedKts);
+        bool unableTooTight = sizeNm < floorNm;
 
         // Update waypoints on active pattern phases if in a pattern
         if (aircraft.Phases?.AssignedRunway is { } runway)
         {
-            var category = AircraftCategorization.Categorize(aircraft.AircraftType);
             var direction = aircraft.Phases.TrafficDirection ?? PatternDirection.Left;
             var airportRunways = NavigationDatabase.Instance.GetRunways(runway.AirportId);
             var (sizeOv, altOv) = PatternGeometry.ResolveAuthoredOverrides(
@@ -2199,6 +2234,8 @@ internal static class PatternCommandHandler
             var waypoints = PatternGeometry.Compute(
                 runway,
                 category,
+                aircraft.AircraftType,
+                aircraft.WindSpeedKts,
                 direction,
                 sizeOv,
                 altOv,
@@ -2206,6 +2243,20 @@ internal static class PatternCommandHandler
                 AuthoredRunway(aircraft, groundLayout, runway)
             );
             PatternBuilder.UpdateWaypoints(aircraft.Phases, waypoints);
+        }
+
+        if (unableTooTight)
+        {
+            var speech = PilotResponder.BuildUnablePatternSize(aircraft, sizeNm, floorNm);
+            if (soloTrainingMode)
+            {
+                PilotResponder.QueueSoloPilotTransmission(aircraft, speech, PilotTransmissionKind.Readback, PilotResponder.SourceResponse);
+            }
+            else
+            {
+                PilotResponder.RouteRpoTransmission(aircraft, soloTrainingMode, rpoShowPilotSpeech, speech.Tts, speech.TerminalForRpo);
+            }
+            return CommandDispatcher.Ok($"Pattern size {sizeNm:G} NM (below the {floorNm:F1} NM turn-radius minimum — flown at the minimum)");
         }
 
         return CommandDispatcher.Ok($"Pattern size {sizeNm:G} NM");
@@ -2981,6 +3032,8 @@ internal static class PatternCommandHandler
         waypoints ??= PatternGeometry.Compute(
             runway,
             category,
+            aircraft.AircraftType,
+            aircraft.WindSpeedKts,
             direction,
             sizeOv,
             altOv,
@@ -3022,6 +3075,8 @@ internal static class PatternCommandHandler
         var retargetWaypoints = PatternGeometry.Compute(
             runway,
             category,
+            aircraft.AircraftType,
+            aircraft.WindSpeedKts,
             side,
             sizeOv,
             altOv,
@@ -3643,6 +3698,8 @@ internal static class PatternCommandHandler
         var circuitB = PatternBuilder.BuildCircuit(
             runwayB,
             category,
+            aircraft.AircraftType,
+            aircraft.WindSpeedKts,
             directionB,
             PatternEntryLeg.Final,
             touchAndGo: false,

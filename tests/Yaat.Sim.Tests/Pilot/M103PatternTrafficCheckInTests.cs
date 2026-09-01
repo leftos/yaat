@@ -22,7 +22,7 @@ public class M103PatternTrafficCheckInTests
         TestRunwayFactory.Make(designator: "28R", heading: 280, elevationFt: 9, thresholdLat: 37.7212, thresholdLon: -122.2208);
 
     private static PatternWaypoints DefaultWaypoints(PatternDirection dir = PatternDirection.Left) =>
-        PatternGeometry.Compute(DefaultRunway(), AircraftCategory.Piston, dir, null, null, null, authoredRunway: null);
+        PatternGeometry.Compute(DefaultRunway(), AircraftCategory.Piston, "", 0, dir, null, null, null, authoredRunway: null);
 
     private static AircraftState MakeAircraft(
         string callsign = "N123AB",

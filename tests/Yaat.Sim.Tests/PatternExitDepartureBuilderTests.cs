@@ -33,6 +33,8 @@ public class PatternExitDepartureBuilderTests
         var phases = PatternBuilder.BuildPatternExitCircuit(
             Oak28R(),
             AircraftCategory.Piston,
+            "",
+            0,
             PatternDirection.Right,
             PatternEntryLeg.Downwind,
             assignedAltitude: null,
@@ -63,6 +65,8 @@ public class PatternExitDepartureBuilderTests
         var phases = PatternBuilder.BuildPatternExitCircuit(
             Oak28R(),
             AircraftCategory.Piston,
+            "",
+            0,
             PatternDirection.Right,
             PatternEntryLeg.Downwind,
             assignedAltitude: null,
@@ -86,6 +90,8 @@ public class PatternExitDepartureBuilderTests
         var phases = PatternBuilder.BuildPatternExitCircuit(
             Oak28R(),
             AircraftCategory.Piston,
+            "",
+            0,
             PatternDirection.Left,
             PatternEntryLeg.Crosswind,
             assignedAltitude: 3000,

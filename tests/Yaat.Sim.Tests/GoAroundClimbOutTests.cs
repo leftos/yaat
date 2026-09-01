@@ -53,6 +53,8 @@ public class GoAroundClimbOutTests
         PatternGeometry.Compute(
             runway,
             AircraftCategory.Piston,
+            "",
+            0,
             direction,
             sizeOverrideNm: null,
             altitudeOverrideFt: null,

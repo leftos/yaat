@@ -85,7 +85,7 @@ public class FollowPatternSequencingAuditTests
         var allRunways = navDb.GetRunways("KOAK");
         const PatternDirection Dir = PatternDirection.Left;
         const AircraftCategory Cat = AircraftCategory.Piston;
-        var wp = PatternGeometry.Compute(rwy, Cat, Dir, null, null, allRunways, authoredRunway: null);
+        var wp = PatternGeometry.Compute(rwy, Cat, "", 0, Dir, null, null, allRunways, authoredRunway: null);
 
         var baseTurn = new LatLon(wp.BaseTurnLat, wp.BaseTurnLon);
         double desired = AirborneFollowHelper.DesiredDistanceForLeader(Cat);
@@ -250,7 +250,7 @@ public class FollowPatternSequencingAuditTests
         var allRunways = navDb.GetRunways("KOAK");
         const PatternDirection Dir = PatternDirection.Left;
         const AircraftCategory Cat = AircraftCategory.Piston;
-        var wp = PatternGeometry.Compute(rwy, Cat, Dir, null, null, allRunways, authoredRunway: null);
+        var wp = PatternGeometry.Compute(rwy, Cat, "", 0, Dir, null, null, allRunways, authoredRunway: null);
 
         var threshold = new LatLon(wp.ThresholdLat, wp.ThresholdLon);
         var der = new LatLon(wp.CrosswindTurnLat, wp.CrosswindTurnLon);
@@ -309,7 +309,7 @@ public class FollowPatternSequencingAuditTests
         var allRunways = navDb.GetRunways("KOAK");
         const PatternDirection Dir = PatternDirection.Left;
         const AircraftCategory Cat = AircraftCategory.Piston;
-        var wp = PatternGeometry.Compute(rwy, Cat, Dir, null, null, allRunways, authoredRunway: null);
+        var wp = PatternGeometry.Compute(rwy, Cat, "", 0, Dir, null, null, allRunways, authoredRunway: null);
         var dwStart = new LatLon(wp.DownwindStartLat, wp.DownwindStartLon);
         var der = new LatLon(wp.CrosswindTurnLat, wp.CrosswindTurnLon);
 
@@ -360,7 +360,7 @@ public class FollowPatternSequencingAuditTests
         var allRunways = navDb.GetRunways("KOAK");
         const PatternDirection Dir = PatternDirection.Left;
         const AircraftCategory Cat = AircraftCategory.Piston;
-        var wp = PatternGeometry.Compute(rwy, Cat, Dir, null, null, allRunways, authoredRunway: null);
+        var wp = PatternGeometry.Compute(rwy, Cat, "", 0, Dir, null, null, allRunways, authoredRunway: null);
         var der = new LatLon(wp.CrosswindTurnLat, wp.CrosswindTurnLon);
 
         // Follower extended past the cap on upwind, following a lead extended even further ahead on
@@ -480,7 +480,7 @@ public class FollowPatternSequencingAuditTests
         var allRunways = navDb.GetRunways("KOAK");
         const PatternDirection Dir = PatternDirection.Left;
         const AircraftCategory Cat = AircraftCategory.Piston;
-        var wp = PatternGeometry.Compute(rwy, Cat, Dir, null, null, allRunways, authoredRunway: null);
+        var wp = PatternGeometry.Compute(rwy, Cat, "", 0, Dir, null, null, allRunways, authoredRunway: null);
 
         var hdg = legHeading(wp);
         var turn = turnPoint(wp);
@@ -637,7 +637,7 @@ public class FollowPatternSequencingAuditTests
         var allRunways = navDb.GetRunways("KOAK");
         const PatternDirection Dir = PatternDirection.Left;
         const AircraftCategory Cat = AircraftCategory.Piston;
-        var wp = PatternGeometry.Compute(rwy, Cat, Dir, null, null, allRunways, authoredRunway: null);
+        var wp = PatternGeometry.Compute(rwy, Cat, "", 0, Dir, null, null, allRunways, authoredRunway: null);
         var baseTurn = new LatLon(wp.BaseTurnLat, wp.BaseTurnLon);
 
         // Follower: on the downwind, 1.3 nm short of the base turn.
@@ -707,7 +707,7 @@ public class FollowPatternSequencingAuditTests
         var allRunways = navDb.GetRunways("KOAK");
         const PatternDirection Dir = PatternDirection.Left;
         const AircraftCategory Cat = AircraftCategory.Piston;
-        var wp = PatternGeometry.Compute(rwy, Cat, Dir, null, null, allRunways, authoredRunway: null);
+        var wp = PatternGeometry.Compute(rwy, Cat, "", 0, Dir, null, null, allRunways, authoredRunway: null);
         var baseTurn = new LatLon(wp.BaseTurnLat, wp.BaseTurnLon);
 
         // Follower just past its base-turn point, following a lead held 0.55 nm further down
@@ -799,7 +799,7 @@ public class FollowPatternSequencingAuditTests
         var allRunways = navDb.GetRunways("KOAK");
         const PatternDirection Dir = PatternDirection.Left;
         const AircraftCategory Cat = AircraftCategory.Piston;
-        var wp = PatternGeometry.Compute(rwy, Cat, Dir, null, null, allRunways, authoredRunway: null);
+        var wp = PatternGeometry.Compute(rwy, Cat, "", 0, Dir, null, null, allRunways, authoredRunway: null);
         var baseTurn = new LatLon(wp.BaseTurnLat, wp.BaseTurnLon);
 
         var followerPos = GeoMath.ProjectPoint(baseTurn, wp.DownwindHeading, 0.05);
@@ -882,7 +882,7 @@ public class FollowPatternSequencingAuditTests
         IReadOnlyList<RunwayInfo> allRunways
     )
     {
-        var circuit = PatternBuilder.BuildCircuit(rwy, cat, dir, entry, false, null, null, null, allRunways, authoredRunway: null);
+        var circuit = PatternBuilder.BuildCircuit(rwy, cat, "", 0, dir, entry, false, null, null, null, allRunways, authoredRunway: null);
         ac.Phases = new PhaseList
         {
             AssignedRunway = rwy,

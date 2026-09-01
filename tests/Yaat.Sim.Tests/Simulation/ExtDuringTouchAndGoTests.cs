@@ -301,7 +301,7 @@ public class ExtDuringTouchAndGoTests(ITestOutputHelper output)
         // ERD installs Downwind as the current phase immediately (no upstream
         // PatternEntryPhase / MidfieldCrossingPhase). That way the assertion can
         // inspect the just-installed Downwind directly.
-        var wp = PatternGeometry.Compute(rwy, AircraftCategory.Piston, PatternDirection.Right, null, null, null, authoredRunway: null);
+        var wp = PatternGeometry.Compute(rwy, AircraftCategory.Piston, "", 0, PatternDirection.Right, null, null, null, authoredRunway: null);
         var ac = new AircraftState
         {
             Callsign = "TEST1",

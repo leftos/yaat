@@ -488,7 +488,11 @@ public sealed class DownwindPhase : Phase
         {
             // Target: 60% of the way from threshold to pattern altitude
             midAlt = thresholdElev + (Waypoints.PatternAltitude - thresholdElev) * 0.6;
-            baseExtForFloor = CategoryPerformance.BaseExtensionNm(ctx.Category);
+            // The extension the aircraft actually flies — PatternGeometry scales BaseExtensionNm
+            // by patternSize/defaultSize, so the bare category constant understates the diagonal
+            // whenever the size was resized (authored, PSIZE, or the flyability floor) and the
+            // extended-downwind altitude floor would sit below the real glideslope intercept.
+            baseExtForFloor = Math.Max(_baseTurnAlongTrack - _abeamAlongTrack, 0);
             descentRate = baseDescentRate;
         }
 

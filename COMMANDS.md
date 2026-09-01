@@ -978,7 +978,7 @@ A pattern entry that is still **queued** behind another instruction (`DCT VPCOL;
 | `L270` / `R270` | Left/right 270° turn (immediate). Flies at holding speed, then resumes normal speed. |
 | `P270` / `PLAN270` | Plan a 270° turn at the next pattern turn point |
 | `NO270` | Cancel a 270 in progress or a planned 270 |
-| `PS 1.5` / `PATTSIZE 1.5` | Set pattern size (0.25–10.0 NM downwind offset) |
+| `PS 1.5` / `PATTSIZE 1.5` | Set pattern size (0.25–10.0 NM downwind offset). A size below the aircraft's turn-radius minimum (roughly two pattern-turn radii at its downwind/base speeds) gets an "unable" readback and the pattern is flown at that minimum instead — a tighter pattern would overshoot the turn to final. |
 | `MLS` / `MRS` | S-turns on final, initial left/right (default 2 turns) |
 | `MLS 3` / `MRS 4` | S-turns with specified count |
 | `OFL` / `OFR` | Offset pattern left/right (default 0.5 NM perpendicular to current pattern heading) |

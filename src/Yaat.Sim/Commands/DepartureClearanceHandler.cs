@@ -773,6 +773,8 @@ internal static class DepartureClearanceHandler
                 fallbackRunway,
                 patternRunway,
                 cat,
+                aircraft.AircraftType,
+                aircraft.WindSpeedKts,
                 ct.Direction,
                 true,
                 sizeOv,
@@ -784,6 +786,8 @@ internal static class DepartureClearanceHandler
             : PatternBuilder.BuildCircuit(
                 patternRunway,
                 cat,
+                aircraft.AircraftType,
+                aircraft.WindSpeedKts,
                 ct.Direction,
                 PatternEntryLeg.Upwind,
                 true,
@@ -869,6 +873,8 @@ internal static class DepartureClearanceHandler
         var circuit = PatternBuilder.BuildPatternExitCircuit(
             runway,
             cat,
+            aircraft.AircraftType,
+            aircraft.WindSpeedKts,
             ped.Direction,
             ped.ExitLeg,
             assignedAltitude,

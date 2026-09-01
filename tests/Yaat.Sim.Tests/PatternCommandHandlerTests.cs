@@ -117,7 +117,7 @@ public class PatternCommandHandlerTests
     {
         var rwy = DefaultRunway();
         // Place aircraft very close to the downwind abeam point
-        var wp = PatternGeometry.Compute(rwy, AircraftCategory.Jet, PatternDirection.Left, null, null, null, authoredRunway: null);
+        var wp = PatternGeometry.Compute(rwy, AircraftCategory.Jet, "", 0, PatternDirection.Left, null, null, null, authoredRunway: null);
         var ac = MakeAircraft(lat: wp.DownwindAbeamLat, lon: wp.DownwindAbeamLon, altitude: wp.PatternAltitude);
 
         var result = PatternCommandHandler.TryEnterPattern(ac, PatternDirection.Left, PatternEntryLeg.Downwind, null, null);
@@ -150,7 +150,7 @@ public class PatternCommandHandlerTests
     public void TryExtendPattern_OnDownwind_SetsExtended()
     {
         var ac = MakeAircraft();
-        var wp = PatternGeometry.Compute(DefaultRunway(), AircraftCategory.Jet, PatternDirection.Left, null, null, null, authoredRunway: null);
+        var wp = PatternGeometry.Compute(DefaultRunway(), AircraftCategory.Jet, "", 0, PatternDirection.Left, null, null, null, authoredRunway: null);
         var downwind = new DownwindPhase { Waypoints = wp };
         ac.Phases = new PhaseList { AssignedRunway = DefaultRunway() };
         ac.Phases.Add(downwind);
@@ -166,7 +166,7 @@ public class PatternCommandHandlerTests
     public void TryExtendPattern_OnUpwind_SetsExtended()
     {
         var ac = MakeAircraft();
-        var wp = PatternGeometry.Compute(DefaultRunway(), AircraftCategory.Jet, PatternDirection.Left, null, null, null, authoredRunway: null);
+        var wp = PatternGeometry.Compute(DefaultRunway(), AircraftCategory.Jet, "", 0, PatternDirection.Left, null, null, null, authoredRunway: null);
         var upwind = new UpwindPhase { Waypoints = wp };
         ac.Phases = new PhaseList { AssignedRunway = DefaultRunway() };
         ac.Phases.Add(upwind);
@@ -182,7 +182,7 @@ public class PatternCommandHandlerTests
     public void TryExtendPattern_OnCrosswind_SetsExtended()
     {
         var ac = MakeAircraft();
-        var wp = PatternGeometry.Compute(DefaultRunway(), AircraftCategory.Jet, PatternDirection.Left, null, null, null, authoredRunway: null);
+        var wp = PatternGeometry.Compute(DefaultRunway(), AircraftCategory.Jet, "", 0, PatternDirection.Left, null, null, null, authoredRunway: null);
         var crosswind = new CrosswindPhase { Waypoints = wp };
         ac.Phases = new PhaseList { AssignedRunway = DefaultRunway() };
         ac.Phases.Add(crosswind);
@@ -198,7 +198,7 @@ public class PatternCommandHandlerTests
     public void TryExtendPattern_OnBase_Fails()
     {
         var ac = MakeAircraft();
-        var wp = PatternGeometry.Compute(DefaultRunway(), AircraftCategory.Jet, PatternDirection.Left, null, null, null, authoredRunway: null);
+        var wp = PatternGeometry.Compute(DefaultRunway(), AircraftCategory.Jet, "", 0, PatternDirection.Left, null, null, null, authoredRunway: null);
         ac.Phases = new PhaseList { AssignedRunway = DefaultRunway() };
         ac.Phases.Add(new BasePhase { Waypoints = wp });
         ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac));
@@ -230,7 +230,7 @@ public class PatternCommandHandlerTests
         where TPhase : Phase, new()
     {
         var ac = MakeAircraft();
-        var wp = PatternGeometry.Compute(DefaultRunway(), AircraftCategory.Jet, PatternDirection.Left, null, null, null, authoredRunway: null);
+        var wp = PatternGeometry.Compute(DefaultRunway(), AircraftCategory.Jet, "", 0, PatternDirection.Left, null, null, null, authoredRunway: null);
         phase = new TPhase();
         // All four pattern phases expose Waypoints — set it via reflection-free property dispatch.
         switch (phase)
@@ -265,6 +265,8 @@ public class PatternCommandHandlerTests
         var circuit = PatternBuilder.BuildCircuit(
             DefaultRunway(),
             AircraftCategory.Jet,
+            "",
+            0,
             PatternDirection.Left,
             entryLeg,
             touchAndGo: true,
@@ -428,10 +430,12 @@ public class PatternCommandHandlerTests
     {
         var ac = MakeAircraft();
         var rwy = DefaultRunway();
-        var wp = PatternGeometry.Compute(rwy, AircraftCategory.Jet, PatternDirection.Left, null, null, null, authoredRunway: null);
+        var wp = PatternGeometry.Compute(rwy, AircraftCategory.Jet, "", 0, PatternDirection.Left, null, null, null, authoredRunway: null);
         var circuit = PatternBuilder.BuildCircuit(
             rwy,
             AircraftCategory.Jet,
+            "",
+            0,
             PatternDirection.Left,
             entryLeg,
             touchAndGo: false,
@@ -555,7 +559,7 @@ public class PatternCommandHandlerTests
         // after the extended leg + subsequent turn / approach.
         var ac = MakeAircraft();
         var rwy = DefaultRunway();
-        var wp = PatternGeometry.Compute(rwy, AircraftCategory.Jet, PatternDirection.Left, null, null, null, authoredRunway: null);
+        var wp = PatternGeometry.Compute(rwy, AircraftCategory.Jet, "", 0, PatternDirection.Left, null, null, null, authoredRunway: null);
         ac.Phases = new PhaseList { AssignedRunway = rwy, TrafficDirection = PatternDirection.Left };
         ac.Phases.Add(new CrosswindPhase { Waypoints = wp });
         ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac));
@@ -573,7 +577,7 @@ public class PatternCommandHandlerTests
         var ac = MakeAircraft();
         var rwy = DefaultRunway();
         ac.Pattern.SizeOverrideNm = 2.5;
-        var wp = PatternGeometry.Compute(rwy, AircraftCategory.Jet, PatternDirection.Left, 2.5, null, null, authoredRunway: null);
+        var wp = PatternGeometry.Compute(rwy, AircraftCategory.Jet, "", 0, PatternDirection.Left, 2.5, null, null, authoredRunway: null);
         ac.Phases = new PhaseList { AssignedRunway = rwy, TrafficDirection = PatternDirection.Left };
         ac.Phases.Add(new CrosswindPhase { Waypoints = wp });
         ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac));
@@ -586,7 +590,7 @@ public class PatternCommandHandlerTests
         // affects PatternSizeNm which propagates to the downwind abeam offset. Verify
         // the rebuilt waypoints reflect the same authored size by recomputing and
         // comparing the downwind offset.
-        var expectedWp = PatternGeometry.Compute(rwy, AircraftCategory.Jet, PatternDirection.Left, 2.5, null, null, authoredRunway: null);
+        var expectedWp = PatternGeometry.Compute(rwy, AircraftCategory.Jet, "", 0, PatternDirection.Left, 2.5, null, null, authoredRunway: null);
         Assert.Equal(expectedWp.DownwindAbeamLat, newUpwind.Waypoints!.DownwindAbeamLat, precision: 4);
         Assert.Equal(expectedWp.DownwindAbeamLon, newUpwind.Waypoints!.DownwindAbeamLon, precision: 4);
     }
@@ -599,7 +603,7 @@ public class PatternCommandHandlerTests
         // for a right turn off the runway).
         var ac = MakeAircraft();
         var rwy = DefaultRunway();
-        var wp = PatternGeometry.Compute(rwy, AircraftCategory.Jet, PatternDirection.Right, null, null, null, authoredRunway: null);
+        var wp = PatternGeometry.Compute(rwy, AircraftCategory.Jet, "", 0, PatternDirection.Right, null, null, null, authoredRunway: null);
         var crosswind = new CrosswindPhase { Waypoints = wp };
         ac.Phases = new PhaseList { AssignedRunway = rwy, TrafficDirection = PatternDirection.Right };
         ac.Phases.Add(crosswind);
@@ -620,7 +624,7 @@ public class PatternCommandHandlerTests
     public void TryPatternTurnBase_OnDownwind_AdvancesToBase()
     {
         var ac = MakeAircraft();
-        var wp = PatternGeometry.Compute(DefaultRunway(), AircraftCategory.Jet, PatternDirection.Left, null, null, null, authoredRunway: null);
+        var wp = PatternGeometry.Compute(DefaultRunway(), AircraftCategory.Jet, "", 0, PatternDirection.Left, null, null, null, authoredRunway: null);
         var downwind = new DownwindPhase { Waypoints = wp };
         var basep = new BasePhase { Waypoints = wp };
         ac.Phases = new PhaseList { AssignedRunway = DefaultRunway() };
@@ -688,7 +692,7 @@ public class PatternCommandHandlerTests
         var rwy = DefaultRunway();
         var (northLat, northLon) = GeoMath.ProjectPoint(rwy.ThresholdLatitude, rwy.ThresholdLongitude, new TrueHeading(10.0), 2.0);
 
-        var wpRight = PatternGeometry.Compute(rwy, AircraftCategory.Piston, PatternDirection.Right, null, null, null, authoredRunway: null);
+        var wpRight = PatternGeometry.Compute(rwy, AircraftCategory.Piston, "", 0, PatternDirection.Right, null, null, null, authoredRunway: null);
         var upwind = new UpwindPhase { Waypoints = wpRight };
         var ac = MakeAircraft(lat: northLat, lon: northLon, altitude: 1500);
         ac.Phases = new PhaseList { AssignedRunway = rwy, TrafficDirection = PatternDirection.Right };
@@ -723,7 +727,7 @@ public class PatternCommandHandlerTests
         // so the same-side rebuild path is exercised — not wrong-side).
         var (southLat, southLon) = GeoMath.ProjectPoint(rwy.ThresholdLatitude, rwy.ThresholdLongitude, new TrueHeading(190.0), 1.5);
 
-        var wpRight = PatternGeometry.Compute(rwy, AircraftCategory.Piston, PatternDirection.Right, null, null, null, authoredRunway: null);
+        var wpRight = PatternGeometry.Compute(rwy, AircraftCategory.Piston, "", 0, PatternDirection.Right, null, null, null, authoredRunway: null);
         var crosswind = new CrosswindPhase { Waypoints = wpRight };
         var ac = MakeAircraft(lat: southLat, lon: southLon, altitude: 1500);
         ac.Phases = new PhaseList { AssignedRunway = rwy, TrafficDirection = PatternDirection.Right };
@@ -749,7 +753,7 @@ public class PatternCommandHandlerTests
 
         // The fix: TargetTrueHeading is now the LEFT crosswind heading, not the
         // OLD Right value. (Old Right ≈ rwy+90 = 10°; new Left ≈ rwy-90 = 190°.)
-        var wpLeft = PatternGeometry.Compute(rwy, AircraftCategory.Piston, PatternDirection.Left, null, null, null, authoredRunway: null);
+        var wpLeft = PatternGeometry.Compute(rwy, AircraftCategory.Piston, "", 0, PatternDirection.Left, null, null, null, authoredRunway: null);
         Assert.NotNull(ac.Targets.TargetTrueHeading);
         Assert.Equal(wpLeft.CrosswindHeading.Degrees, ac.Targets.TargetTrueHeading.Value.Degrees, 1);
     }
@@ -766,6 +770,8 @@ public class PatternCommandHandlerTests
         var circuit = PatternBuilder.BuildPatternExitCircuit(
             rwy,
             AircraftCategory.Jet,
+            "",
+            0,
             PatternDirection.Right,
             PatternEntryLeg.Crosswind, // CTO MRC = crosswind exit -> [Upwind, PatternExit]
             assignedAltitude: null,
@@ -859,7 +865,7 @@ public class PatternCommandHandlerTests
     public void TryMakeTurn_360OnDownwind_ResumesSameLeg()
     {
         var ac = MakeAircraft();
-        var wp = PatternGeometry.Compute(DefaultRunway(), AircraftCategory.Jet, PatternDirection.Left, null, null, null, authoredRunway: null);
+        var wp = PatternGeometry.Compute(DefaultRunway(), AircraftCategory.Jet, "", 0, PatternDirection.Left, null, null, null, authoredRunway: null);
         var downwind = new DownwindPhase { Waypoints = wp };
         var basep = new BasePhase { Waypoints = wp };
         ac.Phases = new PhaseList { AssignedRunway = DefaultRunway(), TrafficDirection = PatternDirection.Left };
@@ -882,7 +888,7 @@ public class PatternCommandHandlerTests
     public void TryMakeTurn_270OnDownwind_DoesNotClonePhase()
     {
         var ac = MakeAircraft();
-        var wp = PatternGeometry.Compute(DefaultRunway(), AircraftCategory.Jet, PatternDirection.Left, null, null, null, authoredRunway: null);
+        var wp = PatternGeometry.Compute(DefaultRunway(), AircraftCategory.Jet, "", 0, PatternDirection.Left, null, null, null, authoredRunway: null);
         var downwind = new DownwindPhase { Waypoints = wp };
         var basep = new BasePhase { Waypoints = wp };
         ac.Phases = new PhaseList { AssignedRunway = DefaultRunway(), TrafficDirection = PatternDirection.Left };
@@ -907,7 +913,7 @@ public class PatternCommandHandlerTests
     public void TryPlan270_OnDownwind_InsertsTurnBeforeBase()
     {
         var ac = MakeAircraft();
-        var wp = PatternGeometry.Compute(DefaultRunway(), AircraftCategory.Jet, PatternDirection.Left, null, null, null, authoredRunway: null);
+        var wp = PatternGeometry.Compute(DefaultRunway(), AircraftCategory.Jet, "", 0, PatternDirection.Left, null, null, null, authoredRunway: null);
         var downwind = new DownwindPhase { Waypoints = wp };
         var basep = new BasePhase { Waypoints = wp };
         ac.Phases = new PhaseList { AssignedRunway = DefaultRunway(), TrafficDirection = PatternDirection.Left };
@@ -934,7 +940,17 @@ public class PatternCommandHandlerTests
     public void TryPlan270_RightTraffic_UsesLeftDirection()
     {
         var ac = MakeAircraft();
-        var wp = PatternGeometry.Compute(DefaultRunway(), AircraftCategory.Jet, PatternDirection.Right, null, null, null, authoredRunway: null);
+        var wp = PatternGeometry.Compute(
+            DefaultRunway(),
+            AircraftCategory.Jet,
+            "",
+            0,
+            PatternDirection.Right,
+            null,
+            null,
+            null,
+            authoredRunway: null
+        );
         var downwind = new DownwindPhase { Waypoints = wp };
         var basep = new BasePhase { Waypoints = wp };
         ac.Phases = new PhaseList { AssignedRunway = DefaultRunway(), TrafficDirection = PatternDirection.Right };
@@ -956,7 +972,7 @@ public class PatternCommandHandlerTests
     public void TryPlan270_PlansOppositeDirection_SoTurnRollsOutOnFinal(PatternDirection traffic, TurnDirection expectedTurn)
     {
         var runway = DefaultRunway();
-        var wp = PatternGeometry.Compute(runway, AircraftCategory.Jet, traffic, null, null, null, authoredRunway: null);
+        var wp = PatternGeometry.Compute(runway, AircraftCategory.Jet, "", 0, traffic, null, null, null, authoredRunway: null);
         var ac = MakeAircraft();
         // Established on the base leg — the heading MakeTurn will capture as its start.
         ac.TrueHeading = wp.BaseHeading;
@@ -997,7 +1013,7 @@ public class PatternCommandHandlerTests
     public void TryPlan270_NoTrafficDirection_Fails()
     {
         var ac = MakeAircraft();
-        var wp = PatternGeometry.Compute(DefaultRunway(), AircraftCategory.Jet, PatternDirection.Left, null, null, null, authoredRunway: null);
+        var wp = PatternGeometry.Compute(DefaultRunway(), AircraftCategory.Jet, "", 0, PatternDirection.Left, null, null, null, authoredRunway: null);
         ac.Phases = new PhaseList { AssignedRunway = DefaultRunway() };
         ac.Phases.Add(new DownwindPhase { Waypoints = wp });
         ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac));
@@ -1012,7 +1028,7 @@ public class PatternCommandHandlerTests
     public void TryPlan270_AlreadyPlanned_Fails()
     {
         var ac = MakeAircraft();
-        var wp = PatternGeometry.Compute(DefaultRunway(), AircraftCategory.Jet, PatternDirection.Left, null, null, null, authoredRunway: null);
+        var wp = PatternGeometry.Compute(DefaultRunway(), AircraftCategory.Jet, "", 0, PatternDirection.Left, null, null, null, authoredRunway: null);
         ac.Phases = new PhaseList { AssignedRunway = DefaultRunway(), TrafficDirection = PatternDirection.Left };
         ac.Phases.Add(new DownwindPhase { Waypoints = wp });
         ac.Phases.Add(new BasePhase { Waypoints = wp });
@@ -1033,7 +1049,7 @@ public class PatternCommandHandlerTests
     public void TryCancel270_InProgress270_Fails_UseOtherCommand()
     {
         var ac = MakeAircraft();
-        var wp = PatternGeometry.Compute(DefaultRunway(), AircraftCategory.Jet, PatternDirection.Left, null, null, null, authoredRunway: null);
+        var wp = PatternGeometry.Compute(DefaultRunway(), AircraftCategory.Jet, "", 0, PatternDirection.Left, null, null, null, authoredRunway: null);
         ac.Phases = new PhaseList { AssignedRunway = DefaultRunway(), TrafficDirection = PatternDirection.Left };
         ac.Phases.Add(new DownwindPhase { Waypoints = wp });
         ac.Phases.Add(new BasePhase { Waypoints = wp });
@@ -1052,7 +1068,7 @@ public class PatternCommandHandlerTests
     public void TryCancel270_Planned_RemovesPending()
     {
         var ac = MakeAircraft();
-        var wp = PatternGeometry.Compute(DefaultRunway(), AircraftCategory.Jet, PatternDirection.Left, null, null, null, authoredRunway: null);
+        var wp = PatternGeometry.Compute(DefaultRunway(), AircraftCategory.Jet, "", 0, PatternDirection.Left, null, null, null, authoredRunway: null);
         ac.Phases = new PhaseList { AssignedRunway = DefaultRunway(), TrafficDirection = PatternDirection.Left };
         ac.Phases.Add(new DownwindPhase { Waypoints = wp });
         ac.Phases.Add(new BasePhase { Waypoints = wp });
@@ -1074,7 +1090,7 @@ public class PatternCommandHandlerTests
     public void TryCancel270_NothingToCancel_Fails()
     {
         var ac = MakeAircraft();
-        var wp = PatternGeometry.Compute(DefaultRunway(), AircraftCategory.Jet, PatternDirection.Left, null, null, null, authoredRunway: null);
+        var wp = PatternGeometry.Compute(DefaultRunway(), AircraftCategory.Jet, "", 0, PatternDirection.Left, null, null, null, authoredRunway: null);
         ac.Phases = new PhaseList { AssignedRunway = DefaultRunway(), TrafficDirection = PatternDirection.Left };
         ac.Phases.Add(new DownwindPhase { Waypoints = wp });
         ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac));
@@ -1092,12 +1108,12 @@ public class PatternCommandHandlerTests
     public void TrySetPatternSize_ValidSize_SetsOverride()
     {
         var ac = MakeAircraft();
-        var wp = PatternGeometry.Compute(DefaultRunway(), AircraftCategory.Jet, PatternDirection.Left, null, null, null, authoredRunway: null);
+        var wp = PatternGeometry.Compute(DefaultRunway(), AircraftCategory.Jet, "", 0, PatternDirection.Left, null, null, null, authoredRunway: null);
         ac.Phases = new PhaseList { AssignedRunway = DefaultRunway(), TrafficDirection = PatternDirection.Left };
         ac.Phases.Add(new DownwindPhase { Waypoints = wp });
         ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac));
 
-        var result = PatternCommandHandler.TrySetPatternSize(ac, 2.5);
+        var result = PatternCommandHandler.TrySetPatternSize(ac, 2.5, soloTrainingMode: false, rpoShowPilotSpeech: false, groundLayout: null);
 
         Assert.True(result.Success);
         Assert.Equal(2.5, ac.Pattern.SizeOverrideNm);
@@ -1108,7 +1124,7 @@ public class PatternCommandHandlerTests
     {
         var ac = MakeAircraft();
 
-        var result = PatternCommandHandler.TrySetPatternSize(ac, 0.1);
+        var result = PatternCommandHandler.TrySetPatternSize(ac, 0.1, soloTrainingMode: false, rpoShowPilotSpeech: false, groundLayout: null);
 
         Assert.False(result.Success);
         Assert.Contains("between", result.Message!);
@@ -1119,9 +1135,25 @@ public class PatternCommandHandlerTests
     {
         var ac = MakeAircraft();
 
-        var result = PatternCommandHandler.TrySetPatternSize(ac, 15.0);
+        var result = PatternCommandHandler.TrySetPatternSize(ac, 15.0, soloTrainingMode: false, rpoShowPilotSpeech: false, groundLayout: null);
 
         Assert.False(result.Success);
+    }
+
+    [Fact]
+    public void TrySetPatternSize_BelowFlyabilityFloor_ReadsBackUnable()
+    {
+        var ac = MakeAircraft();
+
+        // A jet cannot fly a 0.5 nm pattern (turn-radius floor ≈ 1.8+ nm). The command is
+        // stored, but the pilot says so instead of silently ignoring the instruction —
+        // the pattern is built at PatternGeometry.MinFlyablePatternSizeNm.
+        var result = PatternCommandHandler.TrySetPatternSize(ac, 0.5, soloTrainingMode: false, rpoShowPilotSpeech: false, groundLayout: null);
+
+        Assert.True(result.Success);
+        Assert.Contains("turn-radius minimum", result.Message!);
+        Assert.Equal(0.5, ac.Pattern.SizeOverrideNm);
+        Assert.Contains(ac.PendingWarnings, w => w.Contains("unable", StringComparison.OrdinalIgnoreCase));
     }
 
     // -------------------------------------------------------------------------
@@ -1132,7 +1164,7 @@ public class PatternCommandHandlerTests
     public void TryMakeNormalApproach_OnBase_ResetsFinalDistance()
     {
         var ac = MakeAircraft();
-        var wp = PatternGeometry.Compute(DefaultRunway(), AircraftCategory.Jet, PatternDirection.Left, null, null, null, authoredRunway: null);
+        var wp = PatternGeometry.Compute(DefaultRunway(), AircraftCategory.Jet, "", 0, PatternDirection.Left, null, null, null, authoredRunway: null);
         var basep = new BasePhase { Waypoints = wp, FinalDistanceNm = 0.5 };
         ac.Phases = new PhaseList { AssignedRunway = DefaultRunway() };
         ac.Phases.Add(basep);
@@ -1148,7 +1180,7 @@ public class PatternCommandHandlerTests
     public void TryMakeNormalApproach_OnDownwind_Succeeds()
     {
         var ac = MakeAircraft();
-        var wp = PatternGeometry.Compute(DefaultRunway(), AircraftCategory.Jet, PatternDirection.Left, null, null, null, authoredRunway: null);
+        var wp = PatternGeometry.Compute(DefaultRunway(), AircraftCategory.Jet, "", 0, PatternDirection.Left, null, null, null, authoredRunway: null);
         ac.Phases = new PhaseList { AssignedRunway = DefaultRunway() };
         ac.Phases.Add(new DownwindPhase { Waypoints = wp });
         ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac));
@@ -1207,7 +1239,7 @@ public class PatternCommandHandlerTests
     public void TryMakeSTurns_InsertsAndAdvancesToSTurnPhase()
     {
         var ac = MakeAircraft();
-        var wp = PatternGeometry.Compute(DefaultRunway(), AircraftCategory.Jet, PatternDirection.Left, null, null, null, authoredRunway: null);
+        var wp = PatternGeometry.Compute(DefaultRunway(), AircraftCategory.Jet, "", 0, PatternDirection.Left, null, null, null, authoredRunway: null);
         ac.Phases = new PhaseList { AssignedRunway = DefaultRunway() };
         ac.Phases.Add(new DownwindPhase { Waypoints = wp });
         ac.Phases.Add(new BasePhase { Waypoints = wp });
@@ -1228,7 +1260,7 @@ public class PatternCommandHandlerTests
     public void STurn_VerticalCommand_DoesNotClearPhase(string verticalCmd, int expectedAlt)
     {
         var ac = MakeAircraft();
-        var wp = PatternGeometry.Compute(DefaultRunway(), AircraftCategory.Jet, PatternDirection.Left, null, null, null, authoredRunway: null);
+        var wp = PatternGeometry.Compute(DefaultRunway(), AircraftCategory.Jet, "", 0, PatternDirection.Left, null, null, null, authoredRunway: null);
         ac.Phases = new PhaseList { AssignedRunway = DefaultRunway() };
         ac.Phases.Add(new DownwindPhase { Waypoints = wp });
         ac.Phases.Add(new BasePhase { Waypoints = wp });
@@ -1257,7 +1289,7 @@ public class PatternCommandHandlerTests
     {
         var rwy = DefaultRunway();
         // Place aircraft near the crosswind turn point
-        var wp = PatternGeometry.Compute(rwy, AircraftCategory.Jet, PatternDirection.Left, null, null, null, authoredRunway: null);
+        var wp = PatternGeometry.Compute(rwy, AircraftCategory.Jet, "", 0, PatternDirection.Left, null, null, null, authoredRunway: null);
         var ac = MakeAircraft(lat: wp.CrosswindTurnLat, lon: wp.CrosswindTurnLon, altitude: wp.PatternAltitude);
 
         var result = PatternCommandHandler.TryEnterPattern(ac, PatternDirection.Left, PatternEntryLeg.Crosswind, null, null);

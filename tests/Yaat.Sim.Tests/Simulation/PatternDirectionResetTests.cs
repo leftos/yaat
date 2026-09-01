@@ -67,19 +67,36 @@ public class PatternDirectionResetTests(ITestOutputHelper output)
     [Fact]
     public void N342T_AfterErbAndCopt_NextCircuitResumesLeftTraffic()
     {
-        var recording = LoadRecording();
+        // Hybrid replay: the issue #412 pattern-width floor changed circuit timing from t=0,
+        // so a full replay no longer has N342T rolling onto final at t=1880. Restore the
+        // recorded snapshot there — before the recorded EF at t=1891 — and drive the
+        // vector/ERB/COPT sequence with current code.
+        using var archive = RecordingLoader.OpenArchive(RecordingPath);
         var engine = BuildEngine();
-        if (recording is null || engine is null)
+        if (archive is null || engine is null)
         {
             return;
         }
 
-        // Replay the left circuits flown after CTO MLT (t=890), stopping before the recorded EF.
-        engine.Replay(recording, 1880);
+        var recording = archive.ToBaseSessionRecording();
+        engine.Replay(recording, 0);
+
+        var snapshot = archive.ReadSnapshotAt(1880);
+        if (snapshot is null)
+        {
+            return;
+        }
+        engine.RestoreFromSnapshot(snapshot.State);
 
         var aircraft = engine.FindAircraft("N342T");
         Assert.NotNull(aircraft);
-        Assert.Equal(PatternDirection.Left, aircraft.Pattern.TrafficDirection);
+
+        // The recording's snapshots predate persisting Pattern.TrafficDirection, so the CTO
+        // MLT's persistent Left arrives null from the restore (the transient circuit
+        // direction survives). Re-establish it — this test exercises the ERB/COPT direction
+        // reset, not CTO MLT persistence.
+        Assert.Equal(PatternDirection.Left, aircraft.Phases?.TrafficDirection);
+        aircraft.Pattern.TrafficDirection = PatternDirection.Left;
 
         // Vector it off the approach, exactly as the recording's FH 360 did.
         Assert.True(engine.SendCommand("N342T", "FH 360").Success);

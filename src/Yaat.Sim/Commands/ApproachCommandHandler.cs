@@ -698,6 +698,8 @@ public static class ApproachCommandHandler
             var waypoints = PatternGeometry.Compute(
                 approachRunway,
                 category,
+                aircraft.AircraftType,
+                aircraft.WindSpeedKts,
                 direction,
                 sizeOverrideNm: null,
                 ifrPatternAltMsl,
@@ -708,6 +710,8 @@ public static class ApproachCommandHandler
             var circuitPhases = PatternBuilder.BuildCircuit(
                 approachRunway,
                 category,
+                aircraft.AircraftType,
+                aircraft.WindSpeedKts,
                 direction,
                 PatternEntryLeg.Downwind,
                 false,

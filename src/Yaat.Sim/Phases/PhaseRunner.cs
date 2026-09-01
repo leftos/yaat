@@ -152,6 +152,8 @@ public static class PhaseRunner
                 var nextCircuit = PatternBuilder.BuildNextCircuit(
                     runway,
                     ctx.Category,
+                    ctx.Aircraft.AircraftType,
+                    ctx.Aircraft.WindSpeedKts,
                     dir,
                     sizeOv,
                     altOv,

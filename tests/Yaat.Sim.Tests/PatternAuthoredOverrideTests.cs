@@ -79,6 +79,8 @@ public class PatternAuthoredOverrideTests
         var wp = PatternGeometry.Compute(
             rwy,
             AircraftCategory.Piston,
+            "",
+            0,
             PatternDirection.Left,
             sizeOverrideNm: null,
             altitudeOverrideFt: alt,

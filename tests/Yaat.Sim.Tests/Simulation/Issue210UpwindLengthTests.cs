@@ -78,6 +78,8 @@ public class Issue210UpwindLengthTests(ITestOutputHelper output)
         var waypoints = PatternGeometry.Compute(
             rwy,
             cat,
+            "",
+            0,
             PatternDirection.Right,
             sizeOverrideNm,
             altitudeOverrideFt,
@@ -95,6 +97,8 @@ public class Issue210UpwindLengthTests(ITestOutputHelper output)
         var circuit = PatternBuilder.BuildCircuit(
             rwy,
             cat,
+            "",
+            0,
             PatternDirection.Right,
             PatternEntryLeg.Upwind,
             true,
@@ -200,7 +204,17 @@ public class Issue210UpwindLengthTests(ITestOutputHelper output)
 
         double CrosswindTurnAlongTrack(double? sizeNm)
         {
-            var wp = PatternGeometry.Compute(rwy28L, AircraftCategory.Piston, PatternDirection.Right, sizeNm, 609, allRunways, authoredRunway: null);
+            var wp = PatternGeometry.Compute(
+                rwy28L,
+                AircraftCategory.Piston,
+                "",
+                0,
+                PatternDirection.Right,
+                sizeNm,
+                609,
+                allRunways,
+                authoredRunway: null
+            );
             return GeoMath.AlongTrackDistanceNm(
                 new LatLon(wp.CrosswindTurnLat, wp.CrosswindTurnLon),
                 new LatLon(rwy28L.ThresholdLatitude, rwy28L.ThresholdLongitude),
@@ -334,7 +348,7 @@ public class Issue210UpwindLengthTests(ITestOutputHelper output)
 
         var cat = AircraftCategory.Piston;
         // First circuit built with the authored override so the entry leg is flyable; alt 609.
-        var wp = PatternGeometry.Compute(rwy28L, cat, PatternDirection.Right, 0.5, 609, allRunways, authoredRunway: null);
+        var wp = PatternGeometry.Compute(rwy28L, cat, "", 0, PatternDirection.Right, 0.5, 609, allRunways, authoredRunway: null);
         var ac = new AircraftState
         {
             Callsign = "N12345",
@@ -354,6 +368,8 @@ public class Issue210UpwindLengthTests(ITestOutputHelper output)
         var circuit = PatternBuilder.BuildCircuit(
             rwy28L,
             cat,
+            "",
+            0,
             PatternDirection.Right,
             PatternEntryLeg.Downwind,
             true,

@@ -1531,6 +1531,42 @@ public static class PilotResponder
     }
 
     /// <summary>
+    /// Pilot response to a commanded pattern size below the aircraft's turn-radius minimum
+    /// (<see cref="Phases.PatternGeometry.MinFlyablePatternSizeNm"/>): the pattern is flown at
+    /// that minimum instead, and the pilot says so rather than silently ignoring the instruction
+    /// (AIM 4-4-1.b — the pilot informs ATC when unable; AIM 4-3-5 — no unexpected maneuvers in
+    /// the pattern). The RPO terminal carries the numeric substitution as a diagnostic.
+    /// </summary>
+    public static PilotSpeechText BuildUnablePatternSize(AircraftState aircraft, double requestedNm, double floorNm)
+    {
+        var spoken = SpokenOwnCallsign(aircraft);
+        string miles = SpokenPatternMiles(floorNm);
+        return new PilotSpeechText(
+            $"unable, can't turn it that tight — we'll fly about a {miles} pattern.",
+            $"{spoken}, unable, can't turn it that tight, we'll fly about a {miles} pattern."
+        )
+        {
+            RpoTerminal = $"unable {requestedNm:G} NM pattern, flying {floorNm:F1} NM for turn radius.",
+        };
+    }
+
+    /// <summary>
+    /// Colloquial spoken form of a pattern width for the unable readback — pilots say halves of
+    /// miles, never decimals ("one point one" is TTS poison; see docs/pilot-phraseology.md).
+    /// </summary>
+    private static string SpokenPatternMiles(double nm)
+    {
+        double half = Math.Round(nm * 2.0) / 2.0;
+        return half switch
+        {
+            <= 0.5 => "half-mile",
+            1.0 => "one mile",
+            1.5 => "mile and a half",
+            _ => half == Math.Floor(half) ? $"{half:F0} mile" : $"{Math.Floor(half):F0} and a half mile",
+        };
+    }
+
+    /// <summary>
     /// Pilot advisory when a follower self-initiates a shallow S-turn on final to open in-trail
     /// spacing behind the traffic it is following (AIM 4-3-5 — pilots maneuvering for spacing
     /// advise the controller). Spoken and solo terminal forms say "the traffic"; the RPO terminal

@@ -267,6 +267,8 @@ public class SaArmedForDownwindTests(ITestOutputHelper output)
         var phases = PatternBuilder.BuildCircuit(
             oakRunway,
             AircraftCategory.Piston,
+            "",
+            0,
             PatternDirection.Right,
             PatternEntryLeg.Upwind,
             touchAndGo: true,

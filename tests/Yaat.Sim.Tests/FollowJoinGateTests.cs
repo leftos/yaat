@@ -268,7 +268,7 @@ public class FollowJoinGateTests
     private static (PatternWaypoints Wp, RunwayInfo Rwy) ComputePattern()
     {
         var rwy = Runway28R();
-        var wp = PatternGeometry.Compute(rwy, AircraftCategory.Piston, PatternDirection.Right, null, null, [rwy], authoredRunway: null);
+        var wp = PatternGeometry.Compute(rwy, AircraftCategory.Piston, "", 0, PatternDirection.Right, null, null, [rwy], authoredRunway: null);
         return (wp, rwy);
     }
 

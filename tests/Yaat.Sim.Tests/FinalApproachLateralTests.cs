@@ -118,6 +118,8 @@ public class FinalApproachLateralTests
         var waypoints = PatternGeometry.Compute(
             TestRunwayFactory.Make(designator: "28", heading: 280, elevationFt: 6),
             AircraftCategory.Piston,
+            "",
+            0,
             PatternDirection.Left,
             null,
             null,
@@ -146,6 +148,8 @@ public class FinalApproachLateralTests
         var waypoints = PatternGeometry.Compute(
             TestRunwayFactory.Make(designator: "28", heading: 280, elevationFt: 6),
             AircraftCategory.Piston,
+            "",
+            0,
             PatternDirection.Left,
             null,
             null,
@@ -174,6 +178,8 @@ public class FinalApproachLateralTests
         var waypoints = PatternGeometry.Compute(
             TestRunwayFactory.Make(designator: "28", heading: 280, elevationFt: 6),
             AircraftCategory.Piston,
+            "",
+            0,
             PatternDirection.Right,
             null,
             null,

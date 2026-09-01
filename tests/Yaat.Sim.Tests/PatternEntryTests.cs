@@ -111,7 +111,7 @@ public class PatternEntryTests : IDisposable
         var entry = (PatternEntryPhase)phases[0];
 
         // Entry point should be near the downwind abeam point (midfield per AIM 4-3-3)
-        var waypoints = PatternGeometry.Compute(runway, ResolvedCategory, PatternDirection.Right, null, null, null, authoredRunway: null);
+        var waypoints = PatternGeometry.Compute(runway, ResolvedCategory, "", 0, PatternDirection.Right, null, null, null, authoredRunway: null);
         double distToAbeam = GeoMath.DistanceNm(entry.EntryLat, entry.EntryLon, waypoints.DownwindAbeamLat, waypoints.DownwindAbeamLon);
         _output.WriteLine($"Entry point dist to DownwindAbeam: {distToAbeam:F3}nm");
         Assert.True(distToAbeam < 0.1, $"Entry point should be at midfield abeam. Dist: {distToAbeam:F3}nm");
@@ -204,7 +204,7 @@ public class PatternEntryTests : IDisposable
     {
         var runway = MakeOak28R();
         // Aircraft already near the downwind abeam point (midfield entry per AIM 4-3-3)
-        var waypoints = PatternGeometry.Compute(runway, ResolvedCategory, PatternDirection.Right, null, null, null, authoredRunway: null);
+        var waypoints = PatternGeometry.Compute(runway, ResolvedCategory, "", 0, PatternDirection.Right, null, null, null, authoredRunway: null);
         var aircraft = MakeAircraft(waypoints.DownwindAbeamLat + 0.005, waypoints.DownwindAbeamLon, waypoints.PatternAltitude, 112);
 
         aircraft.Phases!.AssignedRunway = runway;
@@ -419,7 +419,7 @@ public class PatternEntryTests : IDisposable
     public void DownwindEntryPoint_IsAtMidfieldAbeam_NotDepartureEnd()
     {
         var runway = MakeOak28R();
-        var waypoints = PatternGeometry.Compute(runway, ResolvedCategory, PatternDirection.Right, null, null, null, authoredRunway: null);
+        var waypoints = PatternGeometry.Compute(runway, ResolvedCategory, "", 0, PatternDirection.Right, null, null, null, authoredRunway: null);
 
         var aircraft = MakeAircraft(37.87, -122.22, 3500, 180);
         aircraft.Phases!.AssignedRunway = runway;
@@ -448,7 +448,7 @@ public class PatternEntryTests : IDisposable
         PatternCommandHandler.TryEnterPattern(aircraft, PatternDirection.Right, PatternEntryLeg.Downwind, runwayId: "28R", finalDistanceNm: null);
 
         var entry = (PatternEntryPhase)aircraft.Phases!.Phases[0];
-        var waypoints = PatternGeometry.Compute(runway, ResolvedCategory, PatternDirection.Right, null, null, null, authoredRunway: null);
+        var waypoints = PatternGeometry.Compute(runway, ResolvedCategory, "", 0, PatternDirection.Right, null, null, null, authoredRunway: null);
 
         // Pattern altitude = field elevation + AGL for the resolved category
         double expectedAlt = 9 + CategoryPerformance.PatternAltitudeAgl(ResolvedCategory);
@@ -654,7 +654,7 @@ public class PatternEntryTests : IDisposable
     public void MidfieldCrossing_RightPattern_HasCorrectWaypoints()
     {
         var runway = MakeOak28R();
-        var waypoints = PatternGeometry.Compute(runway, ResolvedCategory, PatternDirection.Right, null, null, null, authoredRunway: null);
+        var waypoints = PatternGeometry.Compute(runway, ResolvedCategory, "", 0, PatternDirection.Right, null, null, null, authoredRunway: null);
 
         // South of airport — wrong side for right pattern (pattern is north)
         var aircraft = MakeAircraft(37.63, -122.21, 2500, 0);
@@ -694,7 +694,7 @@ public class PatternEntryTests : IDisposable
     public void PatternGeometry_LeftPattern_TurnsAreLeft()
     {
         var runway = MakeOak28R();
-        var wp = PatternGeometry.Compute(runway, AircraftCategory.Piston, PatternDirection.Left, null, null, null, authoredRunway: null);
+        var wp = PatternGeometry.Compute(runway, AircraftCategory.Piston, "", 0, PatternDirection.Left, null, null, null, authoredRunway: null);
 
         // For left pattern on runway heading 292:
         // Upwind = 292, Crosswind = 292 - 90 = 202, Downwind = 112, Base = 112 - 90 = 22
@@ -710,7 +710,7 @@ public class PatternEntryTests : IDisposable
     public void PatternGeometry_RightPattern_TurnsAreRight()
     {
         var runway = MakeOak28R();
-        var wp = PatternGeometry.Compute(runway, AircraftCategory.Piston, PatternDirection.Right, null, null, null, authoredRunway: null);
+        var wp = PatternGeometry.Compute(runway, AircraftCategory.Piston, "", 0, PatternDirection.Right, null, null, null, authoredRunway: null);
 
         // For right pattern on runway heading 292:
         // Upwind = 292, Crosswind = 292 + 90 = 22, Downwind = 112, Base = 112 + 90 = 202
@@ -726,7 +726,7 @@ public class PatternEntryTests : IDisposable
     public void PatternGeometry_DownwindAbeam_IsAbeamThreshold()
     {
         var runway = MakeOak28R();
-        var wp = PatternGeometry.Compute(runway, AircraftCategory.Piston, PatternDirection.Right, null, null, null, authoredRunway: null);
+        var wp = PatternGeometry.Compute(runway, AircraftCategory.Piston, "", 0, PatternDirection.Right, null, null, null, authoredRunway: null);
 
         double distToThreshold = GeoMath.DistanceNm(wp.DownwindAbeamLat, wp.DownwindAbeamLon, wp.ThresholdLat, wp.ThresholdLon);
         double expectedSize = CategoryPerformance.PatternSizeNm(AircraftCategory.Piston);
@@ -815,7 +815,7 @@ public class PatternEntryTests : IDisposable
     public void ERD_VeryClose_1nm_NoPatternEntryPhase()
     {
         var runway = MakeOak28R();
-        var waypoints = PatternGeometry.Compute(runway, ResolvedCategory, PatternDirection.Right, null, null, null, authoredRunway: null);
+        var waypoints = PatternGeometry.Compute(runway, ResolvedCategory, "", 0, PatternDirection.Right, null, null, null, authoredRunway: null);
 
         // Place aircraft 0.8nm from the entry point (under 1nm threshold), on correct side
         // Move slightly toward the runway from the abeam point (stays on pattern side)
@@ -1002,7 +1002,7 @@ public class PatternEntryTests : IDisposable
         Assert.NotNull(entry.LeadInLat);
         Assert.NotNull(entry.LeadInLon);
 
-        var wp = PatternGeometry.Compute(runway, ResolvedCategory, PatternDirection.Right, null, null, null, authoredRunway: null);
+        var wp = PatternGeometry.Compute(runway, ResolvedCategory, "", 0, PatternDirection.Right, null, null, null, authoredRunway: null);
         double bearingAbeamToLeadIn = GeoMath.BearingTo(wp.DownwindAbeamLat, wp.DownwindAbeamLon, entry.LeadInLat!.Value, entry.LeadInLon!.Value);
         double expected45Bearing = new TrueHeading(wp.DownwindHeading.Degrees + 45.0 + 180.0).Degrees; // 337° for OAK 28R right
         double expectedXDWBearing = wp.DownwindHeading.ToReciprocal().Degrees; // 292° for OAK 28R
@@ -1045,7 +1045,7 @@ public class PatternEntryTests : IDisposable
         Assert.NotNull(entry.LeadInLat);
         Assert.NotNull(entry.LeadInLon);
 
-        var wp = PatternGeometry.Compute(runway, ResolvedCategory, PatternDirection.Left, null, null, null, authoredRunway: null);
+        var wp = PatternGeometry.Compute(runway, ResolvedCategory, "", 0, PatternDirection.Left, null, null, null, authoredRunway: null);
         double bearingAbeamToLeadIn = GeoMath.BearingTo(wp.DownwindAbeamLat, wp.DownwindAbeamLon, entry.LeadInLat!.Value, entry.LeadInLon!.Value);
         double expected45Bearing = new TrueHeading(wp.DownwindHeading.Degrees - 45.0 + 180.0).Degrees; // 247° for OAK 28R left
         double expectedXDWBearing = wp.DownwindHeading.ToReciprocal().Degrees;
@@ -1069,7 +1069,7 @@ public class PatternEntryTests : IDisposable
         // heading downwind direction. Extended-downwind entry is a pure straight-in
         // (0° turns everywhere) — should be preferred over 45°.
         var runway = MakeOak28R();
-        var wp = PatternGeometry.Compute(runway, ResolvedCategory, PatternDirection.Right, null, null, null, authoredRunway: null);
+        var wp = PatternGeometry.Compute(runway, ResolvedCategory, "", 0, PatternDirection.Right, null, null, null, authoredRunway: null);
         var upwindPos = GeoMath.ProjectPoint(wp.DownwindAbeamLat, wp.DownwindAbeamLon, wp.DownwindHeading.ToReciprocal(), 5.0);
         var aircraft = MakeAircraft(upwindPos.Lat, upwindPos.Lon, wp.PatternAltitude, wp.DownwindHeading.Degrees);
         aircraft.Phases!.AssignedRunway = runway;
@@ -1117,7 +1117,7 @@ public class PatternEntryTests : IDisposable
         PatternCommandHandler.TryEnterPattern(aircraft, PatternDirection.Right, PatternEntryLeg.Downwind, runwayId: "28R", finalDistanceNm: null);
 
         var entry = (PatternEntryPhase)aircraft.Phases!.Phases[0];
-        var wp = PatternGeometry.Compute(runway, ResolvedCategory, PatternDirection.Right, null, null, null, authoredRunway: null);
+        var wp = PatternGeometry.Compute(runway, ResolvedCategory, "", 0, PatternDirection.Right, null, null, null, authoredRunway: null);
         double distAbeamToLeadIn = GeoMath.DistanceNm(wp.DownwindAbeamLat, wp.DownwindAbeamLon, entry.LeadInLat!.Value, entry.LeadInLon!.Value);
         double expectedNm = runway.PavementLengthFt * 0.5 / 6076.12;
 
@@ -1140,7 +1140,7 @@ public class PatternEntryTests : IDisposable
         var entry = (PatternEntryPhase)aircraft.Phases!.Phases[0];
         var cat = AircraftCategorization.Categorize(aircraft.AircraftType);
         Assert.Equal(AircraftCategory.Turboprop, cat);
-        var wp = PatternGeometry.Compute(runway, cat, PatternDirection.Right, null, null, null, authoredRunway: null);
+        var wp = PatternGeometry.Compute(runway, cat, "", 0, PatternDirection.Right, null, null, null, authoredRunway: null);
         double distAbeamToLeadIn = GeoMath.DistanceNm(wp.DownwindAbeamLat, wp.DownwindAbeamLon, entry.LeadInLat!.Value, entry.LeadInLon!.Value);
 
         _output.WriteLine($"Turboprop lead-in distance from abeam: {distAbeamToLeadIn:F3}nm (expected 1.5nm floor)");
@@ -1161,7 +1161,17 @@ public class PatternEntryTests : IDisposable
         var entry = (PatternEntryPhase)aircraft.Phases!.Phases[0];
         var cat = AircraftCategorization.Categorize(aircraft.AircraftType);
         Assert.Equal(AircraftCategory.Jet, cat);
-        var wp = PatternGeometry.Compute(runway, cat, PatternDirection.Right, null, null, null, authoredRunway: null);
+        var wp = PatternGeometry.Compute(
+            runway,
+            cat,
+            aircraft.AircraftType,
+            aircraft.WindSpeedKts,
+            PatternDirection.Right,
+            null,
+            null,
+            null,
+            authoredRunway: null
+        );
         double distAbeamToLeadIn = GeoMath.DistanceNm(wp.DownwindAbeamLat, wp.DownwindAbeamLon, entry.LeadInLat!.Value, entry.LeadInLon!.Value);
 
         _output.WriteLine($"Jet lead-in distance from abeam: {distAbeamToLeadIn:F3}nm (expected 2.0nm floor)");
@@ -1203,7 +1213,17 @@ public class PatternEntryTests : IDisposable
 
         var entry = (PatternEntryPhase)aircraft.Phases!.Phases[0];
         var cat = AircraftCategorization.Categorize(aircraft.AircraftType);
-        var wp = PatternGeometry.Compute(runway, cat, PatternDirection.Right, null, null, null, authoredRunway: null);
+        var wp = PatternGeometry.Compute(
+            runway,
+            cat,
+            aircraft.AircraftType,
+            aircraft.WindSpeedKts,
+            PatternDirection.Right,
+            null,
+            null,
+            null,
+            authoredRunway: null
+        );
         double distAbeamToLeadIn = GeoMath.DistanceNm(wp.DownwindAbeamLat, wp.DownwindAbeamLon, entry.LeadInLat!.Value, entry.LeadInLon!.Value);
         double expectedNm = runway.PavementLengthFt * 0.5 / 6076.12;
 

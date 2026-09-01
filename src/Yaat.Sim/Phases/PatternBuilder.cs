@@ -29,6 +29,8 @@ public static class PatternBuilder
     public static List<Phase> BuildCircuit(
         RunwayInfo runway,
         AircraftCategory category,
+        string aircraftType,
+        double windSpeedKt,
         PatternDirection direction,
         PatternEntryLeg entryLeg,
         bool touchAndGo,
@@ -39,7 +41,17 @@ public static class PatternBuilder
         GroundRunway? authoredRunway
     )
     {
-        var waypoints = PatternGeometry.Compute(runway, category, direction, patternSizeNm, altitudeOverrideFt, airportRunways, authoredRunway);
+        var waypoints = PatternGeometry.Compute(
+            runway,
+            category,
+            aircraftType,
+            windSpeedKt,
+            direction,
+            patternSizeNm,
+            altitudeOverrideFt,
+            airportRunways,
+            authoredRunway
+        );
         var phases = new List<Phase>();
 
         switch (entryLeg)
@@ -88,6 +100,8 @@ public static class PatternBuilder
     public static List<Phase> BuildPatternExitCircuit(
         RunwayInfo runway,
         AircraftCategory category,
+        string aircraftType,
+        double windSpeedKt,
         PatternDirection direction,
         PatternEntryLeg exitLeg,
         int? assignedAltitude,
@@ -98,7 +112,17 @@ public static class PatternBuilder
         GroundRunway? authoredRunway
     )
     {
-        var waypoints = PatternGeometry.Compute(runway, category, direction, patternSizeNm, altitudeOverrideFt, airportRunways, authoredRunway);
+        var waypoints = PatternGeometry.Compute(
+            runway,
+            category,
+            aircraftType,
+            windSpeedKt,
+            direction,
+            patternSizeNm,
+            altitudeOverrideFt,
+            airportRunways,
+            authoredRunway
+        );
 
         // Altitude resolution (COMMANDS.md, CTO Departure Modifiers): an assigned altitude wins; else
         // the filed cruise altitude; else pattern altitude. A VFR departure without a filed cruise still
@@ -144,6 +168,8 @@ public static class PatternBuilder
     public static List<Phase> BuildNextCircuit(
         RunwayInfo runway,
         AircraftCategory category,
+        string aircraftType,
+        double windSpeedKt,
         PatternDirection direction,
         double? patternSizeNm,
         double? altitudeOverrideFt,
@@ -155,6 +181,8 @@ public static class PatternBuilder
         return BuildCircuit(
             runway,
             category,
+            aircraftType,
+            windSpeedKt,
             direction,
             PatternEntryLeg.Upwind,
             touchAndGo,
@@ -182,6 +210,8 @@ public static class PatternBuilder
         RunwayInfo departureRunway,
         RunwayInfo patternRunway,
         AircraftCategory category,
+        string aircraftType,
+        double windSpeedKt,
         PatternDirection direction,
         bool touchAndGo,
         double? patternSizeNm,
@@ -194,6 +224,8 @@ public static class PatternBuilder
         var departureWaypoints = PatternGeometry.Compute(
             departureRunway,
             category,
+            aircraftType,
+            windSpeedKt,
             direction,
             patternSizeNm,
             altitudeOverrideFt,
@@ -203,6 +235,8 @@ public static class PatternBuilder
         var patternWaypoints = PatternGeometry.Compute(
             patternRunway,
             category,
+            aircraftType,
+            windSpeedKt,
             direction,
             patternSizeNm,
             altitudeOverrideFt,

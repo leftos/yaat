@@ -33,7 +33,7 @@ public class UnsupportedCommandPhaseTests
             FlightPlan = new AircraftFlightPlan { Departure = "OAK" },
         };
 
-        var waypoints = PatternGeometry.Compute(rwy, AircraftCategory.Piston, PatternDirection.Right, null, null, null, authoredRunway: null);
+        var waypoints = PatternGeometry.Compute(rwy, AircraftCategory.Piston, "", 0, PatternDirection.Right, null, null, null, authoredRunway: null);
         var phases = new PhaseList { AssignedRunway = rwy };
         phases.Add(new UpwindPhase { Waypoints = waypoints });
         phases.Add(new CrosswindPhase { Waypoints = waypoints });

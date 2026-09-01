@@ -121,6 +121,22 @@ downwind leg would encroach on a neighboring runway. For each other runway it:
    `crossTrackDist − RunwayBufferNm`, but only if the result stays ≥ `MinPatternSizeNm` (0.4 nm) — otherwise it
    leaves the size alone (a viable pattern can't be fit, so don't bother).
 
+**Flyability floor (issue #412).** After the override/deconfliction resolution — and before the
+`sizeRatio`/`BaseExtensionNm` scaling, so the final-approach length grows with the pattern —
+`PatternGeometry.Compute` clamps the size to `MinFlyablePatternSizeNm(aircraftType, category, windSpeedKt)`:
+`BasePhase.TurnRadiusNm(downwindSpeed + wind) + TurnRadiusNm(baseSpeed + wind)`, using the **per-type** leg speeds
+(`AircraftPerformance.DownwindSpeed`/`BaseSpeed`). The downwind→base and base→final turns each consume one turn
+radius of lateral room, so any narrower pattern is geometrically forced through the final approach course — at OAK
+a PAY3 given the authored 0.5 nm 28L pattern rolled out on the parallel 28R final (AIM FIG 4-3-3 key 7 prohibits
+that track; AIM 4-3-3.b sizes the pattern by aircraft performance). The floor **wins over authored data, PSIZE,
+and deconfliction alike** — a wide downwind overlying a neighboring runway beats overshooting onto a parallel's
+final. Authored/deconflicted sizes are widened silently; an explicitly commanded PS/PATTSIZE below the floor gets a
+spoken pilot "unable, can't turn it that tight" transmission from `TrySetPatternSize` (AIM 4-4-1.b — the pilot
+informs ATC when unable; AIM 4-3-5 — no unexpected pattern maneuvers; there is no codified numeric-width
+instruction in 7110.65 §3-8-1, which is why PS needs a non-standard response).
+`Compute` therefore takes the aircraft type and current wind speed (`AircraftState.WindSpeedKts`) — wind inflates
+the planning speeds because the turn triggers anticipate on ground speed.
+
 ## Pattern leg state machine — `PatternBuilder.BuildCircuit`
 
 `PatternBuilder.BuildCircuit` (`src/Yaat.Sim/Phases/PatternBuilder.cs:28`) builds the phase sequence from a

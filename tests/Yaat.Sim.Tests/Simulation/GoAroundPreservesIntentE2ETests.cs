@@ -50,23 +50,39 @@ public class GoAroundPreservesIntentE2ETests(ITestOutputHelper output)
     [Fact]
     public void N342T_AfterManualGoAroundFromTouchAndGo_NextCircuitEndsWithTouchAndGoPhase()
     {
-        var recording = LoadRecording();
+        // Hybrid replay: the issue #412 pattern-width floor changed circuit timing from t=0
+        // (the recorded manual GA at t=869 no longer lands on the same leg in a full replay),
+        // so restore the recorded snapshot just before the GA and apply it to that state.
+        using var archive = RecordingLoader.OpenArchive(RecordingPath);
         var engine = BuildEngine();
-        if (recording is null || engine is null)
+        if (archive is null || engine is null)
         {
             return;
         }
 
-        engine.Replay(recording, 871);
+        var recording = archive.ToBaseSessionRecording();
+        engine.Replay(recording, 0);
+
+        var snapshot = archive.ReadSnapshotAt(868);
+        if (snapshot is null)
+        {
+            return;
+        }
+        engine.RestoreFromSnapshot(snapshot.State);
+        engine.ReplayRange((int)snapshot.ElapsedSeconds, 871, recording.Actions);
 
         var ac = engine.FindAircraft("N342T");
         Assert.NotNull(ac);
         Assert.NotNull(ac.Phases);
 
-        var ga = Assert.IsType<GoAroundPhase>(ac.Phases.CurrentPhase);
+        // The recorded GA hit on downwind at pattern altitude. GoAroundPhase's exit is
+        // altitude-gated (climb to the go-around target), and a pattern-altitude aircraft is
+        // already there, so the phase can complete within a tick or two of triggering — find
+        // the instance in the list rather than requiring it to still be the current phase.
+        var ga = ac.Phases.Phases.OfType<GoAroundPhase>().Last();
         output.WriteLine(
-            $"t=871: GoAroundPhase active. NextLandingFullStop={ga.NextLandingFullStop} "
-                + $"ReenterPattern={ga.ReenterPattern} TargetAlt={ga.TargetAltitude}"
+            $"t=871: GoAroundPhase {(ReferenceEquals(ga, ac.Phases.CurrentPhase) ? "active" : "triggered")}. "
+                + $"NextLandingFullStop={ga.NextLandingFullStop} ReenterPattern={ga.ReenterPattern} TargetAlt={ga.TargetAltitude}"
         );
 
         Assert.False(ga.NextLandingFullStop, "GoAroundPhase should have captured the pre-GA TG intent (TouchAndGoPhase was pending)");
@@ -75,7 +91,9 @@ public class GoAroundPreservesIntentE2ETests(ITestOutputHelper output)
         Phase? terminator = null;
         for (int t = 1; t <= 600; t++)
         {
-            engine.ReplayOneSecond();
+            // Physics only — after the snapshot restore the replay cursor is stale, and no
+            // later recorded action matters to the terminator-type assertion.
+            engine.TickOneSecond();
             ac = engine.FindAircraft("N342T");
             if (ac is null)
             {
