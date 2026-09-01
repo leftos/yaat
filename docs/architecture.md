@@ -689,6 +689,8 @@ Commands/RunwaySafetyAdvisor.cs     # Non-blocking 7110.65 3-9-4/3-9-6 occupied-
                                     # (CLAND/COPT/TG/SG/LA/LAHSO/CLANDF) with traffic holding in position / taxiing to line up on the runway, and the reverse
                                     # (LUAW with a landing-family clearance outstanding). WarnIfRunwayOccupiedForTakeoff = 3-9-6.a/b: takeoff clearance
                                     # issued with another aircraft holding in position or a live-traffic shadow on/landing on the runway.
+                                    # WarnIfStoppedTrafficOnRunway = 3-10-3.a.1/3-9-6.a third occupant kind (#411): traffic frozen on the pavement by a
+                                    # HOLDPOSITION/GIVEWAY hold directive (Ground.IsImmobile + IsOnPavement, e.g. a stopped runway crossing); moving crossings stay silent.
                                     # Suppressed when ArtccConfigResolver.AirportHasFullSafetyLogic finds an ASDE-X config with runway configurations
                                     # for the airport (CRC Safety Logic covers the incursion there)
 Commands/StripCommandHandler.cs     # Flight strip CRUD (STRIP, SCAN, STRIPD, STRIPO, AN, HSC, HSA, HSD, HSM, HSO, HSS, SEP, SEPD, BLANK, BLANKD); dispatches to StripMutations

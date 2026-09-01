@@ -4,6 +4,7 @@
 
 ### Fixed
 - An aircraft on an extended downwind holds altitude past the base-turn point instead of climbing back toward pattern altitude.
+- Occupied-runway advisories (landing/option and takeoff clearances) now warn about traffic frozen on the runway by `HOLDPOSITION` or `GIVEWAY`, such as a stopped crossing.
 
 ## v0.12.24-beta [2026/08/31]
 

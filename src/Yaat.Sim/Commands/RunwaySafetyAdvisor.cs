@@ -42,7 +42,9 @@ public static class RunwaySafetyAdvisor
     /// aircraft lined up on the opposite end of the same pavement still triggers the advisory —
     /// except <see cref="HoldingInPositionPhase"/>, which YAAT also uses as a generic ground-idle
     /// hold (post-WARPG anywhere, far side of a crossing, CLRWY) and therefore only counts when
-    /// the aircraft is physically on the cleared runway's pavement.
+    /// the aircraft is physically on the cleared runway's pavement. An aircraft frozen on the
+    /// pavement by a hold directive without either phase draws the separate
+    /// <see cref="WarnIfStoppedTrafficOnRunway"/> warning.
     /// </summary>
     public static void WarnIfRunwayOccupied(AircraftState aircraft, RunwayInfo runway, DispatchContext ctx)
     {
@@ -67,6 +69,7 @@ public static class RunwaySafetyAdvisor
             .ToList();
 
         EmitOccupiedWarning(aircraft, RunwayIdentifier.ToDisplayDesignator(runway.Designator), occupants);
+        WarnIfStoppedTrafficOnRunway(aircraft, runway, ctx, forTakeoff: false);
         WarnIfLiveTrafficOnRunway(aircraft, runway, ctx);
     }
 
@@ -77,7 +80,9 @@ public static class RunwaySafetyAdvisor
     /// taken from the cleared aircraft's flight-plan destination; when that is blank the airport
     /// filter is skipped — the occupant's runway identity alone decides. A
     /// <see cref="HoldingInPositionPhase"/> occupant counts only when its own assigned runway both
-    /// names the cleared runway and geometrically contains its position.
+    /// names the cleared runway and geometrically contains its position. The stopped-traffic and
+    /// live-traffic checks need real geometry, so they run only when the destination resolves the
+    /// designator to a runway.
     /// </summary>
     public static void WarnIfRunwayOccupied(AircraftState aircraft, string runwayDesignator, DispatchContext ctx)
     {
@@ -103,8 +108,46 @@ public static class RunwaySafetyAdvisor
         EmitOccupiedWarning(aircraft, RunwayIdentifier.ToDisplayDesignator(runwayDesignator), occupants);
         if (ResolveNamedRunway(aircraft.FlightPlan.Destination, runwayDesignator) is { } namedRunway)
         {
+            WarnIfStoppedTrafficOnRunway(aircraft, namedRunway, ctx, forTakeoff: false);
             WarnIfLiveTrafficOnRunway(aircraft, namedRunway, ctx);
         }
+    }
+
+    /// <summary>
+    /// An aircraft immobilized on the runway pavement by a hold directive (HOLDPOSITION or GIVEWAY
+    /// — issue #411): typically a runway crossing frozen mid-pavement, which keeps its
+    /// <see cref="CrossingRunwayPhase"/>/<see cref="TaxiingPhase"/> rather than gaining a
+    /// <see cref="HoldingInPositionPhase"/>, so the phase-based occupant matches never see it. A
+    /// <i>stopped</i> crossing is an occupied runway (3-10-3.a.1 for arrivals, 3-9-6.a for
+    /// departures), not anticipated separation; a <i>moving</i> crossing must stay silent (3-1-3
+    /// coordinated operations, 3-10-5.b "traffic crossing downfield") and does — its
+    /// <see cref="AircraftGroundState.IsImmobile"/> is false. Occupants the phase-based branches
+    /// already count (line-up family awaiting takeoff clearance, <see cref="HoldingInPositionPhase"/>)
+    /// are excluded so a held LUAW aircraft draws one warning, not two.
+    /// </summary>
+    private static void WarnIfStoppedTrafficOnRunway(AircraftState aircraft, RunwayInfo runway, DispatchContext ctx, bool forTakeoff)
+    {
+        var stopped = ctx.ListAircraft!()
+            .Where(other =>
+                (!ReferenceEquals(other, aircraft))
+                && other.Ground.IsImmobile
+                && RunwayOccupancy.IsOnPavement(other, runway)
+                && (!AwaitsTakeoffClearanceOnRunway(other))
+                && other.Phases?.CurrentPhase is not HoldingInPositionPhase
+            )
+            .Select(other => other.Callsign)
+            .ToList();
+        if (stopped.Count == 0)
+        {
+            return;
+        }
+
+        var display = RunwayIdentifier.ToDisplayDesignator(runway.Designator);
+        var warning = forTakeoff
+            ? $"{aircraft.Callsign}: traffic stopped on runway {display} ({string.Join(", ", stopped)}) — this departure cannot begin takeoff roll until that traffic is clear of the runway (7110.65 3-9-6.a); hold this aircraft short until the runway is clear"
+            : $"{aircraft.Callsign}: traffic stopped on runway {display} ({string.Join(", ", stopped)}) — the runway is occupied; withhold the landing/option clearance until that traffic is clear (7110.65 3-10-3.a.1)";
+        aircraft.PendingWarnings.Add(warning);
+        Log.LogDebug("[RunwaySafety] {Warning}", warning);
     }
 
     /// <summary>
@@ -148,7 +191,9 @@ public static class RunwaySafetyAdvisor
     /// anticipate. An occupant that already holds its own takeoff clearance is about to roll —
     /// that IS ordinary anticipated separation (3-9-5, confirmed by the wake-only scoping of the
     /// 3-9-6.e NOTE), so it stays silent, as are crossings in progress (3-1-3 coordinated local
-    /// operations; see 3-10-5.b "traffic crossing downfield"). Not gated on the safety-logic
+    /// operations; see 3-10-5.b "traffic crossing downfield") — though a crossing <i>stopped</i>
+    /// on the pavement by a hold directive warns via
+    /// <see cref="WarnIfStoppedTrafficOnRunway"/>. Not gated on the safety-logic
     /// proxy: the full-core-alert relief is scoped to 3-9-4.c.2 / 3-10-5.e.2 — same-runway
     /// separation has no equipage carve-out. The occupant match mirrors
     /// <see cref="WarnIfRunwayOccupied(AircraftState, RunwayInfo, DispatchContext)"/>: runway
@@ -188,6 +233,7 @@ public static class RunwaySafetyAdvisor
             Log.LogDebug("[RunwaySafety] {Warning}", warning);
         }
 
+        WarnIfStoppedTrafficOnRunway(aircraft, runway, ctx, forTakeoff: true);
         WarnIfLiveTrafficBlocksTakeoff(aircraft, runway, ctx);
     }
 

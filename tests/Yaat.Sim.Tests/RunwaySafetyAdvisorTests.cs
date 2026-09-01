@@ -4,6 +4,8 @@ using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Phases.Tower;
+using Yaat.Sim.Simulation;
+using Yaat.Sim.Testing;
 using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests;
@@ -15,6 +17,13 @@ namespace Yaat.Sim.Tests;
 /// </summary>
 public class RunwaySafetyAdvisorTests
 {
+    public RunwaySafetyAdvisorTests()
+    {
+        // The designator-overload stopped-traffic test resolves OAK runways through the nav DB
+        // singleton; pin it before any test method runs (static-singleton race protocol).
+        TestVnasData.EnsureInitialized();
+    }
+
     private static readonly RunwayInfo Runway = MakeRunway();
 
     private static RunwayInfo MakeRunway()
@@ -296,5 +305,115 @@ public class RunwaySafetyAdvisorTests
         );
 
         Assert.Single(WarningsAfterTakeoffClearance(departure, occupant));
+    }
+
+    // ---- Issue #411: an aircraft frozen mid-crossing by HOLDPOSITION/GIVEWAY is an occupied
+    // runway (3-10-3.a.1 / 3-9-6.a), while a moving crossing must stay silent (3-1-3, 3-10-5.b).
+
+    private static AircraftState StoppedCrossingOccupant(string callsign, LatLon position)
+    {
+        var occupant = Occupant(callsign, position, new CrossingRunwayPhase(approachNodeId: 0, targetNodeId: 0, runwayId: "28"));
+        occupant.Ground.Hold = HoldDirective.HoldPosition;
+        return occupant;
+    }
+
+    private static AircraftState HoldingShortDeparture() =>
+        Occupant(
+            "DEP1",
+            OnRunway(0, 300),
+            new HoldingShortPhase(
+                new HoldShortPoint
+                {
+                    NodeId = 1,
+                    Reason = HoldShortReason.DestinationRunway,
+                    TargetName = "28",
+                }
+            )
+        );
+
+    [Fact]
+    public void LandingClearance_StoppedMidCrossing_Warns()
+    {
+        var occupant = StoppedCrossingOccupant("XNG1", OnRunway(3000, 10));
+
+        var warnings = WarningsAfterClearance(Arrival(), occupant);
+
+        Assert.Single(warnings);
+        Assert.Contains("XNG1", warnings[0]);
+        Assert.Contains("3-10-3", warnings[0]);
+    }
+
+    [Fact]
+    public void LandingClearance_StoppedByGiveWayOnPavement_Warns()
+    {
+        var occupant = Occupant("XNG1", OnRunway(3000, 10), new CrossingRunwayPhase(approachNodeId: 0, targetNodeId: 0, runwayId: "28"));
+        occupant.Ground.Hold = HoldDirective.GiveWay("OTHER1");
+
+        var warnings = WarningsAfterClearance(Arrival(), occupant);
+
+        Assert.Single(warnings);
+        Assert.Contains("XNG1", warnings[0]);
+    }
+
+    [Fact]
+    public void LandingClearance_MovingCrossing_IsSilent()
+    {
+        var occupant = Occupant("XNG1", OnRunway(3000, 10), new CrossingRunwayPhase(approachNodeId: 0, targetNodeId: 0, runwayId: "28"));
+
+        Assert.Empty(WarningsAfterClearance(Arrival(), occupant));
+    }
+
+    [Fact]
+    public void LandingClearance_HeldOnParallelTaxiway_IsSilent()
+    {
+        var occupant = Occupant("TAXI1", OnRunway(3000, 500), new TaxiingPhase());
+        occupant.Ground.Hold = HoldDirective.HoldPosition;
+
+        Assert.Empty(WarningsAfterClearance(Arrival(), occupant));
+    }
+
+    [Fact]
+    public void TakeoffClearance_StoppedMidCrossing_Warns()
+    {
+        var occupant = StoppedCrossingOccupant("XNG1", OnRunway(3000, 10));
+
+        var warnings = WarningsAfterTakeoffClearance(HoldingShortDeparture(), occupant);
+
+        Assert.Single(warnings);
+        Assert.Contains("XNG1", warnings[0]);
+        Assert.Contains("3-9-6", warnings[0]);
+    }
+
+    [Fact]
+    public void TakeoffClearance_MovingCrossing_IsSilent()
+    {
+        var occupant = Occupant("XNG1", OnRunway(3000, 10), new CrossingRunwayPhase(approachNodeId: 0, targetNodeId: 0, runwayId: "28"));
+
+        Assert.Empty(WarningsAfterTakeoffClearance(HoldingShortDeparture(), occupant));
+    }
+
+    [Fact]
+    public void DesignatorOverload_StoppedMidCrossing_Warns()
+    {
+        // Pre-issued clearance path: only a designator is known; the runway geometry must come
+        // from the cleared aircraft's destination airport, so this needs the real nav DB.
+        var oakRunway = RunwayOccupancy.AirportRunways("OAK").FirstOrDefault(r => r.Id.Contains("28R"))?.ForApproach("28R");
+        if (oakRunway is null)
+        {
+            return;
+        }
+
+        var threshold = new LatLon(oakRunway.ThresholdLatitude, oakRunway.ThresholdLongitude);
+        var onPavement = GeoMath.ProjectPoint(threshold, oakRunway.TrueHeading, 500 / GeoMath.FeetPerNm);
+        var occupant = Occupant("XNG1", onPavement, new CrossingRunwayPhase(approachNodeId: 0, targetNodeId: 0, runwayId: "28R"));
+        occupant.Ground.Hold = HoldDirective.HoldPosition;
+        var arrival = Arrival();
+        arrival.FlightPlan.Destination = "OAK";
+        var ctx = TestDispatch.Context(new Random(1), listAircraft: () => [arrival, occupant]);
+
+        RunwaySafetyAdvisor.WarnIfRunwayOccupied(arrival, "28R", ctx);
+
+        Assert.Single(arrival.PendingWarnings);
+        Assert.Contains("XNG1", arrival.PendingWarnings[0]);
     }
 }
