@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+- `ADD` with a pasted Copy FRD position now redirects to the working form — `@{FRD} {altitude}` — instead of a generic bearing or runway error.
+- `ADD` signature help lists every position variant — at fix/FRD, parking, on runway, on final, departure with route — not just bearing and STAR arrival.
+
 ## v0.12.23-beta [2026/08/31]
 
 ### Highlights

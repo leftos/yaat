@@ -869,6 +869,43 @@ public static class CommandRegistry
                         "Add airborne aircraft"
                     ),
                     O(
+                        "At fix or FRD",
+                        [
+                            R("rules", "IFR/VFR"),
+                            R("weight", "S/S+/L/H"),
+                            R("engine", "J/T/P/H"),
+                            R("@fix", "fix or FRD (Copy FRD paste)"),
+                            R("altitude", "in hundreds"),
+                        ],
+                        "Add airborne aircraft at a fix or fix/radial/distance (e.g. @AAAME093002)"
+                    ),
+                    O(
+                        "At parking",
+                        [R("rules", "IFR/VFR"), R("weight", "S/S+/L/H"), R("engine", "J/T/P/H"), R("@spot", "parking/helipad name")],
+                        "Add aircraft parked at a spot or helipad"
+                    ),
+                    O(
+                        "Lined up on runway",
+                        [R("rules", "IFR/VFR"), R("weight", "S/S+/L/H"), R("engine", "J/T/P/H"), R("runway", "e.g. 28R")],
+                        "Add aircraft lined up on the runway"
+                    ),
+                    O(
+                        "On final",
+                        [R("rules", "IFR/VFR"), R("weight", "S/S+/L/H"), R("engine", "J/T/P/H"), R("runway", "e.g. 28R"), R("distance", "nm out")],
+                        "Add aircraft on final for a runway"
+                    ),
+                    O(
+                        "Departure with route",
+                        [
+                            R("rules", "IFR/VFR"),
+                            R("weight", "S/S+/L/H"),
+                            R("engine", "J/T/P/H"),
+                            R("runway", "e.g. 28R"),
+                            R("route", "dot-joined, e.g. NIMI6.OAK.SAU"),
+                        ],
+                        "Add a departure lined up on the runway with a filed route"
+                    ),
+                    O(
                         "Arrival on STAR",
                         [
                             R("rules", "IFR"),

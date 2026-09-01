@@ -240,7 +240,7 @@ internal static class AddCommandSuggester
                     suggestions,
                     maxSuggestions,
                     ("-", "Airborne — -{bearing} {dist_nm} {alt_ft}"),
-                    ("@", "At fix — @{fix_or_FRD} {alt_ft}, or at parking — @{spot}"),
+                    ("@", "At fix/FRD — @{fix_or_FRD} {alt_ft} (paste a Copy FRD string after @), or at parking — @{spot}"),
                     ("{wpt}.{star}.{rwy}", "Arrival on a STAR — e.g. TBARR.TBARR4.34R")
                 );
                 AddRunwaySuggestions(fullText, activeTokenStart, activeTokenEnd, partial, suggestions, primaryAirportId, maxSuggestions);

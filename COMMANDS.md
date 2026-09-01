@@ -1645,7 +1645,7 @@ Spawn an aircraft on demand without a scenario file. Requires an active scenario
 | Variant | Syntax | Example |
 |---------|--------|---------|
 | Airborne | `ADD {rules} {weight} {engine} -{bearing} {dist} {alt}` | `ADD IFR H J -270 15 10000` |
-| At fix | `ADD {rules} {weight} {engine} @{fix} {alt}` | `ADD IFR L J @SUNOL 8000` |
+| At fix or FRD | `ADD {rules} {weight} {engine} @{fix_or_FRD} {alt}` | `ADD IFR L J @SUNOL 8000` · `ADD V S P @AAAME093002 035` |
 | Lined up on runway | `ADD {rules} {weight} {engine} {runway}` | `ADD VFR S P 28R` |
 | Departure on runway | `ADD {rules} {weight} {engine} {runway} {route}` | `ADD IFR S P 28R NIMI6.OAK.SAU` |
 | On final | `ADD {rules} {weight} {engine} {runway} {dist}` | `ADD IFR L J 28R 8` |
@@ -1662,7 +1662,7 @@ Spawn an aircraft on demand without a scenario file. Requires an active scenario
 
 **Position arguments:**
 - **Airborne**: `-{bearing}` is degrees from the primary airport, `{dist}` is distance in NM, `{alt}` is the altitude (see below). Aircraft spawns heading toward the airport.
-- **At fix**: `@{fix}` is a fix name or FRD, `{alt}` is the altitude (see below). Aircraft spawns at the fix heading toward the primary airport.
+- **At fix or FRD**: `@{fix_or_FRD}` is a fix name or a fix/radial/distance string, `{alt}` is the altitude (required — see below). Aircraft spawns at the position heading toward the primary airport. Right-click anywhere on the scope and **Copy FRD**, then paste it after `@` to spawn at that exact point (e.g. `ADD V S P @AAAME093002 035`).
 - **Lined up**: `{runway}` is the runway designator (e.g., `28R`). Aircraft spawns on the runway threshold, ready for takeoff clearance.
 - **Departure on runway**: `{runway}` plus a dot-joined `{route}` (e.g., `NIMI6.OAK.SAU`, converted to the filed route `NIMI6 OAK SAU`). Spawns lined up on the runway with the route filed and the departure airport set, so a subsequent `CTO` flies the filed SID. IFR only — the route is ignored for VFR. A numeric token after the runway is the on-final distance, not a route.
 - **On final**: `{runway}` plus `{dist}` in NM. Aircraft spawns on final approach at that distance from the runway.

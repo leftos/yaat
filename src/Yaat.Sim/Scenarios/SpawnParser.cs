@@ -1,4 +1,5 @@
 using Yaat.Sim.Commands;
+using Yaat.Sim.Data;
 
 namespace Yaat.Sim.Scenarios;
 
@@ -104,6 +105,17 @@ public static class SpawnParser
         string? explicitAirline
     )
     {
+        // A pasted radar-scope "Copy FRD" string (e.g. "-AAAME093002" or "- AAAME093002") lands
+        // here because of the '-' prefix; redirect to the at-fix variant instead of a generic error.
+        foreach (var token in posTokens)
+        {
+            var candidate = token.TrimStart('-');
+            if (FrdResolver.IsFrdIdentifier(candidate))
+            {
+                return (null, FrdRedirectError(candidate));
+            }
+        }
+
         if (posTokens.Length < 3)
         {
             return (null, "Bearing variant requires: -{bearing} {distance} {altitude}");
@@ -209,6 +221,13 @@ public static class SpawnParser
             return (null, "Missing parking/helipad name after '@'");
         }
 
+        // "@{FIX}{RRR}{DDD}" with no altitude token is an airborne FRD spawn missing its altitude,
+        // not a parking spot lookup.
+        if (FrdResolver.IsFrdIdentifier(parkingName))
+        {
+            return (null, $"FRD position requires an altitude: @{parkingName.ToUpperInvariant()} {{altitude}}");
+        }
+
         return (
             new SpawnRequest
             {
@@ -233,6 +252,13 @@ public static class SpawnParser
         string? explicitAirline
     )
     {
+        // A bare pasted "Copy FRD" string (no '@' prefix) falls through to this variant; redirect
+        // to the at-fix variant instead of failing later as an unknown runway.
+        if (FrdResolver.IsFrdIdentifier(posTokens[0]))
+        {
+            return (null, FrdRedirectError(posTokens[0]));
+        }
+
         var runwayId = posTokens[0].ToUpperInvariant();
 
         if (posTokens.Length == 1)
@@ -404,6 +430,11 @@ public static class SpawnParser
             },
             null
         );
+    }
+
+    private static string FrdRedirectError(string frdToken)
+    {
+        return $"'{frdToken}' looks like a fix/radial/distance position — spawn there with: @{frdToken.ToUpperInvariant()} {{altitude}}";
     }
 
     private static bool TryParseRules(string token, out FlightRulesKind rules)
