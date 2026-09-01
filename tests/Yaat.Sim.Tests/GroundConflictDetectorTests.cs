@@ -405,6 +405,41 @@ public class GroundConflictDetectorTests
     }
 
     [Fact]
+    public void LiningUpToward_LinedUpAndWaiting_MovingOneStops()
+    {
+        // Issue #409: B is lined up and waiting on the runway; A was cleared for takeoff
+        // from the hold-short at the same entry and is actively lining up toward B.
+        // A must be treated as a mover (not a parked obstacle) so it stops behind B
+        // instead of driving through it.
+        var a = MakeAircraft("A", new LatLon(BaseLat, BaseLon), heading: 0, gs: 10, phase: new LineUpPhase());
+        var b = MakeAircraft("B", new LatLon(BaseLat + 1.5 * OffsetLatPer100Ft, BaseLon), heading: 0, gs: 0, phase: new LinedUpAndWaitingPhase());
+
+        var aircraft = new List<AircraftState> { a, b };
+        GroundConflictDetector.ApplySpeedLimits(aircraft, null);
+
+        Assert.NotNull(a.Ground.SpeedLimit);
+        Assert.Equal(0.0, a.Ground.SpeedLimit!.Value);
+        Assert.Null(b.Ground.SpeedLimit);
+    }
+
+    [Fact]
+    public void LiningUp_WhileStopped_RemainsPassableObstacle()
+    {
+        // A stationary aircraft in LineUpPhase (e.g. braked at the hold-short bar waiting
+        // for its lineup path) is still a passable obstacle: a mover with adequate lateral
+        // clearance behind it must not be hard-stopped by mere proximity.
+        var a = MakeAircraft("A", new LatLon(BaseLat, BaseLon), heading: 90, gs: 15);
+        var b = MakeAircraft("B", new LatLon(BaseLat + 1.5 * OffsetLatPer100Ft, BaseLon), heading: 0, gs: 0, phase: new LineUpPhase());
+
+        var aircraft = new List<AircraftState> { a, b };
+        GroundConflictDetector.ApplySpeedLimits(aircraft, null);
+
+        // B is north of east-moving A (not in path, diff >= 90): no limits either way.
+        Assert.Null(a.Ground.SpeedLimit);
+        Assert.Null(b.Ground.SpeedLimit);
+    }
+
+    [Fact]
     public void StationaryNearMoving_NotInPath_NoLimit()
     {
         // A is moving east, B is stationary to the north (not in A's path)

@@ -1,5 +1,6 @@
 using Xunit;
 using Yaat.Sim.Commands;
+using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Phases.Tower;
@@ -175,5 +176,125 @@ public class RunwaySafetyAdvisorTests
         RunwaySafetyAdvisor.WarnIfRunwayOccupied(arrival, "28", ctx);
 
         Assert.Single(arrival.PendingWarnings);
+    }
+
+    private static List<string> WarningsAfterTakeoffClearance(AircraftState departure, AircraftState occupant)
+    {
+        var ctx = TestDispatch.Context(new Random(1), listAircraft: () => [departure, occupant]);
+        RunwaySafetyAdvisor.WarnIfRunwayOccupiedForTakeoff(departure, Runway, ctx);
+        return departure.PendingWarnings;
+    }
+
+    [Fact]
+    public void TakeoffClearance_OverLuawOccupant_Warns()
+    {
+        // Issue #409: CTO issued to an aircraft holding short while another aircraft is
+        // lined up and waiting on the same runway without a takeoff clearance.
+        var occupant = Occupant("LUAW1", OnRunway(200, 0), new LinedUpAndWaitingPhase());
+        var departure = Occupant(
+            "DEP1",
+            OnRunway(0, 300),
+            new HoldingShortPhase(
+                new HoldShortPoint
+                {
+                    NodeId = 1,
+                    Reason = HoldShortReason.DestinationRunway,
+                    TargetName = "28",
+                }
+            )
+        );
+
+        var warnings = WarningsAfterTakeoffClearance(departure, occupant);
+
+        Assert.Single(warnings);
+        Assert.Contains("LUAW1", warnings[0]);
+        Assert.Contains("3-9-6", warnings[0]);
+    }
+
+    [Fact]
+    public void TakeoffClearance_BehindPrecedingDepartureAlreadyCleared_IsSilent()
+    {
+        // The occupant holds its own takeoff clearance — it is about to roll; clearing the
+        // next departure is ordinary anticipated separation (3-9-5).
+        var occupant = Occupant("DEP0", OnRunway(200, 0), new LinedUpAndWaitingPhase());
+        occupant.Phases!.CurrentPhase!.Requirements[0].IsSatisfied = true;
+        var departure = Occupant(
+            "DEP1",
+            OnRunway(0, 300),
+            new HoldingShortPhase(
+                new HoldShortPoint
+                {
+                    NodeId = 1,
+                    Reason = HoldShortReason.DestinationRunway,
+                    TargetName = "28",
+                }
+            )
+        );
+
+        Assert.Empty(WarningsAfterTakeoffClearance(departure, occupant));
+    }
+
+    [Fact]
+    public void TakeoffClearance_HoldingInPositionOnThePavement_Warns()
+    {
+        var occupant = Occupant("HOLD1", OnRunway(200, 10), new HoldingInPositionPhase());
+        var departure = Occupant(
+            "DEP1",
+            OnRunway(0, 300),
+            new HoldingShortPhase(
+                new HoldShortPoint
+                {
+                    NodeId = 1,
+                    Reason = HoldShortReason.DestinationRunway,
+                    TargetName = "28",
+                }
+            )
+        );
+
+        var warnings = WarningsAfterTakeoffClearance(departure, occupant);
+
+        Assert.Single(warnings);
+        Assert.Contains("HOLD1", warnings[0]);
+    }
+
+    [Fact]
+    public void TakeoffClearance_HoldingInPositionOnTheParallelTaxiway_IsSilent()
+    {
+        var occupant = Occupant("HOLD1", OnRunway(3000, 500), new HoldingInPositionPhase());
+        var departure = Occupant(
+            "DEP1",
+            OnRunway(0, 300),
+            new HoldingShortPhase(
+                new HoldShortPoint
+                {
+                    NodeId = 1,
+                    Reason = HoldShortReason.DestinationRunway,
+                    TargetName = "28",
+                }
+            )
+        );
+
+        Assert.Empty(WarningsAfterTakeoffClearance(departure, occupant));
+    }
+
+    [Fact]
+    public void TakeoffClearance_LuawOnTheOppositeEndOfTheSamePavement_Warns()
+    {
+        var occupant = Occupant("LUAW1", OnRunway(9800, 0), new LinedUpAndWaitingPhase());
+        occupant.Phases!.AssignedRunway = Runway.ForApproach("10");
+        var departure = Occupant(
+            "DEP1",
+            OnRunway(0, 300),
+            new HoldingShortPhase(
+                new HoldShortPoint
+                {
+                    NodeId = 1,
+                    Reason = HoldShortReason.DestinationRunway,
+                    TargetName = "28",
+                }
+            )
+        );
+
+        Assert.Single(WarningsAfterTakeoffClearance(departure, occupant));
     }
 }

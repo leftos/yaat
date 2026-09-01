@@ -270,7 +270,12 @@ public class NimiRadarVectorsSidTests
         // Start the lined-up phases and clear for takeoff (bare CTO — relies on the SID's published heading).
         ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac));
         var luaw = ac.Phases.Phases.OfType<LinedUpAndWaitingPhase>().First();
-        var ctoResult = DepartureClearanceHandler.TryClearedForTakeoff(new ClearedForTakeoffCommand(new DefaultDeparture()), ac, luaw);
+        var ctoResult = DepartureClearanceHandler.TryClearedForTakeoff(
+            new ClearedForTakeoffCommand(new DefaultDeparture()),
+            ac,
+            luaw,
+            TestDispatch.Context(Random.Shared)
+        );
         Assert.True(ctoResult.Success, ctoResult.Message);
 
         var climb = ac.Phases.Phases.OfType<InitialClimbPhase>().First();

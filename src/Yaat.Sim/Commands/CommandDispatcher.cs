@@ -2029,7 +2029,7 @@ public static class CommandDispatcher
             case ClearedForTakeoffCommand cto:
             {
                 var ctoResult = currentPhase is LinedUpAndWaitingPhase luaw
-                    ? DepartureClearanceHandler.TryClearedForTakeoff(cto, aircraft, luaw)
+                    ? DepartureClearanceHandler.TryClearedForTakeoff(cto, aircraft, luaw, ctx)
                     : DepartureClearanceHandler.TryDepartureClearance(
                         aircraft,
                         currentPhase,

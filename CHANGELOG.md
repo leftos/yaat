@@ -8,8 +8,10 @@
 - Chaining commands behind `HOLDP`, a VFR hold, or `FOLLOW` warns up front that the trailing commands wait for the hold to end; conditional tails still fire during it.
 - The user guide gains a plain-language command-chaining walkthrough: when the next step starts, what happens on failure, what can't be chained.
 - The ADD command's `@` position now autocompletes the primary airport's parking, helipad, and spot names instead of navdata fixes.
+- `CTO` with traffic holding in position on the runway draws an amber same-runway-separation warning, alongside the existing occupied-runway advisories.
 
 ### Fixed
+- An aircraft cleared for takeoff no longer taxis through traffic holding in position on the runway — it stops behind and departs once the runway is clear.
 - Live traffic (internal testing): enroute IFR plans are no longer labeled VFR, TAIS-only departures get the right origin airport, and no-plan discrete-code targets lean VFR.
 - Live traffic (internal testing): shadow aircraft no longer churn in and out or show `LIVE CST` on healthy tracks — coast and removal follow the feed's own coast and drop signals.
 - Live traffic: landed arrivals disappear promptly instead of dead-reckoning down the runway, and taxiing aircraft no longer flick airborne during brief surface-update lapses.

@@ -304,7 +304,14 @@ amber in the client — so the advisory surfaces on the tick *after* the command
   `ArtccConfigResolver.AirportHasFullSafetyLogic` finds an ASDE-X config with runway configurations (CRC's Safety Logic covers the incursion there).
   `WarnIfAnotherHoldingInPosition` (also on LUAW) is the 3-9-4.h reminder — a second aircraft lined up on the same pavement while the first
   still awaits its takeoff clearance — and is not safety-logic gated (the sim has no daylight or LA/LM staffing state, so it always fires).
-  This is why `PatternCommandHandler`'s clearance methods and `DepartureClearanceHandler.TryDepartureClearance` take the full `DispatchContext`.
+  `WarnIfRunwayOccupiedForTakeoff` (#409) fires on CTO when another aircraft is holding in position on the runway without its own takeoff
+  clearance (or a shadow occupies the surface): 3-9-6 same-runway separation. Also not safety-logic gated — the separation rule applies
+  regardless of ASDE-X equipage. Called from `TryDepartureClearance` only when the aircraft is entering the runway now (hold-short,
+  holding-in-position, or mid-line-up — a CTO stored during taxi doesn't warn) and from `TryClearedForTakeoff` (CTO to an already-LUAW
+  aircraft, the dual-LUAW case). An occupant that already holds its takeoff clearance, a rolling departure, and arrivals cleared to land all
+  stay silent (anticipated separation, 3-9-5).
+  This is why `PatternCommandHandler`'s clearance methods, `DepartureClearanceHandler.TryDepartureClearance`, and
+  `DepartureClearanceHandler.TryClearedForTakeoff` take the full `DispatchContext`.
 
 ## Adding a new command's effect
 

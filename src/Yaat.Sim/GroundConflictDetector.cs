@@ -366,7 +366,13 @@ public static class GroundConflictDetector
             return (MovementState.Following, null);
         }
 
-        if (IsStationaryPhase(phaseName))
+        // A stationary-named phase only counts as Stationary while the aircraft is
+        // actually at rest. LineUpPhase ("LiningUp") in particular actively drives the
+        // aircraft from the hold-short onto the runway centerline — classifying it as
+        // parked put a lining-up/LUAW pair into the no-op Stationary bucket, and the
+        // lining-up aircraft drove straight through the one holding in position
+        // (issue #409). Same shape as the held-but-moving gate below (#407).
+        if ((IsStationaryPhase(phaseName)) && (ac.GroundSpeed < HeldStationarySpeedKts))
         {
             return (MovementState.Stationary, null);
         }
@@ -1001,11 +1007,14 @@ public static class GroundConflictDetector
 
     /// <summary>
     /// True when the aircraft is parked, holding, lining up, or under any controller
-    /// hold. Such an aircraft is genuinely at rest (a passable obstacle); a taxiing or
-    /// runway-exiting aircraft momentarily stopped for a conflict is NOT — it is
-    /// yielding and keeps its heading-based closing direction.
+    /// hold — and genuinely at rest (a passable obstacle). A taxiing or runway-exiting
+    /// aircraft momentarily stopped for a conflict is NOT — it is yielding and keeps
+    /// its heading-based closing direction. Conversely, a stationary-named phase that
+    /// is actually rolling (a lining-up aircraft, a held aircraft still decelerating)
+    /// is a mover, not an obstacle (#407, #409).
     /// </summary>
-    private static bool IsParkedOrHeld(AircraftState ac) => ac.Ground.IsImmobile || IsStationaryPhase(ac.Phases?.CurrentPhase?.Name);
+    private static bool IsParkedOrHeld(AircraftState ac) =>
+        (ac.Ground.IsImmobile || IsStationaryPhase(ac.Phases?.CurrentPhase?.Name)) && (ac.GroundSpeed < HeldStationarySpeedKts);
 
     private static (double StopFt, double TrailFt) GetSeparation(AircraftState leader, AircraftState trailer)
     {

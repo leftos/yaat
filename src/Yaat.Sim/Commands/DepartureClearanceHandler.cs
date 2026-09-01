@@ -57,12 +57,21 @@ internal static class DepartureClearanceHandler
         aircraft.Procedure.SidInitialAltitudeFt = artccConfig.GetSidInitialAltitudeFt(aircraft.FlightPlan.Departure ?? "", sidId, transitionId);
     }
 
-    internal static CommandResult TryClearedForTakeoff(ClearedForTakeoffCommand cto, AircraftState aircraft, LinedUpAndWaitingPhase luaw)
+    internal static CommandResult TryClearedForTakeoff(
+        ClearedForTakeoffCommand cto,
+        AircraftState aircraft,
+        LinedUpAndWaitingPhase luaw,
+        DispatchContext ctx
+    )
     {
-        if (aircraft.Phases?.AssignedRunway is null)
+        if (aircraft.Phases?.AssignedRunway is not { } assignedRunway)
         {
             return new CommandResult(false, "No runway assigned — cannot clear for takeoff");
         }
+
+        // 3-9-6: another aircraft holding in position on the same runway (dual LUAW) means this
+        // departure cannot begin its roll — advisory only, the clearance stands (issue #409).
+        RunwaySafetyAdvisor.WarnIfRunwayOccupiedForTakeoff(aircraft, assignedRunway, ctx);
 
         luaw.Departure = cto.Departure;
         luaw.AssignedAltitude = cto.AssignedAltitude;
@@ -134,13 +143,37 @@ internal static class DepartureClearanceHandler
 
         // 7110.65 3-9-4: do not authorize LUAW when an aircraft holds a landing-family clearance
         // for the same runway, or is already holding in position on it (advisory only — the
-        // clearance stands). CTO is deliberately outside the check: takeoff with an arrival
-        // cleared to land is ordinary anticipated separation.
+        // clearance stands). CTO stays outside the arrival-clearance check — takeoff with an
+        // arrival cleared to land is ordinary anticipated separation — but a CTO over an
+        // aircraft holding in position on the runway violates 3-9-6 same-runway separation and
+        // draws its own advisory (issue #409).
         if (result.Success && (clearanceType == ClearanceType.LineUpAndWait) && aircraft.Phases?.AssignedRunway is { } runway)
         {
             RunwaySafetyAdvisor.WarnIfArrivalCleared(aircraft, runway, ctx);
             RunwaySafetyAdvisor.WarnIfAnotherHoldingInPosition(aircraft, runway, ctx);
             RunwaySafetyAdvisor.WarnIfTrafficOnFinal(aircraft, runway, ctx);
+        }
+
+        // Only when the aircraft is entering the runway now (at the runway's hold-short, in
+        // position, or mid-line-up). A CTO stored during taxi — including one issued at an
+        // intermediate TAXIWAY hold-short ("HS E"), which also arrives here as a
+        // HoldingShortPhase — is applied when the aircraft reaches its departure hold-short;
+        // warning against occupancy minutes early would be noise.
+        bool enteringRunwayNow =
+            currentPhase is HoldingInPositionPhase or LineUpPhase
+            || (
+                currentPhase is HoldingShortPhase enteringHold
+                && enteringHold.HoldShort.TargetName is { } holdTarget
+                && CommandDispatcher.ResolveRunway(aircraft, holdTarget) is not null
+            );
+        if (
+            result.Success
+            && (clearanceType == ClearanceType.ClearedForTakeoff)
+            && enteringRunwayNow
+            && aircraft.Phases?.AssignedRunway is { } takeoffRunway
+        )
+        {
+            RunwaySafetyAdvisor.WarnIfRunwayOccupiedForTakeoff(aircraft, takeoffRunway, ctx);
         }
 
         return result;

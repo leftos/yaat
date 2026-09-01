@@ -429,6 +429,89 @@ public class RunwayOccupancyWarningTests
         Assert.DoesNotContain(departure.PendingWarnings, w => w.Contains("N200AR", StringComparison.OrdinalIgnoreCase));
     }
 
+    [Fact]
+    public void Cto_FromHoldShort_LuawOnSameRunway_SucceedsAndWarnsInstructor()
+    {
+        // Issue #409: clearing a departure for takeoff while another aircraft is holding in
+        // position on the same runway violates 3-9-6 same-runway separation. Advisory only —
+        // the clearance stands.
+        var runway = TestRunwayFactory.Make(designator: "30", airportId: "OAK", heading: 310, elevationFt: 6);
+        using var _ = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithRunways(runway));
+
+        var occupant = MakeOccupant("N100LU", runway, new LinedUpAndWaitingPhase());
+        var departure = MakeDepartureHoldingShort("N300DP");
+
+        var result = Dispatch("CTO", departure, occupant, departure);
+
+        Assert.True(result.Success, result.Message);
+        Assert.Contains(departure.PendingWarnings, w => w.Contains("N100LU", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(departure.PendingWarnings, w => w.Contains("3-9-6", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void Cto_ToLinedUpAircraft_AnotherHoldingInPositionOnSameRunway_Warns()
+    {
+        // Dual LUAW, then CTO to one of them while the other still has no takeoff clearance.
+        var runway = TestRunwayFactory.Make(designator: "30", airportId: "OAK", heading: 310, elevationFt: 6);
+        var occupant = MakeOccupant("N100LU", runway, new LinedUpAndWaitingPhase());
+        var departure = MakeOccupant("N300DP", runway, new LinedUpAndWaitingPhase());
+
+        var result = Dispatch("CTO", departure, occupant, departure);
+
+        Assert.True(result.Success, result.Message);
+        Assert.Contains(departure.PendingWarnings, w => w.Contains("N100LU", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void Cto_FromTaxiwayHoldShort_OccupantOnDestinationRunway_NoWarning()
+    {
+        // CTO issued while holding short of an intermediate TAXIWAY (e.g. "HS E") stores the
+        // clearance for later — the aircraft is still minutes from the runway, so warning about
+        // its occupancy now would be noise. The advisory fires only when the aircraft is
+        // entering the runway.
+        var runway = TestRunwayFactory.Make(designator: "30", airportId: "OAK", heading: 310, elevationFt: 6);
+        using var _ = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithRunways(runway));
+
+        var occupant = MakeOccupant("N100LU", runway, new LinedUpAndWaitingPhase());
+        var departure = MakeDepartureHoldingShort("N300DP", runway: "E");
+        ((HoldingShortPhase)departure.Phases!.CurrentPhase!).HoldShort.Reason = HoldShortReason.ExplicitHoldShort;
+        departure.Ground.AssignedTaxiRoute = new TaxiRoute
+        {
+            Segments = [],
+            HoldShortPoints =
+            [
+                new HoldShortPoint
+                {
+                    NodeId = 20,
+                    Reason = HoldShortReason.DestinationRunway,
+                    TargetName = "30/12",
+                },
+            ],
+        };
+
+        var result = Dispatch("CTO", departure, occupant, departure);
+
+        Assert.True(result.Success, result.Message);
+        Assert.DoesNotContain(departure.PendingWarnings, w => w.Contains("N100LU", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void Cto_FromHoldShort_OccupantAlreadyClearedForTakeoff_NoWarning()
+    {
+        // The occupant is a preceding departure about to roll — anticipated separation (3-9-5).
+        var runway = TestRunwayFactory.Make(designator: "30", airportId: "OAK", heading: 310, elevationFt: 6);
+        using var _ = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithRunways(runway));
+
+        var occupant = MakeOccupant("N100LU", runway, new LinedUpAndWaitingPhase());
+        occupant.Phases!.CurrentPhase!.Requirements[0].IsSatisfied = true;
+        var departure = MakeDepartureHoldingShort("N300DP");
+
+        var result = Dispatch("CTO", departure, occupant, departure);
+
+        Assert.True(result.Success, result.Message);
+        Assert.DoesNotContain(departure.PendingWarnings, w => w.Contains("N100LU", StringComparison.OrdinalIgnoreCase));
+    }
+
     // -------------------------------------------------------------------------
     // Safety-logic gate: airports whose vNAS ASDE-X config carries runway
     // configurations have a full safety logic system — no advisory there.

@@ -950,7 +950,7 @@ public class DepartureClearanceHandlerTests
         using var _ = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithRunways(rwy33, rwy28R));
         var cto = new ClearedForTakeoffCommand(new ClosedTrafficDeparture(PatternDirection.Right, "28R", null));
 
-        var result = DepartureClearanceHandler.TryClearedForTakeoff(cto, ac, luaw);
+        var result = DepartureClearanceHandler.TryClearedForTakeoff(cto, ac, luaw, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
         Assert.Equal("28R", ac.Phases.PatternRunway!.Designator);
@@ -1040,7 +1040,7 @@ public class DepartureClearanceHandlerTests
         using var _ = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithRunways(rwy33, rwy28R));
         var cto = new ClearedForTakeoffCommand(new ClosedTrafficDeparture(PatternDirection.Right, "28R", null));
 
-        var ctoResult = DepartureClearanceHandler.TryClearedForTakeoff(cto, ac, luaw);
+        var ctoResult = DepartureClearanceHandler.TryClearedForTakeoff(cto, ac, luaw, TestDispatch.Context(Random.Shared));
         Assert.True(ctoResult.Success);
 
         // Simulate the aircraft becoming airborne — CLAND requires airborne state

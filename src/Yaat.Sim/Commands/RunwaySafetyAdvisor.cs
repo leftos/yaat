@@ -140,6 +140,89 @@ public static class RunwaySafetyAdvisor
     }
 
     /// <summary>
+    /// Warns the controller when a takeoff clearance is issued for a runway another aircraft is
+    /// holding in position on without its own takeoff clearance (issue #409). 7110.65 3-9-6.a
+    /// requires the succeeding departure not begin takeoff roll until the preceding aircraft has
+    /// departed and crossed the runway end or turned to avert a conflict; with a stationary
+    /// occupant in position and no clearance in hand there is no 3-9-5 "reasonable assurance" to
+    /// anticipate. An occupant that already holds its own takeoff clearance is about to roll —
+    /// that IS ordinary anticipated separation (3-9-5, confirmed by the wake-only scoping of the
+    /// 3-9-6.e NOTE), so it stays silent, as are crossings in progress (3-1-3 coordinated local
+    /// operations; see 3-10-5.b "traffic crossing downfield"). Not gated on the safety-logic
+    /// proxy: the full-core-alert relief is scoped to 3-9-4.c.2 / 3-10-5.e.2 — same-runway
+    /// separation has no equipage carve-out. The occupant match mirrors
+    /// <see cref="WarnIfRunwayOccupied(AircraftState, RunwayInfo, DispatchContext)"/>: runway
+    /// identity for line-up-family phases (either end of the pavement), geometric containment for
+    /// the generic <see cref="HoldingInPositionPhase"/>. Note this advisory is the ONLY defense
+    /// for the intersection-departure geometry — an occupant far down the pavement is outside the
+    /// ground conflict detector's proximity range, so nothing physically stops that departure.
+    /// </summary>
+    public static void WarnIfRunwayOccupiedForTakeoff(AircraftState aircraft, RunwayInfo runway, DispatchContext ctx)
+    {
+        if (ctx.ListAircraft is null)
+        {
+            return;
+        }
+
+        var occupants = ctx.ListAircraft()
+            .Where(other =>
+                (!ReferenceEquals(other, aircraft))
+                && (
+                    (
+                        AwaitsTakeoffClearanceOnRunway(other)
+                        && (OccupiedRunwayOf(other) is { } occupied)
+                        && SameAirport(occupied.AirportId, runway.AirportId)
+                        && occupied.Id.Overlaps(runway.Id)
+                    ) || (other.Phases?.CurrentPhase is HoldingInPositionPhase && RunwayOccupancy.IsOnPavement(other, runway))
+                )
+            )
+            .Select(other => other.Callsign)
+            .ToList();
+
+        if (occupants.Count > 0)
+        {
+            var display = RunwayIdentifier.ToDisplayDesignator(runway.Designator);
+            var warning =
+                $"{aircraft.Callsign}: traffic holding in position on runway {display} ({string.Join(", ", occupants)}) — this departure cannot begin takeoff roll until that traffic has departed and crossed the runway end or turned to avert a conflict (7110.65 3-9-6.a); with it stopped in position and holding no takeoff clearance there is no reasonable assurance separation will exist when the roll starts (3-9-5) — hold this aircraft short until the runway is clear";
+            aircraft.PendingWarnings.Add(warning);
+            Log.LogDebug("[RunwaySafety] {Warning}", warning);
+        }
+
+        WarnIfLiveTrafficBlocksTakeoff(aircraft, runway, ctx);
+    }
+
+    /// <summary>
+    /// A live-traffic shadow occupying the runway surface (3-9-6.a) or landing on it (3-9-6.b)
+    /// when a takeoff clearance is issued. A shadow already rolling on its own departure is the
+    /// 3-9-5 anticipated case and stays silent.
+    /// </summary>
+    private static void WarnIfLiveTrafficBlocksTakeoff(AircraftState aircraft, RunwayInfo runway, DispatchContext ctx)
+    {
+        var shadows = ctx.ListAircraft!()
+            .Where(other => (!ReferenceEquals(other, aircraft)) && other.IsShadow)
+            .Select(other => (other.Callsign, Kind: RunwayOccupancy.Classify(other, runway, ctx.GroundLayout)?.Kind))
+            .ToList();
+        var onSurface = shadows.Where(s => s.Kind == RunwayUseKind.OnSurface).Select(s => s.Callsign).ToList();
+        var landing = shadows.Where(s => s.Kind == RunwayUseKind.Landing).Select(s => s.Callsign).ToList();
+        var display = RunwayIdentifier.ToDisplayDesignator(runway.Designator);
+        if (onSurface.Count > 0)
+        {
+            var warning =
+                $"{aircraft.Callsign}: live traffic on runway {display} ({string.Join(", ", onSurface)}) — this departure cannot begin takeoff roll until that traffic has departed and crossed the runway end or turned to avert a conflict (7110.65 3-9-6.a)";
+            aircraft.PendingWarnings.Add(warning);
+            Log.LogDebug("[RunwaySafety] {Warning}", warning);
+        }
+
+        if (landing.Count > 0)
+        {
+            var warning =
+                $"{aircraft.Callsign}: live arrival landing on runway {display} ({string.Join(", ", landing)}) — this departure cannot begin takeoff roll until that traffic is clear of the runway (7110.65 3-9-6.b)";
+            aircraft.PendingWarnings.Add(warning);
+            Log.LogDebug("[RunwaySafety] {Warning}", warning);
+        }
+    }
+
+    /// <summary>
     /// 7110.65 §3-9-4.h: aircraft may not simultaneously line up and wait on the same runway between sunrise and
     /// sunset unless the local assist/local monitor position is staffed (and §3-9-4.g.4 allows only one at a time at
     /// an intersection at night). The sim has no clock-based daylight or staffing state, so a second LUAW on a pavement
