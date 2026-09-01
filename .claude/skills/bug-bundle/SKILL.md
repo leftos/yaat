@@ -65,6 +65,13 @@ python tools/bug_bundle.py track <bundle.zip> --callsigns N42416 --fields phase,
 ```
 `--fields` shapes only the text table; `--json` always emits every field. Reach for the `nav` preset on "turned the wrong way / didn't follow the SID/STAR" bugs: `offnose` is the bearing to the next nav fix minus true heading (negative = fix is left of the nose), `turn` is the commanded turn direction (L/R), and an empty `nextfix` means no route waypoint is loaded. Field keys: `phase, alt, vs, ias, hdg, mhdg, trk, bank, thdg, ahdg, turn, tgt_spd, aspd, aalt, talt, following, lat, lon, nextfix, offnose, sid, star, deprwy` (`mhdg`/`ahdg` are magnetic; `hdg`/`trk`/`thdg` are true).
 
+**Did any two aircraft collide / taxi through each other? (all-pairs minimum-separation scan):**
+```bash
+python tools/bug_bundle.py proximity <bundle.zip> 2>&1 | tee .tmp/bb-proximity.log
+python tools/bug_bundle.py proximity <bundle.zip> --callsign DAL802 --start 850 --end 930
+```
+Ranks every on-ground pair by closest approach in feet (interpolated between snapshots, so a fast transient pass-through can't hide between the ~5 s samples), with each aircraft's phase and speed at that moment. A genuine pass-through shows a near-zero minimum at the top; ~100 ft is normal queueing proximity. Run this before assuming a "drove through each other" report is real, and before hand-picking pairs for `track --pair`. `--airborne` includes airborne aircraft (gaps stay lateral-only — a departure climbing over ground traffic shows a small "gap"); `--max-gap-ft` filters; `--top N` (default 20).
+
 **One-line summary of every aircraft in the scenario (callsign / type / dep-dest / start / presets):**
 ```bash
 python tools/bug_bundle.py scenario <bundle.zip> --show summary 2>&1 | tee .tmp/bb-scen-summary.log
@@ -132,6 +139,7 @@ python tools/bug_bundle.py validate <bundle.zip>
 | `info` | Manifest summary + aircraft callsigns at t=0 (`--json`) |
 | `snapshot` | Snapshot nearest to `--at <seconds>`, optional `--callsign X` |
 | `track` | Time-series per callsign across snapshots. Columns via `--fields` (keys or presets `default`/`nav`/`vert`/`pos`/`proc`/`full`; `--json` emits all). Also `--callsigns A B`, `--pair A B`, `--start/--end` |
+| `proximity` | All-pairs minimum-separation scan, interpolated between snapshots — ranks pairs by closest approach in feet with phase/speed at that moment (`--callsign X`, `--start/--end`, `--top N`, `--max-gap-ft F`, `--airborne`, `--json`) |
 | `actions` | Recorded user actions timeline (`--json`) |
 | `history` | Per-callsign chronological events: commands + phase / route / target / approach / track / runway changes (`--callsign X`, `--start/--end`, `--include-global`, `--json`) |
 | `live-status` | Live-traffic feed health over the session (`LiveTrafficStatus` actions: wall clock, connected, message age, in-scope count) and the real-world UTC window to slice the SWIM raw log by (`--callsign X` narrows it to that shadow's observations and names the feed facility; `--pad` minutes, `--all`, `--start/--end`). Prints the `swim-slice.ps1` line to run (yaat `docs/live-traffic.md`, *Reproducing a report*) |

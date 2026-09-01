@@ -39,7 +39,7 @@ Typical questions it answers: trace multi-hop exit paths (`--bfs`), find all exi
 
 When a `.yaat-bug-report-bundle.zip` or `*-recording.zip` path (or any bundle-shaped filename) appears in user input, **invoke the `bug-bundle` skill before running any subcommand** — it carries the full reference so you don't re-derive syntax from memory. For single-aircraft triage start with `history --callsign X` (replaces 5+ targeted `snapshot --at` calls with one chronological view).
 
-Subcommands: `info`, `snapshot`, `track`, `actions`, `history`, `live-status`, `phases`, `commands`, `scenario`, `weather`, `layouts`, `logs`, `trim`, `install`, `validate`. Full reference: `.claude/skills/bug-bundle/SKILL.md`.
+Subcommands: `info`, `snapshot`, `track`, `proximity`, `actions`, `history`, `live-status`, `phases`, `commands`, `scenario`, `weather`, `layouts`, `logs`, `trim`, `install`, `validate`. Full reference: `.claude/skills/bug-bundle/SKILL.md`.
 
 **Extend the tools when you find yourself doing repeat custom work.** If you write more than two ad-hoc Python/C# snippets that pull the same kind of data from a bundle, layout, or snapshot — coordinate vs runway centerline, all exits with current occupancy, two-aircraft positional comparison over a range — turn that snippet into a subcommand of `tools/bug_bundle.py` or `tools/Yaat.LayoutInspector/` first, then use it. The next agent will have the same investigation; bake the lookup into the tool. Keep custom snippets only for genuinely one-off questions.
 

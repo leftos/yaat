@@ -697,6 +697,136 @@ def cmd_track(args: argparse.Namespace) -> int:
 
 
 # ---------------------------------------------------------------------------
+# Subcommand: proximity
+# ---------------------------------------------------------------------------
+
+_PROXIMITY_INTERPOLATION_STEPS = 10
+
+
+def _proximity_eligible(ac: dict[str, Any], include_airborne: bool) -> tuple[float, float] | None:
+    """The aircraft's (lat, lon) when it participates in the scan, else None."""
+    if not include_airborne and not ac.get("IsOnGround"):
+        return None
+    pos = ac.get("Position") or {}
+    lat, lon = pos.get("Lat"), pos.get("Lon")
+    if lat is None or lon is None:
+        return None
+    return (lat, lon)
+
+
+def cmd_proximity(args: argparse.Namespace) -> int:
+    """All-pairs minimum-separation scan across the recording.
+
+    Answers "did any two aircraft physically overlap or nearly collide?" in one
+    pass, instead of guessing pairs for `track --pair`. For every pair of
+    on-ground aircraft (--airborne includes everyone) it reports the closest
+    approach in feet, when it happened, and each aircraft's phase and speed at
+    that moment. Positions are linearly interpolated between adjacent snapshots
+    so a fast transient pass-through can't hide between the ~5 s samples; a
+    pair present in only a single snapshot is still measured exactly there.
+    Rows sort by ascending gap — a genuine pass-through surfaces at the top
+    with a near-zero minimum (aircraft physically touch below roughly the sum
+    of their half-wingspans, ~35-100 ft depending on types).
+    """
+    callsign_filter = args.callsign.upper() if args.callsign else None
+
+    with BundleReader(args.bundle) as reader:
+        snaps_meta = reader.manifest.get("Snapshots") or []
+        if not snaps_meta:
+            print("error: bundle has no snapshots", file=sys.stderr)
+            return 1
+
+        # best[pair] = (gap_ft, t, phase_a, ias_a, phase_b, ias_b)
+        best: dict[tuple[str, str], tuple[float, float, str, float, str, float]] = {}
+        prev_t: float | None = None
+        prev_positions: dict[str, tuple[float, float]] = {}
+        prev_aircraft: dict[str, dict[str, Any]] = {}
+
+        def record(pair: tuple[str, str], gap_ft: float, t: float, a: dict[str, Any], b: dict[str, Any]) -> None:
+            if pair not in best or gap_ft < best[pair][0]:
+                best[pair] = (gap_ft, t, _phase_name(a), a.get("IndicatedAirspeed") or 0.0, _phase_name(b), b.get("IndicatedAirspeed") or 0.0)
+
+        for i in range(len(snaps_meta)):
+            t = snaps_meta[i]["ElapsedSeconds"]
+            if args.start is not None and t < args.start:
+                continue
+            if args.end is not None and t > args.end:
+                break
+            snap = reader.read_snapshot(i)
+            aircraft = {(ac.get("Callsign") or "").upper(): ac for ac in (snap.get("Aircraft") or [])}
+            positions = {cs: pos for cs, ac in aircraft.items() if (pos := _proximity_eligible(ac, args.airborne)) is not None}
+
+            # Exact pass at this snapshot — covers pairs a despawn removes from the next one.
+            callsigns = sorted(positions)
+            for x in range(len(callsigns)):
+                for y in range(x + 1, len(callsigns)):
+                    a_cs, b_cs = callsigns[x], callsigns[y]
+                    if callsign_filter is not None and callsign_filter not in (a_cs, b_cs):
+                        continue
+                    (a_lat, a_lon), (b_lat, b_lon) = positions[a_cs], positions[b_cs]
+                    gap_ft = _haversine_nm(a_lat, a_lon, b_lat, b_lon) * 6076.12
+                    record((a_cs, b_cs), gap_ft, t, aircraft[a_cs], aircraft[b_cs])
+
+            # Interpolated pass over the interval from the previous snapshot.
+            if prev_t is not None:
+                common = sorted(positions.keys() & prev_positions.keys())
+                for x in range(len(common)):
+                    for y in range(x + 1, len(common)):
+                        a_cs, b_cs = common[x], common[y]
+                        if callsign_filter is not None and callsign_filter not in (a_cs, b_cs):
+                            continue
+                        pa0, pa1 = prev_positions[a_cs], positions[a_cs]
+                        pb0, pb1 = prev_positions[b_cs], positions[b_cs]
+                        for k in range(1, _PROXIMITY_INTERPOLATION_STEPS):
+                            f = k / _PROXIMITY_INTERPOLATION_STEPS
+                            a_lat, a_lon = pa0[0] + (pa1[0] - pa0[0]) * f, pa0[1] + (pa1[1] - pa0[1]) * f
+                            b_lat, b_lon = pb0[0] + (pb1[0] - pb0[0]) * f, pb0[1] + (pb1[1] - pb0[1]) * f
+                            gap_ft = _haversine_nm(a_lat, a_lon, b_lat, b_lon) * 6076.12
+                            src_a = prev_aircraft[a_cs] if f < 0.5 else aircraft[a_cs]
+                            src_b = prev_aircraft[b_cs] if f < 0.5 else aircraft[b_cs]
+                            record((a_cs, b_cs), gap_ft, prev_t + (t - prev_t) * f, src_a, src_b)
+
+            prev_t = t
+            prev_positions = positions
+            prev_aircraft = aircraft
+
+        ranked = sorted(best.items(), key=lambda kv: kv[1][0])
+        if args.max_gap_ft is not None:
+            ranked = [r for r in ranked if r[1][0] <= args.max_gap_ft]
+        if args.top is not None:
+            ranked = ranked[: args.top]
+
+        if args.json:
+            payload = [
+                {
+                    "a": pair[0],
+                    "b": pair[1],
+                    "min_gap_ft": round(gap, 1),
+                    "t": round(t, 1),
+                    "a_phase": phase_a,
+                    "a_ias": round(ias_a, 1),
+                    "b_phase": phase_b,
+                    "b_ias": round(ias_b, 1),
+                }
+                for pair, (gap, t, phase_a, ias_a, phase_b, ias_b) in ranked
+            ]
+            write_output(json.dumps(payload, indent=2), args.out)
+            return 0
+
+        if not ranked:
+            write_output("no aircraft pairs matched the scan", args.out)
+            return 0
+
+        lines = [f"{'pair':<22} {'min_ft':>7} {'t':>7}  closest-approach state"]
+        lines.append("-" * 78)
+        for pair, (gap, t, phase_a, ias_a, phase_b, ias_b) in ranked:
+            state = f"{pair[0]} {phase_a} @{ias_a:.0f}kt / {pair[1]} {phase_b} @{ias_b:.0f}kt"
+            lines.append(f"{pair[0] + ' <-> ' + pair[1]:<22} {gap:7.0f} {t:7.1f}  {state}")
+        write_output("\n".join(lines), args.out)
+    return 0
+
+
+# ---------------------------------------------------------------------------
 # Subcommand: actions
 # ---------------------------------------------------------------------------
 
@@ -1870,6 +2000,23 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p_trk.add_argument("--json", action="store_true", help="structured JSON output")
     p_trk.set_defaults(func=cmd_track)
+
+    p_prox = sub.add_parser(
+        "proximity",
+        help="all-pairs minimum-separation scan (interpolated between snapshots) — find pass-throughs and near-collisions",
+    )
+    _add_bundle_arg(p_prox)
+    _add_out_arg(p_prox)
+    p_prox.add_argument("--callsign", type=str, default=None, help="only pairs involving this callsign")
+    p_prox.add_argument("--start", type=float, default=None, help="only scan snapshots at t >= START")
+    p_prox.add_argument("--end", type=float, default=None, help="only scan snapshots at t <= END")
+    p_prox.add_argument("--top", type=int, default=20, help="show the N closest pairs (default 20)")
+    p_prox.add_argument("--max-gap-ft", type=float, default=None, help="only show pairs whose minimum gap is <= this many feet")
+    p_prox.add_argument(
+        "--airborne", action="store_true", help="include airborne aircraft (default: on-ground only); gaps are lateral-only, altitude is ignored"
+    )
+    p_prox.add_argument("--json", action="store_true", help="structured JSON output")
+    p_prox.set_defaults(func=cmd_proximity)
 
     p_act = sub.add_parser("actions", help="list recorded user actions")
     _add_bundle_arg(p_act)
