@@ -148,7 +148,10 @@ REQUIRE_VATSIM_AUTH=true
 Each VATSIM client's registered redirect must equal `https://<YAAT_DOMAIN>/auth/vatsim/callback`. Copy
 `Caddyfile.example` to `Caddyfile` once (it reads `{$YAAT_DOMAIN}`, so it needs no per-domain edit).
 Deploy/update a target with `./update.sh <target>` (e.g. `./update.sh yaat1`), which runs every
-`docker compose` command with `--env-file .env.<target>`. With no argument it falls back to `.env`.
+`docker compose` command with `--env-file .env.<target>` (no argument falls back to `.env`). By
+default it pulls the CI-built ghcr image with the `docker-compose.image.yml` overlay; self-hosters
+without ghcr access pass `--build` to build from source instead. For leftos deployments prefer the
+yaat repo's `deploy-to-droplet.ps1`, which builds the image in CI first.
 
 ## Local development
 

@@ -58,7 +58,11 @@ if ($LASTEXITCODE -ne 0) {
 
 if ($Restart) {
   Write-Host "Recreating the container so the new list is read..."
-  ssh "root@$dropletIp" "su - yaat -c `"cd $serverPath && docker compose --env-file $remoteEnvFile up -d --force-recreate --no-build yaat-server`""
+  # The image overlay is mandatory: without it, compose resolves the yaat-server service to its
+  # `build:` definition and `--no-build` silently resurrects whatever stale locally-built image
+  # is lying around instead of the CI-built ghcr image (this regressed YAAT1 to a month-old
+  # server on 2026-08-31).
+  ssh "root@$dropletIp" "su - yaat -c `"cd $serverPath && docker compose --env-file $remoteEnvFile -f docker-compose.yml -f docker-compose.image.yml up -d --force-recreate --no-build yaat-server`""
   if ($LASTEXITCODE -ne 0) {
     throw "docker compose up failed (exit $LASTEXITCODE)."
   }
