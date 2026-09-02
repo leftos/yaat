@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Yaat.Sim.ControllerAi.Knowledge;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Faa;
 using Yaat.Sim.Data.Vnas;
@@ -273,6 +274,13 @@ public static class TestVnasData
         if (NavigationDb is { } navDb)
         {
             NavigationDatabase.SetInstance(navDb);
+            lock (_lock)
+            {
+                if (!FacilityOpsDatabase.IsInitialized)
+                {
+                    FacilityOpsDatabase.Initialize(Path.Combine(AppContext.BaseDirectory, "Data", "FacilityOps"), navDb);
+                }
+            }
         }
     }
 

@@ -1,3 +1,5 @@
+using Yaat.Sim.ControllerAi.Knowledge;
+
 namespace Yaat.Sim.ControllerAi;
 
 /// <summary>
@@ -29,7 +31,7 @@ public sealed class AiControllerService
     public SerializableRandom AiRng { get; private set; }
 
     /// <summary>Per-airport runway-in-use decisions shared by every brain; re-resolved after a reset.</summary>
-    public RunwayInUseState RunwayInUse { get; } = new();
+    public RunwayInUseState RunwayInUse { get; } = new(FacilityOpsDatabase.For);
 
     public int TickCount { get; private set; }
 

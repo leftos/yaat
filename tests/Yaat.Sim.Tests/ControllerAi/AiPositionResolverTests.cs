@@ -102,6 +102,7 @@ public class AiPositionResolverTests
             EnabledPositionIds = [tower, ground],
             RoleOverrides = AiTestHost.NoOverrides,
             RunwayInUse = null,
+            RunwayConfigurations = AiTestHost.NoRunwayConfigurations,
         };
 
         var resolved = AiPositionResolver.Resolve(_zoa, "OAK", config);
@@ -114,6 +115,7 @@ public class AiPositionResolverTests
             EnabledPositionIds = ["not-a-position"],
             RoleOverrides = AiTestHost.NoOverrides,
             RunwayInUse = null,
+            RunwayConfigurations = AiTestHost.NoRunwayConfigurations,
         };
         Assert.Throws<InvalidOperationException>(() => AiPositionResolver.Resolve(_zoa, "OAK", unknown));
     }

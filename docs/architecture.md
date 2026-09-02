@@ -47,6 +47,7 @@ The Task Index above tells you *which files*; these docs explain *how each subsy
 | Airspace (Class B/C) & boundary crossing | [airspace-database.md](airspace-database.md) |
 | Minimum Vectoring Altitude (MVA) | [minimum-vectoring-altitude.md](minimum-vectoring-altitude.md) |
 | Military training routes & aerial refueling (AP/1B) | [military-training-routes.md](military-training-routes.md) |
+| Controller AI facility SOP knowledge | [facility-ops-knowledge.md](facility-ops-knowledge.md) |
 | Scenario loading & aircraft generation | [scenario-loading-and-generation.md](scenario-loading-and-generation.md) |
 | Snapshots & replay | [snapshots-and-replay.md](snapshots-and-replay.md) |
 | Solo-training evaluation & scoring | [solo-training-evaluation.md](solo-training-evaluation.md) |
@@ -774,13 +775,13 @@ ClearRunwayPhase.cs            # CLRWY: pulls a tail-over-runway aircraft (hold-
 # ControllerAi/ — the controller AI (docs/plans/controller-ai/): CA0 = identity, resolver, staffing, jurisdiction, anomaly ledger, service, sinks; CA1 = ground brain + taxi/crossing rules, pacing, runway-in-use resolver
 ControllerAi/ControlRole.cs    # Ground | Local | Approach | Center (+ ControlRoles: tick rank, GND/TWR/APP/CTR position type, alias parsing)
 ControllerAi/AiPositionConfig.cs  # One AI-staffed position: real TrackOwner identity + TCP, position id/callsign, radio name, facility, airports it answers for (deep value equality)
-ControllerAi/ControllerAiConfig.cs  # Session config: seed, enabled position ids, role overrides, RunwayInUse; ToSnapshot/FromSnapshot (ControllerAiConfigDto on the scenario snapshot)
+ControllerAi/ControllerAiConfig.cs  # Session config: seed, enabled position ids, role overrides, RunwayInUse, RunwayConfigurations (per-airport named configuration); ToSnapshot/FromSnapshot (ControllerAiConfigDto on the scenario snapshot)
 ControllerAi/AiPositionResolver.cs  # ARTCC config → playable positions for a primary airport (cab facility + its TRACON + ARTCC): Catalog / Resolve / InferRole (_DEL skipped unless overridden)
 ControllerAi/IAiStaffing.cs    # Which configured positions are active + who is human (IsHumanHeld(AiPositionConfig), IsAssignedToHuman); HeadlessAiStaffing = solo student only
 ControllerAi/PositionJurisdiction.cs  # Which AI position is responsible for an aircraft (phase family → cab role, along-a-runway → Local per 3-1-3.a.4; unstaffed cab falls through to the radar track owner; RunwayOccupancy for phase-less; human assignments excluded) + AiWorldView (callsign-sorted snapshot, per-position jurisdiction)
 ControllerAi/AiTickContext.cs  # AiTickInputs (host → service), AiTickContext (what a brain sees), IPositionBrain, LayoutFor/RunwaysFor/RunwayInUse accessors
 ControllerAi/AiCommands.cs     # AiIntent, AiCommandRequest (no AS prefix — the AI connection id names the position), AiCommandOutcome, IAiCommandSink
-ControllerAi/AiAnomaly.cs      # AiAnomalyKind (incl. CoordinationTimeout: a crossing Ground asked Local for is still uncleared) / AiAnomalyEvent / AiAnomalyLog: (kind, position, subject) episodes Open/Close/Record, Drain in order, never snapshotted
+ControllerAi/AiAnomaly.cs      # AiAnomalyKind (incl. CoordinationTimeout: a crossing Ground asked Local for is still uncleared; KnowledgeConflict: facility knowledge violates tailwind limits) / AiAnomalyEvent / AiAnomalyLog: (kind, position, subject) episodes Open/Close/Record, Drain in order, never snapshotted
 ControllerAi/AiControllerService.cs  # Per-second AI tick: staffing refresh → publish AiStaffedPositions → outcomes → CommandRejected → world view → brains in (rank, id) order; owns AiRng (re-seeded on Reset) + RunwayInUseState
 ControllerAi/EngineAiCommandSink.cs  # Pure-engine sink: synchronous SimulationEngine.DispatchAiCommand, outcomes drained next tick
 ControllerAi/Rules/IDecisionRule.cs  # AiRuleScope (tick, position, jurisdiction, memos, pacing, CloseVanished, TryIssue = the single paced emission path) + IDecisionRule
@@ -792,8 +793,12 @@ ControllerAi/Brains/ObserverBrain.cs  # Issues no commands: runs the four watchd
 ControllerAi/Brains/GroundBrain.cs  # The AI Ground position: the three watchdogs unpaced, then answer-taxi-out → runway-crossing → answer-taxi-in → hand-to-local, paced; settles last tick's outcomes into the memos first
 ControllerAi/AiAircraftMemo.cs  # Per-aircraft brain memory (never snapshotted): movement anchor + sticky yield, GroundIntent, in-flight request + effect deadline, bounded-retry ledger (2 retries, backoff, GaveUp), think-time observation, pending crossing
 ControllerAi/AiPacing.cs        # A frequency is serial: one transmission per position per tick, 5 ± 2 s gap (AiRng), 2–8 s per-aircraft think time (FNV-1a on callsign + rule)
-ControllerAi/RunwayInUse.cs     # RunwayInUseResolver (§3-5-1: session override, else the end most aligned with the magnetic wind ≥ 5 kt, else longest pavement) + RunwayUseDecision + RunwayInUseState (per-airport memo on the service, refreshed on a weather change)
-ControllerAi/Rules/AnswerTaxiOutRule.cs  # Ground rule 1: an open ready-to-taxi request from a parked / pushed-back aircraft → TAXIAUTO <runway in use>
+ControllerAi/RunwayInUse.cs     # SurfaceWind (steady + gust + variable; HeadwindOn, WorstTailwindOn), RunwayInUseResolver (the generic §3-5-1 rule: a session designator, else the end most aligned with the magnetic wind ≥ 5 kt, else the longest pavement; PavementOf), RunwayUseDecision, RunwayUsabilityGate.Apply (prunes departure runways over 10 kt dry / 5 kt wet tailwind; null when none survives), RunwayInUseState(knowledge lookup) (per-airport memo on the service, held while the wind stays within 30° / 5 kt and the precipitation state is unchanged; precedence designator → named configuration (kept, gate violation filed) → facility knowledge pruned by the gate → generic; recursion guard for mutual partner couplings)
+ControllerAi/Knowledge/FacilityOps.cs  # Facility SOP knowledge records: FacilityOps (facility id + airport id + runway configurations + selection policy + assignment policy), RunwayConfiguration, ConfigurationRunways, RunwaySelectionPolicy, PartnerCoupling, RunwayAssignmentRule, AircraftPredicate, RunwayAssignmentEffect, SopAircraftClass (P/T/J NCT 1-7 classes), FacilityOpsJson (strict System.Text.Json options: unknown members and enum values fail)
+ControllerAi/Knowledge/FacilityOpsDatabase.cs  # Process-wide static loader: Initialize(directory, navigation), SetInstance (tests), For (airport id lookup), LoadDirectory, Load, FacilityOpsValidator (cross-checks against navdata: airports, runways, configurations, partner couplings), FacilityOpsValidationException
+ControllerAi/Knowledge/SopAircraftClassifier.cs  # Classify (aircraft type → P/T/J), Matches (predicate → aircraft type → bool): jet or four-engine turboprop = J; cruise TAS ≥ 180 kt (from profile or category baseline) = T; else P; unknown MTOW treats as "over" for T, unknown engine count never matches
+ControllerAi/Knowledge/FacilityRunwaySelector.cs  # Select (facility ops + airport + wind + partner-config callback + runways + magnetic-model date → decision): partner coupling → calm-wind config (gust-inclusive threshold) → best-headwind wind-aligned config; FacilityRunwayAssigner.AssignDepartureRunway (aircraft + decision + runways → runway end: exclusion rules per SopAircraftClassifier, the whole set stands when nothing is left; a constrained aircraft gets the longest remaining pavement, others the nearest departure threshold, designator tiebreak)
+ControllerAi/Rules/AnswerTaxiOutRule.cs  # Ground rule 1: an open ready-to-taxi request from a parked / pushed-back aircraft → TAXIAUTO <runway>, per-aircraft via FacilityRunwayAssigner when knowledge exists
 ControllerAi/Rules/AnswerTaxiInRule.cs   # Ground rule 4: a taxi-in request naming a parking spot → TAXIAUTO @<spot> (re-picked when the spot was taken meanwhile)
 ControllerAi/Rules/RunwayCrossingRule.cs  # Ground rule 2: the next uncleared crossing bar (holding at it or within 500 ft) → CROSS <near end> as a combined position when nobody holds Local, else one terminal request line + CoordinationTimeout after 120 s
 ControllerAi/Rules/RunwayCrossingGate.cs  # May a combined tower let an aircraft cross now: no departing/landing/on-surface/short-final occupant, no arrival inside the final gate (3 NM or 90 s within 10 NM, on the course, not climbing, < 2,500 ft AGL), crosser not held
@@ -1124,7 +1129,7 @@ CapturedLogRecord.cs           # One captured log entry (level, category, format
 CapturingSimLogProvider.cs     # Bounded ring-buffer ILoggerProvider: Warning+ tap registered on the same factory as SimLog.Initialize; Drain() per tick, DroppedCount on overflow
 
 # Testing/
-TestVnasData.cs                # Shared test data loader: NavData, CIFP, AircraftSpecs, AircraftCwt, FaaAcd, AircraftProfiles
+TestVnasData.cs                # Shared test data loader: NavData, CIFP, AircraftSpecs, AircraftCwt, FaaAcd, AircraftProfiles, FacilityOpsDatabase (from Data/FacilityOps)
 
 Proto/nav_data.proto           # Compiled by Grpc.Tools → NavDataSet
 ```

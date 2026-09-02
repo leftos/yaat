@@ -76,9 +76,10 @@ public class GroundRulesTests
         Assert.Empty(host.Sink.Issued);
         rule.Evaluate(host.Scope([aircraft], now + AiPacing.ThinkMaxSeconds));
         var request = Assert.Single(host.Sink.Issued);
-        Assert.Equal("TAXIAUTO 30", request.Canonical);
+        // OAK's knowledge: 12 kt from 300 is the west configuration and a C172 from the north field gets a 28.
+        Assert.Equal("TAXIAUTO 28R", request.Canonical);
         Assert.Equal("answer-taxi-out", request.Intent.Rule);
-        Assert.Contains("most nearly aligned", request.Intent.Rationale);
+        Assert.Contains("SFOW", request.Intent.Rationale);
         var memo = host.Memos[AiTestHost.Callsign];
         Assert.Equal(GroundIntent.TaxiIssued, memo.Intent);
         Assert.Same(request, memo.InFlight);

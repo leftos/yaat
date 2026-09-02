@@ -41,7 +41,11 @@ jurisdiction and handoff flow in [02](02-positions-and-handoffs.md). Reviewed ag
 
 Where a `FacilityOps` file exists ([10](10-facility-knowledge.md)), it refines these rules: the
 facility's own runway-selection rules and configuration coupling replace the generic §3-5-1
-computation in rule 1 (e.g. OAK's 10-kt threshold and "SFO in SFOE ⇒ OAK 10s/12"); approved
+computation in rule 1 (e.g. OAK's 10-kt threshold and "SFO in SFOE ⇒ OAK 10s/12") — behind the
+tailwind usability gate (10 kt dry / 5 kt wet, gust-inclusive; unusable departure runways are pruned and
+only an empty set files `KnowledgeConflict` and hands the generic rule the decision; the decision then
+holds until the wind moves 30° / 5 kt) — and the assignment policy picks each aircraft's runway within the configuration
+(OAK: no jets on the 28s; shipped as K1-lite 2026-09-01, `docs/facility-ops-knowledge.md`); approved
 multiple-runway-crossing routes enable the §3-7-2.a.3 ≤ 1,300 ft exception in rule 2; runway
 assignment policy constrains rule 1's runway pick (e.g. OAK: no jets on 28L/R). Without a knowledge
 file, the generic rules above stand alone.

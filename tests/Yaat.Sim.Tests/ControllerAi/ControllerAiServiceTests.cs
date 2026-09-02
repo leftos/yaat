@@ -42,6 +42,7 @@ public class ControllerAiServiceTests
             EnabledPositionIds = [tower.PositionId, ground.PositionId],
             RoleOverrides = AiTestHost.NoOverrides,
             RunwayInUse = null,
+            RunwayConfigurations = AiTestHost.NoRunwayConfigurations,
         };
         var service = new AiControllerService([towerProbe, groundProbe], new HeadlessAiStaffing([tower, ground], scenario), sink, config);
         scenario.ControllerAi = config;
@@ -84,6 +85,7 @@ public class ControllerAiServiceTests
             EnabledPositionIds = [ground.PositionId],
             RoleOverrides = AiTestHost.NoOverrides,
             RunwayInUse = null,
+            RunwayConfigurations = AiTestHost.NoRunwayConfigurations,
         };
         engine.ControllerAi = new AiControllerService(
             [new ProbeBrain(ground, order)],
@@ -130,6 +132,7 @@ public class ControllerAiServiceTests
             EnabledPositionIds = [ground.PositionId, tower.PositionId],
             RoleOverrides = AiTestHost.NoOverrides,
             RunwayInUse = null,
+            RunwayConfigurations = AiTestHost.NoRunwayConfigurations,
         };
         scenario.ControllerAi = config;
         engine.ControllerAi = new AiControllerService(
@@ -164,6 +167,7 @@ public class ControllerAiServiceTests
             EnabledPositionIds = [ground, delivery],
             RoleOverrides = new Dictionary<string, ControlRole>(StringComparer.Ordinal) { [delivery] = ControlRole.Ground },
             RunwayInUse = null,
+            RunwayConfigurations = AiTestHost.NoRunwayConfigurations,
         };
         scenario.AiAnomalies.Open(AiAnomalyKind.StuckAircraft, ground, "N1", 1, "");
 

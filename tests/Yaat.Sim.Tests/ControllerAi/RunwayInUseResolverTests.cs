@@ -1,5 +1,6 @@
 using Xunit;
 using Yaat.Sim.ControllerAi;
+using Yaat.Sim.ControllerAi.Knowledge;
 using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Simulation;
@@ -127,20 +128,21 @@ public class RunwayInUseResolverTests
             EnabledPositionIds = [ground.PositionId],
             RoleOverrides = AiTestHost.NoOverrides,
             RunwayInUse = "30",
+            RunwayConfigurations = AiTestHost.NoRunwayConfigurations,
         };
         engine.World.Weather = Wind(100, 8);
         var aircraft = engine.FindAircraft(AiTestHost.Callsign)!;
-        var state = new RunwayInUseState();
+        var state = new RunwayInUseState(FacilityOpsDatabase.For);
         var context = AiTestHost.Context(engine, [aircraft], [ground], 10, [], new RecordingAiCommandSink());
 
-        var oak = state.For("OAK", context);
+        var oak = state.For("OAK", context, ground.PositionId);
         Assert.NotNull(oak);
         Assert.Equal("30", oak.PrimaryDepartureRunway);
         Assert.Equal(RunwayUseSource.Override, oak.Source);
-        Assert.Same(oak, state.For("KOAK", context));
+        Assert.Same(oak, state.For("KOAK", context, ground.PositionId));
 
         // The override is the primary airport's; another airport resolves from the wind.
-        var sfo = state.For("SFO", context);
+        var sfo = state.For("SFO", context, ground.PositionId);
         Assert.NotNull(sfo);
         Assert.Equal(RunwayUseSource.Generic, sfo.Source);
         Assert.StartsWith("10", sfo.PrimaryDepartureRunway);
@@ -152,15 +154,21 @@ public class RunwayInUseResolverTests
             EnabledPositionIds = [ground.PositionId],
             RoleOverrides = AiTestHost.NoOverrides,
             RunwayInUse = null,
+            RunwayConfigurations = AiTestHost.NoRunwayConfigurations,
         };
-        Assert.Same(oak, state.For("OAK", AiTestHost.Context(engine, [aircraft], [ground], 11, [], new RecordingAiCommandSink())));
+        Assert.Same(oak, state.For("OAK", AiTestHost.Context(engine, [aircraft], [ground], 11, [], new RecordingAiCommandSink()), ground.PositionId));
         engine.World.Weather = Wind(300, 12);
-        var windy = state.For("OAK", AiTestHost.Context(engine, [aircraft], [ground], 12, [], new RecordingAiCommandSink()));
+        var windy = state.For("OAK", AiTestHost.Context(engine, [aircraft], [ground], 12, [], new RecordingAiCommandSink()), ground.PositionId);
         Assert.NotNull(windy);
-        Assert.Equal(RunwayUseSource.Generic, windy.Source);
-        Assert.Equal("30", windy.PrimaryDepartureRunway);
+        // OAK has a knowledge file: 12 kt from 300 is the SOP's west configuration, not the generic single runway.
+        Assert.Equal(RunwayUseSource.Knowledge, windy.Source);
+        Assert.Equal("SFOW", windy.ConfigurationName);
+        Assert.Equal(["28L", "28R", "30"], windy.DepartureRunways);
 
         state.Clear();
-        Assert.NotSame(windy, state.For("OAK", AiTestHost.Context(engine, [aircraft], [ground], 13, [], new RecordingAiCommandSink())));
+        Assert.NotSame(
+            windy,
+            state.For("OAK", AiTestHost.Context(engine, [aircraft], [ground], 13, [], new RecordingAiCommandSink()), ground.PositionId)
+        );
     }
 }

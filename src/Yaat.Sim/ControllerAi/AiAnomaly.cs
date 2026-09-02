@@ -20,6 +20,9 @@ public enum AiAnomalyKind
 
     /// <summary>A runway crossing this position asked Local to approve is still uncleared past the coordination timeout.</summary>
     CoordinationTimeout,
+
+    /// <summary>The facility's knowledge chose a runway configuration the usability gate refused; the generic rule decided instead (a knowledge-file bug is a finding too).</summary>
+    KnowledgeConflict,
 }
 
 public enum AiAnomalyEventKind

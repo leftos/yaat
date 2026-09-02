@@ -222,6 +222,9 @@ public sealed class ControllerAiConfigDto
 
     public string? RunwayInUse { get; init; }
 
+    /// <summary>Airport id → runway configuration name fixed for the session. Optional: earlier snapshots lack it.</summary>
+    public Dictionary<string, string> RunwayConfigurations { get; init; } = new(StringComparer.OrdinalIgnoreCase);
+
     public List<string> EnabledPositionIds { get; init; } = [];
 
     public Dictionary<string, string> RoleOverrides { get; init; } = new(StringComparer.Ordinal);

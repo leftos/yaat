@@ -22,11 +22,20 @@ public sealed class ControllerAiConfig
     /// </summary>
     public required string? RunwayInUse { get; init; }
 
+    /// <summary>
+    /// Named runway configurations fixed for the session, airport id → configuration name from that airport's knowledge file
+    /// (<c>KSFO ⇒ SFOE</c> tells OAK's coupling rule what its partner is doing). Empty means the facility selects for itself.
+    /// </summary>
+    public required IReadOnlyDictionary<string, string> RunwayConfigurations { get; init; }
+
     public ControllerAiConfigDto ToSnapshot() =>
         new()
         {
             Seed = Seed,
             RunwayInUse = RunwayInUse,
+            RunwayConfigurations = RunwayConfigurations
+                .OrderBy(kv => kv.Key, StringComparer.Ordinal)
+                .ToDictionary(kv => kv.Key, kv => kv.Value, StringComparer.OrdinalIgnoreCase),
             EnabledPositionIds = EnabledPositionIds.ToList(),
             RoleOverrides = RoleOverrides
                 .OrderBy(kv => kv.Key, StringComparer.Ordinal)
@@ -38,6 +47,7 @@ public sealed class ControllerAiConfig
         {
             Seed = dto.Seed,
             RunwayInUse = dto.RunwayInUse,
+            RunwayConfigurations = new Dictionary<string, string>(dto.RunwayConfigurations, StringComparer.OrdinalIgnoreCase),
             EnabledPositionIds = dto.EnabledPositionIds.ToList(),
             RoleOverrides = dto.RoleOverrides.ToDictionary(
                 kv => kv.Key,

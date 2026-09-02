@@ -147,7 +147,8 @@ JSON is the artifact; the tool is scaffolding. Source PDFs are not committed (VA
 
 | # | Milestone | Contents |
 |---|---|---|
-| K1 | Schema + OAK tower knowledge | `FacilityOps` records + `FacilityOpsDatabase` + validation tests; hand-authored `KOAK.json` (configs, selection, departure tables, release rules, missed-approach tables, crossings, pattern prefs); overlay consult sites in the Ground/Tower brains. Lands with CA1/CA2 so the first soak fields run SOP-correct OAK behavior |
+| K1 | Schema + OAK tower knowledge (runway-selection subset) | **Shipped 2026-09-01 as K1-lite** (with CA1): `FacilityOps` records + `FacilityOpsDatabase` + validation tests; `KOAK.json` with `runwayConfigurations` / `runwaySelection` / `runwayAssignmentPolicy` and the P/T/J classes; the Ground brain's runway-in-use consult site. Subsystem doc: [`docs/facility-ops-knowledge.md`](../../facility-ops-knowledge.md) |
+| K1b | OAK tower knowledge, remainder | With CA2: `departureTables`, `releaseRules`, `missedApproachTables`, `multipleRunwayCrossings`, `patternPreferences`, `jurisdictionOverrides`, `sameRunwayQuirks`, `separationAuthorizations` — the sections the Tower brain consumes |
 | K2 | Extraction tool + SFO | `tools/facility_ops_extract.py`; `KSFO.json` (adds jurisdictionOverrides, runwayAssignmentPolicy at SFO's complexity level) — proves the schema against the second, harder tower |
 | K3 | TRACON/Center/LOA contracts | `sectorContracts` + `loaContracts` schema halves; `NCT.json`/`ZOA.json`/LOA files scoped to what CA5/CA6 consume (entry/exit contracts, handoff initiation points, transfer-of-control provisions) |
 
@@ -157,12 +158,50 @@ JSON is the artifact; the tool is scaffolding. Source PDFs are not committed (VA
   low-ceremony re-extraction diff via the K2 tool when a SOP updates. No auto-sync.
 - **Schema creep**: the NCT tables are large and idiosyncratic; K3 must scope `sectorContracts` to
   the rows the Approach brain actually consumes, not transcribe all 144 pages.
-- **Config detection**: scenarios don't declare a named runway configuration today; K1 derives it
-  from scenario runway-in-use + the selection rules, but a scenario knob
-  (`ControllerAiConfig.RunwayConfiguration`) may be worth adding for determinism.
+- **Config detection** — resolved in K1-lite: `ControllerAiConfig.RunwayConfigurations` (airport id → configuration
+  name; SoakRunner `--runway-config KSFO=SFOE`) fixes a configuration for the session and tells a coupling rule what the
+  partner is doing; without it the file's own selection rules decide from the wind, and a partner with its own file
+  answers from its own selection.
 - **Licensing/provenance**: ZOA SOPs are VATSIM training artifacts marked "For Simulation Use
   Only" — YAAT's use (a VATSIM training tool) matches, but keep the PDFs out of the repo and the
   extracted JSON limited to operational facts.
 - **Cross-airport coupling** (OAK config follows SFO's) means the shared AI state is
   ARTCC-scoped, not airport-scoped — the `AiControllerService` owns one configuration map for all
   airports in the session.
+
+## K1-lite implementation notes (2026-09-01)
+
+- A **configuration is the unit of knowledge**: `RunwayConfiguration.runways` carries every airport's departure/arrival
+  sets the plan names (OAK's SFOW/OAKE/SFOE transcribe SFO's runways too), so a partner override expressed as a
+  configuration resolves directly and a coupling can be validated against the partner's runways.
+- Selection precedence = SOP order: partner coupling (4-2.c) > calm configuration (4-2.a) > wind-aligned candidate
+  (4-2.b, best headwind over the configuration's departure runways; ties to the calm configuration, then declared order).
+  SFOE is never wind-selected — only the SFO coupling produces it.
+- "Conservative wins" is a **usability gate**, not a re-choice: 7110.65 §3-5-1.b.1 lets a facility's runway-use rule
+  stand ("operationally advantageous"); `RunwayUsabilityGate` prunes the departure runways carrying more than 10 kt
+  (dry — the common transport-category certificated limit) / 5 kt (precipitation reported — FAA Order 8400.9's unwaived
+  figure) of tailwind, held to the gust and to the whole gust for a variable wind, and only when none survives files
+  `KnowledgeConflict` and lets the generic rule decide. (SFO ATCT SOP 1-5 waives 8400.9 the *other* way — 10 kt on
+  not-dry runways — so the pair is not "the local number"; it is the certificated limit dry and the order's figure wet.)
+  Arrival runways and crosswind are not gated (K1b).
+- The active configuration is ARTCC-scoped shared AI state on `AiControllerService.RunwayInUse` (`RunwayInUseState`,
+  one decision per airport, never snapshotted), **held with hysteresis** — re-decided only when the reported wind moves
+  30° / 5 kt (gust-inclusive) from the wind it was made in or the precipitation state flips — because a weather
+  timeline hands the world a new `WeatherProfile` every second and a runway change is a supervisor decision (§3-5-1.a,
+  OAK 4-2.b.ii). A partner's configuration comes from the session knob or the partner's own file, with a recursion guard
+  for two files coupling to each other (the state takes its knowledge lookup as a constructor argument, so the guard is
+  tested with two in-memory files).
+- The assignment policy is a request (3-4.b): no `strength` field. An aircraft the policy constrains gets the longest
+  remaining pavement, then the nearest threshold (a B738 in OAKE gets 12, not 5,448 ft 10L); everyone else nearest first.
+- No `KSFO.json` yet (K2): OAK's coupling reads `RunwayConfigurations["KSFO"]`, else stays inert — harmless, since OAKE
+  and SFOE use the same OAK runways. Aircraft classes come from the type's profile cruise TAS (type-intrinsic), never
+  the filed speed; MTOW from the FAA ACD record, with "class T counts as over 17,000 lb" when it is missing.
+- The extraction tool stays K2; `KOAK.json` was transcribed by hand from the cached OAK ATCT SOP v1.7 (04SEP2025) text
+  and verified against it by the aviation review (1-6, 3-4, 4-2 exact; NCT 1-7 verbatim). SFO's sets in OAK's file
+  follow SFO's plans (west: land 28s, depart 01s + 28s; east: land 19s, depart 10s + 19s) so K2's `KSFO.json` can read
+  them.
+- K1b traceability — SOP lines this subset touches but does not encode: 4-2.b.ii (notify NCT/SFO on a configuration
+  change), 4-3.b (LC coordinates any runway other than the designated active — live now that the assigner spreads
+  departures over a configuration's three runways), 3-2 (Ground taxis everyone full length), 3-3 (28R/L at Bravo).
+  33 is a real SFOW departure/pattern runway (2-2.b.ii, 4-1.h.i, 4-5) even though it sits outside every 1-6
+  configuration — `departureTables`/`patternPreferences` must not inherit "33 does not exist".

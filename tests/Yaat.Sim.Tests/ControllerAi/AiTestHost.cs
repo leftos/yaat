@@ -1,5 +1,6 @@
 using Yaat.Sim.ControllerAi;
 using Yaat.Sim.ControllerAi.Brains;
+using Yaat.Sim.ControllerAi.Knowledge;
 using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
@@ -51,6 +52,10 @@ internal static class AiTestHost
 
     public static readonly IReadOnlyDictionary<string, ControlRole> NoOverrides = new Dictionary<string, ControlRole>(StringComparer.Ordinal);
 
+    public static readonly IReadOnlyDictionary<string, string> NoRunwayConfigurations = new Dictionary<string, string>(
+        StringComparer.OrdinalIgnoreCase
+    );
+
     /// <summary>Loads the scenario with real navdata + the OAK layout, the ZOA config, and (when positions are given) observer brains on them.</summary>
     public static SimulationEngine Load(string scenarioJson, ArtccConfigRoot zoa, int seed, IReadOnlyList<AiPositionConfig> positions) =>
         LoadWith(scenarioJson, zoa, seed, positions, null, p => new ObserverBrain(p));
@@ -82,6 +87,7 @@ internal static class AiTestHost
                 EnabledPositionIds = positions.Select(p => p.PositionId).ToList(),
                 RoleOverrides = NoOverrides,
                 RunwayInUse = runwayInUse,
+                RunwayConfigurations = NoRunwayConfigurations,
             };
             scenario.ControllerAi = config;
             engine.ControllerAi = new AiControllerService(
@@ -164,7 +170,7 @@ internal static class AiTestHost
             AutoAcceptDelaySeconds = scenario.AutoAcceptDelay.TotalSeconds,
             LayoutFor = engine.ResolveGroundLayout,
             RunwaysFor = RunwayOccupancy.AirportRunways,
-            RunwayInUse = new RunwayInUseState(),
+            RunwayInUse = new RunwayInUseState(FacilityOpsDatabase.For),
         };
     }
 

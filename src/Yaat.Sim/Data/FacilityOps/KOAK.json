@@ -1,0 +1,64 @@
+{
+  "schemaVersion": 1,
+  "facilityId": "OAK",
+  "airportId": "KOAK",
+  "sourceDocument": "Oakland ATCT SOP v1.7 (04SEP2025), oakartcc.org - For Simulation Use Only",
+  "runwayConfigurations": [
+    {
+      "name": "SFOW",
+      "runways": {
+        "KOAK": { "departure": ["28L", "28R", "30"], "arrival": ["28L", "28R", "30"] },
+        "KSFO": { "departure": ["01L", "01R", "28L", "28R"], "arrival": ["28L", "28R"] }
+      },
+      "source": "OAK ATCT SOP 1-6"
+    },
+    {
+      "name": "OAKE",
+      "runways": {
+        "KOAK": { "departure": ["10L", "10R", "12"], "arrival": ["10L", "10R", "12"] },
+        "KSFO": { "departure": ["01L", "01R", "28L", "28R"], "arrival": ["28L", "28R"] }
+      },
+      "source": "OAK ATCT SOP 1-6"
+    },
+    {
+      "name": "SFOE",
+      "runways": {
+        "KOAK": { "departure": ["10L", "10R", "12"], "arrival": ["10L", "10R", "12"] },
+        "KSFO": { "departure": ["10L", "10R", "19L", "19R"], "arrival": ["19L", "19R"] }
+      },
+      "source": "OAK ATCT SOP 1-6"
+    }
+  ],
+  "runwaySelection": {
+    "calmWindBelowKt": 10,
+    "calmConfiguration": "SFOW",
+    "windAlignedCandidates": ["SFOW", "OAKE"],
+    "partnerCouplings": [
+      { "partnerAirportId": "KSFO", "partnerConfiguration": "SFOE", "useConfiguration": "SFOE", "source": "OAK ATCT SOP 4-2.c" }
+    ],
+    "source": "OAK ATCT SOP 4-2.a, 4-2.b, 4-2.b.i"
+  },
+  "runwayAssignmentPolicy": [
+    {
+      "id": "no-turbojet-turbofan-28s",
+      "runways": ["28L", "28R"],
+      "effect": "Exclude",
+      "applies": { "category": "Jet" },
+      "source": "OAK ATCT SOP 3-4.a.i (deviations: 3-4.b)"
+    },
+    {
+      "id": "no-heavy-turboprop-28s",
+      "runways": ["28L", "28R"],
+      "effect": "Exclude",
+      "applies": { "category": "Turboprop", "mtowOverLb": 17000 },
+      "source": "OAK ATCT SOP 3-4.a.ii (deviations: 3-4.b)"
+    },
+    {
+      "id": "no-four-engine-recip-28s",
+      "runways": ["28L", "28R"],
+      "effect": "Exclude",
+      "applies": { "category": "Piston", "engineCount": 4 },
+      "source": "OAK ATCT SOP 3-4.a.iii (deviations: 3-4.b)"
+    }
+  ]
+}
