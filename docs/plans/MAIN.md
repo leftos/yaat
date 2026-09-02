@@ -74,6 +74,11 @@ A fresh agent should start from **Current focus**, then **Next up**, and treat *
 - [ ] Pilot AI for solo training — see [pilot-ai-self-training/README.md](./pilot-ai-self-training/README.md) (M10.x readbacks/TTS shipped; M11–M12 subplans are the roadmap)
 
 ## Next up
+- [ ] **Cut a release** — run `/prepare-release` (steer 2026-09-02; wanted out of the way before the GSD trial proper)
+- [ ] **Adopt GSD as part of the workflow** (steer 2026-09-02): organize the existing plan structure under it, then keep working on controller AI. `.planning/codebase/` mapped 2026-09-02; `/gsd-new-project` **paused mid-questioning** to cut the release first — resume by re-running `/gsd-new-project`. Decisions already made, do not re-ask:
+  - **Plan home = pointer.** This file stays the entry point but delegates the *active* milestone to `.planning/ROADMAP.md`; Next up / Backlog stay here. Needs a small edit to `CLAUDE.md` § Agentic Workflow once ROADMAP.md exists.
+  - **v1 roadmap scope = per-frequency radio model → CA2 → H1**, in that order (the radio model is the CA2 prerequisite; see the captured steer under Current focus and [controller-ai/README.md](./controller-ai/README.md)).
+  - Open, decided at resume: `.claude/CLAUDE.md` generation (GSD's Step 8 would add a second instruction file beside the root `CLAUDE.md` — gate it), and `commit_docs: true` (GSD auto-commits without the session's attribution trailers — gate every one).
 - [ ] Live-session assume UX (ZOA Discord 2026-08-31): bulk-assume modes, snapshot-then-assume-all, auto-assume on first command + restore-to-feed command, snapshot-as-scenario-authoring — see yaat-server [live-traffic-swim/09-live-sessions.md](../../../yaat-server/docs/plans/live-traffic-swim/09-live-sessions.md) §3
 - [x] `tools/make-oak-northfield-scenario.py` — gitignored 2026-08-31 (user chose local-only over committing)
 - [ ] Live-traffic follow-ups from the 2026-08-31 aviation review (receipt-recency model shipped): (a) gate/qualify `RunwaySafetyAdvisor.WarnIfTrafficOnFinal` / `WarnIfLiveTrafficOnRunway` on a coasting shadow (7110.65 5-13-7); (b) deliberate validation pass over the three behaviors the fix un-deadened (shadow-vs-simulated conflict alerts, `GroundAcceleration`, assume coast note); (c) surface per-track observation age to the instructor (5-1-1 judgment)
