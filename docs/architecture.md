@@ -1122,6 +1122,15 @@ HeldReleaseService.cs          # Hold-for-release: Arm/Disarm/Release an airport
 CfrDepartureService.cs         # CFR: sets/clears/reports a departure's alert-only release-time window (AircraftGroundOps.ReleaseWindow*Utc) + echo
 ConsolidationState.cs          # Thread-safe manual consolidation overrides
 
+# Simulation/Oracle/ — state-equivalence between run kinds (docs/tick-loop.md, ADR 0004). Driver: yaat-server TickOracleTests.
+SnapshotTreeDiff.cs            # Parallel JsonNode walk over two StateSnapshotDto captures -> one SnapshotDivergence per differing leaf, at the JSON-pointer path.
+                               # Aircraft keyed by callsign (only list that reorders), everything else index-keyed; embedded-JSON strings (WeatherJson,
+                               # ConfigJson, ...) re-parsed so paths reach inside them; negative VirtualNode ids normalized to -V.
+DivergencePath.cs              # Normalize(): collapses every [key] to [*], so the baseline is about fields, not about which aircraft spawned.
+DivergenceAccumulator.cs       # Folds a per-second divergence stream by normalized path: first second + a few concrete examples, plus FirstDivergentSecond.
+TickOracleBaseline.cs          # The checked-in accepted-divergence set (Load/Render/CompareTo) + TickOracleComparison (Added/Removed/regression, Describe).
+OracleExemptions.cs            # Permanently-accepted paths, with reasons. Empty by design — distinct from the baseline, which is meant to shrink to nothing.
+
 # Simulation/Snapshots/
 AircraftLiveTrafficDto.cs      # Nullable AircraftSnapshotDto.LiveTraffic: last sample + dead-reckoning clock of a shadow aircraft (see live-traffic.md)
 StateSnapshotDto.cs            # Top-level snapshot DTO + TimedSnapshot (elapsed + action index + state)

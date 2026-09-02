@@ -110,6 +110,17 @@ CRC visibility transitions (entering STARS coverage, ASDEX airport entry/exit, c
 
 Recording is **event-driven, not snapshot-per-tick**. `RecordingManager.Record(action)` appends `RecordedAction` entries (commands, setting changes, spawns) at their `ElapsedSeconds`. Snapshots (`StateSnapshotDto`) are captured on demand — for rewind checkpoints and periodic insurance against drift — not every second. See [snapshots-and-replay.md](snapshots-and-replay.md).
 
+## The tick oracle — what guards the two paths against each other
+
+The per-feature parity tests above each guard one step. The **oracle** guards the whole captured state: it loads one scenario and seed into two headless rooms, drives one with `RoomEngine.AdvanceLiveSecond()` and the other with `SimulationEngine.TickOneSecond()`, and diffs `CaptureSnapshot` every sim-second. A step added to one path and not the other shows up whether or not anyone wrote a test for it. See ADR [0004](adr/0004-the-oracle-and-the-corpus.md).
+
+- **Comparator**: `src/Yaat.Sim/Simulation/Oracle/` — `SnapshotTreeDiff` walks two `JsonNode` trees serialized with `RecordingJsonOptions.Default` and emits one divergence per differing leaf, at a path that is literally the JSON pointer (`Aircraft[SWA123].Track.Owner.SectorId`). `DivergenceAccumulator` folds the per-second stream by *normalized* path (collection keys collapsed to `[*]`), which is what keeps the summary bounded when one divergence cascades.
+- **Driver**: `tests/Yaat.Server.Tests/Oracle/TickOracleTests.cs` in yaat-server — only that repo can drive the live path.
+- **Accepted divergences**: `yaat-server/docs/tick-oracle/live-vs-test.baseline.json`, one entry per normalized path with the step it is attributed to. The path set is asserted exactly, so both a new divergence and a silently-fixed one fail. Regenerate deliberately with `YAAT_ORACLE_REBASELINE=1` and review the diff before committing.
+- **Permanent exemptions**: `OracleExemptions` — for what no amount of unification would fix (a value that is not simulation state). Empty by design; if it grows, something is being accepted there that belongs in the baseline.
+
+**Two things it cannot see, both worth knowing before trusting a green run.** It sees exactly what `CaptureSnapshot` covers, so strips, TDLS, ASDE-X alerts, tower lists and the approach evaluator — room-held, no snapshot DTO — are invisible until that state moves into `Yaat.Sim`. And it sees only what its scenario exercises: the current fixture defines no weather and parks nothing within the window, so the weather-advance cascade and the missing `TickAutoDelete` do not appear in the baseline even though both are real. The test's own doc comment carries the current blind-spot list.
+
 ## Client-side: animation only
 
 The client receives `AircraftSnapshot` DTOs each sim-second. It does not run physics. `TickAnimator` (UI layer) interpolates position/heading between consecutive snapshots so movement looks smooth at the display refresh rate. Animation is non-authoritative; if a snapshot disagrees, the snapshot wins.

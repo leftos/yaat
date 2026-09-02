@@ -1646,9 +1646,10 @@ public sealed class SimulationEngine
     public AiControllerService? ControllerAi { get; set; }
 
     /// <summary>
-    /// One AI tick, run by the host after the sim-second it observes (<see cref="TickOneSecond"/> standalone,
-    /// <c>RoomEngine.AdvanceLiveSecond</c> on the server). Never runs during replay or tape playback — an AI-driven
-    /// recording carries the AI's commands as recorded actions, and re-running the brains would double them.
+    /// One AI tick, run by the host after the sim-second it observes — <c>RoomEngine.AdvanceLiveSecond</c> on the
+    /// server. <see cref="TickOneSecond"/> does NOT call this, so a standalone host that wants the brains to run
+    /// invokes it itself after the second (see the test hosts). Never runs during replay or tape playback — an
+    /// AI-driven recording carries the AI's commands as recorded actions, and re-running the brains would double them.
     /// </summary>
     public void TickControllerAi()
     {
