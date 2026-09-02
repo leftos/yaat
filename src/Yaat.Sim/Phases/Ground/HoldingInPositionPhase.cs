@@ -39,6 +39,7 @@ public sealed class HoldingInPositionPhase : Phase
     public override bool OnTick(PhaseContext ctx)
     {
         ctx.Aircraft.IndicatedAirspeed = 0;
+        Pilot.TaxiInRequest.TryAnnounce(ctx, ElapsedSeconds, ctx.Aircraft.Phases?.AssignedRunway?.Designator, ctx.Aircraft.Ground.CurrentTaxiway);
         return false;
     }
 

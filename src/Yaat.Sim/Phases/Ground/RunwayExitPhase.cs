@@ -942,6 +942,7 @@ public sealed class RunwayExitPhase : Phase
         // The runway exit is done — drop the expedite flag so it doesn't bleed
         // into a subsequent taxi (which has its own EXP).
         ctx.Aircraft.Ground.IsExpeditingExit = false;
+        ctx.Aircraft.Ground.AwaitingTaxiInCall = true;
 
         // No position snap — the GroundNavigator already brakes to 0 at the
         // final node (FinalNodeArrivalThresholdNm ≈ 1.8ft). The aircraft is

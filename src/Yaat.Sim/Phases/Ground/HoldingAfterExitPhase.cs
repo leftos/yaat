@@ -80,6 +80,7 @@ public sealed class HoldingAfterExitPhase : Phase
     public override bool OnTick(PhaseContext ctx)
     {
         ctx.Aircraft.IndicatedAirspeed = 0;
+        Pilot.TaxiInRequest.TryAnnounce(ctx, ElapsedSeconds, _runwayId, _exitTaxiway);
         return false;
     }
 

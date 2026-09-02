@@ -771,24 +771,34 @@ RunwayExitPhase.cs             # Rolls on centerline until exit found; builds Ta
 HoldingAfterExitPhase.cs       # Post-exit hold: broadcasts "clear of runway", faces away from runway, awaits taxi command
 ClearRunwayPhase.cs            # CLRWY: pulls a tail-over-runway aircraft (hold-short of a taxiway sitting closer than its own length past a crossed runway) forward until just clear (½ length past the bars), then holds
 
-# ControllerAi/ — the controller AI (docs/plans/controller-ai/): CA0 = identity, resolver, staffing, jurisdiction, anomaly ledger, service, sinks, observer brains (no commands yet)
+# ControllerAi/ — the controller AI (docs/plans/controller-ai/): CA0 = identity, resolver, staffing, jurisdiction, anomaly ledger, service, sinks; CA1 = ground brain + taxi/crossing rules, pacing, runway-in-use resolver
 ControllerAi/ControlRole.cs    # Ground | Local | Approach | Center (+ ControlRoles: tick rank, GND/TWR/APP/CTR position type, alias parsing)
 ControllerAi/AiPositionConfig.cs  # One AI-staffed position: real TrackOwner identity + TCP, position id/callsign, radio name, facility, airports it answers for (deep value equality)
-ControllerAi/ControllerAiConfig.cs  # Session config: seed, enabled position ids, role overrides; ToSnapshot/FromSnapshot (ControllerAiConfigDto on the scenario snapshot)
+ControllerAi/ControllerAiConfig.cs  # Session config: seed, enabled position ids, role overrides, RunwayInUse; ToSnapshot/FromSnapshot (ControllerAiConfigDto on the scenario snapshot)
 ControllerAi/AiPositionResolver.cs  # ARTCC config → playable positions for a primary airport (cab facility + its TRACON + ARTCC): Catalog / Resolve / InferRole (_DEL skipped unless overridden)
-ControllerAi/IAiStaffing.cs    # Which configured positions are active + who is human (IsHumanHeld, IsAssignedToHuman); HeadlessAiStaffing = solo student only
+ControllerAi/IAiStaffing.cs    # Which configured positions are active + who is human (IsHumanHeld(AiPositionConfig), IsAssignedToHuman); HeadlessAiStaffing = solo student only
 ControllerAi/PositionJurisdiction.cs  # Which AI position is responsible for an aircraft (phase family → cab role, along-a-runway → Local per 3-1-3.a.4; unstaffed cab falls through to the radar track owner; RunwayOccupancy for phase-less; human assignments excluded) + AiWorldView (callsign-sorted snapshot, per-position jurisdiction)
-ControllerAi/AiTickContext.cs  # AiTickInputs (host → service), AiTickContext (what a brain sees), IPositionBrain, AiAircraftMemo (stuck-watchdog anchor)
+ControllerAi/AiTickContext.cs  # AiTickInputs (host → service), AiTickContext (what a brain sees), IPositionBrain, LayoutFor/RunwaysFor/RunwayInUse accessors
 ControllerAi/AiCommands.cs     # AiIntent, AiCommandRequest (no AS prefix — the AI connection id names the position), AiCommandOutcome, IAiCommandSink
-ControllerAi/AiAnomaly.cs      # AiAnomalyKind / AiAnomalyEvent / AiAnomalyLog: (kind, position, subject) episodes Open/Close/Record, Drain in order, never snapshotted
-ControllerAi/AiControllerService.cs  # Per-second AI tick: staffing refresh → publish AiStaffedPositions → outcomes → CommandRejected → world view → brains in (rank, id) order; owns AiRng (re-seeded on Reset)
+ControllerAi/AiAnomaly.cs      # AiAnomalyKind (incl. CoordinationTimeout: a crossing Ground asked Local for is still uncleared) / AiAnomalyEvent / AiAnomalyLog: (kind, position, subject) episodes Open/Close/Record, Drain in order, never snapshotted
+ControllerAi/AiControllerService.cs  # Per-second AI tick: staffing refresh → publish AiStaffedPositions → outcomes → CommandRejected → world view → brains in (rank, id) order; owns AiRng (re-seeded on Reset) + RunwayInUseState
 ControllerAi/EngineAiCommandSink.cs  # Pure-engine sink: synchronous SimulationEngine.DispatchAiCommand, outcomes drained next tick
-ControllerAi/Rules/IDecisionRule.cs  # AiRuleScope (tick, position, jurisdiction, memos, CloseVanished) + IDecisionRule
-ControllerAi/Rules/StuckAircraftRule.cs  # Movement phase with < 50 ft net progress for 180 s (600 s while the conflict detector has it yielding; never under HOLD / hold-for-release)
+ControllerAi/Rules/IDecisionRule.cs  # AiRuleScope (tick, position, jurisdiction, memos, pacing, CloseVanished, TryIssue = the single paced emission path) + IDecisionRule
+ControllerAi/Rules/StuckAircraftRule.cs  # Movement phase with < 50 ft net progress for 180 s (600 s when the conflict detector held it at any point during the stall; never under HOLD / hold-for-release)
 ControllerAi/Rules/UnansweredPilotRequestRule.cs  # A request this role answers still open after the pilot had to ask again (STANDBY re-bases the pilot's clock); held-for-release takeoffs exempt
 ControllerAi/Rules/HandoffUnacceptedRule.cs  # Radar roles: a handoff to/from the position pending past AutoAcceptDelay + 60 s
 ControllerAi/Rules/ConflictAlertInAiJurisdictionRule.cs  # A terminal CA on an aircraft in the jurisdiction, keyed by conflict id; closes on clear or acknowledge
 ControllerAi/Brains/ObserverBrain.cs  # Issues no commands: runs the four watchdog rules over its jurisdiction
+ControllerAi/Brains/GroundBrain.cs  # The AI Ground position: the three watchdogs unpaced, then answer-taxi-out → runway-crossing → answer-taxi-in → hand-to-local, paced; settles last tick's outcomes into the memos first
+ControllerAi/AiAircraftMemo.cs  # Per-aircraft brain memory (never snapshotted): movement anchor + sticky yield, GroundIntent, in-flight request + effect deadline, bounded-retry ledger (2 retries, backoff, GaveUp), think-time observation, pending crossing
+ControllerAi/AiPacing.cs        # A frequency is serial: one transmission per position per tick, 5 ± 2 s gap (AiRng), 2–8 s per-aircraft think time (FNV-1a on callsign + rule)
+ControllerAi/RunwayInUse.cs     # RunwayInUseResolver (§3-5-1: session override, else the end most aligned with the magnetic wind ≥ 5 kt, else longest pavement) + RunwayUseDecision + RunwayInUseState (per-airport memo on the service, refreshed on a weather change)
+ControllerAi/Rules/AnswerTaxiOutRule.cs  # Ground rule 1: an open ready-to-taxi request from a parked / pushed-back aircraft → TAXIAUTO <runway in use>
+ControllerAi/Rules/AnswerTaxiInRule.cs   # Ground rule 4: a taxi-in request naming a parking spot → TAXIAUTO @<spot> (re-picked when the spot was taken meanwhile)
+ControllerAi/Rules/RunwayCrossingRule.cs  # Ground rule 2: the next uncleared crossing bar (holding at it or within 500 ft) → CROSS <near end> as a combined position when nobody holds Local, else one terminal request line + CoordinationTimeout after 120 s
+ControllerAi/Rules/RunwayCrossingGate.cs  # May a combined tower let an aircraft cross now: no departing/landing/on-surface/short-final occupant, no arrival inside the final gate (3 NM or 90 s within 10 NM, on the course, not climbing, < 2,500 ft AGL), crosser not held
+ControllerAi/Rules/HandToLocalRule.cs  # Ground rule 5: CT <Local callsign> while taxiing, every crossing behind, within 1,200 ft of the departure-runway bar
+ControllerAi/Rules/TaxiRouteProgress.cs  # Reads a taxi route for the brain: next uncleared crossing bar + along-route distance, distance to the departure bar, nearest crossing end
 
 # Pilot/ — solo-training pilot AI (deterministic readbacks). Phraseology/forms reference: docs/pilot-phraseology.md; delivery plumbing: docs/solo-training-pilot-speech.md
 Pilot/PhraseologyVerbalizer.cs # Static: inverts a PhraseologyRule for a given accepted ParsedCommand → Verbalize() spoken-English / VerbalizeTerminal() compact readback (shared rule, per-token formatter strategy).
@@ -798,6 +808,8 @@ Pilot/FrequencyState.cs        # Sim-level active-frequency queue. Serializes so
 Pilot/PilotTransmission.cs     # Record: Callsign, Text, SpeechText, SourceKind, Kind. Transient typed side queue for solo-training SAY/audio broadcasts.
 Pilot/PilotPendingRequest.cs   # Snapshot-serialized pending pilot request model for solo-training follow-up reminders.
 Pilot/PilotRequestTracker.cs   # Records pilot-originated requests, applies controller responses (TAXI/TAXIAUTO/PUSH… satisfy a Taxi request), and schedules normal/standby follow-up reminders.
+Pilot/TaxiInRequest.cs         # The arrival's call to ground after the runway exit (AIM 4-3-21.c): "clear of runway 28R at W, taxi to gate 29" from the post-exit idle phases, recorded as a Taxi request with the pilot's parking
+Pilot/ArrivalParkingPicker.cs  # The parking an arriving pilot asks for: operator's own ramp / cargo apron / numbered gate / non-gate spot by callsign, free spots only, an FNV-1a draw (replay-safe)
 Pilot/PilotContactRoster.cs    # Who answers pilot calls: AI-staffed positions (student stand-ins) + the solo student; ResolveFor(aircraft, GND|TWR, atAirportId, eligibility, checkEligibility) picks the addressee (tower-cab AI positions match the physical airport only; every candidate obeys the SOP transfer rules; ground calls fall back to an AI tower working alone); PilotAnsweringPosition.MarkInitialContact keeps HasMadeInitialContact student-scoped and latches AI contact per position id
 Pilot/PilotResponder.cs        # Static: BuildReadback(CompoundCommand, AircraftState) → PilotSpeechText? (compact terminal + spoken TTS) for solo-training mode.
                                # Uses PhraseologyVerbalizer for rule-backed commands; ground spawn / "going around" / airborne-spawn / VFR closed-traffic check-ins live here directly
@@ -929,6 +941,7 @@ RunwayCrossingDetector.cs      # Detect taxiway/runway crossings; seat hold-shor
 RunwayIntersectionCalculator.cs # Runway centerline/projected-path intersections for LAHSO and solo-training runway scoring. Reported distances are on the PAVEMENT datum (their consumers are departures rolling from it); ComputeHoldShortDistanceNm is the exception and subtracts the displacement, so a LAHSO distance is an available landing distance.
 RunwayEntryPoint.cs            # Classify a runway hold short as full-length vs intersection departure for a given end: nearest hold short (along-track on the pavement centerline) is full length, plus an OPPOSITE-side one within OppositeSideBandFt or on the same taxiway (one entrance reachable from both sides); SAME-side extras are always named intersections. Display only, feeds RunwayDepartureQueue
 HoldShortAnnotator.cs          # Annotate hold-short points on taxi routes; ComputeHoldShortPositions offsets taxiway HS by fuselage length. Owns RouteCrossesRunwayAfterStart, the shared "is the route's start bar the entry side of a crossing it makes" predicate — RouteMaterialiser.AnnotateStartCrossing uses the same one so the two annotators cannot drift (see docs/ground/pathfinder.md)
+RunwayCrossingEnd.cs           # Which end of a crossed runway to name (nearest threshold) from a bar's combined "28R/10L" target — the pilot's hold-short report and the AI's CROSS agree
 
 # Data/
 AircraftProfile.cs             # Per-type performance profile record (from AircraftProfiles.json)

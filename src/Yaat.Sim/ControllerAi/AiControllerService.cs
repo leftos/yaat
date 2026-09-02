@@ -28,6 +28,9 @@ public sealed class AiControllerService
 
     public SerializableRandom AiRng { get; private set; }
 
+    /// <summary>Per-airport runway-in-use decisions shared by every brain; re-resolved after a reset.</summary>
+    public RunwayInUseState RunwayInUse { get; } = new();
+
     public int TickCount { get; private set; }
 
     public void Tick(AiTickInputs inputs)
@@ -70,6 +73,9 @@ public sealed class AiControllerService
             ActiveConflicts = inputs.ActiveConflicts,
             EramConflicts = inputs.EramConflicts,
             AutoAcceptDelaySeconds = scenario.AutoAcceptDelay.TotalSeconds,
+            LayoutFor = inputs.LayoutFor,
+            RunwaysFor = inputs.RunwaysFor,
+            RunwayInUse = RunwayInUse,
         };
 
         foreach (var brain in Brains)
@@ -86,6 +92,7 @@ public sealed class AiControllerService
     public void Reset()
     {
         AiRng = new SerializableRandom(Config.Seed);
+        RunwayInUse.Clear();
         foreach (var brain in Brains)
         {
             brain.Reset();

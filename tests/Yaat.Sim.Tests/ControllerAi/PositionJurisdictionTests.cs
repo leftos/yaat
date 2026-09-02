@@ -127,7 +127,7 @@ public class PositionJurisdictionTests
         b.Track.Owner = approach.Identity;
         var parked = engine.FindAircraft(AiTestHost.Callsign)!;
 
-        var view = AiTestHost.Context(engine, [parked, b, a], staffed, 0, []).View;
+        var view = AiTestHost.Context(engine, [parked, b, a], staffed, 0, [], new EngineAiCommandSink(engine)).View;
 
         Assert.Equal(["A", "B", AiTestHost.Callsign], view.Snapshot.Select(ac => ac.Callsign));
         Assert.Equal(["A", "B"], view.Jurisdiction(approach).Select(ac => ac.Callsign));

@@ -94,6 +94,82 @@ public class AutoDeleteTickTests
         Assert.Equal(CompletionReason.Active, transit.CompletionReason);
     }
 
+    [Theory]
+    [InlineData(null, true, "Parked")]
+    [InlineData("None", true, "Parked")]
+    [InlineData("none", true, "Parked")]
+    [InlineData("None", false, "None")]
+    [InlineData(null, false, null)]
+    [InlineData("OnLanding", true, "OnLanding")]
+    [InlineData("Parked", false, "Parked")]
+    public void EffectiveAutoDeleteMode_UnsetModeDefaultsToParked_OnlyWhileTrafficKeepsComing(string? scenarioMode, bool ongoing, string? expected)
+    {
+        var scenario = new SimScenarioState
+        {
+            ScenarioId = "test",
+            ScenarioName = "Test",
+            RngSeed = 1,
+            OriginalScenarioJson = "{}",
+            ScenarioAutoDeleteMode = scenarioMode,
+            HasOngoingTrafficSource = ongoing,
+        };
+
+        Assert.Equal(expected, scenario.EffectiveAutoDeleteMode);
+
+        // The client's choice always wins.
+        scenario.ClientAutoDeleteOverride = "Never";
+        Assert.Equal("Never", scenario.EffectiveAutoDeleteMode);
+    }
+
+    [Fact]
+    public void TickAutoDelete_DerivedParkedDefault_SweepsAParkedArrival_ButNotOnAStaticScenario()
+    {
+        foreach (bool ongoing in new[] { true, false })
+        {
+            var engine = EngineWithMode("None");
+            engine.Scenario!.HasOngoingTrafficSource = ongoing;
+            engine.Scenario.PrimaryAirportId = "OAK";
+            var arrival = Aircraft("N1");
+            arrival.FlightPlan.Departure = "KSFO";
+            arrival.FlightPlan.Destination = "KOAK";
+            arrival.Phases = new Yaat.Sim.Phases.PhaseList();
+            arrival.Phases.Add(new Yaat.Sim.Phases.Ground.AtParkingPhase());
+            engine.World.AddAircraft(arrival);
+
+            var removed = engine.TickAutoDelete();
+
+            Assert.Equal(ongoing ? 1 : 0, removed.Count);
+            Assert.Equal(ongoing, engine.World.FindAircraft("N1") is null);
+        }
+    }
+
+    [Fact]
+    public void LoadScenario_RecordsWhetherTrafficKeepsComing_AndItSurvivesASnapshot()
+    {
+        TestVnasData.EnsureInitialized();
+        var staticEngine = new SimulationEngine(new TestAirportGroundData());
+        staticEngine.LoadScenario(ControllerAi.AiTestHost.ParkedAtOak, 1, MagneticDeclination.EvaluationDateUtc);
+        Assert.False(staticEngine.Scenario!.HasOngoingTrafficSource);
+        Assert.Null(staticEngine.Scenario.EffectiveAutoDeleteMode);
+
+        var timedJson = ControllerAi.AiTestHost.ParkedAtOak.Replace(
+            "\"aircraft\": [",
+            "\"aircraft\": [ { \"id\": \"a0\", \"aircraftId\": \"N2AR\", \"aircraftType\": \"C172\", \"transponderMode\": \"C\", \"spawnDelay\": 600, "
+                + "\"startingConditions\": { \"type\": \"Parking\", \"parking\": \"SIG2\" }, "
+                + "\"flightplan\": { \"rules\": \"VFR\", \"departure\": \"KOAK\", \"destination\": \"KOAK\", \"cruiseAltitude\": 1500, \"cruiseSpeed\": 100, \"route\": \"\", \"remarks\": \"\", \"aircraftType\": \"C172\" } },"
+        );
+        var timedEngine = new SimulationEngine(new TestAirportGroundData());
+        timedEngine.LoadScenario(timedJson, 1, MagneticDeclination.EvaluationDateUtc);
+        Assert.True(timedEngine.Scenario!.HasOngoingTrafficSource);
+        Assert.Equal("Parked", timedEngine.Scenario.EffectiveAutoDeleteMode);
+
+        var snapshot = timedEngine.CaptureSnapshot(-1);
+        Assert.True(snapshot.Scenario.HasOngoingTrafficSource);
+        staticEngine.RestoreFromSnapshot(snapshot);
+        Assert.True(staticEngine.Scenario.HasOngoingTrafficSource);
+        Assert.Equal("Parked", staticEngine.Scenario.EffectiveAutoDeleteMode);
+    }
+
     private static AircraftState Aircraft(string callsign) =>
         new()
         {

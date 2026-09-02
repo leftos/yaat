@@ -311,6 +311,7 @@ public sealed class SimulationEngine
             Scenario.IsStudentTowerPosition = scenarioDto.IsStudentTowerPosition;
             Scenario.ScenarioAutoDeleteMode = scenarioDto.ScenarioAutoDeleteMode;
             Scenario.ClientAutoDeleteOverride = scenarioDto.ClientAutoDeleteOverride;
+            Scenario.HasOngoingTrafficSource = scenarioDto.HasOngoingTrafficSource;
             Scenario.StudentPosition = scenarioDto.StudentPosition is not null ? TrackOwner.FromSnapshot(scenarioDto.StudentPosition) : null;
             Scenario.StudentTcp = scenarioDto.StudentTcp is not null ? Tcp.FromSnapshot(scenarioDto.StudentTcp) : null;
             World.StudentTcp = Scenario.StudentTcp;
@@ -733,10 +734,8 @@ public sealed class SimulationEngine
             World.GroundLayout = _groundData.GetLayout(Scenario.PrimaryAirportId);
         }
 
-        if (result.AutoDeleteMode is not null)
-        {
-            // Store but engine doesn't process auto-delete
-        }
+        Scenario.ScenarioAutoDeleteMode = result.AutoDeleteMode;
+        Scenario.HasOngoingTrafficSource = result.HasOngoingTrafficSource;
 
         return result.Warnings;
     }

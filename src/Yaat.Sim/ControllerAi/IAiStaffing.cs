@@ -19,6 +19,12 @@ public interface IAiStaffing
     /// <summary>True when a human — not the AI — holds this track owner's position.</summary>
     bool IsHumanHeld(TrackOwner owner);
 
+    /// <summary>
+    /// True when a human holds this configured position itself — compared by position, never by TCP, because tower-cab
+    /// positions share one (a human tower must not read as a human ground).
+    /// </summary>
+    bool IsHumanHeld(AiPositionConfig position);
+
     /// <summary>True when the aircraft is assigned to a specific human connection; such aircraft are outside every AI jurisdiction.</summary>
     bool IsAssignedToHuman(string callsign);
 }
@@ -40,6 +46,8 @@ public sealed class HeadlessAiStaffing(IReadOnlyList<AiPositionConfig> configure
 
     public bool IsHumanHeld(TrackOwner owner) =>
         scenario.SoloTrainingMode && scenario.StudentPosition is { } student && owner.MatchesPosition(student);
+
+    public bool IsHumanHeld(AiPositionConfig position) => IsStudentPosition(position, scenario);
 
     public bool IsAssignedToHuman(string callsign) => false;
 

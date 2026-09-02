@@ -120,41 +120,19 @@ public sealed class HoldingShortPhase : Phase
     /// <summary>
     /// For a runway-crossing hold-short the spoken report names only the single runway end whose
     /// threshold the aircraft is nearest to (e.g. "runway one five" rather than the combined
-    /// "one five / three three") — the pilot refers to the side it is about to cross. Falls back to
-    /// <paramref name="displayDesignator"/> (the combined form used on the controller-facing warning)
-    /// when the hold-short is not a runway crossing, the runway is single-ended, or nav-data lacks
-    /// the thresholds.
+    /// "one five / three three") — the pilot refers to the side it is about to cross
+    /// (<see cref="RunwayCrossingEnd.Nearest"/>, which names the first end when the thresholds cannot be
+    /// resolved). Falls back to <paramref name="displayDesignator"/> (the combined form used on the
+    /// controller-facing warning) when the hold-short is not a runway crossing.
     /// </summary>
     private string ResolveSpokenCrossingRunway(PhaseContext ctx, string displayDesignator)
     {
-        if (
-            _holdShort.Reason != HoldShortReason.RunwayCrossing
-            || ctx.GroundLayout is not { } layout
-            || _holdShort.TargetName is not { Length: > 0 } combined
-        )
+        if (_holdShort.Reason != HoldShortReason.RunwayCrossing || _holdShort.TargetName is not { Length: > 0 } combined)
         {
             return displayDesignator;
         }
 
-        var runway = RunwayIdentifier.Parse(combined);
-        if (string.Equals(runway.End1, runway.End2, StringComparison.OrdinalIgnoreCase))
-        {
-            return displayDesignator;
-        }
-
-        var db = NavigationDatabase.InstanceOrNull;
-        var end1 = db?.GetRunway(layout.AirportId, runway.End1);
-        var end2 = db?.GetRunway(layout.AirportId, runway.End2);
-        if (end1 is null || end2 is null)
-        {
-            return displayDesignator;
-        }
-
-        var position = ctx.Aircraft.Position;
-        double toEnd1 = GeoMath.DistanceNm(position, new LatLon(end1.ThresholdLatitude, end1.ThresholdLongitude));
-        double toEnd2 = GeoMath.DistanceNm(position, new LatLon(end2.ThresholdLatitude, end2.ThresholdLongitude));
-        string nearestEnd = toEnd1 <= toEnd2 ? runway.End1 : runway.End2;
-        return RunwayIdentifier.ToDisplayDesignator(nearestEnd);
+        return RunwayCrossingEnd.Nearest(ctx.Aircraft, combined, ctx.GroundLayout);
     }
 
     public override bool OnTick(PhaseContext ctx)

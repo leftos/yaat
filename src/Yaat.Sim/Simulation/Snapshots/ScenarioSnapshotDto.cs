@@ -87,6 +87,9 @@ public sealed class ScenarioSnapshotDto
     public string? ScenarioAutoDeleteMode { get; init; }
     public string? ClientAutoDeleteOverride { get; init; }
 
+    /// <summary>Optional: earlier snapshots lack it and keep the scenario's literal mode (no derived Parked default).</summary>
+    public bool HasOngoingTrafficSource { get; init; }
+
     // ATC
     public string? ArtccId { get; init; }
     public TrackOwnerDto? StudentPosition { get; init; }
@@ -216,6 +219,8 @@ public sealed class CoordinationItemDto
 public sealed class ControllerAiConfigDto
 {
     public required int Seed { get; init; }
+
+    public string? RunwayInUse { get; init; }
 
     public List<string> EnabledPositionIds { get; init; } = [];
 

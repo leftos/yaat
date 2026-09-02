@@ -26,14 +26,19 @@ public sealed record PilotRequestContext(
     string? FacilityCallName,
     AirspaceClass? AirspaceClass,
     string? AirspaceIdent,
-    LatLon? AirspaceReferencePosition
+    LatLon? AirspaceReferencePosition,
+    string? ParkingName
 )
 {
-    public static PilotRequestContext None { get; } = new(null, null, null, null, null);
+    public static PilotRequestContext None { get; } = new(null, null, null, null, null, null);
 
-    public static PilotRequestContext Facility(string? facilityCallName) => new(null, facilityCallName, null, null, null);
+    public static PilotRequestContext Facility(string? facilityCallName) => new(null, facilityCallName, null, null, null, null);
 
-    public static PilotRequestContext Runway(string? runwayId, string? facilityCallName) => new(runwayId, facilityCallName, null, null, null);
+    public static PilotRequestContext Runway(string? runwayId, string? facilityCallName) => new(runwayId, facilityCallName, null, null, null, null);
+
+    /// <summary>An arrival's taxi-in request: the parking the pilot asked to taxi to.</summary>
+    public static PilotRequestContext TaxiIn(string? facilityCallName, string parkingName) =>
+        new(null, facilityCallName, null, null, null, parkingName);
 }
 
 public sealed class PilotPendingRequest
@@ -55,6 +60,9 @@ public sealed class PilotPendingRequest
     public string? AirspaceIdent { get; init; }
     public LatLon? AirspaceReferencePosition { get; init; }
 
+    /// <summary>The parking an arrival asked to taxi to (a taxi-in request); null for a departure's ready-to-taxi call.</summary>
+    public string? ParkingName { get; init; }
+
     public bool IsOpen => ResponseState is PilotPendingRequestResponseState.None or PilotPendingRequestResponseState.Standby;
 
     public PilotPendingRequestDto ToSnapshot() =>
@@ -72,6 +80,7 @@ public sealed class PilotPendingRequest
             AirspaceClass = AirspaceClass,
             AirspaceIdent = AirspaceIdent,
             AirspaceReferencePosition = AirspaceReferencePosition,
+            ParkingName = ParkingName,
         };
 
     public static PilotPendingRequest FromSnapshot(PilotPendingRequestDto dto) =>
@@ -91,5 +100,6 @@ public sealed class PilotPendingRequest
             AirspaceClass = dto.AirspaceClass,
             AirspaceIdent = dto.AirspaceIdent,
             AirspaceReferencePosition = dto.AirspaceReferencePosition,
+            ParkingName = dto.ParkingName,
         };
 }

@@ -87,6 +87,19 @@ public class ObserverRulesTests
         rule.Evaluate(Scope(engine, [taxiing], ground, now + StuckAircraftRule.YieldingStuckAfterSeconds + 1, memos));
         var opened = Assert.Single(engine.Scenario.AiAnomalies.Drain());
         Assert.Contains("yielding to UAL1", opened.Detail);
+
+        // The detector lifts its limit a moment before the aircraft rolls: a stall that yielded keeps the longer threshold
+        // even when the limit is gone at the instant the rule looks.
+        var sticky = new Dictionary<string, AiAircraftMemo>(StringComparer.Ordinal);
+        engine.Scenario.AiAnomalies.Clear();
+        taxiing.Ground.SpeedLimit = 0;
+        rule.Evaluate(Scope(engine, [taxiing], ground, now, sticky));
+        taxiing.Ground.SpeedLimit = null;
+        taxiing.Ground.AutoYieldTarget = null;
+        rule.Evaluate(Scope(engine, [taxiing], ground, now + StuckAircraftRule.StuckAfterSeconds + 120, sticky));
+        Assert.Empty(engine.Scenario.AiAnomalies.Drain());
+        rule.Evaluate(Scope(engine, [taxiing], ground, now + StuckAircraftRule.YieldingStuckAfterSeconds + 1, sticky));
+        Assert.Contains("after yielding", Assert.Single(engine.Scenario.AiAnomalies.Drain()).Detail);
     }
 
     [Fact]
@@ -313,13 +326,14 @@ public class ObserverRulesTests
         IReadOnlyList<ActiveConflict> conflicts
     )
     {
-        var context = AiTestHost.Context(engine, aircraft, [position], now, conflicts);
+        var context = AiTestHost.Context(engine, aircraft, [position], now, conflicts, new EngineAiCommandSink(engine));
         return new AiRuleScope
         {
             Tick = context,
             Position = position,
             Jurisdiction = context.View.Jurisdiction(position),
             Memos = memos,
+            Pacing = new AiPacing(),
         };
     }
 }

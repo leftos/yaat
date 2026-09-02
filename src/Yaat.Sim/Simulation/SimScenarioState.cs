@@ -260,7 +260,20 @@ public sealed class SimScenarioState
     public string? ArtccId { get; set; }
     public string? ScenarioAutoDeleteMode { get; set; }
     public string? ClientAutoDeleteOverride { get; set; }
-    public string? EffectiveAutoDeleteMode => ClientAutoDeleteOverride ?? ScenarioAutoDeleteMode;
+
+    /// <summary>The scenario keeps spawning traffic (timed spawns or generators) — see <see cref="Scenarios.ScenarioLoadResult.HasOngoingTrafficSource"/>.</summary>
+    public bool HasOngoingTrafficSource { get; set; }
+
+    /// <summary>
+    /// The auto-delete mode in force: the client's override, else the scenario's, else — when the author left it unset
+    /// (ATCTrainer's <c>None</c> default) on a scenario that keeps spawning traffic — <c>Parked</c>, so arrivals leave at
+    /// their gate instead of piling up on the field. A static scenario keeps its parked arrivals (they turn around as
+    /// the departures); the client's <c>Never</c> keeps them everywhere.
+    /// </summary>
+    public string? EffectiveAutoDeleteMode =>
+        ClientAutoDeleteOverride ?? (IsUnsetAutoDeleteMode(ScenarioAutoDeleteMode) && HasOngoingTrafficSource ? "Parked" : ScenarioAutoDeleteMode);
+
+    private static bool IsUnsetAutoDeleteMode(string? mode) => string.IsNullOrEmpty(mode) || mode.Equals("None", StringComparison.OrdinalIgnoreCase);
 
     // Simulation control
     public bool IsPaused { get; set; } = true;
@@ -371,6 +384,7 @@ public sealed class SimScenarioState
             IsStudentTowerPosition = IsStudentTowerPosition,
             ScenarioAutoDeleteMode = ScenarioAutoDeleteMode,
             ClientAutoDeleteOverride = ClientAutoDeleteOverride,
+            HasOngoingTrafficSource = HasOngoingTrafficSource,
             ArtccId = ArtccId,
             StudentPosition = StudentPosition?.ToSnapshot(),
             StudentTcp = StudentTcp?.ToSnapshot(),

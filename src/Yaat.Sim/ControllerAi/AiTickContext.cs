@@ -46,6 +46,15 @@ public sealed class AiTickContext
     public required IReadOnlyList<EramActiveConflict> EramConflicts { get; init; }
 
     public required double AutoAcceptDelaySeconds { get; init; }
+
+    /// <summary>The ground layout an aircraft is operating on; null when its airport has none loaded.</summary>
+    public required Func<AircraftState, AirportGroundLayout?> LayoutFor { get; init; }
+
+    /// <summary>The runways (pavements) of an airport given as FAA or ICAO id; empty when unknown.</summary>
+    public required Func<string?, IReadOnlyList<RunwayInfo>> RunwaysFor { get; init; }
+
+    /// <summary>The session's runway-in-use decisions, shared by every brain so Ground and Local agree.</summary>
+    public required RunwayInUseState RunwayInUse { get; init; }
 }
 
 /// <summary>A per-position controller brain. Brains tick in (role rank, position id) order; each acts only on its own jurisdiction.</summary>
@@ -57,13 +66,4 @@ public interface IPositionBrain
 
     /// <summary>Forgets every per-aircraft memo — after a scenario reload or a snapshot restore.</summary>
     void Reset();
-}
-
-/// <summary>What a brain remembers about one aircraft between ticks. Never snapshotted; re-derived after a reset.</summary>
-public sealed class AiAircraftMemo
-{
-    /// <summary>Where the aircraft last made net progress, and when — the stuck-aircraft watchdog's anchor.</summary>
-    public LatLon? MovementAnchor { get; set; }
-
-    public double MovementAnchorAtSeconds { get; set; }
 }

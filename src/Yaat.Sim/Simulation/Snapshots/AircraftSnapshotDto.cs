@@ -246,6 +246,9 @@ public sealed class PilotPendingRequestDto
     public string? AirspaceClass { get; init; }
     public string? AirspaceIdent { get; init; }
     public LatLon? AirspaceReferencePosition { get; init; }
+
+    /// <summary>The parking an arrival's taxi-in request named. Optional: earlier snapshots lack it (clean default null).</summary>
+    public string? ParkingName { get; init; }
 }
 
 public sealed class ApproachScoreDto

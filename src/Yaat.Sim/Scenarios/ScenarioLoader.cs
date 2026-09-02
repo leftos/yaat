@@ -26,6 +26,14 @@ public class ScenarioLoadResult
     public List<OverflightGeneratorConfig> OverflightGenerators { get; init; } = [];
     public bool HasParkingSpawns { get; init; }
     public bool HasArrivalGenerators { get; init; }
+
+    /// <summary>
+    /// The scenario keeps producing traffic after load — timed spawns or any generator — so aircraft that reach
+    /// their parking spot must leave the field or it fills up. False for a static scenario whose initial aircraft are
+    /// all there is (its parked arrivals are its later departures).
+    /// </summary>
+    public bool HasOngoingTrafficSource { get; init; }
+
     public string? AutoDeleteMode { get; init; }
     public string? MinimumRating { get; init; }
     public bool IsLiveSession { get; init; }
@@ -129,6 +137,11 @@ public static class ScenarioLoader
             // Overflights are deliberately excluded: they are not an arrival source, so they neither surface
             // the solo arrival-rate slider nor get scaled by it.
             HasArrivalGenerators = (scenario.AircraftGenerators.Count > 0) || (scenario.VfrArrivalGenerators.Count > 0),
+            HasOngoingTrafficSource =
+                (delayed.Count > 0)
+                || (scenario.AircraftGenerators.Count > 0)
+                || (scenario.VfrArrivalGenerators.Count > 0)
+                || (scenario.OverflightGenerators.Count > 0),
             AutoDeleteMode = scenario.AutoDeleteMode,
             MinimumRating = scenario.MinimumRating,
             IsLiveSession = scenario.LiveSession,

@@ -4,6 +4,7 @@ using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Pilot;
 using Yaat.Sim.Tests.Helpers;
+using Yaat.Sim.Training;
 
 namespace Yaat.Sim.Tests.Commands;
 
@@ -398,6 +399,75 @@ public class ContactCommandHandlerTests
 
         Assert.Empty(ac.PendingNotifications);
         Assert.Contains($"Oakland Tower on {expectedSpoken}", SingleTransmission(ac).SpeechText);
+    }
+
+    // --- Origin: an AI position's (or a preset's) CT is not the student's handoff ---
+
+    [Fact]
+    public void Contact_AiOrigin_LeavesStudentFrequencyAndCompletionUntouched()
+    {
+        var config = TestArtccConfig.LoadZoa();
+        if (config is null)
+        {
+            return;
+        }
+
+        // AI Ground hands a taxiing departure to tower: the pilot is joining the (possibly student) tower frequency,
+        // not leaving the student's, and nothing has been "handed off" for the session report.
+        var ac = MakeAircraft();
+        var ctx = TestDispatch.Context(
+            new Random(0),
+            soloTrainingMode: true,
+            artccConfig: config,
+            scenarioElapsedSeconds: 42,
+            isScenarioScripted: true
+        );
+        var result = ContactCommandHandler.HandleContact(new ContactCommand("OAK_TWR"), ac, ctx);
+
+        Assert.True(result.Success);
+        Assert.Contains("Oakland Tower", SingleTransmission(ac).SpeechText);
+        Assert.False(ac.HasLeftStudentFrequency);
+        Assert.Equal(CompletionReason.Active, ac.CompletionReason);
+        Assert.Null(ac.CompletedAtSeconds);
+        Assert.Null(ac.CompletionDetail);
+    }
+
+    [Fact]
+    public void Contact_HumanOrigin_StillStampsHandoffAndLeavesStudentFrequency()
+    {
+        var config = TestArtccConfig.LoadZoa();
+        if (config is null)
+        {
+            return;
+        }
+
+        var ac = MakeAircraft();
+        var ctx = TestDispatch.Context(
+            new Random(0),
+            soloTrainingMode: true,
+            artccConfig: config,
+            scenarioElapsedSeconds: 42,
+            isScenarioScripted: false
+        );
+        var result = ContactCommandHandler.HandleContact(new ContactCommand("OAK_TWR"), ac, ctx);
+
+        Assert.True(result.Success);
+        Assert.True(ac.HasLeftStudentFrequency);
+        Assert.Equal(CompletionReason.HandedOff, ac.CompletionReason);
+        Assert.Equal(42, ac.CompletedAtSeconds);
+        Assert.Equal("OAK_TWR", ac.CompletionDetail);
+    }
+
+    [Fact]
+    public void FrequencyChangeApproved_AiOrigin_LeavesStudentFrequencyAndCompletionUntouched()
+    {
+        var ac = MakeAircraft();
+        var ctx = TestDispatch.Context(new Random(0), soloTrainingMode: true, scenarioElapsedSeconds: 42, isScenarioScripted: true);
+        var result = ContactCommandHandler.HandleFrequencyChangeApproved(ac, ctx);
+
+        Assert.True(result.Success);
+        Assert.False(ac.HasLeftStudentFrequency);
+        Assert.Equal(CompletionReason.Active, ac.CompletionReason);
     }
 
     [Fact]

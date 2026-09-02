@@ -31,6 +31,12 @@ public sealed class AircraftGroundOpsDto
     public required bool HasAnnouncedReady { get; init; }
     public bool InitialCallupDecisionProcessed { get; init; }
     public bool IsScriptedDeparture { get; init; }
+
+    /// <summary>True while a landed aircraft still owes ground its taxi-in call.</summary>
+    public bool AwaitingTaxiInCall { get; init; }
+
+    /// <summary>True once the tower has sent the pilot to ground (CT to a ground position, or FCA).</summary>
+    public bool ReleasedToGround { get; init; }
     public bool IsExpeditingTaxi { get; init; }
 
     /// <summary>Controller-commanded taxi-speed cap (kts), or null to use the category default.</summary>

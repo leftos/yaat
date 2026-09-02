@@ -94,3 +94,19 @@ Result: no every-tick spam, realistic cadence, bounded per-tick work.
 | `HandoffUnacceptedRule` | (radar roles) a handoff to or from the position is pending longer than `AutoAcceptDelay` + 60 s (a house threshold — §2-1-17.a is qualitative) | accepted, recalled, or the aircraft leaves |
 | `ConflictAlertInAiJurisdictionRule` | a terminal conflict alert names an aircraft in the position's jurisdiction (one episode per AI position involved) | the engine clears the alert or a controller acknowledges it |
 | `CommandRejected` (service) | the dispatcher rejects an AI command | point event |
+
+## CA1 notes (2026-09-01)
+
+- **Pacing is constants, not config** (`AiPacing`): `MinGapSeconds` 5 jittered ± 2 s from `AiRng`, `ThinkMinSeconds`/`ThinkMaxSeconds`
+  2–8 s from `FinalApproachSpeedVariety.UnitInterval(callsign, rule)` (stateless), and `IssuedThisTick` — one transmission per position
+  per tick. `AiRuleScope.TryIssue` is the single emission path: it starts the aircraft's think-time clock for the rule (`AiAircraftMemo.
+  Observe`), and once the think time and the gap have elapsed issues the request and marks it in flight.
+- **Memo FSM** (`AiAircraftMemo`): `GroundIntent` {None, TaxiIssued, CrossingRequested, CrossingIssued, HandedToLocal, TaxiInIssued},
+  `InFlight` + `IssuedAtSeconds` + `EffectDeadlineSeconds` (reaction delay + 15 s; a command whose outcome never arrives counts as
+  rejected), `Rejections` / `NextAttemptAtSeconds` (backoff 10 s × rejections) / `GaveUp` (after `MaxRetries` = 2 retries), the
+  think-time observation, and the crossing bookkeeping. `GroundBrain.SettleOutcomes` matches the host's outcomes to the in-flight
+  memos before any rule runs. Every intent re-derives from world state after `Reset()`; the accepted cost is timing (a duplicate `CT`).
+- **`CoordinationTimeout`** joins the anomaly kinds: Ground asked a staffed Local for a crossing (one terminal line per bar) and the bar is
+  still uncleared 120 s later; closes when the crossing is cleared or the aircraft leaves.
+- **Stuck watchdog refinement:** the yield state is sticky for the stall (`AiAircraftMemo.YieldedDuringStall`) — the ground-conflict
+  detector lifts its limit a moment before the aircraft rolls, and a five-minute queue wait must not read as a 180 s non-yield stall.

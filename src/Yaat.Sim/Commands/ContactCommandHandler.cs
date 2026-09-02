@@ -5,8 +5,9 @@ using Yaat.Sim.Pilot;
 namespace Yaat.Sim.Commands;
 
 /// <summary>
-/// Handles CT (contact next controller) and FCA (frequency change approved). Both are pure
-/// pilot-speech commands — no state mutation. Distinct from HOO/ACCEPT/DROP which are radar-side
+/// Handles CT (contact next controller) and FCA (frequency change approved). Both are pilot-speech
+/// commands whose only state is the comms bookkeeping (the student-frequency flag and the handoff
+/// completion stamp, both student-origin only). Distinct from HOO/ACCEPT/DROP which are radar-side
 /// coordination actions invisible to the pilot (FAA 7110.65 §7-6-11).
 ///
 /// <para>CT supports three argument forms for disambiguation:</para>
@@ -63,6 +64,11 @@ public static class ContactCommandHandler
             handoffDetail = owner.Callsign;
         }
 
+        if (string.Equals(AtcPositionTypeClassifier.Classify(handoffDetail), "GND", StringComparison.OrdinalIgnoreCase))
+        {
+            aircraft.Ground.ReleasedToGround = true;
+        }
+
         var pilotSpeech = frequencyMhz is double freq
             ? PilotResponder.BuildContactReadback(aircraft, facilityName, freq)
             : BuildContactReadbackNoFreq(aircraft, facilityName);
@@ -82,6 +88,7 @@ public static class ContactCommandHandler
 
     public static CommandResult HandleFrequencyChangeApproved(AircraftState aircraft, DispatchContext ctx)
     {
+        aircraft.Ground.ReleasedToGround = true;
         var pilotSpeech = PilotResponder.BuildFrequencyChangeApproved(aircraft);
         Route(aircraft, ctx, pilotSpeech, "[FCA] frequency change approved");
         StampHandoffCompletion(aircraft, ctx, detail: null);
@@ -89,10 +96,12 @@ public static class ContactCommandHandler
     }
 
     // First CT/FCA on this aircraft owns the completion stamp. A controller re-issuing CT
-    // after a HOO bounce should not overwrite the original handoff time / target.
+    // after a HOO bounce should not overwrite the original handoff time / target. A scripted or
+    // AI-controller CT is not the student handing the aircraft off (an AI Ground sends a taxiing
+    // departure *to* the tower), so it never ends the aircraft's session-report life.
     private static void StampHandoffCompletion(AircraftState aircraft, DispatchContext ctx, string? detail)
     {
-        if (aircraft.CompletionReason != Training.CompletionReason.Active)
+        if (ctx.IsScenarioScripted || (aircraft.CompletionReason != Training.CompletionReason.Active))
         {
             return;
         }
@@ -108,8 +117,13 @@ public static class ContactCommandHandler
         // are independent (an auto-track to departure does not mean the pilot is on
         // departure's freq yet), so behavior that depends on "the controller has actually
         // handed comms off" — e.g. InitialClimbPhase releasing a radar-vectors SID heading
-        // hold — must key off this flag rather than Track.Owner.
-        aircraft.HasLeftStudentFrequency = true;
+        // hold — must key off this flag rather than Track.Owner. Only the student's own CT
+        // moves the pilot off the student's frequency: a scripted or AI-controller CT is
+        // another position's transfer (an AI Ground sending the pilot to the student tower).
+        if (!ctx.IsScenarioScripted)
+        {
+            aircraft.HasLeftStudentFrequency = true;
+        }
 
         if (ctx.SoloTrainingMode)
         {

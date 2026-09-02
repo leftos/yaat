@@ -136,7 +136,7 @@ Files are under `Phases/Tower/`, `Phases/Ground/`, `Phases/Pattern/`, `Phases/Ap
 
 **Tower** — `LineUpPhase`, `LinedUpAndWaitingPhase`, `TakeoffPhase`, `RejectedTakeoffPhase` (reaction window → max-effort braking on the centerline → `HoldingInPositionPhase`; installed by `RejectedTakeoff.Install`, shared by the auto trigger in `TakeoffPhase.TickGroundRoll` and the CTOC mid-roll abort), `InitialClimbPhase`, `DepartureProcedurePhase` (charted heading/course SID legs — see below), `FinalApproachPhase`, `LandingPhase`, `RunwayHoldingPhase` (LAHSO), `GoAroundPhase`, `LowApproachPhase`, `TouchAndGoPhase`, `StopAndGoPhase`, `HelicopterTakeoffPhase`, `HelicopterLandingPhase`, `VfrHoldPhase`, `MakeTurnPhase`, `STurnPhase`.
 
-**Ground** — `TaxiingPhase`, `HoldingShortPhase`, `CrossingRunwayPhase`, `RunwayExitPhase`, `PushbackPhase`, `PushbackToSpotPhase`, `AirTaxiPhase`, `AtParkingPhase`, `FollowingPhase`, `HoldingInPositionPhase`, `HoldingAfterPushbackPhase`, `HoldingAfterExitPhase`.
+**Ground** — `TaxiingPhase`, `HoldingShortPhase`, `CrossingRunwayPhase`, `RunwayExitPhase`, `PushbackPhase`, `PushbackToSpotPhase`, `AirTaxiPhase`, `AtParkingPhase`, `FollowingPhase`, `HoldingInPositionPhase`, `HoldingAfterPushbackPhase`, `HoldingAfterExitPhase`. `RunwayExitPhase.CompleteExit` sets `AircraftGroundOps.AwaitingTaxiInCall`; `HoldingAfterExitPhase` and `HoldingInPositionPhase` make the arrival's taxi-in call from it (`Pilot/TaxiInRequest.cs`).
 
 **Pattern** (all set `ManagesSpeed = true`) — `PatternEntryPhase`, `UpwindPhase`, `CrosswindPhase`, `DownwindPhase`, `BasePhase`, `MidfieldCrossingPhase`, `TeardropReentryPhase`, `VfrFollowPhase`.
 

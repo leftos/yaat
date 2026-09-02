@@ -129,6 +129,7 @@ addressee with `ResolveFor(aircraft, expectedPositionType, atAirportId, eligibil
 | `LinedUpAndWaitingPhase` lined-up reminder | `TWR` | the departure runway's airport | no (as before) |
 | `FinalApproachPhase` spawn-on-final check-in | `TWR` | the runway's airport, else the approach clearance's | yes |
 | `PatternEntryPhase` closed-traffic request | `TWR` | the pattern runway's airport | yes |
+| `HoldingAfterExitPhase` / `HoldingInPositionPhase` taxi-in call (`Pilot/TaxiInRequest.cs`) | `GND` | `SurfaceAirportOf` | no — a landed aircraft is the cab's already |
 
 Resolution order: an AI position of the wanted type covering the aircraft first; else the student (when solo training
 is on); else, for a **ground** call only, an AI local position covering the airport — a tower working the cab alone
@@ -144,6 +145,16 @@ whose callsign is the student's own position is dropped while solo training is o
 positions share a TCP). `PilotResponder.ResolveAnsweringCallName` picks the addressee's vNAS radio name only when
 its type matches the call — a tower-only student still gets "ground, ready to taxi" — exactly the old
 `StudentRadioName` rule.
+
+**The taxi-in call.** `RunwayExitPhase.CompleteExit` arms `AircraftGroundOps.AwaitingTaxiInCall`; the idle phase the exit ends in makes
+the call three seconds after stopping — `Oakland Ground, clear of runway 28R at W, taxi to gate 29.` (`PilotResponder.BuildTaxiInRequest`,
+AIM 4-3-21.c) — naming the parking the pilot picked itself (`ArrivalParkingPicker`: the operator's own ramp when the layout names one,
+a cargo apron or numbered gate for an airline, a non-gate spot for a registration; occupied, taxied-to and already-requested spots
+skipped; an FNV draw on the callsign, so replays agree). It records a Taxi `PilotPendingRequest` carrying `ParkingName`, follows up
+every 120 s like the parking call, and any taxi clearance closes it. Nobody answering ⇒ the call waits. While a *separately*
+staffed Local answers at the airport, the pilot stays with the tower until sent to ground (AIM 4-3-14.c, 4-3-21.c): a `CT` to a
+ground position or an `FCA` sets `AircraftGroundOps.ReleasedToGround`, which the call consumes; a combined cab (one answering
+position under both hats) needs no release.
 
 **`HasMadeInitialContact` stays student-scoped; the AI latch is per position.** A call answered by an AI position
 adds only that position's id to `AircraftState.AiInitialContactPositionIds` (`PilotAnsweringPosition.MarkInitialContact`

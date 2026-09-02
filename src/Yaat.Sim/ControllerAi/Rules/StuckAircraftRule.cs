@@ -8,8 +8,9 @@ namespace Yaat.Sim.ControllerAi.Rules;
 /// a pathfinder loop, a give-way deadlock, a phase that never completes. Stops the controller ordered (HOLD / GIVEWAY,
 /// a hold for release) are sequencing, not stalls (7110.65 §3-8-1), and never count; a stop the ground-conflict
 /// detector imposed (the aircraft is yielding to traffic ahead) is routine in a departure queue and only counts after
-/// <see cref="YieldingStuckAfterSeconds"/>. Phases that legitimately wait for a command (parking, hold-short, LUAW, the
-/// ground holds) and airborne holds are never stuck.
+/// <see cref="YieldingStuckAfterSeconds"/> — and a stall that yielded at any point keeps that longer threshold, since the
+/// detector releases its limit a moment before the aircraft actually rolls. Phases that legitimately wait for a command
+/// (parking, hold-short, LUAW, the ground holds) and airborne holds are never stuck.
 /// </summary>
 public sealed class StuckAircraftRule : IDecisionRule
 {
@@ -41,15 +42,19 @@ public sealed class StuckAircraftRule : IDecisionRule
             {
                 memo.MovementAnchor = aircraft.Position;
                 memo.MovementAnchorAtSeconds = scope.Now;
+                memo.YieldedDuringStall = ground.SpeedLimit is not null;
                 scope.Tick.Anomalies.Close(AiAnomalyKind.StuckAircraft, scope.Position.PositionId, aircraft.Callsign, scope.Now);
                 continue;
             }
 
             bool yielding = ground.SpeedLimit is not null;
+            memo.YieldedDuringStall |= yielding;
             double stalled = scope.Now - memo.MovementAnchorAtSeconds;
-            if (stalled >= (yielding ? YieldingStuckAfterSeconds : StuckAfterSeconds))
+            if (stalled >= (memo.YieldedDuringStall ? YieldingStuckAfterSeconds : StuckAfterSeconds))
             {
-                var cause = yielding ? $" while yielding to {ground.AutoYieldTarget ?? "ground traffic"}" : "";
+                var cause = yielding
+                    ? $" while yielding to {ground.AutoYieldTarget ?? "ground traffic"}"
+                    : (memo.YieldedDuringStall ? " after yielding to ground traffic" : "");
                 scope.Tick.Anomalies.Open(
                     AiAnomalyKind.StuckAircraft,
                     scope.Position.PositionId,

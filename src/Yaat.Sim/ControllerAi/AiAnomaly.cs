@@ -17,6 +17,9 @@ public enum AiAnomalyKind
 
     /// <summary>A conflict alert fired on an aircraft in this position's jurisdiction.</summary>
     ConflictAlertInAiJurisdiction,
+
+    /// <summary>A runway crossing this position asked Local to approve is still uncleared past the coordination timeout.</summary>
+    CoordinationTimeout,
 }
 
 public enum AiAnomalyEventKind

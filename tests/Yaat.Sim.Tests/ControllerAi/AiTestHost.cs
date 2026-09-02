@@ -52,7 +52,18 @@ internal static class AiTestHost
     public static readonly IReadOnlyDictionary<string, ControlRole> NoOverrides = new Dictionary<string, ControlRole>(StringComparer.Ordinal);
 
     /// <summary>Loads the scenario with real navdata + the OAK layout, the ZOA config, and (when positions are given) observer brains on them.</summary>
-    public static SimulationEngine Load(string scenarioJson, ArtccConfigRoot zoa, int seed, IReadOnlyList<AiPositionConfig> positions)
+    public static SimulationEngine Load(string scenarioJson, ArtccConfigRoot zoa, int seed, IReadOnlyList<AiPositionConfig> positions) =>
+        LoadWith(scenarioJson, zoa, seed, positions, null, p => new ObserverBrain(p));
+
+    /// <summary>Same, with the brain of the caller's choice on each position and a session runway in use.</summary>
+    public static SimulationEngine LoadWith(
+        string scenarioJson,
+        ArtccConfigRoot zoa,
+        int seed,
+        IReadOnlyList<AiPositionConfig> positions,
+        string? runwayInUse,
+        Func<AiPositionConfig, IPositionBrain> brainFor
+    )
     {
         var engine = new SimulationEngine(new TestAirportGroundData());
         var warnings = engine.LoadScenario(scenarioJson, seed, MagneticDeclination.EvaluationDateUtc);
@@ -70,10 +81,11 @@ internal static class AiTestHost
                 Seed = seed,
                 EnabledPositionIds = positions.Select(p => p.PositionId).ToList(),
                 RoleOverrides = NoOverrides,
+                RunwayInUse = runwayInUse,
             };
             scenario.ControllerAi = config;
             engine.ControllerAi = new AiControllerService(
-                positions.Select(p => (IPositionBrain)new ObserverBrain(p)).ToList(),
+                positions.Select(brainFor).ToList(),
                 new HeadlessAiStaffing(positions, scenario),
                 new EngineAiCommandSink(engine),
                 config
@@ -83,12 +95,13 @@ internal static class AiTestHost
         return engine;
     }
 
-    /// <summary>The host loop: one sim-second, then one AI tick.</summary>
+    /// <summary>The host loop as the server runs it: one sim-second, the auto-delete sweep, then one AI tick.</summary>
     public static void Tick(SimulationEngine engine, int seconds)
     {
         for (int i = 0; i < seconds; i++)
         {
             engine.TickOneSecond();
+            engine.TickAutoDelete();
             engine.TickControllerAi();
         }
     }
@@ -119,7 +132,8 @@ internal static class AiTestHost
         IReadOnlyList<AircraftState> aircraft,
         IReadOnlyList<AiPositionConfig> staffed,
         double now,
-        IReadOnlyList<ActiveConflict> conflicts
+        IReadOnlyList<ActiveConflict> conflicts,
+        IAiCommandSink sink
     )
     {
         var scenario = engine.Scenario!;
@@ -138,7 +152,7 @@ internal static class AiTestHost
             View = view,
             Scenario = scenario,
             World = engine.World,
-            Sink = new EngineAiCommandSink(engine),
+            Sink = sink,
             Staffing = staffing,
             AiRng = new SerializableRandom(1),
             ElapsedSeconds = now,
@@ -148,6 +162,9 @@ internal static class AiTestHost
             ActiveConflicts = conflicts,
             EramConflicts = [],
             AutoAcceptDelaySeconds = scenario.AutoAcceptDelay.TotalSeconds,
+            LayoutFor = engine.ResolveGroundLayout,
+            RunwaysFor = RunwayOccupancy.AirportRunways,
+            RunwayInUse = new RunwayInUseState(),
         };
     }
 

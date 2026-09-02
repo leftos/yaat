@@ -18,11 +18,13 @@ public sealed class ObserverBrain(AiPositionConfig position) : IPositionBrain
     ];
 
     private readonly Dictionary<string, AiAircraftMemo> _memos = new(StringComparer.Ordinal);
+    private readonly AiPacing _pacing = new();
 
     public AiPositionConfig Position => position;
 
     public void Tick(AiTickContext context)
     {
+        _pacing.BeginTick();
         var present = new HashSet<string>(context.Snapshot.Select(ac => ac.Callsign), StringComparer.Ordinal);
         foreach (var callsign in _memos.Keys.Where(c => !present.Contains(c)).ToList())
         {
@@ -35,6 +37,7 @@ public sealed class ObserverBrain(AiPositionConfig position) : IPositionBrain
             Position = Position,
             Jurisdiction = context.View.Jurisdiction(Position),
             Memos = _memos,
+            Pacing = _pacing,
         };
         foreach (var rule in _rules)
         {
@@ -42,5 +45,9 @@ public sealed class ObserverBrain(AiPositionConfig position) : IPositionBrain
         }
     }
 
-    public void Reset() => _memos.Clear();
+    public void Reset()
+    {
+        _memos.Clear();
+        _pacing.Reset();
+    }
 }

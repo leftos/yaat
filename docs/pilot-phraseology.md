@@ -157,7 +157,9 @@ Grouped by trigger. All return `PilotSpeechText`; follow/traffic builders set `R
   `BuildReadyToTaxi`; `BuildClosedTrafficRequest`; `BuildArrivalApproachRequest`.
 - **Position / pattern reports** — `BuildMidfieldDownwindReminder`, `BuildShortFinalReminder`,
   `BuildTurningLegReport`, `BuildMileFinalReport`, `BuildAtFixReport` (armed by `REPORT`).
-- **Tower / ground** — `BuildHoldingShortTaxi`, `BuildHoldingShortCrossing`, `BuildClearOfRunwayText`,
+- **Tower / ground** — `BuildHoldingShortTaxi`, `BuildHoldingShortCrossing`, `BuildClearOfRunwayText`, `BuildTaxiInRequest` (the
+  arrival's call to ground after the exit — "clear of runway 28R at W, taxi to gate 29", AIM 4-3-21.c; "gate" for a numbered spot,
+  "parking" spelled out otherwise),
   `BuildUnableToExit`, `BuildGoingAround`, `BuildApproachingMinimumsNoLandingClearance`.
 - **Visual acquisition** — `BuildTrafficInSight`, `BuildFieldInSight`, `BuildLostSightOfTraffic`,
   `BuildLostSightOfField`, `BuildLostSightOfTrafficFieldInSight` (traffic lost, field held — the §7-4-3.c.3

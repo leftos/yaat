@@ -3,10 +3,14 @@
 ## Unreleased
 
 ### Added
+- After landing and clearing the runway, pilots call ground ("clear of runway 28R at W, taxi to gate 29") naming the parking they picked; a solo Ground student answers with a taxi clearance to it, and the pilot asks again every two minutes until someone does.
 - Mentors the server operator has granted access to another ARTCC's scenarios can pick that ARTCC when creating a room; the scenario list, live-session picker, weather, and CRC alias file then follow the room's ARTCC.
 - A departure rolling toward an aircraft blocking its runway now rejects the takeoff, brakes to a stop, and holds in position (on by default).
 - A cleared departure that hasn't started rolling declines the clearance ("unable, traffic on the runway") when another aircraft blocks the runway ahead.
 - Solo training scores a rejected takeoff for a runway occupant, a stop that can't clear the traffic, and a runway overrun.
+
+### Changed
+- Scenarios that keep spawning traffic (timed spawns or generators) but leave `autoDeleteMode` unset now delete arrivals when they reach their parking spot, so the field does not fill up; static scenarios keep them, and Settings > Auto-Delete Aircraft still overrides.
 
 ### Fixed
 - The server now refuses to open a room, or fetch a catalog scenario, for an ARTCC the signed-in controller isn't entitled to, instead of trusting the client's ARTCC.

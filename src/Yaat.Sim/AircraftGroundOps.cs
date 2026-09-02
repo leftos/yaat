@@ -198,6 +198,20 @@ public class AircraftGroundOps
     public bool IsScriptedDeparture { get; set; }
 
     /// <summary>
+    /// Set when the aircraft finishes its runway exit after landing: the pilot owes ground a taxi-in call (AIM 4-3-21.c)
+    /// and makes it from whichever idle phase the exit ends in, once someone answers ground calls at the airport.
+    /// Cleared by the call itself and by any taxi clearance.
+    /// </summary>
+    public bool AwaitingTaxiInCall { get; set; }
+
+    /// <summary>
+    /// The tower has sent the pilot to ground (a <c>CT</c> to a ground position, or a frequency change approved). Until then
+    /// a landed aircraft stays on the tower's frequency (AIM 4-3-14.c, 4-3-21.c) and makes no taxi-in call while a
+    /// separately staffed Local answers at the airport. Consumed by the call.
+    /// </summary>
+    public bool ReleasedToGround { get; set; }
+
+    /// <summary>
     /// Seconds the current GIVEWAY hold has been active. Accumulated each tick by
     /// <see cref="FlightPhysics.UpdateGiveWayResume"/> while <see cref="Hold"/> is a GIVEWAY
     /// directive, reset to zero whenever no GIVEWAY hold is active. Drives the safety-timeout
@@ -272,6 +286,8 @@ public class AircraftGroundOps
             HasAnnouncedReady = HasAnnouncedReady,
             InitialCallupDecisionProcessed = InitialCallupDecisionProcessed,
             IsScriptedDeparture = IsScriptedDeparture,
+            AwaitingTaxiInCall = AwaitingTaxiInCall,
+            ReleasedToGround = ReleasedToGround,
             IsExpeditingTaxi = IsExpeditingTaxi,
             CommandedTaxiSpeedKts = CommandedTaxiSpeedKts,
             IsExpeditingExit = IsExpeditingExit,
@@ -307,6 +323,8 @@ public class AircraftGroundOps
             HasAnnouncedReady = dto.HasAnnouncedReady,
             InitialCallupDecisionProcessed = dto.InitialCallupDecisionProcessed,
             IsScriptedDeparture = dto.IsScriptedDeparture,
+            AwaitingTaxiInCall = dto.AwaitingTaxiInCall,
+            ReleasedToGround = dto.ReleasedToGround,
             IsExpeditingTaxi = dto.IsExpeditingTaxi,
             CommandedTaxiSpeedKts = dto.CommandedTaxiSpeedKts,
             IsExpeditingExit = dto.IsExpeditingExit,

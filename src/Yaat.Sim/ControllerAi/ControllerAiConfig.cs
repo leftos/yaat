@@ -15,10 +15,18 @@ public sealed class ControllerAiConfig
 
     public required IReadOnlyDictionary<string, ControlRole> RoleOverrides { get; init; }
 
+    /// <summary>
+    /// The runway in use at the scenario's primary airport for the session (a designator such as <c>30</c>), or null to
+    /// let <see cref="RunwayInUseResolver"/> pick from the wind. The scenario/runner's stand-in for the supervisor's
+    /// runway designation (7110.65 §3-5-1.a).
+    /// </summary>
+    public required string? RunwayInUse { get; init; }
+
     public ControllerAiConfigDto ToSnapshot() =>
         new()
         {
             Seed = Seed,
+            RunwayInUse = RunwayInUse,
             EnabledPositionIds = EnabledPositionIds.ToList(),
             RoleOverrides = RoleOverrides
                 .OrderBy(kv => kv.Key, StringComparer.Ordinal)
@@ -29,6 +37,7 @@ public sealed class ControllerAiConfig
         new()
         {
             Seed = dto.Seed,
+            RunwayInUse = dto.RunwayInUse,
             EnabledPositionIds = dto.EnabledPositionIds.ToList(),
             RoleOverrides = dto.RoleOverrides.ToDictionary(
                 kv => kv.Key,

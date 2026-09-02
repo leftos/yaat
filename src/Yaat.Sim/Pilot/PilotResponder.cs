@@ -1492,6 +1492,34 @@ public static class PilotResponder
     }
 
     /// <summary>
+    /// The arrival's call to ground after clearing the landing runway (AIM 4-3-21.c: change to ground control and obtain a
+    /// taxi clearance) — who is calling, where it is, and the parking it wants. Output:
+    /// <c>"Oakland Ground, clear of runway 28R at W, taxi to gate 29."</c> (terminal) /
+    /// <c>"Oakland Ground, november one five two sierra papa, clear of runway two eight right at W, taxi to gate two niner."</c>
+    /// A numbered spot is a "gate", anything else is "parking" spelled out ("parking sierra india golf one").
+    /// </summary>
+    public static PilotSpeechText BuildTaxiInRequest(
+        AircraftState aircraft,
+        string facilityCallName,
+        string? runwayId,
+        string? taxiway,
+        string parking
+    )
+    {
+        var spoken = SpokenOwnCallsign(aircraft);
+        var facility = CleanFacilityCallName(facilityCallName, "ground");
+        string runwayTerminal = runwayId is { Length: > 0 } ? $"runway {PhraseologyVerbalizer.CompactRunway(runwayId)}" : "the runway";
+        string runwaySpoken = runwayId is { Length: > 0 } ? $"runway {PhraseologyVerbalizer.SpellRunway(runwayId)}" : "the runway";
+        string at = taxiway is { Length: > 0 } ? $" at {taxiway}" : "";
+        string atSpoken = taxiway is { Length: > 0 } ? $" at {PhraseologyVerbalizer.SpellTaxiway(taxiway)}" : "";
+        string noun = ArrivalParkingPicker.IsGateNumber(parking) ? "gate" : "parking";
+        return new PilotSpeechText(
+            $"{facility}, clear of {runwayTerminal}{at}, taxi to {noun} {parking}.",
+            $"{facility}, {spoken}, clear of {runwaySpoken}{atSpoken}, taxi to {noun} {PhraseologyVerbalizer.SpellDestinationName(parking, noun)}."
+        );
+    }
+
+    /// <summary>
     /// Pilot transmission when an instructed taxi exit cannot be made (overshoot, wrong-side, etc.).
     /// Pilot phraseology: "negative" for no-can-do, target taxiway for context.
     /// </summary>

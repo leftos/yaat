@@ -59,6 +59,9 @@ delayed-spawns → generators → triggers → timed-presets, before physics run
 - `OverflightGenerators` — `List<OverflightGeneratorConfig>`. **YAAT extension**; absent from vNAS scenarios.
 - `Atc` — ATC positions to resolve (student + auto-track owners).
 - `PrimaryAirportId`, `PrimaryApproach`, `StudentPositionId`, `AutoDeleteMode`, `MinimumRating`, `FlightStripConfigurations`.
+- `HasOngoingTrafficSource` (derived: timed spawns or any generator) — `SimScenarioState.EffectiveAutoDeleteMode` turns an
+  unset/`None` `AutoDeleteMode` into `Parked` when it is true, so arrivals leave at their gate instead of accumulating;
+  a static scenario keeps them (its parked arrivals are its departures). The client override still wins.
 
 Each `ScenarioAircraft` carries `AircraftId` (the callsign), `AircraftType` (the *actual* physical type), `TransponderMode`,
 `StartingConditions`, `OnAltitudeProfile`, an optional `FlightPlan`, `PresetCommands`, `SpawnDelay`, `AirportId`,

@@ -2040,6 +2040,8 @@ When a delay is active you get an immediate terminal acknowledgement — *"Pilot
 
 Scenarios can define an `autoDeleteMode` that removes aircraft after landing or parking. Override in **Settings > General > Auto-Delete Aircraft** (options: "Use Scenario Setting", "Never", "On Landing", "On Parking").
 
+When a scenario leaves the mode unset (`None`, the ATCTrainer default) but keeps spawning traffic — timed spawns or any generator — YAAT deletes arrivals when they reach their parking spot, so the field does not fill up with aircraft that have nowhere to go. A static scenario (initial aircraft only) keeps its parked arrivals; they can be taxied out again as departures. "Never" in Settings keeps them everywhere.
+
 To exempt a specific aircraft, append `NODEL` to `CLAND`, `TAXI`, `EL`, `ER`, or `EXIT` commands.
 
 #### Speech recognition debugging

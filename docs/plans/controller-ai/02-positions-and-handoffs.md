@@ -160,3 +160,21 @@ With a human neighbor, AI positions interact exactly as with any controller: `HO
 manual ACCEPT (patience watchdog → reminder line; in soak → `HandoffUnaccepted` anomaly), ACCEPT the
 human's handoffs after the deterministic delay, honor the human's HFR/REL, and never command
 aircraft under the human's jurisdiction.
+
+**CA1 notes (2026-09-01):**
+
+- The GC→LC transfer is issued while the departure is still taxiing (`HandToLocalRule`, 1,200 ft short of the bar with every crossing
+  behind), so the CA0b jurisdiction simplification (the destination-runway hold is Local's) stands with no memo coupling.
+- A scripted or AI-controller `CT`/`FCA` is origin-neutral (`ContactCommandHandler` under `IsScenarioScripted`): it never sets
+  `HasLeftStudentFrequency` (an AI Ground sends the pilot *to* the student tower; `InitialClimbPhase` reads the flag to release an RV-SID
+  heading hold) and never stamps `CompletionReason.HandedOff`. The readback still lands on the RPO lane in an instructor room
+  (`DispatchContext` carries no roster) until the per-frequency milestone.
+- `IAiStaffing.IsHumanHeld(AiPositionConfig)` asks by position (cab positions share a TCP); the crossing rule's "is Local staffed" check
+  uses it together with `ActivePositions`.
+- Rule 2 with a human or observer Local is a terminal request line + `CoordinationTimeout`; the coordination bus that lets an AI Local
+  approve is CA2.
+- **CA2 must not rediscover this in a soak run:** `InitialClimbPhase.UpdateRvSidHeadingHold` releases an RV-SID heading
+  hold only on `HasLeftStudentFrequency`. An AI Local's `CT <departure>` is origin-neutral (it never sets the flag), so
+  until the per-frequency milestone gives the pilot a `TunedPosition`, an AI-issued transfer to departure would leave the
+  aircraft on runway heading indefinitely. Land the tuned-position model (or a release keyed on the transfer itself)
+  before the Local brain issues `CT`.
