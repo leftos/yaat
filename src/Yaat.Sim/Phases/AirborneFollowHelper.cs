@@ -256,7 +256,7 @@ public static class AirborneFollowHelper
             DownwindPhase => 3,
             BasePhase => 4,
             FinalApproachPhase => 5,
-            LandingPhase or TouchAndGoPhase => 6,
+            LandingPhase or TouchAndGoPhase or HelicopterLandingPhase => 6,
             _ => null,
         };
 
