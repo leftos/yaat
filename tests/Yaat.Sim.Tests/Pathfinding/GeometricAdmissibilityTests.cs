@@ -184,8 +184,8 @@ public class GeometricAdmissibilityTests
     {
         // Arc with Nodes[0]=n2, Nodes[1]=n1. Traversing from n1→n2 is reverse.
         // Heading change is ~90° which is within the Jet 135° limit.
-        // Per §Decisions §3 (revised): reverse arcs are admitted when heading delta is within limit;
-        // they are penalised by ReverseArcCostNm in the cost function instead.
+        // A fillet is a symmetric curve: traversing it against its stored node order is admitted on the
+        // same heading-delta gate as the forward direction, with no cost of its own.
         var n0 = Node(0, 37.700, -122.200);
         var n1 = Node(1, 37.701, -122.200);
         var n2 = Node(2, 37.701, -122.199);
@@ -293,29 +293,5 @@ public class GeometricAdmissibilityTests
     {
         double delta = RouteCostFunction.HeadingDelta(0.0, 359.0);
         Assert.Equal(1.0, delta, precision: 6);
-    }
-
-    // ---------------------------------------------------------------------------
-    // IsReverseTraversal helper
-    // ---------------------------------------------------------------------------
-
-    [Fact]
-    public void IsReverseTraversal_Nodes0IsFromNode_ReturnsFalse()
-    {
-        var n0 = Node(0, 37.700, -122.200);
-        var n1 = Node(1, 37.701, -122.200);
-        var arc = StraightArc(n0, n1);
-
-        Assert.False(GeometricAdmissibility.IsReverseTraversal(arc, n0));
-    }
-
-    [Fact]
-    public void IsReverseTraversal_Nodes1IsFromNode_ReturnsTrue()
-    {
-        var n0 = Node(0, 37.700, -122.200);
-        var n1 = Node(1, 37.701, -122.200);
-        var arc = StraightArc(n0, n1);
-
-        Assert.True(GeometricAdmissibility.IsReverseTraversal(arc, n1));
     }
 }

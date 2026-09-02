@@ -276,17 +276,21 @@ public sealed class GroundNavigator
     private double _connectorFlowSpeedKts = double.MaxValue;
 
     /// <summary>
-    /// Speed cap (knots) for the <em>current</em> segment when it is a corner <see cref="GroundArc"/>: the
-    /// arc's own <see cref="GroundArc.MaxSafeSpeedKts"/>. The braking-curve planner only treats a corner
-    /// arc's safe speed as a <em>future</em> braking target (an approach limit at the arc's entry node), so
-    /// once the aircraft is on a long arc — entered slow, next corner far ahead — nothing holds it to the
-    /// arc's cornering speed and it accelerates toward taxi max mid-arc (the issue #236 surge, relocated onto
-    /// the arc once the pathfinder routes over it). This is the flat throughout-cap: a corner arc is never
-    /// flown faster than its safe cornering speed. <see cref="double.MaxValue"/> (no cap) when the current
-    /// segment is not an arc. Recomputed each <see cref="BuildSpeedConstraints"/>, so it round-trips through
-    /// a snapshot for free.
+    /// Cornering-speed profile of the <em>current</em> segment when it is a corner <see cref="GroundArc"/>,
+    /// measured from the segment's from-node (<see cref="OrientedProfile"/>). The braking-curve planner only
+    /// treats an arc's speed as a <em>future</em> braking target (an approach limit at its entry), so once the
+    /// aircraft is on a long arc — entered slow, next corner far ahead — nothing else holds it to the arc's
+    /// cornering speed and it accelerates toward taxi max mid-arc (the issue #236 surge, relocated onto the arc
+    /// once the pathfinder routes over it). <see cref="ComputeTargetSpeed"/> therefore caps the target by the
+    /// local cornering speed ahead along the curve, each sample reached on the braking curve — never faster
+    /// than the painted radius allows where the aircraft is, slowing in time for a tighter stretch further on,
+    /// and not held at the tightest point's speed over a gentle sweep. The visible consequence: the aircraft
+    /// may accelerate along a fillet whose entry is gentle, bounded by the arc's whole-turn angle-comfort
+    /// ceiling (see <see cref="GroundArc.SafeSpeedForRadiusKts"/>) and by how much curve is left to do it
+    /// in. Null when the current segment is not an arc. Recomputed each <see cref="BuildSpeedConstraints"/>,
+    /// so it round-trips through a snapshot for free.
     /// </summary>
-    private double _currentSegmentArcMaxKts = double.MaxValue;
+    private IReadOnlyList<GroundArc.SpeedSample>? _currentArcProfile;
 
     /// <summary>
     /// Net signed heading change (degrees) accumulated since the current segment was set up. Reset to 0
@@ -364,7 +368,11 @@ public sealed class GroundNavigator
     /// multiple sub-segments each well under it).
     /// </para>
     /// </summary>
-    private const double EntryAlignmentThresholdDeg = 45.0;
+    /// <remarks>
+    /// Public because the pathfinder's Fastest cost prices a straight-to-straight bend the way this
+    /// navigator flies it: sharper than this and the corner is a nose-wheel-radius slow-turn.
+    /// </remarks>
+    public const double EntryAlignmentThresholdDeg = 45.0;
 
     /// <summary>
     /// A straight→straight corner sharper than this (deg) is treated as an UNFILLETED kink: the fillet
@@ -496,6 +504,7 @@ public sealed class GroundNavigator
         {
             _pendingSegmentPrimitive = null;
             _currentPrimitive = segmentPrimitive;
+            ReleaseHeadingHold(ctx, segmentPrimitive);
 
             if (_currentPrimitive is PathPrimitiveSlowTurn slowPrim)
             {
@@ -537,6 +546,23 @@ public sealed class GroundNavigator
             _pendingSegmentPrimitive is not null,
             _pendingSegmentPrimitive?.Kind.ToString() ?? "none"
         );
+    }
+
+    /// <summary>
+    /// A fillet or slow-turn primitive mirrors its tangent into <see cref="ControlTargets.TargetTrueHeading"/> so
+    /// physics does not fight the closed-form playback; a straight is steered by pure pursuit writing the heading
+    /// directly. The target is persistent on the aircraft, so it must be released when a straight takes over:
+    /// otherwise physics turns the nose back toward the stale tangent every substep, the navigator nudges it out
+    /// again, the aircraft drifts off a straight that leaves the fillet a fraction of a degree off its exit
+    /// tangent, and the orbit guard (which sees only the navigator's half of the tug-of-war) declares a full
+    /// circle on an aircraft that never turned.
+    /// </summary>
+    private static void ReleaseHeadingHold(PhaseContext ctx, PathPrimitive primitive)
+    {
+        if (primitive is PathPrimitiveStraight)
+        {
+            ctx.Targets.TargetTrueHeading = null;
+        }
     }
 
     public NavigatorResult Tick(PhaseContext ctx, bool isLastSegment, Func<int, bool> isHoldShortCleared)
@@ -587,6 +613,7 @@ public sealed class GroundNavigator
             var seg = _pendingSegmentPrimitive;
             _pendingSegmentPrimitive = null;
             _currentPrimitive = seg;
+            ReleaseHeadingHold(ctx, seg);
             if (seg is PathPrimitiveSlowTurn slowPrim)
             {
                 _arcBearingFromCenterDeg = slowPrim.StartBearingFromCenterDeg;
@@ -1091,10 +1118,60 @@ public sealed class GroundNavigator
             target = Math.Min(target, _connectorFlowSpeedKts);
         }
 
-        // Flat cap on the current corner arc: never exceed its safe cornering speed while on it.
-        target = Math.Min(target, _currentSegmentArcMaxKts);
+        // Cap on the current corner arc: the local cornering speed ahead along the curve on the braking curve.
+        if (_currentArcProfile is { } arcProfile)
+        {
+            target = Math.Min(target, ArcProfileLimitKts(arcProfile, _bezierTraveledFt, decelRate));
+        }
 
         return target;
+    }
+
+    /// <summary>
+    /// The tightest of the braking curves onto the arc's remaining samples: each sample's local cornering
+    /// speed, reachable from the aircraft's arc-length position at <paramref name="decelRateKtsPerSec"/>.
+    /// The sample just behind the aircraft is included so the cap between two samples is the local one.
+    /// </summary>
+    private static double ArcProfileLimitKts(IReadOnlyList<GroundArc.SpeedSample> profile, double traveledFt, double decelRateKtsPerSec)
+    {
+        int first = 0;
+        while (first + 1 < profile.Count && profile[first + 1].LengthFt <= traveledFt)
+        {
+            first++;
+        }
+
+        double limit = double.MaxValue;
+        for (int i = first; i < profile.Count; i++)
+        {
+            double aheadNm = Math.Max(0.0, profile[i].LengthFt - traveledFt) / GeoMath.FeetPerNm;
+            double reachKts = Math.Sqrt((profile[i].SpeedKts * profile[i].SpeedKts) + (2.0 * decelRateKtsPerSec * aheadNm * 3600.0));
+            limit = Math.Min(limit, reachKts);
+        }
+
+        return limit;
+    }
+
+    /// <summary>
+    /// The arc's <see cref="GroundArc.SpeedProfile"/> measured from the segment's from-node: the stored
+    /// profile runs from <c>Nodes[0]</c>, so a reversed traversal mirrors it.
+    /// </summary>
+    private static IReadOnlyList<GroundArc.SpeedSample> OrientedProfile(GroundArc arc, DirectionalEdge edge, AircraftCategory category)
+    {
+        var stored = arc.SpeedProfile(category);
+        if (edge.FromNodeId == arc.Nodes[0].Id)
+        {
+            return stored;
+        }
+
+        double totalFt = stored[^1].LengthFt;
+        var reversed = new GroundArc.SpeedSample[stored.Count];
+        for (int i = 0; i < stored.Count; i++)
+        {
+            var mirror = stored[stored.Count - 1 - i];
+            reversed[i] = new GroundArc.SpeedSample(totalFt - mirror.LengthFt, mirror.SpeedKts);
+        }
+
+        return reversed;
     }
 
     /// <summary>
@@ -1220,9 +1297,9 @@ public sealed class GroundNavigator
 
         _cornerRoundingRadiusFt = CategoryPerformance.NoseWheelTurnRadiusFt(ctx.Category);
 
-        // A corner arc must never be flown faster than its safe cornering speed anywhere along it — the
-        // braking curve only treats it as a future approach limit, so hold the current arc to its own cap.
-        _currentSegmentArcMaxKts = seg.Edge.Edge is GroundArc currentArc ? currentArc.MaxSafeSpeedKts(ctx.Category) : double.MaxValue;
+        // A corner arc must never be flown faster than its local cornering speed anywhere along it — the
+        // braking curve only treats it as a future approach limit, so hold the current arc to its own profile.
+        _currentArcProfile = seg.Edge.Edge is GroundArc currentArc ? OrientedProfile(currentArc, seg.Edge, ctx.Category) : null;
 
         DetectShortConnector(route, ctx, seg);
 
@@ -1274,11 +1351,15 @@ public sealed class GroundNavigator
 
             if (futureSeg.Edge.Edge is GroundArc futureArc)
             {
-                double arcMaxSpeed = futureArc.MaxSafeSpeedKts(ctx.Category);
-                if (arcMaxSpeed < MaxSpeedKts)
+                // One constraint per profile sample, so the braking curve targets the arc's local cornering
+                // speed where the curve is actually tight rather than its tightest point at the entry.
+                double arcStartDist = cumulativeDistNm - futureSeg.Edge.DistanceNm;
+                foreach (var sample in OrientedProfile(futureArc, futureSeg.Edge, ctx.Category))
                 {
-                    double arcStartDist = cumulativeDistNm - futureSeg.Edge.DistanceNm;
-                    _speedConstraints.Add((arcStartDist, arcMaxSpeed, futureSeg.Edge.FromNodeId));
+                    if (sample.SpeedKts < MaxSpeedKts)
+                    {
+                        _speedConstraints.Add((arcStartDist + (sample.LengthFt / GeoMath.FeetPerNm), sample.SpeedKts, futureSeg.Edge.FromNodeId));
+                    }
                 }
             }
 

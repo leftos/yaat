@@ -115,16 +115,3 @@ public sealed record SearchFrontierEntry(PartialRoute Route, double FScore) : IC
         return other.Route.Depth.CompareTo(Route.Depth);
     }
 }
-
-/// <summary>
-/// Accumulated cost breakdown for diagnostics and variant scoring.
-/// </summary>
-public sealed record RouteCostBreakdown(
-    double DistanceNm,
-    double TurnBudgetDeg,
-    int TaxiwayTransitions,
-    int RunwayCrossings,
-    int DirectionReversals,
-    int ReverseArcPenalties,
-    double UnauthorizedTaxiwayCost
-);

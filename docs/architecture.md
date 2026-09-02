@@ -12,7 +12,7 @@
 | **Altitude commands** | `AltitudeResolver.cs`, `FlightCommandHandler.cs`, `FlightPhysics.cs` (UpdateAltitude), `ControlTargets.cs` |
 | **Speed commands** | `FlightCommandHandler.cs`, `FlightPhysics.cs` (UpdateSpeed/UpdateSpeedPlanning), `ControlTargets.cs`, `AircraftPerformance.cs` |
 | **Heading/navigation** | `FlightCommandHandler.cs`, `NavigationCommandHandler.cs`, `FlightPhysics.cs` (UpdateNavigation/UpdateHeading), `ControlTargets.cs` |
-| **Ground taxiing** | `GroundNavigator.cs`, `TaxiPathfinder.cs`, `TaxiingPhase.cs`, `TaxiRoute.cs`, `AirportGroundLayout.cs` |
+| **Ground taxiing** | `GroundNavigator.cs`, `TaxiPathfinder.cs`, `TaxiingPhase.cs`, `TaxiRoute.cs`, `AirportGroundLayout.cs`, `RouteCostFunction.cs`, `GeometricAdmissibility.cs`, `AutoRouter.cs`, `SegmentExpander.cs`, `PartialRoute.cs` |
 | **Ground layout parsing** | `GeoJsonParser.cs`, `IFilletArcGenerator` / `FilletGeneratorFactory`, `FilletArcGenerator.cs` + `Fillet/` (plan-then-execute edge-split), `TaxiwayGraphBuilder.cs`, `CoordinateIndex.cs` |
 | **Runway exits** | `LandingPhase.cs`, `RunwayExitPhase.cs`, `ExitPreference.cs`, `AirportGroundLayout.cs` (FindExitPath) |
 | **Approach procedures** | `ApproachCommandHandler.cs`, `ApproachNavigationPhase.cs`, `FinalApproachPhase.cs`, `CifpParser.cs` |
@@ -74,9 +74,13 @@ The Task Index above tells you *which files*; these docs explain *how each subsy
 ## Test Locations
 
 - **Sim tests**: `tests/Yaat.Sim.Tests/` — commands, phases, physics, parsers, nav data
+  - **Pathfinding**: `Pathfinding/FilletCornerRoutingTests.cs` (fillet arc vs square-pivot routing), `Pathfinding/AutoRouterPruningTests.cs` (A* pruning via arrival taxiway), `Pathfinding/ArcRadiusFloorAdmissibilityTests.cs` (steerable radius floor)
+  - **Fillet arc speed**: `Fillet/GroundArcSpeedProfileTests.cs` (local-curvature arc speed), `GroundNavigatorArcSpeedProfileTests.cs` (navigator speed profile application), `GroundNavigatorStraightHandoffTests.cs` (straight-after-arc heading release)
+  - **Ground taxi**: `Simulation/GroundTaxi/OakUwFilletCornerTests.cs` (bundle replay: fillet routing + speed profiles)
+  - **Route geometry guards**: `Helpers/RouteGeometryAsserts.cs` (structural: no square pivot where fillet exists)
 - **Client tests**: `tests/Yaat.Client.Tests/` — view model logic, command input
 - **UI tests**: `tests/Yaat.Client.UI.Tests/` — headless window tests for views and layout
-- **Test data**: `tests/Yaat.Sim.Tests/TestData/` — NavData.dat + `navdata-manifest.json`, FAACIFP18.gz + `cifp-manifest.json`, airport GeoJSON. Refresh pins: `tools/refresh-navdata.py`, FAA CIFP via `CifpPathResolver` at test load.
+- **Test data**: `tests/Yaat.Sim.Tests/TestData/` — NavData.dat + `navdata-manifest.json`, FAACIFP18.gz + `cifp-manifest.json`, airport GeoJSON, `oak-u-w-fillet-corner-recording.zip` (E2E fillet routing test fixture). Refresh pins: `tools/refresh-navdata.py`, FAA CIFP via `CifpPathResolver` at test load.
 - **Shared loader**: `TestVnasData.EnsureInitialized()` — always use this, never synthetic stubs
 
 ## Root Scripts
@@ -699,6 +703,7 @@ Commands/RunwaySafetyAdvisor.cs     # Non-blocking 7110.65 3-9-4/3-9-6 occupied-
 Commands/StripCommandHandler.cs     # Flight strip CRUD (STRIP, SCAN, STRIPD, STRIPO, AN, HSC, HSA, HSD, HSM, HSO, HSS, SEP, SEPD, BLANK, BLANKD); dispatches to StripMutations
 Commands/FlightPlanCommandHandler.cs # Flight-plan amendment validation: TryChangeDestination resolves FAA/ICAO airport input via NavigationDatabase.TryResolveAirport,
                                     # writes canonical ICAO to FlightPlan.Destination, rejects unknown airports. Called from yaat-server's RoomEngine APT handler.
+Commands/MilitaryRouteCommandHandler.cs # Military training route (AP/1B) commands; occupancy/route advisories go to PendingWarnings (never prefixed with the aircraft's own callsign)
 
 # Phases/ — clearance-gated behavior
 Phases/Phase.cs                # Abstract: OnStart/OnTick/OnEnd, CanAcceptCommand→CommandAcceptance, OnCommandAccepted (release internal state machines on accept), ManagesSpeed (suppresses auto schedule), IsIdleAwaitingCommands (terminal phases awaiting controller input; lets queue advance untriggered blocks while idle)
@@ -767,7 +772,7 @@ AirborneFollowHelper.cs        # Shared spacing math. GetAdjustedSpeed for patte
 # Phases/Ground/
 AtParkingPhase / PushbackPhase (simple + heading + targeted-position + spot pull-forward; `PUSH @parking` reverses directly to the gate, `PUSH $spot` reverses past the mark then pulls forward nose-out — see docs/ground/pushback.md) / PushbackToSpotPhase (retained for snapshot restore of pre-#233 recordings only; never created by the command path) / TaxiingPhase / HoldingShortPhase
 CrossingRunwayPhase / HoldingAfterExitPhase / FollowingPhase
-GroundNavigator.cs           # Core ground nav: closed-form arc playback (plays the real cubic Bezier), pure-pursuit tracking, turn-rate-feasibility corner-speed cap, entry-alignment rounding, orbit invariant
+GroundNavigator.cs           # Core ground nav: closed-form arc playback (plays the real cubic Bezier), pure-pursuit tracking, turn-rate-feasibility corner-speed cap (arc speed profile limits target by local fillet curvature), entry-alignment rounding, orbit invariant, ReleaseHeadingHold when a straight primitive takes over from an arc
 RunwayExitPhase.cs             # Rolls on centerline until exit found; builds TaxiRoute from exit path and hands off to TaxiingPhase
 HoldingAfterExitPhase.cs       # Post-exit hold: broadcasts "clear of runway", faces away from runway, awaits taxi command
 ClearRunwayPhase.cs            # CLRWY: pulls a tail-over-runway aircraft (hold-short of a taxiway sitting closer than its own length past a crossed runway) forward until just clear (½ length past the bars), then holds
@@ -869,6 +874,11 @@ Data/OneWayConstraintDefinition.cs # One-way taxiway + blocked-turn DTOs (coordi
 Data/Airport/Pathfinding/VisitedNodeSet.cs # Per-PartialRoute visited-node set: immutable sorted int[] (copy-on-Add, binary-search Contains); replaced ImmutableHashSet<int>
 Data/Airport/Pathfinding/PolylineSnapper.cs # Shared snap-to-node + connected-span trace (direct edge / taxiway-restricted BFS) for the coordinate-polyline sidecar constructs; used by OneWayResolver and BlockedTurnResolver.
 Data/Airport/Pathfinding/OneWayResolver.cs / OneWayMode.cs # Resolves oneWayEdges against a layout into a forbidden directed-move set (ConditionalWeakTable per-layout cache). SearchContext.IsForbiddenMove gates AutoRouter (HardExclude, auto routes) ; RouteMaterialiser emits a wrong-way warning (Warn, explicit routes + the auto two-pass fallback in TaxiPathfinder.RunWithAvoidance).
+Data/Airport/Pathfinding/RouteCostFunction.cs # Single cost function for every search: distance, turn budget (head-node delta + a fillet's sweep), taxiway transitions, runway crossings; Fastest adds traversal time (straight at taxi speed, arc via GroundArc.TraversalSeconds) plus the corner's speed dip and nose-wheel-radius pivot sweep
+Data/Airport/Pathfinding/GeometricAdmissibility.cs # Hard gates on every edge: per-category heading-change limit, MinSteerableArcRadiusFt (fillets tighter than the smallest category nose-wheel radius are not routable); PruningStateKey = (node, 1° arrival-bearing bucket, arrival taxiway) for the state-aware closed set
+Data/Airport/Pathfinding/AutoRouter.cs # Flat A* over the ground graph (auto routes, detours, reach probes): Run / RunWithCost (also returns the search's accumulated cost), same-side centerline-run re-run, MaxExpansions cap
+Data/Airport/Pathfinding/SegmentExpander.cs # Explicit named-taxiway resolver: per-segment local searches, junction picks scored by tail probes (ProbeTailCost + ProbeDestinationReachCost, the latter priced with the A*'s own cost), parking→taxiway bridge, implicit connectors, detour fallback
+Data/Airport/Pathfinding/PartialRoute.cs # Immutable linked-list search state: head node, arrival bearing, last edge/taxiway, accumulated cost, visited node set (copy-on-Add sorted int[]); MaterialiseEdges
 Data/Airport/LandingThreshold.cs # Resolve(RunwayInfo, AirportGroundLayout? | GroundRunway?) -> the end's LANDING threshold: the pavement threshold projected downfield by the airport map's `threshold` displacement, along RunwayInfo's own course (so it stays on the centerline every along/cross-track calc uses). Falls back to the pavement threshold with no layout, which is what pre-existing replays depend on. Arrival-side callers (FinalApproachPhase, LandingPhase, LowApproachPhase, ApproachNavigationPhase, InterceptCoursePhase, PatternGeometry, ApproachGateDatabase, SoloTrainingEvaluator) go through it; departure/surface callers deliberately do not. Datum table: landing-and-runway-exit.md.
 Data/Airport/AdwResolver.cs    # Resolves the adw sidecar section against a layout (per-layout cached, same shape as BlockedTurnResolver) into AdwMark line segments: an Outer and an Inner tick per window, laid perpendicular to the arrival runway's final approach course at the published ranges from its landing threshold (positive = outbound on final, negative = past the threshold, down the runway). DtoConverter -> GroundLayoutDto.AdwMarks -> GroundRenderer.DrawAdwMarks. Display-only; no simulation behavior reads it. See ground-rendering.md.
 Data/Airport/Pathfinding/BlockedTurnResolver.cs # Resolves blockedTurns against a layout (per-layout cached) into forbidden pivot turn-triples (prev,apex,next), forbidden bypass-arc moves, and hidden corner-arc pairs. Gated hard in AutoRouter + SegmentExpander (SearchContext.IsBlockedTurn / IsBlockedArcMove, both AUTO and explicit). HiddenArcPairs -> GroundArcDto.HiddenInGroundView (DtoConverter) -> GroundRenderer omits the arc.
@@ -905,7 +915,7 @@ Data/HttpFileCache.cs          # Shared vNAS download→disk cache: AlwaysRefetc
 # Data/Airport/
 IAirportGroundData.cs          # Interface: GetLayout(airportId) + GetSourceGeoJson(airportId)
 AirportLayoutDownloader.cs     # Fetches airport ground GeoJSON from vNAS training API; caches under %LOCALAPPDATA%/yaat/cache/airports/
-AirportGroundLayout.cs         # Graph: IGroundEdge interface, GroundNode, GroundEdge (straight), GroundArc (bezier fillet arc: P1/P2 control points + MinRadiusOfCurvatureFt), DirectionalEdge (traversal direction)
+AirportGroundLayout.cs         # Graph: IGroundEdge interface, GroundNode, GroundEdge (straight), GroundArc (bezier fillet arc: P1/P2 control points + MinRadiusOfCurvatureFt, SafeSpeedForRadiusKts per category, SpeedProfile(category) cached local-curvature speed samples, TraversalSeconds). DirectionalEdge (traversal direction).
                                # GroundRunway.ThresholdDisplacementForEnd / LandingThresholdForEnd expose the vNAS map's per-end `threshold` displacement (Coordinates endpoints are *pavement* ends, and so are RunwayInfo's). Read by AdwResolver and by Data/Airport/LandingThreshold.cs.
                                # AllEdges (Edges+Arcs), FindAdjacentHoldShort (BFS, max 12 hops; returns Side), FindExitFromCenterline (walk centerlines, returns side+walk node), FindOnSidePreferredExit (lookahead: defer off-side, prefer later on-side), FindExitPath, FindNearestHoldShortAhead, FindExitAheadOnRunway, ComputeExitAngle
 CubicBezier.cs                 # Bezier math utilities; used by FilletArcGenerator (arc generation) and GroundNavigator (path following)

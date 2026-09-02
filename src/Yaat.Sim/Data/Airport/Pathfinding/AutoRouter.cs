@@ -34,6 +34,22 @@ public static class AutoRouter
         int maxExpansions = MaxExpansions
     )
     {
+        var (route, failure, _) = RunWithCost(ctx, startOverride, maxExpansions);
+        return (route, failure);
+    }
+
+    /// <summary>
+    /// <see cref="Run"/> plus the search's own accumulated cost of the returned route beyond
+    /// <paramref name="startOverride"/> — every <see cref="RouteCostFunction.IncrementalCost"/> term
+    /// (distance, turns, transitions, crossings, centerline multiplier), not just its length — so a caller
+    /// scoring this route against other cost-function tails compares like with like. 0 when no route.
+    /// </summary>
+    public static (TaxiRoute? Route, PathfindingFailure? Failure, double Cost) RunWithCost(
+        SearchContext ctx,
+        PartialRoute? startOverride,
+        int maxExpansions
+    )
+    {
         if (ctx.Destination.Kind == DestinationKind.EndOfLastTaxiway)
         {
             return (
@@ -44,7 +60,8 @@ public static class AutoRouter
                     null,
                     null,
                     null
-                )
+                ),
+                0.0
             );
         }
 
@@ -52,7 +69,8 @@ public static class AutoRouter
         {
             return (
                 null,
-                new PathfindingFailure(FailureKind.StartNodeUnreachable, $"Start node {ctx.StartNodeId} not found in layout.", null, null, null)
+                new PathfindingFailure(FailureKind.StartNodeUnreachable, $"Start node {ctx.StartNodeId} not found in layout.", null, null, null),
+                0.0
             );
         }
 
@@ -63,7 +81,11 @@ public static class AutoRouter
         {
             if (ctx.Destination.RunwayId is null)
             {
-                return (null, new PathfindingFailure(FailureKind.DestinationUnreachable, "Runway destination has no RunwayId.", null, null, null));
+                return (
+                    null,
+                    new PathfindingFailure(FailureKind.DestinationUnreachable, "Runway destination has no RunwayId.", null, null, null),
+                    0.0
+                );
             }
 
             var holdShortNodes = ctx.Layout.GetRunwayHoldShortNodes(ctx.Destination.RunwayId);
@@ -77,7 +99,8 @@ public static class AutoRouter
                         null,
                         null,
                         ctx.Destination.RunwayId
-                    )
+                    ),
+                    0.0
                 );
             }
 
@@ -94,7 +117,8 @@ public static class AutoRouter
                     null,
                     null,
                     null
-                )
+                ),
+                0.0
             );
         }
 
@@ -103,7 +127,7 @@ public static class AutoRouter
         {
             ctx.DiagnosticLog?.Invoke($"[auto] trivial route — start == destination node {ctx.StartNodeId}");
             var emptyRoute = RouteMaterialiser.Materialise([], ctx, []);
-            return (emptyRoute, null);
+            return (emptyRoute, null, 0.0);
         }
 
         // A returned path may use an uncleared runway as a same-side shortcut (on at one exit, off
@@ -149,11 +173,12 @@ public static class AutoRouter
                 null,
                 null,
                 null
-            )
+            ),
+            0.0
         );
     }
 
-    private static (TaxiRoute? Route, PathfindingFailure? Failure) RunAstar(
+    private static (TaxiRoute? Route, PathfindingFailure? Failure, double Cost) RunAstar(
         SearchContext ctx,
         GroundNode startNode,
         GroundNode destinationNode,
@@ -171,7 +196,7 @@ public static class AutoRouter
         // dead-end bearing must not suppress the only admissible (different-bearing) arrival
         // (see GeometricAdmissibility.PruningStateKey). The heuristic is bearing-independent, so
         // A* optimality is preserved within the (node, bucket) state space.
-        var bestGScore = new Dictionary<(int Node, int Bucket), double>();
+        var bestGScore = new Dictionary<(int Node, int Bucket, string Taxiway), double>();
 
         int expansions = 0;
         PartialRoute? deepestViable = null;
@@ -181,7 +206,8 @@ public static class AutoRouter
         // the search starts cold (admissibility skips the first edge).
         var startRoute = startOverride ?? PartialRoute.StartAt(ctx.StartNodeId);
         double startHeuristic = RouteCostFunction.Heuristic(startNode, destinationNode);
-        bestGScore[GeometricAdmissibility.PruningStateKey(startRoute.HeadNodeId, startRoute.ArrivalBearing)] = startRoute.AccumulatedCost;
+        bestGScore[GeometricAdmissibility.PruningStateKey(startRoute.HeadNodeId, startRoute.ArrivalBearing, startRoute.LastTaxiwayName)] =
+            startRoute.AccumulatedCost;
         openSet.Enqueue(startRoute, startRoute.AccumulatedCost + startHeuristic);
 
         ctx.DiagnosticLog?.Invoke(
@@ -205,14 +231,17 @@ public static class AutoRouter
                         null,
                         null,
                         null
-                    )
+                    ),
+                    0.0
                 );
             }
 
             // Skip stale queue entries: a cheaper path to this (node, bearing-bucket) state was already expanded.
             if (
-                bestGScore.TryGetValue(GeometricAdmissibility.PruningStateKey(current.HeadNodeId, current.ArrivalBearing), out double recordedBest)
-                && (current.AccumulatedCost > recordedBest + 1e-9)
+                bestGScore.TryGetValue(
+                    GeometricAdmissibility.PruningStateKey(current.HeadNodeId, current.ArrivalBearing, current.LastTaxiwayName),
+                    out double recordedBest
+                ) && (current.AccumulatedCost > recordedBest + 1e-9)
             )
             {
                 continue;
@@ -231,7 +260,7 @@ public static class AutoRouter
 
                 var edges = current.MaterialiseEdges(baseDepth);
                 var route = RouteMaterialiser.Materialise(edges, ctx, []);
-                return (route, null);
+                return (route, null, current.AccumulatedCost - startRoute.AccumulatedCost);
             }
 
             // Track deepest viable partial route for SearchExhausted diagnostics.
@@ -329,8 +358,9 @@ public static class AutoRouter
                     ? current.ArrivalBearing
                     : GeometricAdmissibility.GetArrivalBearing(edge, headNode, nextNode);
 
-                // Skip if we already have a cheaper or equal path to this (node, bearing-bucket) state.
-                var nextKey = GeometricAdmissibility.PruningStateKey(nextNode.Id, arrivalBearing);
+                // Skip if we already have a cheaper or equal path to this (node, bearing-bucket, taxiway) state.
+                string taxiwayName = RouteCostFunction.ResolveTaxiwayName(edge, current.HeadNodeId);
+                var nextKey = GeometricAdmissibility.PruningStateKey(nextNode.Id, arrivalBearing, taxiwayName);
                 if (bestGScore.TryGetValue(nextKey, out double existingBest) && (newGScore >= existingBest - 1e-9))
                 {
                     rejected++;
@@ -339,8 +369,6 @@ public static class AutoRouter
 
                 admitted++;
                 bestGScore[nextKey] = newGScore;
-
-                string taxiwayName = RouteCostFunction.ResolveTaxiwayName(edge, current.HeadNodeId);
 
                 var extended = current with
                 {
@@ -381,7 +409,8 @@ public static class AutoRouter
                 null,
                 null,
                 null
-            )
+            ),
+            0.0
         );
     }
 

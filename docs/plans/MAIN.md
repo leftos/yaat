@@ -4,6 +4,15 @@ Entry point for `docs/plans/`. Each row links a subplan; open/done counts are th
 A fresh agent should start from **Current focus**, then **Next up**, and treat **Backlog** as unscheduled. Finished plans move to
 [`archive/`](./archive/); issue-specific plans live in [`open-issues/`](./open-issues/) and are deleted once implemented.
 
+## Session 2026-09-01 — S2-OAK-2 bundle (LUAW after touchdown, taxi corners)
+
+- [x] A. LUAW 3-9-4.c warning ends at touchdown (`IsClearanceStillPendingUse` = airborne); advisories stop repeating the callsign — committed `d27971a9`.
+- [ ] A′. Follow-up from review: reword the advisor doc comments (3-9-4.a is clearance-agnostic and "contemplates"; 3-9-6.b protects the LUAW aircraft at takeoff-clearance time; drop the 3-9-5 reasoning in code and in the theory test comment); add a 3-9-6.b advisory when a takeoff clearance is issued over a *simulated* landed arrival still on the pavement (`RunwayOccupancy.Classify`, excluding occupants the LUAW/holding branches already count); citation tweaks (§3-10-3.a for stopped traffic, 3-10-5.e only for a holding occupant); MTR handler callsign prefix already stripped in the tree.
+- [ ] C. Fillet corners: reverse-arc penalty removed; arc sweep in the turn budget; Fastest priced by traversal time + corner dip; local-curvature arc speed profile; A* closed set keyed by arrival taxiway; reach-cost detours priced with the search's own cost; fillets below the 10-ft steerable floor inadmissible; navigator releases the physics heading hold when a straight takes over. Guard `RouteGeometryAsserts` on every coverage pair. → commit via `/changelog-and-commit`.
+- [ ] C′. Category-aware fillet floor (`NoseWheelTurnRadiusFt`: 25 ft jet / 18 turboprop / 15 piston): reroutes ~9 % of jet fillets at OAK/SFO, needs the PathfinderGrid/Nightly sweeps and the SFO J133 (issue 165) case re-judged. Also from review: intra-fillet no-surge rule in `ArcProfileLimitKts`; `SpeedProfile` sample count vs missed curvature minima; the <45° straight-cut corner speed gap (`CornerSpeedForAngle` 26 kt at 45° vs ~10 kt over the arc).
+- [ ] D. Post-corner wiggle: `LookAheadFloorFt` (10 ft) → `CategoryPerformance.NoseWheelTurnRadiusFt(category)` in `TickStraight`; test `SmallOffset_ReacquiresWithoutHeadingHunt`; OAK tick-table comparison.
+- [ ] Wrap-up: `test-all.ps1 -Full`, `architecture-updater`, memory notes, delete `.tmp` scratch.
+
 ## Current focus (session 2026-09-01 — controller AI, milestones H0 → CA0)
 - [x] **H0 — headless host + soak-runner skeleton (no AI)** — shipped 2026-09-01; see [controller-ai/README.md](./controller-ai/README.md) milestone table + [07-soak-runner.md](./controller-ai/07-soak-runner.md)
   - [x] yaat: `SimulationEngine.DeleteAircraft` stamps `CompletionReason.Dropped` on DEL (live + replay) + `Yaat.Sim.Soak.CapturingSimLogProvider`

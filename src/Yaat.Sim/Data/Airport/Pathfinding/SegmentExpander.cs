@@ -540,9 +540,14 @@ public static class SegmentExpander
     /// used by <see cref="ProbeTailCost"/> so a junction whose tail dead-ends short of the destination
     /// does not score deceptively cheap. Runs a bounded A* from the tail terminus — inheriting its
     /// arrival bearing via <paramref name="tailHead"/> so admissibility fires on the first reach edge —
-    /// to the destination node. Bounded to <see cref="MaxDetourExpansions"/> expansions; a destination
-    /// unreachable within that bound returns <see cref="TailUnresolvablePenaltyNm"/> — either way the
-    /// dead-ending junction is penalised out of contention.
+    /// to the destination node. The detour is priced with the search's own accumulated cost — turns,
+    /// transitions, crossings and the centerline multiplier, not bare distance — because it competes
+    /// against other candidates' tails that carry every one of those terms: priced by distance alone, a
+    /// wrong-way junction whose way out is a loop across a runway (OAK "TAXI G C D @NEW1": back down C,
+    /// E, across 28R, G) scored 0.2 nm under the straight G→D junction. Bounded to
+    /// <see cref="MaxDetourExpansions"/> expansions; a destination unreachable within that bound returns
+    /// <see cref="TailUnresolvablePenaltyNm"/> — either way the dead-ending junction is penalised out of
+    /// contention.
     /// </summary>
     private static double ProbeDestinationReachCost(PartialRoute tailHead, int destinationNodeId, SearchContext ctx)
     {
@@ -560,16 +565,10 @@ public static class SegmentExpander
             AuthorizedTaxiways = null,
         };
 
-        var (route, failure) = AutoRouter.Run(reachCtx, startOverride: tailHead, maxExpansions: MaxDetourExpansions);
+        var (route, failure, reachCost) = AutoRouter.RunWithCost(reachCtx, tailHead, MaxDetourExpansions);
         if (failure is not null || route is null)
         {
             return TailUnresolvablePenaltyNm;
-        }
-
-        double reachCost = 0.0;
-        foreach (var seg in route.Segments)
-        {
-            reachCost += seg.Edge.DistanceNm;
         }
 
         return reachCost;
@@ -1845,7 +1844,7 @@ public static class SegmentExpander
         // Keyed by (node, arrival-bearing-bucket): onward admissibility depends on arrival bearing,
         // so node-id-only pruning would let a cheaper dead-end arrival suppress the only admissible
         // arrival (see GeometricAdmissibility.PruningStateKey).
-        var bestGScore = new Dictionary<(int Node, int Bucket), double>();
+        var bestGScore = new Dictionary<(int Node, int Bucket, string Taxiway), double>();
         int expansions = 0;
         PartialRoute? deepest = null;
         int admittedTotal = 0;
@@ -1854,7 +1853,8 @@ public static class SegmentExpander
         double h0 = ctx.Layout.Nodes.TryGetValue(startHead.HeadNodeId, out var sn) ? RouteCostFunction.Heuristic(sn, destNode) : 0.0;
 
         openSet.Enqueue(startHead, startHead.AccumulatedCost + h0);
-        bestGScore[GeometricAdmissibility.PruningStateKey(startHead.HeadNodeId, startHead.ArrivalBearing)] = startHead.AccumulatedCost;
+        bestGScore[GeometricAdmissibility.PruningStateKey(startHead.HeadNodeId, startHead.ArrivalBearing, startHead.LastTaxiwayName)] =
+            startHead.AccumulatedCost;
 
         while (openSet.Count > 0)
         {
@@ -1871,8 +1871,10 @@ public static class SegmentExpander
             }
 
             if (
-                bestGScore.TryGetValue(GeometricAdmissibility.PruningStateKey(current.HeadNodeId, current.ArrivalBearing), out double recorded)
-                && (current.AccumulatedCost > recorded + 1e-9)
+                bestGScore.TryGetValue(
+                    GeometricAdmissibility.PruningStateKey(current.HeadNodeId, current.ArrivalBearing, current.LastTaxiwayName),
+                    out double recorded
+                ) && (current.AccumulatedCost > recorded + 1e-9)
             )
             {
                 continue;
@@ -1991,7 +1993,8 @@ public static class SegmentExpander
                     ? current.ArrivalBearing
                     : GeometricAdmissibility.GetArrivalBearing(edge, headNode, nextNode);
 
-                var nextKey = GeometricAdmissibility.PruningStateKey(nextNode.Id, arrival);
+                string twyName = RouteCostFunction.ResolveTaxiwayName(edge, current.HeadNodeId);
+                var nextKey = GeometricAdmissibility.PruningStateKey(nextNode.Id, arrival, twyName);
                 if (bestGScore.TryGetValue(nextKey, out double existing) && (newGScore >= existing - 1e-9))
                 {
                     ctx.DiagnosticLog?.Invoke(
@@ -2003,8 +2006,6 @@ public static class SegmentExpander
                 }
 
                 bestGScore[nextKey] = newGScore;
-
-                string twyName = RouteCostFunction.ResolveTaxiwayName(edge, current.HeadNodeId);
 
                 ctx.DiagnosticLog?.Invoke(
                     $"[local-edge] {current.HeadNodeId}->{nextNode.Id} twy={edge.TaxiwayName} ADMIT "

@@ -1,3 +1,5 @@
+using Yaat.Sim.Phases.Ground;
+
 namespace Yaat.Sim.Data.Airport.Pathfinding;
 
 /// <summary>
@@ -6,8 +8,9 @@ namespace Yaat.Sim.Data.Airport.Pathfinding;
 /// (<see cref="RoutePreference.Shortest"/> / <see cref="RoutePreference.FewestTurns"/>) every term is
 /// nm-equivalent, so the straight-line <see cref="Heuristic"/> is both admissible (never overestimates)
 /// and informative. The <see cref="RoutePreference.Fastest"/> branch additionally adds a time-equivalent
-/// term (<c>distance / maxSafeSpeed</c>, in seconds) onto the same scalar, which dominates the nm terms
-/// by ~2 orders of magnitude: the nm heuristic still never overestimates that larger time-dominated cost
+/// term onto the same scalar — traversal at the edge's own speed (a straight at taxi speed, a fillet along
+/// its local cornering profile) plus the corner's speed dip and pivot sweep, in seconds — which dominates
+/// the nm terms by ~2 orders of magnitude: the nm heuristic still never overestimates that larger cost
 /// (so A* stays optimal), but it provides little guidance, so Fastest searches degrade toward Dijkstra.
 /// That is acceptable — Fastest is never the default preference (<see cref="TaxiPathfinder.FindRoute"/>
 /// uses FewestTurns) and the routes returned are correct, just found with more expansions.
@@ -45,9 +48,6 @@ public static class RouteCostFunction
 
     /// <summary>Each direction reversal: ~3000 ft — strong disincentive.</summary>
     public const double DirectionReversalCostNm = 0.5;
-
-    /// <summary>Each reverse-arc traversal: stronger than reversal, arcs produce the hardest spins.</summary>
-    public const double ReverseArcCostNm = 0.8;
 
     /// <summary>First use of each unauthorized letter taxiway — encourages bridging through one rather than none.</summary>
     public const double UnauthorizedTaxiwayFirstUseCostNm = 0.2;
@@ -111,34 +111,34 @@ public static class RouteCostFunction
 
         cost += distanceCost;
 
-        // Fastest time-cost: distance / maxSafeSpeed gives a time-equivalent penalty (seconds),
-        // added on top of the nm distance component so slower arcs cost proportionally more. This
-        // mixes units into the scalar by design — see the class summary; the term dominates, so the
-        // nm heuristic stays admissible but weak for Fastest.
-        if (ctx.Preference == RoutePreference.Fastest)
+        // Heading change at the current head node: from the previous edge's arrival bearing onto this
+        // edge's departure bearing (an arc's entry tangent). Null on the first edge, which has no prior.
+        double? headTurnDeg = null;
+        if (current.LastEdge is not null && FindPrevNode(current, candidate) is not null)
         {
-            double maxSafeSpeedKts = candidate.MaxSafeSpeedKts(ctx.Category);
-            if (maxSafeSpeedKts > 0.0 && !double.IsPositiveInfinity(maxSafeSpeedKts))
-            {
-                double maxSafeSpeedNmPerSec = maxSafeSpeedKts / 3600.0;
-                cost += candidate.DistanceNm / maxSafeSpeedNmPerSec;
-            }
+            GroundNode headNode = candidate.Nodes[0].Id == current.HeadNodeId ? candidate.Nodes[0] : candidate.Nodes[1];
+            double departureBearing = GeometricAdmissibility.GetDepartureBearing(candidate, headNode, nextNode);
+            headTurnDeg = HeadingDelta(current.ArrivalBearing, departureBearing);
         }
 
-        // Turn penalty: heading change at the current head node.
-        if (ctx.Preference != RoutePreference.Shortest && current.LastEdge is not null)
+        // Fastest time-cost (seconds): the edge at its own speed ceiling plus what the corner into it costs
+        // — the speed dip down to the cornering speed and back, and the sweep of a nose-wheel-radius pivot.
+        // Added on top of the nm distance component; this mixes units into the scalar by design — see the
+        // class summary; the term dominates, so the nm heuristic stays admissible but weak for Fastest.
+        if (ctx.Preference == RoutePreference.Fastest)
         {
-            double headNodeId = current.HeadNodeId;
-            GroundNode headNode = candidate.Nodes[0].Id == (int)headNodeId ? candidate.Nodes[0] : candidate.Nodes[1];
-            GroundNode? prevNode = FindPrevNode(current, candidate);
+            cost += TraversalTimeSeconds(candidate, ctx.Category) + CornerTimeSeconds(candidate, headTurnDeg, ctx.Category);
+        }
 
-            if (prevNode is not null)
-            {
-                double arrivalBearing = current.ArrivalBearing;
-                double departureBearing = GeometricAdmissibility.GetDepartureBearing(candidate, headNode, nextNode);
-                double delta = HeadingDelta(arrivalBearing, departureBearing);
-                cost += delta * turnWeight;
-            }
+        // Turn budget: the heading change at the head node plus, for a fillet arc, the arc's own sweep.
+        // An arc's tangents match the adjoining straights, so its head-node delta is ~0 and the sweep is
+        // the whole turn; charging it prices a turn the same whether the route takes the painted fillet or
+        // pivots square at the junction centre, and keeps a sharp fillet (a U-turn-like arc at a ramp
+        // interchange) from reading as a free turn.
+        if (ctx.Preference != RoutePreference.Shortest)
+        {
+            double turnDeg = (headTurnDeg ?? 0.0) + (candidate is GroundArc sweptArc ? sweptArc.TurnAngleDeg : 0.0);
+            cost += turnDeg * turnWeight;
         }
 
         // First-hop heading bias: the turn penalty above is skipped on the first edge (no prior edge),
@@ -188,17 +188,6 @@ public static class RouteCostFunction
             }
         }
 
-        // Reverse arc penalty.
-        if (candidate is GroundArc arc)
-        {
-            GroundNode headNode2 = candidate.Nodes[0].Id == current.HeadNodeId ? candidate.Nodes[0] : candidate.Nodes[1];
-            bool isReverseArc = arc.Nodes[0].Id != headNode2.Id;
-            if (isReverseArc && ctx.Preference != RoutePreference.Shortest)
-            {
-                cost += ReverseArcCostNm;
-            }
-        }
-
         // Fix C — Direction reversal penalty is NOT applied here. Applying a per-edge
         // penalty for edges pointing away from the start→destination bearing causes
         // A* to explore exponentially more nodes on cross-airport routes (which must
@@ -233,6 +222,71 @@ public static class RouteCostFunction
         }
 
         return cost;
+    }
+
+    /// <summary>
+    /// Seconds to cover <paramref name="edge"/> as the navigator flies it: a fillet along its local
+    /// cornering-speed profile (<see cref="GroundArc.TraversalSeconds"/>), a straight at the category's taxi speed.
+    /// </summary>
+    private static double TraversalTimeSeconds(IGroundEdge edge, AircraftCategory category)
+    {
+        if (edge is GroundArc arc)
+        {
+            return arc.TraversalSeconds(category);
+        }
+
+        return edge.DistanceNm / (CategoryPerformance.TaxiSpeed(category) / 3600.0);
+    }
+
+    /// <summary>
+    /// Seconds a corner costs beyond covering the ground, priced the way the navigator flies it. A fillet
+    /// arc: the dip from taxi speed down to the arc's <em>tightest</em> cornering speed
+    /// (<see cref="GroundArc.MaxSafeSpeedKts"/>) and back — the aircraft must reach that speed somewhere on
+    /// the curve, so the dip is real and only its location is approximated; the arc's sweep is already in
+    /// <see cref="TraversalTimeSeconds"/>. A bend between two straights: the dip to the corner speed,
+    /// and — when the bend is sharper than <see cref="GroundNavigator.EntryAlignmentThresholdDeg"/>, so the
+    /// navigator rounds it with a nose-wheel-radius slow-turn — that pivot's v/R-coupled sweep, which takes
+    /// turn/ω regardless of geometry. Without this term a square pivot through a junction centre priced
+    /// as two free straights beat the painted fillet under Fastest.
+    /// </summary>
+    private static double CornerTimeSeconds(IGroundEdge candidate, double? headTurnDeg, AircraftCategory category)
+    {
+        double taxiKts = CategoryPerformance.TaxiSpeed(category);
+        if (candidate is GroundArc arc)
+        {
+            return SpeedDipSeconds(category, taxiKts, arc.MaxSafeSpeedKts(category));
+        }
+
+        if (headTurnDeg is not { } turnDeg)
+        {
+            return 0.0;
+        }
+
+        bool slowTurn = turnDeg > GroundNavigator.EntryAlignmentThresholdDeg;
+        double cornerKts = slowTurn
+            ? CategoryPerformance.TurnRateLimitedSpeedKts(category, CategoryPerformance.NoseWheelTurnRadiusFt(category))
+            : CategoryPerformance.CornerSpeedForAngle(category, turnDeg);
+        double sweepSeconds = slowTurn ? turnDeg / CategoryPerformance.GroundTurnRate(category) : 0.0;
+        return sweepSeconds + SpeedDipSeconds(category, taxiKts, cornerKts);
+    }
+
+    /// <summary>
+    /// Seconds lost slowing from <paramref name="fromKts"/> to <paramref name="toKts"/> and accelerating
+    /// back, relative to holding <paramref name="fromKts"/> over the same ground: Δv² / (2·v) · (1/a_decel + 1/a_accel).
+    /// Treats the corner as a point (any dwell at the low speed is <see cref="TraversalTimeSeconds"/>' job)
+    /// and assumes the adjoining straight is long enough to regain <paramref name="fromKts"/>; when it is
+    /// not, the real loss is smaller, so the term only ever over-prices a corner.
+    /// </summary>
+    private static double SpeedDipSeconds(AircraftCategory category, double fromKts, double toKts)
+    {
+        double dvKts = fromKts - toKts;
+        if ((dvKts <= 0.0) || (fromKts <= 0.0))
+        {
+            return 0.0;
+        }
+
+        double accelSecondsPerKt = (1.0 / CategoryPerformance.TaxiDecelRate(category)) + (1.0 / CategoryPerformance.TaxiAccelRate(category));
+        return dvKts * dvKts / (2.0 * fromKts) * accelSecondsPerKt;
     }
 
     /// <summary>

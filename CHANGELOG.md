@@ -25,6 +25,11 @@
 - In solo training, answering a "ready to taxi" call with `TAXIAUTO` now closes the pilot's request instead of leaving the pilot re-asking every two minutes.
 - The `LUAW` "holds a landing clearance" warning (7110.65 3-9-4.c) fires only while the arrival is still airborne; a landed aircraft rolling out no longer triggers it.
 - Runway-safety advisories no longer repeat the aircraft's callsign at the start of the message.
+- Taxiing aircraft follow the painted fillet through corners instead of pivoting square at the junction centre and swinging back onto the centerline.
+- A fillet that is gentle for most of its length is taxied at speed and slowed only for its tight stretch.
+- `TAXIAUTO` no longer detours around a runway end when the direct route across the runway is cheaper.
+- Explicit taxi routes no longer resolve through fillets too tight for any aircraft to steer; OAK `TAXI F 33 D` back-taxis the runway between F and D again.
+- An aircraft crawling in a queue on a long straight after a corner no longer logs a spurious circling error and jumps ahead to the next node.
 
 ## v0.12.24-beta [2026/08/31]
 

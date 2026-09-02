@@ -4,6 +4,7 @@ using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Data.Airport.Pathfinding;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Phases.Pattern;
@@ -593,17 +594,17 @@ public class AirportE2ETests
         var names = new List<string>();
         foreach (var seg in route.Segments)
         {
-            if (
-                seg.TaxiwayName.StartsWith("RWY", StringComparison.OrdinalIgnoreCase)
-                || string.Equals(seg.TaxiwayName, "RAMP", StringComparison.OrdinalIgnoreCase)
-            )
+            // A fillet's composite label ("W - B") is the junction, not a taxiway of its own: count it as the
+            // taxiway it is entered from, exactly as the pathfinder's transition cost does.
+            string name = seg.Edge.Edge is GroundArc ? RouteCostFunction.ResolveTaxiwayName(seg.Edge.Edge, seg.FromNodeId) : seg.TaxiwayName;
+            if (name.StartsWith("RWY", StringComparison.OrdinalIgnoreCase) || string.Equals(name, "RAMP", StringComparison.OrdinalIgnoreCase))
             {
                 continue;
             }
 
-            if (names.Count == 0 || !string.Equals(names[^1], seg.TaxiwayName, StringComparison.OrdinalIgnoreCase))
+            if (names.Count == 0 || !string.Equals(names[^1], name, StringComparison.OrdinalIgnoreCase))
             {
-                names.Add(seg.TaxiwayName.ToUpperInvariant());
+                names.Add(name.ToUpperInvariant());
             }
         }
 

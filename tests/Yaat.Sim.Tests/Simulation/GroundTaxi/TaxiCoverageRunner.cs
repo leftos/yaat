@@ -199,6 +199,9 @@ internal static class TaxiCoverageRunner
         string command = BuildTaxiCommand(pair);
         var result = engine.SendCommand(aircraft.Callsign, command);
         Assert.True(result.Success, $"{pair.PairId}: command '{command}' failed: {result.Message}");
+        var assignedRoute = aircraft.Ground.AssignedTaxiRoute;
+        Assert.NotNull(assignedRoute);
+        RouteGeometryAsserts.AssertNoSquarePivotWhereFilletExists(assignedRoute, pair.PairId);
 
         var evaluator = new TaxiBudgetEvaluator();
         int observedTicks = 0;

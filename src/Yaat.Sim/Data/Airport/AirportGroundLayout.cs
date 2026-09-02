@@ -337,14 +337,96 @@ public sealed class GroundArc : IGroundEdge
     /// <see cref="CategoryPerformance.GroundYawRateAtSpeed"/> coupling.</item>
     /// </list>
     /// </summary>
-    public double MaxSafeSpeedKts(AircraftCategory category)
+    public double MaxSafeSpeedKts(AircraftCategory category) => SafeSpeedForRadiusKts(category, MinRadiusOfCurvatureFt);
+
+    /// <summary>
+    /// The <see cref="MaxSafeSpeedKts"/> limits evaluated at one radius of curvature: lateral acceleration
+    /// and the yaw-rate coupling at that radius, and the angle-comfort ceiling for the arc's <em>whole</em> turn
+    /// angle — a per-corner workload ceiling, not a local term, so it applies uniformly along the curve and
+    /// bounds how much a gentle stretch may run ahead of a tight one — floored at
+    /// <see cref="CategoryPerformance.SlowTurnSpeedKts"/>.
+    /// </summary>
+    public double SafeSpeedForRadiusKts(AircraftCategory category, double radiusFt)
     {
-        double radiusM = MinRadiusOfCurvatureFt * MetersPerFoot;
+        double radiusM = radiusFt * MetersPerFoot;
         double lateralAccelKts = Math.Sqrt(TaxiLateralAccelMps2 * radiusM) / KnotsToMetersPerSecond;
         double cornerCeilingKts = CategoryPerformance.CornerSpeedForAngle(category, TurnAngleDeg);
-        double yawRateKts = CategoryPerformance.TurnRateLimitedSpeedKts(category, MinRadiusOfCurvatureFt);
+        double yawRateKts = CategoryPerformance.TurnRateLimitedSpeedKts(category, radiusFt);
         double curvatureCapKts = Math.Min(Math.Min(lateralAccelKts, cornerCeilingKts), yawRateKts);
         return Math.Max(curvatureCapKts, CategoryPerformance.SlowTurnSpeedKts);
+    }
+
+    /// <summary>One point of <see cref="SpeedProfile"/>: arc length from <c>Nodes[0]</c> and the local cornering speed there.</summary>
+    public readonly record struct SpeedSample(double LengthFt, double SpeedKts);
+
+    private const int SpeedProfileSamples = 16;
+    private readonly Dictionary<AircraftCategory, SpeedSample[]> _speedProfiles = new();
+
+    /// <summary>
+    /// Local cornering-speed profile along the stored curve (from <c>Nodes[0]</c>): evenly spaced parameter
+    /// samples with their arc length and <see cref="SafeSpeedForRadiusKts"/> at the local radius of curvature.
+    /// A distorted cubic — one long gentle sweep with a single tight stretch, which the fillet generator emits
+    /// at asymmetric junctions — is slow only where it is tight; <see cref="MaxSafeSpeedKts"/>, the tightest
+    /// point alone, would hold the whole length at walking pace (SFO junction J133's B bend: 107 ft and 56°
+    /// with a 22 ft minimum radius, 21 s at 3 kt). Samples are evenly spaced in the curve parameter, not in
+    /// arc length, so a curvature minimum falling between two samples is not seen; the whole-arc cap is the
+    /// conservative bound the profile is always at or above. Cached per category; the geometry is fixed once
+    /// the layout is built.
+    /// </summary>
+    public IReadOnlyList<SpeedSample> SpeedProfile(AircraftCategory category)
+    {
+        lock (_speedProfiles)
+        {
+            if (!_speedProfiles.TryGetValue(category, out var profile))
+            {
+                profile = BuildSpeedProfile(category);
+                _speedProfiles[category] = profile;
+            }
+
+            return profile;
+        }
+    }
+
+    private SpeedSample[] BuildSpeedProfile(AircraftCategory category)
+    {
+        var curve = ToBezier();
+        double refLat = Nodes[0].Position.Lat;
+        var samples = new SpeedSample[SpeedProfileSamples + 1];
+        double lengthFt = 0.0;
+        var previous = curve.Evaluate(0.0);
+        for (int i = 0; i <= SpeedProfileSamples; i++)
+        {
+            double t = (double)i / SpeedProfileSamples;
+            if (i > 0)
+            {
+                var point = curve.Evaluate(t);
+                lengthFt += GeoMath.DistanceNm(new LatLon(previous.Lat, previous.Lon), new LatLon(point.Lat, point.Lon)) * GeoMath.FeetPerNm;
+                previous = point;
+            }
+
+            samples[i] = new SpeedSample(lengthFt, SafeSpeedForRadiusKts(category, curve.RadiusOfCurvatureFt(t, refLat)));
+        }
+
+        return samples;
+    }
+
+    /// <summary>
+    /// Seconds to play the whole arc at its local cornering speed, stepping between profile samples with no
+    /// acceleration or braking between them — a lower bound on what the navigator actually flies, used to rank
+    /// route candidates, not to predict a taxi time.
+    /// </summary>
+    public double TraversalSeconds(AircraftCategory category)
+    {
+        var profile = SpeedProfile(category);
+        double seconds = 0.0;
+        for (int i = 1; i < profile.Count; i++)
+        {
+            double stepFt = profile[i].LengthFt - profile[i - 1].LengthFt;
+            double speedKts = Math.Min(profile[i].SpeedKts, profile[i - 1].SpeedKts);
+            seconds += stepFt / (speedKts * GeoMath.FeetPerNm / 3600.0);
+        }
+
+        return seconds;
     }
 
     public bool SharesTaxiway(IGroundEdge other)

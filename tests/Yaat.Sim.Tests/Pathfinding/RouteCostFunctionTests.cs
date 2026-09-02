@@ -228,47 +228,6 @@ public class RouteCostFunctionTests
     }
 
     // ---------------------------------------------------------------------------
-    // Reverse arc
-    // ---------------------------------------------------------------------------
-
-    [Fact]
-    public void ReverseArc_IsReverseTraversed_AddsPenalty()
-    {
-        var n0 = MakeNode(0, 37.700, -122.200);
-        var n1 = MakeNode(1, 37.701, -122.200);
-        var n2 = MakeNode(2, 37.701, -122.199);
-
-        var eForward = MakeEdge(n0, n1, "A");
-
-        // Construct arc with Nodes[0]=n2, Nodes[1]=n1 (natural: n2→n1).
-        // Traversing from n1 to n2 would be reverse.
-        var arc = new GroundArc
-        {
-            Nodes = [n2, n1],
-            TaxiwayNames = ["A"],
-            DistanceNm = GeoMath.DistanceNm(n1.Position, n2.Position),
-            P1Lat = n2.Position.Lat,
-            P1Lon = n2.Position.Lon,
-            P2Lat = n1.Position.Lat,
-            P2Lon = n1.Position.Lon,
-            MinRadiusOfCurvatureFt = 200.0,
-        };
-        n1.Edges.Add(arc);
-        n2.Edges.Add(arc);
-
-        var layout = MakeLayout(n0, n1, n2);
-        var ctx = MakeContext(layout, 0);
-
-        var r0 = StartRoute(0);
-        var r1 = ExtendRoute(r0, eForward, n1, ctx);
-
-        // Traversing arc from n1→n2 is reverse (arc.Nodes[0]=n2, traversal from n1).
-        double costWithReverse = RouteCostFunction.IncrementalCost(r1, arc, n2, ctx);
-
-        Assert.InRange(costWithReverse, arc.DistanceNm + RouteCostFunction.ReverseArcCostNm - 1e-9, double.MaxValue);
-    }
-
-    // ---------------------------------------------------------------------------
     // Unauthorized taxiway
     // ---------------------------------------------------------------------------
 
@@ -505,8 +464,7 @@ public class RouteCostFunctionTests
     [Fact]
     public void FixB_Fastest_StraightEdge_AddsTimeCost()
     {
-        // A straight edge (MaxSafeSpeedKts = MaxValue) should add near-zero time cost.
-        // This test verifies the code path executes without error and the distance cost is primary.
+        // A straight edge is priced at the category's taxi speed under Fastest, on top of its distance.
         var n0 = MakeNode(0, 37.700, -122.200);
         var n1 = MakeNode(1, 37.701, -122.200);
         var layout = MakeLayout(n0, n1);
@@ -519,9 +477,65 @@ public class RouteCostFunctionTests
         double costDefault = RouteCostFunction.IncrementalCost(r0, e, n1, ctxDefault);
         double costFastest = RouteCostFunction.IncrementalCost(r0, e, n1, ctxFastest);
 
-        // Fastest adds a time term. For a straight edge MaxSafeSpeedKts = MaxValue → time cost ≈ 0.
-        // Both should essentially equal segment distance (within floating point).
-        Assert.True(costFastest >= e.DistanceNm, $"Fastest cost {costFastest} must be >= distance {e.DistanceNm}");
+        double taxiTimeSeconds = e.DistanceNm / (CategoryPerformance.TaxiSpeed(ctxFastest.Category) / 3600.0);
+        Assert.True(
+            costFastest >= e.DistanceNm + taxiTimeSeconds - 1e-9,
+            $"Fastest cost {costFastest} must include {taxiTimeSeconds:F2} s at taxi speed"
+        );
+        Assert.True(costDefault < costFastest, "the default preference carries no time term");
+    }
+
+    [Fact]
+    public void Fastest_SquarePivotThroughJunctionCentre_CostsMoreThanTheFilletArc()
+    {
+        // A 90° corner: tangent cut a → junction centre b → tangent cut c (two 100 ft straights), or the
+        // fillet arc a → c the generator painted between the same two cuts. Under Fastest the pivot must
+        // never be cheaper — the navigator rounds a square corner at the nose-wheel radius near walking
+        // pace, while the arc is flown at its cornering speed (S2-OAK-2, the OAK U/W corner).
+        const double legFt = 100.0;
+        var a = MakeNode(0, 37.700, -122.200);
+        var (bLat, bLon) = GeoMath.ProjectPoint(a.Position, new TrueHeading(90.0), legFt / GeoMath.FeetPerNm);
+        var b = MakeNode(1, bLat, bLon);
+        var (cLat, cLon) = GeoMath.ProjectPoint(b.Position, new TrueHeading(0.0), legFt / GeoMath.FeetPerNm);
+        var c = MakeNode(2, cLat, cLon);
+        var (originLat, originLon) = GeoMath.ProjectPoint(a.Position, new TrueHeading(270.0), 300.0 / GeoMath.FeetPerNm);
+        var origin = MakeNode(3, originLat, originLon);
+
+        var inbound = MakeEdge(origin, a, "U");
+        var legIn = MakeEdge(a, b, "U");
+        var legOut = MakeEdge(b, c, "W");
+
+        // Quarter-circle cubic: control points 55 ft along each arm toward the centre (kappa ≈ 0.5523 × r).
+        var (p1Lat, p1Lon) = GeoMath.ProjectPoint(a.Position, new TrueHeading(90.0), 55.0 / GeoMath.FeetPerNm);
+        var (p2Lat, p2Lon) = GeoMath.ProjectPoint(c.Position, new TrueHeading(180.0), 55.0 / GeoMath.FeetPerNm);
+        var arc = new GroundArc
+        {
+            Nodes = [a, c],
+            TaxiwayNames = ["W", "U"],
+            DistanceNm = legFt * Math.PI / 2.0 / GeoMath.FeetPerNm,
+            P1Lat = p1Lat,
+            P1Lon = p1Lon,
+            P2Lat = p2Lat,
+            P2Lon = p2Lon,
+            MinRadiusOfCurvatureFt = legFt,
+            TurnAngleDeg = 90.0,
+        };
+        a.Edges.Add(arc);
+        c.Edges.Add(arc);
+
+        var layout = MakeLayout(origin, a, b, c);
+        foreach (var preference in new[] { RoutePreference.Fastest, RoutePreference.FewestTurns, RoutePreference.Shortest })
+        {
+            var ctx = MakeContext(layout, origin.Id, preference);
+            var atA = ExtendRoute(StartRoute(origin.Id), inbound, a, ctx);
+
+            double pivotCost = RouteCostFunction.IncrementalCost(atA, legIn, b, ctx);
+            var atB = ExtendRoute(atA, legIn, b, ctx);
+            pivotCost += RouteCostFunction.IncrementalCost(atB, legOut, c, ctx);
+            double arcCost = RouteCostFunction.IncrementalCost(atA, arc, c, ctx);
+
+            Assert.True(arcCost < pivotCost, $"{preference}: fillet arc {arcCost:F3} must be cheaper than the square pivot {pivotCost:F3}");
+        }
     }
 
     [Fact]
@@ -556,9 +570,9 @@ public class RouteCostFunctionTests
         var r1 = ExtendRoute(r0, eForward, n1, ctxFastest);
         double costWithArc = RouteCostFunction.IncrementalCost(r1, arc, n2, ctxFastest);
 
-        // Fastest adds distance / (maxSafeSpeedNmPerSec). For a tight-radius arc this is large.
-        double maxSafeKts = arc.MaxSafeSpeedKts(ctxFastest.Category);
-        double timeCost = arc.DistanceNm / (maxSafeKts / 3600.0);
+        // Fastest adds the fillet's traversal along its local cornering-speed profile (plus the speed dip into it).
+        double timeCost = arc.TraversalSeconds(ctxFastest.Category);
+        Assert.True(timeCost > 0.0, "an arc takes time to traverse");
         Assert.True(costWithArc >= arc.DistanceNm + timeCost - 1e-9, $"Expected time cost term {timeCost} in arc cost {costWithArc}");
     }
 

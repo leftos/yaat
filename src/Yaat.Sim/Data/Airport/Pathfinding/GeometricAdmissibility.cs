@@ -22,7 +22,9 @@ public static class CategoryLimits
 
 /// <summary>
 /// Determines whether a candidate edge can be appended to a partial route given the current
-/// arrival bearing and the aircraft category. Reverse arcs are hard-rejected per §Decisions §3.
+/// arrival bearing and the aircraft category. The traversal direction of an arc carries no cost
+/// or gate of its own: a fillet is a symmetric curve, its end tangents are direction-aware
+/// (<see cref="GetDepartureBearing"/>), and the navigator plays a reversed arc exactly.
 /// </summary>
 public static class GeometricAdmissibility
 {
@@ -57,11 +59,27 @@ public static class GeometricAdmissibility
     public const int PruningBearingBucketDeg = 1;
 
     /// <summary>
-    /// Closed-set key for state-aware A* pruning: node id paired with the arrival-bearing bucket
-    /// (see <see cref="PruningBearingBucketDeg"/>). Two arrivals at the same node with sufficiently
-    /// different bearings occupy distinct keys, so neither prunes the other.
+    /// Tightest fillet radius (ft) any aircraft can steer: the smallest category nose-wheel turn radius
+    /// (<see cref="CategoryPerformance.NoseWheelTurnRadiusFt"/>). A <see cref="GroundArc"/> whose
+    /// <see cref="GroundArc.MinRadiusOfCurvatureFt"/> is below it is fillet-generator noise at a cramped
+    /// junction (OAK RWY 15/33 → D at the F junction: 6 ft), not pavement anything can track, and is
+    /// inadmissible for every category — the route goes through the junction nodes instead, which the
+    /// navigator rounds at the nose-wheel radius.
     /// </summary>
-    public static (int Node, int Bucket) PruningStateKey(int nodeId, double arrivalBearing)
+    public static readonly double MinSteerableArcRadiusFt = Enum.GetValues<AircraftCategory>().Min(CategoryPerformance.NoseWheelTurnRadiusFt);
+
+    /// <summary>
+    /// Closed-set key for state-aware A* pruning: node id, arrival-bearing bucket (see
+    /// <see cref="PruningBearingBucketDeg"/>) and the taxiway the state arrived on. Two arrivals at the same
+    /// node with sufficiently different bearings are distinct states (onward admissibility differs), and so
+    /// are two arrivals on different taxiways: <see cref="RouteCostFunction.TaxiwayTransitionCostNm"/> is
+    /// charged on the edge <em>after</em> the arrival, so the cheaper of two same-bearing arrivals on different
+    /// taxiways is not the cheaper way onward. OAK A/B junction (node 805): the A-to-B fillet arrives at B's
+    /// bearing a hair cheaper than straight-B traffic, then pays the A-to-B transition on the next edge; keyed
+    /// without the taxiway it pruned the straight-B state and the auto route detoured around the east end of
+    /// 10L/28R.
+    /// </summary>
+    public static (int Node, int Bucket, string Taxiway) PruningStateKey(int nodeId, double arrivalBearing, string lastTaxiwayName)
     {
         double normalized = arrivalBearing % 360.0;
         if (normalized < 0.0)
@@ -69,26 +87,31 @@ public static class GeometricAdmissibility
             normalized += 360.0;
         }
 
-        return (nodeId, (int)(normalized / PruningBearingBucketDeg));
+        return (nodeId, (int)(normalized / PruningBearingBucketDeg), lastTaxiwayName);
     }
 
     /// <summary>
     /// Returns true when the candidate edge is admissible from the current route head.
     /// Per §Decisions §3: hard-reject any junction where the resulting heading change exceeds
-    /// the category limit. Reverse arcs whose heading change is within the limit are admitted
-    /// (and penalised by the cost function's ReverseArcCostNm term). Only arcs whose heading
-    /// delta exceeds the limit regardless of direction are excluded.
+    /// the category limit — for an arc, the change onto its entry tangent in the traversal
+    /// direction, so a corner fillet is admitted from either end and only an arc whose tangent
+    /// turns back through the limit is excluded.
     /// Zero-distance no-op edges (see <see cref="IsNoOpEdge"/>) are admitted unconditionally
     /// because the aircraft doesn't physically move along them.
     /// </summary>
     public static bool IsAdmissible(PartialRoute current, IGroundEdge candidate, GroundNode nextNode, AircraftCategory category)
     {
-        if (current.LastEdge is null)
+        if (IsNoOpEdge(candidate))
         {
             return true;
         }
 
-        if (IsNoOpEdge(candidate))
+        if (candidate is GroundArc { MinRadiusOfCurvatureFt: var tightestRadiusFt } && (tightestRadiusFt < MinSteerableArcRadiusFt))
+        {
+            return false;
+        }
+
+        if (current.LastEdge is null)
         {
             return true;
         }
@@ -135,12 +158,6 @@ public static class GeometricAdmissibility
 
         return GeoMath.BearingTo(fromNode.Position, toNode.Position);
     }
-
-    /// <summary>
-    /// Returns true when <paramref name="arc"/> is being traversed against its natural direction.
-    /// Natural direction: <c>Nodes[0]</c> → <c>Nodes[1]</c>. Reverse: <c>Nodes[1]</c> → <c>Nodes[0]</c>.
-    /// </summary>
-    public static bool IsReverseTraversal(GroundArc arc, GroundNode fromNode) => arc.Nodes[0].Id != fromNode.Id;
 
     private static GroundNode ResolveNode(IGroundEdge edge, int nodeId)
     {
