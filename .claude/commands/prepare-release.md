@@ -21,12 +21,42 @@ If the dry-run reports zero duplicates, the skill exits without committing
 and we continue. If it produces a cleanup commit, note the SHA — it'll be
 the parent of the release commit.
 
+## Step 0a: Resolve the sibling repo once, and assert it exists
+
+Every later step addresses yaat-server. **`git -C <path>` does not fail when
+`<path>` is not a repository — it walks up from the current working directory to
+the nearest `.git` and operates there.** From a worktree session
+(`X:/dev/yaat.wt/<branch>/`) `../yaat-server` does not exist, so a relative
+`git -C ../yaat-server diff` silently computes its verdict from *yaat*, and a
+relative `git -C ../yaat-server push origin main` pushes yaat a second time while
+reporting yaat-server pushed. The Bash tool's cwd also persists across calls, so
+an earlier stray `cd` changes what `..` means with no visible error.
+
+Resolve it once and assert, then use `$SERVER` in every later command:
+
+```bash
+SERVER=X:/dev/yaat-server          # or the real worktree path
+[ -d "$SERVER/.git" ] || [ -f "$SERVER/.git" ] || { echo "no repo at $SERVER"; exit 1; }
+git -C "$SERVER" status -sb | head -1
+```
+
+Never `git -C` a path you have not verified exists.
+
 ## Step 0b: Run the full cross-repo test suite
 
-Run `pwsh tools/test-all.ps1` before the release commit goes out. It builds
-and tests yaat + yaat-server in Release configuration; failures here would
-ship to users. Tee to `.tmp/test-all-prerelease.log` so the user can review
-without re-running.
+Run the suite through the gate wrapper before the release commit goes out. It
+builds and tests yaat + yaat-server in Release configuration; failures here
+would ship to users:
+
+```bash
+bash tools/gate.sh .tmp/test-all-prerelease.log pwsh tools/test-all.ps1
+```
+
+**Do not append `| tail` or `| grep`.** A teed pipeline reports its last
+stage's status, so a failed build reads as green — that is exactly how a
+release once went out over a `main` that did not compile, with four "Passed!"
+lines above it. `tools/gate.sh` propagates the command's own status and also
+fails when the log contains `Build FAILED` or `error CS`.
 
 If anything fails, stop and surface it. Do not proceed to the version-bump
 commit on a red suite — fix forward (or abort the release), then re-run.
@@ -117,7 +147,7 @@ Use the previous release tag from Step 2 as the lower bound. Capture both repos 
 - yaat: `git log {prev-tag}..HEAD --oneline`
 - yaat-server: yaat-server isn't release-tagged, so use the prev-tag's commit date as the cutoff:
   - `PREV_DATE=$(git log -1 --format=%cI {prev-tag})`
-  - `git -C ../yaat-server log --since "$PREV_DATE" --oneline`
+  - `git -C "$SERVER" log --since "$PREV_DATE" --oneline`
   - (If yaat-server is in a worktree, use the real path.)
 
 Tee both lists to `.tmp/release-commits-{version}.log` so you can scan without re-running.
@@ -217,8 +247,8 @@ git diff --name-only {prev-tag}..HEAD -- src/Yaat.Sim src/Yaat.Client.Strips src
 yaat-server — it isn't release-tagged, so anchor on the commit that was HEAD at the prev-tag's timestamp and ignore the `extern/yaat` submodule pointer (CI bumps it on every client release, and the droplet re-resolves yaat via `--remote` at deploy time, so a bare submodule bump ships nothing new):
 ```
 PREV_DATE=$(git log -1 --format=%cI {prev-tag})
-SERVER_BASE=$(git -C ../yaat-server rev-list -1 --before="$PREV_DATE" HEAD)
-git -C ../yaat-server diff --name-only "$SERVER_BASE" HEAD -- . ':(exclude)extern/yaat'
+SERVER_BASE=$(git -C "$SERVER" rev-list -1 --before="$PREV_DATE" HEAD)
+git -C "$SERVER" diff --name-only "$SERVER_BASE" HEAD -- . ':(exclude)extern/yaat'
 ```
 (If yaat-server is in a worktree, use its real path.) Tee the combined output to `.tmp/deploy-scope-{version}.log`.
 
@@ -295,10 +325,28 @@ Once the user approves:
    - **Abort** — stop here; the user resumes manually.
 
    If "abort" is picked, stop.
-9. **Unless "abort" was chosen:** push both repos so any cross-repo work made during this cycle ships together:
+9. **Unless "abort" was chosen:** push both repos so any cross-repo work made during this cycle ships together.
+
+    **Before pushing either repo, confirm where its HEAD is:**
+
+    ```bash
+    git        status -sb | head -1      # expect '## main...origin/main'
+    git -C "$SERVER" status -sb | head -1
+    ```
+
+    `## HEAD (no branch)` means the checkout is detached — a commit made there is
+    real but off-branch, and this push will not carry it. Halt and recover with
+    `git checkout -B main <sha>` (safe when `git merge-base --is-ancestor main HEAD`
+    holds) before continuing.
+
+    If the release commit is a partial commit of a dirty tree, follow the
+    partial-commit protocol in the `changelog-and-commit` skill — stash the
+    remainder including untracked files, commit with explicit paths, pop, then
+    `git show --stat HEAD` to confirm nothing extra landed.
+
     - First push yaat-server's pending commits (no tag — yaat-server isn't release-tagged):
-      `git -C ../yaat-server push origin main`
-      Run even if you think there's nothing pending — it's idempotent. If a worktree, use the real yaat-server path. If the push is rejected because the CI submodule-bump landed on remote, rebase (`git -C ../yaat-server pull --rebase origin main`) and re-push.
+      `git -C "$SERVER" push origin main`
+      Run even if you think there's nothing pending — it's idempotent. If the push is rejected because the CI submodule-bump landed on remote, rebase (`git -C "$SERVER" pull --rebase origin main`) and re-push.
     - Then push yaat's release commit, and **only after that returns**, push the release tag **by name in a separate command**:
       ```bash
       git push origin main

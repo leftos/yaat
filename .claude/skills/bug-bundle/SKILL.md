@@ -109,6 +109,18 @@ Drops snapshots past `--max-seconds N` (keeps snapshots whose `ElapsedSeconds <=
 - Isolate "pre-bug" state when the recording captures minutes of unrelated taxi/cruise time before the moment of interest. Pair with `history --callsign X` to pick a cutoff just past the symptom.
 - Pre-trim before `install --issue N` to keep TestData lean. Always verify the trimmed bundle with `validate` afterwards.
 
+**Before installing a bundle for an issue, check whether the fix already
+exists.** The nightly-review bot files a fix PR alongside the issue it opens, so
+starting from the issue text alone can duplicate work that is already on a
+branch:
+
+```bash
+gh issue view <N> --repo leftos/yaat --json title,body,closedByPullRequestsReferences
+gh pr list --repo leftos/yaat --search "<N>" --state all
+```
+
+If a PR is linked, land it via the `land-bot-pr` skill instead of reimplementing.
+
 **Install into TestData (local path):**
 ```bash
 python tools/bug_bundle.py install <local.zip> --issue 134 --desc oak-runway-exit

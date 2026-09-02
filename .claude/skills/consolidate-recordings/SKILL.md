@@ -16,7 +16,7 @@ change is invisible to users.
 ## Step 1: Dry-run preview
 
 ```bash
-dotnet run --project tools/Yaat.RecordingConsolidator -- tests/Yaat.Sim.Tests/TestData --dry-run 2>&1 | tee .tmp/consolidate-dry.log
+bash tools/gate.sh .tmp/consolidate-dry.log dotnet run --project tools/Yaat.RecordingConsolidator -- tests/Yaat.Sim.Tests/TestData --dry-run
 ```
 
 If the summary reports `0 duplicate group(s)`, stop here — there is nothing to
@@ -25,7 +25,7 @@ do. Tell the user no duplicates were found and exit.
 ## Step 2: Live run
 
 ```bash
-dotnet run --project tools/Yaat.RecordingConsolidator -- tests/Yaat.Sim.Tests/TestData 2>&1 | tee .tmp/consolidate-live.log
+bash tools/gate.sh .tmp/consolidate-live.log dotnet run --project tools/Yaat.RecordingConsolidator -- tests/Yaat.Sim.Tests/TestData
 ```
 
 The tool deletes duplicate `.zip`s, renames the keeper to `<hash12>.zip`, and
@@ -35,9 +35,14 @@ files across the repo (excluding `bin/`, `obj/`, and `.git/`).
 ## Step 3: Verify the rewrite compiled and tests still pass
 
 ```bash
-dotnet build -p:TreatWarningsAsErrors=true 2>&1 | tee .tmp/consolidate-build.log
-timeout 30 dotnet test tests/Yaat.Sim.Tests 2>&1 | tee .tmp/consolidate-test.log
+bash tools/gate.sh .tmp/consolidate-build.log dotnet build -p:TreatWarningsAsErrors=true
+bash tools/gate.sh .tmp/consolidate-test.log dotnet test tests/Yaat.Sim.Tests
 ```
+
+This is a full-project run of roughly 300 replay E2E tests. It legitimately
+takes minutes — if you wrap it in a `timeout`, use `timeout 120`, not the
+`timeout 30` CLAUDE.md specifies for *filtered* runs. A kill at 120 s means a
+genuine hang, not a slow suite.
 
 If a test fails because it references a renamed file the tool missed, fix the
 reference by hand before committing. Do not revert the consolidation.

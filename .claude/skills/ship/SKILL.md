@@ -28,11 +28,20 @@ Establish, before invoking anything:
 ```bash
 cwd=$(pwd)
 git -C "$cwd" rev-parse --show-toplevel
-git -C "$cwd" branch --show-current
-git -C "$cwd" status --porcelain
-git -C "X:/dev/yaat-server" branch --show-current
-git -C "X:/dev/yaat-server" status --porcelain
+git -C "$cwd" status -sb | head -1
+git -C "X:/dev/yaat-server" status -sb | head -1
 ```
+
+`status -sb`'s first line carries both the ref and the tracking state, which
+`branch --show-current` cannot: on a detached checkout it prints
+**`## HEAD (no branch)`** while `branch --show-current` returns an empty string
+that reads as "no answer" rather than as a problem. The yaat-server checkout
+sits detached at `origin/main` after a submodule-style update, and a commit made
+there is not carried by a later `git push origin main`.
+
+**Halt on `## HEAD (no branch)` in either repo.** Recover with
+`git checkout -B main <sha>` when `git merge-base --is-ancestor main HEAD`
+holds, and require `## main...origin/main` before continuing.
 
 Record three facts that drive which phases are no-ops:
 
@@ -155,16 +164,21 @@ A candidate number that doesn't resolve to a real issue (a `#123` that was a PR 
 
 ### Comment, then close
 
+Write the comment body to a file and pass it by path. A heredoc is not
+delivered verbatim by this Windows Git-Bash tool — doubled backslashes arrive
+halved, and a body containing a triple-quoted string dies with "unexpected EOF
+while looking for matching quote" — and issue comments routinely quote paths,
+regexes and code.
+
 ```bash
-gh issue comment <N> --repo leftos/yaat --body "$(cat <<'EOF'
-Fixed in:
-- leftos/yaat@<sha> — <subject>
-- leftos/yaat-server@<sha> — <subject>
+# write .tmp/issue-comment.md with the Write tool:
+#   Fixed in:
+#   - leftos/yaat@<sha> — <subject>
+#   - leftos/yaat-server@<sha> — <subject>
+#
+#   <the CHANGELOG bullet(s) written in Phase 1>
 
-<the CHANGELOG bullet(s) written in Phase 1>
-EOF
-)"
-
+gh issue comment <N> --repo leftos/yaat --body-file .tmp/issue-comment.md
 gh issue close <N> --repo leftos/yaat --reason completed
 ```
 
@@ -193,6 +207,7 @@ Name every phase that was skipped and why, so a skipped phase never reads as a f
 ## Anti-patterns
 
 - **Do not ask for approval at any phase.** Invoking `/ship` is the go-ahead, push and issue-close included. Announcing ≠ gating.
+- **Run the tests the diff implicates, not the ones you remember editing.** A changed or removed user-visible string is a search key for its own regression tests: `rg -F "<changed literal>" tests/` and run every class that matches. They usually live in a different class from the one edited — a reworded citation inside an advisory string once shipped green and left `main` red on CI.
 - **Do not push before Phase 3's gate passes.** A cherry-pick onto a diverged `main` can break the build in ways the worktree's green suite never saw.
 - **Do not `--force` a rejected push.** Rebase is allowed in exactly one case — the incoming commits touch nothing but `extern/yaat` (CI's submodule bump). Classify first (Phase 4); if anything else landed on `origin/main`, halt and surface it.
 - **Do not push tags.** `--tags` can suppress the Release workflow; tagging is `/prepare-release`'s job.
@@ -208,8 +223,8 @@ Name every phase that was skipped and why, so a skipped phase never reads as a f
 
 ```bash
 # Phase 0 — orient (both repos)
-git -C X:/dev/yaat            status --porcelain && git -C X:/dev/yaat            branch --show-current
-git -C X:/dev/yaat-server     status --porcelain && git -C X:/dev/yaat-server     branch --show-current
+git -C X:/dev/yaat        status -sb | head -1   # "## HEAD (no branch)" -> halt
+git -C X:/dev/yaat-server status -sb | head -1   # "## HEAD (no branch)" -> halt
 
 # Phase 1 — Skill: changelog-and-commit   (clean tree → skip, not fail)
 # Phase 2 — Skill: merge-session-to-main  (on main already → skip; cross-repo sig change → land yaat-server FIRST)

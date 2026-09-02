@@ -173,9 +173,11 @@ Land **yaat-server first**:
 Whichever path was taken, once **both** repos are landed run the explicit end gate before anything is pushed, in the target checkouts (`X:/dev/yaat`, `X:/dev/yaat-server`), and report those results rather than "hooks passed":
 
 ```bash
-prek run                                          # both repos
-dotnet build -p:TreatWarningsAsErrors=true        # both repos
-pwsh tools/test-all.ps1                           # in X:/dev/yaat — builds and tests both
+prek run                                                      # both repos
+bash X:/dev/yaat/tools/gate.sh .tmp/gate-build.log \
+     dotnet build -p:TreatWarningsAsErrors=true                # both repos
+bash X:/dev/yaat/tools/gate.sh .tmp/gate-test-all.log \
+     pwsh tools/test-all.ps1                                  # in X:/dev/yaat — builds and tests both
 ```
 
 This gate is also required after landing **any** signature-changing commit onto a diverged main, even without a hook bypass: `main` may have gained files since the branch diverged that still call the old signature (they do not exist on the worktree branch, so the worktree's green suite cannot see the break, and a clean cherry-pick runs no hook). Fix forward with a new commit on main; when the fix is a DTO/wire mapping, put it in one shared helper both call sites use rather than duplicating the switch.
