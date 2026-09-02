@@ -17,8 +17,7 @@ namespace Yaat.Client.Services;
 /// this class streams three NuGet packages from nuget.org and stitches them into the layout
 /// LM-Kit expects under <c>%LOCALAPPDATA%/yaat/backends/cuda13/</c>.
 ///
-/// Directory layout after a successful install (empirically verified by the layout probe in
-/// <c>tools/probe-lmkit-backend.ps1</c> before this class existed):
+/// Directory layout after a successful install (empirically verified against a real CUDA install):
 /// <code>
 ///   &lt;InstallRoot&gt;/
 ///       .installed                                  (sentinel: "BackendPackageId/BackendVersion; DepsVersion")

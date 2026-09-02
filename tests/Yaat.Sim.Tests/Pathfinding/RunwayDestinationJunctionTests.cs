@@ -57,7 +57,7 @@ public class RunwayDestinationJunctionTests
             new ExplicitPathOptions
             {
                 DestinationRunway = "33",
-                AirportId = "OAK",
+
                 DiagnosticLog = msg => _output.WriteLine(msg),
             },
             AircraftCategory.Piston

@@ -61,7 +61,7 @@ public class JunctionContinuationTests
             {
                 DestinationRunway = "10L",
                 ExplicitHoldShorts = [HoldShortTarget.Parse("10L")],
-                AirportId = "FLL",
+
                 DiagnosticLog = msg => _output.WriteLine(msg),
             },
             AircraftCategory.Jet
@@ -111,7 +111,7 @@ public class JunctionContinuationTests
             startNode.Id,
             ["A"],
             out string? failReason,
-            new ExplicitPathOptions { AirportId = "SFO", DiagnosticLog = msg => _output.WriteLine(msg) },
+            new ExplicitPathOptions { DiagnosticLog = msg => _output.WriteLine(msg) },
             AircraftCategory.Jet
         );
 
@@ -175,7 +175,7 @@ public class JunctionContinuationTests
             d8.Id,
             instructed,
             out string? failReason,
-            new ExplicitPathOptions { AirportId = "SFO", DiagnosticLog = msg => _output.WriteLine(msg) },
+            new ExplicitPathOptions { DiagnosticLog = msg => _output.WriteLine(msg) },
             AircraftCategory.Jet
         );
 
@@ -356,7 +356,7 @@ public class JunctionContinuationTests
             startId,
             [x, y],
             out string? failReason,
-            new ExplicitPathOptions { AirportId = airport, DiagnosticLog = msg => _output.WriteLine(msg) },
+            new ExplicitPathOptions { DiagnosticLog = msg => _output.WriteLine(msg) },
             AircraftCategory.Jet
         );
 

@@ -191,7 +191,7 @@ public class IssueFllDal880TaxiBacktrackBTests(ITestOutputHelper output)
             {
                 DestinationRunway = "10L",
                 ExplicitHoldShorts = [HoldShortTarget.Parse("10L")],
-                AirportId = "FLL",
+
                 DiagnosticLog = msg => output.WriteLine(msg),
             },
             AircraftCategory.Jet

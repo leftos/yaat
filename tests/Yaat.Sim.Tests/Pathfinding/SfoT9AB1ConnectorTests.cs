@@ -95,7 +95,7 @@ public class SfoT9AB1ConnectorTests
             {
                 DestinationRunway = "28L",
                 ExplicitHoldShorts = [HoldShortTarget.Parse("1L")],
-                AirportId = "SFO",
+
                 StartHeadingTrue = StartHeading,
                 DiagnosticLog = msg => _output.WriteLine(msg),
             },

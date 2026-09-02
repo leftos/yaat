@@ -280,7 +280,7 @@ internal static class GroundCommandHandler
                 {
                     ExplicitHoldShorts = taxi.HoldShorts,
                     DestinationRunway = taxi.DestinationRunway,
-                    AirportId = groundLayout.AirportId,
+
                     PathTurnHints = taxi.PathTurnHints,
                 },
                 category
@@ -311,7 +311,7 @@ internal static class GroundCommandHandler
                 {
                     ExplicitHoldShorts = taxi.HoldShorts,
                     DestinationRunway = taxi.DestinationRunway,
-                    AirportId = groundLayout.AirportId,
+
                     PathTurnHints = taxi.PathTurnHints,
                     StartHeadingTrue = startHeadingTrueDeg,
                 },
@@ -1024,7 +1024,7 @@ internal static class GroundCommandHandler
             {
                 ExplicitHoldShorts = taxi.HoldShorts,
                 DestinationRunway = taxi.DestinationRunway,
-                AirportId = groundLayout.AirportId,
+
                 DestinationHintNode = crossAnchor,
                 PathTurnHints = taxi.PathTurnHints,
                 StartHeadingTrue = startHeadingTrueDeg,
@@ -1386,7 +1386,7 @@ internal static class GroundCommandHandler
             {
                 ExplicitHoldShorts = taxi.HoldShorts,
                 DestinationRunway = taxi.DestinationRunway,
-                AirportId = groundLayout.AirportId,
+
                 DestinationHintNode = destNode,
                 PathTurnHints = taxi.PathTurnHints,
                 StartHeadingTrue = startHeadingTrueDeg,

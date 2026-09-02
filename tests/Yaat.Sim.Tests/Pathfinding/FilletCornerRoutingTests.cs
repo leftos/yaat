@@ -43,7 +43,7 @@ public class FilletCornerRoutingTests(ITestOutputHelper output)
             OakTeStart,
             ["TE", "U", "W", "W1"],
             out string? failReason,
-            new ExplicitPathOptions { AirportId = "OAK", DestinationRunway = "30" },
+            new ExplicitPathOptions { DestinationRunway = "30" },
             AircraftCategory.Jet
         );
 

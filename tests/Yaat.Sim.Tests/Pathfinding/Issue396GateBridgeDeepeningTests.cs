@@ -48,7 +48,7 @@ public class Issue396GateBridgeDeepeningTests
             new ExplicitPathOptions
             {
                 DestinationRunway = destinationRunway,
-                AirportId = "SFO",
+
                 StartHeadingTrue = gate.TrueHeading?.Degrees,
                 DiagnosticLog = diag.Add,
             },

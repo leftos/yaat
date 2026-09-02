@@ -23,7 +23,6 @@ public sealed class ExplicitPathOptions
 {
     public List<HoldShortTarget>? ExplicitHoldShorts { get; init; }
     public string? DestinationRunway { get; init; }
-    public string? AirportId { get; init; }
     public GroundNode? DestinationHintNode { get; init; }
     public Action<string>? DiagnosticLog { get; init; }
 

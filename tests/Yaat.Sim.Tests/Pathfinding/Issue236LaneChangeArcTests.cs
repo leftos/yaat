@@ -57,7 +57,7 @@ public class Issue236LaneChangeArcTests(ITestOutputHelper output)
             startNode.Id,
             ["A", "F1", "B"],
             out string? failReason,
-            new ExplicitPathOptions { AirportId = "SFO", DiagnosticLog = msg => output.WriteLine(msg) },
+            new ExplicitPathOptions { DiagnosticLog = msg => output.WriteLine(msg) },
             AircraftCategory.Jet
         );
 

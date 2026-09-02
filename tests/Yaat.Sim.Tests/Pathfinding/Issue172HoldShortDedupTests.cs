@@ -57,7 +57,7 @@ public class Issue172HoldShortDedupTests
             fromNodeId: gHoldShort.Id,
             taxiwayNames: ["G", "B"],
             out string? failReason,
-            new ExplicitPathOptions { AirportId = "SFO", ExplicitHoldShorts = [HoldShortTarget.Parse("B")] },
+            new ExplicitPathOptions { ExplicitHoldShorts = [HoldShortTarget.Parse("B")] },
             AircraftCategory.Jet
         );
 

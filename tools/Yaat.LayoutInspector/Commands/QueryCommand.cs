@@ -178,7 +178,7 @@ public sealed class QueryCommand : ICommand
                     DestinationRunway = options.PathfinderDestinationRunway,
                     ExplicitHoldShorts =
                         options.PathfinderHoldShorts.Count > 0 ? options.PathfinderHoldShorts.Select(HoldShortTarget.Parse).ToList() : null,
-                    AirportId = analyzer.AirportId,
+
                     DestinationHintNode = destHintNode,
                     DiagnosticLog = msg => diagLog.Add(msg),
                 },
@@ -457,7 +457,7 @@ public sealed class QueryCommand : ICommand
             nodeId,
             [taxiway],
             out string? failReason,
-            new ExplicitPathOptions { AirportId = analyzer.AirportId, DiagnosticLog = msg => diag.Add(msg) },
+            new ExplicitPathOptions { DiagnosticLog = msg => diag.Add(msg) },
             AircraftCategory.Jet
         );
 

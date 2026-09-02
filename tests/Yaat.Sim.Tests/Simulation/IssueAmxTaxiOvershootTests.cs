@@ -136,7 +136,7 @@ public class IssueAmxTaxiOvershootTests(ITestOutputHelper output)
             new ExplicitPathOptions
             {
                 DestinationRunway = "1L",
-                AirportId = "SFO",
+
                 DiagnosticLog = msg => output.WriteLine(msg),
             },
             AircraftCategory.Jet

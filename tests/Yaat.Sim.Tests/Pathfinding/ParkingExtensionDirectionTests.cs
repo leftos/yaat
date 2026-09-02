@@ -52,12 +52,7 @@ public class ParkingExtensionDirectionTests
             start.Id,
             ["G", "D"],
             out string? failReason,
-            new ExplicitPathOptions
-            {
-                AirportId = "OAK",
-                DestinationHintNode = newParking,
-                DiagnosticLog = msg => _output.WriteLine(msg),
-            },
+            new ExplicitPathOptions { DestinationHintNode = newParking, DiagnosticLog = msg => _output.WriteLine(msg) },
             AircraftCategory.Piston
         );
 
@@ -104,12 +99,7 @@ public class ParkingExtensionDirectionTests
             start.Id,
             ["G", "C", "D"],
             out string? failReason,
-            new ExplicitPathOptions
-            {
-                AirportId = "OAK",
-                DestinationHintNode = newParking,
-                DiagnosticLog = msg => _output.WriteLine(msg),
-            },
+            new ExplicitPathOptions { DestinationHintNode = newParking, DiagnosticLog = msg => _output.WriteLine(msg) },
             AircraftCategory.Piston
         );
 

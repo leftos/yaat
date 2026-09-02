@@ -80,7 +80,7 @@ public class RunwaySegmentRoutingTests
             start.Id,
             ["28R", "G", "D"],
             out string? failReason,
-            new ExplicitPathOptions { AirportId = "OAK", DiagnosticLog = msg => _output.WriteLine(msg) },
+            new ExplicitPathOptions { DiagnosticLog = msg => _output.WriteLine(msg) },
             AircraftCategory.Piston
         );
 
@@ -120,7 +120,7 @@ public class RunwaySegmentRoutingTests
             start.Id,
             ["28R", "W"],
             out string? failReason,
-            new ExplicitPathOptions { AirportId = "OAK", DiagnosticLog = msg => _output.WriteLine(msg) },
+            new ExplicitPathOptions { DiagnosticLog = msg => _output.WriteLine(msg) },
             AircraftCategory.Piston
         );
 
@@ -151,7 +151,7 @@ public class RunwaySegmentRoutingTests
             start.Id,
             ["28R", "G", "D"],
             out string? failReason,
-            new ExplicitPathOptions { AirportId = "OAK", DiagnosticLog = msg => _output.WriteLine(msg) },
+            new ExplicitPathOptions { DiagnosticLog = msg => _output.WriteLine(msg) },
             AircraftCategory.Piston
         );
 

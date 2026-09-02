@@ -76,12 +76,7 @@ public sealed class StartNodeHoldShortArmingTests(ITestOutputHelper output)
             fromNodeId: nearBar.Id,
             taxiwayNames: ["F", "C"],
             out string? failReason,
-            new ExplicitPathOptions
-            {
-                AirportId = "SFO",
-                ExplicitHoldShorts = [HoldShortTarget.Parse("10R")],
-                DestinationRunway = "28R",
-            },
+            new ExplicitPathOptions { ExplicitHoldShorts = [HoldShortTarget.Parse("10R")], DestinationRunway = "28R" },
             AircraftCategory.Jet
         );
         Assert.Null(failReason);

@@ -99,14 +99,7 @@ public class Req1MembershipArcSweepTests
                     int startId = twNodes[x].OrderByDescending(nid => junctions.Min(j => NodeDist(layout, nid, j))).First();
 
                     pairs++;
-                    var route = TaxiPathfinder.ResolveExplicitPath(
-                        layout,
-                        startId,
-                        [x, y],
-                        out _,
-                        new ExplicitPathOptions { AirportId = airport },
-                        AircraftCategory.Jet
-                    );
+                    var route = TaxiPathfinder.ResolveExplicitPath(layout, startId, [x, y], out _, new ExplicitPathOptions(), AircraftCategory.Jet);
 
                     if (route is null)
                     {

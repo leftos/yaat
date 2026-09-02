@@ -262,7 +262,7 @@ public static class RampLaneReposition
         {
             ExplicitHoldShorts = options.ExplicitHoldShorts,
             DestinationRunway = null,
-            AirportId = options.AirportId,
+
             DestinationHintNode = origin,
             DiagnosticLog = options.DiagnosticLog,
             PathTurnHints = options.PathTurnHints,

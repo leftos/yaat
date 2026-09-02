@@ -104,7 +104,7 @@ All commands including rewrite verbs (e.g. `RWY`) go through `CommandRegistry` �
 
 ## Tech Stack
 
-.NET 10, C# (nullable, implicit usings) | Avalonia UI 12.1.0 (Fluent dark, compiled bindings; SkiaSharp comes in transitively via `Avalonia.Skia` — not a direct package reference) | CommunityToolkit.Mvvm 8.4.0 | SignalR.Client 10.0.3 | Velopack 1.2.0 (installer/auto-update) | LM-Kit.NET 2026.7.3 (`Yaat.Client` + `Yaat.SpeechSandbox` only)
+.NET 10, C# (nullable, implicit usings) | Avalonia UI 12.1.0 (Fluent dark, compiled bindings; SkiaSharp comes in transitively via `Avalonia.Skia` — not a direct package reference) | CommunityToolkit.Mvvm 8.4.0 | SignalR.Client 10.0.3 | Velopack 1.2.0 (installer/auto-update) | LM-Kit.NET 2026.7.4 (`Yaat.Client` + `Yaat.SpeechSandbox` only)
 
 ## Related Repositories
 

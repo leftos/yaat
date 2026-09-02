@@ -27,8 +27,7 @@ public class RampLaneRepositionTests
 
     private static AirportGroundLayout? OakLayout() => TestVnasData.NavigationDb is null ? null : new TestAirportGroundData().GetLayout("OAK");
 
-    private static ExplicitPathOptions Options(AirportGroundLayout layout, string? destinationRunway) =>
-        new() { AirportId = layout.AirportId, DestinationRunway = destinationRunway };
+    private static ExplicitPathOptions Options(string? destinationRunway) => new() { DestinationRunway = destinationRunway };
 
     /// <summary>Resolve from the graph node nearest <paramref name="position"/> the way TryTaxi does, returning the structured failure.</summary>
     private static PathfindingFailure? FailureFor(
@@ -117,7 +116,7 @@ public class RampLaneRepositionTests
 
         var gate = layout.FindParkingByName("B20S")!;
         var path = new List<string> { "M4", "M1", "A", "H", "GL", "L", "LF", "F" };
-        var options = Options(layout, "28L");
+        var options = Options("28L");
         var failure = FailureFor(layout, gate.Position, gate.TrueHeading!.Value, path, options)!;
         Assert.Equal(FailureKind.TaxiwayNotConnected, failure.Kind);
 
@@ -149,7 +148,7 @@ public class RampLaneRepositionTests
 
         var gate = layout.FindParkingByName("B20S")!;
         var path = new List<string> { "M5", "M1", "A", "A1" };
-        var options = Options(layout, "1R");
+        var options = Options("1R");
         var failure = FailureFor(layout, gate.Position, gate.TrueHeading!.Value, path, options)!;
 
         var plan = RampLaneReposition.TryPlan(layout, gate.Position, gate.TrueHeading!.Value, null, path, failure, options, AircraftCategory.Jet);
@@ -174,7 +173,7 @@ public class RampLaneRepositionTests
         var onM3 = layout.Nodes[469];
         var heading = new TrueHeading(207);
         var path = new List<string> { "M4", "M1", "A", "A1" };
-        var options = Options(layout, "1R");
+        var options = Options("1R");
         // Mid-lane the resolver first tries a connector detour around the missing M4 leg, so it reports the
         // dead end as an unreachable destination rather than blaming M4 outright.
         var failure = FailureFor(layout, onM3.Position, heading, path, options)!;
@@ -203,7 +202,7 @@ public class RampLaneRepositionTests
 
         var gate = layout.FindParkingByName("B20S")!;
         var path = new List<string> { "M4", "M1", "A", "A1" };
-        var options = Options(layout, "1R");
+        var options = Options("1R");
         var failure = FailureFor(layout, gate.Position, gate.TrueHeading!.Value, path, options)!;
         var plan = RampLaneReposition.TryPlan(layout, gate.Position, gate.TrueHeading!.Value, null, path, failure, options, AircraftCategory.Jet)!;
 
@@ -239,7 +238,7 @@ public class RampLaneRepositionTests
         var onM3 = layout.Nodes[469];
         var heading = new TrueHeading(207);
         var path = new List<string> { "M4", "M1", "A" };
-        var options = Options(layout, "28L");
+        var options = Options("28L");
         var failure = FailureFor(layout, onM3.Position, heading, path, options)!;
         Assert.Equal(FailureKind.DestinationUnreachable, failure.Kind);
         Assert.Equal("A", failure.InfeasibleTaxiway);
@@ -259,7 +258,7 @@ public class RampLaneRepositionTests
 
         var gate = layout.FindParkingByName("41-15")!;
         var path = new List<string> { "A", "E" };
-        var options = Options(layout, "28R");
+        var options = Options("28R");
         var failure = FailureFor(layout, gate.Position, gate.TrueHeading!.Value, path, options)!;
 
         var plan = RampLaneReposition.TryPlan(layout, gate.Position, gate.TrueHeading!.Value, null, path, failure, options, AircraftCategory.Piston);
@@ -278,7 +277,7 @@ public class RampLaneRepositionTests
         // M2 is a sibling lane but ~840 ft away across M4/M5 — far beyond a lane switch.
         var gate = layout.FindParkingByName("B20S")!;
         var path = new List<string> { "M2", "A" };
-        var options = Options(layout, "28L");
+        var options = Options("28L");
         var failure = FailureFor(layout, gate.Position, gate.TrueHeading!.Value, path, options)!;
 
         var plan = RampLaneReposition.TryPlan(layout, gate.Position, gate.TrueHeading!.Value, null, path, failure, options, AircraftCategory.Jet);
@@ -293,7 +292,7 @@ public class RampLaneRepositionTests
         var layout = GeoJsonParser.Parse("TST", MiniRampGeoJson(withTaxiwayBetween: true), "TST");
         var gate = layout.FindParkingByName("G")!;
         var path = new List<string> { "M9" };
-        var options = Options(layout, null);
+        var options = Options(null);
         var failure = FailureFor(layout, gate.Position, gate.TrueHeading!.Value, path, options)!;
 
         var plan = RampLaneReposition.TryPlan(layout, gate.Position, gate.TrueHeading!.Value, null, path, failure, options, AircraftCategory.Jet);
@@ -306,7 +305,7 @@ public class RampLaneRepositionTests
         var layout = GeoJsonParser.Parse("TST", MiniRampGeoJson(withTaxiwayBetween: false), "TST");
         var gate = layout.FindParkingByName("G")!;
         var path = new List<string> { "M9" };
-        var options = Options(layout, null);
+        var options = Options(null);
         var failure = FailureFor(layout, gate.Position, gate.TrueHeading!.Value, path, options)!;
 
         var plan = RampLaneReposition.TryPlan(layout, gate.Position, gate.TrueHeading!.Value, null, path, failure, options, AircraftCategory.Jet);

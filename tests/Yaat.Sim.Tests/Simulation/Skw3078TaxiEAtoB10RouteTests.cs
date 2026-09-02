@@ -60,12 +60,7 @@ public class Skw3078TaxiEAtoB10RouteTests(ITestOutputHelper output)
             fromNodeId: StartNodeId,
             taxiwayNames: Taxiways,
             out string? failReason,
-            new ExplicitPathOptions
-            {
-                AirportId = "SFO",
-                DestinationHintNode = parkingNode,
-                DiagnosticLog = msg => output.WriteLine(msg),
-            },
+            new ExplicitPathOptions { DestinationHintNode = parkingNode, DiagnosticLog = msg => output.WriteLine(msg) },
             AircraftCategory.Jet
         );
 
@@ -155,7 +150,7 @@ public class Skw3078TaxiEAtoB10RouteTests(ITestOutputHelper output)
             fromNodeId: StartNodeId,
             taxiwayNames: Taxiways,
             out string? failReason,
-            new ExplicitPathOptions { AirportId = "SFO", DestinationHintNode = parkingNode },
+            new ExplicitPathOptions { DestinationHintNode = parkingNode },
             AircraftCategory.Jet
         );
 
@@ -248,7 +243,7 @@ public class Skw3078TaxiEAtoB10RouteTests(ITestOutputHelper output)
             fromNodeId: StartNodeId,
             taxiwayNames: Taxiways,
             out string? failReason,
-            new ExplicitPathOptions { AirportId = "SFO", DestinationHintNode = parkingNode },
+            new ExplicitPathOptions { DestinationHintNode = parkingNode },
             AircraftCategory.Jet
         );
 

@@ -5395,15 +5395,11 @@ public sealed class SimulationEngine
     }
 
     /// <summary>
-    /// Replaces the live arrival-generator list with the parsed JSON. Each generator is
-    /// rescheduled "from now" — NextSpawnSeconds = elapsed + intervalTime, IsExhausted = false.
-    /// Already-spawned aircraft keep flying. Returns warnings; the swap is best-effort per generator
-    /// (entries with unresolvable runways are dropped with a warning).
-    /// </summary>
-    /// <summary>
     /// Replaces every generator on the live scenario from a <see cref="GeneratorsPayload"/> JSON document.
     /// A generator whose id survives the edit keeps its spawn cadence and activation, so toggling one row
     /// does not re-phase the rest of the traffic; a newly added generator starts one interval from now.
+    /// Already-spawned aircraft keep flying. The swap is best-effort per generator: entries with
+    /// unresolvable runways are dropped and reported in the returned warnings.
     /// </summary>
     public List<string> ApplyGeneratorsJson(string generatorsJson)
     {

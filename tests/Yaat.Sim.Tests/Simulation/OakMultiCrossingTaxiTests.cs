@@ -50,7 +50,7 @@ public sealed class OakMultiCrossingTaxiTests(ITestOutputHelper output)
         {
             DestinationRunway = "30",
             ExplicitHoldShorts = [HoldShortTarget.Parse("28R")],
-            AirportId = "OAK",
+
             DiagnosticLog = m => output.WriteLine("  " + m),
         };
         var route = TaxiPathfinder.ResolveExplicitPath(layout, jsx1.Id, ["C", "B", "W"], out var fail, opts, category);
