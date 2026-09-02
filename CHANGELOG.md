@@ -23,6 +23,8 @@
 - Aircraft removed with `DEL` now appear in the Session Report Aircraft tab as dropped instead of vanishing.
 - Recordings and bug bundles replay with the magnetic declination of the day they were made, so a replay months later reproduces the original headings and positions exactly instead of drifting with the magnetic model.
 - In solo training, answering a "ready to taxi" call with `TAXIAUTO` now closes the pilot's request instead of leaving the pilot re-asking every two minutes.
+- The `LUAW` "holds a landing clearance" warning (7110.65 3-9-4.c) fires only while the arrival is still airborne; a landed aircraft rolling out no longer triggers it.
+- Runway-safety advisories no longer repeat the aircraft's callsign at the start of the message.
 
 ## v0.12.24-beta [2026/08/31]
 

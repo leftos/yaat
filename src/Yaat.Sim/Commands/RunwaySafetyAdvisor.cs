@@ -144,8 +144,8 @@ public static class RunwaySafetyAdvisor
 
         var display = RunwayIdentifier.ToDisplayDesignator(runway.Designator);
         var warning = forTakeoff
-            ? $"{aircraft.Callsign}: traffic stopped on runway {display} ({string.Join(", ", stopped)}) — this departure cannot begin takeoff roll until that traffic is clear of the runway (7110.65 3-9-6.a); hold this aircraft short until the runway is clear"
-            : $"{aircraft.Callsign}: traffic stopped on runway {display} ({string.Join(", ", stopped)}) — the runway is occupied; withhold the landing/option clearance until that traffic is clear (7110.65 3-10-3.a.1)";
+            ? $"traffic stopped on runway {display} ({string.Join(", ", stopped)}) — this departure cannot begin takeoff roll until that traffic is clear of the runway (7110.65 3-9-6.a); hold this aircraft short until the runway is clear"
+            : $"traffic stopped on runway {display} ({string.Join(", ", stopped)}) — the runway is occupied; withhold the landing/option clearance until that traffic is clear (7110.65 3-10-3.a.1)";
         aircraft.PendingWarnings.Add(warning);
         Log.LogDebug("[RunwaySafety] {Warning}", warning);
     }
@@ -154,9 +154,11 @@ public static class RunwaySafetyAdvisor
     /// Warns the controller when LUAW is authorized for a runway another aircraft already holds a
     /// landing-family clearance for — active (<see cref="PhaseList.LandingClearance"/>) or
     /// pre-issued against a queued pattern entry (<see cref="AircraftPattern.PendingLandingClearance"/>).
-    /// A clearance is only counted while it is still pending use: an arrival that has landed and
-    /// is exiting or taxiing in keeps its stale <see cref="PhaseList.LandingClearance"/>, and must
-    /// not re-trigger this on every later LUAW.
+    /// A clearance is only counted while the arrival is still airborne: 3-9-4.a authorizes LUAW
+    /// behind "another aircraft which has landed on or is taking off the runway", so an arrival in
+    /// its rollout no longer restricts it, and a landed aircraft keeps its stale
+    /// <see cref="PhaseList.LandingClearance"/> while exiting and taxiing in, which must not
+    /// re-trigger this on every later LUAW.
     /// </summary>
     public static void WarnIfArrivalCleared(AircraftState aircraft, RunwayInfo runway, DispatchContext ctx)
     {
@@ -177,7 +179,7 @@ public static class RunwaySafetyAdvisor
 
         var display = RunwayIdentifier.ToDisplayDesignator(runway.Designator);
         var warning =
-            $"{aircraft.Callsign}: {string.Join(", ", cleared)} holds a landing clearance for runway {display} — do not authorize line up and wait while that clearance stands; cancel it or hold short until the arrival is clear (7110.65 3-9-4.c)";
+            $"{string.Join(", ", cleared)} holds a landing clearance for runway {display} — do not authorize line up and wait while that clearance stands; cancel it or hold short until the arrival is clear (7110.65 3-9-4.c)";
         aircraft.PendingWarnings.Add(warning);
         Log.LogDebug("[RunwaySafety] {Warning}", warning);
     }
@@ -228,7 +230,7 @@ public static class RunwaySafetyAdvisor
         {
             var display = RunwayIdentifier.ToDisplayDesignator(runway.Designator);
             var warning =
-                $"{aircraft.Callsign}: traffic holding in position on runway {display} ({string.Join(", ", occupants)}) — this departure cannot begin takeoff roll until that traffic has departed and crossed the runway end or turned to avert a conflict (7110.65 3-9-6.a); with it stopped in position and holding no takeoff clearance there is no reasonable assurance separation will exist when the roll starts (3-9-5) — hold this aircraft short until the runway is clear";
+                $"traffic holding in position on runway {display} ({string.Join(", ", occupants)}) — this departure cannot begin takeoff roll until that traffic has departed and crossed the runway end or turned to avert a conflict (7110.65 3-9-6.a); with it stopped in position and holding no takeoff clearance there is no reasonable assurance separation will exist when the roll starts (3-9-5) — hold this aircraft short until the runway is clear";
             aircraft.PendingWarnings.Add(warning);
             Log.LogDebug("[RunwaySafety] {Warning}", warning);
         }
@@ -254,7 +256,7 @@ public static class RunwaySafetyAdvisor
         if (onSurface.Count > 0)
         {
             var warning =
-                $"{aircraft.Callsign}: live traffic on runway {display} ({string.Join(", ", onSurface)}) — this departure cannot begin takeoff roll until that traffic has departed and crossed the runway end or turned to avert a conflict (7110.65 3-9-6.a)";
+                $"live traffic on runway {display} ({string.Join(", ", onSurface)}) — this departure cannot begin takeoff roll until that traffic has departed and crossed the runway end or turned to avert a conflict (7110.65 3-9-6.a)";
             aircraft.PendingWarnings.Add(warning);
             Log.LogDebug("[RunwaySafety] {Warning}", warning);
         }
@@ -262,7 +264,7 @@ public static class RunwaySafetyAdvisor
         if (landing.Count > 0)
         {
             var warning =
-                $"{aircraft.Callsign}: live arrival landing on runway {display} ({string.Join(", ", landing)}) — this departure cannot begin takeoff roll until that traffic is clear of the runway (7110.65 3-9-6.b)";
+                $"live arrival landing on runway {display} ({string.Join(", ", landing)}) — this departure cannot begin takeoff roll until that traffic is clear of the runway (7110.65 3-9-6.b)";
             aircraft.PendingWarnings.Add(warning);
             Log.LogDebug("[RunwaySafety] {Warning}", warning);
         }
@@ -299,7 +301,7 @@ public static class RunwaySafetyAdvisor
 
         var display = RunwayIdentifier.ToDisplayDesignator(runway.Designator);
         var warning =
-            $"{aircraft.Callsign}: {string.Join(", ", holding)} already holding in position on runway {display} — do not authorize simultaneous line up and wait on the same runway between sunrise and sunset unless the local assist/local monitor position is staffed (7110.65 3-9-4.h)";
+            $"{string.Join(", ", holding)} already holding in position on runway {display} — do not authorize simultaneous line up and wait on the same runway between sunrise and sunset unless the local assist/local monitor position is staffed (7110.65 3-9-4.h)";
         aircraft.PendingWarnings.Add(warning);
         Log.LogDebug("[RunwaySafety] {Warning}", warning);
     }
@@ -338,7 +340,7 @@ public static class RunwaySafetyAdvisor
         var closest = traffic[0];
         var others = traffic.Count > 1 ? $"; also {string.Join(", ", traffic.Skip(1).Select(t => $"{t.Callsign} {t.DistNm:F1} nm"))}" : "";
         var warning =
-            $"{aircraft.Callsign}: live traffic on final runway {display} — issue traffic before line up and wait: \"traffic, {closest.Callsign}, {closest.DistNm:F1} mile final\" (7110.65 3-9-4.d){others}";
+            $"live traffic on final runway {display} — issue traffic before line up and wait: \"traffic, {closest.Callsign}, {closest.DistNm:F1} mile final\" (7110.65 3-9-4.d){others}";
         aircraft.PendingWarnings.Add(warning);
         Log.LogDebug("[RunwaySafety] {Warning}", warning);
     }
@@ -361,7 +363,7 @@ public static class RunwaySafetyAdvisor
         if (occupying.Count > 0)
         {
             var warning =
-                $"{aircraft.Callsign}: live traffic on runway {display} ({string.Join(", ", occupying)}) — the runway is not clear; withhold the landing/option clearance until it is (7110.65 3-10-3.a.1, 3-10-5.e)";
+                $"live traffic on runway {display} ({string.Join(", ", occupying)}) — the runway is not clear; withhold the landing/option clearance until it is (7110.65 3-10-3.a.1, 3-10-5.e)";
             aircraft.PendingWarnings.Add(warning);
             Log.LogDebug("[RunwaySafety] {Warning}", warning);
         }
@@ -372,7 +374,7 @@ public static class RunwaySafetyAdvisor
         if (rolling.Count > 0)
         {
             var warning =
-                $"{aircraft.Callsign}: live departure rolling on runway {display} ({string.Join(", ", rolling)}) — the arrival may not cross the threshold until it has crossed the runway end or is airborne past the same-runway landmark (7110.65 3-10-3.a.2)";
+                $"live departure rolling on runway {display} ({string.Join(", ", rolling)}) — the arrival may not cross the threshold until it has crossed the runway end or is airborne past the same-runway landmark (7110.65 3-10-3.a.2)";
             aircraft.PendingWarnings.Add(warning);
             Log.LogDebug("[RunwaySafety] {Warning}", warning);
         }
@@ -395,7 +397,7 @@ public static class RunwaySafetyAdvisor
         }
 
         var warning =
-            $"{aircraft.Callsign}: traffic holding in position on runway {runwayDisplay} ({string.Join(", ", occupants)}) — withhold the landing/option clearance until that traffic exits the runway or starts takeoff roll; issue \"runway {runwayDisplay}, continue, traffic holding in position\" instead (7110.65 3-10-5.e, 3-9-4.c)";
+            $"traffic holding in position on runway {runwayDisplay} ({string.Join(", ", occupants)}) — withhold the landing/option clearance until that traffic exits the runway or starts takeoff roll; issue \"runway {runwayDisplay}, continue, traffic holding in position\" instead (7110.65 3-10-5.e, 3-9-4.c)";
         aircraft.PendingWarnings.Add(warning);
         Log.LogDebug("[RunwaySafety] {Warning}", warning);
     }
@@ -449,13 +451,16 @@ public static class RunwaySafetyAdvisor
     }
 
     /// <summary>
-    /// The clearance still governs an approach to the runway: the aircraft is airborne, or it is
-    /// on the runway mid-landing (rollout, stop-and-go hold, touch-and-go roll). Once it is
-    /// exiting or taxiing in, the stale <see cref="PhaseList.LandingClearance"/> no longer
-    /// restricts LUAW.
+    /// The clearance still governs an approach to the runway only while the aircraft is airborne.
+    /// Touchdown ends the 3-9-4.c.1(b) restriction for every landing-family clearance: a full-stop
+    /// rollout is the 3-9-4.a "has landed on the runway" traffic LUAW is authorized behind, and a
+    /// rolling touch-and-go or a stopped stop-and-go is a departure about to roll — the same
+    /// anticipated separation (3-9-5) that keeps an occupant holding its takeoff clearance silent
+    /// in <see cref="AwaitsTakeoffClearanceOnRunway"/>. The phase cannot decide this:
+    /// <see cref="LandingPhase"/> spans flare through rollout, so only <see cref="AircraftState.IsOnGround"/>
+    /// marks the boundary.
     /// </summary>
-    private static bool IsClearanceStillPendingUse(AircraftState other) =>
-        (!other.IsOnGround) || other.Phases?.CurrentPhase is LandingPhase or HelicopterLandingPhase or StopAndGoPhase or TouchAndGoPhase;
+    private static bool IsClearanceStillPendingUse(AircraftState other) => !other.IsOnGround;
 
     private static bool IsLandingFamily(ClearanceType clearance) =>
         clearance

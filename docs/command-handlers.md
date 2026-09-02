@@ -294,12 +294,13 @@ it at the `SimulationEngine` / `RoomEngine` call sites — never pass it as a ha
 
 Handlers that want to warn the RPO **without failing the command** append a string to `AircraftState.PendingWarnings`. The strings are drained every
 tick (`SimulationWorld.DrainAllWarnings` → yaat-server `TickProcessor.BroadcastWarnings`) and broadcast as `"Warning"` terminal entries, rendered
-amber in the client — so the advisory surfaces on the tick *after* the command's own response, decoupled from `CommandResult.Message`. Two users:
+amber in the client — so the advisory surfaces on the tick *after* the command's own response, decoupled from `CommandResult.Message`. The
+string must not repeat the aircraft's callsign: the broadcast is per-aircraft and the client renders the entry as `<callsign>: <text>`. Two users:
 
 - `MilitaryRouteCommandHandler.WarnIfRouteOccupied` — a second aircraft cleared onto an occupied MTR (7110.65 9-2-6.a).
 - `RunwaySafetyAdvisor` (`src/Yaat.Sim/Commands/RunwaySafetyAdvisor.cs`) — 7110.65 3-9-4 occupied-runway advisories: a landing-family clearance
-  (CLAND/COPT/TG/SG/LA/LAHSO/CLANDF) onto a runway with traffic holding in position or taxiing to line up, and the reverse (LUAW while an aircraft
-  holds a landing-family clearance for the runway), plus `WarnIfTrafficOnFinal` on LUAW for live-traffic shadows within 6 nm of the
+  (CLAND/COPT/TG/SG/LA/LAHSO/CLANDF) onto a runway with traffic holding in position or taxiing to line up, and the reverse (LUAW while a still-airborne arrival
+  holds a landing-family clearance for the runway — touchdown ends it, 3-9-4.a), plus `WarnIfTrafficOnFinal` on LUAW for live-traffic shadows within 6 nm of the
   final (3-9-4.d) and shadow occupants by geometry. Gated on the airport's vNAS ARTCC config: suppressed when
   `ArtccConfigResolver.AirportHasFullSafetyLogic` finds an ASDE-X config with runway configurations (CRC's Safety Logic covers the incursion there).
   `WarnIfAnotherHoldingInPosition` (also on LUAW) is the 3-9-4.h reminder — a second aircraft lined up on the same pavement while the first

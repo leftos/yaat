@@ -367,6 +367,89 @@ public class RunwayOccupancyWarningTests
         Assert.DoesNotContain(departure.PendingWarnings, w => w.Contains("N200AR", StringComparison.OrdinalIgnoreCase));
     }
 
+    /// <summary>
+    /// Arrival that holds <paramref name="clearance"/> for runway 30 and is now on the runway surface in
+    /// <paramref name="onRunwayPhase"/> — touched down, but not yet exiting (the phase list still sits on
+    /// the landing-family phase).
+    /// </summary>
+    private static AircraftState MakeTouchedDownArrival(string callsign, ClearanceType clearance, Phase onRunwayPhase)
+    {
+        var arrival = MakeArrival(callsign, TestRunwayFactory.Make(designator: "30", airportId: "OAK", heading: 310, elevationFt: 6));
+        arrival.Phases!.LandingClearance = clearance;
+        arrival.Phases.ClearedRunwayId = "30";
+        arrival.Phases.Phases.Clear();
+        arrival.Phases.Add(onRunwayPhase);
+        arrival.Phases.Start(CommandDispatcher.BuildMinimalContext(arrival));
+        arrival.IsOnGround = true;
+        arrival.Altitude = 6;
+        arrival.IndicatedAirspeed = 110;
+        return arrival;
+    }
+
+    [Fact]
+    public void Luaw_ArrivalTouchedDownStillInLandingPhase_NoWarning()
+    {
+        // 7110.65 3-9-4.c.1(b) restricts LUAW while an aircraft is CLEARED for a full-stop etc. on the
+        // runway — i.e. still inbound. Once it has touched down it is the 3-9-4.a "aircraft which has
+        // landed on ... the runway" that LUAW is explicitly authorized behind. The rollout keeps the
+        // aircraft in LandingPhase until it commits to an exit, so the phase alone cannot decide.
+        var runway = TestRunwayFactory.Make(designator: "30", airportId: "OAK", heading: 310, elevationFt: 6);
+        using var _ = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithRunways(runway));
+
+        var arrival = MakeTouchedDownArrival("N200AR", ClearanceType.ClearedToLand, new LandingPhase());
+        Assert.IsType<LandingPhase>(arrival.Phases!.CurrentPhase);
+        var departure = MakeDepartureHoldingShort("N300DP");
+
+        var result = Dispatch("LUAW", departure, arrival, departure);
+
+        Assert.True(result.Success, result.Message);
+        Assert.DoesNotContain(departure.PendingWarnings, w => w.Contains("N200AR", StringComparison.OrdinalIgnoreCase));
+    }
+
+    public static IEnumerable<object[]> TouchedDownLandingFamilyCases() =>
+        [
+            [ClearanceType.ClearedTouchAndGo, new TouchAndGoPhase()],
+            [ClearanceType.ClearedStopAndGo, new StopAndGoPhase()],
+            [ClearanceType.ClearedForOption, new TouchAndGoPhase()],
+            [ClearanceType.ClearedToLand, new HelicopterLandingPhase()],
+        ];
+
+    [Theory]
+    [MemberData(nameof(TouchedDownLandingFamilyCases))]
+    public void Luaw_ArrivalTouchedDownOnOtherLandingFamilyClearance_NoWarning(ClearanceType clearance, Phase onRunwayPhase)
+    {
+        // A rolling touch-and-go or a stopped stop-and-go is a departure about to roll — the same
+        // anticipated separation (3-9-5) that keeps a CTO-holder in position silent.
+        var runway = TestRunwayFactory.Make(designator: "30", airportId: "OAK", heading: 310, elevationFt: 6);
+        using var _ = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithRunways(runway));
+
+        var arrival = MakeTouchedDownArrival("N200AR", clearance, onRunwayPhase);
+        var departure = MakeDepartureHoldingShort("N300DP");
+
+        Dispatch("LUAW", departure, arrival, departure);
+
+        Assert.DoesNotContain(departure.PendingWarnings, w => w.Contains("N200AR", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void Luaw_ArrivalInFlareStillAirborne_Warns()
+    {
+        // The boundary is touchdown, not the phase: an arrival already in LandingPhase but still
+        // airborne over the runway (flare) is still cleared to land, and 3-9-4.c.1(b) still applies.
+        var runway = TestRunwayFactory.Make(designator: "30", airportId: "OAK", heading: 310, elevationFt: 6);
+        using var _ = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithRunways(runway));
+
+        var arrival = MakeTouchedDownArrival("N200AR", ClearanceType.ClearedToLand, new LandingPhase());
+        arrival.IsOnGround = false;
+        arrival.Altitude = 30;
+        var departure = MakeDepartureHoldingShort("N300DP");
+
+        Dispatch("LUAW", departure, arrival, departure);
+
+        Assert.Contains(departure.PendingWarnings, w => w.Contains("N200AR", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(departure.PendingWarnings, w => w.Contains("3-9-4", StringComparison.OrdinalIgnoreCase));
+    }
+
     [Fact]
     public void Luaw_ArrivalWentAround_NoWarning()
     {
