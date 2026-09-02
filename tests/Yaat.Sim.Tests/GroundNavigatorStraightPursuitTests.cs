@@ -256,4 +256,64 @@ public class GroundNavigatorStraightPursuitTests(ITestOutputHelper output)
         Assert.False(double.IsNaN(finalHdgDiff), "navigator did not arrive within budget");
         Assert.True(finalHdgDiff < 5.0, $"aircraft heading should converge toward segment bearing, final diff was {finalHdgDiff:F2}°");
     }
+
+    // ---- Small-offset re-acquisition: a gentle slide, not a heading hunt ----
+
+    [Fact]
+    public void SmallOffset_ReacquiresWithoutHeadingHunt()
+    {
+        // A rounded corner or a fillet playback leaves the aircraft a few feet off the outgoing
+        // centerline at low speed. With a look-ahead shorter than the aircraft's own nose-wheel turn
+        // radius, pure pursuit turns a 4 ft offset into a ~20° steer command and the nose hunts across
+        // the line (S2-OAK-2: SWA2600 leaving the OAK U/W corner). The re-acquisition must be a gentle,
+        // one-sided slide back onto the line.
+        var from = MakeNode(1, 37.0, -122.0);
+        double segBearing = 90.0;
+        var (endLat, endLon) = GeoMath.ProjectPoint(from.Position, new TrueHeading(segBearing), 500.0 / GeoMath.FeetPerNm);
+        var to = MakeNode(2, endLat, endLon);
+
+        // 40 ft along the segment, 4 ft south of it, aligned with it, at the establish-straight crawl.
+        var (onLineLat, onLineLon) = GeoMath.ProjectPoint(from.Position, new TrueHeading(segBearing), 40.0 / GeoMath.FeetPerNm);
+        var (acLat, acLon) = GeoMath.ProjectPoint(new LatLon(onLineLat, onLineLon), new TrueHeading(180.0), 4.0 / GeoMath.FeetPerNm);
+        var (aircraft, ctx) = MakeFixture(new LatLon(acLat, acLon), segBearing, startSpeedKts: 5);
+
+        var nav = new GroundNavigator { MaxSpeedKts = 15.0 };
+        nav.SetupSegment(MakeRoute(MakeStraightSegment(from, to)), ctx, _ => true);
+
+        const double deadbandFt = 0.5;
+        double maxHeadingErrDeg = 0;
+        int lineCrossings = 0;
+        int lastSide = 0;
+        double finalCrossFt = double.NaN;
+        for (int i = 0; i < 400; i++)
+        {
+            FlightPhysics.Update(aircraft, ctx.DeltaSeconds);
+            var result = nav.Tick(ctx, isLastSegment: true, _ => true);
+
+            double signedCrossFt =
+                GeoMath.SignedCrossTrackDistanceNm(aircraft.Position, from.Position, new TrueHeading(segBearing)) * GeoMath.FeetPerNm;
+            maxHeadingErrDeg = Math.Max(maxHeadingErrDeg, Math.Abs(GeoMath.SignedBearingDifference(segBearing, aircraft.TrueHeading.Degrees)));
+            if (Math.Abs(signedCrossFt) > deadbandFt)
+            {
+                int side = Math.Sign(signedCrossFt);
+                if (lastSide != 0 && side != lastSide)
+                {
+                    lineCrossings++;
+                }
+                lastSide = side;
+            }
+
+            if (result == NavigatorResult.ArrivedAtNode)
+            {
+                finalCrossFt = Math.Abs(signedCrossFt);
+                break;
+            }
+        }
+
+        output.WriteLine($"small-offset re-acquire: maxHdgErr={maxHeadingErrDeg:F1}deg crossings={lineCrossings} finalCross={finalCrossFt:F2}ft");
+        Assert.False(double.IsNaN(finalCrossFt), "navigator did not arrive at the target within budget");
+        Assert.True(maxHeadingErrDeg <= 10.0, $"a 4 ft offset should be re-acquired with <= 10° of heading, was {maxHeadingErrDeg:F1}°");
+        Assert.True(lineCrossings <= 1, $"aircraft hunted across the centerline {lineCrossings} times re-acquiring a 4 ft offset");
+        Assert.True(finalCrossFt < 1.0, $"aircraft should end on the line (final cross {finalCrossFt:F2}ft)");
+    }
 }

@@ -689,9 +689,9 @@ Commands/TrackResolver.cs           # AS-prefix extraction (e.g. "AS 3Y ACCEPT" 
                                     # resolution with optional ARTCC-config fallback, owner→TCP lookup. Shared by yaat-server's live track path
                                     # and Sim's replay applier.
 Commands/PatternCommandHandler.cs   # Pattern operation command logic (extend, rock wings, GoAround, CTL, sequence, etc.); EF loop detection via turn-arc geometry, same-runway continue no-op, never-route-outbound reject, and the pattern retarget that degrades a too-close EF into a base entry; runway-changing entries void the landing clearance; pre-arms EXT/SA/MNA and landing/option clearances behind a still-queued pattern entry; present-position downwind join (IsAtOrPastDownwindEntry) when the aircraft is already alongside the downwind between the entry point and the base turn (#352)
-Commands/RunwaySafetyAdvisor.cs     # Non-blocking 7110.65 3-9-4/3-9-6 occupied-runway advisories (PendingWarnings → amber terminal): landing-family clearance
+Commands/RunwaySafetyAdvisor.cs     # Non-blocking 7110.65 3-9-4/3-9-6 occupied-runway advisories (PendingWarnings → amber terminal; never prefixed with the callsign): landing-family clearance
                                     # (pavement test = RunwayOccupancy.IsOnPavement for holding-in-position occupants; live-traffic shadows by
-                                    # RunwayOccupancy.Classify geometry; WarnIfTrafficOnFinal = 3-9-4.d shadows within 6 nm on LUAW;
+                                    # RunwayOccupancy.Classify geometry; WarnIfTrafficOnFinal = 3-9-4.d shadows within 6 nm on LUAW; WarnIfLandedTrafficBlocksTakeoff = 3-9-6.b arrival not yet clear on CTO;
                                     # WarnIfAnotherHoldingInPosition = 3-9-4.h second LUAW on the same pavement, not safety-logic gated)
                                     # (CLAND/COPT/TG/SG/LA/LAHSO/CLANDF) with traffic holding in position / taxiing to line up on the runway, and the reverse
                                     # (LUAW with a landing-family clearance outstanding — only while that arrival is airborne; touchdown ends 3-9-4.c). WarnIfRunwayOccupiedForTakeoff = 3-9-6.a/b: takeoff clearance
@@ -772,7 +772,7 @@ AirborneFollowHelper.cs        # Shared spacing math. GetAdjustedSpeed for patte
 # Phases/Ground/
 AtParkingPhase / PushbackPhase (simple + heading + targeted-position + spot pull-forward; `PUSH @parking` reverses directly to the gate, `PUSH $spot` reverses past the mark then pulls forward nose-out — see docs/ground/pushback.md) / PushbackToSpotPhase (retained for snapshot restore of pre-#233 recordings only; never created by the command path) / TaxiingPhase / HoldingShortPhase
 CrossingRunwayPhase / HoldingAfterExitPhase / FollowingPhase
-GroundNavigator.cs           # Core ground nav: closed-form arc playback (plays the real cubic Bezier), pure-pursuit tracking, turn-rate-feasibility corner-speed cap (arc speed profile limits target by local fillet curvature), entry-alignment rounding, orbit invariant, ReleaseHeadingHold when a straight primitive takes over from an arc
+GroundNavigator.cs           # Core ground nav: closed-form arc playback (plays the real cubic Bezier), pure-pursuit tracking (look-ahead floored at the category nose-wheel radius), turn-rate-feasibility corner-speed cap (arc speed profile limits target by local fillet curvature), entry-alignment rounding, orbit invariant, ReleaseHeadingHold when a straight primitive takes over from an arc
 RunwayExitPhase.cs             # Rolls on centerline until exit found; builds TaxiRoute from exit path and hands off to TaxiingPhase
 HoldingAfterExitPhase.cs       # Post-exit hold: broadcasts "clear of runway", faces away from runway, awaits taxi command
 ClearRunwayPhase.cs            # CLRWY: pulls a tail-over-runway aircraft (hold-short of a taxiway sitting closer than its own length past a crossed runway) forward until just clear (½ length past the bars), then holds

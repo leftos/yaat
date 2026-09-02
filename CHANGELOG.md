@@ -31,6 +31,7 @@
 - `TAXIAUTO` no longer detours around a runway end when the direct route across the runway is cheaper.
 - Explicit taxi routes no longer resolve through fillets too tight for any aircraft to steer; OAK `TAXI F 33 D` back-taxis the runway between F and D again.
 - An aircraft crawling in a queue on a long straight after a corner no longer logs a spurious circling error and jumps ahead to the next node.
+- After a corner, a taxiing aircraft a few feet off the centerline slides back onto it instead of swinging its nose across the line and hunting.
 
 ## v0.12.24-beta [2026/08/31]
 

@@ -90,12 +90,15 @@ public sealed class GroundNavigator
     private const double ArcSpeedFloorKts = 0.1;
 
     /// <summary>
-    /// Pure-pursuit look-ahead distance floor in feet, used on straight
-    /// segments when the aircraft is nearly stationary. Prevents the
-    /// look-ahead point from collapsing onto the aircraft's foot-of-
-    /// perpendicular — which would leave steering undefined.
+    /// Pure-pursuit look-ahead distance floor in feet on straight segments: the category's nose-wheel
+    /// turn radius (<see cref="CategoryPerformance.NoseWheelTurnRadiusFt"/>). Pure pursuit commands the
+    /// curvature 2·sin α / L toward the look-ahead point; a look-ahead shorter than the gear's own
+    /// minimum radius asks for more curvature than the nose wheel can deliver, so a few feet of offset
+    /// left by a corner became a ~20° steer and the nose hunted across the line (S2-OAK-2, SWA2600 off
+    /// the OAK U/W corner). The floor also keeps the look-ahead point from collapsing onto the
+    /// aircraft's foot-of-perpendicular when nearly stationary, which would leave steering undefined.
     /// </summary>
-    private const double LookAheadFloorFt = 10.0;
+    private static double LookAheadFloorFt(AircraftCategory category) => CategoryPerformance.NoseWheelTurnRadiusFt(category);
 
     /// <summary>
     /// Pure-pursuit look-ahead distance cap in feet on straight segments.
@@ -831,7 +834,7 @@ public sealed class GroundNavigator
             double speedFtPerSec = ctx.Aircraft.IndicatedAirspeed * GeoMath.FeetPerNm / 3600.0;
             double lookAheadFt = Math.Clamp(
                 Math.Max(2.0 * speedFtPerSec * ctx.DeltaSeconds, 1.5 * crossTrackOffsetFt),
-                LookAheadFloorFt,
+                LookAheadFloorFt(ctx.Category),
                 LookAheadCapFt
             );
             double lookAheadNm = lookAheadFt / GeoMath.FeetPerNm;
