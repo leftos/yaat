@@ -1,6 +1,7 @@
 # v1 slice — radio model, CA2 Tower brain, H1 soak
 
-**Status:** scoped, not started. Phase 1 has a design ([`tick-loop-unification.md`](../tick-loop-unification.md));
+**Status:** scoped, on hold behind the tick-path work. Phase 1 is superseded — tick-path unification is now
+its own top-priority programme, decided in ADRs [0001](../../adr/0001-state-equivalence-is-the-tick-contract.md)-[0006](../../adr/0006-decompose-simulationengine-before-adding-to-it.md);
 Phases 2–3 have one ([`11-radio-model.md`](./11-radio-model.md)); Phases 4–7 build against the existing
 subdesigns [`05`](./05-tower-brain.md), [`07`](./07-soak-runner.md), [`08`](./08-detectors-and-findings.md).
 
@@ -62,7 +63,7 @@ No phase is a technical layer, and no phase leaves either repo broken: `Yaat.Sim
 **Goal:** every host that advances a sim-second — Yaat.Sim tests, replay, recording reconstruction,
 the live server and the headless soak host — runs the same simulation-affecting post-physics steps, in
 the same order, with the same arguments.
-**Requirements:** DET-03. **Design:** [`tick-loop-unification.md`](../tick-loop-unification.md).
+**Requirements:** DET-03, subsumed. **Design:** ADRs [0001](../../adr/0001-state-equivalence-is-the-tick-contract.md)-[0006](../../adr/0006-decompose-simulationengine-before-adding-to-it.md) — this phase is no longer owned by the milestone.
 
 1. The set and order of simulation-affecting post-physics steps is defined in exactly one place, and both hosts execute it by iterating that definition rather than each maintaining a list.
 2. Adding a new post-physics step to one host and not the other is a compile error, not a silent divergence — demonstrated by adding a step and observing the build fail until both hosts handle it.

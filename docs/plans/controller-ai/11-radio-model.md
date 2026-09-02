@@ -299,7 +299,7 @@ this change is the case it was written for.
   fields otherwise costs as much as diagnosing the underlying bug.
 - **Parity test on both tick paths.** Radio logic must run identically on the soak path and the live
   server's post-physics path, proven by a `RoomEngineTestHarness`-style test. If
-  [`tick-loop-unification.md`](../tick-loop-unification.md) has landed, the spine gives this
+  the tick spine (ADR [0001](../../adr/0001-state-equivalence-is-the-tick-contract.md)) has landed, it gives this
   structurally and the test is a check rather than a construction task.
 - **Aviation review** of garble, re-request and party-line phraseology against the local 7110.65 / AIM
   references.
