@@ -81,10 +81,12 @@ public sealed class SimulationEngine
     private bool _isReplayingRecordedActions;
     private bool _replayHasRecordedAircraftSpawns;
 
-    // Replay-time track applier: routes track commands and AS-prefixed compounds through
-    // the shared Sim helpers (TrackEngine.Dispatch + TrackResolver) during Replay/ReplayRange
-    // so in-engine replay reaches the same state captured in recorded snapshots. Reset at the
-    // start of each fresh Replay/ReplayRange call (startSeconds == 0).
+    // Track applier: routes track commands and AS-prefixed compounds through the shared Sim helpers
+    // (TrackEngine.Dispatch + TrackResolver) so in-engine dispatch reaches the same state captured in
+    // recorded snapshots. Two callers share it and its per-connection active-position map: ReplayCommand
+    // (replay) and DispatchAiCommand (live). Reset at the start of each fresh Replay/ReplayRange call
+    // (startSeconds == 0) — never on scenario load, which is safe only because every host builds a fresh
+    // engine per load.
     private readonly ReplayTrackApplier _replayTrackApplier = new();
 
     // Holds the set of hold-short node IDs currently occupied by aircraft.

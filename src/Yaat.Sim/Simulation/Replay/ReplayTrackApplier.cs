@@ -70,9 +70,14 @@ internal sealed class ReplayTrackApplier
     }
 
     /// <summary>
-    /// The AS override when given; else the position the connection selected earlier; else, for an AI-controller
-    /// connection, the position its connection id names (resolved from the ARTCC config, so it needs no student
-    /// facility and no AS prefix); else the student.
+    /// The AS override when given; else, for an AI-controller connection, the position its connection id names
+    /// (resolved from the ARTCC config, so it needs no student facility and no AS prefix); else the position the
+    /// connection selected earlier; else the student.
+    ///
+    /// The AI branch is checked before the selected-position map on purpose. An AI position works the position its
+    /// connection id names and cannot select another, while this map is shared with the replay caller and keyed only
+    /// by connection id — so a recorded active-position selection carrying an AI connection id would otherwise
+    /// displace the live AI's identity.
     /// </summary>
     private TrackOwner? ResolveEffectiveIdentity(string? asOverrideTcp, string connectionId, SimScenarioState scenario)
     {
@@ -81,14 +86,14 @@ internal sealed class ReplayTrackApplier
             return TrackResolver.ResolveTcpToOwner(scenario, asOverrideTcp, scenario.ArtccConfig);
         }
 
-        if (_activeOwnerByConnection.TryGetValue(connectionId, out var active))
-        {
-            return active;
-        }
-
         if (AiConnectionId.TryParse(connectionId, out var positionId) && scenario.ArtccConfig?.ResolvePosition(positionId) is { } aiPosition)
         {
             return aiPosition;
+        }
+
+        if (_activeOwnerByConnection.TryGetValue(connectionId, out var active))
+        {
+            return active;
         }
 
         return scenario.StudentPosition;
