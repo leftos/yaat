@@ -129,7 +129,8 @@ Nothing is transmitted at assume. The `CommandResult` message summarises the see
   the layout airport's runways (`RunwayOccupancy.AirportRunways`), and `IsOnRunway` reads it for shadows.
 - **Runway advisories** (`RunwaySafetyAdvisor`): a shadow **on the runway surface** (`RunwayOccupancy.Classify` =
   `OnSurface`: lined up, holding, or a landed rollout) makes a landing-family clearance warn "live traffic on runway —
-  not clear" (3-10-3.a.1 / 3-10-5.e; `WarnIfLiveTrafficOnRunway`, both overloads). A shadow still airborne on the final
+  not clear" (3-10-3.a / 3-10-5.e; `WarnIfLiveTrafficOnRunway`, both overloads); a shadow the observer latched as
+  `LandedOnRunway` is named as a rollout and cites 3-10-3.a.1 alone. A shadow still airborne on the final
   is sequencing (3-10-6.a), not an occupant, and belongs to `WarnIfTrafficOnFinal` (called on LUAW from
   `DepartureClearanceHandler`): the closest shadow on that runway's final within `OnFinalAdvisoryNm` (6 nm) is the
   3-9-4.d traffic to issue to the LUAW aircraft (one-way; the text gives the phrase). `RunwayOccupancy.IsOnFinal` = approach

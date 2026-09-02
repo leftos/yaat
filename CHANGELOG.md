@@ -26,6 +26,7 @@
 - The `LUAW` "holds a landing clearance" warning (7110.65 3-9-4.c) fires only while the arrival is still airborne; a landed aircraft rolling out no longer triggers it.
 - Runway-safety and military-training-route advisories no longer repeat the aircraft's callsign at the start of the message.
 - `CTO` issued while a preceding arrival is not yet clear of the runway (rolling out, touch-and-go, stop-and-go, exiting, or airborne over it) draws the 3-9-6 advisory.
+- A landing clearance over a live-traffic shadow that has landed and is still rolling out names it as a rollout and cites 7110.65 3-10-3.a.1, instead of the generic occupied-runway wording.
 - Taxiing aircraft follow the painted fillet through corners instead of pivoting square at the junction centre and swinging back onto the centerline.
 - A fillet that is gentle for most of its length is taxied at speed and slowed only for its tight stretch.
 - `TAXIAUTO` no longer detours around a runway end when the direct route across the runway is cheaper.

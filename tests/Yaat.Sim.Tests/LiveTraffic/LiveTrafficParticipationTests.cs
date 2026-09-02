@@ -145,6 +145,8 @@ public class LiveTrafficParticipationTests
 
         var warning = Assert.Single(arrival.PendingWarnings);
         Assert.Contains("LIVE1", warning);
+        Assert.Contains("3-10-5.e", warning);
+        Assert.DoesNotContain("3-10-3.a.1", warning);
     }
 
     [Fact]

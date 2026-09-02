@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Vnas;
+using Yaat.Sim.LiveTraffic;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Phases.Tower;
@@ -405,26 +406,42 @@ public static class RunwaySafetyAdvisor
 
     /// <summary>
     /// A live-traffic shadow on the runway surface (lined up, holding, or a landed rollout) when a landing-family clearance
-    /// is issued for that runway. 3-10-3.a.1 / 3-9-6.b: the runway is not usable until that aircraft is clear; a shadow
-    /// carries no clearance state, so only its geometry can say. Live traffic still airborne on the final is sequencing
+    /// is issued for that runway. 3-10-3.a / 3-10-5.e: the runway is not usable until that aircraft is clear; a shadow
+    /// carries no clearance state, so only its geometry and the observer's landed latch
+    /// (<see cref="AircraftLiveTraffic.LandedOnRunway"/>) can say. Live traffic still airborne on the final is sequencing
     /// (3-10-6.a) and belongs to <see cref="WarnIfTrafficOnFinal"/>, not here.
     /// </summary>
     private static void WarnIfLiveTrafficOnRunway(AircraftState aircraft, RunwayInfo runway, DispatchContext ctx)
     {
         var shadows = ctx.ListAircraft!()
             .Where(other => (!ReferenceEquals(other, aircraft)) && other.IsShadow)
-            .Select(other => (other.Callsign, Kind: RunwayOccupancy.Classify(other, runway, ctx.GroundLayout)?.Kind))
+            .Select(other =>
+                (
+                    other.Callsign,
+                    Kind: RunwayOccupancy.Classify(other, runway, ctx.GroundLayout)?.Kind,
+                    Landed: other.LiveTraffic is { LandedOnRunway: true }
+                )
+            )
             .ToList();
-        var occupying = shadows.Where(s => s.Kind == RunwayUseKind.OnSurface).Select(s => s.Callsign).ToList();
+        // The runway-use observer latches a shadow that landed on this runway, which is the only way to tell a landed
+        // rollout (3-10-3.a.1) from a shadow lined up or holding on the surface (3-10-5.e, and 3-10-3.a.2 once it rolls).
+        var landed = shadows.Where(s => (s.Kind == RunwayUseKind.OnSurface) && s.Landed).Select(s => s.Callsign).ToList();
+        var occupying = shadows.Where(s => (s.Kind == RunwayUseKind.OnSurface) && (!s.Landed)).Select(s => s.Callsign).ToList();
         var landing = shadows.Where(s => s.Kind == RunwayUseKind.Landing).Select(s => s.Callsign).ToList();
         var rolling = shadows.Where(s => s.Kind == RunwayUseKind.Departing).Select(s => s.Callsign).ToList();
         var display = RunwayIdentifier.ToDisplayDesignator(runway.Designator);
         if (occupying.Count > 0)
         {
-            // The on-surface bucket mixes a lined-up shadow (3-10-3.a.2, and 3-10-5.e) with a landed rollout (3-10-3.a.1),
-            // so it cites the parent paragraph; a landing shadow below is 3-10-3.a.1 alone.
             var warning =
                 $"live traffic on runway {display} ({string.Join(", ", occupying)}) — the runway is not clear; withhold the landing/option clearance until it is (7110.65 3-10-3.a, 3-10-5.e)";
+            aircraft.PendingWarnings.Add(warning);
+            Log.LogDebug("[RunwaySafety] {Warning}", warning);
+        }
+
+        if (landed.Count > 0)
+        {
+            var warning =
+                $"live arrival rolling out on runway {display} ({string.Join(", ", landed)}) — the runway is not clear; withhold the landing/option clearance until it is (7110.65 3-10-3.a.1)";
             aircraft.PendingWarnings.Add(warning);
             Log.LogDebug("[RunwaySafety] {Warning}", warning);
         }
