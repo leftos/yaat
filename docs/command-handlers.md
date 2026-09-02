@@ -309,8 +309,10 @@ string must not repeat the aircraft's callsign: the broadcast is per-aircraft an
   clearance (or a shadow occupies the surface): 3-9-6 same-runway separation. Also not safety-logic gated — the separation rule applies
   regardless of ASDE-X equipage. Called from `TryDepartureClearance` only when the aircraft is entering the runway now (hold-short,
   holding-in-position, or mid-line-up — a CTO stored during taxi doesn't warn) and from `TryClearedForTakeoff` (CTO to an already-LUAW
-  aircraft, the dual-LUAW case). An occupant that already holds its takeoff clearance, a rolling departure, and arrivals cleared to land all
-  stay silent (anticipated separation, 3-9-5).
+  aircraft, the dual-LUAW case). A preceding arrival not yet clear of the runway — rolling out, on a rolling touch-and-go, stopped for a
+  stop-and-go, exiting along the centerline, or airborne over the pavement — draws the 3-9-6 advisory (`WarnIfLandedTrafficBlocksTakeoff`; 3-9-6.b for the airborne-over-the-runway case, the parent paragraph for the on-surface bucket, which also catches a rejected takeoff),
+  which is what covers the departure once touchdown has ended the arrival's 3-9-4.c hold on LUAW. An occupant that already holds its takeoff
+  clearance, a rolling departure, and an arrival still on final all stay silent (anticipated separation, 3-9-5).
   This is why `PatternCommandHandler`'s clearance methods, `DepartureClearanceHandler.TryDepartureClearance`, and
   `DepartureClearanceHandler.TryClearedForTakeoff` take the full `DispatchContext`.
 

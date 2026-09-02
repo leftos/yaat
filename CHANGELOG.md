@@ -24,7 +24,8 @@
 - Recordings and bug bundles replay with the magnetic declination of the day they were made, so a replay months later reproduces the original headings and positions exactly instead of drifting with the magnetic model.
 - In solo training, answering a "ready to taxi" call with `TAXIAUTO` now closes the pilot's request instead of leaving the pilot re-asking every two minutes.
 - The `LUAW` "holds a landing clearance" warning (7110.65 3-9-4.c) fires only while the arrival is still airborne; a landed aircraft rolling out no longer triggers it.
-- Runway-safety advisories no longer repeat the aircraft's callsign at the start of the message.
+- Runway-safety and military-training-route advisories no longer repeat the aircraft's callsign at the start of the message.
+- `CTO` issued while a preceding arrival is not yet clear of the runway (rolling out, touch-and-go, stop-and-go, exiting, or airborne over it) draws the 3-9-6 advisory.
 - Taxiing aircraft follow the painted fillet through corners instead of pivoting square at the junction centre and swinging back onto the centerline.
 - A fillet that is gentle for most of its length is taxied at speed and slowed only for its tight stretch.
 - `TAXIAUTO` no longer detours around a runway end when the direct route across the runway is cheaper.

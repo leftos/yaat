@@ -118,7 +118,7 @@ public static class RunwaySafetyAdvisor
     /// — issue #411): typically a runway crossing frozen mid-pavement, which keeps its
     /// <see cref="CrossingRunwayPhase"/>/<see cref="TaxiingPhase"/> rather than gaining a
     /// <see cref="HoldingInPositionPhase"/>, so the phase-based occupant matches never see it. A
-    /// <i>stopped</i> crossing is an occupied runway (3-10-3.a.1 for arrivals, 3-9-6.a for
+    /// <i>stopped</i> crossing is an occupied runway (3-10-3.a for arrivals, 3-9-6.a for
     /// departures), not anticipated separation; a <i>moving</i> crossing must stay silent (3-1-3
     /// coordinated operations, 3-10-5.b "traffic crossing downfield") and does — its
     /// <see cref="AircraftGroundState.IsImmobile"/> is false. Occupants the phase-based branches
@@ -144,8 +144,8 @@ public static class RunwaySafetyAdvisor
 
         var display = RunwayIdentifier.ToDisplayDesignator(runway.Designator);
         var warning = forTakeoff
-            ? $"traffic stopped on runway {display} ({string.Join(", ", stopped)}) — this departure cannot begin takeoff roll until that traffic is clear of the runway (7110.65 3-9-6.a); hold this aircraft short until the runway is clear"
-            : $"traffic stopped on runway {display} ({string.Join(", ", stopped)}) — the runway is occupied; withhold the landing/option clearance until that traffic is clear (7110.65 3-10-3.a.1)";
+            ? $"traffic stopped on runway {display} ({string.Join(", ", stopped)}) — this departure cannot begin takeoff roll until that traffic is clear of the runway (7110.65 3-9-6); hold this aircraft short until the runway is clear"
+            : $"traffic stopped on runway {display} ({string.Join(", ", stopped)}) — the runway is occupied; withhold the landing/option clearance until that traffic is clear (7110.65 3-10-3.a)";
         aircraft.PendingWarnings.Add(warning);
         Log.LogDebug("[RunwaySafety] {Warning}", warning);
     }
@@ -154,7 +154,7 @@ public static class RunwaySafetyAdvisor
     /// Warns the controller when LUAW is authorized for a runway another aircraft already holds a
     /// landing-family clearance for — active (<see cref="PhaseList.LandingClearance"/>) or
     /// pre-issued against a queued pattern entry (<see cref="AircraftPattern.PendingLandingClearance"/>).
-    /// A clearance is only counted while the arrival is still airborne: 3-9-4.a authorizes LUAW
+    /// A clearance is only counted while the arrival is still airborne: 3-9-4.a contemplates LUAW
     /// behind "another aircraft which has landed on or is taking off the runway", so an arrival in
     /// its rollout no longer restricts it, and a landed aircraft keeps its stale
     /// <see cref="PhaseList.LandingClearance"/> while exiting and taxiing in, which must not
@@ -203,6 +203,10 @@ public static class RunwaySafetyAdvisor
     /// the generic <see cref="HoldingInPositionPhase"/>. Note this advisory is the ONLY defense
     /// for the intersection-departure geometry — an occupant far down the pavement is outside the
     /// ground conflict detector's proximity range, so nothing physically stops that departure.
+    /// A preceding arrival still on the pavement — rolling out, on a rolling touch-and-go, stopped
+    /// for a stop-and-go, exiting along the centerline, or still airborne over the runway — is the
+    /// 3-9-6.b case (<see cref="WarnIfLandedTrafficBlocksTakeoff"/>); it is what covers the
+    /// departure once touchdown has ended the arrival's 3-9-4.c hold on LUAW.
     /// </summary>
     public static void WarnIfRunwayOccupiedForTakeoff(AircraftState aircraft, RunwayInfo runway, DispatchContext ctx)
     {
@@ -236,7 +240,61 @@ public static class RunwaySafetyAdvisor
         }
 
         WarnIfStoppedTrafficOnRunway(aircraft, runway, ctx, forTakeoff: true);
+        WarnIfLandedTrafficBlocksTakeoff(aircraft, runway, ctx);
         WarnIfLiveTrafficBlocksTakeoff(aircraft, runway, ctx);
+    }
+
+    /// <summary>
+    /// A simulated arrival that is not yet clear of the runway when a takeoff clearance is issued —
+    /// 7110.65 3-9-6.b: the departure may not begin its roll until the preceding landing aircraft is
+    /// clear. Occupancy by <see cref="RunwayOccupancy.Classify"/>: a rollout, a rolling touch-and-go,
+    /// a stopped or rolling stop-and-go, or an exit still on the centerline
+    /// (<see cref="RunwayUseKind.OnSurface"/> on the ground), or an arrival still airborne over the
+    /// pavement (<see cref="RunwayUseKind.Landing"/>). The same on-surface bucket also catches a rejected
+    /// takeoff, which never landed — its condition is 3-9-6.a ("departed and crossed the runway end") —
+    /// so the on-surface message cites the parent 3-9-6. An arrival that has begun its turnoff but is
+    /// still inside the hold-short bars classifies as a crossing and stays silent: it is leaving, and
+    /// that is 3-9-5 anticipated compliance with 3-9-6.b. Occupants the sibling branches already name are
+    /// excluded so each draws one advisory: line-up-family occupants (awaiting or holding a takeoff
+    /// clearance — the latter is 3-9-5 anticipated separation and stays silent), traffic frozen by a hold
+    /// directive (<see cref="WarnIfStoppedTrafficOnRunway"/>), and shadows
+    /// (<see cref="WarnIfLiveTrafficBlocksTakeoff"/>). A departure already rolling is 3-9-5 anticipated
+    /// compliance with 3-9-6.a and stays silent.
+    /// </summary>
+    private static void WarnIfLandedTrafficBlocksTakeoff(AircraftState aircraft, RunwayInfo runway, DispatchContext ctx)
+    {
+        var arrivals = ctx.ListAircraft!()
+            .Where(other =>
+                (!ReferenceEquals(other, aircraft))
+                && (!other.IsShadow)
+                && (!other.Ground.IsImmobile)
+                && (!AwaitsTakeoffClearanceOnRunway(other))
+                && other.Phases?.CurrentPhase is not (LineUpPhase or LinedUpAndWaitingPhase or HoldingInPositionPhase)
+            )
+            .Select(other => (Aircraft: other, Kind: RunwayOccupancy.Classify(other, runway, ctx.GroundLayout)?.Kind))
+            .ToList();
+        var onSurface = arrivals.Where(a => a.Aircraft.IsOnGround && (a.Kind == RunwayUseKind.OnSurface)).Select(a => a.Aircraft.Callsign).ToList();
+        // The phase classifier calls the whole approach "Landing"; only an arrival already over the pavement blocks the roll.
+        var landing = arrivals
+            .Where(a => (!a.Aircraft.IsOnGround) && (a.Kind == RunwayUseKind.Landing) && RunwayOccupancy.IsOverOrOnPavement(a.Aircraft, runway))
+            .Select(a => a.Aircraft.Callsign)
+            .ToList();
+        var display = RunwayIdentifier.ToDisplayDesignator(runway.Designator);
+        if (onSurface.Count > 0)
+        {
+            var warning =
+                $"traffic on runway {display} ({string.Join(", ", onSurface)}) — this departure cannot begin takeoff roll until that traffic is clear of the runway (7110.65 3-9-6); hold this aircraft short until the runway is clear";
+            aircraft.PendingWarnings.Add(warning);
+            Log.LogDebug("[RunwaySafety] {Warning}", warning);
+        }
+
+        if (landing.Count > 0)
+        {
+            var warning =
+                $"arrival landing on runway {display} ({string.Join(", ", landing)}) — this departure cannot begin takeoff roll until that traffic is clear of the runway (7110.65 3-9-6.b)";
+            aircraft.PendingWarnings.Add(warning);
+            Log.LogDebug("[RunwaySafety] {Warning}", warning);
+        }
     }
 
     /// <summary>
@@ -357,13 +415,24 @@ public static class RunwaySafetyAdvisor
             .Where(other => (!ReferenceEquals(other, aircraft)) && other.IsShadow)
             .Select(other => (other.Callsign, Kind: RunwayOccupancy.Classify(other, runway, ctx.GroundLayout)?.Kind))
             .ToList();
-        var occupying = shadows.Where(s => s.Kind is RunwayUseKind.OnSurface or RunwayUseKind.Landing).Select(s => s.Callsign).ToList();
+        var occupying = shadows.Where(s => s.Kind == RunwayUseKind.OnSurface).Select(s => s.Callsign).ToList();
+        var landing = shadows.Where(s => s.Kind == RunwayUseKind.Landing).Select(s => s.Callsign).ToList();
         var rolling = shadows.Where(s => s.Kind == RunwayUseKind.Departing).Select(s => s.Callsign).ToList();
         var display = RunwayIdentifier.ToDisplayDesignator(runway.Designator);
         if (occupying.Count > 0)
         {
+            // The on-surface bucket mixes a lined-up shadow (3-10-3.a.2, and 3-10-5.e) with a landed rollout (3-10-3.a.1),
+            // so it cites the parent paragraph; a landing shadow below is 3-10-3.a.1 alone.
             var warning =
-                $"live traffic on runway {display} ({string.Join(", ", occupying)}) — the runway is not clear; withhold the landing/option clearance until it is (7110.65 3-10-3.a.1, 3-10-5.e)";
+                $"live traffic on runway {display} ({string.Join(", ", occupying)}) — the runway is not clear; withhold the landing/option clearance until it is (7110.65 3-10-3.a, 3-10-5.e)";
+            aircraft.PendingWarnings.Add(warning);
+            Log.LogDebug("[RunwaySafety] {Warning}", warning);
+        }
+
+        if (landing.Count > 0)
+        {
+            var warning =
+                $"live arrival landing on runway {display} ({string.Join(", ", landing)}) — the runway is not clear; withhold the landing/option clearance until it is (7110.65 3-10-3.a.1)";
             aircraft.PendingWarnings.Add(warning);
             Log.LogDebug("[RunwaySafety] {Warning}", warning);
         }
@@ -452,11 +521,13 @@ public static class RunwaySafetyAdvisor
 
     /// <summary>
     /// The clearance still governs an approach to the runway only while the aircraft is airborne.
-    /// Touchdown ends the 3-9-4.c.1(b) restriction for every landing-family clearance: a full-stop
-    /// rollout is the 3-9-4.a "has landed on the runway" traffic LUAW is authorized behind, and a
-    /// rolling touch-and-go or a stopped stop-and-go is a departure about to roll — the same
-    /// anticipated separation (3-9-5) that keeps an occupant holding its takeoff clearance silent
-    /// in <see cref="AwaitsTakeoffClearanceOnRunway"/>. The phase cannot decide this:
+    /// Touchdown ends the 3-9-4.c.1(b) restriction for every landing-family clearance: 3-9-4.a is
+    /// clearance-agnostic — it contemplates LUAW behind "another aircraft which has landed on … the
+    /// runway" (traffic information may even be omitted when that traffic is clearly visible), and a
+    /// rolling touch-and-go or a stopped stop-and-go is such an aircraft. What protects the LUAW
+    /// aircraft afterwards is 3-9-6.b at takeoff-clearance time — the preceding landing aircraft must
+    /// be clear of the runway before the roll begins (<see cref="WarnIfLandedTrafficBlocksTakeoff"/>).
+    /// The phase cannot decide this:
     /// <see cref="LandingPhase"/> spans flare through rollout, so only <see cref="AircraftState.IsOnGround"/>
     /// marks the boundary.
     /// </summary>

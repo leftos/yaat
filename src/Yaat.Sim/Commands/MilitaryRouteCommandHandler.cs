@@ -91,7 +91,7 @@ public static class MilitaryRouteCommandHandler
         if (route.Type is MilitaryRouteType.Vr or MilitaryRouteType.Sr)
         {
             aircraft.PendingWarnings.Add(
-                $"{aircraft.Callsign}: {route.Printed} is a {(route.Type == MilitaryRouteType.Vr ? "VFR" : "slow")} route — "
+                $"{route.Printed} is a {(route.Type == MilitaryRouteType.Vr ? "VFR" : "slow")} route — "
                     + "ATC issues no clearance into one; the aircraft is placed on it as traffic"
             );
             return CommandDispatcher.Ok($"Proceeding on {route.Printed}");
@@ -498,8 +498,7 @@ public static class MilitaryRouteCommandHandler
         if (others.Count > 0)
         {
             aircraft.PendingWarnings.Add(
-                $"{aircraft.Callsign}: {route.Printed} is already occupied by {string.Join(", ", others)} — "
-                    + "separation between them is yours (7110.65 9-2-6.a)"
+                $"{route.Printed} is already occupied by {string.Join(", ", others)} — " + "separation between them is yours (7110.65 9-2-6.a)"
             );
         }
     }
@@ -526,16 +525,14 @@ public static class MilitaryRouteCommandHandler
             var block = route.Points[i].Altitude;
             if (block.FloorReference == AltitudeReference.Msl && block.FloorFt is { } floor && assigned < floor)
             {
-                aircraft.PendingWarnings.Add(
-                    $"{aircraft.Callsign}: {assigned:N0} is below {route.Printed}'s published floor of {floor:N0} at point {route.Points[i].Id}"
-                );
+                aircraft.PendingWarnings.Add($"{assigned:N0} is below {route.Printed}'s published floor of {floor:N0} at point {route.Points[i].Id}");
                 return;
             }
 
             if (block.CeilingReference == AltitudeReference.Msl && block.CeilingFt is { } ceiling && assigned > ceiling)
             {
                 aircraft.PendingWarnings.Add(
-                    $"{aircraft.Callsign}: {assigned:N0} is above {route.Printed}'s published ceiling of {ceiling:N0} at point {route.Points[i].Id}"
+                    $"{assigned:N0} is above {route.Printed}'s published ceiling of {ceiling:N0} at point {route.Points[i].Id}"
                 );
                 return;
             }

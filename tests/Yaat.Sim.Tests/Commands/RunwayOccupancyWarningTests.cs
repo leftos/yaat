@@ -418,8 +418,9 @@ public class RunwayOccupancyWarningTests
     [MemberData(nameof(TouchedDownLandingFamilyCases))]
     public void Luaw_ArrivalTouchedDownOnOtherLandingFamilyClearance_NoWarning(ClearanceType clearance, Phase onRunwayPhase)
     {
-        // A rolling touch-and-go or a stopped stop-and-go is a departure about to roll — the same
-        // anticipated separation (3-9-5) that keeps a CTO-holder in position silent.
+        // A rolling touch-and-go or a stopped stop-and-go is 3-9-4.a's "aircraft which has landed on
+        // ... the runway" like any other; 3-9-6.b at takeoff-clearance time is what then protects the
+        // LUAW aircraft behind it.
         var runway = TestRunwayFactory.Make(designator: "30", airportId: "OAK", heading: 310, elevationFt: 6);
         using var _ = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithRunways(runway));
 
@@ -510,6 +511,67 @@ public class RunwayOccupancyWarningTests
 
         Assert.True(result.Success, result.Message);
         Assert.DoesNotContain(departure.PendingWarnings, w => w.Contains("N200AR", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void Cto_ArrivalTouchedDownStillRollingOnRunway_Warns396b()
+    {
+        // 7110.65 3-9-6.b: a departure may not begin its takeoff roll until the preceding landing
+        // aircraft is clear of the runway. Touchdown ends the arrival's 3-9-4.c hold on LUAW, so this
+        // advisory at takeoff-clearance time is what protects the departure behind a rollout.
+        var runway = TestRunwayFactory.Make(designator: "30", airportId: "OAK", heading: 310, elevationFt: 6);
+        using var _ = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithRunways(runway));
+
+        var arrival = MakeTouchedDownArrival("N200AR", ClearanceType.ClearedToLand, new LandingPhase());
+        var departure = MakeDepartureHoldingShort("N300DP");
+
+        var result = Dispatch("CTO", departure, arrival, departure);
+
+        Assert.True(result.Success, result.Message);
+        var warning = Assert.Single(departure.PendingWarnings, w => w.Contains("N200AR", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains("3-9-6", warning, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Cto_ArrivalAirborneOverTheRunway_Warns396b()
+    {
+        // Still airborne over the pavement — the arrival is landing on it; 3-9-6.b by geometry, not phase alone.
+        var runway = TestRunwayFactory.Make(designator: "30", airportId: "OAK", heading: 310, elevationFt: 6);
+        using var _ = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithRunways(runway));
+
+        var arrival = MakeArrival("N200AR", runway);
+        arrival.Phases!.LandingClearance = ClearanceType.ClearedToLand;
+        arrival.Phases.ClearedRunwayId = "30";
+        arrival.Position = new LatLon((runway.Lat1 + runway.Lat2) / 2.0, (runway.Lon1 + runway.Lon2) / 2.0);
+        arrival.TrueHeading = new TrueHeading(310);
+        arrival.Altitude = 30;
+        arrival.IndicatedAirspeed = 65;
+        var departure = MakeDepartureHoldingShort("N300DP");
+
+        var result = Dispatch("CTO", departure, arrival, departure);
+
+        Assert.True(result.Success, result.Message);
+        var warning = Assert.Single(departure.PendingWarnings, w => w.Contains("N200AR", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains("3-9-6.b", warning, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Cto_ArrivalStoppedOnRunwayForStopAndGo_WarnsOnce()
+    {
+        // A stopped stop-and-go is a preceding landing aircraft not yet clear of the runway (3-9-6.b);
+        // it carries no hold directive, so only the landed-traffic advisory names it — once.
+        var runway = TestRunwayFactory.Make(designator: "30", airportId: "OAK", heading: 310, elevationFt: 6);
+        using var _ = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithRunways(runway));
+
+        var arrival = MakeTouchedDownArrival("N200AR", ClearanceType.ClearedStopAndGo, new StopAndGoPhase());
+        arrival.IndicatedAirspeed = 0;
+        var departure = MakeDepartureHoldingShort("N300DP");
+
+        var result = Dispatch("CTO", departure, arrival, departure);
+
+        Assert.True(result.Success, result.Message);
+        var warning = Assert.Single(departure.PendingWarnings, w => w.Contains("N200AR", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains("3-9-6", warning, StringComparison.Ordinal);
     }
 
     [Fact]

@@ -313,7 +313,7 @@ public static class RunwayOccupancy
     public static bool IsRotorcraft(AircraftState ac) => AircraftCategorization.Categorize(ac.AircraftType) == AircraftCategory.Helicopter;
 
     /// <summary>Pavement containment for an aircraft that may be on the ground or air-taxiing just above it.</summary>
-    private static bool IsOverOrOnPavement(AircraftState ac, RunwayInfo runway) =>
+    public static bool IsOverOrOnPavement(AircraftState ac, RunwayInfo runway) =>
         ac.IsOnGround ? IsOnPavement(ac, runway) : IsOverPavement(ac, runway);
 
     /// <summary>On the ground and within the runway half-width plus <see cref="LateralSlackFt"/> of the centerline segment.</summary>
