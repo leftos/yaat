@@ -192,6 +192,39 @@ collection parallelism, so its `xunit.runner.json` sets `parallelizeTestCollecti
 `bin/xunit.runner.json` copy, not a bug in `UserPreferences.Save`. Confirm the copy exists in the output directory before suspecting save
 logic.
 
+## Avalonia headless UI tests
+
+`Yaat.Client.UI.Tests` drives real windows under `Avalonia.Headless`. Three properties of that platform turn missing test hygiene into
+order- and load-dependent flakes:
+
+- **Renders happen only on render-timer ticks.** `Dispatcher.UIThread.RunJobs()` and `window.UpdateLayout()` pump layout but never force
+  a render, and anything computed in `MapCanvasBase.Render` → `CreateRenderSnapshot` (free-form datablock deconfliction advances one
+  damped-spring step per frame, `ResolvedDataBlockOffset`, …) only moves when a frame actually renders. A test that reads render-derived
+  state must drive frames explicitly — `canvas.InvalidateVisual(); Dispatcher.UIThread.RunJobs();
+  AvaloniaHeadlessPlatform.ForceRenderTimerTick();` in a loop until the value is stable for two consecutive frames (`SettleDeconfliction`
+  in `Views/DataBlockStatePersistenceTests.cs`). Without that, the frame count before the assertion depends on wall-clock timer ticks —
+  machine load and what ran earlier in the process — even though the solver itself is deterministic per frame.
+- **One `preferences.json` per process, restored at construction.** `ModuleInit` sets `YAAT_APPDATA_DIR` once per *process*, not per
+  test, `UserPreferences.Save()` is synchronous, and the `MainViewModel` constructor restores persisted UI state (vStrips split
+  mode/ratio, pop-out flags, zoom). A test that mutates persisted state — `SplitStripsEntryAsync`, any `IsXPoppedOut` setter (each
+  persists via `SetPoppedOut`), font size — and doesn't put it back poisons every `MainViewModel` constructed later in the run. Symptom:
+  the *first* assertion of a fresh VM/host fails on its default state (`Assert.Single() Failure: The collection contained 2 items`
+  because the "fresh" host started pre-split), passes in isolation, and flips run-to-run because xUnit's method order is
+  reflection-dependent. Convention: every mutating test restores factory defaults in `finally` (`UserPreferencesFontSizeTests`,
+  `UserPreferencesMvaHintDefaultTests`; split tests call `vm.UnsplitStripsEntry(entry)`), and helpers that construct a `MainViewModel`
+  normalize ambient state before asserting a baseline (`VStripsSplitHostTests.NewSplitHost`). `WindowGeometryHelper` adds a second
+  vector: it persists geometry through a *debounced* `DispatcherTimer` auto-save, so what lands in the file depends on wall-clock timing.
+  "Passes alone, flakes in the suite" here is order × timing, not order alone — tab-content materialization can also lag extra
+  dispatcher/layout passes under load, which is why `WaitForDockedGroundCanvas` is a bounded pump loop with a state-dump `Assert.Fail`
+  rather than a single pass.
+- **Never `await` a `HeadlessUnitTestSession.Dispatch(...)` and then `Dispose()` the session in the same async flow.** The session
+  completes the dispatched task on its own dispatcher-loop thread and plain `await` continuations inline onto the completing thread, so
+  the disposing code runs *on* the loop it is about to `Task.Wait()` — a permanent self-deadlock (process never exits). A dump shows
+  `Dispose → Task.Wait` directly above `DispatchCore → TrySetResult` on one stack. `ConfigureAwaitOptions.ForceYielding` does **not**
+  prevent this (it only covers the already-completed-at-await fast path). Hop the continuation off the session thread with
+  `.ContinueWith(t => t.GetAwaiter().GetResult(), TaskScheduler.Default)` — a `ContinueWith` without `ExecuteSynchronously` is always
+  queued, never inlined. `tools/Yaat.GuideCapture/Program.cs` is the worked example.
+
 ## Logging in tests
 
 `SimLog` defaults to `NullLoggerFactory` — **all `Yaat.Sim` log output is silently swallowed in tests.** To see logs, wire xUnit output
@@ -248,6 +281,29 @@ arcs (taxiway topology, `TurnAngleDeg`) should pass `runwayAirportCode: null` to
 nodes/edges/arcs (`OneWayResolverTests`, `GroundArcRenderFilterTests`, `DtoConverterGroundLayoutTests` all do). This applies to tests
 calling `GeoJsonParser.Parse` **directly**; the `TestAirportGroundData` harness always passes the real code (see above), because a graph
 built against a 150 ft placeholder width is not the graph production builds.
+
+## Ticking a phase by hand — steer *and* integrate, at 0.25 s
+
+A phase never moves the aircraft on its own. `GroundNavigator` (and every other phase) only *steers*: it writes `TrueHeading`,
+`Targets.TargetSpeed`, and adjusts IAS; `FlightPhysics.Update` → `UpdatePosition` (the `IsOnGround` branch) integrates position from IAS
+along heading. A phase-level test that loops only `PhaseRunner.Tick(aircraft, ctx)` therefore sits frozen at its spawn position with IAS
+pinned at a constant (e.g. the slow-turn speed) forever. Mirror the engine's split every tick:
+
+```csharp
+PhaseRunner.Tick(aircraft, ctx);
+FlightPhysics.Update(aircraft, ctx.DeltaSeconds);
+```
+
+`StartNodeHoldShortArmingTests` is the worked example — real SFO layout, route from `TaxiPathfinder.ResolveExplicitPath`, aircraft placed
+with `GeoMath.ProjectPoint` off the route's own `DepartureBearing`. Older `GroundPhaseTests` sidestep the split by teleporting the aircraft
+between nodes by hand.
+
+**Use `DeltaSeconds = 0.25`, never 1 s, when integrating a ground roll.** The shipping sim runs four 0.25 s physics sub-ticks per second
+(1.25 kt of acceleration granularity). At the rotation gate (`GroundFrame.IasForGroundSpeed(gs) >= vr`) float epsilons —
+`WindInterpolator.TasToIas` returns 144.999… for 145 at sea level, `HeadwindComponentKts` makes a "10 kt" headwind 9.9996 — tip the
+`>=` comparison differently between calm and windy runs. With 1 s ticks (5 kt quantization) that shifts rotation by a whole tick and a
+tailwind-vs-calm roll-distance ratio reads 1.07 instead of 1.14, which looks exactly like a headwind-sign bug that isn't there. Tick at
+0.25 s like `GroundWindFrameTests`, and don't tighten assert tolerances below one sub-tick of acceleration.
 
 ## Debugging aircraft movement — `TickRecorder`
 
@@ -333,6 +389,12 @@ Always run suites under a wall clock: `timeout 30 dotnet test ...`. A YAAT sim s
 gated behind the `Nightly`/`PathfinderGrid` traits and excluded by default). Treat a timeout as a hung-test failure to diagnose, not a
 budget to raise.
 
+**Loop budgets: event-bounded vs budget-bounded.** Most recording-replay tests are *event-bounded* — they tick until "reaches phase X" /
+"exits `LineUpPhase`" / "segment > N" and `break`; the `for (t <= 600)` bound is a failure timeout, not a cost. Trimming it saves nothing
+on a green run and only risks hiding a bug that surfaces later. A *budget-bounded* loop asserts every iteration with no early exit
+(`ExitOverlapTests.ExitingAircraft_NeverOverlap`) and runs the full window even when green — those are the real trim candidates. Read the
+loop body before proposing a budget cut: a `break;` inside an `if (event)` block means leave it alone.
+
 ## Writing your first sim test
 
 A minimal end-to-end skeleton that ties the conventions together — constructor `EnsureInitialized`, real ground layout, silent skip on
@@ -413,6 +475,19 @@ verify the cross-repo build with `pwsh tools/test-all.ps1`.
   strictly more complete than production. Any oracle-vs-production diff is exactly where production's node-id-only pruning loses. Keep it
   in lock-step with `AutoRouter.cs`.
 - **Making `internal` members `public` for tests is fine.** No reflection, no `InternalsVisibleTo` hacks.
+- **A phase-only tick loop never moves the aircraft.** Phases steer (heading, `TargetSpeed`, IAS); `FlightPhysics.Update` integrates
+  position. Tick both per iteration or the aircraft freezes at spawn with IAS pinned. Ground-roll integrations use `DeltaSeconds = 0.25`
+  — 1 s ticks plus the `TasToIas`/headwind float epsilon flip the rotation gate by a whole tick and fake a headwind-sign bug. See
+  [Ticking a phase by hand](#ticking-a-phase-by-hand--steer-and-integrate-at-025-s).
+- **Headless renders only on render-timer ticks.** `RunJobs`/`UpdateLayout` never force one; drive `InvalidateVisual` + `RunJobs` +
+  `AvaloniaHeadlessPlatform.ForceRenderTimerTick()` to convergence before reading render-derived state.
+- **UI tests share one `preferences.json` and `MainViewModel` restores it at construction.** Any test that mutates persisted prefs
+  (split mode, pop-out flags, font size) must restore factory defaults in `finally`; a fresh VM failing its *first* default-state assertion
+  is persisted-state leakage, not a view bug.
+- **Never `await` a `HeadlessUnitTestSession.Dispatch` then `Dispose` the session in the same flow** — the continuation inlines onto the
+  session loop and `Dispose` deadlocks on itself. Hop via `ContinueWith(..., TaskScheduler.Default)`; `ForceYielding` does not help.
+- **Event-bounded replay loops (`break` on event) have a failure timeout, not a cost** — don't trim their budget; only loops that assert
+  every iteration with no early exit get faster.
 - **A recording replay silently runs with `GroundLayout == null` if the destination airport's geojson is missing from `TestData/`.**
   `TestAirportGroundData.GetLayout` returns null for a missing file (no download fallback), and the replay runs anyway — a landed aircraft
   falls into `RunwayExitPhase`'s layout-less analog-rollout fallback (`StartExitNavigation` bails on null `ctx.GroundLayout`, `TickRolling`

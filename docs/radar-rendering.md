@@ -568,6 +568,29 @@ The data shown comes from `AircraftModel` (the client mirror of the wire `Aircra
 underlying state on the wire — see [aircraft-data-model.md](aircraft-data-model.md) and
 [crc-display-state.md](crc-display-state.md) for how a field reaches the client. This doc owns only the on-screen rendering.
 
+## Nav-route overlay wire contract
+
+The Radar Display's **Show nav route** overlay (`ToggleShowPath` / `IsPathShown` / `_shownPathCallsigns` internally) draws
+**server-provided fix positions verbatim** — `ShownRouteBuilder` does not re-resolve fix names through the navigation database.
+Two wire channels feed it, both defined once in `Yaat.Sim` and carried on the training-hub aircraft DTO:
+
+- **`NavigationRoute` is `List<NavRouteFixDto>`** (`Name`, `Lat`, `Lon`, `RestrictionLines`), not a list of names. `AircraftModel` keeps the
+  rich list as `NavRouteFixes` and derives the name-only `NavigationRoute` for `FixSuggester`, the context menu and the DataGrid.
+  - **An empty `Name` is a synthetic arc-densification vertex** (RF/AF legs expanded to `ARCnn` points; `NavigationTarget.IsSyntheticArcName`
+    recognizes the naming, the server-side DTO builder blanks it, `AircraftStatusDescriber` skips it). The overlay draws it as a bare polyline
+    point — no diamond, label, or restriction — and the derived name list filters it out.
+  - **Crossing restrictions are formatted server-side** into `RestrictionLines` by `Yaat.Sim.Data.Vnas.CrossingRestrictionLabel` (≥/≤ glyphs per
+    AIM 5-4-5, `FL` at or above 18000, speed bare except an at-or-above floor `≥kts`, a window as two lines). Both the server route fingerprint
+    and the client `BuildShownPathFingerprint` include the restriction text, so a CFIX-only change re-broadcasts and invalidates the overlay cache.
+- **`NavRouteShapes` is `List<NavRouteShapeDto>`** (`Kind`/`Points`/`Labels`), computed by `NavRouteOverlayProjector.BuildShapes` from the
+  aircraft's current phase for geometry the flat route cannot express: holding racetracks (`HoldingPatternPhase`), procedure turns
+  (`ProcedureTurnPhase`), and open-ended SID coded-leg vectors (`DepartureProcedurePhase.Legs`, dashed, each labeled via
+  `CrossingRestrictionLabel`). The client renders them as `ShownShapeEntry` in `RadarViewModel.RefreshShownPaths` → `RadarRenderer.DrawShownShapes`,
+  through the same `ShownPaths` plumbing. Only those three phase types are projected; coded-leg endpoints are nominal.
+
+DME-arc legs with no charted turn direction take the minor (≤180°) arc via `GeoMath.ResolveArcTurnRight`; all three arc expanders
+(`DepartureClearanceHandler`, `ApproachCommandHandler`, `ProcedureLegResolver`) share it, so the overlay and the flown path agree.
+
 ## Instructor TPA overlays — `JRING` / `CONE`
 
 Instructor `JRING`/`CONE` are TPA proximity overlays drawn on **YAAT's own radar only**, never projected to the student's CRC. State lives on `ac.Stars.TpaType` (1 = J-Ring, 2 = Cone) + `ac.Stars.TpaSize` (nm, 1–30, parser-validated), flows client-ward via `AircraftStateDto.TpaType`/`TpaSize` → `AircraftModel` → `TargetRenderer.DrawTpaGraphic`, and is snapshotted on `AircraftStarsStateDto` so it replays. Geometry (from the decompiled CRC `DrawTpaCone`/`DrawTpaJRing`): a J-Ring is a geo circle of radius `TpaSize`; a Cone is a ±`UserPreferences.TpaConeHalfAngleDegrees` (default 2°) needle of length `TpaSize`, drawn along `ac.Heading` (YAAT's leader-line axis — not ground track, unlike CRC, for visual consistency with the YAAT leader). STARS TCW TPA color = `(90, 180, 255)`.

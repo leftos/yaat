@@ -251,6 +251,8 @@ A bug is *not* localized when the fix touches turn rate, thrust response, latera
 
 **Hybrid avoids the unreachable-assertion trap from full replay.** If your fix changes pre-T behavior (even correctly), the aircraft may no longer reach the buggy state from t=0 the same way. It might turn earlier, descend sooner, sequence a fix at a different time, or never enter the phase where the bug lives. Your assertion at T then has nothing meaningful to check — the test either fails for the wrong reason or passes vacuously. Hybrid sidesteps this by pinning the setup.
 
+**When a full-replay test regresses under an unrelated sim change, first verify the aircraft still reaches the asserted state.** Full replay re-simulates *every* aircraft from t=0, ground operations included, and the trajectory is chaos-sensitive: a pathfinder, navigator, or fillet change can reroute an aircraft hundreds of seconds before the assertion. The test aircraft is often a ground departure (scenario `startingConditions: Parking` plus a preset `TAXI … <rwy>`), so a taxi-out that becomes long or stuck means it never takes off — it is still on the ground when the recorded command or the assertion fires, and an "airborne" phase test fails for a purely ground reason (`GoAroundPreservesIntentE2ETests` once looked like a replay cascade and was a departure route that never reached the runway). Before blaming the asserted logic: probe the aircraft's phase, altitude, and taxiway timeline across the replay window with a throwaway `ReplayOneSecond` loop, check `python tools/bug_bundle.py scenario <bundle> --aircraft X` to see whether it is a ground departure, and match the failing test's exact stepping (a big-jump `Replay(N)` and `Replay(small)` + `ReplayOneSecond`×k can diverge for a chaotic aircraft). If the aircraft genuinely can't reach the state any more, fix the sim or route bug rather than re-anchoring the test.
+
 #### Canonical case for hybrid: WAIT presets
 
 Aircraft with `WAIT` preset commands are sensitive to dispatch timing (see Rules). If your fix touches WAIT behavior or anything that affects when a WAIT fires, full replay from t=0 will dispatch the aircraft at a different time — every downstream event shifts, and any assertion tied to a specific time `t` is now pointing at the wrong moment. Hybrid replay with a snapshot captured after the WAIT already fired is the right tool here.
@@ -311,6 +313,21 @@ public void HybridReplay_FixAppliesAfterSnapshot()
 Most issue fixes in this repo use full replay — the bugs were localized enough that earlier state still reached the buggy moment correctly. Reach for hybrid when the decision rule above tells you to, not by default.
 
 **Refreshing recording fixtures is surgical, never a re-simulation.** When a snapshot `SchemaVersion` bump requires rewriting committed recordings, upgrade them with `RecordingSchemaUpgrader` / the `Yaat.RecordingUpgrader` CLI, which transforms each snapshot's JSON in place through `SnapshotSchemaMigrator`. Do **not** regenerate snapshots by replaying through a live engine: that recaptures a hybrid test's frozen pre-`T` snapshot with *current* code, turning the pinned pre-fix setup into the fixed state and silently invalidating the very test that depends on it. Re-simulation is reserved for the one v1→v2 bootstrap (v1 has no snapshots to preserve). See [snapshots-and-replay.md](snapshots-and-replay.md).
+
+### 5c. The recording contains the user's own corrections
+
+A recording holds the operator's manual fix-ups for the very bug under test, and replaying them masks the fix. In `N342TFollowStraightInDownwindTests` the FOLLOW bug cancelled at t≈1003 and the aircraft turned base at t=1025 — but the operator also issued `ELB 28L 1` at t=1026. After the fix, a pure `ReplayOneSecond()` loop still showed a base turn at t=1026, not because the fix failed (logs showed the hold engaged) but because the replayed `ELB` forced it.
+
+**Cutoff technique.** `Replay(recording, 0)` → `RestoreFromSnapshot(nearest)` → `ReplayOneSecond()` up to a cutoff *past the buggy moment but before the corrective command* → then switch to `TickOneSecond()` (physics and phases only, no recorded actions) to observe the automatic behavior. Pre-fix the test still fails correctly: the bug's own cancel happens inside the `ReplayOneSecond` stretch, so the aircraft enters the `TickOneSecond` stretch already broken. Lead aircraft keep progressing under `TickOneSecond` (landing is phase-driven, not action-driven), so a "lead lands → follower releases" chain still exercises.
+
+Before writing the test, list the bundle's actions around the bug time (`python tools/bug_bundle.py actions`) and look for fix-up commands — `ELB`, `EXT`, `TB`, `FH`, `DCT` and the like.
+
+**The same confound breaks existing, passing replay tests when a bug they replayed *through* gets fixed.** Once the earlier behavior is correct the aircraft simply lands, every later operator input (`FH`, `TR`, `ERB`, `COPT`) hits a landed aircraft, and the tests' preconditions (e.g. `Assert.NotNull(TrafficDirection)`) evaporate. Those are not flakes and not "relax the assertion" material.
+
+**Repair recipe (preferred over deleting the recording):** replay only to a tick *before* the offending recorded command, issue the test's own stimulus with `engine.SendCommand(...)`, and advance with `TickOneSecond()`. The test keeps the real world (geometry, ground layout, traffic) but owns its precondition. Two gotchas:
+
+- The no-distance `ERB` may be refused ("too close for base") from the fresh position — use the explicit distance form (`ERB 28R 2`), which skips the category floor check.
+- Detect a completed `LandingPhase` by *entered-then-left*, not by "current phase isn't Landing/Final": an `ERB <dist>` inserts a `PatternEntryPhase` first, so the naive check fires on tick 1.
 
 ### 6. Write the real assertion
 

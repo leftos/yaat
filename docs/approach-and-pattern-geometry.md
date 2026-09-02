@@ -404,6 +404,15 @@ also the `touchAndGo` terminator choice). Same-runway re-entry keeps it. Mirrors
 (MRT/MLT). `ApplySidestep` returns before this and deliberately *transfers* the clearance — the instrument
 approach clearance authorizes the parallel (§4-8-7).
 
+**Wrong-side has a deadband for MLT/MRT, not for entries.** `TryChangePatternDirection` decides through
+`IsOnWrongSideForPattern`: the signed offset toward the pattern side must fall below `-WrongSidePatternDeadbandNm`
+(0.1 nm) before a `MidfieldCrossingPhase` is inserted, so an aircraft essentially on the extended centerline
+(climbing out on upwind after a go-around, offset ≈ 0) is *not* wrong-side and rebuilds standard closed traffic
+(upwind → crosswind → downwind) instead of banking across the field at 600 ft. The inline check in `TryEnterPattern`
+(downwind/base entries) is still `patternSideOffset < 0` with no deadband — deliberately left alone; the two are meant
+to differ. Guards: `Issue7MltCrossRunwayWrongSideTests` (−0.165 nm, off the parallel runway, must still cross midfield)
+and `BugN500mMltUpwindTurnsLeftImmediateTests` (−0.021 nm on the upwind centerline, must not).
+
 **Pre-issued clearances fold into the same `standingClearance`.** A `CLAND`/`TG`/`SG`/`LA`/`COPT` issued while the
 entry that would build the approach is still *queued* is stored on `AircraftPattern.PendingLandingClearance`
 (the entry's runway resolved at issue time, so a contradicting runway is rejected there rather than dropped here).

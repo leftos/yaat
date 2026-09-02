@@ -16,6 +16,8 @@ The version lives in `Directory.Build.props` at the yaat repo root (`<Version>`)
 
 Portable archives bundle the single-file exe plus sibling native DLLs (libSkiaSharp, HarfBuzz, LM-Kit) and run without install or auto-update.
 
+The portable is always the `*-Portable.zip` that `vpk pack` emits next to the installer, never a renamed bare `dotnet publish` single-file exe. `PublishSingleFile` embeds only the managed assemblies; the natives stay as sibling files in the publish folder, so a lone exe crashes at startup with `DllNotFoundException: libSkiaSharp`. Velopack packs the whole publish folder, which is why its zip works. A true single-file portable would need `-p:IncludeNativeLibrariesForSelfExtract=true -p:IncludeAllContentForSelfExtract=true` (self-extracts to a temp folder on first run); without those flags, do not ship a bare exe.
+
 ## macOS architectures and update channels
 
 Apple Silicon and Intel ship as two separate packages rather than one universal bundle: `PublishSingleFile` embeds the managed payload in the apphost, so the two publishes cannot be `lipo`'d together without giving up single-file.
@@ -72,6 +74,11 @@ Triggered on `push` of a `v*` tag. Jobs run in dependency order:
 4. **package-win / package-linux / package-macos** — `vpk pack` per platform. `package-macos` (in `release-macos.yml`, once per architecture) additionally imports the Developer ID certificates and an App Store Connect API key into a temporary keychain, then signs + notarizes (skipped when the `MACOS_*` secrets are absent).
 5. **release** — assembles `release/`, builds the release body from highlights + changelog + a download table, and creates the release via `softprops/action-gh-release` with the default `GITHUB_TOKEN`, always as a **draft**.
 
+### Workflow authoring notes
+
+- `windows-latest` `run:` steps default to **pwsh**, where `"$VPK_VERSION"` is an undefined PowerShell variable that expands to an empty string rather than the env var. Reference env vars as `$env:VPK_VERSION` (or `${{ env.VPK_VERSION }}`, or set `shell: bash`); the Linux/macOS steps use the bash `"$VPK_VERSION"` form. The failure mode is silent: `dotnet tool install -g vpk --version ""` installs the latest vpk and the only symptom is a `Velopack library version is lower than vpk version` warning in the pack log.
+- The `vpk` pin (`VPK_VERSION`) lives in **two** workflow files, `release.yml` and `release-macos.yml`, and must stay equal to the `Velopack` package version in the client csproj. When bumping either, grep every workflow for the env name and check each consumer's shell.
+
 ### Draft-until-published
 
 Every release is created as a draft — invisible to the releases page and to Velopack auto-update. CI cannot judge deployment scope: a release can be server-affecting purely via the yaat-server repo, which `release.yml` (running in the yaat repo) cannot see, so publishing is never decided in CI. The `/prepare-release` flow, which has cross-repo visibility, publishes the draft:
@@ -80,6 +87,8 @@ Every release is created as a draft — invisible to the releases page and to Ve
 - **Client-only releases**: the `/prepare-release` flow publishes once `release.yml` finishes building the installers — no deploy is involved.
 
 `release-macos.yml` is unaffected: the authenticated `gh release view`/`upload` it uses sees drafts, so macOS assets land on the draft like any release.
+
+**Missing macOS assets on a fresh draft are expected.** `release-macos.yml` is a separate workflow on the same `v*` tag: `release.yml` creates the release with the Windows and Linux assets, and the macOS workflow *appends* the notarized `osx-arm64`/`osx-x64` `.pkg`, Portable, and `RELEASES` assets 15–30 minutes later (Apple notarization dominates). Publishing before they land is the designed flow; do not hold the publish for them, and do not read their absence as a failed run.
 
 A failed or skipped deploy leaves the release as a draft on purpose — publish manually with `gh release edit v{version} --repo leftos/yaat --draft=false` once a matching server is live.
 
@@ -90,6 +99,30 @@ A failed or skipped deploy leaves the release as a draft on purpose — publish 
 ## Shipping a release
 
 Use the `/prepare-release` skill: it bumps the version, promotes the changelog, drafts highlights, tags, and pushes after approval.
+
+### Moving an unpublished draft to a new commit
+
+A change that must ride into an already-tagged but still-draft release can be retagged cleanly: fold its changelog bullets into the released section, commit, then
+
+```bash
+gh release delete v{version} --cleanup-tag
+git tag -d v{version}
+git tag v{version}
+git push origin main
+git push origin v{version}
+```
+
+`release.yml` re-runs on the new tag push and recreates the draft. For a server-affecting release the server image must also be **rebuilt**: it bakes `YAAT_CLIENT_COMMIT` at build time and the deploy only auto-publishes the draft when that commit is the tagged one.
+
+### Troubleshooting: the tag push started no workflow
+
+- **Signature:** `gh api "repos/leftos/yaat/actions/runs?head_sha=<sha>"` still reports `total_count: 0` well after the push. Two known causes: a GitHub Actions outage drops the push event outright (it is not queued, and recovery does not replay it), and GitHub occasionally coalesces a simultaneous branch push and tag push into one delivered `push` webhook, in which case only the `main`-triggered CI workflow fires. The second cause is why `/prepare-release` pushes `main` and the tag as two separate commands.
+- **Recovery:** delete and re-push the tag to generate a fresh tag-push event; both `release.yml` and `release-macos.yml` then fire normally. There is no rerun path for a run that was never created.
+
+  ```bash
+  git push origin :refs/tags/v{version}
+  git push origin v{version}
+  ```
 
 The flow can optionally wait for `deploy-to-droplet.ps1 -WaitForEmptyRooms` before deploying, so an in-progress training session
 isn't disrupted. That flag polls the live server's `/admin/status`; it **can't gate the very release that first ships that endpoint**

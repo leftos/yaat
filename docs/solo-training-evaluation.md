@@ -171,6 +171,18 @@ while OTP + OTP / OTP + VFR fall through to advisory-only (Class C doesn't separ
 The airborne CA / ERAM STCA detectors are deliberately *not* gated on this — safety alerts are a first-priority
 duty to all aircraft (§2-1-6), including VFR-on-top.
 
+Two invariants around that rule:
+
+- **The Class B 1.5 NM floor keys on the aircraft the VFR is separated *from*** (§7-9-4.2/.3), not on the VFR's own
+  weight. The Class B branch computes `separatedFromHeavyOrTurbojet` as `IsLargeOrTurbojet(a) || IsLargeOrTurbojet(b)`
+  only when *both* parties are VFR-for-separation (each is separated from the other); a mixed pair keys on the non-VFR
+  party. A bare OR let a VFR/OTP turbojet against a light IFR draw 1.5 NM instead of 0.25 NM target resolution — a false
+  Safety finding. The branch is reachable only with at least one VFR-for-separation party (both-IFR returns early), so
+  the "exactly one VFR" arm cannot misfire.
+- **`aVfrForSeparation` is the only `IsVfr` reader where OTP ≠ IFR.** Do not relax the other `IsVfr` readers to match,
+  and keep `ConflictAlertDetector` / `EramConflictDetector` rules-agnostic. Pinned by
+  `SoloTrainingEvaluatorTests.ResolveRequirement_Otp*`.
+
 ### Advisory / Visual
 
 These are **proof-based**: the finding fires when the geometry warrants the service and clears when the controller

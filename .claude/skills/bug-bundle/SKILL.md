@@ -157,6 +157,7 @@ python tools/bug_bundle.py validate <bundle.zip>
 
 - `info` is the first thing to run; it tells you duration, aircraft involved, ARTCC, and whether logs are included.
 - For single-aircraft triage, `history --callsign X` is the second thing to run. It collapses 5+ targeted `snapshot --at` calls into one chronological view.
+- **Sim-elapsed time comes from `history` / `actions` / `snapshot --at`, never from log wall-clock timestamps.** The client and server logs carry human wall-clock times; replay and snapshots are indexed by sim-elapsed `t=`. A PAUSE/UNPAUSE or sim-rate change (common in instructor recordings) breaks any linear wall-clock→`t` mapping by the total paused time, which the log alone cannot show. For "replay to just before command C on aircraft X", read the `t=NNN CMD …` line from `history --callsign X` and replay to just under that.
 - `snapshot --at T` uses the same nearest-at-or-before-T rule as the C# `RecordingArchive.ReadSnapshotAt` — so `--at 60` returns the snapshot whose `ElapsedSeconds` is the largest value ≤ 60.
 - Live-traffic actions render with `LIVE` (sample: `via=<facility> utc=<observed>`), `LIVERM` (removal) and `LIVEST` (feed status) tags.
 - `history` event tags: `CMD` (action), `PHASES` (chain installed/rebuilt), `PHASE+` (current phase advanced), `PHASE-` (chain cleared), `ROUTE` (NavigationRoute changed), `TGT` (assigned alt/spd/hdg changed), `APPR` (Approach state), `TRACK` (ownership), `RWY` (DestinationRunway), `SPAWN`/`DESPAWN`. Output is ASCII-only (no unicode arrows) so it survives Windows cp1252 stdout.

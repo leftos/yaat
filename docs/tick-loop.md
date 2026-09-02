@@ -35,6 +35,30 @@ Tick(1s)
 
 The 4 sub-ticks give physics 0.25-second resolution while keeping all broadcasts on a 1-second cadence. `PhysicsSubTickRate = 4` is the constant.
 
+### The server runs its own PostPhysics
+
+`SimulationEngine.TickPostPhysics` is reached only by the standalone `TickOneSecond` and the replay drivers (`ReplayOneSecond`,
+`ReplayRangeCore`, `ReplayOneSubTick`) — Yaat.Sim tests and replay tooling. The live server never calls it: `RoomEngine.AdvanceOneSecond` →
+`TickProcessor` drives `TickPrePhysics()` + `TickPhysics()` and then runs its own ordered `ProcessPostPhysics` list (transponders, visual
+detection, pilot-proactive, conflict / solo-evaluation / auto-delete broadcasts, strips, TDLS, …). A per-tick step added only to
+`TickPostPhysics` runs in tests and replay and does nothing live; the pilot-proactive request reminders once ran dark on the server for months
+this way.
+
+- **Per-tick sim logic lives in the engine as a public `SimulationEngine.Tick*` method the server calls** — never as private orchestration in
+  `TickProcessor`, and never only inside `TickPostPhysics`. `TickPrePhysics` is the model: it returns a `TickPrePhysicsResult` and each host
+  dispatches it its own way. Two seam shapes exist:
+  - *void, both hosts call it* — `TickTransponders`, `TickVisualDetection`, `TickPilotProactive`: invoked by `TickPostPhysics` **and**
+    `ProcessPostPhysics`.
+  - *return-value, the broadcasting host consumes it* — `TickSoloTrainingEvaluation`, `TickAutoDelete`, `TickConflictAlerts`,
+    `TickEramConflictAlerts`: the engine computes, updates engine-owned state, and returns the diff; the server fans it out. `TickPostPhysics`
+    still calls the two conflict methods (with no internal airports) and discards the diff so a restored conflict set is re-examined in replay
+    rather than pinned; it never calls solo evaluation or auto-delete (no controller to notify).
+- **A Yaat.Sim test that drives `TickOneSecond` cannot catch a server-path gap.** Guard live behavior with a yaat-server harness test
+  (`RoomEngineTestHarness`, whose `Tick()` is the real `RoomEngine.AdvanceOneSecond`) — `PilotProactiveServerParityTests` is the pattern, and
+  no-op'ing the engine method must turn the parity test red.
+- **ASDE-X alert processing stays server-side on purpose.** `AsdexSafetyLogicDetector.Detect` already lives in Yaat.Sim and is called once;
+  the rest is CRC glue over server-only DTOs and the room-held alert set, so it is not a second brain.
+
 ## `FlightPhysics.Update` — 8 steps in order
 
 > This section gives the step ORDER. For the integration math inside each step, the airspeed-frame model (IAS/TAS/GS/Mach), and the validated per-category performance constants, see [flight-physics.md](flight-physics.md).

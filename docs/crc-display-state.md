@@ -106,6 +106,35 @@ Pure transformations from internal state to wire DTOs:
 - `ToStarsConsolidationItem(tcp, …)` — TCP hierarchy plus defaults.
 - `ToShortTermConflict`, `ToStarsCoordinationList`, `ToTowerListDto` — multi-aircraft state.
 
+### ERAM target symbol resolution — `ComputeEramSymbolType`
+
+`ToEramTarget(ac, conflictAlertFloorFeet, asrSites)` resolves the radar-target symbol (`docs/crc/eram.md` Table 1) from the
+transponder plus the subscribing facility's ERAM config. Precedence:
+
+1. **Standby transponder → primary**: `CorrelatedPrimary` with a flight plan, else `UncorrelatedPrimaryStrong`. Standby
+   precedes ident (a standby transponder cannot ident) and nulls `BeaconCode` / `AdjustedAltitude` / `VerticalSpeed`;
+   `GroundSpeed` / `GroundTrack` stay (primary radar still gives position). `WasModeCPreviouslyReceived` comes from the
+   sim-side `Transponder.HasReportedModeC` latch, so an aircraft that reported Mode C before going standby renders CRC's
+   "recently lost Mode C" forms — CRC only consults that field when the altitude is null.
+2. **Ident** → `IdentingBeacon`, a transient override on any beacon target, correlated or not.
+3. **Correlated** = `HasFlightPlan && code != 1200`. 1200 is the non-discrete universal VFR code and never correlates
+   (AIM §4-1-20); a filed aircraft squawking 1200 falls through to the uncorrelated branch. Correlated →
+   `ReducedSeparation` inside single-sensor ASR coverage, else `CorrelatedBeacon`.
+4. **Uncorrelated** → `Mci` at/above the conflict-alert floor; below it `Vfr` for 1200, else `UncorrelatedBeacon`.
+
+Facility config drives two of those splits, so `EramTargets` is recomputed per subscribing facility at send time
+(`CrcBroadcastService.ResolveEramTargetConfig` → `ArtccConfigService.GetEramFacilityConfig`, over the raw
+`batch.EramTargetAircraft`), the same deferral `EramTrackAircraft` uses:
+
+- **Reduced separation is ASR coverage, not a blanket ≤FL230.** `EramFacilityConfig.AsrSites` (`EramAsrSite { Location,
+  Range = 60 NM, Ceiling = 23,000 ft }`): within a site's range *and* at/below its ceiling (7110.65 §5-5-4). A center with no
+  ASR sites never renders it. The ≤FL230 line in `eram.md` is the STCA 3/5 NM split — a different code path; do not reuse
+  `EramConflictDetector`'s constant here.
+- **CA floor = `EramFacilityConfig.ConflictAlertFloor`** (default 0). A center shipping 0 makes every uncorrelated Mode-C
+  target `Mci`, so `Vfr` / `UncorrelatedBeacon` never appear there — authentic.
+- **`BlinkSpc` is the six-code vNAS special-purpose set** {1276 ADIZ, 7400 lost link, 7500, 7600, 7700, 7777 AFIO}
+  (`DtoConverter.IsSpc`), not just 7500/7600/7700.
+
 Wire encoding is MessagePack with `[Key(N)]`-attributed records; payloads are written via `MessagePackWriter` and pushed through SignalR `Receive*` invocations.
 
 ## WebSocket lifecycle — `CrcWebSocketHandler.cs`

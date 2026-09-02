@@ -632,6 +632,14 @@ here and have `aviation-sim-expert` review against the local FAA references.
   (an obstacle, never a subject) and `IsOnRunway` reads `Ground.ExternalOnRunway`, a per-tick flag the detector fills from
   `RunwayOccupancy.ClassifyBest` over the layout airport's runways — see [live-traffic.md](live-traffic.md).
 
+- **`GroundConflictDetector` changes have emergent timing effects.** Any change to the speed-limit logic (convergence yield, crossing,
+  head-on, proximity) shifts *when* every other pair in a dense scenario meets, so a fix that passes its targeted unit tests and one E2E can
+  still deadlock two unrelated aircraft elsewhere — a convergence ETA gate once put SKW3404 nose-to-nose with SWA2208 mid-turn at a junction
+  and `ResolveHeadOn` froze both. After any detector change run the dense recording-replay regressions (`Issue165SkwTaxiSpinTests`,
+  `GroundConflictConvergenceTests`, the OAK/SFO spin tests) and `pwsh tools/test-all.ps1`, not just the new unit tests. To trace who limits
+  whom, set `GroundConflictDetector.DebugSink` in the test: `ApplyMinLimit` and the crossing resolution emit their full decisions through it.
+  A mutual stop is the canonical failure — the resolver's rule is one holds, one goes; the only symmetric stop is the off-graph head-on where
+  no ground graph can confirm the routes diverge.
 - **`WakeTurbulenceData` must be `Initialize()`'d first.** Before `AircraftCwt.json` is loaded, `GetCwt` returns null and
   both the ATPA matrix and the visual traffic range fall back to `AircraftCategory`. This is a static-singleton
   init-order race — a test that reads it before initialization gets the fallback value (see the documented

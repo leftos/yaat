@@ -103,6 +103,12 @@ All fields are nullable. The full set mirrors `AircraftProfile`:
 `descentRateApproach`, `finalApproachSpeed`, `landingSpeed`, `landingDistance`, `patternSpeed`,
 `holdingSpeed`, `length`, `standardTurnRateOverride`.
 
+**Descent-ladder orientation.** In these Eurocontrol-derived profiles `descentRateInitial` is the *initial descent from
+cruise* — the cruise-end rate (a gentle pushover, ~800 fpm for a B738) — exactly as `descentSpeedInitial` is a Mach number,
+whereas `climbRateInitial` is ground level. `AircraftPerformance.DescentRate` interpolates `descentRateApproach` at 0 ft →
+`descentRateFl100` at 10,000 ft → `descentRateInitial` at `ceiling`. Anchoring "Initial" at 0 ft (a copy of the climb
+ladder) inverts both tails of every jet baseline.
+
 ## Files
 
 | File | Role |

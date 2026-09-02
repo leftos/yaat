@@ -109,6 +109,19 @@ immediately trip `AirspaceBoundaryHoldPhase` and orbit a fresh inbound.
 more than 3000 ft AGL, keyed on the aircraft's actual magnetic course toward its exit point (not the author's
 "to" radial — the ground track between two points differs from a radial off the field). Off by
 `snapHemisphericAltitude: false`.
+Only level *overflights* are snapped — 91.159 binds level cruising flight, and a VFR arrival is descending or about
+to be sequenced down. When the authored band contains no conforming level, `Snap` takes the nearest one within
+`BandToleranceFt` (500 ft) of the band; beyond that the rolled altitude is kept and a warning names the generator
+(widen the band or turn the snap off). The course is never re-rolled to find a fit — the author set that geometry
+deliberately. The opt-out defaults to on because staging a target at a deliberately wrong altitude is a legitimate
+training scenario.
+
+**Distance and altitude bands.** Arrival defaults are 10–20 NM out (`InitialDistance`/`MaxDistance` — around the ~15-mile
+call-up of AIM 4-3-2, inside the 20 NM Class C outer area) at 2500–4500 ft MSL; overflights default to 4500–7500 ft MSL
+(Class C tops out at 4000 ft AGL, AIM 3-2-4.a) with `MaxDistance` 25 NM and an `exitDistance` on the far side. A generated
+arrival whose `initialVsFpm` is negative with no `descendToAltitude` (`ApplyInitialVerticalProfile`) descends to field
+elevation + 1000 ft (+1500 ft for jets and turboprops — the AIM 4-3-3 pattern altitudes), rounded to the hundred, with the
+authored rate capped at the type's own `AircraftPerformance.DescentRate`.
 
 **Flight plans.** A generated VFR arrival files a VFR plan to the primary airport and draws a discrete code
 from the VFR beacon bank — modelling a VFR aircraft already receiving radar service, which is what a Class C
@@ -529,6 +542,13 @@ The division of labour:
   reconstruction `RecordingManager` calls `CaptureFrom(newScenario)` so the room copy follows the rewound values.
 - **Adding a setting means adding it to `RoomSessionSettings` in both `ApplyTo` and `CaptureFrom`.**
   `RoomSessionSettingsTests` walks the type reflectively and fails if you list it in only one.
+- **`ApplyTo` must run before `DispatchPresetCommands`, not just somewhere in the reload.** A preset `TAXI` resolves its
+  route — and runs `TaxiRouteAutoCross.Apply` against `AutoCrossRunway` — inside `PopulateRoomForRewind` itself, so seeding
+  afterwards leaves every restarted departure holding short of crossings the controller had already cleared (#314).
+  `Restart_PreservesSessionSettings` does not catch this (it loads an airborne scenario and only reads the flag back); the
+  ordering guard is `Restart_WithAutoCrossOn_PreClearsPresetTaxiCrossings` plus its
+  `Restart_WithAutoCrossOff_LeavesPresetTaxiCrossingUncleared` control arm over `oak-parking-taxi-crossing.json`. That
+  fixture must spawn immediately — a delayed spawn dispatches its presets from the tick loop, long after the seed either way.
 
 Weather is the one piece that does **not** ride on `SimScenarioState`: every reload builds a fresh `SimulationWorld`, so both
 `LoadScenarioAsync` and `RestartScenarioAsync` re-load `TrainingRoom.WeatherSourceJson` through `RoomEngine.LoadWeather` once the
@@ -550,7 +570,8 @@ The four queues are part of the scenario snapshot so a rewind checkpoint can res
 - `DelayedQueue` → `DelayedSpawnDto` with the `LoadedAircraft` JSON-serialized whole (and `SpawnAtSeconds`).
 - `TriggerQueue`, `PresetQueue` → command + fire-time DTOs.
 - `Generators` → `GeneratorStateDto` with the config JSON-serialized plus the runtime cursor (`NextSpawnSeconds` — the time-first
-  cadence cursor — and `IsExhausted`) and the runway snapshot.
+  cadence cursor — and `WasActive`, the previous tick's `GeneratorActivation.IsActive` result, kept only so an off→on edge can pull
+  the cadence forward; there is no exhaustion latch) and the runway snapshot.
 
 `SimulationEngine.RestoreFromSnapshot` (`SimulationEngine.cs:142`) clears and rebuilds all four queues from the DTOs. The one
 runtime-only field that does not survive JSON is `AircraftState.Ground.Layout` (it's `[JsonIgnore]`d in `AircraftGroundOps.cs:20`)

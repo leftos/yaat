@@ -26,6 +26,12 @@ Each `{roomId}.checkpoint.zip` contains:
 
 Restore applies the final snapshot directly (no replay-from-zero). Coordination channel in-flight items are included in the scenario snapshot DTO.
 
+Restored rooms report **zero members** until someone reconnects. A room member is a SignalR connection, and
+`TrainingRoomManager.CreateRestoredRoom` deliberately does not repopulate `TrainingRoom.Members` — only `RestoredMemberCids`
+(the rejoin whitelist) and the CID→room mappings. It also arms **no** abandoned-room cleanup timer; a restored room nobody
+reclaims is retired by the paused-retirement sweep instead. `GET /admin/status` cannot tell the two cases apart, so do not
+assert that an occupied-looking room is "held open by its cleanup timer".
+
 ## Client behavior
 
 - `ServerRestarting` — banner, commands disabled, `ActiveRoomId` persisted to preferences.

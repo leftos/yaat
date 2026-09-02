@@ -355,6 +355,10 @@ instead of opening another replay. `LiveTrafficStatusDto` carries `FeedTimeUtc`,
 room close (`TrainingRoomManager.RemoveRoom`). Tests: `SwimRawLogFollowerTests`, `LiveTrafficDvrTests`. Scrubbing inside the server's raw-log window ("DVR") is designed in
 yaat-server `docs/plans/live-traffic-swim/09-live-sessions.md` and not built.
 
+Surface coverage is a property of the feed, not the sim: SMES (ASDE-X/ASSC) publishes surface tracks only for its
+equipped airports — 43 in the program; KSFO is one, KOAK is not — so no feed populates the OAK ground view in a live
+session, and only brief TAIS rollout tails reach the surface there.
+
 ## SWIM ingest (yaat-server `src/Yaat.Server/LiveTraffic/Swim/`)
 
 The feed is the FAA SWIM Cloud Distribution Service (SCDS): two Solace queues, nationwide — STDDS (TAIS terminal tracks +

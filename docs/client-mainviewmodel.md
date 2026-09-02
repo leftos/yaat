@@ -93,6 +93,15 @@ Four other background-thread → UI-thread crossings exist outside the SignalR h
 periodic `RefreshTimelineMarkersAsync` poll. The lock guards only the list; the visible `TimelineMarkers` collection
 is still mutated via `Dispatcher.UIThread.Post`.
 
+**Per-aircraft broadcasts must never trigger a global rebuild per event.** The server sends one `AircraftUpdated` per aircraft, so a
+handler that runs an O(n) rebuild (the shown nav-route / taxi-route overlays: `Radar.RefreshShownPaths()` +
+`Ground.RefreshShownTaxiRoutes()`) inside `OnAircraftUpdated` is O(n²) per tick — a UI-thread allocation storm that pins the dispatcher
+for tens of seconds under dense ground traffic with overlays shown (#280). `OnAircraftUpdated` therefore calls `ScheduleShownRouteRefresh`
+(`MainViewModel.Aircraft.cs`), which sets a `_shownRouteRefreshScheduled` flag and posts **one** refresh at
+`DispatcherPriority.Background`; the Background job runs after the burst of Default-priority update jobs drains, collapsing N updates into one
+rebuild. Apply the same coalesce pattern to any new per-aircraft handler that fans out into global work — `RefreshShownPaths` has a fingerprint
+cache, `RefreshShownTaxiRoutes` reconstructs every route on each call, so the ground path is the amplifier.
+
 ## Lifecycle: constructor wiring order
 
 `MainViewModel(IFilePickerService)` (`MainViewModel.cs:1085`) wires things in a deliberate order:
@@ -286,6 +295,46 @@ when `entry.IsStudentEntry`, `MainViewModel.Strips.cs:107`). Extra per-facility 
 start docked. The `Subscribe*Entry` / `Unsubscribe*Entry` pairing (driven by the `CollectionChanged` handler) must
 stay balanced or pop-out bookkeeping leaks handlers.
 
+## Aircraft List "Info" column
+
+The Info column text and color come from `Yaat.Sim.AircraftStatusDescriber.Describe(...)`, a pure projection of `AircraftState` (via
+`AircraftStatusView.FromState` plus an `AircraftStatusContext` carrying the three non-state inputs: delayed, auto-cleared-to-land, handoff peer
+label) to `(SmartStatus, SmartStatusSeverity)`. It runs **once, server-side** in `DtoConverter`, ships on the aircraft DTO, and
+`AircraftModel.FromDto` / the DataGrid display the string **verbatim** — there is no client-side status logic, so an Info-column bug is always
+in the describer or its projection, never in rendering. Inside the describer, `CheckAlerts` (first-match wins: no landing clearance, landing
+without clearance, handoff pending, no altitude assigned) runs after `ComputeNormalStatus`, and an alert **prepends** rather than replaces:
+`"{alert} · {normal}"`, keeping the alert's severity. `SmartStatusTests` (Yaat.Client.Tests) is the pinning suite and hand-builds
+`AircraftStatusView` without an engine. The flashing `NoLndgClnc` datablock label is a separate path driven by
+`AircraftState.NoLandingClearanceWarningActive` (set by `FinalApproachPhase`), not by this text.
+
+## Window geometry & group raise
+
+Every window restores through `WindowGeometryHelper(window, preferences, "Name", defaultW, defaultH).Restore()` (Yaat.Client.Core), which is also
+the single choke point that attaches `WindowGroupRaiser`. Invariants the helper depends on:
+
+- **Restore verbatim; clamping is rescue-only.** An edge-snapped window's frame origin legitimately sits a few pixels *outside* the screen
+  (Windows' invisible resize borders), so force-fitting it inside the work area shifts it inward and overlaps tiled neighbors. The pure static
+  `ResolveGeometry(geo, screens)` restores the saved rectangle unchanged whenever at least a 50×30 px overlap with any screen's working area
+  exists; clamping into the target work area is only the fallback for an unplugged monitor or poisoned data (#361). `WindowGeometryResolveTests`
+  (plain `[Fact]`s) pins it — headless Avalonia has no screens, so the window-level path cannot exercise clamping.
+- **Units are mixed by design.** `SavedWindowGeometry.X/Y` and `Screen.WorkingArea` are device pixels; `Width/Height` (from `Window.Width`) are
+  DIPs. Any math combining them must convert through `Screen.Scaling` (`SafeScaling` guards a zero).
+- **Minimized-position sentinels differ by platform.** Headless and macOS report `(0,0)`, Win32 reports `(-32000,-32000)`; `IsIconicOrigin`
+  matches both, and `OnPositionChanged` must never capture an iconic position as `_lastNormalGeometry` — the event can fire before
+  `WindowState` flips to `Minimized`, which is how a profile can end up placing a window at -32000.
+- **`WindowGroupRaiser` raises every YAAT window when focus returns from another app** (pref `RaiseWindowsTogether`, default on, read at raise
+  time; #392). It deliberately does **not** use Win32 window ownership (CRC's mechanism): owned windows sit permanently above their owner, which
+  breaks free stacking among YAAT windows. A raise is a `Topmost = true; Topmost = false` pulse per window (`SetWindowPos` with `HWND_TOPMOST` /
+  `HWND_NOTOPMOST` + `SWP_NOACTIVATE` on Win32 — raises without stealing focus), ordered by `Window.SortWindowsByZOrder`, which **throws when any
+  window's `PlatformImpl` is null** — hence the try/catch with an MRU-order fallback. `WindowGeometryHelper.OnWindowPropertyChanged` ignores
+  `TopmostProperty` while `WindowGroupRaiser.IsRaising`, otherwise the pulse flickers the pinned-title marker and triggers a spurious auto-save.
+- **`WindowGroupRaiser.IsSuspended` must wrap the *entire* body** of `ApplyWindowProfileByNameAsync` / `ApplyWindowProfilePartialAsync`: the
+  pop-out flips, `Show()`s and the final `ReclaimFocusAfterProfileApply` activation would each trigger a competing raise mid-apply.
+- **Avalonia raises `Activated` before `IsActive` becomes `true`** — never read the activating window's `IsActive` inside the handler.
+  Group-inactive detection is a posted (Background-priority) check that no tracked window is active.
+- **Headless caveats.** `Topmost` does not move headless z-order (assert via the internal `GroupRaised` event, not visually), `Deactivated`
+  fires only on `Hide()`, and `Activated` is posted at Input priority, so tests need `Dispatcher.UIThread.RunJobs()` after `Show()`.
+
 ## View ↔ VM event bridge
 
 The VM cannot reach a control (MVVM), so two parameterless events let it poke the View:
@@ -334,7 +383,17 @@ from the inner `Close()` with a fresh args object.
   never fires `Window.Closing`, so the per-window geometry save (hooked there by `WindowGeometryHelper`) would
   otherwise be lost.
 
-When `_isMainWindowClosing` is set, `OnClosing` also disposes the global key hook and cancels the auto-connect CTS.
+When `_isMainWindowClosing` is set, `OnClosing` also disposes the global key hook and cancels the auto-connect CTS. Two rules keep that path from
+wedging the UI thread (#347):
+
+- **No untimed native waits on the UI thread during shutdown.** SharpHook's `Dispose` is a blocking P/Invoke into libuiohook's `hook_stop()`
+  with no timeout; calling it synchronously from `OnClosing` froze the app permanently when the native teardown wedged, and everything after it
+  (including the server disconnect) never ran. `GlobalKeyHookService.Dispose` runs the native teardown on a background thread and `Join`s it for
+  a bounded 2 s (`TeardownTimeout`), abandoning it on timeout — the hook thread is `IsBackground`, so process exit reaps it. The
+  `internal GlobalKeyHookService(IGlobalHook)` seam lets a hanging fake pin this.
+- **Pop-out `Closing` handlers clear their window field / dictionary entry *before* flipping the VM's pop-out flag.** CommunityToolkit's
+  `PropertyChanged` fan-out is synchronous, so flipping `IsXxxPoppedOut` while `_xxxWindow` is still set re-enters `CloseXxxWindow()` →
+  `Close()` on the window already inside its own `Closing` event. Headless Avalonia tolerates the re-entrancy, so only a real run shows the wedge.
 
 ## Footguns
 

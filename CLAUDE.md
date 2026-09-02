@@ -240,7 +240,7 @@ When invoking aviation-sim-expert, always include:
 
 ## Problem Solving
 
-- **Revert broken fixes immediately**: When a fix attempt breaks tests or makes things worse, revert and try a different approach. Never iterate on a broken approach more than twice without stepping back to reassess.
+- **Revert what made things worse, keep what is correct**: When a fix attempt breaks tests or degrades behavior, revert it and try a different approach; never iterate on a broken approach more than twice without stepping back to reassess. Do not revert a fix that is correct just because an unrelated test is red, a replay recording desynced, or the user sounds unsure — verify first, then keep it and fix the actual cause.
 - **Verify before implementing**: Before implementing a fix, verify the approach against actual code and official docs. Never rely on unverified claims from sub-agents or assumptions about schemas/APIs. When in doubt, read the source.
 - **Follow plans sequentially**: When the user provides a plan or ordered list of tasks, follow it top-down sequentially. Do not skip items, reorder, or take shortcuts through the list.
 

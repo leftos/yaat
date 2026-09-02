@@ -35,9 +35,17 @@ command pipeline is the only mutation path.
 
 The server also speaks the CRC `FlightStrips` topic
 (`CrcClientState.Strips.cs`, `StripCommandTranslator`) so a CRC-protocol
-client could subscribe and mutate strips too; CRC's own vStrips is not
-used against yaat-server, so treat that path as parity coverage rather
-than the display users see.
+client could subscribe and mutate strips too; CRC's own vStrips does not
+work against yaat-server, so treat that path as latent parity coverage
+rather than the display users see. Two consequences:
+
+- **Triage order for a strips bug:** trace the YAAT-side emit path first
+  (`VStripsCanonicalBuilder` → `VStripsViewModel` → `_sendCommand` →
+  `ServerConnection.SendCommandAsync`); check `StripCommandTranslator`
+  second and treat it as parity, not the repro. A report that says "CRC
+  vStrips" almost always means the `/vstrips/` web app.
+- **User-facing wording** (CHANGELOG, USER_GUIDE): say "the Strips tab or
+  the vStrips web app", never "CRC vStrips".
 
 ```
 Strips tab / vstrips (instructor)     yaat-server                          Strips tab / vstrips (trainee)
@@ -724,9 +732,11 @@ with topic `"FlightStrips"` and no sub-id.
 CRC can also drive strips itself — the hub partial
 `CrcClientState.Strips.cs` handles `CreateStripItem`, `UpdateStripItem`,
 `DeleteStripItem`, `MoveStripItem`, `RequestFullFlightStripsState`,
-`RequestFlightStrip`, and `RequestBlankStrip`. These are used when a
-controller moves a strip in vStrips; the server acknowledges, mutates
-state, and rebroadcasts.
+`RequestFlightStrip`, and `RequestBlankStrip`. They are only reachable
+from a CRC-protocol client on `/hubs/client`, which no shipped strips
+display uses (see Overview), so they are latent parity code: the server
+acknowledges, mutates state, and rebroadcasts, but a strips bug is
+reproduced through the training-hub path, not here.
 
 ## CRC → canonical translation
 
@@ -775,6 +785,50 @@ The **embedded Strips tab** in Yaat.Client subscribes to
 reconciles via `ReconcileFullState`/`ReconcileItems`, and emits every
 user action as a canonical command through `_sendCommand`. Supports
 drag/drop, keyboard shortcuts, and offset/offset-reverse annotation.
+
+### Strip drag mechanics
+
+Strip drag in `VStripsView.axaml.cs` is a **pointer-capture gesture, not
+`DragDrop.DoDragDropAsync`**. HTML5 drag-and-drop on Avalonia.Browser is
+throttled to a few Hz and rejected outright on Firefox, and Windows
+throttles `DragOver` to roughly 30 Hz, so the view tracks the pointer
+itself and moves a ghost plus animated gap preview every frame. The
+invariants below are load-bearing; each has a regression test in
+`VStripsDragGestureTests`.
+
+- **Capture on the view, never on the strip or its presenter.** Hiding a
+  captured element releases capture. `StartPointerDrag` orders: capture →
+  hide the source presenter → initial preview (`animate: false`, same
+  frame as the hide) → ghost → `Focus()` (so Esc cancels).
+- **Go `Idle` before releasing capture.** `CancelDrag` and `CompleteDrag`
+  set `_dragState = Idle` *before* `Capture(null)`, because the view's own
+  release echoes `PointerCaptureLost`, whose handler calls `CancelDrag`
+  again and must see the drag as already over.
+- **Resolve drop targets with `InputHitTest`, never `e.Source`.** Capture
+  retargets `e.Source` to the captured element; hit-testing is
+  capture-independent.
+- **A mid-drag `SelectedBay` switch (bay-hover preview) rebuilds every rack
+  container.** The presenter cache, preview transforms, and the hidden
+  source's `IsVisible=false` die with the old containers, so returning to
+  the origin bay would resurrect a visible copy of the dragged strip.
+  `OnSelectedBayChangedDuringDrag` re-hides the fresh container (posted at
+  Loaded priority) and re-targets `_draggingSourcePresenter`.
+- **Gap preview is composition-only.** Presenters at or past the insertion
+  index carry animated `TranslateTransform`s (no layout pass);
+  `BuildUnshiftedBands` subtracts each transform's *current* Y so band
+  math stays exact mid-animation. Drop and cancel clear the preview with
+  `animate: false`, or the transforms survive into the optimistic reorder.
+- **Drop settles before dispatch.** The ghost flies into the gap (~130 ms)
+  before `MoveStripAsync` runs, and `_isSettling` blocks new presses in
+  that window.
+
+**Headless test protocol.** Drive the gesture through the real headless
+mouse device (`window.MouseDown`/`MouseMove`/`MouseUp`), not hand-raised
+routed events — those don't reproduce capture semantics. Mid-drag
+`MouseMove` calls need `RawInputModifiers.LeftMouseButton`, or
+`IsLeftButtonPressed` reads false and the drag cancels itself. The drop's
+command dispatch arrives after the settle delay, so pump with
+`WaitForCaptured` rather than asserting straight after `MouseUp`.
 
 **In-view find (Ctrl+F).** The shared `FindController` (`src/Yaat.Client.Strips/Find/`)
 drives a top-right `FindBarView`. `VStripsView` supplies a snapshot of the selected

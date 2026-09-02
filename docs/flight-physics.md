@@ -172,6 +172,10 @@ direction bias (`TRDCT`/`TLDCT`) survives until the initial turn completes.
   1,000 ft of the goal — `min(rate, max(500, 1.5 × |diff|))` fpm — so Mode C winds down instead of cutting from full rate to level in
   one tick. Phases are exempt end-to-end: approach/landing fly profile-rate segments below 1,000 ft AGL that must not be flattened.
   `change = min(|diff|, rate/60 × delta)`; `VerticalSpeed` is signed by climb/descend.
+- **Guard pattern for global `UpdateAltitude` changes.** Anything that reshapes the vertical profile must be scoped
+  `profileRate && Phases?.CurrentPhase is null` — the taper's own guard. Phases own their vertical paths end-to-end (approach
+  and landing fly profile-rate segments below 1,000 ft AGL), and physics must never reinterpret them: an unguarded taper
+  floated turboprop touchdowns several hundred feet long (`TouchdownPointTests`) and broke SID-window and `CAPP` phase tests.
 
 **Step climb/descent planners** run *before* the integrators (`UpdateClimbPlanning` `:352`, `UpdateDescentPlanning` `:246`). Each scans the route
 for the next altitude-constrained fix, resolves the constraint via `ResolveAltitudeRestriction` (`:691`), writes `TargetAltitude`, and computes

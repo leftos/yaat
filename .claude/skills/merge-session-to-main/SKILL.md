@@ -20,7 +20,7 @@ Per project convention (auto-memory `feedback_commit_to_main`), the user lands w
 - **Does NOT push.** Pushing to `origin/main` requires the user's explicit go-ahead. Stop after the local cherry-pick.
 - **Does NOT prune the source worktree or branch.** The bug branch / worktree stays intact. The user can `git worktree remove` or `wt rm` separately when they're done.
 - **Does NOT auto-stash.** If the source has uncommitted changes, halt — that's lost work waiting to happen.
-- **Does NOT amend or use `--no-verify`.** Pre-commit hooks must pass on their own merit.
+- **Does NOT amend or bypass hooks to hide a real failure.** A hook failure caused by the landed code itself is fixed forward. The one sanctioned bypass is the cross-repo deadlock described under *Pre-commit hooks* below, and it is always followed by the explicit end gate.
 - **Does NOT rebase the source branch onto main.** That rewrites the source's history. The source is left alone.
 
 ## Step 0: Discover the source(s)
@@ -57,9 +57,21 @@ For each potentially involved repo, in this order:
 
 Untracked files in the target (like the existing `.rustling-tulip/` in `X:\dev\yaat`) are fine — they're not in the working tree's modification set.
 
+## Step 1a: Check what main already has
+
+Worktree branches go stale: while a session runs, `main` can independently land the same feature's plumbing (a wire field, a DTO, a converter). A blind cherry-pick then produces duplicate-field conflicts — or worse, a **silent auto-merge that double-adds** the same field declaration without conflicting. Before computing the range:
+
+```bash
+git -C "$target" log --oneline -20 main | grep -i <topic>          # same feature landed under another SHA?
+git -C "$target" grep <FieldName> main -- <file>                    # plumbing already present?
+git -C "$source" cherry main "$source_head" "$base"                 # '-' = patch already on main, '+' = new
+```
+
+`git cherry` marks a commit `+` even when main already has it, if only the `CHANGELOG.md` hunk offsets moved. Don't trust the sigil alone: confirm with a subject match against `main`'s log, then diff the code portion only (`git show <sha> --format="" -- ':!CHANGELOG.md'` for both) — identical code plus identical bullet text means already landed, skip it. When only some commits are new, cherry-pick those by SHA rather than the whole `base..head` range.
+
 ## Step 2: Compute the cherry-pick range per repo
 
-For each source/target pair (yaat side, then yaat-server side if applicable):
+For each source/target pair. The default order is yaat first, then yaat-server — **unless the session changed a `Yaat.Sim` signature that yaat-server calls**, in which case see *Cross-repo API changes* under Step 4 before running anything.
 
 ```bash
 target_main=$(git -C "$target" rev-parse main)
@@ -128,6 +140,15 @@ The cherry-pick stops with a conflict. The overwhelmingly common case in YAAT is
    - Then the bullets from the source (bottom of conflict)
 4. Save, `git add CHANGELOG.md`, `git cherry-pick --continue --no-edit`.
 
+After every pick — conflicted or not — verify the bullet's placement, not just `git status`. The dangerous case produces **no conflict**: if an intervening `release:` commit promoted the bullet's context (`### Added` plus the neighbouring bullet) out of `## Unreleased` into a released heading, git finds that context in the released section and lands the bullet *there*, exit 0.
+
+```bash
+grep -n "<your bullet prefix>" CHANGELOG.md             # then check the nearest ^## heading above it
+git diff <main-before-pick> -- CHANGELOG.md             # must touch ONLY ## Unreleased
+```
+
+Fix by moving the bullet into `## Unreleased` (adding `### Added` before `### Fixed` if absent) and `git commit --amend --no-edit` on the unpushed pick. After resolving any conflict, also grep every touched file (not only the conflicted ones) for duplicated field declarations — auto-merge can double-add.
+
 For any other conflicted file, or for a CHANGELOG.md conflict that doesn't fit the pattern above, **halt**:
 - Print the conflicted files.
 - Tell the user the cherry-pick is paused.
@@ -137,7 +158,27 @@ For any other conflicted file, or for a CHANGELOG.md conflict that doesn't fit t
 
 Both yaat and yaat-server have `prek` hooks, but **git's sequencer does not run pre-commit hooks for a clean cherry-pick** — it commits internally. Hooks fire only for a pick that stopped (conflict) and was finished with `git cherry-pick --continue`, which goes through `git commit`. So a multi-commit range can land with the hook having run for one commit and none of the others (observed 2026-08-23: `7a7ce0f1` landed on `main` referencing an enum member `main` had already removed; the hook build never saw it). Never treat "the hook passed" as proof the landed tree builds — `/ship` Phase 3's explicit build/test gate is the real guard, and when this skill is run on its own, finish with `dotnet build -p:TreatWarningsAsErrors=true` in the target checkout.
 
-When a hook does run (the `--continue` case) and modifies files (csharpier/format), re-stage and `git cherry-pick --continue --no-edit`. If it reports a hard failure (build with `-p:TreatWarningsAsErrors=true`, large-file check, private-key check), halt and surface the output — fix forward, do not `--no-verify`.
+When a hook does run (the `--continue` case) and modifies files (csharpier/format), re-stage and `git cherry-pick --continue --no-edit`. If it reports a hard failure caused by the landed code itself (build with `-p:TreatWarningsAsErrors=true`, large-file check, private-key check), halt and surface the output — fix forward. The exception is the cross-repo case below, where the hook fails only because the sibling repo has not landed yet.
+
+### Cross-repo API changes (the hook deadlock)
+
+When the session changed a `Yaat.Sim` **signature** that yaat-server calls, the two prek build hooks deadlock on each other: yaat's hook compiles `yaat.slnx`, which includes the sibling `X:/dev/yaat-server` project from disk (still on the old call site → `CS7036`, commit blocked), and yaat-server's hook builds against sibling `X:/dev/yaat` (main lacks the new API → also blocked). Landing yaat first, as the default order says, cannot succeed here.
+
+Land **yaat-server first**:
+
+- If yaat-server's branch fast-forwards, `git merge --ff-only` creates no commit and runs no hooks — it just moves the ref. Then run (or resume) the yaat cherry-pick; its hook build now sees yaat-server's updated call site and passes.
+- If yaat-server needs a real cherry-pick: **start the yaat cherry-pick first and let it pause** (CHANGELOG conflict or hook failure — either way yaat's working tree now holds the new `Yaat.Sim` files on disk), **then cherry-pick yaat-server** (its hook builds against yaat's on-disk tree, which is already new), **then `git cherry-pick --continue --no-edit` in yaat** (its hook now sees yaat-server's landed call sites).
+- If a pick still cannot finish because the sibling has not landed, do not halt on the hook: finish that intermediate commit with hooks bypassed (`git -c core.hooksPath=<empty dir> cherry-pick --continue --no-edit`, or `git commit --no-verify` for a fix-forward). The intermediate commit is never pushed on its own.
+
+Whichever path was taken, once **both** repos are landed run the explicit end gate before anything is pushed, in the target checkouts (`X:/dev/yaat`, `X:/dev/yaat-server`), and report those results rather than "hooks passed":
+
+```bash
+prek run                                          # both repos
+dotnet build -p:TreatWarningsAsErrors=true        # both repos
+pwsh tools/test-all.ps1                           # in X:/dev/yaat — builds and tests both
+```
+
+This gate is also required after landing **any** signature-changing commit onto a diverged main, even without a hook bypass: `main` may have gained files since the branch diverged that still call the old signature (they do not exist on the worktree branch, so the worktree's green suite cannot see the break, and a clean cherry-pick runs no hook). Fix forward with a new commit on main; when the fix is a DTO/wire mapping, put it in one shared helper both call sites use rather than duplicating the switch.
 
 If the large-file check fails on a recording bundle (`tests/Yaat.Sim.Tests/TestData/*.zip > 8192 KB`), surface the prek comment in `prek.toml` and suggest trimming the bundle (`/changelog-and-commit` has a precedent for this — trim the manifest's `Snapshots` to the time range the test actually uses).
 
@@ -183,7 +224,7 @@ Do **not** push as part of this skill, even if the user said "merge and push" in
 - **Don't auto-resolve non-CHANGELOG conflicts.** The CHANGELOG bullet pattern is predictable; everything else needs human judgment.
 - **Don't delete the worktree.** Even after a successful merge, the user may want to inspect or amend.
 - **Don't run `git -C` against a path you haven't verified exists.** (`feedback_git_C_walks_up_on_missing_path` — git silently walks up to the nearest `.git`.)
-- **Don't add `--no-verify`** to bypass hooks. If a hook fails, fix forward.
+- **Don't bypass hooks to hide a real failure.** If a hook fails because of the landed code, fix forward. The only sanctioned bypass is the cross-repo deadlock (Step 4), and it is always followed by the explicit end gate before any push.
 
 ## Quick reference
 

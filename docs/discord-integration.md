@@ -33,6 +33,13 @@ Re-running a slash command in an already-linked thread triggers an immediate com
 
 **Auto-sync** (cron every 5min): New non-bot thread replies → GitHub issue comments.
 
+**Reading a bug-report thread by hand.** When the bot fails (a GitHub secondary rate limit, say) or a raw `discord.com/channels/<guild>/<threadId>` link needs triage, fetch the thread directly with the bot token — Discord is auth-gated, so a plain web fetch cannot. The token is `DISCORD_BOT_TOKEN` in the yaat repo's `.env`; load it by key name without printing the value, then send `Authorization: Bot <token>`.
+- **Always send a `User-Agent` header too** (e.g. `DiscordBot (https://github.com/leftos/yaat, 1.0)`). Without it, guild/channel/message endpoints return `403 {"message":"internal network error","code":40333}`, which reads like a permissions or token problem and is not. `/users/@me` and `/users/@me/guilds` succeed without it, so the token appears to verify while every useful call fails.
+- Thread title and type: `GET https://discord.com/api/v10/channels/{threadId}` (forum posts are `type=11`).
+- Messages: `GET .../channels/{threadId}/messages?limit=100` — returned **newest-first**; reverse for chronological order.
+- Bug bundles are in each message's `attachments[].url`. The CDN URLs are time-signed and expire, so download promptly into `.tmp/`, then use the `bug-bundle` skill / `tools/bug_bundle.py`.
+- To file the issue yourself, use `gh issue create` on the **yaat** repo — it authenticates as the user, not the bot, so it does not share the bot's rate-limit budget.
+
 **GitHub → Discord** (webhook on `issues` + `issue_comment` events at `/github`):
 - Labels (`in progress`, `completed`, `wontfix`, `not a bug`, `duplicate`) → status message posted to linked thread
 - Terminal labels/close → per-type emoji prefix on title, matching reaction, thread archived

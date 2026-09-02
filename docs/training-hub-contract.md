@@ -431,6 +431,24 @@ the student area's `ShowDestination*` adaptation are fixed for the room's lifeti
 to complete that input set**, because clearing SP1 suppresses the fallback and would otherwise not rebroadcast. If you
 extend the resolver to depend on a new input, fingerprint that input too.
 
+**Coverage facts that look like gaps but are not.**
+
+- `GroundSpeed` is a computed property (airborne: a function of IAS, wind, altitude, and heading; on the ground: IAS) and is
+  fingerprinted, so `IndicatedAirspeed`, `Mach`, `WindDirection`, and `WindSpeed` co-vary with it — none needs its own field.
+- `SmartStatus` / `SmartStatusSeverity` derive entirely from fingerprinted `AircraftState` inputs (`AircraftStatusView.FromState`
+  → `AircraftStatusDescriber.Describe`); the only non-`ac` inputs (`IsDelayed`, `IsAutoClearedToLand`) are broadcast parameters
+  `CaptureTrainingDto` cannot see, and they only matter for moving aircraft. No signature threading is needed.
+- `ActiveApproachId`, `HasActiveTaxiRoute`, `PointoutToTcpCode` are covered by motion or co-vary with `TaxiRoute` /
+  `PointoutStatus`.
+
+**Auditing the fingerprint.** One `ChangeDetectionTests` test per candidate field: mutate *only* that `ac.*` source on an
+otherwise-static aircraft and assert `DtoChangeFlags.TrainingDto` fires. A failing test is a genuine gap — a stationary
+(stopped, parked, holding, phantom) aircraft would never rebroadcast that field. `AircraftState.WindComponents` has an
+`internal` setter and cannot be assigned from the server test assembly; drive IAS instead to exercise the `GroundSpeed`
+path. The fingerprint is a `readonly record struct` with compiler-generated equality: add a positional field to both the
+struct and the `CaptureTrainingDto` call in the same order. `DtoConverter.IsAutoDeletePending` is `internal` so the
+fingerprint captures the exact DTO value.
+
 ## Pitfalls
 
 - **Server type name ≠ client type name for the same wire object.** `AircraftStateDto` (server) and `AircraftDto`

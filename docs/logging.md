@@ -166,6 +166,44 @@ Captured output reaches the console only when the test project runs as a process
 Some test classes wire a factory directly instead of using the builder (e.g. `AtFixTriggerDuringPhasesTests.cs:39-40` builds an `AddXUnit` factory at
 `LogLevel.Debug` and calls `SimLog.InitializeForTest`). That is fine — the rule is only that tests use **`InitializeForTest`**, never `Initialize`.
 
+## Diagnosing UI freezes and crashes (client)
+
+The desktop client runs `UiThreadWatchdog` (`Services/UiThreadWatchdog.cs`, started from `App.OnFrameworkInitializationCompleted`): a background
+thread posts a heartbeat to the dispatcher every 500 ms, and when the UI thread cannot service it for more than ~2 s the watchdog escalates through
+three log signatures. It measures the **UI** thread only — a saturated *render* thread never trips it.
+
+1. **`UI thread STALLED`** — logged with a snapshot (`workingSet`, `managedHeap`, `memLoad%`, `lastGCPause`, thread count), followed on recovery by
+   `UI thread responsive again after N ms … GC during stall: gen0+X gen1+Y gen2+Z`. Read the pair together:
+   a **gen0 storm with `gen2+0`, `lastGCPause=0ms` and low `memLoad`** is a UI-thread allocation storm (some handler doing O(n) work per event),
+   not a GC pause and not memory pressure. A large `lastGCPause` with a gen2 increment is a genuine full-GC stall.
+2. **`UI thread FROZEN`** with no `responsive again` line — a hard freeze. On Windows the watchdog then (a) writes a minidump
+   (`FreezeDumpWriter`, `yaat-freeze-<timestamp>.dmp` next to the log, three kept), (b) shows a native "stopped responding" message box, and
+   (c) self-attaches via ClrMD (`ManagedStackCapture.TryCaptureAllThreads`) and logs **`Managed stacks at freeze (UI thread first)`**. The block
+   marked `[UI THREAD]` is the wedged stack — start there. The managed capture stops at native transitions, so a freeze inside a P/Invoke
+   (a native teardown wait, a blocking hook) is only visible in the `.dmp`. Non-Windows platforms get the log line only.
+3. **Freeze with no matching terminal traffic** — if SignalR reconnects on a background thread while the UI stays frozen and no terminal message
+   accompanies it, the freeze happened *before* server teardown, i.e. inside `MainWindow.OnClosing` or another shutdown path
+   (see `client-mainviewmodel.md` → Shutdown protocol).
+
+Other rules for freeze/crash triage:
+
+- **After a relaunch the crash session is no longer `yaat-client.log`.** The log rotates per launch (`FileLoggerProvider`, three previous
+  sessions kept as `.1` … `.3`), so the live file after a relaunch is the post-crash session and the crash is in `yaat-client.log.1` — or gone
+  after four launches. Ask for the whole set *and* the `.dmp` immediately, or analyze the dump instead:
+  `dotnet tool install -g dotnet-dump`, then `dotnet-dump analyze <dmp> -c "clrthreads"` (the thread with an exception in the last column),
+  `-c "setthread <DBG#>" -c "clrstack" -c "printexception <objaddr>"`. An STA thread running `Avalonia.Rendering.Composition.*` frames is the
+  compositor render thread; an `ExecutionEngineException` there with SkiaSharp frames on the stack is a native use-after-free (see
+  `ground-rendering.md` → Pitfalls, the `SKImage` dispose rule).
+- **macOS system reports never symbolicate JIT frames.** `.cpu_resource.diag`, `.hang`, and Activity Monitor `sample` show managed methods as
+  `??? (in <unknown binary>)`; only native frames resolve (`libSkiaSharp`, `libAvaloniaNative`, the GC/allocator such as `RhpNewObject` /
+  `WKS::gc_heap`). That is enough to tell *which thread* and *what class of work* — render-thread CPU burn looks like `libSkiaSharp` →
+  `GLEngine` → `AppleMetalOpenGLRenderer` → Metal, a UI-thread hang looks like the main thread in `PlatformThreadingInterface::RunLoop` →
+  CFRunLoop observers → allocation with the render thread idle in `InternalWaitForMultipleObjectsEx` — but not the C# line. `.hang` is a
+  full-system spindump; filter to the `Yaat.Client` process. Naming the managed method needs a repro under `dotnet-trace`.
+- **Headless UI tests cannot reproduce native close wedges.** Headless Avalonia tolerates re-entrant `Close()` and has no native hook teardown, so
+  the window-lifecycle tests pin the state contract only; a hang in a native `Dispose` on the shutdown path shows up only in the `.dmp`/managed
+  stacks from a real run.
+
 ## Footguns / Pitfalls
 
 - **Sim log lines vanish in tests by default.** `SimLog` falls back to `NullLoggerFactory`, so without a `SimLogBuilder.InitializeSimLog()` call every

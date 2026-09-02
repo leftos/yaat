@@ -96,7 +96,7 @@ Surface the candidates to the user as a focused diff (drop / fold / keep), apply
 
 ### 5b. Select highlights
 
-Read the (possibly-cleaned) unreleased section. Select **3-4 user-impactful items** to surface as highlights:
+Read the (possibly-cleaned) unreleased section. Count the user-visible bullets first: **if Added/Changed/Fixed total fewer than 3-4 user-visible items, omit the `### Highlights` block entirely** — those bullets already are the highlights, and a Highlights header would just duplicate them in the GitHub release notes (the workflow falls back to showing the full changelog). Otherwise select **3-4 user-impactful items** to surface as highlights:
 
 - Prefer items from `### Added` and `### Changed`. `### Fixed` items only if a fix is something users were waiting on (i.e. the broken behavior shipped in a prior release).
 - Skip purely internal items even if they made it into the changelog (refactors, test infra, build plumbing).
@@ -299,10 +299,23 @@ Once the user approves:
     - First push yaat-server's pending commits (no tag — yaat-server isn't release-tagged):
       `git -C ../yaat-server push origin main`
       Run even if you think there's nothing pending — it's idempotent. If a worktree, use the real yaat-server path. If the push is rejected because the CI submodule-bump landed on remote, rebase (`git -C ../yaat-server pull --rebase origin main`) and re-push.
-    - Then push yaat's release commit and the release tag **by name**:
-      `git push origin main v{version}`
+    - Then push yaat's release commit, and **only after that returns**, push the release tag **by name in a separate command**:
+      ```bash
+      git push origin main
+      git push origin v{version}
+      ```
 
-      **Never use `--tags` here.** This repo has two tag namespaces with separate
+      **Two pushes, not one.** GitHub sometimes coalesces a simultaneous branch push and
+      tag push into a single delivered `push` webhook event; when that happens the
+      `release.yml` workflow (`push: tags: ['v*']`) does not fire and only the
+      `main`-triggered CI workflow runs. A tag pushed on its own always produces its
+      own event. If the release workflow still shows no run for the tag
+      (`gh api "repos/leftos/yaat/actions/runs?head_sha=<sha>"` → `total_count: 0`),
+      re-push the tag in isolation: `git push --delete origin v{version}` then
+      `git push origin v{version}`.
+
+      **Never use `--tags` here.** Besides re-sending every existing tag in one batch
+      (which raises the coalescing risk above), this repo has two tag namespaces with separate
       release workflows — `v*` (the client, `release.yml`) and `crc-config-v*`
       (the standalone tool, `yaat-crc-config.yml`). `--tags` pushes every local
       tag, so any stale unpushed tag fires its workflow and publishes a release

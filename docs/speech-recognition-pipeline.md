@@ -603,6 +603,38 @@ at startup with `WhisperBiasingPrompt.Default` to match production.
   colloquialisms like "short final" and "inbound" — they are not held to
   controller phraseology.
 
+## Bumping LM-Kit.NET
+
+The package is referenced in two csproj files (`src/Yaat.Client/Yaat.Client.csproj`,
+`tools/Yaat.SpeechSandbox/Yaat.SpeechSandbox.csproj`). A version bump has three
+non-obvious touchpoints beyond those two lines:
+
+- **`CudaBackendInstaller.BackendVersion` is a hardcoded constant** baked into
+  the nuget.org download URL for `LM-Kit.NET.Backend.Cuda13.Windows`. It must
+  move in lockstep with the `LM-Kit.NET` version (and the SpeechSandbox's
+  explicit `Backend.Cuda13.Windows` reference). `DepsVersion` is separate and
+  independent — the `Cuda13.Deps.Windows.Part0/Part1` packages have their own
+  release cadence, so leave it unless a newer deps release exists; both being
+  CUDA 13 keeps them compatible. Bumping `BackendVersion` changes
+  `ExpectedSentinelContent`, which invalidates any on-disk CUDA install and
+  re-prompts the download — no extra code needed.
+- **The `SQLitePCLRaw.lib.e_sqlite3` pin is independent of the LM-Kit version
+  and almost always stays.** LM-Kit → `Microsoft.Data.Sqlite` (metapackage) →
+  `SQLitePCLRaw.bundle_e_sqlite3` → `lib.e_sqlite3`; a `Microsoft.Data.Sqlite`
+  bump does not move that transitive native binary, so the security pin only
+  drops once `bundle_e_sqlite3` itself advances to a patched native. Pins that
+  *are* tied to the LM-Kit version (a transitive dependency LM-Kit later
+  updated on its own, as happened with `AngleSharp`) drop with the bump.
+- **CPU and Vulkan backends are separate transitive packages**
+  (`LM-Kit.NET.Backend.Cpu` / `.Vulkan`, pinned to the same version); they
+  restore automatically, so the base package still delivers the Vulkan/CPU
+  fallback.
+
+Verify with `dotnet build -p:TreatWarningsAsErrors=true` (the NU1902 audit and
+the closed-source API-compatibility gate) and the sandbox's `--lmkit-gpus` /
+`--lmkit-models` / `--pipeline` runs (native load + STT/LLM API on cached
+models).
+
 ## Extension Points
 
 - **New command verb** → add to `CommandRegistry`; the GBNF grammar

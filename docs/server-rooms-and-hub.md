@@ -61,6 +61,27 @@ multiple sim-seconds elapse between broadcasts. Reading the tick body as "broadc
 why broadcasts are deltas, and why a timing/rate feature must not assume one broadcast per sim-second. [tick-loop.md]
 (tick-loop.md) covers the in-`Yaat.Sim` step order; the server adds the room loop and the post-loop broadcast on top.
 
+### Threading gotcha: one thread, no blocking I/O
+
+`RunTickLoop` iterates **all rooms on one thread inside one stopwatch**, so one room's slow lookup delays every room and
+surfaces as a `TickBudgetMs` overrun. Nothing reachable from `TickPhysics` — phases, handlers, the `Ground.Layout`
+fallback — may block on the network. The layout path is built around that constraint:
+
+- `AirportLayoutDownloader` negative-caches a confirmed origin 404 for `NotFoundTtl` (6 h). `HttpFileCache.GetOrRefreshAsync`
+  returns `HttpCacheResult(Content, NotFound)`, and only a genuine 404 latches — a network failure or timeout retries.
+- `AirportGroundDataService` serves an expired entry (`CacheTtl`, 30 min) stale while a single background `Task.Run` refetches
+  and re-parses it; the tick thread never waits on the TTL refresh.
+- `ScenarioLifecycleService.WarmAircraftGroundLayouts` resolves every airport a loaded scenario references (departure,
+  destination, spawn — delayed aircraft included) on the hub thread at load time.
+- `NavigationDatabase.GetSid/GetStar/GetApproach` do not walk the supplementary prior-cycle CIFP chain for an airport whose
+  current cycle lists no procedures of that kind (that chain models version drift; a procedure-less field would otherwise pay
+  a burst of full file scans per probed route token). The chain still walks when no current cycle is loaded.
+
+The ground-data service caches null entries on purpose: the per-sub-tick `aircraft.Ground.Layout ?? ResolveGroundLayout(aircraft)`
+fallback then costs a dictionary hit, and it is also the self-heal path once a background fetch lands. Accepted residual risk:
+a first-ever fetch on the tick thread for an airport no scenario aircraft references (a mid-flight `DEST` to an unseen airport,
+an exotic generator target) — one-time, bounded, and fast on the negative cache.
+
 ## `RoomEngine` — the per-room facade (`Simulation/RoomEngine.cs`)
 
 One `RoomEngine` per room. It **owns** its `TrainingRoom` (`Room`, `:66`) and `RecordingManager` (`Recording`, `:64`,

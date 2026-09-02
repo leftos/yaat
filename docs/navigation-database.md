@@ -552,6 +552,11 @@ Both expand the bucket radius to cover the range cap (`ceil(maxRangeNm / 60)`).
   slows the aircraft; the 91.117 250-kt cap still clamps the floor). The parser also **skips ARINC continuation records**
   (continuation-record number at col 38 ≠ `' '`/`'0'`/`'1'`) — they repeat a fix with a different field layout, so their reserved
   padding otherwise injects phantom speed/alt restrictions (e.g. IAH RNAV 08R MATON → 2 kt) and duplicate fixes.
+- **`GetRunways` orients each pavement to an arbitrary end.** One `RunwayInfo` per physical runway, with `Designator`/`TrueHeading`
+  reflecting whichever end loaded as the default (KOAK stores 10L/10R, not 28R/28L). Any per-runway heading comparison or sibling lookup must
+  test both `TrueHeading1`/`TrueHeading2` and self-skip by `Id.End1`/`Id.End2`, or it is a silent no-op that synthetic-runway tests cannot
+  catch — only a real-navdata KOAK test exposes it. `GoAroundHelper.InferDefaultPatternDirection` is the model both-ends loop;
+  `FollowPairTrajectoryTests` (real KOAK navdata) is the harness that caught a one-end gate (#352).
 - **FAA↔ICAO K-prefix fallback is duplicated across several lookups.** `GetAirportElevation`, `GetAirportName`, and
   `HasRunwayAtLeast` each re-implement it. A new airport-keyed lookup that forgets it fails for whichever of `OAK`/`KOAK`
   the caller didn't pass. `GetRunway` notably does *not* carry the fallback — callers (e.g. `ApproachGateDatabase.Initialize`)

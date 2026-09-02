@@ -118,6 +118,15 @@ Most list-valued flags are **repeatable AND accept comma-separated values** — 
 | `--airport-code ICAO` | no | Override airport code (rare) |
 | `--navdata <dir>` | no | Override NavData directory |
 
+### Pathfinder probe pitfalls
+
+Two ways a `--pathfinder` probe lies about a runtime `[TryTaxi] … route resolution failed`:
+
+- **Pass the destination runway via `--pf-dest-rwy`, never as a path token.** `TAXI M4 M1 A H GL L LF F 28L HS 1L` at runtime is path `[M4 M1 A H GL L LF F]` + `DestinationRunway=28L` + hold-short `1L`. Putting `28L` in the taxiway list makes it a *runway waypoint*, and combined with `--pf-hold-shorts 1L` the materialiser truncates the route at the 1L bar, so the "every named taxiway reached" check reports a bogus `Cannot taxi via …` failure that the runtime-faithful form resolves fine.
+- **Node ids in a bundle's `layouts/<apt>` belong to the server's build, not the current parser.** A layout parsed by a different revision can mint a different node count from the same GeoJSON, so a server node id may point at a different node here. Map by coordinates (`python tools/bug_bundle.py layouts <bundle> --airport <apt>`, then compare `Position`), and re-derive the start node the way `TryTaxi` does: for a gate-parked aircraft `FindNearestNodeForTaxi` returns the **parking node itself**, so probe `--pathfinder <parkingNodeId> …`, not the nearby junction. Bridge-hop-cap failures from a parking node only reproduce from that node.
+
+For a gate TAXI, always run the parking-node form with `--pf-dest-rwy` + `--pf-hold-shorts` first; only then read the `[bridge]`/`[segment]` lines.
+
 ### Tips
 
 - Always use `--json` for machine-readable output when analyzing programmatically.

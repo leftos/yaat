@@ -162,6 +162,39 @@ Aircraft fly charted SID legs coded as **headings/courses**, not just fix-to-fix
 - **STARs** handle only the **FM terminator**: `NavigationTarget.TerminalCourseMagnetic` carries the FM outbound course (set by `ResolveLegsToTargets`, including the dedup-collapse case where a TF-to-fix is followed by an FM-from-the-same-fix), which `FlightPhysics.UpdateNavigation`'s empty-route handler flies instead of holding. There is **no `ArrivalProcedurePhase`** — the typed-leg path is departure-only (sole caller `DepartureClearanceHandler`); approaches/STARs otherwise use the flat `ResolveLegsToTargets`.
 - **Scope decisions (don't re-litigate):** CF course-tracking is deliberately kept out of core `UpdateNavigation` (only `DepartureProcedurePhase` + the STAR FM terminal use it) to avoid core-nav blast radius. An "Approach Phase 3" for fix-less approach legs was intentionally skipped — an instrument `GoAroundPhase` already climbs runway heading to the missed-approach altitude before missed-approach nav, so the "climb heading to altitude" legs `BuildMissedApproachFixes` drops are redundant. Aviation-reviewed: VA = heading (no WCA), CF/CA = track (WCA); a climb-window altitude is a turn *trigger*, not a level-off; do **not** apply the ≤30° approach capture gate to a departure VI→CF intercept.
 
+### Rejected takeoff — `RejectedTakeoff` + `RejectedTakeoffPhase`
+
+`TakeoffPhase` writes IAS directly with `TargetSpeed = null` and deliberately never reads `Ground.SpeedLimit` — the taxi-calibrated
+ground-conflict cap cannot stop a rolling departure and is not asked to. Stopping one is the job of the per-tick `RejectedTakeoff.TryTrigger` scan in
+`TakeoffPhase.TickGroundRoll`, gated by the `AutoRejectTakeoffOnOccupiedRunway` session setting (helicopters and live-traffic shadows never
+auto-reject); `FlightPhysics.UpdatePosition`'s clamp stays a last-resort backstop only.
+
+- **Blockers** come from `RunwayOccupancy.Classify`: anything `OnSurface` or `Landing` blocks; a `Crossing` blocks unless it is projected past the
+  `ClearOfRunwayStandoffFt` (250 ft) hold-line standoff — not the pavement edge — by the time the departure arrives; a preceding `Departing` aircraft
+  is skipped (#416). Every distance is measured to the occupant minus `StopMarginFt` (500 ft, a stand-in for the unmodelled aircraft length).
+- **Decision** (`ShouldReject`): below `CategoryPerformance.LowSpeedRejectThresholdKts` (jet 80 / turboprop 60 / piston 35) reject for *any* blocker
+  ahead; at or above it reject only when `!CanOverfly` — the liftoff point (`IasToTas(Vr)` minus headwind, in the ground frame) plus
+  `RejectedTakeoffOverflyMarginFt` (3000 / 2000 / 1500 ft, all-engines sized) does not fit inside the effective distance. Past V1 the same
+  `!CanOverfly` test is the emergency reject.
+- **A standstill declines, it does not abort.** Below `RollUnderwayMinKts` (5 kt groundspeed) the pilot answers "unable, traffic on the runway" and
+  goes straight to `HoldingInPositionPhase` — there is no maneuver to terminate yet.
+- **`RejectedTakeoff.Install` is the single construction site** for both the auto trigger and the controller's CTOC mid-roll abort (the
+  go-around's two-site divergence, #283, is the precedent). It replaces the upcoming chain with `[RejectedTakeoffPhase, HoldingInPositionPhase]`:
+  `ReactionSeconds` (2 s) of continued acceleration, then `CategoryPerformance.RejectedTakeoffDecelRate` (8.0 / 6.5 / 5.5 kt/s — the invariant is
+  rollout < expedite-exit < RTO) with `TakeoffPhase`-style direct IAS integration and centerline cross-track steering.
+- **Findings live on the phase, never on `Ground` flags.** `AutoTriggered`, `CannotStopShortOf` and `OverrunReported` are snapshotted on
+  `RejectedTakeoffPhase`; `SoloTrainingEvaluator` samples them while the phase is current (Warning for any pilot-initiated reject, plus Safety for
+  cannot-stop-short and pavement overrun; a CTOC-commanded abort scores nothing). A per-aircraft `Ground` flag that outlived the phase false-positived
+  the next clean reject.
+- **CTOC's V1 gate converts through `GroundFrame.IasForGroundSpeed`** — the on-ground IAS field carries groundspeed, so a headwind would otherwise
+  move the gate. Past V1 the "unable, continuing" refusal is conditional on `TryFindBlockedBeyondOverfly`. Helicopters have no V1 gate
+  (`CancelHelicopterTakeoff`: below 50 ft AGL set down → `HoldingInPositionPhase`, otherwise hover in place through the `CTOPP` `CompletionAgl` +
+  `VfrHoldPhase` shape, knowingly inside the height-velocity avoid region).
+- **After the stop the aircraft is in `HoldingInPositionPhase`** with the takeoff clearance spent. A fresh CTO/LUAW works through the tower-command
+  path (`LineUpFromPosition`), which bypasses HIP's `CanAcceptCommand` gate, and HIP-on-pavement trips `WarnIfRunwayOccupied` for the next clearance.
+- `AutoRejectTakeoffOnOccupiedRunway` mirrors auto-go-around: a bare `bool` (default `false`) on `SimScenarioState` for replay fidelity; the client
+  preference defaults `true` and pushes it on scenario load.
+
 ## Snapshotting — `Simulation/Snapshots/PhaseSnapshotDto.cs`
 
 `PhaseDto` is an abstract polymorphic base. Every concrete phase has a sibling DTO and a `[JsonDerivedType(typeof(XyzPhaseDto), "Xyz")]` registration on `PhaseDto`. Restore lives in `PhaseList.RestorePhase()` — a switch on DTO type that calls each phase's static `FromSnapshot(dto)` factory.
@@ -182,6 +215,12 @@ Skip any of these and old recordings will throw `InvalidOperationException` on r
 - **Two GoAround construction sites.** `GoAroundPhase` is built in both `GoAroundHelper.Trigger` (auto go-around at minimums) and `PatternCommandHandler.TryGoAround` (manual `GA`). New fields on `GoAroundPhase` must be set in **both** — extract a shared builder if you find yourself touching this. The two used to disagree about whether a VFR aircraft re-enters the pattern, which stranded a `GA`-then-`MRT` aircraft in a 2000 ft AGL climb (issue #283); both now call `GoAroundHelper.ResolvePatternIntent`.
 - **Three ways a go-around picks its climb-out altitude.** `GoAroundHelper.ResolveClimbOutAltitude`: published missed-approach altitude when MAP phases were built; else pattern altitude − 300 ft when re-entering the pattern (AIM 4-3-2 — the same gate `UpwindPhase` uses to release the crosswind turn, so the turn is available the instant the phase hands off); else `null`, meaning `GoAroundPhase` self-clears at 2000 ft AGL. Pattern altitude comes from `PatternGeometry.ResolveAuthoredOverrides`, not the bare `CategoryPerformance.PatternAltitudeAgl` constant — the airport's authored per-runway TPA and a commanded `MRT 15` override both have to win, or the go-around levels off above the circuit it is joining.
 - **`ManagesSpeed` is contagious.** If you set it on a non-pattern phase and don't drive `TargetSpeed`, the aircraft will not auto-decelerate or hold a speed restriction. Only set `ManagesSpeed = true` if you take responsibility for speed.
+- **Zero forward speed needs `ManagesSpeed` too.** Setting `ctx.Targets.TargetSpeed = 0` once in `OnStart` is not enough. On the first sub-tick
+  `FlightPhysics.UpdateSpeed` snaps a reached target to `null` (`|goal − IAS| < SpeedSnapKts`, 2 kt), after which the auto-speed schedule — guarded
+  only by `CurrentPhase?.ManagesSpeed != true` — drives `TargetSpeed` to the category default and re-accelerates the aircraft; airborne,
+  `UpdatePosition` then drifts it laterally. A hover or hold phase must override `ManagesSpeed => true` **and** re-assert `TargetSpeed = 0` every
+  `OnTick` (`VfrHoldPhase`, `HelicopterTakeoffPhase`). The symptom was a `CTOPP` departure-form helicopter spinning up to ~100 kt during a 400 ft
+  vertical liftoff; the bare-hover form looked fine only because it completes in about a second and hands off to `VfrHoldPhase`.
 - **The 5nm-final gate leaves a `SpeedCeiling` on non-phase-managed inbounds.** `FlightPhysics.AutoCancelSpeedAtFinal` releases an explicit ATC speed at 5 nm but, for a hand-vectored inbound with no speed-owning phase, retains the last-assigned speed as a `SpeedCeiling` so the auto schedule can't re-accelerate it (7110.65 §5-7-1.b.4). Any phase that transitions an inbound aircraft into a **climb-out** (`GoAroundPhase`, `TouchAndGoPhase`, `StopAndGoPhase`, `LowApproachPhase`) must clear `SpeedFloor`/`SpeedCeiling` in `OnStart`, or the missed-approach / option climb is capped at the approach speed. Add a new climb-out phase → clear the ceiling there too. `GoAroundPhase` also clears `AltitudeFloor`/`AltitudeCeiling` (set by `AOA`/`AOB`): its completion check reads the aircraft's own altitude, so a stale restriction would level the climb somewhere the phase never notices.
 - **Tight maneuvers slow to holding speed via `ManeuverSpeedController`.** `MakeTurnPhase`, `VfrHoldPhase`, and `STurnPhase` set `ManagesSpeed = true` and delegate speed to a `ManeuverSpeedController` (`Capture` in `OnStart`, `Reduce` to decelerate to `AircraftPerformance.HoldingSpeed`, `Resume` in `OnEnd`, `CancelAutoResume` from `OnCommandAccepted` on a mid-maneuver speed command). `Reduce` never speeds an aircraft up (only acts when current > holding speed). `STurnPhase` additionally gates `Reduce` behind a 5 nm / FAF check (7110.65 §5-7-1.b.4 — no speed adjustment inside the final approach fix), so S-turns slow only when issued outside that boundary and never on short final. The controller's three fields must be round-tripped in each phase's snapshot DTO.
 - **`Rejected` vs `ClearsPhase` semantics.** `Rejected` is for "valid command, but not now" (temporary gate). `ClearsPhase` is for "this command supersedes the phase's intent" — the default. If you find yourself returning `Rejected` for a command that *should* cancel the phase, you've got it backwards.

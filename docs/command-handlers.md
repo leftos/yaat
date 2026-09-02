@@ -66,11 +66,15 @@ command into a compound for `DispatchCompound`, but that path is not how a user-
 3. **All-transparent fast path** — `IsAllTransparent` (`:271`) → `ApplyTransparentCompound` (`:297`). If every command in the compound is
    phase-transparent (per `CommandDescriber.IsPhaseTransparent`) and has no condition, apply each directly and return. **This fires whether or not a
    phase is active** — see the footgun about queue-wiping below.
-3b. **Standalone pattern-modifier reroute** — a single-command, no-condition `EXT`/`SA`/`MNA` (`IsImmediatePhaseModifierBlock`) on an aircraft with
-   **no active phase** is applied directly via `ApplyTransparentCompound` too. These classify as `Immediate` → dimension `None`, so without this the
-   queue-wipe fast path (step 7) would destroy a queued pattern entry the moment their dispatcher arm makes dry-run succeed. Applying directly pre-arms
-   the queued entry (`AircraftPattern.PendingEntryModifier`, consumed by `TryEnterPattern` when it builds the circuit) without touching the queue. With
-   an active phase the phase gate (step 4) already returns before the wipe, so this reroute is scoped to the no-phase case only.
+3b. **Pure pattern-modifier reroute** — a compound whose every block is a single-command, no-condition `EXT`/`SA`/`MNA`
+   (`compound.Blocks.All(IsImmediatePhaseModifierBlock)`, `CommandDispatcher.cs:168`) on an aircraft with **no active phase** is applied directly via
+   `ApplyTransparentCompound` too — `EXT DOWNWIND; SA` included, the last-armed modifier winning the single `PendingEntryModifier` slot. These are
+   tower commands → dimension `All`, and `ClearConflictingBlocks`'s fast path fires for `All` and `None` alike, so without this the queue wipe
+   (step 7) would destroy a queued pattern entry the moment their dispatcher arm makes dry-run succeed. Applying directly pre-arms the queued entry
+   (`AircraftPattern.PendingEntryModifier`, consumed by `TryEnterPattern` when it builds the circuit) without touching the queue. With an active
+   phase the phase gate (step 4) already returns before the wipe, so this reroute is scoped to the no-phase case only. A modifier-*led mixed*
+   compound (`EXT DOWNWIND; CLAND`) is not rerouted; it is protected by dry-run (step 5) modelling the same pre-application queue clear on the clone,
+   so it is rejected before any real mutation instead of wiping the entry and then failing (#296).
 3c. **Pre-issued landing/option clearance reroute** — a compound of only single-command, no-condition `CLAND`/`TG`/`SG`/`LA`/`COPT` blocks
    (`IsPendingLandingClearanceBlock`) on an aircraft with **no `PhaseList` at all** *and* an unfired pattern entry in the queue
    (`PatternCommandHandler.HasQueuedPatternEntry`) is likewise applied via `ApplyTransparentCompound`. Same footgun as 3b, opposite dimension: these are
@@ -79,7 +83,8 @@ command into a compound for `DispatchCompound`, but that path is not how a user-
    Applying directly stores `AircraftPattern.PendingLandingClearance`, which `TryEnterPattern` folds into `standingClearance` when it builds the circuit.
    The `HasQueuedPatternEntry` guard keeps a clearance with nothing queued on the ordinary dry-run-guarded path and its ordinary rejection.
 4. **Phase gate** — if `aircraft.Phases?.CurrentPhase` exists, route through `DispatchWithPhase` (`:1172`). See [the phase gate](#the-phase-gate).
-5. **Dry-run validation** — `DryRunValidate` (`:812`) runs the first block on a clone. If it fails, return the error; **real state is unchanged**.
+5. **Dry-run validation** — `DryRunValidate` (`:812`) runs the first block on a clone whose queue has first been cleared the way step 7 will
+   clear it. If it fails, return the error; **real state is unchanged**.
 6. **Post-validation phase clear** — only now (after dry-run passes) does the deferred `ClearsPhase` actually clear the `PhaseList`
    (`CommandDispatcher.cs:176`).
 7. **Dimension-aware queue clearing** — `ClearConflictingBlocks` (`:1798`) removes queued blocks whose dimensions overlap the incoming command;
@@ -236,6 +241,13 @@ speed assignment issued on the way to the fix must not. Everything else falls th
 > dry-run. `TerminalEmitter` is nulled specifically so SAY-class verbs (`ApplyCommand:555-577`) don't broadcast phantom pilot transmissions on the
 > throwaway clone.
 
+**The dry-run models the real path's queue clear.** Right after building the clone, `DryRunValidate` runs
+`ClearConflictingBlocks(clone, GetCompoundDimensions(compound), …)` so a block whose apply *reads the queue* (a pattern modifier scanning for a queued
+entry) is validated against the same post-clear queue the real aircraft will present. Without it a modifier-led compound passed dry-run against the
+intact clone queue and then failed on the real aircraft after the wipe had already destroyed the queued entry — a silent wipe-then-fail (#296).
+Mutating `clone.Queue` is safe: the clone is a discarded snapshot round-trip. A conditional first block returns before any of this — "fire-time
+evaluation owns this" — so a missing handler arm behind `AT`/`LV` is never caught here (see "Adding a new command's effect", step 6).
+
 ## Triggered re-dispatch (`BuildApplyAction`)
 
 `BuildApplyAction` (`CommandDispatcher.cs:2086`) builds the closure stored on a queued `CommandBlock` and run when its trigger fires
@@ -334,7 +346,13 @@ Enum + registry + scheme + parser are covered in `architecture.md`. Inside the d
    `IsPhaseTransparentCommand` (narrow list, phase gate). Put it on the **broad** list if it may ever ride alongside an interactive verb in a parallel
    block — that list is also what excludes it from driving the phase gate (see the two-lists footgun below).
 6. **Verify the triggered path** — if the verb can be queued behind a trigger (`AT FIX` / `LV alt`), confirm `BuildApplyAction` re-dispatches it
-   correctly (tower verbs need a `TryApplyTowerCommand` arm to avoid the no-dispatcher-arm fallback).
+   correctly (tower verbs need a `TryApplyTowerCommand` arm to avoid the no-dispatcher-arm fallback). The completeness tests (registry / scheme /
+   describer per `CanonicalCommandType`) do not cover this: a verb can pass all of them, be documented, and have a working handler yet be broken
+   behind any condition because nothing checks that an `ApplyCommand` arm exists. `DryRunValidate` returns early for a conditional first block, so
+   the missing arm surfaces only as a "Triggered block failed during apply" warning mid-session, never at dispatch. A verb the server intercepts
+   early in `RoomEngine.SendCommandAsync` gets no exemption — that intercept matches only bare, non-compound commands, and scenario presets bypass
+   `RoomEngine` entirely (`SimulationEngine.DispatchSinglePreset` → `DispatchCompound`). Always ask what happens when the verb arrives via a preset
+   or behind `AT`/`LV`.
 7. **Give it display names** — add an arm for the new `ParsedCommand` in **both** `CommandDescriber.DescribeCommand` (canonical short form) and
    `CommandDescriber.DescribeNatural` (user-friendly text). Without them the command falls through to the record's `ToString()` and leaks raw text
    like `"DeleteCommand { }"` into every queued-block description, the RPO ack, `SHOWAT`/`DELAT`, and the client "Pending Cmds" column (issue #226).
@@ -396,6 +414,18 @@ Enum + registry + scheme + parser are covered in `architecture.md`. Inside the d
 - **Installing a phase has a lifecycle.** Build a fresh `PhaseList`, `Clear()` the old one with a `PhaseContext`, `Add` phases, then `Start()` with
   another `PhaseContext` (see `DispatchJfac`, `TryAirborneFollow` at `CommandDispatcher.cs:2387` — the install sequence is at `:2452`, `DispatchHoldingPattern`). Use
   `BuildMinimalContext` (`:1666`) to construct the `PhaseContext`. Skip the `Clear()`/`Start()` and you leave stale phase indices or unstarted phases.
+- **A go-around leaves nothing for `ReplaceApproachEnding` to swap.** `GoAroundHelper.InstallGoAroundPhases` → `PhaseList.ReplaceUpcoming`
+  deletes every pending landing phase, so while `GoAroundPhase` is current `ReplaceApproachEnding` (which only replaces a *pending*
+  `Landing`/`HelicopterLanding`/`TouchAndGo`/`StopAndGo`/`LowApproach`) finds nothing, and `GoAroundPhase` is not in `TryForceLanding`'s
+  `alreadyLandingOrFinal` set — even though `GoAroundPhase.CanAcceptCommand` allows `ForceLanding`. `TryForceLanding` therefore special-cases the
+  go-around: it re-establishes `[FinalApproachPhase { SkipInterceptCheck = true }, landing]`, advances into it, and sets `ForceLanding` — the same
+  machinery the too-high-on-final CLANDF already uses. A CLANDF during a go-around must reverse the climb-out immediately, not be refused with
+  "no approach or pattern to land from". Tests: `ForcedLandingCommandTests.Handler_DuringGoAround_*`, `ClandfGoAroundReversalE2ETests`.
+- **Transitioning into a new phase from inside a handler needs a real context *now*.** With no `PhaseContext` in scope, mirror `TryGoAround`:
+  `var ctx = CommandDispatcher.BuildMinimalContext(aircraft)` (pass a ground layout only when the new phase starts on the ground), then
+  `phases.ReplaceUpcoming([...]); phases.AdvanceToNext(ctx); FlightPhysics.NotifyPhaseAdvanced(aircraft)`. `AdvanceToNext` runs `OnEnd`/`OnStart`
+  at the call site, not on the next tick, so the context has to satisfy the incoming phase's `OnStart` (`FinalApproachPhase` needs `ctx.Runway`,
+  which `BuildMinimalContext` fills from `AssignedRunway`).
 - **`NotifyPhaseCommandAccepted` releases internal phase state only after a successful apply.** Its Unsupported/transparent/sim-control guards are
   load-bearing for the queued-block path even though they look redundant for immediate dispatch — the in-code comment warns against removing them.
 - **APT/DEST has two dispatch routes.** A bare, unconditioned `DEST KOAK` is intercepted server-side in `RoomEngine.SendCommandAsync`,

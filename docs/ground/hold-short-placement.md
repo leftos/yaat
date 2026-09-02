@@ -86,6 +86,40 @@ would let it sail across the runway uncleared. While approaching, the navigator'
 braking curve that reaches ~0 just short of the bar; the instant stop is only taken at crawl speed.
 `StartNodeHoldShortArmingTests` pins both the parked and the rolling approach.
 
+## Full-length vs intersection entry — `RunwayEntryPoint`
+
+`RunwayEntryPoint.Resolve(layout, holdShortNodeId, runwayDesignator, currentTaxiway)`
+(`src/Yaat.Sim/Data/Airport/RunwayEntryPoint.cs`) names the intersection a hold short enters the runway at, or returns
+**null for a full-length entrance**. It is display-only (the departure-queue ordinal and status text consume it). The
+discriminator is **side** — not taxiway name, and not distance alone:
+
+1. The hold short nearest the departing end along-track is full length.
+2. A hold short on the **opposite side** of the runway is the *same* entrance — also full length — when it is within
+   `OppositeSideBandFt` (150 ft) of the nearest along-track **or** on the same taxiway (a taxiway crossing the end at an
+   angle puts its two bars a few hundred feet apart along-track).
+3. A hold short on the **same side** is always a second entrance and is named by its taxiway, however close to the end it sits.
+
+Distance alone and taxiway name alone both misclassify real pairs, and "nearest per side" credits a side whose first
+access is far down the runway (KMIA 30 `T`, KSFO 19L `E`) — hence the band in rule 2. The band is calibrated from an
+along-/cross-track sweep of OAK, SFO, FLL, AUS, IAH, MSY, SMF, and MIA: the widest genuine opposite-side pair on different
+taxiways is 96 ft (KOAK 15 `F`/`D`) and the closest opposite-side pair that is really an intersection is 188 ft
+(KMIA 08R `L1`/`M1`), so 150 ft sits between them. Same-taxiway pairs skip the band (KOAK 33 `C`, KMIA 27 `Q10`). The
+side test is what keeps a taxiway that touches both ends of one runway (KAUS `C`, KMSY `S`, KSMF `D`) from reading full
+length at the wrong threshold.
+
+Geometry projects onto the **pavement centerline** — `GroundRunway.Coordinates` from the GeoJSON, which matches the
+published length (the takeoff surface), unlike a `NavigationDatabase` runway record whose threshold can be displaced.
+`Coordinates[0]` is `Id.End1`'s threshold. Along-track is `GeoMath.AlongTrackDistanceNm`; side is
+`GeoMath.SignedCrossTrackDistanceNm`. The taxiway name comes from the node's **straight** edges only — an arc at a hold
+short carries a joined fillet name no controller would say — and `currentTaxiway` only breaks a multi-name tie (it is
+null when naming the nearest node, so that stays deterministic). `AirportGroundLayout.GetExitTaxiwayName` is deliberately
+not reused: exit semantics, first-edge-arbitrary, includes arc names.
+
+Testing it: select nodes by edge taxiway name, never node id (see Footguns), and remember that one taxiway name can match
+bars at **both** runway ends — an `Assert.Contains` over all same-name nodes passes vacuously. Pin the specific node
+(nearest to the full-length bar) and mutation-check the side clause (force `oppositeSide` true, then false) to prove it
+is actually covered.
+
 ## Footguns
 
 - **Node IDs are ephemeral.** They are assigned by mint order and regenerated on every parse; any
