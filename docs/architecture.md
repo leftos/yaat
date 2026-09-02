@@ -115,6 +115,7 @@ tools/hooks/claude-guard-bash.sh   # Claude Code PreToolUse(Bash) guard: denies 
 tools/hooks/claude-guard-read.sh   # Claude Code PreToolUse(Read) guard: denies reading secret-bearing files (.env*, *.pem/key/pfx/p12, credentials, secrets.*, appsettings.Local.json). Narrow by design — `Secrets.cs` and docs about credentials stay readable.
 tools/hooks/claude-guard-cases.jsonl    # Expected allow/deny table for the Bash guard.
 tools/hooks/test-claude-guards.sh       # Runs the table above; wired into prek (`claude-guards`) and triggered only when a guard file changes.
+tools/gate.sh                     # Wraps a build/test command: tees full output to a log and propagates the command's own exit status, also failing when the log holds `Build FAILED` or `error CS`. Use instead of a bare `cmd | tee`, which reports tee's status and reads green over a failed build.
 ```
 
 The sibling yaat-server repo registers the same two guards via its own `.claude/settings.json` → `tools/hooks/claude-guard.sh`, a shim that resolves these scripts through the sibling checkout first and `extern/yaat/` second (the same order `Directory.Build.props` uses for Yaat.Sim) and fails open if neither is present.

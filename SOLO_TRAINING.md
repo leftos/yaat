@@ -230,7 +230,7 @@ Solo pilots make calls when the scenario and phase call for them. Common example
 - Parked departures call ready to taxi after the initial delay.
 - Airborne arrivals or VFR inbound aircraft call with position and request.
 - VFR pattern aircraft request closed traffic and may remind tower if landing clearance is still missing.
-- Aircraft clear of the runway report clear after exiting.
+- Aircraft clear of the runway report clear and name the parking they picked ("clear of runway 28R at W, taxi to gate 29"), then ask again every two minutes until someone issues a taxi clearance.
 
 Requests remain pending until you handle the underlying need. `STBY` and `ROGER` acknowledge the call, but they do not satisfy a taxi, departure, landing, approach, or airspace-entry request. A pilot told to stand by waits longer before following up.
 

@@ -1,6 +1,13 @@
 # Changelog
 
-## Unreleased
+## v0.12.25-beta [2026/09/02]
+
+### Highlights
+- A departure rolling toward an aircraft blocking its runway now rejects the takeoff, brakes to a stop, and holds in position.
+- After clearing the runway, pilots call ground naming the parking they picked ("clear of runway 28R at W, taxi to gate 29"); a solo Ground student answers with a taxi clearance.
+- Mentors granted access to another ARTCC's scenarios can pick that ARTCC when creating a room.
+- Taxiing aircraft follow the painted fillet through corners instead of pivoting square at the junction and swinging back.
+- Scenarios that keep spawning traffic now delete arrivals when they reach their parking spot, so the field does not fill up; Settings > Auto-Delete Aircraft still overrides.
 
 ### Added
 - After landing and clearing the runway, pilots call ground ("clear of runway 28R at W, taxi to gate 29") naming the parking they picked; a solo Ground student answers with a taxi clearance to it, and the pilot asks again every two minutes until someone does.
