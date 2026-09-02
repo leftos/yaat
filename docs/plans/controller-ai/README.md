@@ -100,7 +100,7 @@ code paths is soak coverage, and it is what lets a human take over any single po
 | [09-live-attach.md](09-live-attach.md) | Dev-only gating, room enablement, finding surfacing |
 | [10-facility-knowledge.md](10-facility-knowledge.md) | Codified facility SOP/LOA knowledge (schema, extraction tool, overlay contract) |
 | [11-radio-model.md](11-radio-model.md) | Per-frequency radio: per-position `FrequencyState`, exchange lock, party line, collisions, `TunedPosition` persistence |
-| [12-milestone-v1-scope.md](12-milestone-v1-scope.md) | The ordered v1 slice — 7 phases, 28 requirements, cross-cutting failure modes |
+| [12-milestone-v1-scope.md](12-milestone-v1-scope.md) | The ordered v1 slice — 7 phases, 29 requirements, cross-cutting failure modes |
 
 ## Milestones
 

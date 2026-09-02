@@ -4,7 +4,7 @@ Entry point for `docs/plans/`. Each row links a subplan; open/done counts are th
 
 > **Active milestone: controller AI.** The whole-feature map is
 > [`controller-ai/README.md`](./controller-ai/README.md); the ordered slice being built now — one tick
-> spine, per-frequency radio, CA2 Tower brain, H1 soak, 7 phases and 28 requirements — is
+> spine, per-frequency radio, CA2 Tower brain, H1 soak, 7 phases and 29 requirements — is
 > [`controller-ai/12-milestone-v1-scope.md`](./controller-ai/12-milestone-v1-scope.md).
 
 A fresh agent should start from **Current focus**, then **Next up**, and treat **Backlog** as unscheduled. Finished plans move to
@@ -80,6 +80,7 @@ A fresh agent should start from **Current focus**, then **Next up**, and treat *
 - [ ] Pilot AI for solo training — see [pilot-ai-self-training/README.md](./pilot-ai-self-training/README.md) (M10.x readbacks/TTS shipped; M11–M12 subplans are the roadmap)
 
 ## Next up
+- [ ] **Re-open the tick-loop unification design clean-room (steer 2026-09-02).** [`tick-loop-unification.md`](./tick-loop-unification.md) was produced under the since-removed GSD toolkit; the user is not confident in it and wants it scrutinised and re-decided from first principles via `/grilling`. Treat D-01..D-13 as *proposals under review*, not locked decisions, until this session's outcome replaces them. Specific things to re-examine: whether the spine covers the whole sim-second or only post-physics; whether the spine/host split survives its own "does it mutate snapshot state" test; whether replay should be an explicit host rather than a set of `if` guards; whether "the production-exercised order wins" is a principle or an expedient.
 - [ ] **Cut a release** — run `/prepare-release` (steer 2026-09-02)
 - [x] ~~Adopt GSD as part of the workflow~~ — trialled and **reverted** 2026-09-02. `gsd-core` uninstalled; `.planning/` deleted; `CLAUDE.md` moved back to the repo root. The durable output was salvaged into `docs/`: [`controller-ai/11-radio-model.md`](./controller-ai/11-radio-model.md), [`controller-ai/12-milestone-v1-scope.md`](./controller-ai/12-milestone-v1-scope.md), the Phase-1 decisions merged into [`tick-loop-unification.md`](./tick-loop-unification.md), and the codebase-audit findings as Backlog items below.
 - [ ] Live-session assume UX (ZOA Discord 2026-08-31): bulk-assume modes, snapshot-then-assume-all, auto-assume on first command + restore-to-feed command, snapshot-as-scenario-authoring — see yaat-server [live-traffic-swim/09-live-sessions.md](../../../yaat-server/docs/plans/live-traffic-swim/09-live-sessions.md) §3

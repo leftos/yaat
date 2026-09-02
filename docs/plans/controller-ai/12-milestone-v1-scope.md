@@ -146,7 +146,7 @@ is measured rather than asserted — including across the two platforms the prod
 
 ## Requirements
 
-Radio requirements (`RADIO-01` … `RADIO-09`) live in [`11-radio-model.md`](./11-radio-model.md).
+Radio requirements (`RADIO-01` … `RADIO-10`) live in [`11-radio-model.md`](./11-radio-model.md).
 
 ### Tower — CA2 brain and coordination
 
@@ -178,14 +178,14 @@ Radio requirements (`RADIO-01` … `RADIO-09`) live in [`11-radio-model.md`](./1
 
 ### Coverage
 
-28 requirements, each mapped to exactly one phase. No orphans, no duplicates.
+29 requirements, each mapped to exactly one phase. No orphans, no duplicates.
 
 | Phase | Requirements | Count |
 |---|---|---|
 | 1 — One tick spine | DET-03 | 1 |
 | 2 — Per-position frequency state | RADIO-01, 02, 04, 06, 08 | 5 |
 | 3 — Party line and collisions | RADIO-03, 05, 09 | 3 |
-| 4 — Coordination bus and transfer | RADIO-07, TOWER-03, 04, 05, 07 | 5 |
+| 4 — Coordination bus and transfer | RADIO-07, RADIO-10, TOWER-03, 04, 05, 07 | 6 |
 | 5 — AI Local clearances (CA2) | TOWER-01, 02, 06 | 3 |
 | 6 — Detectors and findings (H1a) | SOAK-01 … 06 | 6 |
 | 7 — Trusted harness (H1b) | SOAK-07, 08, 09, DET-01, 02 | 5 |
