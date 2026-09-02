@@ -1,6 +1,12 @@
 # YAAT plans — index
 
 Entry point for `docs/plans/`. Each row links a subplan; open/done counts are the subplan's own checkboxes at the time of the last edit here.
+
+> **Active milestone: controller AI.** The whole-feature map is
+> [`controller-ai/README.md`](./controller-ai/README.md); the ordered slice being built now — one tick
+> spine, per-frequency radio, CA2 Tower brain, H1 soak, 7 phases and 28 requirements — is
+> [`controller-ai/12-milestone-v1-scope.md`](./controller-ai/12-milestone-v1-scope.md).
+
 A fresh agent should start from **Current focus**, then **Next up**, and treat **Backlog** as unscheduled. Finished plans move to
 [`archive/`](./archive/); issue-specific plans live in [`open-issues/`](./open-issues/) and are deleted once implemented.
 
@@ -74,11 +80,8 @@ A fresh agent should start from **Current focus**, then **Next up**, and treat *
 - [ ] Pilot AI for solo training — see [pilot-ai-self-training/README.md](./pilot-ai-self-training/README.md) (M10.x readbacks/TTS shipped; M11–M12 subplans are the roadmap)
 
 ## Next up
-- [ ] **Cut a release** — run `/prepare-release` (steer 2026-09-02; wanted out of the way before the GSD trial proper)
-- [ ] **Adopt GSD as part of the workflow** (steer 2026-09-02): organize the existing plan structure under it, then keep working on controller AI. `.planning/codebase/` mapped 2026-09-02; `/gsd-new-project` **paused mid-questioning** to cut the release first — resume by re-running `/gsd-new-project`. Decisions already made, do not re-ask:
-  - **Plan home = pointer.** This file stays the entry point but delegates the *active* milestone to `.planning/ROADMAP.md`; Next up / Backlog stay here. Needs a small edit to `CLAUDE.md` § Agentic Workflow once ROADMAP.md exists.
-  - **v1 roadmap scope = per-frequency radio model → CA2 → H1**, in that order (the radio model is the CA2 prerequisite; see the captured steer under Current focus and [controller-ai/README.md](./controller-ai/README.md)).
-  - Open, decided at resume: `.claude/CLAUDE.md` generation (GSD's Step 8 would add a second instruction file beside the root `CLAUDE.md` — gate it), and `commit_docs: true` (GSD auto-commits without the session's attribution trailers — gate every one).
+- [ ] **Cut a release** — run `/prepare-release` (steer 2026-09-02)
+- [x] ~~Adopt GSD as part of the workflow~~ — trialled and **reverted** 2026-09-02. `gsd-core` uninstalled; `.planning/` deleted; `CLAUDE.md` moved back to the repo root. The durable output was salvaged into `docs/`: [`controller-ai/11-radio-model.md`](./controller-ai/11-radio-model.md), [`controller-ai/12-milestone-v1-scope.md`](./controller-ai/12-milestone-v1-scope.md), the Phase-1 decisions merged into [`tick-loop-unification.md`](./tick-loop-unification.md), and the codebase-audit findings as Backlog items below.
 - [ ] Live-session assume UX (ZOA Discord 2026-08-31): bulk-assume modes, snapshot-then-assume-all, auto-assume on first command + restore-to-feed command, snapshot-as-scenario-authoring — see yaat-server [live-traffic-swim/09-live-sessions.md](../../../yaat-server/docs/plans/live-traffic-swim/09-live-sessions.md) §3
 - [x] `tools/make-oak-northfield-scenario.py` — gitignored 2026-08-31 (user chose local-only over committing)
 - [ ] Live-traffic follow-ups from the 2026-08-31 aviation review (receipt-recency model shipped): (a) gate/qualify `RunwaySafetyAdvisor.WarnIfTrafficOnFinal` / `WarnIfLiveTrafficOnRunway` on a coasting shadow (7110.65 5-13-7); (b) deliberate validation pass over the three behaviors the fix un-deadened (shadow-vs-simulated conflict alerts, `GroundAcceleration`, assume coast note); (c) surface per-track observation age to the instructor (5-1-1 judgment)
@@ -86,10 +89,15 @@ A fresh agent should start from **Current focus**, then **Next up**, and treat *
 - [ ] Live traffic via SWIM (#150) — see [open-issues/150-live-traffic-swim.md](./open-issues/150-live-traffic-swim.md) → yaat-server `docs/plans/live-traffic-swim/08-remaining-work.md` (all slices shipped 2026-08-28; **blocked** on FAA ADX access to the LADD list before the feed can go live on YAAT1, then a first-month soak)
 - [ ] RPO limited-access mode + VATUSA ARTCC auto-fill — see [rpo-limited-access-and-vatusa-artcc.md](./rpo-limited-access-and-vatusa-artcc.md) (17 open)
 - [ ] CRC protocol support gaps — see [crc-protocol-support.md](./crc-protocol-support.md) (13 open of 174; status table of the CRC hub protocol)
-- [ ] Controller AI + soak-testing harness — see [controller-ai/README.md](./controller-ai/README.md) (design complete 2026-09-01, not started; supersedes the old solo-training controller-AI plan)
+- [ ] **Controller AI + soak-testing harness** — see [controller-ai/README.md](./controller-ai/README.md); the active v1 slice is [12-milestone-v1-scope.md](./controller-ai/12-milestone-v1-scope.md) (H0/CA0/CA1/K1 shipped; Phase 1 = tick-loop unification, designed and next)
 - [ ] vTDLS emulation v1 — see [vtdls-emulation.md](./vtdls-emulation.md) (pre-work landed; remaining PDC flow)
 
 ## Backlog
+- [ ] **Review the docs structure — user-facing vs internal dev docs** (steer 2026-09-02): the repo root carries USER_GUIDE.md, COMMANDS.md, SOLO_TRAINING.md, GETTING_STARTED.md, INSTALL.md alongside `docs/` (60+ subsystem docs, `docs/plans/`, `docs/user-guide/`). Decide the boundary and where each audience starts.
+- [ ] **Regenerate `docs/scenario-validation-known-failures.md`** — its last full run is dated 2026-03-12, ~6 months stale, and substantial command-pipeline and chaining changes have shipped since (chained-command hardening in v0.12.23-beta, CTO/CTOC behaviour changes). Some of the 231 catalogued failures may now parse differently. Re-run yaat-server's `python tools/validate-all-scenarios.py`.
+- [ ] **Archive two resolved plans still sitting in `open-issues/`** — the repo's own hygiene rule says finished plans get promoted or archived: [172-taxi-crossing-holdshort-and-directionality.md](./open-issues/172-taxi-crossing-holdshort-and-directionality.md) (marked implemented and verified 2026-06-03, says it "can be archived once merged") and [fillet-s-turn-connectors.md](./open-issues/fillet-s-turn-connectors.md) (titled "superseded for #236"; documents why the original approach was rejected — worth keeping, in `archive/`).
+- [ ] **Audit the rest of the hub surface for client-trusted authorization** — the ARTCC entitlement fix (server refuses to open a room or fetch a catalog scenario for an ARTCC the signed-in controller is not entitled to, instead of trusting the client's ARTCC) shipped very recently. Similar client-trusting patterns may exist in other `TrainingHub.cs` methods; nothing has swept them.
+- [ ] **`SimulationEngine.cs` decomposition — decide whether to** — 5,543 lines and 69 public methods, the largest file in the repo by a wide margin and the most-churned (29 of the last 300 commits touched it, more than double the runner-up). Every tick-loop change and every new per-tick feature lands here. No decomposition plan exists. Adjacent hotspots, for blast-radius awareness when planning parallel work: `PatternCommandHandler.cs` (3,967), `MainViewModel.cs` (3,915, 20 commits — second-most-churned), `CommandParser.cs` (3,797), `CommandDispatcher.cs` (3,657), `MainWindow.axaml.cs` (3,452), `GroundCommandHandler.cs` (3,041).
 - [ ] Standalone airport GeoJSON editor — see [airport-editor.md](./airport-editor.md) (51 open; not started)
 - [ ] Phraseology coverage — see [phraseology-coverage-backlog.md](./phraseology-coverage-backlog.md) + [phraseology-implementation.md](./phraseology-implementation.md) (handoff doc for the rule backlog)
 - [ ] "Show nav route" overlay limitations — see [nav-route-overlay-followups.md](./nav-route-overlay-followups.md)

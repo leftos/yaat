@@ -2,7 +2,30 @@
 
 ## Project Overview
 
-YAAT (Yet Another ATC Trainer) — instructor/RPO desktop client for ATC training. Connects to [yaat-server](https://github.com/leftos/yaat-server) via SignalR; server feeds CRC via SignalR+MessagePack. Uses ATCTrainer scenarios directly (same JSON format via vNAS data-api).
+**YAAT (Yet Another ATC Trainer)** — the instructor/RPO desktop client for VATSIM air traffic
+control training. An instructor drives simulated aircraft, issuing the same clearances a real pilot
+would receive, while the student works a live CRC scope that behaves as it does on the network. A
+shared simulation library owns all the aviation logic;
+[yaat-server](https://github.com/leftos/yaat-server) hosts training rooms and speaks CRC's own wire
+protocol (SignalR + MessagePack), so the student's radar, data blocks, handoffs and flight strips
+are the real thing. Scenarios are ATCTrainer JSON, used directly via the vNAS data-api.
+
+It also runs solo: pilot AI answers calls, reads back clearances and speaks over TTS, so a
+student authorized by their mentor can practice a position without anyone else online.
+
+**Core Value:** Providing instructors, mentors, and RPOs the tools they need to give VATSIM controller
+students an immersive, realistic training experience — while working toward students
+having immersive solo training experiences as well, when authorized by their mentor to
+practice solo.
+
+### Constraints
+
+- **Tech stack**: .NET 10, C# (nullable, implicit usings), Avalonia UI 12.1.0, CommunityToolkit.Mvvm, SignalR, MessagePack for CRC — `Yaat.Sim` has no UI dependencies
+- **Aviation accuracy**: every change touching aviation logic is reviewed by `aviation-sim-expert` against FAA 7110.65 / AIM, read from the local references — never web search
+- **TDD**: failing test first for bug fixes and sim changes; real navdata in tests, never synthetic stubs
+- **Determinism**: recordings must replay exactly; AI brains never run in replay, and the same seed reproduces byte-for-byte
+- **Cross-repo verification**: `pwsh tools/test-all.ps1` builds and tests both repos; a `Yaat.Sim` signature change that breaks the sibling is invisible to a bare `dotnet test`
+- **Zero warnings**: build with `-p:TreatWarningsAsErrors=true`; run gates through `tools/gate.sh` so a teed pipeline cannot report a failed build as green
 
 ## Build & Run
 
@@ -46,6 +69,7 @@ Subcommands: `info`, `snapshot`, `track`, `proximity`, `actions`, `history`, `li
 ## Logs
 
 Read log files first before speculating about runtime errors:
+
 - **Client**: `%LOCALAPPDATA%/yaat/yaat-client.log`
 - **Server**: `src/Yaat.Server/bin/Debug/net10.0/yaat-server.log` (relative to yaat-server repo root)
 
@@ -96,6 +120,7 @@ Project-reference direction: `Yaat.Client` → `Yaat.Client.Core` → `Yaat.Clie
 ### Command Input UX
 
 Unified parse-once architecture in `CommandInputController`:
+
 - `ParseCommandInput()` produces a `CommandInputParseResult` (verb, definition, param index, typed args)
 - **Autocomplete**: `ArgumentSuggester` consumes the parse result → dropdown value suggestions
 - **Signature help**: `SignatureHelpState` consumes the parse result → inline parameter hints
@@ -131,6 +156,7 @@ All commands including rewrite verbs (e.g. `RWY`) go through `CommandRegistry` �
 - [`discord-integration.md`](docs/discord-integration.md) — Discord bot and GitHub Actions workflows
 
 Subsystem references — open the matching doc *before* exploring, searching, or editing the listed code; each carries its own overview, contracts, and footguns:
+
 - [`landing-and-runway-exit.md`](docs/landing-and-runway-exit.md) — `LandingPhase`, `RunwayExitPhase`, `GroundNavigator` (analog rollout)
 - [`ground/`](docs/ground/README.md) — ground/taxi stack index → [`fillet-generator`](docs/ground/fillet-generator.md), [`pathfinder`](docs/ground/pathfinder.md), [`navigator`](docs/ground/navigator.md), [`hold-short-placement`](docs/ground/hold-short-placement.md), [`pushback`](docs/ground/pushback.md)
 - [`ground-layout-generation.md`](docs/ground-layout-generation.md) — `GeoJsonParser` → fillet arcs → ground-graph construction (the full import pipeline behind `AirportGroundLayout`)
@@ -183,6 +209,7 @@ Two open-source CIFP parsers are cloned (git-untracked) into `reference/cifp/` a
 - **`reference/cifp/parseCifp/`** — [rstory1/parseCifp](https://github.com/rstory1/parseCifp) — Perl parser used by ZOA reference tooling.
 
 If a column offset in YAAT's parser disagrees with `cifparse`, **trust cifparse**. YAAT's parser had a systematic +0/-1 off-by-one in procedure leg fields (arc_radius, theta, rho, course, dist_time, alt_1, alt_2) — see git log for the fix. Re-clone with:
+
 ```bash
 mkdir -p reference/cifp && cd reference/cifp
 git clone --depth 1 https://github.com/misterrodg/cifparse.git
@@ -200,11 +227,13 @@ Use `tools/Yaat.CifpInspector` to inspect parsed CIFP procedures from the comman
 **Do not guess aviation details.** Use FAA 7110.65, AIM, ICAO Doc 4444 as authorities.
 
 **Validated performance constants** (in `AircraftCategory.cs` / `CategoryPerformance`, validated by `aviation-sim-expert`):
+
 - Default speed (kts by altitude): Jet `<10k=250 / <18k=280 / <28k=290 / >=28k=280`; Turboprop `<10k=200 / <24k=250 / >=24k=270`; Piston `<10k=110 / >=10k=120`.
 - Turn rate (deg/s): Jet 2.5, Turboprop/Piston 3.0. Climb fpm (below/above 10k): Jet 2500/1800, TP 1500/1200, Piston 700/500. Descent fpm: Jet 1800, TP 1200, Piston 500.
 - Accel/decel (kts/s): Jet 2.5/3.5, TP 1.5/2.5, Piston 1.0/2.0. Snap thresholds: heading 0.5°, altitude 10 ft, speed 2 kt.
 
 **Local FAA references — DO NOT web-search:**
+
 - **7110.65**: `.claude/reference/faa/7110.65/` (index: `INDEX.md`)
 - **AIM**: `.claude/reference/faa/aim/` (index: `INDEX.md`)
 
@@ -247,6 +276,7 @@ When invoking aviation-sim-expert, always include:
 ## Rules
 
 ### Testing
+
 - **TDD for bugs and sim changes**: Write the failing test first, confirm it fails, fix, confirm it passes. Applies to bug fixes, commands, physics, phases, navdata, parsers — anything in simulation-critical code. See `docs/e2e-tdd-issue-debugging.md`.
 - **No guessing at root causes**: Reproduce with a test first. Use real airport layouts and E2E tests. Do not speculate.
 - **No synthetic data in tests**: Use `TestVnasData.EnsureInitialized()` (loads NavData.dat and CIFP via `NavDataPathResolver` / `CifpPathResolver` — one resolve per test process at assembly load in `tests/Yaat.Sim.Tests/ModuleInit.cs`, with bundled `TestData/NavData.dat` and `FAACIFP18.gz` as offline fallbacks). Refresh pins: `python tools/refresh-navdata.py` (NavData); scenarios are downloaded by the yaat-server repo's `python tools/validate-all-scenarios.py`. Set `YAAT_SKIP_NAVDATA_DOWNLOAD=1` or `YAAT_SKIP_CIFP_DOWNLOAD=1` to skip vNAS/FAA download and use bundles only. Synthetic stubs hide integration problems. If test data files absent, silently skip.
@@ -259,6 +289,7 @@ When invoking aviation-sim-expert, always include:
 - **`xunit.runner.json` must be Content-copied**: `tests/Yaat.Client.UI.Tests/xunit.runner.json` sets `parallelizeTestCollections: false`; without a csproj Content include copying it to `bin/`, xUnit silently parallelizes and races `UserPreferences` on the shared `preferences.json`. Diagnose an `Expected [...] / Actual []` failure by confirming that copy exists before suspecting `UserPreferences.Save`.
 
 ### Code Style
+
 - **Robust over expedient**: Always choose the most robust solution, not the simplest shortcut. When multiple approaches exist, prefer correctness and maintainability over expedience.
 - **Line width**: 150 chars (CSharpier configured accordingly)
 - **Boolean expressions**: Parenthesize to disambiguate — `(a.X) || (b.Y >= c + d)` not `a.X || b.Y >= c + d`
@@ -267,13 +298,16 @@ When invoking aviation-sim-expert, always include:
 - **No repurposing DTO fields**: Add new fields with clear names. Remove dead fields entirely.
 
 ### Debugging
+
 - **Add logging freely**: When investigating a bug, always add `Log.LogDebug` statements to trace execution rather than guessing from the code. This is always allowed and encouraged — logging is the primary debugging tool for graph/geometry issues. Use `--debug-fillets` in LayoutInspector to enable debug output.
 
 ### Error Handling
+
 - Never swallow exceptions. Log with `AppLog` (client) or `ILogger` (Sim).
 - Yaat.Sim static classes: `private static readonly ILogger Log = SimLog.CreateLogger("ClassName");` — never optional.
 
 ### Build & Format
+
 - **Tee all output**: Always pipe `dotnet build`/`dotnet test`/`dotnet run` output through `tee` to `.tmp/` so results can be reviewed without re-running. Use a generic name (e.g. `.tmp/build.log`) unless you need to compare multiple runs, then use a unique name.
 - **Build after edits, test after fixes**: Run `dotnet build -p:TreatWarningsAsErrors=true 2>&1 | tee .tmp/build.log` after edits and `timeout 120 dotnet test 2>&1 | tee .tmp/test.log` after fixes (`timeout 30` when filtering to a few tests). Ensure zero warnings and all tests pass before committing.
 - **Cross-repo verification**: When you'd otherwise run "the whole test suite" (after confirming targeted tests pass), run `pwsh tools/test-all.ps1` instead of bare `dotnet test`. It builds and tests both yaat and yaat-server. Catches signature changes in `Yaat.Sim` that break the sibling repo — bare `dotnet test` only sees yaat. By default it excludes the heavy `Nightly` (per-spot taxi-coverage grid) and `PathfinderGrid` (state-aware-pruning necessity oracle sweep) categories to stay fast; pass `-Full` to include them (CI/nightly run the full set).
@@ -285,20 +319,23 @@ When invoking aviation-sim-expert, always include:
 - **prek's build hook is cross-repo**: `prek.toml`'s `dotnet build` compiles `yaat.slnx`, which includes the sibling `yaat-server` project. A *partial* commit (`git commit -- <subset>`) stashes your other yaat changes, so if yaat-server's on-disk code depends on a just-stashed `Yaat.Sim` change, the hook build fails with `CS0246`/signature errors from `yaat-server`. Before such a partial commit: `git -C X:/dev/yaat-server stash push -u`, commit, then `stash pop`. Likewise a dependency pin that's only modified-not-committed gets reverted by the stash during the hook build — commit the pin, don't just leave it in the tree.
 
 ### Documentation
+
 - Update `USER_GUIDE.md` before committing user-facing changes.
 - Update `COMMANDS.md` whenever a command is added, removed, aliased, or changes behavior/arguments. This is the canonical user-facing command reference — both the **Quick Reference** tables and the **Detailed Command Documentation** section must stay in sync with the code (`CommandRegistry.All`, `CanonicalCommandType`, handler behavior).
 - Update `docs/architecture.md` before each commit.
 - Update the in-app command cheatsheet when a command's quick-reference changes: edit the row data in `docs/command-cheatsheet.json`, then run `node tools/build-cheatsheet.mjs` to regenerate `docs/command-cheatsheet.html`. Never hand-edit the HTML — `prek` + CI run `--check` and fail the build if JSON and HTML drift.
 
 ### Git & Issues
+
 - **Commit directly to `main`**: This project overrides the global "never push to main / use branches + PRs" rule — the sole maintainer commits and pushes directly to `main` in both yaat and yaat-server. Don't create feature branches or open PRs unless explicitly asked. (Still ask before committing — auto-commit is never OK.)
 - **Commits**: `fix:`/`feat:`/`add:`/`docs:`/`ref:`/`test:` etc. Imperative, ≤72 chars.
 - **Cross-repo issues**: GitHub issues tracked on **yaat** repo. In yaat-server commits use full URL `Closes https://github.com/leftos/yaat/issues/N`, never bare `Closes #N`.
 - **Cross-repo completeness**: Features spanning both repos must be implemented together — no half-done features.
 - **Issue plans**: Write plans to `docs/plans/open-issues/`. Delete plan file after implementing.
-- **Milestone Roadmap**: see `docs/plans/`. M0/M1 complete; M2 (tower ops) next.
+- **Plans**: [`docs/plans/MAIN.md`](docs/plans/MAIN.md) is the entry point — Current focus, Next up, Backlog, Blockers. The active milestone is controller AI — see [`docs/plans/controller-ai/README.md`](docs/plans/controller-ai/README.md). Milestone history: M0/M1 complete; M2 (tower ops) next.
 
 ### Misc
+
 - **Unreleased software**: No backwards-compat shims, migration paths, or deprecated aliases. Delete and replace freely.
 - **Window geometry**: Every window uses `WindowGeometryHelper(window, preferences, "Name", defaultW, defaultH).Restore()`.
 - **Memory Updates**: Distill findings into auto-memory at `C:\Users\Leftos\.claude\projects\X--dev-yaat\memory\`.
