@@ -305,20 +305,9 @@ public sealed partial class SimulationEngine
         // the hybrid-replay pattern: Replay(recording, 0) to load the scenario,
         // RestoreFromSnapshot to jump to a saved state, then ReplayOneSecond to
         // step forward from there with cursors already positioned.
-        if (_replayActions is not null && Scenario is not null)
+        if (Scenario is not null)
         {
-            int restoredSeconds = (int)Scenario.ElapsedSeconds;
-            _replayActionCursor = 0;
-            _replayPreTickActionCursor = 0;
-            _replayPreTickAppliedActionIndexes.Clear();
-            while (_replayActionCursor < _replayActions.Count && _replayActions[_replayActionCursor].ElapsedSeconds <= restoredSeconds)
-            {
-                _replayActionCursor++;
-            }
-            while (_replayPreTickActionCursor < _replayActions.Count && _replayActions[_replayPreTickActionCursor].ElapsedSeconds <= restoredSeconds)
-            {
-                _replayPreTickActionCursor++;
-            }
+            _replay.ReseekAfterRestore((int)Scenario.ElapsedSeconds);
         }
     }
 

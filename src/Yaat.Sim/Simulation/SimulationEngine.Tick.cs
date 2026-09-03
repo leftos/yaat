@@ -186,6 +186,13 @@ public sealed partial class SimulationEngine
         }
     }
 
+    /// <summary>Stops <paramref name="sw"/> and folds its elapsed time into <paramref name="bucket"/>.</summary>
+    internal void AccumulateTiming(string bucket, Stopwatch sw)
+    {
+        sw.Stop();
+        RecordWorldTiming(bucket, sw.Elapsed.TotalMilliseconds);
+    }
+
     /// <summary>
     /// Per-second post-physics pilot-proactive behaviors: solo check-in, arrival approach request,
     /// airspace-boundary respect, pending-request follow-ups, and — in all modes — deferred REPORT
@@ -936,7 +943,7 @@ public sealed partial class SimulationEngine
     /// </summary>
     public void TickControllerAi()
     {
-        if (Scenario is not { ControllerAi: not null, IsPlaybackMode: false } scenario || _isReplayingRecordedActions || ControllerAi is not { } ai)
+        if (Scenario is not { ControllerAi: not null, IsPlaybackMode: false } scenario || IsReplayingRecordedActions || ControllerAi is not { } ai)
         {
             return;
         }

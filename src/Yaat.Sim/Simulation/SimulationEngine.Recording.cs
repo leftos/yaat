@@ -26,7 +26,7 @@ public sealed partial class SimulationEngine
     private void RecordGeneratedAircraftSpawn(AircraftState state)
     {
         var scenario = Scenario;
-        if (scenario is null || _isReplayingRecordedActions || scenario.IsPlaybackMode)
+        if (scenario is null || IsReplayingRecordedActions || scenario.IsPlaybackMode)
         {
             return;
         }
@@ -34,7 +34,7 @@ public sealed partial class SimulationEngine
         scenario.ActionLog.Add(new RecordedAircraftSpawn(scenario.ElapsedSeconds, state.ToSnapshot()));
     }
 
-    private static void ApplyRecordedAircraftSpawnsBeforeTick(
+    internal static void ApplyRecordedAircraftSpawnsBeforeTick(
         List<RecordedAction> actions,
         ref int actionCursor,
         int elapsedSeconds,
@@ -60,7 +60,7 @@ public sealed partial class SimulationEngine
     /// </summary>
     public static bool IsPreTickAction(RecordedAction action) => action is RecordedAircraftSpawn or RecordedLiveTrafficSample;
 
-    private void ApplyRecordedAction(RecordedAction action)
+    internal void ApplyRecordedAction(RecordedAction action)
     {
         switch (action)
         {
@@ -140,7 +140,7 @@ public sealed partial class SimulationEngine
     public void RecordAction(RecordedAction action)
     {
         var scenario = Scenario;
-        if (scenario is null || _isReplayingRecordedActions || scenario.IsPlaybackMode)
+        if (scenario is null || IsReplayingRecordedActions || scenario.IsPlaybackMode)
         {
             return;
         }

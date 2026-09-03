@@ -80,7 +80,7 @@ public sealed partial class SimulationEngine
     {
         var scenario = Scenario!;
         if (
-            (_isReplayingRecordedActions && _replayHasRecordedAircraftSpawns)
+            (IsReplayingRecordedActions && ReplayHasRecordedAircraftSpawns)
             || (scenario.IsPlaybackMode && scenario.ActionLog.Any(static a => a is RecordedAircraftSpawn))
         )
         {

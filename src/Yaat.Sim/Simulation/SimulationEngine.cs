@@ -81,6 +81,15 @@ public sealed partial class SimulationEngine
     // engine per load.
     private readonly ReplayTrackApplier _replayTrackApplier = new();
 
+    /// <summary>Resets the track applier's per-connection active-position map, at the start of a fresh replay.</summary>
+    internal void ResetReplayTrackApplier()
+    {
+        _replayTrackApplier.Reset();
+    }
+
+    /// <summary>The engine's logger, so collaborators it owns log under the same category.</summary>
+    internal ILogger Logger => _logger;
+
     public SimulationWorld World { get; } = new();
     public SimScenarioState? Scenario { get; set; }
     public ConsolidationState ConsolidationState { get; } = new();
@@ -100,7 +109,7 @@ public sealed partial class SimulationEngine
     /// </summary>
     public event Action<int>? TickCompleted;
 
-    private void FireTickCompleted(int elapsedSeconds)
+    internal void FireTickCompleted(int elapsedSeconds)
     {
         TickCompleted?.Invoke(elapsedSeconds);
     }
@@ -155,6 +164,7 @@ public sealed partial class SimulationEngine
     {
         _groundData = groundData;
         _logger = logger ?? SimLog.CreateLogger<SimulationEngine>();
+        _replay = new ReplayDriver(this);
     }
 
     // --- Drain collections ---
@@ -164,6 +174,12 @@ public sealed partial class SimulationEngine
         var entries = new List<TerminalEntry>(_terminalEntries);
         _terminalEntries.Clear();
         return entries;
+    }
+
+    /// <summary>Drops the entries accumulated this tick without handing them to anyone — the end-of-tick discard.</summary>
+    internal void ClearTerminalEntries()
+    {
+        _terminalEntries.Clear();
     }
 
     /// <summary>

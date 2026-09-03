@@ -1074,7 +1074,8 @@ SimulationEngine.cs            # Scenario load, tick orchestration, replay (Repl
 SimulationEngine.Snapshots.cs  # CaptureSnapshot/RestoreFromSnapshot + the server's slice (CaptureServerSnapshot/RestoreServerSnapshot)
 SimulationEngine.Scenario.cs   # LoadScenario + ResolveGroundLayout
 SimulationEngine.Tick.cs       # The per-tick path: TickPrePhysics/TickPhysics/TickPostPhysics, the detectors, TickOneSecond/TickOnce
-SimulationEngine.Replay.cs     # Replay drivers: ReplayFromStartTo/FastForwardTo/ReplayRange/Replay/ReplayOneSecond/ReplayOneSubTick
+SimulationEngine.Replay.cs     # Replay drivers (ReplayFromStartTo/FastForwardTo/ReplayRange/Replay/ReplayOneSecond/ReplayOneSubTick)
+                               # — thin delegators over Replay/ReplayDriver.cs, which owns the recorded-action cursors
 SimulationEngine.Commands.cs   # SendCommand/DispatchAiCommand/DispatchLiveCommand/ApplyPostDispatch + WarpAircraft/AmendFlightPlan
 SimulationEngine.DeferredCommands.cs  # ProcessDeferredDispatches + triggered track blocks
 SimulationEngine.Generators.cs # Arrival/VFR/overflight generators: spawning, spacing, weight and engine selection
@@ -1124,6 +1125,8 @@ CompoundCanonical.cs           # RewriteUnits: applies a per-unit rewrite across
 RecordingJsonOptions.cs        # Shared JsonSerializerOptions for recording serialization
 
 # Simulation/Replay/
+ReplayDriver.cs                # Drives a recording forward (range / one second / one sub-tick) and owns the recorded-action
+                               # cursors. Internal — SimulationEngine.Replay.cs is the public surface over it.
 ReplayTrackApplier.cs          # Replay-time dispatcher for track + AS-prefix commands. Maintains per-connection active-position map;; returns the dispatch result; an AI connection id resolves to its position without an AS prefix
                                # routes parsed commands through TrackEngine.Dispatch with identity resolved via TrackResolver.
 SnapshotDiff.cs                # Pure-function diff between an engine's live aircraft state and a captured snapshot's DTOs.

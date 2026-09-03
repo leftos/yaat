@@ -523,7 +523,7 @@ public sealed partial class SimulationEngine
         }
     }
 
-    private void ApplyWeatherJson(string weatherJson)
+    internal void ApplyWeatherJson(string weatherJson)
     {
         var parseResult = WeatherTimelineParser.Parse(weatherJson);
         if (parseResult.IsTimeline)
