@@ -517,18 +517,30 @@ public sealed partial class SimulationEngine
     }
 
     /// <summary>
+    /// The facility's internal airports, whose approach corridors <see cref="TickConflictAlerts"/> suppresses
+    /// alerts inside. Resolved from scenario state rather than passed in, so every run kind classifies
+    /// conflicts identically: the argument used to come from the server's STARS config, and the paths that
+    /// had no host to supply one alerted where live did not. Empty when the scenario carries no ARTCC config
+    /// (a bare test engine) or no student position, which is the same set the argument defaulted to.
+    /// </summary>
+    private IReadOnlyList<string> ResolveInternalAirports() =>
+        Scenario is { ArtccConfig: { } config, StudentPosition.FacilityId: { } facilityId }
+            ? config.GetStarsConfigForFacility(facilityId)?.InternalAirports ?? []
+            : [];
+
+    /// <summary>
     /// Per-second terminal Conflict Alert (STARS CA) pass: runs <see cref="ConflictAlertDetector"/> against
     /// the current world, updates the engine-owned <see cref="ConflictAlerts"/> set, and returns the pairs
-    /// that opened and closed this tick for the host to broadcast. <paramref name="internalAirports"/>
-    /// supplies the approach-corridor suppression volumes (from the host's STARS config). Server-only: only
-    /// a broadcasting host consumes the diff, so <see cref="TickPostPhysics"/> does not call this.
+    /// that opened and closed this tick for the host to broadcast. Both <see cref="TickPostPhysics"/> and the
+    /// live server call it; only a broadcasting host consumes the returned diff, but the detection itself has
+    /// to run on every path or a restored conflict is never re-examined.
     /// </summary>
-    public ConflictAlertChanges TickConflictAlerts(IReadOnlyList<string> internalAirports)
+    public ConflictAlertChanges TickConflictAlerts()
     {
         var snapshot = World.GetSnapshot();
         var conflicts = ConflictAlerts.Conflicts;
         var existingIds = new HashSet<string>(conflicts.Keys);
-        var corridors = ConflictAlertDetector.BuildCorridors(internalAirports, NavigationDatabase.Instance);
+        var corridors = ConflictAlertDetector.BuildCorridors(ResolveInternalAirports(), NavigationDatabase.Instance);
         var context = new ConflictAlertContext(ExistingConflictIds: existingIds, ApproachCorridors: corridors);
 
         var detected = ConflictAlertDetector.Detect(snapshot, context);
@@ -839,9 +851,8 @@ public sealed partial class SimulationEngine
         // Re-evaluate the engine-owned conflict sets. Their returned diffs exist for a broadcasting host to fan out
         // to CRC, so only the server consumes them — but the detection itself has to run on this path too. Without it
         // a conflict that RestoreFromSnapshot repopulated is never re-examined, so it is pinned for the rest of a
-        // replay: simultaneously stale and unable to clear. Standalone and replay hosts carry no STARS configuration,
-        // hence no internal airports.
-        TickConflictAlerts([]);
+        // replay: simultaneously stale and unable to clear.
+        TickConflictAlerts();
         TickEramConflictAlerts();
 
         var warnings = World.DrainAllWarnings();

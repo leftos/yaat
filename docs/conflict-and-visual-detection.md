@@ -102,7 +102,10 @@ CA is suppressed for traffic established on final at an internal airport (where 
 constantly). `BuildCorridors(internalAirports, navDb)` (`:84`) builds **two corridors per physical runway** (one per
 runway end), each anchored at that end's threshold and extending out along the **reciprocal** of runway heading. Airport
 lookup tries the bare LID first, then a `"K"`-prefixed ICAO fallback (mirrors `ApproachGateDatabase`). The internal-
-airport list comes from `starsConfig.InternalAirports`.
+airport list comes from `starsConfig.InternalAirports`, resolved by `SimulationEngine.ResolveInternalAirports` from
+`SimScenarioState.ArtccConfig` + the student position's facility — **not** passed in by the host. It used to be a
+`TickConflictAlerts` argument, which meant only the live server supplied one and every other run kind suppressed
+nothing and over-alerted; resolving it inside the sim is what makes the classification identical on every path.
 
 `IsInsideCorridor` (`:219`) is a centerline box test:
 

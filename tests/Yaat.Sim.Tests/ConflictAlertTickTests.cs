@@ -54,7 +54,7 @@ public class ConflictAlertTickTests
     {
         var engine = EngineWith(ModeCAircraft("N123AB", new LatLon(37.80, -122.00)), ModeCAircraft("N456CD", new LatLon(37.81, -122.00)));
 
-        var first = engine.TickConflictAlerts([]);
+        var first = engine.TickConflictAlerts();
 
         var pair = Assert.Single(first.New);
         Assert.Equal("N123AB", pair.CallsignA);
@@ -63,7 +63,7 @@ public class ConflictAlertTickTests
         Assert.True(engine.ConflictAlerts.Conflicts.ContainsKey(pair.Id));
 
         // Detector re-runs, pair unchanged — no new opens, nothing cleared.
-        var second = engine.TickConflictAlerts([]);
+        var second = engine.TickConflictAlerts();
         Assert.Empty(second.New);
         Assert.Empty(second.Cleared);
     }
@@ -82,7 +82,7 @@ public class ConflictAlertTickTests
         var engine = EngineWith(a, b);
 
         // Open a conflict — this is the state a snapshot restore hands back.
-        var opened = engine.TickConflictAlerts([]);
+        var opened = engine.TickConflictAlerts();
         var pair = Assert.Single(opened.New);
         Assert.True(engine.ConflictAlerts.Conflicts.ContainsKey(pair.Id));
 
@@ -103,13 +103,13 @@ public class ConflictAlertTickTests
         var b = ModeCAircraft("N456CD", new LatLon(37.81, -122.00));
         var engine = EngineWith(a, b);
 
-        var opened = engine.TickConflictAlerts([]);
+        var opened = engine.TickConflictAlerts();
         var id = Assert.Single(opened.New).Id;
 
         // Move well past the 3.3 nm hysteresis-clear threshold.
         b.Position = new LatLon(38.20, -122.00);
 
-        var closed = engine.TickConflictAlerts([]);
+        var closed = engine.TickConflictAlerts();
         Assert.Contains(id, closed.Cleared);
         Assert.False(engine.ConflictAlerts.Conflicts.ContainsKey(id));
     }
