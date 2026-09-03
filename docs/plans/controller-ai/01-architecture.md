@@ -129,7 +129,7 @@ two hosts uniform and keeps async dispatch off the hot path.
 
 A pure-Yaat.Sim sink (`EngineAiCommandSink`: `CommandParser.ParseCompound` → `DispatchContext` with
 `IsScenarioScripted: true` → `CommandDispatcher.DispatchCompound`, recording to `scenario.ActionLog`
-guarded by `!_isReplayingRecordedActions`) is retained **only for brain unit tests** in
+guarded by `RunProfile.RecordsActions`) is retained **only for brain unit tests** in
 `tests/Yaat.Sim.Tests`. Its verb coverage (aviation verbs certainly; track/coordination verbs only if
 the CA0 routing-parity spike finds the sim-side engines sufficient) bounds what brain unit tests can
 exercise; anything beyond that is integration-tested through `HeadlessRoom`.
@@ -152,7 +152,7 @@ one-tick coordination latency is deliberate and realistic), ordinal by `Position
 
 - **Headless:** `SimulationEngine.TickControllerAi()` — public, called by the host after
   `TickPostPhysics()`; internally guarded by `scenario.ControllerAi is not null &&
-  !_isReplayingRecordedActions && !scenario.IsPlaybackMode`. It is *not* called from inside
+  RunProfile.RunsControllerAi` (false only for a replay run). It is *not* called from inside
   `TickPostPhysics` (which live never runs but replay engines do) — keeping it a separate entry point
   makes "brain never runs in replay" structural.
 - **Live:** `TickProcessor.ProcessControllerAi(room)` — new `Run("Post.ControllerAi", …)` entry

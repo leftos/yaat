@@ -102,8 +102,8 @@ public class ControllerAiServiceTests
         engine.TickControllerAi();
         Assert.Single(order);
 
-        // Tape playback never runs the brains.
-        scenario.IsPlaybackMode = true;
+        // A replay never runs the brains: their commands are already in the log.
+        engine.RunProfile = RunProfile.Replay;
         engine.TickControllerAi();
         Assert.Single(order);
     }

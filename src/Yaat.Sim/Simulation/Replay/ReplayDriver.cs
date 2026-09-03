@@ -13,9 +13,10 @@ namespace Yaat.Sim.Simulation.Replay;
 /// advanced, and which actions a pre-tick pass already applied so the main pass does not repeat them.
 ///
 /// That cursor state is the whole reason this is a separate object. It is meaningful only while a
-/// recording is being replayed, whereas the replay <em>mode</em> flag stays on the engine because
-/// members outside replay read it to decide whether they may record an action, spawn generated traffic
-/// or run an AI brain — that describes the engine's mode, not this driver's bookkeeping.
+/// recording is being replayed, whereas the <see cref="RunProfile"/> stays on the engine because members
+/// outside replay read it to decide whether they may record an action, spawn generated traffic or run an
+/// AI brain — that describes the run the engine is in, not this driver's bookkeeping. Each stepping call
+/// here runs under <see cref="SimulationEngine.EnterReplay"/> and hands the previous profile back after.
 ///
 /// The engine exposes every driver method as its own, so no caller names this type.
 /// </summary>
@@ -134,10 +135,8 @@ internal sealed class ReplayDriver(SimulationEngine engine)
             _engine.ResetReplayTrackApplier();
         }
         actionApplier ??= _engine.ApplyRecordedAction;
-        bool previousReplayState = _engine.IsReplayingRecordedActions;
-        _engine.IsReplayingRecordedActions = true;
 
-        try
+        using (_engine.EnterReplay())
         {
             var verifyByTimestamp = new Dictionary<int, int>();
             if (archiveForVerification is not null && drifts is not null)
@@ -252,10 +251,6 @@ internal sealed class ReplayDriver(SimulationEngine engine)
                 _engine.FireTickCompleted(t);
             }
         }
-        finally
-        {
-            _engine.IsReplayingRecordedActions = previousReplayState;
-        }
     }
 
     public void To(SessionRecording recording, double targetSeconds, Action<SimScenarioState> configureAfterLoad)
@@ -331,10 +326,8 @@ internal sealed class ReplayDriver(SimulationEngine engine)
         int t = (int)scenario.ElapsedSeconds;
 
         var sw = new Stopwatch();
-        bool previousReplayState = _engine.IsReplayingRecordedActions;
-        _engine.IsReplayingRecordedActions = true;
 
-        try
+        using (_engine.EnterReplay())
         {
             sw.Restart();
             SimulationEngine.ApplyRecordedAircraftSpawnsBeforeTick(
@@ -369,10 +362,6 @@ internal sealed class ReplayDriver(SimulationEngine engine)
 
             _engine.FireTickCompleted(t);
         }
-        finally
-        {
-            _engine.IsReplayingRecordedActions = previousReplayState;
-        }
     }
 
     public void OneSubTick()
@@ -395,10 +384,8 @@ internal sealed class ReplayDriver(SimulationEngine engine)
         // "We just finished an integer second" — the new ElapsedSeconds lands
         // exactly on an integer, so this sub-tick is the last of four.
         bool atSecondEnd = Math.Abs(scenario.ElapsedSeconds - Math.Round(scenario.ElapsedSeconds)) < eps;
-        bool previousReplayState = _engine.IsReplayingRecordedActions;
-        _engine.IsReplayingRecordedActions = true;
 
-        try
+        using (_engine.EnterReplay())
         {
             if (atSecondStart)
             {
@@ -433,10 +420,6 @@ internal sealed class ReplayDriver(SimulationEngine engine)
 
                 _engine.FireTickCompleted(t);
             }
-        }
-        finally
-        {
-            _engine.IsReplayingRecordedActions = previousReplayState;
         }
     }
 

@@ -39,6 +39,13 @@ being precise about which execution path you are on is the entire point.
   vocabulary (`IHostedService` and the three background services that implement it, `builder.WebHost`,
   `HostOptions`), `VStripsSplitHost` (an Avalonia control that hosts a pane layout), and the aviation
   sense in "host ARTCC" and "enroute-hosted IFR plan".
-- The eight sim-side replay guards collapse into the run profile. The server's
-  `IsBroadcastSuppressed` stays: it suppresses broadcasts, which is a host concern.
+- The sim-side replay guards collapse into the run profile. Landed 2026-09-03: an exhaustive read found
+  five guard sites carrying eight flag reads (four of the engine's replay flag, four of the server-set
+  `IsPlaybackMode`); they now read `RunProfile.RecordsActions` / `RunsGenerators` / `RunsControllerAi`,
+  and nothing in `Yaat.Sim` reads `IsPlaybackMode` or compares `RunProfile.Kind` — a readable kind is the
+  door this decision closes, so steps read allowances only. The server's `IsBroadcastSuppressed` stays: it
+  suppresses broadcasts, which is a host concern. `IsPlaybackMode` also stays, as server room-lifecycle
+  state; the server sets the engine's profile through one seam (`RoomEngine.EnterPlayback` /
+  `LeavePlayback`) at the same moments it sets that flag, and every engine it creates starts from the
+  room's `HostRunKind`.
 - Vocabulary is fixed in [`CONTEXT.md`](../../CONTEXT.md) before the names are minted, not after.

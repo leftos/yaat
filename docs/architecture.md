@@ -77,7 +77,7 @@ The Task Index above tells you *which files*; these docs explain *how each subsy
   - **Pathfinding**: `Pathfinding/FilletCornerRoutingTests.cs` (fillet arc vs square-pivot routing), `Pathfinding/AutoRouterPruningTests.cs` (A* pruning via arrival taxiway), `Pathfinding/ArcRadiusFloorAdmissibilityTests.cs` (steerable radius floor)
   - **Fillet arc speed**: `Fillet/GroundArcSpeedProfileTests.cs` (local-curvature arc speed), `GroundNavigatorArcSpeedProfileTests.cs` (navigator speed profile application), `GroundNavigatorStraightHandoffTests.cs` (straight-after-arc heading release)
   - **Ground taxi**: `Simulation/GroundTaxi/OakUwFilletCornerTests.cs` (bundle replay: fillet routing + speed profiles)
-  - **Replay**: `Simulation/ReplayGeneratorStandDownTests.cs` (generators stand down unconditionally in replay/playback)
+  - **Replay**: `Simulation/ReplayGeneratorStandDownTests.cs` (generators stand down unconditionally in replay/playback), `Simulation/RunProfileTests.cs` (run profile kinds + mode flags)
   - **Route geometry guards**: `Helpers/RouteGeometryAsserts.cs` (structural: no square pivot where fillet exists)
 - **Client tests**: `tests/Yaat.Client.Tests/` — view model logic, command input
 - **UI tests**: `tests/Yaat.Client.UI.Tests/` — headless window tests for views and layout
@@ -1079,7 +1079,10 @@ SimulationEngine.Scenario.cs   # LoadScenario + ResolveGroundLayout
 SimulationEngine.Tick.cs       # The per-tick path: TickPrePhysics/TickPhysics/TickPostPhysics, the detectors, TickOneSecond/TickOnce
 SimulationEngine.Replay.cs     # Replay drivers (ReplayFromStartTo/FastForwardTo/ReplayRange/Replay/ArmReplay/ReplayOneSecond/ReplayOneSubTick)
                                # — thin delegators over Replay/ReplayDriver.cs, which owns the recorded-action cursors.
-                               # ArmReplay arms the driver against a scenario loaded by other means (the tick oracle)
+                               # ArmReplay arms the driver against a scenario loaded by other means (the tick oracle).
+                               # RunProfile (defaults to Test; hosts set it) + EnterReplay(), the scope the driver runs every step under
+RunProfile.cs                  # RunKind (Live/Replay/Test/Soak) + RunProfile: the one enumeration of what a replay may do differently —
+                               # RecordsActions / RunsGenerators / RunsControllerAi, all false only for Replay (ADR 0005). Host state, never snapshotted.
 SimulationEngine.Commands.cs   # SendCommand/DispatchAiCommand/DispatchLiveCommand/ApplyPostDispatch + WarpAircraft/AmendFlightPlan
 SimulationEngine.DeferredCommands.cs  # ProcessDeferredDispatches + triggered track blocks
 SimulationEngine.Generators.cs # Arrival/VFR/overflight generators: spawning, spacing, weight and engine selection; stand down in every replay/playback

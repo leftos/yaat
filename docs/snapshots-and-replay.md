@@ -46,6 +46,8 @@ The table lists only the steps with a data *transform*; the authoritative full c
 
 **Rule for adding a field**: if it defaults cleanly (`null` / `false` / `0`) and old data is correct under that default, **no migration step needed**. Just add it to the DTO. If old data needs transformation (rename, split, reinterpret), bump `SchemaVersion` and add a `Migrate()` step.
 
+**The run profile is not a field.** `SimulationEngine.RunProfile` (live / replay / test / soak — [tick-loop.md](tick-loop.md) § the engine's partial files) is host state: the host that drives the engine sets it, and it is never captured into or restored from a snapshot. Restoring a live snapshot into a replaying room must not make the room live.
+
 **An "on by default" scenario setting still defaults to `false` on the Sim side.** `SimScenarioState.AutoCrossRunway` and `AutoPullUpToParallel` are bare `bool`s (false), the `PhaseContext` fallback is `Scenario?.X ?? false`, and the `ScenarioSnapshotDto` field is the same. The on-by-default lives only in the client's `UserPreferences` (`AutoPullUpToParallel` defaults true there), which pushes the value to the server at scenario bootstrap (`MainViewModel.SendAutoCrossRunway` / `SendAutoPullUpToParallel`). The reason is replay fidelity: `engine.Replay(recording, t)` builds a fresh `SimScenarioState`, so a Sim-side default of `true` would switch the feature on for every recording made before it existed and diverge those replays (aircraft auto-pulling up before the recorded `TAXI`/`RES`). A new opt-out toggle mirrors this pair end to end and flips only the client default.
 
 ### Upgrading recordings on disk — surgical, never re-simulated

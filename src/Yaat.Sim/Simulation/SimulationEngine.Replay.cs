@@ -11,11 +11,38 @@ public sealed partial class SimulationEngine
     private readonly ReplayDriver _replay;
 
     /// <summary>
-    /// True while a recording is being replayed onto this engine. Read outside replay by the recorders
-    /// (which must not re-record a replayed action), by <see cref="TickControllerAi"/> (brains never run
-    /// in replay) and by the generators (the recorded spawns are the traffic, so they stand down).
+    /// What kind of run this engine is being driven as, and therefore what may differ from other runs — see
+    /// <see cref="Simulation.RunProfile"/>. A bare engine is a <see cref="RunKind.Test"/> run; a host that is
+    /// something else says so at creation, and the replay driver switches to <see cref="RunKind.Replay"/> for the
+    /// duration of each replay step through <see cref="EnterReplay"/>.
     /// </summary>
-    internal bool IsReplayingRecordedActions { get; set; }
+    public RunProfile RunProfile { get; internal set; } = RunProfile.Test;
+
+    /// <summary>
+    /// Runs the engine as a <see cref="RunKind.Replay"/> until the returned scope is disposed, then restores the
+    /// profile the engine had before. Scoped rather than latched so a test can replay a recording to a cutoff and
+    /// then tick the engine live from there — the engine returns to its own kind when the replay step ends.
+    /// </summary>
+    internal ReplayScope EnterReplay() => new(this);
+
+    /// <summary>The scope <see cref="EnterReplay"/> hands out. A struct because the sub-tick driver opens one four times a second.</summary>
+    internal readonly struct ReplayScope : IDisposable
+    {
+        private readonly SimulationEngine _engine;
+        private readonly RunProfile _previous;
+
+        internal ReplayScope(SimulationEngine engine)
+        {
+            _engine = engine;
+            _previous = engine.RunProfile;
+            engine.RunProfile = RunProfile.Replay;
+        }
+
+        public void Dispose()
+        {
+            _engine.RunProfile = _previous;
+        }
+    }
 
     /// <summary>
     /// Diagnostic per-tick timing buckets. Keyed by bucket name (e.g. "PrePhysics",

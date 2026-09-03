@@ -26,7 +26,7 @@ public sealed partial class SimulationEngine
     private void RecordGeneratedAircraftSpawn(AircraftState state)
     {
         var scenario = Scenario;
-        if (scenario is null || IsReplayingRecordedActions || scenario.IsPlaybackMode)
+        if (scenario is null || !RunProfile.RecordsActions)
         {
             return;
         }
@@ -134,13 +134,13 @@ public sealed partial class SimulationEngine
 
     /// <summary>
     /// Appends an engine-originated action (a live-traffic sample or removal, an AI-controller command) to the recording
-    /// unless the room is replaying or playing a tape. Public for the server's diagnostic actions
-    /// (<see cref="RecordedLiveTrafficStatus"/>), which have no sim-side twin.
+    /// unless the <see cref="RunProfile"/> says the log is this run's input rather than its output. Public for the
+    /// server's diagnostic actions (<see cref="RecordedLiveTrafficStatus"/>), which have no sim-side twin.
     /// </summary>
     public void RecordAction(RecordedAction action)
     {
         var scenario = Scenario;
-        if (scenario is null || IsReplayingRecordedActions || scenario.IsPlaybackMode)
+        if (scenario is null || !RunProfile.RecordsActions)
         {
             return;
         }

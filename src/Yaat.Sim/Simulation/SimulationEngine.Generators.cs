@@ -79,7 +79,7 @@ public sealed partial class SimulationEngine
     private void ProcessGenerators(List<GeneratorSpawn> generatorSpawns)
     {
         var scenario = Scenario!;
-        if (IsReplayingRecordedActions || scenario.IsPlaybackMode)
+        if (!RunProfile.RunsGenerators)
         {
             return;
         }
