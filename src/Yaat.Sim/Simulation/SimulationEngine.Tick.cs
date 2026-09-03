@@ -844,7 +844,6 @@ public sealed partial class SimulationEngine
     public void TickPostPhysics()
     {
         TickLiveTrafficRunwayUse();
-        TickPilotProactive();
         TickTransponders();
         TickVisualDetection();
 
@@ -854,6 +853,12 @@ public sealed partial class SimulationEngine
         // replay: simultaneously stale and unable to clear.
         TickConflictAlerts();
         TickEramConflictAlerts();
+
+        // After the detectors, matching the live server, where it is 14th of 32 — behind the ASDE-X and
+        // solo-training passes this path does not have. A proactive rule that reads what visual detection or
+        // conflict alerting writes therefore sees the same picture on both, which it did not when this ran
+        // second here. It still precedes the drains below, so an airborne check-in emits the tick it is produced.
+        TickPilotProactive();
 
         var warnings = World.DrainAllWarnings();
         foreach (var (callsign, warning) in warnings)
