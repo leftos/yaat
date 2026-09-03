@@ -44,15 +44,20 @@ Tick(1s)
 │       ├─ [IsShadow] LiveTrafficKinematics.Advance + airborne latch, then continue (no PreTick, no physics — live-traffic.md)
 │       ├─ PreTick → PhaseRunner.Tick   (per aircraft)
 │       └─ FlightPhysics.Update         (per aircraft, 8 steps)
-└─ PostPhysics                         (SimulationEngine.TickPostPhysics)
-    ├─ TickLiveTrafficRunwayUse        (shadow landing observer — also in the server's ProcessPostPhysics)
-    ├─ ConflictAlertDetector.Detect    (airborne)
-    ├─ PilotObservationUpdater         (already ran inside FlightPhysics)
-    ├─ drain warnings / notifications / pilot readbacks → terminal
-    └─ DetectChanges + BroadcastTrainingUpdates
+└─ PostPhysics                         (SimulationEngine.TickPostPhysics — 13 steps, in this order)
+    ├─ TickLiveTrafficRunwayUse        (shadow landing observer)
+    ├─ TickTransponders
+    ├─ TickVisualDetection
+    ├─ TickConflictAlerts              (terminal CA)
+    ├─ TickEramConflictAlerts          (en-route STCA)
+    ├─ TickPilotProactive              (after the detectors, matching live)
+    └─ the six world-buffer drains, in live's order:
+        warnings → notifications → pilot speech → readbacks → transmissions → approach scores → strip dispatches
 ```
 
 The 4 sub-ticks give physics 0.25-second resolution while keeping all broadcasts on a 1-second cadence. `PhysicsSubTickRate = 4` is the constant.
+
+The drain order, and the strip dispatches sitting last, are pinned by `PostPhysicsDrainOrderTests`. Nothing else can see them: the oracle compares `StateSnapshotDto`, which holds neither terminal entries nor room-owned strip state, and the full suite passed byte-identically either way before that test existed. `TickPilotProactive`'s position relative to the detectors is *not* pinned by anything yet — no proactive rule reads what the detectors write, so it has no observable until 3c's step trace exists.
 
 ### The server runs its own PostPhysics
 
