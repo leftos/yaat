@@ -1069,6 +1069,19 @@ SimulationEngine.cs            # Scenario load, tick orchestration, replay (Repl
                                # spawn, removes) — the live server and replay both route through it.
                                # TerminalEntryEmitted event fires for every terminal entry (command echoes, preset outcomes, warnings) so
                                # subscribers react as entries happen instead of polling DrainTerminalEntries (issue #396)
+                               # Split across partial files by cluster (ownership map: tick-loop.md § the engine's partial files).
+                               # SimulationEngine.cs itself keeps engine state, the lifecycle events and the terminal-entry sink.
+SimulationEngine.Snapshots.cs  # CaptureSnapshot/RestoreFromSnapshot + the server's slice (CaptureServerSnapshot/RestoreServerSnapshot)
+SimulationEngine.Scenario.cs   # LoadScenario + ResolveGroundLayout
+SimulationEngine.Tick.cs       # The per-tick path: TickPrePhysics/TickPhysics/TickPostPhysics, the detectors, TickOneSecond/TickOnce
+SimulationEngine.Replay.cs     # Replay drivers: ReplayFromStartTo/FastForwardTo/ReplayRange/Replay/ReplayOneSecond/ReplayOneSubTick
+SimulationEngine.Commands.cs   # SendCommand/DispatchAiCommand/DispatchLiveCommand/ApplyPostDispatch + WarpAircraft/AmendFlightPlan
+SimulationEngine.DeferredCommands.cs  # ProcessDeferredDispatches + triggered track blocks
+SimulationEngine.Generators.cs # Arrival/VFR/overflight generators: spawning, spacing, weight and engine selection
+SimulationEngine.Presets.cs    # Release queue, timers, timed presets, triggers, global commands
+SimulationEngine.LiveTraffic.cs  # Shadow samples, beacon tracking, runway-use latching
+SimulationEngine.Recording.cs  # RecordAction + applying recorded actions back onto the world
+SimulationEngine.ReplayCommands.cs  # ReplayCommand + the setting/generator/weather appliers it routes to
 SimScenarioState.cs            # Per-scenario runtime state: queues, settings, ATC positions, coordination, ArtccConfig (loaded from bundle on replay), LiveTrafficFilter (carried from room settings),
                                # MagneticModelDateUtc (the WMM evaluation day: today for a live load, the recorded day for a replay; snapshotted + in the recording manifest),
                                # AiStaffedPositions (published by the AI host; never snapshotted) + PilotContacts (memoized PilotContactRoster) + IsAiStaffed

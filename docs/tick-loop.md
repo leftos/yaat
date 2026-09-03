@@ -2,6 +2,25 @@
 
 > Read this before changing anything that runs every sim-second: `SimulationEngine`, `RoomEngine` (yaat-server), `FlightPhysics`, `PhaseRunner`, `TickProcessor`, conflict detectors, or broadcast services. The order of operations matters.
 
+## The engine's partial files
+
+`SimulationEngine` is split across partial files by cluster, following the `MainViewModel` precedent in [client-mainviewmodel.md](client-mainviewmodel.md). The split is purely organizational — they compile into one class, so a private field declared in `SimulationEngine.cs` is visible from `SimulationEngine.Tick.cs`. Use this to find the right file; nothing about the split changes behaviour or the public surface.
+
+| File | Owns |
+|---|---|
+| `SimulationEngine.cs` | Engine state (`World`, `Scenario`, the evaluators and pools), the lifecycle events (`TickCompleted`, `WarningEmitted`, `PilotSpeechEmitted`, `StripDispatchRequested`, `TerminalEntryEmitted`) and their `Fire*` helpers, the constructor, `FindAircraft`, `DeleteAircraft`, and the terminal-entry sink every other partial writes to. |
+| `SimulationEngine.Snapshots.cs` | `CaptureSnapshot` / `RestoreFromSnapshot` and the server's slice (`CaptureServerSnapshot` / `RestoreServerSnapshot`). |
+| `SimulationEngine.Scenario.cs` | `LoadScenario` and `ResolveGroundLayout`. |
+| `SimulationEngine.Tick.cs` | **The per-tick path** — `TickPrePhysics`, `TickPhysics`, `TickPostPhysics`, the detectors (`TickVisualDetection`, `TickConflictAlerts`, `TickEramConflictAlerts`, `TickTransponders`, `TickAutoDelete`, `TickSoloTrainingEvaluation`), `TickControllerAi`, and the whole-second entry points `TickOneSecond` / `TickOnce`. This is the file the ordering in this doc describes. |
+| `SimulationEngine.Replay.cs` | Replay drivers — `ReplayFromStartTo`, `FastForwardTo`, `ReplayRange`, `Replay`, `ReplayOneSecond`, `ReplayOneSubTick`. |
+| `SimulationEngine.Commands.cs` | `SendCommand`, `DispatchAiCommand`, `DispatchLiveCommand`, `ApplyPostDispatch`, and the aircraft mutations commands drive (`WarpAircraft`, `AmendFlightPlan`, `RequestNewBeaconCode`). |
+| `SimulationEngine.DeferredCommands.cs` | Commands held until a trigger fires: `ProcessDeferredDispatches` and the triggered track blocks. |
+| `SimulationEngine.Generators.cs` | Arrival, VFR and overflight generators — spawning, in-trail spacing, weight and engine selection. |
+| `SimulationEngine.Presets.cs` | Scenario-authored timing: the release queue, timers, timed presets, triggers, global commands. |
+| `SimulationEngine.LiveTraffic.cs` | Shadow aircraft from the live feed — samples, beacon tracking, runway-use latching. |
+| `SimulationEngine.Recording.cs` | `RecordAction` and applying recorded actions back onto the world. |
+| `SimulationEngine.ReplayCommands.cs` | `ReplayCommand` and the setting / generator / weather appliers it routes to. |
+
 ## Where the tick comes from
 
 The **server** drives the simulation. `SimulationHostedService` runs a `PeriodicTimer` at 1 Hz wall-clock; for each non-paused room it fires one tick per second. The client does **not** run physics — it receives broadcast snapshots and animates between them ([tick-animator.md](tick-animator.md)).
