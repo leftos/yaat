@@ -1,5 +1,7 @@
 #!/usr/bin/env pwsh
 # Builds and runs the full test suites for both yaat and yaat-server repos.
+# The two builds run in sequence; the two test suites then run in parallel, and each
+# suite's output is printed whole, in a fixed order, once both have finished.
 # Usage:
 #   pwsh tools/test-all.ps1                                        # Release (default — ~30% faster on Sim)
 #   pwsh tools/test-all.ps1 -Full                                  # Also run the heavy Nightly + PathfinderGrid sweeps
@@ -91,6 +93,64 @@ function Stop-OnBuildFailure {
     exit 1
 }
 
+# The two test suites run concurrently; the builds above do not, and must not. `yaat.slnx`
+# already contains the server project, which is why building yaat-server afterwards costs a
+# few seconds rather than a full compile — two MSBuild processes over the same obj/ trees
+# would race for the same intermediates.
+#
+# Output is captured per job and printed in a fixed order once both finish, rather than
+# streamed. Interleaved output from two suites is unreadable exactly when it matters, and the
+# whole run is short enough that live progress is worth less than a legible failure.
+#
+# Both suites share %LOCALAPPDATA%/yaat, deliberately. They only write to it when the navdata
+# or CIFP cache is stale — once per AIRAC cycle — and the loser of that race fails to open the
+# file, catches, and falls back to the bundled TestData copies. Giving each job its own
+# YAAT_APPDATA_DIR would trade that rare, self-healing window for a cold cache on every run.
+function Start-TestJob {
+    param([string]$WorkDir, [string]$Command)
+    Start-Job -ScriptBlock {
+        param($workDir, $command)
+        Set-Location $workDir
+        $output = Invoke-Expression $command 2>&1 | Out-String -Stream
+        [pscustomobject]@{
+            Output   = $output
+            ExitCode = if ($null -eq $LASTEXITCODE) { 0 } else { $LASTEXITCODE }
+        }
+    } -ArgumentList $WorkDir, $Command
+}
+
+# Prints one finished job's captured output and folds its result into $script:failed.
+function Complete-TestJob {
+    param([string]$Label, $Job)
+    Write-Host "`n=== $Label ===" -ForegroundColor Cyan
+
+    $result = $null
+    try {
+        $result = Receive-Job -Job $Job -ErrorAction Stop
+    } catch {
+        Write-Host $_ -ForegroundColor Red
+    } finally {
+        Remove-Job -Job $Job -Force
+    }
+
+    # A job that died without returning its result object is a failure however it reads:
+    # treat a missing verdict as one rather than letting the run go green on no evidence.
+    if ($null -eq $result) {
+        Write-Host "FAILED: $Label (the test job produced no result)" -ForegroundColor Red
+        $script:failed = $true
+        return
+    }
+
+    $result.Output | Out-Host
+    if ($result.ExitCode -ne 0) {
+        Write-Host "FAILED: $Label" -ForegroundColor Red
+        $script:failed = $true
+        return
+    }
+
+    Write-Host "OK: $Label" -ForegroundColor Green
+}
+
 # Exclude the heavy gated-by-intent categories unless -Full. `--filter-not-trait`
 # only drops tests explicitly tagged Nightly or PathfinderGrid; untagged tests
 # still run. Test options follow the `--` separator (Microsoft.Testing.Platform
@@ -115,8 +175,14 @@ if (-not (Run-Step 'Build yaat' $yaatDir "dotnet build yaat.slnx -c $Config -p:T
 if (-not (Run-Step 'Build yaat-server' $serverDir "dotnet build yaat-server.slnx -c $Config -p:TreatWarningsAsErrors=true")) {
     Stop-OnBuildFailure 'Build yaat-server'
 }
-$null = Run-Step 'Test yaat' $yaatDir "dotnet test yaat.slnx -c $Config --no-build $testFilter"
-$null = Run-Step 'Test yaat-server' $serverDir "dotnet test yaat-server.slnx -c $Config --no-build $testFilter"
+Write-Host "`nRunning both test suites in parallel..." -ForegroundColor Cyan
+$yaatTests = Start-TestJob $yaatDir "dotnet test yaat.slnx -c $Config --no-build $testFilter"
+$serverTests = Start-TestJob $serverDir "dotnet test yaat-server.slnx -c $Config --no-build $testFilter"
+
+$null = Wait-Job -Job $yaatTests, $serverTests
+
+Complete-TestJob 'Test yaat' $yaatTests
+Complete-TestJob 'Test yaat-server' $serverTests
 
 Write-Host ''
 if ($failed) {
