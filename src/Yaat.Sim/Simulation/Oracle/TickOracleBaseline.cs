@@ -1,4 +1,5 @@
 using System.Text;
+using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
@@ -30,15 +31,22 @@ public sealed class TickOracleBaselineEntry
 public sealed class TickOracleBaseline
 {
     /// <summary>
-    /// <c>NewLine</c> is pinned to LF rather than left at the platform default. A baseline is a checked-in file that
-    /// is regenerated on Windows and read as a diff: with CRLF, every regeneration leaves every baseline showing as
-    /// modified in <c>git status</c> while <c>git diff</c> shows nothing, because git normalizes and status does not.
-    /// A guard whose artefact always looks dirty trains the reader to ignore it looking dirty.
+    /// Both of these exist so a regeneration that found nothing new rewrites the file byte-for-byte identically.
+    /// A baseline is a checked-in artefact read as a diff, and a guard whose file always looks dirty trains its
+    /// reader to ignore it looking dirty.
+    ///
+    /// <c>NewLine</c> is pinned to LF rather than the platform default: with CRLF, every regeneration on Windows
+    /// leaves every baseline modified in <c>git status</c> while <c>git diff</c> shows nothing, because git
+    /// normalizes and status does not. The relaxed <c>Encoder</c> stops the strict default emitting plus signs and
+    /// apostrophes as numeric escapes inside the attribution notes — those notes are prose, written and read by
+    /// people, and the escapes churned the file whenever a note was edited by anything but this serializer.
+    /// Nothing here is ever embedded in HTML, which is what the strict default guards against.
     /// </summary>
     private static readonly JsonSerializerOptions FileOptions = new()
     {
         WriteIndented = true,
         NewLine = "\n",
+        Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
         DefaultIgnoreCondition = JsonIgnoreCondition.Never,
     };
 
