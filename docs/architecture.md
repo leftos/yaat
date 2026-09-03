@@ -1074,8 +1074,9 @@ SimulationEngine.cs            # Scenario load, tick orchestration, replay (Repl
 SimulationEngine.Snapshots.cs  # CaptureSnapshot/RestoreFromSnapshot + the server's slice (CaptureServerSnapshot/RestoreServerSnapshot)
 SimulationEngine.Scenario.cs   # LoadScenario + ResolveGroundLayout
 SimulationEngine.Tick.cs       # The per-tick path: TickPrePhysics/TickPhysics/TickPostPhysics, the detectors, TickOneSecond/TickOnce
-SimulationEngine.Replay.cs     # Replay drivers (ReplayFromStartTo/FastForwardTo/ReplayRange/Replay/ReplayOneSecond/ReplayOneSubTick)
-                               # — thin delegators over Replay/ReplayDriver.cs, which owns the recorded-action cursors
+SimulationEngine.Replay.cs     # Replay drivers (ReplayFromStartTo/FastForwardTo/ReplayRange/Replay/ArmReplay/ReplayOneSecond/ReplayOneSubTick)
+                               # — thin delegators over Replay/ReplayDriver.cs, which owns the recorded-action cursors.
+                               # ArmReplay arms the driver against a scenario loaded by other means (the tick oracle)
 SimulationEngine.Commands.cs   # SendCommand/DispatchAiCommand/DispatchLiveCommand/ApplyPostDispatch + WarpAircraft/AmendFlightPlan
 SimulationEngine.DeferredCommands.cs  # ProcessDeferredDispatches + triggered track blocks
 SimulationEngine.Generators.cs # Arrival/VFR/overflight generators: spawning, spacing, weight and engine selection

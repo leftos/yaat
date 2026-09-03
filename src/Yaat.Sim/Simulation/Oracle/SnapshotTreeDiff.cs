@@ -51,6 +51,14 @@ public static class SnapshotTreeDiff
     public static IReadOnlyList<SnapshotDivergence> Compare(StateSnapshotDto left, StateSnapshotDto right) =>
         CompareNodes(ToNode(left, "left"), ToNode(right, "right"));
 
+    /// <summary>
+    /// Serializes one capture into the tree <see cref="CompareNodes"/> walks. Public because a sweep that compares
+    /// one run against several others serializes the shared side once per second rather than once per pair, and
+    /// because holding a node is far cheaper than holding the DTO graph it came from.
+    /// </summary>
+    /// <param name="side">Named in the failure message if the capture cannot be serialized, e.g. "live".</param>
+    public static JsonNode? ToComparableNode(StateSnapshotDto snapshot, string side) => ToNode(snapshot, side);
+
     /// <summary>Compares two already-serialized trees. The entry point the comparator's own tests drive.</summary>
     public static IReadOnlyList<SnapshotDivergence> CompareNodes(JsonNode? left, JsonNode? right)
     {

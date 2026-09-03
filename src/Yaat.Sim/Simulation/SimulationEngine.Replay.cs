@@ -125,9 +125,25 @@ public sealed partial class SimulationEngine
     }
 
     /// <summary>
+    /// Arms the replay driver against a scenario that was loaded by something other than a recording, with the
+    /// cursors positioned at the engine's current second. <see cref="ReplayOneSecond"/> is a no-op until a driver
+    /// is armed, and the usual way to arm one is <see cref="Replay"/>, which loads the scenario from the recording
+    /// itself.
+    ///
+    /// The tick oracle needs the other order. It compares run kinds, so the scenario load must not be a variable:
+    /// every room is loaded identically through the server's own scenario load, and only the per-second stepping
+    /// differs. Arming afterwards is what lets the replay room be built that way.
+    /// </summary>
+    public void ArmReplay(List<RecordedAction> actions)
+    {
+        var scenario = Scenario ?? throw new InvalidOperationException("ArmReplay requires a loaded scenario");
+        _replay.Arm(actions, (int)scenario.ElapsedSeconds);
+    }
+
+    /// <summary>
     /// Advances the replay by one second: ticks physics, applies any recorded
     /// actions at the new time, and advances weather. Call after <see cref="Replay"/>
-    /// to continue the recording second-by-second while inspecting state between ticks.
+    /// or <see cref="ArmReplay"/> to continue the recording second-by-second while inspecting state between ticks.
     /// </summary>
     public void ReplayOneSecond()
     {

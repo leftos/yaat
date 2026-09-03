@@ -71,7 +71,7 @@ internal sealed class ReplayDriver(SimulationEngine engine)
     }
 
     /// <summary>Arms the driver with an action log and positions the cursors at <paramref name="seconds"/>.</summary>
-    private void Arm(List<RecordedAction> actions, int seconds)
+    public void Arm(List<RecordedAction> actions, int seconds)
     {
         _actions = actions;
         _engine.ReplayHasRecordedAircraftSpawns = actions.Any(static a => a is RecordedAircraftSpawn);

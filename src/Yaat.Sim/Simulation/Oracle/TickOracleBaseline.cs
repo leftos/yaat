@@ -29,7 +29,18 @@ public sealed class TickOracleBaselineEntry
 /// </summary>
 public sealed class TickOracleBaseline
 {
-    private static readonly JsonSerializerOptions FileOptions = new() { WriteIndented = true, DefaultIgnoreCondition = JsonIgnoreCondition.Never };
+    /// <summary>
+    /// <c>NewLine</c> is pinned to LF rather than left at the platform default. A baseline is a checked-in file that
+    /// is regenerated on Windows and read as a diff: with CRLF, every regeneration leaves every baseline showing as
+    /// modified in <c>git status</c> while <c>git diff</c> shows nothing, because git normalizes and status does not.
+    /// A guard whose artefact always looks dirty trains the reader to ignore it looking dirty.
+    /// </summary>
+    private static readonly JsonSerializerOptions FileOptions = new()
+    {
+        WriteIndented = true,
+        NewLine = "\n",
+        DefaultIgnoreCondition = JsonIgnoreCondition.Never,
+    };
 
     public string Comparison { get; init; } = "";
 
@@ -75,7 +86,7 @@ public sealed class TickOracleBaseline
                 .ToList(),
         };
 
-        return JsonSerializer.Serialize(regenerated, FileOptions) + Environment.NewLine;
+        return JsonSerializer.Serialize(regenerated, FileOptions) + "\n";
     }
 
     /// <summary>
