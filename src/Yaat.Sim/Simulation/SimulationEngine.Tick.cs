@@ -866,12 +866,6 @@ public sealed partial class SimulationEngine
             FireWarningEmitted(callsign, warning);
         }
 
-        var stripDispatches = World.DrainAllStripDispatches();
-        foreach (var (callsign, command) in stripDispatches)
-        {
-            FireStripDispatchRequested(callsign, command);
-        }
-
         var notifications = World.DrainAllNotifications();
         foreach (var (callsign, notification) in notifications)
         {
@@ -912,6 +906,16 @@ public sealed partial class SimulationEngine
         }
 
         World.DrainAllApproachScores();
+
+        // Last, as on the live server, where it sits immediately before AutoDelete so a strip command's
+        // callsign still resolves on the tick it fires. That constraint is vacuous here — TickPostPhysics
+        // has no delete sweep — but it is the position the spine will need once it carries one, and the
+        // gap between the two paths was 8th versus 27th of 32.
+        var stripDispatches = World.DrainAllStripDispatches();
+        foreach (var (callsign, command) in stripDispatches)
+        {
+            FireStripDispatchRequested(callsign, command);
+        }
     }
 
     /// <summary>
