@@ -13,16 +13,9 @@ public sealed partial class SimulationEngine
     /// <summary>
     /// True while a recording is being replayed onto this engine. Read outside replay by the recorders
     /// (which must not re-record a replayed action), by <see cref="TickControllerAi"/> (brains never run
-    /// in replay) and by the generators (which must not re-spawn what the log already carries).
+    /// in replay) and by the generators (the recorded spawns are the traffic, so they stand down).
     /// </summary>
     internal bool IsReplayingRecordedActions { get; set; }
-
-    /// <summary>
-    /// Whether the recording being replayed carries its own aircraft spawns, so the generators must
-    /// stand down rather than produce a second set. Only meaningful while
-    /// <see cref="IsReplayingRecordedActions"/> is true.
-    /// </summary>
-    internal bool ReplayHasRecordedAircraftSpawns { get; set; }
 
     /// <summary>
     /// Diagnostic per-tick timing buckets. Keyed by bucket name (e.g. "PrePhysics",

@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+- Replaying or playing back a recording whose generators never fired no longer invents generator traffic the session never had.
+
 ## v0.12.25-beta [2026/09/02]
 
 ### Highlights

@@ -13,9 +13,9 @@ namespace Yaat.Sim.Simulation.Replay;
 /// advanced, and which actions a pre-tick pass already applied so the main pass does not repeat them.
 ///
 /// That cursor state is the whole reason this is a separate object. It is meaningful only while a
-/// recording is being replayed, whereas the two replay <em>mode</em> flags stay on the engine because
-/// four members outside replay read them to decide whether they may record an action or run an AI
-/// brain — those describe the engine's mode, not this driver's bookkeeping.
+/// recording is being replayed, whereas the replay <em>mode</em> flag stays on the engine because
+/// members outside replay read it to decide whether they may record an action, spawn generated traffic
+/// or run an AI brain — that describes the engine's mode, not this driver's bookkeeping.
 ///
 /// The engine exposes every driver method as its own, so no caller names this type.
 /// </summary>
@@ -74,7 +74,6 @@ internal sealed class ReplayDriver(SimulationEngine engine)
     public void Arm(List<RecordedAction> actions, int seconds)
     {
         _actions = actions;
-        _engine.ReplayHasRecordedAircraftSpawns = actions.Any(static a => a is RecordedAircraftSpawn);
         SeekTo(seconds);
     }
 
@@ -136,9 +135,7 @@ internal sealed class ReplayDriver(SimulationEngine engine)
         }
         actionApplier ??= _engine.ApplyRecordedAction;
         bool previousReplayState = _engine.IsReplayingRecordedActions;
-        bool previousReplaySpawnState = _engine.ReplayHasRecordedAircraftSpawns;
         _engine.IsReplayingRecordedActions = true;
-        _engine.ReplayHasRecordedAircraftSpawns = actions.Any(static a => a is RecordedAircraftSpawn);
 
         try
         {
@@ -258,7 +255,6 @@ internal sealed class ReplayDriver(SimulationEngine engine)
         finally
         {
             _engine.IsReplayingRecordedActions = previousReplayState;
-            _engine.ReplayHasRecordedAircraftSpawns = previousReplaySpawnState;
         }
     }
 

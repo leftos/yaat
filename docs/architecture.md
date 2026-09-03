@@ -77,6 +77,7 @@ The Task Index above tells you *which files*; these docs explain *how each subsy
   - **Pathfinding**: `Pathfinding/FilletCornerRoutingTests.cs` (fillet arc vs square-pivot routing), `Pathfinding/AutoRouterPruningTests.cs` (A* pruning via arrival taxiway), `Pathfinding/ArcRadiusFloorAdmissibilityTests.cs` (steerable radius floor)
   - **Fillet arc speed**: `Fillet/GroundArcSpeedProfileTests.cs` (local-curvature arc speed), `GroundNavigatorArcSpeedProfileTests.cs` (navigator speed profile application), `GroundNavigatorStraightHandoffTests.cs` (straight-after-arc heading release)
   - **Ground taxi**: `Simulation/GroundTaxi/OakUwFilletCornerTests.cs` (bundle replay: fillet routing + speed profiles)
+  - **Replay**: `Simulation/ReplayGeneratorStandDownTests.cs` (generators stand down unconditionally in replay/playback)
   - **Route geometry guards**: `Helpers/RouteGeometryAsserts.cs` (structural: no square pivot where fillet exists)
 - **Client tests**: `tests/Yaat.Client.Tests/` — view model logic, command input
 - **UI tests**: `tests/Yaat.Client.UI.Tests/` — headless window tests for views and layout
@@ -1081,7 +1082,7 @@ SimulationEngine.Replay.cs     # Replay drivers (ReplayFromStartTo/FastForwardTo
                                # ArmReplay arms the driver against a scenario loaded by other means (the tick oracle)
 SimulationEngine.Commands.cs   # SendCommand/DispatchAiCommand/DispatchLiveCommand/ApplyPostDispatch + WarpAircraft/AmendFlightPlan
 SimulationEngine.DeferredCommands.cs  # ProcessDeferredDispatches + triggered track blocks
-SimulationEngine.Generators.cs # Arrival/VFR/overflight generators: spawning, spacing, weight and engine selection
+SimulationEngine.Generators.cs # Arrival/VFR/overflight generators: spawning, spacing, weight and engine selection; stand down in every replay/playback
 SimulationEngine.Presets.cs    # Release queue, timers, timed presets, triggers, global commands
 SimulationEngine.LiveTraffic.cs  # Shadow samples, beacon tracking, runway-use latching
 SimulationEngine.Recording.cs  # RecordAction + applying recorded actions back onto the world

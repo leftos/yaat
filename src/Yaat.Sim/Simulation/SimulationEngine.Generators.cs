@@ -79,10 +79,7 @@ public sealed partial class SimulationEngine
     private void ProcessGenerators(List<GeneratorSpawn> generatorSpawns)
     {
         var scenario = Scenario!;
-        if (
-            (IsReplayingRecordedActions && ReplayHasRecordedAircraftSpawns)
-            || (scenario.IsPlaybackMode && scenario.ActionLog.Any(static a => a is RecordedAircraftSpawn))
-        )
+        if (IsReplayingRecordedActions || scenario.IsPlaybackMode)
         {
             return;
         }
