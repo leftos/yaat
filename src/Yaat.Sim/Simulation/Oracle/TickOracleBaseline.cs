@@ -115,11 +115,22 @@ public sealed record TickOracleComparison(
 
     public bool IsClean => Added.Count == 0 && Removed.Count == 0 && !FirstDivergenceRegressed;
 
-    /// <summary>A failure message that says what changed and what to do about it.</summary>
-    public string Describe(string rebaselineVariable)
+    /// <summary>
+    /// A failure message that says what changed and what to do about it, for the pair named by
+    /// <paramref name="comparison"/> (e.g. "live vs replay").
+    ///
+    /// The two directions are deliberately not written symmetrically. A <em>new</em> divergence is self-evidently
+    /// something to investigate. A <em>vanished</em> one reads like good news and is usually not: during
+    /// behaviour-preserving work the likeliest way a divergence disappears is that a path lost the step that produced
+    /// it, so a message that framed the shrink as progress and offered the rebaseline command would hand the reader a
+    /// one-liner that banks the regression as expected state. The shrink branch therefore asks for the cause and does
+    /// not carry the command. Retiring an entry deliberately is still fine — that is what step 5 of the tick work is —
+    /// it just has to be something the developer can name first.
+    /// </summary>
+    public string Describe(string comparison, string rebaselineVariable)
     {
         var message = new StringBuilder();
-        message.AppendLine("The live and engine tick paths no longer diverge exactly as recorded in the oracle baseline.");
+        message.AppendLine($"The {comparison} run kinds no longer diverge exactly as recorded in the oracle baseline.");
 
         if (Added.Count > 0)
         {
@@ -132,7 +143,13 @@ public sealed record TickOracleComparison(
 
         if (Removed.Count > 0)
         {
-            message.AppendLine().AppendLine($"{Removed.Count} divergence path(s) GONE — if that was the intent, re-baseline to bank it:");
+            message
+                .AppendLine()
+                .AppendLine(
+                    $"{Removed.Count} divergence path(s) GONE. Read this as a regression until proven otherwise: the "
+                        + "likeliest cause is that one path lost the step that produced the divergence, and banking that would "
+                        + "make the lost step the new expected state. Name what retired each one before re-baselining:"
+                );
             foreach (var path in Removed)
             {
                 message.AppendLine($"  - {path}");
@@ -149,7 +166,17 @@ public sealed record TickOracleComparison(
                 );
         }
 
-        message.AppendLine().AppendLine($"Re-baseline deliberately with {rebaselineVariable}=1, then review the file diff before committing it.");
+        // Offered only where accepting the diff is a plausible response. A pure shrink is handled above, on purpose.
+        if (Added.Count > 0 || FirstDivergenceRegressed)
+        {
+            message
+                .AppendLine()
+                .AppendLine(
+                    $"Once every path above is attributed to a named cause, re-baseline deliberately with "
+                        + $"{rebaselineVariable}=1, then review the file diff before committing it."
+                );
+        }
+
         return message.ToString();
     }
 }

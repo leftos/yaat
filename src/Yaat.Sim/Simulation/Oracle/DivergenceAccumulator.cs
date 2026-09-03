@@ -12,8 +12,14 @@ public sealed record DivergenceSummaryEntry(string Path, int FirstSecond, IReadO
 /// every field of every later second for that aircraft; keyed by concrete path the result grows with seconds ×
 /// aircraft × fields, keyed by normalized path it is bounded by the snapshot's field count and stays a list a person
 /// can read and retire entry by entry.
+///
+/// <paramref name="leftLabel"/> and <paramref name="rightLabel"/> name the two run kinds being compared — they are
+/// what an example line reads as, so a report says which side held which value. Required rather than defaulted to
+/// "left"/"right": the oracle runs several pairs, and an unlabelled example is unreadable in the one place it matters.
 /// </summary>
-public sealed class DivergenceAccumulator
+/// <param name="leftLabel">Name of the run kind supplying <see cref="SnapshotDivergence.Left"/>, e.g. "live".</param>
+/// <param name="rightLabel">Name of the run kind supplying <see cref="SnapshotDivergence.Right"/>, e.g. "replay".</param>
+public sealed class DivergenceAccumulator(string leftLabel, string rightLabel)
 {
     /// <summary>Concrete instances kept per path — enough to recognise the shape, not enough to bloat the report.</summary>
     public const int MaxExamplesPerPath = 3;
@@ -51,7 +57,7 @@ public sealed class DivergenceAccumulator
 
             if (entry.Examples.Count < MaxExamplesPerPath)
             {
-                entry.Examples.Add($"t={elapsedSeconds} {divergence.Path}: live={divergence.Left} test={divergence.Right}");
+                entry.Examples.Add($"t={elapsedSeconds} {divergence.Path}: {leftLabel}={divergence.Left} {rightLabel}={divergence.Right}");
             }
         }
     }
