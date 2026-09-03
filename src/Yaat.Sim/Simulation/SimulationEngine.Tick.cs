@@ -878,12 +878,9 @@ public sealed partial class SimulationEngine
             EmitTerminal("Response", callsign, notification);
         }
 
-        var readbacks = World.DrainAllPilotReadbacks();
-        foreach (var (callsign, readback) in readbacks)
-        {
-            EmitTerminal("SayReadback", callsign, readback);
-        }
-
+        // Speech before readbacks, the live server's order. The two are independent buffers feeding one
+        // terminal stream, so the only thing their order decides is how a tick's lines read back.
+        //
         // The one buffer this path used to leave un-drained. Phases and handlers that run under replay
         // produce into it, so without this it grows for the whole session and any assertion against
         // PendingPilotSpeech matches a line from an arbitrarily earlier tick.
@@ -892,6 +889,12 @@ public sealed partial class SimulationEngine
         {
             EmitTerminal("PilotSpeech", callsign, speech);
             FirePilotSpeechEmitted(callsign, speech);
+        }
+
+        var readbacks = World.DrainAllPilotReadbacks();
+        foreach (var (callsign, readback) in readbacks)
+        {
+            EmitTerminal("SayReadback", callsign, readback);
         }
 
         // Pilot transmissions are addressed to whoever answers pilots — the solo student or an AI position; with nobody
