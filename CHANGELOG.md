@@ -4,6 +4,7 @@
 
 ### Fixed
 - Replaying or playing back a recording whose generators never fired no longer invents generator traffic the session never had.
+- Replaying a recording no longer raises conflict alerts on aircraft established on final that the live session correctly stayed quiet about. Approach-corridor suppression was configured per host, so only the live server had it.
 
 ## v0.12.25-beta [2026/09/02]
 
