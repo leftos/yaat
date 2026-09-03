@@ -2,25 +2,11 @@
 
 ## Project Overview
 
-**YAAT (Yet Another ATC Trainer)** — the instructor/RPO desktop client for VATSIM air traffic
-control training. An instructor drives simulated aircraft, issuing the same clearances a real pilot
-would receive, while the student works a live CRC scope that behaves as it does on the network. A
-shared simulation library owns all the aviation logic;
-[yaat-server](https://github.com/leftos/yaat-server) hosts training rooms and speaks CRC's own wire
-protocol (SignalR + MessagePack), so the student's radar, data blocks, handoffs and flight strips
-are the real thing. Scenarios are ATCTrainer JSON, used directly via the vNAS data-api.
-
-It also runs solo: pilot AI answers calls, reads back clearances and speaks over TTS, so a
-student authorized by their mentor can practice a position without anyone else online.
-
-**Core Value:** Providing instructors, mentors, and RPOs the tools they need to give VATSIM controller
-students an immersive, realistic training experience — while working toward students
-having immersive solo training experiences as well, when authorized by their mentor to
-practice solo.
+**YAAT (Yet Another ATC Trainer)** — the instructor/RPO desktop client for VATSIM air traffic control training; `yaat-server` hosts the rooms and speaks CRC's wire protocol. Product framing lives in `README.md`.
 
 ### Constraints
 
-- **Tech stack**: .NET 10, C# (nullable, implicit usings), Avalonia UI 12.1.0, CommunityToolkit.Mvvm, SignalR, MessagePack for CRC — `Yaat.Sim` has no UI dependencies
+- **Tech stack**: .NET 10, C# (nullable, implicit usings), Avalonia UI 12.1.0, CommunityToolkit.Mvvm, SignalR, MessagePack for CRC — `Yaat.Sim` has no UI dependencies; SkiaSharp arrives transitively via `Avalonia.Skia`, never as a direct package reference
 - **Aviation accuracy**: every change touching aviation logic is reviewed by `aviation-sim-expert` against FAA 7110.65 / AIM, read from the local references — never web search
 - **TDD**: failing test first for bug fixes and sim changes; real navdata in tests, never synthetic stubs
 - **Determinism**: recordings must replay exactly; AI brains never run in replay, and the same seed reproduces byte-for-byte
@@ -50,19 +36,11 @@ qodana scan --results-dir .tmp/qodana-results           # Static analysis (local
 
 ## Layout Inspector Tool
 
-`tools/Yaat.LayoutInspector/` loads an airport GeoJSON and queries the ground graph, renders interactive HTML maps, and analyzes per-tick CSVs from `TickRecorder`. Use it to understand airport topology when debugging ground/exit/taxi bugs, and to inspect aircraft trajectories after a failing test writes a tick CSV.
-
-**Invoke the `layout-inspect` skill instead of composing CLI invocations by hand** — it carries the current flag reference, so you don't re-derive syntax from memory or work from a stale copy of it. Flag-level docs live in [`tools/Yaat.LayoutInspector/CLAUDE.md`](tools/Yaat.LayoutInspector/CLAUDE.md); worked examples in [`docs/e2e-tdd-issue-debugging.md`](docs/e2e-tdd-issue-debugging.md).
-
-Typical questions it answers: trace multi-hop exit paths (`--bfs`), find all exits from a runway (`--exits`), inspect node connectivity (`--node`), verify hold-short runway IDs (`--runway`), measure along-graph distance and per-leg bearings (`--path-distance`), resolve an explicit taxi route with a diagnostic trace (`--pathfinder`), dump the airport to JSON for grepping (`--dump`), overlay or tabulate a recorded trajectory against a runway reference (`--html --ticks`, `--tick-table --tick-ref`).
+`tools/Yaat.LayoutInspector/` queries an airport's ground graph, renders interactive HTML maps, and analyzes per-tick CSVs from `TickRecorder` — the tool for ground/exit/taxi topology questions and for inspecting a failing test's trajectory. **Invoke the `layout-inspect` skill instead of composing CLI invocations by hand** — it carries the current flag reference. Flag-level docs: [`tools/Yaat.LayoutInspector/CLAUDE.md`](tools/Yaat.LayoutInspector/CLAUDE.md); worked examples: [`docs/e2e-tdd-issue-debugging.md`](docs/e2e-tdd-issue-debugging.md).
 
 ## Bug Bundle Tool
 
-`tools/bug_bundle.py` inspects, extracts, installs, and validates v4 bug bundles (`*.yaat-bug-report-bundle.zip`, `*-recording.zip`). Requires `brotli` (`pip install brotli`). Use it whenever a bundle is attached to an issue — faster than throwaway C# or unzipping by hand.
-
-When a `.yaat-bug-report-bundle.zip` or `*-recording.zip` path (or any bundle-shaped filename) appears in user input, **invoke the `bug-bundle` skill before running any subcommand** — it carries the full reference so you don't re-derive syntax from memory. For single-aircraft triage start with `history --callsign X` (replaces 5+ targeted `snapshot --at` calls with one chronological view).
-
-Subcommands: `info`, `snapshot`, `track`, `proximity`, `actions`, `history`, `live-status`, `phases`, `commands`, `scenario`, `weather`, `layouts`, `logs`, `trim`, `install`, `validate`. Full reference: `.claude/skills/bug-bundle/SKILL.md`.
+`tools/bug_bundle.py` inspects, extracts, installs, and validates v4 bug bundles (`*.yaat-bug-report-bundle.zip`, `*-recording.zip`). When a bundle-shaped filename appears in user input, **invoke the `bug-bundle` skill before running any subcommand** — it carries the full reference (start with `info`, then `history --callsign X` for single-aircraft triage).
 
 **Extend the tools when you find yourself doing repeat custom work.** If you write more than two ad-hoc Python/C# snippets that pull the same kind of data from a bundle, layout, or snapshot — coordinate vs runway centerline, all exits with current occupancy, two-aircraft positional comparison over a range — turn that snippet into a subcommand of `tools/bug_bundle.py` or `tools/Yaat.LayoutInspector/` first, then use it. The next agent will have the same investigation; bake the lookup into the tool. Keep custom snippets only for genuinely one-off questions.
 
@@ -100,36 +78,11 @@ Project-reference direction: `Yaat.Client` → `Yaat.Client.Core` → `Yaat.Clie
 - **No DI**: `MainWindow` creates `MainViewModel` directly
 - **Snapshots**: `SimulationWorld.GetSnapshot()` → shallow copy; treat as read-only
 
-### Command Pipeline
-
-1. User input → `MainViewModel.SendCommandAsync()` resolves callsign via partial match
-2. `CommandSchemeParser.ParseCompound()`: `;` = sequential, `,` = parallel, `LV`/`AT` = conditions
-3. Canonical format → server via `SendCommand(callsign, canonical)`
-4. Server builds `CommandQueue` of `CommandBlock`s; `FlightPhysics.UpdateCommandQueue()` checks triggers each tick
-
-**Track commands** (TRACK, DROP, HO, ACCEPT) bypass CommandDispatcher → TrackCommandHandler. `AS` prefix resolves RPO identity.
-
-**Coordination commands** (RD, RDH, RDR, RDACK, RDAUTO) bypass CommandDispatcher → CoordinationCommandHandler. Channels from ARTCC config. Auto-expire 5min after ack.
-
 ### Command Rules
 
 - Match ATCTrainer/VICE names where applicable. Canonical reference is `COMMANDS.md`; alias data lives in `docs/command-aliases/*.json`.
 - **Completeness (MANDATORY):** Every `CanonicalCommandType` must exist in `CommandScheme.Default()` and `CommandRegistry.All`. Tests enforce this.
 - **Altitude arguments:** Always use `AltitudeResolver.Resolve()` for parsing altitude arguments in commands. It handles both shorthand (`15` → 1500ft) and full (`1500` → 1500ft) formats, plus AGL notation (`KOAK+010`).
-
-### Command Input UX
-
-Unified parse-once architecture in `CommandInputController`:
-
-- `ParseCommandInput()` produces a `CommandInputParseResult` (verb, definition, param index, typed args)
-- **Autocomplete**: `ArgumentSuggester` consumes the parse result → dropdown value suggestions
-- **Signature help**: `SignatureHelpState` consumes the parse result → inline parameter hints
-
-All commands including rewrite verbs (e.g. `RWY`) go through `CommandRegistry` — no special-case code paths needed.
-
-## Tech Stack
-
-.NET 10, C# (nullable, implicit usings) | Avalonia UI 12.1.0 (Fluent dark, compiled bindings; SkiaSharp comes in transitively via `Avalonia.Skia` — not a direct package reference) | CommunityToolkit.Mvvm 8.4.0 | SignalR.Client 10.0.3 | Velopack 1.2.0 (installer/auto-update) | LM-Kit.NET 2026.7.4 (`Yaat.Client` + `Yaat.SpeechSandbox` only)
 
 ## Related Repositories
 
@@ -201,23 +154,6 @@ Subsystem references — open the matching doc *before* exploring, searching, or
 - [`minimum-vectoring-altitude.md`](docs/minimum-vectoring-altitude.md) — `src/Yaat.Sim/Data/Mva/`, `tools/build-mva-data.py`, the radar MVA display surfaces
 - [`installer-release.md`](docs/installer-release.md) — Velopack packaging, auto-update, `release.yml`, versioning (and [`macos-code-signing.md`](docs/macos-code-signing.md) for the notarized macOS `.pkg`/`.app`)
 
-### CIFP / ARINC 424 Reference Parsers
-
-Two open-source CIFP parsers are cloned (git-untracked) into `reference/cifp/` as authoritative references for ARINC 424 column offsets, field meanings, and approach/SID/STAR record handling. Read these before changing `src/Yaat.Sim/Data/Vnas/CifpParser.cs`:
-
-- **`reference/cifp/cifparse/`** — [misterrodg/cifparse](https://github.com/misterrodg/cifparse) — Python parser. The canonical source for column widths. Procedure leg widths are in `src/cifparse/records/procedure/widths.py` (`PrimaryIndices` class).
-- **`reference/cifp/parseCifp/`** — [rstory1/parseCifp](https://github.com/rstory1/parseCifp) — Perl parser used by ZOA reference tooling.
-
-If a column offset in YAAT's parser disagrees with `cifparse`, **trust cifparse**. YAAT's parser had a systematic +0/-1 off-by-one in procedure leg fields (arc_radius, theta, rho, course, dist_time, alt_1, alt_2) — see git log for the fix. Re-clone with:
-
-```bash
-mkdir -p reference/cifp && cd reference/cifp
-git clone --depth 1 https://github.com/misterrodg/cifparse.git
-git clone --depth 1 https://github.com/rstory1/parseCifp.git
-```
-
-Use `tools/Yaat.CifpInspector` to inspect parsed CIFP procedures from the command line — useful for diagnosing extraction bugs without writing throwaway scratch code.
-
 ## Aviation Realism — MANDATORY
 
 **Every feature touching aviation must be reviewed by `aviation-sim-expert`** (via `Agent` with `subagent_type: "aviation-sim-expert"`). This is not optional.
@@ -239,23 +175,6 @@ Use `tools/Yaat.CifpInspector` to inspect parsed CIFP procedures from the comman
 
 When invoking aviation-sim-expert, always include:
 > "IMPORTANT: The FAA 7110.65 and AIM are available as local markdown files in the repo. Read them directly via Read/Grep/Glob at `.claude/reference/faa/7110.65/` and `.claude/reference/faa/aim/`. Do NOT use web search tools to look up 7110.65 or AIM content."
-
-## Recommended Agents
-
-| Agent | When to use |
-|-------|-------------|
-| `yaat-explore` | **Codebase exploration** — locate code, understand a subsystem, trace a feature. Prefer over generic Explore/general-purpose; reads the docs map first. |
-| `aviation-sim-expert` | **Any aviation logic** (see above) |
-| `csharp-developer` | Non-trivial C# in Yaat.Sim or any `Yaat.Client*` project |
-| `code-reviewer` | Before committing significant changes |
-| `debugger` | Runtime failures, SignalR issues, phase state bugs |
-| `test-automator` | Test fixtures for commands, phases, physics, geo |
-| `refactoring-specialist` | Restructuring while preserving behavior |
-| `architect-reviewer` | Design decisions: phases, command queue, DTOs, API surface |
-| `performance-engineer` | Tick performance, broadcast throughput, conflict detection |
-| `websocket-engineer` | SignalR lifecycle, CRC WebSocket protocol |
-| `game-developer` | Sim loop design, tick-based updates |
-| `documentation-engineer` | USER_GUIDE.md, scenario format, command reference |
 
 ## Project Skills
 
@@ -284,9 +203,6 @@ When invoking aviation-sim-expert, always include:
 - **SimLog in tests**: `SimLog` falls back to `NullLoggerFactory` by default — all Yaat.Sim log output is silently swallowed in tests. To see logs, use `SimLogBuilder.CreateForTest(output).EnableCategory("ClassName", LogLevel.Debug).InitializeSimLog()`. Live test output only reaches the console when the test project runs as a process: `dotnet run --project tests/Yaat.Sim.Tests -c Release -- --filter-method "*<TestName>*" --show-live-output on 2>&1 | tee .tmp/test-output.log` (`dotnet test` reports only summaries and failures).
 - **Test runner CLI (Microsoft.Testing.Platform)**: `global.json` selects the MTP runner, so `dotnet test` runs the test assemblies concurrently and takes runner options after a `--` separator: `dotnet test -- --filter-method "*Name*"` (substring of `Namespace.Class.Method`), `--filter-class "*.ClassName"`, `--filter-trait "Category=Nightly"` / `--filter-not-trait ...`, `--report-xunit-trx`. The VSTest forms (`--filter "FullyQualifiedName~X"`, `--logger trx`) are rejected with `Unknown option`. Test output: see **SimLog in tests** below.
 - **Test timeouts**: Always wrap `dotnet test` in a `timeout` to catch soft hangs from broken graph topology or infinite pathfinder loops. Use **`timeout 30`** for a filtered/targeted run (`-- --filter-method "*Name*"`) — a targeted YAAT sim run that hasn't finished in 30s is stuck, not slow. Use **`timeout 120`** for a bare full-suite run, which legitimately needs longer. Never run without one.
-- **Static singleton races**: xUnit runs test classes in parallel by default. Tests that read static singletons populated by `TestVnasData.EnsureInitialized()` — `NavigationDatabase`, `AircraftProfileDatabase`, `AircraftSiblingMap`, `AirlineFleetData`, etc. — can race when one class is mid-initialization while another reads the singleton. **Symptom**: a test passes in isolation but fails intermittently when run alongside profile-loading classes; the failure shows mismatched values where both should come from the same lookup (e.g., `Expected 98 / Actual 96.5` because `DecelRate` returned the default-fallback in one call and the loaded profile in the next). **Fix**: call `TestVnasData.EnsureInitialized()` in the racing test class's constructor so the lookup is pinned to a stable state before any test method body runs. Never assume singletons are empty — another test class is always one tick away from populating them.
-- **Per-user paths via `YaatPaths`**: Every `%LOCALAPPDATA%/yaat` path routes through `YaatPaths.AppDataRoot` / `YaatPaths.Combine(...)` (in `Yaat.Sim`), never raw `Environment.GetFolderPath`. Test projects that touch `UserPreferences`, `AppLog`, `MainViewModel`, or any per-user cache must set `YAAT_APPDATA_DIR` to a unique temp path in a `ModuleInitializer` (pattern: `tests/Yaat.Client.UI.Tests/ModuleInit.cs`) so tests don't mutate the developer's real `preferences.json`.
-- **`xunit.runner.json` must be Content-copied**: `tests/Yaat.Client.UI.Tests/xunit.runner.json` sets `parallelizeTestCollections: false`; without a csproj Content include copying it to `bin/`, xUnit silently parallelizes and races `UserPreferences` on the shared `preferences.json`. Diagnose an `Expected [...] / Actual []` failure by confirming that copy exists before suspecting `UserPreferences.Save`.
 
 ### Code Style
 
@@ -296,6 +212,7 @@ When invoking aviation-sim-expert, always include:
 - **No newlines in text strings**: Never split `Text="..."`, `Content="..."`, or interpolated strings across lines in `.axaml`/`.cs` — indentation whitespace shows at runtime.
 - **No optional parameters**: Make params required so the compiler enforces wiring. Optional params hide missing integration.
 - **No repurposing DTO fields**: Add new fields with clear names. Remove dead fields entirely.
+- **Per-user paths via `YaatPaths`**: every `%LOCALAPPDATA%/yaat` path routes through `YaatPaths.AppDataRoot` / `YaatPaths.Combine(...)` (in `Yaat.Sim`), never raw `Environment.GetFolderPath`. Test-project consequences are in `tests/CLAUDE.md`.
 
 ### Debugging
 

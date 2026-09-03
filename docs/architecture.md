@@ -87,6 +87,8 @@ The Task Index above tells you *which files*; these docs explain *how each subsy
 
 ```
 AGENTS.md                         # Codex project wrapper; points Codex back to CLAUDE.md and maps Claude agents/commands/hooks to Codex behavior.
+.claude/rules/cifp-parser.md      # Path-scoped Claude guidance (loads only for src/Yaat.Sim/Data/Vnas, reference/cifp, tools/Yaat.CifpInspector): the cifparse/parseCifp column-offset authority + re-clone recipe.
+tests/CLAUDE.md                   # Test-project Claude guidance: docs/test-harness.md pointer + the singleton-race, YAAT_APPDATA_DIR and xunit.runner.json gotchas (moved out of the root CLAUDE.md).
 Setup-CrcEnvironment.ps1          # Adds YAAT1 to CRC's DevEnvironments.json (-Servers overrides for self-hosted)
 deploy-targets.ps1                # Per-deployment map (DropletIp, ServerPath, ServerUrl, RemoteEnvFile) + Resolve-DeployTarget; dot-sourced by the deploy scripts
 deploy-to-droplet.ps1             # Deploys yaat-server to a droplet (CI-built ghcr image by default; -BuildOnDroplet / -BuildImageOnly variants)
