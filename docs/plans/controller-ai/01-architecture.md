@@ -10,7 +10,7 @@ One deterministic rule-based controller-brain library in `Yaat.Sim` (new namespa
 `Yaat.Sim.ControllerAi`), hosted by two thin consumers:
 
 1. **Headless** — the soak runner ([07](07-soak-runner.md)) driving the RoomEngine path via
-   `HeadlessRoomHost`, running scenarios for many sim-hours and asserting on findings.
+   `HeadlessRoom`, running scenarios for many sim-hours and asserting on findings.
 2. **Live** — a per-room hook in `TickProcessor.ProcessPostPhysics`, so a dev can watch the AI
    control a live session ([09](09-live-attach.md)).
 
@@ -132,7 +132,7 @@ A pure-Yaat.Sim sink (`EngineAiCommandSink`: `CommandParser.ParseCompound` → `
 guarded by `!_isReplayingRecordedActions`) is retained **only for brain unit tests** in
 `tests/Yaat.Sim.Tests`. Its verb coverage (aviation verbs certainly; track/coordination verbs only if
 the CA0 routing-parity spike finds the sim-side engines sufficient) bounds what brain unit tests can
-exercise; anything beyond that is integration-tested through `HeadlessRoomHost`.
+exercise; anything beyond that is integration-tested through `HeadlessRoom`.
 
 ### Routing-parity spike (CA0 prerequisite)
 

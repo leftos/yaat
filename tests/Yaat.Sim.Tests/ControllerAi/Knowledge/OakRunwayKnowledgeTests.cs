@@ -101,11 +101,11 @@ public class OakRunwayKnowledgeTests
             return;
         }
 
-        var json = AiTestHost
+        var json = AiTestFixture
             .ParkedAtOak.Replace("\"parking\": \"SIG1\"", $"\"parking\": \"{parking}\"")
             .Replace("\"aircraftType\": \"C172\"", $"\"aircraftType\": \"{type}\"");
-        var engine = AiTestHost.Load(json, _zoa, 7, []);
-        var aircraft = engine.FindAircraft(AiTestHost.Callsign)!;
+        var engine = AiTestFixture.Load(json, _zoa, 7, []);
+        var aircraft = engine.FindAircraft(AiTestFixture.Callsign)!;
         var sets = Oak.RunwaysAt(configuration, "OAK")!;
         var decision = new RunwayUseDecision("OAK", sets.Departure, sets.Arrival, configuration, RunwayUseSource.Knowledge, "test");
 
@@ -155,23 +155,23 @@ public class OakRunwayKnowledgeTests
         }
 
         var ground = TestAiPositions.OakGround(_zoa);
-        var engine = AiTestHost.Load(AiTestHost.ParkedAtOak, _zoa, 7, [ground]);
-        var aircraft = engine.FindAircraft(AiTestHost.Callsign)!;
+        var engine = AiTestFixture.Load(AiTestFixture.ParkedAtOak, _zoa, 7, [ground]);
+        var aircraft = engine.FindAircraft(AiTestFixture.Callsign)!;
         var state = new RunwayInUseState(FacilityOpsDatabase.For);
         engine.World.Weather = new WeatherProfile { WindLayers = [new WindLayer { Direction = 300, Speed = 12 }] };
-        var west = state.For("OAK", AiTestHost.Context(engine, [aircraft], [ground], 10, [], new RecordingAiCommandSink()), ground.PositionId);
+        var west = state.For("OAK", AiTestFixture.Context(engine, [aircraft], [ground], 10, [], new RecordingAiCommandSink()), ground.PositionId);
         Assert.Equal("SFOW", west!.ConfigurationName);
 
         // A weather timeline hands the world a new profile every second; a wobble is not a new decision.
         engine.World.Weather = new WeatherProfile { WindLayers = [new WindLayer { Direction = 310, Speed = 14 }] };
         Assert.Same(
             west,
-            state.For("OAK", AiTestHost.Context(engine, [aircraft], [ground], 11, [], new RecordingAiCommandSink()), ground.PositionId)
+            state.For("OAK", AiTestFixture.Context(engine, [aircraft], [ground], 11, [], new RecordingAiCommandSink()), ground.PositionId)
         );
 
         // A veer through the field is.
         engine.World.Weather = new WeatherProfile { WindLayers = [new WindLayer { Direction = 120, Speed = 14 }] };
-        var east = state.For("OAK", AiTestHost.Context(engine, [aircraft], [ground], 12, [], new RecordingAiCommandSink()), ground.PositionId);
+        var east = state.For("OAK", AiTestFixture.Context(engine, [aircraft], [ground], 12, [], new RecordingAiCommandSink()), ground.PositionId);
         Assert.Equal("OAKE", east!.ConfigurationName);
         Assert.False(RunwayInUseState.WindMoved(Wind(300, 12), Wind(310, 14)));
         Assert.True(RunwayInUseState.WindMoved(Wind(300, 12), Wind(300, 17)));
@@ -188,14 +188,14 @@ public class OakRunwayKnowledgeTests
         }
 
         var ground = TestAiPositions.OakGround(_zoa);
-        var engine = AiTestHost.Load(AiTestHost.ParkedAtOak, _zoa, 7, [ground]);
+        var engine = AiTestFixture.Load(AiTestFixture.ParkedAtOak, _zoa, 7, [ground]);
         var scenario = engine.Scenario!;
-        var aircraft = engine.FindAircraft(AiTestHost.Callsign)!;
+        var aircraft = engine.FindAircraft(AiTestFixture.Callsign)!;
         engine.World.Weather = new WeatherProfile { WindLayers = [new WindLayer { Direction = 120, Speed = 12 }] };
 
         // Knowledge: 12 kt from 120 ⇒ OAKE, and the brain assigns a C172 the nearest of the 10s.
         var knowledge = new RunwayInUseState(FacilityOpsDatabase.For);
-        var context = AiTestHost.Context(engine, [aircraft], [ground], 10, [], new RecordingAiCommandSink());
+        var context = AiTestFixture.Context(engine, [aircraft], [ground], 10, [], new RecordingAiCommandSink());
         var decision = knowledge.For("OAK", context, ground.PositionId);
         Assert.NotNull(decision);
         Assert.Equal("OAKE", decision.ConfigurationName);
@@ -207,7 +207,7 @@ public class OakRunwayKnowledgeTests
         engine.World.Weather = new WeatherProfile { WindLayers = [new WindLayer { Direction = 300, Speed = 3 }] };
         var coupled = new RunwayInUseState(FacilityOpsDatabase.For).For(
             "OAK",
-            AiTestHost.Context(engine, [aircraft], [ground], 11, [], new RecordingAiCommandSink()),
+            AiTestFixture.Context(engine, [aircraft], [ground], 11, [], new RecordingAiCommandSink()),
             ground.PositionId
         );
         Assert.Equal("SFOE", coupled!.ConfigurationName);
@@ -218,7 +218,7 @@ public class OakRunwayKnowledgeTests
         scenario.AiAnomalies.Clear();
         var fixedConfiguration = new RunwayInUseState(FacilityOpsDatabase.For).For(
             "OAK",
-            AiTestHost.Context(engine, [aircraft], [ground], 12, [], new RecordingAiCommandSink()),
+            AiTestFixture.Context(engine, [aircraft], [ground], 12, [], new RecordingAiCommandSink()),
             ground.PositionId
         );
         Assert.Equal("OAKE", fixedConfiguration!.ConfigurationName);
@@ -230,7 +230,7 @@ public class OakRunwayKnowledgeTests
         scenario.ControllerAi = Config(ground, "30", new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase) { ["KOAK"] = "OAKE" });
         var fixedRunway = new RunwayInUseState(FacilityOpsDatabase.For).For(
             "OAK",
-            AiTestHost.Context(engine, [aircraft], [ground], 13, [], new RecordingAiCommandSink()),
+            AiTestFixture.Context(engine, [aircraft], [ground], 13, [], new RecordingAiCommandSink()),
             ground.PositionId
         );
         Assert.Equal(["30"], fixedRunway!.DepartureRunways);
@@ -242,7 +242,7 @@ public class OakRunwayKnowledgeTests
         scenario.AiAnomalies.Clear();
         var conflicted = new RunwayInUseState(FacilityOpsDatabase.For).For(
             "OAK",
-            AiTestHost.Context(engine, [aircraft], [ground], 14, [], new RecordingAiCommandSink()),
+            AiTestFixture.Context(engine, [aircraft], [ground], 14, [], new RecordingAiCommandSink()),
             ground.PositionId
         );
         Assert.Equal(RunwayUseSource.Generic, conflicted!.Source);
@@ -308,13 +308,13 @@ public class OakRunwayKnowledgeTests
             RunwayAssignmentPolicy = [],
         };
         var ground = TestAiPositions.OakGround(_zoa);
-        var engine = AiTestHost.Load(AiTestHost.ParkedAtOak, _zoa, 7, [ground]);
-        var aircraft = engine.FindAircraft(AiTestHost.Callsign)!;
+        var engine = AiTestFixture.Load(AiTestFixture.ParkedAtOak, _zoa, 7, [ground]);
+        var aircraft = engine.FindAircraft(AiTestFixture.Callsign)!;
         engine.World.Weather = new WeatherProfile { WindLayers = [new WindLayer { Direction = 120, Speed = 12 }] };
         var state = new RunwayInUseState(airport =>
             NavigationDatabase.AirportIdsMatch(airport ?? "", "KSFO") ? sfo : FacilityOpsDatabase.For(airport)
         );
-        var context = AiTestHost.Context(engine, [aircraft], [ground], 10, [], new RecordingAiCommandSink());
+        var context = AiTestFixture.Context(engine, [aircraft], [ground], 10, [], new RecordingAiCommandSink());
 
         // OAK asks SFO, SFO asks OAK back and gets nothing, decides on its wind, and OAK follows it.
         var oak = state.For("OAK", context, ground.PositionId);
@@ -355,13 +355,13 @@ public class OakRunwayKnowledgeTests
         }
 
         var ground = TestAiPositions.OakGround(_zoa);
-        var engine = AiTestHost.LoadWith(AiTestHost.ParkedAtOak, _zoa, 7, [ground], null, p => new GroundBrain(p));
+        var engine = AiTestFixture.LoadWith(AiTestFixture.ParkedAtOak, _zoa, 7, [ground], null, p => new GroundBrain(p));
         engine.World.Weather = new WeatherProfile { WindLayers = [new WindLayer { Direction = 120, Speed = 12 }] };
         var aiId = AiConnectionId.Format(ground.PositionId);
         RecordedCommand? taxi = null;
         for (int t = 0; t < 120 && taxi is null; t++)
         {
-            AiTestHost.Tick(engine, 1);
+            AiTestFixture.Tick(engine, 1);
             taxi = engine.Scenario!.ActionLog.OfType<RecordedCommand>().FirstOrDefault(a => a.ConnectionId == aiId);
         }
 
@@ -374,7 +374,7 @@ public class OakRunwayKnowledgeTests
         {
             Seed = 7,
             EnabledPositionIds = [ground.PositionId],
-            RoleOverrides = AiTestHost.NoOverrides,
+            RoleOverrides = AiTestFixture.NoOverrides,
             RunwayInUse = runwayInUse,
             RunwayConfigurations = configurations,
         };

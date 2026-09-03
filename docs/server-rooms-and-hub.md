@@ -14,7 +14,7 @@
 ## Scope
 
 ```
-SimulationHostedService   one PeriodicTimer @ 1 Hz, drives every room
+RoomTickLoopService   one PeriodicTimer @ 1 Hz, drives every room
         │  per room (if running):
         ▼
 RoomEngine.ProcessPrePhysics → ProcessPhysics ×(SimRate × 4) → ProcessPostPhysics
@@ -26,7 +26,7 @@ AircraftChangeTracker.DetectChanges  →  Broadcast{Training,Admin,Crc}Updates
 `RoomEngine` is the per-room facade for everything else: commands, scenario lifecycle, recording, broadcast. The hub
 (`TrainingHub`) is a thin RPC surface that resolves a connection to a `RoomEngine` and delegates.
 
-## The hosted tick loop — `Simulation/SimulationHostedService.cs`
+## The hosted tick loop — `Simulation/RoomTickLoopService.cs`
 
 One `IHostedService` owns a single `PeriodicTimer(TimeSpan.FromSeconds(1))` (`:44`) — **one loop for all rooms**, not one
 per room. Each wall-clock tick (`RunTickLoop`, `:92`):
@@ -41,7 +41,7 @@ per room. Each wall-clock tick (`RunTickLoop`, `:92`):
      position-history sampling every `RoomEngine.PositionHistorySampleSeconds` (5 s) into a
      `PositionHistoryCapacity` (10) ring, the weather-timeline advance, `EnsureLiveMetarIssuer` + METAR issuance
      (broadcast only when a station re-issues), and playback post-tick actions. The headless soak host
-     (`Simulation/Headless/HeadlessRoomHost`) calls the same method, so a headless run evolves exactly like a live room;
+     (`Simulation/Headless/HeadlessRoom`) calls the same method, so a headless run evolves exactly like a live room;
      reconstruction keeps calling the narrower `AdvanceOneSecond`.
    - **Ends with one `BroadcastSimState(room)` per processed wall-tick** (after the sim-second loop, in
      `ProcessRoomSecond`) so the client's elapsed clock stays live — the timeline label/scrubber and the base for
@@ -208,7 +208,7 @@ Implements `ITrainingBroadcast` (`Simulation/ITrainingBroadcast.cs`). Two parall
   `BroadcastAircraftDeleted`, `BroadcastSimState`, `BroadcastWeatherChanged`, the terminal/pilot-transmission broadcasts)
   early-return on `room.IsBroadcastSuppressed`; the per-tick `BroadcastTrainingUpdates` guards each room the same way, but
   the admin path (`BroadcastAdminUpdates` / `BroadcastRoomToAdmin`) only guards on `scenario is null` — suppressed rooms
-  reach it carrying an empty `TickChanges` because `SimulationHostedService.DetectChanges` (`:212`) skips them when
+  reach it carrying an empty `TickChanges` because `RoomTickLoopService.DetectChanges` (`:212`) skips them when
   populating per-tick flags, so nothing aircraft-shaped is sent for them.
 - **CRC connections** — `CrcBroadcastService.BroadcastUpdatesAsync` runs in the same after-the-loop, *un-gated* phase as
   `DetectChanges`/`BroadcastUpdates`, but it snapshots `room.World` itself rather than reading `TickChanges`. It must

@@ -31,16 +31,16 @@ public class EngineAiCommandSinkTests
         }
 
         var ground = TestAiPositions.OakGround(_zoa);
-        var engine = AiTestHost.Load(AiTestHost.ParkedAtOak, _zoa, 7, [ground]);
-        AiTestHost.Tick(engine, 7);
+        var engine = AiTestFixture.Load(AiTestFixture.ParkedAtOak, _zoa, 7, [ground]);
+        AiTestFixture.Tick(engine, 7);
         var sink = new EngineAiCommandSink(engine);
 
-        sink.Issue(new AiCommandRequest(ground, AiTestHost.Callsign, "TAXIAUTO 28R", Intent));
+        sink.Issue(new AiCommandRequest(ground, AiTestFixture.Callsign, "TAXIAUTO 28R", Intent));
 
         var outcome = Assert.Single(sink.DrainOutcomes());
         Assert.True(outcome.Success, outcome.Reason);
         Assert.Empty(sink.DrainOutcomes());
-        var aircraft = engine.FindAircraft(AiTestHost.Callsign)!;
+        var aircraft = engine.FindAircraft(AiTestFixture.Callsign)!;
         Assert.False(aircraft.HasMadeInitialContact);
         Assert.False(aircraft.PendingPilotRequest!.IsOpen);
         var recorded = Assert.IsType<RecordedCommand>(Assert.Single(engine.Scenario!.ActionLog));
@@ -58,10 +58,10 @@ public class EngineAiCommandSinkTests
         }
 
         var ground = TestAiPositions.OakGround(_zoa);
-        var engine = AiTestHost.Load(AiTestHost.ParkedAtOak, _zoa, 7, [ground]);
+        var engine = AiTestFixture.Load(AiTestFixture.ParkedAtOak, _zoa, 7, [ground]);
         var sink = new EngineAiCommandSink(engine);
 
-        sink.Issue(new AiCommandRequest(ground, AiTestHost.Callsign, "CTO", Intent));
+        sink.Issue(new AiCommandRequest(ground, AiTestFixture.Callsign, "CTO", Intent));
 
         var outcome = Assert.Single(sink.DrainOutcomes());
         Assert.False(outcome.Success);
@@ -78,9 +78,9 @@ public class EngineAiCommandSinkTests
         }
 
         var ground = TestAiPositions.OakGround(_zoa);
-        var engine = AiTestHost.Load(AiTestHost.ParkedAtOak, _zoa, 7, [ground]);
+        var engine = AiTestFixture.Load(AiTestFixture.ParkedAtOak, _zoa, 7, [ground]);
 
-        var result = engine.DispatchAiCommand(ground, AiTestHost.Callsign, "RDACK");
+        var result = engine.DispatchAiCommand(ground, AiTestFixture.Callsign, "RDACK");
 
         Assert.False(result.Success);
         Assert.Contains("live server", result.Message);
@@ -97,19 +97,19 @@ public class EngineAiCommandSinkTests
 
         var approach = TestAiPositions.NorCalApproach(_zoa);
         Assert.NotNull(approach.Tcp);
-        var engine = AiTestHost.Load(AiTestHost.ParkedAtOak, _zoa, 7, [approach]);
+        var engine = AiTestFixture.Load(AiTestFixture.ParkedAtOak, _zoa, 7, [approach]);
         // No AS prefix and no student position in the scenario: the AI connection id alone names the acting position.
-        var result = engine.DispatchAiCommand(approach, AiTestHost.Callsign, "TRACK");
+        var result = engine.DispatchAiCommand(approach, AiTestFixture.Callsign, "TRACK");
 
         Assert.True(result.Success, result.Message);
-        var owner = engine.FindAircraft(AiTestHost.Callsign)!.Track.Owner;
+        var owner = engine.FindAircraft(AiTestFixture.Callsign)!.Track.Owner;
         Assert.NotNull(owner);
         Assert.True(owner.MatchesPosition(approach.Identity));
         var recorded = Assert.IsType<RecordedCommand>(Assert.Single(engine.Scenario!.ActionLog));
 
-        var replayEngine = AiTestHost.Load(AiTestHost.ParkedAtOak, _zoa, 7, []);
+        var replayEngine = AiTestFixture.Load(AiTestFixture.ParkedAtOak, _zoa, 7, []);
         replayEngine.ReplayCommand(recorded);
-        var replayedOwner = replayEngine.FindAircraft(AiTestHost.Callsign)!.Track.Owner;
+        var replayedOwner = replayEngine.FindAircraft(AiTestFixture.Callsign)!.Track.Owner;
         Assert.NotNull(replayedOwner);
         Assert.True(replayedOwner.MatchesPosition(approach.Identity));
     }

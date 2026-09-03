@@ -148,11 +148,11 @@ public class AutoDeleteTickTests
     {
         TestVnasData.EnsureInitialized();
         var staticEngine = new SimulationEngine(new TestAirportGroundData());
-        staticEngine.LoadScenario(ControllerAi.AiTestHost.ParkedAtOak, 1, MagneticDeclination.EvaluationDateUtc);
+        staticEngine.LoadScenario(ControllerAi.AiTestFixture.ParkedAtOak, 1, MagneticDeclination.EvaluationDateUtc);
         Assert.False(staticEngine.Scenario!.HasOngoingTrafficSource);
         Assert.Null(staticEngine.Scenario.EffectiveAutoDeleteMode);
 
-        var timedJson = ControllerAi.AiTestHost.ParkedAtOak.Replace(
+        var timedJson = ControllerAi.AiTestFixture.ParkedAtOak.Replace(
             "\"aircraft\": [",
             "\"aircraft\": [ { \"id\": \"a0\", \"aircraftId\": \"N2AR\", \"aircraftType\": \"C172\", \"transponderMode\": \"C\", \"spawnDelay\": 600, "
                 + "\"startingConditions\": { \"type\": \"Parking\", \"parking\": \"SIG2\" }, "

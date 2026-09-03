@@ -429,7 +429,7 @@ test/live.mjs                    # Live-server smoke test against a running yaat
 
 ## Yaat.VTdls.Web — Browser vTDLS client (`tools/Yaat.VTdls.Web/`)
 
-WebAssembly Avalonia client for the vTDLS view. Hosted by yaat-server at `/vtdls/` (mapped in `YaatHost`). Mirrors the VStrips.Web shape: references Yaat.Client.Tdls + Yaat.Client.Strips (for the shared JetBrains Mono font registration), no Avalonia.Desktop / Velopack / file IO. Identity (CID, initials, ARTCC) flows in via URL query — first-time visitors fill a landing form that redirects with the params filled in.
+WebAssembly Avalonia client for the vTDLS view. Hosted by yaat-server at `/vtdls/` (mapped in `ServerApp`). Mirrors the VStrips.Web shape: references Yaat.Client.Tdls + Yaat.Client.Strips (for the shared JetBrains Mono font registration), no Avalonia.Desktop / Velopack / file IO. Identity (CID, initials, ARTCC) flows in via URL query — first-time visitors fill a landing form that redirects with the params filled in.
 
 ```
 Program.cs                       # Entry point. Wires SimLog to ConsoleLineLoggerProvider. Stores window.location.search + origin on App.
@@ -1239,7 +1239,7 @@ Headless screenshot harness for `USER_GUIDE.md`. Boots an in-process `yaat-serve
 ```
 Program.cs                     # Entry: parses --scene/--out, starts InProcessServer, dispatches scenes; calls Environment.Exit so headless threads don't keep the process alive
 ModuleInit.cs                  # Redirects YAAT_APPDATA_DIR to a temp folder + seeds preferences.json (CID/initials/ARTCC) so MainViewModel.AttemptConnectAsync passes its identity gates
-Server/InProcessServer.cs      # Port allocation (TcpListener trick) + YaatHost.BuildAsync + StartAsync/StopAsync lifecycle; exposes Services and starts with LiveTraffic:Enabled so the live-traffic scene can feed the store
+Server/InProcessServer.cs      # Port allocation (TcpListener trick) + ServerApp.BuildAsync + StartAsync/StopAsync lifecycle; exposes Services and starts with LiveTraffic:Enabled so the live-traffic scene can feed the store
 Capture/Scene.cs               # Abstract scene: BeforeWindowAsync, CreateWindow, AfterShowAsync, GetCaptureTarget for popout children
 Capture/Runner.cs              # Per-scene flow: setup → show → settle → capture PNG; Width/Height of 0 means "use the window's natural size"
 Capture/CaptureContext.cs      # Per-run state: ServerUrl, ServerServices (the in-process server's DI root), RepoRoot (walks up to yaat.slnx)
@@ -1329,7 +1329,7 @@ See [session-persistence.md](session-persistence.md) for planned-restart room ch
     RoomEngine.cs              # Per-room facade: tick, commands, scenario, broadcast, consolidation
     ConsolidationState.cs      # Thread-safe manual consolidation overrides per room
     RoomEngineFactory.cs       # Creates RoomEngine with shared singleton deps
-    SimulationHostedService.cs # Thin orchestrator: 1s tick loop iterating rooms
+    RoomTickLoopService.cs # Thin orchestrator: 1s tick loop iterating rooms
     TickProcessor.cs           # Stateless tick logic (physics, spawns, triggers, pilot proactive hooks, auto-accept, coordination timers); FP-creator and airport-based deferred autotrack; drains ready solo frequency transmissions as SAY entries and emits PilotTransmissionBroadcast
     TrackCommandHandler.cs     # Stateless track command logic (HO, ACCEPT, DROP, etc.)
     CoordinationCommandHandler.cs # Stateless coordination logic (RD, RDH, RDR, RDACK, RDAUTO)

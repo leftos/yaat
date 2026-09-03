@@ -258,7 +258,7 @@ instructor opened the page to watch. Every member facility is always shown.
 
 `tools/Yaat.VTdls.Web/` publishes to
 `../../yaat-server/src/Yaat.Server/wwwroot/vtdls/`. The server's
-`YaatHost` maps `/vtdls/{**path:nonfile}` to `vtdls/index.html`.
+`ServerApp` maps `/vtdls/{**path:nonfile}` to `vtdls/index.html`.
 
 The browser app gates the WASM boot on `?cid=…&initials=…&artcc=…` query
 params (filled via the static landing form in `wwwroot/index.html`).

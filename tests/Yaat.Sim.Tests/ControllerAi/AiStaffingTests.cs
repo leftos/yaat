@@ -25,7 +25,7 @@ public class AiStaffingTests
 
         var ground = TestAiPositions.OakGround(_zoa);
         var tower = TestAiPositions.OakTower(_zoa);
-        var engine = AiTestHost.Load(AiTestHost.ParkedAtOak, _zoa, 7, []);
+        var engine = AiTestFixture.Load(AiTestFixture.ParkedAtOak, _zoa, 7, []);
         var scenario = engine.Scenario!;
         var staffing = new HeadlessAiStaffing([ground, tower], scenario);
 

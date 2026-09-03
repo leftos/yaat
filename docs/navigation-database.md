@@ -52,7 +52,7 @@ Resolution order, in `NavigationDatabase.cs:62` / `:72`:
 Picking the wrong accessor either crashes a best-effort lookup or silently no-ops a required one. `Instance` is the right call
 when the sim genuinely cannot proceed without nav data; `InstanceOrNull` is for UI/speech paths that degrade gracefully.
 
-**Production wiring** is in yaat-server `YaatHost.cs:177` — after `VnasDataService.InitializeAsync()` and
+**Production wiring** is in yaat-server `ServerApp.cs:177` — after `VnasDataService.InitializeAsync()` and
 `CifpDataService.InitializeAsync()` download/cache the data:
 
 ```
@@ -224,7 +224,7 @@ procedure, logging a warning and returning the source cycle id via the `out Proc
 instructor advisory). The chain is the cached prior AIRAC cycles within a recency cap (`CifpPathResolver.MaxSupplementaryLookbackCycles`
 = ~1 year), assembled by `CifpDataService` into `SupplementaryCifpFilePaths` — the app caches each cycle it downloads, so this
 auto-accumulates with no shipped data. Resolving newest-prior-only (the old single-path behavior) missed procedures retired more than
-one cycle ago even when older cached cycles still had them. Production wires `cifpService.SupplementaryCifpFilePaths` (`YaatHost.cs`);
+one cycle ago even when older cached cycles still had them. Production wires `cifpService.SupplementaryCifpFilePaths` (`ServerApp.cs`);
 a bare `new NavigationDatabase(navData, cifp, artccsBaseDir: "")` in a test passes an empty chain, so a retired SID returns `null`
 there. (`IssueN513sjNimiRvSidCifpMissTests` exercises the empty-chain degradation; `IssueN513sjNimi6PriorCycleChainTests`
 exercises the chain walk recovering NIMI5's published 315° heading; `CustomProcedureResolutionTests` covers the fragment tier.)

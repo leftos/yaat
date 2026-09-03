@@ -6,7 +6,7 @@ using Yaat.Server;
 namespace Yaat.GuideCapture.Server;
 
 // Hosts yaat-server in the same process as the capture tool. Picks a free
-// loopback TCP port, calls YaatHost.BuildAsync to wire the same WebApplication
+// loopback TCP port, calls ServerApp.BuildAsync to wire the same WebApplication
 // the standalone server uses, and starts/stops the host alongside the capture
 // run. The Yaat.Client connects over real SignalR to http://127.0.0.1:<port>,
 // matching production wire format byte-for-byte.
@@ -31,7 +31,7 @@ internal sealed class InProcessServer : IAsyncDisposable
         // LiveTraffic:Enabled marks the feed as configured so the Live Traffic session toggle is offered; the store
         // itself is fed by LiveTrafficScene (there is no SWIM ingest in the capture tool).
         var args = new[] { "--urls", Url, "--environment", "Development", "--Yaat:Auth:RequireVatsimAuth", "false", "--LiveTraffic:Enabled", "true" };
-        _app = await YaatHost.BuildAsync(args);
+        _app = await ServerApp.BuildAsync(args);
         await _app.StartAsync();
     }
 

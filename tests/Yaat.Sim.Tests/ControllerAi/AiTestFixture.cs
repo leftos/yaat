@@ -8,7 +8,7 @@ using Yaat.Sim.Tests.Helpers;
 namespace Yaat.Sim.Tests.ControllerAi;
 
 /// <summary>Inline scenarios and an engine + controller-AI wiring shared by the ControllerAi tests.</summary>
-internal static class AiTestHost
+internal static class AiTestFixture
 {
     public const string Callsign = "N152SP";
 
@@ -101,7 +101,7 @@ internal static class AiTestHost
         return engine;
     }
 
-    /// <summary>The host loop as the server runs it: one sim-second, the auto-delete sweep, then one AI tick.</summary>
+    /// <summary>The per-second loop as the server runs it: one sim-second, the auto-delete sweep, then one AI tick.</summary>
     public static void Tick(SimulationEngine engine, int seconds)
     {
         for (int i = 0; i < seconds; i++)

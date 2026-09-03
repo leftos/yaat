@@ -30,13 +30,13 @@ public class TaxiInCallTests
         }
 
         var ground = TestAiPositions.OakGround(_zoa);
-        var engine = AiTestHost.Load(AiTestHost.OnFinalAtOak, _zoa, 7, [ground]);
+        var engine = AiTestFixture.Load(AiTestFixture.OnFinalAtOak, _zoa, 7, [ground]);
         var aircraft = LandAndExit(engine);
         Assert.True(aircraft.Ground.AwaitingTaxiInCall);
 
-        aircraft = AiTestHost.TickUntil(
+        aircraft = AiTestFixture.TickUntil(
             engine,
-            AiTestHost.Callsign,
+            AiTestFixture.Callsign,
             ac => ac.PendingPilotRequest is { IsOpen: true, Kind: PilotPendingRequestKind.Taxi },
             10
         );
@@ -53,12 +53,12 @@ public class TaxiInCallTests
 
         // Unanswered, the pilot asks again on its own clock.
         double first = request.LastRequestedAtSeconds;
-        AiTestHost.Tick(engine, (int)PilotRequestTracker.NormalFollowUpDelaySeconds + 5);
+        AiTestFixture.Tick(engine, (int)PilotRequestTracker.NormalFollowUpDelaySeconds + 5);
         Assert.True(aircraft.PendingPilotRequest!.LastRequestedAtSeconds > first);
         Assert.Equal(request.FirstRequestedAtSeconds, aircraft.PendingPilotRequest.FirstRequestedAtSeconds);
 
         // A taxi clearance to the spot answers it and the aircraft goes.
-        Assert.True(engine.SendCommand(AiTestHost.Callsign, $"TAXIAUTO @{request.ParkingName}").Success);
+        Assert.True(engine.SendCommand(AiTestFixture.Callsign, $"TAXIAUTO @{request.ParkingName}").Success);
         Assert.False(aircraft.PendingPilotRequest!.IsOpen);
         Assert.Equal(request.ParkingName, aircraft.Ground.AssignedTaxiRoute?.DestinationParking);
     }
@@ -71,10 +71,10 @@ public class TaxiInCallTests
             return;
         }
 
-        var engine = AiTestHost.Load(AiTestHost.OnFinalAtOak, _zoa, 7, []);
+        var engine = AiTestFixture.Load(AiTestFixture.OnFinalAtOak, _zoa, 7, []);
         var aircraft = LandAndExit(engine);
 
-        AiTestHost.Tick(engine, 30);
+        AiTestFixture.Tick(engine, 30);
         Assert.Null(aircraft.PendingPilotRequest);
         Assert.True(aircraft.Ground.AwaitingTaxiInCall);
         Assert.IsType<HoldingAfterExitPhase>(aircraft.Phases?.CurrentPhase);
@@ -91,19 +91,19 @@ public class TaxiInCallTests
         // A tower of its own answers at OAK: the pilot stays with it after landing until sent to ground (AIM 4-3-14.c).
         var ground = TestAiPositions.OakGround(_zoa);
         var tower = TestAiPositions.OakTower(_zoa);
-        var engine = AiTestHost.Load(AiTestHost.OnFinalAtOak, _zoa, 7, [ground, tower]);
+        var engine = AiTestFixture.Load(AiTestFixture.OnFinalAtOak, _zoa, 7, [ground, tower]);
         var aircraft = LandAndExit(engine);
 
-        AiTestHost.Tick(engine, 30);
+        AiTestFixture.Tick(engine, 30);
         Assert.False(aircraft.PendingPilotRequest is { IsOpen: true, Kind: PilotPendingRequestKind.Taxi });
         Assert.True(aircraft.Ground.AwaitingTaxiInCall);
         Assert.False(aircraft.Ground.ReleasedToGround);
 
-        Assert.True(engine.SendCommand(AiTestHost.Callsign, "CT OAK_GND").Success);
+        Assert.True(engine.SendCommand(AiTestFixture.Callsign, "CT OAK_GND").Success);
         Assert.True(aircraft.Ground.ReleasedToGround);
-        aircraft = AiTestHost.TickUntil(
+        aircraft = AiTestFixture.TickUntil(
             engine,
-            AiTestHost.Callsign,
+            AiTestFixture.Callsign,
             ac => ac.PendingPilotRequest is { IsOpen: true, Kind: PilotPendingRequestKind.Taxi },
             10
         );
@@ -121,7 +121,7 @@ public class TaxiInCallTests
         }
 
         var ground = TestAiPositions.OakGround(_zoa);
-        var engine = AiTestHost.Load(AiTestHost.OnFinalAtOak, _zoa, 7, []);
+        var engine = AiTestFixture.Load(AiTestFixture.OnFinalAtOak, _zoa, 7, []);
         var scenario = engine.Scenario!;
         scenario.SoloTrainingMode = true;
         scenario.StudentPosition = ground.Identity;
@@ -129,9 +129,9 @@ public class TaxiInCallTests
         var aircraft = LandAndExit(engine);
 
         // (The student also heard the pilot's final call; the taxi-in request supersedes it.)
-        aircraft = AiTestHost.TickUntil(
+        aircraft = AiTestFixture.TickUntil(
             engine,
-            AiTestHost.Callsign,
+            AiTestFixture.Callsign,
             ac => ac.PendingPilotRequest is { IsOpen: true, Kind: PilotPendingRequestKind.Taxi },
             10
         );
@@ -180,7 +180,7 @@ public class TaxiInCallTests
 
     private static AircraftState LandAndExit(SimulationEngine engine)
     {
-        Assert.True(engine.SendCommand(AiTestHost.Callsign, "CLAND").Success);
-        return AiTestHost.TickUntil(engine, AiTestHost.Callsign, ac => ac.Phases?.CurrentPhase is HoldingAfterExitPhase, 400);
+        Assert.True(engine.SendCommand(AiTestFixture.Callsign, "CLAND").Success);
+        return AiTestFixture.TickUntil(engine, AiTestFixture.Callsign, ac => ac.Phases?.CurrentPhase is HoldingAfterExitPhase, 400);
     }
 }

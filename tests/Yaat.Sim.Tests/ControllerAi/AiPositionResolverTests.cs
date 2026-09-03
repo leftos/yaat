@@ -23,7 +23,7 @@ public class AiPositionResolverTests
             return;
         }
 
-        var catalog = AiPositionResolver.Catalog(_zoa, "OAK", AiTestHost.NoOverrides);
+        var catalog = AiPositionResolver.Catalog(_zoa, "OAK", AiTestFixture.NoOverrides);
 
         var ground = Assert.Single(catalog, p => p.Callsign == "OAK_GND");
         Assert.Equal(ControlRole.Ground, ground.Role);
@@ -62,7 +62,7 @@ public class AiPositionResolverTests
             return;
         }
 
-        var catalog = AiPositionResolver.Catalog(_zoa, "OAK", AiTestHost.NoOverrides);
+        var catalog = AiPositionResolver.Catalog(_zoa, "OAK", AiTestFixture.NoOverrides);
 
         var expected = catalog.OrderBy(p => ControlRoles.Rank(p.Role)).ThenBy(p => p.PositionId, StringComparer.Ordinal).Select(p => p.PositionId);
         Assert.Equal(expected, catalog.Select(p => p.PositionId));
@@ -100,9 +100,9 @@ public class AiPositionResolverTests
         {
             Seed = 1,
             EnabledPositionIds = [tower, ground],
-            RoleOverrides = AiTestHost.NoOverrides,
+            RoleOverrides = AiTestFixture.NoOverrides,
             RunwayInUse = null,
-            RunwayConfigurations = AiTestHost.NoRunwayConfigurations,
+            RunwayConfigurations = AiTestFixture.NoRunwayConfigurations,
         };
 
         var resolved = AiPositionResolver.Resolve(_zoa, "OAK", config);
@@ -113,9 +113,9 @@ public class AiPositionResolverTests
         {
             Seed = 1,
             EnabledPositionIds = ["not-a-position"],
-            RoleOverrides = AiTestHost.NoOverrides,
+            RoleOverrides = AiTestFixture.NoOverrides,
             RunwayInUse = null,
-            RunwayConfigurations = AiTestHost.NoRunwayConfigurations,
+            RunwayConfigurations = AiTestFixture.NoRunwayConfigurations,
         };
         Assert.Throws<InvalidOperationException>(() => AiPositionResolver.Resolve(_zoa, "OAK", unknown));
     }
@@ -128,6 +128,6 @@ public class AiPositionResolverTests
             return;
         }
 
-        Assert.Throws<InvalidOperationException>(() => AiPositionResolver.Catalog(_zoa, "XYZ", AiTestHost.NoOverrides));
+        Assert.Throws<InvalidOperationException>(() => AiPositionResolver.Catalog(_zoa, "XYZ", AiTestFixture.NoOverrides));
     }
 }

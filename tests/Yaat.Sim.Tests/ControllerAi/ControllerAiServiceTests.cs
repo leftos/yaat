@@ -29,7 +29,7 @@ public class ControllerAiServiceTests
         var ground = TestAiPositions.OakGround(_zoa);
         var tower = TestAiPositions.OakTower(_zoa);
         var engine = new SimulationEngine(new TestAirportGroundData());
-        engine.LoadScenario(AiTestHost.ParkedAtOak, 7, MagneticDeclination.EvaluationDateUtc);
+        engine.LoadScenario(AiTestFixture.ParkedAtOak, 7, MagneticDeclination.EvaluationDateUtc);
         var scenario = engine.Scenario!;
         scenario.ArtccConfig = _zoa;
         var order = new List<string>();
@@ -40,16 +40,16 @@ public class ControllerAiServiceTests
         {
             Seed = 3,
             EnabledPositionIds = [tower.PositionId, ground.PositionId],
-            RoleOverrides = AiTestHost.NoOverrides,
+            RoleOverrides = AiTestFixture.NoOverrides,
             RunwayInUse = null,
-            RunwayConfigurations = AiTestHost.NoRunwayConfigurations,
+            RunwayConfigurations = AiTestFixture.NoRunwayConfigurations,
         };
         var service = new AiControllerService([towerProbe, groundProbe], new HeadlessAiStaffing([tower, ground], scenario), sink, config);
         scenario.ControllerAi = config;
         engine.ControllerAi = service;
 
-        sink.Issue(new AiCommandRequest(tower, AiTestHost.Callsign, "CTO", new AiIntent("probe", "")));
-        AiTestHost.Tick(engine, 1);
+        sink.Issue(new AiCommandRequest(tower, AiTestFixture.Callsign, "CTO", new AiIntent("probe", "")));
+        AiTestFixture.Tick(engine, 1);
 
         Assert.Equal(["OAK_GND", "OAK_TWR"], order);
         // Published staffing is sorted by position id (the roster's order), not by role rank.
@@ -75,7 +75,7 @@ public class ControllerAiServiceTests
 
         var ground = TestAiPositions.OakGround(_zoa);
         var engine = new SimulationEngine(new TestAirportGroundData());
-        engine.LoadScenario(AiTestHost.ParkedAtOak, 7, MagneticDeclination.EvaluationDateUtc);
+        engine.LoadScenario(AiTestFixture.ParkedAtOak, 7, MagneticDeclination.EvaluationDateUtc);
         var scenario = engine.Scenario!;
         scenario.ArtccConfig = _zoa;
         var order = new List<string>();
@@ -83,9 +83,9 @@ public class ControllerAiServiceTests
         {
             Seed = 3,
             EnabledPositionIds = [ground.PositionId],
-            RoleOverrides = AiTestHost.NoOverrides,
+            RoleOverrides = AiTestFixture.NoOverrides,
             RunwayInUse = null,
-            RunwayConfigurations = AiTestHost.NoRunwayConfigurations,
+            RunwayConfigurations = AiTestFixture.NoRunwayConfigurations,
         };
         engine.ControllerAi = new AiControllerService(
             [new ProbeBrain(ground, order)],
@@ -119,7 +119,7 @@ public class ControllerAiServiceTests
         var ground = TestAiPositions.OakGround(_zoa);
         var tower = TestAiPositions.OakTower(_zoa);
         var engine = new SimulationEngine(new TestAirportGroundData());
-        engine.LoadScenario(AiTestHost.ParkedAtOak, 7, MagneticDeclination.EvaluationDateUtc);
+        engine.LoadScenario(AiTestFixture.ParkedAtOak, 7, MagneticDeclination.EvaluationDateUtc);
         var scenario = engine.Scenario!;
         scenario.ArtccConfig = _zoa;
         scenario.SoloTrainingMode = true;
@@ -130,9 +130,9 @@ public class ControllerAiServiceTests
         {
             Seed = 3,
             EnabledPositionIds = [ground.PositionId, tower.PositionId],
-            RoleOverrides = AiTestHost.NoOverrides,
+            RoleOverrides = AiTestFixture.NoOverrides,
             RunwayInUse = null,
-            RunwayConfigurations = AiTestHost.NoRunwayConfigurations,
+            RunwayConfigurations = AiTestFixture.NoRunwayConfigurations,
         };
         scenario.ControllerAi = config;
         engine.ControllerAi = new AiControllerService(
@@ -159,7 +159,7 @@ public class ControllerAiServiceTests
         var delivery = _zoa.FindPositionByCallsign("OAK_DEL")!.Id;
         var ground = _zoa.FindPositionByCallsign("OAK_GND")!.Id;
         var engine = new SimulationEngine(new TestAirportGroundData());
-        engine.LoadScenario(AiTestHost.ParkedAtOak, 7, MagneticDeclination.EvaluationDateUtc);
+        engine.LoadScenario(AiTestFixture.ParkedAtOak, 7, MagneticDeclination.EvaluationDateUtc);
         var scenario = engine.Scenario!;
         scenario.ControllerAi = new ControllerAiConfig
         {
@@ -167,7 +167,7 @@ public class ControllerAiServiceTests
             EnabledPositionIds = [ground, delivery],
             RoleOverrides = new Dictionary<string, ControlRole>(StringComparer.Ordinal) { [delivery] = ControlRole.Ground },
             RunwayInUse = null,
-            RunwayConfigurations = AiTestHost.NoRunwayConfigurations,
+            RunwayConfigurations = AiTestFixture.NoRunwayConfigurations,
         };
         scenario.AiAnomalies.Open(AiAnomalyKind.StuckAircraft, ground, "N1", 1, "");
 

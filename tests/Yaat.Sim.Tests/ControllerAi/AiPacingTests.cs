@@ -66,8 +66,8 @@ public class AiPacingTests
         }
 
         var ground = TestAiPositions.OakGround(_zoa);
-        var engine = AiTestHost.Load(AiTestHost.ParkedAtOak, _zoa, 7, []);
-        var aircraft = engine.FindAircraft(AiTestHost.Callsign)!;
+        var engine = AiTestFixture.Load(AiTestFixture.ParkedAtOak, _zoa, 7, []);
+        var aircraft = engine.FindAircraft(AiTestFixture.Callsign)!;
         var sink = new RecordingAiCommandSink();
         var pacing = new AiPacing();
         var memo = new AiAircraftMemo();
@@ -153,7 +153,7 @@ public class AiPacingTests
         IAiCommandSink sink
     )
     {
-        var context = AiTestHost.Context(engine, [aircraft], [position], now, [], sink);
+        var context = AiTestFixture.Context(engine, [aircraft], [position], now, [], sink);
         return new AiRuleScope
         {
             Tick = context,

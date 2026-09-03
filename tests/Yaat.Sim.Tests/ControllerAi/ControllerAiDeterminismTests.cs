@@ -44,11 +44,11 @@ public class ControllerAiDeterminismTests
     private (string Actions, string Anomalies, string Snapshot) Run(string scenarioJson, int seed)
     {
         var positions = new[] { TestAiPositions.OakGround(_zoa!), TestAiPositions.OakTower(_zoa!) };
-        var engine = AiTestHost.Load(scenarioJson, _zoa!, seed, positions);
+        var engine = AiTestFixture.Load(scenarioJson, _zoa!, seed, positions);
         var anomalies = new List<AiAnomalyEvent>();
         for (int t = 0; t < Seconds; t++)
         {
-            AiTestHost.Tick(engine, 1);
+            AiTestFixture.Tick(engine, 1);
             anomalies.AddRange(engine.Scenario!.AiAnomalies.Drain());
         }
 

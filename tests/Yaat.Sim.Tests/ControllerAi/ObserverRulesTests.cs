@@ -30,9 +30,9 @@ public class ObserverRulesTests
         }
 
         var ground = TestAiPositions.OakGround(_zoa);
-        var engine = AiTestHost.Load(AiTestHost.ParkedAtOak, _zoa, 7, []);
-        Assert.True(engine.SendCommand(AiTestHost.Callsign, "TAXIAUTO 28R").Success);
-        var taxiing = AiTestHost.TickUntil(engine, AiTestHost.Callsign, ac => ac.Phases?.CurrentPhase is TaxiingPhase, 30);
+        var engine = AiTestFixture.Load(AiTestFixture.ParkedAtOak, _zoa, 7, []);
+        Assert.True(engine.SendCommand(AiTestFixture.Callsign, "TAXIAUTO 28R").Success);
+        var taxiing = AiTestFixture.TickUntil(engine, AiTestFixture.Callsign, ac => ac.Phases?.CurrentPhase is TaxiingPhase, 30);
         var rule = new StuckAircraftRule();
         var memos = new Dictionary<string, AiAircraftMemo>(StringComparer.Ordinal);
         double now = engine.Scenario!.ElapsedSeconds;
@@ -43,12 +43,12 @@ public class ObserverRulesTests
         var opened = Assert.Single(engine.Scenario.AiAnomalies.Drain());
         Assert.Equal(AiAnomalyKind.StuckAircraft, opened.Kind);
         Assert.Equal(ground.PositionId, opened.PositionId);
-        Assert.Equal(AiTestHost.Callsign, opened.SubjectKey);
+        Assert.Equal(AiTestFixture.Callsign, opened.SubjectKey);
         Assert.Contains("Taxiing", opened.Detail);
 
         // It taxis on: the episode closes.
-        AiTestHost.Tick(engine, 40);
-        var moved = engine.FindAircraft(AiTestHost.Callsign)!;
+        AiTestFixture.Tick(engine, 40);
+        var moved = engine.FindAircraft(AiTestFixture.Callsign)!;
         rule.Evaluate(Scope(engine, [moved], ground, engine.Scenario.ElapsedSeconds + 300, memos));
         var closed = Assert.Single(engine.Scenario.AiAnomalies.Drain());
         Assert.Equal(AiAnomalyEventKind.Closed, closed.Event);
@@ -63,15 +63,15 @@ public class ObserverRulesTests
         }
 
         var ground = TestAiPositions.OakGround(_zoa);
-        var engine = AiTestHost.Load(AiTestHost.ParkedAtOak, _zoa, 7, []);
-        Assert.True(engine.SendCommand(AiTestHost.Callsign, "TAXIAUTO 28R").Success);
-        var taxiing = AiTestHost.TickUntil(engine, AiTestHost.Callsign, ac => ac.Phases?.CurrentPhase is TaxiingPhase, 30);
+        var engine = AiTestFixture.Load(AiTestFixture.ParkedAtOak, _zoa, 7, []);
+        Assert.True(engine.SendCommand(AiTestFixture.Callsign, "TAXIAUTO 28R").Success);
+        var taxiing = AiTestFixture.TickUntil(engine, AiTestFixture.Callsign, ac => ac.Phases?.CurrentPhase is TaxiingPhase, 30);
         var rule = new StuckAircraftRule();
         var memos = new Dictionary<string, AiAircraftMemo>(StringComparer.Ordinal);
         double now = engine.Scenario!.ElapsedSeconds;
 
         // HOLD is sequencing (7110.65 3-8-1), not a stall: a held taxier never trips, however long it sits.
-        Assert.True(engine.SendCommand(AiTestHost.Callsign, "HOLD").Success);
+        Assert.True(engine.SendCommand(AiTestFixture.Callsign, "HOLD").Success);
         Assert.NotNull(taxiing.Ground.Hold);
         rule.Evaluate(Scope(engine, [taxiing], ground, now, memos));
         rule.Evaluate(Scope(engine, [taxiing], ground, now + 1000, memos));
@@ -111,8 +111,8 @@ public class ObserverRulesTests
         }
 
         var ground = TestAiPositions.OakGround(_zoa);
-        var engine = AiTestHost.Load(AiTestHost.ParkedAtOak, _zoa, 7, []);
-        var parked = engine.FindAircraft(AiTestHost.Callsign)!;
+        var engine = AiTestFixture.Load(AiTestFixture.ParkedAtOak, _zoa, 7, []);
+        var parked = engine.FindAircraft(AiTestFixture.Callsign)!;
         var rule = new StuckAircraftRule();
         var memos = new Dictionary<string, AiAircraftMemo>(StringComparer.Ordinal);
 
@@ -131,9 +131,9 @@ public class ObserverRulesTests
         }
 
         var ground = TestAiPositions.OakGround(_zoa);
-        var engine = AiTestHost.Load(AiTestHost.ParkedAtOak, _zoa, 7, [ground]);
-        AiTestHost.Tick(engine, 7);
-        var parked = engine.FindAircraft(AiTestHost.Callsign)!;
+        var engine = AiTestFixture.Load(AiTestFixture.ParkedAtOak, _zoa, 7, [ground]);
+        AiTestFixture.Tick(engine, 7);
+        var parked = engine.FindAircraft(AiTestFixture.Callsign)!;
         Assert.True(parked.PendingPilotRequest is { IsOpen: true, Kind: PilotPendingRequestKind.Taxi });
         var rule = new UnansweredPilotRequestRule();
         var memos = new Dictionary<string, AiAircraftMemo>(StringComparer.Ordinal);
@@ -144,13 +144,13 @@ public class ObserverRulesTests
         Assert.Empty(engine.Scenario!.AiAnomalies.Drain());
 
         // The pilot follows up on its own clock: now the request is one the controller has ignored twice.
-        AiTestHost.TickUntil(engine, AiTestHost.Callsign, ac => ac.PendingPilotRequest!.LastRequestedAtSeconds > asked, 200);
+        AiTestFixture.TickUntil(engine, AiTestFixture.Callsign, ac => ac.PendingPilotRequest!.LastRequestedAtSeconds > asked, 200);
         rule.Evaluate(Scope(engine, [parked], ground, engine.Scenario.ElapsedSeconds, memos));
         var opened = Assert.Single(engine.Scenario.AiAnomalies.Drain());
         Assert.Equal(AiAnomalyKind.UnansweredPilotRequest, opened.Kind);
         Assert.Contains("Taxi", opened.Detail);
 
-        Assert.True(engine.DispatchAiCommand(ground, AiTestHost.Callsign, "TAXIAUTO 28R").Success);
+        Assert.True(engine.DispatchAiCommand(ground, AiTestFixture.Callsign, "TAXIAUTO 28R").Success);
         rule.Evaluate(Scope(engine, [parked], ground, engine.Scenario.ElapsedSeconds + 1, memos));
         Assert.Equal(AiAnomalyEventKind.Closed, Assert.Single(engine.Scenario.AiAnomalies.Drain()).Event);
     }
@@ -164,7 +164,7 @@ public class ObserverRulesTests
         }
 
         var tower = TestAiPositions.OakTower(_zoa);
-        var engine = AiTestHost.Load(AiTestHost.ParkedAtOak, _zoa, 7, []);
+        var engine = AiTestFixture.Load(AiTestFixture.ParkedAtOak, _zoa, 7, []);
         var linedUp = new AircraftState
         {
             Callsign = "N7",
@@ -210,9 +210,9 @@ public class ObserverRulesTests
 
         var ground = TestAiPositions.OakGround(_zoa);
         var tower = TestAiPositions.OakTower(_zoa);
-        var engine = AiTestHost.Load(AiTestHost.ParkedAtOak, _zoa, 7, [ground]);
-        AiTestHost.Tick(engine, 7);
-        var parked = engine.FindAircraft(AiTestHost.Callsign)!;
+        var engine = AiTestFixture.Load(AiTestFixture.ParkedAtOak, _zoa, 7, [ground]);
+        AiTestFixture.Tick(engine, 7);
+        var parked = engine.FindAircraft(AiTestFixture.Callsign)!;
 
         // The parked aircraft is in Ground's jurisdiction; evaluated for the tower it is simply not the tower's.
         new UnansweredPilotRequestRule().Evaluate(ConflictScope(engine, [parked], tower, 500, []));
@@ -229,8 +229,8 @@ public class ObserverRulesTests
         }
 
         var approach = TestAiPositions.NorCalApproach(_zoa);
-        var engine = AiTestHost.Load(AiTestHost.ParkedAtOak, _zoa, 7, []);
-        var aircraft = AiTestHost.Airborne("AAL1", 37.9, -122.0, 8000);
+        var engine = AiTestFixture.Load(AiTestFixture.ParkedAtOak, _zoa, 7, []);
+        var aircraft = AiTestFixture.Airborne("AAL1", 37.9, -122.0, 8000);
         aircraft.Track.Owner = approach.Identity;
         aircraft.Track.HandoffPeer = TrackOwner.CreateEram("OAK_14_CTR", "ZOA", "14");
         aircraft.Track.OnHandoff = true;
@@ -265,9 +265,9 @@ public class ObserverRulesTests
         }
 
         var approach = TestAiPositions.NorCalApproach(_zoa);
-        var engine = AiTestHost.Load(AiTestHost.ParkedAtOak, _zoa, 7, []);
-        var a = AiTestHost.Airborne("AAL1", 37.9, -122.0, 8000);
-        var b = AiTestHost.Airborne("UAL2", 37.9, -122.01, 8000);
+        var engine = AiTestFixture.Load(AiTestFixture.ParkedAtOak, _zoa, 7, []);
+        var a = AiTestFixture.Airborne("AAL1", 37.9, -122.0, 8000);
+        var b = AiTestFixture.Airborne("UAL2", 37.9, -122.01, 8000);
         a.Track.Owner = approach.Identity;
         var conflict = new ActiveConflict
         {
@@ -326,7 +326,7 @@ public class ObserverRulesTests
         IReadOnlyList<ActiveConflict> conflicts
     )
     {
-        var context = AiTestHost.Context(engine, aircraft, [position], now, conflicts, new EngineAiCommandSink(engine));
+        var context = AiTestFixture.Context(engine, aircraft, [position], now, conflicts, new EngineAiCommandSink(engine));
         return new AiRuleScope
         {
             Tick = context,

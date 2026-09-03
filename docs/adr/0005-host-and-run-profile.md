@@ -24,6 +24,21 @@ being precise about which execution path you are on is the entire point.
 ## Consequences
 
 - A rename spanning both repos and their tests, for a naming benefit rather than a behavioural one.
+  Landed 2026-09-02. The names above are what those types were called; this is what they became:
+
+  | was | is |
+  |---|---|
+  | `SimulationHostedService` | `RoomTickLoopService` |
+  | `HeadlessRoomHost` / `HeadlessHostOptions` | `HeadlessRoom` / `HeadlessRoomOptions` |
+  | `IHeadlessEpisodeHost` | `IEpisodeRoom` |
+  | `YaatHost` / `YaatHostMarker` | `ServerApp` / `ServerAppMarker` |
+  | `AiTestHost` | `AiTestFixture` |
+  | `RuleHost` | `RuleProbe` |
+
+  Three uses of the word were deliberately kept, because they are not this concept: ASP.NET's own
+  vocabulary (`IHostedService` and the three background services that implement it, `builder.WebHost`,
+  `HostOptions`), `VStripsSplitHost` (an Avalonia control that hosts a pane layout), and the aviation
+  sense in "host ARTCC" and "enroute-hosted IFR plan".
 - The eight sim-side replay guards collapse into the run profile. The server's
   `IsBroadcastSuppressed` stays: it suppresses broadcasts, which is a host concern.
 - Vocabulary is fixed in [`CONTEXT.md`](../../CONTEXT.md) before the names are minted, not after.

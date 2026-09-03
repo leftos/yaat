@@ -187,7 +187,7 @@ set `RequireVatsimAuth=true` + the `Vatsim:*` config.
 
 - Server: `src/Yaat.Server/Auth/*` (`VatsimAuthService`, `VatusaService`, `YaatTokenService`,
   `AuthEndpoints`, `AuthStateStore`, `AuthExchangeStore`, `RefreshTokenRegistry`,
-  `TrainingHubAccessRequirement`, `VatsimUser`, `ArtccGrantList`, `ArtccAccessPolicy`), `YaatHost.cs` (JwtBearer +
+  `TrainingHubAccessRequirement`, `VatsimUser`, `ArtccGrantList`, `ArtccAccessPolicy`), `ServerApp.cs` (JwtBearer +
   `token_use` gate + forwarded headers + policy wiring + grants load), `Hubs/TrainingHub.cs` (gate + claim reading +
   ARTCC gate), `Simulation/ScenarioLifecycleService.cs` (ARTCC + rating scenario gate), `YaatOptions.cs`,
   `Data/artcc-grants.json`.

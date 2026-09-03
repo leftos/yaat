@@ -31,23 +31,23 @@ public class PositionJurisdictionTests
         }
 
         var staffed = Staffed();
-        var engine = AiTestHost.Load(AiTestHost.ParkedAtOak, _zoa, 7, []);
+        var engine = AiTestFixture.Load(AiTestFixture.ParkedAtOak, _zoa, 7, []);
         var resolve = (AircraftState ac) => Resolve(engine, ac, staffed)?.Callsign;
 
-        Assert.Equal("OAK_GND", resolve(engine.FindAircraft(AiTestHost.Callsign)!));
+        Assert.Equal("OAK_GND", resolve(engine.FindAircraft(AiTestFixture.Callsign)!));
 
-        Assert.True(engine.SendCommand(AiTestHost.Callsign, "TAXIAUTO 28R").Success);
-        var taxiing = AiTestHost.TickUntil(engine, AiTestHost.Callsign, ac => ac.Phases?.CurrentPhase is TaxiingPhase, 30);
+        Assert.True(engine.SendCommand(AiTestFixture.Callsign, "TAXIAUTO 28R").Success);
+        var taxiing = AiTestFixture.TickUntil(engine, AiTestFixture.Callsign, ac => ac.Phases?.CurrentPhase is TaxiingPhase, 30);
         Assert.Equal("OAK_GND", resolve(taxiing));
 
-        var holdingShort = AiTestHost.TickUntil(engine, AiTestHost.Callsign, ac => ac.Phases?.CurrentPhase is HoldingShortPhase, 900);
+        var holdingShort = AiTestFixture.TickUntil(engine, AiTestFixture.Callsign, ac => ac.Phases?.CurrentPhase is HoldingShortPhase, 900);
         Assert.Equal("OAK_TWR", resolve(holdingShort));
 
-        Assert.True(engine.SendCommand(AiTestHost.Callsign, "CTO").Success);
-        var rolling = AiTestHost.TickUntil(engine, AiTestHost.Callsign, ac => ac.Phases?.CurrentPhase is TakeoffPhase, 120);
+        Assert.True(engine.SendCommand(AiTestFixture.Callsign, "CTO").Success);
+        var rolling = AiTestFixture.TickUntil(engine, AiTestFixture.Callsign, ac => ac.Phases?.CurrentPhase is TakeoffPhase, 120);
         Assert.Equal("OAK_TWR", resolve(rolling));
 
-        var climbing = AiTestHost.TickUntil(engine, AiTestHost.Callsign, ac => !ac.IsOnGround, 120);
+        var climbing = AiTestFixture.TickUntil(engine, AiTestFixture.Callsign, ac => !ac.IsOnGround, 120);
         Assert.Equal("OAK_TWR", resolve(climbing));
     }
 
@@ -59,10 +59,10 @@ public class PositionJurisdictionTests
             return;
         }
 
-        var engine = AiTestHost.Load(AiTestHost.OnFinalAtOak, _zoa, 7, []);
-        AiTestHost.Tick(engine, 2);
+        var engine = AiTestFixture.Load(AiTestFixture.OnFinalAtOak, _zoa, 7, []);
+        AiTestFixture.Tick(engine, 2);
 
-        var aircraft = engine.FindAircraft(AiTestHost.Callsign)!;
+        var aircraft = engine.FindAircraft(AiTestFixture.Callsign)!;
         Assert.IsType<FinalApproachPhase>(aircraft.Phases?.CurrentPhase);
         Assert.Equal("OAK_TWR", Resolve(engine, aircraft, Staffed())?.Callsign);
     }
@@ -75,10 +75,10 @@ public class PositionJurisdictionTests
             return;
         }
 
-        var engine = AiTestHost.Load(AiTestHost.ParkedAtOak, _zoa, 7, []);
+        var engine = AiTestFixture.Load(AiTestFixture.ParkedAtOak, _zoa, 7, []);
         var staffed = Staffed();
         var approach = staffed.Single(p => p.Callsign == "NCT_APP");
-        var cruising = AiTestHost.Airborne("AAL1", 37.9, -122.0, 8000);
+        var cruising = AiTestFixture.Airborne("AAL1", 37.9, -122.0, 8000);
 
         Assert.Null(Resolve(engine, cruising, staffed));
 
@@ -100,8 +100,8 @@ public class PositionJurisdictionTests
             return;
         }
 
-        var engine = AiTestHost.Load(AiTestHost.ParkedAtOak, _zoa, 7, []);
-        var atSfo = AiTestHost.Airborne("UAL2", 37.62, -122.38, 1200);
+        var engine = AiTestFixture.Load(AiTestFixture.ParkedAtOak, _zoa, 7, []);
+        var atSfo = AiTestFixture.Airborne("UAL2", 37.62, -122.38, 1200);
         atSfo.AirportId = "SFO";
         atSfo.FlightPlan.Destination = "KSFO";
         atSfo.Phases = new PhaseList();
@@ -118,20 +118,20 @@ public class PositionJurisdictionTests
             return;
         }
 
-        var engine = AiTestHost.Load(AiTestHost.ParkedAtOak, _zoa, 7, []);
+        var engine = AiTestFixture.Load(AiTestFixture.ParkedAtOak, _zoa, 7, []);
         var staffed = Staffed();
         var approach = staffed.Single(p => p.Callsign == "NCT_APP");
-        var b = AiTestHost.Airborne("B", 37.9, -122.0, 8000);
-        var a = AiTestHost.Airborne("A", 37.8, -122.1, 9000);
+        var b = AiTestFixture.Airborne("B", 37.9, -122.0, 8000);
+        var a = AiTestFixture.Airborne("A", 37.8, -122.1, 9000);
         a.Track.Owner = approach.Identity;
         b.Track.Owner = approach.Identity;
-        var parked = engine.FindAircraft(AiTestHost.Callsign)!;
+        var parked = engine.FindAircraft(AiTestFixture.Callsign)!;
 
-        var view = AiTestHost.Context(engine, [parked, b, a], staffed, 0, [], new EngineAiCommandSink(engine)).View;
+        var view = AiTestFixture.Context(engine, [parked, b, a], staffed, 0, [], new EngineAiCommandSink(engine)).View;
 
-        Assert.Equal(["A", "B", AiTestHost.Callsign], view.Snapshot.Select(ac => ac.Callsign));
+        Assert.Equal(["A", "B", AiTestFixture.Callsign], view.Snapshot.Select(ac => ac.Callsign));
         Assert.Equal(["A", "B"], view.Jurisdiction(approach).Select(ac => ac.Callsign));
-        Assert.Equal([AiTestHost.Callsign], view.Jurisdiction(staffed.Single(p => p.Callsign == "OAK_GND")).Select(ac => ac.Callsign));
+        Assert.Equal([AiTestFixture.Callsign], view.Jurisdiction(staffed.Single(p => p.Callsign == "OAK_GND")).Select(ac => ac.Callsign));
         Assert.Empty(view.Jurisdiction(staffed.Single(p => p.Callsign == "OAK_TWR")));
     }
 
@@ -149,9 +149,9 @@ public class PositionJurisdictionTests
         // Nobody plays the tower: the AI approach that owns the track stays responsible on final instead of the
         // aircraft dropping out of every jurisdiction.
         var approach = TestAiPositions.NorCalApproach(_zoa);
-        var engine = AiTestHost.Load(AiTestHost.OnFinalAtOak, _zoa, 7, []);
-        AiTestHost.Tick(engine, 2);
-        var aircraft = engine.FindAircraft(AiTestHost.Callsign)!;
+        var engine = AiTestFixture.Load(AiTestFixture.OnFinalAtOak, _zoa, 7, []);
+        AiTestFixture.Tick(engine, 2);
+        var aircraft = engine.FindAircraft(AiTestFixture.Callsign)!;
         Assert.IsType<FinalApproachPhase>(aircraft.Phases?.CurrentPhase);
 
         Assert.Null(Resolve(engine, aircraft, [approach]));
@@ -167,7 +167,7 @@ public class PositionJurisdictionTests
             return;
         }
 
-        var engine = AiTestHost.Load(AiTestHost.ParkedAtOak, _zoa, 7, []);
+        var engine = AiTestFixture.Load(AiTestFixture.ParkedAtOak, _zoa, 7, []);
         var runway = RunwayOccupancy.AirportRunways("OAK").Single(r => r.Id.End1 == "28R" || r.Id.End2 == "28R");
         var onRunway = new AircraftState
         {
@@ -202,8 +202,8 @@ public class PositionJurisdictionTests
             return;
         }
 
-        var engine = AiTestHost.Load(AiTestHost.ParkedAtOak, _zoa, 7, []);
-        var parked = engine.FindAircraft(AiTestHost.Callsign)!;
+        var engine = AiTestFixture.Load(AiTestFixture.ParkedAtOak, _zoa, 7, []);
+        var parked = engine.FindAircraft(AiTestFixture.Callsign)!;
         var staffing = new HeadlessAiStaffing(Staffed(), engine.Scenario!);
 
         Assert.NotNull(

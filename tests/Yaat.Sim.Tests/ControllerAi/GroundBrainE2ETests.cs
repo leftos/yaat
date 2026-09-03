@@ -44,7 +44,14 @@ public class GroundBrainE2ETests
         }
 
         var ground = TestAiPositions.OakGround(_zoa);
-        var engine = AiTestHost.LoadWith(DeparturesOnly(File.ReadAllText(DeparturesScenarioPath)), _zoa, 42, [ground], "30", p => new GroundBrain(p));
+        var engine = AiTestFixture.LoadWith(
+            DeparturesOnly(File.ReadAllText(DeparturesScenarioPath)),
+            _zoa,
+            42,
+            [ground],
+            "30",
+            p => new GroundBrain(p)
+        );
         var scenario = engine.Scenario!;
         var departures = engine.World.GetSnapshot().Select(ac => ac.Callsign).ToHashSet(StringComparer.Ordinal);
         Assert.Equal(30, departures.Count);
@@ -55,7 +62,7 @@ public class GroundBrainE2ETests
 
         for (int t = 0; t < 5400 && departures.Any(cs => engine.FindAircraft(cs) is { IsOnGround: true }); t++)
         {
-            AiTestHost.Tick(engine, 1);
+            AiTestFixture.Tick(engine, 1);
             opened.AddRange(scenario.AiAnomalies.Drain().Where(e => e.Event != AiAnomalyEventKind.Closed));
             PlayTower(engine, runway30, ref lastClearance);
         }
@@ -121,13 +128,13 @@ public class GroundBrainE2ETests
 
         var ground = TestAiPositions.OakGround(_zoa);
         var tower = TestAiPositions.OakTower(_zoa);
-        var scenarioJson = AiTestHost.ParkedAtOak.Replace("\"parking\": \"SIG1\"", "\"parking\": \"29\"");
-        var engine = AiTestHost.LoadWith(scenarioJson, _zoa, 7, [ground, tower], "30", p => new GroundBrain(p));
+        var scenarioJson = AiTestFixture.ParkedAtOak.Replace("\"parking\": \"SIG1\"", "\"parking\": \"29\"");
+        var engine = AiTestFixture.LoadWith(scenarioJson, _zoa, 7, [ground, tower], "30", p => new GroundBrain(p));
         var aiId = AiConnectionId.Format(ground.PositionId);
         RecordedCommand? transfer = null;
         for (int t = 0; t < 600 && transfer is null; t++)
         {
-            AiTestHost.Tick(engine, 1);
+            AiTestFixture.Tick(engine, 1);
             transfer = engine
                 .Scenario!.ActionLog.OfType<RecordedCommand>()
                 .FirstOrDefault(a => (a.ConnectionId == aiId) && a.Command.StartsWith("CT ", StringComparison.Ordinal));
@@ -135,7 +142,7 @@ public class GroundBrainE2ETests
 
         Assert.NotNull(transfer);
         Assert.Equal("CT OAK_TWR", transfer.Command);
-        var handed = engine.FindAircraft(AiTestHost.Callsign)!;
+        var handed = engine.FindAircraft(AiTestFixture.Callsign)!;
         Assert.False(handed.HasLeftStudentFrequency);
         Assert.Equal(CompletionReason.Active, handed.CompletionReason);
         Assert.Null(handed.CompletedAtSeconds);
@@ -150,10 +157,10 @@ public class GroundBrainE2ETests
         }
 
         var ground = TestAiPositions.OakGround(_zoa);
-        var engine = AiTestHost.LoadWith(AiTestHost.OnFinalAtOak, _zoa, 7, [ground], null, p => new GroundBrain(p));
-        Assert.True(engine.SendCommand(AiTestHost.Callsign, "CLAND").Success);
+        var engine = AiTestFixture.LoadWith(AiTestFixture.OnFinalAtOak, _zoa, 7, [ground], null, p => new GroundBrain(p));
+        Assert.True(engine.SendCommand(AiTestFixture.Callsign, "CLAND").Success);
 
-        var parked = AiTestHost.TickUntil(engine, AiTestHost.Callsign, ac => ac.Phases?.CurrentPhase is AtParkingPhase, 1200);
+        var parked = AiTestFixture.TickUntil(engine, AiTestFixture.Callsign, ac => ac.Phases?.CurrentPhase is AtParkingPhase, 1200);
 
         var taxiIn = Assert.Single(
             engine.Scenario!.ActionLog.OfType<RecordedCommand>(),
@@ -227,12 +234,12 @@ public class GroundBrainE2ETests
     private (string Actions, string Anomalies, string Snapshot) Run(string scenarioJson, int seed)
     {
         var ground = TestAiPositions.OakGround(_zoa!);
-        var engine = AiTestHost.LoadWith(scenarioJson, _zoa!, seed, [ground], "30", p => new GroundBrain(p));
+        var engine = AiTestFixture.LoadWith(scenarioJson, _zoa!, seed, [ground], "30", p => new GroundBrain(p));
         engine.Scenario!.AutoClearedToLand = true;
         var anomalies = new List<AiAnomalyEvent>();
         for (int t = 0; t < 1200; t++)
         {
-            AiTestHost.Tick(engine, 1);
+            AiTestFixture.Tick(engine, 1);
             anomalies.AddRange(engine.Scenario.AiAnomalies.Drain());
         }
 

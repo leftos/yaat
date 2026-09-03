@@ -6,7 +6,7 @@ Live command application and the server tick loop run **unsynchronized**, and th
 live loop advances the clock differently from replay. Two concrete defects:
 
 1. **1-tick replay-determinism edge.** The live server loop
-   (`SimulationHostedService.RunTickLoop`, yaat-server) increments
+   (`RoomTickLoopService.RunTickLoop`, yaat-server) increments
    `scenario.ElapsedSeconds` at the **end** of each sim-second (after PostPhysics).
    Every other tick driver increments at the **start** (before PrePhysics):
    `SimulationEngine.TickOneSecond`, `SimulationEngine.ReplayOneSecond`, and the
@@ -70,7 +70,7 @@ mimics the old server loop (increment at END), then:
 ## Files (yaat-server)
 
 - `src/Yaat.Server/Simulation/TrainingRoom.cs` — add `TickGate` SemaphoreSlim.
-- `src/Yaat.Server/Simulation/SimulationHostedService.cs` — hold gate per room; move
+- `src/Yaat.Server/Simulation/RoomTickLoopService.cs` — hold gate per room; move
   `ElapsedSeconds += 1` to top of the per-second loop.
 - `src/Yaat.Server/Simulation/RoomEngine.cs` — acquire gate around the recorded-mutation
   entry points (SendCommandAsync + CRC paths + spawn/delete/weather/FP).
@@ -96,7 +96,7 @@ and `minimal-held-departures-two.json`):
   subtle, matching the original "out of scope / track separately" framing.
 
 **Testability gap (key):** the harness already increments at the START (so harness == replay and
-the existing suite can't see the bug). The defect lives only in `SimulationHostedService.RunTickLoop`,
+the existing suite can't see the bug). The defect lives only in `RoomTickLoopService.RunTickLoop`,
 which no test drives. The robust fix should therefore **unify the per-second tick** — have the
 server loop and the harness/engine share one start-increment tick path — so the increment is correct
 by construction and testable, then add the per-room lock. A bare edit to `RunTickLoop:136` would fix
@@ -107,7 +107,7 @@ the behavior but stay unverified by the suite.
 **Part 1 — tick unification (DONE, the confirmed determinism fix):**
 - Added `RoomEngine.AdvanceOneSecond()` — one per-second tick: increment-at-start + PrePhysics +
   physics sub-ticks + PostPhysics.
-- `SimulationHostedService.RunTickLoop` now calls it (live server increments at start, matching replay).
+- `RoomTickLoopService.RunTickLoop` now calls it (live server increments at start, matching replay).
 - `RoomEngineTestHarness.Tick()` routes through it too, so the harness faithfully represents the
   server and `StartIncrementTiming_MatchesReplay` now guards the real server path.
 - 720 server tests pass; characterization tests green.
@@ -115,7 +115,7 @@ the behavior but stay unverified by the suite.
 **Part 2 — per-room lock (DONE, thread-safety + async-race robustness):**
 - Added a non-reentrant `SemaphoreSlim` gate to `TrainingRoom` with `EnterTickGateAsync()` /
   `ExitTickGate()` (tick loop) and `GuardAsync(...)` helpers (mutations).
-- `SimulationHostedService.RunTickLoop` holds the gate per room across the whole per-second
+- `RoomTickLoopService.RunTickLoop` holds the gate per room across the whole per-second
   processing (extracted into `ProcessRoomSecond`), so a command cannot interleave mid-physics.
 - Acquired at the **outermost boundaries only**, never inside `RoomEngine`, so the non-reentrant
   semaphore never nests (the **footgun**: `RoomEngine` mutators and replay/playback callbacks like

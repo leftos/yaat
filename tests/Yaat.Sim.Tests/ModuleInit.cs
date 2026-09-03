@@ -42,7 +42,7 @@ internal static class ModuleInit
         );
 
         // Warm the lazily-loaded static databases off the test threads, as the server does at
-        // startup (YaatHost): otherwise the first test to tick physics pays the airspace GeoJSON
+        // startup (ServerApp): otherwise the first test to tick physics pays the airspace GeoJSON
         // parse (~0.75 s) inside its own timing, and the MTR load lands on whichever test asks first.
         _ = Task.Run(static () =>
         {

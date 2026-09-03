@@ -7,7 +7,7 @@ in [08](08-detectors-and-findings.md); live attach in [09](09-live-attach.md).
 ## Placement (locked decision)
 
 **The runner lives at `yaat-server/tools/Yaat.SoakRunner` and drives the RoomEngine path** via a new
-`HeadlessRoomHost`. Verified rationale:
+`HeadlessRoom`. Verified rationale:
 
 1. Only the server records commands — `RoomEngine.SendCommandAsync` → `Record(new
    RecordedCommand(...))`; standalone `SimulationEngine.SendCommand` does **not** append to
@@ -27,9 +27,9 @@ product benefit).
 Consequence: cross-repo feature — detector framework + bug_bundle tooling in yaat, host + runner +
 attach mode in yaat-server — planned and landed together per house rules.
 
-## HeadlessRoomHost
+## HeadlessRoom
 
-`src/Yaat.Server/Simulation/Headless/HeadlessRoomHost.cs` — a production-grade sibling of
+`src/Yaat.Server/Simulation/Headless/HeadlessRoom.cs` — a production-grade sibling of
 `RoomEngineTestHarness` (which stays test-only):
 
 - Real `TickProcessor` + command handlers + `RoomEngineFactory` wiring, one `TrainingRoom`, no
@@ -77,7 +77,7 @@ rolling-window recording entirely.
 
 ```
 SimLog.Initialize(capturing factory)                  // console Info+, Warning+ ring buffer tap
-host = HeadlessRoomHost.Create(...)
+host = HeadlessRoom.Create(...)
 engine = host.CreateRoom(); host.LoadScenarioSeeded(json, seed)
 ai = AiControllerService for the enabled positions    // core plan's factory
 monitor = RoomSoakMonitor.Attach(engine, detectors, aggregator)
@@ -98,7 +98,7 @@ FindingsWriter.Write(...)
 
 Notes:
 
-- `AdvanceOneSecond` has no internal try/catch (only `SimulationHostedService` catches in
+- `AdvanceOneSecond` has no internal try/catch (only `RoomTickLoopService` catches in
   production) — the runner's catch **is** the Tier-A tick-exception detector. After a tick exception
   the episode ends (world state untrustworthy) but artifacts finalize in a `finally`: the recording
   replays deterministically up to the crash, which *is* the repro.
@@ -142,12 +142,12 @@ strip/TDLS sub-processes.
 
 ```
 yaat-server/src/Yaat.Server/Simulation/Headless/
-  HeadlessRoomHost.cs  CollectingTrainingBroadcast.cs  NullCrcBroadcast.cs  NullHubContext.cs
+  HeadlessRoom.cs  CollectingTrainingBroadcast.cs  NullCrcBroadcast.cs  NullHubContext.cs
 yaat-server/src/Yaat.Server/Soak/
   RoomSoakMonitor.cs         attaches detectors + aggregator to one RoomEngine (shared with live attach)
   SoakFindingBroadcastSink.cs
 yaat-server/tools/Yaat.SoakRunner/
   Yaat.SoakRunner.csproj  Program.cs  SoakOptions.cs  EpisodePlan.cs  TrafficSource.cs
   EpisodeRunner.cs  RecordingSink.cs  FindingsWriter.cs  SeedMatrixRunner.cs  ProgressReporter.cs
-yaat-server/tests/Yaat.Server.Tests/Soak/   HeadlessRoomHost + RoomSoakMonitor integration tests
+yaat-server/tests/Yaat.Server.Tests/Soak/   HeadlessRoom + RoomSoakMonitor integration tests
 ```

@@ -193,7 +193,7 @@ The server brain mirrors this: `RecordingManager.ReconstructViaServerTick` appli
 (`SimulationEngine.IsPreTickAction` — `RecordedAircraftSpawn` and `RecordedLiveTrafficSample`, the latter via
 `SimulationEngine.ApplyRecordedLiveTrafficSample`, public for this) between `RoomEngine.BeginSecond` (the `ElapsedSeconds`
 increment) and `RunSecondPhysics`, and skips them when the generic post-second cursor reaches them; forward tape playback does
-the same through `ApplyPreTickPlaybackActions(second)`, which `SimulationHostedService.ProcessRoomSecond` calls in the same
+the same through `ApplyPreTickPlaybackActions(second)`, which `RoomTickLoopService.ProcessRoomSecond` calls in the same
 slot. The increment must come first: `ApplyRecordedLiveTrafficSample` resyncs against `ElapsedSeconds`, and a sample carrying
 feed latency resynced at *t−1* dead-reckons one second behind the live session (#404 — invisible with zero-latency samples
 because of the `max(0, …)` clamp in `LiveTrafficKinematics.Resync`). Removals apply post-second. A spawn-carrying sample also
@@ -326,7 +326,7 @@ a property of the loaded scenario, not a session setting: it survives rewinds an
 resolves as an airport (`LiveSessionScenario.IsKnownAirport` — an `AtctTracon` like MC1 is not one), `PrimaryAirportId` =
 `ArtccConfigService.PrimaryFacilityAirport` (first underlying airport of the first STARS area: SFO for NCT and O90, SMF for MC1),
 `Airports` = `ResolveFacilityAirports`. Time model: a paused live session freezes its shadows (the tick loop skips the room);
-`SimulationHostedService.ProcessRoomSecond` at the tape end calls `TakeControl` and keeps running for a live session (instead of
+`RoomTickLoopService.ProcessRoomSecond` at the tape end calls `TakeControl` and keeps running for a live session (instead of
 pausing) — the tape's future was only feed samples the store re-supplies; `RoomEngine.GoLive` (hub `GoLive`) = `TakeControl` +
 `Resume`, refused outside a live session. **Rejoining real time is a reacquire, not a teleport** (aviation review): when
 `ShadowTrafficSync.Anchor` finds the sync non-continuous and the wall gap since `RoomLiveTrafficState.LastSyncWallUtc` (kept across
@@ -483,7 +483,7 @@ normal), `AircraftViewFilterTests` (tri-state), `LiveTrafficStatusTextTests`; `t
 `Services/LiveSessionAirportDefaultsTests` (tower / TRACON / center airport defaults). yaat-server
 `tests/Yaat.Server.Tests/LiveTraffic/LiveSessionTests`: the synthesized scenario round-trips through `ScenarioLoader`, `StartLiveSessionAsync`
 loads + enables + resumes, refusals (no feed / unknown position / unknown airport), the facility tree, the live-session tape-end rule
-against `SimulationHostedService.ProcessRoomSecond` (and the authored-scenario pause it keeps), `GoLive`.
+against `RoomTickLoopService.ProcessRoomSecond` (and the authored-scenario pause it keeps), `GoLive`.
 
 `tests/Yaat.Sim.Tests/LiveTraffic/`: `LiveTrafficKinematicsTests` (dead reckoning, 4 Hz motion, air vector under a
 100-kt crosswind, coast timing, out-of-order/jump samples, derived VS, surface pose, snapshot round trip, status,

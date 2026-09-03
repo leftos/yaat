@@ -85,7 +85,7 @@ The reason for the split is spelled out in the source comments (`SimLog.cs:8-15`
 
 Each host installs a factory exactly once at startup:
 
-- **Server** — `YaatHost.cs:127` (yaat-server): `SimLog.Initialize(app.Services.GetRequiredService<ILoggerFactory>())`. It hands the ASP.NET DI
+- **Server** — `ServerApp.cs:127` (yaat-server): `SimLog.Initialize(app.Services.GetRequiredService<ILoggerFactory>())`. It hands the ASP.NET DI
   `ILoggerFactory` to `SimLog` after `builder.Build()`, so Sim logs flow through the same provider stack as server logs.
 - **Desktop client** — `Program.cs:25-26` (yaat): `YaatPaths.Initialize("yaat")` then `AppLog.Initialize("yaat-client.log")`. `AppLog.Initialize`
   builds a `FileLoggerProvider`, wraps it in a `LoggerFactory` at `LogLevel.Debug`, and forwards it to `SimLog.Initialize` (`AppLog.cs:17-29`).
@@ -134,9 +134,9 @@ Read these files first before speculating about a runtime error:
 
 - **Client**: `%LOCALAPPDATA%/yaat/yaat-client.log`. The path is `YaatPaths.Combine("yaat-client.log")` (`AppLog.cs:19`), and `YaatPaths.AppDataRoot`
   honors the `YAAT_APPDATA_DIR` env override (`YaatPaths.cs:23-36`) — so a test or sandbox can redirect it without touching your real profile.
-- **Server**: `yaat-server.log` at `AppContext.BaseDirectory` (`YaatHost.cs:54`), which in a Debug build resolves to
+- **Server**: `yaat-server.log` at `AppContext.BaseDirectory` (`ServerApp.cs:54`), which in a Debug build resolves to
   `src/Yaat.Server/bin/Debug/net10.0/yaat-server.log` relative to the yaat-server repo root. The server logs the resolved path at startup
-  (`YaatHost.cs:130`).
+  (`ServerApp.cs:130`).
 
 ## Seeing logs in tests
 

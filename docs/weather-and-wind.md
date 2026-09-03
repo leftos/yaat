@@ -36,7 +36,7 @@ it does not re-derive the equations.
 
 `World.Weather` is one `WeatherProfile` at a time. A v2 timeline is collapsed to a profile every tick by `GetWeatherAt`; a v1 profile
 or a live-weather profile is used directly. Selection is wired in `SimulationEngine.cs` (`ApplyWeatherJson`, replay restore paths) and
-in the live server tick (`SimulationHostedService.cs`); see [Consumption and broadcast](#consumption-and-broadcast).
+in the live server tick (`RoomTickLoopService.cs`); see [Consumption and broadcast](#consumption-and-broadcast).
 
 ## Data model
 
@@ -247,7 +247,7 @@ See [tick-loop.md](tick-loop.md) for where these steps sit in the 8-step `Flight
 ### Selection and broadcast cadence
 
 - **Replay / scenario engine** (`SimulationEngine.cs`): the timeline is collapsed at restore/replay sites (`World.Weather = timeline.GetWeatherAt(t)`), and `ApplyWeatherJson` (`SimulationEngine.cs:2562`) routes a `LoadWeather` JSON through `WeatherTimelineParser` — a timeline is stored on `Scenario.WeatherTimeline` and immediately collapsed; a v1 profile clears the timeline and sets `World.Weather` directly. Snapshots serialize `World.Weather` as JSON (`SimulationEngine.cs:135`, `:148`) plus `Scenario.WeatherSourceJson`; `RestoreFromSnapshot` rebuilds `Scenario.WeatherTimeline` from that source so v2 evolution survives a snapshot-based rewind (the parsed timeline object itself is not snapshotted).
-- **Live server tick** (`SimulationHostedService.cs`): each second, if a timeline is active, `GetWeatherAt(elapsed)` is recomputed into `World.Weather` (gated by `HasMeaningfulChange`) to drive physics/visual acquisition — this no longer broadcasts. Broadcasts are instead driven by the reported-METAR issuer (see below).
+- **Live server tick** (`RoomTickLoopService.cs`): each second, if a timeline is active, `GetWeatherAt(elapsed)` is recomputed into `World.Weather` (gated by `HasMeaningfulChange`) to drive physics/visual acquisition — this no longer broadcasts. Broadcasts are instead driven by the reported-METAR issuer (see below).
 - **`HasMeaningfulChange(a, b)`** (`WeatherTimeline.cs:94`) gates the continuous `World.Weather` update: true if precipitation changed, METAR list changed, layer count changed, or **any layer's direction differs by > 1°, speed by > 0.5 kt, gusts by > 0.5 kt, variability spread by > 1°, or the VRB flag flipped**.
 
 ### Reported METAR reconstruction (`MetarIssuer`, `MetarComposer`, `SpeciCriteria`)

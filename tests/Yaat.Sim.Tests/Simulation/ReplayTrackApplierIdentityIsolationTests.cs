@@ -34,7 +34,7 @@ public class ReplayTrackApplierIdentityIsolationTests
         }
 
         var ground = TestAiPositions.OakGround(_zoa);
-        var engine = AiTestHost.Load(AiTestHost.ParkedAtOak, _zoa, 7, [ground]);
+        var engine = AiTestFixture.Load(AiTestFixture.ParkedAtOak, _zoa, 7, [ground]);
         var scenario = engine.Scenario!;
 
         // A student on OAK Tower, so "AS 3T" resolves to an owner that is not the AI ground position.
@@ -48,12 +48,12 @@ public class ReplayTrackApplierIdentityIsolationTests
         Assert.NotEqual(student, aiOwner);
 
         // A recorded active-position selection carrying the AI's connection id, replayed into this engine.
-        engine.ReplayCommand(new RecordedCommand(0, AiTestHost.Callsign, "AS 3T", "XX", aiConnectionId));
+        engine.ReplayCommand(new RecordedCommand(0, AiTestFixture.Callsign, "AS 3T", "XX", aiConnectionId));
 
-        var result = engine.DispatchAiCommand(ground, AiTestHost.Callsign, "TRACK");
+        var result = engine.DispatchAiCommand(ground, AiTestFixture.Callsign, "TRACK");
 
         Assert.True(result.Success, result.Message);
-        var aircraft = engine.FindAircraft(AiTestHost.Callsign)!;
+        var aircraft = engine.FindAircraft(AiTestFixture.Callsign)!;
         Assert.Equal(aiOwner, aircraft.Track.Owner);
     }
 }

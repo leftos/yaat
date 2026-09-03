@@ -211,7 +211,7 @@ Committed at `dfd35cc8`. `docs/vtdls/` cached. Findings folded into the rest of 
   - **WILCO**: see Phase 3.
 - Create `src/Yaat.Server/Simulation/TdlsBroadcaster.cs` — `BroadcastItemsAsync`, `BroadcastFullStateAsync`, `BroadcastRemovalAsync`, `SendInitialStateToClientAsync`. SignalR (`TdlsItemsChanged`, `TdlsStateChanged`, `TdlsItemRemoved`) + CRC topic publish. Topic name in a single constant for easy swap pending Phase 2.3 capture.
 - Create `src/Yaat.Server/Simulation/TdlsCommandTranslator.cs` — CRC MessagePack DTOs → canonical command strings.
-- Modify `src/Yaat.Server/YaatHost.cs` — `AddSingleton<TdlsBroadcaster>(); AddSingleton<TdlsCommandHandler>();`.
+- Modify `src/Yaat.Server/ServerApp.cs` — `AddSingleton<TdlsBroadcaster>(); AddSingleton<TdlsCommandHandler>();`.
 - Modify `src/Yaat.Server/Simulation/RoomEngine.cs` — `IsTdlsCommand` branch in `SendCommandAsync` + `RecordAndDispatchTdlsAsync`.
 - Tests: `TdlsCommandHandlerTests.cs` (Queue/Send/Dump happy paths + rejections), `TdlsCommandTranslatorTests.cs`, `TdlsBroadcasterTests.cs`.
 
@@ -300,8 +300,8 @@ Committed at `dfd35cc8`. `docs/vtdls/` cached. Findings folded into the rest of 
 
 ### Phase 8 — Server deployment
 
-**8.1** `add(tdls): YaatHost static-file mapping for /vtdls/`
-- Modify `src/Yaat.Server/YaatHost.cs` — duplicate the `/vstrips/` block (redirect `/vtdls` → `/vtdls/`, `MapFallbackToFile("vtdls/{**path:nonfile}", "vtdls/index.html")`). Shared WASM content-type provider — no changes.
+**8.1** `add(tdls): ServerApp static-file mapping for /vtdls/`
+- Modify `src/Yaat.Server/ServerApp.cs` — duplicate the `/vstrips/` block (redirect `/vtdls` → `/vtdls/`, `MapFallbackToFile("vtdls/{**path:nonfile}", "vtdls/index.html")`). Shared WASM content-type provider — no changes.
 
 **8.2** `add(tdls): Dockerfile explicit COPY lines`
 - Modify `src/Yaat.Server/Dockerfile`:
@@ -354,7 +354,7 @@ Phase 6.1 (Yaat.VTdls.Web WASM)
 Phase 7.1 (MainViewModel.TdlsEntries + dock VM)
 Phase 7.2 (MainWindow tab + pop-out + View menu)
                          ─── client+web build green ───
-Phase 8.1 (YaatHost /vtdls/ route) ✅
+Phase 8.1 (ServerApp /vtdls/ route) ✅
 Phase 8.2 (Dockerfile COPY lines)
                          ─── docker build green ───
 Phase 9.1 (docs/vtdls.md)
@@ -386,7 +386,7 @@ The second STOP (after Phase 1.0.1) is for human review of the data-api endpoint
 - `tools/Yaat.VTdls.Web/` (new project tree, Phase 6.1)
 - `src/Yaat.Client/ViewModels/MainViewModel.Tdls.cs` + `VTdlsDockEntryViewModel.cs` (new, Phase 7.1)
 - `src/Yaat.Client/Views/MainWindow.axaml(.cs)` (modify — TDLS submenu + tab/window wiring, Phase 7.2)
-- `src/Yaat.Server/YaatHost.cs` (modify — `/vtdls/` static-file mapping, Phase 8.1)
+- `src/Yaat.Server/ServerApp.cs` (modify — `/vtdls/` static-file mapping, Phase 8.1)
 - `src/Yaat.Server/Dockerfile` (modify — explicit COPY + restore + publish for the two new csprojs, Phase 8.2)
 - `docs/vtdls.md`, `USER_GUIDE.md`, `COMMANDS.md`, `docs/command-cheatsheet.json`, `CHANGELOG.md` (Phase 9)
 
