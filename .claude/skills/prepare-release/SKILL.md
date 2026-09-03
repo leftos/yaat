@@ -1,3 +1,9 @@
+---
+name: prepare-release
+description: Prepare a new YAAT release — version bump, changelog cut, tag, cross-repo push (invoke by hand as /prepare-release).
+disable-model-invocation: true
+---
+
 Prepare a new YAAT release. Walk through these steps interactively:
 
 ## Step 0: Verify release secrets

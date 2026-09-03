@@ -1,6 +1,8 @@
 ---
 name: consolidate-recordings
-description: "Dedupe recording .zip files in tests/Yaat.Sim.Tests/TestData via tools/Yaat.RecordingConsolidator and commit the cleanup. Internal maintenance — do not update CHANGELOG.md."
+description: "Dedupe recording .zip files in tests/Yaat.Sim.Tests/TestData via tools/Yaat.RecordingConsolidator and commit the cleanup. Internal maintenance — do not update CHANGELOG.md. Runs in a forked subagent because its build and full-project test logs are large and it needs no conversation state."
+context: fork
+agent: general-purpose
 ---
 
 # Consolidate Recordings

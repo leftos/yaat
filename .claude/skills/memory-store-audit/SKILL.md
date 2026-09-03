@@ -34,9 +34,11 @@ auditing safe: no two agents propose edits to the same file.
 ls "C:/Users/Leftos/.claude/projects/X--dev-yaat/memory"/*.md | wc -l
 ```
 
-Each auditor gets: its explicit file list, the admission test (Step 2), the
-verdict vocabulary (Step 3), and a standing instruction that it **writes
-nothing** — it returns verdicts as text.
+Dispatch one `memory-auditor` agent per slice (`Agent` with
+`subagent_type: "memory-auditor"`, all slices in a single message so they run
+concurrently). The agent definition already binds the auditor to Steps 2 and 3
+of this file and to writing nothing, so each prompt carries only the store path,
+the slice name, and the explicit file list. It returns its verdict rows as text.
 
 Partitioning prevents write conflicts and *guarantees* blind spots exactly where
 two slices describe the same thing. Step 4 is where those are resolved; do not

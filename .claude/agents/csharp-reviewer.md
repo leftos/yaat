@@ -27,38 +27,37 @@ editing it corrupts their state.
 
 ## What to Check
 
-### YAAT-Specific Rules (from CLAUDE.md)
+### Project rules — read them, do not recall them
 
-1. **No optional parameters** — all method parameters must be required. Optional params hide missing integration and let broken code compile silently.
-2. **Line width ≤150 chars** (CSharpier configured accordingly).
-3. **Parenthesize boolean expressions** — `(a.X) || (b.Y >= c + d)` not `a.X || b.Y >= c + d`.
-4. **No newlines in text strings** — never split `Text="..."`, `Content="..."`, or interpolated strings across lines in `.axaml`/`.cs`. Indentation whitespace shows at runtime.
-5. **No repurposing DTO fields** — add new fields with clear names, remove dead fields entirely.
-6. **No swallowed exceptions** — every catch block must log or rethrow. No empty catch blocks, no early returns on error without logging.
-7. **SimLog in Yaat.Sim** — static classes must have `private static readonly ILogger Log = SimLog.CreateLogger("ClassName");`. Never optional.
-8. **AppLog in Yaat.Client** — client-side logging uses `AppLog`.
-9. **≤100 lines/function, cyclomatic complexity ≤8**.
-10. **≤5 positional parameters**.
-11. **Absolute imports only** — no relative (`..`) paths.
-12. **No commented-out code** — delete it.
-13. **No backwards-compat shims** — unreleased software; delete and replace freely.
+The project's C# conventions are owned by two files. Read the sections named
+below at the start of every review and cite the rule by its heading; do not
+work from memory of them, because this file used to carry a copy and it drifted.
+
+- `$ROOT/CLAUDE.md` → **Rules → Code Style**, **Rules → Error Handling**,
+  **Rules → Misc** (no optional parameters, 150-char lines, parenthesized
+  booleans, no split text strings, no repurposed DTO fields, `SimLog`/`AppLog`
+  logging, `YaatPaths`, no backwards-compat shims).
+- `C:\Users\Leftos\.claude\CLAUDE.md` → **Code Quality → Hard limits**,
+  **Comments**, **Error handling** (function length and complexity caps,
+  positional-parameter cap, absolute imports, no commented-out code, no
+  milestone references in source comments, no swallowed exceptions).
 
 ### General C# Quality
 
-14. **Nullable reference types** — check for `!` (null-forgiving) operator misuse. Prefer proper null checks.
-15. **Async patterns** — check for sync-over-async, missing `ConfigureAwait`, or fire-and-forget without error handling.
-16. **Collection expressions** — prefer `[1, 2, 3]` over `new List<T> { ... }` where supported.
-17. **File-scoped namespaces** — `namespace Foo;` not `namespace Foo { }`.
-18. **`var` usage** — use when type is obvious from right-hand side.
-19. **Static members** — mark members `static` when they don't access instance data.
-20. **Always use braces** for `if`, `else`, `foreach`, `while`, `for`.
+1. **Nullable reference types** — check for `!` (null-forgiving) operator misuse. Prefer proper null checks.
+2. **Async patterns** — check for sync-over-async, missing `ConfigureAwait`, or fire-and-forget without error handling.
+3. **Collection expressions** — prefer `[1, 2, 3]` over `new List<T> { ... }` where supported.
+4. **File-scoped namespaces** — `namespace Foo;` not `namespace Foo { }`.
+5. **`var` usage** — use when type is obvious from right-hand side.
+6. **Static members** — mark members `static` when they don't access instance data.
+7. **Always use braces** for `if`, `else`, `foreach`, `while`, `for`.
 
 ## How to Review
 
 1. Read the files provided or diff provided.
 2. For each issue found, report:
    - **File and line number** (e.g., `src/Yaat.Sim/Foo.cs:42`)
-   - **Rule violated** (reference the number above)
+   - **Rule violated** (a CLAUDE.md heading for a project rule, or the number above for a general one)
    - **What's wrong** (concrete description)
    - **Suggested fix** (specific code change)
 3. Rate confidence: HIGH (clear violation) or MEDIUM (judgment call).
