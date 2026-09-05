@@ -119,6 +119,8 @@ tools/hooks/claude-guard-read.sh   # Claude Code PreToolUse(Read) guard: denies 
 tools/hooks/claude-guard-cases.jsonl    # Expected allow/deny table for the Bash guard.
 tools/hooks/test-claude-guards.sh       # Runs the table above; wired into prek (`claude-guards`) and triggered only when a guard file changes.
 tools/gate.sh                     # Wraps a build/test command: tees full output to a log and propagates the command's own exit status, also failing when the log holds `Build FAILED` or `error CS`. Use instead of a bare `cmd | tee`, which reports tee's status and reads green over a failed build.
+tools/measure-test-loop.ps1       # Measures the developer test loop (discovery, one-class, whole-project wall+CPU, incremental/cold build, full gate) as medians over N runs. Detects xunit.v3 vs TUnit from the csproj and picks the matching filter syntax, so a framework-migration branch can be diffed against main. Baseline numbers: docs/plans/tunit-migration.md.
+tools/analyze-test-schedule.py    # Reads a TRX of per-test durations and LPT-packs it onto N workers under both scheduling models (xunit's per-collection vs per-test), reporting the makespan gap. Answers "would a different scheduler help?" without changing frameworks — on this suite the gap measures 0.0s.
 ```
 
 The sibling yaat-server repo registers the same two guards via its own `.claude/settings.json` → `tools/hooks/claude-guard.sh`, a shim that resolves these scripts through the sibling checkout first and `extern/yaat/` second (the same order `Directory.Build.props` uses for Yaat.Sim) and fails open if neither is present.
