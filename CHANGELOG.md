@@ -11,6 +11,10 @@
 - Radar and surface history trails are rebuilt during playback and rewind instead of appearing only after a snapshot restore.
 - Wind from a weather timeline now reaches aircraft as a smooth per-second change instead of 1° / 0.5 kt steps, and identically on playback.
 - A pattern aircraft told to follow traffic on final turns base once that traffic has passed and the spacing will work out, instead of waiting for it to touch down.
+- A helicopter cleared to land at a spot from off the airport flies an approach — holding its altitude, descending to 500 ft AGL near the field, then a 6° final onto the spot — instead of dropping to 100 ft AGL miles out.
+
+### Changed
+- `ATXI` to a helicopter off the airport or above 500 ft AGL is refused ("unable, request landing at …"); air taxi stays an on-field movement.
 
 ## v0.12.25-beta [2026/09/02]
 

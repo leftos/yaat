@@ -800,13 +800,13 @@ Helicopters are detected automatically from the ICAO type designator. They use t
 | `CTOPP LT270 050` / `CTOPP RT090` | CTOPP depart with explicit turn direction to heading after the vertical climb |
 | `CTOPP OC [alt]` | CTOPP, depart direct to flight-plan destination after the vertical climb |
 | `CTOPP DCT FIX [alt]` / `CTOPP TLDCT FIX` / `CTOPP TRDCT FIX` | CTOPP, depart direct to fix after the vertical climb (optionally turning left/right) |
-| `ATXI H1` / `ATXI @H1` | Air-taxi to helipad/parking spot H1 — airborne at 100 ft AGL, ~40 KIAS, descends and lands at the spot. `@` prefix optional. |
+| `ATXI H1` / `ATXI @H1` | Air-taxi to helipad/parking spot H1 — airborne at 100 ft AGL, ~40 KIAS, descends and lands at the spot. `@` prefix optional. On-airport only: a helicopter off the field or above 500 ft AGL answers "unable, we're N miles out, request landing at H1" (air taxi is a ground movement, AIM §4-3-17.b / 7110.65 §3-11-1.c) — use `LAND`. |
 | `ATXI $M1` / `ATXI M1` | Air-taxi to taxiway spot M1. `$` prefix optional. |
 | `ATXI 28L` | Air-taxi to the threshold of runway 28L. |
-| `LAND H1` | Land at named spot H1 (helipad, parking, or ramp position) |
+| `LAND H1` | Land at named spot H1 (helipad, parking, or ramp position). On the field this is an air taxi to the spot; from off the field it is flown as an approach — hold the present altitude, descend to 500 ft AGL ahead of the airport, then a 6° final onto the spot, slowing through 90 and 60 kt (7110.65 §3-11-6). |
 | `LAND H1 NODEL` | Land at H1, exempt from auto-delete |
 
-While air-taxiing or on final to a spot (`ATXI`/`LAND`), `HPP` hovers the helicopter in place (re-issue `ATXI`/`LAND` to continue); any normal airborne command (`FH`, a turn, `CM`/`DM`, `SPD`, `DCT`) pulls it out of the relocation and flies the new clearance (a bare heading holds the current altitude). The ground `HOLD`/`RES` verbs don't apply to an airborne helicopter.
+While air-taxiing, inbound on an approach, or on final to a spot (`ATXI`/`LAND`), `HPP` hovers the helicopter in place (re-issue `ATXI`/`LAND` to continue); any normal airborne command (`FH`, a turn, `CM`/`DM`, `SPD`, `DCT`) pulls it out of the relocation and flies the new clearance (a bare heading holds the current altitude). A `SPD` assignment standing when `LAND` is issued is the inbound speed until final. The ground `HOLD`/`RES` verbs don't apply to an airborne helicopter.
 
 Helicopters can also use all standard tower commands (`CTO`, `CLAND`, `LUAW`, `TG`, `SG`, `GA`) with runway assignments — they hover-taxi onto the runway, hold position, and take off/land like fixed-wing aircraft. This is typical for IFR operations. `CTO` requires a runway; `CTOPP` does not.
 

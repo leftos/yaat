@@ -437,6 +437,7 @@ public sealed class PhaseList
             PushbackToSpotPhaseDto d => PushbackToSpotPhase.FromSnapshot(d, groundLayout)!,
             RunwayExitPhaseDto d => RunwayExitPhase.FromSnapshot(d, groundLayout),
             HelicopterLandingPhaseDto d => HelicopterLandingPhase.FromSnapshot(d),
+            HelicopterApproachPhaseDto d => HelicopterApproachPhase.FromSnapshot(d),
             GoAroundPhaseDto d => GoAroundPhase.FromSnapshot(d),
             HelicopterTakeoffPhaseDto d => HelicopterTakeoffPhase.FromSnapshot(d),
             LowApproachPhaseDto d => LowApproachPhase.FromSnapshot(d),

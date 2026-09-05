@@ -124,6 +124,13 @@ public static class ContextMenuProfileService
             return BuildProfile([MenuGroup.Tower], [], FlightAndPatternHidden);
         }
 
+        // Helicopter inbound to a spot — the tower verbs (HPP, a re-issued LAND/ATXI) lead; any flight
+        // command still pulls it off the approach, so nothing is hidden.
+        if (currentPhase == "Approach-H")
+        {
+            return BuildProfile([MenuGroup.Tower], [], NoHidden);
+        }
+
         // Unknown phase — show everything
         return BuildProfile(FlightCommandGroups, [], NoHidden);
     }

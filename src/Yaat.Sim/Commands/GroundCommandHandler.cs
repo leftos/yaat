@@ -2671,9 +2671,20 @@ internal static class GroundCommandHandler
 
         string resolvedName = destination.ToUpperInvariant();
 
+        var ctx = CommandDispatcher.BuildMinimalContext(aircraft, groundLayout);
+        if (!IsOnFieldForAirTaxi(aircraft, groundLayout, ctx.FieldElevation))
+        {
+            // Air taxi is a ground movement on the airport (AIM §4-3-17.b; 7110.65 §3-11-1.c NOTE, §3-11-3
+            // NOTE). From miles out, or well above the field, the pilot advises that the clearance does not
+            // fit (AIM §4-3-17.a.3) and asks for the landing clearance §3-11-6.a prefers instead. The
+            // message is spoken by the pilot as the "unable" readback: short, about the aircraft, no
+            // punctuation the verbalizer cannot voice.
+            double distNm = GeoMath.DistanceNm(aircraft.Position, new LatLon(destLat, destLon));
+            return new CommandResult(false, $"Unable, we're {distNm:F0} miles out, request landing at {resolvedName}");
+        }
+
         // Clear current phases and chain air-taxi → land → at-parking so the heli
         // lifts off, cruises to the destination, descends, and stops on the spot.
-        var ctx = CommandDispatcher.BuildMinimalContext(aircraft, groundLayout);
         if (aircraft.Phases is not null)
         {
             aircraft.Phases.Clear(ctx);
@@ -2690,6 +2701,42 @@ internal static class GroundCommandHandler
         aircraft.Ground.ParkingSpot = resolvedName;
 
         return CommandDispatcher.Ok($"Air taxi to {resolvedName}");
+    }
+
+    /// <summary>
+    /// Distance (nm) from the nearest ground-layout node within which a helicopter counts as over the airport
+    /// for the air-taxi gate — the sim's stand-in for "within the boundary of the airport".
+    /// </summary>
+    private const double OnFieldMarginNm = 0.3;
+
+    /// <summary>
+    /// Height (ft AGL) above which a helicopter over the field is treated as inbound rather than manoeuvring
+    /// on it. A simulation threshold: the rotorcraft pattern altitude (AIM §4-3-3.a.3) is the figure it
+    /// borrows, but no publication ties air taxi to an altitude other than its own ~100 ft AGL (§3-11-1.c).
+    /// </summary>
+    private const double OnFieldMaxAgl = 500.0;
+
+    /// <summary>
+    /// True when a helicopter may fly the air-taxi profile to a spot: on the ground, or airborne over the
+    /// airport (within <see cref="OnFieldMarginNm"/> of a layout node) no higher than <see cref="OnFieldMaxAgl"/>.
+    /// Anywhere else a LAND is an approach (<see cref="HelicopterApproachPhase"/>) and an ATXI is refused —
+    /// air taxi is a ground movement on the airport (AIM §4-3-17.b; 7110.65 §3-11-1.c NOTE, §3-11-3 NOTE).
+    /// </summary>
+    internal static bool IsOnFieldForAirTaxi(AircraftState aircraft, AirportGroundLayout layout, double fieldElevation)
+    {
+        if (aircraft.IsOnGround)
+        {
+            return true;
+        }
+
+        var nearest = layout.FindNearestNode(aircraft.Position);
+        if (nearest is null)
+        {
+            return false;
+        }
+
+        double agl = aircraft.Altitude - fieldElevation;
+        return (GeoMath.DistanceNm(aircraft.Position, nearest.Position) <= OnFieldMarginNm) && (agl <= OnFieldMaxAgl);
     }
 
     /// <summary>
@@ -2775,8 +2822,12 @@ internal static class GroundCommandHandler
             aircraft.Ground.AutoDeleteExempt = true;
         }
 
-        // Clear current phases and set up air taxi → land sequence
+        // Clear current phases and set up the arrival → land sequence. On the field (or hovering over it
+        // at pattern altitude or below) that is an air taxi to the spot; from anywhere else it is a landing
+        // clearance flown as an approach (7110.65 §3-11-6), because air taxi is a ground movement on the
+        // airport (AIM §4-3-17.b; §3-11-1.c NOTE) and must not carry a helicopter miles across the bay at 100 ft.
         var ctx = CommandDispatcher.BuildMinimalContext(aircraft, groundLayout);
+        bool onField = IsOnFieldForAirTaxi(aircraft, groundLayout, ctx.FieldElevation);
         if (aircraft.Phases is not null)
         {
             aircraft.Phases.Clear(ctx);
@@ -2784,7 +2835,15 @@ internal static class GroundCommandHandler
 
         aircraft.Ground.Hold = null;
         aircraft.Phases = new PhaseList();
-        aircraft.Phases.Add(new AirTaxiPhase(destLat, destLon, resolvedName));
+        if (onField)
+        {
+            aircraft.Phases.Add(new AirTaxiPhase(destLat, destLon, resolvedName));
+        }
+        else
+        {
+            aircraft.Phases.Add(new HelicopterApproachPhase(destLat, destLon, resolvedName));
+        }
+
         aircraft.Phases.Add(new HelicopterLandingPhase());
         aircraft.Phases.Add(new AtParkingPhase());
         ctx = CommandDispatcher.BuildMinimalContext(aircraft, groundLayout);

@@ -11,8 +11,10 @@ public static class GlideSlopeGeometry
     private const double DegToRad = Math.PI / 180.0;
 
     /// <summary>
-    /// Returns the appropriate glideslope angle for the category.
-    /// Helicopters use a steeper 6° glideslope per AIM §10-1-2.
+    /// Returns the appropriate glideslope angle for the category. Helicopters fly a steeper 6° path —
+    /// the sim's helicopter glidepath, in the band Helicopter TERPS (FAA Order 8260.42B, not in the
+    /// local reference set) uses for copter procedures; the publications carried here specify no VFR
+    /// rotorcraft approach angle (AIM §10-1-2 covers copter IAP minima and speeds only).
     /// </summary>
     public static double AngleForCategory(AircraftCategory category)
     {

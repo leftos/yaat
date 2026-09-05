@@ -79,6 +79,7 @@ public sealed class StuckAircraftRule : IDecisionRule
                 or RunwayExitPhase
                 or FollowingPhase
                 or AirTaxiPhase
+                or HelicopterApproachPhase
                 or LineUpPhase
                 or TakeoffPhase;
 }

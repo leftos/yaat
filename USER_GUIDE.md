@@ -1350,15 +1350,15 @@ Helicopters are detected automatically from the ICAO type designator (`H60`, `EC
 
 | Command | Effect |
 |---------|--------|
-| `ATXI @H1` | Air-taxi to helipad/parking spot H1 — single command lifts off, cruises at 100 ft AGL / 40 KIAS, lands |
-| `LAND H1` | Land at named spot H1 (helipad, parking, ramp) without the cruise leg |
+| `ATXI @H1` | Air-taxi to helipad/parking spot H1 — single command lifts off, cruises at 100 ft AGL / 40 KIAS, lands (on-airport only) |
+| `LAND @H1` | Land at spot H1: an air taxi when on the field, otherwise an approach that holds altitude until a 6° final onto the spot |
 | `CTOPP` | Cleared for takeoff, present position — vertical liftoff to a hover, holds at 25 ft AGL awaiting further instructions. `CTOPP +0XX` hovers at a higher AGL; `CTOPP <hdg>` / `OC` / `DCT FIX` lift vertically then depart |
 | `HPP` | Hover in place (no orbit, no movement) |
 | `HFIX SUNOL` | Navigate to fix SUNOL and hover (no orbit) |
 
 `ATXI` accepts every destination form: bare or `@`-prefixed parking/helipad IDs, bare or `$`-prefixed taxiway spots, and runway designators (targets the named threshold). Helicopters can also use the standard tower commands (`CTO`, `CLAND`, `LUAW`, etc.) when assigned to a runway — typical for IFR ops.
 
-While a helicopter is mid-air-taxi (or on final to a spot via `LAND`), `HPP` hovers it in place (re-issue `ATXI`/`LAND` to continue); any normal airborne command — `FH`, a turn, `CM`/`DM`, `SPD`, `DCT` — pulls it out of the relocation and flies the new clearance (a bare heading holds its current altitude). The ground `HOLD`/`RES` verbs don't apply to an airborne helicopter.
+An inbound helicopter told to `LAND @spot` from miles out does not drop to air-taxi height: it keeps its altitude, descends to 500 ft AGL approaching the field, and flies a 6° final onto the spot, slowing through 90 and 60 kt; `ATXI` from off the field is refused ("unable, we're 9 miles out, request landing at H1") because air taxi is a ground movement on the airport. While a helicopter is mid-air-taxi, inbound on that approach, or on final to a spot via `LAND`, `HPP` hovers it in place (re-issue `ATXI`/`LAND` to continue); any normal airborne command — `FH`, a turn, `CM`/`DM`, `SPD`, `DCT` — pulls it out of the relocation and flies the new clearance (a bare heading holds its current altitude). The ground `HOLD`/`RES` verbs don't apply to an airborne helicopter.
 
 **See [Helicopter Commands in COMMANDS.md](COMMANDS.md#helicopter-commands)** for all departure modifiers, spawning helicopter aircraft, and the full command list.
 

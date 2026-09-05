@@ -19,6 +19,7 @@ public static class TowerCabPhases
             is FinalApproachPhase
                 or LandingPhase
                 or HelicopterLandingPhase
+                or HelicopterApproachPhase
                 or GoAroundPhase
                 or LowApproachPhase
                 or TouchAndGoPhase

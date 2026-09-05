@@ -256,6 +256,7 @@ public sealed class PatternWaypointsDto
 [JsonDerivedType(typeof(PushbackToSpotPhaseDto), "PushbackToSpot")]
 [JsonDerivedType(typeof(RunwayExitPhaseDto), "RunwayExit")]
 [JsonDerivedType(typeof(HelicopterLandingPhaseDto), "HelicopterLanding")]
+[JsonDerivedType(typeof(HelicopterApproachPhaseDto), "HelicopterApproach")]
 [JsonDerivedType(typeof(GoAroundPhaseDto), "GoAround")]
 [JsonDerivedType(typeof(HelicopterTakeoffPhaseDto), "HelicopterTakeoff")]
 [JsonDerivedType(typeof(LowApproachPhaseDto), "LowApproach")]
@@ -483,6 +484,16 @@ public sealed class HelicopterLandingPhaseDto : PhaseDto
 {
     public required double FieldElevation { get; init; }
     public required bool TouchedDown { get; init; }
+}
+
+public sealed class HelicopterApproachPhaseDto : PhaseDto
+{
+    public required double TargetLat { get; init; }
+    public required double TargetLon { get; init; }
+    public string? DestinationName { get; init; }
+    public required double FieldElevation { get; init; }
+    public required double HoldAltitude { get; init; }
+    public required double TimeSinceLastLog { get; init; }
 }
 
 public sealed class GoAroundPhaseDto : PhaseDto

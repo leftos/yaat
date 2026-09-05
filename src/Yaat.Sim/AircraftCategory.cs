@@ -1182,6 +1182,32 @@ public static class CategoryPerformance
     }
 
     /// <summary>
+    /// Nominal descent gradient (ft/nm) a helicopter inbound to a spot uses to come down from its held
+    /// altitude to the rotorcraft pattern altitude. The publications give no VFR descent figure; 400
+    /// ft/nm is the copter procedure climb gradient (AIM §10-1-5.a, §5-4-21.b) reused as the planning
+    /// gradient. It is a minimum, not a ceiling: a clearance received inside top of descent steepens
+    /// the descent (up to the category descent rate) so the pattern altitude is still captured before
+    /// the final gate.
+    /// </summary>
+    public const double HelicopterTransitDescentFtPerNm = 400.0;
+
+    /// <summary>Distance from the spot (nm) inside which an inbound helicopter slows to the approach speed ceiling.</summary>
+    public const double HelicopterApproachSlowDownNm = 3.0;
+
+    /// <summary>
+    /// Approach speed ceiling (KIAS) for a helicopter inbound to a spot. AIM §10-1-2.b.2 / TBL 10-1-1 make
+    /// 90 KIAS the maximum speed on a copter instrument approach; no VFR figure is published, so the IFR
+    /// one is applied by analogy.
+    /// </summary>
+    public const double HelicopterApproachSpeedMaxKts = 90.0;
+
+    /// <summary>
+    /// Speed (KIAS) a helicopter flies the 6° final onto a spot at before decelerating to a hover. Under
+    /// the 70 KIAS AIM §10-1-2.b.3 caps an RNAV copter final segment at; no VFR figure is published.
+    /// </summary>
+    public const double HelicopterFinalSpeedKts = 60.0;
+
+    /// <summary>
     /// Build a category-typical <see cref="AircraftProfile"/> from these constants. Used only as
     /// the base for an <see cref="Data.AircraftProfileOverride"/> targeting a type that has no
     /// profile in AircraftProfiles.json and no sibling (e.g. the SF50): the override supplies the

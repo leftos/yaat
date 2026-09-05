@@ -291,6 +291,7 @@ public static class AircraftStatusDescriber
             "Upwind" or "Crosswind" or "Downwind" or "Base" => JoinNonEmpty(dir, i.CurrentPhase.ToLowerInvariant(), i.AssignedRunway),
             "MidfieldCrossing" => $"midfield crossing {i.AssignedRunway}",
             "Landing" or "Landing-H" => $"landing {(string.IsNullOrEmpty(i.ClearedRunway) ? i.AssignedRunway : i.ClearedRunway)}",
+            "Approach-H" => string.IsNullOrEmpty(i.ParkingSpot) ? "inbound to spot" : $"inbound to {i.ParkingSpot}",
             "Runway Exit" => FormatRunwayExitStatus(i),
             "TouchAndGo" => $"touch-and-go {i.ClearedRunway}",
             "StopAndGo" => $"stop-and-go {i.ClearedRunway}",
