@@ -514,3 +514,54 @@ describe("createGitHubIssue", () => {
     expect(issue.number).toBe(7);
   });
 });
+
+describe("mirrorCommentMessage", () => {
+  const issueLink = "[#408](https://github.com/leftos/yaat/issues/408)";
+
+  function comment(body) {
+    return {
+      user: { login: "leftos" },
+      html_url: "https://github.com/leftos/yaat/issues/408#issuecomment-1",
+      body,
+    };
+  }
+
+  it("attributes an ordinary comment to its GitHub author", async () => {
+    const msg = worker.mirrorCommentMessage(comment("just a normal reply"), issueLink);
+
+    expect(msg.startsWith("\u{1F4AC} **leftos** commented on")).toBe(true);
+    expect(msg).toContain("just a normal reply");
+  });
+
+  it("attributes an agent-marked comment to the agent, keeping the account name", async () => {
+    const body = "> \u{1F916} Posted by Claude Code on behalf of @leftos.\n\nFixed in: abc123";
+    const msg = worker.mirrorCommentMessage(comment(body), issueLink);
+
+    expect(msg.startsWith("\u{1F916} **Claude Code** (for **leftos**) commented on")).toBe(true);
+    expect(msg).not.toContain("\u{1F4AC} **leftos** commented");
+  });
+
+  it("still truncates a long body, and the marker survives the cut", async () => {
+    const body =
+      "> \u{1F916} Posted by Claude Code on behalf of @leftos.\n\n" + "x".repeat(3000);
+    const msg = worker.mirrorCommentMessage(comment(body), issueLink);
+
+    expect(msg.startsWith("\u{1F916} **Claude Code**")).toBe(true);
+    expect(msg).toContain("\u2026");
+  });
+
+  it("falls back to Unknown when the comment has no author", async () => {
+    const msg = worker.mirrorCommentMessage(
+      { html_url: "https://example.invalid/c", body: "hi" },
+      issueLink,
+    );
+
+    expect(msg).toContain("**Unknown**");
+  });
+
+  it("tolerates a missing body", async () => {
+    const msg = worker.mirrorCommentMessage({ user: { login: "wizrad" } }, issueLink);
+
+    expect(msg).toContain("**wizrad**");
+  });
+});

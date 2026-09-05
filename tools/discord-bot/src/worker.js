@@ -406,14 +406,8 @@ async function handleIssueCommentEvent(payload, env) {
   const threadId = await findThreadForIssue(env, issue.number);
   if (!threadId) return;
 
-  const author = comment.user?.login || "Unknown";
-  const shortBody =
-    comment.body?.length > 1800 ? comment.body.slice(0, 1800) + "…" : (comment.body || "");
   const issueLink = `[#${issue.number}](${issue.html_url})`;
-  const commentLink = `[comment](${comment.html_url})`;
-
-  const message = `💬 **${author}** commented on ${issueLink} (${commentLink}):\n\n${shortBody}`;
-  await postToDiscordThread(env.DISCORD_BOT_TOKEN, threadId, message);
+  await postToDiscordThread(env.DISCORD_BOT_TOKEN, threadId, mirrorCommentMessage(comment, issueLink));
 
   // If the issue was just closed, the archive was deferred so this comment could be posted first.
   // Title was already updated on close; now that the comment is visible, archive the thread.
@@ -440,6 +434,23 @@ async function findThreadForIssue(env, issueNumber) {
     }
   }
   return null;
+}
+
+// A comment written by an agent is posted through the maintainer's GitHub account,
+// so the default "**leftos** commented" header reads in Discord as the maintainer
+// speaking personally. The agent marks its own comments in the comment body; carry
+// that through to the header, which is where the misattribution actually lands.
+const AGENT_COMMENT_MARKER = "Posted by Claude Code on behalf of";
+
+export function mirrorCommentMessage(comment, issueLink) {
+  const author = comment.user?.login || "Unknown";
+  const body = comment.body || "";
+  const shortBody = body.length > 1800 ? body.slice(0, 1800) + "…" : body;
+  const commentLink = `[comment](${comment.html_url})`;
+  const who = body.includes(AGENT_COMMENT_MARKER)
+    ? `🤖 **Claude Code** (for **${author}**)`
+    : `💬 **${author}**`;
+  return `${who} commented on ${issueLink} (${commentLink}):\n\n${shortBody}`;
 }
 
 async function postToDiscordThread(botToken, threadId, content) {
@@ -862,12 +873,11 @@ async function processTrackCommand({ commandName, issueNumber, guildId, token, a
       INTERACTION_RETRY_BUDGET_MS,
     );
     for (const comment of comments) {
-      const author = comment.user?.login || "Unknown";
-      const commentLink = `[comment](${comment.html_url})`;
-      const shortBody =
-        comment.body?.length > 1800 ? comment.body.slice(0, 1800) + "…" : (comment.body || "");
-      const msg = `💬 **${author}** commented on ${issueLink} (${commentLink}):\n\n${shortBody}`;
-      await postToDiscordThread(env.DISCORD_BOT_TOKEN, thread.id, msg);
+      await postToDiscordThread(
+        env.DISCORD_BOT_TOKEN,
+        thread.id,
+        mirrorCommentMessage(comment, issueLink),
+      );
     }
 
     // If the issue is already closed, mark the thread accordingly
