@@ -117,15 +117,27 @@ public static class TestVnasData
 
     private static string? ResolveNavDataPath()
     {
-        var allowDownload = !IsNavDataDownloadSkipped();
-        return NavDataPathResolver.CachedPath
-            ?? NavDataPathResolver.EnsureCurrent(
-                new NavDataResolveOptions(
-                    BundledPath: Path.Combine(_testDataDir, "NavData.dat"),
-                    BundledManifestPath: Path.Combine(_testDataDir, "navdata-manifest.json"),
-                    AllowDownload: allowDownload
-                )
-            );
+        if (NavDataPathResolver.CachedPath is { } alreadyResolved)
+        {
+            return alreadyResolved;
+        }
+
+        // Download only when there is nothing on disk. Resolving with downloads enabled fetches the
+        // vNAS config over HTTPS first (~240 ms of TLS handshake) and makes the caller depend on
+        // VATSIM being reachable — a cost every test process would otherwise pay to learn nothing,
+        // since a local copy is what it ends up using anyway. Test assemblies without their own
+        // ModuleInitializer (yaat-server's) reach NavData through here.
+        var options = new NavDataResolveOptions(
+            BundledPath: Path.Combine(_testDataDir, "NavData.dat"),
+            BundledManifestPath: Path.Combine(_testDataDir, "navdata-manifest.json"),
+            AllowDownload: false
+        );
+        if (!NavDataPathResolver.HasLocalCopy(options) && !IsNavDataDownloadSkipped())
+        {
+            options = options with { AllowDownload = true };
+        }
+
+        return NavDataPathResolver.EnsureCurrent(options);
     }
 
     private static bool IsNavDataDownloadSkipped()
