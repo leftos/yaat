@@ -12,6 +12,8 @@
 - Wind from a weather timeline now reaches aircraft as a smooth per-second change instead of 1° / 0.5 kt steps, and identically on playback.
 - A pattern aircraft told to follow traffic on final turns base once that traffic has passed and the spacing will work out, instead of waiting for it to touch down.
 - A helicopter cleared to land at a spot from off the airport flies an approach — holding its altitude, descending to 500 ft AGL near the field, then a 6° final onto the spot — instead of dropping to 100 ft AGL miles out.
+- Bundle snapshots and rewinds keep a holding or hovering aircraft in its hold across a flight-plan amendment, instead of replaying the amendment's CRC echo as a pilot command that cancels it.
+- A helicopter with no active phase accepts `LAND @spot`, `ATXI`, and `CTOPP` from the air; the airport is resolved from its flight plan instead of refusing with "No airport ground layout available".
 
 ### Changed
 - `ATXI` to a helicopter off the airport or above 500 ft AGL is refused ("unable, request landing at …"); air taxi stays an on-field movement.

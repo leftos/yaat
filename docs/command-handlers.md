@@ -43,6 +43,14 @@ method either way — the duplication exists because the command can arrive **wi
 - **Without a phase** (e.g. `EF 28L` issued to a free-flying aircraft, or a *triggered* block re-firing after the phase has been cleared):
   `ApplyCommand` handles it.
 
+Both arms hand the helicopter verbs (`ATXI`, `LAND`, `CTOPP`) the dispatch context's **resolved** layout (`ctx.GroundLayout` — the aircraft's
+cached layout, else `SimulationEngine.ResolveGroundLayout` from its flight plan / airport), never the raw `aircraft.Ground.Layout`: an airborne
+spawn has no cached layout, and the no-phase arm used to refuse `LAND @spot` with "No airport ground layout available" for exactly that reason.
+
+Flight-plan verbs (`DA`, `FP`, `RMK` — `CompoundPolicy.IsFlightPlanCommand`) have **no** arm in either switch and are refused at the dispatcher's
+public entries: live, `RoomEngine` routes them through its flight-plan arm before `HandleStandardCmd`, and replay/reconstruction skip them
+(`RecordedCommandKind.FlightPlan`) because the recorded `RecordedAmendFlightPlan` carries their effect.
+
 `BreakConflictCommand` (`BREAK`) and `GoCommand` (`GO`) are the inverse case: they have an arm **only** in `TryApplyTowerCommand`, never in
 `ApplyCommand`. `BREAK` is classified as a ground command (`CommandDescriber.IsGroundCommand`, `CommandDescriber.cs:933`); `GO` is in neither
 `IsGroundCommand` nor `IsTowerCommand` (`CommandDescriber.cs:868`). Both reach `TryApplyTowerCommand` only when a phase is active: a directly-typed

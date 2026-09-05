@@ -32,6 +32,21 @@ public sealed partial class SimulationEngine
         // (e.g. auto-accept sims firing for delayed-spawn aircraft). The applier safely no-ops
         // any per-aircraft mutation when aircraft is null.
         var asPrefixCheck = TrackResolver.ExtractAsPrefix(cmd.Command);
+
+        // A flight-plan command (typed DA/FP/RMK, or the CRC "AS {tcp} DA ..." echo) changed only the flight
+        // plan live, through the server's flight-plan arm, and that change rides in the RecordedAmendFlightPlan
+        // recorded alongside it. Skip it before the AS-prefix and dispatcher paths below: either would treat
+        // it as a manoeuvring command and clear the phase the aircraft was flying.
+        if (RecordedCommandClassifier.Classify(asPrefixCheck.Remainder).Kind == RecordedCommandKind.FlightPlan)
+        {
+            _logger.LogDebug(
+                "Replay: skipping flight-plan command {Cmd} for {Callsign} (state arrives via the recorded amendment)",
+                cmd.Command,
+                cmd.Callsign
+            );
+            return;
+        }
+
         var firstParse = CommandParser.Parse(asPrefixCheck.Remainder);
         if (
             firstParse.IsSuccess

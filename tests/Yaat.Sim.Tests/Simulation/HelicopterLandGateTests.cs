@@ -66,6 +66,48 @@ public class HelicopterLandGateTests
         return (engine, layout, heli);
     }
 
+    /// <summary>
+    /// A helicopter with no active phase and no cached ground layout (an airborne spawn after a heading or
+    /// altitude instruction) must still resolve the airport from its flight plan: LAND is dispatched through
+    /// the no-phase arm, which used to pass the raw cached layout (null) and refuse the command.
+    /// </summary>
+    [Fact]
+    public void Land_WithNoPhaseAndNoCachedLayout_ResolvesTheAirport()
+    {
+        var groundData = new TestAirportGroundData();
+        var engine = new SimulationEngine(groundData)
+        {
+            Scenario = new SimScenarioState
+            {
+                ScenarioId = "test-helicopter-land-gate",
+                ScenarioName = "Helicopter LAND gate",
+                RngSeed = 42,
+                OriginalScenarioJson = "{}",
+                PrimaryAirportId = "OAK",
+            },
+        };
+        var heli = new AircraftState
+        {
+            Callsign = "N20662",
+            AircraftType = "R22",
+            Position = OverTheBay,
+            TrueHeading = new TrueHeading(125),
+            TrueTrack = new TrueHeading(125),
+            Altitude = 1000,
+            IndicatedAirspeed = 90,
+            IsOnGround = false,
+            FlightPlan = new AircraftFlightPlan { Departure = "KOAK", Destination = "KOAK" },
+        };
+        engine.World.AddAircraft(heli);
+        Assert.Null(heli.Ground.Layout);
+        Assert.Null(heli.Phases);
+
+        var result = engine.SendCommand(heli.Callsign, "LAND @SIG1");
+
+        Assert.True(result.Success, result.Message);
+        Assert.IsType<HelicopterApproachPhase>(heli.Phases!.CurrentPhase);
+    }
+
     [Fact]
     public void Land_FromOffField_InstallsApproach()
     {

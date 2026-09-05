@@ -1276,7 +1276,11 @@ def _format_action_detail(a: dict[str, Any]) -> str:
 _ACTION_TAGS = {"Command": "CMD", "LiveTrafficSample": "LIVE", "LiveTrafficRemoval": "LIVERM", "LiveTrafficStatus": "LIVEST"}
 
 
-def _action_tag(kind: str) -> str:
+def _action_tag(kind: str, action: dict[str, Any]) -> str:
+    # A command the server recorded on behalf of a CRC/STARS gesture (an "AS {tcp} ..." echo with the CRC
+    # initials and no connection) is not an instructor command; tag it apart so a triage does not read it as one.
+    if kind == "Command" and action.get("Initials") == "CRC":
+        return "CRC"
     return _ACTION_TAGS.get(kind, kind[:6].upper())
 
 
@@ -1322,14 +1326,14 @@ def cmd_history(args: argparse.Namespace) -> int:
         for a in my_actions:
             t = a.get("ElapsedSeconds", 0)
             kind = a.get("$type") or "?"
-            tag = _action_tag(kind)
+            tag = _action_tag(kind, a)
             detail = _format_action_detail(a)
             action_events.append((t, _action_snap_idx(snaps_meta, t), tag, detail, {"action": a}))
 
         # Merge: at the same t, actions sort before the snapshot diffs that they caused.
         all_events = sorted(
             action_events + snapshot_events,
-            key=lambda e: (e[0], 0 if e[2] == "CMD" else 1),
+            key=lambda e: (e[0], 0 if e[2] in ("CMD", "CRC") else 1),
         )
 
         if args.json:

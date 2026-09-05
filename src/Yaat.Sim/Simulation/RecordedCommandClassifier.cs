@@ -31,6 +31,14 @@ public enum RecordedCommandKind
     Compound,
 
     SayOrShow,
+
+    /// <summary>
+    /// DA / FP / RMK. Live, the server's flight-plan arm applied these and recorded the resulting
+    /// <see cref="RecordedAmendFlightPlan"/> alongside the command, so on replay the command itself is a
+    /// no-op: the flight-plan state arrives through the amendment, and dispatching the command would put
+    /// a flight-plan edit through the phase gate (a hold cancels on any non-additive command).
+    /// </summary>
+    FlightPlan,
     Delete,
     DeleteQueued,
     TrackOwnership,
@@ -81,6 +89,7 @@ public static class RecordedCommandClassifier
             or SayHeadingCommand
             or SayPositionCommand
             or ShowQueuedCommand => new Classification(RecordedCommandKind.SayOrShow, parsed),
+            _ when CompoundPolicy.IsFlightPlanCommand(parsed) => new Classification(RecordedCommandKind.FlightPlan, parsed),
             DeleteCommand => new Classification(RecordedCommandKind.Delete, parsed),
             DeleteQueuedCommand => new Classification(RecordedCommandKind.DeleteQueued, parsed),
             GhostTrackCommand => new Classification(RecordedCommandKind.GhostTrack, parsed),

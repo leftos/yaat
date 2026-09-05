@@ -77,7 +77,7 @@ The Task Index above tells you *which files*; these docs explain *how each subsy
   - **Pathfinding**: `Pathfinding/FilletCornerRoutingTests.cs` (fillet arc vs square-pivot routing), `Pathfinding/AutoRouterPruningTests.cs` (A* pruning via arrival taxiway), `Pathfinding/ArcRadiusFloorAdmissibilityTests.cs` (steerable radius floor)
   - **Fillet arc speed**: `Fillet/GroundArcSpeedProfileTests.cs` (local-curvature arc speed), `GroundNavigatorArcSpeedProfileTests.cs` (navigator speed profile application), `GroundNavigatorStraightHandoffTests.cs` (straight-after-arc heading release)
   - **Ground taxi**: `Simulation/GroundTaxi/OakUwFilletCornerTests.cs` (bundle replay: fillet routing + speed profiles)
-  - **Replay**: `Simulation/ReplayGeneratorStandDownTests.cs` (generators stand down unconditionally in replay/playback), `Simulation/RunProfileTests.cs` (run profile kinds + mode flags)
+  - **Replay**: `Simulation/ReplayGeneratorStandDownTests.cs` (generators stand down unconditionally in replay/playback), `Simulation/RunProfileTests.cs` (run profile kinds + mode flags), `Simulation/FlightPlanCommandReplayKeepsPhaseTests.cs` (flight-plan commands skip replay, preserving phase continuity)
   - **Spine**: `Simulation/SpineTraceTests.cs` (the literal step sequence of a bare second, sub-tick ×4 = whole second by digest and snapshot, per-second counts), `Simulation/PostPhysicsDrainOrderTests.cs` (drain order through the buffers)
   - **Follow/Pattern**: `Simulation/FollowStraightInJetBaseTurnTests.cs` (S2-OAK-5 replay: a C172 turns base behind a straight-in LJ60 by projected threshold ETA, not at its touchdown), `Simulation/N342TFollowStraightInDownwindTests.cs` (DA42 behind a straight-in C25C: no cut-in, runway clear at arrival), `Simulation/FollowPatternSequencingAuditTests.cs` (synthetic KOAK circuits: leg holds behind an extending lead), `AirborneFollowTests.cs` (spacing math, sequencing gate, pursuit heading)
   - **Helicopter**: `Simulation/HelicopterLandSpotFromDistanceTests.cs` (S2-OAK-5 replay: an R22 told LAND @SIG1 from 9 nm holds 500 ft until the 6° final instead of diving to air-taxi height), `Simulation/HelicopterLandGateTests.cs` (the on-field gate: on/over the field → AirTaxi chain, off-field LAND → HelicopterApproachPhase, off-field ATXI refused; TOD / final-start math)
@@ -105,6 +105,7 @@ swim-slice.ps1                    # Live-traffic repro: copies the SWIM raw-log 
 tools/codex-yaat.ps1              # Launches Codex from the YAAT repo root and adds ..\yaat-server as an extra writable/readable directory.
 tools/setup-codex.ps1             # Creates user-local Codex skill junctions and registers MCP servers without committing local state or token values.
 tools/build-artcc-boundaries.py   # Downloads the NASR 28-day ARB CSV (or --zip) and writes src/Yaat.Sim/Data/Artcc/ArtccBoundaries.geojson (--strata LOW,HIGH; re-run per cycle)
+tools/bug_bundle.py               # Inspects, extracts, installs, and validates v4 bug bundles (*.yaat-bug-report-bundle.zip, *-recording.zip): info (bundle contents), history (per-callsign triage), snapshot (at a tick), actions (filtered log), terminal (all broadcasts). Subcommands bridge RecordingArchive queries and the bundle export manifest.
 tools/refresh-faa-airspace.ps1    # Reads vNAS training scenario primary airports by ARTCC, then downloads matching FAA AIS Class Airspace GeoJSON/Brotli.
 tools/refresh-airport-airlines.ps1 # Builds Data/airport-airlines.json.br from BTS T-100 segment ZIPs, OurAirports, and OpenFlights carrier/route crosswalks.
 tools/refresh-airline-fleets.py   # Parses Airfleets PDFs into Data/airline-fleets.json + .meta provenance sidecar.
@@ -663,6 +664,8 @@ Commands/CommandDispatcher.cs       # Static: DispatchCompound (phase interactio
                                     # IsConditionalIncoming: conditional commands are additive (no clear); only immediate supersede
                                     # ClearConflictingBlocks: dimension-aware selective queue clearing (preserveTriggeredBlocks for deferred firing)
                                     # SplitBlockNonConflicting: splits mixed-dimension blocks on partial conflicts
+                                    # RejectFlightPlanCommand: refuses DA/FP/RMK at both public entries (the server applies flight-plan edits; replay skips them)
+                                    # ApplyCommandCore passes ctx.GroundLayout to CTOPP/ATXI/LAND handlers
 Commands/ConditionalList.cs         # Unified conditional list: pending queue trigger blocks + DeferredDispatches (WAIT/WAITD/BEHIND)
                                     # Enumerate/ToLines/Delete — backs SHOWAT/SHOWCOND, Pending Cmds column, DELAT/DELCOND/DC; excludes reaction-delay deferrals
 Commands/DispatchContext.cs         # Record: GroundLayout, Rng, Weather, FindAircraft/ListAircraft, ValidateDctFixes, AutoCrossRunway, PreserveConditionals, IsScenarioScripted
@@ -680,6 +683,7 @@ Commands/CommandDescriber.cs        # Static: DescribeCommand, DescribeNatural, 
                                     # InstallsIndefiniteHoldPhase: HP/VFR-hold/FOLLOW installers → dispatch-time chain warning
 Commands/CompoundPolicy.cs          # Shared client+server chained-command policy: IsNonCompoundable rejection set +
                                     # FindNonCompoundableInChain ("{verb} cannot be part of a chained command"); DEL/DEST excluded (they chain)
+                                    # IsFlightPlanCommand: identifies DA/FP/RMK (flight-plan amend commands that skip replay and bypass dispatch)
 Commands/TrafficAdvisoryMatcher.cs  # Shared RTIS/SAFAL target matching: clock + VFR relative-octant/pattern-leg/landmark forms, best-candidate-by-weighted-error + Exact/Imprecise grade
 Commands/AltitudeResolver.cs        # Plain int or AGL format → feet MSL
 Commands/CfrWindow.cs               # CFR types: ReleaseWindow, CfrAlertKind, CfrAction/CfrPhase, FAA-fixed −2/+1 window constants (7110.65 §4-3-4.e.5)
@@ -1101,7 +1105,8 @@ SimulationEngine.Generators.cs # Arrival/VFR/overflight generators: spawning, sp
 SimulationEngine.Presets.cs    # Release queue, timers, timed presets, triggers, global commands
 SimulationEngine.LiveTraffic.cs  # Shadow samples, beacon tracking, runway-use latching
 SimulationEngine.Recording.cs  # RecordAction + applying recorded actions back onto the world
-SimulationEngine.ReplayCommands.cs  # ReplayCommand + the setting/generator/weather appliers it routes to
+SimulationEngine.ReplayCommands.cs  # ReplayCommand routes via RecordedCommandClassifier; skips flight-plan commands (DA/FP/RMK)
+                                    # before the AS-prefix shortcut so they never reach dispatch
 SimScenarioState.cs            # Per-scenario runtime state: queues, settings, ATC positions, coordination, ArtccConfig (loaded from bundle on replay), LiveTrafficFilter (carried from room settings),
                                # MagneticModelDateUtc (the WMM evaluation day: today for a live load, the recorded day for a replay; snapshotted + in the recording manifest),
                                # AiStaffedPositions (published by the AI host; never snapshotted) + PilotContacts (memoized PilotContactRoster) + IsAiStaffed
@@ -1125,7 +1130,8 @@ RecordedCommandClassifier.cs   # Shared replay-time RecordedCommand classifier. 
                                # static fn. Drives the switch in both SimulationEngine.ReplayCommand and the server's
                                # RecordingManager.ReplayCommand so the parse-and-decide flow stays in lockstep across repos.
                                # Compound is the default arm — both single-parse failure and the catch-all route to it.
-                               # Timer / HFR / REL replay kinds route to TimerCommandReplayer + HeldReleaseService.
+                               # Timer / HFR / REL / FlightPlan replay kinds route to their respective replayers.
+                               # FlightPlan commands (DA/FP/RMK) are skipped on replay; their effect is baked in RecordedAmendFlightPlan.
                                # REL replays via HeldReleaseService.ReplayRelease using the baked SpawnJitterSeconds
                                # (zero RNG draws); live REL draws from World.ReleaseJitterRng and bakes the value.
 TimerCommandReplayer.cs        # Replay-time TIMER apply (set/cancel ActiveTimers on SimScenarioState); live dispatch in RoomEngine

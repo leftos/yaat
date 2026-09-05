@@ -53,6 +53,15 @@ public static class CompoundPolicy
                 or CoordinationAutoAckCommand;
 
     /// <summary>
+    /// True for a command that edits only the flight plan (DA / FP / RMK). Live, the server routes these
+    /// through its flight-plan arm before the aircraft dispatcher ever sees them, so they never touch a
+    /// phase or the command queue; replay and reconstruction must treat them the same way, and the
+    /// dispatcher refuses them outright so no path can turn a flight-plan edit into a manoeuvre.
+    /// </summary>
+    public static bool IsFlightPlanCommand(ParsedCommand cmd) =>
+        cmd is CreateFlightPlanCommand or CreateAbbreviatedFlightPlanCommand or SetRemarksCommand;
+
+    /// <summary>
     /// Returns the first rejection-set command in a genuinely multi-command compound, or null.
     /// A line the single-command parser accepts whole is not a chain — a free-text command
     /// (NOTE/RMK/...) legitimately swallows ';' into its text, and the server's single-command

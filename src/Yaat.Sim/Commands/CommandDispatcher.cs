@@ -59,6 +59,14 @@ public static class CommandDispatcher
             return RejectShadow(aircraft);
         }
 
+        // Anywhere in the compound, not just the leading command: replay reaches this entry without the
+        // server's non-compoundable pre-check, so a recorded chain could carry one in a later block.
+        var flightPlanCmd = compound.Blocks.SelectMany(b => b.Commands).FirstOrDefault(CompoundPolicy.IsFlightPlanCommand);
+        if (flightPlanCmd is not null)
+        {
+            return RejectFlightPlanCommand(flightPlanCmd);
+        }
+
         // A successful command issued to a ground aircraft by the controller is itself evidence of
         // established controller-pilot contact (the pilot read back the clearance the controller
         // spoke). Setting this here covers every controller dispatch path — user-typed
@@ -85,6 +93,14 @@ public static class CommandDispatcher
     /// </summary>
     private static CommandResult RejectShadow(AircraftState aircraft) =>
         new(false, $"ASSUME {aircraft.Callsign} first — live traffic is not controllable");
+
+    /// <summary>
+    /// A flight-plan edit (DA / FP / RMK) is the server's flight-plan arm's to apply — it never reaches the
+    /// aircraft's phases or queue live. Refused at the public entries so no replay or reconstruction path
+    /// can push one through the phase gate, where a hold would cancel on it as a manoeuvring command.
+    /// </summary>
+    private static CommandResult RejectFlightPlanCommand(ParsedCommand cmd) =>
+        new(false, $"Flight-plan edits ({cmd.GetType().Name}) are applied by the server, not dispatched to the aircraft");
 
     private static CommandResult DispatchCompoundCore(CompoundCommand compound, AircraftState aircraft, DispatchContext ctx)
     {
@@ -660,6 +676,11 @@ public static class CommandDispatcher
             return RejectShadow(aircraft);
         }
 
+        if (CompoundPolicy.IsFlightPlanCommand(command))
+        {
+            return RejectFlightPlanCommand(command);
+        }
+
         // Route ground commands through DispatchCompound for phase interaction
         if (CommandDescriber.IsGroundCommand(command))
         {
@@ -1065,13 +1086,15 @@ public static class CommandDispatcher
             case Plan270Command:
                 return PatternCommandHandler.TryPlan270(aircraft);
 
-            // Helicopter commands
+            // Helicopter commands. The dispatch context carries the resolved layout (the aircraft's cached
+            // one, else the engine's resolution from its flight plan / airport) — an airborne spawn has no
+            // cached layout, and the phase-active arm already uses the resolved one.
             case ClearedTakeoffPresentCommand ctopp:
-                return DepartureClearanceHandler.TryClearedTakeoffPresent(ctopp, aircraft, aircraft.Ground.Layout);
+                return DepartureClearanceHandler.TryClearedTakeoffPresent(ctopp, aircraft, ctx.GroundLayout);
             case AirTaxiCommand atxi:
-                return GroundCommandHandler.TryAirTaxi(aircraft, atxi.Destination, aircraft.Ground.Layout);
+                return GroundCommandHandler.TryAirTaxi(aircraft, atxi.Destination, ctx.GroundLayout);
             case LandCommand land:
-                return GroundCommandHandler.TryLand(aircraft, land, aircraft.Ground.Layout);
+                return GroundCommandHandler.TryLand(aircraft, land, ctx.GroundLayout);
 
             // Hold commands (orbit/hover)
             case HoldPresentPosition360Command hpp:
@@ -1089,7 +1112,7 @@ public static class CommandDispatcher
             case ForceLandingCommand flc:
                 return PatternCommandHandler.TryForceLanding(flc, aircraft, ctx);
             case LandAndHoldShortCommand lahso:
-                return PatternCommandHandler.TryLandAndHoldShort(lahso, aircraft, aircraft.Ground.Layout, ctx);
+                return PatternCommandHandler.TryLandAndHoldShort(lahso, aircraft, ctx.GroundLayout, ctx);
             case CancelLandingClearanceCommand:
                 return PatternCommandHandler.TryCancelLandingClearance(aircraft);
             case GoAroundCommand ga:
