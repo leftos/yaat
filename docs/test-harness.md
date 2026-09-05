@@ -19,7 +19,7 @@ The non-negotiable rules, each detailed below:
 
 1. **Real data, never synthetic.** Initialize with `TestVnasData.EnsureInitialized()`; never hand-roll stub fixes/profiles.
 2. **Call `EnsureInitialized()` in the test class *constructor*** if any test reads a data-backed static singleton (race protection).
-3. **Silently skip on missing data** — return early, no `Assert.Skip`, no throw — so a fresh/offline checkout keeps CI green. **Exception: NavData is a hard precondition.** `ModuleInit` throws if it cannot resolve `NavData.dat`, because most of this suite asserts against real navdata and a run without it reports green having proved nothing. Ground layouts, recordings, ARTCC configs and the rest still skip silently.
+3. **Silently skip on missing data** — return early, no `Assert.Skip`, no throw — so a fresh/offline checkout keeps CI green. **Exception: NavData and CIFP are hard preconditions.** `ModuleInit` throws if it cannot resolve `NavData.dat` or the CIFP, because most of this suite asserts against real navdata and procedures, and a run without them reports green having proved nothing. Ground layouts, recordings, ARTCC configs and the rest still skip silently.
 4. **Run suites under a 30 s wall clock** (`timeout 30 dotnet test`) so soft hangs surface as failures.
 5. **Runner options go after `--`** (Microsoft.Testing.Platform): `dotnet test -- --filter-method "*Name*"`; see [Running tests](#running-tests).
 6. **For full-suite confidence run `pwsh tools/test-all.ps1`**, not bare `dotnet test` — only that builds the sibling yaat-server.
@@ -81,13 +81,16 @@ The trade-off: tests no longer warn when the bundled NavData serial is behind wh
 `python tools/refresh-navdata.py` is the signal for that — run it to move the pin (writes
 `TestData/NavData.dat` + `navdata-manifest.json`).
 
-CIFP still resolves online-first, and one environment variable forces it offline (accepts `1` or
-`true`):
+**CIFP is required too, and downloads stay enabled on purpose.** `ModuleInit` throws if it cannot
+resolve one. Unlike NavData it needs no offline-first switch: `CifpPathResolver` already returns a
+current-cycle cache hit *before* considering the network, which is why it costs ~9 ms rather than
+~240 ms. And CIFP is AIRAC-cycle-specific — the committed `TestData/FAACIFP18.gz` goes stale every
+28 days — so fetching the current cycle when it is not cached is worth a one-off round trip.
 
 | Variable | Effect |
 |---|---|
-| `YAAT_SKIP_CIFP_DOWNLOAD` | Skip the FAA CIFP download; cache → bundled `TestData/FAACIFP18.gz` only |
-| `YAAT_SKIP_NAVDATA_DOWNLOAD` | Still honoured by `NavDataPathResolver` for non-test callers, but inert for the test suite, which already passes `AllowDownload: false` |
+| `YAAT_SKIP_CIFP_DOWNLOAD` | Skip the FAA CIFP download; current-cycle cache → stale cache → bundled `TestData/FAACIFP18.gz`. If none of those exist, `ModuleInit` throws rather than running without procedures. |
+| `YAAT_SKIP_NAVDATA_DOWNLOAD` | Still honoured for the no-local-copy case, but normally inert: NavData resolves offline whenever a local copy exists |
 
 ### The CIFP decompression temp-file dance
 
