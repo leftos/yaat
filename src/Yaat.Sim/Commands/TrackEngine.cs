@@ -7,7 +7,7 @@ namespace Yaat.Sim.Commands;
 /// Pure domain logic for STARS track operations. All methods mutate <see cref="AircraftState"/>
 /// directly and return a <see cref="CommandResult"/>. No server-specific dependencies.
 /// </summary>
-public static class TrackEngine
+public static partial class TrackEngine
 {
     public static string FormatOwner(TrackOwner owner)
     {
@@ -780,11 +780,12 @@ public static class TrackEngine
     /// command (see <see cref="IsTrackCommand"/>). Routes to the appropriate
     /// <c>HandleX</c> / <c>ApplyX</c> with the resolved identity.
     ///
-    /// Excludes server-only branches (consolidation-redirect handoff, conflict-alert
-    /// state on the engine, ghost-track aircraft creation) — those stay in
-    /// yaat-server's <c>TrackCommandHandler</c> and dispatch around this method.
-    /// Returns <see langword="null"/> when the parsed command is not a recognised
-    /// pure-Sim track command, so callers can fall through to their own logic.
+    /// Per-aircraft only: the position-scoped verbs (<see cref="DispatchGlobal"/>), the ghost and reposition
+    /// display objects (<c>TrackEngine.Ghost.cs</c>) and <c>CAACK</c> (<see cref="AcknowledgeConflictAlert"/>,
+    /// which needs the engine's conflict-alert set) have their own entry points; the consolidation-redirect
+    /// handoff is the one branch still only in yaat-server's <c>TrackCommandHandler</c>. Returns
+    /// <see langword="null"/> when the parsed command is not one this method dispatches, so callers can fall
+    /// through to their own logic.
     /// </summary>
     public static CommandResult? Dispatch(ParsedCommand parsed, AircraftState ac, TrackOwner? identity, SimScenarioState scenario)
     {
@@ -826,10 +827,88 @@ public static class TrackEngine
             InhibitConflictAlertCommand => HandleInhibitConflictAlert(ac),
             SuppressConflictAlertCommand sup => HandleSuppressConflictAlert(ac, sup.OtherCallsign),
             InhibitDuplicateBeaconCommand => HandleInhibitDuplicateBeacon(ac),
-            // Server-only branches: caller dispatches before reaching Dispatch
-            // (AcknowledgeConflictAlertCommand mutates engine-level ConflictAlerts).
+            // AcknowledgeConflictAlertCommand mutates engine-level ConflictAlerts, which this per-aircraft method never
+            // sees: callers dispatch it to AcknowledgeConflictAlert before reaching here.
             _ => null,
         };
+    }
+
+    /// <summary>
+    /// The position-scoped track verbs — <c>ACCEPTALL</c> (every handoff offered to the issuing position) and
+    /// <c>HOALL</c> (every track the issuing position owns and is not already handing off, to one TCP). Both need an
+    /// identity; neither names an aircraft.
+    /// </summary>
+    public static CommandResult DispatchGlobal(ParsedCommand cmd, SimulationWorld world, SimScenarioState scenario, TrackOwner? identity)
+    {
+        if (identity is null)
+        {
+            return new CommandResult(false, "No active position — use AS to set one");
+        }
+
+        var snapshot = world.GetSnapshot();
+        if (cmd is AcceptAllHandoffsCommand)
+        {
+            int count = 0;
+            foreach (var ac in snapshot)
+            {
+                if ((ac.Track.HandoffPeer is not null) && (ac.Track.HandoffPeer.Callsign == identity.Callsign))
+                {
+                    var previousOwner = ac.Track.Owner;
+                    ac.Track.Owner = ac.Track.HandoffPeer;
+                    ac.Track.HandoffPeer = null;
+                    ac.Track.HandoffInitiatedAt = null;
+                    ac.Track.HandoffRedirectedBy = null;
+                    ac.Track.HandoffAccepted = true;
+                    MarkPreviousOwnerRetained(ac, previousOwner, scenario);
+                    MarkRecentHandoffAccepted(ac, previousOwner, wasForced: false, scenario);
+                    count++;
+                }
+            }
+
+            return new CommandResult(true, $"Accepted {count} handoff(s)");
+        }
+
+        if (cmd is InitiateHandoffAllCommand hoAll)
+        {
+            var target = TrackResolver.ResolveTcpToOwner(scenario, hoAll.TcpCode);
+            if (target is null)
+            {
+                return new CommandResult(false, $"Unknown position: {hoAll.TcpCode}");
+            }
+
+            int count = 0;
+            foreach (var ac in snapshot)
+            {
+                if ((ac.Track.Owner is not null) && (ac.Track.Owner.Callsign == identity.Callsign) && (ac.Track.HandoffPeer is null))
+                {
+                    ac.Track.HandoffPeer = target;
+                    ac.Track.HandoffInitiatedAt = scenario.ElapsedSeconds;
+                    count++;
+                }
+            }
+
+            return new CommandResult(true, $"Initiated handoff for {count} aircraft to {hoAll.TcpCode}");
+        }
+
+        return new CommandResult(false, "Unknown global track command");
+    }
+
+    /// <summary><c>CAACK</c>: acknowledges every unacknowledged conflict alert the aircraft is party to.</summary>
+    public static CommandResult AcknowledgeConflictAlert(AircraftState ac, ConflictAlertState conflicts)
+    {
+        int count = 0;
+        foreach (var conflict in conflicts.Conflicts.Values)
+        {
+            if (((conflict.CallsignA == ac.Callsign) || (conflict.CallsignB == ac.Callsign)) && !conflict.IsAcknowledged)
+            {
+                conflict.IsAcknowledged = true;
+                count++;
+            }
+        }
+
+        return count > 0
+            ? new CommandResult(true, $"Acknowledged {count} conflict alert(s) for {ac.Callsign}")
+            : new CommandResult(false, $"No active conflict alerts for {ac.Callsign}");
     }
 
     /// <summary>

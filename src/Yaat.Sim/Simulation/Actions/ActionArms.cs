@@ -153,7 +153,10 @@ internal static class ActionArms
         return result;
     }
 
-    /// <summary>A STARS track verb under the resolved identity — the one track table (<see cref="TrackEngine.Dispatch"/>).</summary>
+    /// <summary>
+    /// A STARS track verb under the resolved identity — the one track table (<see cref="TrackEngine.Dispatch"/>), plus
+    /// <c>CAACK</c>, whose state is the engine's conflict-alert set rather than the aircraft's.
+    /// </summary>
     public static CommandResult Track(ArmContext ctx)
     {
         if (ctx.Engine.Scenario is not { } scenario)
@@ -161,7 +164,61 @@ internal static class ActionArms
             return ActionRefusals.NoScenario();
         }
 
+        if (ctx.Parsed is AcknowledgeConflictAlertCommand)
+        {
+            return TrackEngine.AcknowledgeConflictAlert(ctx.Aircraft!, ctx.Engine.ConflictAlerts);
+        }
+
         return TrackEngine.Dispatch(ctx.Parsed!, ctx.Aircraft!, ctx.Identity, scenario) ?? ActionRefusals.HostOnly(ctx.Parsed!);
+    }
+
+    /// <summary><c>ACCEPTALL</c> / <c>HOALL</c> under the resolved identity.</summary>
+    public static CommandResult GlobalTrack(ArmContext ctx)
+    {
+        if (ctx.Engine.Scenario is not { } scenario)
+        {
+            return ActionRefusals.NoScenario();
+        }
+
+        return TrackEngine.DispatchGlobal(ctx.Parsed!, ctx.Engine.World, scenario, ctx.Identity);
+    }
+
+    /// <summary><c>GHOST</c>: a phantom aircraft (handed to the host as a spawn) or an overlay on an existing one.</summary>
+    public static CommandResult GhostTrack(ArmContext ctx)
+    {
+        if (ctx.Engine.Scenario is not { } scenario)
+        {
+            return ActionRefusals.NoScenario();
+        }
+
+        if (ctx.Identity is not { } identity)
+        {
+            return ActionRefusals.NoActivePosition();
+        }
+
+        var outcome = TrackEngine.CreateGhostTrack((GhostTrackCommand)ctx.Parsed!, ctx.Engine.World, scenario, identity);
+        if (outcome.Created is { } created)
+        {
+            ctx.Host.OnAircraftSpawned(created);
+        }
+
+        return outcome.Result;
+    }
+
+    /// <summary><c>RPOSLOC</c> / <c>RPOSMOVE</c>: park or re-associate the aircraft's datablock under the resolved identity.</summary>
+    public static CommandResult Reposition(ArmContext ctx)
+    {
+        if (ctx.Identity is not { } identity)
+        {
+            return ActionRefusals.NoActivePosition();
+        }
+
+        return ctx.Parsed switch
+        {
+            RepositionToLocationCommand toLocation => TrackEngine.RepositionToLocation(toLocation, ctx.Engine.World, identity),
+            RepositionMoveCommand move => TrackEngine.RepositionMove(move, ctx.Engine.World, identity),
+            _ => ActionRefusals.HostOnly(ctx.Parsed!),
+        };
     }
 
     public static CommandResult SquawkAll(ArmContext ctx) => ctx.Engine.SquawkAll(ctx.Parsed!);
