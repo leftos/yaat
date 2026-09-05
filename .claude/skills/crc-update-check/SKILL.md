@@ -16,8 +16,12 @@ Run from the yaat-server repo root unless a step says otherwise. Tee every tool 
 ```bash
 curl -s https://crc.virtualnas.net/LatestVersion.json
 pwsh -NoProfile -Command '(Get-Item "$env:LOCALAPPDATA\CRC\Application\CRC.exe").VersionInfo.FileVersion'
-git -C ../crc-decompiled/CRC log -1 --format=%s
+git -C X:/dev/crc-decompiled/CRC log -1 --format=%s
 ```
+
+The reference repo path is absolute on purpose: it is a sibling of `X:\dev\yaat`, not of a worktree
+checkout, so `../crc-decompiled` fails from `X:\temp\rt-worktrees\...`. The commit subject carries the
+three-part version, so `2.18.2.0` matches `decompiled CRC 2.18.2`.
 
 All three equal → report "baseline current" and stop. Installed behind published → the user
 must launch CRC to self-update before the rest is meaningful.
