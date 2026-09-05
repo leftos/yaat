@@ -26,7 +26,7 @@ public static class SpineOrder
 {
     public static readonly ImmutableArray<SpineStep> PrePhysics =
     [
-        SpineStep.Sim(StepId.PrePhysics, static (engine, host) => host.OnPrePhysics(engine.TickPrePhysics())),
+        SpineStep.Sim(StepId.TickPrePhysics, static (engine, host) => host.OnPrePhysics(engine.TickPrePhysics())),
         SpineStep.Sim(StepId.TerminalEntries, static (engine, host) => host.OnTerminalEntries(engine.DrainTerminalEntries())),
         SpineStep.Host(StepId.DelayedHandoffs, static host => host.DelayedHandoffs()),
         // Last in pre-physics so a sample placed at this second is recorded at this second and replays pre-tick;

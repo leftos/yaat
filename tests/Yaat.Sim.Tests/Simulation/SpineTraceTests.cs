@@ -19,7 +19,7 @@ public class SpineTraceTests
     private static readonly TracedStep[] OneBareSecond =
     [
         new(StepId.PreTickRecordedActions, 0),
-        new(StepId.PrePhysics, 0),
+        new(StepId.TickPrePhysics, 0),
         new(StepId.TerminalEntries, 0),
         new(StepId.DelayedHandoffs, 0),
         new(StepId.LiveTrafficSync, 0),
