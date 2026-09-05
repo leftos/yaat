@@ -14,8 +14,10 @@ Follow these steps exactly. Do not skip or reorder.
   will not come. Live test output, the `Diag_` probe recipe, the blame setter,
   replay-reachability, the stacked-replay crash signature.
 - `references/post-fix-triage.md` — **load at Step 6 the moment more than one
-  test is red.** The five failure categories, what each one licenses, and the
-  prohibition on greening by relaxing assertions.
+  test is red, and whenever a diff-based baseline guard fails whatever the
+  count.** The failure categories, what each one licenses, the direction check
+  for a guard whose diff shrank, and the prohibition on greening by relaxing
+  assertions.
 
 ## Step 1: Understand the bug
 
@@ -55,6 +57,24 @@ doc from `docs/architecture.md`'s task index before exploring.
   against the current code.
 - Place the test in the appropriate test project mirroring the source structure.
 
+**When the test pins behaviour with a generated baseline** — a characterization
+or approval check whose accepted-divergence list, golden file or accepted-failure
+set is produced by running a fixture — that file records what one execution
+reached, not what exists, and reads afterwards as the complete set. Before
+committing it:
+
+- Predict the entries from the source **first**, then diff the prediction
+  against what the run produced. Without a prediction there is nothing to diff,
+  and absence-from-the-output is indistinguishable from absence-from-the-system.
+- For each predicted entry that did not appear, decide which it is: absent from
+  the system, or merely unreached by this fixture — a state the scenario never
+  configures, a divergence needing more sim seconds than the run covered.
+- Widen the input where it is cheap (a longer replay window often surfaces
+  genuine entries), then write the still-unreached ones down as an explicit
+  blind-spot list **in the test that generates the baseline**, not only in the
+  commit message. A documented blind spot is a known limit; an undocumented one
+  is a false claim of completeness.
+
 ## Step 3: Confirm the test fails (RED)
 
 ```bash
@@ -91,6 +111,15 @@ A test that passes after the fix has not yet been shown to fail without it.
 2. Re-run the filtered test; confirm RED.
 3. Invert back; confirm GREEN.
 
+**The same run also tests the causal story, not just the instrument.** Wherever
+you have claimed "this change is what produces that behaviour" — one fix
+credited with several red tests, one baseline entry attributed to one step —
+predict before the re-run which tests should go RED **and which should stay
+GREEN**, then check both halves. Both matching confirms the attribution; a
+mismatch is a finding: the attribution is wrong, or two effects share one cause.
+Where the diff has several parts, mutate each named cause in turn — cheaper than
+re-deriving the story from the source, and unlike reading it produces evidence.
+
 **Restoring a temporary edit.** Undo by applying the inverse replacement, never
 by `git checkout -- <file>` / `git restore <file>`: a whole-file restore reverts
 the file to HEAD and silently wipes every other uncommitted change in it. This
@@ -112,6 +141,12 @@ loop), not a slow suite.
 classify every failure before editing anything.** Present the breakdown to the
 user first. Never relax an assertion or add a case-specific shortcut to reach
 green — a suite made green that way is a worse state than a red one.
+
+**Load it for a single red too when the failing check is a diff-based baseline
+guard** — an accepted-divergence baseline, a golden file, an accepted-failure
+list. Its "entries gone" branch reads like success and usually offers the
+re-baseline command, so classify the direction of the movement before acting on
+it.
 
 ## Step 7: Build with warnings as errors
 

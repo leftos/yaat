@@ -64,16 +64,19 @@ Alongside it, give the reviewer:
 
 A review is an input, not a verdict. Three rules decide what to accept.
 
-### 3a. Every citation must say who it binds and under which flight rules
+### 3a. Every citation must say who it binds, under which flight rules, and — for a number — where the number is
 
 Before a regulatory citation is allowed to ground *simulated-pilot* behaviour,
-it must state two things explicitly:
+it must state three things explicitly:
 
 1. **Who the paragraph directs** — the controller, or the pilot.
 2. **Its flight-rules scope** — IFR, VFR, or both.
+3. **Where the number is**, whenever the citation is attached to a value (an
+   interval, a rate, an angle, a distance, a threshold): **quote the sentence
+   that states it.**
 
-A citation missing either is not yet evidence; go read the paragraph before
-acting on it. The worked case: a 20° close-in intercept cap was added to
+A citation missing any of the three is not yet evidence; go read the paragraph
+before acting on it. The worked case: a 20° close-in intercept cap was added to
 `VfrFollowPhase.TryJoinLeadFinal` citing 7110.65 §5-9-2 / TBL 5-9-1. That
 paragraph instructs **controllers** vectoring **IFR** aircraft onto a final
 approach course. It does not constrain what a VFR pilot flies when told to
@@ -85,7 +88,33 @@ as regulatory ground for VFR pilot AI.** If the resulting number is a judgement
 call, say so in the code comment and the changelog instead of dressing it in a
 citation.
 
+**Topicality is not sourcing**, and it is the more available signal, so it
+substitutes for sourcing without anyone noticing. A 24-second track-coast timer
+shipped commented "(7110.65 §5-13-8)"; §5-13-8 is *Controller Initiated Coast
+Tracks*, is genuinely about coast tracks, and states no duration at all. The
+first two questions above pass it cleanly — controllers, en route automation —
+while the paragraph is silent on the very quantity it was cited to justify. When
+no sentence in the cited paragraph carries the value, drop the citation and
+label the number a judgement call.
+
 ### 3b. Evidence hierarchy for observable practice
+
+**Before ranking anything, establish whether the publications address the
+question at all.** Name the paragraphs you searched and report silence as a
+finding: "I could not find a rule" and "there is no rule" are different answers,
+and an unreported search miss lets an articulate derivation quietly outrank a
+documented value.
+
+Silence is not a fall-through to rank 4 — it *inverts* the ranking. A behaviour
+the procedural standard never describes is a property of the equipment being
+emulated, so the emulation target's own documentation becomes the top available
+evidence, and a first-principles number may only ride *alongside* it as a
+cross-check, never in its place. The worked case: a 45-second surface-track
+coast interval appears nowhere in 7110.65 Chapter 3 Section 6 or AIM 4-5-5 —
+both describe how a controller or a pilot *uses* an ASDE display, never what the
+automation does with a track that stops updating — while the vendored display
+manual states the 45 seconds verbatim, along with the list grouping and id
+format.
 
 When the question is *what a facility actually does* rather than *what is
 defensible*, rank the evidence:
@@ -93,6 +122,7 @@ defensible*, rank the evidence:
 | Rank | Evidence | Example |
 |------|----------|---------|
 | 1 | Measured reference artefact | the reporter's screenshot, a recording, a tick CSV |
+| 1 (on silence) | The emulation target's own documentation, where 7110.65 and the AIM say nothing | the vendored display manual stating the coast interval |
 | 2 | The emulated **server** reference | vNAS messaging-master / data-master |
 | 3 | Client-side observation | the decompiled CRC client at `..\crc-decompiled\CRC\` |
 | 4 | First-principles reasoning | the expert's a-priori argument |
@@ -141,6 +171,10 @@ has been violated in a shipped change:
 - [ ] Every 7110.65/AIM citation states who it binds (controller/pilot) and its
       flight-rules scope, and I read the paragraph rather than the citation.
 - [ ] No controller-vectoring paragraph is grounding VFR pilot AI.
+- [ ] Every cited paragraph backing a constant contains that constant, and I
+      quoted the sentence.
+- [ ] If the publications are silent, I said so explicitly and named the
+      authority I used instead.
 - [ ] Where the question was observable practice, the highest-ranked evidence
       available won — not the most articulate argument.
 - [ ] Any geometry number is measured, or is labelled as eyeballed to the user.
@@ -155,6 +189,11 @@ A review whose rejections are invisible reads as unanimous agreement.
 - **Reviewing a prescribed tweak.** If the user told you the behaviour, build it.
 - **Citing a paragraph you did not open.** The local files are two Grep calls
   away; a citation from memory is a guess with a section number attached.
+- **Citing a topically-adjacent paragraph as the source of a number.** A
+  paragraph about the right subject that states no value is context, not
+  authority.
+- **Reasoning a number out because the search came up empty.** Report the
+  silence, then look to the equipment's own documentation.
 - **Letting an expert argument overturn a reference artefact.** The expert is
   the right input for whether geometry is *defensible*, not for what a facility
   already draws and uses daily.

@@ -90,6 +90,26 @@ The audit and the execution see different states, and a proposal produced by an
 analysis pass is not an instruction. This gate is the whole reason the audit is
 split from the execution.
 
+**A difference is not a direction.** When the doomed copy *overlaps* a live one
+rather than being wholly separate — the Step 0 snapshot, an older copy of the
+store, a MERGE source whose target already carries most of it — `diff -rq` is
+not the check. "They differ" is equally consistent with the doomed copy being
+stale and with it holding the only surviving version of a fact, and those two
+have opposite consequences. For every entry present on **both** sides, resolve
+which side is authoritative before the delete, and state the verdict per entry:
+
+```bash
+diff -rq A B                             # which entries exist on both sides
+stat -c '%y %n' A/entry.md B/entry.md    # mtime: which side was written last
+diff A/entry.md B/entry.md               # read the lines unique to the doomed copy
+```
+
+Delete silently only where the doomed copy's unique lines are absent or
+confirmed superseded; anything else goes to the user before the delete runs.
+Superseded is the common case and the one worth deleting — in the observed
+prune, the doomed copy's unique lines were guidance a later rule had explicitly
+replaced, which a uniqueness-only gate would have flagged as content to preserve.
+
 **Reconcile cross-slice contradictions explicitly.** A per-slice auditor cannot
 see them. The observed shape: two slices issued opposite verdicts on the same
 pair of files — each proposed merging into the file the other proposed deleting.
@@ -152,9 +172,15 @@ unindexed, within budget. Report the before/after entry counts, the
 contradictions you reconciled, and every DELETE that was downgraded to a TRIM
 because its citation did not hold.
 
+Discarding the snapshot is itself an overlapping delete: run Step 4's direction
+check over it before removing it, because the snapshot and the live store share
+every surviving filename.
+
 ## Anti-patterns
 
 - **Deleting on an auditor's say-so.** The verdict is a proposal. Re-verify.
+- **Treating `diff -q` as a delete gate.** It answers whether two copies differ,
+  never which one is newer — and the delete turns on the second question.
 - **Letting two auditors share a file.** Disjoint slices or nothing.
 - **Editing `MEMORY.md` by hand "just to fix one link".** Fix the inventory row
   and re-run the script; a hand edit is how the dangling links got there.

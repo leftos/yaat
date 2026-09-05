@@ -142,6 +142,23 @@ Read the (possibly-cleaned) unreleased section. Count the user-visible bullets f
   - Bad: *"Velopack download-progress callback now marshalled to UI thread, fixing InvalidOperationException."*
   - Good: *"'Update Now' no longer crashes — auto-updates download and apply correctly."*
 
+### 5c. Scope-check the automatic-behavior bullets
+
+Run this before Step 8 locks the notes — a correction here updates the changelog
+bullet and any highlight drawn from it.
+
+For every `### Added` / `### Changed` bullet describing something the sim does on
+its own, without the controller asking, resolve the feature's gating condition
+and its call sites and state which sessions it reaches: all rooms, solo only,
+headless/soak only, replay only. Read that from the code, never from the plan
+note or commit message the bullet came from. A milestone heading records what the
+change was motivated by, and a milestone-driven fix that lands on shared sim state
+reaches every session touching that state. Where the reach is broader than the
+originating plan context implies, say so in the bullet — that is the reach a
+reader gets wrong. Skipping the check leaves both errors available: a bullet that
+under-states its reach, and a needless narrowing of correct behavior because the
+reviewer trusted a heading instead of a call site.
+
 ## Step 6: Audit user-facing documentation against the release commits
 
 Before locking the release notes, walk the commits going into this release and confirm user-facing documentation actually covers what changed. Stale or missing docs hurt users more than missing changelog bullets — they steer instructors and RPOs wrong on real workflows.
@@ -344,6 +361,22 @@ Once the user approves:
     real but off-branch, and this push will not carry it. Halt and recover with
     `git checkout -B main <sha>` (safe when `git merge-base --is-ancestor main HEAD`
     holds) before continuing.
+
+    **Then check what the push range holds.** The range is every local commit
+    `origin/main` lacks, not just this cycle's release commit, and a commit minted
+    by a codegen tool, an IDE action, or a hook that commits carries none of the
+    repo's `Co-Authored-By:` / `Claude-Session:` trailers and never passed the
+    ask-before-commit gate. A range with one in it pushes exactly like a clean
+    one, so check both repos before either push:
+
+    ```bash
+    git              log --format='%h %s' --invert-grep --grep='Co-Authored-By:' origin/main..main
+    git -C "$SERVER" log --format='%h %s' --invert-grep --grep='Co-Authored-By:' origin/main..main
+    ```
+
+    Anything printed is a commit this workflow did not author. Halt and report it
+    before pushing — a release push is the point after which the message can no
+    longer be amended.
 
     If the release commit is a partial commit of a dirty tree, follow the
     partial-commit protocol in the `changelog-and-commit` skill — stash the

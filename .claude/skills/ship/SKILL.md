@@ -59,6 +59,8 @@ Invoke the `changelog-and-commit` skill. It snapshots the index, drafts bullets 
 
 **Tolerance rule:** that skill halts with "nothing to commit" when both trees are clean. Under `/ship` that is a **no-op, not a failure** — say `Phase 1: skipped (working trees clean)` and continue to Phase 2. Only a real failure (hook failure, secrets file, dirty state it can't resolve) stops `/ship`.
 
+**No-bullet outcome:** that skill's Step 2 gate can decide the diff warrants no changelog entry (planning docs for unbuilt work, internal refactors, test/CI-only diffs) and commit anyway. `/ship` inherits that decision — it is a normal Phase 1 result, not a skipped phase. Report `Phase 1: committed, no changelog bullet (<reason>)` and carry the reason into Phase 6 where the changelog line would go.
+
 If a pre-commit hook fails: surface the output, fix forward, new commit. Never `--amend`, never `--no-verify`. If the fix isn't obvious, stop `/ship` here — nothing has been pushed yet, so stopping is cheap.
 
 ## Phase 2: Land onto main
@@ -78,13 +80,13 @@ A cherry-pick that merges textually clean can still fail to compile on `main`: `
 Decide the gate from what Phase 2 actually did, in `X:/dev/yaat`:
 
 - **Fast-forward only, both repos** → skip. `main` didn't advance past the base, so the worktree's build already covered this tree.
-- **Any real cherry-pick** → run in the target checkout. This gate is not optional and "the prek hook passed" does not satisfy it: git's sequencer commits clean picks **without** running pre-commit hooks (only a conflicted pick finished via `--continue` runs them), so most landed commits were never built by a hook at all. Read the `Build succeeded` / `Build FAILED` line of the log, not just the test summary — `| tee | grep` pipelines report grep's exit code, not the build's:
+- **Any real cherry-pick** → run in the target checkout, through `tools/gate.sh`. This gate is not optional and "the prek hook passed" does not satisfy it: git's sequencer commits clean picks **without** running pre-commit hooks (only a conflicted pick finished via `--continue` runs them), so most landed commits were never built by a hook at all. The wrapper exists because a bare `| tee` makes the gate a pipeline and the shell reports the last stage's status — `| tee | grep` returns grep's exit code, not the build's — so it propagates the command's own status and additionally fails on `Build FAILED` / `error CS` in the log. Never append `| tail` or `| grep` to it; read the `Build succeeded` / `Build FAILED` line of the log, not just the test summary:
   ```bash
-  cd X:/dev/yaat && dotnet build -p:TreatWarningsAsErrors=true 2>&1 | tee .tmp/ship-build.log
+  cd X:/dev/yaat && bash tools/gate.sh .tmp/ship-build.log dotnet build -p:TreatWarningsAsErrors=true
   ```
 - **Cherry-pick touching a `Yaat.Sim` type or method signature** → also run the cross-repo suite:
   ```bash
-  cd X:/dev/yaat && pwsh tools/test-all.ps1 2>&1 | tee .tmp/ship-test-all.log
+  cd X:/dev/yaat && bash tools/gate.sh .tmp/ship-test-all.log pwsh tools/test-all.ps1
   ```
 
 If the gate fails, **do not push**. Fix forward with a new commit on `main` (never `--amend`), re-run the gate, then continue. If the fix isn't obvious, stop and surface the log — `main` is local-only at this point, so it's recoverable.
@@ -98,6 +100,14 @@ Phase 4: pushing
   X:/dev/yaat        main  <N> commits → origin/main
   X:/dev/yaat-server main  <M> commits → origin/main
 ```
+
+**Before either push, verify the push range's provenance.** `merge-session-to-main` Step 2 runs this check over the commits it cherry-picks; the push range is wider — every local commit `origin/main` lacks, including commits no phase of this run landed. Run the same check per repo:
+
+```bash
+git -C <repo> log --format='%h %s' --invert-grep --grep='Co-Authored-By:' origin/main..main
+```
+
+Anything printed is a commit this workflow did not author — a codegen tool, an IDE action, or a hook that commits. Halt and report it; pushing is the step that takes the amend repair off the table.
 
 **Push yaat first, then yaat-server.** yaat-server's CI bumps its `extern/yaat` submodule pointer to a yaat commit; if yaat isn't on `origin` yet, that bump references an object GitHub doesn't have. (Never bump the submodule pointer by hand — CI owns it.)
 
@@ -229,9 +239,9 @@ git -C X:/dev/yaat-server status -sb | head -1   # "## HEAD (no branch)" -> halt
 # Phase 1 — Skill: changelog-and-commit   (clean tree → skip, not fail)
 # Phase 2 — Skill: merge-session-to-main  (on main already → skip; cross-repo sig change → land yaat-server FIRST)
 
-# Phase 3 — gate, only if a real cherry-pick happened
-cd X:/dev/yaat && dotnet build -p:TreatWarningsAsErrors=true 2>&1 | tee .tmp/ship-build.log
-cd X:/dev/yaat && pwsh tools/test-all.ps1 2>&1 | tee .tmp/ship-test-all.log   # if a Yaat.Sim signature changed
+# Phase 3 — gate, only if a real cherry-pick happened (never append | tail or | grep)
+cd X:/dev/yaat && bash tools/gate.sh .tmp/ship-build.log dotnet build -p:TreatWarningsAsErrors=true
+cd X:/dev/yaat && bash tools/gate.sh .tmp/ship-test-all.log pwsh tools/test-all.ps1   # if a Yaat.Sim signature changed
 
 # Phase 4 — push, yaat first, no --force / no --tags
 git -C X:/dev/yaat        push origin main

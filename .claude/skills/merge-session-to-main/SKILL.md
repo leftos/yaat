@@ -90,6 +90,27 @@ List the commits that will land:
 git -C "$source" log --oneline "$base..$source_head"
 ```
 
+### Verify the range's provenance
+
+The range holds whatever is divergent, not only what `changelog-and-commit`
+wrote. A codegen tool, an IDE action, or a hook that commits mints commits with
+none of the repo's `Co-Authored-By:` / `Claude-Session:` trailers and without
+the ask-before-commit gate, and a range carrying one drives this skill exactly
+as a clean range does — nothing looks wrong. So check the whole range,
+positionally, every time:
+
+```bash
+git -C "$source" log --format='%h %s' --invert-grep --grep='Co-Authored-By:' "$base..$source_head"
+```
+
+Anything printed is a commit this workflow did not author. Halt and report it
+rather than landing it. Repair depends on where it sits: when it is the source
+HEAD and unpushed, add the trailers with
+`git -C "$source" commit --amend -F .tmp/commit-msg.txt` and recompute the
+range — the amend prohibition covers pushed commits and hook-failure recovery,
+not the message of an unpushed commit nobody has seen. Deeper in the range,
+report it and let the user decide.
+
 ## Step 3: Plan and announce
 
 Print to the user (single message, no question):

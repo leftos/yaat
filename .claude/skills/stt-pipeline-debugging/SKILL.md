@@ -145,17 +145,19 @@ Don't add rules in `PhraseologyRules.cs` without a failing test first.
 
 3. **Add the rule** in `src/Yaat.Sim/Speech/PhraseologyRules.cs`. **Order matters for the verbalizer**: `PhraseologyVerbalizer.PickPreferredRule` picks the first-declared rule on capture-count ties. Put the pilot-readback-canonical form FIRST; informal STT-only variants come after. The rule mapper itself is order-insensitive (it scores by longest match).
 
-4. **Check the verbalizer didn't regress**:
+4. **Mutation-check the attribution, not just the test.** A passing test shows the rule you added fires; it does not show that the cause you named — "no rule for this word order", "the near-miss table is missing this letter" — is the cause. Disable exactly that named cause (comment out the new rule, drop the near-miss entry) and predict **before** re-running which tests should go RED *and which should stay GREEN*. Both halves matching confirms the attribution; anything else is a finding: the miss had a different cause, or the greedy matcher is scoring a rule you did not consider. Where several samples are credited to one rule, this is the run that says whether they really share it. Remove the mutation by inverting the edit, exactly as with the Step 1 probe.
+
+5. **Check the verbalizer didn't regress**:
    ```bash
    bash tools/gate.sh .tmp/stt-verbalizer.log dotnet test tests/Yaat.Sim.Tests/Yaat.Sim.Tests.csproj -- --filter-method "*Verbalizer*" "*PhraseologyMapperTrace*"
    ```
 
-5. **Full speech suite**:
+6. **Full speech suite**:
    ```bash
    bash tools/gate.sh .tmp/stt-speech.log dotnet test tests/Yaat.Sim.Tests/Yaat.Sim.Tests.csproj -- --filter-method "*Speech*" "*Callsign*" "*Verbalizer*"
    ```
 
-6. **Cross-repo sanity** before committing:
+7. **Cross-repo sanity** before committing:
    ```bash
    bash tools/gate.sh .tmp/stt-test-all.log pwsh tools/test-all.ps1
    ```
