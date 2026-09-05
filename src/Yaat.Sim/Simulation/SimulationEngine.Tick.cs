@@ -798,6 +798,25 @@ public sealed partial class SimulationEngine
     }
 
     /// <summary>
+    /// End-of-second advance of the weather timeline: re-collapses <see cref="SimScenarioState.WeatherTimeline"/> at the
+    /// completed second into <see cref="SimulationWorld.Weather"/> — the continuous wind physics and visual acquisition
+    /// read — and returns the profile so the host can mirror it; null when the scenario carries no timeline. Ungated on
+    /// every run kind (ADR 0002): a slowly veering wind reaches the aircraft as the sub-degree per-second change it is,
+    /// not in 1° / 0.5 kt steps. The reported METAR is issued separately by the host's <c>MetarIssuance</c> step.
+    /// </summary>
+    public WeatherProfile? AdvanceWeatherTimeline()
+    {
+        if (Scenario is not { WeatherTimeline: { } timeline } scenario)
+        {
+            return null;
+        }
+
+        var profile = timeline.GetWeatherAt(scenario.ElapsedSeconds);
+        World.Weather = profile;
+        return profile;
+    }
+
+    /// <summary>
     /// End-of-second sample of <see cref="AircraftState.PositionHistory"/>, the history-trail dots every display
     /// projects: one ring-buffer entry per aircraft every <see cref="AircraftState.PositionHistorySampleSeconds"/>,
     /// <see cref="AircraftState.PositionHistoryCapacity"/> deep. A spine step (<see cref="Spine.StepId.PositionHistory"/>)

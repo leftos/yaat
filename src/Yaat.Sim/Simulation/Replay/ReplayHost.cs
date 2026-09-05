@@ -38,11 +38,10 @@ internal sealed class ReplayCursors(List<RecordedAction> actions)
 }
 
 /// <summary>
-/// The host of a <see cref="RunKind.Replay"/> run. It differs from the bare host in exactly three steps: the
-/// recorded pre-tick actions (spawns, live-traffic samples) land after the clock increment and before physics, the
-/// weather timeline advances every second ungated, and the remaining recorded actions at or before the completed
-/// second are applied after it. Everything else delegates to the bare host, so a replay produces the same events a
-/// test tick does.
+/// The host of a <see cref="RunKind.Replay"/> run. It differs from the bare host in exactly two steps: the recorded
+/// pre-tick actions (spawns, live-traffic samples) land after the clock increment and before physics, and the
+/// remaining recorded actions at or before the completed second are applied after it. Everything else delegates to
+/// the bare host, so a replay produces the same events a test tick does.
 /// </summary>
 internal sealed class ReplayHost(SimulationEngine engine, ReplayCursors cursors, Action<RecordedAction> applier) : ISimulationHost
 {
@@ -62,14 +61,6 @@ internal sealed class ReplayHost(SimulationEngine engine, ReplayCursors cursors,
             _applier,
             _cursors.PreTickAppliedActionIndexes
         );
-    }
-
-    public void AdvanceWeather()
-    {
-        if (_engine.Scenario is { WeatherTimeline: { } timeline } scenario)
-        {
-            _engine.World.Weather = timeline.GetWeatherAt((int)scenario.ElapsedSeconds);
-        }
     }
 
     public void ApplyRecordedActions()
@@ -148,6 +139,8 @@ internal sealed class ReplayHost(SimulationEngine engine, ReplayCursors cursors,
     public void OnSoloTrainingEvents(IReadOnlyList<SoloTrainingEvent> events) => _bare.OnSoloTrainingEvents(events);
 
     public void OnAutoDeleted(IReadOnlyList<AircraftState> removed) => _bare.OnAutoDeleted(removed);
+
+    public void OnWeatherAdvanced(WeatherProfile profile) => _bare.OnWeatherAdvanced(profile);
 
     public void OnWarnings(List<(string Callsign, string Warning)> warnings) => _bare.OnWarnings(warnings);
 

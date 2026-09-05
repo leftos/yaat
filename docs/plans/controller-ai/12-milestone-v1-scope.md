@@ -50,7 +50,7 @@ No phase is a technical layer, and no phase leaves either repo broken: `Yaat.Sim
 
 ## Phases
 
-- [ ] **1 — One tick spine.** Every host runs the same post-physics steps in the same order, so sim, server, replay and soak cannot silently diverge
+- [x] **1 — One tick spine.** Every host runs the same post-physics steps in the same order, so sim, server, replay and soak cannot silently diverge — shipped 2026-09-04 as tick step 3c (see `MAIN.md`); criteria 1–3 and 5 met, criterion 4 (desync triage) exercised by the first three retirements
 - [ ] **2 — Per-position frequency state.** Two AI positions each run a pilot exchange at once, with no cross-frequency gate leakage
 - [ ] **3 — Party line and transmission collisions.** Everyone tuned hears everything, simultaneous keys garble and recover, the human hears only what they monitor
 - [ ] **4 — Coordination bus and position transfer.** Ground and Local coordinate off-frequency, hand aircraft over, and cannot deadlock on a shared resource

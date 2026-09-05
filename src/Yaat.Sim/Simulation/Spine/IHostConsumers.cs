@@ -35,6 +35,9 @@ public interface IHostConsumers
     void OnApproachScores(List<ApproachScore> scores);
     void OnStripDispatches(List<(string Callsign, ParsedCommand Command)> dispatches);
 
+    /// <summary>The profile <see cref="SimulationEngine.AdvanceWeatherTimeline"/> just installed; not called when the scenario has no timeline.</summary>
+    void OnWeatherAdvanced(WeatherProfile profile);
+
     /// <summary>
     /// The aircraft <see cref="SimulationEngine.TickAutoDelete"/> removed this second — already gone from the world;
     /// each state still carries its last position for a surface-track coast or drop.

@@ -57,8 +57,6 @@ internal sealed class BareHost(SimulationEngine engine) : ISimulationHost
 
     public void TimersBroadcast() { }
 
-    public void AdvanceWeather() { }
-
     public void IssueMetars() { }
 
     public void ApplyRecordedActions() { }
@@ -77,6 +75,9 @@ internal sealed class BareHost(SimulationEngine engine) : ISimulationHost
 
     /// <summary>Nothing to tear down: a bare engine has no room state keyed by callsign and nobody to broadcast to.</summary>
     public void OnAutoDeleted(IReadOnlyList<AircraftState> removed) { }
+
+    /// <summary>Nothing to mirror: the world already holds the profile.</summary>
+    public void OnWeatherAdvanced(WeatherProfile profile) { }
 
     public void OnWarnings(List<(string Callsign, string Warning)> warnings)
     {

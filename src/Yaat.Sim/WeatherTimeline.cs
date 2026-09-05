@@ -86,87 +86,6 @@ public class WeatherTimeline
         };
     }
 
-    /// <summary>
-    /// Compares two weather profiles for meaningful changes (used to rate-limit broadcasts).
-    /// Returns true if wind direction differs by more than 1° or speed by more than 0.5kt at any layer,
-    /// or if METARs/precipitation changed.
-    /// </summary>
-    public static bool HasMeaningfulChange(WeatherProfile? a, WeatherProfile? b)
-    {
-        if (a is null && b is null)
-        {
-            return false;
-        }
-
-        if (a is null || b is null)
-        {
-            return true;
-        }
-
-        if (a.Precipitation != b.Precipitation)
-        {
-            return true;
-        }
-
-        if (a.Metars.Count != b.Metars.Count)
-        {
-            return true;
-        }
-
-        for (int i = 0; i < a.Metars.Count; i++)
-        {
-            if (a.Metars[i] != b.Metars[i])
-            {
-                return true;
-            }
-        }
-
-        if (a.WindLayers.Count != b.WindLayers.Count)
-        {
-            return true;
-        }
-
-        for (int i = 0; i < a.WindLayers.Count; i++)
-        {
-            if (Math.Abs(a.WindLayers[i].Direction - b.WindLayers[i].Direction) > 1.0)
-            {
-                return true;
-            }
-
-            if (Math.Abs(a.WindLayers[i].Speed - b.WindLayers[i].Speed) > 0.5)
-            {
-                return true;
-            }
-
-            if (NullableDiffers(a.WindLayers[i].Gusts, b.WindLayers[i].Gusts, 0.5))
-            {
-                return true;
-            }
-
-            if (NullableDiffers(a.WindLayers[i].DirectionVariabilityDeg, b.WindLayers[i].DirectionVariabilityDeg, 1.0))
-            {
-                return true;
-            }
-
-            if ((a.WindLayers[i].Variable ?? false) != (b.WindLayers[i].Variable ?? false))
-            {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    private static bool NullableDiffers(double? a, double? b, double tolerance)
-    {
-        if (a.HasValue != b.HasValue)
-        {
-            return true;
-        }
-
-        return (a.HasValue) && (Math.Abs(a.Value - b!.Value) > tolerance);
-    }
-
     private static List<WindLayer> InterpolateWindLayers(List<WindLayer> from, List<WindLayer> to, double t)
     {
         // If layer counts differ, snap to target
@@ -294,15 +213,29 @@ public class WeatherTimeline
         return from.Value + t * (to.Value - from.Value);
     }
 
+    private WeatherPeriod? _collapsedPeriod;
+    private WeatherProfile? _collapsedProfile;
+
+    /// <summary>
+    /// Outside a transition the collapsed profile is a pure function of the period, so the same instance is handed
+    /// back second after second: every run kind re-collapses the timeline every second, and a
+    /// <see cref="WeatherProfile"/> carries per-instance METAR caches that a fresh object would discard each time.
+    /// </summary>
     private WeatherProfile BuildProfile(WeatherPeriod period)
     {
-        return new WeatherProfile
+        if (!ReferenceEquals(_collapsedPeriod, period))
         {
-            Name = Name,
-            ArtccId = ArtccId,
-            Precipitation = period.Precipitation,
-            WindLayers = period.WindLayers,
-            Metars = period.Metars,
-        };
+            _collapsedPeriod = period;
+            _collapsedProfile = new WeatherProfile
+            {
+                Name = Name,
+                ArtccId = ArtccId,
+                Precipitation = period.Precipitation,
+                WindLayers = period.WindLayers,
+                Metars = period.Metars,
+            };
+        }
+
+        return _collapsedProfile!;
     }
 }

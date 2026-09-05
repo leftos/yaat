@@ -247,8 +247,7 @@ See [tick-loop.md](tick-loop.md) for where these steps sit in the 8-step `Flight
 ### Selection and broadcast cadence
 
 - **Replay / scenario engine** (`SimulationEngine.cs`): the timeline is collapsed at restore/replay sites (`World.Weather = timeline.GetWeatherAt(t)`), and `ApplyWeatherJson` (`SimulationEngine.cs:2562`) routes a `LoadWeather` JSON through `WeatherTimelineParser` — a timeline is stored on `Scenario.WeatherTimeline` and immediately collapsed; a v1 profile clears the timeline and sets `World.Weather` directly. Snapshots serialize `World.Weather` as JSON (`SimulationEngine.cs:135`, `:148`) plus `Scenario.WeatherSourceJson`; `RestoreFromSnapshot` rebuilds `Scenario.WeatherTimeline` from that source so v2 evolution survives a snapshot-based rewind (the parsed timeline object itself is not snapshotted).
-- **Live server tick** (`RoomTickLoopService.cs`): each second, if a timeline is active, `GetWeatherAt(elapsed)` is recomputed into `World.Weather` (gated by `HasMeaningfulChange`) to drive physics/visual acquisition — this no longer broadcasts. Broadcasts are instead driven by the reported-METAR issuer (see below).
-- **`HasMeaningfulChange(a, b)`** (`WeatherTimeline.cs:94`) gates the continuous `World.Weather` update: true if precipitation changed, METAR list changed, layer count changed, or **any layer's direction differs by > 1°, speed by > 0.5 kt, gusts by > 0.5 kt, variability spread by > 1°, or the VRB flag flipped**.
+- **Every run kind, every second** (the `WeatherAdvance` spine step, `SimulationEngine.AdvanceWeatherTimeline` — [tick-loop.md](tick-loop.md)): if a timeline is active, `GetWeatherAt(elapsed)` is recomputed into `World.Weather` ungated, to drive physics/visual acquisition; the live host mirrors it onto `Room.Weather`. This does not broadcast. Broadcasts are driven by the reported-METAR issuer (see below), which has its own SPECI criteria. (Until 2026-09-04 the live server applied it only past a 1° / 0.5 kt change, a leftover from when the same code path broadcast — ADR 0002.)
 
 ### Reported METAR reconstruction (`MetarIssuer`, `MetarComposer`, `SpeciCriteria`)
 
@@ -307,7 +306,7 @@ The behaviors above already have regression coverage — find the right harness 
 | `tests/Yaat.Sim.Tests/WindsAloftParserTests.cs` | FD header-column matching, DDSS decode (≥100 kt, 9900 light-variable, temp-suffix strip). |
 | `tests/Yaat.Sim.Tests/WindInterpolatorTests.cs` | altitude N/E lerp, clamp outside range, IAS/TAS/Mach conversions, WCA. |
 | `tests/Yaat.Sim.Tests/MetarInterpolatorTests.cs` | exact-station match, 50 nm IDW visibility, lowest-ceiling layer set. |
-| `tests/Yaat.Sim.Tests/WeatherTimelineTests.cs` | time interpolation, layer-count snap, `HasMeaningfulChange`. |
+| `tests/Yaat.Sim.Tests/WeatherTimelineTests.cs` | time interpolation, layer-count snap. |
 | `tests/Yaat.Sim.Tests/WeatherTimelineParserTests.cs` | v1/v2 auto-detect, v2 validation/sort, error cases. |
 | `tests/Yaat.Sim.Tests/WindPhysicsTests.cs` | end-to-end crab + groundspeed-vector behavior under wind. |
 | `tests/Yaat.Sim.Tests/MagneticDeclinationTests.cs` | WMM declination values, true↔magnetic round-trips. |

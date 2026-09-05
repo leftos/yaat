@@ -9,6 +9,7 @@
 - Replaying a recording no longer raises conflict alerts on aircraft established on final that the live session correctly stayed quiet about. Approach-corridor suppression was configured per host, so only the live server had it.
 - Replaying or playing back a recording removes aircraft the live session auto-deleted, when it did, and rebuilds a solo session's evaluation findings.
 - Radar and surface history trails are rebuilt during playback and rewind instead of appearing only after a snapshot restore.
+- Wind from a weather timeline now reaches aircraft as a smooth per-second change instead of 1° / 0.5 kt steps, and identically on playback.
 
 ## v0.12.25-beta [2026/09/02]
 

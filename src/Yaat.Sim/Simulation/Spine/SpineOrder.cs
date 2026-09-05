@@ -88,7 +88,16 @@ public static class SpineOrder
     public static readonly ImmutableArray<SpineStep> EndOfSecond =
     [
         SpineStep.Sim(StepId.PositionHistory, static (engine, _) => engine.SamplePositionHistory()),
-        SpineStep.Host(StepId.WeatherAdvance, static host => host.AdvanceWeather()),
+        SpineStep.Sim(
+            StepId.WeatherAdvance,
+            static (engine, host) =>
+            {
+                if (engine.AdvanceWeatherTimeline() is { } profile)
+                {
+                    host.OnWeatherAdvanced(profile);
+                }
+            }
+        ),
         SpineStep.Host(StepId.MetarIssuance, static host => host.IssueMetars()),
         SpineStep.Host(StepId.RecordedActions, static host => host.ApplyRecordedActions()),
         // The controller AI observes the completed second. Gated by RunProfile.RunsControllerAi inside.
