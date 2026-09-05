@@ -79,6 +79,40 @@ Decisions:
 - [x] Test `ModuleInit` warms `AirspaceDatabase.Default` / `MilitaryRouteDatabase.Default` on a background task (the server already does)
 - [x] `docs/plans/MAIN.md` index created
 
+### E. The fixed floor of a filtered run (2026-09-04)
+
+A filtered run costs the same whether it runs 0 tests or 30 — the floor, not the tests, is what a
+tight TDD loop pays. Decomposed with `--filter-class "*.NoSuchClass"` plus temporary stopwatches in
+`ModuleInit`, against a shape-matched synthetic xunit project (`tools/gen-synthetic-suite.py`) as
+the control:
+
+| Phase | Cost | Ours? |
+|---|---:|---|
+| process start → `ModuleInit` (11 assemblies) | ~32 ms | no |
+| **live HTTPS GET to `configuration.vnas.vatsim.net`** | **~240 ms** | **yes — fixed** |
+| rest of `ModuleInit` (CIFP resolve 9 ms, flags) | ~10 ms | yes |
+| xunit init + discovery + JIT over the assembly graph | ~2.17 s | mostly no |
+
+- [x] The vNAS config fetch ran unconditionally in `NavDataPathResolver.ResolveCore`, before any
+      cache check and regardless of `AllowDownload` — so every test process paid a TLS handshake and
+      the suite depended on VATSIM being reachable. Now fetched only when a download could follow;
+      `ModuleInit` passes `AllowDownload: false`. **Floor 2.42 s → 2.11 s; one class 2.58 s → 2.23 s.**
+      Guarded by `NavDataPathResolverTests.TestProcess_ResolvesNavData_WithoutContactingVnas`
+      asserting `ConfigFetchCount == 0` (an assertion on the call, not on a duration).
+- [x] Measured, rejected: **ReadyToRun**. `dotnet publish -p:PublishReadyToRun=true` cuts the floor
+      2.53 s → 2.21 s, but only for a *published* exe, so the whole dev loop would have to stop
+      using `dotnet test`. Not worth the workflow change for ~0.3 s.
+
+The remaining ~2.17 s is CLR startup plus xunit reflection discovery over YAAT's assembly graph —
+the same synthetic project at the same test count does that phase in ~0.87 s, so ~1.3 s is the cost
+of our assembly graph specifically. Not reducible without changing framework or splitting the
+assembly. (Source-generated discovery *is* the one thing that would attack it — see
+[tunit-migration.md](tunit-migration.md) for why the build-time cost outweighs it anyway.)
+
+Note for anyone re-measuring: `--list-tests` is a poor proxy for discovery. On the synthetic project
+it costs ~1.06 s more than a zero-match run at the same test count, almost all of it printing ~9,300
+lines to the console.
+
 ## Follow-ups (not done)
 - The bounded-detour search itself (`SegmentExpander.RunBoundedDetour`, >1s for one TAXI resolution) — algorithmic; needs its own profile.
 - Per-test review of from-zero `Replay(recording, N)` sites that could legitimately be hybrid replay (see Decisions).
