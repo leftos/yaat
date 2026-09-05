@@ -62,7 +62,8 @@ public class RecordingCorpusRoutingCensusTests(ITestOutputHelper output)
         }
 
         Assert.True(census.Count > 0, $"No recordings found under {TestDataDir}");
-        string actual = JsonSerializer.Serialize(census, FileOptions);
+        // Written with a final newline so the pre-commit EOF hook never rewrites the checked-in file behind the test's back.
+        string actual = JsonSerializer.Serialize(census, FileOptions) + "\n";
 
         if (Environment.GetEnvironmentVariable(RegenerateVariable) == "1")
         {
@@ -73,7 +74,7 @@ public class RecordingCorpusRoutingCensusTests(ITestOutputHelper output)
 
         string censusPath = Path.Combine(TestDataDir, CensusFileName);
         string expected = File.Exists(censusPath) ? File.ReadAllText(censusPath) : "[]";
-        if (expected == actual)
+        if (expected.TrimEnd() == actual.TrimEnd())
         {
             return;
         }
