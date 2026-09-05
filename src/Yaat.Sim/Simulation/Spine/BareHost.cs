@@ -133,7 +133,7 @@ internal sealed class BareHost(SimulationEngine engine) : ISimulationHost, IActi
         }
     }
 
-    // --- IActionHost: no room, so every slot is refused and every consumer is a no-op ---
+    // --- IActionHost: no room, so every slot is refused, nobody is attended and every consumer is a no-op ---
 
     public CommandResult ApplyStrip(string callsign, ParsedCommand command, TrackOwner? identity) => ActionRefusals.HostOnly(command);
 
@@ -153,6 +153,8 @@ internal sealed class BareHost(SimulationEngine engine) : ISimulationHost, IActi
 
     public CommandResult ApplyFlightPlanCommand(string callsign, ParsedCommand command, TrackOwner? identity) => ActionRefusals.HostOnly(command);
 
+    public bool IsPositionAttended(Tcp tcp) => false;
+
     public void OnAircraftSpawned(AircraftState aircraft) { }
 
     public void OnAircraftDeleted(string callsign) { }
@@ -160,6 +162,8 @@ internal sealed class BareHost(SimulationEngine engine) : ISimulationHost, IActi
     public void OnPositionSelected(string connectionId, TrackOwner owner) { }
 
     public void OnTimersChanged() { }
+
+    public void OnConsolidationChanged() { }
 
     public void OnHeldDeparturesChanged() { }
 

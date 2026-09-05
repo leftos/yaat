@@ -13,7 +13,9 @@ namespace Yaat.Sim.Simulation.Actions;
 /// <b>Step-4 debt.</b> Every <c>Apply*</c> member here is a body whose state has not crossed into Yaat.Sim: strips
 /// and TDLS (room-owned state, no snapshot coverage), coordination channels, the ASDE-X alert inhibits, bookmarks
 /// and the room clock, and the flight-plan verbs' input normalization plus the unsupported-track spawn they make for
-/// an unknown callsign. As each body crosses, its slot is deleted and the arm becomes a Sim body; the interface
+/// an unknown callsign. <see cref="IsPositionAttended"/> is the one query: CRC attendance is the first recorded input
+/// ADR 0003 names, and until a recording carries it the consolidate arm asks the host. As each body crosses, its slot is
+/// deleted and the arm becomes a Sim body; the interface
 /// shrinks the way <see cref="Spine.IHostSteps"/> does.
 /// </para>
 /// </summary>
@@ -52,6 +54,15 @@ public interface IActionHost
     /// </summary>
     CommandResult ApplyFlightPlanCommand(string callsign, ParsedCommand command, TrackOwner? identity);
 
+    // --- Queries: answers only the host has ---
+
+    /// <summary>
+    /// Whether a CRC session is signed on to the TCP — the input a full <c>CON+</c> reads to decide which of the sender's
+    /// descendants move with it (an attended subsector keeps its own tracks). Attendance is room state that no recording
+    /// carries, so a bare or replay run answers false for every TCP.
+    /// </summary>
+    bool IsPositionAttended(Tcp tcp);
+
     // --- Consumers: what a Sim arm hands over ---
 
     /// <summary>An aircraft a command put into the world (<c>SPAWN</c>, <c>ADD</c>, <c>GHOST</c>).</summary>
@@ -65,6 +76,9 @@ public interface IActionHost
 
     /// <summary>A <c>TIMER</c> set or cancelled a scenario timer.</summary>
     void OnTimersChanged();
+
+    /// <summary><c>CON</c> / <c>CON+</c> / <c>DECON</c> changed the manual consolidation overrides.</summary>
+    void OnConsolidationChanged();
 
     /// <summary><c>HFR</c> / <c>HFROFF</c> / <c>REL</c> changed the held-departure picture.</summary>
     void OnHeldDeparturesChanged();

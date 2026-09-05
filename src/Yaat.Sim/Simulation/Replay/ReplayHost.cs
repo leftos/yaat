@@ -167,7 +167,7 @@ internal sealed class ReplayHost : ISimulationHost, IActionHost
 
     public void OnStripDispatches(List<(string Callsign, ParsedCommand Command)> dispatches) => _bare.OnStripDispatches(dispatches);
 
-    // --- IActionHost: a replay has no room, so every slot is the bare host's refusal and every consumer its no-op ---
+    // --- IActionHost: a replay has no room, so every slot is the bare host's refusal, its attendance answer and its no-op consumers ---
 
     public CommandResult ApplyStrip(string callsign, ParsedCommand command, TrackOwner? identity) => _bare.ApplyStrip(callsign, command, identity);
 
@@ -190,6 +190,8 @@ internal sealed class ReplayHost : ISimulationHost, IActionHost
     public CommandResult ApplyFlightPlanCommand(string callsign, ParsedCommand command, TrackOwner? identity) =>
         _bare.ApplyFlightPlanCommand(callsign, command, identity);
 
+    public bool IsPositionAttended(Tcp tcp) => _bare.IsPositionAttended(tcp);
+
     public void OnAircraftSpawned(AircraftState aircraft) => _bare.OnAircraftSpawned(aircraft);
 
     public void OnAircraftDeleted(string callsign) => _bare.OnAircraftDeleted(callsign);
@@ -197,6 +199,8 @@ internal sealed class ReplayHost : ISimulationHost, IActionHost
     public void OnPositionSelected(string connectionId, TrackOwner owner) => _bare.OnPositionSelected(connectionId, owner);
 
     public void OnTimersChanged() => _bare.OnTimersChanged();
+
+    public void OnConsolidationChanged() => _bare.OnConsolidationChanged();
 
     public void OnHeldDeparturesChanged() => _bare.OnHeldDeparturesChanged();
 

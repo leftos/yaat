@@ -1,8 +1,8 @@
 # Track Sharing, Pointouts & the Consolidation Hierarchy
 
 > Read this before touching `ConsolidationEngine`, `ConsolidationState`, `AircraftStarsState.SharedState`, `AircraftEramState`,
-> `StarsPointout`, `EramPointoutState`, the server's consolidation handlers (`RoomEngine.HandleConsolidate` /
-> `TransferTracksForConsolidation` / `TryConsolidationRedirect`), or the `StarsConsolidation` CRC topic. This is the
+> `StarsPointout`, `EramPointoutState`, the consolidation bodies (`SimulationEngine.Consolidate` / `Deconsolidate` /
+> `TransferTracksForConsolidation` in `SimulationEngine.Consolidation.cs`, the server's `TryConsolidationRedirect`), or the `StarsConsolidation` CRC topic. This is the
 > multiplayer scope-sharing layer that sits **on top of** the TRACK/DROP/HO/ACCEPT ownership state machine.
 
 ## Scope: two layers, not one
@@ -112,7 +112,8 @@ index and defers to the same `ResolveOwner` walk the item build uses, so the two
   nothing** when the pair would consolidate a TCP into itself or close a loop (`1F → 1G → 1X → 1F`), walking the override chain up
   from the prospective receiver to check. This is the only path that *adds* an override, so rejecting here keeps every writer safe —
   see the cycle footgun below for why a loop is dangerous rather than merely meaningless. Callers must surface the rejection
-  (`RoomEngine.HandleConsolidate` errors, `CrcMultiFuncConsolidate` returns `INVALID ENTRY`, `ReplayConsolidate` skips).
+  (`SimulationEngine.Consolidate` refuses with "Circular consolidation" — one body for live, replay and reconstruction, so a rejected
+  `CON` is rejected on every run kind; `CrcMultiFuncConsolidate` returns `INVALID ENTRY`).
 - `Deconsolidate(tcp)` removes the override keyed by that TCP (the sender).
 - `RemoveOverridesInvolving(tcpId)` removes the override *keyed by* the TCP **and** every override whose `ReceivingTcpId` equals it
   (sender OR receiver) — called on position deactivation/disconnect (`ConsolidationState.cs:49`).
@@ -148,8 +149,11 @@ auto-accept suppression correctly treat that airspace as unstaffed.
 
 ## Full consolidation: track transfer & handoff redirection
 
-When a `CONS …+` (Full) command fires, `RoomEngine.HandleConsolidate` (`RoomEngine.cs:1278`) records the override and then calls
-`TransferTracksForConsolidation(sendingTcp, receivingTcpCode)` (`RoomEngine.cs:1344`). That method walks the world snapshot and:
+When a `CON+` (Full) command fires, `SimulationEngine.Consolidate` (`SimulationEngine.Consolidation.cs`) records the override and then calls
+`TransferTracksForConsolidation(scenario, sendingTcp, receivingTcpCode, isAttended)` — the same body on live, replay and reconstruction. The
+`isAttended` answer is the host's (`IActionHost.IsPositionAttended`: the server's `PositionRegistry` live; false on a bare or replay run, which
+is why a recording cannot yet reproduce a full consolidation that spared an attended subsector — the C1 attendance debt of ADR 0003). That
+method walks the world snapshot and:
 
 It first resolves the **block of TCPs moving with the sender** via
 `ConsolidationEngine.GetConsolidatedDescendants(allTcps, sendingTcp, isAttended, overrides)` — the sender plus every descendant that

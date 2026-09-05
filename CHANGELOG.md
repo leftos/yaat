@@ -22,6 +22,7 @@
 - Playing back a recording applies the squawk-all (`SQALL`/`SNALL`/`SSALL`) and `CFR` commands the live session issued, instead of dropping them.
 - Playing back a recording spawns the aircraft an `ADD` command generated — same callsign, beacon code and CID — and taxis the parked aircraft a `TAXIALL` moved, instead of dropping both.
 - Playing back a recording reproduces the `ACCEPTALL`/`HOALL`, ghost-track, datablock-reposition and conflict-alert acknowledgements the live session issued.
+- Playing back a recording reproduces the position consolidations (`CON`, `CON+`, `DECON`) the live session issued, including a full consolidation's track transfers.
 - Playing back a recording reproduces the pilot read-backs, "unable" responses and frequency gates the live session had.
 
 ### Changed

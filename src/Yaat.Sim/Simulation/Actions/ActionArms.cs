@@ -337,8 +337,25 @@ internal static class ActionArms
         return result;
     }
 
-    /// <summary>A row whose body has not crossed into the Sim yet: refused with the host-only message on every Sim run.</summary>
-    public static CommandResult NotAvailable(ArmContext ctx) => ActionRefusals.HostOnly(ctx.Parsed!);
+    /// <summary>
+    /// <c>CON</c> / <c>CON+</c>. Which of the sender's descendants move with a full consolidation depends on CRC attendance,
+    /// which only the host knows (<see cref="IActionHost.IsPositionAttended"/>); a bare or replay run attends nobody.
+    /// </summary>
+    public static CommandResult Consolidate(ArmContext ctx) =>
+        ConsolidationChanged(ctx, ctx.Engine.Consolidate((ConsolidateCommand)ctx.Parsed!, ctx.Host.IsPositionAttended));
+
+    public static CommandResult Deconsolidate(ArmContext ctx) =>
+        ConsolidationChanged(ctx, ctx.Engine.Deconsolidate((DeconsolidateCommand)ctx.Parsed!));
+
+    private static CommandResult ConsolidationChanged(ArmContext ctx, CommandResult result)
+    {
+        if (result.Success)
+        {
+            ctx.Host.OnConsolidationChanged();
+        }
+
+        return result;
+    }
 
     private static CommandResult HeldDeparturesChanged(ArmContext ctx, HeldReleaseResult result)
     {
