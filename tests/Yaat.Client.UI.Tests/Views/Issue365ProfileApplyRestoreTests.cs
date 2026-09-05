@@ -161,4 +161,59 @@ public class Issue365ProfileApplyRestoreTests
             Dispatcher.UIThread.RunJobs();
         }
     }
+
+    // Applying a profile to a window that is ALREADY maximized never updated the helper's notion
+    // of the window's normal geometry: the position/size writes land while WindowState is
+    // Maximized, so both change handlers skip them, and the profile's geometry is then discarded
+    // in favour of whatever was stored before. Reported on issue #408 — a profile placing a
+    // maximized vStrips window at its work-area origin kept persisting the older frame instead.
+    [AvaloniaFact]
+    public void ApplyGeometry_OnMaximizedWindow_PersistsTheAppliedGeometry()
+    {
+        const string windowName = "Issue365MaximizedApplyTest";
+        var prefs = new UserPreferences();
+        prefs.SetWindowGeometry(
+            windowName,
+            new SavedWindowGeometry
+            {
+                X = 100,
+                Y = 100,
+                Width = 400,
+                Height = 300,
+                IsMaximized = true,
+                ScreenIndex = 0,
+                IsTopmost = false,
+            }
+        );
+
+        var window = new Window();
+        var helper = new WindowGeometryHelper(window, prefs, windowName, defaultWidth: 300, defaultHeight: 200);
+        helper.Restore();
+        window.Show();
+        Dispatcher.UIThread.RunJobs();
+        Assert.Equal(WindowState.Maximized, window.WindowState);
+
+        try
+        {
+            var applied = NormalGeometry();
+            applied.IsMaximized = true;
+            helper.ApplyGeometry(applied);
+            Dispatcher.UIThread.RunJobs();
+
+            helper.FlushSavedGeometry();
+
+            var saved = new UserPreferences().GetWindowGeometry(windowName);
+            Assert.NotNull(saved);
+            Assert.Equal(320, saved.X);
+            Assert.Equal(240, saved.Y);
+            Assert.Equal(800, saved.Width);
+            Assert.Equal(500, saved.Height);
+            Assert.True(saved.IsMaximized);
+        }
+        finally
+        {
+            window.Close();
+            Dispatcher.UIThread.RunJobs();
+        }
+    }
 }

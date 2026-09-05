@@ -316,7 +316,24 @@ the single choke point that attaches `WindowGroupRaiser`. Invariants the helper 
   (Windows' invisible resize borders), so force-fitting it inside the work area shifts it inward and overlaps tiled neighbors. The pure static
   `ResolveGeometry(geo, screens)` restores the saved rectangle unchanged whenever at least a 50×30 px overlap with any screen's working area
   exists; clamping into the target work area is only the fallback for an unplugged monitor or poisoned data (#361). `WindowGeometryResolveTests`
-  (plain `[Fact]`s) pins it — headless Avalonia has no screens, so the window-level path cannot exercise clamping.
+  (plain `[Fact]`s) pins the resolver directly, without a window.
+- **A position is only ever persisted from a window that can still report one.** Avalonia's `Window.Position` getter answers
+  `PlatformImpl?.Position ?? PixelPoint.Origin`, and `TopLevel.HandleClosed()` nulls `PlatformImpl` — so a capture taken after the platform
+  surface is gone returns `(0,0)` while `Width`/`Height` (styled properties) keep their real values. That shape is indistinguishable from a
+  window genuinely parked at the screen's top-left corner, and it silently overwrote good geometry in preferences (#408). `_isClosed` (set from
+  `Window.Closed`) short-circuits `SaveCurrentGeometry`, and `CaptureCurrentGeometry` falls back to `_lastNormalGeometry` when there is no
+  surface. Discriminate on **window liveness, never on the `(0,0)` value** — a user may legitimately place a window at `(0,0)`.
+- **`Closing` is not the universal close signal.** Avalonia closes owned windows through `Window.CloseInternal()`, which disposes the child's
+  surface directly; under `WindowClosingBehavior.OwnerWindowOnly` a child never raises `Closing`, so `OnClosing` alone would leave the helper in
+  the static `ActiveHelpers` registry with a live auto-save timer aimed at a dead window. `Window.Closed` is where unregistration belongs.
+- **The restored geometry is authoritative until the post-open verify has run.** The debounced auto-save is armed *before* the window is shown
+  (applying `Topmost` during the restore schedules it) and a `DispatcherTimer` runs at Normal priority, while `VerifyStartupGeometry` is posted
+  at Background — so on a slow cold start the save wins the race and persists a startup drift before anything corrects it. While
+  `_startupVerifyPending`, both change handlers leave `_lastNormalGeometry` alone and persistence reads it rather than the live frame.
+- **An applied geometry is remembered as given, not read back.** `ApplyGeometryToWindow` seeds `_lastNormalGeometry` from the `ResolvedGeometry`
+  it just wrote. Reading it back instead loses the value whenever the window is maximized or minimized across the write, because both change
+  handlers skip non-Normal states — which is why applying a profile to an already-maximized window used to keep persisting the geometry it was
+  supposed to replace.
 - **Units are mixed by design.** `SavedWindowGeometry.X/Y` and `Screen.WorkingArea` are device pixels; `Width/Height` (from `Window.Width`) are
   DIPs. Any math combining them must convert through `Screen.Scaling` (`SafeScaling` guards a zero).
 - **Minimized-position sentinels differ by platform.** Headless and macOS report `(0,0)`, Win32 reports `(-32000,-32000)`; `IsIconicOrigin`

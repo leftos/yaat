@@ -3,6 +3,8 @@
 ## Unreleased
 
 ### Fixed
+- A window snapped against a screen edge stays there across launches instead of reopening at the screen's top-left corner. (#408)
+- A window profile applied to an already-maximized window now saves the profile's position, so it returns there after a restart.
 - Replaying or playing back a recording whose generators never fired no longer invents generator traffic the session never had.
 - Replaying a recording no longer raises conflict alerts on aircraft established on final that the live session correctly stayed quiet about. Approach-corridor suppression was configured per host, so only the live server had it.
 

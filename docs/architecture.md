@@ -227,7 +227,7 @@ ViewModels/
 
 Views/
   ConnectWindow.axaml.cs        # Server/room/identity entry dialog
-  WindowGeometryHelper.cs       # Save/restore window position+size+min/max/topmost state; profile-apply path (ApplyGeometry) un-minimizes + activates (#365); composes WindowSystemMenuHelper + WindowNativeMenuHelper for cross-platform always-on-top discoverability; attaches every window to WindowGroupRaiser
+  WindowGeometryHelper.cs       # Save/restore window position+size+min/max/topmost state; profile-apply path (ApplyGeometry) un-minimizes + activates (#365); post-open drift verify re-applies the saved spot, and the save path never persists a position from a window with no platform surface (#408); composes WindowSystemMenuHelper + WindowNativeMenuHelper for cross-platform always-on-top discoverability; attaches every window to WindowGroupRaiser
   WindowGroupRaiser.cs          # CRC-style group raise (#392): when focus returns from another app, raises all tracked windows via Topmost pulses (no focus steal) in Z-order, clicked window last; suspended during profile apply; gated by the RaiseWindowsTogether preference (default on)
   WindowActivationExtensions.cs # Window.RestoreAndActivate(): un-minimize (WindowState.Normal) before Activate — every reuse-and-activate window (FPE, Favorites Panel, Speech Debug, Session Report, Weather/Arrival editors) goes through this (#360)
   WindowSystemMenuHelper.cs     # Windows-only: injects "Always on Top" into the title-bar system menu via WM_SYSCOMMAND + SetWindowSubclass

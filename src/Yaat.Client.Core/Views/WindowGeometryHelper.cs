@@ -41,6 +41,18 @@ public sealed class WindowGeometryHelper
     private bool _applyingTitle;
     private bool _isRegistered;
 
+    // Set once the window has lost its platform surface. Avalonia's Window.Position getter falls
+    // back to PixelPoint.Origin when there is no surface left to ask, while Width/Height keep the
+    // values they had — so a capture past this point yields (0,0) at the right size and silently
+    // overwrites a good saved position with the screen's top-left corner (#408).
+    private bool _isClosed;
+
+    // True between the startup restore and the post-open verify. The geometry the restore applied
+    // is authoritative for that span: the debounced auto-save is armed before the window is shown
+    // and runs at the dispatcher's Normal priority, ahead of the Background-priority verify, so
+    // without this a startup drift can be persisted before anything gets the chance to correct it.
+    private bool _startupVerifyPending;
+
     // Debounced auto-save so position/size/state changes are persisted while the window is
     // still alive, not only at close time. Closes the gap where a process kill (Ctrl+C in
     // a script that uses Stop-Process -Force, OS power loss, crash, Velopack restart) would
@@ -88,15 +100,15 @@ public sealed class WindowGeometryHelper
         {
             ApplyGeometryToWindow(geo, isStartupRestore: true);
             _startupGeometry = geo;
+            _startupVerifyPending = true;
         }
         else
         {
             _window.Width = _defaultWidth;
             _window.Height = _defaultHeight;
             _window.WindowStartupLocation = WindowStartupLocation.CenterScreen;
+            _lastNormalGeometry = CaptureCurrentGeometry();
         }
-
-        _lastNormalGeometry = CaptureCurrentGeometry();
 
         _baseTitle = _window.Title ?? string.Empty;
         ApplyTitle();
@@ -106,6 +118,7 @@ public sealed class WindowGeometryHelper
         _window.PositionChanged += OnPositionChanged;
         _window.SizeChanged += OnWindowSizeChanged;
         _window.Closing += OnClosing;
+        _window.Closed += OnWindowClosed;
         _preferences.WindowTopmostChanged += OnPreferencesWindowTopmostChanged;
         _systemMenuHelper.Attach();
         _nativeMenuHelper.Attach();
@@ -122,7 +135,7 @@ public sealed class WindowGeometryHelper
     /// </summary>
     public void FlushSavedGeometry()
     {
-        SaveCurrentGeometry();
+        SaveCurrentGeometry("flush");
     }
 
     /// <summary>
@@ -145,13 +158,9 @@ public sealed class WindowGeometryHelper
             return;
         }
         ApplyGeometryToWindow(geometry, isStartupRestore: false);
-        // A minimized/maximized end state reports the iconic/maximized frame, which must
-        // never be recorded as the window's normal geometry; the Width/Position setters
-        // already refreshed _lastNormalGeometry while the window was still Normal.
-        if (_window.WindowState == WindowState.Normal)
-        {
-            _lastNormalGeometry = CaptureCurrentGeometry();
-        }
+        // An explicitly applied geometry supersedes the one the startup restore put down, so the
+        // pending post-open verify no longer has anything to protect.
+        _startupVerifyPending = false;
     }
 
     /// <summary>
@@ -284,12 +293,20 @@ public sealed class WindowGeometryHelper
             {
                 _window.WindowState = WindowState.Minimized;
             }
+
+            // The geometry we just asked for is the window's normal geometry, whatever frame the
+            // platform reports afterwards. Reading it back instead loses it whenever the window is
+            // maximized or minimized across the write — both change handlers skip those states, so
+            // a profile applied to an already-maximized window would keep persisting the geometry
+            // it replaced (#408).
+            _lastNormalGeometry = new NormalWindowGeometry(new PixelPoint(resolved.X, resolved.Y), resolved.Width, resolved.Height);
         }
         else
         {
             Log.LogWarning("{Window} apply: no screens reported; setting size only (saved={Saved})", _windowName, Describe(geo));
             _window.Width = geo.Width;
             _window.Height = geo.Height;
+            _lastNormalGeometry = new NormalWindowGeometry(new PixelPoint(geo.X, geo.Y), geo.Width, geo.Height);
         }
 
         _window.Topmost = geo.IsTopmost;
@@ -336,6 +353,21 @@ public sealed class WindowGeometryHelper
     /// identical coordinates), automated.
     /// </summary>
     private void VerifyStartupGeometry()
+    {
+        // Whatever the outcome, the restore's geometry stops being authoritative once this has
+        // run: from here on the window's live position is the truth, and the debounced auto-save
+        // may capture it again.
+        try
+        {
+            RunStartupGeometryVerify();
+        }
+        finally
+        {
+            _startupVerifyPending = false;
+        }
+    }
+
+    private void RunStartupGeometryVerify()
     {
         if (_startupGeometry is not { } saved)
         {
@@ -524,6 +556,11 @@ public sealed class WindowGeometryHelper
 
     private void OnPositionChanged(object? sender, PixelPointEventArgs e)
     {
+        if (_isClosed)
+        {
+            return;
+        }
+
         var sinceOpened = DateTime.UtcNow - _openedAtUtc;
         if ((sinceOpened >= TimeSpan.Zero) && (sinceOpened < EarlyMoveLogWindow))
         {
@@ -533,7 +570,7 @@ public sealed class WindowGeometryHelper
         // A minimize can report its iconic position before WindowState flips to
         // Minimized — never let that sentinel replace the last normal geometry.
         var current = CaptureCurrentGeometry();
-        if (_window.WindowState == WindowState.Normal && !IsIconicOrigin(current))
+        if (!_startupVerifyPending && (_window.WindowState == WindowState.Normal) && !IsIconicOrigin(current))
         {
             _previousNormalGeometry = _lastNormalGeometry;
             _lastNormalGeometry = current;
@@ -543,7 +580,12 @@ public sealed class WindowGeometryHelper
 
     private void OnWindowSizeChanged(object? sender, SizeChangedEventArgs e)
     {
-        if (_window.WindowState == WindowState.Normal)
+        if (_isClosed)
+        {
+            return;
+        }
+
+        if (!_startupVerifyPending && (_window.WindowState == WindowState.Normal))
         {
             _lastNormalGeometry = CaptureCurrentGeometry();
         }
@@ -552,6 +594,10 @@ public sealed class WindowGeometryHelper
 
     private void ScheduleAutoSave()
     {
+        if (_isClosed)
+        {
+            return;
+        }
         _autoSaveTimer.Stop();
         _autoSaveTimer.Start();
     }
@@ -559,7 +605,7 @@ public sealed class WindowGeometryHelper
     private void OnAutoSaveTick(object? sender, System.EventArgs e)
     {
         _autoSaveTimer.Stop();
-        SaveCurrentGeometry();
+        SaveCurrentGeometry("debounce");
     }
 
     private void OnClosing(object? sender, WindowClosingEventArgs e)
@@ -567,21 +613,52 @@ public sealed class WindowGeometryHelper
         _autoSaveTimer.Stop();
         _window.Opened -= OnWindowOpened;
         _preferences.WindowTopmostChanged -= OnPreferencesWindowTopmostChanged;
-        SaveCurrentGeometry();
+        SaveCurrentGeometry("closing");
         Unregister();
     }
 
-    private void SaveCurrentGeometry()
+    /// <summary>
+    /// The window has lost its platform surface. Avalonia closes owned windows through
+    /// <c>Window.CloseInternal()</c>, which disposes them directly, so a child window under
+    /// <see cref="WindowClosingBehavior.OwnerWindowOnly"/> never raises <c>Closing</c> and never
+    /// reaches <see cref="OnClosing"/> — leaving this helper in the process-wide registry with a
+    /// live auto-save timer pointed at a dead window. Every save from here on would read
+    /// <c>Position</c> as the platform's (0,0) fallback and overwrite good geometry (#408).
+    /// </summary>
+    private void OnWindowClosed(object? sender, EventArgs e)
     {
+        _window.Closed -= OnWindowClosed;
+        _autoSaveTimer.Stop();
+        _startupVerifyPending = false;
+        _isClosed = true;
+        _preferences.WindowTopmostChanged -= OnPreferencesWindowTopmostChanged;
+        Unregister();
+    }
+
+    private void SaveCurrentGeometry(string trigger)
+    {
+        if (_isClosed)
+        {
+            Log.LogWarning("{Window} save skipped ({Trigger}): window is closed and can no longer report its position", _windowName, trigger);
+            return;
+        }
+
         var geo = CreateSavedGeometry();
-        Log.LogDebug("{Window} save: {Saved} (state={State})", _windowName, Describe(geo), _window.WindowState);
+        Log.LogDebug(
+            "{Window} save: {Saved} (state={State}, was={Previous}, trigger={Trigger})",
+            _windowName,
+            Describe(geo),
+            _window.WindowState,
+            _preferences.GetWindowGeometry(_windowName) is { } previous ? Describe(previous) : "none",
+            trigger
+        );
         _preferences.SetWindowGeometry(_windowName, geo);
     }
 
     public void ToggleTopmost()
     {
         _window.Topmost = !_window.Topmost;
-        SaveCurrentGeometry();
+        SaveCurrentGeometry("topmost-toggle");
     }
 
     private SavedWindowGeometry CreateSavedGeometry()
@@ -604,7 +681,7 @@ public sealed class WindowGeometryHelper
 
     private NormalWindowGeometry GetNormalGeometryForPersistence(bool isNotNormal)
     {
-        if (!isNotNormal)
+        if (!isNotNormal && !_startupVerifyPending)
         {
             return CaptureCurrentGeometry();
         }
@@ -617,7 +694,23 @@ public sealed class WindowGeometryHelper
         return _lastNormalGeometry;
     }
 
-    private NormalWindowGeometry CaptureCurrentGeometry() => new(_window.Position, _window.Width, _window.Height);
+    /// <summary>
+    /// Reads the window's live frame. Avalonia's <see cref="Window.Position"/> getter answers
+    /// <c>PixelPoint.Origin</c> once the platform surface is gone, while <c>Width</c>/<c>Height</c>
+    /// keep their last values — a shape indistinguishable from a window genuinely sitting at the
+    /// screen's top-left corner. Fall back to the last known normal geometry rather than let that
+    /// (0,0) reach preferences (#408).
+    /// </summary>
+    private NormalWindowGeometry CaptureCurrentGeometry()
+    {
+        if (_window.PlatformImpl is null)
+        {
+            Log.LogWarning("{Window} has no platform surface; keeping last known geometry {Geometry}", _windowName, _lastNormalGeometry);
+            return _lastNormalGeometry;
+        }
+
+        return new NormalWindowGeometry(_window.Position, _window.Width, _window.Height);
+    }
 
     // (0,0) is the headless/macOS iconic report; (-32000,-32000) is the Win32 sentinel
     // for a minimized window's position.

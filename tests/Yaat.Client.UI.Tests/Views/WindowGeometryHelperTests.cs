@@ -171,4 +171,121 @@ public class WindowGeometryHelperTests
         secondWindow.Close();
         Dispatcher.UIThread.RunJobs();
     }
+
+    // A closed window has no platform surface, and Avalonia's Window.Position getter falls back to
+    // PixelPoint.Origin while Width/Height keep their values — so a save taken after close persists
+    // (0,0) with the size intact. That is byte-for-byte the corruption reported in issue #408:
+    // (-7,0,610,500) became (0,0,610,500) in preferences.json, and every later launch restored the
+    // window offset from where the user put it.
+    [AvaloniaFact]
+    public void SaveAfterClose_DoesNotPersistPlatformOriginFallback()
+    {
+        const string windowName = "SaveAfterCloseTest";
+        var prefs = new UserPreferences();
+        prefs.SetWindowGeometry(windowName, EdgeSnappedGeometry());
+
+        var window = new Window();
+        var helper = new WindowGeometryHelper(window, prefs, windowName, defaultWidth: 300, defaultHeight: 200);
+        helper.Restore();
+        window.Show();
+        Dispatcher.UIThread.RunJobs();
+
+        window.Close();
+        Dispatcher.UIThread.RunJobs();
+
+        helper.FlushSavedGeometry();
+
+        var saved = new UserPreferences().GetWindowGeometry(windowName);
+        Assert.NotNull(saved);
+        Assert.Equal(-7, saved.X);
+        Assert.Equal(0, saved.Y);
+        Assert.Equal(610, saved.Width);
+        Assert.Equal(500, saved.Height);
+    }
+
+    // The debounced auto-save is armed before the window is shown (applying Topmost during the
+    // restore schedules it) and runs at the dispatcher's Normal priority, while the post-open
+    // drift verify is posted at Background. On a slow cold start the save wins and persists
+    // whatever the platform currently reports. Until the verify has run, the geometry the restore
+    // applied is the authoritative one (#408).
+    [AvaloniaFact]
+    public void SaveBeforeStartupVerify_PersistsRestoredGeometry()
+    {
+        const string windowName = "SaveBeforeVerifyTest";
+        var prefs = new UserPreferences();
+        prefs.SetWindowGeometry(windowName, EdgeSnappedGeometry());
+
+        var window = new Window();
+        var helper = new WindowGeometryHelper(window, prefs, windowName, defaultWidth: 300, defaultHeight: 200);
+        helper.Restore();
+        window.Show();
+
+        // Something shoves the window before the queued verify gets a dispatcher slot.
+        window.Position = new Avalonia.PixelPoint(0, 0);
+
+        helper.FlushSavedGeometry();
+
+        var saved = new UserPreferences().GetWindowGeometry(windowName);
+        Assert.NotNull(saved);
+        Assert.Equal(-7, saved.X);
+        Assert.Equal(610, saved.Width);
+
+        Dispatcher.UIThread.RunJobs();
+        window.Close();
+        Dispatcher.UIThread.RunJobs();
+    }
+
+    // Avalonia closes owned windows through Window.CloseInternal(), which disposes the child's
+    // platform surface directly. With ClosingBehavior.OwnerWindowOnly the child never sees
+    // Closing, so the helper neither saves, unregisters, nor stops its auto-save timer — it stays
+    // in the process-wide registry pointing at a dead window, and the next flush writes the
+    // Position fallback over good geometry.
+    [AvaloniaFact]
+    public void OwnedWindowClosedWithoutClosingEvent_DoesNotCorruptSavedGeometry()
+    {
+        const string windowName = "OwnedChildCloseTest";
+        var prefs = new UserPreferences();
+        prefs.SetWindowGeometry(windowName, EdgeSnappedGeometry());
+
+        var owner = new Window();
+        owner.Show();
+
+        var child = new Window();
+        var helper = new WindowGeometryHelper(child, prefs, windowName, defaultWidth: 300, defaultHeight: 200);
+        helper.Restore();
+        child.Show(owner);
+        Dispatcher.UIThread.RunJobs();
+
+        helper.FlushSavedGeometry();
+
+        owner.ClosingBehavior = WindowClosingBehavior.OwnerWindowOnly;
+        owner.Close();
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.DoesNotContain(helper, WindowGeometryHelper.GetActiveHelpers());
+
+        // Flush this helper only. FlushAllSavedGeometries would drag in helpers left registered by
+        // other tests, and each writes its own UserPreferences snapshot over the shared file.
+        helper.FlushSavedGeometry();
+
+        var saved = new UserPreferences().GetWindowGeometry(windowName);
+        Assert.NotNull(saved);
+        Assert.Equal(-7, saved.X);
+        Assert.Equal(610, saved.Width);
+    }
+
+    // An edge-snapped window: Windows' invisible resize border puts the frame origin just outside
+    // the work area, so the saved X is negative even though the window looks flush against the
+    // screen edge. The only shape in which the (0,0) fallback is distinguishable from a real read.
+    private static SavedWindowGeometry EdgeSnappedGeometry() =>
+        new()
+        {
+            X = -7,
+            Y = 0,
+            Width = 610,
+            Height = 500,
+            IsMaximized = false,
+            ScreenIndex = 0,
+            IsTopmost = false,
+        };
 }
