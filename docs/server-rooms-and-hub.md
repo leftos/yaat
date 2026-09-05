@@ -38,9 +38,9 @@ per room. Each wall-clock tick (`RunTickLoop`, `:92`):
    - For each sim-second: `room.Engine.AdvanceLiveSecond()` — the whole spine (`SimulationEngine.RunSecond`, see
      [tick-loop.md](tick-loop.md)) under the room's `LiveRoomHost`: the clock increment, playback pre-tick actions,
      pre-physics, **`SimulationEngine.PhysicsSubTickRate` = 4** physics sub-ticks of 0.25 s, the post-physics list, and the
-     host's end-of-second bookkeeping — position-history sampling every `RoomEngine.PositionHistorySampleSeconds` (5 s)
-     into a `PositionHistoryCapacity` (10) ring, the weather-timeline advance, `EnsureLiveMetarIssuer` + METAR issuance
-     (broadcast only when a station re-issues), and playback post-tick actions. The headless soak host
+     host's end-of-second bookkeeping — the weather-timeline advance, `EnsureLiveMetarIssuer` + METAR issuance
+     (broadcast only when a station re-issues), and playback post-tick actions (position-history sampling is a sim
+     step, `AircraftState.PositionHistorySampleSeconds` / `PositionHistoryCapacity`). The headless soak host
      (`Simulation/Headless/HeadlessRoom`) and the test harness call the same method, so every live-kind run evolves the
      same way; reconstruction runs the same spine under a `ReconstructionHost`.
    - **Ends with one `BroadcastSimState(room)` per processed wall-tick** (after the sim-second loop, in

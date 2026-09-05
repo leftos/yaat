@@ -57,8 +57,6 @@ internal sealed class BareHost(SimulationEngine engine) : ISimulationHost
 
     public void TimersBroadcast() { }
 
-    public void SamplePositionHistory() { }
-
     public void AdvanceWeather() { }
 
     public void IssueMetars() { }

@@ -386,8 +386,14 @@ public class AircraftState
     [JsonIgnore]
     public bool IsShadow => LiveTraffic is not null;
 
-    // Position history for STARS radar trails (recorded every ~5 sim-seconds)
-    public List<(double Lat, double Lon)> PositionHistory { get; } = new(10);
+    /// <summary>Sim-seconds between <see cref="PositionHistory"/> samples (the <c>PositionHistory</c> spine step).</summary>
+    public const int PositionHistorySampleSeconds = 5;
+
+    /// <summary>Ring-buffer depth of <see cref="PositionHistory"/> — the history-trail dots every display projects.</summary>
+    public const int PositionHistoryCapacity = 10;
+
+    /// <summary>Position history for the radar and surface history trails, one sample every <see cref="PositionHistorySampleSeconds"/>.</summary>
+    public List<(double Lat, double Lon)> PositionHistory { get; } = new(PositionHistoryCapacity);
 
     public static AircraftState FromSnapshot(AircraftSnapshotDto dto, AirportGroundLayout? groundLayout)
     {

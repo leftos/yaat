@@ -135,8 +135,6 @@ internal sealed class ReplayHost(SimulationEngine engine, ReplayCursors cursors,
 
     public void TimersBroadcast() => _bare.TimersBroadcast();
 
-    public void SamplePositionHistory() => _bare.SamplePositionHistory();
-
     public void IssueMetars() => _bare.IssueMetars();
 
     public void OnPrePhysics(TickPrePhysicsResult result) => _bare.OnPrePhysics(result);

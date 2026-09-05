@@ -798,6 +798,30 @@ public sealed partial class SimulationEngine
     }
 
     /// <summary>
+    /// End-of-second sample of <see cref="AircraftState.PositionHistory"/>, the history-trail dots every display
+    /// projects: one ring-buffer entry per aircraft every <see cref="AircraftState.PositionHistorySampleSeconds"/>,
+    /// <see cref="AircraftState.PositionHistoryCapacity"/> deep. A spine step (<see cref="Spine.StepId.PositionHistory"/>)
+    /// on every run kind, so a replay's trail is the live session's.
+    /// </summary>
+    public void SamplePositionHistory()
+    {
+        if (Scenario is not { } scenario || (int)scenario.ElapsedSeconds % AircraftState.PositionHistorySampleSeconds != 0)
+        {
+            return;
+        }
+
+        foreach (var ac in World.GetSnapshot())
+        {
+            if (ac.PositionHistory.Count >= AircraftState.PositionHistoryCapacity)
+            {
+                ac.PositionHistory.RemoveAt(0);
+            }
+
+            ac.PositionHistory.Add((ac.Position.Lat, ac.Position.Lon));
+        }
+    }
+
+    /// <summary>
     /// Per-second solo-training evaluation: builds the evaluation context from the active scenario, runs
     /// the solo-training evaluator against the current world, and returns the resulting events for the host
     /// to broadcast. Empty when not in solo mode. A spine step (<see cref="Spine.StepId.SoloTrainingEvaluation"/>)

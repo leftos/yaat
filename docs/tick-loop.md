@@ -62,7 +62,8 @@ PostPhysics    SpineOrder.PostPhysics — the live server's 32-step order
                ├─ host SurfaceCoastExpiry
                └─ host RundownBroadcast, LiveTrafficStatusBroadcast, TimersBroadcast
 EndOfSecond    SpineOrder.EndOfSecond
-               ├─ host SamplePositionHistory, AdvanceWeather, IssueMetars, ApplyRecordedActions
+               ├─ sim SamplePositionHistory                          every 5 s, 10 deep — the history trails
+               ├─ host AdvanceWeather, IssueMetars, ApplyRecordedActions
                ├─ sim TickControllerAi                                gated by RunProfile.RunsControllerAi
                └─ TickCompleted event
 ```
@@ -77,8 +78,8 @@ EndOfSecond    SpineOrder.EndOfSecond
 |---|---|---|---|
 | `BareHost` | `Yaat.Sim` — `TickOneSecond`, the `RunKind.Test` run | all empty | the engine's events (`WarningEmitted`, `TerminalEntryEmitted`, `PilotSpeechEmitted`, `StripDispatchRequested`); auto-deleted aircraft and solo findings are discarded (the removal and the evaluator's record already happened in the sim) |
 | `ReplayHost` | `Yaat.Sim` — the replay driver | pre-tick recorded actions, ungated weather advance, recorded actions after the second; the rest as bare | as bare |
-| `LiveRoomHost` | yaat-server — `RoomEngine.AdvanceLiveSecond` (the hosted loop, the harness, the headless soak room) | every `TickProcessor` body; playback actions when in tape playback; position-history sampling; the gated weather advance; METAR issuance | the broadcasts |
-| `ReconstructionHost` | yaat-server — `RecordingManager.ReconstructViaServerTick` | the same `TickProcessor` bodies; the recorded log around the second; no history, no METAR | the broadcasts (suppressed) |
+| `LiveRoomHost` | yaat-server — `RoomEngine.AdvanceLiveSecond` (the hosted loop, the harness, the headless soak room) | every `TickProcessor` body; playback actions when in tape playback; the gated weather advance; METAR issuance | the broadcasts |
+| `ReconstructionHost` | yaat-server — `RecordingManager.ReconstructViaServerTick` | the same `TickProcessor` bodies; the recorded log around the second; no METAR | the broadcasts (suppressed) |
 
 **While a host step mutates snapshot state, the host still decides whether a simulation-affecting step runs** — the residue ADR 0001 forbids. `IHostSteps`'s header lists those members; ADR 0003 (tick step 4) moves each body into the engine, deleting the member and turning its `SpineStep.Host` entry into a `SpineStep.Sim` entry without touching the order. Until then the tick oracle records what the empty slots cost as accepted divergences.
 

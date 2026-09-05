@@ -87,7 +87,7 @@ public static class SpineOrder
 
     public static readonly ImmutableArray<SpineStep> EndOfSecond =
     [
-        SpineStep.Host(StepId.PositionHistory, static host => host.SamplePositionHistory()),
+        SpineStep.Sim(StepId.PositionHistory, static (engine, _) => engine.SamplePositionHistory()),
         SpineStep.Host(StepId.WeatherAdvance, static host => host.AdvanceWeather()),
         SpineStep.Host(StepId.MetarIssuance, static host => host.IssueMetars()),
         SpineStep.Host(StepId.RecordedActions, static host => host.ApplyRecordedActions()),
