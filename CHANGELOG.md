@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+### Added
+- The Discord server shows progress towards YAAT's monthly hosting cost, fed by Ko-fi: a sidebar ticker channel, a pinned progress embed listing this month's supporters (surplus rolls into the next month), and One-time / Monthly Supporter roles claimed through Ko-fi.
+
 ### Fixed
 - A window snapped against a screen edge stays there across launches instead of reopening at the screen's top-left corner. (#408)
 - A window profile applied to an already-maximized window now saves the profile's position, so it returns there after a restart.

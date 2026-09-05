@@ -24,6 +24,7 @@
 | **Scenarios** | `ScenarioLoader.cs`, `ScenarioModels.cs`, `AircraftInitializer.cs`, `ScenarioLifecycleService.cs` (server) |
 | **Snapshots/replay** | `StateSnapshotDto.cs`, `AircraftSnapshotDto.cs`, `RecordingArchive.cs`, `SimulationEngine.cs` |
 | **CRC protocol** | `CrcDtos*.cs` (wire format) → `DtoConverter.cs` (translation) → `CrcBroadcastService.cs` (dispatch) → `CrcWebSocketHandler.cs` (connection) |
+| **Discord bot / server-cost tracker** | `tools/discord-bot/src/worker.js` (routing, GitHub↔thread sync) → `src/support.js` (Ko-fi webhook, ledger, ticker + embed) → `scripts/setup-support.js`; `docs/discord-integration.md` |
 
 ## Subsystem deep-dive docs
 
@@ -1320,6 +1321,23 @@ python tools/build-surface-temp-data.py --artcc ZOA --facility SFO --runways 28L
 Stdlib-only Python. Runway ends come from the vNAS airport map GeoJSON (the same surface map the controller sees) — fetched from the training API, or read from the bundled `TestData/{airport}.geojson` when present. Bearings are TRUE, because the output is lat/lon; the centerline is drawn on the reciprocal of the landing course. CRC closes an area's ring itself and draws it as an outline plus a hatched fill, so lines and ticks are emitted as quads `LINE_WIDTH_NM` (10 ft) across — wide enough to tessellate (a zero-area ring throws in the client) and narrow enough to stay sub-pixel, so the outline collapses to the 1-px line in the issue #312 reference instead of a hatched band. `--append` merges a second flow's group into the same facility file, each group in its own SET; `--length`, `--tick-interval`, and `--tick-length` tune the geometry; `--set` files everything into one CRC SET so a controller can toggle the whole overlay off.
 
 Committing generated output is one way to author a sidecar; the other is drawing it in CRC and using the client's **Tools → Export ASDE-X / SAID Temp Data...**, which emits the same schema from a live room.
+
+## discord-bot — Cloudflare Worker (`tools/discord-bot/`)
+
+Bridges the Discord server with GitHub (forum threads ↔ issues, scenario-validation buttons) and hosts the Ko-fi-fed server-cost tracker. JS, no framework; state in the `THREAD_ISSUES` KV namespace; tested with vitest (`pnpm test`, also in CI). Operating notes, secrets, and footguns: [`docs/discord-integration.md`](discord-integration.md).
+
+```
+wrangler.toml                     # Worker name, KV/R2 bindings, cron (*/5), vars (GITHUB_REPO, VALIDATION_REPO, MONTHLY_COST_USD, KOFI_PAGE_URL), secret names
+validation-channels.json          # ARTCC → scenario-validation channel id
+support-config.json               # Server-cost tracker ids written by setup-support (guild, ticker voice channel, #server-costs, pinned embed message, the two supporter roles)
+src/worker.js                     # fetch/scheduled entry points: Discord interactions (slash commands, buttons), POST /github webhook, POST /kofi, POST /sync/N; thread↔issue sync, githubFetch pacing/retry, GitHub App auth
+src/support.js                    # Server-cost tracker: Ko-fi form-body parse + verification_token check, KV ledger (record in list metadata), carry-forward month math, channel-name ticker + embed rendering, change-gated Discord writes, forgetPayment
+src/validation-channels.js        # validation-channels.json → lookup maps
+src/register.js                   # Registers the slash commands (guild or global scope; clears the other)
+scripts/ensure-validation-buttons.js  # Pins a Run Validation button in every ARTCC channel (also run by the yaat-server validation workflow)
+scripts/setup-support.js          # Idempotently creates the supporter roles, the locked ticker voice channel, the read-only #server-costs channel, the pinned embed; writes support-config.json
+src/worker.test.js, src/support.test.js  # vitest: githubFetch retry/pacing, queued issues; Ko-fi webhook, ledger idempotency, carry-forward math, display change gating
+```
 
 ## yaat-crc-config — Standalone Rust binary (`tools/yaat-crc-config/`)
 

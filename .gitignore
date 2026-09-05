@@ -71,3 +71,6 @@ claude-ws.ps1
 # Local ad-hoc scenario generator (personal, not shipped)
 tools/make-oak-northfield-scenario.py
 uv.lock
+
+# Wrangler local cache (created by wrangler deploy/dev)
+.wrangler/

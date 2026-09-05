@@ -25,7 +25,7 @@ Cloudflare Worker that bridges Discord forum threads and GitHub issues.
 3. Go to **Bot** → copy the **Token**
 4. Go to **OAuth2** → URL Generator:
    - Scopes: `bot`, `applications.commands`
-   - Bot Permissions: `Read Message History`, `Send Messages`
+   - Bot Permissions: `Read Message History`, `Send Messages`, `Manage Channels`, `Manage Roles` (the last two are for `setup-support` and the server-cost ticker rename)
    - Copy the generated URL and open it to invite the bot to your server
 
 ### 2. GitHub App (issue sync + validation workflow dispatch)
@@ -93,6 +93,20 @@ Registering also clears the *other* scope (guild-scoped registration wipes globa
 4. **Secret:** the same value you used for `GITHUB_WEBHOOK_SECRET`
 5. **Events:** select "Let me select individual events" → check only **Issues**
 6. Save
+
+### 9. Server-cost tracker (Ko-fi)
+
+Shows progress towards the monthly hosting bill in a sidebar ticker (a locked voice channel's name) and a pinned embed in `#server-costs`, fed by Ko-fi payment webhooks. Design and footguns: [`docs/discord-integration.md`](../../docs/discord-integration.md#server-cost-tracker-ko-fi).
+
+```bash
+# Creates the One-time/Monthly Supporter roles, the two channels, the pinned embed, and writes support-config.json
+DISCORD_BOT_TOKEN=<token> pnpm run setup-support -- --guild <guild-id> [--category <category-id>] [--dry-run]
+
+npx wrangler secret put KOFI_VERIFICATION_TOKEN   # from https://ko-fi.com/manage/webhooks
+pnpm run deploy
+```
+
+Then, on Ko-fi: set the webhook URL to `https://yaat-discord-bot.<you>.workers.dev/kofi`, and under Discord settings attach **One-time Supporter** / **Monthly Supporter** to the matching rewards (drag the Ko-fi bot's role above both in Server Settings → Roles — Ko-fi assigns and removes the roles, the worker only renders the ledger). Re-register the slash commands so `/support-refresh` and `/support-forget <transaction_id>` exist; the latter drops a dashboard test event or a refund from the ledger. The cost lives in `wrangler.toml` (`MONTHLY_COST_USD`), as does the page the embed links to (`KOFI_PAGE_URL`). Commit `support-config.json`.
 
 ## Tests
 

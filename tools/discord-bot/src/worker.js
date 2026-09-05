@@ -1,4 +1,6 @@
 import { VALIDATION_CHANNELS } from "./validation-channels.js";
+import supportConfig from "../support-config.json";
+import { forgetPayment, handleKofiWebhook, refreshSupportDisplay, timingSafeEqual } from "./support.js";
 
 // Discord interaction types
 const PING = 1;
@@ -108,13 +110,24 @@ export default {
       return handleGitHubWebhook(request, env, ctx);
     }
 
+    // Ko-fi payment webhook (server-cost tracker)
+    if (url.pathname === "/kofi") {
+      return handleKofiWebhook(request, env, ctx, supportConfig, new Date());
+    }
+
     // Discord interactions endpoint (default path)
     return handleDiscordInteraction(request, env, ctx);
   },
 
-  // Cron trigger: sync new thread replies → GitHub issue comments
+  // Cron trigger: sync new thread replies → GitHub issue comments, and re-render the server-cost
+  // display (month rollover, and any Discord write the webhook path could not complete).
   async scheduled(event, env, ctx) {
     ctx.waitUntil(syncAllThreads(env));
+    ctx.waitUntil(
+      refreshSupportDisplay(env, supportConfig, new Date()).catch((err) =>
+        console.error("Support display refresh failed:", err),
+      ),
+    );
   },
 };
 
@@ -174,6 +187,19 @@ async function handleDiscordInteraction(request, env, ctx) {
     const userId = interaction.member?.user?.id || interaction.user?.id;
     if (userId !== env.DISCORD_ALLOWED_USER_ID) {
       return ephemeral("You don't have permission to use this command.");
+    }
+
+    if (commandName === "support-refresh" || commandName === "support-forget") {
+      ctx.waitUntil(
+        processSupportCommand({
+          commandName,
+          options: interaction.data.options || [],
+          token: interaction.token,
+          appId: interaction.application_id,
+          env,
+        }).catch((err) => console.error("Support command processing failed:", err)),
+      );
+      return jsonResponse({ type: DEFERRED_CHANNEL_MESSAGE, data: { flags: 64 } });
     }
 
     // track-issue / track-feature-request: connect an existing GitHub issue to a Discord thread.
@@ -296,6 +322,29 @@ async function handleDiscordInteraction(request, env, ctx) {
   }
 
   return new Response("Unknown interaction type", { status: 400 });
+}
+
+// --- Server-cost tracker admin commands ---
+
+async function processSupportCommand({ commandName, options, token, appId, env }) {
+  const now = new Date();
+  if (commandName === "support-forget") {
+    const transactionId = options.find((o) => o.name === "transaction_id")?.value?.trim();
+    if (!transactionId) {
+      await editOriginalResponse(appId, token, { content: "You must provide the Ko-fi transaction id." });
+      return;
+    }
+    const existed = await forgetPayment(env, supportConfig, transactionId, now);
+    await editOriginalResponse(appId, token, {
+      content: existed
+        ? `Forgot payment \`${transactionId}\` and refreshed the server-cost display.`
+        : `No recorded payment has transaction id \`${transactionId}\`.`,
+    });
+    return;
+  }
+
+  await refreshSupportDisplay(env, supportConfig, now);
+  await editOriginalResponse(appId, token, { content: "Server-cost display refreshed." });
 }
 
 // --- Manual sync handler ---
@@ -1664,15 +1713,6 @@ async function verifyGitHubSignature(secret, signature, body) {
   const expected = "sha256=" + arrayToHex(new Uint8Array(sig));
 
   return timingSafeEqual(expected, signature);
-}
-
-function timingSafeEqual(a, b) {
-  if (a.length !== b.length) return false;
-  let result = 0;
-  for (let i = 0; i < a.length; i++) {
-    result |= a.charCodeAt(i) ^ b.charCodeAt(i);
-  }
-  return result === 0;
 }
 
 function hexToUint8Array(hex) {

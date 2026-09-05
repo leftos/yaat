@@ -8,6 +8,7 @@
     "deploy": "wrangler deploy",
     "register": "node src/register.js",
     "setup-validation-buttons": "node scripts/ensure-validation-buttons.js",
+    "setup-support": "node scripts/setup-support.js",
     "test": "vitest run"
   },
   "devDependencies": {

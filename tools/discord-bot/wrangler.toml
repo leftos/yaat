@@ -7,8 +7,13 @@ GITHUB_REPO = "leftos/yaat"
 # Repo the scenario-validation workflow lives in. Workflow dispatch hits this one;
 # everything else (issue creation, labels, comments) still goes to GITHUB_REPO above.
 VALIDATION_REPO = "leftos/yaat-server"
+# Server-cost tracker: the monthly hosting cost the Ko-fi ledger is measured against, and the page
+# the embed's support button links to. Channel/role ids live in support-config.json.
+MONTHLY_COST_USD = "24"
+KOFI_PAGE_URL = "https://ko-fi.com/leftos"
 
 # Set these via `wrangler secret put <NAME>`:
+# KOFI_VERIFICATION_TOKEN     - from ko-fi.com/manage/webhooks (server-cost tracker; POST /kofi)
 # DISCORD_PUBLIC_KEY          - from Discord app > General Information
 # DISCORD_BOT_TOKEN           - from Discord app > Bot
 # DISCORD_ALLOWED_USER_ID     - your Discord user ID

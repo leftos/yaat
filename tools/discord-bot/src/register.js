@@ -73,6 +73,24 @@ const commands = [
     description: "Re-run scenario validation for this ARTCC channel",
     type: 1,
   },
+  {
+    name: "support-refresh",
+    description: "Re-render the server-cost ticker and embed from the Ko-fi ledger",
+    type: 1,
+  },
+  {
+    name: "support-forget",
+    description: "Drop a Ko-fi payment (test event or refund) from the server-cost ledger",
+    type: 1,
+    options: [
+      {
+        name: "transaction_id",
+        description: "The kofi_transaction_id from the webhook payload",
+        type: 3, // STRING
+        required: true,
+      },
+    ],
+  },
 ];
 
 const appId = process.env.DISCORD_APP_ID;

@@ -10,6 +10,10 @@ Entry point for `docs/plans/`. Each row links a subplan; open/done counts are th
 A fresh agent should start from **Current focus**, then **Next up**, and treat **Backlog** as unscheduled. Finished plans move to
 [`archive/`](./archive/); issue-specific plans live in [`open-issues/`](./open-issues/) and are deleted once implemented.
 
+## Session 2026-09-05 — Discord server-cost tracker
+
+- [x] Ko-fi-fed progress ticker + embed and supporter roles in Discord — shipped and live 2026-09-05; decision record in [archive/discord-support-tracker.md](./archive/discord-support-tracker.md), operating doc `docs/discord-integration.md`
+
 ## Session 2026-09-01 — S2-OAK-2 bundle (LUAW after touchdown, taxi corners)
 
 - [x] A. LUAW 3-9-4.c warning ends at touchdown (`IsClearanceStillPendingUse` = airborne); advisories stop repeating the callsign — committed `d27971a9`.
