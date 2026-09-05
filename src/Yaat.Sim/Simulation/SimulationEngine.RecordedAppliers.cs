@@ -1,14 +1,112 @@
 using System.Text.Json;
+using Microsoft.Extensions.Logging;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Scenarios;
+using Yaat.Sim.Simulation.Snapshots;
 
 namespace Yaat.Sim.Simulation;
 
-// The bodies the router's spawn arms and derived-record appliers call: queued-spawn control, and the
+// The bodies the router's spawn arms and derived-record appliers call: queued-spawn control, the ADD spawn, and the
 // setting / weather / generator appliers a recorded change replays through.
 public sealed partial class SimulationEngine
 {
+    /// <summary>
+    /// <c>ADD</c>: generates an aircraft from the spawn arguments and puts it into the world. The generation and the
+    /// CID draw from the shared RNG and the beacon pool on every run kind, so a replay advances both exactly as the
+    /// live run did. When the action comes from a recording, <paramref name="recorded"/> is the aircraft the live run
+    /// produced: a derivation that agrees with it changes nothing, and one that disagrees (a divergent world, a
+    /// generator that has changed since) is replaced by the recorded aircraft with a <c>replay-fidelity</c> warning —
+    /// the recording is the authority for what existed, the derivation for what the shared streams consumed.
+    /// </summary>
+    public AddAircraftOutcome AddAircraft(string args, AircraftSnapshotDto? recorded)
+    {
+        if (Scenario is not { } scenario)
+        {
+            return AddAircraftOutcome.Refused("No active scenario");
+        }
+
+        var (request, parseError) = SpawnParser.Parse(args);
+        if (request is null)
+        {
+            return AddAircraftOutcome.Refused(parseError);
+        }
+
+        var groundLayout = scenario.PrimaryAirportId is not null ? _groundData.GetLayout(scenario.PrimaryAirportId) : null;
+        var (derived, generationError) = AircraftGenerator.Generate(
+            request,
+            scenario.PrimaryAirportId,
+            World.GetSnapshot(),
+            groundLayout,
+            World.Rng,
+            BeaconCodePool
+        );
+
+        if (derived is not null)
+        {
+            derived.ScenarioId = scenario.ScenarioId;
+            derived.Ground.Layout = groundLayout;
+            ScratchpadRuleEngine.Apply(derived, scenario.ArtccConfig?.GetStarsConfigForFacility(scenario.StudentPosition?.FacilityId ?? ""));
+            World.AddAircraft(derived);
+        }
+
+        if (recorded is null)
+        {
+            return derived is null ? AddAircraftOutcome.Refused(generationError) : new AddAircraftOutcome(derived, derived.ToSnapshot(), null);
+        }
+
+        var state = ReconcileRecordedSpawn(args, recorded, derived, generationError);
+        return new AddAircraftOutcome(state, state.ToSnapshot(), null);
+    }
+
+    /// <summary>
+    /// Holds a recorded <c>ADD</c>'s derivation against the aircraft the live run recorded. Equal snapshots keep the
+    /// derived aircraft; otherwise the derived one leaves the world and the pool, the recorded one takes its place, and
+    /// the disagreement is logged — it is the instrument that turns a bundle's "commands to X were refused" into a
+    /// named cause.
+    /// </summary>
+    private AircraftState ReconcileRecordedSpawn(string args, AircraftSnapshotDto recorded, AircraftState? derived, string? generationError)
+    {
+        if ((derived is not null) && (JsonSerializer.Serialize(derived.ToSnapshot()) == JsonSerializer.Serialize(recorded)))
+        {
+            return derived;
+        }
+
+        if (derived is null)
+        {
+            _logger.LogWarning(
+                "replay-fidelity: ADD '{Args}' at t={Seconds} derived no aircraft ({Error}); spawning the recorded {Recorded} instead",
+                args,
+                Scenario?.ElapsedSeconds ?? 0,
+                generationError ?? "(no message)",
+                recorded.Callsign
+            );
+        }
+        else
+        {
+            _logger.LogWarning(
+                "replay-fidelity: ADD '{Args}' at t={Seconds} derived {Derived} where the live session recorded {Recorded}; "
+                    + "spawning the recorded aircraft instead",
+                args,
+                Scenario?.ElapsedSeconds ?? 0,
+                derived.Callsign,
+                recorded.Callsign
+            );
+            World.RemoveAircraft(derived.Callsign);
+            BeaconCodePool.Release(derived.Transponder.AssignedCode);
+        }
+
+        var state = AircraftState.FromSnapshot(recorded, ResolveSpawnLayout(recorded));
+        if (state.Transponder.AssignedCode > 0)
+        {
+            BeaconCodePool.MarkUsed(state.Transponder.AssignedCode);
+        }
+
+        World.AddAircraft(state);
+        return state;
+    }
+
     /// <summary>
     /// <c>SPAWN</c>: pulls a still-queued delayed spawn into the world now and dispatches its presets. Returns the
     /// spawned aircraft, or null when nothing by that callsign is queued.

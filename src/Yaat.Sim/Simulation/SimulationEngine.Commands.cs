@@ -77,6 +77,51 @@ public sealed partial class SimulationEngine
     }
 
     /// <summary>
+    /// <c>TAXIALL</c>: taxis every aircraft at parking to the destination, each through the dispatcher's TAXI arm with
+    /// an empty path so the pathfinder routes it. The result counts the aircraft that took the instruction and the ones
+    /// that refused it; the command itself succeeds whenever a destination was given.
+    /// </summary>
+    public CommandResult TaxiAll(TaxiAllCommand taxiAll)
+    {
+        if ((taxiAll.DestinationRunway is null) && (taxiAll.DestinationParking is null) && (taxiAll.DestinationSpot is null))
+        {
+            return new CommandResult(false, "TAXIALL requires a destination runway, @parking, or $spot");
+        }
+
+        var taxi = new TaxiCommand(
+            [],
+            [],
+            taxiAll.DestinationRunway,
+            DestinationParking: taxiAll.DestinationParking,
+            DestinationSpot: taxiAll.DestinationSpot
+        );
+        int taxied = 0;
+        int failed = 0;
+        foreach (var aircraft in World.GetSnapshot())
+        {
+            if (aircraft.Phases?.CurrentPhase is not AtParkingPhase)
+            {
+                continue;
+            }
+
+            var result = CommandDispatcher.Dispatch(taxi, aircraft, BuildDispatchContext(aircraft, isScenarioScripted: false));
+            if (result.Success)
+            {
+                taxied++;
+                _logger.LogInformation("[TaxiAll] {Callsign}: {Message}", aircraft.Callsign, result.Message);
+            }
+            else
+            {
+                failed++;
+                _logger.LogWarning("[TaxiAll] {Callsign}: failed — {Message}", aircraft.Callsign, result.Message);
+            }
+        }
+
+        var message = failed > 0 ? $"TAXIALL: {taxied} aircraft taxied, {failed} failed" : $"TAXIALL: {taxied} aircraft taxied";
+        return new CommandResult(true, message);
+    }
+
+    /// <summary>
     /// Post-dispatch bookkeeping for a controller-issued command: two-way-comms registration and, in
     /// solo-training mode, evaluator scoring, pending-request resolution, frequency-gate release, the
     /// "unable" response on rejection, and the pilot read-back.

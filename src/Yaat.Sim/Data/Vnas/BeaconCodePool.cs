@@ -117,6 +117,9 @@ public sealed class BeaconCodePool
         _assigned.Remove(code);
     }
 
+    /// <summary>Whether <paramref name="code"/> is currently assigned to an aircraft.</summary>
+    public bool IsAssigned(uint code) => _assigned.Contains(code);
+
     /// <summary>Sequential-fallback cursor, for snapshot serialization.</summary>
     public uint NextCandidate => _nextCandidate;
 

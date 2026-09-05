@@ -460,8 +460,9 @@ All four drain in `TickPrePhysics` (`SimulationEngine.cs:465`) once per sim-seco
   snapshot (see next section).
 
 The server's `HandleSpawnNow` / `HandleSpawnDelay` (`ScenarioLifecycleService.cs:486` / `:525`) let an instructor pull a delayed
-aircraft into the world early or re-time it; `HandleSpawnAircraftAsync` (`:547`) is the `ADD`-command entry point that parses,
-generates, applies scratchpad rules, and broadcasts the spawn.
+aircraft into the world early or re-time it; `HandleSpawnAircraftAsync` (`:677`) is the `ADD`-command entry point: it calls the one Sim body,
+`SimulationEngine.AddAircraft` (parse → generate → scratchpad rules → `World.AddAircraft`; the router's `ADD` arm runs the same body
+on replay), then adds the room's spawn hooks and broadcasts and hands the spawned aircraft's snapshot to the recorded command.
 
 ## Preset pre-execution through the LIVE dispatcher
 

@@ -20,6 +20,7 @@
 - Replaying or rewinding a recording resolves STARS interfacility handoff codes (`` `31H ``) the way the live session did, instead of failing the handoff.
 - After a rewind, `AS` position selections and track ownership match the live session at that time: recorded `AS`, `ACCEPTALL` and `HOALL` replay, and later selections are dropped.
 - Playing back a recording applies the squawk-all (`SQALL`/`SNALL`/`SSALL`) and `CFR` commands the live session issued, instead of dropping them.
+- Playing back a recording spawns the aircraft an `ADD` command generated — same callsign, beacon code and CID — and taxis the parked aircraft a `TAXIALL` moved, instead of dropping both.
 - Playing back a recording reproduces the pilot read-backs, "unable" responses and frequency gates the live session had.
 
 ### Changed

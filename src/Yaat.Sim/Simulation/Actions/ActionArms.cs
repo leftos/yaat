@@ -166,6 +166,26 @@ internal static class ActionArms
 
     public static CommandResult SquawkAll(ArmContext ctx) => ctx.Engine.SquawkAll(ctx.Parsed!);
 
+    public static CommandResult TaxiAll(ArmContext ctx) => ctx.Engine.TaxiAll((TaxiAllCommand)ctx.Parsed!);
+
+    /// <summary>
+    /// <c>ADD</c>. Derived on every run kind from the shared RNG and beacon pool; a recorded action's baked aircraft
+    /// is the authority when the derivation disagrees (<see cref="SimulationEngine.AddAircraft"/>). The aircraft that
+    /// ended up in the world is baked onto a fresh action's record.
+    /// </summary>
+    public static CommandResult AddAircraft(ArmContext ctx)
+    {
+        var outcome = ctx.Engine.AddAircraft(((AddAircraftCommand)ctx.Parsed!).Args, ctx.Input.Baked?.SpawnedAircraft);
+        if (outcome.Aircraft is null)
+        {
+            return new CommandResult(false, outcome.Error);
+        }
+
+        ctx.SpawnedAircraft = outcome.Spawned;
+        ctx.Host.OnAircraftSpawned(outcome.Aircraft);
+        return new CommandResult(true, $"Spawned {outcome.Aircraft.Callsign} ({outcome.Aircraft.AircraftType})");
+    }
+
     public static CommandResult HoldForRelease(ArmContext ctx)
     {
         if (ctx.Engine.Scenario is not { } scenario)

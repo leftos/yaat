@@ -63,23 +63,24 @@ public sealed partial class SimulationEngine
     /// <summary>Puts a recorded spawn's aircraft into the world as it was captured; the pre-tick half of the router's <c>ApplyRecorded</c>.</summary>
     internal void ApplyRecordedAircraftSpawn(RecordedAircraftSpawn spawn)
     {
-        AirportGroundLayout? groundLayout = null;
-        if (spawn.Aircraft.Ground.LayoutAirportId is { } layoutAirportId)
-        {
-            groundLayout = _groundData.GetLayout(layoutAirportId);
-        }
-        else if (Scenario?.PrimaryAirportId is { } primaryAirportId)
-        {
-            groundLayout = _groundData.GetLayout(primaryAirportId);
-        }
-
-        var state = AircraftState.FromSnapshot(spawn.Aircraft, groundLayout);
+        var state = AircraftState.FromSnapshot(spawn.Aircraft, ResolveSpawnLayout(spawn.Aircraft));
         if (spawn.IsSynthetic)
         {
             NormalizeSyntheticAircraftSpawn(state);
         }
 
         World.AddAircraft(state);
+    }
+
+    /// <summary>The ground layout a recorded aircraft taxis on: the one it was captured with, else the scenario's primary airport's.</summary>
+    private AirportGroundLayout? ResolveSpawnLayout(AircraftSnapshotDto recorded)
+    {
+        if (recorded.Ground.LayoutAirportId is { } layoutAirportId)
+        {
+            return _groundData.GetLayout(layoutAirportId);
+        }
+
+        return Scenario?.PrimaryAirportId is { } primaryAirportId ? _groundData.GetLayout(primaryAirportId) : null;
     }
 
     /// <summary>
