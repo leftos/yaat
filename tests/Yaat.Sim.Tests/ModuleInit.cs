@@ -32,18 +32,26 @@ internal static class ModuleInit
             )
         );
 
-        // AllowDownload: false unconditionally. Resolving NavData otherwise fetches the vNAS config
-        // over HTTPS on every test process (~240 ms of TLS handshake, ~10% of the fixed cost of a
-        // filtered run) and makes the suite depend on VATSIM infrastructure being reachable. Tests
-        // run against the cached or bundled TestData copy; `python tools/refresh-navdata.py` is what
-        // moves that copy forward. NavDataPathResolverTests asserts the process makes no such call.
-        NavDataPathResolver.EnsureCurrent(
-            new NavDataResolveOptions(
-                BundledPath: Path.Combine(testDataDir, "NavData.dat"),
-                BundledManifestPath: Path.Combine(testDataDir, "navdata-manifest.json"),
-                AllowDownload: false
-            )
+        // Most of this suite asserts against real navdata, so running without it is not a degraded
+        // run — it is a meaningless one. Resolve it, and make failure fatal for the assembly rather
+        // than letting hundreds of tests silently `return;` into a green result.
+        //
+        // Download only when there is nothing on disk to use. Resolving with downloads enabled
+        // fetches the vNAS config over HTTPS first — ~240 ms of TLS handshake on EVERY test process
+        // (~10% of the fixed cost of a filtered run) — and `TestData/NavData.dat` is committed, so
+        // the normal path never needs it. `NavDataPathResolverTests` asserts a healthy checkout
+        // makes no such call.
+        var navOptions = new NavDataResolveOptions(
+            BundledPath: Path.Combine(testDataDir, "NavData.dat"),
+            BundledManifestPath: Path.Combine(testDataDir, "navdata-manifest.json"),
+            AllowDownload: false
         );
+        if (!NavDataPathResolver.HasLocalCopy(navOptions))
+        {
+            navOptions = navOptions with { AllowDownload = true };
+        }
+
+        RequireNavData(NavDataPathResolver.EnsureCurrent(navOptions));
 
         // Warm the lazily-loaded static databases off the test threads, as the server does at
         // startup (ServerApp): otherwise the first test to tick physics pays the airspace GeoJSON
@@ -53,6 +61,30 @@ internal static class ModuleInit
             _ = AirspaceDatabase.Default;
             _ = MilitaryRouteDatabase.Default;
         });
+    }
+
+    /// <summary>
+    /// Fails the whole assembly when NavData could not be resolved. Real navdata is a precondition
+    /// of this suite, not an optional enrichment: without it the tests that depend on it return
+    /// early and the run reports green having proved nothing.
+    /// </summary>
+    /// <param name="resolvedPath">The path <see cref="NavDataPathResolver.EnsureCurrent"/> returned.</param>
+    /// <returns>The verified path.</returns>
+    /// <exception cref="InvalidOperationException">No usable NavData.dat could be resolved.</exception>
+    internal static string RequireNavData(string? resolvedPath)
+    {
+        if (resolvedPath is not null && File.Exists(resolvedPath))
+        {
+            return resolvedPath;
+        }
+
+        throw new InvalidOperationException(
+            "NavData.dat could not be resolved, so the Yaat.Sim test suite cannot run: most of it asserts against real navdata. "
+                + "Expected a copy at %LOCALAPPDATA%/yaat/cache/NavData.dat or tests/Yaat.Sim.Tests/TestData/NavData.dat "
+                + "(committed — a missing one usually means an incomplete checkout). "
+                + "Restore it with `git checkout -- tests/Yaat.Sim.Tests/TestData/NavData.dat`, or run "
+                + "`python tools/refresh-navdata.py` to fetch a fresh pin from vNAS."
+        );
     }
 
     private static bool IsCifpDownloadSkipped()

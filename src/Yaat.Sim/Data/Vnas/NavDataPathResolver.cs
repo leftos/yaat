@@ -37,6 +37,14 @@ public static class NavDataPathResolver
     public static long? ResolvedNavDataSerial => _resolvedNavDataSerial;
 
     /// <summary>
+    /// True when NavData can be resolved from disk — the shared cache or the caller's bundled copy —
+    /// so no vNAS round-trip is needed. Callers use this to decide whether to permit a download
+    /// rather than paying a config fetch to find out.
+    /// </summary>
+    public static bool HasLocalCopy(NavDataResolveOptions options) =>
+        File.Exists(GetCachePath()) || (options.BundledPath is { } bundled && File.Exists(bundled));
+
+    /// <summary>
     /// Ensures current vNAS NavData.dat is available. Subsequent calls return immediately.
     /// </summary>
     public static string? EnsureCurrent(NavDataResolveOptions? options = null)

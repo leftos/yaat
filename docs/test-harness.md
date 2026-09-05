@@ -19,7 +19,7 @@ The non-negotiable rules, each detailed below:
 
 1. **Real data, never synthetic.** Initialize with `TestVnasData.EnsureInitialized()`; never hand-roll stub fixes/profiles.
 2. **Call `EnsureInitialized()` in the test class *constructor*** if any test reads a data-backed static singleton (race protection).
-3. **Silently skip on missing data** — return early, no `Assert.Skip`, no throw — so a fresh/offline checkout keeps CI green.
+3. **Silently skip on missing data** — return early, no `Assert.Skip`, no throw — so a fresh/offline checkout keeps CI green. **Exception: NavData is a hard precondition.** `ModuleInit` throws if it cannot resolve `NavData.dat`, because most of this suite asserts against real navdata and a run without it reports green having proved nothing. Ground layouts, recordings, ARTCC configs and the rest still skip silently.
 4. **Run suites under a 30 s wall clock** (`timeout 30 dotnet test`) so soft hangs surface as failures.
 5. **Runner options go after `--`** (Microsoft.Testing.Platform): `dotnet test -- --filter-method "*Name*"`; see [Running tests](#running-tests).
 6. **For full-suite confidence run `pwsh tools/test-all.ps1`**, not bare `dotnet test` — only that builds the sibling yaat-server.
@@ -54,7 +54,8 @@ overwrite it back to the real DB if another test in the same process runs after 
 
 `NavigationDb` (the property) loads `NavData.dat` + CIFP lazily, caches for the process lifetime, and uses **double-check locking** so a
 concurrent test class never observes a partially-built instance (one resolved without CIFP). It returns `null` when `NavData.dat` is
-absent — a test needing nav data must check for null and skip silently.
+absent — but in this assembly that cannot happen: `ModuleInit` has already thrown. The null checks in existing tests are harmless and
+still guard the CIFP-absent case; new tests need not add one for NavData.
 
 ## Data resolution and offline fallbacks
 
@@ -65,12 +66,16 @@ absent — a test needing nav data must check for null and skip silently.
 3. **Bundled fallback** — `TestData/NavData.dat` and `TestData/FAACIFP18.gz` (with their `*-manifest.json`), so a fresh, fully offline
    checkout still has nav/procedure data without any network.
 
-**NavData never downloads in tests.** `ModuleInit` resolves it with `AllowDownload: false`, so the
-suite uses the local cache or bundled `TestData/NavData.dat` and never contacts vNAS. That is not
-only about the network: resolving with downloads enabled fetches the vNAS *config* over HTTPS
+**NavData is required, and normally resolves without touching the network.** `ModuleInit` resolves
+with `AllowDownload: false` when a local copy exists — `%LOCALAPPDATA%/yaat/cache/NavData.dat` or the
+**committed** `TestData/NavData.dat` — and only permits a download when neither is present. If the
+resolve still yields nothing, it **throws** and the assembly fails to load: see iron rule 3.
+
+Why the offline default: resolving with downloads enabled fetches the vNAS *config* over HTTPS
 first, costing ~240 ms of TLS handshake on **every** test process (~10% of the fixed cost of a
-filtered run, measured 2026-09-04). `NavDataPathResolverTests.TestProcess_ResolvesNavData_WithoutContactingVnas`
-asserts `NavDataPathResolver.ConfigFetchCount` stays zero, so this cannot silently regress.
+filtered run, measured 2026-09-04), and makes the suite depend on VATSIM being reachable.
+`NavDataPathResolverTests.TestProcess_ResolvesNavData_WithoutContactingVnas` asserts
+`NavDataPathResolver.ConfigFetchCount` stays zero, so this cannot silently regress.
 
 The trade-off: tests no longer warn when the bundled NavData serial is behind what vNAS publishes.
 `python tools/refresh-navdata.py` is the signal for that — run it to move the pin (writes

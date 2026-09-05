@@ -46,4 +46,50 @@ public class NavDataPathResolverTests
         Assert.NotNull(NavDataPathResolver.CachedPath);
         Assert.True(File.Exists(NavDataPathResolver.CachedPath));
     }
+
+    // Missing navdata is fatal for this assembly rather than a silent skip: most of the suite
+    // asserts against real navdata, so a run without it proves nothing while reporting green.
+
+    [Fact]
+    public void RequireNavData_Throws_WhenNothingResolved()
+    {
+        var ex = Assert.Throws<InvalidOperationException>(() => ModuleInit.RequireNavData(null));
+
+        // The message has to say how to recover, not just that something is wrong.
+        Assert.Contains("refresh-navdata.py", ex.Message, StringComparison.Ordinal);
+        Assert.Contains("TestData/NavData.dat", ex.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void RequireNavData_Throws_WhenResolvedPathDoesNotExist()
+    {
+        // A non-null path that points at nothing is the more dangerous case: it looks resolved.
+        var missing = Path.Combine(Path.GetTempPath(), $"yaat-absent-navdata-{Guid.NewGuid():N}.dat");
+
+        Assert.Throws<InvalidOperationException>(() => ModuleInit.RequireNavData(missing));
+    }
+
+    [Fact]
+    public void RequireNavData_ReturnsPath_WhenPresent()
+    {
+        var resolved = NavDataPathResolver.CachedPath;
+        Assert.NotNull(resolved);
+
+        Assert.Equal(resolved, ModuleInit.RequireNavData(resolved));
+    }
+
+    [Fact]
+    public void HasLocalCopy_IsTrue_ForTheCommittedBundledCopy()
+    {
+        // TestData/NavData.dat is committed, so a healthy checkout always resolves offline. This is
+        // what keeps the config fetch (and its ~240 ms) off the normal path.
+        var testDataDir = Path.Combine(AppContext.BaseDirectory, "TestData");
+        var options = new NavDataResolveOptions(
+            BundledPath: Path.Combine(testDataDir, "NavData.dat"),
+            BundledManifestPath: Path.Combine(testDataDir, "navdata-manifest.json"),
+            AllowDownload: false
+        );
+
+        Assert.True(NavDataPathResolver.HasLocalCopy(options));
+    }
 }
