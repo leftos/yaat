@@ -23,8 +23,21 @@ dropped when the method is re-derived from a paragraph.
       window is the assertion. Every costly loop in this suite has been audited
       and found to be a window invariant. Shortening one silently deletes
       coverage while the test still passes.
-- [ ] **Wins come from per-test CPU, not parallelism.** xUnit already saturates
-      the cores; adding threads moves nothing.
+- [ ] **Wins come from per-test CPU, not parallelism.** Measured 2026-09-04:
+      811 s of test-work over 16 workers has a floor of 50.7 s and the suite runs
+      in 57.2 s — **~89% scheduling efficiency**. `tools/analyze-test-schedule.py`
+      LPT-packs a TRX under both a per-class and a per-test scheduler and finds
+      **no difference**, so neither more threads nor a parallel-by-default
+      framework can move this. Re-measure before doubting it — but do not
+      re-derive the conclusion from CPU/wall (next bullet).
+- [ ] **CPU/wall is not core utilisation, and not scheduling efficiency.** It
+      measures how CPU-bound the tests are. It fell from 14.8× to 8.6× of 16
+      cores over 2026-08/09 while the schedule stayed just as full, because the
+      optimisations removed CPU work (−64%) faster than wall time (−38%).
+      Reading that drop as "41% of the machine is idle" nearly reversed a
+      recommendation. To ask whether the *scheduler* is leaving capacity on the
+      table, extract per-test durations from a TRX and simulate the packing with
+      `tools/analyze-test-schedule.py` — never infer it from a ratio.
 
 ## Step 1: Collect and aggregate in a subagent
 

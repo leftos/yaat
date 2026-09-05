@@ -1,16 +1,39 @@
 # Test suite speed
 
-Baseline (2026-08-26, Release, 16 cores, `tools/test-all.ps1`): ~2m50s wall.
-Build 17s → Client.Tests 18s → Client.UI.Tests 21s → **Sim.Tests 92s** → Server.Tests 17s, strictly sequential.
+Current baseline (2026-09-04, Release, 16 cores, quiet machine, median of 3 — measured by
+`tools/measure-test-loop.ps1`; full table in [tunit-migration.md](tunit-migration.md)):
 
-Sim.Tests: 8,686 tests, 1,358s CPU over 92s wall (14.8× on 16 cores — already saturated).
+| | |
+|---|---|
+| `tools/test-all.ps1`, both repos | **69.9s** |
+| Sim.Tests, dev filter (9,363 tests) | **57.2s** wall, 489s CPU |
+| Sim.Tests, unfiltered (10,586 tests) | 71.9s wall, 585s CPU |
+| One filtered class (30 tests) | 2.3s |
+| Incremental rebuild after a test edit | 3.3s |
+
+Historical (2026-08-26): ~2m50s for the gate; Sim.Tests 92s, 1,358s CPU, 8,686 tests. The tasks
+below did that work — CPU is down 64%, wall down 38%.
+
+**The suite is near its scheduling limit, and more parallelism cannot help.** 811s of test-work
+over 16 workers has a hard floor of 50.7s; actual is 57.2s, i.e. **~89% scheduling efficiency**.
+`tools/analyze-test-schedule.py` LPT-packs a TRX under both a per-class and a per-test scheduler and
+finds **no difference between them** — the heaviest class (36.3s) sits below the divisibility bound,
+so class grouping never becomes the constraint.
+
+> **Do not read CPU/wall as core utilisation.** It is now 8.6× of 16, down from 14.8×, which looks
+> like idle capacity and is not: the optimisations below removed CPU work (−64%) faster than wall
+> time (−38%), so the ratio fell while the schedule stayed just as full. CPU/wall measures how
+> CPU-bound the tests are. To ask whether the *scheduler* is leaving capacity on the table, simulate
+> the packing — that is what `analyze-test-schedule.py` exists for. This misreading was made and
+> caught here; it nearly reversed a recommendation.
+
 305 tests (>1s each) account for 89% of CPU; 72 tests (>5s) for 44%. These are
 `SimulationEngine.Replay(recording, N)` E2E tests re-simulating from t=0 (287 sites, median N=200s, max 2,835s).
-Fresh per-test timings: `.tmp/trx-fresh/sim.trx` in the main checkout.
 
 Decisions:
 - Snapshot-seek already exists as **hybrid replay** (`Replay(recording, 0)` → `RestoreFromSnapshot` → `ReplayOneSecond`; `docs/e2e-tdd-issue-debugging.md` §5b, 51 test files use it). Converting from-zero `Replay(recording, N)` tests to it is a per-test judgment (hybrid tests only the post-T slice and can false-pass a fix that alters the path before T), so no blanket conversion was done.
 - Stay on xunit.v3 **3.2.2** (not 4.0.0): Avalonia.Headless.XUnit 12.1.0 pins `xunit.v3.extensibility.core 3.2.2`.
+- **Stay on xunit.v3, not TUnit** (evaluated 2026-09-03/04, [tunit-migration.md](tunit-migration.md)): the scheduling prize measures 0.0s, and TUnit's source generator adds ~5s to every incremental build at 9,306 cases — a penalty that grows linearly with test count. The edit-run loop would go from ~5.6s to ~10.4s.
 
 ## Tasks
 
