@@ -17,6 +17,8 @@
 - A helicopter cleared to land at a spot from off the airport flies an approach — holding its altitude, descending to 500 ft AGL near the field, then a 6° final onto the spot — instead of dropping to 100 ft AGL miles out.
 - Bundle snapshots and rewinds keep a holding or hovering aircraft in its hold across a flight-plan amendment, instead of replaying the amendment's CRC echo as a pilot command that cancels it.
 - A helicopter with no active phase accepts `LAND @spot`, `ATXI`, and `CTOPP` from the air; the airport is resolved from its flight plan instead of refusing with "No airport ground layout available".
+- Replaying or rewinding a recording resolves STARS interfacility handoff codes (`` `31H ``) the way the live session did, instead of failing the handoff.
+- After a rewind, `AS` position selections and track ownership match the live session at that time: recorded `AS`, `ACCEPTALL` and `HOALL` replay, and later selections are dropped.
 
 ### Changed
 - `ATXI` to a helicopter off the airport or above 500 ft AGL is refused ("unable, request landing at …"); air taxi stays an on-field movement.

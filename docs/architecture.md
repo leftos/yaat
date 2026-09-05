@@ -78,7 +78,8 @@ The Task Index above tells you *which files*; these docs explain *how each subsy
   - **Pathfinding**: `Pathfinding/FilletCornerRoutingTests.cs` (fillet arc vs square-pivot routing), `Pathfinding/AutoRouterPruningTests.cs` (A* pruning via arrival taxiway), `Pathfinding/ArcRadiusFloorAdmissibilityTests.cs` (steerable radius floor)
   - **Fillet arc speed**: `Fillet/GroundArcSpeedProfileTests.cs` (local-curvature arc speed), `GroundNavigatorArcSpeedProfileTests.cs` (navigator speed profile application), `GroundNavigatorStraightHandoffTests.cs` (straight-after-arc heading release)
   - **Ground taxi**: `Simulation/GroundTaxi/OakUwFilletCornerTests.cs` (bundle replay: fillet routing + speed profiles)
-  - **Replay**: `Simulation/ReplayGeneratorStandDownTests.cs` (generators stand down unconditionally in replay/playback), `Simulation/RunProfileTests.cs` (run profile kinds + mode flags), `Simulation/FlightPlanCommandReplayKeepsPhaseTests.cs` (flight-plan commands skip replay, preserving phase continuity)
+  - **Commands**: `Commands/TrackResolverTests.cs` (the one TCP→TrackOwner chain against the real ZOA config — including the STARS interfacility handoff-code leg — and `ResolveIdentity` precedence: AS override → AI connection → selection → student; `PositionSelections` snapshot/restore)
+  - **Replay**: `Simulation/ReplayGeneratorStandDownTests.cs` (generators stand down unconditionally in replay/playback), `Simulation/RunProfileTests.cs` (run profile kinds + mode flags), `Simulation/FlightPlanCommandReplayKeepsPhaseTests.cs` (flight-plan commands skip replay, preserving phase continuity), `Simulation/ReplayTrackApplierIdentityIsolationTests.cs` (a recorded `AS` under an AI connection id lands in the engine's `PositionSelections` but never displaces the AI position's own identity; the selections survive a snapshot round trip and a pre-feature snapshot restores them empty)
   - **Action routing** (tick-path step 3d): `Simulation/Actions/ActionRoutingCompletenessTests.cs` (every `ParsedCommand` subtype classifies to one `RecordedCommandKind` with an `ActionScope`, every kind has a scope, and every type in `IsAviationCommand` reaches a dispatcher arm — `PhaseGatedArms` names the probe's blind spot exactly), `Simulation/Actions/RecordingCorpusRoutingCensusTests.cs` (how every committed recording's commands classify today, asserted byte-for-byte against `TestData/recording-routing-census.json`; regenerate with `YAAT_ROUTING_CENSUS_REGENERATE=1`), `Helpers/ParsedCommandDummies.cs` (a placeholder instance of every concrete `ParsedCommand` subtype for table sweeps)
   - **Spine**: `Simulation/SpineTraceTests.cs` (the literal step sequence of a bare second, sub-tick ×4 = whole second by digest and snapshot, per-second counts), `Simulation/PostPhysicsDrainOrderTests.cs` (drain order through the buffers)
   - **Follow/Pattern**: `Simulation/FollowStraightInJetBaseTurnTests.cs` (S2-OAK-5 replay: a C172 turns base behind a straight-in LJ60 by projected threshold ETA, not at its touchdown), `Simulation/N342TFollowStraightInDownwindTests.cs` (DA42 behind a straight-in C25C: no cut-in, runway clear at arrival), `Simulation/FollowPatternSequencingAuditTests.cs` (synthetic KOAK circuits: leg holds behind an extending lead), `AirborneFollowTests.cs` (spacing math, sequencing gate, pursuit heading)
@@ -698,11 +699,13 @@ Commands/GroundCommandHandler.cs    # Ground operation command logic (taxi, push
 Commands/TrackEngine.cs             # Pure domain logic for STARS track ops: Track, Drop, Handoff, Accept, Cancel, PointOut, Acknowledge,
                                     # RejectPointout, RetractPointout, Scratchpad1/2, TempAlt, Cruise, PilotReportedAlt,
                                     # InhibitConflictAlert, LeaderDirection, JRing, Cone. All methods mutate AircraftState directly.
-                                    # Dispatch(parsed, ac, identity, scenario, ?artccConfig): top-level switch routing any track ParsedCommand to
+                                    # Dispatch(parsed, ac, identity, scenario): top-level switch routing any track ParsedCommand to
                                     # the right HandleX/ApplyX. Used ONLY by replay (ReplayTrackApplier + SimulationEngine re-sim); the live server path
                                     # is TrackCommandHandler.HandleTrackCommand's own parallel switch (shares the TrackEngine.HandleX leaves) — keep both in sync.
-Commands/TrackResolver.cs           # AS-prefix extraction (e.g. "AS 3Y ACCEPT" → "ACCEPT" + "3Y" override), scenario-first TCP→TrackOwner
-                                    # resolution with optional ARTCC-config fallback, owner→TCP lookup. Shared by yaat-server's live track path
+Commands/TrackResolver.cs           # AS-prefix extraction (e.g. "AS 3Y ACCEPT" → "ACCEPT" + "3Y" override); the one TCP→TrackOwner chain (student TCP →
+                                    # scenario ATC → facility TCP → ERAM code → STARS interfacility handoff code → ERAM-to-STARS prefix, reading
+                                    # scenario.ArtccConfig); owner→TCP lookup; ResolveIdentity(scenario, selections, connectionId, asOverride) — the one
+                                    # identity resolver (AS override → AI connection's position → selection → student). Shared by yaat-server's live track path
                                     # and Sim's replay applier.
 Commands/PatternCommandHandler.cs   # Pattern operation command logic (extend, rock wings, GoAround, CTL, sequence, etc.); EF loop detection via turn-arc geometry, same-runway continue no-op, never-route-outbound reject, and the pattern retarget that degrades a too-close EF into a base entry; runway-changing entries void the landing clearance; pre-arms EXT/SA/MNA and landing/option clearances behind a still-queued pattern entry; present-position downwind join (IsAtOrPastDownwindEntry) when the aircraft is already alongside the downwind between the entry point and the base turn (#352)
 Commands/RunwaySafetyAdvisor.cs     # Non-blocking 7110.65 3-9-4/3-9-6 occupied-runway advisories (PendingWarnings → amber terminal; never prefixed with the callsign): landing-family clearance
@@ -1161,13 +1164,18 @@ ISimulationHost.cs             # IHostSteps + IHostConsumers; four implementatio
 StepTrace.cs                   # Per-second (StepId, subTick) sequence + FNV-1a digest + counts; on by default, allocation-free once warm
 BareHost.cs                    # The Test-run host: every slot empty, consumers fire the engine's events
 
+# Simulation/Actions/
+ActionScope.cs                 # Global / Callsign / Aircraft / Position — what the action router resolves before an arm runs (a property of the RecordedCommandKind)
+PositionSelections.cs          # connection id → the TrackOwner a bare AS selected; one lock-guarded map per engine (the server room owns one instance for
+                               # its lifetime and hands it to every engine it creates); Snapshot()/Restore() back ServerSnapshotDto.PositionSelections
+
 # Simulation/Replay/
 ReplayDriver.cs                # Drives a recording forward (range / one second / one sub-tick) by running the spine under a ReplayHost;
                                # owns the driver's ReplayCursors. Internal — SimulationEngine.Replay.cs is the public surface over it.
 ReplayHost.cs                  # ReplayCursors (action cursor, pre-tick cursor, applied set — one per traversal) + ReplayHost: the bare host
                                # plus pre-tick recorded actions, ungated weather advance and post-second action application
-ReplayTrackApplier.cs          # Replay-time dispatcher for track + AS-prefix commands. Maintains per-connection active-position map;; returns the dispatch result; an AI connection id resolves to its position without an AS prefix
-                               # routes parsed commands through TrackEngine.Dispatch with identity resolved via TrackResolver.
+ReplayTrackApplier.cs          # Static dispatcher for track + AS-prefix commands (replay and DispatchAiCommand): a bare AS → SimulationEngine.SelectPosition;
+                               # else identity via SimulationEngine.ResolveIdentity, then TrackEngine.Dispatch. Returns the dispatch result.
 SnapshotDiff.cs                # Pure-function diff between an engine's live aircraft state and a captured snapshot's DTOs.
                                # Used by ReplayRangeWithVerification to surface drift between replay and recorded snapshots.
 ReplayResult.cs                # ReplayResult / SnapshotDriftReport / AircraftDrift / FieldDrift records.

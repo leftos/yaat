@@ -1,13 +1,14 @@
 using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Simulation;
+using Yaat.Sim.Simulation.Actions;
 
 namespace Yaat.Sim.Commands;
 
 /// <summary>
-/// Pure helpers shared between the server's live track-command pipeline and Sim's
-/// in-engine replay applier. AS-prefix extraction, scenario-first TCP→Owner
-/// resolution with optional ARTCC-config fallback, owner→TCP lookup. No I/O,
-/// no broadcast, no per-connection state.
+/// The one TCP→owner chain and the one identity resolver, shared by the live server, server-side reconstruction
+/// and the in-engine replay applier. AS-prefix extraction, scenario-first TCP→Owner resolution with the ARTCC-config
+/// fallback chain read from <see cref="SimScenarioState.ArtccConfig"/>, owner→TCP lookup, and connection→identity
+/// resolution over a <see cref="PositionSelections"/>. No I/O, no broadcast, no state of its own.
 /// </summary>
 public static class TrackResolver
 {
@@ -38,13 +39,14 @@ public static class TrackResolver
     }
 
     /// <summary>
-    /// Resolves a TCP code (e.g. "3Y") to a TrackOwner. Checks the scenario's student
-    /// TCP first (CRC registers as the student position; multiple positions can share
-    /// a TCP, e.g. OAK_TWR and OAK_GND both use 3O), then falls through to ATC positions
-    /// in the scenario. When <paramref name="artccConfig"/> is supplied, falls back to
-    /// ARTCC-wide TCP/ERAM resolution.
+    /// Resolves a TCP code (e.g. "3Y") to a TrackOwner. Checks the scenario's student TCP first (CRC registers as
+    /// the student position; multiple positions can share a TCP, e.g. OAK_TWR and OAK_GND both use 3O), then the
+    /// scenario's ATC positions, then — when the scenario carries an ARTCC config — the student facility's TCP
+    /// table, ERAM codes (<c>C44</c>), STARS interfacility handoff codes entered from the student facility
+    /// (<c>`31H</c>), and finally ERAM→STARS prefixed codes (<c>Q2B</c>), which name their receiving facility and so
+    /// resolve without a student facility.
     /// </summary>
-    public static TrackOwner? ResolveTcpToOwner(SimScenarioState scenario, string tcpCode, ArtccConfigRoot? artccConfig = null)
+    public static TrackOwner? ResolveTcpToOwner(SimScenarioState scenario, string tcpCode)
     {
         if (
             scenario.StudentPosition is not null
@@ -63,6 +65,7 @@ public static class TrackResolver
             }
         }
 
+        var artccConfig = scenario.ArtccConfig;
         if (artccConfig is null)
         {
             return null;
@@ -71,24 +74,24 @@ public static class TrackResolver
         var facilityId = scenario.StudentPosition?.FacilityId;
         if (!string.IsNullOrEmpty(facilityId))
         {
-            var resolved = artccConfig.ResolveTcpCode(facilityId, tcpCode) ?? artccConfig.ResolveEramCode(tcpCode);
+            var resolved =
+                artccConfig.ResolveTcpCode(facilityId, tcpCode)
+                ?? artccConfig.ResolveEramCode(tcpCode)
+                ?? artccConfig.ResolveStarsHandoffCode(facilityId, tcpCode);
             if (resolved is not null)
             {
                 return resolved;
             }
         }
 
-        // ERAM→STARS prefixed handoff codes (e.g. "Q2B" = NCT Boulder) carry the facility prefix, so they
-        // self-identify the receiving facility and resolve even without a student facility.
         return artccConfig.ResolveEramToStarsHandoffCode(tcpCode);
     }
 
     /// <summary>
-    /// Resolves a TCP code to a <see cref="Tcp"/> by searching the scenario's ATC
-    /// positions, then the ARTCC-wide TCP table when <paramref name="artccConfig"/>
-    /// is supplied.
+    /// Resolves a TCP code to a <see cref="Tcp"/> by searching the scenario's ATC positions, then the student
+    /// facility's TCP table in the scenario's ARTCC config.
     /// </summary>
-    public static Tcp? FindTcpByCode(SimScenarioState scenario, string tcpCode, ArtccConfigRoot? artccConfig = null)
+    public static Tcp? FindTcpByCode(SimScenarioState scenario, string tcpCode)
     {
         foreach (var atc in scenario.AtcPositions)
         {
@@ -98,6 +101,7 @@ public static class TrackResolver
             }
         }
 
+        var artccConfig = scenario.ArtccConfig;
         if (artccConfig is null)
         {
             return null;
@@ -132,5 +136,35 @@ public static class TrackResolver
         }
 
         return null;
+    }
+
+    /// <summary>
+    /// The identity a command from <paramref name="connectionId"/> acts as: the AS override when given; else, for an
+    /// AI-controller connection, the position its connection id names (resolved from the ARTCC config, so it needs
+    /// no student facility and no AS prefix); else the position the connection selected earlier; else the student.
+    ///
+    /// The AI branch is checked before the selected-position map on purpose. An AI position works the position its
+    /// connection id names and cannot select another, while the map is shared with replay and keyed only by
+    /// connection id — so a recorded active-position selection carrying an AI connection id would otherwise
+    /// displace the live AI's identity.
+    /// </summary>
+    public static TrackOwner? ResolveIdentity(SimScenarioState scenario, PositionSelections selections, string connectionId, string? asOverrideTcp)
+    {
+        if (asOverrideTcp is not null)
+        {
+            return ResolveTcpToOwner(scenario, asOverrideTcp);
+        }
+
+        if (AiConnectionId.TryParse(connectionId, out var positionId) && scenario.ArtccConfig?.ResolvePosition(positionId) is { } aiPosition)
+        {
+            return aiPosition;
+        }
+
+        if (selections.TryGet(connectionId, out var selected))
+        {
+            return selected;
+        }
+
+        return scenario.StudentPosition;
     }
 }

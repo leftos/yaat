@@ -46,8 +46,8 @@ CRC + YAAT lobbies.
   "must be in a room."
 - `RoomMember(Cid, Initials, ArtccId, Kind)` (`TrainingRoom.cs:177`) — no rating/mentor/privilege
   field; creator stored but never checked. No owner concept.
-- RPO identity = `AS <tcp>` → `ActivePositionByConnection` (`TrackCommandHandler.cs:96`). No
-  structural primary-vs-RPO distinction.
+- RPO identity = `AS <tcp>` → `TrainingRoom.PositionSelections` (`SimulationEngine.SelectPosition`, resolved
+  by `TrackResolver.ResolveIdentity`). No structural primary-vs-RPO distinction.
 - No desktop "pull": only `PullCrcClient` (`TrainingHub.cs:1328`) exists; desktop clients self-join
   after a `RoomAvailableForCid` hint (`TrainingHub.cs:296`, client `MainViewModel.Rooms.cs:611`).
 - Client holds `VatsimIdentity{Cid,Name,Rating,Subdivision,IsMentor}` (`VatsimAuthClient.cs:15`) but

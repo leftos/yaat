@@ -177,7 +177,7 @@ public sealed partial class SimulationEngine
         var scenario = Scenario!;
         foreach (var command in commands)
         {
-            var result = TrackEngine.Dispatch(command, aircraft, identity: null, scenario, scenario.ArtccConfig);
+            var result = TrackEngine.Dispatch(command, aircraft, identity: null, scenario);
             if (result is { Success: false })
             {
                 aircraft.PendingWarnings.Add($"{aircraft.Callsign}: {result.Message}");
@@ -221,7 +221,7 @@ public sealed partial class SimulationEngine
 
                 foreach (var trackCommand in ResolveTrackCommandsForBlock(block, aircraft))
                 {
-                    var result = TrackEngine.Dispatch(trackCommand, aircraft, identity: null, scenario, scenario.ArtccConfig);
+                    var result = TrackEngine.Dispatch(trackCommand, aircraft, identity: null, scenario);
                     if (result is { Success: false })
                     {
                         // Abort the chain remainder — the follow-on blocks were premised on this

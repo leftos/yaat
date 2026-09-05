@@ -49,8 +49,8 @@ public class IssueReplayDivergenceFromT0Tests
             },
         };
 
-        var applier = new ReplayTrackApplier();
-        applier.Apply("AS 3Y ACCEPT", aircraft, connectionId: "", scenario);
+        var engine = new SimulationEngine(new TestAirportGroundData()) { Scenario = scenario };
+        ReplayTrackApplier.Apply(engine, "AS 3Y ACCEPT", aircraft, connectionId: "");
 
         Assert.NotNull(aircraft.Track.Owner);
         Assert.Equal("3", $"{aircraft.Track.Owner!.Subset}");
@@ -74,9 +74,9 @@ public class IssueReplayDivergenceFromT0Tests
             Cid = "913",
         };
 
-        var applier = new ReplayTrackApplier();
-        applier.Apply("AS 3Y", aircraft: null, connectionId: "conn-A", scenario);
-        applier.Apply("TRACK", aircraft, connectionId: "conn-A", scenario);
+        var engine = new SimulationEngine(new TestAirportGroundData()) { Scenario = scenario };
+        ReplayTrackApplier.Apply(engine, "AS 3Y", aircraft: null, connectionId: "conn-A");
+        ReplayTrackApplier.Apply(engine, "TRACK", aircraft, connectionId: "conn-A");
 
         Assert.NotNull(aircraft.Track.Owner);
         Assert.Equal(3, aircraft.Track.Owner!.Subset);

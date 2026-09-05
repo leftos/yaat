@@ -225,7 +225,8 @@ Implements `ITrainingBroadcast` (`Simulation/ITrainingBroadcast.cs`). Two parall
 Each room owns its own `ActiveSim` / `ActiveScenario` / `World` (`:22`-`28`, falling back to a bare world when no
 scenario is loaded), its `RoomEngine`, and a bag of per-room state: `ChangeTracker`, `TickChanges`, `StripState`,
 `TdlsState`, `AsdexState`, `EramState`, `LineNumbers`, `AircraftAssignments` (callsign → connectionId), and
-`ActivePositionByConnection` (`:57`-`69`). **Callsigns are per-room, not global** — `RoomEngine.FindAircraft` searches
+`PositionSelections` (the Yaat.Sim map of connectionId → the position a bare `AS` selected; the room owns it for
+its lifetime and every engine it creates reads it — see the yaat repo's `command-pipeline.md` § one identity). **Callsigns are per-room, not global** — `RoomEngine.FindAircraft` searches
 only that room's `World.GetSnapshot()` (`:786`-`789`). There is no global aircraft lookup; reaching for one is a category
 error. `UpdatePausedSince` (`:97`) stamps the continuous-pause clock that the retirement sweep reads; `IsAbandoned`
 (`:76`) is true when no clients are connected.

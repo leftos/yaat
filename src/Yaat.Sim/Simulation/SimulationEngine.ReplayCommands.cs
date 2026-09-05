@@ -54,7 +54,7 @@ public sealed partial class SimulationEngine
             && (TrackEngine.IsTrackCommand(firstParse.Value) || asPrefixCheck.AsOverrideTcp is not null)
         )
         {
-            _replayTrackApplier.Apply(cmd.Command, FindAircraft(cmd.Callsign), cmd.ConnectionId, Scenario);
+            ReplayTrackApplier.Apply(this, cmd.Command, FindAircraft(cmd.Callsign), cmd.ConnectionId);
             return;
         }
 

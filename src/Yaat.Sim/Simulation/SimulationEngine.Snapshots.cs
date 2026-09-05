@@ -294,6 +294,9 @@ public sealed partial class SimulationEngine
         SoloTrainingEvaluator.Reset();
         BeaconCodePool.Clear();
 
+        // Replace, never merge: a pre-feature snapshot (or one with no Server section) restores an empty map, which
+        // is what the engine held before the selections were snapshotted.
+        PositionSelections.Restore(snapshot.Server?.PositionSelections);
         if (snapshot.Server is not null)
         {
             RestoreServerSnapshot(snapshot.Server);
@@ -358,6 +361,7 @@ public sealed partial class SimulationEngine
                 NextCandidate = BeaconCodePool.NextCandidate,
                 BankCursors = new Dictionary<int, uint>(BeaconCodePool.BankCursors),
             },
+            PositionSelections = PositionSelections.Snapshot().ToDictionary(kv => kv.Key, kv => kv.Value.ToSnapshot(), StringComparer.Ordinal),
         };
     }
 

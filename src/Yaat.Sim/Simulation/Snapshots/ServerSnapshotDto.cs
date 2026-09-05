@@ -1,8 +1,8 @@
 namespace Yaat.Sim.Simulation.Snapshots;
 
 /// <summary>
-/// Server-side state not owned by SimulationEngine but needed for full restore.
-/// Consolidation overrides, conflict alerts, and beacon code pool.
+/// Engine-level state outside the aircraft list and the scenario: consolidation overrides, conflict alerts, the
+/// beacon code pool, and the per-connection position selections.
 /// </summary>
 public sealed class ServerSnapshotDto
 {
@@ -10,6 +10,9 @@ public sealed class ServerSnapshotDto
     public List<ActiveConflictDto>? ActiveConflicts { get; init; }
     public List<EramActiveConflictDto>? EramConflicts { get; init; }
     public BeaconCodePoolDto? BeaconCodePool { get; init; }
+
+    /// <summary>Connection id → the position it selected with a bare <c>AS</c>. Absent in pre-feature snapshots (restores empty).</summary>
+    public Dictionary<string, TrackOwnerDto>? PositionSelections { get; init; }
 }
 
 public sealed class ConsolidationOverrideDto

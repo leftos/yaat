@@ -539,6 +539,10 @@ public class SnapshotRoundTripTests
                 {
                     AssignedCodes = new Dictionary<uint, string> { [1234] = "AAL100", [5670] = "UAL200" },
                 },
+                PositionSelections = new Dictionary<string, TrackOwnerDto>
+                {
+                    ["conn-1"] = TrackOwner.CreateStars("SFO_DEP", "NCT", 4, "U").ToSnapshot(),
+                },
             },
         };
 
@@ -554,6 +558,8 @@ public class SnapshotRoundTripTests
         Assert.Single(deserialized.Server.ActiveConflicts!);
         Assert.Equal("AAL100", deserialized.Server.ActiveConflicts![0].CallsignA);
         Assert.Equal(2, deserialized.Server.BeaconCodePool!.AssignedCodes!.Count);
+        Assert.Equal("SFO_DEP", deserialized.Server.PositionSelections!["conn-1"].Callsign);
+        Assert.Equal(4, deserialized.Server.PositionSelections["conn-1"].Subset);
     }
 
     [Fact]

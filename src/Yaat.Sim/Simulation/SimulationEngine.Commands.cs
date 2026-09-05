@@ -72,8 +72,7 @@ public sealed partial class SimulationEngine
             && (TrackEngine.IsTrackCommand(firstParse.Value) || asPrefixCheck.AsOverrideTcp is not null);
         if (isTrack)
         {
-            result =
-                _replayTrackApplier.Apply(command, aircraft, connectionId, scenario) ?? new CommandResult(false, $"'{command}' dispatched nothing");
+            result = ReplayTrackApplier.Apply(this, command, aircraft, connectionId) ?? new CommandResult(false, $"'{command}' dispatched nothing");
         }
         else
         {

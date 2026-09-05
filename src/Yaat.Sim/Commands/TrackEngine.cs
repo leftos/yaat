@@ -139,17 +139,11 @@ public static class TrackEngine
     /// rather than the acting identity (mirrors <c>HO [position]</c>). When <paramref name="tcpCode"/>
     /// is null this is a plain <c>TRACK</c> that claims the track for <paramref name="fallbackIdentity"/>.
     /// </summary>
-    public static CommandResult HandleTrack(
-        AircraftState ac,
-        string? tcpCode,
-        TrackOwner? fallbackIdentity,
-        SimScenarioState scenario,
-        ArtccConfigRoot? artccConfig
-    )
+    public static CommandResult HandleTrack(AircraftState ac, string? tcpCode, TrackOwner? fallbackIdentity, SimScenarioState scenario)
     {
         if (tcpCode is not null)
         {
-            var owner = TrackResolver.ResolveTcpToOwner(scenario, tcpCode, artccConfig);
+            var owner = TrackResolver.ResolveTcpToOwner(scenario, tcpCode);
             return owner is null ? new CommandResult(false, $"Unknown position: {tcpCode}") : HandleTrack(ac, owner);
         }
 
@@ -611,7 +605,7 @@ public static class TrackEngine
     /// PositionRegistry attendance map). Resolves the target TCP via the scenario,
     /// then writes <c>Track.HandoffPeer</c>.
     /// </summary>
-    public static CommandResult ApplyHandoff(AircraftState ac, SimScenarioState scenario, string? tcpCode, ArtccConfigRoot? artccConfig = null)
+    public static CommandResult ApplyHandoff(AircraftState ac, SimScenarioState scenario, string? tcpCode)
     {
         if (ac.Track.Owner is null)
         {
@@ -629,7 +623,7 @@ public static class TrackEngine
         }
         else
         {
-            target = TrackResolver.ResolveTcpToOwner(scenario, tcpCode, artccConfig);
+            target = TrackResolver.ResolveTcpToOwner(scenario, tcpCode);
             if (target is null)
             {
                 return new CommandResult(false, $"Unknown position: {tcpCode}");
@@ -645,9 +639,9 @@ public static class TrackEngine
     /// Mirrors yaat-server's <c>TrackCommandHandler.HandleForceHandoff</c>: transfer
     /// ownership to the target TCP without the standard ownership check.
     /// </summary>
-    public static CommandResult ApplyForceHandoff(AircraftState ac, SimScenarioState scenario, string tcpCode, ArtccConfigRoot? artccConfig = null)
+    public static CommandResult ApplyForceHandoff(AircraftState ac, SimScenarioState scenario, string tcpCode)
     {
-        var target = TrackResolver.ResolveTcpToOwner(scenario, tcpCode, artccConfig);
+        var target = TrackResolver.ResolveTcpToOwner(scenario, tcpCode);
         if (target is null)
         {
             return new CommandResult(false, $"Unknown position: {tcpCode}");
@@ -668,14 +662,14 @@ public static class TrackEngine
     /// resolves the target and sender TCPs (sender = current owner), then delegates to
     /// <see cref="HandlePointOut(AircraftState, Tcp, Tcp)"/>.
     /// </summary>
-    public static CommandResult ApplyPointOut(AircraftState ac, SimScenarioState scenario, string tcpCode, ArtccConfigRoot? artccConfig = null)
+    public static CommandResult ApplyPointOut(AircraftState ac, SimScenarioState scenario, string tcpCode)
     {
         if (ac.Track.Owner is null)
         {
             return new CommandResult(false, $"{ac.Callsign} is not tracked");
         }
 
-        var targetTcp = TrackResolver.FindTcpByCode(scenario, tcpCode, artccConfig);
+        var targetTcp = TrackResolver.FindTcpByCode(scenario, tcpCode);
         if (targetTcp is null)
         {
             return new CommandResult(false, $"Unknown position: {tcpCode}");
@@ -717,7 +711,7 @@ public static class TrackEngine
     }
 
     /// <summary>Resolves the pointout recipient to a TrackOwner, then converts (see above).</summary>
-    public static CommandResult ApplyConvertPointout(AircraftState ac, SimScenarioState scenario, ArtccConfigRoot? artccConfig = null)
+    public static CommandResult ApplyConvertPointout(AircraftState ac, SimScenarioState scenario)
     {
         if (ac.Track.Pointout is null || ac.Track.Pointout.IsRejected)
         {
@@ -725,7 +719,7 @@ public static class TrackEngine
         }
 
         var recipient = ac.Track.Pointout.Recipient;
-        var newOwner = TrackResolver.ResolveTcpToOwner(scenario, $"{recipient.Subset}{recipient.SectorId}", artccConfig);
+        var newOwner = TrackResolver.ResolveTcpToOwner(scenario, $"{recipient.Subset}{recipient.SectorId}");
         if (newOwner is null)
         {
             return new CommandResult(false, $"Cannot resolve pointout recipient {recipient.Subset}{recipient.SectorId}");
@@ -749,17 +743,12 @@ public static class TrackEngine
     }
 
     /// <summary>Resolves the TCP codes, then forces quicklook (see above).</summary>
-    public static CommandResult ApplyForceQuicklook(
-        AircraftState ac,
-        SimScenarioState scenario,
-        List<string> tcpCodes,
-        ArtccConfigRoot? artccConfig = null
-    )
+    public static CommandResult ApplyForceQuicklook(AircraftState ac, SimScenarioState scenario, List<string> tcpCodes)
     {
         var tcps = new List<Tcp>();
         foreach (var code in tcpCodes)
         {
-            var tcp = TrackResolver.FindTcpByCode(scenario, code, artccConfig);
+            var tcp = TrackResolver.FindTcpByCode(scenario, code);
             if (tcp is null)
             {
                 return new CommandResult(false, $"Unknown position: {code}");
@@ -780,14 +769,9 @@ public static class TrackEngine
     }
 
     /// <summary>Resolves the TCP code, then clears its forced quicklook (see above).</summary>
-    public static CommandResult ApplyForceQuicklookClear(
-        AircraftState ac,
-        SimScenarioState scenario,
-        string tcpCode,
-        ArtccConfigRoot? artccConfig = null
-    )
+    public static CommandResult ApplyForceQuicklookClear(AircraftState ac, SimScenarioState scenario, string tcpCode)
     {
-        var tcp = TrackResolver.FindTcpByCode(scenario, tcpCode, artccConfig);
+        var tcp = TrackResolver.FindTcpByCode(scenario, tcpCode);
         return tcp is null ? new CommandResult(false, $"Unknown position: {tcpCode}") : HandleForceQuicklookClear(ac, tcp);
     }
 
@@ -802,38 +786,32 @@ public static class TrackEngine
     /// Returns <see langword="null"/> when the parsed command is not a recognised
     /// pure-Sim track command, so callers can fall through to their own logic.
     /// </summary>
-    public static CommandResult? Dispatch(
-        ParsedCommand parsed,
-        AircraftState ac,
-        TrackOwner? identity,
-        SimScenarioState scenario,
-        ArtccConfigRoot? artccConfig = null
-    )
+    public static CommandResult? Dispatch(ParsedCommand parsed, AircraftState ac, TrackOwner? identity, SimScenarioState scenario)
     {
         if (identity is null && RequiresIdentity(parsed))
         {
             return new CommandResult(false, "No active position — use AS to set one");
         }
 
-        var starsConfig = artccConfig?.GetStarsConfigForFacility(scenario.StudentPosition?.FacilityId ?? "");
+        var starsConfig = scenario.ArtccConfig?.GetStarsConfigForFacility(scenario.StudentPosition?.FacilityId ?? "");
         int maxScratchpad = ScratchpadRuleEngine.MaxScratchpadLength(starsConfig);
 
         return parsed switch
         {
-            TrackAircraftCommand t => HandleTrack(ac, t.TcpCode, identity, scenario, artccConfig),
+            TrackAircraftCommand t => HandleTrack(ac, t.TcpCode, identity, scenario),
             DropTrackCommand => HandleDrop(ac),
-            InitiateHandoffCommand ho => ApplyHandoff(ac, scenario, ho.TcpCode, artccConfig),
-            ForceHandoffCommand hof => ApplyForceHandoff(ac, scenario, hof.TcpCode, artccConfig),
+            InitiateHandoffCommand ho => ApplyHandoff(ac, scenario, ho.TcpCode),
+            ForceHandoffCommand hof => ApplyForceHandoff(ac, scenario, hof.TcpCode),
             AcceptHandoffCommand => HandleAccept(ac, scenario),
             CancelHandoffCommand => HandleCancel(ac),
-            PointOutCommand po when po.TcpCode is not null => ApplyPointOut(ac, scenario, po.TcpCode, artccConfig),
+            PointOutCommand po when po.TcpCode is not null => ApplyPointOut(ac, scenario, po.TcpCode),
             PointOutCommand => HandlePointOutNoArgs(ac, identity!),
             AcknowledgeCommand => HandleAcknowledge(ac),
             RejectPointoutCommand => HandleRejectPointout(ac),
             RetractPointoutCommand => HandleRetractPointout(ac),
-            ConvertPointoutCommand => ApplyConvertPointout(ac, scenario, artccConfig),
-            ForceQuicklookCommand fql => ApplyForceQuicklook(ac, scenario, fql.TcpCodes, artccConfig),
-            ForceQuicklookClearCommand fqlc => ApplyForceQuicklookClear(ac, scenario, fqlc.TcpCode, artccConfig),
+            ConvertPointoutCommand => ApplyConvertPointout(ac, scenario),
+            ForceQuicklookCommand fql => ApplyForceQuicklook(ac, scenario, fql.TcpCodes),
+            ForceQuicklookClearCommand fqlc => ApplyForceQuicklookClear(ac, scenario, fqlc.TcpCode),
             PilotReportedAltitudeCommand pra => HandlePilotReportedAltitude(ac, pra.AltitudeHundreds),
             LeaderDirectionCommand ldr => HandleLeaderDirection(ac, ldr.Direction),
             JRingCommand jr => HandleJRing(ac, jr.Enable, jr.Size),

@@ -109,9 +109,8 @@ public static class RecordedCommandClassifier
 
     /// <summary>
     /// Classifies a recorded command body (caller has already extracted any
-    /// <c>AS {tcp}</c> prefix). AS-prefix dispatch stays in each repo's
-    /// ReplayCommand because Sim and server resolve identity differently
-    /// (<c>ReplayTrackApplier</c> vs <c>TrackHandler.ResolveEffectiveIdentity</c>).
+    /// <c>AS {tcp}</c> prefix with <c>TrackResolver.ExtractAsPrefix</c>; the prefix resolves to the acting identity
+    /// through <c>TrackResolver.ResolveIdentity</c> on every run kind).
     /// A body the single-command parser rejects is a multi-verb chain: <see cref="RecordedCommandKind.Compound"/>
     /// against the addressed aircraft, with <c>Parsed</c> null.
     /// </summary>

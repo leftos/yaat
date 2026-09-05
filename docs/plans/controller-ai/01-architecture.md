@@ -228,8 +228,8 @@ cadence (never sub-tick).
   `Scenario.ControllerAi`, playback mode and the replay flag, so an AI-driven recording replays its recorded AI
   commands instead of re-running the brains.
 - `AiCommandRequest` carries no `AS` prefix. The AI connection id (`AiConnectionId.Format(positionId)`) names the
-  acting position, and both replay resolvers (`ReplayTrackApplier.ResolveEffectiveIdentity`,
-  `TrackCommandHandler.ResolveEffectiveIdentity`) resolve it from the ARTCC config, so no student facility is needed.
+  acting position, and the one identity resolver (`TrackResolver.ResolveIdentity`, used by live, replay and
+  reconstruction alike) resolves it from the ARTCC config, so no student facility is needed.
 - Engine-side sink coverage (`SimulationEngine.DispatchAiCommand`): aviation compounds through the live pipeline under
   `DispatchOrigin.ControllerAi` (with the reaction-delay deferral baked into the recorded command), track verbs
   through `TrackEngine`; every other recorded-command kind (coordination, strips, consolidation, spawn control, …)

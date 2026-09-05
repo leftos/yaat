@@ -14,6 +14,7 @@ using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Pilot;
 using Yaat.Sim.Scenarios;
+using Yaat.Sim.Simulation.Actions;
 using Yaat.Sim.Simulation.Replay;
 using Yaat.Sim.Simulation.Snapshots;
 using Yaat.Sim.Simulation.Spine;
@@ -74,19 +75,44 @@ public sealed partial class SimulationEngine
     private readonly ILogger _logger;
     private readonly List<TerminalEntry> _terminalEntries = [];
 
-    // Track applier: routes track commands and AS-prefixed compounds through the shared Sim helpers
-    // (TrackEngine.Dispatch + TrackResolver) so in-engine dispatch reaches the same state captured in
-    // recorded snapshots. Two callers share it and its per-connection active-position map: ReplayCommand
-    // (replay) and DispatchAiCommand (live). Reset at the start of each fresh Replay/ReplayRange call
-    // (startSeconds == 0) — never on scenario load, which is safe only because every host builds a fresh
-    // engine per load.
-    private readonly ReplayTrackApplier _replayTrackApplier = new();
+    /// <summary>
+    /// The per-connection position selections (<c>AS {tcp}</c>) every identity resolution on this engine reads.
+    /// Settable so a host that outlives its engines — the server room — hands each engine the same instance;
+    /// a Sim-only host keeps this default. Cleared at the start of a fresh replay (<c>startSeconds == 0</c>),
+    /// captured in the snapshot's server section and replaced on restore.
+    /// </summary>
+    public PositionSelections PositionSelections { get; set; } = new();
 
-    /// <summary>Resets the track applier's per-connection active-position map, at the start of a fresh replay.</summary>
-    internal void ResetReplayTrackApplier()
+    /// <summary>
+    /// A bare <c>AS {tcp}</c>: the connection acts as the position <paramref name="tcpCode"/> resolves to until it
+    /// selects another. The one write body for live, replay and reconstruction.
+    /// </summary>
+    public CommandResult SelectPosition(string connectionId, string tcpCode)
     {
-        _replayTrackApplier.Reset();
+        var scenario = Scenario;
+        if (scenario is null)
+        {
+            return new CommandResult(false, "No scenario loaded");
+        }
+
+        var owner = TrackResolver.ResolveTcpToOwner(scenario, tcpCode);
+        if (owner is null)
+        {
+            return new CommandResult(false, $"Unknown position: {tcpCode}");
+        }
+
+        PositionSelections.Select(connectionId, owner);
+        return new CommandResult(true, $"Now acting as {owner.Callsign} ({tcpCode})");
     }
+
+    /// <summary>The identity a command from <paramref name="connectionId"/> acts as; see <see cref="TrackResolver.ResolveIdentity"/>.</summary>
+    public TrackOwner? ResolveIdentity(string connectionId, string? asOverrideTcp) =>
+        TrackResolver.ResolveIdentity(
+            Scenario ?? throw new InvalidOperationException("No scenario loaded"),
+            PositionSelections,
+            connectionId,
+            asOverrideTcp
+        );
 
     /// <summary>The engine's logger, so collaborators it owns log under the same category.</summary>
     internal ILogger Logger => _logger;

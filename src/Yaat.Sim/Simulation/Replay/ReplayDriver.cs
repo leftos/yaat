@@ -102,7 +102,7 @@ internal sealed class ReplayDriver(SimulationEngine engine)
     {
         if (startSeconds == 0)
         {
-            _engine.ResetReplayTrackApplier();
+            _engine.PositionSelections.Clear();
         }
         actionApplier ??= _engine.ApplyRecordedAction;
 
