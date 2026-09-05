@@ -10,7 +10,8 @@ namespace Yaat.Sim.Tests.ControllerAi;
 /// <summary>
 /// <see cref="EngineAiCommandSink"/> / <see cref="SimulationEngine.DispatchAiCommand"/>: aviation verbs run under the
 /// AI origin and are recorded with the AI connection id, track verbs run under the AI position's identity, server-only
-/// verbs are refused, and a recorded AI command replays to the same state.
+/// verbs are refused (and recorded as rejected, like every routed command), and a recorded AI command replays to the
+/// same state.
 /// </summary>
 public class EngineAiCommandSinkTests
 {
@@ -50,7 +51,7 @@ public class EngineAiCommandSinkTests
     }
 
     [Fact]
-    public void RejectedVerb_ReportsTheReason_AndRecordsNothing()
+    public void RejectedVerb_ReportsTheReason_AndIsRecordedAsRejected()
     {
         if (_zoa is null)
         {
@@ -66,7 +67,10 @@ public class EngineAiCommandSinkTests
         var outcome = Assert.Single(sink.DrainOutcomes());
         Assert.False(outcome.Success);
         Assert.False(string.IsNullOrWhiteSpace(outcome.Reason));
-        Assert.Empty(engine.Scenario!.ActionLog);
+        // Every routed command is recorded, accepted or not, so a replay can compare its verdict with live's.
+        var recorded = Assert.IsType<RecordedCommand>(Assert.Single(engine.Scenario!.ActionLog));
+        Assert.Equal("CTO", recorded.Command);
+        Assert.False(recorded.Accepted);
     }
 
     [Fact]
@@ -84,7 +88,8 @@ public class EngineAiCommandSinkTests
 
         Assert.False(result.Success);
         Assert.Contains("live server", result.Message);
-        Assert.Empty(engine.Scenario!.ActionLog);
+        var recorded = Assert.IsType<RecordedCommand>(Assert.Single(engine.Scenario!.ActionLog));
+        Assert.False(recorded.Accepted);
     }
 
     [Fact]
@@ -108,7 +113,7 @@ public class EngineAiCommandSinkTests
         var recorded = Assert.IsType<RecordedCommand>(Assert.Single(engine.Scenario!.ActionLog));
 
         var replayEngine = AiTestFixture.Load(AiTestFixture.ParkedAtOak, _zoa, 7, []);
-        replayEngine.ReplayCommand(recorded);
+        replayEngine.Actions.Apply(recorded);
         var replayedOwner = replayEngine.FindAircraft(AiTestFixture.Callsign)!.Track.Owner;
         Assert.NotNull(replayedOwner);
         Assert.True(replayedOwner.MatchesPosition(approach.Identity));

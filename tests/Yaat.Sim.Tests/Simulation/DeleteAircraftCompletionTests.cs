@@ -72,14 +72,14 @@ public class DeleteAircraftCompletionTests
     }
 
     [Fact]
-    public void ReplayCommand_Delete_StampsDropped()
+    public void ReplayedDelete_StampsDropped()
     {
         var engine = Engine();
         engine.Scenario!.ElapsedSeconds = 600;
         var ac = Aircraft("N1");
         engine.World.AddAircraft(ac);
 
-        engine.ReplayCommand(new RecordedCommand(600, "N1", "DEL", "XX", "conn"));
+        engine.Actions.Apply(new RecordedCommand(600, "N1", "DEL", "XX", "conn"));
 
         Assert.Null(engine.World.FindAircraft("N1"));
         var record = Assert.Single(engine.World.GetCompletedAircraft());

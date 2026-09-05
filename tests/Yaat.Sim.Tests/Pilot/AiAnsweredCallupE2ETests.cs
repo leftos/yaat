@@ -193,7 +193,7 @@ public class AiAnsweredCallupE2ETests
         // Replay of the same AI command from its recorded connection id lands in the same state.
         var (replayEngine, _) = LoadWithAiGround(solo: false, student: null);
         Tick(replayEngine, 7);
-        replayEngine.ReplayCommand(new RecordedCommand(7, "N152SP", "TAXIAUTO 28R", "AI", AiConnectionId.Format("pos")));
+        replayEngine.Actions.Apply(new RecordedCommand(7, "N152SP", "TAXIAUTO 28R", "AI", AiConnectionId.Format("pos")));
         var replayed = replayEngine.World.GetSnapshot()[0];
         Assert.False(replayed.PendingPilotRequest!.IsOpen);
         Assert.False(replayed.HasMadeInitialContact);

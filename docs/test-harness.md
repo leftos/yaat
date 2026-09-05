@@ -517,8 +517,8 @@ verify the cross-repo build with `pwsh tools/test-all.ps1`.
   re-serialize coordinates at truncated precision (geometry identical to sub-meter, but every feature differs textually and fillet/spot nodes
   renumber + shift). A sub-meter shift can flip a marginal route so `SegmentExpander` rejects it ("Cannot reach destination from end of taxi
   path"), the replayed command is rejected, and the aircraft "never taxis" (stuck in `HoldingAfterPushbackPhase`, which only exits on an
-  explicit `TAXI`). Because `ReplayCommand` swallows the rejection, the symptom gets misattributed to whatever commit landed at the same
+  explicit `TAXI`). Because a replayed rejection is only logged, the symptom gets misattributed to whatever commit landed at the same
   rebase. Confirm with a **layout A/B** (swap `git show <refresh-commit>^:tests/.../sfo.geojson` back in and re-run). Pin the fixture to a
   committed full-precision snapshot via `Helpers/PinnedSfoGroundData.cs`, and build gate-coverage routes from taxiway **names**
-  (`FindIntersectionNode`, `TaxiPathfinder.FindRoute`), not hardcoded node IDs. `SimulationEngine.ReplayCommand` logs rejected replayed
-  commands at Debug (category `SimulationEngine`).
+  (`FindIntersectionNode`, `TaxiPathfinder.FindRoute`), not hardcoded node IDs. The `ActionRouter` logs a rejected replayed command at
+  Debug (category `ActionRouter`) and, when the record says live accepted it, a `replay-fidelity` warning.

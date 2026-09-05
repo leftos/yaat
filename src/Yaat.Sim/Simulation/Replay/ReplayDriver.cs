@@ -45,7 +45,7 @@ internal sealed class ReplayDriver(SimulationEngine engine)
     {
         var cursors = new ReplayCursors(actions);
         cursors.SeekTo(seconds);
-        _host = new ReplayHost(_engine, cursors, _engine.ApplyRecordedAction);
+        _host = new ReplayHost(_engine, cursors, applier: null);
     }
 
     public void FromStartTo(int targetSeconds, List<RecordedAction> actions, Action<RecordedAction>? actionApplier)
@@ -104,7 +104,6 @@ internal sealed class ReplayDriver(SimulationEngine engine)
         {
             _engine.PositionSelections.Clear();
         }
-        actionApplier ??= _engine.ApplyRecordedAction;
 
         using (_engine.EnterReplay())
         {

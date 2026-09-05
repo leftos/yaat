@@ -217,11 +217,11 @@ Five request kinds: `Taxi`, `Takeoff`, `Landing`, `Approach`, `AirspaceEntry`. E
 (`Commands/DispatchOrigin.cs`; hosts derive it from the connection id — `AiConnectionId.Format(positionId)` =
 `"AI:{positionId}"` — so recorded AI commands replay with the same origin). The pilot-voice side (request resolution,
 frequency-gate release, read-back, "unable") runs whenever `PilotContacts.AnyAnswering`; two-way-comms registration
-(`RegisterControllerContact`) and solo-evaluator scoring run only for a `Human` origin. Both replay mirrors
-(`SimulationEngine.ReplayCommand`, `RecordingManager.ReplayCommand`) apply the same split and pass
-`IsScenarioScripted` for an AI origin.
+(`RegisterControllerContact`) and solo-evaluator scoring run only for a `Human` origin. The `ActionRouter`'s aviation arm
+derives the origin from the connection id on every run kind — fresh or recorded — and passes `IsScenarioScripted` for an AI
+origin; the server's `RecordingManager.ReplayCommand` (reconstruction) applies the same split until it moves onto the router.
 
-Everything that happens *after* a user-issued command dispatches lives in `SimulationEngine.ApplyPostDispatch(aircraft, compound, result)`: two-way-comms registration, `SoloTrainingEvaluator.RecordControllerCommand`, `PilotRequestTracker.ApplyControllerResponse`, `SimulationWorld.AcknowledgeControllerResponse`, `QueueSoloUnableIfNeeded` on failure, and the pilot read-back.
+Everything that happens *after* a user-issued command dispatches lives in `SimulationEngine.ApplyPostDispatch(aircraft, compound, result, origin)`: two-way-comms registration, `SoloTrainingEvaluator.RecordControllerCommand`, `PilotRequestTracker.ApplyControllerResponse`, `SimulationWorld.AcknowledgeControllerResponse`, `QueueSoloUnableIfNeeded` on failure, and the pilot read-back. The router's aviation arm calls it after every dispatch it makes, so a replayed command produces the same read-back and frequency-gate state the live one did (the host decides whether to broadcast the transmission).
 
 **Both hosts must call it** — `SimulationEngine.SendCommand` for the standalone engine, `RoomEngine.HandleStandardCmd` for the live server. The server used to carry its own partial copy of this block; the pending-request resolution and the frequency-gate release were missing from it, so in the real app no pilot request was ever satisfied and departed aircraft re-announced "ready for departure" every 120 s forever (issue #307). A Yaat.Sim test driving `SendCommand` cannot catch that, and neither can a recording replay — `yaat-server/tests/Yaat.Server.Tests/PilotRequestResponseServerParityTests.cs` drives the real `RoomEngine` path instead.
 

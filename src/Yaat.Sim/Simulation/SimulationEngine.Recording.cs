@@ -60,58 +60,8 @@ public sealed partial class SimulationEngine
     /// </summary>
     public static bool IsPreTickAction(RecordedAction action) => action is RecordedAircraftSpawn or RecordedLiveTrafficSample;
 
-    internal void ApplyRecordedAction(RecordedAction action)
-    {
-        switch (action)
-        {
-            case RecordedAircraftSpawn spawn:
-                ApplyRecordedAircraftSpawn(spawn);
-                break;
-            case RecordedLiveTrafficSample sample:
-                ApplyRecordedLiveTrafficSample(sample);
-                break;
-            case RecordedLiveTrafficRemoval removal:
-                ApplyRecordedLiveTrafficRemoval(removal);
-                break;
-            case RecordedCommand cmd:
-                ReplayCommand(cmd);
-                break;
-            case RecordedAmendFlightPlan amend:
-                AmendFlightPlan(amend.Callsign, amend.Amendment);
-                break;
-            case RecordedRequestNewBeaconCode recycle:
-                RequestNewBeaconCode(recycle.Callsign, recycle.AssignedByFacilityId, recycle.AssignedBySectorId);
-                break;
-            case RecordedWeatherChange weather:
-                if (weather.WeatherJson is not null)
-                {
-                    ApplyWeatherJson(weather.WeatherJson);
-                    if (Scenario is not null)
-                    {
-                        Scenario.MetarReissuanceEnabled = weather.ReconstructMetars;
-                    }
-                }
-                else
-                {
-                    World.Weather = null;
-                    if (Scenario is not null)
-                    {
-                        Scenario.WeatherTimeline = null;
-                        Scenario.WeatherSourceJson = null;
-                        Scenario.MetarReissuanceEnabled = false;
-                    }
-                }
-                break;
-            case RecordedSettingChange setting:
-                ApplySettingChange(setting);
-                break;
-            case RecordedArrivalGeneratorsChange generators:
-                ApplyGeneratorsJson(generators.GeneratorsJson);
-                break;
-        }
-    }
-
-    private void ApplyRecordedAircraftSpawn(RecordedAircraftSpawn spawn)
+    /// <summary>Puts a recorded spawn's aircraft into the world as it was captured; the pre-tick half of the router's <c>ApplyRecorded</c>.</summary>
+    internal void ApplyRecordedAircraftSpawn(RecordedAircraftSpawn spawn)
     {
         AirportGroundLayout? groundLayout = null;
         if (spawn.Aircraft.Ground.LayoutAirportId is { } layoutAirportId)

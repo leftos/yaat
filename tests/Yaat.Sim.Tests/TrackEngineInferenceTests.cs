@@ -6,7 +6,7 @@ namespace Yaat.Sim.Tests;
 
 /// <summary>
 /// Bug "HO and ACCEPT should not require AS [TCP]" — Sim-side coverage of the inference path
-/// used during replay (<see cref="TrackEngine.Dispatch"/> via ReplayTrackApplier). The acting
+/// used during replay (<see cref="TrackEngine.Dispatch"/> via the ActionRouter's track arm). The acting
 /// position is inferred from the track itself: the current owner for HO/DROP/CANCEL, the handoff
 /// peer for ACCEPT. The issuer's resolved identity no longer has to match, and a null identity no
 /// longer blocks these commands.

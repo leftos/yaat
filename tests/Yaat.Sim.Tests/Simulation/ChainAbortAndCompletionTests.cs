@@ -299,7 +299,13 @@ public class ChainAbortAndCompletionTests
         Assert.DoesNotContain(ac.Queue.Blocks, b => !b.IsApplied && (b.Description ?? "").Contains("SQ", StringComparison.Ordinal));
     }
 
-    /// <summary>Track path: a triggered handoff that fails at TrackEngine dispatch discards its chain-mates.</summary>
+    /// <summary>
+    /// Track path: a triggered handoff that fails at TrackEngine dispatch discards its chain-mates. A typed compound
+    /// containing a track verb never reaches the dispatcher whole — the action router (like the live server) splits it
+    /// into units that dispatch independently, so the trailing <c>SQ</c> would apply at issue time. The one path that
+    /// hands a track verb its chain-mates is a scenario preset, which dispatches straight into <c>DispatchCompound</c>;
+    /// this test takes that path.
+    /// </summary>
     [Fact]
     public void TrackDispatchFailure_DiscardsRemainder()
     {
@@ -311,7 +317,16 @@ public class ChainAbortAndCompletionTests
         }
 
         var ac = AddAirborne(engine, "CHN205");
-        var result = engine.SendCommand(ac.Callsign, "DCT OAK; AT OAK HO ZZ9; SQ");
+        var compound = CommandParser.ParseCompound("DCT OAK; AT OAK HO ZZ9; SQ", ac.FlightPlan.Route);
+        Assert.True(compound.IsSuccess, compound.Reason);
+        var presetContext = TestDispatch.Context(
+            engine.World.Rng,
+            groundLayout: engine.World.GroundLayout,
+            findAircraft: engine.FindAircraft,
+            listAircraft: () => engine.World.GetSnapshot(),
+            isScenarioScripted: true
+        );
+        var result = CommandDispatcher.DispatchCompound(compound.Value!, ac, presetContext);
         Assert.True(result.Success, result.Message);
 
         TickUntil(engine, 240, () => _warnings.Count > 0);

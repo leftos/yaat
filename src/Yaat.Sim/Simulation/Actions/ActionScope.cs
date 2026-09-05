@@ -9,7 +9,9 @@ namespace Yaat.Sim.Simulation.Actions;
 /// </summary>
 public enum ActionScope
 {
-    /// <summary>Addressed to the room or the world — nothing is resolved (<c>SQALL</c>, <c>TAXIALL</c>, <c>ADD</c>, <c>CON</c>, <c>HFR</c>).</summary>
+    /// <summary>
+    /// Addressed to the room or the world — nothing is resolved (<c>SQALL</c>, <c>TAXIALL</c>, <c>ADD</c>, <c>CON</c>, <c>HFR</c>).
+    /// </summary>
     Global,
 
     /// <summary>
@@ -18,9 +20,15 @@ public enum ActionScope
     /// </summary>
     Callsign,
 
-    /// <summary>Addressed to an aircraft that must exist; the router resolves it and refuses identically on every run kind when it does not.</summary>
+    /// <summary>
+    /// Addressed to an aircraft that must exist; the router resolves it and refuses identically on every run kind when
+    /// it does not.
+    /// </summary>
     Aircraft,
 
-    /// <summary>Addressed to a controller position — an acting identity is resolved, no aircraft (<c>AS</c>, <c>ACCEPTALL</c>, <c>HOALL</c>, <c>RDAUTO</c>).</summary>
+    /// <summary>
+    /// Addressed to a controller position — an acting identity is resolved, no aircraft (<c>AS</c>, <c>ACCEPTALL</c>,
+    /// <c>HOALL</c>, <c>RDAUTO</c>).
+    /// </summary>
     Position,
 }

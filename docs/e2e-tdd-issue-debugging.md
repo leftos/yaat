@@ -274,7 +274,7 @@ foreach (var (ts, drift) in result.Drifts.Select(d => (d.ElapsedSeconds, d)).Tak
 }
 ```
 
-`SnapshotDiff` checks position (0.5 nm), heading (5°), altitude (100 ft), IAS (10 kt), `NavigationRoute` (exact), `AssignedAltitude/Heading/Speed`, current phase type, and `Track.Owner/HandoffPeer` at every snapshot timestamp. Empty `Drifts` ⇒ replay matches; any earlier divergence usually pinpoints the actual cause (engine-version drift, missed action, RNG change). Track commands and AS-prefixed compounds are processed during replay (see `ReplayTrackApplier`); coordination commands (RD/RDH/RDR/RDACK/RDAUTO) are skipped with a debug log because they have no Sim-side handler.
+`SnapshotDiff` checks position (0.5 nm), heading (5°), altitude (100 ft), IAS (10 kt), `NavigationRoute` (exact), `AssignedAltitude/Heading/Speed`, current phase type, and `Track.Owner/HandoffPeer` at every snapshot timestamp. Empty `Drifts` ⇒ replay matches; any earlier divergence usually pinpoints the actual cause (engine-version drift, missed action, RNG change). Track commands and AS-prefixed commands are applied during replay by the `ActionRouter`'s track arm; coordination, strip and TDLS commands are refused by the replay host (their state is the server's) and logged at Debug.
 
 #### How to do hybrid replay
 

@@ -1,158 +1,79 @@
-using System.Diagnostics;
-using System.Text;
-using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using Yaat.Sim.Commands;
 using Yaat.Sim.ControllerAi;
-using Yaat.Sim.Data;
-using Yaat.Sim.Data.Airport;
-using Yaat.Sim.Data.Airspace;
-using Yaat.Sim.Data.Vnas;
-using Yaat.Sim.LiveTraffic;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
-using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Pilot;
-using Yaat.Sim.Scenarios;
-using Yaat.Sim.Simulation.Replay;
-using Yaat.Sim.Simulation.Snapshots;
+using Yaat.Sim.Simulation.Actions;
 using Yaat.Sim.Training;
 
 namespace Yaat.Sim.Simulation;
 
-// Command entry points and the aircraft mutations they drive.
+// Command entry points and the aircraft mutations they drive. Routing is the ActionRouter's (Simulation/Actions/);
+// this file holds the entry points that call it and the bodies its aviation arm shares with every run kind.
 public sealed partial class SimulationEngine
 {
-    public CommandResult SendCommand(string callsign, string command)
-    {
-        var aircraft = FindAircraft(callsign);
-        if (aircraft is null)
-        {
-            return new CommandResult(false, $"Aircraft '{callsign}' not found");
-        }
-
-        var parseResult = CommandParser.ParseCompound(command, aircraft.FlightPlan.Route);
-        if (!parseResult.IsSuccess)
-        {
-            return new CommandResult(false, $"Failed to parse command: {command} — {parseResult.Reason}");
-        }
-
-        return DispatchLiveCommand(aircraft, parseResult.Value!, DispatchOrigin.Human).Result;
-    }
+    /// <summary>
+    /// A controller command from the standalone engine's one controller (a test, the solo client), routed through
+    /// <see cref="Actions"/> under <see cref="LocalConnectionId"/> and recorded when the run records.
+    /// </summary>
+    public CommandResult SendCommand(string callsign, string command) =>
+        Actions.Issue(new ActionInput(callsign, command, LocalConnectionId, Initials: "", Baked: null)).Result;
 
     /// <summary>
     /// Dispatches one command from an AI position exactly the way the live server routes a command from that
-    /// position's synthetic connection: track verbs (and any <c>AS</c>-prefixed command) through the track engine under
-    /// the prefix's identity, coordination verbs refused (they mutate server-only state), everything else through the
-    /// aviation dispatcher under <see cref="DispatchOrigin.ControllerAi"/>. A successful command is appended to the
-    /// action log with the AI connection id, so a recording of an AI-driven session replays it identically.
+    /// position's synthetic connection: through <see cref="Actions"/> under <see cref="AiConnectionId"/>, so track verbs
+    /// run under the position's identity and aviation verbs under <see cref="DispatchOrigin.ControllerAi"/>. The command
+    /// is recorded with the AI connection id, accepted or not, so a recording of an AI-driven session replays it identically.
     /// </summary>
     public CommandResult DispatchAiCommand(AiPositionConfig from, string callsign, string command)
     {
-        var scenario = Scenario;
-        if (scenario is null)
+        if (Scenario is null)
         {
-            return new CommandResult(false, "No scenario loaded");
+            return ActionRefusals.NoScenario();
         }
 
-        var aircraft = FindAircraft(callsign);
-        if (aircraft is null)
-        {
-            return new CommandResult(false, $"Aircraft '{callsign}' not found");
-        }
-
-        var connectionId = AiConnectionId.Format(from.PositionId);
-        CommandResult result;
-        double? reactionDelaySeconds = null;
-        var asPrefixCheck = TrackResolver.ExtractAsPrefix(command);
-        var firstParse = CommandParser.Parse(asPrefixCheck.Remainder);
-        bool isTrack =
-            firstParse.IsSuccess
-            && firstParse.Value is not null
-            && (TrackEngine.IsTrackCommand(firstParse.Value) || asPrefixCheck.AsOverrideTcp is not null);
-        if (isTrack)
-        {
-            result = ReplayTrackApplier.Apply(this, command, aircraft, connectionId) ?? new CommandResult(false, $"'{command}' dispatched nothing");
-        }
-        else
-        {
-            var (kind, _, _) = RecordedCommandClassifier.Classify(command);
-            if (kind != RecordedCommandKind.Compound && kind != RecordedCommandKind.SayOrShow)
-            {
-                return new CommandResult(false, $"'{command}' ({kind}) has no engine-side handler; only the live server dispatches it");
-            }
-
-            var parseResult = CommandParser.ParseCompound(command, aircraft.FlightPlan.Route);
-            if (!parseResult.IsSuccess)
-            {
-                return new CommandResult(false, $"Failed to parse command: {command} — {parseResult.Reason}");
-            }
-
-            (result, reactionDelaySeconds) = DispatchLiveCommand(aircraft, parseResult.Value!, DispatchOrigin.ControllerAi);
-        }
-
-        if (result.Success)
-        {
-            RecordAction(
-                new RecordedCommand(scenario.ElapsedSeconds, callsign, command, "AI", connectionId) { ReactionDelaySeconds = reactionDelaySeconds }
-            );
-        }
-
-        return result;
+        return Actions.Issue(new ActionInput(callsign, command, AiConnectionId.Format(from.PositionId), Initials: "AI", Baked: null)).Result;
     }
 
     /// <summary>
-    /// The live dispatch pipeline shared by every controller-issued command: the pilot-reaction deferral, else the
-    /// dispatcher, then <see cref="ApplyPostDispatch"/>. Returns the sampled reaction delay (null when none) so the
-    /// caller can bake it into the recorded command.
+    /// Enqueues <paramref name="compound"/> as a pilot-reaction deferral firing in <paramref name="seconds"/>; the
+    /// aircraft begins complying when it fires through <c>ProcessDeferredDispatches</c>. The seconds come from
+    /// <see cref="ReactionDelayPolicy.Decide"/> — sampled live, baked on replay. The deferral carries the origin as its
+    /// <c>IsScenarioScripted</c> flag, so an AI command that fires after the delay still never marks student contact.
     /// </summary>
-    private (CommandResult Result, double? ReactionDelaySeconds) DispatchLiveCommand(
-        AircraftState aircraft,
-        CompoundCommand compound,
-        DispatchOrigin origin
-    )
+    public void DeferForReaction(AircraftState aircraft, CompoundCommand compound, double seconds, DispatchOrigin origin)
     {
-        bool soloTrainingMode = Scenario?.SoloTrainingMode ?? false;
+        aircraft.DeferredDispatches.Add(
+            new DeferredDispatch(seconds, compound)
+            {
+                SourceText = compound.SourceText,
+                IsReactionDelay = true,
+                IsScenarioScripted = origin == DispatchOrigin.ControllerAi,
+            }
+        );
+    }
 
-        // Pilot-reaction delay (command-run delay): when active, defer the whole dispatch by a sampled
-        // number of seconds and acknowledge immediately so the controller knows the command landed and
-        // the sim isn't frozen. The aircraft begins complying when the deferral fires.
-        CommandResult result;
-        var reactionDelay = TryDeferCommandForReaction(aircraft, compound, origin);
-        if (reactionDelay is double reactionSeconds)
-        {
-            // In solo training mode the student is the pilot's only audience: showing the exact sampled
-            // delay would reveal precisely how long the aircraft will take to comply. Suppress the
-            // acknowledgement entirely — the pilot's read-back (queued below) is the acknowledgement.
-            result = soloTrainingMode
-                ? new CommandResult(true, null)
-                : new CommandResult(true, $"Pilot complying in {(int)Math.Round(reactionSeconds)}s");
-        }
-        else
-        {
-            var groundLayout = aircraft.Ground.Layout ?? ResolveGroundLayout(aircraft);
-            var dispatchCtx = new DispatchContext(
-                groundLayout,
-                World.Rng,
-                World.Weather,
-                FindAircraft,
-                () => World.GetSnapshot(),
-                Scenario?.ValidateDctFixes ?? true,
-                Scenario?.AutoCrossRunway ?? false,
-                Scenario?.SoloTrainingMode ?? false,
-                Scenario?.RpoShowPilotSpeech ?? false,
-                AddTerminalEntry,
-                Scenario?.ArtccConfig,
-                Scenario?.ElapsedSeconds ?? 0,
-                PreserveConditionals: false,
-                IsScenarioScripted: origin == DispatchOrigin.ControllerAi
-            );
-            result = CommandDispatcher.DispatchCompound(compound, aircraft, dispatchCtx);
-        }
-
-        ApplyPostDispatch(aircraft, compound, result, origin);
-
-        return (result, reactionDelay);
+    /// <summary>The dispatch context for a controller-issued command against <paramref name="aircraft"/> on this engine.</summary>
+    internal DispatchContext BuildDispatchContext(AircraftState aircraft, bool isScenarioScripted)
+    {
+        var groundLayout = aircraft.Ground.Layout ?? ResolveGroundLayout(aircraft);
+        return new DispatchContext(
+            groundLayout,
+            World.Rng,
+            World.Weather,
+            FindAircraft,
+            () => World.GetSnapshot(),
+            Scenario?.ValidateDctFixes ?? true,
+            Scenario?.AutoCrossRunway ?? false,
+            Scenario?.SoloTrainingMode ?? false,
+            Scenario?.RpoShowPilotSpeech ?? false,
+            AddTerminalEntry,
+            Scenario?.ArtccConfig,
+            Scenario?.ElapsedSeconds ?? 0,
+            PreserveConditionals: false,
+            IsScenarioScripted: isScenarioScripted
+        );
     }
 
     /// <summary>
@@ -160,14 +81,13 @@ public sealed partial class SimulationEngine
     /// solo-training mode, evaluator scoring, pending-request resolution, frequency-gate release, the
     /// "unable" response on rejection, and the pilot read-back.
     ///
-    /// Both hosts must call this after dispatching a user-issued command — <see cref="SendCommand"/>
-    /// for the standalone engine and <c>RoomEngine.HandleStandardCmd</c> for the live server. Keeping
-    /// it in one place is what stops the two from drifting: the pending-request resolution and the
-    /// frequency-gate release lived only in <see cref="SendCommand"/> and were therefore dark on the
-    /// live server, so pilots re-announced "ready for departure" every 120 s forever (issue #307).
+    /// The router's aviation arm calls this after every dispatch — fresh or recorded — so the post-dispatch state is
+    /// sim state on every run kind. Keeping it in one place is what stops the entry points from drifting: the
+    /// pending-request resolution and the frequency-gate release once lived only in <see cref="SendCommand"/> and were
+    /// therefore dark on the live server, so pilots re-announced "ready for departure" every 120 s forever (issue #307),
+    /// and a replay that skipped the read-back gates left its frequency in a state the live session never had.
     ///
-    /// The read-back hook lives here, on the user-issued path only, so deferred / preset / replay
-    /// dispatches don't re-fire read-backs.
+    /// Deferred and preset dispatches do not come through here, so they never re-fire read-backs.
     ///
     /// <paramref name="origin"/> decides which of these are the student's: only a
     /// <see cref="DispatchOrigin.Human"/> dispatch registers controller contact and is evaluator-scored;
@@ -232,116 +152,6 @@ public sealed partial class SimulationEngine
                 );
             }
         }
-    }
-
-    /// <summary>
-    /// If a command-run delay is active, enqueue <paramref name="compound"/> as a pilot-reaction
-    /// deferred dispatch and return the delay in seconds; otherwise return null and the caller
-    /// dispatches immediately. The delay simulates the time a pilot needs to set up the FMC / autopilot
-    /// after the controller issues an instruction.
-    ///
-    /// Commands carrying explicit leading timing — a WAIT/WAITD or a BEHIND give-way condition — are NOT
-    /// reaction-delayed: the controller's explicit timing already models the wait, and those produce
-    /// their own deferred dispatch inside <see cref="CommandDispatcher.DispatchCompound"/>.
-    ///
-    /// Sampling draws from <see cref="SimulationWorld.ReactionDelayRng"/> (never the shared RNG) so it
-    /// can't perturb replay-critical emergent events. The returned value is the actual delay applied
-    /// (after the order-preserving clamp); the server bakes it into the recorded command so replays
-    /// reproduce it exactly rather than re-sampling. The deferral carries <paramref name="origin"/> as
-    /// its <c>IsScenarioScripted</c> flag, so an AI command that fires after the delay still never marks
-    /// student contact.
-    /// </summary>
-    public double? TryDeferCommandForReaction(AircraftState aircraft, CompoundCommand compound, DispatchOrigin origin)
-    {
-        var scenario = Scenario;
-        if (scenario is null || scenario.CommandRunDelayMaxSeconds <= 0)
-        {
-            return null;
-        }
-
-        if (HasExplicitLeadingTiming(compound))
-        {
-            return null;
-        }
-
-        // Pure frequency-change / radio-contact commands are not reaction-delayed: the AIM (4-2-3)
-        // expects a pilot to switch frequency "as soon as possible", and holding the aircraft on the
-        // current frequency for several seconds would teach a backwards habit. A mixed compound
-        // (e.g. "FH 270; CON TWR") is still delayed as a whole — only a purely-comm compound is exempt.
-        if (IsPureCommCompound(compound))
-        {
-            return null;
-        }
-
-        int max = scenario.CommandRunDelayMaxSeconds;
-        int min = Math.Clamp(scenario.CommandRunDelayMinSeconds, 0, max);
-        int sampled = min >= max ? max : World.ReactionDelayRng.Next(min, max + 1);
-
-        // Preserve issue order: a command issued later must never start complying before one issued
-        // earlier. Clamp this command's delay so it fires no sooner than any already-pending reaction
-        // deferral on the same aircraft (ProcessDeferredDispatches applies same-tick expiries FIFO).
-        double clampFloor = 0;
-        foreach (var pending in aircraft.DeferredDispatches)
-        {
-            if (pending.IsReactionDelay && pending.RemainingSeconds > clampFloor)
-            {
-                clampFloor = pending.RemainingSeconds;
-            }
-        }
-
-        double seconds = Math.Max(sampled, clampFloor);
-        // An AI-controller command that fires after its reaction delay is still not the student establishing contact.
-        aircraft.DeferredDispatches.Add(
-            new DeferredDispatch(seconds, compound)
-            {
-                SourceText = compound.SourceText,
-                IsReactionDelay = true,
-                IsScenarioScripted = origin == DispatchOrigin.ControllerAi,
-            }
-        );
-        return seconds;
-    }
-
-    private static bool HasExplicitLeadingTiming(CompoundCommand compound)
-    {
-        if (compound.Blocks.Count == 0)
-        {
-            return false;
-        }
-
-        var first = compound.Blocks[0];
-        if (first.Condition is GiveWayCondition)
-        {
-            return true;
-        }
-
-        foreach (var cmd in first.Commands)
-        {
-            if (cmd is WaitCommand or WaitDistanceCommand)
-            {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    private static bool IsPureCommCompound(CompoundCommand compound)
-    {
-        bool hasAny = false;
-        foreach (var block in compound.Blocks)
-        {
-            foreach (var cmd in block.Commands)
-            {
-                hasAny = true;
-                if (cmd is not (ContactCommand or FrequencyChangeApprovedCommand or AcknowledgePilotContactCommand))
-                {
-                    return false;
-                }
-            }
-        }
-
-        return hasAny;
     }
 
     private static void QueueSoloUnableIfNeeded(AircraftState aircraft, CommandResult result)

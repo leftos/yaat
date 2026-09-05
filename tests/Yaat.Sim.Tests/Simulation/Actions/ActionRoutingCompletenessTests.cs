@@ -85,6 +85,28 @@ public class ActionRoutingCompletenessTests
     }
 
     /// <summary>
+    /// Every kind routes: <see cref="ArmTable.For"/> throws for a kind without a row, each row's scope is the
+    /// classifier's, and the never-recorded set is exactly the transport verbs and bookmarks.
+    /// </summary>
+    [Fact]
+    public void EveryKind_HasAnArm()
+    {
+        var neverRecorded = new List<RecordedCommandKind>();
+        foreach (var kind in Enum.GetValues<RecordedCommandKind>())
+        {
+            var arm = ArmTable.For(kind);
+            Assert.Equal(kind, arm.Kind);
+            Assert.Equal(RecordedCommandClassifier.ScopeOf(kind), arm.Scope);
+            if (arm.Recording == RecordingPolicy.Never)
+            {
+                neverRecorded.Add(kind);
+            }
+        }
+
+        Assert.Equal([RecordedCommandKind.Bookmark, RecordedCommandKind.Transport], neverRecorded.Order());
+    }
+
+    /// <summary>
     /// A type the classifier calls the dispatcher's must reach a dispatcher arm — otherwise replay hands the
     /// dispatcher a verb it has no arm for and the command is dropped with a log line. The reverse is not asserted:
     /// a type with a kind of its own may legitimately also have a dispatcher arm (<c>DEL</c> raises the auto-delete

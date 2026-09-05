@@ -59,8 +59,9 @@ public sealed partial class SimulationEngine
     /// Resets engine state every call (rewinds to scratch); not a step function — looping this is O(N²)
     /// and trips assertions like the magnetic declination cache. To advance from the current state, use
     /// <see cref="FastForwardTo"/>; to step second-by-second, use <see cref="ReplayOneSecond"/>.
-    /// The default action applier skips server-only commands (track, coordination); pass a custom
-    /// <paramref name="actionApplier"/> to handle those (server rewind).
+    /// The default action applier is the <see cref="Actions"/> router under the replay host, which refuses the
+    /// host-owned verbs (strips, TDLS, coordination); pass a custom <paramref name="actionApplier"/> to handle those
+    /// (server rewind).
     /// </summary>
     public void ReplayFromStartTo(int targetSeconds, List<RecordedAction> actions, Action<RecordedAction>? actionApplier = null)
     {

@@ -2,6 +2,7 @@ using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Simulation;
+using Yaat.Sim.Simulation.Actions;
 using Yaat.Sim.Testing;
 
 namespace Yaat.Sim.Tests.Simulation;
@@ -59,6 +60,18 @@ public class CommandRunDelayTests
         return ac;
     }
 
+    /// <summary>The aviation arm's decide-then-defer pair for a fresh human command, without the dispatch that follows it.</summary>
+    private static double? Defer(SimulationEngine engine, AircraftState ac, CompoundCommand compound)
+    {
+        var delay = ReactionDelayPolicy.Decide(engine.Scenario!, engine.World, ac, compound, baked: null);
+        if (delay is double seconds)
+        {
+            engine.DeferForReaction(ac, compound, seconds, DispatchOrigin.Human);
+        }
+
+        return delay;
+    }
+
     [Fact]
     public void Command_TakesEffectOnlyAfterDelay()
     {
@@ -97,7 +110,7 @@ public class CommandRunDelayTests
         var engine = BuildEngine(minDelay: 4, maxDelay: 4);
         var ac = AddAirborne(engine);
 
-        var delay = engine.TryDeferCommandForReaction(ac, CommandParser.ParseCompound("FH 270").Value!, DispatchOrigin.Human);
+        var delay = Defer(engine, ac, CommandParser.ParseCompound("FH 270").Value!);
 
         Assert.Equal(4.0, delay);
         var reaction = Assert.Single(ac.DeferredDispatches);
@@ -113,7 +126,7 @@ public class CommandRunDelayTests
         var engine = BuildEngine(minDelay: 2, maxDelay: 10, rngSeed: seed);
         var ac = AddAirborne(engine);
 
-        var delay = engine.TryDeferCommandForReaction(ac, CommandParser.ParseCompound("FH 270").Value!, DispatchOrigin.Human);
+        var delay = Defer(engine, ac, CommandParser.ParseCompound("FH 270").Value!);
 
         double expected = new SerializableRandom(seed).Next(2, 11);
         Assert.Equal(expected, delay);
@@ -175,7 +188,7 @@ public class CommandRunDelayTests
         // A controller-authored WAIT already models the wait — no extra reaction delay stacked on top.
         // Build the WAIT+FH structure directly (matches the parsed shape TryDeferLeadingWait detects).
         var waitCompound = new CompoundCommand([new ParsedBlock(null, [new WaitCommand(10), new FlyHeadingCommand(new MagneticHeading(270))])]);
-        var delay = engine.TryDeferCommandForReaction(ac, waitCompound, DispatchOrigin.Human);
+        var delay = Defer(engine, ac, waitCompound);
 
         Assert.Null(delay);
         Assert.Empty(ac.DeferredDispatches);
@@ -189,7 +202,7 @@ public class CommandRunDelayTests
 
         // A pure frequency-change / contact command switches ASAP (AIM 4-2-3) — never reaction-delayed.
         var contact = new CompoundCommand([new ParsedBlock(null, [new ContactCommand("TWR")])]);
-        var delay = engine.TryDeferCommandForReaction(ac, contact, DispatchOrigin.Human);
+        var delay = Defer(engine, ac, contact);
 
         Assert.Null(delay);
         Assert.Empty(ac.DeferredDispatches);
@@ -204,7 +217,7 @@ public class CommandRunDelayTests
         // A flight command riding with a contact verb is delayed as a whole — only a purely-comm
         // compound is exempt.
         var mixed = new CompoundCommand([new ParsedBlock(null, [new FlyHeadingCommand(new MagneticHeading(270)), new ContactCommand("TWR")])]);
-        var delay = engine.TryDeferCommandForReaction(ac, mixed, DispatchOrigin.Human);
+        var delay = Defer(engine, ac, mixed);
 
         Assert.Equal(5.0, delay);
         Assert.Single(ac.DeferredDispatches);
@@ -241,7 +254,7 @@ public class CommandRunDelayTests
         var engine = BuildEngine(minDelay: 2, maxDelay: 2);
         var ac = AddAirborne(engine);
 
-        engine.ReplayCommand(new RecordedCommand(0, "UAL123", "FH 270", "XX", "") { ReactionDelaySeconds = 7.0 });
+        engine.Actions.Apply(new RecordedCommand(0, "UAL123", "FH 270", "XX", "") { ReactionDelaySeconds = 7.0 });
 
         var reaction = Assert.Single(ac.DeferredDispatches);
         Assert.True(reaction.IsReactionDelay);

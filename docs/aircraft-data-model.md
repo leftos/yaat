@@ -114,7 +114,7 @@ write the kinematics.** Phases own `ControlTargets` while active; free-flight co
 | `Procedure.*`, `Pattern.*` | Approach / departure / pattern command handlers and the phases they spawn | DSR via-mode, expedite, `LastProcedureSpeedKts`. |
 | `Approach.*`, `Clearance.*` | `ApproachCommandHandler`, `DepartureClearanceHandler` | Expectation + deferred clearance state. |
 | `Stars.*`, `Eram.*`, `HoldAnnotation.*`, `Voice.*` | STARS/ERAM display command handlers | Display-only mutations; mirrored to CRC. |
-| `Track.*` | `TrackEngine` (via `TrackCommandHandler` / `ReplayTrackApplier`) | Ownership/handoff — bypasses `CommandDispatcher` entirely. |
+| `Track.*` | `TrackEngine` (via the `ActionRouter` track arm on every Sim run kind; via `TrackCommandHandler` on the live server until tick step 3d-5) | Ownership/handoff — bypasses `CommandDispatcher` entirely. |
 | `Ground.Hold`, `Ground.AssignedTaxiRoute`, `Ground.CurrentTaxiway`, `Ground.SpeedLimit` | Ground command handlers + `GroundConflictDetector` | `SpeedLimit` is reset each tick before conflict detection. |
 | `FlightPlan.RevisionNumber`, `FlightPlan.*` | `SimulationEngine.AmendFlightPlan` (entered via `RoomEngine.AmendFlightPlan` on the server) | `SimulationEngine.cs:1431` bumps `RevisionNumber++` on every amend, even an empty one (matches CRC). |
 | `SpawnedAtSeconds` | `SimulationEngine` at every production spawn path | Tests that call `AddAircraft` directly leave it 0. |

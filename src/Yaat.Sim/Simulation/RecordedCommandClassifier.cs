@@ -4,12 +4,11 @@ using Yaat.Sim.Simulation.Actions;
 namespace Yaat.Sim.Simulation;
 
 /// <summary>
-/// High-level kind of a recorded command, used to drive replay-time dispatch
-/// in both <see cref="SimulationEngine.ReplayCommand"/> (Sim-side, used by
-/// <see cref="SimulationEngine.Replay(SessionRecording, double)"/>) and the
-/// server's <c>RecordingManager.ReplayCommand</c> (used by bug-bundle export).
+/// High-level kind of a controller command: the key into <see cref="Actions.ArmTable"/>, which the
+/// <see cref="Actions.ActionRouter"/> looks up for every fresh and recorded command in Yaat.Sim, and which the server's
+/// <c>RecordingManager.ReplayCommand</c> (bug-bundle export, rewind) still switches on directly.
 ///
-/// Both replay paths previously maintained parallel parse-and-decide flows
+/// The two replay paths previously maintained parallel parse-and-decide flows
 /// that drifted apart — most notably commit 1f8d1f66 patched the Sim-side to
 /// fall through to <see cref="CommandParser.ParseCompound"/> on single-parse
 /// failure, but the server-side wasn't ported, silently dropping every recorded
@@ -108,11 +107,10 @@ public static class RecordedCommandClassifier
     public readonly record struct Classification(RecordedCommandKind Kind, ActionScope Scope, ParsedCommand? Parsed);
 
     /// <summary>
-    /// Classifies a recorded command body (caller has already extracted any
-    /// <c>AS {tcp}</c> prefix with <c>TrackResolver.ExtractAsPrefix</c>; the prefix resolves to the acting identity
-    /// through <c>TrackResolver.ResolveIdentity</c> on every run kind).
-    /// A body the single-command parser rejects is a multi-verb chain: <see cref="RecordedCommandKind.Compound"/>
-    /// against the addressed aircraft, with <c>Parsed</c> null.
+    /// Classifies a command body. The <see cref="Actions.ActionRouter"/> has already stripped any <c>AS {tcp}</c>
+    /// prefix (<c>TrackResolver.ExtractAsPrefix</c>) and resolves it to the acting identity itself, so this sees the
+    /// verb alone. A body the single-command parser rejects is a multi-verb chain:
+    /// <see cref="RecordedCommandKind.Compound"/> against the addressed aircraft, with <c>Parsed</c> null.
     /// </summary>
     public static Classification Classify(string commandText)
     {

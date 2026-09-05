@@ -263,12 +263,16 @@ public sealed partial class SimulationEngine
         var parsed = globalResult.Value!;
         if (parsed is SquawkAllCommand or SquawkNormalAllCommand or SquawkStandbyAllCommand)
         {
-            var result = HandleGlobalSquawkCommand(parsed);
-            EmitTerminal("System", "", $"[Trigger] {result}");
+            var result = SquawkAll(parsed);
+            EmitTerminal("System", "", $"[Trigger] {result.Message}");
         }
     }
 
-    private string HandleGlobalSquawkCommand(ParsedCommand command)
+    /// <summary>
+    /// <c>SQALL</c> / <c>SNALL</c> / <c>SSALL</c>: every aircraft squawks its assigned code, mode C, or standby. The one
+    /// body for the router's arm, the live server and the scenario triggers.
+    /// </summary>
+    public CommandResult SquawkAll(ParsedCommand command)
     {
         var count = 0;
         foreach (var ac in World.GetSnapshot())
@@ -297,7 +301,7 @@ public sealed partial class SimulationEngine
             _ => "?",
         };
 
-        return $"{verb}: {count} aircraft updated";
+        return new CommandResult(true, $"{verb}: {count} aircraft updated");
     }
 
     /// <summary>

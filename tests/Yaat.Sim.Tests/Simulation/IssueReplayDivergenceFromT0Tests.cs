@@ -11,9 +11,8 @@ namespace Yaat.Sim.Tests.Simulation;
 /// <summary>
 /// Regression tests for the replay-from-t=0 divergence work.
 ///
-/// Before the fix, <see cref="SimulationEngine.ReplayCommand"/> silently dropped
-/// every track and AS-prefixed command (TRACK, ACCEPT, HO, "AS 3Y ACCEPT", etc.).
-/// The applier now routes those through <see cref="TrackEngine.Dispatch"/> so
+/// Before the fix, the in-engine replay applier silently dropped every track and AS-prefixed command (TRACK, ACCEPT,
+/// HO, "AS 3Y ACCEPT", etc.). The router's track arm now routes those through <see cref="TrackEngine.Dispatch"/> so
 /// in-engine replay reaches the same ownership/handoff state as the live session.
 ///
 /// The KFB7 bundle (referenced as the original case) actually predates the
@@ -29,12 +28,11 @@ public class IssueReplayDivergenceFromT0Tests
     private const string RecordingPath = "TestData/b143fc615682.zip";
 
     /// <summary>
-    /// Direct check on the ReplayTrackApplier shim: an "AS 3Y ACCEPT" command for
-    /// an aircraft with a pending handoff to 3Y must transfer ownership.
-    /// Pre-fix, the applier didn't exist and the command was silently dropped.
+    /// Direct check on the router's track arm: a recorded "AS 3Y ACCEPT" for an aircraft with a pending handoff
+    /// to 3Y must transfer ownership. Pre-fix, the arm didn't exist and the command was silently dropped.
     /// </summary>
     [Fact]
-    public void ReplayTrackApplier_AsPrefixedAccept_TransfersOwnership()
+    public void ReplayedTrackCommand_AsPrefixedAccept_TransfersOwnership()
     {
         var scenario = BuildMinimalScenario();
         var aircraft = new AircraftState
@@ -50,7 +48,8 @@ public class IssueReplayDivergenceFromT0Tests
         };
 
         var engine = new SimulationEngine(new TestAirportGroundData()) { Scenario = scenario };
-        ReplayTrackApplier.Apply(engine, "AS 3Y ACCEPT", aircraft, connectionId: "");
+        engine.World.AddAircraft(aircraft);
+        engine.Actions.Apply(new RecordedCommand(0, "KFB7", "AS 3Y ACCEPT", "XX", ""));
 
         Assert.NotNull(aircraft.Track.Owner);
         Assert.Equal("3", $"{aircraft.Track.Owner!.Subset}");
@@ -64,7 +63,7 @@ public class IssueReplayDivergenceFromT0Tests
     /// bare "TRACK" from the same connection acquires under the right identity.
     /// </summary>
     [Fact]
-    public void ReplayTrackApplier_StandaloneAsThenTrack_AcquiresUnderActivePosition()
+    public void ReplayedTrackCommand_StandaloneAsThenTrack_AcquiresUnderActivePosition()
     {
         var scenario = BuildMinimalScenario();
         var aircraft = new AircraftState
@@ -75,8 +74,9 @@ public class IssueReplayDivergenceFromT0Tests
         };
 
         var engine = new SimulationEngine(new TestAirportGroundData()) { Scenario = scenario };
-        ReplayTrackApplier.Apply(engine, "AS 3Y", aircraft: null, connectionId: "conn-A");
-        ReplayTrackApplier.Apply(engine, "TRACK", aircraft, connectionId: "conn-A");
+        engine.World.AddAircraft(aircraft);
+        engine.Actions.Apply(new RecordedCommand(0, "", "AS 3Y", "XX", "conn-A"));
+        engine.Actions.Apply(new RecordedCommand(0, "KFB7", "TRACK", "XX", "conn-A"));
 
         Assert.NotNull(aircraft.Track.Owner);
         Assert.Equal(3, aircraft.Track.Owner!.Subset);

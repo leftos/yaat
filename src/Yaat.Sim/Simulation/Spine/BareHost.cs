@@ -1,6 +1,7 @@
 using Yaat.Sim.Commands;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Pilot;
+using Yaat.Sim.Simulation.Actions;
 using Yaat.Sim.Training;
 
 namespace Yaat.Sim.Simulation.Spine;
@@ -10,10 +11,11 @@ namespace Yaat.Sim.Simulation.Spine;
 /// Every host step is empty: there is no room, no feed, no controller to broadcast to. The consumers fire the
 /// engine's events (<see cref="SimulationEngine.WarningEmitted"/>, <see cref="SimulationEngine.TerminalEntryEmitted"/>,
 /// <see cref="SimulationEngine.PilotSpeechEmitted"/>, <see cref="SimulationEngine.StripDispatchRequested"/>) so tests
-/// and the solo client observe the same lines the RPO would see. The replay host delegates everything it does not
+/// and the solo client observe the same lines the RPO would see. As an <see cref="IActionHost"/> it refuses every slot
+/// (the bodies are the live server's) and discards every consumer. The replay host delegates everything it does not
 /// override here.
 /// </summary>
-internal sealed class BareHost(SimulationEngine engine) : ISimulationHost
+internal sealed class BareHost(SimulationEngine engine) : ISimulationHost, IActionHost
 {
     private readonly SimulationEngine _engine = engine;
 
@@ -130,4 +132,36 @@ internal sealed class BareHost(SimulationEngine engine) : ISimulationHost
             _engine.FireStripDispatchRequested(callsign, command);
         }
     }
+
+    // --- IActionHost: no room, so every slot is refused and every consumer is a no-op ---
+
+    public CommandResult ApplyStrip(string callsign, ParsedCommand command, TrackOwner? identity) => ActionRefusals.HostOnly(command);
+
+    public CommandResult ApplyTdls(AircraftState aircraft, ParsedCommand command) => ActionRefusals.HostOnly(command);
+
+    public CommandResult ApplyTdlsOpsConfig(TdlsOpsConfigCommand command) => ActionRefusals.HostOnly(command);
+
+    public CommandResult ApplyCoordination(AircraftState aircraft, ParsedCommand command, TrackOwner? identity) => ActionRefusals.HostOnly(command);
+
+    public CommandResult ApplyGlobalCoordination(CoordinationAutoAckCommand command, TrackOwner? identity) => ActionRefusals.HostOnly(command);
+
+    public CommandResult ApplyAsdexEnableAllAlerts() => ActionRefusals.HostOnly("ASDXALERTS");
+
+    public CommandResult ApplyBookmark(BookmarkCommand command) => ActionRefusals.HostOnly(command);
+
+    public CommandResult ApplyTransport(ParsedCommand command) => ActionRefusals.HostOnly(command);
+
+    public CommandResult ApplyFlightPlanCommand(string callsign, ParsedCommand command, TrackOwner? identity) => ActionRefusals.HostOnly(command);
+
+    public void OnAircraftSpawned(AircraftState aircraft) { }
+
+    public void OnAircraftDeleted(string callsign) { }
+
+    public void OnPositionSelected(string connectionId, TrackOwner owner) { }
+
+    public void OnTimersChanged() { }
+
+    public void OnHeldDeparturesChanged() { }
+
+    public void OnFlightPlanAmended(string callsign) { }
 }

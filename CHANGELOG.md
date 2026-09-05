@@ -19,9 +19,12 @@
 - A helicopter with no active phase accepts `LAND @spot`, `ATXI`, and `CTOPP` from the air; the airport is resolved from its flight plan instead of refusing with "No airport ground layout available".
 - Replaying or rewinding a recording resolves STARS interfacility handoff codes (`` `31H ``) the way the live session did, instead of failing the handoff.
 - After a rewind, `AS` position selections and track ownership match the live session at that time: recorded `AS`, `ACCEPTALL` and `HOALL` replay, and later selections are dropped.
+- Playing back a recording applies the squawk-all (`SQALL`/`SNALL`/`SSALL`) and `CFR` commands the live session issued, instead of dropping them.
+- Playing back a recording reproduces the pilot read-backs, "unable" responses and frequency gates the live session had.
 
 ### Changed
 - `ATXI` to a helicopter off the airport or above 500 ft AGL is refused ("unable, request landing at …"); air taxi stays an on-field movement.
+- A recorded command whose outcome on playback differs from the live session logs a replay-fidelity warning.
 
 ## v0.12.25-beta [2026/09/02]
 

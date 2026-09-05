@@ -36,6 +36,22 @@ public sealed record RecordedCommand(double ElapsedSeconds, string Callsign, str
     /// re-sampling — re-sampling on replay would draw from a divergent RNG state and break determinism.
     /// </summary>
     public int? SpawnJitterSeconds { get; init; }
+
+    /// <summary>
+    /// The aircraft an <c>ADD</c> generated at the live run (the generator draws the shared RNG and the beacon pool),
+    /// so a replay puts the same aircraft into the world without drawing. Null for every other command and for
+    /// recordings written before the field existed — those replay by drawing at the same point in the RNG sequence.
+    /// </summary>
+    public AircraftSnapshotDto? SpawnedAircraft { get; init; }
+
+    /// <summary>The wall clock a <c>CFR</c> window was anchored to when issued, so a replay anchors to the same instant. Null otherwise.</summary>
+    public DateTime? IssuedAtUtc { get; init; }
+
+    /// <summary>
+    /// Whether the command was accepted when issued. A replay that reaches a different verdict logs a replay-fidelity
+    /// warning. Null on recordings written before rejections were recorded — every such command was accepted.
+    /// </summary>
+    public bool? Accepted { get; init; }
 }
 
 /// <summary>

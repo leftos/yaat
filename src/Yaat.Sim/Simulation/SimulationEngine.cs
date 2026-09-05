@@ -84,6 +84,18 @@ public sealed partial class SimulationEngine
     public PositionSelections PositionSelections { get; set; } = new();
 
     /// <summary>
+    /// The one router every controller action on this engine goes through — fresh (<see cref="SendCommand"/>,
+    /// <see cref="DispatchAiCommand"/>) or recorded (the replay driver). See <see cref="ActionRouter"/>.
+    /// </summary>
+    public ActionRouter Actions { get; }
+
+    /// <summary>
+    /// The connection id a bare <see cref="SendCommand"/> issues under: the standalone engine's one controller (a
+    /// test, the solo client), so its <c>AS</c> selections and identity resolve like any other connection's.
+    /// </summary>
+    public const string LocalConnectionId = "local";
+
+    /// <summary>
     /// A bare <c>AS {tcp}</c>: the connection acts as the position <paramref name="tcpCode"/> resolves to until it
     /// selects another. The one write body for live, replay and reconstruction.
     /// </summary>
@@ -191,6 +203,7 @@ public sealed partial class SimulationEngine
         _logger = logger ?? SimLog.CreateLogger<SimulationEngine>();
         _bareHost = new BareHost(this);
         _replay = new ReplayDriver(this);
+        Actions = new ActionRouter(this);
     }
 
     // --- Drain collections ---
@@ -246,8 +259,8 @@ public sealed partial class SimulationEngine
     /// The sim-side half of a <c>DEL</c>: stamps <see cref="CompletionReason.Dropped"/> on a still-active aircraft so
     /// <see cref="SimulationWorld.RemoveAircraft"/> records a debrief row instead of a silent vanish, clears a
     /// still-queued delayed spawn, and removes the aircraft from the world. The live server
-    /// (<c>RoomEngine.RemoveSimulatedAircraft</c>) and replay (<see cref="ReplayCommand"/>) both call this so the two
-    /// cannot drift. Landed / HandedOff / Transited stamps are preserved.
+    /// (<c>RoomEngine.RemoveSimulatedAircraft</c>) and the router's <c>DEL</c> arm both call this so the two cannot
+    /// drift. Landed / HandedOff / Transited stamps are preserved.
     /// </summary>
     public void DeleteAircraft(string callsign)
     {

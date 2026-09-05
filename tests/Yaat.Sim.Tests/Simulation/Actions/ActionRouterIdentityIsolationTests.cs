@@ -7,7 +7,7 @@ using Yaat.Sim.Simulation.Snapshots;
 using Yaat.Sim.Tests.ControllerAi;
 using Yaat.Sim.Tests.Helpers;
 
-namespace Yaat.Sim.Tests.Simulation;
+namespace Yaat.Sim.Tests.Simulation.Actions;
 
 /// <summary>
 /// The engine holds one per-connection active-position map, and two callers share it:
@@ -17,11 +17,11 @@ namespace Yaat.Sim.Tests.Simulation;
 /// An AI position's identity is the position it works; a selection made on another connection —
 /// or replayed from a recording — must not displace it.
 /// </summary>
-public class ReplayTrackApplierIdentityIsolationTests
+public class ActionRouterIdentityIsolationTests
 {
     private readonly ArtccConfigRoot? _zoa = TestArtccConfig.LoadZoa();
 
-    public ReplayTrackApplierIdentityIsolationTests()
+    public ActionRouterIdentityIsolationTests()
     {
         TestVnasData.EnsureInitialized();
     }
@@ -49,7 +49,7 @@ public class ReplayTrackApplierIdentityIsolationTests
         Assert.NotEqual(student, aiOwner);
 
         // A recorded active-position selection carrying the AI's connection id, replayed into this engine.
-        engine.ReplayCommand(new RecordedCommand(0, AiTestFixture.Callsign, "AS 3T", "XX", aiConnectionId));
+        engine.Actions.Apply(new RecordedCommand(0, AiTestFixture.Callsign, "AS 3T", "XX", aiConnectionId));
 
         var result = engine.DispatchAiCommand(ground, AiTestFixture.Callsign, "TRACK");
 

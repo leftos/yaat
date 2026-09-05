@@ -1,6 +1,7 @@
 using Yaat.Sim.Commands;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Pilot;
+using Yaat.Sim.Simulation.Actions;
 using Yaat.Sim.Simulation.Spine;
 using Yaat.Sim.Training;
 
@@ -40,15 +41,25 @@ internal sealed class ReplayCursors(List<RecordedAction> actions)
 /// <summary>
 /// The host of a <see cref="RunKind.Replay"/> run. It differs from the bare host in exactly two steps: the recorded
 /// pre-tick actions (spawns, live-traffic samples) land after the clock increment and before physics, and the
-/// remaining recorded actions at or before the completed second are applied after it. Everything else delegates to
-/// the bare host, so a replay produces the same events a test tick does.
+/// remaining recorded actions at or before the completed second are applied after it. Everything else — every other
+/// spine step, every consumer, every action-host slot — delegates to the bare host, so a replay produces the same
+/// events a test tick does. Recorded actions go through <see cref="ActionRouter.ApplyRecorded(RecordedAction, IActionHost)"/>
+/// with this host unless the caller supplies its own applier (the server's reconstruction does).
 /// </summary>
-internal sealed class ReplayHost(SimulationEngine engine, ReplayCursors cursors, Action<RecordedAction> applier) : ISimulationHost
+internal sealed class ReplayHost : ISimulationHost, IActionHost
 {
-    private readonly SimulationEngine _engine = engine;
-    private readonly ReplayCursors _cursors = cursors;
-    private readonly Action<RecordedAction> _applier = applier;
-    private readonly BareHost _bare = engine.BareHost;
+    private readonly SimulationEngine _engine;
+    private readonly ReplayCursors _cursors;
+    private readonly Action<RecordedAction> _applier;
+    private readonly BareHost _bare;
+
+    public ReplayHost(SimulationEngine engine, ReplayCursors cursors, Action<RecordedAction>? applier)
+    {
+        _engine = engine;
+        _cursors = cursors;
+        _bare = engine.BareHost;
+        _applier = applier ?? (action => _engine.Actions.ApplyRecorded(action, this));
+    }
 
     public ReplayCursors Cursors => _cursors;
 
@@ -155,4 +166,39 @@ internal sealed class ReplayHost(SimulationEngine engine, ReplayCursors cursors,
     public void OnApproachScores(List<ApproachScore> scores) => _bare.OnApproachScores(scores);
 
     public void OnStripDispatches(List<(string Callsign, ParsedCommand Command)> dispatches) => _bare.OnStripDispatches(dispatches);
+
+    // --- IActionHost: a replay has no room, so every slot is the bare host's refusal and every consumer its no-op ---
+
+    public CommandResult ApplyStrip(string callsign, ParsedCommand command, TrackOwner? identity) => _bare.ApplyStrip(callsign, command, identity);
+
+    public CommandResult ApplyTdls(AircraftState aircraft, ParsedCommand command) => _bare.ApplyTdls(aircraft, command);
+
+    public CommandResult ApplyTdlsOpsConfig(TdlsOpsConfigCommand command) => _bare.ApplyTdlsOpsConfig(command);
+
+    public CommandResult ApplyCoordination(AircraftState aircraft, ParsedCommand command, TrackOwner? identity) =>
+        _bare.ApplyCoordination(aircraft, command, identity);
+
+    public CommandResult ApplyGlobalCoordination(CoordinationAutoAckCommand command, TrackOwner? identity) =>
+        _bare.ApplyGlobalCoordination(command, identity);
+
+    public CommandResult ApplyAsdexEnableAllAlerts() => _bare.ApplyAsdexEnableAllAlerts();
+
+    public CommandResult ApplyBookmark(BookmarkCommand command) => _bare.ApplyBookmark(command);
+
+    public CommandResult ApplyTransport(ParsedCommand command) => _bare.ApplyTransport(command);
+
+    public CommandResult ApplyFlightPlanCommand(string callsign, ParsedCommand command, TrackOwner? identity) =>
+        _bare.ApplyFlightPlanCommand(callsign, command, identity);
+
+    public void OnAircraftSpawned(AircraftState aircraft) => _bare.OnAircraftSpawned(aircraft);
+
+    public void OnAircraftDeleted(string callsign) => _bare.OnAircraftDeleted(callsign);
+
+    public void OnPositionSelected(string connectionId, TrackOwner owner) => _bare.OnPositionSelected(connectionId, owner);
+
+    public void OnTimersChanged() => _bare.OnTimersChanged();
+
+    public void OnHeldDeparturesChanged() => _bare.OnHeldDeparturesChanged();
+
+    public void OnFlightPlanAmended(string callsign) => _bare.OnFlightPlanAmended(callsign);
 }

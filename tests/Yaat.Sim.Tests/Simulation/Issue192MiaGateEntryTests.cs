@@ -49,7 +49,7 @@ public class Issue192MiaGateEntryTests(ITestOutputHelper output)
         }
 
         engine.RestoreFromSnapshot(snap.State);
-        engine.ReplayCommand(
+        engine.Actions.Apply(
             new RecordedCommand(snap.ElapsedSeconds, "AAL6069", $"TAXIAUTO @{TargetParking}", "XX", "") { ReactionDelaySeconds = 0 }
         );
         engine.ReplayRange((int)snap.ElapsedSeconds, (int)snap.ElapsedSeconds + 1, recording.Actions);

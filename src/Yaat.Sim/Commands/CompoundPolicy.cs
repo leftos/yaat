@@ -91,4 +91,99 @@ public static class CompoundPolicy
 
         return allCommands.Find(IsNonCompoundable);
     }
+
+    /// <summary>
+    /// A per-aircraft immediate STARS op that bypasses <see cref="CommandDispatcher"/> (track, coordination, strip,
+    /// TDLS) — the commands a single-command router would swallow a <c>;</c>/<c>,</c> tail into.
+    /// </summary>
+    public static bool IsScopedSpecial(ParsedCommand cmd) =>
+        TrackEngine.IsTrackCommand(cmd)
+        || TrackEngine.IsCoordinationCommand(cmd)
+        || TrackEngine.IsStripCommand(cmd)
+        || TrackEngine.IsTdlsCommand(cmd);
+
+    /// <summary>
+    /// The splitter's bail set: the rejection set plus <c>DEL</c> and <c>APT</c>, which DO have aviation-path chain
+    /// semantics (<c>CROSS 28R; DEL</c>, <c>AT 5000 APT OAK</c>) and must reach the dispatcher whole — never be
+    /// special-split, never be rejected.
+    /// </summary>
+    public static bool IsSplitterBail(ParsedCommand cmd) => IsNonCompoundable(cmd) || cmd is DeleteCommand or ChangeDestinationCommand;
+
+    /// <summary>
+    /// Detects a multi-command compound (via <c>;</c>/<c>,</c>) that includes a track/coordination/strip/TDLS command
+    /// and produces its ordered dispatch units. Returns false — leaving the caller on the single-command path — for a
+    /// single command, an aviation-only compound (dispatched whole so its triggers survive), or any compound
+    /// containing a bail-set command. A block containing a scoped special is split on <c>,</c> into single commands
+    /// so each dispatches alone; an aviation-only block is kept whole.
+    /// </summary>
+    public static bool TrySplitSpecialCompound(string command, out List<CompoundUnit> units)
+    {
+        units = [];
+
+        var parsed = CommandParser.ParseCompound(command);
+        if (!parsed.IsSuccess || parsed.Value is null)
+        {
+            return false;
+        }
+
+        var allCommands = parsed.Value.Blocks.SelectMany(b => b.Commands).ToList();
+        if ((allCommands.Count < 2) || (!allCommands.Any(IsScopedSpecial)) || (allCommands.Any(IsSplitterBail)))
+        {
+            return false;
+        }
+
+        var blockStrings = command.Split(';');
+        var built = new List<CompoundUnit>();
+        for (int bi = 0; bi < blockStrings.Length; bi++)
+        {
+            if (!TrySplitBlock(blockStrings[bi].Trim(), bi, built))
+            {
+                return false;
+            }
+        }
+
+        units = built;
+        return true;
+    }
+
+    /// <summary>
+    /// Adds one <c>;</c> block's units: a block containing a scoped special is split on <c>,</c> into single commands, an
+    /// aviation-only block is kept whole. False when a fragment no longer parses — a comma inside a free-text scoped
+    /// argument (scratchpad, annotate) would over-split, so the caller bails to the single-command path.
+    /// </summary>
+    private static bool TrySplitBlock(string block, int blockIndex, List<CompoundUnit> built)
+    {
+        if (block.Length == 0)
+        {
+            return false;
+        }
+
+        var blockParsed = CommandParser.ParseCompound(block);
+        if ((!blockParsed.IsSuccess) || (blockParsed.Value is null))
+        {
+            return false;
+        }
+
+        if (!blockParsed.Value.Blocks.SelectMany(b => b.Commands).Any(IsScopedSpecial))
+        {
+            built.Add(new CompoundUnit(blockIndex, block));
+            return true;
+        }
+
+        foreach (var piece in block.Split(','))
+        {
+            var text = piece.Trim();
+            if ((text.Length == 0) || (!CommandParser.ParseCompound(text).IsSuccess))
+            {
+                return false;
+            }
+
+            built.Add(new CompoundUnit(blockIndex, text));
+        }
+
+        return true;
+    }
 }
+
+/// <summary>One dispatch unit of a split scoped-special compound: the <c>;</c> block it came from and its text.</summary>
+public readonly record struct CompoundUnit(int BlockIndex, string Text);
