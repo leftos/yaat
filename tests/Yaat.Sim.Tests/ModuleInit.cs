@@ -32,12 +32,16 @@ internal static class ModuleInit
             )
         );
 
-        var allowNavDownload = !IsNavDataDownloadSkipped();
+        // AllowDownload: false unconditionally. Resolving NavData otherwise fetches the vNAS config
+        // over HTTPS on every test process (~240 ms of TLS handshake, ~10% of the fixed cost of a
+        // filtered run) and makes the suite depend on VATSIM infrastructure being reachable. Tests
+        // run against the cached or bundled TestData copy; `python tools/refresh-navdata.py` is what
+        // moves that copy forward. NavDataPathResolverTests asserts the process makes no such call.
         NavDataPathResolver.EnsureCurrent(
             new NavDataResolveOptions(
                 BundledPath: Path.Combine(testDataDir, "NavData.dat"),
                 BundledManifestPath: Path.Combine(testDataDir, "navdata-manifest.json"),
-                AllowDownload: allowNavDownload
+                AllowDownload: false
             )
         );
 
@@ -54,12 +58,6 @@ internal static class ModuleInit
     private static bool IsCifpDownloadSkipped()
     {
         var v = Environment.GetEnvironmentVariable("YAAT_SKIP_CIFP_DOWNLOAD");
-        return string.Equals(v, "1", StringComparison.Ordinal) || string.Equals(v, "true", StringComparison.OrdinalIgnoreCase);
-    }
-
-    private static bool IsNavDataDownloadSkipped()
-    {
-        var v = Environment.GetEnvironmentVariable("YAAT_SKIP_NAVDATA_DOWNLOAD");
         return string.Equals(v, "1", StringComparison.Ordinal) || string.Equals(v, "true", StringComparison.OrdinalIgnoreCase);
     }
 }

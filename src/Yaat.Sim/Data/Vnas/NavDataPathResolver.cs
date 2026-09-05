@@ -21,9 +21,17 @@ public static class NavDataPathResolver
     private static volatile bool _ensured;
     private static string? _cachedPath;
     private static long? _resolvedNavDataSerial;
+    private static int _configFetchCount;
 
     /// <summary>Path set by the last successful <see cref="EnsureCurrent"/>.</summary>
     public static string? CachedPath => _cachedPath;
+
+    /// <summary>
+    /// How many times this process has contacted the vNAS configuration API. The test assembly
+    /// asserts this stays zero: the fetch costs ~240 ms of TLS handshake on every process start and
+    /// would make the suite depend on VATSIM infrastructure being reachable.
+    /// </summary>
+    public static int ConfigFetchCount => Volatile.Read(ref _configFetchCount);
 
     /// <summary>vNAS NavData serial of <see cref="CachedPath"/>, if known.</summary>
     public static long? ResolvedNavDataSerial => _resolvedNavDataSerial;
@@ -67,21 +75,31 @@ public static class NavDataPathResolver
             return (explicitPath, null);
         }
 
-        VnasConfig? config;
-        try
+        // The config is only ever used to decide whether to download and to warn that a local copy
+        // is behind what vNAS publishes, so fetching it when downloading is disabled buys nothing
+        // and costs a TLS round-trip (~240 ms) on every process start. Callers that resolve
+        // offline — the test assembly above all — must not pay that, nor depend on VATSIM being
+        // reachable. Downstream, a null config simply means "no live serial to compare against".
+        var wantsDownload = options.AllowDownload && !IsDownloadSkipped();
+
+        VnasConfig? config = null;
+        if (wantsDownload)
         {
-            config = FetchConfigAsync(CancellationToken.None).GetAwaiter().GetResult();
-        }
-        catch (Exception ex)
-        {
-            Log.LogWarning(ex, "Failed to fetch VNAS config for NavData resolve");
-            config = null;
+            try
+            {
+                config = FetchConfigAsync(CancellationToken.None).GetAwaiter().GetResult();
+            }
+            catch (Exception ex)
+            {
+                Log.LogWarning(ex, "Failed to fetch VNAS config for NavData resolve");
+                config = null;
+            }
         }
 
         var cachePath = GetCachePath();
         var cachedSerial = ReadCacheManifestSerial();
 
-        if (config is not null && options.AllowDownload && !IsDownloadSkipped())
+        if (config is not null)
         {
             bool needsDownload = !File.Exists(cachePath) || cachedSerial != config.NavDataSerial;
             if (needsDownload)
@@ -192,6 +210,7 @@ public static class NavDataPathResolver
 
     private static async Task<VnasConfig?> FetchConfigAsync(CancellationToken cancellationToken)
     {
+        Interlocked.Increment(ref _configFetchCount);
         using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
         var json = await http.GetStringAsync(ConfigUrl, cancellationToken).ConfigureAwait(false);
         return JsonSerializer.Deserialize<VnasConfig>(json, JsonOptions);

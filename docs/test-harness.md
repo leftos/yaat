@@ -65,14 +65,24 @@ absent — a test needing nav data must check for null and skip silently.
 3. **Bundled fallback** — `TestData/NavData.dat` and `TestData/FAACIFP18.gz` (with their `*-manifest.json`), so a fresh, fully offline
    checkout still has nav/procedure data without any network.
 
-Two environment variables force offline behavior (each accepts `1` or `true`):
+**NavData never downloads in tests.** `ModuleInit` resolves it with `AllowDownload: false`, so the
+suite uses the local cache or bundled `TestData/NavData.dat` and never contacts vNAS. That is not
+only about the network: resolving with downloads enabled fetches the vNAS *config* over HTTPS
+first, costing ~240 ms of TLS handshake on **every** test process (~10% of the fixed cost of a
+filtered run, measured 2026-09-04). `NavDataPathResolverTests.TestProcess_ResolvesNavData_WithoutContactingVnas`
+asserts `NavDataPathResolver.ConfigFetchCount` stays zero, so this cannot silently regress.
+
+The trade-off: tests no longer warn when the bundled NavData serial is behind what vNAS publishes.
+`python tools/refresh-navdata.py` is the signal for that — run it to move the pin (writes
+`TestData/NavData.dat` + `navdata-manifest.json`).
+
+CIFP still resolves online-first, and one environment variable forces it offline (accepts `1` or
+`true`):
 
 | Variable | Effect |
 |---|---|
-| `YAAT_SKIP_NAVDATA_DOWNLOAD` | Skip the vNAS NavData download; cache → bundled `TestData/NavData.dat` only |
 | `YAAT_SKIP_CIFP_DOWNLOAD` | Skip the FAA CIFP download; cache → bundled `TestData/FAACIFP18.gz` only |
-
-Refresh the committed NavData pin with `python tools/refresh-navdata.py` (writes `TestData/NavData.dat` + `navdata-manifest.json`).
+| `YAAT_SKIP_NAVDATA_DOWNLOAD` | Still honoured by `NavDataPathResolver` for non-test callers, but inert for the test suite, which already passes `AllowDownload: false` |
 
 ### The CIFP decompression temp-file dance
 
