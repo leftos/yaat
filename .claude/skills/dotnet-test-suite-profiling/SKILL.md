@@ -38,6 +38,14 @@ dropped when the method is re-derived from a paragraph.
       recommendation. To ask whether the *scheduler* is leaving capacity on the
       table, extract per-test durations from a TRX and simulate the packing with
       `tools/analyze-test-schedule.py` — never infer it from a ratio.
+- [ ] **Price a framework migration by shape before converting anything.** When
+      the deciding cost depends on the suite's dimensions (class, method and
+      parameter-row counts) rather than on what the tests do — compile time under
+      a source generator, runner startup — generate a throwaway project of the
+      same shape in both frameworks and measure that. Measured 2026-09-04:
+      incremental rebuild 2.1 s vs 7.2 s, gap growing linearly with class count,
+      which killed the migration in an hour instead of after 840 files. Compare
+      deltas, not absolutes; the stand-in is faithful in shape, not in size.
 
 ## Step 1: Collect and aggregate in a subagent
 

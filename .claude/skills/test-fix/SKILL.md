@@ -56,6 +56,13 @@ doc from `docs/architecture.md`'s task index before exploring.
 - The test must assert the **correct** (expected) behavior, so it **fails**
   against the current code.
 - Place the test in the appropriate test project mirroring the source structure.
+- Before asserting a numeric proxy for a rule, `rg` for where the sim already
+  enforces it. If an enforcement point exists, assert its outcome (it did or did
+  not fire) and keep the number as informational output — a proxy carries its
+  own datum and bias, and a near-zero margin on it says nothing about the rule.
+- A test that deliberately drives an error path captures that path's diagnostic
+  and asserts it. Left to escape to the run's stderr it reads as an unrelated
+  infrastructure fault the next time some other test in the assembly fails.
 
 **When the test pins behaviour with a generated baseline** — a characterization
 or approval check whose accepted-divergence list, golden file or accepted-failure
@@ -81,7 +88,12 @@ committing it:
 tools/gate.sh .tmp/test-red.log dotnet test <test-project> -- --filter-method "*<TestName>*"
 ```
 
+- The log must show a **non-zero test count**. A filter matching nothing reports
+  0 failed and reads as GREEN; a typo in the name is the only trigger it needs.
 - If the test **passes**, it doesn't reproduce the bug. Revise the test.
+- If the test **cannot be made to fail deterministically** without the reporter's
+  environment, the mechanism is not identified yet — go back to the diagnosis and
+  trace the state transitions. Do not weaken the test or mark it environment-bound.
 - If the test **fails for the wrong reason** — compile error, unrelated
   exception, a crash inside the harness, or an assertion that can't be reached —
   **load `references/diagnosing-a-wrong-red.md` and work through it.** Do not
@@ -107,9 +119,18 @@ for a reason that is not the assertion, load
 
 A test that passes after the fix has not yet been shown to fail without it.
 
-1. Invert the fix using the **same Edit/replace mechanism** that applied it.
+1. Invert the fix using the **same Edit/replace mechanism** that applied it, as
+   its own command, and confirm it is on disk (`git diff <file>`) before running
+   anything. A guard that rejects a compound command skips the edit silently, and
+   the retry's green then reads as "the test cannot see this".
 2. Re-run the filtered test; confirm RED.
 3. Invert back; confirm GREEN.
+
+**Mutate what the instrument compares against.** A comparator between
+implementations of one definition only sees one side diverging — mutate one side.
+A pin on the definition (a literal expected list, a golden file) only sees the
+definition changing — mutate the definition. Deleting a step from a shared list
+that every side iterates passes the comparator whether or not it works.
 
 **The same run also tests the causal story, not just the instrument.** Wherever
 you have claimed "this change is what produces that behaviour" — one fix
@@ -125,6 +146,15 @@ by `git checkout -- <file>` / `git restore <file>`: a whole-file restore reverts
 the file to HEAD and silently wipes every other uncommitted change in it. This
 binds for every temporary edit — mutation, `Diag_` probe, blame setter. A
 checkout is permitted only after `git diff <file>` shows nothing worth keeping.
+
+## Step 5b: Sweep the table the fix touched
+
+If the fix added or changed one arm of a dispatch, switch, routing or
+classification table, enumerate the other arms against the same mechanism before
+Step 6 — mechanically (a parity test over every member, as
+`TrackDispatchParityTests` does) where possible, by reading each arm otherwise —
+and report the sweep result either way. A one-arm fix is a sample of one; a
+summary line saying "the class needs an instrument" is a deferral, not a finding.
 
 ## Step 6: Run broader tests for regressions
 

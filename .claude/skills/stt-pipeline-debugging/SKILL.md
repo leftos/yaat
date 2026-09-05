@@ -136,7 +136,7 @@ Walk the stages in order and ask:
 
 Don't add rules in `PhraseologyRules.cs` without a failing test first.
 
-1. **Write the failing test** in `tests/Yaat.Sim.Tests/Speech/PhraseologyMapperTraceTests.cs` (rule mapper) or `tests/Yaat.Client.Tests/SpeechCallsignExtractionTests.cs` (callsign extract). Confirm it fails for the right reason (wrong canonical, not a build error).
+1. **Write the failing test** in `tests/Yaat.Sim.Tests/Speech/PhraseologyMapperTraceTests.cs` (rule mapper) or `tests/Yaat.Client.Tests/SpeechCallsignExtractionTests.cs` (callsign extract). Confirm it fails for the right reason (wrong canonical, not a build error), and that the log shows a **non-zero test count** — a filter matching nothing reports 0 failed and reads as GREEN. If the test cannot be made to fail deterministically without the reporter's sample environment, the stage that dropped the ball is not identified yet — go back to Step 2 rather than weakening the test.
 
 2. **Aviation realism** — before adding any new rule, cite the FAA reference. Real ATC phraseology lives in:
    - `.claude/reference/faa/7110.65/` — controller-side
@@ -145,7 +145,7 @@ Don't add rules in `PhraseologyRules.cs` without a failing test first.
 
 3. **Add the rule** in `src/Yaat.Sim/Speech/PhraseologyRules.cs`. **Order matters for the verbalizer**: `PhraseologyVerbalizer.PickPreferredRule` picks the first-declared rule on capture-count ties. Put the pilot-readback-canonical form FIRST; informal STT-only variants come after. The rule mapper itself is order-insensitive (it scores by longest match).
 
-4. **Mutation-check the attribution, not just the test.** A passing test shows the rule you added fires; it does not show that the cause you named — "no rule for this word order", "the near-miss table is missing this letter" — is the cause. Disable exactly that named cause (comment out the new rule, drop the near-miss entry) and predict **before** re-running which tests should go RED *and which should stay GREEN*. Both halves matching confirms the attribution; anything else is a finding: the miss had a different cause, or the greedy matcher is scoring a rule you did not consider. Where several samples are credited to one rule, this is the run that says whether they really share it. Remove the mutation by inverting the edit, exactly as with the Step 1 probe.
+4. **Mutation-check the attribution, not just the test.** A passing test shows the rule you added fires; it does not show that the cause you named — "no rule for this word order", "the near-miss table is missing this letter" — is the cause. Disable exactly that named cause (comment out the new rule, drop the near-miss entry) as its own command, confirm it is on disk (`git diff <file>`) — a guard rejecting a compound command skips the edit silently — and predict **before** re-running which tests should go RED *and which should stay GREEN*. Both halves matching confirms the attribution; anything else is a finding: the miss had a different cause, or the greedy matcher is scoring a rule you did not consider. Where several samples are credited to one rule, this is the run that says whether they really share it. Remove the mutation by inverting the edit, exactly as with the Step 1 probe.
 
 5. **Check the verbalizer didn't regress**:
    ```bash
