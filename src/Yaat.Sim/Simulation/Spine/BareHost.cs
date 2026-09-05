@@ -1,6 +1,7 @@
 using Yaat.Sim.Commands;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Pilot;
+using Yaat.Sim.Training;
 
 namespace Yaat.Sim.Simulation.Spine;
 
@@ -36,8 +37,6 @@ internal sealed class BareHost(SimulationEngine engine) : ISimulationHost
 
     public void AsdexAlerts() { }
 
-    public void SoloTrainingEvaluation() { }
-
     public void AutoArrivalStrips() { }
 
     public void AutoApproachDepartureStrips() { }
@@ -49,8 +48,6 @@ internal sealed class BareHost(SimulationEngine engine) : ISimulationHost
     public void TdlsExpiry() { }
 
     public void TdlsTrackRemoval() { }
-
-    public void AutoDelete() { }
 
     public void SurfaceCoastExpiry() { }
 
@@ -76,6 +73,12 @@ internal sealed class BareHost(SimulationEngine engine) : ISimulationHost
     public void OnConflictAlerts(ConflictAlertChanges changes) { }
 
     public void OnEramConflictAlerts(EramConflictAlertChanges changes) { }
+
+    /// <summary>Discarded: there is no controller to notify. The evaluator's own record of the findings is engine state.</summary>
+    public void OnSoloTrainingEvents(IReadOnlyList<SoloTrainingEvent> events) { }
+
+    /// <summary>Nothing to tear down: a bare engine has no room state keyed by callsign and nobody to broadcast to.</summary>
+    public void OnAutoDeleted(IReadOnlyList<AircraftState> removed) { }
 
     public void OnWarnings(List<(string Callsign, string Warning)> warnings)
     {

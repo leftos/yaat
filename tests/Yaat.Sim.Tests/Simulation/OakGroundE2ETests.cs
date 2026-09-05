@@ -113,6 +113,12 @@ public class OakGroundE2ETests(ITestOutputHelper output)
                 var taxiResult = engine.SendCommand("N569SX", "TAXI G @SIG1");
                 Assert.True(taxiResult.Success, $"TAXI G @SIG1 failed: {taxiResult.Message}");
                 output.WriteLine($"t={t}: N569SX TAXI G @SIG1 — {taxiResult.Message}");
+
+                // Auto-delete runs on every run kind: an arrival that is not exempt vanishes the second it parks, as
+                // it does live. The final-state assertions below want it on the scope, so keep it the way an
+                // instructor would.
+                var keep = engine.SendCommand("N569SX", "NODEL");
+                Assert.True(keep.Success, $"NODEL failed: {keep.Message}");
             }
 
             // Log N569SX progress toward SIG1 after taxi command

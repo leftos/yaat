@@ -52,7 +52,9 @@ public static class SpineOrder
         SpineStep.Sim(StepId.ConflictAlerts, static (engine, host) => host.OnConflictAlerts(engine.TickConflictAlerts())),
         SpineStep.Sim(StepId.EramConflictAlerts, static (engine, host) => host.OnEramConflictAlerts(engine.TickEramConflictAlerts())),
         SpineStep.Host(StepId.AsdexAlerts, static host => host.AsdexAlerts()),
-        SpineStep.Host(StepId.SoloTrainingEvaluation, static host => host.SoloTrainingEvaluation()),
+        // Runs on every path (ADR 0002 membership: live wins): an empty list outside solo mode, and the evaluator's
+        // own record of what it has scored is engine state a replay must rebuild like any other.
+        SpineStep.Sim(StepId.SoloTrainingEvaluation, static (engine, host) => host.OnSoloTrainingEvents(engine.TickSoloTrainingEvaluation())),
         // After the detectors, so a proactive rule that reads what visual detection or conflict alerting writes
         // sees the same picture on every path; before the drains, so an airborne check-in emits the tick it is
         // produced.
@@ -74,7 +76,9 @@ public static class SpineOrder
         // Immediately before AutoDelete, the only post-physics mutator that removes aircraft, so a strip command's
         // callsign still resolves on the tick it fires.
         SpineStep.Sim(StepId.StripDispatches, static (engine, host) => host.OnStripDispatches(engine.World.DrainAllStripDispatches())),
-        SpineStep.Host(StepId.AutoDelete, static host => host.AutoDelete()),
+        // The only step that removes aircraft, on every path (ADR 0002 membership: live wins) — a replay that kept
+        // an aircraft the live session auto-deleted drifted until the next snapshot restore snapped it back.
+        SpineStep.Sim(StepId.AutoDelete, static (engine, host) => host.OnAutoDeleted(engine.TickAutoDelete())),
         SpineStep.Host(StepId.SurfaceCoastExpiry, static host => host.SurfaceCoastExpiry()),
         SpineStep.Host(StepId.RundownBroadcast, static host => host.RundownBroadcast()),
         SpineStep.Host(StepId.LiveTrafficStatusBroadcast, static host => host.LiveTrafficStatusBroadcast()),

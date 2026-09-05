@@ -2,6 +2,7 @@ using Yaat.Sim.Commands;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Pilot;
 using Yaat.Sim.Simulation.Spine;
+using Yaat.Sim.Training;
 
 namespace Yaat.Sim.Simulation.Replay;
 
@@ -114,8 +115,6 @@ internal sealed class ReplayHost(SimulationEngine engine, ReplayCursors cursors,
 
     public void AsdexAlerts() => _bare.AsdexAlerts();
 
-    public void SoloTrainingEvaluation() => _bare.SoloTrainingEvaluation();
-
     public void AutoArrivalStrips() => _bare.AutoArrivalStrips();
 
     public void AutoApproachDepartureStrips() => _bare.AutoApproachDepartureStrips();
@@ -127,8 +126,6 @@ internal sealed class ReplayHost(SimulationEngine engine, ReplayCursors cursors,
     public void TdlsExpiry() => _bare.TdlsExpiry();
 
     public void TdlsTrackRemoval() => _bare.TdlsTrackRemoval();
-
-    public void AutoDelete() => _bare.AutoDelete();
 
     public void SurfaceCoastExpiry() => _bare.SurfaceCoastExpiry();
 
@@ -149,6 +146,10 @@ internal sealed class ReplayHost(SimulationEngine engine, ReplayCursors cursors,
     public void OnConflictAlerts(ConflictAlertChanges changes) => _bare.OnConflictAlerts(changes);
 
     public void OnEramConflictAlerts(EramConflictAlertChanges changes) => _bare.OnEramConflictAlerts(changes);
+
+    public void OnSoloTrainingEvents(IReadOnlyList<SoloTrainingEvent> events) => _bare.OnSoloTrainingEvents(events);
+
+    public void OnAutoDeleted(IReadOnlyList<AircraftState> removed) => _bare.OnAutoDeleted(removed);
 
     public void OnWarnings(List<(string Callsign, string Warning)> warnings) => _bare.OnWarnings(warnings);
 

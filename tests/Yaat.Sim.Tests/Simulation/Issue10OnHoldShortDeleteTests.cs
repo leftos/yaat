@@ -69,21 +69,25 @@ public class Issue10OnHoldShortDeleteTests(ITestOutputHelper output)
         Assert.Contains("Delete aircraft", result.Message ?? "");
 
         bool sawHoldingAfterExit = false;
+        double subDelta = 1.0 / SimulationEngine.PhysicsSubTickRate;
         for (int t = 1; t <= 180; t++)
         {
-            engine.TickOneSecond();
+            // Step the second by segment: the trigger fires during physics and the AutoDelete spine step removes the
+            // aircraft in post-physics of the same second, so a whole-second tick would never show the phase. Look
+            // between the two segments instead.
+            engine.BeginSecond();
+            engine.TickPrePhysics();
+            for (int sub = 0; sub < SimulationEngine.PhysicsSubTickRate; sub++)
+            {
+                engine.TickPhysics(subDelta);
+            }
 
-            // Inspect phase BEFORE the sweep — the trigger fires during physics, so the
-            // aircraft may transition into HoldingAfterExitPhase and be queued for delete
-            // in the same tick. Without this pre-sweep check we'd miss the transition
-            // every time.
-            var beforeSweep = engine.FindAircraft(Callsign);
-            if (beforeSweep?.Phases?.CurrentPhase is HoldingAfterExitPhase)
+            if (engine.FindAircraft(Callsign)?.Phases?.CurrentPhase is HoldingAfterExitPhase)
             {
                 sawHoldingAfterExit = true;
             }
 
-            engine.SweepPendingAutoDeletes();
+            engine.TickPostPhysics();
 
             var live = engine.FindAircraft(Callsign);
             if (live is null)
@@ -131,7 +135,6 @@ public class Issue10OnHoldShortDeleteTests(ITestOutputHelper output)
         for (int t = 1; t <= 180; t++)
         {
             engine.TickOneSecond();
-            engine.SweepPendingAutoDeletes();
             var live = engine.FindAircraft(Callsign);
             if (live is null)
             {

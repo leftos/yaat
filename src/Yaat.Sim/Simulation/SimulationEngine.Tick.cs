@@ -681,10 +681,8 @@ public sealed partial class SimulationEngine
     /// stuck-after-landing at a layout-less airport, a generated overflight past its exit radius, or the
     /// scenario's <c>OnLanding</c>/<c>Parked</c> mode), removes them from the world, and returns the removed
     /// states so the host can fan out its delete broadcasts (each state carries the last position for a
-    /// surface-track coast/drop). Called from the live host's <see cref="Spine.IHostSteps.AutoDelete"/> step; the
-    /// bare and replay hosts leave that step empty today, which the tick oracle records as an accepted divergence.
-    /// The narrower <see cref="SweepPendingAutoDeletes"/> stays for standalone tests that only exercise the
-    /// <c>PendingAutoDelete</c> path.
+    /// surface-track coast/drop). A spine step (<see cref="Spine.StepId.AutoDelete"/>) on every run kind; the host
+    /// receives the removed states through <see cref="Spine.IHostConsumers.OnAutoDeleted"/>.
     /// </summary>
     public IReadOnlyList<AircraftState> TickAutoDelete()
     {
@@ -802,9 +800,8 @@ public sealed partial class SimulationEngine
     /// <summary>
     /// Per-second solo-training evaluation: builds the evaluation context from the active scenario, runs
     /// the solo-training evaluator against the current world, and returns the resulting events for the host
-    /// to broadcast. Empty when not in solo mode. Called from the live host's
-    /// <see cref="Spine.IHostSteps.SoloTrainingEvaluation"/> step; the bare and replay hosts leave that step
-    /// empty today.
+    /// to broadcast. Empty when not in solo mode. A spine step (<see cref="Spine.StepId.SoloTrainingEvaluation"/>)
+    /// on every run kind, so a replayed solo session rebuilds the evaluator's record of what it scored.
     /// </summary>
     public IReadOnlyList<SoloTrainingEvent> TickSoloTrainingEvaluation()
     {
@@ -837,30 +834,6 @@ public sealed partial class SimulationEngine
     /// <see cref="RunSecond"/>.
     /// </summary>
     public void TickPostPhysics() => RunPostPhysics(_bareHost);
-
-    /// <summary>
-    /// Removes any aircraft whose <see cref="AircraftGroundOps.PendingAutoDelete"/>
-    /// flag is set. Returns the callsigns that were removed. Hosting servers (e.g.
-    /// yaat-server's <c>TickProcessor.ProcessAutoDelete</c>) call this after their
-    /// per-tick post-physics step so they can fan out CRC/SignalR delete broadcasts
-    /// for each removed callsign. Standalone Yaat.Sim tests can call this directly
-    /// to observe end-to-end <c>ONHS DEL</c> behaviour without a server wrapper.
-    /// </summary>
-    public IReadOnlyList<string> SweepPendingAutoDeletes()
-    {
-        var removed = new List<string>();
-        foreach (var ac in World.GetSnapshot())
-        {
-            if (!ac.Ground.PendingAutoDelete)
-            {
-                continue;
-            }
-
-            removed.Add(ac.Callsign);
-            World.RemoveAircraft(ac.Callsign);
-        }
-        return removed;
-    }
 
     internal static string ToSayKind(PilotTransmission transmission) =>
         transmission.Kind == PilotTransmissionKind.SayReadback ? "SayReadback" : "SayPilot";

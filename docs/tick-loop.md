@@ -52,12 +52,14 @@ PostPhysics    SpineOrder.PostPhysics — the live server's 32-step order
                ├─ sim TickLiveTrafficRunwayUse, TickTransponders
                ├─ host AutoAccept, PointoutAutoAck, FlightPlanCreatorAutoTrack, DeferredAutoTrack, CoordinationTimers, TowerLists
                ├─ sim TickVisualDetection, TickConflictAlerts → host, TickEramConflictAlerts → host
-               ├─ host AsdexAlerts, SoloTrainingEvaluation
+               ├─ host AsdexAlerts
+               ├─ sim TickSoloTrainingEvaluation → host                empty outside solo mode
                ├─ sim TickPilotProactive                              after the detectors, before the drains
                ├─ sim drains → host: warnings, notifications, pilot speech, readbacks, transmissions, approach scores
                ├─ host AutoArrivalStrips, AutoApproachDepartureStrips, AutoTdlsQueue, TdlsAutoWilco, TdlsExpiry, TdlsTrackRemoval
                ├─ sim drain strip dispatches → host                   immediately before the only step that removes aircraft
-               ├─ host AutoDelete, SurfaceCoastExpiry
+               ├─ sim TickAutoDelete → host                          removes on every run kind; the host tears down room state and broadcasts
+               ├─ host SurfaceCoastExpiry
                └─ host RundownBroadcast, LiveTrafficStatusBroadcast, TimersBroadcast
 EndOfSecond    SpineOrder.EndOfSecond
                ├─ host SamplePositionHistory, AdvanceWeather, IssueMetars, ApplyRecordedActions
@@ -73,7 +75,7 @@ EndOfSecond    SpineOrder.EndOfSecond
 
 | Host | Where | Slots | Consumers |
 |---|---|---|---|
-| `BareHost` | `Yaat.Sim` — `TickOneSecond`, the `RunKind.Test` run | all empty | the engine's events (`WarningEmitted`, `TerminalEntryEmitted`, `PilotSpeechEmitted`, `StripDispatchRequested`) |
+| `BareHost` | `Yaat.Sim` — `TickOneSecond`, the `RunKind.Test` run | all empty | the engine's events (`WarningEmitted`, `TerminalEntryEmitted`, `PilotSpeechEmitted`, `StripDispatchRequested`); auto-deleted aircraft and solo findings are discarded (the removal and the evaluator's record already happened in the sim) |
 | `ReplayHost` | `Yaat.Sim` — the replay driver | pre-tick recorded actions, ungated weather advance, recorded actions after the second; the rest as bare | as bare |
 | `LiveRoomHost` | yaat-server — `RoomEngine.AdvanceLiveSecond` (the hosted loop, the harness, the headless soak room) | every `TickProcessor` body; playback actions when in tape playback; position-history sampling; the gated weather advance; METAR issuance | the broadcasts |
 | `ReconstructionHost` | yaat-server — `RecordingManager.ReconstructViaServerTick` | the same `TickProcessor` bodies; the recorded log around the second; no history, no METAR | the broadcasts (suppressed) |

@@ -165,8 +165,6 @@ public class Issue311CrossThenDeleteTests(ITestOutputHelper output)
                 sawCrossing = true;
             }
 
-            engine.SweepPendingAutoDeletes();
-
             if (engine.FindAircraft(Callsign) is null)
             {
                 Assert.True(sawCrossing, $"{Callsign} was deleted at +{t}s without ever entering CrossingRunwayPhase");
@@ -303,7 +301,6 @@ public class Issue311CrossThenDeleteTests(ITestOutputHelper output)
                 sawCrossing = true;
             }
 
-            engine.SweepPendingAutoDeletes();
             if (engine.FindAircraft(Callsign) is null)
             {
                 Assert.Fail($"{Callsign} was deleted at +{t}s after NODEL — the cancel should have suppressed it");

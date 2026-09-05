@@ -163,8 +163,6 @@ public sealed class CrossDestinationRunwayTests(ITestOutputHelper output)
             var beforeSweep = engine.FindAircraft(Callsign);
             sawCrossing |= beforeSweep?.Phases?.CurrentPhase is CrossingRunwayPhase;
 
-            engine.SweepPendingAutoDeletes();
-
             if (engine.FindAircraft(Callsign) is null)
             {
                 Assert.True(sawCrossing, $"{Callsign} was deleted at +{t}s without ever entering CrossingRunwayPhase");

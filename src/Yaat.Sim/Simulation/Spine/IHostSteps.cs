@@ -12,8 +12,8 @@ namespace Yaat.Sim.Simulation.Spine;
 /// simulation-affecting step runs — the residue ADR 0001 forbids. They are, today: <see cref="DelayedHandoffs"/>,
 /// <see cref="LiveTrafficSync"/>, <see cref="AutoAccept"/>, <see cref="PointoutAutoAck"/>,
 /// <see cref="FlightPlanCreatorAutoTrack"/>, <see cref="DeferredAutoTrack"/>, <see cref="CoordinationTimers"/>,
-/// <see cref="TowerLists"/>, <see cref="TdlsExpiry"/>, <see cref="SoloTrainingEvaluation"/>,
-/// <see cref="AutoDelete"/>, <see cref="SamplePositionHistory"/> and <see cref="AdvanceWeather"/>. ADR 0003 moves
+/// <see cref="TowerLists"/>, <see cref="TdlsExpiry"/>, <see cref="SamplePositionHistory"/> and
+/// <see cref="AdvanceWeather"/>. ADR 0003 moves
 /// each into the engine, deleting the member here and turning its spine entry into a sim step; the interface shrinks
 /// as that work lands. The remaining members are broadcast and wire projection, which is the server's.
 /// </para>
@@ -47,18 +47,12 @@ public interface IHostSteps
     void TowerLists();
     void AsdexAlerts();
 
-    /// <summary>Live runs <see cref="SimulationEngine.TickSoloTrainingEvaluation"/> and broadcasts the events; other hosts skip it.</summary>
-    void SoloTrainingEvaluation();
-
     void AutoArrivalStrips();
     void AutoApproachDepartureStrips();
     void AutoTdlsQueue();
     void TdlsAutoWilco();
     void TdlsExpiry();
     void TdlsTrackRemoval();
-
-    /// <summary>Live runs <see cref="SimulationEngine.TickAutoDelete"/> and fans out the delete broadcasts; other hosts skip it.</summary>
-    void AutoDelete();
 
     void SurfaceCoastExpiry();
     void RundownBroadcast();

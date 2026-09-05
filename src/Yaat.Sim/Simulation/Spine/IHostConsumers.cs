@@ -1,6 +1,7 @@
 using Yaat.Sim.Commands;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Pilot;
+using Yaat.Sim.Training;
 
 namespace Yaat.Sim.Simulation.Spine;
 
@@ -20,6 +21,9 @@ public interface IHostConsumers
 
     void OnConflictAlerts(ConflictAlertChanges changes);
     void OnEramConflictAlerts(EramConflictAlertChanges changes);
+
+    /// <summary>The findings <see cref="SimulationEngine.TickSoloTrainingEvaluation"/> raised this second; empty outside solo mode.</summary>
+    void OnSoloTrainingEvents(IReadOnlyList<SoloTrainingEvent> events);
     void OnWarnings(List<(string Callsign, string Warning)> warnings);
     void OnNotifications(List<(string Callsign, string Notification)> notifications);
     void OnPilotSpeech(List<(string Callsign, string PilotSpeech)> speech);
@@ -30,4 +34,10 @@ public interface IHostConsumers
 
     void OnApproachScores(List<ApproachScore> scores);
     void OnStripDispatches(List<(string Callsign, ParsedCommand Command)> dispatches);
+
+    /// <summary>
+    /// The aircraft <see cref="SimulationEngine.TickAutoDelete"/> removed this second — already gone from the world;
+    /// each state still carries its last position for a surface-track coast or drop.
+    /// </summary>
+    void OnAutoDeleted(IReadOnlyList<AircraftState> removed);
 }

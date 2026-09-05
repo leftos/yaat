@@ -51,8 +51,16 @@ public class OakPostLandingReversalsTests(ITestOutputHelper output)
         return count;
     }
 
+    /// <summary>
+    /// Ticks until the aircraft parks. Auto-delete runs on every run kind, so an arrival that is not exempt vanishes
+    /// the same second it reaches its spot — as it does live. The instructor's way to keep watching it is
+    /// <c>NODEL</c>, so that is what this sends before ticking.
+    /// </summary>
     private static void TickUntilAtParking(SimulationEngine engine, string callsign, int maxTicks)
     {
+        var keep = engine.SendCommand(callsign, "NODEL");
+        Assert.True(keep.Success, $"NODEL failed: {keep.Message}");
+
         for (int i = 0; i < maxTicks; i++)
         {
             engine.TickOneSecond();

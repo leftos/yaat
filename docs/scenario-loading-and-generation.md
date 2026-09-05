@@ -125,9 +125,10 @@ authored rate capped at the type's own `AircraftPerformance.DescentRate`.
 
 **Flight plans.** A generated VFR arrival files a VFR plan to the primary airport and draws a discrete code
 from the VFR beacon bank — modelling a VFR aircraft already receiving radar service, which is what a Class C
-arrival must be (7110.65 §7-8-2.a.1). That is also what lets the server's destination-matching auto-delete
-clean it up after landing. Overflights stay cold calls on 1200; they leave via
-`TickProcessor.ProcessAutoDelete`'s exit-radius branch instead, which skips any aircraft a controller owns.
+arrival must be (7110.65 §7-8-2.a.1). That is also what lets the destination-matching auto-delete
+(`SimulationEngine.TickAutoDelete`, the `AutoDelete` spine step on every run kind) clean it up after landing.
+Overflights stay cold calls on 1200; they leave via the same step's exit-radius branch instead, which skips any
+aircraft a controller owns.
 
 ## Load pipeline and the immediate / delayed / deferred split
 
