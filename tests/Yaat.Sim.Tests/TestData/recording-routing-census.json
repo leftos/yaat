@@ -1,0 +1,1905 @@
+[
+  {
+    "File": "0ee0513aa9f0.zip",
+    "Commands": 245,
+    "ByKind": {
+      "Compound": 113,
+      "Delete": 10,
+      "FlightPlan": 4,
+      "GhostTrack": 4,
+      "Strip": 89,
+      "TrackOwnership": 25
+    },
+    "GlobalNoOps": [],
+    "ReactionDelayed": 0,
+    "AsPrefixed": 31,
+    "Solo": false
+  },
+  {
+    "File": "10797ffbbfea.zip",
+    "Commands": 113,
+    "ByKind": {
+      "Compound": 28,
+      "Delete": 3,
+      "FlightPlan": 3,
+      "GhostTrack": 4,
+      "SayOrShow": 1,
+      "Strip": 57,
+      "TrackOwnership": 17
+    },
+    "GlobalNoOps": [],
+    "ReactionDelayed": 0,
+    "AsPrefixed": 24,
+    "Solo": false
+  },
+  {
+    "File": "19801dcd5dc2.zip",
+    "Commands": 224,
+    "ByKind": {
+      "Compound": 101,
+      "Delete": 11,
+      "FlightPlan": 4,
+      "GhostTrack": 5,
+      "Strip": 60,
+      "TrackOwnership": 43
+    },
+    "GlobalNoOps": [],
+    "ReactionDelayed": 0,
+    "AsPrefixed": 42,
+    "Solo": false
+  },
+  {
+    "File": "4d4344011a72.zip",
+    "Commands": 189,
+    "ByKind": {
+      "Compound": 137,
+      "Delete": 26,
+      "FlightPlan": 3,
+      "Strip": 20,
+      "TrackOwnership": 3
+    },
+    "GlobalNoOps": [],
+    "ReactionDelayed": 0,
+    "AsPrefixed": 6,
+    "Solo": false
+  },
+  {
+    "File": "5d33df162626.zip",
+    "Commands": 0,
+    "ByKind": {},
+    "GlobalNoOps": [],
+    "ReactionDelayed": 0,
+    "AsPrefixed": 0,
+    "Solo": false
+  },
+  {
+    "File": "606cf53c33a1.zip",
+    "Commands": 191,
+    "ByKind": {
+      "Compound": 103,
+      "Delete": 11,
+      "FlightPlan": 7,
+      "GhostTrack": 4,
+      "Strip": 41,
+      "TrackOwnership": 25
+    },
+    "GlobalNoOps": [],
+    "ReactionDelayed": 0,
+    "AsPrefixed": 36,
+    "Solo": false
+  },
+  {
+    "File": "66fd6538542e.zip",
+    "Commands": 103,
+    "ByKind": {
+      "Compound": 68,
+      "Delete": 9,
+      "TrackOwnership": 26
+    },
+    "GlobalNoOps": [],
+    "ReactionDelayed": 0,
+    "AsPrefixed": 26,
+    "Solo": false
+  },
+  {
+    "File": "8201087a0088.zip",
+    "Commands": 210,
+    "ByKind": {
+      "Compound": 104,
+      "Delete": 12,
+      "FlightPlan": 5,
+      "GhostTrack": 6,
+      "Strip": 31,
+      "TrackOwnership": 52
+    },
+    "GlobalNoOps": [],
+    "ReactionDelayed": 0,
+    "AsPrefixed": 46,
+    "Solo": false
+  },
+  {
+    "File": "921b8c537a44.zip",
+    "Commands": 102,
+    "ByKind": {
+      "Compound": 92,
+      "Delete": 8,
+      "TrackOwnership": 2
+    },
+    "GlobalNoOps": [
+      "UNPAUSE",
+      "PAUSE",
+      "UNPAUSE",
+      "PAUSE",
+      "UNPAUSE",
+      "SIMRATE 2",
+      "SIMRATE 4",
+      "SIMRATE 1",
+      "PAUSE"
+    ],
+    "ReactionDelayed": 0,
+    "AsPrefixed": 0,
+    "Solo": false
+  },
+  {
+    "File": "94c6ed9ab1d4.zip",
+    "Commands": 2,
+    "ByKind": {
+      "Compound": 2
+    },
+    "GlobalNoOps": [],
+    "ReactionDelayed": 0,
+    "AsPrefixed": 0,
+    "Solo": false
+  },
+  {
+    "File": "a67670e50d58.zip",
+    "Commands": 209,
+    "ByKind": {
+      "Compound": 58,
+      "Delete": 15,
+      "FlightPlan": 11,
+      "GhostTrack": 1,
+      "Strip": 81,
+      "TrackOwnership": 43
+    },
+    "GlobalNoOps": [
+      "ADD V S P @NEW1",
+      "ADD V S P @NEW1",
+      "ADD V S P @NEW1",
+      "ADD I L J 30 30"
+    ],
+    "ReactionDelayed": 0,
+    "AsPrefixed": 55,
+    "Solo": false
+  },
+  {
+    "File": "airborne-mrt-completed-chain-recording.zip",
+    "Commands": 64,
+    "ByKind": {
+      "Compound": 9,
+      "FlightPlan": 1,
+      "Strip": 54
+    },
+    "GlobalNoOps": [],
+    "ReactionDelayed": 0,
+    "AsPrefixed": 1,
+    "Solo": false
+  },
+  {
+    "File": "atpa-cross-runway-recording.yaat-bug-report-bundle.zip",
+    "Commands": 39,
+    "ByKind": {
+      "Compound": 17,
+      "Delete": 3,
+      "Strip": 13,
+      "TrackOwnership": 6
+    },
+    "GlobalNoOps": [],
+    "ReactionDelayed": 0,
+    "AsPrefixed": 6,
+    "Solo": false
+  },
+  {
+    "File": "b143fc615682.zip",
+    "Commands": 44,
+    "ByKind": {
+      "Compound": 31,
+      "Delete": 2,
+      "TrackOwnership": 11
+    },
+    "GlobalNoOps": [],
+    "ReactionDelayed": 0,
+    "AsPrefixed": 11,
+    "Solo": false
+  },
+  {
+    "File": "b55a82ade9d9.zip",
+    "Commands": 341,
+    "ByKind": {
+      "Compound": 171,
+      "Delete": 33,
+      "FlightPlan": 2,
+      "GhostTrack": 3,
+      "Strip": 84,
+      "TrackOwnership": 48
+    },
+    "GlobalNoOps": [],
+    "ReactionDelayed": 0,
+    "AsPrefixed": 49,
+    "Solo": false
+  },
+  {
+    "File": "b872b01f688a.zip",
+    "Commands": 8,
+    "ByKind": {
+      "Compound": 8
+    },
+    "GlobalNoOps": [],
+    "ReactionDelayed": 0,
+    "AsPrefixed": 0,
+    "Solo": false
+  },
+  {
+    "File": "behind-ground-taxi-recording.yaat-bug-report-bundle.zip",
+    "Commands": 18,
+    "ByKind": {
+      "Compound": 18
+    },
+    "GlobalNoOps": [],
+    "ReactionDelayed": 0,
+    "AsPrefixed": 0,
+    "Solo": false
+  },
+  {
+    "File": "c000c2b0afc8.zip",
+    "Commands": 11,
+    "ByKind": {
+      "Compound": 7,
+      "Strip": 4
+    },
+    "GlobalNoOps": [],
+    "ReactionDelayed": 7,
+    "AsPrefixed": 0,
+    "Solo": true
+  },
+  {
+    "File": "c0c9f6aa6cb7.zip",
+    "Commands": 175,
+    "ByKind": {
+      "Compound": 136,
+      "Delete": 19,
+      "Strip": 20
+    },
+    "GlobalNoOps": [],
+    "ReactionDelayed": 0,
+    "AsPrefixed": 0,
+    "Solo": false
+  },
+  {
+    "File": "clandf-goaround-recording.zip",
+    "Commands": 330,
+    "ByKind": {
+      "Compound": 130,
+      "Delete": 15,
+      "FlightPlan": 3,
+      "GhostTrack": 6,
+      "SayOrShow": 1,
+      "Strip": 143,
+      "TrackOwnership": 32
+    },
+    "GlobalNoOps": [],
+    "ReactionDelayed": 0,
+    "AsPrefixed": 35,
+    "Solo": false
+  },
+  {
+    "File": "cmd6-ctopp-hover-recording.yaat-bug-report-bundle.zip",
+    "Commands": 177,
+    "ByKind": {
+      "Compound": 75,
+      "Delete": 13,
+      "FlightPlan": 5,
+      "GhostTrack": 5,
+      "Strip": 44,
+      "TrackOwnership": 35
+    },
+    "GlobalNoOps": [],
+    "ReactionDelayed": 0,
+    "AsPrefixed": 44,
+    "Solo": false
+  },
+  {
+    "File": "conflict-stop-after-behind-recording.yaat-bug-report-bundle.zip",
+    "Commands": 21,
+    "ByKind": {
+      "Compound": 21
+    },
+    "GlobalNoOps": [],
+    "ReactionDelayed": 0,
+    "AsPrefixed": 0,
+    "Solo": false
+  },
+  {
+    "File": "cross-rwy-cto-mrt-recording.yaat-bug-report-bundle.zip",
+    "Commands": 204,
+    "ByKind": {
+      "Compound": 89,
+      "Delete": 21,
+      "FlightPlan": 2,
+      "GhostTrack": 2,
+      "Strip": 67,
+      "TrackOwnership": 23
+    },
+    "GlobalNoOps": [],
+    "ReactionDelayed": 0,
+    "AsPrefixed": 27,
+    "Solo": false
+  },
+  {
+    "File": "cto-cleared-by-cm-recording.yaat-bug-report-bundle.zip",
+    "Commands": 231,
+    "ByKind": {
+      "Compound": 101,
+      "Delete": 11,
+      "FlightPlan": 7,
+      "GhostTrack": 6,
+      "Strip": 64,
+      "TrackOwnership": 42
+    },
+    "GlobalNoOps": [],
+    "ReactionDelayed": 0,
+    "AsPrefixed": 55,
+    "Solo": false
+  },
+  {
+    "File": "diagonal-lineup-28r-recording.zip",
+    "Commands": 18,
+    "ByKind": {
+      "Compound": 15,
+      "Delete": 1,
+      "TrackOwnership": 2
+    },
+    "GlobalNoOps": [
+      "UNPAUSE",
+      "PAUSE",
+      "UNPAUSE",
+      "PAUSE"
+    ],
+    "ReactionDelayed": 0,
+    "AsPrefixed": 0,
+    "Solo": false
+  },
+  {
+    "File": "drawn-route-passed-prefix-recording.yaat-bug-report-bundle.zip",
+    "Commands": 151,
+    "ByKind": {
+      "Compound": 44,
+      "Delete": 3,
+      "Strip": 104
+    },
+    "GlobalNoOps": [],
+    "ReactionDelayed": 0,
+    "AsPrefixed": 0,
+    "Solo": false
+  },
+  {
+    "File": "e55edd55bed7.zip",
+    "Commands": 68,
+    "ByKind": {
+      "Compound": 67,
+      "Delete": 1
+    },
+    "GlobalNoOps": [
+      "UNPAUSE",
+      "PAUSE",
+      "UNPAUSE",
+      "PAUSE",
+      "UNPAUSE",
+      "PAUSE",
+      "UNPAUSE",
+      "PAUSE",
+      "UNPAUSE",
+      "PAUSE",
+      "UNPAUSE",
+      "PAUSE",
+      "UNPAUSE",
+      "PAUSE",
+      "PAUSE",
+      "UNPAUSE",
+      "PAUSE",
+      "UNPAUSE",
+      "PAUSE",
+      "UNPAUSE",
+      "PAUSE",
+      "UNPAUSE",
+      "PAUSE",
+      "UNPAUSE",
+      "PAUSE",
+      "UNPAUSE",
+      "PAUSE",
+      "UNPAUSE",
+      "PAUSE"
+    ],
+    "ReactionDelayed": 0,
+    "AsPrefixed": 0,
+    "Solo": false
+  },
+  {
+    "File": "e5c26ff62464.zip",
+    "Commands": 177,
+    "ByKind": {
+      "Compound": 75,
+      "Delete": 13,
+      "FlightPlan": 5,
+      "GhostTrack": 5,
+      "Strip": 44,
+      "TrackOwnership": 35
+    },
+    "GlobalNoOps": [],
+    "ReactionDelayed": 0,
+    "AsPrefixed": 44,
+    "Solo": false
+  },
+  {
+    "File": "eeb4bd38f801.zip",
+    "Commands": 287,
+    "ByKind": {
+      "Compound": 123,
+      "Delete": 12,
+      "FlightPlan": 5,
+      "GhostTrack": 7,
+      "Strip": 93,
+      "TrackOwnership": 47
+    },
+    "GlobalNoOps": [],
+    "ReactionDelayed": 0,
+    "AsPrefixed": 46,
+    "Solo": false
+  },
+  {
+    "File": "er-d-wrong-exit-recording.zip",
+    "Commands": 68,
+    "ByKind": {
+      "Compound": 67,
+      "Delete": 1
+    },
+    "GlobalNoOps": [
+      "UNPAUSE",
+      "PAUSE",
+      "UNPAUSE",
+      "PAUSE",
+      "UNPAUSE",
+      "PAUSE",
+      "UNPAUSE",
+      "PAUSE",
+      "UNPAUSE",
+      "PAUSE",
+      "UNPAUSE",
+      "PAUSE",
+      "UNPAUSE",
+      "PAUSE",
+      "PAUSE",
+      "UNPAUSE",
+      "PAUSE",
+      "UNPAUSE",
+      "PAUSE",
+      "UNPAUSE",
+      "PAUSE",
+      "UNPAUSE",
+      "PAUSE",
+      "UNPAUSE",
+      "PAUSE",
+      "UNPAUSE",
+      "PAUSE",
+      "UNPAUSE",
+      "PAUSE"
+    ],
+    "ReactionDelayed": 0,
+    "AsPrefixed": 0,
+    "Solo": false
+  },
+  {
+    "File": "eva-capp-descent-recording.yaat-bug-report-bundle.zip",
+    "Commands": 18,
+    "ByKind": {
+      "Compound": 17,
+      "Delete": 1
+    },
+    "GlobalNoOps": [],
+    "ReactionDelayed": 0,
+    "AsPrefixed": 0,
+    "Solo": false
+  },
+  {
+    "File": "exp-altitude-assignment-recording.yaat-bug-report-bundle.zip",
+    "Commands": 180,
+    "ByKind": {
+      "Compound": 89,
+      "Delete": 11,
+      "FlightPlan": 4,
+      "GhostTrack": 6,
+      "Strip": 22,
+      "TrackOwnership": 48
+    },
+    "GlobalNoOps": [],
+    "ReactionDelayed": 0,
+    "AsPrefixed": 42,
+    "Solo": false
+  },
+  {
+    "File": "f8e389804194.zip",
+    "Commands": 26,
+    "ByKind": {
+      "Compound": 23,
+      "TrackOwnership": 3
+    },
+    "GlobalNoOps": [
+      "UNPAUSE",
+      "PAUSE",
+      "UNPAUSE"
+    ],
+    "ReactionDelayed": 0,
+    "AsPrefixed": 2,
+    "Solo": false
+  },
+  {
+    "File": "follow-downwind-lead-held-recording.yaat-bug-report-bundle.zip",
+    "Commands": 93,
+    "ByKind": {
+      "Compound": 42,
+      "Delete": 8,
+      "FlightPlan": 4,
+      "GhostTrack": 1,
+      "Strip": 37,
+      "TrackOwnership": 1
+    },
+    "GlobalNoOps": [],
+    "ReactionDelayed": 0,
+    "AsPrefixed": 6,
+    "Solo": false
+  },
+  {
+    "File": "follow-straightin-sequencing-recording.zip",
+    "Commands": 245,
+    "ByKind": {
+      "Compound": 137,
+      "Delete": 12,
+      "FlightPlan": 5,
+      "GhostTrack": 1,
+      "Strip": 32,
+      "TrackOwnership": 58
+    },
+    "GlobalNoOps": [
+      "ADD I H J 30 10"
+    ],
+    "ReactionDelayed": 0,
+    "AsPrefixed": 42,
+    "Solo": false
+  },
+  {
+    "File": "followg-from-parking-recording.zip",
+    "Commands": 111,
+    "ByKind": {
+      "Compound": 34,
+      "Delete": 5,
+      "Strip": 61,
+      "TrackOwnership": 11
+    },
+    "GlobalNoOps": [],
+    "ReactionDelayed": 0,
+    "AsPrefixed": 8,
+    "Solo": false
+  },
+  {
+    "File": "fpe-cold-call-beacon-recording.yaat-bug-report-bundle.zip",
+    "Commands": 118,
+    "ByKind": {
+      "Compound": 47,
+      "Delete": 1,
+      "Strip": 70
+    },
+    "GlobalNoOps": [],
+    "ReactionDelayed": 0,
+    "AsPrefixed": 0,
+    "Solo": false
+  },
+  {
+    "File": "ground-conflict-bundle.yaat-bug-report-bundle.zip",
+    "Commands": 2,
+    "ByKind": {
+      "Compound": 2
+    },
+    "GlobalNoOps": [
+      "UNPAUSE",
+      "PAUSE"
+    ],
+    "ReactionDelayed": 0,
+    "AsPrefixed": 0,
+    "Solo": false
+  },
+  {
+    "File": "handoff-accept-datablock-white-recording.zip",
+    "Commands": 40,
+    "ByKind": {
+      "Compound": 3,
+      "FlightPlan": 2,
+      "TrackOwnership": 35
+    },
+    "GlobalNoOps": [],
+    "ReactionDelayed": 0,
+    "AsPrefixed": 24,
+    "Solo": false
+  },
+  {
+    "File": "hold-during-lineup-recording.yaat-bug-report-bundle.zip",
+    "Commands": 341,
+    "ByKind": {
+      "Compound": 171,
+      "Delete": 33,
+      "FlightPlan": 2,
+      "GhostTrack": 3,
+      "Strip": 84,
+      "TrackOwnership": 48
+    },
+    "GlobalNoOps": [],
+    "ReactionDelayed": 0,
+    "AsPrefixed": 49,
+    "Solo": false
+  },
+  {
+    "File": "issue-amx-taxi-overshoot-recording.yaat-bug-report-bundle.zip",
+    "Commands": 5,
+    "ByKind": {
+      "Compound": 5
+    },
+    "GlobalNoOps": [
+      "UNPAUSE",
+      "PAUSE"
+    ],
+    "ReactionDelayed": 0,
+    "AsPrefixed": 0,
+    "Solo": false
+  },
+  {
+    "File": "issue-sfo-28r-exit-recording.yaat-bug-report-bundle.zip",
+    "Commands": 2,
+    "ByKind": {
+      "Compound": 2
+    },
+    "GlobalNoOps": [
+      "UNPAUSE",
+      "PAUSE"
+    ],
+    "ReactionDelayed": 0,
+    "AsPrefixed": 0,
+    "Solo": false
+  },
+  {
+    "File": "issue-sfo-r10l-offset-recording.yaat-bug-report-bundle.zip",
+    "Commands": 8,
+    "ByKind": {
+      "Compound": 8
+    },
+    "GlobalNoOps": [],
+    "ReactionDelayed": 0,
+    "AsPrefixed": 0,
+    "Solo": false
+  },
+  {
+    "File": "issue154-vfr-cold-calls-recording.zip",
+    "Commands": 37,
+    "ByKind": {
+      "Compound": 25,
+      "Delete": 1,
+      "FlightPlan": 1,
+      "GhostTrack": 2,
+      "TrackOwnership": 8
+    },
+    "GlobalNoOps": [],
+    "ReactionDelayed": 0,
+    "AsPrefixed": 8,
+    "Solo": false
+  },
+  {
+    "File": "issue161-push-face-then-taxi-recording.zip",
+    "Commands": 3,
+    "ByKind": {
+      "Compound": 3
+    },
+    "GlobalNoOps": [],
+    "ReactionDelayed": 0,
+    "AsPrefixed": 0,
+    "Solo": false
+  },
+  {
+    "File": "issue162-push-t5b-fillet-recording.zip",
+    "Commands": 4,
+    "ByKind": {
+      "Compound": 4
+    },
+    "GlobalNoOps": [],
+    "ReactionDelayed": 0,
+    "AsPrefixed": 0,
+    "Solo": false
+  },
+  {
+    "File": "issue172-sfo-taxiing-recording.yaat-bug-report-bundle.zip",
+    "Commands": 286,
+    "ByKind": {
+      "Compound": 163,
+      "Delete": 3,
+      "Strip": 120
+    },
+    "GlobalNoOps": [],
+    "ReactionDelayed": 0,
+    "AsPrefixed": 0,
+    "Solo": false
+  },
+  {
+    "File": "issue177-oak-heli-recording.zip",
+    "Commands": 12,
+    "ByKind": {
+      "Compound": 12
+    },
+    "GlobalNoOps": [],
+    "ReactionDelayed": 0,
+    "AsPrefixed": 0,
+    "Solo": false
+  },
+  {
+    "File": "issue181-auto-taxi-recording.zip",
+    "Commands": 0,
+    "ByKind": {},
+    "GlobalNoOps": [],
+    "ReactionDelayed": 0,
+    "AsPrefixed": 0,
+    "Solo": false
+  },
+  {
+    "File": "issue182-msy-rwy2-exit-recording.yaat-bug-report-bundle.zip",
+    "Commands": 1,
+    "ByKind": {
+      "Compound": 1
+    },
+    "GlobalNoOps": [],
+    "ReactionDelayed": 0,
+    "AsPrefixed": 0,
+    "Solo": false
+  },
+  {
+    "File": "issue184-i90-vectors-star-app-speeds-recording.zip",
+    "Commands": 88,
+    "ByKind": {
+      "Compound": 64,
+      "Delete": 2,
+      "TrackOwnership": 22
+    },
+    "GlobalNoOps": [],
+    "ReactionDelayed": 0,
+    "AsPrefixed": 22,
+    "Solo": false
+  },
+  {
+    "File": "issue186-zhu-aus-star-approach-recording.zip",
+    "Commands": 31,
+    "ByKind": {
+      "Compound": 31
+    },
+    "GlobalNoOps": [],
+    "ReactionDelayed": 0,
+    "AsPrefixed": 0,
+    "Solo": false
+  },
+  {
+    "File": "issue187-star-dvia-recording.yaat-bug-report-bundle.zip",
+    "Commands": 12,
+    "ByKind": {
+      "Compound": 12
+    },
+    "GlobalNoOps": [],
+    "ReactionDelayed": 0,
+    "AsPrefixed": 0,
+    "Solo": false
+  },
+  {
+    "File": "issue189-atpa-pcones-recording.zip",
+    "Commands": 19,
+    "ByKind": {
+      "Compound": 19
+    },
+    "GlobalNoOps": [],
+    "ReactionDelayed": 0,
+    "AsPrefixed": 0,
+    "Solo": false
+  },
+  {
+    "File": "issue193-mia-cto-lineup-recording.yaat-bug-report-bundle.zip",
+    "Commands": 5,
+    "ByKind": {
+      "Compound": 4,
+      "Delete": 1
+    },
+    "GlobalNoOps": [],
+    "ReactionDelayed": 4,
+    "AsPrefixed": 0,
+    "Solo": true
+  },
+  {
+    "File": "issue194-crossing-ready-for-departure-recording.yaat-bug-report-bundle.zip",
+    "Commands": 11,
+    "ByKind": {
+      "Compound": 6,
+      "Delete": 2,
+      "TrackOwnership": 3
+    },
+    "GlobalNoOps": [],
+    "ReactionDelayed": 0,
+    "AsPrefixed": 3,
+    "Solo": true
+  },
+  {
+    "File": "issue195-ase-lindz1-turn-altitude-recording.yaat-bug-report-bundle.zip",
+    "Commands": 8,
+    "ByKind": {
+      "Compound": 7,
+      "Delete": 1
+    },
+    "GlobalNoOps": [],
+    "ReactionDelayed": 0,
+    "AsPrefixed": 0,
+    "Solo": false
+  },
+  {
+    "File": "issue196-speed-5nm-departure-recording.yaat-bug-report-bundle.zip",
+    "Commands": 39,
+    "ByKind": {
+      "Compound": 29,
+      "Delete": 3,
+      "SayOrShow": 3,
+      "TrackOwnership": 4
+    },
+    "GlobalNoOps": [],
+    "ReactionDelayed": 0,
+    "AsPrefixed": 4,
+    "Solo": false
+  },
+  {
+    "File": "issue2-pcm-28l-stuck-recording.yaat-bug-report-bundle.zip",
+    "Commands": 204,
+    "ByKind": {
+      "Compound": 89,
+      "Delete": 21,
+      "FlightPlan": 2,
+      "GhostTrack": 2,
+      "Strip": 67,
+      "TrackOwnership": 23
+    },
+    "GlobalNoOps": [],
+    "ReactionDelayed": 0,
+    "AsPrefixed": 27,
+    "Solo": false
+  },
+  {
+    "File": "issue216-auto-handoff-autocontroller-recording.yaat-bug-report-bundle.zip",
+    "Commands": 3,
+    "ByKind": {
+      "Compound": 3
+    },
+    "GlobalNoOps": [],
+    "ReactionDelayed": 0,
+    "AsPrefixed": 0,
+    "Solo": false
+  },
+  {
+    "File": "issue222-oak-pushback-parked-neighbor-recording.zip",
+    "Commands": 65,
+    "ByKind": {
+      "Compound": 21,
+      "Strip": 44
+    },
+    "GlobalNoOps": [],
+    "ReactionDelayed": 0,
+    "AsPrefixed": 0,
+    "Solo": false
+  },
+  {
+    "File": "issue223-oak-t-tc-recording.zip",
+    "Commands": 65,
+    "ByKind": {
+      "Compound": 21,
+      "Strip": 44
+    },
+    "GlobalNoOps": [],
+    "ReactionDelayed": 0,
+    "AsPrefixed": 0,
+    "Solo": false
+  },
+  {
+    "File": "issue224-oak-taxi-through-lead-recording.zip",
+    "Commands": 65,
+    "ByKind": {
+      "Compound": 21,
+      "Strip": 44
+    },
+    "GlobalNoOps": [],
+    "ReactionDelayed": 0,
+    "AsPrefixed": 0,
+    "Solo": false
+  },
+  {
+    "File": "issue228-ef-short-final-recording.zip",
+    "Commands": 283,
+    "ByKind": {
+      "Compound": 94,
+      "Delete": 16,
+      "FlightPlan": 1,
+      "GhostTrack": 3,
+      "Strip": 125,
+      "TrackOwnership": 44
+    },
+    "GlobalNoOps": [],
+    "ReactionDelayed": 0,
+    "AsPrefixed": 37,
+    "Solo": false
+  },
+  {
+    "File": "issue233-sfo-push5a-recording.yaat-bug-report-bundle.zip",
+    "Commands": 68,
+    "ByKind": {
+      "Compound": 61,
+      "Delete": 7
+    },
+    "GlobalNoOps": [],
+    "ReactionDelayed": 0,
+    "AsPrefixed": 0,
+    "Solo": false
+  },
+  {
+    "File": "issue239-oak-33-lineup-corner-cut-recording.zip",
+    "Commands": 339,
+    "ByKind": {
+      "Compound": 130,
+      "Delete": 11,
+      "FlightPlan": 3,
+      "GhostTrack": 3,
+      "Strip": 163,
+      "TrackOwnership": 29
+    },
+    "GlobalNoOps": [],
+    "ReactionDelayed": 0,
+    "AsPrefixed": 28,
+    "Solo": false
+  },
+  {
+    "File": "issue276-er-exit-left-recording.zip",
+    "Commands": 52,
+    "ByKind": {
+      "Compound": 27,
+      "Strip": 25
+    },
+    "GlobalNoOps": [],
+    "ReactionDelayed": 0,
+    "AsPrefixed": 0,
+    "Solo": false
+  },
+  {
+    "File": "issue283-ga-mrt-straight-out-recording.zip",
+    "Commands": 385,
+    "ByKind": {
+      "Compound": 181,
+      "Delete": 21,
+      "FlightPlan": 4,
+      "GhostTrack": 6,
+      "SquawkAll": 3,
+      "Strip": 123,
+      "TrackOwnership": 47
+    },
+    "GlobalNoOps": [
+      "ADD V S P -160 15 14",
+      "ADD V S P -160 10 14",
+      "ADD V S P -360 12 25",
+      "ADD V S P -360 10 25"
+    ],
+    "ReactionDelayed": 0,
+    "AsPrefixed": 46,
+    "Solo": false
+  },
+  {
+    "File": "issue284-ef-base-outbound-recording.zip",
+    "Commands": 385,
+    "ByKind": {
+      "Compound": 181,
+      "Delete": 21,
+      "FlightPlan": 4,
+      "GhostTrack": 6,
+      "SquawkAll": 3,
+      "Strip": 123,
+      "TrackOwnership": 47
+    },
+    "GlobalNoOps": [
+      "ADD V S P -160 15 14",
+      "ADD V S P -160 10 14",
+      "ADD V S P -360 12 25",
+      "ADD V S P -360 10 25"
+    ],
+    "ReactionDelayed": 0,
+    "AsPrefixed": 46,
+    "Solo": false
+  },
+  {
+    "File": "issue286-cfix-wait-descent-recording.yaat-bug-report-bundle.zip",
+    "Commands": 29,
+    "ByKind": {
+      "Compound": 14,
+      "TrackOwnership": 15
+    },
+    "GlobalNoOps": [],
+    "ReactionDelayed": 0,
+    "AsPrefixed": 7,
+    "Solo": false
+  },
+  {
+    "File": "issue289-nuevo8-rolling-cto-recording.zip",
+    "Commands": 361,
+    "ByKind": {
+      "Compound": 179,
+      "Delete": 19,
+      "FlightPlan": 5,
+      "GhostTrack": 5,
+      "Strip": 98,
+      "TrackOwnership": 55
+    },
+    "GlobalNoOps": [],
+    "ReactionDelayed": 0,
+    "AsPrefixed": 56,
+    "Solo": false
+  },
+  {
+    "File": "issue292-koak-low-approach-33-recording.zip",
+    "Commands": 361,
+    "ByKind": {
+      "Compound": 179,
+      "Delete": 19,
+      "FlightPlan": 5,
+      "GhostTrack": 5,
+      "Strip": 98,
+      "TrackOwnership": 55
+    },
+    "GlobalNoOps": [],
+    "ReactionDelayed": 0,
+    "AsPrefixed": 56,
+    "Solo": false
+  },
+  {
+    "File": "issue315-luaw-after-crossing-recording.zip",
+    "Commands": 141,
+    "ByKind": {
+      "Compound": 90,
+      "Delete": 10,
+      "Strip": 41
+    },
+    "GlobalNoOps": [],
+    "ReactionDelayed": 0,
+    "AsPrefixed": 0,
+    "Solo": false
+  },
+  {
+    "File": "issue393-sfo-bare-taxi-runway-recording.zip",
+    "Commands": 175,
+    "ByKind": {
+      "Compound": 63,
+      "Delete": 16,
+      "GhostTrack": 1,
+      "Strip": 94,
+      "TrackOwnership": 1
+    },
+    "GlobalNoOps": [],
+    "ReactionDelayed": 0,
+    "AsPrefixed": 2,
+    "Solo": false
+  },
+  {
+    "File": "issue394-sfo-hs-spot17-recording.zip",
+    "Commands": 175,
+    "ByKind": {
+      "Compound": 63,
+      "Delete": 16,
+      "GhostTrack": 1,
+      "Strip": 94,
+      "TrackOwnership": 1
+    },
+    "GlobalNoOps": [],
+    "ReactionDelayed": 0,
+    "AsPrefixed": 2,
+    "Solo": false
+  },
+  {
+    "File": "issue395-sfo-hs-taxiway-en-route-recording.zip",
+    "Commands": 175,
+    "ByKind": {
+      "Compound": 63,
+      "Delete": 16,
+      "GhostTrack": 1,
+      "Strip": 94,
+      "TrackOwnership": 1
+    },
+    "GlobalNoOps": [],
+    "ReactionDelayed": 0,
+    "AsPrefixed": 2,
+    "Solo": false
+  },
+  {
+    "File": "issue396-gate-taxi-presets-recording.zip",
+    "Commands": 175,
+    "ByKind": {
+      "Compound": 63,
+      "Delete": 16,
+      "GhostTrack": 1,
+      "Strip": 94,
+      "TrackOwnership": 1
+    },
+    "GlobalNoOps": [],
+    "ReactionDelayed": 0,
+    "AsPrefixed": 2,
+    "Solo": false
+  },
+  {
+    "File": "issue401-oak-erb-too-high-recording.zip",
+    "Commands": 291,
+    "ByKind": {
+      "Compound": 146,
+      "Delete": 15,
+      "FlightPlan": 5,
+      "GhostTrack": 5,
+      "Note": 1,
+      "Strip": 98,
+      "TrackOwnership": 21
+    },
+    "GlobalNoOps": [],
+    "ReactionDelayed": 0,
+    "AsPrefixed": 31,
+    "Solo": false
+  },
+  {
+    "File": "issue409-luaw-takeoff-passthrough-recording.zip",
+    "Commands": 79,
+    "ByKind": {
+      "Compound": 55,
+      "Delete": 13,
+      "TrackOwnership": 11
+    },
+    "GlobalNoOps": [
+      "ADD I S+ J @22"
+    ],
+    "ReactionDelayed": 0,
+    "AsPrefixed": 0,
+    "Solo": false
+  },
+  {
+    "File": "issue412-wrong-runway-pattern-recording.zip",
+    "Commands": 335,
+    "ByKind": {
+      "Compound": 176,
+      "Delete": 32,
+      "Strip": 102,
+      "TrackOwnership": 25
+    },
+    "GlobalNoOps": [],
+    "ReactionDelayed": 0,
+    "AsPrefixed": 4,
+    "Solo": false
+  },
+  {
+    "File": "issue7-mlt-cross-runway-wrong-side-recording.yaat-bug-report-bundle.zip",
+    "Commands": 191,
+    "ByKind": {
+      "Compound": 103,
+      "Delete": 11,
+      "FlightPlan": 7,
+      "GhostTrack": 4,
+      "Strip": 41,
+      "TrackOwnership": 25
+    },
+    "GlobalNoOps": [],
+    "ReactionDelayed": 0,
+    "AsPrefixed": 36,
+    "Solo": false
+  },
+  {
+    "File": "kpo83-hussh2-turnback-recording.zip",
+    "Commands": 330,
+    "ByKind": {
+      "Compound": 130,
+      "Delete": 15,
+      "FlightPlan": 3,
+      "GhostTrack": 6,
+      "SayOrShow": 1,
+      "Strip": 143,
+      "TrackOwnership": 32
+    },
+    "GlobalNoOps": [],
+    "ReactionDelayed": 0,
+    "AsPrefixed": 35,
+    "Solo": false
+  },
+  {
+    "File": "l360-dct-wrong-turn-recording.zip",
+    "Commands": 276,
+    "ByKind": {
+      "Compound": 93,
+      "Delete": 11,
+      "FlightPlan": 3,
+      "GhostTrack": 4,
+      "Strip": 121,
+      "TrackOwnership": 44
+    },
+    "GlobalNoOps": [],
+    "ReactionDelayed": 0,
+    "AsPrefixed": 51,
+    "Solo": false
+  },
+  {
+    "File": "l360-maneuver-speed-recording.yaat-bug-report-bundle.zip",
+    "Commands": 276,
+    "ByKind": {
+      "Compound": 93,
+      "Delete": 11,
+      "FlightPlan": 3,
+      "GhostTrack": 4,
+      "Strip": 121,
+      "TrackOwnership": 44
+    },
+    "GlobalNoOps": [],
+    "ReactionDelayed": 0,
+    "AsPrefixed": 51,
+    "Solo": false
+  },
+  {
+    "File": "mia-spawn-replay-cross12-recording.zip",
+    "Commands": 14,
+    "ByKind": {
+      "Compound": 13,
+      "SpawnNow": 1
+    },
+    "GlobalNoOps": [],
+    "ReactionDelayed": 13,
+    "AsPrefixed": 0,
+    "Solo": true
+  },
+  {
+    "File": "mr270-dct-wrong-direction-recording.yaat-bug-report-bundle.zip",
+    "Commands": 231,
+    "ByKind": {
+      "Compound": 101,
+      "Delete": 11,
+      "FlightPlan": 7,
+      "GhostTrack": 6,
+      "Strip": 64,
+      "TrackOwnership": 42
+    },
+    "GlobalNoOps": [],
+    "ReactionDelayed": 0,
+    "AsPrefixed": 55,
+    "Solo": false
+  },
+  {
+    "File": "multi-cfix-preset-recording.yaat-bug-report-bundle.zip",
+    "Commands": 3,
+    "ByKind": {
+      "Compound": 2,
+      "TrackOwnership": 1
+    },
+    "GlobalNoOps": [],
+    "ReactionDelayed": 0,
+    "AsPrefixed": 0,
+    "Solo": true
+  },
+  {
+    "File": "n152sp-ifr-cto-vfr-modifier-recording.yaat-bug-report-bundle.zip",
+    "Commands": 231,
+    "ByKind": {
+      "Compound": 101,
+      "Delete": 11,
+      "FlightPlan": 7,
+      "GhostTrack": 6,
+      "Strip": 64,
+      "TrackOwnership": 42
+    },
+    "GlobalNoOps": [],
+    "ReactionDelayed": 0,
+    "AsPrefixed": 55,
+    "Solo": false
+  },
+  {
+    "File": "n342t-follow-after-extend-recording.yaat-bug-report-bundle.zip",
+    "Commands": 231,
+    "ByKind": {
+      "Compound": 101,
+      "Delete": 11,
+      "FlightPlan": 7,
+      "GhostTrack": 6,
+      "Strip": 64,
+      "TrackOwnership": 42
+    },
+    "GlobalNoOps": [],
+    "ReactionDelayed": 0,
+    "AsPrefixed": 55,
+    "Solo": false
+  },
+  {
+    "File": "n500m-mlt-upwind-immediate-left-recording.yaat-bug-report-bundle.zip",
+    "Commands": 330,
+    "ByKind": {
+      "Compound": 130,
+      "Delete": 15,
+      "FlightPlan": 3,
+      "GhostTrack": 6,
+      "SayOrShow": 1,
+      "Strip": 143,
+      "TrackOwnership": 32
+    },
+    "GlobalNoOps": [],
+    "ReactionDelayed": 0,
+    "AsPrefixed": 35,
+    "Solo": false
+  },
+  {
+    "File": "n70cs-cross-stops-on-runway-recording.yaat-bug-report-bundle.zip",
+    "Commands": 248,
+    "ByKind": {
+      "Compound": 122,
+      "Delete": 13,
+      "FlightPlan": 6,
+      "GhostTrack": 5,
+      "Strip": 43,
+      "TrackOwnership": 59
+    },
+    "GlobalNoOps": [],
+    "ReactionDelayed": 0,
+    "AsPrefixed": 52,
+    "Solo": false
+  },
+  {
+    "File": "n929aw-hover-hold-recording.yaat-bug-report-bundle.zip",
+    "Commands": 276,
+    "ByKind": {
+      "Compound": 93,
+      "Delete": 11,
+      "FlightPlan": 3,
+      "GhostTrack": 4,
+      "Strip": 121,
+      "TrackOwnership": 44
+    },
+    "GlobalNoOps": [],
+    "ReactionDelayed": 0,
+    "AsPrefixed": 51,
+    "Solo": false
+  },
+  {
+    "File": "oak-cross-dest-runway-recording.yaat-bug-report-bundle.zip",
+    "Commands": 0,
+    "ByKind": {},
+    "GlobalNoOps": [],
+    "ReactionDelayed": 0,
+    "AsPrefixed": 0,
+    "Solo": false
+  },
+  {
+    "File": "oak-ga-spawn-turnaround-recording.yaat-bug-report-bundle.zip",
+    "Commands": 0,
+    "ByKind": {},
+    "GlobalNoOps": [],
+    "ReactionDelayed": 0,
+    "AsPrefixed": 0,
+    "Solo": false
+  },
+  {
+    "File": "oak-hs-directional-hint-recording.zip",
+    "Commands": 183,
+    "ByKind": {
+      "Compound": 63,
+      "Delete": 4,
+      "FlightPlan": 3,
+      "Strip": 113
+    },
+    "GlobalNoOps": [],
+    "ReactionDelayed": 0,
+    "AsPrefixed": 3,
+    "Solo": false
+  },
+  {
+    "File": "oak-landing-short-after-360-recording.zip",
+    "Commands": 119,
+    "ByKind": {
+      "Compound": 77,
+      "Delete": 9,
+      "Strip": 33
+    },
+    "GlobalNoOps": [],
+    "ReactionDelayed": 0,
+    "AsPrefixed": 0,
+    "Solo": false
+  },
+  {
+    "File": "oak-northfield-taxi-spinning-recording.yaat-bug-report-bundle.zip",
+    "Commands": 8,
+    "ByKind": {
+      "Compound": 8
+    },
+    "GlobalNoOps": [],
+    "ReactionDelayed": 0,
+    "AsPrefixed": 0,
+    "Solo": false
+  },
+  {
+    "File": "oak-prefer-later-onside-exit-recording.yaat-bug-report-bundle.zip",
+    "Commands": 46,
+    "ByKind": {
+      "Compound": 30,
+      "Delete": 3,
+      "FlightPlan": 2,
+      "Strip": 9,
+      "TrackOwnership": 2
+    },
+    "GlobalNoOps": [],
+    "ReactionDelayed": 0,
+    "AsPrefixed": 4,
+    "Solo": false
+  },
+  {
+    "File": "oak-taxi-current-taxiway-recording.zip",
+    "Commands": 276,
+    "ByKind": {
+      "Compound": 93,
+      "Delete": 11,
+      "FlightPlan": 3,
+      "GhostTrack": 4,
+      "Strip": 121,
+      "TrackOwnership": 44
+    },
+    "GlobalNoOps": [],
+    "ReactionDelayed": 0,
+    "AsPrefixed": 51,
+    "Solo": false
+  },
+  {
+    "File": "oak-taxi-resolution-recording.zip",
+    "Commands": 166,
+    "ByKind": {
+      "Compound": 46,
+      "Delete": 5,
+      "FlightPlan": 3,
+      "Strip": 111,
+      "TrackOwnership": 1
+    },
+    "GlobalNoOps": [],
+    "ReactionDelayed": 0,
+    "AsPrefixed": 4,
+    "Solo": false
+  },
+  {
+    "File": "oak-u-w-fillet-corner-recording.zip",
+    "Commands": 51,
+    "ByKind": {
+      "Compound": 20,
+      "Delete": 5,
+      "Strip": 18,
+      "TrackOwnership": 8
+    },
+    "GlobalNoOps": [],
+    "ReactionDelayed": 0,
+    "AsPrefixed": 8,
+    "Solo": false
+  },
+  {
+    "File": "oak-vfr-twoway-comms-replay-recording.yaat-bug-report-bundle.zip",
+    "Commands": 2,
+    "ByKind": {
+      "Compound": 2
+    },
+    "GlobalNoOps": [],
+    "ReactionDelayed": 0,
+    "AsPrefixed": 0,
+    "Solo": true
+  },
+  {
+    "File": "piston-arrival-overspeed-recording.yaat-bug-report-bundle.zip",
+    "Commands": 4,
+    "ByKind": {
+      "Compound": 4
+    },
+    "GlobalNoOps": [],
+    "ReactionDelayed": 0,
+    "AsPrefixed": 0,
+    "Solo": false
+  },
+  {
+    "File": "plan270-long-way-turn-recording.yaat-bug-report-bundle.zip",
+    "Commands": 29,
+    "ByKind": {
+      "Compound": 26,
+      "Delete": 3
+    },
+    "GlobalNoOps": [],
+    "ReactionDelayed": 0,
+    "AsPrefixed": 0,
+    "Solo": false
+  },
+  {
+    "File": "qxe2413-r10l-offset-landing-centerline-recording.yaat-bug-report-bundle.zip",
+    "Commands": 3,
+    "ByKind": {
+      "Compound": 3
+    },
+    "GlobalNoOps": [],
+    "ReactionDelayed": 0,
+    "AsPrefixed": 0,
+    "Solo": false
+  },
+  {
+    "File": "relr270-dct-wrong-turn-recording.yaat-bug-report-bundle.zip",
+    "Commands": 248,
+    "ByKind": {
+      "Compound": 122,
+      "Delete": 13,
+      "FlightPlan": 6,
+      "GhostTrack": 5,
+      "Strip": 43,
+      "TrackOwnership": 59
+    },
+    "GlobalNoOps": [],
+    "ReactionDelayed": 0,
+    "AsPrefixed": 52,
+    "Solo": false
+  },
+  {
+    "File": "rfas-clears-r360-recording.yaat-bug-report-bundle.zip",
+    "Commands": 341,
+    "ByKind": {
+      "Compound": 171,
+      "Delete": 33,
+      "FlightPlan": 2,
+      "GhostTrack": 3,
+      "Strip": 84,
+      "TrackOwnership": 48
+    },
+    "GlobalNoOps": [],
+    "ReactionDelayed": 0,
+    "AsPrefixed": 49,
+    "Solo": false
+  },
+  {
+    "File": "s1-oak-taxi-deadlock-recording.yaat-bug-report-bundle.zip",
+    "Commands": 8,
+    "ByKind": {
+      "Compound": 8
+    },
+    "GlobalNoOps": [],
+    "ReactionDelayed": 0,
+    "AsPrefixed": 0,
+    "Solo": false
+  },
+  {
+    "File": "s2-oak-3-vfr-seq-erb-eflv-recording.yaat-bug-report-bundle.zip",
+    "Commands": 17,
+    "ByKind": {
+      "Compound": 17
+    },
+    "GlobalNoOps": [],
+    "ReactionDelayed": 0,
+    "AsPrefixed": 0,
+    "Solo": false
+  },
+  {
+    "File": "s2-oak3-follow-runaway-ias-recording.yaat-bug-report-bundle.zip",
+    "Commands": 19,
+    "ByKind": {
+      "Compound": 19
+    },
+    "GlobalNoOps": [],
+    "ReactionDelayed": 0,
+    "AsPrefixed": 0,
+    "Solo": false
+  },
+  {
+    "File": "s2-oak3-vfr-sequencing-recording.yaat-bug-report-bundle.zip",
+    "Commands": 13,
+    "ByKind": {
+      "Compound": 13
+    },
+    "GlobalNoOps": [],
+    "ReactionDelayed": 0,
+    "AsPrefixed": 0,
+    "Solo": false
+  },
+  {
+    "File": "s2-oak4-rv-sid-cto-recording.yaat-bug-report-bundle.zip",
+    "Commands": 4,
+    "ByKind": {
+      "Compound": 4
+    },
+    "GlobalNoOps": [],
+    "ReactionDelayed": 0,
+    "AsPrefixed": 0,
+    "Solo": false
+  },
+  {
+    "File": "s2-oak5-follow-heli-recording.zip",
+    "Commands": 212,
+    "ByKind": {
+      "Compound": 98,
+      "Delete": 22,
+      "FlightPlan": 1,
+      "GhostTrack": 3,
+      "Strip": 50,
+      "TrackOwnership": 38
+    },
+    "GlobalNoOps": [],
+    "ReactionDelayed": 0,
+    "AsPrefixed": 37,
+    "Solo": false
+  },
+  {
+    "File": "s2oak2-coord-ground-departures-recording.yaat-bug-report-bundle.zip",
+    "Commands": 7,
+    "ByKind": {
+      "Compound": 7
+    },
+    "GlobalNoOps": [],
+    "ReactionDelayed": 0,
+    "AsPrefixed": 0,
+    "Solo": false
+  },
+  {
+    "File": "sa-tight-final-recording.yaat-bug-report-bundle.zip",
+    "Commands": 18,
+    "ByKind": {
+      "Compound": 18
+    },
+    "GlobalNoOps": [],
+    "ReactionDelayed": 0,
+    "AsPrefixed": 0,
+    "Solo": false
+  },
+  {
+    "File": "saw-departures-reserved-squawk-recording.zip",
+    "Commands": 178,
+    "ByKind": {
+      "Compound": 98,
+      "Delete": 8,
+      "FlightPlan": 4,
+      "GhostTrack": 2,
+      "Strip": 17,
+      "TrackOwnership": 49
+    },
+    "GlobalNoOps": [],
+    "ReactionDelayed": 0,
+    "AsPrefixed": 38,
+    "Solo": false
+  },
+  {
+    "File": "sfo-cto-taxiway-holdshort-recording.yaat-bug-report-bundle.zip",
+    "Commands": 5,
+    "ByKind": {
+      "Compound": 5
+    },
+    "GlobalNoOps": [
+      "UNPAUSE",
+      "PAUSE"
+    ],
+    "ReactionDelayed": 0,
+    "AsPrefixed": 0,
+    "Solo": false
+  },
+  {
+    "File": "sfo-exit-el-t-recording.yaat-bug-report-bundle.zip",
+    "Commands": 5,
+    "ByKind": {
+      "Compound": 5
+    },
+    "GlobalNoOps": [
+      "UNPAUSE",
+      "PAUSE"
+    ],
+    "ReactionDelayed": 0,
+    "AsPrefixed": 0,
+    "Solo": false
+  },
+  {
+    "File": "sfo-hs-taxiway-recording.zip",
+    "Commands": 68,
+    "ByKind": {
+      "Compound": 67,
+      "Delete": 1
+    },
+    "GlobalNoOps": [
+      "UNPAUSE",
+      "PAUSE",
+      "UNPAUSE",
+      "PAUSE",
+      "UNPAUSE",
+      "PAUSE",
+      "UNPAUSE",
+      "PAUSE",
+      "UNPAUSE",
+      "PAUSE",
+      "UNPAUSE",
+      "PAUSE",
+      "UNPAUSE",
+      "PAUSE",
+      "PAUSE",
+      "UNPAUSE",
+      "PAUSE",
+      "UNPAUSE",
+      "PAUSE",
+      "UNPAUSE",
+      "PAUSE",
+      "UNPAUSE",
+      "PAUSE",
+      "UNPAUSE",
+      "PAUSE",
+      "UNPAUSE",
+      "PAUSE",
+      "UNPAUSE",
+      "PAUSE"
+    ],
+    "ReactionDelayed": 0,
+    "AsPrefixed": 0,
+    "Solo": false
+  },
+  {
+    "File": "sfo-s1-ground-control-28-01-recording.yaat-bug-report-bundle.zip",
+    "Commands": 13,
+    "ByKind": {
+      "Compound": 13
+    },
+    "GlobalNoOps": [],
+    "ReactionDelayed": 0,
+    "AsPrefixed": 0,
+    "Solo": false
+  },
+  {
+    "File": "sqvfr-flash-latch-recording.yaat-bug-report-bundle.zip",
+    "Commands": 178,
+    "ByKind": {
+      "Compound": 98,
+      "Delete": 8,
+      "FlightPlan": 4,
+      "GhostTrack": 2,
+      "Strip": 17,
+      "TrackOwnership": 49
+    },
+    "GlobalNoOps": [],
+    "ReactionDelayed": 0,
+    "AsPrefixed": 38,
+    "Solo": false
+  },
+  {
+    "File": "swa-luaw-rwy30-overshoot-recording.yaat-bug-report-bundle.zip",
+    "Commands": 248,
+    "ByKind": {
+      "Compound": 105,
+      "Delete": 27,
+      "FlightPlan": 2,
+      "GhostTrack": 4,
+      "Strip": 76,
+      "TrackOwnership": 34
+    },
+    "GlobalNoOps": [],
+    "ReactionDelayed": 0,
+    "AsPrefixed": 39,
+    "Solo": false
+  },
+  {
+    "File": "swa1089-spawn-taxi-spin-recording.yaat-bug-report-bundle.zip",
+    "Commands": 231,
+    "ByKind": {
+      "Compound": 103,
+      "Delete": 11,
+      "FlightPlan": 7,
+      "GhostTrack": 6,
+      "Strip": 62,
+      "TrackOwnership": 42
+    },
+    "GlobalNoOps": [
+      "SEPM SEP_27320ff6 Local 1/2/2",
+      "SEPM SEP_9faff9a4 Local 1/3/1"
+    ],
+    "ReactionDelayed": 0,
+    "AsPrefixed": 55,
+    "Solo": false
+  },
+  {
+    "File": "swa2224-ga-nolndgclnc-recording.yaat-bug-report-bundle.zip",
+    "Commands": 248,
+    "ByKind": {
+      "Compound": 122,
+      "Delete": 13,
+      "FlightPlan": 6,
+      "GhostTrack": 5,
+      "Strip": 43,
+      "TrackOwnership": 59
+    },
+    "GlobalNoOps": [],
+    "ReactionDelayed": 0,
+    "AsPrefixed": 52,
+    "Solo": false
+  },
+  {
+    "File": "swa4587-rfas-clears-final-recording.zip",
+    "Commands": 248,
+    "ByKind": {
+      "Compound": 105,
+      "Delete": 27,
+      "FlightPlan": 2,
+      "GhostTrack": 4,
+      "Strip": 76,
+      "TrackOwnership": 34
+    },
+    "GlobalNoOps": [],
+    "ReactionDelayed": 0,
+    "AsPrefixed": 39,
+    "Solo": false
+  },
+  {
+    "File": "taxi-cb-cross33-recording.yaat-bug-report-bundle.zip",
+    "Commands": 204,
+    "ByKind": {
+      "Compound": 89,
+      "Delete": 21,
+      "FlightPlan": 2,
+      "GhostTrack": 2,
+      "Strip": 67,
+      "TrackOwnership": 23
+    },
+    "GlobalNoOps": [],
+    "ReactionDelayed": 0,
+    "AsPrefixed": 27,
+    "Solo": false
+  },
+  {
+    "File": "vfr-dest-only-cto-recording.zip",
+    "Commands": 330,
+    "ByKind": {
+      "Compound": 130,
+      "Delete": 15,
+      "FlightPlan": 3,
+      "GhostTrack": 6,
+      "SayOrShow": 1,
+      "Strip": 143,
+      "TrackOwnership": 32
+    },
+    "GlobalNoOps": [],
+    "ReactionDelayed": 0,
+    "AsPrefixed": 35,
+    "Solo": false
+  },
+  {
+    "File": "vfr-follow-extended-lead-recording.yaat-bug-report-bundle.zip",
+    "Commands": 8,
+    "ByKind": {
+      "Compound": 4,
+      "Delete": 4
+    },
+    "GlobalNoOps": [],
+    "ReactionDelayed": 0,
+    "AsPrefixed": 0,
+    "Solo": false
+  },
+  {
+    "File": "vfr-follow-no-land-recording.yaat-bug-report-bundle.zip",
+    "Commands": 204,
+    "ByKind": {
+      "Compound": 89,
+      "Delete": 21,
+      "FlightPlan": 2,
+      "GhostTrack": 2,
+      "Strip": 67,
+      "TrackOwnership": 23
+    },
+    "GlobalNoOps": [],
+    "ReactionDelayed": 0,
+    "AsPrefixed": 27,
+    "Solo": false
+  }
+]

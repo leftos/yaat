@@ -78,7 +78,15 @@ public static class RecordedCommandClassifier
             return new Classification(RecordedCommandKind.Compound, null);
         }
 
-        var parsed = result.Value;
+        return ClassifyParsed(result.Value);
+    }
+
+    /// <summary>
+    /// The type-driven half of <see cref="Classify"/>, for callers that already hold the parsed command — the
+    /// routing-completeness sweep dispatches a dummy of every <see cref="ParsedCommand"/> subtype through it.
+    /// </summary>
+    public static Classification ClassifyParsed(ParsedCommand parsed)
+    {
         return parsed switch
         {
             SayCommand
