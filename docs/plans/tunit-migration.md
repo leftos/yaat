@@ -206,10 +206,60 @@ build time — and the build is where source generation adds cost rather than re
 Re-run this analysis against the TUnit branch before Phase 2's gate: if the measured TUnit wall
 time beats 50.7s, the model is wrong and should be re-examined rather than believed.
 
+### The build-cost gate — FAILED, measured
+
+The remaining question was whether source generation regresses incremental build at this scale.
+It does, by a lot, and the penalty grows with test count.
+
+Method: `<scratchpad>/gen_suite.py` emits a synthetic project matching the real suite's *shape*
+(846 classes, ~11 cases each, 47% taking an output helper via `[ClassDataSource]`) in either
+framework, with trivial test bodies — generator work scales with test/class count, not with what
+tests do, so this measures compile cost without converting 840 real files first. Median of 3
+(2 for the sweep), Release.
+
+| Classes | Cases | xunit cold | TUnit cold | xunit **incr** | TUnit **incr** | Delta |
+|---:|---:|---:|---:|---:|---:|---:|
+| 100 | 1,100 | 1.5s | 2.4s | 1.3s | 2.3s | +1.0s |
+| 400 | 4,400 | 2.1s | 4.7s | 2.1s | 4.2s | +2.1s |
+| **846** | **9,306** | 2.3s | 7.8s | **2.1s** | **7.2s** | **+5.1s** |
+
+"incr" = touch one test file, rebuild the project. A no-op rebuild is ~1.0-1.3s for both, so this
+is real generator work, not MSBuild overhead.
+
+xunit's incremental cost is flat in test count; TUnit's grows roughly linearly. At the current
+9,363 tests the penalty is **~+5s on every edit**, and it scales with exactly the thing that
+prompted this evaluation — the suite growing (8,686 -> 9,363 in about a week).
+
+### Verdict
+
+Against the plan's four success criteria:
+
+1. *Sim run time drops* — cannot: the scheduling prize is 0.0s and the fixed floor is ~2.3s, of
+   which only the discovery slice is addressable.
+2. *Incremental build does not regress materially* — **fails**, +5.1s per edit and growing.
+3. *Full gate does not regress* — would inherit the build regression.
+4. *No test-count drift or new flakes* — untested; moot.
+
+Net effect on the loop this work set out to speed up: today an edit plus a filtered class run is
+~3.3s build + 2.3s run ≈ **5.6s**. Under TUnit it becomes roughly 8.4s build + ~2s run ≈
+**10.4s** — close to 2x slower per iteration.
+
+**Recommendation: do not migrate.** The gate in the plan says stopping here is a successful
+outcome, and it is: the question is answered with numbers rather than intuition, and the two tools
+that answered it are reusable for the next such question.
+
+What actually would speed up the loop, in order of expected value, all framework-independent:
+
+- The ~2.3s fixed floor per filtered run is mostly process start + `ModuleInit`'s CIFP/NavData
+  warm. That is ours to optimise and is paid on every single iteration.
+- The 305 tests >1s (89% of CPU) are `Replay(recording, N)` seeks from t=0; converting suitable
+  ones to hybrid replay is the open follow-up already listed in `test-suite-speed.md`.
+- `SegmentExpander.RunBoundedDetour` (>1s for one TAXI resolution), also already listed there.
+
 ## Open questions
 
-- Does TUnit's source generator regress `incr-build-test` (baseline **3.3s**) at this scale? This
-  is now the primary open question, and the plan's decision gate.
+- ~~Does TUnit's source generator regress `incr-build-test` at this scale?~~ Answered above: yes,
+  +5.1s per edit at 9,306 cases, scaling with test count.
 - How much of the 2.3s fixed floor is discovery versus `ModuleInit`? Only the discovery part is
   addressable. Worth decomposing, though the scheduling result above caps the total prize at a few
   seconds per run regardless.
