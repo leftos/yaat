@@ -17,7 +17,7 @@
 RoomTickLoopService   one PeriodicTimer @ 1 Hz, drives every room
         │  per room (if running):
         ▼
-RoomEngine.ProcessPrePhysics → ProcessPhysics ×(SimRate × 4) → ProcessPostPhysics
+RoomEngine.AdvanceLiveSecond ×SimRate  =  SimulationEngine.RunSecond(LiveRoomHost)   (the spine — docs/tick-loop.md)
         │  after the ALL-ROOMS loop:
         ▼
 AircraftChangeTracker.DetectChanges  →  Broadcast{Training,Admin,Crc}Updates
@@ -35,14 +35,14 @@ per room. Each wall-clock tick (`RunTickLoop`, `:92`):
    `UpdatePausedSince` (`:106`).
 2. For each room with a running scenario (skips paused / no-scenario / no-engine, `:109`):
    - `simSeconds = Math.Max(1, (int)scenario.SimRate)`.
-   - For each sim-second: `room.Engine.AdvanceLiveSecond()` — `BeginSecond` (increment-at-start), playback pre-tick
-     actions, `RunSecondPhysics` (`ProcessPrePhysics()` once, `ProcessPhysics(subDelta)` **`PhysicsSubTickRate` = 4**
-     times with `subDelta = 0.25`, `ProcessPostPhysics()` once), then the per-second bookkeeping that is not physics:
-     position-history sampling every `RoomEngine.PositionHistorySampleSeconds` (5 s) into a
-     `PositionHistoryCapacity` (10) ring, the weather-timeline advance, `EnsureLiveMetarIssuer` + METAR issuance
+   - For each sim-second: `room.Engine.AdvanceLiveSecond()` — the whole spine (`SimulationEngine.RunSecond`, see
+     [tick-loop.md](tick-loop.md)) under the room's `LiveRoomHost`: the clock increment, playback pre-tick actions,
+     pre-physics, **`SimulationEngine.PhysicsSubTickRate` = 4** physics sub-ticks of 0.25 s, the post-physics list, and the
+     host's end-of-second bookkeeping — position-history sampling every `RoomEngine.PositionHistorySampleSeconds` (5 s)
+     into a `PositionHistoryCapacity` (10) ring, the weather-timeline advance, `EnsureLiveMetarIssuer` + METAR issuance
      (broadcast only when a station re-issues), and playback post-tick actions. The headless soak host
-     (`Simulation/Headless/HeadlessRoom`) calls the same method, so a headless run evolves exactly like a live room;
-     reconstruction keeps calling the narrower `AdvanceOneSecond`.
+     (`Simulation/Headless/HeadlessRoom`) and the test harness call the same method, so every live-kind run evolves the
+     same way; reconstruction runs the same spine under a `ReconstructionHost`.
    - **Ends with one `BroadcastSimState(room)` per processed wall-tick** (after the sim-second loop, in
      `ProcessRoomSecond`) so the client's elapsed clock stays live — the timeline label/scrubber and the base for
      the relative +15/−15 skips. The end-of-tape branch sets the paused state first, so that final tick's broadcast
@@ -138,29 +138,30 @@ A handler that mutates room state without going through one of these (or `Record
 
 ## `TickProcessor` — `Simulation/TickProcessor.cs`
 
-Stateless singleton; every method takes the `TrainingRoom`.
+Stateless singleton; every method takes the `TrainingRoom`. It keeps **no list**: the order its bodies run in is the
+spine's (`SpineOrder` in Yaat.Sim, [tick-loop.md](tick-loop.md)), and `RoomHost` — the base of `LiveRoomHost` and
+`ReconstructionHost` — maps each host step and consumer onto one `internal` method here:
 
-- **`ProcessPrePhysics`** (`:40`): `sim.TickPrePhysics()` then, for each newly-spawned aircraft, broadcasts
-  `AircraftSpawned` and runs `AfterAircraftSpawned` (auto-strip / auto-TDLS); drains terminal entries; runs
-  `ProcessDelayedHandoffs`; last, `ShadowTrafficSync.Sync` (`Pre.LiveTraffic`) spawns / feeds / removes live-traffic
-  shadows — the pre-physics mutator of the aircraft set (see [live-traffic.md](live-traffic.md)).
-- **`ProcessPhysics`** (`:71`): delegates straight to `sim.TickPhysics(delta)`.
-- **`ProcessPostPhysics`** (`:80`): a fixed fan-out whose order matters. Notably
-  `ProcessFlightPlanCreatorAutoTrack` runs **before** `ProcessDeferredAutoTrack` (`:88`-`:89`) so an explicit VP/DA
-  controller wins over scenario `AutoTrackAirportIds` for the aircraft they just filed for.
-  `ProcessDeferredAutoTrack` claims a departure only once it first appears on STARS — i.e. crosses the acquisition
-  floor (`FieldElevationResolver.IsBelowDisplayFloor`), not the instant its wheels leave the ground — so a track is
-  never owned before it is displayed (e.g. a closed-traffic pattern departure is not handed to Departure on climb-out).
-  The full `Run("Post.X", …)` sequence (each bucket is a `TickProcessor.TickTimings` key when profiling is on):
-  `LiveTrafficRunwayUse`, `Transponders` (ident expiry), `AutoAccept`, `PointoutAutoAck`, `FlightPlanCreatorAutoTrack`,
-  `DeferredAutoTrack`, `CoordinationTimers`, `TowerLists`, `VisualDetection`, `ConflictAlerts`, `EramConflictAlerts`,
-  `AsdexAlerts`, `SoloTrainingEvaluation`, `PilotProactive`, the warnings / notifications / pilot-speech / readback /
-  transmission broadcast drains, `ApproachScores`, the auto-strip processors, the four TDLS processors,
-  `DeferredStripDispatch`, `AutoDelete`, `SurfaceCoastExpiry`, and the rundown / live-traffic-status / timers
-  "broadcast if changed" tail.
+- **Pre-physics**: `HandlePrePhysicsResult` broadcasts each newly-spawned aircraft and runs `AfterAircraftSpawned`
+  (auto-strip / auto-TDLS), and records generator spawns *after* their autotrack so the recorded snapshot carries the
+  owner; `BroadcastTerminalEntries` takes the spine's drain; `ProcessDelayedHandoffs`; `SyncLiveTraffic` runs
+  `ShadowTrafficSync.Sync` last — the pre-physics mutator of the aircraft set (see [live-traffic.md](live-traffic.md)).
+- **Post-physics**: the ATC passes (`ProcessAutoAccept`, `ProcessPointoutAutoAck`, `ProcessFlightPlanCreatorAutoTrack`
+  **before** `ProcessDeferredAutoTrack` so an explicit VP/DA controller wins over scenario `AutoTrackAirportIds` for the
+  aircraft they just filed for, `ProcessCoordinationTimers`, `ProcessTowerLists`), the consumers of the engine's
+  detectors (`BroadcastConflictAlerts`, `BroadcastEramConflictAlerts`), `ProcessAsdexAlerts`,
+  `ProcessSoloTrainingEvaluation`, the drain consumers (`BroadcastWarnings` / `Notifications` / `PilotSpeech` /
+  `PilotReadbacks` / `PilotTransmissions`, `ProcessApproachScores`, `ProcessDeferredStripDispatches`), the auto-strip and
+  TDLS processors, `ProcessAutoDelete`, `ProcessSurfaceCoast`, and the rundown / live-traffic-status / timers
+  "broadcast if changed" tail. `ProcessDeferredAutoTrack` claims a departure only once it first appears on STARS —
+  i.e. crosses the acquisition floor (`FieldElevationResolver.IsBelowDisplayFloor`), not the instant its wheels leave
+  the ground — so a track is never owned before it is displayed.
 
-Several of these guard on `room.IsBroadcastSuppressed` before broadcasting (e.g. `ProcessCoordinationTimers` `:961`,
-`ProcessConflictAlerts` `:1449`, `ProcessAutoDelete` `:1614`). A new broadcast from a tick-processor method must add the
+Per-step timing lives on the engine: attach a dictionary to `SimulationEngine.TickTimings` and every spine step records
+under its `StepId` name (the soak runner's `--timings`, `ReconstructionBenchmarkTests`).
+
+Several of these guard on `room.IsBroadcastSuppressed` before broadcasting (e.g. `ProcessCoordinationTimers`,
+`BroadcastConflictAlerts`, `ProcessAutoDelete`). A new broadcast from a tick-processor method must add the
 same guard or it leaks replay/snapshot-engine state to real clients.
 
 ## `AircraftChangeTracker` — the delta engine (`Simulation/AircraftChangeTracker.cs`)

@@ -45,13 +45,14 @@ public sealed partial class SimulationEngine
     }
 
     /// <summary>
-    /// Diagnostic per-tick timing buckets. Keyed by bucket name (e.g. "PrePhysics",
-    /// "Physics.Ground", "Physics.World", "PostPhysics"). Populated by
-    /// <see cref="ReplayRange"/> and by the live tick's world timing. Reset at the start of each
-    /// <see cref="Replay"/> / <see cref="ReplayRange"/> call. Intended for test instrumentation only —
-    /// call <see cref="DumpTickTimings"/> to format.
+    /// Opt-in per-step timing. Null in production so the spine pays one null check per step; attach a dictionary
+    /// and every spine step records into it under its <see cref="Spine.StepId"/> name, plus the three segment
+    /// rollups <c>PrePhysics</c> / <c>Physics</c> / <c>PostPhysics</c> and the physics internals
+    /// (<c>Physics.WorldTick</c>, …). Keyed bucket → (count, total ms). Cleared at the start of each
+    /// <see cref="Replay"/>. The soak runner's <c>--timings</c> and the reconstruction benchmark attach one; call
+    /// <see cref="DumpTickTimings"/> to format. Not thread-safe — one engine, one dictionary.
     /// </summary>
-    public Dictionary<string, (int Count, double Ms)> TickTimings { get; } = new();
+    public Dictionary<string, (int Count, double Ms)>? TickTimings { get; set; }
 
     /// <summary>
     /// Replay from t=0 to <paramref name="targetSeconds"/>, applying recorded actions at the correct times.
@@ -112,13 +113,13 @@ public sealed partial class SimulationEngine
     /// </summary>
     public string DumpTickTimings()
     {
-        if (TickTimings.Count == 0)
+        if (TickTimings is not { Count: > 0 } timings)
         {
             return "(no tick timings recorded)";
         }
         var sb = new StringBuilder();
         sb.AppendLine("Tick timings (bucket: count, totalMs, avgMs):");
-        foreach (var kvp in TickTimings.OrderByDescending(k => k.Value.Ms))
+        foreach (var kvp in timings.OrderByDescending(k => k.Value.Ms))
         {
             double avg = kvp.Value.Ms / Math.Max(1, kvp.Value.Count);
             sb.AppendLine($"  {kvp.Key}: n={kvp.Value.Count}, total={kvp.Value.Ms:F1}ms, avg={avg:F3}ms");

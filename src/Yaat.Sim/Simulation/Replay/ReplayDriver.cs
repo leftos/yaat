@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using Yaat.Sim.Data;
@@ -8,15 +7,16 @@ using Yaat.Sim.Scenarios;
 namespace Yaat.Sim.Simulation.Replay;
 
 /// <summary>
-/// Drives a recording forward over a <see cref="SimulationEngine"/> — a whole range, one second, or one
-/// physics sub-tick. It owns the recorded-action cursors: how far into the action log the replay has
-/// advanced, and which actions a pre-tick pass already applied so the main pass does not repeat them.
+/// Drives a recording forward over a <see cref="SimulationEngine"/> — a whole range, one second, or one physics
+/// sub-tick — by running the spine under a <see cref="ReplayHost"/>. It owns the <see cref="ReplayCursors"/> its
+/// stepping entry points advance through the action log; a range replay walks a caller-supplied list with cursors of
+/// its own, so the two traversals never interfere.
 ///
-/// That cursor state is the whole reason this is a separate object. It is meaningful only while a
-/// recording is being replayed, whereas the <see cref="RunProfile"/> stays on the engine because members
-/// outside replay read it to decide whether they may record an action, spawn generated traffic or run an
-/// AI brain — that describes the run the engine is in, not this driver's bookkeeping. Each stepping call
-/// here runs under <see cref="SimulationEngine.EnterReplay"/> and hands the previous profile back after.
+/// That cursor state is the whole reason this is a separate object. It is meaningful only while a recording is
+/// being replayed, whereas the <see cref="RunProfile"/> stays on the engine because members outside replay read it to
+/// decide whether they may record an action, spawn generated traffic or run an AI brain — that describes the run the
+/// engine is in, not this driver's bookkeeping. Each stepping call here runs under
+/// <see cref="SimulationEngine.EnterReplay"/> and hands the previous profile back after.
 ///
 /// The engine exposes every driver method as its own, so no caller names this type.
 /// </summary>
@@ -24,58 +24,28 @@ internal sealed class ReplayDriver(SimulationEngine engine)
 {
     private readonly SimulationEngine _engine = engine;
 
-    private List<RecordedAction>? _actions;
-    private int _actionCursor;
-    private int _preTickActionCursor;
-    private readonly HashSet<int> _preTickAppliedActionIndexes = [];
+    private ReplayHost? _host;
 
     /// <summary>Whether a recording has been loaded and the cursors positioned — replay stepping is a no-op until then.</summary>
-    private bool IsArmed => _actions is not null;
+    private bool IsArmed => _host is not null;
 
     /// <summary>
-    /// Points both cursors just past <paramref name="seconds"/> so the next step treats only later
-    /// actions as pending. Called after any jump in time: a fast-forward, a fresh replay load, or a
-    /// snapshot restore.
-    /// </summary>
-    private void SeekTo(int seconds)
-    {
-        if (_actions is not { } actions)
-        {
-            return;
-        }
-
-        _actionCursor = 0;
-        _preTickActionCursor = 0;
-        _preTickAppliedActionIndexes.Clear();
-        while (_actionCursor < actions.Count && actions[_actionCursor].ElapsedSeconds <= seconds)
-        {
-            _actionCursor++;
-        }
-        while (_preTickActionCursor < actions.Count && actions[_preTickActionCursor].ElapsedSeconds <= seconds)
-        {
-            _preTickActionCursor++;
-        }
-    }
-
-    /// <summary>
-    /// Re-points the cursors at the engine's current time after a snapshot restore. Without it a
-    /// subsequent <see cref="OneSecond"/> would treat actions from t=0 onward as still pending and
-    /// re-apply them on top of the restored state. This is what makes the hybrid pattern work: replay
-    /// to load the scenario, restore to jump to a saved state, then step forward from there.
+    /// Re-points the cursors at the engine's current time after a snapshot restore. Without it a subsequent
+    /// <see cref="OneSecond"/> would treat actions from t=0 onward as still pending and re-apply them on top of the
+    /// restored state. This is what makes the hybrid pattern work: replay to load the scenario, restore to jump to a
+    /// saved state, then step forward from there.
     /// </summary>
     public void ReseekAfterRestore(int restoredSeconds)
     {
-        if (IsArmed)
-        {
-            SeekTo(restoredSeconds);
-        }
+        _host?.Cursors.SeekTo(restoredSeconds);
     }
 
     /// <summary>Arms the driver with an action log and positions the cursors at <paramref name="seconds"/>.</summary>
     public void Arm(List<RecordedAction> actions, int seconds)
     {
-        _actions = actions;
-        SeekTo(seconds);
+        var cursors = new ReplayCursors(actions);
+        cursors.SeekTo(seconds);
+        _host = new ReplayHost(_engine, cursors, _engine.ApplyRecordedAction);
     }
 
     public void FromStartTo(int targetSeconds, List<RecordedAction> actions, Action<RecordedAction>? actionApplier)
@@ -151,92 +121,27 @@ internal sealed class ReplayDriver(SimulationEngine engine)
                 }
             }
 
-            // Range replay walks a caller-supplied action list with its own local cursors, leaving the
-            // driver's stepping cursors untouched — the two are independent traversals of the log.
-            int actionCursor = 0;
-            int preTickActionCursor = 0;
-            var preTickAppliedActionIndexes = new HashSet<int>();
-
+            // A range replay walks the caller's list with its own cursors, leaving the driver's stepping cursors
+            // untouched — the two are independent traversals of the log.
+            var host = new ReplayHost(_engine, new ReplayCursors(actions), actionApplier);
             if (startSeconds == 0)
             {
-                SimulationEngine.ApplyRecordedAircraftSpawnsBeforeTick(
-                    actions,
-                    ref preTickActionCursor,
-                    0,
-                    actionApplier,
-                    preTickAppliedActionIndexes
-                );
-
-                // Apply actions at t=0 first (settings, immediate commands)
-                while (actionCursor < actions.Count && actions[actionCursor].ElapsedSeconds <= 0)
-                {
-                    if (!preTickAppliedActionIndexes.Contains(actionCursor))
-                    {
-                        actionApplier(actions[actionCursor]);
-                    }
-
-                    actionCursor++;
-                }
+                // Actions at t=0 land before the first second: spawns first, then settings and immediate commands.
+                host.ApplyPreTickRecordedActions(0);
+                host.ApplyRecordedActionsThrough(0);
             }
             else
             {
-                // Skip actions before the start time
-                while (actionCursor < actions.Count && actions[actionCursor].ElapsedSeconds <= startSeconds)
-                {
-                    actionCursor++;
-                }
-
-                while (preTickActionCursor < actions.Count && actions[preTickActionCursor].ElapsedSeconds <= startSeconds)
-                {
-                    preTickActionCursor++;
-                }
+                host.Cursors.SeekTo(startSeconds);
             }
 
-            double subDelta = 1.0 / SimulationEngine.PhysicsSubTickRate;
-            var sw = new Stopwatch();
+            // The range starts where the caller says it does, whatever the engine's clock read before.
+            var scenario = _engine.Scenario!;
+            scenario.ElapsedSeconds = startSeconds;
+
             for (int t = startSeconds + 1; t <= targetSeconds; t++)
             {
-                _engine.Scenario!.ElapsedSeconds = t;
-
-                sw.Restart();
-                SimulationEngine.ApplyRecordedAircraftSpawnsBeforeTick(
-                    actions,
-                    ref preTickActionCursor,
-                    t,
-                    actionApplier,
-                    preTickAppliedActionIndexes
-                );
-                _engine.TickPrePhysics();
-                _engine.AccumulateTiming("PrePhysics", sw);
-
-                for (int sub = 0; sub < SimulationEngine.PhysicsSubTickRate; sub++)
-                {
-                    sw.Restart();
-                    _engine.TickPhysics(subDelta);
-                    _engine.AccumulateTiming("Physics", sw);
-                }
-
-                sw.Restart();
-                _engine.TickPostPhysics();
-                _engine.AccumulateTiming("PostPhysics", sw);
-                _engine.ClearTerminalEntries();
-
-                // Advance weather timeline if active
-                if (_engine.Scenario!.WeatherTimeline is { } timeline)
-                {
-                    _engine.World.Weather = timeline.GetWeatherAt(t);
-                }
-
-                // Apply actions at this time
-                while (actionCursor < actions.Count && actions[actionCursor].ElapsedSeconds <= t)
-                {
-                    if (!preTickAppliedActionIndexes.Contains(actionCursor))
-                    {
-                        actionApplier(actions[actionCursor]);
-                    }
-
-                    actionCursor++;
-                }
+                _engine.RunSecond(host);
 
                 if (archiveForVerification is not null && drifts is not null && verifyByTimestamp.TryGetValue(t, out var snapIdx))
                 {
@@ -247,15 +152,13 @@ internal sealed class ReplayDriver(SimulationEngine engine)
                         drifts.Add(report);
                     }
                 }
-
-                _engine.FireTickCompleted(t);
             }
         }
     }
 
     public void To(SessionRecording recording, double targetSeconds, Action<SimScenarioState> configureAfterLoad)
     {
-        _engine.TickTimings.Clear();
+        _engine.TickTimings?.Clear();
         _engine.LoadScenario(recording.ScenarioJson, recording.RngSeed, recording.MagneticModelDateUtc ?? MagneticDeclination.EvaluationDateUtc);
 
         // The scenario JSON does not carry the resolved runtime student position (the server sets it
@@ -316,58 +219,27 @@ internal sealed class ReplayDriver(SimulationEngine engine)
 
     public void OneSecond()
     {
-        var scenario = _engine.Scenario;
-        if (scenario is null || _actions is not { } actions)
+        if (_engine.Scenario is null || _host is not { } host)
         {
             return;
         }
 
-        scenario.ElapsedSeconds += 1;
-        int t = (int)scenario.ElapsedSeconds;
-
-        var sw = new Stopwatch();
-
         using (_engine.EnterReplay())
         {
-            sw.Restart();
-            SimulationEngine.ApplyRecordedAircraftSpawnsBeforeTick(
-                actions,
-                ref _preTickActionCursor,
-                t,
-                _engine.ApplyRecordedAction,
-                _preTickAppliedActionIndexes
-            );
-            _engine.TickPrePhysics();
-            _engine.AccumulateTiming("PrePhysics", sw);
-
-            double subDelta = 1.0 / SimulationEngine.PhysicsSubTickRate;
-            for (int sub = 0; sub < SimulationEngine.PhysicsSubTickRate; sub++)
-            {
-                sw.Restart();
-                _engine.TickPhysics(subDelta);
-                _engine.AccumulateTiming("Physics", sw);
-            }
-
-            sw.Restart();
-            _engine.TickPostPhysics();
-            _engine.AccumulateTiming("PostPhysics", sw);
-            _engine.ClearTerminalEntries();
-
-            if (scenario.WeatherTimeline is { } timeline)
-            {
-                _engine.World.Weather = timeline.GetWeatherAt(t);
-            }
-
-            ApplyPendingActionsThrough(t, actions);
-
-            _engine.FireTickCompleted(t);
+            _engine.RunSecond(host);
         }
     }
 
+    /// <summary>
+    /// One physics sub-tick. The clock advances by a quarter second; the second opens on the first sub-tick and
+    /// closes on the fourth, so four calls from an integer second run the same segments as <see cref="OneSecond"/>.
+    /// Pre-physics runs at a quarter past the previous integer here, where <see cref="OneSecond"/> runs it at the
+    /// integer — a pre-existing difference the trace and the spine parity test make visible rather than hide.
+    /// </summary>
     public void OneSubTick()
     {
         var scenario = _engine.Scenario;
-        if (scenario is null || _actions is not { } actions)
+        if (scenario is null || _host is not { } host)
         {
             return;
         }
@@ -385,58 +257,26 @@ internal sealed class ReplayDriver(SimulationEngine engine)
         // exactly on an integer, so this sub-tick is the last of four.
         bool atSecondEnd = Math.Abs(scenario.ElapsedSeconds - Math.Round(scenario.ElapsedSeconds)) < eps;
 
+        int subTick = (int)Math.Round((scenario.ElapsedSeconds - Math.Floor(prev + eps)) / subDelta) - 1;
+
         using (_engine.EnterReplay())
         {
             if (atSecondStart)
             {
-                int t = (int)Math.Ceiling(scenario.ElapsedSeconds);
-                SimulationEngine.ApplyRecordedAircraftSpawnsBeforeTick(
-                    actions,
-                    ref _preTickActionCursor,
-                    t,
-                    _engine.ApplyRecordedAction,
-                    _preTickAppliedActionIndexes
-                );
-                _engine.TickPrePhysics();
+                _engine.OpenSecond(host);
+                _engine.RunPrePhysics(host);
             }
 
-            _engine.TickPhysics(subDelta);
+            _engine.RunPhysicsSubTick(subDelta, subTick);
 
             if (atSecondEnd)
             {
                 // Snap away any floating-point drift accumulated across sub-ticks.
                 scenario.ElapsedSeconds = Math.Round(scenario.ElapsedSeconds);
-                int t = (int)scenario.ElapsedSeconds;
 
-                _engine.TickPostPhysics();
-                _engine.ClearTerminalEntries();
-
-                if (scenario.WeatherTimeline is { } timeline)
-                {
-                    _engine.World.Weather = timeline.GetWeatherAt(t);
-                }
-
-                ApplyPendingActionsThrough(t, actions);
-
-                _engine.FireTickCompleted(t);
+                _engine.RunPostPhysics(host);
+                _engine.RunEndOfSecond(host);
             }
-        }
-    }
-
-    /// <summary>
-    /// Applies every action at or before <paramref name="t"/> that the pre-tick spawn pass did not
-    /// already apply, advancing the stepping cursor past them.
-    /// </summary>
-    private void ApplyPendingActionsThrough(int t, List<RecordedAction> actions)
-    {
-        while (_actionCursor < actions.Count && actions[_actionCursor].ElapsedSeconds <= t)
-        {
-            if (!_preTickAppliedActionIndexes.Contains(_actionCursor))
-            {
-                _engine.ApplyRecordedAction(actions[_actionCursor]);
-            }
-
-            _actionCursor++;
         }
     }
 }

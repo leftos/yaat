@@ -16,6 +16,7 @@ using Yaat.Sim.Pilot;
 using Yaat.Sim.Scenarios;
 using Yaat.Sim.Simulation.Replay;
 using Yaat.Sim.Simulation.Snapshots;
+using Yaat.Sim.Simulation.Spine;
 using Yaat.Sim.Training;
 
 namespace Yaat.Sim.Simulation;
@@ -101,11 +102,9 @@ public sealed partial class SimulationEngine
     public EramConflictState EramConflicts { get; } = new();
 
     /// <summary>
-    /// Fires at the end of each integer-second tick, after physics and post-physics
-    /// complete. The int argument is <c>Scenario.ElapsedSeconds</c> at tick end.
-    /// Fires from <see cref="TickOneSecond"/>, <see cref="ReplayOneSecond"/>,
-    /// <see cref="ReplayRange"/>, and <see cref="ReplayOneSubTick"/> (at second-end only).
-    /// Intended for test instrumentation (see <c>TickRecorder.Attach</c>).
+    /// Fires at the end of every sim-second, after the end-of-second steps (<see cref="RunEndOfSecond"/>), on every
+    /// run kind. The int argument is <c>Scenario.ElapsedSeconds</c> at second end. Intended for test
+    /// instrumentation (see <c>TickRecorder.Attach</c>).
     /// </summary>
     public event Action<int>? TickCompleted;
 
@@ -125,7 +124,7 @@ public sealed partial class SimulationEngine
     /// </summary>
     public event Action<string, string>? WarningEmitted;
 
-    private void FireWarningEmitted(string callsign, string warning)
+    internal void FireWarningEmitted(string callsign, string warning)
     {
         WarningEmitted?.Invoke(callsign, warning);
     }
@@ -148,14 +147,14 @@ public sealed partial class SimulationEngine
     /// </summary>
     public event Action<string, string>? PilotSpeechEmitted;
 
-    private void FirePilotSpeechEmitted(string callsign, string speech)
+    internal void FirePilotSpeechEmitted(string callsign, string speech)
     {
         PilotSpeechEmitted?.Invoke(callsign, speech);
     }
 
     public event Action<string, ParsedCommand>? StripDispatchRequested;
 
-    private void FireStripDispatchRequested(string callsign, ParsedCommand command)
+    internal void FireStripDispatchRequested(string callsign, ParsedCommand command)
     {
         StripDispatchRequested?.Invoke(callsign, command);
     }
@@ -164,22 +163,22 @@ public sealed partial class SimulationEngine
     {
         _groundData = groundData;
         _logger = logger ?? SimLog.CreateLogger<SimulationEngine>();
+        _bareHost = new BareHost(this);
         _replay = new ReplayDriver(this);
     }
 
     // --- Drain collections ---
 
+    /// <summary>
+    /// Hands over and clears the entries accumulated since the last drain. The spine drains once per second in
+    /// pre-physics (<see cref="Spine.StepId.TerminalEntries"/>) and gives them to the host; the live server also
+    /// drains after each command it dispatches.
+    /// </summary>
     public List<TerminalEntry> DrainTerminalEntries()
     {
         var entries = new List<TerminalEntry>(_terminalEntries);
         _terminalEntries.Clear();
         return entries;
-    }
-
-    /// <summary>Drops the entries accumulated this tick without handing them to anyone — the end-of-tick discard.</summary>
-    internal void ClearTerminalEntries()
-    {
-        _terminalEntries.Clear();
     }
 
     /// <summary>
@@ -212,7 +211,7 @@ public sealed partial class SimulationEngine
 
     // --- Public mutations ---
 
-    private void EmitTerminal(string kind, string callsign, string message)
+    internal void EmitTerminal(string kind, string callsign, string message)
     {
         AddTerminalEntry(new TerminalEntry(kind, callsign, message));
     }

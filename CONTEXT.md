@@ -22,6 +22,11 @@ _Avoid_: pipeline, tick list, post-physics list
 One member of the spine.
 _Avoid_: stage, phase (phase means an aircraft's flight phase in this codebase and nothing else)
 
+**Segment**:
+One of the five parts of a sim-second the spine is entered by: begin, open, pre-physics, physics, post-physics,
+end-of-second. A run that cannot advance a whole second at once (the sub-tick replay step) composes segments.
+_Avoid_: phase, stage
+
 **Host**:
 The collaborator a run supplies to the spine: it provides each step's arguments and consumes each
 step's results. One meaning only, reclaimed from six unrelated prior uses.

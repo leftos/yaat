@@ -143,8 +143,8 @@ Nothing is transmitted at assume. The `CommandResult` message summarises the see
   arrival approach; `Landing|OnSurface` → landing after threshold; not clear while `Landing|OnSurface|Crossing`. After
   liftoff the observer's `DepartedOnRunway` latch keeps it a `Departing` on the latched runway within 1 nm of the
   departure end, so the §3-9-6 / §3-10-3.a.2 landmarks are scored. Airborne separation already included shadows.
-- **Runway-use observer** (`SimulationEngine.TickLiveTrafficRunwayUse`, once per second in `TickPostPhysics` **and** the
-  server's `ProcessPostPhysics`): classifies each shadow against the primary airport, else its destination/departure
+- **Runway-use observer** (`SimulationEngine.TickLiveTrafficRunwayUse`, the first post-physics spine step, once per second on
+  every run kind): classifies each shadow against the primary airport, else its destination/departure
   airport. The edge airborne `Landing` → on the ground stamps `CompletionReason.Landed` and sets
   `LiveTraffic.LandedOnRunway`, which makes `Classify` read the rollout as `OnSurface` (geometry cannot tell an 80-kt
   rollout from a takeoff roll); it clears once airborne again or off the pavement. The edge `Departing` → airborne sets
@@ -189,12 +189,12 @@ second would put every replayed second one sample behind and would create the ai
 Removals apply after the second like other actions. Callers of `ApplyLiveTrafficSample` on a live host must call it from
 pre-physics with `ElapsedSeconds` already at the current second so the recorded second matches this placement.
 
-The server brain mirrors this: `RecordingManager.ReconstructViaServerTick` applies each second's pre-tick actions
-(`SimulationEngine.IsPreTickAction` — `RecordedAircraftSpawn` and `RecordedLiveTrafficSample`, the latter via
-`SimulationEngine.ApplyRecordedLiveTrafficSample`, public for this) between `RoomEngine.BeginSecond` (the `ElapsedSeconds`
-increment) and `RunSecondPhysics`, and skips them when the generic post-second cursor reaches them; forward tape playback does
-the same through `ApplyPreTickPlaybackActions(second)`, which `RoomTickLoopService.ProcessRoomSecond` calls in the same
-slot. The increment must come first: `ApplyRecordedLiveTrafficSample` resyncs against `ElapsedSeconds`, and a sample carrying
+The server hosts mirror this through the same spine step: `ReconstructionHost.ApplyPreTickRecordedActions` applies each
+second's pre-tick actions (`SimulationEngine.IsPreTickAction` — `RecordedAircraftSpawn` and `RecordedLiveTrafficSample`, the
+latter via `SimulationEngine.ApplyRecordedLiveTrafficSample`, public for this) in `OpenSecond`, after `BeginSecond` (the
+`ElapsedSeconds` increment) and before pre-physics, and skips them when the generic post-second cursor reaches them; forward
+tape playback does the same through the `LiveRoomHost`, whose `ApplyPreTickRecordedActions` is
+`RecordingManager.ApplyPreTickPlaybackActions(second)`. The increment must come first: `ApplyRecordedLiveTrafficSample` resyncs against `ElapsedSeconds`, and a sample carrying
 feed latency resynced at *t−1* dead-reckons one second behind the live session (#404 — invisible with zero-latency samples
 because of the `max(0, …)` clamp in `LiveTrafficKinematics.Resync`). Removals apply post-second. A spawn-carrying sample also
 drops the callsign from the change tracker so a recurring callsign is first-seen again. The live sync stays inert during both

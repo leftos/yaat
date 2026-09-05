@@ -78,6 +78,7 @@ The Task Index above tells you *which files*; these docs explain *how each subsy
   - **Fillet arc speed**: `Fillet/GroundArcSpeedProfileTests.cs` (local-curvature arc speed), `GroundNavigatorArcSpeedProfileTests.cs` (navigator speed profile application), `GroundNavigatorStraightHandoffTests.cs` (straight-after-arc heading release)
   - **Ground taxi**: `Simulation/GroundTaxi/OakUwFilletCornerTests.cs` (bundle replay: fillet routing + speed profiles)
   - **Replay**: `Simulation/ReplayGeneratorStandDownTests.cs` (generators stand down unconditionally in replay/playback), `Simulation/RunProfileTests.cs` (run profile kinds + mode flags)
+  - **Spine**: `Simulation/SpineTraceTests.cs` (the literal step sequence of a bare second, sub-tick ×4 = whole second by digest and snapshot, per-second counts), `Simulation/PostPhysicsDrainOrderTests.cs` (drain order through the buffers)
   - **Route geometry guards**: `Helpers/RouteGeometryAsserts.cs` (structural: no square pivot where fillet exists)
 - **Client tests**: `tests/Yaat.Client.Tests/` — view model logic, command input
 - **UI tests**: `tests/Yaat.Client.UI.Tests/` — headless window tests for views and layout
@@ -1079,11 +1080,16 @@ SimulationEngine.cs            # Scenario load, tick orchestration, replay (Repl
                                # SimulationEngine.cs itself keeps engine state, the lifecycle events and the terminal-entry sink.
 SimulationEngine.Snapshots.cs  # CaptureSnapshot/RestoreFromSnapshot + the server's slice (CaptureServerSnapshot/RestoreServerSnapshot)
 SimulationEngine.Scenario.cs   # LoadScenario + ResolveGroundLayout
-SimulationEngine.Tick.cs       # The per-tick path: TickPrePhysics/TickPhysics/TickPostPhysics, the detectors, TickOneSecond/TickOnce
-SimulationEngine.Replay.cs     # Replay drivers (ReplayFromStartTo/FastForwardTo/ReplayRange/Replay/ArmReplay/ReplayOneSecond/ReplayOneSubTick)
-                               # — thin delegators over Replay/ReplayDriver.cs, which owns the recorded-action cursors.
+SimulationEngine.Spine.cs      # The segment entry points every run kind advances a sim-second through — RunSecond, BeginSecond, OpenSecond,
+                               # RunPrePhysics, RunPhysicsSubTick, RunPostPhysics, RunEndOfSecond — and the runner that iterates SpineOrder,
+                               # records StepTrace and times steps into TickTimings. BareHost (the Test-run host) lives on the engine.
+SimulationEngine.Tick.cs       # The engine's own step bodies: TickPrePhysics/TickPhysics, the detectors, TickPilotProactive, TickControllerAi,
+                               # and the bare-host wrappers TickOneSecond/TickPostPhysics. The order is SpineOrder's, not this file's.
+SimulationEngine.Replay.cs     # Replay entry points (ReplayFromStartTo/FastForwardTo/ReplayRange/Replay/ArmReplay/ReplayOneSecond/ReplayOneSubTick)
+                               # — thin delegators over Replay/ReplayDriver.cs, which runs the spine under a ReplayHost.
                                # ArmReplay arms the driver against a scenario loaded by other means (the tick oracle).
-                               # RunProfile (defaults to Test; hosts set it) + EnterReplay(), the scope the driver runs every step under
+                               # RunProfile (defaults to Test; hosts set it) + EnterReplay(), the scope the driver runs every step under.
+                               # TickTimings: opt-in per-step timing sink (null in production; the soak runner and the reconstruction benchmark attach one)
 RunProfile.cs                  # RunKind (Live/Replay/Test/Soak) + RunProfile: the one enumeration of what a replay may do differently —
                                # RecordsActions / RunsGenerators / RunsControllerAi, all false only for Replay (ADR 0005). Host state, never snapshotted.
 SimulationEngine.Commands.cs   # SendCommand/DispatchAiCommand/DispatchLiveCommand/ApplyPostDispatch + WarpAircraft/AmendFlightPlan
@@ -1134,9 +1140,21 @@ HalfStripEditCanonicalRewriter.cs # Idempotent rewrite of the retired `HSE <id> 
 CompoundCanonical.cs           # RewriteUnits: applies a per-unit rewrite across `;`/`,` compound canonicals, preserving separators and padding; returns the input instance when nothing changed.
 RecordingJsonOptions.cs        # Shared JsonSerializerOptions for recording serialization
 
+# Simulation/Spine/ — the one ordered definition of a sim-second (docs/tick-loop.md § the spine, ADR 0001)
+SpineOrder.cs                  # The three step lists (PrePhysics / PostPhysics / EndOfSecond) in the live server's order — the adjudication record of ADR 0002
+StepId.cs                      # One member per step, in spine order; the trace's and the timing buckets' key
+SpineStep.cs                   # One list entry: a sim step (engine body, gets only IHostConsumers) or a host step (gets only IHostSteps)
+IHostSteps.cs                  # The host's step view — every server-owned body as a named member, no defaults (a new member breaks every host); header lists the step-4 debt
+IHostConsumers.cs              # The host's consumer view — OnPrePhysics / OnTerminalEntries / OnConflictAlerts / the drains
+ISimulationHost.cs             # IHostSteps + IHostConsumers; four implementations (BareHost, ReplayHost, yaat-server LiveRoomHost / ReconstructionHost)
+StepTrace.cs                   # Per-second (StepId, subTick) sequence + FNV-1a digest + counts; on by default, allocation-free once warm
+BareHost.cs                    # The Test-run host: every slot empty, consumers fire the engine's events
+
 # Simulation/Replay/
-ReplayDriver.cs                # Drives a recording forward (range / one second / one sub-tick) and owns the recorded-action
-                               # cursors. Internal — SimulationEngine.Replay.cs is the public surface over it.
+ReplayDriver.cs                # Drives a recording forward (range / one second / one sub-tick) by running the spine under a ReplayHost;
+                               # owns the driver's ReplayCursors. Internal — SimulationEngine.Replay.cs is the public surface over it.
+ReplayHost.cs                  # ReplayCursors (action cursor, pre-tick cursor, applied set — one per traversal) + ReplayHost: the bare host
+                               # plus pre-tick recorded actions, ungated weather advance and post-second action application
 ReplayTrackApplier.cs          # Replay-time dispatcher for track + AS-prefix commands. Maintains per-connection active-position map;; returns the dispatch result; an AI connection id resolves to its position without an AS prefix
                                # routes parsed commands through TrackEngine.Dispatch with identity resolved via TrackResolver.
 SnapshotDiff.cs                # Pure-function diff between an engine's live aircraft state and a captured snapshot's DTOs.

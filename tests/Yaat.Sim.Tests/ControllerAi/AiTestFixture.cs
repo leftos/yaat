@@ -101,14 +101,16 @@ internal static class AiTestFixture
         return engine;
     }
 
-    /// <summary>The per-second loop as the server runs it: one sim-second, the auto-delete sweep, then one AI tick.</summary>
+    /// <summary>
+    /// The per-second loop: one spine second (which ends with the AI tick on every host) plus the auto-delete sweep
+    /// the bare host does not run yet.
+    /// </summary>
     public static void Tick(SimulationEngine engine, int seconds)
     {
         for (int i = 0; i < seconds; i++)
         {
             engine.TickOneSecond();
             engine.TickAutoDelete();
-            engine.TickControllerAi();
         }
     }
 

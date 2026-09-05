@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using System.Text;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
@@ -20,7 +19,8 @@ using Yaat.Sim.Training;
 
 namespace Yaat.Sim.Simulation;
 
-// The per-tick execution path: pre-physics, physics, the detectors, post-physics, and the two whole-second entry points.
+// The bodies of the engine's own spine steps: pre-physics, the physics sub-tick, the detectors and the per-second
+// passes. The order they run in is SpineOrder's; the segment entry points are in SimulationEngine.Spine.cs.
 public sealed partial class SimulationEngine
 {
     // Holds the set of hold-short node IDs currently occupied by aircraft.
@@ -58,11 +58,8 @@ public sealed partial class SimulationEngine
             World.GroundLayout = _groundData.GetLayout(scenario.PrimaryAirportId);
         }
 
-        // Refresh the per-hold-short departure-queue ordinals over the live world. This runs in
-        // TickPrePhysics because it is the one per-second hook BOTH the standalone TickOneSecond path AND
-        // the live server share (TickProcessor.ProcessPrePhysicsCore → sim.TickPrePhysics); the server
-        // runs its own post-physics and never calls SimulationEngine.TickPostPhysics. The broadcast later
-        // this tick reads RunwayQueuePosition for the datablock "#N" and the Info-column status.
+        // Refresh the per-hold-short departure-queue ordinals over the live world. The broadcast later this
+        // second reads RunwayQueuePosition for the datablock "#N" and the Info-column status.
         RunwayDepartureQueue.UpdatePositions(World.GetSnapshot());
 
         return new TickPrePhysicsResult(spawned, generatorSpawns);
@@ -74,9 +71,9 @@ public sealed partial class SimulationEngine
     /// </summary>
     public void TickPhysics(double delta)
     {
-        var sw = Stopwatch.StartNew();
+        long start = TimingStart();
         _occupiedHoldShortNodes = BuildOccupiedHoldShortNodes();
-        AccumulateTiming("Physics.BuildHoldShort", sw);
+        TimingStop("Physics.BuildHoldShort", start);
 
         // Cache scenario mode flags onto the World so FlightPhysics → PilotObservationUpdater
         // can route resolved RTIS/RFIS pilot transmissions to the correct pending list.
@@ -84,23 +81,23 @@ public sealed partial class SimulationEngine
         World.RpoShowPilotSpeech = Scenario?.RpoShowPilotSpeech ?? false;
         World.MagneticModelDateUtc = Scenario?.MagneticModelDateUtc ?? MagneticDeclination.EvaluationDateUtc;
 
-        sw.Restart();
+        start = TimingStart();
         RehydrateRestoredQueueBlocks();
-        AccumulateTiming("Physics.RehydrateBlocks", sw);
+        TimingStop("Physics.RehydrateBlocks", start);
 
-        sw.Restart();
+        start = TimingStart();
         World.Tick(delta, Scenario?.ElapsedSeconds ?? 0, PreTick, RecordWorldTiming);
-        AccumulateTiming("Physics.WorldTick", sw);
+        TimingStop("Physics.WorldTick", start);
 
         _occupiedHoldShortNodes = null;
 
-        sw.Restart();
+        start = TimingStart();
         ProcessDeferredDispatches(delta);
-        AccumulateTiming("Physics.Deferred", sw);
+        TimingStop("Physics.Deferred", start);
 
-        sw.Restart();
+        start = TimingStart();
         ProcessTriggeredTrackBlocks();
-        AccumulateTiming("Physics.TrackBlocks", sw);
+        TimingStop("Physics.TrackBlocks", start);
     }
 
     /// <summary>
@@ -176,30 +173,27 @@ public sealed partial class SimulationEngine
 
     private void RecordWorldTiming(string bucket, double ms)
     {
-        if (TickTimings.TryGetValue(bucket, out var entry))
+        if (TickTimings is not { } timings)
         {
-            TickTimings[bucket] = (entry.Count + 1, entry.Ms + ms);
+            return;
+        }
+
+        if (timings.TryGetValue(bucket, out var entry))
+        {
+            timings[bucket] = (entry.Count + 1, entry.Ms + ms);
         }
         else
         {
-            TickTimings[bucket] = (1, ms);
+            timings[bucket] = (1, ms);
         }
-    }
-
-    /// <summary>Stops <paramref name="sw"/> and folds its elapsed time into <paramref name="bucket"/>.</summary>
-    internal void AccumulateTiming(string bucket, Stopwatch sw)
-    {
-        sw.Stop();
-        RecordWorldTiming(bucket, sw.Elapsed.TotalMilliseconds);
     }
 
     /// <summary>
     /// Per-second post-physics pilot-proactive behaviors: solo check-in, arrival approach request,
     /// airspace-boundary respect, pending-request follow-ups, and — in all modes — deferred REPORT
-    /// triggers. The SINGLE owner of this orchestration: both the standalone <see cref="TickPostPhysics"/>
-    /// AND the live server (<c>TickProcessor.ProcessPostPhysics</c>) call it, so a behavior added here runs
-    /// in both hosts. Airborne check-in fires before the caller's notification drain so it emits the same
-    /// tick it is produced; TickReportTriggers runs in solo and RPO mode, so it sits outside the solo gate.
+    /// triggers. A spine step (<see cref="Spine.StepId.PilotProactive"/>), so it runs on every run kind.
+    /// Airborne check-in fires before the drains so it emits the same second it is produced;
+    /// TickReportTriggers runs in solo and RPO mode, so it sits outside the solo gate.
     /// </summary>
     public void TickPilotProactive()
     {
@@ -233,9 +227,8 @@ public sealed partial class SimulationEngine
     /// <summary>
     /// Per-second transponder maintenance: advances each aircraft's IDENT timer so the ident flash
     /// auto-clears after <see cref="AircraftTransponder.IdentDurationSeconds"/>, and latches the
-    /// has-reported-Mode-C flag CRC's lost-Mode-C indication reads. The SINGLE owner of this logic — both
-    /// the standalone <see cref="TickPostPhysics"/> AND the live server
-    /// (<c>TickProcessor.ProcessPostPhysics</c>) call it, so it runs identically in both hosts.
+    /// has-reported-Mode-C flag CRC's lost-Mode-C indication reads. A spine step
+    /// (<see cref="Spine.StepId.Transponders"/>), so it runs on every run kind.
     /// </summary>
     public void TickTransponders()
     {
@@ -254,10 +247,9 @@ public sealed partial class SimulationEngine
     /// Per-second visual-acquisition update for aircraft on a visual approach (ApproachId starts with
     /// <c>VIS</c>): field-in-sight acquisition/loss and FOLLOW traffic-in-sight acquisition/loss, using the
     /// active <see cref="SimulationWorld.Weather"/> (cloud layers + visibility) and the nav DB. Sets
-    /// <c>Approach.HasReported*InSight</c> and enqueues the pilot/RPO transmissions + notifications the host
-    /// drains after post-physics. The SINGLE owner of this orchestration — both the standalone
-    /// <see cref="TickPostPhysics"/> AND the live server (<c>TickProcessor.ProcessPostPhysics</c>) call it,
-    /// so the visual-acquisition behavior runs identically in both hosts.
+    /// <c>Approach.HasReported*InSight</c> and enqueues the pilot/RPO transmissions + notifications the spine
+    /// drains later in post-physics. A spine step (<see cref="Spine.StepId.VisualDetection"/>), so it runs on
+    /// every run kind.
     /// </summary>
     public void TickVisualDetection()
     {
@@ -531,9 +523,9 @@ public sealed partial class SimulationEngine
     /// <summary>
     /// Per-second terminal Conflict Alert (STARS CA) pass: runs <see cref="ConflictAlertDetector"/> against
     /// the current world, updates the engine-owned <see cref="ConflictAlerts"/> set, and returns the pairs
-    /// that opened and closed this tick for the host to broadcast. Both <see cref="TickPostPhysics"/> and the
-    /// live server call it; only a broadcasting host consumes the returned diff, but the detection itself has
-    /// to run on every path or a restored conflict is never re-examined.
+    /// that opened and closed this tick. A spine step (<see cref="Spine.StepId.ConflictAlerts"/>): the detection
+    /// runs on every run kind, or a restored conflict is never re-examined, and the host consumes the diff —
+    /// only a broadcasting host does anything with it.
     /// </summary>
     public ConflictAlertChanges TickConflictAlerts()
     {
@@ -595,7 +587,7 @@ public sealed partial class SimulationEngine
     /// <see cref="TickConflictAlerts"/>. Runs <see cref="EramConflictDetector"/>, refreshes each pair's
     /// owning ERAM facilities and Mode-C-intruder classification, updates the engine-owned
     /// <see cref="EramConflicts"/> set, and returns the pairs that opened and closed this tick for the host
-    /// to broadcast. Server-only, like <see cref="TickConflictAlerts"/>.
+    /// to consume. A spine step, like <see cref="TickConflictAlerts"/>.
     /// </summary>
     public EramConflictAlertChanges TickEramConflictAlerts()
     {
@@ -689,9 +681,10 @@ public sealed partial class SimulationEngine
     /// stuck-after-landing at a layout-less airport, a generated overflight past its exit radius, or the
     /// scenario's <c>OnLanding</c>/<c>Parked</c> mode), removes them from the world, and returns the removed
     /// states so the host can fan out its delete broadcasts (each state carries the last position for a
-    /// surface-track coast/drop). Server-only: only a broadcasting host consumes the result, so
-    /// <see cref="TickPostPhysics"/> does not call this. The narrower <see cref="SweepPendingAutoDeletes"/>
-    /// stays for standalone tests that only exercise the <c>PendingAutoDelete</c> path.
+    /// surface-track coast/drop). Called from the live host's <see cref="Spine.IHostSteps.AutoDelete"/> step; the
+    /// bare and replay hosts leave that step empty today, which the tick oracle records as an accepted divergence.
+    /// The narrower <see cref="SweepPendingAutoDeletes"/> stays for standalone tests that only exercise the
+    /// <c>PendingAutoDelete</c> path.
     /// </summary>
     public IReadOnlyList<AircraftState> TickAutoDelete()
     {
@@ -809,9 +802,9 @@ public sealed partial class SimulationEngine
     /// <summary>
     /// Per-second solo-training evaluation: builds the evaluation context from the active scenario, runs
     /// the solo-training evaluator against the current world, and returns the resulting events for the host
-    /// to broadcast. Empty when not in solo mode. Server-only: the standalone/replay host has no controller
-    /// to notify, so <see cref="TickPostPhysics"/> does not call this — the engine owns the evaluation
-    /// orchestration and returns the results, and the host decides how to surface them.
+    /// to broadcast. Empty when not in solo mode. Called from the live host's
+    /// <see cref="Spine.IHostSteps.SoloTrainingEvaluation"/> step; the bare and replay hosts leave that step
+    /// empty today.
     /// </summary>
     public IReadOnlyList<SoloTrainingEvent> TickSoloTrainingEvaluation()
     {
@@ -838,85 +831,12 @@ public sealed partial class SimulationEngine
     }
 
     /// <summary>
-    /// Post-physics: drains warnings, notifications, and approach scores from the world.
-    /// The server reads these before calling this method to broadcast them.
+    /// The post-physics segment under the bare host: the detectors, the proactive pass and the drains in
+    /// <see cref="Spine.SpineOrder.PostPhysics"/> order, with the drained lines surfacing as this engine's events.
+    /// Tests that stage a world by hand call this directly; <see cref="TickOneSecond"/> reaches it through
+    /// <see cref="RunSecond"/>.
     /// </summary>
-    public void TickPostPhysics()
-    {
-        TickLiveTrafficRunwayUse();
-        TickTransponders();
-        TickVisualDetection();
-
-        // Re-evaluate the engine-owned conflict sets. Their returned diffs exist for a broadcasting host to fan out
-        // to CRC, so only the server consumes them — but the detection itself has to run on this path too. Without it
-        // a conflict that RestoreFromSnapshot repopulated is never re-examined, so it is pinned for the rest of a
-        // replay: simultaneously stale and unable to clear.
-        TickConflictAlerts();
-        TickEramConflictAlerts();
-
-        // After the detectors, matching the live server, where it is 14th of 32 — behind the ASDE-X and
-        // solo-training passes this path does not have. A proactive rule that reads what visual detection or
-        // conflict alerting writes therefore sees the same picture on both, which it did not when this ran
-        // second here. It still precedes the drains below, so an airborne check-in emits the tick it is produced.
-        TickPilotProactive();
-
-        var warnings = World.DrainAllWarnings();
-        foreach (var (callsign, warning) in warnings)
-        {
-            FireWarningEmitted(callsign, warning);
-        }
-
-        var notifications = World.DrainAllNotifications();
-        foreach (var (callsign, notification) in notifications)
-        {
-            EmitTerminal("Response", callsign, notification);
-        }
-
-        // Speech before readbacks, the live server's order. The two are independent buffers feeding one
-        // terminal stream, so the only thing their order decides is how a tick's lines read back.
-        //
-        // The one buffer this path used to leave un-drained. Phases and handlers that run under replay
-        // produce into it, so without this it grows for the whole session and any assertion against
-        // PendingPilotSpeech matches a line from an arbitrarily earlier tick.
-        var pilotSpeech = World.DrainAllPilotSpeech();
-        foreach (var (callsign, speech) in pilotSpeech)
-        {
-            EmitTerminal("PilotSpeech", callsign, speech);
-            FirePilotSpeechEmitted(callsign, speech);
-        }
-
-        var readbacks = World.DrainAllPilotReadbacks();
-        foreach (var (callsign, readback) in readbacks)
-        {
-            EmitTerminal("SayReadback", callsign, readback);
-        }
-
-        // Pilot transmissions are addressed to whoever answers pilots — the solo student or an AI position; with nobody
-        // answering (an instructor room with the AI off) they are discarded, the pre-roster instructor-mode behavior.
-        if (Scenario is { } activeScenario && activeScenario.PilotContacts.AnyAnswering)
-        {
-            foreach (var transmission in World.DrainReadyPilotTransmissions(activeScenario.ElapsedSeconds))
-            {
-                EmitTerminal(ToSayKind(transmission), transmission.Callsign, transmission.Text);
-            }
-        }
-        else
-        {
-            World.DiscardAllPilotTransmissions();
-        }
-
-        World.DrainAllApproachScores();
-
-        // Last, as on the live server, where it sits immediately before AutoDelete so a strip command's
-        // callsign still resolves on the tick it fires. That constraint is vacuous here — TickPostPhysics
-        // has no delete sweep — but it is the position the spine will need once it carries one, and the
-        // gap between the two paths was 8th versus 27th of 32.
-        var stripDispatches = World.DrainAllStripDispatches();
-        foreach (var (callsign, command) in stripDispatches)
-        {
-            FireStripDispatchRequested(callsign, command);
-        }
-    }
+    public void TickPostPhysics() => RunPostPhysics(_bareHost);
 
     /// <summary>
     /// Removes any aircraft whose <see cref="AircraftGroundOps.PendingAutoDelete"/>
@@ -942,7 +862,7 @@ public sealed partial class SimulationEngine
         return removed;
     }
 
-    private static string ToSayKind(PilotTransmission transmission) =>
+    internal static string ToSayKind(PilotTransmission transmission) =>
         transmission.Kind == PilotTransmissionKind.SayReadback ? "SayReadback" : "SayPilot";
 
     private static LatLon? LookupAirportPosition(string airportId)
@@ -951,18 +871,14 @@ public sealed partial class SimulationEngine
         return pos.HasValue ? new LatLon(pos.Value.Lat, pos.Value.Lon) : null;
     }
 
-    /// <summary>
-    /// Convenience wrapper that runs all three phases for one sim-second.
-    /// Used by the client and tests. Drains and discards terminal entries.
-    /// </summary>
     /// <summary>The controller AI hosted on this engine, or null when the session runs without one. Set by the host after load.</summary>
     public AiControllerService? ControllerAi { get; set; }
 
     /// <summary>
-    /// One AI tick, run by the host after the sim-second it observes — <c>RoomEngine.AdvanceLiveSecond</c> on the
-    /// server. <see cref="TickOneSecond"/> does NOT call this, so a standalone host that wants the brains to run
-    /// invokes it itself after the second (see the test hosts). Never runs in a replay (<see cref="RunProfile.RunsControllerAi"/>)
-    /// — an AI-driven recording carries the AI's commands as recorded actions, and re-running the brains would double them.
+    /// One AI tick over the completed second — the last spine step (<see cref="Spine.StepId.ControllerAi"/>), so it
+    /// runs on every run kind that is allowed to: never in a replay (<see cref="RunProfile.RunsControllerAi"/>),
+    /// because an AI-driven recording carries the AI's commands as recorded actions and re-running the brains would
+    /// double them.
     /// </summary>
     public void TickControllerAi()
     {
@@ -984,43 +900,19 @@ public sealed partial class SimulationEngine
         );
     }
 
+    /// <summary>
+    /// One sim-second as a bare (<see cref="RunKind.Test"/>) run: the whole spine under the bare host, whose slots
+    /// are empty and whose consumers are this engine's events. A no-op with no scenario loaded.
+    /// </summary>
     public void TickOneSecond()
     {
-        var scenario = Scenario;
-        if (scenario is null)
+        if (Scenario is null)
         {
             return;
         }
 
-        scenario.ElapsedSeconds += 1;
-
-        TickPrePhysics();
-
-        double subDelta = 1.0 / PhysicsSubTickRate;
-        for (int sub = 0; sub < PhysicsSubTickRate; sub++)
-        {
-            TickPhysics(subDelta);
-        }
-
-        TickPostPhysics();
-
-        // Discard terminal entries (client doesn't use them yet)
-        _terminalEntries.Clear();
-
-        FireTickCompleted((int)scenario.ElapsedSeconds);
+        RunSecond(_bareHost);
     }
-
-    /// <summary>
-    /// Advance one physics sub-tick (0.25 s). Does NOT run pre/post-physics or
-    /// advance <c>ElapsedSeconds</c> — call this in a manual tick loop for
-    /// fine-grained inspection (e.g., tick-by-tick test traces).
-    /// </summary>
-    public void TickOnce()
-    {
-        TickPhysics(1.0 / PhysicsSubTickRate);
-    }
-
-    // --- Replay ---
 
     /// <summary>
     /// Computes the hold-short nodes currently occupied by a holding or exiting aircraft from live

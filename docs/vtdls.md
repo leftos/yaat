@@ -381,7 +381,7 @@ fires near-instantly). The 2-hour TTL matches upstream's policy. Both
 are tunable via `SimScenarioState.TdlsWilcoDelaySeconds` and a
 session-snapshot constant if needed.
 
-`ProcessTdlsTrackRemoval` (also in `ProcessPostPhysics`) removes any
+`ProcessTdlsTrackRemoval` (the `TdlsTrackRemoval` spine step) removes any
 TDLS item — Pending or Sent/Wilco — once its aircraft is tracked on
 STARS by any controller (a non-null `AircraftTrack.Owner`). A tracked
 departure has left the clearance-delivery workflow, so the strip clears
