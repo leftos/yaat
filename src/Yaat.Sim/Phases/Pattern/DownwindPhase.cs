@@ -305,19 +305,24 @@ public sealed class DownwindPhase : Phase
             return false;
         }
 
-        // Hold the base turn if following traffic and either (a) too close to the
-        // leader [proximity], or (b) turning base now would roll out ahead of /
-        // too tightly behind a pattern-flow-ahead leader [sequencing]. A deliberate
-        // short approach always wins. Both holds level the aircraft at the
-        // glideslope-intercept altitude floor while waiting.
+        // Hold the base turn if following traffic and either (a) too close to a
+        // same-leg leader [proximity], (b) a pattern-flow-ahead leader is still forward of
+        // the 3-9 line — never bypassed, a base turn now would cut in front of it (14 CFR
+        // §91.113(g)) — or (c) turning base now would put the follower over the threshold
+        // before the leader is clear of the runway / too tightly behind it on final
+        // [sequencing, judged by projected ETAs]. A deliberate short approach waives (c)
+        // only: the controller has taken the spacing, not the prohibition on cutting in.
+        // Every hold levels the aircraft at the glideslope-intercept altitude floor while
+        // waiting.
         //
         // A follower does NOT turn base on its own to escape the hold: it keeps flying
         // the downwind until it is genuinely sequenced behind (the hold clears) or the
         // controller issues a turn. Past MaxFollowExtensionNm it advises once ("extending
         // downwind … unable to turn") so the controller can re-sequence, then keeps going.
         bool holdForProximity = AirborneFollowHelper.ShouldExtendDownwind(ctx);
+        bool leadStillForward = AirborneFollowHelper.IsFlowAheadLeadForwardOfWingline(ctx);
         bool wantsSequenceHold =
-            !ShortApproachArmed && AirborneFollowHelper.ShouldHoldForLeadSequencing(ctx, new LatLon(_thresholdLat, _thresholdLon), _downwindHeading);
+            leadStillForward || (!ShortApproachArmed && Waypoints is not null && AirborneFollowHelper.ShouldHoldForLeadSequencing(ctx, Waypoints));
 
         if (holdForProximity || wantsSequenceHold)
         {

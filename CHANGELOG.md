@@ -10,6 +10,7 @@
 - Replaying or playing back a recording removes aircraft the live session auto-deleted, when it did, and rebuilds a solo session's evaluation findings.
 - Radar and surface history trails are rebuilt during playback and rewind instead of appearing only after a snapshot restore.
 - Wind from a weather timeline now reaches aircraft as a smooth per-second change instead of 1° / 0.5 kt steps, and identically on playback.
+- A pattern aircraft told to follow traffic on final turns base once that traffic has passed and the spacing will work out, instead of waiting for it to touch down.
 
 ## v0.12.25-beta [2026/09/02]
 

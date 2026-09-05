@@ -28,6 +28,30 @@ public static class AirborneFollowHelper
     /// </summary>
     private const double DesiredDistanceLargeNm = 3.0;
 
+    /// <summary>
+    /// Body-frame relative bearing (deg) beyond which a lead counts as aft of the follower's
+    /// 3-9 line, i.e. it has passed and a base turn is flown behind it rather than into it. A few
+    /// degrees past the geometric 90° so a single bank-induced heading wobble at the abeam
+    /// moment cannot release the (irreversible) base turn a tick early.
+    /// </summary>
+    private const double LeadPassedRelativeBearingDeg = 93.0;
+
+    /// <summary>
+    /// Floor (kt) on the lead's ground speed used when projecting its threshold ETA, so a lead
+    /// caught mid-flare or in a momentary slow sample cannot project an infinite ETA.
+    /// </summary>
+    private const double MinProjectionSpeedKts = 40.0;
+
+    // Runway occupancy time — threshold crossing to clear of the runway — by lead category. The
+    // publications give no per-category figure: the only runway-occupancy number in 7110.65 is
+    // the 50 s average that qualifies a runway for 2.5 nm reduced separation (§5-5-4.j.2). These
+    // are simulation allowances anchored to that centroid — a jet rolls further and slower off
+    // the pavement than a light single — used to judge whether the runway will be clear when a
+    // following pattern aircraft crosses the threshold (§3-10-3).
+    private const double RunwayClearanceSecondsJet = 60.0;
+    private const double RunwayClearanceSecondsTurboprop = 45.0;
+    private const double RunwayClearanceSecondsLight = 40.0;
+
     // Free-flight spacing is wider than pattern-tight spacing: pilots maintaining
     // visual separation outside the pattern have less context (no runway cues,
     // higher closure risk at distance), so give them more room. On pattern join
@@ -654,6 +678,14 @@ public static class AirborneFollowHelper
             return false;
         }
 
+        // A lead on a later leg is on a reciprocal or perpendicular track (final vs downwind):
+        // the straight-line gap to it is diverging geometry, not trail spacing. Its base-turn
+        // hold is the projection in ShouldHoldForLeadSequencing, which owns that case.
+        if (IsLeadPatternFlowAhead(ctx.Aircraft, target))
+        {
+            return false;
+        }
+
         double distance = GeoMath.DistanceNm(ctx.Aircraft.Position, target.Position);
 
         var leaderCategory = AircraftCategorization.Categorize(target.AircraftType);
@@ -676,71 +708,188 @@ public static class AirborneFollowHelper
 
     /// <summary>
     /// Returns true when a downwind follower must keep extending (hold its base
-    /// turn) to avoid rolling out on final ahead of, or too tightly behind, a lead
-    /// that is pattern-flow-AHEAD on the same runway (the lead is on a strictly
-    /// later leg — Base/Final/Landing — while the follower is still on Downwind).
+    /// turn) to sequence behind a lead that is pattern-flow-AHEAD on the same runway
+    /// (the lead is on a strictly later leg — Base/Final/Landing — while the follower
+    /// is still on Downwind).
     ///
     /// <para>
-    /// The decision uses a 1-D sequence coordinate: the signed along-track distance
-    /// from the threshold along <paramref name="downwindHeading"/> — the same axis
-    /// <see cref="Pattern.DownwindPhase"/> uses for its base-turn trigger. Larger =
-    /// further out in the approach direction = further back in the landing sequence.
-    /// Unlike straight-line follower-to-lead distance, this stays well-behaved after
-    /// the lead reverses onto final (where the straight-line gap inflates even as the
-    /// lead barely pulls ahead in sequence terms). The follower's own current
-    /// along-track is its projected final-rollout position, so the hold self-corrects
-    /// as the follower extends.
+    /// FOLLOW is a sequencing instruction (7110.65 §3-8-1 lists it beside EXTEND DOWNWIND as
+    /// a separate instruction): the pilot who accepts it takes on the in-trail spacing (AIM
+    /// §4-4-14.b, §5-5-12.a) and adjusts by extending rather than orbiting (AIM §4-3-5), and
+    /// the traffic stops being a factor once it is in the landing phase (AIM §4-4-14.a.2
+    /// NOTE) — not once it has cleared the runway. The follower therefore turns base when the
+    /// traffic has passed and the spacing will work out — the pilot-side mirror of §3-10-6
+    /// "anticipating separation", which judges the runway by where the aircraft will be when
+    /// it crosses the threshold, not by where the two aircraft are right now. Comparing
+    /// instantaneous positions ignores the base leg the follower still has to fly, during
+    /// which a fast lead covers miles and lands; that is how a C172 ended up on a 3 nm final
+    /// behind a Learjet that touched down a minute earlier.
     /// </para>
     ///
     /// <para>
-    /// Holds while <c>aFollower - aLead &lt; desired</c> — i.e. the follower would not
-    /// yet roll out at least the category desired distance behind the lead. The
-    /// caller bounds the hold spatially with <see cref="MaxFollowExtensionNm"/>; the
-    /// temporal bound (lead landed / despawned / same-leg divergence) lives in
-    /// <see cref="CheckLeadLifecycle"/>, which is suppressed while the lead is
-    /// leg-ahead, so the two caps are complementary.
+    /// The turn is released only when all three hold:
+    /// <list type="number">
+    /// <item><description>The lead is aft of the follower's 3-9 line (body-frame relative
+    /// bearing beyond ±90°, <see cref="IsFlowAheadLeadForwardOfWingline"/>), so the base leg
+    /// is flown behind it — the cue a pilot actually uses; 14 CFR §91.113(g) forbids cutting
+    /// in front of an aircraft on final (AIM §4-3-4.d restates it for non-towered fields).
+    /// Judged in the follower's own frame rather than on the downwind axis, so a drifted or
+    /// extended downwind does not distort it. This gate is never bypassed — a short approach
+    /// (<c>SA</c>) waives the spacing projection below, not the prohibition on cutting in.
+    /// </description></item>
+    /// <item><description>Projecting both aircraft along their remaining pattern path
+    /// (<see cref="RemainingPatternPathNm"/>) at their present ground speeds, the follower
+    /// crosses the threshold at least <see cref="RunwayClearanceSeconds"/> (runway occupancy,
+    /// threshold to clear) after the lead crosses it, so the runway is clear when the follower
+    /// arrives (§3-10-3; when either aircraft is Category III the only permitted condition
+    /// is "clear of the runway", §3-10-3.a.1).
+    /// </description></item>
+    /// <item><description>If the lead will still be airborne on final when the follower rolls
+    /// out on final, the follower rolls out at least the category desired distance behind it
+    /// (the in-trail spacing, applied to the projected geometry rather than the present one).
+    /// </description></item>
+    /// </list>
+    /// The caller bounds the hold spatially with <see cref="MaxFollowExtensionNm"/>; the
+    /// temporal bound (lead landed / despawned / lost from sight) lives in
+    /// <see cref="CheckLeadLifecycle"/>, so the two caps are complementary.
     /// </para>
     /// </summary>
-    public static bool ShouldHoldForLeadSequencing(PhaseContext ctx, LatLon threshold, TrueHeading downwindHeading)
+    public static bool ShouldHoldForLeadSequencing(PhaseContext ctx, PatternWaypoints wp)
     {
-        string? targetCallsign = ctx.Aircraft.Approach.FollowingCallsign;
-        if (targetCallsign is null)
-        {
-            return false;
-        }
-
-        var lead = ctx.AircraftLookup?.Invoke(targetCallsign);
+        var follower = ctx.Aircraft;
+        var lead = FlowAheadLead(ctx);
         if (lead is null)
         {
             return false;
         }
 
-        // Only sequence behind a lead that is genuinely ahead in pattern flow (a
-        // strictly later leg on the same runway). A trailing lead is the speed /
-        // proximity path's job, not the base-turn hold's.
-        if (!IsLeadPatternFlowAhead(ctx.Aircraft, lead))
+        if (IsFlowAheadLeadForwardOfWingline(ctx))
         {
-            return false;
+            return true;
         }
 
-        double aFollower = GeoMath.AlongTrackDistanceNm(ctx.Aircraft.Position, threshold, downwindHeading);
-        double aLead = GeoMath.AlongTrackDistanceNm(lead.Position, threshold, downwindHeading);
-        double desired = DesiredDistanceForLeader(AircraftCategorization.Categorize(lead.AircraftType));
+        string targetCallsign = lead.Callsign;
 
-        bool hold = (aFollower - aLead) < desired;
+        // Every projection term errs toward holding: the follower is projected at the faster of its
+        // present and approach speeds along a path shortened by the two corners it will cut turning
+        // base and final (so its ETA is never later than reality), and the lead at the slower of its
+        // present and approach speeds (a decelerating lead's touchdown is never earlier than projected).
+        var leadCategory = AircraftCategorization.Categorize(lead.AircraftType);
+        double followerNmPerSec = Math.Max(follower.GroundSpeed, AircraftPerformance.ApproachSpeed(follower.AircraftType, ctx.Category)) / 3600.0;
+        double remainingFollowerNm = RemainingPatternPathNm(follower, wp) - PatternCornerCutNm(followerNmPerSec, ctx.Category, corners: 2);
+        double remainingLeadNm = RemainingPatternPathNm(lead, wp);
+        double leadApproachKts = AircraftPerformance.ApproachSpeed(lead.AircraftType, leadCategory);
+        double leadNmPerSec = Math.Max(Math.Min(lead.GroundSpeed, leadApproachKts), MinProjectionSpeedKts) / 3600.0;
+        double followerEtaSec = remainingFollowerNm / followerNmPerSec;
+        double leadEtaSec = remainingLeadNm / leadNmPerSec;
+        double clearanceSec = RunwayClearanceSeconds(leadCategory);
+
+        if (followerEtaSec < leadEtaSec + clearanceSec)
+        {
+            Log.LogDebug(
+                "[Follow] {Callsign}: holding downwind to sequence behind {Target} (followerEta={FE:F0}s leadEta={LE:F0}s clearance={C:F0}s)",
+                follower.Callsign,
+                targetCallsign,
+                followerEtaSec,
+                leadEtaSec,
+                clearanceSec
+            );
+            return true;
+        }
+
+        // Where the lead will be when the follower rolls out on final: the follower's final leg
+        // is its along-track from the threshold (longer than the nominal final if it has extended).
+        var threshold = new LatLon(wp.ThresholdLat, wp.ThresholdLon);
+        double followerAlongTrack = GeoMath.AlongTrackDistanceNm(follower.Position, threshold, wp.DownwindHeading);
+        double baseTurnAlongTrack = GeoMath.AlongTrackDistanceNm(new LatLon(wp.BaseTurnLat, wp.BaseTurnLon), threshold, wp.DownwindHeading);
+        double finalLengthNm = Math.Max(followerAlongTrack, baseTurnAlongTrack);
+        double timeToRolloutSec = Math.Max(0, remainingFollowerNm - finalLengthNm) / followerNmPerSec;
+        double leadRemainingAtRolloutNm = remainingLeadNm - (leadNmPerSec * timeToRolloutSec);
+        double desired = DesiredDistanceForLeader(leadCategory);
+
+        bool hold = (leadRemainingAtRolloutNm > 0) && ((finalLengthNm - leadRemainingAtRolloutNm) < desired);
         if (hold)
         {
             Log.LogDebug(
-                "[Follow] {Callsign}: holding downwind to sequence behind {Target} (aFollower={AF:F2} aLead={AL:F2} desired={D:F1})",
-                ctx.Aircraft.Callsign,
+                "[Follow] {Callsign}: holding downwind to sequence behind {Target} (rollout final={F:F2}nm, "
+                    + "lead would be {L:F2}nm out, desired={D:F1})",
+                follower.Callsign,
                 targetCallsign,
-                aFollower,
-                aLead,
+                finalLengthNm,
+                leadRemainingAtRolloutNm,
                 desired
             );
         }
 
         return hold;
+    }
+
+    /// <summary>
+    /// The followed aircraft when it is pattern-flow-ahead of <paramref name="ctx"/>'s aircraft
+    /// (same runway, strictly later leg or holding out on the shared leg); null when there is no
+    /// follow, the lead is gone, or it trails in pattern flow — those are the speed / proximity
+    /// paths' business, not the base-turn hold's.
+    /// </summary>
+    private static AircraftState? FlowAheadLead(PhaseContext ctx)
+    {
+        string? targetCallsign = ctx.Aircraft.Approach.FollowingCallsign;
+        if (targetCallsign is null)
+        {
+            return null;
+        }
+
+        var lead = ctx.AircraftLookup?.Invoke(targetCallsign);
+        if (lead is null)
+        {
+            return null;
+        }
+
+        return IsLeadPatternFlowAhead(ctx.Aircraft, lead) ? lead : null;
+    }
+
+    /// <summary>
+    /// True while a pattern-flow-ahead lead is still forward of the follower's 3-9 line, i.e. a
+    /// base turn now would be flown into it rather than behind it (14 CFR §91.113(g): never cut in
+    /// front of an aircraft on final). The body-frame relative bearing carries a few degrees of
+    /// margin (<see cref="LeadPassedRelativeBearingDeg"/>). <see cref="Pattern.DownwindPhase"/>
+    /// applies this gate unconditionally — a short approach waives the spacing projection, not
+    /// this.
+    /// </summary>
+    public static bool IsFlowAheadLeadForwardOfWingline(PhaseContext ctx)
+    {
+        var follower = ctx.Aircraft;
+        var lead = FlowAheadLead(ctx);
+        if (lead is null)
+        {
+            return false;
+        }
+
+        double relativeBearing = GeoMath.SignedBearingDifference(follower.TrueHeading.Degrees, GeoMath.BearingTo(follower.Position, lead.Position));
+        bool forward = Math.Abs(relativeBearing) <= LeadPassedRelativeBearingDeg;
+        if (forward)
+        {
+            Log.LogDebug(
+                "[Follow] {Callsign}: holding downwind, {Target} still forward of the 3-9 line (relative bearing {Rb:F0})",
+                follower.Callsign,
+                lead.Callsign,
+                relativeBearing
+            );
+        }
+
+        return forward;
+    }
+
+    /// <summary>
+    /// Path a pattern aircraft saves by flying its 90° corners as turn arcs instead of the
+    /// rectangular circuit <see cref="RemainingPatternPathNm"/> measures: each corner replaces two
+    /// turn radii of straight track with a quarter circle, saving (2 − π/2)·r. The radius follows
+    /// from the aircraft's speed and the category pattern turn rate.
+    /// </summary>
+    internal static double PatternCornerCutNm(double speedNmPerSec, AircraftCategory category, int corners)
+    {
+        double turnRateRadPerSec = CategoryPerformance.PatternTurnRate(category) * Math.PI / 180.0;
+        double radiusNm = speedNmPerSec / turnRateRadPerSec;
+        return corners * (2.0 - (Math.PI / 2.0)) * radiusNm;
     }
 
     /// <summary>
@@ -995,6 +1144,25 @@ public static class AirborneFollowHelper
             AircraftCategory.Piston => DesiredDistanceSmallNm,
             AircraftCategory.Helicopter => DesiredDistanceSmallNm,
             _ => DesiredDistanceMediumNm,
+        };
+    }
+
+    /// <summary>
+    /// Runway occupancy allowance for a landing lead of the given category: seconds from its
+    /// threshold crossing until it is clear of the runway (see the constants' note: a simulation
+    /// allowance anchored to 7110.65 §5-5-4.j.2's 50 s average, not a published per-category
+    /// value). A follower projects its own threshold crossing at least this long after the
+    /// lead's before turning base (§3-10-3).
+    /// </summary>
+    public static double RunwayClearanceSeconds(AircraftCategory leadCategory)
+    {
+        return leadCategory switch
+        {
+            AircraftCategory.Jet => RunwayClearanceSecondsJet,
+            AircraftCategory.Turboprop => RunwayClearanceSecondsTurboprop,
+            AircraftCategory.Piston => RunwayClearanceSecondsLight,
+            AircraftCategory.Helicopter => RunwayClearanceSecondsLight,
+            _ => RunwayClearanceSecondsTurboprop,
         };
     }
 

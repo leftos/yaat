@@ -1230,6 +1230,44 @@ public class AirborneFollowTests : IDisposable
     // Downwind axis = reciprocal of runway 28's 280° heading.
     private static readonly TrueHeading SeqDownwindHeading = new(100.0);
 
+    // Pattern geometry for the sequencing gate: base turn 1.0 nm out along the downwind axis,
+    // crosswind turn 1.0 nm the other way, 0.8 nm wide. The aircraft below sit ON the axis
+    // (zero perpendicular offset), so a downwind follower's remaining path is its remaining
+    // downwind plus a final of max(along-track, 1.0) nm.
+    private static readonly PatternWaypoints SeqWaypoints = BuildSeqWaypoints();
+
+    private static PatternWaypoints BuildSeqWaypoints()
+    {
+        var baseTurn = GeoMath.ProjectPoint(SeqThreshold, SeqDownwindHeading, 1.0);
+        var crosswindTurn = GeoMath.ProjectPoint(SeqThreshold, SeqDownwindHeading.ToReciprocal(), 1.0);
+        var offsetHeading = new TrueHeading(SeqDownwindHeading.Degrees + 90.0);
+        var downwindStart = GeoMath.ProjectPoint(crosswindTurn, offsetHeading, 0.8);
+        var abeam = GeoMath.ProjectPoint(SeqThreshold, offsetHeading, 0.8);
+        return new PatternWaypoints
+        {
+            DepartureEndLat = crosswindTurn.Lat,
+            DepartureEndLon = crosswindTurn.Lon,
+            CrosswindTurnLat = crosswindTurn.Lat,
+            CrosswindTurnLon = crosswindTurn.Lon,
+            DownwindStartLat = downwindStart.Lat,
+            DownwindStartLon = downwindStart.Lon,
+            DownwindAbeamLat = abeam.Lat,
+            DownwindAbeamLon = abeam.Lon,
+            BaseTurnLat = baseTurn.Lat,
+            BaseTurnLon = baseTurn.Lon,
+            ThresholdLat = SeqThreshold.Lat,
+            ThresholdLon = SeqThreshold.Lon,
+            UpwindHeading = SeqDownwindHeading.ToReciprocal(),
+            CrosswindHeading = offsetHeading,
+            DownwindHeading = SeqDownwindHeading,
+            BaseHeading = new TrueHeading(SeqDownwindHeading.Degrees - 90.0),
+            FinalHeading = SeqDownwindHeading.ToReciprocal(),
+            PatternAltitude = 1000,
+            PatternSizeNm = 0.8,
+            Direction = PatternDirection.Left,
+        };
+    }
+
     /// <summary>Lat/lon of a point at along-track distance <paramref name="alongTrackNm"/>
     /// from <see cref="SeqThreshold"/> along the downwind axis (larger = further out
     /// in the approach direction = further back in the landing sequence).</summary>
@@ -1262,13 +1300,14 @@ public class AirborneFollowTests : IDisposable
     [Fact]
     public void ShouldHoldForLeadSequencing_True_WhenLeadAheadOnFinal_AndUnderSpaced()
     {
-        // Follower on Downwind 0.5 nm out; lead on Final 0.86 nm out (just rolled
-        // out ahead). aFollower - aLead = -0.36 < 1.0 (piston desired) → hold.
+        // Follower on Downwind 0.5 nm out; lead on Final 0.86 nm out (just rolled out
+        // ahead, still forward of the follower's 3-9 line) → hold: the base leg would be
+        // flown into it.
         var follower = FollowerOnDownwindAt(0.5, "LEAD");
         var lead = LeadOnPhaseAt<FinalApproachPhase>(0.86);
         var ctx = Ctx(follower, lookup: cs => cs == "LEAD" ? lead : null);
 
-        Assert.True(AirborneFollowHelper.ShouldHoldForLeadSequencing(ctx, SeqThreshold, SeqDownwindHeading));
+        Assert.True(AirborneFollowHelper.ShouldHoldForLeadSequencing(ctx, SeqWaypoints));
     }
 
     [Fact]
@@ -1278,19 +1317,62 @@ public class AirborneFollowTests : IDisposable
         var lead = LeadOnPhaseAt<BasePhase>(0.9);
         var ctx = Ctx(follower, lookup: cs => cs == "LEAD" ? lead : null);
 
-        Assert.True(AirborneFollowHelper.ShouldHoldForLeadSequencing(ctx, SeqThreshold, SeqDownwindHeading));
+        Assert.True(AirborneFollowHelper.ShouldHoldForLeadSequencing(ctx, SeqWaypoints));
     }
 
     [Fact]
     public void ShouldHoldForLeadSequencing_False_WhenFollowerAlreadyAdequatelyBehind()
     {
-        // Follower has extended well downwind (2.5 nm out) while the lead is short
-        // final (0.3 nm). aFollower - aLead = 2.2 >= 1.0 → release, turn base.
+        // Follower has extended well downwind (2.5 nm out) while the lead is short final
+        // (0.3 nm, aft of the 3-9 line). Follower ETA ≈ 100 s vs lead touchdown ≈ 12 s + 40 s
+        // clearance, and it would roll out 2.2 nm behind → release, turn base.
         var follower = FollowerOnDownwindAt(2.5, "LEAD");
         var lead = LeadOnPhaseAt<FinalApproachPhase>(0.3);
         var ctx = Ctx(follower, lookup: cs => cs == "LEAD" ? lead : null);
 
-        Assert.False(AirborneFollowHelper.ShouldHoldForLeadSequencing(ctx, SeqThreshold, SeqDownwindHeading));
+        Assert.False(AirborneFollowHelper.ShouldHoldForLeadSequencing(ctx, SeqWaypoints));
+    }
+
+    [Fact]
+    public void ShouldHoldForLeadSequencing_True_WhenLeadPassed_ButRunwayNotClearInTime()
+    {
+        // Lead has passed (0.3 nm final, aft of the follower at 0.5 nm) but is crawling at
+        // 40 kt: touchdown in ~27 s, clear at ~67 s, while the follower (1.5 nm of path less
+        // the two corner cuts, at 90 kt) would cross the threshold at ~50 s → hold.
+        var follower = FollowerOnDownwindAt(0.5, "LEAD");
+        var lead = LeadOnPhaseAt<FinalApproachPhase>(0.3);
+        lead.IndicatedAirspeed = 40;
+        var ctx = Ctx(follower, lookup: cs => cs == "LEAD" ? lead : null);
+
+        Assert.True(AirborneFollowHelper.ShouldHoldForLeadSequencing(ctx, SeqWaypoints));
+    }
+
+    [Fact]
+    public void ShouldHoldForLeadSequencing_False_WhenLeadPassed_AndFollowerArrivesAfterRunwayClear()
+    {
+        // Lead on 0.2 nm final (touchdown in ~11 s, clear at ~51 s); the follower, 2.0 nm out
+        // and already past its base point, arrives at ~70 s and would roll out 1.8 nm behind →
+        // release. This is the "traffic passed abeam, turn base now" case.
+        var follower = FollowerOnDownwindAt(2.0, "LEAD");
+        var lead = LeadOnPhaseAt<FinalApproachPhase>(0.2);
+        var ctx = Ctx(follower, lookup: cs => cs == "LEAD" ? lead : null);
+
+        Assert.False(AirborneFollowHelper.ShouldHoldForLeadSequencing(ctx, SeqWaypoints));
+    }
+
+    [Fact]
+    public void ShouldHoldForLeadSequencing_True_WhenJetLeadStillAirborneAtRollout_UnderSpaced()
+    {
+        // Follower already past its base point (3.0 nm out, rollout immediate). A jet lead at
+        // 1.2 nm final lands ~31 s in, well before the follower's ~108 s arrival (clearance
+        // satisfied), but at rollout the follower would be only 1.8 nm behind a still-airborne
+        // jet — under the 3.0 nm jet trail → hold.
+        var follower = FollowerOnDownwindAt(3.0, "LEAD");
+        var lead = LeadOnPhaseAt<FinalApproachPhase>(1.2, type: "B738");
+        lead.IndicatedAirspeed = 150;
+        var ctx = Ctx(follower, lookup: cs => cs == "LEAD" ? lead : null);
+
+        Assert.True(AirborneFollowHelper.ShouldHoldForLeadSequencing(ctx, SeqWaypoints));
     }
 
     [Fact]
@@ -1303,7 +1385,7 @@ public class AirborneFollowTests : IDisposable
         var lead = LeadOnPhaseAt<UpwindPhase>(0.5);
         var ctx = Ctx(follower, lookup: cs => cs == "LEAD" ? lead : null);
 
-        Assert.False(AirborneFollowHelper.ShouldHoldForLeadSequencing(ctx, SeqThreshold, SeqDownwindHeading));
+        Assert.False(AirborneFollowHelper.ShouldHoldForLeadSequencing(ctx, SeqWaypoints));
     }
 
     [Fact]
@@ -1316,33 +1398,36 @@ public class AirborneFollowTests : IDisposable
         var lead = LeadOnPhaseAt<DownwindPhase>(0.9);
         var ctx = Ctx(follower, lookup: cs => cs == "LEAD" ? lead : null);
 
-        Assert.False(AirborneFollowHelper.ShouldHoldForLeadSequencing(ctx, SeqThreshold, SeqDownwindHeading));
+        Assert.False(AirborneFollowHelper.ShouldHoldForLeadSequencing(ctx, SeqWaypoints));
     }
 
     [Fact]
     public void ShouldHoldForLeadSequencing_False_WhenNoFollowOrLeadMissing()
     {
         var noFollow = FollowerOnDownwindAt(0.5, leadCallsign: null);
-        Assert.False(AirborneFollowHelper.ShouldHoldForLeadSequencing(Ctx(noFollow), SeqThreshold, SeqDownwindHeading));
+        Assert.False(AirborneFollowHelper.ShouldHoldForLeadSequencing(Ctx(noFollow), SeqWaypoints));
 
         var orphan = FollowerOnDownwindAt(0.5, "GHOST");
         var ctx = Ctx(orphan, lookup: _ => null);
-        Assert.False(AirborneFollowHelper.ShouldHoldForLeadSequencing(ctx, SeqThreshold, SeqDownwindHeading));
+        Assert.False(AirborneFollowHelper.ShouldHoldForLeadSequencing(ctx, SeqWaypoints));
     }
 
     [Fact]
     public void ShouldHoldForLeadSequencing_WiderHoldForJetLead()
     {
-        // A jet lead wants 3.0 nm of trail vs 1.0 for a piston. At a 1.5 nm sequence
-        // gap the piston follower would release but a jet follower must keep holding.
-        var followerBehindPiston = FollowerOnDownwindAt(1.8, "LEAD");
+        // A jet lead wants 3.0 nm of trail vs 1.0 for a piston. Both leads are 0.3 nm
+        // final; the follower is already past its base point 2.0 nm out, so it would roll
+        // out 1.7 nm behind a lead that is still airborne at that instant: fine behind a
+        // piston, too tight behind a jet.
+        var followerBehindPiston = FollowerOnDownwindAt(2.0, "LEAD");
         var pistonLead = LeadOnPhaseAt<FinalApproachPhase>(0.3, type: "C172");
         var pistonCtx = Ctx(followerBehindPiston, lookup: cs => cs == "LEAD" ? pistonLead : null);
-        Assert.False(AirborneFollowHelper.ShouldHoldForLeadSequencing(pistonCtx, SeqThreshold, SeqDownwindHeading));
+        Assert.False(AirborneFollowHelper.ShouldHoldForLeadSequencing(pistonCtx, SeqWaypoints));
 
-        var followerBehindJet = FollowerOnDownwindAt(1.8, "LEAD");
+        var followerBehindJet = FollowerOnDownwindAt(2.0, "LEAD");
         var jetLead = LeadOnPhaseAt<FinalApproachPhase>(0.3, type: "B738");
+        jetLead.IndicatedAirspeed = 150;
         var jetCtx = Ctx(followerBehindJet, lookup: cs => cs == "LEAD" ? jetLead : null);
-        Assert.True(AirborneFollowHelper.ShouldHoldForLeadSequencing(jetCtx, SeqThreshold, SeqDownwindHeading));
+        Assert.True(AirborneFollowHelper.ShouldHoldForLeadSequencing(jetCtx, SeqWaypoints));
     }
 }

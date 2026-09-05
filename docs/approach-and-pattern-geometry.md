@@ -670,8 +670,8 @@ speed, never accelerates it above to chase a far lead — a too-far lead is hand
 **At-min-speed: extend, don't cut in.** When the follower is at min speed and inside half the desired distance, it
 cannot open the gap by slowing any further. If the lead is **pattern-flow-ahead** (`IsLeadPatternFlowAhead` — same
 runway, strictly later leg or a same leg the lead is *holding out*) the follower still has a *lateral* option, so the helper returns
-`minSpeed` and **does not cancel**: `DownwindPhase` then holds the base turn (`ShouldExtendDownwind` /
-`ShouldHoldForLeadSequencing`) and extends until `CheckLeadLifecycle` releases the follow when the lead lands. Only
+`minSpeed` and **does not cancel**: `DownwindPhase` then holds the base turn (`ShouldHoldForLeadSequencing`) and
+extends until the projected threshold ETAs release it (see *Downwind sequencing by projection* below). Only
 when there is no lateral option (free-flight follow, or a same/earlier-leg lead) is the follow cancelled with an
 "unable to maintain separation" warning. Cancelling on a flow-ahead lead used to clear `FollowingCallsign`, drop the
 hold, and turn the follower base *in front of* a still-airborne straight-in — a §3-10-3.a.1 same-runway separation
@@ -753,12 +753,36 @@ them every tick produces false "lost sight" reports as the follower banks throug
 slides aft of the 3/9 line, or while the follower lag-pursues a lead that is still opening. On loss of visual the
 pilot transmits `BuildLostSightOfTraffic` ("lost sight of the traffic").
 
-**Downwind extension caps.** `ShouldExtendDownwind` (proximity) holds the base turn
-when the follower is inside `desired × 0.6`. `ShouldHoldForLeadSequencing` holds
-while the follower's 1-D along-track sequence coordinate would not roll it out at least the desired distance behind
-a leg-ahead lead. `DownwindPhase` bounds this hold **spatially** with `MaxFollowExtensionNm = 4.0`; the **temporal**
-bound is the lead lifecycle (the lead lands, despawns, or is lost from sight). The two caps are complementary, not
-redundant.
+**Downwind sequencing by projection.** `FOLLOW` is a sequencing instruction — 7110.65 §3-8-1 lists it beside
+`EXTEND DOWNWIND` as a separate instruction; the pilot who accepts it owns the in-trail spacing (AIM §4-4-14.b,
+§5-5-12.a), adjusts by extending rather than orbiting (AIM §4-3-5), and the traffic stops being a factor once it is in
+the landing phase (AIM §4-4-14.a.2 NOTE), not once it has cleared the runway. The follower turns base when the traffic
+has passed and the spacing will work out — the pilot-side mirror of §3-10-6 *anticipating separation*.
+`ShouldHoldForLeadSequencing(ctx, wp)` therefore holds the base turn behind a pattern-flow-ahead lead until **all** of:
+
+1. the lead is aft of the follower's 3-9 line (`IsFlowAheadLeadForwardOfWingline`: body-frame relative bearing beyond
+   ±90° with a few degrees of margin, so the base leg is flown behind it — 14 CFR §91.113(g), restated for non-towered
+   fields in AIM §4-3-4.d) — judged in the follower's own frame, not on the downwind axis, so a drifted or extended
+   downwind does not distort it. `DownwindPhase` applies this gate unconditionally; a short approach (`SA`) waives only
+   the two projection gates below;
+2. projecting both aircraft along `RemainingPatternPathNm` at their present speeds, the follower crosses the threshold
+   at least `RunwayClearanceSeconds(leadCategory)` (runway occupancy, threshold to clear: 60 s jet / 45 turboprop /
+   40 piston-heli — simulation allowances anchored to §5-5-4.j.2's 50 s average, not a published per-category figure)
+   after the lead crosses it, so the runway is clear when the follower arrives (§3-10-3; when either aircraft is
+   Category III only "clear of the runway" qualifies, §3-10-3.a.1);
+3. if the lead would still be airborne on final when the follower rolls out, the follower rolls out at least the
+   category desired distance behind it (the in-trail spacing, applied to the *projected* geometry).
+
+Every projection term errs toward holding: the follower is projected at the faster of its present and approach speeds
+along a path shortened by the two corners it will cut turning base and final (`PatternCornerCutNm`), the lead at the
+slower of its present and approach speeds (floored at 40 kt). The old rule compared *instantaneous* along-track
+positions against the desired distance and ignored the base leg the follower still had to fly — a C172 told to follow
+an LJ60 on a 1.3 nm final therefore flew a 3 nm final and turned base at the jet's touchdown
+(`FollowStraightInJetBaseTurnTests`). `ShouldExtendDownwind` (proximity, `desired × 0.6` straight-line) now applies only
+to a lead that is *not* flow-ahead — a lead on final is on a reciprocal track, so its straight-line gap is diverging
+geometry, not trail spacing. `DownwindPhase` bounds the hold **spatially** with `MaxFollowExtensionNm = 4.0`; the
+**temporal** bound is the lead lifecycle (the lead lands, despawns, or is lost from sight). The two caps are
+complementary, not redundant.
 
 **Upwind/crosswind sequencing — remaining pattern path.** The downwind along-track hold does not transfer to the
 `UpwindPhase`/`CrosswindPhase` legs: the upwind leg's along-track runs *opposite* the downwind sequence axis (its

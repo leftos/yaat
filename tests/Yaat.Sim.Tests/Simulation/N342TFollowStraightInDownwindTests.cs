@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Xunit;
+using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Pattern;
 using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Simulation;
@@ -25,11 +26,12 @@ namespace Yaat.Sim.Tests.Simulation;
 /// live session the user hand-corrected with <c>ELB 28L 1</c> at t=1026.
 ///
 /// Expected after fix: while the lead is pattern-flow-ahead on the same runway,
-/// the speed loop holds at min speed instead of cancelling; DownwindPhase
-/// extends the downwind (holds the base turn); and only once N70CS is on the
-/// ground does the lead-lifecycle release the follow so N342T turns base BEHIND
-/// the landed traffic. 7110.65 §3-10-3.a.1 (no reduced separation landing behind
-/// a Category III jet — the preceding aircraft must be clear of the runway).
+/// the speed loop holds at min speed instead of cancelling, and DownwindPhase holds
+/// the base turn until the jet has passed the follower's 3-9 line and the projected
+/// threshold ETAs show the runway clear when N342T arrives (7110.65 §3-10-6). The
+/// follower then turns base BEHIND the jet — while it may still be airborne — and
+/// crosses the threshold only after the Category III lead has had time to clear the
+/// runway (7110.65 §3-10-3.a.1: no reduced separation landing behind a Category III).
 ///
 /// The assertion replays through the FOLLOW (past the ~t=1003 cancel point) and
 /// then switches to physics-only ticking so the user's recorded ELB correction
@@ -64,13 +66,14 @@ public class N342TFollowStraightInDownwindTests(ITestOutputHelper output)
     }
 
     /// <summary>
-    /// The core assertion: N342T must not turn base (leave Downwind) until N70CS
-    /// is on the ground. Pre-fix the follow cancels at min speed (~t=1003) and
-    /// N342T turns base while N70CS is still airborne on final; post-fix it holds
-    /// the downwind and only turns base after N70CS has landed.
+    /// The core assertion: N342T must not cut in front of N70CS. Pre-fix the follow
+    /// cancels at min speed (~t=1003) and N342T turns base with the jet still forward
+    /// of its wingline; post-fix it turns base only once the jet has passed, rolls out
+    /// on final behind a landed jet, and reaches the runway at least the jet
+    /// runway-clearance allowance after the jet's touchdown.
     /// </summary>
     [Fact]
-    public void N342T_HoldsDownwind_UntilStraightInLands()
+    public void N342T_SequencesBehind_StraightInJet()
     {
         var archive = RecordingLoader.OpenArchive(RecordingPath);
         if (archive is null)
@@ -113,9 +116,14 @@ public class N342TFollowStraightInDownwindTests(ITestOutputHelper output)
             // does not force the base turn and mask the automatic follow behavior.
             bool followActiveWhileLeadAirborne = false;
             int? leftDownwindAt = null;
-            bool leadOnGroundWhenLeftDownwind = false;
+            bool leadAftOfWinglineWhenLeftDownwind = false;
+            bool leadAheadWhenFollowerRolledOut = true;
+            bool rolledOutObserved = false;
+            bool followerWentAround = false;
+            int? leadTouchdownAt = null;
+            int? followerTouchdownAt = null;
 
-            for (int t = ReplayStopSeconds + 1; t <= ReplayStopSeconds + 120; t++)
+            for (int t = ReplayStopSeconds + 1; t <= ReplayStopSeconds + 300; t++)
             {
                 engine.TickOneSecond();
                 var f = engine.FindAircraft(Follower);
@@ -130,13 +138,49 @@ public class N342TFollowStraightInDownwindTests(ITestOutputHelper output)
                     followActiveWhileLeadAirborne = true;
                 }
 
-                if (f.Phases?.CurrentPhase is not DownwindPhase)
+                if (leadTouchdownAt is null && l.IsOnGround)
+                {
+                    leadTouchdownAt = t;
+                }
+
+                if (leftDownwindAt is null && f.Phases?.CurrentPhase is not DownwindPhase)
                 {
                     leftDownwindAt = t;
-                    leadOnGroundWhenLeftDownwind = l.IsOnGround;
+                    // The gate releases at |relative bearing| > 90°; by the first Base tick the follower's
+                    // heading has already swung a few degrees into the turn, so allow that much.
+                    double relativeBearing = GeoMath.SignedBearingDifference(f.TrueHeading.Degrees, GeoMath.BearingTo(f.Position, l.Position));
+                    leadAftOfWinglineWhenLeftDownwind = Math.Abs(relativeBearing) >= 85.0;
                     output.WriteLine(
                         $"t={t}: N342T left Downwind into {f.Phases?.CurrentPhase?.GetType().Name}; "
-                            + $"N70CS onGround={l.IsOnGround} alt={l.Altitude:F0} foll={f.Approach.FollowingCallsign ?? "-"}"
+                            + $"N70CS onGround={l.IsOnGround} alt={l.Altitude:F0} relBrg={relativeBearing:F0} "
+                            + $"foll={f.Approach.FollowingCallsign ?? "-"}"
+                    );
+                }
+
+                // No cut-in: when the follower rolls out on final the lead must be on the ground or
+                // nearer the threshold than the follower (14 CFR §91.113(g); AIM §4-3-4.d).
+                if (!rolledOutObserved && f.Phases?.CurrentPhase is FinalApproachPhase && f.Phases.AssignedRunway is { } rwy)
+                {
+                    rolledOutObserved = true;
+                    var threshold = new LatLon(rwy.ThresholdLatitude, rwy.ThresholdLongitude);
+                    double leadDist = GeoMath.DistanceNm(l.Position, threshold);
+                    double followerDist = GeoMath.DistanceNm(f.Position, threshold);
+                    leadAheadWhenFollowerRolledOut = l.IsOnGround || (leadDist < followerDist);
+                    output.WriteLine(
+                        $"t={t}: N342T rolled out on final {followerDist:F2} nm out; " + $"N70CS onGround={l.IsOnGround} at {leadDist:F2} nm"
+                    );
+                }
+
+                if (f.Phases?.CurrentPhase is GoAroundPhase)
+                {
+                    followerWentAround = true;
+                }
+
+                if (followerTouchdownAt is null && f.IsOnGround)
+                {
+                    followerTouchdownAt = t;
+                    output.WriteLine(
+                        $"t={t}: N342T touched down ({f.Phases?.CurrentPhase?.GetType().Name}); " + $"N70CS touched down at t={leadTouchdownAt}"
                     );
                     break;
                 }
@@ -149,9 +193,23 @@ public class N342TFollowStraightInDownwindTests(ITestOutputHelper output)
             );
             Assert.True(leftDownwindAt is not null, "N342T never left Downwind within the tick window.");
             Assert.True(
-                leadOnGroundWhenLeftDownwind,
-                $"N342T turned base at t={leftDownwindAt} while N70CS was still airborne — cutting in front of "
-                    + "the landing jet. It must extend downwind and hold the base turn until N70CS is on the ground "
+                leadAftOfWinglineWhenLeftDownwind,
+                $"N342T turned base at t={leftDownwindAt} with N70CS still forward of its wingline — cutting in front of the landing jet "
+                    + "(14 CFR §91.113(g)). It must hold the base turn until the jet has passed."
+            );
+            Assert.True(leadTouchdownAt is not null, "N70CS never touched down within the tick window.");
+            Assert.True(rolledOutObserved, "N342T never rolled out on final within the tick window.");
+            Assert.True(
+                leadAheadWhenFollowerRolledOut,
+                "N342T rolled out on final ahead of N70CS — it must roll out behind the jet it was told to follow."
+            );
+            Assert.True(followerTouchdownAt is not null, "N342T never touched down within the tick window.");
+            Assert.True(followerTouchdownAt > leadTouchdownAt, "N342T must land after the jet it was told to follow.");
+            // §3-10-3 itself is enforced by OccupiedRunwayGoAround at short final: a follower that sequenced correctly must
+            // never be sent around by it, which is the authoritative "runway was clear when it arrived" check.
+            Assert.False(
+                followerWentAround,
+                "N342T was sent around after sequencing itself behind N70CS — the jet was still on the runway when N342T arrived "
                     + "(7110.65 §3-10-3.a.1)."
             );
         }

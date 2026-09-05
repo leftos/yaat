@@ -139,6 +139,10 @@ public class FollowPatternSequencingAuditTests
         double worstGap = double.PositiveInfinity;
         int followerBaseTick = -1;
         double followerBaseGap = double.NaN;
+        double followerRolloutGap = double.NaN;
+        bool leadOnGroundAtRollout = false;
+        int leadTouchdownTick = -1;
+        int followerTouchdownTick = -1;
 
         for (int t = 1; t <= 400; t++)
         {
@@ -179,7 +183,23 @@ public class FollowPatternSequencingAuditTests
 
             if (follower.Phases?.CurrentPhase is FinalApproachPhase or LandingPhase)
             {
+                if (!followerReachedFinal)
+                {
+                    followerRolloutGap = SequenceCoord(follower, wp) - SequenceCoord(lead, wp);
+                    leadOnGroundAtRollout = lead.IsOnGround;
+                }
+
                 followerReachedFinal = true;
+            }
+
+            if (leadTouchdownTick < 0 && lead.IsOnGround)
+            {
+                leadTouchdownTick = t;
+            }
+
+            if (followerTouchdownTick < 0 && follower.IsOnGround)
+            {
+                followerTouchdownTick = t;
             }
 
             // Overtake = follower committed to landing while the lead is still airborne and
@@ -208,8 +228,9 @@ public class FollowPatternSequencingAuditTests
         string dump = Path.Combine(TickRecorder.FindRepoRoot(), ".tmp", "follow-audit-ext-tb.json");
         recorder.WriteJson(dump);
         _output.WriteLine(
-            $"desired={desired:F1} nm; follower committed base at t={followerBaseTick} (gap={followerBaseGap:F2} nm); "
-                + $"worst (aFollower-aLead)={worstGap:F2} nm at t={worstTick}; trace -> {dump}"
+            $"desired={desired:F1} nm; follower committed base at t={followerBaseTick} (gap={followerBaseGap:F2} nm), rolled out on final "
+                + $"{followerRolloutGap:F2} nm behind (lead on ground={leadOnGroundAtRollout}); touchdowns lead t={leadTouchdownTick} "
+                + $"follower t={followerTouchdownTick}; worst (aFollower-aLead)={worstGap:F2} nm at t={worstTick}; trace -> {dump}"
         );
 
         Assert.True(followerReachedFinal, "Follower never reached final within the window (possible infinite downwind hold).");
@@ -218,9 +239,22 @@ public class FollowPatternSequencingAuditTests
             $"Follower overtook the lead it was told to follow: aFollower-aLead dropped to {worstGap:F2} nm at t={worstTick}."
         );
         Assert.True(followerBaseTick > 0, "Follower never turned base within the window.");
+
+        // The base turn is released by projection (the follower will roll out at least the desired
+        // distance behind a still-airborne lead, and reach the runway only after the lead has had its
+        // runway-clearance time), so the spacing that matters is measured at the follower's rollout
+        // and at the runway — not the instantaneous along-track gap at the moment it turned.
         Assert.True(
-            followerBaseGap >= desired - 0.35,
-            $"Follower turned base only {followerBaseGap:F2} nm behind the lead (desired {desired:F1} nm) — turned base too early."
+            leadOnGroundAtRollout || (followerRolloutGap >= desired - 0.35),
+            $"Follower rolled out on final only {followerRolloutGap:F2} nm behind the airborne lead (desired {desired:F1} nm) — "
+                + "turned base too early."
+        );
+        Assert.True(leadTouchdownTick > 0 && followerTouchdownTick > 0, "Both aircraft should have landed within the window.");
+        double clearance = AirborneFollowHelper.RunwayClearanceSeconds(Cat);
+        Assert.True(
+            followerTouchdownTick - leadTouchdownTick >= clearance,
+            $"Follower touched down {followerTouchdownTick - leadTouchdownTick} s after the lead; "
+                + $"the lead needs {clearance:F0} s to clear the runway (7110.65 §3-10-3)."
         );
     }
 
