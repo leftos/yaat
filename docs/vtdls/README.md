@@ -144,7 +144,7 @@ the active one from an **Ops Config menu in the footer** and clicks **Save**. Th
 only when the facility has them enabled.
 
 **Wire shape** — `tdlsConfiguration` gained two fields, confirmed identical in the vNAS `data`
-lib (`data/Facilities/Tdls/OpConfig.cs`) and in decompiled **CRC 2.17.4**:
+lib (`data/Facilities/Tdls/OpConfig.cs`) and in decompiled **CRC 2.18.2**:
 
 ```jsonc
 "dclOpConfigsEnabled": true,
