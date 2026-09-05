@@ -16,12 +16,13 @@ Run from the yaat-server repo root unless a step says otherwise. Tee every tool 
 ```bash
 curl -s https://crc.virtualnas.net/LatestVersion.json
 pwsh -NoProfile -Command '(Get-Item "$env:LOCALAPPDATA\CRC\Application\CRC.exe").VersionInfo.FileVersion'
-git -C X:/dev/crc-decompiled/CRC log -1 --format=%s
+REF="$(git rev-parse --path-format=absolute --git-common-dir)/../../crc-decompiled/CRC"
+git -C "$REF" log -1 --format=%s
 ```
 
-The reference repo path is absolute on purpose: it is a sibling of `X:\dev\yaat`, not of a worktree
-checkout, so `../crc-decompiled` fails from `X:\temp\rt-worktrees\...`. The commit subject carries the
-three-part version, so `2.18.2.0` matches `decompiled CRC 2.18.2`.
+`REF` is the sibling of the *main* checkout, resolved through the common git dir so it is the same
+path from a worktree, and no drive letter is assumed. Reuse it in Step 5. The commit subject carries
+the three-part version, so `2.18.2.0` matches `decompiled CRC 2.18.2`.
 
 All three equal → report "baseline current" and stop. Installed behind published → the user
 must launch CRC to self-update before the rest is meaningful.
@@ -68,7 +69,7 @@ Hold the decompiler invocation constant or the diff is churn:
 - ilspycmd **9.1.0.7988** exactly (four-part NuGet version; `9.1.0` is "not found"). Not the
   global tool. `dotnet tool install ilspycmd --version 9.1.0.7988 --tool-path .tmp/ilspy9`.
 - **Absolute** DLL paths — the generated csproj HintPaths echo the input path.
-- One run per assembly into `X:\dev\crc-decompiled\CRC`: `CRC.dll`, `Vatsim.Nas.Common.dll`,
+- One run per assembly into `$REF` (Step 1): `CRC.dll`, `Vatsim.Nas.Common.dll`,
   `Vatsim.Nas.Data.dll`, `Vatsim.Nas.Render.Engine.dll`. Never `Vatsim.Nas.Messaging.dll`.
 - Drive it from a `.ps1` in the scratchpad (a bash loop mangles `\$a`).
 
@@ -76,11 +77,12 @@ Hold the decompiler invocation constant or the diff is churn:
 $ilspy = '<repo>\.tmp\ilspy9\ilspycmd.exe'
 $crc = Join-Path $env:LOCALAPPDATA 'CRC\Application'
 foreach ($a in 'CRC.dll','Vatsim.Nas.Common.dll','Vatsim.Nas.Data.dll','Vatsim.Nas.Render.Engine.dll') {
-  & $ilspy -p -o 'X:\dev\crc-decompiled\CRC' (Join-Path $crc $a)
+  & $ilspy -p -o $ref (Join-Path $crc $a)
 }
 ```
 
-Then in `X:\dev\crc-decompiled\CRC`:
+with `$ref = Join-Path (git rev-parse --path-format=absolute --git-common-dir) '..\..\crc-decompiled\CRC'`
+resolved from the yaat-server checkout before the loop. Then in `$REF`:
 
 ```bash
 git status --short | awk '{print $1}' | sort | uniq -c        # M / ?? counts; ilspycmd never deletes
