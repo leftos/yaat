@@ -77,7 +77,7 @@ public sealed partial class SimulationEngine
         }
         else
         {
-            var (kind, _) = RecordedCommandClassifier.Classify(command);
+            var (kind, _, _) = RecordedCommandClassifier.Classify(command);
             if (kind != RecordedCommandKind.Compound && kind != RecordedCommandKind.SayOrShow)
             {
                 return new CommandResult(false, $"'{command}' ({kind}) has no engine-side handler; only the live server dispatches it");

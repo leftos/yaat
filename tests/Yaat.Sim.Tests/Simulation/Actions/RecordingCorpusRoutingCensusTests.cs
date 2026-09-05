@@ -16,11 +16,12 @@ namespace Yaat.Sim.Tests.Simulation.Actions;
 /// to no-op, a reaction delay reconstruction used to skip, a solo room whose scoring replay used to drop).
 ///
 /// <para>
-/// Per fixture it records the command count by <see cref="RecordedCommandKind"/>, the commands that classify to the
-/// default arm with an <em>empty</em> callsign (the "global no-op" class — both replay appliers drop them at the
-/// aircraft-exists guard), how many commands carry a baked reaction delay, how many carry an <c>AS</c> prefix, and
-/// whether the room was in solo-training mode. Regenerate with <c>YAAT_ROUTING_CENSUS_REGENERATE=1</c>; the run
-/// fails anyway so the diff is read and committed deliberately, the tick oracle's re-baseline discipline.
+/// Per fixture it records the command count by <see cref="RecordedCommandKind"/>, the commands whose recorded text
+/// the current grammar no longer parses (a retired canonical the schema upgrader has not been run over — these
+/// replay as an aircraft-scoped chain and are dropped), how many commands carry a baked reaction delay, how many
+/// carry an <c>AS</c> prefix, and whether the room was in solo-training mode. Regenerate with
+/// <c>YAAT_ROUTING_CENSUS_REGENERATE=1</c>; the run fails anyway so the diff is read and committed deliberately, the
+/// tick oracle's re-baseline discipline.
 /// </para>
 /// </summary>
 public class RecordingCorpusRoutingCensusTests(ITestOutputHelper output)
@@ -41,7 +42,7 @@ public class RecordingCorpusRoutingCensusTests(ITestOutputHelper output)
         string File,
         int Commands,
         SortedDictionary<string, int> ByKind,
-        List<string> GlobalNoOps,
+        List<string> Unparsed,
         int ReactionDelayed,
         int AsPrefixed,
         bool Solo
@@ -126,7 +127,7 @@ public class RecordingCorpusRoutingCensusTests(ITestOutputHelper output)
         }
 
         var byKind = new SortedDictionary<string, int>(StringComparer.Ordinal);
-        var globalNoOps = new List<string>();
+        var unparsed = new List<string>();
         int commands = 0;
         int reactionDelayed = 0;
         int asPrefixed = 0;
@@ -138,11 +139,13 @@ public class RecordingCorpusRoutingCensusTests(ITestOutputHelper output)
                 case RecordedCommand cmd:
                     commands++;
                     var (remainder, asTcp) = TrackResolver.ExtractAsPrefix(cmd.Command);
-                    var kind = RecordedCommandClassifier.Classify(remainder).Kind;
-                    byKind[kind.ToString()] = byKind.GetValueOrDefault(kind.ToString()) + 1;
-                    if (kind == RecordedCommandKind.Compound && string.IsNullOrEmpty(cmd.Callsign))
+                    var classification = RecordedCommandClassifier.Classify(remainder);
+                    byKind[classification.Kind.ToString()] = byKind.GetValueOrDefault(classification.Kind.ToString()) + 1;
+                    // The single-command parser rejects every multi-verb chain by design; only a body the compound
+                    // parser rejects too is text the current grammar no longer accepts.
+                    if (classification.Parsed is null && !CommandParser.ParseCompound(remainder).IsSuccess)
                     {
-                        globalNoOps.Add(cmd.Command);
+                        unparsed.Add(cmd.Command);
                     }
 
                     if (cmd.ReactionDelaySeconds is not null)
@@ -162,7 +165,7 @@ public class RecordingCorpusRoutingCensusTests(ITestOutputHelper output)
             }
         }
 
-        return new FixtureCensus(Path.GetFileName(path), commands, byKind, globalNoOps, reactionDelayed, asPrefixed, solo);
+        return new FixtureCensus(Path.GetFileName(path), commands, byKind, unparsed, reactionDelayed, asPrefixed, solo);
     }
 
     private static string FindRepoRoot()

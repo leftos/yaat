@@ -1,54 +1,32 @@
 using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Simulation;
+using Yaat.Sim.Simulation.Actions;
 using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests.Simulation.Actions;
 
 /// <summary>
-/// Every <see cref="ParsedCommand"/> subtype must have a route on replay: either <see cref="RecordedCommandClassifier"/>
-/// gives it a kind of its own, or it falls to the default <see cref="RecordedCommandKind.Compound"/> arm and
-/// <see cref="CommandDispatcher"/> has an arm for it. A type with neither is recorded live and then silently dropped
-/// by every replay, rewind and bug-bundle export — that is how <c>SQALL</c>, <c>TAXIALL</c>, <c>ADD</c> and the TDLS
-/// verbs were lost until the 2026-09-05 audit found them.
+/// Every <see cref="ParsedCommand"/> subtype must classify to exactly one <see cref="RecordedCommandKind"/> with an
+/// <see cref="ActionScope"/>, and the classifier's notion of "the dispatcher's" (<see cref="RecordedCommandKind.Compound"/>,
+/// via <see cref="RecordedCommandClassifier.IsAviationCommand"/>) must agree with <see cref="CommandDispatcher"/> in both
+/// directions. Before the classifier was exhaustive, every unclaimed type fell into an aircraft-scoped default and was
+/// recorded live then silently dropped by every replay, rewind and bug-bundle export — that is how <c>SQALL</c>,
+/// <c>TAXIALL</c>, <c>ADD</c> and the TDLS verbs were lost until the 2026-09-05 audit found them.
 ///
 /// <para>
-/// The unrouted set is banked in <see cref="KnownUnrouted"/> and asserted <em>exactly</em>, the same way the tick
-/// oracle banks its accepted divergences: a new unrouted type fails (add the arm, or bank it with a reason), and a
-/// type that gains a route fails too (remove it from the list, so the list only ever shrinks deliberately). Step 3d of
-/// the tick-path unification empties it.
+/// Whether each kind is then <em>applied</em> identically on every run kind is the tick oracle's job (the
+/// <c>actions</c> fixture in yaat-server), not this test's: a kind can be classified today and still no-op on a
+/// replay path until its arm lands.
 /// </para>
 /// </summary>
 public class ActionRoutingCompletenessTests
 {
     /// <summary>
-    /// Types that classify to <see cref="RecordedCommandKind.Compound"/> and reach no dispatcher arm. Every entry
-    /// names why it is unrouted today; every entry is a replay-fidelity gap except the three transport verbs and
-    /// the bookmark, which are deliberately never recorded.
-    /// </summary>
-    private static readonly Dictionary<string, string> KnownUnrouted = new(StringComparer.Ordinal)
-    {
-        ["AddAircraftCommand"] = "global (empty callsign); live spawns through ScenarioLifecycleService and draws World.Rng, no replay arm",
-        ["AsdexEnableAllAlertsCommand"] = "global; live applies an ASDE-X mutation inline, no replay arm",
-        ["BookmarkCommand"] = "never recorded by design — bookmarks are timeline metadata carried across rewinds verbatim",
-        ["CfrDepartureCommand"] = "never recorded — its window is wall-clock UTC and the recorder excludes it",
-        ["PauseCommand"] = "transport; never recorded",
-        ["UnpauseCommand"] = "transport; never recorded",
-        ["SimRateCommand"] = "transport; never recorded",
-        ["TaxiAllCommand"] = "global; the dispatcher arm is a refusal ('must be dispatched at the engine level'), the live body is RoomEngine's",
-        ["TdlsOpsConfigCommand"] = "global; server TDLS handler, no replay arm",
-        ["TdlsQueueCommand"] = "server TDLS handler; replay falls to the dispatcher, which has no arm",
-        ["TdlsSendCommand"] = "server TDLS handler; replay falls to the dispatcher, which has no arm",
-        ["TdlsWilcoCommand"] = "server TDLS handler; replay falls to the dispatcher, which has no arm",
-        ["TdlsDumpCommand"] = "server TDLS handler; replay falls to the dispatcher, which has no arm",
-    };
-
-    /// <summary>
-    /// Types whose only dispatcher arm is inside the phase-gated tower switch (<c>TryApplyTowerCommand</c>) and that
-    /// belong to neither <see cref="CommandDescriber.IsTowerCommand"/> nor <see cref="CommandDescriber.IsGroundCommand"/>,
-    /// so a phase-less probe cannot see the arm. They are routed on replay — <c>DispatchCompound</c> reaches the
-    /// tower switch under the aircraft's phase — and are listed here so the probe's blind spot is named rather than
-    /// papered over. Asserted exactly: an entry that gains a phase-less arm or a family predicate must leave.
+    /// Aviation types whose only dispatcher arm is inside the phase-gated tower switch (<c>TryApplyTowerCommand</c>)
+    /// and that belong to neither <see cref="CommandDescriber.IsTowerCommand"/> nor <see cref="CommandDescriber.IsGroundCommand"/>,
+    /// so the phase-less probe cannot see the arm. Listed so the probe's blind spot is named rather than papered
+    /// over. Asserted exactly: an entry that gains a phase-less arm or a family predicate must leave.
     /// </summary>
     private static readonly Dictionary<string, string> PhaseGatedArms = new(StringComparer.Ordinal)
     {
@@ -63,9 +41,9 @@ public class ActionRoutingCompletenessTests
     }
 
     [Fact]
-    public void EveryParsedCommand_HasAReplayRoute_OrIsBanked()
+    public void EveryParsedCommand_ClassifiesToOneKindWithAScope()
     {
-        var unrouted = new List<string>();
+        var unclassified = new List<string>();
         var undummied = new List<string>();
 
         foreach (var type in ParsedCommandDummies.ConcreteTypes())
@@ -77,35 +55,81 @@ public class ActionRoutingCompletenessTests
                 continue;
             }
 
-            if (RecordedCommandClassifier.ClassifyParsed(dummy).Kind != RecordedCommandKind.Compound)
+            try
             {
-                continue;
+                var classification = RecordedCommandClassifier.ClassifyParsed(dummy);
+                Assert.Equal(RecordedCommandClassifier.ScopeOf(classification.Kind), classification.Scope);
             }
-
-            if (!DispatcherHasArm(dummy))
+            catch (UnroutedCommandException)
             {
-                unrouted.Add(type.Name);
+                unclassified.Add(type.Name);
             }
         }
 
         Assert.True(undummied.Count == 0, "No dummy could be built for: " + string.Join(", ", undummied));
+        Assert.True(
+            unclassified.Count == 0,
+            "ParsedCommand subtypes with no RecordedCommandKind — decide what each is addressed to and add an arm to ClassifyParsed: "
+                + string.Join(", ", unclassified)
+        );
+    }
 
-        var newlyUnrouted = unrouted.Where(name => !KnownUnrouted.ContainsKey(name) && !PhaseGatedArms.ContainsKey(name)).ToList();
-        var stale = KnownUnrouted.Keys.Concat(PhaseGatedArms.Keys).Where(name => !unrouted.Contains(name)).ToList();
-        var problems = new List<string>();
-        if (newlyUnrouted.Count > 0)
+    [Fact]
+    public void EveryKind_HasAScope()
+    {
+        foreach (var kind in Enum.GetValues<RecordedCommandKind>())
         {
-            problems.Add(
-                "Recorded live and dropped on every replay — add a RecordedCommandKind + arm, or bank with a reason: "
-                    + string.Join(", ", newlyUnrouted)
-            );
+            // ScopeOf throws for a kind without a row.
+            _ = RecordedCommandClassifier.ScopeOf(kind);
+        }
+    }
+
+    /// <summary>
+    /// A type the classifier calls the dispatcher's must reach a dispatcher arm — otherwise replay hands the
+    /// dispatcher a verb it has no arm for and the command is dropped with a log line. The reverse is not asserted:
+    /// a type with a kind of its own may legitimately also have a dispatcher arm (<c>DEL</c> raises the auto-delete
+    /// flag there; the flight-plan verbs are answered with a refusal), because the dispatcher is the aviation
+    /// arm's body, not the router.
+    /// </summary>
+    [Fact]
+    public void EveryAviationType_ReachesADispatcherArm()
+    {
+        var aviationWithoutArm = new List<string>();
+        var stale = new List<string>();
+
+        foreach (var type in ParsedCommandDummies.ConcreteTypes())
+        {
+            var dummy = ParsedCommandDummies.Create(type);
+            if (dummy is null)
+            {
+                continue;
+            }
+
+            bool aviation = RecordedCommandClassifier.IsAviationCommand(dummy);
+            bool phaseGated = PhaseGatedArms.ContainsKey(type.Name);
+            bool hasArm = DispatcherHasArm(dummy);
+
+            if (aviation && !hasArm && !phaseGated)
+            {
+                aviationWithoutArm.Add(type.Name);
+            }
+
+            if (phaseGated && (hasArm || !aviation))
+            {
+                stale.Add(type.Name);
+            }
+        }
+
+        var problems = new List<string>();
+        if (aviationWithoutArm.Count > 0)
+        {
+            problems.Add("Listed in IsAviationCommand but CommandDispatcher has no arm: " + string.Join(", ", aviationWithoutArm));
         }
 
         if (stale.Count > 0)
         {
             problems.Add(
-                "Now visible to the probe — remove from KnownUnrouted / PhaseGatedArms so the lists only shrink deliberately: "
-                    + string.Join(", ", stale)
+                "PhaseGatedArms entry is stale — the probe sees the arm now, or the type left the aviation list: " + string.Join(", ", stale)
             );
         }
 

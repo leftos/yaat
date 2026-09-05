@@ -58,7 +58,7 @@ public sealed partial class SimulationEngine
             return;
         }
 
-        var (kind, parsed) = RecordedCommandClassifier.Classify(cmd.Command);
+        var (kind, _, parsed) = RecordedCommandClassifier.Classify(cmd.Command);
 
         switch (kind)
         {
@@ -115,6 +115,7 @@ public sealed partial class SimulationEngine
                 return;
 
             case RecordedCommandKind.Coordination:
+            case RecordedCommandKind.GlobalCoordination:
                 // RD/RDH/RDR/RDACK/RDAUTO mutate state owned by yaat-server only.
                 _logger.LogDebug("Replay: skipping coordination command {Cmd} for {Callsign} (no Sim-side handler)", cmd.Command, cmd.Callsign);
                 return;

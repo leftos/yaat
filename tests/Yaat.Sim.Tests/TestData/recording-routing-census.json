@@ -10,7 +10,7 @@
       "Strip": 89,
       "TrackOwnership": 25
     },
-    "GlobalNoOps": [],
+    "Unparsed": [],
     "ReactionDelayed": 0,
     "AsPrefixed": 31,
     "Solo": false
@@ -27,7 +27,7 @@
       "Strip": 57,
       "TrackOwnership": 17
     },
-    "GlobalNoOps": [],
+    "Unparsed": [],
     "ReactionDelayed": 0,
     "AsPrefixed": 24,
     "Solo": false
@@ -43,7 +43,7 @@
       "Strip": 60,
       "TrackOwnership": 43
     },
-    "GlobalNoOps": [],
+    "Unparsed": [],
     "ReactionDelayed": 0,
     "AsPrefixed": 42,
     "Solo": false
@@ -58,7 +58,7 @@
       "Strip": 20,
       "TrackOwnership": 3
     },
-    "GlobalNoOps": [],
+    "Unparsed": [],
     "ReactionDelayed": 0,
     "AsPrefixed": 6,
     "Solo": false
@@ -67,7 +67,7 @@
     "File": "5d33df162626.zip",
     "Commands": 0,
     "ByKind": {},
-    "GlobalNoOps": [],
+    "Unparsed": [],
     "ReactionDelayed": 0,
     "AsPrefixed": 0,
     "Solo": false
@@ -83,7 +83,7 @@
       "Strip": 41,
       "TrackOwnership": 25
     },
-    "GlobalNoOps": [],
+    "Unparsed": [],
     "ReactionDelayed": 0,
     "AsPrefixed": 36,
     "Solo": false
@@ -96,7 +96,9 @@
       "Delete": 9,
       "TrackOwnership": 26
     },
-    "GlobalNoOps": [],
+    "Unparsed": [
+      "CM 020, DCT VPCOL; DCT TOLLPLAZA"
+    ],
     "ReactionDelayed": 0,
     "AsPrefixed": 26,
     "Solo": false
@@ -112,7 +114,7 @@
       "Strip": 31,
       "TrackOwnership": 52
     },
-    "GlobalNoOps": [],
+    "Unparsed": [],
     "ReactionDelayed": 0,
     "AsPrefixed": 46,
     "Solo": false
@@ -121,20 +123,13 @@
     "File": "921b8c537a44.zip",
     "Commands": 102,
     "ByKind": {
-      "Compound": 92,
+      "Compound": 83,
       "Delete": 8,
-      "TrackOwnership": 2
+      "TrackOwnership": 2,
+      "Transport": 9
     },
-    "GlobalNoOps": [
-      "UNPAUSE",
-      "PAUSE",
-      "UNPAUSE",
-      "PAUSE",
-      "UNPAUSE",
-      "SIMRATE 2",
-      "SIMRATE 4",
-      "SIMRATE 1",
-      "PAUSE"
+    "Unparsed": [
+      "SEQ 2 N342T"
     ],
     "ReactionDelayed": 0,
     "AsPrefixed": 0,
@@ -146,7 +141,7 @@
     "ByKind": {
       "Compound": 2
     },
-    "GlobalNoOps": [],
+    "Unparsed": [],
     "ReactionDelayed": 0,
     "AsPrefixed": 0,
     "Solo": false
@@ -155,18 +150,18 @@
     "File": "a67670e50d58.zip",
     "Commands": 209,
     "ByKind": {
-      "Compound": 58,
+      "AddAircraft": 4,
+      "Compound": 54,
       "Delete": 15,
       "FlightPlan": 11,
       "GhostTrack": 1,
       "Strip": 81,
       "TrackOwnership": 43
     },
-    "GlobalNoOps": [
-      "ADD V S P @NEW1",
-      "ADD V S P @NEW1",
-      "ADD V S P @NEW1",
-      "ADD I L J 30 30"
+    "Unparsed": [
+      "CTO TRDCT TOLLPLAZA 025",
+      "CM 015, DCT VPMOR TOLLPLAZA",
+      "DCT VPCOL TOLLPLAZA"
     ],
     "ReactionDelayed": 0,
     "AsPrefixed": 55,
@@ -180,7 +175,7 @@
       "FlightPlan": 1,
       "Strip": 54
     },
-    "GlobalNoOps": [],
+    "Unparsed": [],
     "ReactionDelayed": 0,
     "AsPrefixed": 1,
     "Solo": false
@@ -194,7 +189,7 @@
       "Strip": 13,
       "TrackOwnership": 6
     },
-    "GlobalNoOps": [],
+    "Unparsed": [],
     "ReactionDelayed": 0,
     "AsPrefixed": 6,
     "Solo": false
@@ -207,7 +202,7 @@
       "Delete": 2,
       "TrackOwnership": 11
     },
-    "GlobalNoOps": [],
+    "Unparsed": [],
     "ReactionDelayed": 0,
     "AsPrefixed": 11,
     "Solo": false
@@ -223,7 +218,7 @@
       "Strip": 84,
       "TrackOwnership": 48
     },
-    "GlobalNoOps": [],
+    "Unparsed": [],
     "ReactionDelayed": 0,
     "AsPrefixed": 49,
     "Solo": false
@@ -234,7 +229,7 @@
     "ByKind": {
       "Compound": 8
     },
-    "GlobalNoOps": [],
+    "Unparsed": [],
     "ReactionDelayed": 0,
     "AsPrefixed": 0,
     "Solo": false
@@ -245,7 +240,7 @@
     "ByKind": {
       "Compound": 18
     },
-    "GlobalNoOps": [],
+    "Unparsed": [],
     "ReactionDelayed": 0,
     "AsPrefixed": 0,
     "Solo": false
@@ -257,7 +252,7 @@
       "Compound": 7,
       "Strip": 4
     },
-    "GlobalNoOps": [],
+    "Unparsed": [],
     "ReactionDelayed": 7,
     "AsPrefixed": 0,
     "Solo": true
@@ -270,7 +265,7 @@
       "Delete": 19,
       "Strip": 20
     },
-    "GlobalNoOps": [],
+    "Unparsed": [],
     "ReactionDelayed": 0,
     "AsPrefixed": 0,
     "Solo": false
@@ -284,10 +279,11 @@
       "FlightPlan": 3,
       "GhostTrack": 6,
       "SayOrShow": 1,
+      "SetActivePosition": 1,
       "Strip": 143,
-      "TrackOwnership": 32
+      "TrackOwnership": 31
     },
-    "GlobalNoOps": [],
+    "Unparsed": [],
     "ReactionDelayed": 0,
     "AsPrefixed": 35,
     "Solo": false
@@ -303,7 +299,7 @@
       "Strip": 44,
       "TrackOwnership": 35
     },
-    "GlobalNoOps": [],
+    "Unparsed": [],
     "ReactionDelayed": 0,
     "AsPrefixed": 44,
     "Solo": false
@@ -314,7 +310,7 @@
     "ByKind": {
       "Compound": 21
     },
-    "GlobalNoOps": [],
+    "Unparsed": [],
     "ReactionDelayed": 0,
     "AsPrefixed": 0,
     "Solo": false
@@ -330,7 +326,7 @@
       "Strip": 67,
       "TrackOwnership": 23
     },
-    "GlobalNoOps": [],
+    "Unparsed": [],
     "ReactionDelayed": 0,
     "AsPrefixed": 27,
     "Solo": false
@@ -346,7 +342,7 @@
       "Strip": 64,
       "TrackOwnership": 42
     },
-    "GlobalNoOps": [],
+    "Unparsed": [],
     "ReactionDelayed": 0,
     "AsPrefixed": 55,
     "Solo": false
@@ -355,16 +351,12 @@
     "File": "diagonal-lineup-28r-recording.zip",
     "Commands": 18,
     "ByKind": {
-      "Compound": 15,
+      "Compound": 11,
       "Delete": 1,
-      "TrackOwnership": 2
+      "TrackOwnership": 2,
+      "Transport": 4
     },
-    "GlobalNoOps": [
-      "UNPAUSE",
-      "PAUSE",
-      "UNPAUSE",
-      "PAUSE"
-    ],
+    "Unparsed": [],
     "ReactionDelayed": 0,
     "AsPrefixed": 0,
     "Solo": false
@@ -377,7 +369,7 @@
       "Delete": 3,
       "Strip": 104
     },
-    "GlobalNoOps": [],
+    "Unparsed": [],
     "ReactionDelayed": 0,
     "AsPrefixed": 0,
     "Solo": false
@@ -386,40 +378,11 @@
     "File": "e55edd55bed7.zip",
     "Commands": 68,
     "ByKind": {
-      "Compound": 67,
-      "Delete": 1
+      "Compound": 38,
+      "Delete": 1,
+      "Transport": 29
     },
-    "GlobalNoOps": [
-      "UNPAUSE",
-      "PAUSE",
-      "UNPAUSE",
-      "PAUSE",
-      "UNPAUSE",
-      "PAUSE",
-      "UNPAUSE",
-      "PAUSE",
-      "UNPAUSE",
-      "PAUSE",
-      "UNPAUSE",
-      "PAUSE",
-      "UNPAUSE",
-      "PAUSE",
-      "PAUSE",
-      "UNPAUSE",
-      "PAUSE",
-      "UNPAUSE",
-      "PAUSE",
-      "UNPAUSE",
-      "PAUSE",
-      "UNPAUSE",
-      "PAUSE",
-      "UNPAUSE",
-      "PAUSE",
-      "UNPAUSE",
-      "PAUSE",
-      "UNPAUSE",
-      "PAUSE"
-    ],
+    "Unparsed": [],
     "ReactionDelayed": 0,
     "AsPrefixed": 0,
     "Solo": false
@@ -435,7 +398,7 @@
       "Strip": 44,
       "TrackOwnership": 35
     },
-    "GlobalNoOps": [],
+    "Unparsed": [],
     "ReactionDelayed": 0,
     "AsPrefixed": 44,
     "Solo": false
@@ -451,7 +414,7 @@
       "Strip": 93,
       "TrackOwnership": 47
     },
-    "GlobalNoOps": [],
+    "Unparsed": [],
     "ReactionDelayed": 0,
     "AsPrefixed": 46,
     "Solo": false
@@ -460,40 +423,11 @@
     "File": "er-d-wrong-exit-recording.zip",
     "Commands": 68,
     "ByKind": {
-      "Compound": 67,
-      "Delete": 1
+      "Compound": 38,
+      "Delete": 1,
+      "Transport": 29
     },
-    "GlobalNoOps": [
-      "UNPAUSE",
-      "PAUSE",
-      "UNPAUSE",
-      "PAUSE",
-      "UNPAUSE",
-      "PAUSE",
-      "UNPAUSE",
-      "PAUSE",
-      "UNPAUSE",
-      "PAUSE",
-      "UNPAUSE",
-      "PAUSE",
-      "UNPAUSE",
-      "PAUSE",
-      "PAUSE",
-      "UNPAUSE",
-      "PAUSE",
-      "UNPAUSE",
-      "PAUSE",
-      "UNPAUSE",
-      "PAUSE",
-      "UNPAUSE",
-      "PAUSE",
-      "UNPAUSE",
-      "PAUSE",
-      "UNPAUSE",
-      "PAUSE",
-      "UNPAUSE",
-      "PAUSE"
-    ],
+    "Unparsed": [],
     "ReactionDelayed": 0,
     "AsPrefixed": 0,
     "Solo": false
@@ -505,7 +439,7 @@
       "Compound": 17,
       "Delete": 1
     },
-    "GlobalNoOps": [],
+    "Unparsed": [],
     "ReactionDelayed": 0,
     "AsPrefixed": 0,
     "Solo": false
@@ -521,7 +455,7 @@
       "Strip": 22,
       "TrackOwnership": 48
     },
-    "GlobalNoOps": [],
+    "Unparsed": [],
     "ReactionDelayed": 0,
     "AsPrefixed": 42,
     "Solo": false
@@ -530,14 +464,11 @@
     "File": "f8e389804194.zip",
     "Commands": 26,
     "ByKind": {
-      "Compound": 23,
-      "TrackOwnership": 3
+      "Compound": 20,
+      "TrackOwnership": 3,
+      "Transport": 3
     },
-    "GlobalNoOps": [
-      "UNPAUSE",
-      "PAUSE",
-      "UNPAUSE"
-    ],
+    "Unparsed": [],
     "ReactionDelayed": 0,
     "AsPrefixed": 2,
     "Solo": false
@@ -553,7 +484,7 @@
       "Strip": 37,
       "TrackOwnership": 1
     },
-    "GlobalNoOps": [],
+    "Unparsed": [],
     "ReactionDelayed": 0,
     "AsPrefixed": 6,
     "Solo": false
@@ -562,16 +493,15 @@
     "File": "follow-straightin-sequencing-recording.zip",
     "Commands": 245,
     "ByKind": {
-      "Compound": 137,
+      "AddAircraft": 1,
+      "Compound": 136,
       "Delete": 12,
       "FlightPlan": 5,
       "GhostTrack": 1,
       "Strip": 32,
       "TrackOwnership": 58
     },
-    "GlobalNoOps": [
-      "ADD I H J 30 10"
-    ],
+    "Unparsed": [],
     "ReactionDelayed": 0,
     "AsPrefixed": 42,
     "Solo": false
@@ -582,10 +512,11 @@
     "ByKind": {
       "Compound": 34,
       "Delete": 5,
+      "SetActivePosition": 1,
       "Strip": 61,
-      "TrackOwnership": 11
+      "TrackOwnership": 10
     },
-    "GlobalNoOps": [],
+    "Unparsed": [],
     "ReactionDelayed": 0,
     "AsPrefixed": 8,
     "Solo": false
@@ -598,7 +529,7 @@
       "Delete": 1,
       "Strip": 70
     },
-    "GlobalNoOps": [],
+    "Unparsed": [],
     "ReactionDelayed": 0,
     "AsPrefixed": 0,
     "Solo": false
@@ -607,12 +538,9 @@
     "File": "ground-conflict-bundle.yaat-bug-report-bundle.zip",
     "Commands": 2,
     "ByKind": {
-      "Compound": 2
+      "Transport": 2
     },
-    "GlobalNoOps": [
-      "UNPAUSE",
-      "PAUSE"
-    ],
+    "Unparsed": [],
     "ReactionDelayed": 0,
     "AsPrefixed": 0,
     "Solo": false
@@ -625,7 +553,7 @@
       "FlightPlan": 2,
       "TrackOwnership": 35
     },
-    "GlobalNoOps": [],
+    "Unparsed": [],
     "ReactionDelayed": 0,
     "AsPrefixed": 24,
     "Solo": false
@@ -641,7 +569,7 @@
       "Strip": 84,
       "TrackOwnership": 48
     },
-    "GlobalNoOps": [],
+    "Unparsed": [],
     "ReactionDelayed": 0,
     "AsPrefixed": 49,
     "Solo": false
@@ -650,12 +578,10 @@
     "File": "issue-amx-taxi-overshoot-recording.yaat-bug-report-bundle.zip",
     "Commands": 5,
     "ByKind": {
-      "Compound": 5
+      "Compound": 3,
+      "Transport": 2
     },
-    "GlobalNoOps": [
-      "UNPAUSE",
-      "PAUSE"
-    ],
+    "Unparsed": [],
     "ReactionDelayed": 0,
     "AsPrefixed": 0,
     "Solo": false
@@ -664,12 +590,9 @@
     "File": "issue-sfo-28r-exit-recording.yaat-bug-report-bundle.zip",
     "Commands": 2,
     "ByKind": {
-      "Compound": 2
+      "Transport": 2
     },
-    "GlobalNoOps": [
-      "UNPAUSE",
-      "PAUSE"
-    ],
+    "Unparsed": [],
     "ReactionDelayed": 0,
     "AsPrefixed": 0,
     "Solo": false
@@ -680,7 +603,7 @@
     "ByKind": {
       "Compound": 8
     },
-    "GlobalNoOps": [],
+    "Unparsed": [],
     "ReactionDelayed": 0,
     "AsPrefixed": 0,
     "Solo": false
@@ -695,7 +618,7 @@
       "GhostTrack": 2,
       "TrackOwnership": 8
     },
-    "GlobalNoOps": [],
+    "Unparsed": [],
     "ReactionDelayed": 0,
     "AsPrefixed": 8,
     "Solo": false
@@ -706,7 +629,7 @@
     "ByKind": {
       "Compound": 3
     },
-    "GlobalNoOps": [],
+    "Unparsed": [],
     "ReactionDelayed": 0,
     "AsPrefixed": 0,
     "Solo": false
@@ -717,7 +640,7 @@
     "ByKind": {
       "Compound": 4
     },
-    "GlobalNoOps": [],
+    "Unparsed": [],
     "ReactionDelayed": 0,
     "AsPrefixed": 0,
     "Solo": false
@@ -726,11 +649,12 @@
     "File": "issue172-sfo-taxiing-recording.yaat-bug-report-bundle.zip",
     "Commands": 286,
     "ByKind": {
-      "Compound": 163,
+      "Compound": 142,
       "Delete": 3,
-      "Strip": 120
+      "Strip": 120,
+      "Tdls": 21
     },
-    "GlobalNoOps": [],
+    "Unparsed": [],
     "ReactionDelayed": 0,
     "AsPrefixed": 0,
     "Solo": false
@@ -741,7 +665,7 @@
     "ByKind": {
       "Compound": 12
     },
-    "GlobalNoOps": [],
+    "Unparsed": [],
     "ReactionDelayed": 0,
     "AsPrefixed": 0,
     "Solo": false
@@ -750,7 +674,7 @@
     "File": "issue181-auto-taxi-recording.zip",
     "Commands": 0,
     "ByKind": {},
-    "GlobalNoOps": [],
+    "Unparsed": [],
     "ReactionDelayed": 0,
     "AsPrefixed": 0,
     "Solo": false
@@ -761,7 +685,7 @@
     "ByKind": {
       "Compound": 1
     },
-    "GlobalNoOps": [],
+    "Unparsed": [],
     "ReactionDelayed": 0,
     "AsPrefixed": 0,
     "Solo": false
@@ -774,7 +698,7 @@
       "Delete": 2,
       "TrackOwnership": 22
     },
-    "GlobalNoOps": [],
+    "Unparsed": [],
     "ReactionDelayed": 0,
     "AsPrefixed": 22,
     "Solo": false
@@ -785,7 +709,7 @@
     "ByKind": {
       "Compound": 31
     },
-    "GlobalNoOps": [],
+    "Unparsed": [],
     "ReactionDelayed": 0,
     "AsPrefixed": 0,
     "Solo": false
@@ -796,7 +720,7 @@
     "ByKind": {
       "Compound": 12
     },
-    "GlobalNoOps": [],
+    "Unparsed": [],
     "ReactionDelayed": 0,
     "AsPrefixed": 0,
     "Solo": false
@@ -807,7 +731,7 @@
     "ByKind": {
       "Compound": 19
     },
-    "GlobalNoOps": [],
+    "Unparsed": [],
     "ReactionDelayed": 0,
     "AsPrefixed": 0,
     "Solo": false
@@ -819,7 +743,7 @@
       "Compound": 4,
       "Delete": 1
     },
-    "GlobalNoOps": [],
+    "Unparsed": [],
     "ReactionDelayed": 4,
     "AsPrefixed": 0,
     "Solo": true
@@ -832,7 +756,7 @@
       "Delete": 2,
       "TrackOwnership": 3
     },
-    "GlobalNoOps": [],
+    "Unparsed": [],
     "ReactionDelayed": 0,
     "AsPrefixed": 3,
     "Solo": true
@@ -844,7 +768,7 @@
       "Compound": 7,
       "Delete": 1
     },
-    "GlobalNoOps": [],
+    "Unparsed": [],
     "ReactionDelayed": 0,
     "AsPrefixed": 0,
     "Solo": false
@@ -858,7 +782,7 @@
       "SayOrShow": 3,
       "TrackOwnership": 4
     },
-    "GlobalNoOps": [],
+    "Unparsed": [],
     "ReactionDelayed": 0,
     "AsPrefixed": 4,
     "Solo": false
@@ -874,7 +798,7 @@
       "Strip": 67,
       "TrackOwnership": 23
     },
-    "GlobalNoOps": [],
+    "Unparsed": [],
     "ReactionDelayed": 0,
     "AsPrefixed": 27,
     "Solo": false
@@ -885,7 +809,7 @@
     "ByKind": {
       "Compound": 3
     },
-    "GlobalNoOps": [],
+    "Unparsed": [],
     "ReactionDelayed": 0,
     "AsPrefixed": 0,
     "Solo": false
@@ -897,7 +821,7 @@
       "Compound": 21,
       "Strip": 44
     },
-    "GlobalNoOps": [],
+    "Unparsed": [],
     "ReactionDelayed": 0,
     "AsPrefixed": 0,
     "Solo": false
@@ -909,7 +833,7 @@
       "Compound": 21,
       "Strip": 44
     },
-    "GlobalNoOps": [],
+    "Unparsed": [],
     "ReactionDelayed": 0,
     "AsPrefixed": 0,
     "Solo": false
@@ -921,7 +845,7 @@
       "Compound": 21,
       "Strip": 44
     },
-    "GlobalNoOps": [],
+    "Unparsed": [],
     "ReactionDelayed": 0,
     "AsPrefixed": 0,
     "Solo": false
@@ -934,10 +858,11 @@
       "Delete": 16,
       "FlightPlan": 1,
       "GhostTrack": 3,
+      "SetActivePosition": 6,
       "Strip": 125,
-      "TrackOwnership": 44
+      "TrackOwnership": 38
     },
-    "GlobalNoOps": [],
+    "Unparsed": [],
     "ReactionDelayed": 0,
     "AsPrefixed": 37,
     "Solo": false
@@ -949,7 +874,7 @@
       "Compound": 61,
       "Delete": 7
     },
-    "GlobalNoOps": [],
+    "Unparsed": [],
     "ReactionDelayed": 0,
     "AsPrefixed": 0,
     "Solo": false
@@ -962,10 +887,11 @@
       "Delete": 11,
       "FlightPlan": 3,
       "GhostTrack": 3,
+      "SetActivePosition": 2,
       "Strip": 163,
-      "TrackOwnership": 29
+      "TrackOwnership": 27
     },
-    "GlobalNoOps": [],
+    "Unparsed": [],
     "ReactionDelayed": 0,
     "AsPrefixed": 28,
     "Solo": false
@@ -977,7 +903,7 @@
       "Compound": 27,
       "Strip": 25
     },
-    "GlobalNoOps": [],
+    "Unparsed": [],
     "ReactionDelayed": 0,
     "AsPrefixed": 0,
     "Solo": false
@@ -986,20 +912,17 @@
     "File": "issue283-ga-mrt-straight-out-recording.zip",
     "Commands": 385,
     "ByKind": {
-      "Compound": 181,
+      "AddAircraft": 4,
+      "Compound": 177,
       "Delete": 21,
       "FlightPlan": 4,
       "GhostTrack": 6,
+      "SetActivePosition": 3,
       "SquawkAll": 3,
       "Strip": 123,
-      "TrackOwnership": 47
+      "TrackOwnership": 44
     },
-    "GlobalNoOps": [
-      "ADD V S P -160 15 14",
-      "ADD V S P -160 10 14",
-      "ADD V S P -360 12 25",
-      "ADD V S P -360 10 25"
-    ],
+    "Unparsed": [],
     "ReactionDelayed": 0,
     "AsPrefixed": 46,
     "Solo": false
@@ -1008,20 +931,17 @@
     "File": "issue284-ef-base-outbound-recording.zip",
     "Commands": 385,
     "ByKind": {
-      "Compound": 181,
+      "AddAircraft": 4,
+      "Compound": 177,
       "Delete": 21,
       "FlightPlan": 4,
       "GhostTrack": 6,
+      "SetActivePosition": 3,
       "SquawkAll": 3,
       "Strip": 123,
-      "TrackOwnership": 47
+      "TrackOwnership": 44
     },
-    "GlobalNoOps": [
-      "ADD V S P -160 15 14",
-      "ADD V S P -160 10 14",
-      "ADD V S P -360 12 25",
-      "ADD V S P -360 10 25"
-    ],
+    "Unparsed": [],
     "ReactionDelayed": 0,
     "AsPrefixed": 46,
     "Solo": false
@@ -1031,9 +951,10 @@
     "Commands": 29,
     "ByKind": {
       "Compound": 14,
-      "TrackOwnership": 15
+      "SetActivePosition": 8,
+      "TrackOwnership": 7
     },
-    "GlobalNoOps": [],
+    "Unparsed": [],
     "ReactionDelayed": 0,
     "AsPrefixed": 7,
     "Solo": false
@@ -1046,10 +967,11 @@
       "Delete": 19,
       "FlightPlan": 5,
       "GhostTrack": 5,
+      "SetActivePosition": 2,
       "Strip": 98,
-      "TrackOwnership": 55
+      "TrackOwnership": 53
     },
-    "GlobalNoOps": [],
+    "Unparsed": [],
     "ReactionDelayed": 0,
     "AsPrefixed": 56,
     "Solo": false
@@ -1062,10 +984,11 @@
       "Delete": 19,
       "FlightPlan": 5,
       "GhostTrack": 5,
+      "SetActivePosition": 2,
       "Strip": 98,
-      "TrackOwnership": 55
+      "TrackOwnership": 53
     },
-    "GlobalNoOps": [],
+    "Unparsed": [],
     "ReactionDelayed": 0,
     "AsPrefixed": 56,
     "Solo": false
@@ -1078,7 +1001,7 @@
       "Delete": 10,
       "Strip": 41
     },
-    "GlobalNoOps": [],
+    "Unparsed": [],
     "ReactionDelayed": 0,
     "AsPrefixed": 0,
     "Solo": false
@@ -1093,7 +1016,7 @@
       "Strip": 94,
       "TrackOwnership": 1
     },
-    "GlobalNoOps": [],
+    "Unparsed": [],
     "ReactionDelayed": 0,
     "AsPrefixed": 2,
     "Solo": false
@@ -1108,7 +1031,7 @@
       "Strip": 94,
       "TrackOwnership": 1
     },
-    "GlobalNoOps": [],
+    "Unparsed": [],
     "ReactionDelayed": 0,
     "AsPrefixed": 2,
     "Solo": false
@@ -1123,7 +1046,7 @@
       "Strip": 94,
       "TrackOwnership": 1
     },
-    "GlobalNoOps": [],
+    "Unparsed": [],
     "ReactionDelayed": 0,
     "AsPrefixed": 2,
     "Solo": false
@@ -1138,7 +1061,7 @@
       "Strip": 94,
       "TrackOwnership": 1
     },
-    "GlobalNoOps": [],
+    "Unparsed": [],
     "ReactionDelayed": 0,
     "AsPrefixed": 2,
     "Solo": false
@@ -1155,7 +1078,7 @@
       "Strip": 98,
       "TrackOwnership": 21
     },
-    "GlobalNoOps": [],
+    "Unparsed": [],
     "ReactionDelayed": 0,
     "AsPrefixed": 31,
     "Solo": false
@@ -1164,13 +1087,12 @@
     "File": "issue409-luaw-takeoff-passthrough-recording.zip",
     "Commands": 79,
     "ByKind": {
-      "Compound": 55,
+      "AddAircraft": 1,
+      "Compound": 54,
       "Delete": 13,
       "TrackOwnership": 11
     },
-    "GlobalNoOps": [
-      "ADD I S+ J @22"
-    ],
+    "Unparsed": [],
     "ReactionDelayed": 0,
     "AsPrefixed": 0,
     "Solo": false
@@ -1184,7 +1106,7 @@
       "Strip": 102,
       "TrackOwnership": 25
     },
-    "GlobalNoOps": [],
+    "Unparsed": [],
     "ReactionDelayed": 0,
     "AsPrefixed": 4,
     "Solo": false
@@ -1200,7 +1122,7 @@
       "Strip": 41,
       "TrackOwnership": 25
     },
-    "GlobalNoOps": [],
+    "Unparsed": [],
     "ReactionDelayed": 0,
     "AsPrefixed": 36,
     "Solo": false
@@ -1214,10 +1136,11 @@
       "FlightPlan": 3,
       "GhostTrack": 6,
       "SayOrShow": 1,
+      "SetActivePosition": 1,
       "Strip": 143,
-      "TrackOwnership": 32
+      "TrackOwnership": 31
     },
-    "GlobalNoOps": [],
+    "Unparsed": [],
     "ReactionDelayed": 0,
     "AsPrefixed": 35,
     "Solo": false
@@ -1233,7 +1156,7 @@
       "Strip": 121,
       "TrackOwnership": 44
     },
-    "GlobalNoOps": [],
+    "Unparsed": [],
     "ReactionDelayed": 0,
     "AsPrefixed": 51,
     "Solo": false
@@ -1249,7 +1172,7 @@
       "Strip": 121,
       "TrackOwnership": 44
     },
-    "GlobalNoOps": [],
+    "Unparsed": [],
     "ReactionDelayed": 0,
     "AsPrefixed": 51,
     "Solo": false
@@ -1261,7 +1184,7 @@
       "Compound": 13,
       "SpawnNow": 1
     },
-    "GlobalNoOps": [],
+    "Unparsed": [],
     "ReactionDelayed": 13,
     "AsPrefixed": 0,
     "Solo": true
@@ -1277,7 +1200,7 @@
       "Strip": 64,
       "TrackOwnership": 42
     },
-    "GlobalNoOps": [],
+    "Unparsed": [],
     "ReactionDelayed": 0,
     "AsPrefixed": 55,
     "Solo": false
@@ -1289,7 +1212,7 @@
       "Compound": 2,
       "TrackOwnership": 1
     },
-    "GlobalNoOps": [],
+    "Unparsed": [],
     "ReactionDelayed": 0,
     "AsPrefixed": 0,
     "Solo": true
@@ -1305,7 +1228,7 @@
       "Strip": 64,
       "TrackOwnership": 42
     },
-    "GlobalNoOps": [],
+    "Unparsed": [],
     "ReactionDelayed": 0,
     "AsPrefixed": 55,
     "Solo": false
@@ -1321,7 +1244,7 @@
       "Strip": 64,
       "TrackOwnership": 42
     },
-    "GlobalNoOps": [],
+    "Unparsed": [],
     "ReactionDelayed": 0,
     "AsPrefixed": 55,
     "Solo": false
@@ -1335,10 +1258,11 @@
       "FlightPlan": 3,
       "GhostTrack": 6,
       "SayOrShow": 1,
+      "SetActivePosition": 1,
       "Strip": 143,
-      "TrackOwnership": 32
+      "TrackOwnership": 31
     },
-    "GlobalNoOps": [],
+    "Unparsed": [],
     "ReactionDelayed": 0,
     "AsPrefixed": 35,
     "Solo": false
@@ -1354,7 +1278,7 @@
       "Strip": 43,
       "TrackOwnership": 59
     },
-    "GlobalNoOps": [],
+    "Unparsed": [],
     "ReactionDelayed": 0,
     "AsPrefixed": 52,
     "Solo": false
@@ -1370,7 +1294,7 @@
       "Strip": 121,
       "TrackOwnership": 44
     },
-    "GlobalNoOps": [],
+    "Unparsed": [],
     "ReactionDelayed": 0,
     "AsPrefixed": 51,
     "Solo": false
@@ -1379,7 +1303,7 @@
     "File": "oak-cross-dest-runway-recording.yaat-bug-report-bundle.zip",
     "Commands": 0,
     "ByKind": {},
-    "GlobalNoOps": [],
+    "Unparsed": [],
     "ReactionDelayed": 0,
     "AsPrefixed": 0,
     "Solo": false
@@ -1388,7 +1312,7 @@
     "File": "oak-ga-spawn-turnaround-recording.yaat-bug-report-bundle.zip",
     "Commands": 0,
     "ByKind": {},
-    "GlobalNoOps": [],
+    "Unparsed": [],
     "ReactionDelayed": 0,
     "AsPrefixed": 0,
     "Solo": false
@@ -1402,7 +1326,7 @@
       "FlightPlan": 3,
       "Strip": 113
     },
-    "GlobalNoOps": [],
+    "Unparsed": [],
     "ReactionDelayed": 0,
     "AsPrefixed": 3,
     "Solo": false
@@ -1415,7 +1339,7 @@
       "Delete": 9,
       "Strip": 33
     },
-    "GlobalNoOps": [],
+    "Unparsed": [],
     "ReactionDelayed": 0,
     "AsPrefixed": 0,
     "Solo": false
@@ -1426,7 +1350,7 @@
     "ByKind": {
       "Compound": 8
     },
-    "GlobalNoOps": [],
+    "Unparsed": [],
     "ReactionDelayed": 0,
     "AsPrefixed": 0,
     "Solo": false
@@ -1441,7 +1365,7 @@
       "Strip": 9,
       "TrackOwnership": 2
     },
-    "GlobalNoOps": [],
+    "Unparsed": [],
     "ReactionDelayed": 0,
     "AsPrefixed": 4,
     "Solo": false
@@ -1457,7 +1381,7 @@
       "Strip": 121,
       "TrackOwnership": 44
     },
-    "GlobalNoOps": [],
+    "Unparsed": [],
     "ReactionDelayed": 0,
     "AsPrefixed": 51,
     "Solo": false
@@ -1472,7 +1396,7 @@
       "Strip": 111,
       "TrackOwnership": 1
     },
-    "GlobalNoOps": [],
+    "Unparsed": [],
     "ReactionDelayed": 0,
     "AsPrefixed": 4,
     "Solo": false
@@ -1486,7 +1410,7 @@
       "Strip": 18,
       "TrackOwnership": 8
     },
-    "GlobalNoOps": [],
+    "Unparsed": [],
     "ReactionDelayed": 0,
     "AsPrefixed": 8,
     "Solo": false
@@ -1497,7 +1421,7 @@
     "ByKind": {
       "Compound": 2
     },
-    "GlobalNoOps": [],
+    "Unparsed": [],
     "ReactionDelayed": 0,
     "AsPrefixed": 0,
     "Solo": true
@@ -1508,7 +1432,7 @@
     "ByKind": {
       "Compound": 4
     },
-    "GlobalNoOps": [],
+    "Unparsed": [],
     "ReactionDelayed": 0,
     "AsPrefixed": 0,
     "Solo": false
@@ -1520,7 +1444,7 @@
       "Compound": 26,
       "Delete": 3
     },
-    "GlobalNoOps": [],
+    "Unparsed": [],
     "ReactionDelayed": 0,
     "AsPrefixed": 0,
     "Solo": false
@@ -1531,7 +1455,7 @@
     "ByKind": {
       "Compound": 3
     },
-    "GlobalNoOps": [],
+    "Unparsed": [],
     "ReactionDelayed": 0,
     "AsPrefixed": 0,
     "Solo": false
@@ -1547,7 +1471,7 @@
       "Strip": 43,
       "TrackOwnership": 59
     },
-    "GlobalNoOps": [],
+    "Unparsed": [],
     "ReactionDelayed": 0,
     "AsPrefixed": 52,
     "Solo": false
@@ -1563,7 +1487,7 @@
       "Strip": 84,
       "TrackOwnership": 48
     },
-    "GlobalNoOps": [],
+    "Unparsed": [],
     "ReactionDelayed": 0,
     "AsPrefixed": 49,
     "Solo": false
@@ -1574,7 +1498,10 @@
     "ByKind": {
       "Compound": 8
     },
-    "GlobalNoOps": [],
+    "Unparsed": [
+      "CTO 28R",
+      "CTO 28R"
+    ],
     "ReactionDelayed": 0,
     "AsPrefixed": 0,
     "Solo": false
@@ -1585,7 +1512,7 @@
     "ByKind": {
       "Compound": 17
     },
-    "GlobalNoOps": [],
+    "Unparsed": [],
     "ReactionDelayed": 0,
     "AsPrefixed": 0,
     "Solo": false
@@ -1596,7 +1523,7 @@
     "ByKind": {
       "Compound": 19
     },
-    "GlobalNoOps": [],
+    "Unparsed": [],
     "ReactionDelayed": 0,
     "AsPrefixed": 0,
     "Solo": false
@@ -1607,7 +1534,7 @@
     "ByKind": {
       "Compound": 13
     },
-    "GlobalNoOps": [],
+    "Unparsed": [],
     "ReactionDelayed": 0,
     "AsPrefixed": 0,
     "Solo": false
@@ -1618,7 +1545,7 @@
     "ByKind": {
       "Compound": 4
     },
-    "GlobalNoOps": [],
+    "Unparsed": [],
     "ReactionDelayed": 0,
     "AsPrefixed": 0,
     "Solo": false
@@ -1634,7 +1561,7 @@
       "Strip": 50,
       "TrackOwnership": 38
     },
-    "GlobalNoOps": [],
+    "Unparsed": [],
     "ReactionDelayed": 0,
     "AsPrefixed": 37,
     "Solo": false
@@ -1645,7 +1572,7 @@
     "ByKind": {
       "Compound": 7
     },
-    "GlobalNoOps": [],
+    "Unparsed": [],
     "ReactionDelayed": 0,
     "AsPrefixed": 0,
     "Solo": false
@@ -1656,7 +1583,7 @@
     "ByKind": {
       "Compound": 18
     },
-    "GlobalNoOps": [],
+    "Unparsed": [],
     "ReactionDelayed": 0,
     "AsPrefixed": 0,
     "Solo": false
@@ -1672,7 +1599,7 @@
       "Strip": 17,
       "TrackOwnership": 49
     },
-    "GlobalNoOps": [],
+    "Unparsed": [],
     "ReactionDelayed": 0,
     "AsPrefixed": 38,
     "Solo": false
@@ -1681,12 +1608,10 @@
     "File": "sfo-cto-taxiway-holdshort-recording.yaat-bug-report-bundle.zip",
     "Commands": 5,
     "ByKind": {
-      "Compound": 5
+      "Compound": 3,
+      "Transport": 2
     },
-    "GlobalNoOps": [
-      "UNPAUSE",
-      "PAUSE"
-    ],
+    "Unparsed": [],
     "ReactionDelayed": 0,
     "AsPrefixed": 0,
     "Solo": false
@@ -1695,12 +1620,10 @@
     "File": "sfo-exit-el-t-recording.yaat-bug-report-bundle.zip",
     "Commands": 5,
     "ByKind": {
-      "Compound": 5
+      "Compound": 3,
+      "Transport": 2
     },
-    "GlobalNoOps": [
-      "UNPAUSE",
-      "PAUSE"
-    ],
+    "Unparsed": [],
     "ReactionDelayed": 0,
     "AsPrefixed": 0,
     "Solo": false
@@ -1709,40 +1632,11 @@
     "File": "sfo-hs-taxiway-recording.zip",
     "Commands": 68,
     "ByKind": {
-      "Compound": 67,
-      "Delete": 1
+      "Compound": 38,
+      "Delete": 1,
+      "Transport": 29
     },
-    "GlobalNoOps": [
-      "UNPAUSE",
-      "PAUSE",
-      "UNPAUSE",
-      "PAUSE",
-      "UNPAUSE",
-      "PAUSE",
-      "UNPAUSE",
-      "PAUSE",
-      "UNPAUSE",
-      "PAUSE",
-      "UNPAUSE",
-      "PAUSE",
-      "UNPAUSE",
-      "PAUSE",
-      "PAUSE",
-      "UNPAUSE",
-      "PAUSE",
-      "UNPAUSE",
-      "PAUSE",
-      "UNPAUSE",
-      "PAUSE",
-      "UNPAUSE",
-      "PAUSE",
-      "UNPAUSE",
-      "PAUSE",
-      "UNPAUSE",
-      "PAUSE",
-      "UNPAUSE",
-      "PAUSE"
-    ],
+    "Unparsed": [],
     "ReactionDelayed": 0,
     "AsPrefixed": 0,
     "Solo": false
@@ -1753,7 +1647,7 @@
     "ByKind": {
       "Compound": 13
     },
-    "GlobalNoOps": [],
+    "Unparsed": [],
     "ReactionDelayed": 0,
     "AsPrefixed": 0,
     "Solo": false
@@ -1769,7 +1663,7 @@
       "Strip": 17,
       "TrackOwnership": 49
     },
-    "GlobalNoOps": [],
+    "Unparsed": [],
     "ReactionDelayed": 0,
     "AsPrefixed": 38,
     "Solo": false
@@ -1785,7 +1679,7 @@
       "Strip": 76,
       "TrackOwnership": 34
     },
-    "GlobalNoOps": [],
+    "Unparsed": [],
     "ReactionDelayed": 0,
     "AsPrefixed": 39,
     "Solo": false
@@ -1801,7 +1695,7 @@
       "Strip": 62,
       "TrackOwnership": 42
     },
-    "GlobalNoOps": [
+    "Unparsed": [
       "SEPM SEP_27320ff6 Local 1/2/2",
       "SEPM SEP_9faff9a4 Local 1/3/1"
     ],
@@ -1820,7 +1714,7 @@
       "Strip": 43,
       "TrackOwnership": 59
     },
-    "GlobalNoOps": [],
+    "Unparsed": [],
     "ReactionDelayed": 0,
     "AsPrefixed": 52,
     "Solo": false
@@ -1836,7 +1730,7 @@
       "Strip": 76,
       "TrackOwnership": 34
     },
-    "GlobalNoOps": [],
+    "Unparsed": [],
     "ReactionDelayed": 0,
     "AsPrefixed": 39,
     "Solo": false
@@ -1852,7 +1746,7 @@
       "Strip": 67,
       "TrackOwnership": 23
     },
-    "GlobalNoOps": [],
+    "Unparsed": [],
     "ReactionDelayed": 0,
     "AsPrefixed": 27,
     "Solo": false
@@ -1866,10 +1760,11 @@
       "FlightPlan": 3,
       "GhostTrack": 6,
       "SayOrShow": 1,
+      "SetActivePosition": 1,
       "Strip": 143,
-      "TrackOwnership": 32
+      "TrackOwnership": 31
     },
-    "GlobalNoOps": [],
+    "Unparsed": [],
     "ReactionDelayed": 0,
     "AsPrefixed": 35,
     "Solo": false
@@ -1881,7 +1776,7 @@
       "Compound": 4,
       "Delete": 4
     },
-    "GlobalNoOps": [],
+    "Unparsed": [],
     "ReactionDelayed": 0,
     "AsPrefixed": 0,
     "Solo": false
@@ -1897,7 +1792,7 @@
       "Strip": 67,
       "TrackOwnership": 23
     },
-    "GlobalNoOps": [],
+    "Unparsed": [],
     "ReactionDelayed": 0,
     "AsPrefixed": 27,
     "Solo": false
