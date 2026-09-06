@@ -83,9 +83,9 @@ The connection id also says **who** issued the command: an AI-controller positio
 `AiConnectionId.Format(positionId)` (`"AI:{positionId}"`, `Commands/DispatchOrigin.cs`), and `HandleStandardCmd` derives
 `DispatchOrigin.ControllerAi` from it — the dispatch runs with `IsScenarioScripted: true` (not the student establishing
 contact) and `ApplyPostDispatch` skips two-way-comms registration and evaluator scoring. Because the origin is derived
-from the recorded connection id, `RecordingManager.ReplayCommand` replays an AI command exactly as it ran live.
+from the recorded connection id, a reconstruction or tape playback (the router's `Apply` under the server's `RoomHost`) replays an AI command exactly as it ran live.
 
-A short exclusion list on that call keeps a few verbs out of the action log: `PAUSE`/`UNPAUSE`/`SIMRATE` (transport state, not simulation state), `CFR` (a wall-clock alert window), and `BM` (bookmarks are timeline-global metadata that the rewind paths carry over verbatim, so replaying an add would duplicate every bookmark on each rewind).
+`RecordingPolicy.Never` keeps two kinds out of the action log — `PAUSE`/`UNPAUSE`/`SIMRATE` (transport state, not simulation state) and `BM` (bookmarks are timeline-global metadata that the rewind paths carry over verbatim, so replaying an add would duplicate every bookmark on each rewind) — and the router never applies either kind from a record, so the legacy records older recordings carry stay inert.
 
 ### 5. CommandDispatcher.DispatchCompound
 

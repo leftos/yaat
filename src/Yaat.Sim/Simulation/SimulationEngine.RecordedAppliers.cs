@@ -154,7 +154,11 @@ public sealed partial class SimulationEngine
         return true;
     }
 
-    /// <summary>A recorded weather load (JSON present) or clear (JSON null), including the METAR re-issuance intent it carried.</summary>
+    /// <summary>
+    /// A recorded weather load (JSON present) or clear (JSON null), including the METAR re-issuance intent it carried.
+    /// The live re-issuer is torn down either way: it is runtime-only, anchored to the wall clock of the run that built
+    /// it, and the live host rebuilds it on return to live when re-issuance is still intended.
+    /// </summary>
     internal void ApplyRecordedWeatherChange(RecordedWeatherChange weather)
     {
         if (weather.WeatherJson is not null)
@@ -162,6 +166,7 @@ public sealed partial class SimulationEngine
             ApplyWeatherJson(weather.WeatherJson);
             if (Scenario is not null)
             {
+                Scenario.MetarIssuer = null;
                 Scenario.MetarReissuanceEnabled = weather.ReconstructMetars;
             }
 
@@ -173,6 +178,7 @@ public sealed partial class SimulationEngine
         {
             Scenario.WeatherTimeline = null;
             Scenario.WeatherSourceJson = null;
+            Scenario.MetarIssuer = null;
             Scenario.MetarReissuanceEnabled = false;
         }
     }

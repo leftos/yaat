@@ -23,6 +23,8 @@
 - Playing back a recording spawns the aircraft an `ADD` command generated — same callsign, beacon code and CID — and taxis the parked aircraft a `TAXIALL` moved, instead of dropping both.
 - Playing back a recording reproduces the `ACCEPTALL`/`HOALL`, ghost-track, datablock-reposition and conflict-alert acknowledgements the live session issued.
 - Playing back a recording reproduces the position consolidations (`CON`, `CON+`, `DECON`) the live session issued, including a full consolidation's track transfers.
+- Rewinding a session or exporting a bug bundle applies the `ADD`, `TAXIALL`, squawk-all, `CON`/`DECON` and `ASDXALERTS` commands the live session issued, instead of dropping them.
+- Rewinding a session honours the pilot reaction delay each command had live, so aircraft respond when they did instead of seconds early.
 - Playing back a recording reproduces the pilot read-backs, "unable" responses and frequency gates the live session had.
 
 ### Changed

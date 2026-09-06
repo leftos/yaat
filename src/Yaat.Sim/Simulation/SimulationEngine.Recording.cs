@@ -34,26 +34,6 @@ public sealed partial class SimulationEngine
         scenario.ActionLog.Add(new RecordedAircraftSpawn(scenario.ElapsedSeconds, state.ToSnapshot()));
     }
 
-    internal static void ApplyRecordedAircraftSpawnsBeforeTick(
-        List<RecordedAction> actions,
-        ref int actionCursor,
-        int elapsedSeconds,
-        Action<RecordedAction> actionApplier,
-        HashSet<int> appliedActionIndexes
-    )
-    {
-        while (actionCursor < actions.Count && actions[actionCursor].ElapsedSeconds <= elapsedSeconds)
-        {
-            if (IsPreTickAction(actions[actionCursor]))
-            {
-                actionApplier(actions[actionCursor]);
-                appliedActionIndexes.Add(actionCursor);
-            }
-
-            actionCursor++;
-        }
-    }
-
     /// <summary>
     /// Actions that must land before the physics of their second: aircraft spawns and live-traffic
     /// samples (both happen in pre-physics live). Everything else applies after the second.

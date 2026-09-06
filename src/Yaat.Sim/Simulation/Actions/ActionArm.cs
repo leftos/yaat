@@ -122,7 +122,11 @@ public static class ArmTable
                 static ctx => ctx.Host.ApplyGlobalCoordination((CoordinationAutoAckCommand)ctx.Parsed!, ctx.Identity)
             ),
             Host(RecordedCommandKind.AsdexEnableAllAlerts, RecordingPolicy.Text, static ctx => ctx.Host.ApplyAsdexEnableAllAlerts()),
-            Host(RecordedCommandKind.Bookmark, RecordingPolicy.Never, static ctx => ctx.Host.ApplyBookmark((BookmarkCommand)ctx.Parsed!)),
+            Host(
+                RecordedCommandKind.Bookmark,
+                RecordingPolicy.Never,
+                static ctx => ctx.Host.ApplyBookmark((BookmarkCommand)ctx.Parsed!, ctx.Input.Initials)
+            ),
             Host(RecordedCommandKind.Transport, RecordingPolicy.Never, static ctx => ctx.Host.ApplyTransport(ctx.Parsed!)),
         };
 

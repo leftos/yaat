@@ -219,7 +219,7 @@ Five request kinds: `Taxi`, `Takeoff`, `Landing`, `Approach`, `AirspaceEntry`. E
 frequency-gate release, read-back, "unable") runs whenever `PilotContacts.AnyAnswering`; two-way-comms registration
 (`RegisterControllerContact`) and solo-evaluator scoring run only for a `Human` origin. The `ActionRouter`'s aviation arm
 derives the origin from the connection id on every run kind — fresh or recorded — and passes `IsScenarioScripted` for an AI
-origin; the server's `RecordingManager.ReplayCommand` (reconstruction) applies the same split until it moves onto the router.
+origin; the server's reconstruction and tape playback go through the same router, so they apply the same split.
 
 Everything that happens *after* a user-issued command dispatches lives in `SimulationEngine.ApplyPostDispatch(aircraft, compound, result, origin)`: two-way-comms registration, `SoloTrainingEvaluator.RecordControllerCommand`, `PilotRequestTracker.ApplyControllerResponse`, `SimulationWorld.AcknowledgeControllerResponse`, `QueueSoloUnableIfNeeded` on failure, and the pilot read-back. The router's aviation arm calls it after every dispatch it makes, so a replayed command produces the same read-back and frequency-gate state the live one did (the host decides whether to broadcast the transmission).
 

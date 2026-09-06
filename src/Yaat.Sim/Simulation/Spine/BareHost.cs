@@ -15,7 +15,7 @@ namespace Yaat.Sim.Simulation.Spine;
 /// (the bodies are the live server's) and discards every consumer. The replay host delegates everything it does not
 /// override here.
 /// </summary>
-internal sealed class BareHost(SimulationEngine engine) : ISimulationHost, IActionHost
+internal sealed class BareHost(SimulationEngine engine) : ISimulationHost
 {
     private readonly SimulationEngine _engine = engine;
 
@@ -147,11 +147,15 @@ internal sealed class BareHost(SimulationEngine engine) : ISimulationHost, IActi
 
     public CommandResult ApplyAsdexEnableAllAlerts() => ActionRefusals.HostOnly("ASDXALERTS");
 
-    public CommandResult ApplyBookmark(BookmarkCommand command) => ActionRefusals.HostOnly(command);
+    public CommandResult ApplyBookmark(BookmarkCommand command, string initials) => ActionRefusals.HostOnly(command);
 
     public CommandResult ApplyTransport(ParsedCommand command) => ActionRefusals.HostOnly(command);
 
     public CommandResult ApplyFlightPlanCommand(string callsign, ParsedCommand command, TrackOwner? identity) => ActionRefusals.HostOnly(command);
+
+    public void ApplyRecordedAsdexMutation(RecordedAsdexMutation mutation) { }
+
+    public void ApplyRecordedSaidMutation(RecordedSaidMutation mutation) { }
 
     public bool IsPositionAttended(Tcp tcp) => false;
 
@@ -168,4 +172,6 @@ internal sealed class BareHost(SimulationEngine engine) : ISimulationHost, IActi
     public void OnHeldDeparturesChanged() { }
 
     public void OnFlightPlanAmended(string callsign) { }
+
+    public void OnWeatherChanged() { }
 }

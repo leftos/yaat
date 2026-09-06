@@ -11,8 +11,8 @@ namespace Yaat.Sim.Simulation.Actions;
 ///
 /// <para>
 /// <b>Step-4 debt.</b> Every <c>Apply*</c> member here is a body whose state has not crossed into Yaat.Sim: strips
-/// and TDLS (room-owned state, no snapshot coverage), coordination channels, the ASDE-X alert inhibits, bookmarks
-/// and the room clock, and the flight-plan verbs' input normalization plus the unsupported-track spawn they make for
+/// and TDLS (room-owned state, no snapshot coverage), coordination channels, the ASDE-X and SAID display state (the recorded
+/// mutations included), bookmarks and the room clock, and the flight-plan verbs' input normalization plus the unsupported-track spawn they make for
 /// an unknown callsign. <see cref="IsPositionAttended"/> is the one query: CRC attendance is the first recorded input
 /// ADR 0003 names, and until a recording carries it the consolidate arm asks the host. As each body crosses, its slot is
 /// deleted and the arm becomes a Sim body; the interface
@@ -23,7 +23,9 @@ public interface IActionHost
 {
     // --- Slots: bodies the host owns ---
 
-    /// <summary>A strip verb (<c>STRIP</c>, <c>AN</c>, <c>HSC</c>, …); the callsign may name no aircraft (half strips, separators, blanks).</summary>
+    /// <summary>
+    /// A strip verb (<c>STRIP</c>, <c>AN</c>, <c>HSC</c>, …); the callsign may name no aircraft (half strips, separators, blanks).
+    /// </summary>
     CommandResult ApplyStrip(string callsign, ParsedCommand command, TrackOwner? identity);
 
     /// <summary><c>TDLSQ</c> / <c>TDLSS</c> / <c>TDLSW</c> / <c>TDLSD</c> against an aircraft that exists.</summary>
@@ -41,8 +43,8 @@ public interface IActionHost
     /// <summary><c>ASDXALERTS</c> — clear every ASDE-X alert inhibit in the room.</summary>
     CommandResult ApplyAsdexEnableAllAlerts();
 
-    /// <summary>A mutating <c>BM</c> verb. Never recorded.</summary>
-    CommandResult ApplyBookmark(BookmarkCommand command);
+    /// <summary>A mutating <c>BM</c> verb, with the issuing controller's initials for the bookmark's author. Never recorded.</summary>
+    CommandResult ApplyBookmark(BookmarkCommand command, string initials);
 
     /// <summary><c>PAUSE</c> / <c>UNPAUSE</c> / <c>SIMRATE</c> — the room's clock. Never recorded.</summary>
     CommandResult ApplyTransport(ParsedCommand command);
@@ -53,6 +55,12 @@ public interface IActionHost
     /// <see cref="RecordedAmendFlightPlan"/> recorded beside it carries the state.
     /// </summary>
     CommandResult ApplyFlightPlanCommand(string callsign, ParsedCommand command, TrackOwner? identity);
+
+    /// <summary>A recorded CRC ASDE-X mutation (tag / terminate / suspend / inhibit / edit); ASDE-X display state is the room's.</summary>
+    void ApplyRecordedAsdexMutation(RecordedAsdexMutation mutation);
+
+    /// <summary>A recorded CRC SAID mutation; SAID state is the room's.</summary>
+    void ApplyRecordedSaidMutation(RecordedSaidMutation mutation);
 
     // --- Queries: answers only the host has ---
 
@@ -85,4 +93,7 @@ public interface IActionHost
 
     /// <summary>A recorded flight-plan amendment was applied to the aircraft.</summary>
     void OnFlightPlanAmended(string callsign);
+
+    /// <summary>A recorded weather load or clear was applied: <c>World.Weather</c> and the scenario's timeline changed.</summary>
+    void OnWeatherChanged();
 }

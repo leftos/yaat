@@ -8,8 +8,8 @@ namespace Yaat.Sim.Simulation.Replay;
 
 /// <summary>
 /// Drives a recording forward over a <see cref="SimulationEngine"/> — a whole range, one second, or one physics
-/// sub-tick — by running the spine under a <see cref="ReplayHost"/>. It owns the <see cref="ReplayCursors"/> its
-/// stepping entry points advance through the action log; a range replay walks a caller-supplied list with cursors of
+/// sub-tick — by running the spine under a <see cref="ReplayHost"/>. It owns the <see cref="RecordedActionPump"/> its
+/// stepping entry points advance through the action log; a range replay walks a caller-supplied list with a pump of
 /// its own, so the two traversals never interfere.
 ///
 /// That cursor state is the whole reason this is a separate object. It is meaningful only while a recording is
@@ -26,26 +26,26 @@ internal sealed class ReplayDriver(SimulationEngine engine)
 
     private ReplayHost? _host;
 
-    /// <summary>Whether a recording has been loaded and the cursors positioned — replay stepping is a no-op until then.</summary>
+    /// <summary>Whether a recording has been loaded and the pump positioned — replay stepping is a no-op until then.</summary>
     private bool IsArmed => _host is not null;
 
     /// <summary>
-    /// Re-points the cursors at the engine's current time after a snapshot restore. Without it a subsequent
+    /// Re-points the pump at the engine's current time after a snapshot restore. Without it a subsequent
     /// <see cref="OneSecond"/> would treat actions from t=0 onward as still pending and re-apply them on top of the
     /// restored state. This is what makes the hybrid pattern work: replay to load the scenario, restore to jump to a
     /// saved state, then step forward from there.
     /// </summary>
     public void ReseekAfterRestore(int restoredSeconds)
     {
-        _host?.Cursors.SeekTo(restoredSeconds);
+        _host?.Pump.SeekTo(restoredSeconds);
     }
 
-    /// <summary>Arms the driver with an action log and positions the cursors at <paramref name="seconds"/>.</summary>
+    /// <summary>Arms the driver with an action log and positions the pump at <paramref name="seconds"/>.</summary>
     public void Arm(List<RecordedAction> actions, int seconds)
     {
-        var cursors = new ReplayCursors(actions);
-        cursors.SeekTo(seconds);
-        _host = new ReplayHost(_engine, cursors, applier: null);
+        var pump = new RecordedActionPump(actions);
+        pump.SeekTo(seconds);
+        _host = new ReplayHost(_engine, pump, applier: null);
     }
 
     public void FromStartTo(int targetSeconds, List<RecordedAction> actions, Action<RecordedAction>? actionApplier)
@@ -120,9 +120,9 @@ internal sealed class ReplayDriver(SimulationEngine engine)
                 }
             }
 
-            // A range replay walks the caller's list with its own cursors, leaving the driver's stepping cursors
+            // A range replay walks the caller's list with its own pump, leaving the driver's stepping pump
             // untouched — the two are independent traversals of the log.
-            var host = new ReplayHost(_engine, new ReplayCursors(actions), actionApplier);
+            var host = new ReplayHost(_engine, new RecordedActionPump(actions), actionApplier);
             if (startSeconds == 0)
             {
                 // Actions at t=0 land before the first second: spawns first, then settings and immediate commands.
@@ -131,7 +131,7 @@ internal sealed class ReplayDriver(SimulationEngine engine)
             }
             else
             {
-                host.Cursors.SeekTo(startSeconds);
+                host.Pump.SeekTo(startSeconds);
             }
 
             // The range starts where the caller says it does, whatever the engine's clock read before.

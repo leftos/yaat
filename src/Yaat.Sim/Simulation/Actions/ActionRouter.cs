@@ -58,7 +58,8 @@ public sealed class ActionRouter
     /// <summary>
     /// Applies one recorded action: a command through <see cref="Apply(RecordedCommand, IActionHost)"/>, a derived
     /// record (spawn, live-traffic sample or removal, flight-plan amendment, beacon recycle, weather, setting,
-    /// generators) through its Sim applier.
+    /// generators) through its Sim applier with the host told what changed, and a record of host-owned state (an
+    /// ASDE-X or SAID mutation) through the host's slot. A chat line and a diagnostic record apply nothing.
     /// </summary>
     public void ApplyRecorded(RecordedAction action, IActionHost host)
     {
@@ -66,12 +67,21 @@ public sealed class ActionRouter
         {
             case RecordedAircraftSpawn spawn:
                 _engine.ApplyRecordedAircraftSpawn(spawn);
+                if (_engine.World.FindAircraft(spawn.Aircraft.Callsign) is { } spawned)
+                {
+                    host.OnAircraftSpawned(spawned);
+                }
                 break;
             case RecordedLiveTrafficSample sample:
                 _engine.ApplyRecordedLiveTrafficSample(sample);
+                if ((sample.SpawnState is not null) && (_engine.World.FindAircraft(sample.Callsign) is { } shadow))
+                {
+                    host.OnAircraftSpawned(shadow);
+                }
                 break;
             case RecordedLiveTrafficRemoval removal:
                 _engine.ApplyRecordedLiveTrafficRemoval(removal);
+                host.OnAircraftDeleted(removal.Callsign);
                 break;
             case RecordedCommand command:
                 Apply(command, host);
@@ -85,12 +95,19 @@ public sealed class ActionRouter
                 break;
             case RecordedWeatherChange weather:
                 _engine.ApplyRecordedWeatherChange(weather);
+                host.OnWeatherChanged();
                 break;
             case RecordedSettingChange setting:
                 _engine.ApplySettingChange(setting);
                 break;
             case RecordedArrivalGeneratorsChange generators:
                 _engine.ApplyGeneratorsJson(generators.GeneratorsJson);
+                break;
+            case RecordedAsdexMutation asdex:
+                host.ApplyRecordedAsdexMutation(asdex);
+                break;
+            case RecordedSaidMutation said:
+                host.ApplyRecordedSaidMutation(said);
                 break;
         }
     }
@@ -122,6 +139,14 @@ public sealed class ActionRouter
         var classification = RecordedCommandClassifier.Classify(remainder);
         var arm = ArmTable.For(classification.Kind);
         var trace = new ActionTrace(arm.Kind, arm.Scope, arm.IsHostSlot);
+
+        // A kind that is never recorded (the room's clock, bookmarks) is never applied from a record either: the
+        // legacy PAUSE / SIMRATE / BM records older recordings carry must not pause a rewind or re-add a bookmark.
+        if ((record is not null) && (arm.Recording == RecordingPolicy.Never))
+        {
+            var verb = CommandDescriber.DescribeCommand(classification.Parsed!);
+            return Finish(routing, new CommandResult(false, $"{verb} is not applied from a recording"), trace, arm.Recording, ctx: null);
+        }
 
         AircraftState? aircraft = null;
         if (arm.Scope == ActionScope.Aircraft)
