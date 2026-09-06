@@ -342,6 +342,12 @@ public sealed class SimScenarioState
     public int CommandRunDelayMaxSeconds { get; set; }
 
     // Timing and settings
+
+    // Solo student mode has no RPO to work handoffs: traffic handed to AI/scenario positions must
+    // auto-accept on a fixed floor so it keeps flowing, while handoffs to the student's own position
+    // are left pending for the student to accept by hand.
+    public const double SoloAutoAcceptFloorSeconds = 3;
+
     public TimeSpan AutoAcceptDelay { get; set; } = TimeSpan.FromSeconds(5);
     public bool IsStudentTowerPosition { get; set; }
     public Dictionary<string, CoordinationChannel> CoordinationChannels { get; set; } = [];

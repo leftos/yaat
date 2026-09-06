@@ -134,11 +134,13 @@ derives it. `PositionRegistry` stays the socket table (`RegisterCrcPosition` / `
 `SetCrcPositionRoom` from the CRC session lifecycle) and `PositionRegistry.AttendedPositionIds(roomId)` is the
 derivation — the active entries in the room. `RoomEngine.SyncAttendance()` compares that set with the engine's
 `SimulationEngine.Attendance` and, only when they differ, issues a `RecordedAttendanceChange` through
-`IssueDerived` with the live host, so the record is applied and appended like any other derived record. It runs at
-the head of every live second (`AdvanceLiveSecond`, on the tick thread, so the engine's set needs no lock), after a
-scenario load / restart / rewind reload, and on return to live (`TakeControl`, `LeavePlayback`, the session
-restore); it is skipped while the room is replaying or playing a tape back, when the log is the authority. A room
-nobody attends records nothing.
+`IssueDerived` with the live host, so the record is applied and appended like any other derived record. It runs in
+the live host's end-of-second recorded-actions slot (`LiveRoomHost.ApplyRecordedActions` when the room is not
+playing a tape back — the very slot a replay applies the record in, so a snapshot at second N carries every record
+stamped at or before N; under the room's tick gate, so the engine's set needs no lock), after a scenario load /
+restart / rewind reload, and on return to live (`TakeControl`, `LeavePlayback`, the session restore); it is skipped
+while the room is replaying or playing a tape back, when the log is the authority. A room nobody attends records
+nothing.
 
 Readers of the engine's set: `TickProcessor.ProcessAutoAccept` / `ProcessPointoutAutoAck`
 (`Attendance.IsTcpControlledByCrc`), `ProcessDelayedHandoffs` (`Attendance.ConsolidationOwnerOf`), and in Yaat.Sim the

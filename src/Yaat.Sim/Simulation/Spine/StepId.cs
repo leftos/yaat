@@ -25,6 +25,7 @@ public enum StepId
     PointoutAutoAck,
     FlightPlanCreatorAutoTrack,
     DeferredAutoTrack,
+    PostPhysicsTerminalEntries,
     CoordinationTimers,
     TowerLists,
     VisualDetection,

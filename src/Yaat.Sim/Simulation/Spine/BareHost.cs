@@ -21,13 +21,7 @@ internal sealed class BareHost(SimulationEngine engine) : ISimulationHost
 
     public void ApplyPreTickRecordedActions(int second) { }
 
-    public void DelayedHandoffs() { }
-
     public void LiveTrafficSync() { }
-
-    public void AutoAccept() { }
-
-    public void PointoutAutoAck() { }
 
     public void FlightPlanCreatorAutoTrack() { }
 

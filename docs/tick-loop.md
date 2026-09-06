@@ -40,7 +40,7 @@ OpenSecond     trace reset; host.ApplyPreTickRecordedActions(t)     (recorded sp
 PrePhysics     SpineOrder.PrePhysics
                ├─ sim TickPrePhysics → host.OnPrePhysics             delayed spawns, generators, triggers, presets, release queue, timers
                ├─ sim DrainTerminalEntries → host.OnTerminalEntries
-               ├─ host.DelayedHandoffs
+               ├─ sim TickDelayedHandoffs                             fires the queued autotrack handoffs; a target folded under an attended TCP waits
                └─ host.LiveTrafficSync                                last, so a sample placed at this second records at this second
 Physics ×4     sim TickPhysics(0.25)                                 (fixed code, traced with its sub-tick index)
                └─ SimulationWorld.Tick(0.25, PreTick)
@@ -50,7 +50,9 @@ Physics ×4     sim TickPhysics(0.25)                                 (fixed cod
                    └─ FlightPhysics.Update         (per aircraft, 8 steps)
 PostPhysics    SpineOrder.PostPhysics — the live server's 32-step order
                ├─ sim TickLiveTrafficRunwayUse, TickTransponders
-               ├─ host AutoAccept, PointoutAutoAck, FlightPlanCreatorAutoTrack, DeferredAutoTrack, CoordinationTimers, TowerLists
+               ├─ sim TickAutoAccept, TickPointoutAutoAck                a pending handoff / point-out to an unattended position after AutoAcceptDelay (Attendance)
+               ├─ host FlightPlanCreatorAutoTrack, DeferredAutoTrack, CoordinationTimers, TowerLists
+               ├─ sim DrainTerminalEntries → host.OnTerminalEntries     the track-automation lines, the same second they were emitted
                ├─ sim TickVisualDetection, TickConflictAlerts → host, TickEramConflictAlerts → host
                ├─ host AsdexAlerts
                ├─ sim TickSoloTrainingEvaluation → host                empty outside solo mode
@@ -77,7 +79,7 @@ EndOfSecond    SpineOrder.EndOfSecond
 
 | Host | Where | Slots | Consumers |
 |---|---|---|---|
-| `BareHost` | `Yaat.Sim` — `TickOneSecond`, the `RunKind.Test` run | all empty | the engine's events (`WarningEmitted`, `TerminalEntryEmitted`, `PilotSpeechEmitted`, `StripDispatchRequested`); auto-deleted aircraft and solo findings are discarded (the removal and the evaluator's record already happened in the sim) |
+| `BareHost` | `Yaat.Sim` — `TickOneSecond`, the `RunKind.Test` run | all empty (delayed handoffs, auto-accept and point-out auto-ack are sim steps, so a bare run performs them) | the engine's events (`WarningEmitted`, `TerminalEntryEmitted`, `PilotSpeechEmitted`, `StripDispatchRequested`); auto-deleted aircraft and solo findings are discarded (the removal and the evaluator's record already happened in the sim) |
 | `ReplayHost` | `Yaat.Sim` — the replay driver | pre-tick recorded actions, recorded actions after the second (a `RecordedActionPump`); the rest as bare | as bare |
 | `LiveRoomHost` | yaat-server — `RoomEngine.AdvanceLiveSecond` (the hosted loop, the harness, the headless soak room) | every `TickProcessor` body; tape-playback actions when in playback (a pump over the scenario's log at its `PlaybackCursor`); METAR issuance | the broadcasts; `Room.Weather` follows the world's profile |
 | `ReconstructionHost` | yaat-server — `RecordingManager.ReconstructViaServerTick` | the same `TickProcessor` bodies; the recorded log around the second (its own pump); no METAR | the broadcasts (suppressed) |

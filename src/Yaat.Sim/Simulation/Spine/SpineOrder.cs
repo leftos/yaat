@@ -28,7 +28,7 @@ public static class SpineOrder
     [
         SpineStep.Sim(StepId.TickPrePhysics, static (engine, host) => host.OnPrePhysics(engine.TickPrePhysics())),
         SpineStep.Sim(StepId.TerminalEntries, static (engine, host) => host.OnTerminalEntries(engine.DrainTerminalEntries())),
-        SpineStep.Host(StepId.DelayedHandoffs, static host => host.DelayedHandoffs()),
+        SpineStep.Sim(StepId.DelayedHandoffs, static (engine, _) => engine.TickDelayedHandoffs()),
         // Last in pre-physics so a sample placed at this second is recorded at this second and replays pre-tick;
         // the sync is the pre-physics mutator of the aircraft set.
         SpineStep.Host(StepId.LiveTrafficSync, static host => host.LiveTrafficSync()),
@@ -38,12 +38,16 @@ public static class SpineOrder
     [
         SpineStep.Sim(StepId.LiveTrafficRunwayUse, static (engine, _) => engine.TickLiveTrafficRunwayUse()),
         SpineStep.Sim(StepId.Transponders, static (engine, _) => engine.TickTransponders()),
-        SpineStep.Host(StepId.AutoAccept, static host => host.AutoAccept()),
-        SpineStep.Host(StepId.PointoutAutoAck, static host => host.PointoutAutoAck()),
+        SpineStep.Sim(StepId.AutoAccept, static (engine, _) => engine.TickAutoAccept()),
+        SpineStep.Sim(StepId.PointoutAutoAck, static (engine, _) => engine.TickPointoutAutoAck()),
         // FP-creator autotrack runs before the airport-based deferred autotrack so a controller who explicitly
         // types VP/DA wins over scenario AutoTrackAirportIds for the aircraft they just created the FP for.
         SpineStep.Host(StepId.FlightPlanCreatorAutoTrack, static host => host.FlightPlanCreatorAutoTrack()),
         SpineStep.Host(StepId.DeferredAutoTrack, static host => host.DeferredAutoTrack()),
+        // The track-automation steps above emit their lines in post-physics, and the pre-physics drain has already
+        // run; this second drain hands them to the room the same second, in the position the live server broadcast
+        // them inline from.
+        SpineStep.Sim(StepId.PostPhysicsTerminalEntries, static (engine, host) => host.OnTerminalEntries(engine.DrainTerminalEntries())),
         SpineStep.Host(StepId.CoordinationTimers, static host => host.CoordinationTimers()),
         SpineStep.Host(StepId.TowerLists, static host => host.TowerLists()),
         SpineStep.Sim(StepId.VisualDetection, static (engine, _) => engine.TickVisualDetection()),

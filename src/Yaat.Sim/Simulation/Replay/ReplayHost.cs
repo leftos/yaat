@@ -49,13 +49,7 @@ internal sealed class ReplayHost : ISimulationHost
     /// <summary>Applies every action at or before <paramref name="second"/> the pre-tick pass did not, advancing the cursor past them.</summary>
     public void ApplyRecordedActionsThrough(int second) => _pump.ApplyThrough(second, _applier);
 
-    public void DelayedHandoffs() => _bare.DelayedHandoffs();
-
     public void LiveTrafficSync() => _bare.LiveTrafficSync();
-
-    public void AutoAccept() => _bare.AutoAccept();
-
-    public void PointoutAutoAck() => _bare.PointoutAutoAck();
 
     public void FlightPlanCreatorAutoTrack() => _bare.FlightPlanCreatorAutoTrack();
 

@@ -33,6 +33,7 @@ public class SpineTraceTests
         new(StepId.PointoutAutoAck, 0),
         new(StepId.FlightPlanCreatorAutoTrack, 0),
         new(StepId.DeferredAutoTrack, 0),
+        new(StepId.PostPhysicsTerminalEntries, 0),
         new(StepId.CoordinationTimers, 0),
         new(StepId.TowerLists, 0),
         new(StepId.VisualDetection, 0),
