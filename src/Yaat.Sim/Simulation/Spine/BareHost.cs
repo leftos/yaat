@@ -155,6 +155,8 @@ internal sealed class BareHost(SimulationEngine engine) : ISimulationHost
 
     public void ApplyRecordedSaidMutation(RecordedSaidMutation mutation) { }
 
+    public void ApplyRecordedEramCrrGroup(RecordedEramCrrGroup group) { }
+
     public bool IsPositionAttended(Tcp tcp) => false;
 
     public void OnAircraftSpawned(AircraftState aircraft) { }

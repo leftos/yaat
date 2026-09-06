@@ -115,7 +115,12 @@ bookmarks.json               # plain JSON (optional; user-authored timeline book
 - `RecordedSettingChange` — sim-control toggles (e.g. `SetValidateDctFixes`). Replay handlers in both repos apply these. **Pattern: any new sim-control toggle should produce one of these so replays stay faithful.**
 - `RecordedAircraftSpawn` — full `AircraftSnapshotDto` for aircraft created by runtime generators. Replay injects this aircraft directly and skips the RNG-driven generator path when spawn actions are present, so generator implementation changes do not rename or re-type historical arrivals.
 - `RecordedLiveTrafficSample(Callsign, Sample, SpawnState?)` — one live-traffic sample for a shadow aircraft; `SpawnState` (the shadow's snapshot) rides only on the sample that created it. **Pre-tick**, like `RecordedAircraftSpawn` (`SimulationEngine.IsPreTickAction`). `RecordedLiveTrafficRemoval(Callsign, Reason)` applies after the second. See [live-traffic.md](live-traffic.md).
+- `RecordedStarsSharedStateChange(Callsign, TcpId, State)`, `RecordedClearanceChange(Callsign, Clearance)`, `RecordedHoldAnnotationChange(Callsign, HoldAnnotation?)` — the CRC handlers' writes to a track's per-position shared display state, its departure clearance and its hold annotation (null = delete), recorded whole and replaced whole on apply.
+- `RecordedEramEntry(Callsign, Entry, IdentityCode?)` — an ERAM keyboard entry that wrote per-track ERAM state (`TRACK [/OK]`, `FREEZE {lat} {lon}`, `QQ …`, `QR {alt}`, `QS …`, `LF [{label}]`), applied by `Commands/EramEntryEngine` on every run kind; the identity code is the acting position's `AS` code, resolved on apply.
+- `RecordedEramCrrGroup(Label, Color?, Lat?, Lon?)` — a CRR group created, replaced, recolored or (null `Lat`) deleted. Room state, so the host's `ApplyRecordedEramCrrGroup` slot applies it; membership rides each aircraft's `LF` entries.
 - Spawn, preset, and other event-shaped actions.
+
+A derived record is appended only when its write applied (`ActionRouter.IssueDerived`), so a refusal on replay — the aircraft is gone, an ERAM guard answers differently — is by construction a fidelity break and logs a `replay-fidelity` warning like a command whose verdict changed.
 
 **Snapshot cadence**: snapshots are written on demand by the recording manager (rewind checkpoints, periodic captures). Live replay does not need a snapshot per tick — it ticks forward from the most recent prior snapshot, applying actions at their `ElapsedSeconds`.
 

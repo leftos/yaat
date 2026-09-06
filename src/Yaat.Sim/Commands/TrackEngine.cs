@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging;
 using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Simulation;
+using Yaat.Sim.Simulation.Snapshots;
 
 namespace Yaat.Sim.Commands;
 
@@ -526,6 +527,19 @@ public static partial class TrackEngine
         {
             ac.Track.Pointout = null;
         }
+    }
+
+    /// <summary>
+    /// A position's per-TCP shared display state on the track (a CRC <c>UpdateStarsSharedTrackState</c>, recorded as a
+    /// <see cref="Simulation.RecordedStarsSharedStateChange"/>): the entry is replaced whole, and the recipient's
+    /// slew-to-clear — the recently-accepted flag flipping true to false — drops the completed point-out
+    /// (<see cref="ClearDismissedIncomingPointout"/>).
+    /// </summary>
+    public static void ApplySharedState(AircraftState ac, string tcpId, SharedStateDto state)
+    {
+        var wasRecentlyAccepted = ac.Stars.SharedState.TryGetValue(tcpId, out var prior) && prior.IsRecentlyAcceptedIncomingPointout;
+        ac.Stars.SharedState[tcpId] = StarsTrackSharedState.FromSnapshot(state);
+        ClearDismissedIncomingPointout(ac, tcpId, wasRecentlyAccepted, state.IsRecentlyAcceptedIncomingPointout);
     }
 
     public static CommandResult HandlePilotReportedAltitude(AircraftState ac, int altHundreds)

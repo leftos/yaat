@@ -1273,7 +1273,17 @@ def _format_action_detail(a: dict[str, Any]) -> str:
     return kind
 
 
-_ACTION_TAGS = {"Command": "CMD", "LiveTrafficSample": "LIVE", "LiveTrafficRemoval": "LIVERM", "LiveTrafficStatus": "LIVEST"}
+_ACTION_TAGS = {
+    "Command": "CMD",
+    "LiveTrafficSample": "LIVE",
+    "LiveTrafficRemoval": "LIVERM",
+    "LiveTrafficStatus": "LIVEST",
+    "StarsSharedStateChange": "SHARED",
+    "ClearanceChange": "CLR",
+    "HoldAnnotationChange": "HOLD",
+    "EramEntry": "ERAM",
+    "EramCrrGroup": "CRR",
+}
 
 
 def _action_tag(kind: str, action: dict[str, Any]) -> str:

@@ -28,6 +28,7 @@
 - Rewinding a session or exporting a bug bundle applies the `ADD`, `TAXIALL`, squawk-all, `CON`/`DECON` and `ASDXALERTS` commands the live session issued, instead of dropping them.
 - Rewinding a session honours the pilot reaction delay each command had live, so aircraft respond when they did instead of seconds early.
 - Playing back a recording reproduces the pilot read-backs, "unable" responses and frequency gates the live session had.
+- Rewinding a session or exporting a bug bundle reproduces the STARS per-position display state, departure clearances, hold annotations, ERAM keyboard entries (`QT`, `QH`, `QQ`, `QR`, `QS`, `LF`) and CRR groups CRC set, instead of dropping them.
 - Rewinding a session or exporting a bug bundle applies a typed `APT` destination change with the arrival-procedure clear it had live, instead of only the new destination.
 - Rewinding a session or exporting a bug bundle reproduces the CRC F13 coordination entries, the STARS console consolidations (`C1N1R`, `C1N1R+`, bare `C`) and a CRC client's position sync onto its RPO, instead of dropping them.
 - Rewinding a session or exporting a bug bundle places the unsupported data block a CRC-entered flight plan created where the controller clicked, instead of losing it.

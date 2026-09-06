@@ -17,6 +17,11 @@ namespace Yaat.Sim.Simulation;
 [JsonDerivedType(typeof(RecordedLiveTrafficSample), "LiveTrafficSample")]
 [JsonDerivedType(typeof(RecordedLiveTrafficRemoval), "LiveTrafficRemoval")]
 [JsonDerivedType(typeof(RecordedLiveTrafficStatus), "LiveTrafficStatus")]
+[JsonDerivedType(typeof(RecordedStarsSharedStateChange), "StarsSharedStateChange")]
+[JsonDerivedType(typeof(RecordedClearanceChange), "ClearanceChange")]
+[JsonDerivedType(typeof(RecordedHoldAnnotationChange), "HoldAnnotationChange")]
+[JsonDerivedType(typeof(RecordedEramEntry), "EramEntry")]
+[JsonDerivedType(typeof(RecordedEramCrrGroup), "EramCrrGroup")]
 public abstract record RecordedAction(double ElapsedSeconds);
 
 public sealed record RecordedCommand(double ElapsedSeconds, string Callsign, string Command, string Initials, string ConnectionId)
@@ -154,6 +159,38 @@ public sealed record RecordedSaidMutation(
     string? Scratchpad1,
     string? Scratchpad2
 ) : RecordedAction(ElapsedSeconds);
+
+/// <summary>
+/// A CRC position's per-TCP shared display state on a track (<c>UpdateStarsSharedTrackState</c>: forced FDB, highlight,
+/// leader direction, query, TPA, the recently-accepted-pointout flag), keyed by the position's TCP id. Applied by
+/// <see cref="Commands.TrackEngine.ApplySharedState"/>, which also drops the completed point-out the recipient's
+/// slew-to-clear dismisses.
+/// </summary>
+public sealed record RecordedStarsSharedStateChange(double ElapsedSeconds, string Callsign, string TcpId, SharedStateDto State)
+    : RecordedAction(ElapsedSeconds);
+
+/// <summary>The departure clearance the CRC flight-plan editor sent (<c>SendClearance</c>); replaces the aircraft's clearance whole.</summary>
+public sealed record RecordedClearanceChange(double ElapsedSeconds, string Callsign, AircraftClearanceDto Clearance) : RecordedAction(ElapsedSeconds);
+
+/// <summary>A CRC hold annotation set (<c>SetHoldAnnotations</c>) or, with a null annotation, deleted (<c>DeleteHoldAnnotations</c>).</summary>
+public sealed record RecordedHoldAnnotationChange(double ElapsedSeconds, string Callsign, AircraftHoldAnnotationDto? HoldAnnotation)
+    : RecordedAction(ElapsedSeconds);
+
+/// <summary>
+/// An ERAM keyboard entry that wrote per-track ERAM state, in the grammar of <see cref="Commands.EramEntryEngine"/>
+/// (<c>TRACK [/OK]</c>, <c>FREEZE {lat} {lon}</c>, <c>QQ …</c>, <c>QR {alt}</c>, <c>QS …</c>, <c>LF [{label}]</c>).
+/// <see cref="IdentityCode"/> is the acting position's <c>AS</c> code for the entries that act as a position
+/// (<c>TRACK</c>); the router resolves it through <see cref="Commands.TrackResolver.ResolveTcpToOwner"/> on apply.
+/// </summary>
+public sealed record RecordedEramEntry(double ElapsedSeconds, string Callsign, string Entry, string? IdentityCode) : RecordedAction(ElapsedSeconds);
+
+/// <summary>
+/// A Continuous Range Readout group created, replaced or recolored (<c>LF</c> with a location, <c>SetEramCrrGroupColor</c>),
+/// or with a null <see cref="Lat"/> deleted (<c>ClearOrDeleteEramCrrGroup</c>). The group is room state — a host slot
+/// applies it — while membership rides each aircraft's <c>LF</c> entries.
+/// </summary>
+public sealed record RecordedEramCrrGroup(double ElapsedSeconds, string Label, string? Color, double? Lat, double? Lon)
+    : RecordedAction(ElapsedSeconds);
 
 public record FlightPlanAmendment(
     string? AircraftType = null,

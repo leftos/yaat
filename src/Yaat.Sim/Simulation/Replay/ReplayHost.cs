@@ -141,6 +141,8 @@ internal sealed class ReplayHost : ISimulationHost
 
     public void ApplyRecordedSaidMutation(RecordedSaidMutation mutation) => _bare.ApplyRecordedSaidMutation(mutation);
 
+    public void ApplyRecordedEramCrrGroup(RecordedEramCrrGroup group) => _bare.ApplyRecordedEramCrrGroup(group);
+
     public bool IsPositionAttended(Tcp tcp) => _bare.IsPositionAttended(tcp);
 
     public void OnAircraftSpawned(AircraftState aircraft) => _bare.OnAircraftSpawned(aircraft);

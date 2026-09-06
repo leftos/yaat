@@ -64,6 +64,10 @@ public sealed class AttendanceActionHost : IActionHost
 
     public void ApplyRecordedSaidMutation(RecordedSaidMutation mutation) => SaidMutations.Add(mutation);
 
+    public List<RecordedEramCrrGroup> CrrGroups { get; } = [];
+
+    public void ApplyRecordedEramCrrGroup(RecordedEramCrrGroup group) => CrrGroups.Add(group);
+
     public void OnAircraftSpawned(AircraftState aircraft) => SpawnedCallsigns.Add(aircraft.Callsign);
 
     public void OnAircraftDeleted(string callsign, AircraftState? lastState) => DeletedCallsigns.Add(callsign);

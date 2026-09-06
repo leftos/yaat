@@ -59,6 +59,12 @@ public interface IActionHost
     /// <summary>A recorded CRC SAID mutation; SAID state is the room's.</summary>
     void ApplyRecordedSaidMutation(RecordedSaidMutation mutation);
 
+    /// <summary>
+    /// A recorded ERAM CRR group created, replaced, recolored or (null latitude) deleted; the groups are the room's,
+    /// while membership rides each aircraft's ERAM state through the Sim's <c>LF</c> entries.
+    /// </summary>
+    void ApplyRecordedEramCrrGroup(RecordedEramCrrGroup group);
+
     // --- Queries: answers only the host has ---
 
     /// <summary>
