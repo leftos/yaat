@@ -12,10 +12,10 @@ namespace Yaat.Sim.Simulation.Actions;
 /// <para>
 /// <b>Step-4 debt.</b> Every <c>Apply*</c> member here is a body whose state has not crossed into Yaat.Sim: strips
 /// and TDLS (room-owned state, no snapshot coverage), coordination channels, the ASDE-X and SAID display state (the
-/// recorded mutations included), bookmarks and the room clock. <see cref="IsPositionAttended"/> is the one query: CRC
-/// attendance is the first recorded input ADR 0003 names, and until a recording carries it the consolidate arm asks
-/// the host. As each body crosses, its slot is deleted and the arm becomes a Sim body; the interface shrinks the way
-/// <see cref="Spine.IHostSteps"/> does.
+/// recorded mutations included), bookmarks and the room clock. The slots are all that is left — the host answers no
+/// questions, because CRC attendance, the last one it was asked, is now engine state every run kind carries
+/// (<see cref="SimulationEngine.Attendance"/>, fed by <see cref="RecordedAttendanceChange"/>). As each body crosses,
+/// its slot is deleted and the arm becomes a Sim body; the interface shrinks the way <see cref="Spine.IHostSteps"/> does.
 /// </para>
 ///
 /// <para>
@@ -74,15 +74,6 @@ public interface IActionHost
 
     /// <summary>A recorded CRC ASDE-X safety-logic configuration push; the facility's runway configuration is the room's.</summary>
     void ApplyRecordedAsdexSafetyLogic(RecordedAsdexSafetyLogicChange change);
-
-    // --- Queries: answers only the host has ---
-
-    /// <summary>
-    /// Whether a CRC session is signed on to the TCP — the input a full <c>CON+</c> reads to decide which of the sender's
-    /// descendants move with it (an attended subsector keeps its own tracks). Attendance is room state that no recording
-    /// carries, so a bare or replay run answers false for every TCP.
-    /// </summary>
-    bool IsPositionAttended(Tcp tcp);
 
     // --- Consumers: what a Sim arm hands over ---
 

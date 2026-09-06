@@ -1285,6 +1285,7 @@ _ACTION_TAGS = {
     "EramCrrGroup": "CRR",
     "StripRequest": "STRIP",
     "AsdexSafetyLogicChange": "ASDXSL",
+    "AttendanceChange": "ATTEND",
 }
 
 

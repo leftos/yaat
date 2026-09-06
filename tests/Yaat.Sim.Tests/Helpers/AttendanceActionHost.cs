@@ -5,13 +5,11 @@ using Yaat.Sim.Simulation.Actions;
 namespace Yaat.Sim.Tests.Helpers;
 
 /// <summary>
-/// An action host with no room: every slot refused, every consumer counted or ignored — and a CRC attendance answer
-/// the test controls, since attendance is the one input the consolidation and handoff-redirect bodies read from the host.
+/// An action host with no room: every slot refused, every consumer counted or ignored. Attendance is engine state
+/// (<see cref="AttendanceTestSupport.Attend"/>), not something the host answers.
 /// </summary>
 public sealed class AttendanceActionHost : IActionHost
 {
-    public HashSet<string> AttendedTcpIds { get; } = [];
-
     public int ConsolidationChanges { get; private set; }
 
     public int WeatherChanges { get; private set; }
@@ -35,8 +33,6 @@ public sealed class AttendanceActionHost : IActionHost
     public List<string> AmendedCallsigns { get; } = [];
 
     public List<(string ConnectionId, string Callsign, List<string> Lines)> ShownQueues { get; } = [];
-
-    public bool IsPositionAttended(Tcp tcp) => AttendedTcpIds.Contains(tcp.Id);
 
     public void OnConsolidationChanged() => ConsolidationChanges++;
 

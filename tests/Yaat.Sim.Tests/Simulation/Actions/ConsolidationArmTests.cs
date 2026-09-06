@@ -12,9 +12,9 @@ namespace Yaat.Sim.Tests.Simulation.Actions;
 /// <summary>
 /// The <c>CON</c> / <c>CON+</c> / <c>DECON</c> arms, one body on every run kind. A basic consolidation records the
 /// override; a full one also moves the sender's whole block — the sender plus every descendant nobody attends — onto the
-/// receiver, transferring owned tracks and redirecting in-progress handoffs. Whether a descendant is attended is the
-/// host's answer (CRC attendance is room state), so the tests hand the router a host that answers it. Uses the real NCT
-/// hierarchy from the ZOA config: <c>4U</c> is the parent of <c>4Q</c> and <c>4R</c>.
+/// receiver, transferring owned tracks and redirecting in-progress handoffs. Whether a descendant is attended is engine
+/// state, so the tests set it through the recorded attendance the live room writes. Uses the real NCT hierarchy from the
+/// ZOA config: <c>4U</c> is the parent of <c>4Q</c> and <c>4R</c>.
 /// </summary>
 public class ConsolidationArmTests
 {
@@ -108,7 +108,7 @@ public class ConsolidationArmTests
         }
 
         var host = new AttendanceActionHost();
-        host.AttendedTcpIds.Add(TcpId(engine, "4Q"));
+        AttendanceTestSupport.Attend(engine, "4Q");
         var ac = engine.FindAircraft(AiTestFixture.Callsign)!;
         ac.Track.Owner = Nct4Q;
 

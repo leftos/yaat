@@ -127,6 +127,28 @@ points prepend an `AS {tcp}` token where the controller's identity must round-tr
 
 A handler that mutates room state without going through one of these (or `Record`) breaks replay silently.
 
+### Attendance — derived live, recorded, replayed
+
+Which vNAS positions a CRC client is working is the first *recorded input* (ADR 0003): the sim consumes it but never
+derives it. `PositionRegistry` stays the socket table (`RegisterCrcPosition` / `SetCrcPositionActive` /
+`SetCrcPositionRoom` from the CRC session lifecycle) and `PositionRegistry.AttendedPositionIds(roomId)` is the
+derivation — the active entries in the room. `RoomEngine.SyncAttendance()` compares that set with the engine's
+`SimulationEngine.Attendance` and, only when they differ, issues a `RecordedAttendanceChange` through
+`IssueDerived` with the live host, so the record is applied and appended like any other derived record. It runs at
+the head of every live second (`AdvanceLiveSecond`, on the tick thread, so the engine's set needs no lock), after a
+scenario load / restart / rewind reload, and on return to live (`TakeControl`, `LeavePlayback`, the session
+restore); it is skipped while the room is replaying or playing a tape back, when the log is the authority. A room
+nobody attends records nothing.
+
+Readers of the engine's set: `TickProcessor.ProcessAutoAccept` / `ProcessPointoutAutoAck`
+(`Attendance.IsTcpControlledByCrc`), `ProcessDelayedHandoffs` (`Attendance.ConsolidationOwnerOf`), and in Yaat.Sim the
+`Consolidate` arm and the handoff / point-out `ConsolidationRedirect`. Readers that stay on the registry, on
+purpose — live handler-time questions that never run on a reconstruction, and the registry is what the set is
+derived from: the STARS `HO` shorthand's `ILL POS` validation (`CrcClientState.Stars.cs`), the secondary-display
+track drop (`CrcClientState.Secondary.cs`), the `StarsConsolidation` wire projection (`CrcBroadcastService`), and
+`RoomAiStaffing` (the controller AI ticks live only). A new tick-reachable attendance read goes through the engine's
+`Attendance`, never the registry.
+
 ## `TickProcessor` — `Simulation/TickProcessor.cs`
 
 Stateless singleton; every method takes the `TrainingRoom`. It keeps **no list**: the order its bodies run in is the

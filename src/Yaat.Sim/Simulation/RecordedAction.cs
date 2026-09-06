@@ -24,6 +24,7 @@ namespace Yaat.Sim.Simulation;
 [JsonDerivedType(typeof(RecordedEramCrrGroup), "EramCrrGroup")]
 [JsonDerivedType(typeof(RecordedStripRequest), "StripRequest")]
 [JsonDerivedType(typeof(RecordedAsdexSafetyLogicChange), "AsdexSafetyLogicChange")]
+[JsonDerivedType(typeof(RecordedAttendanceChange), "AttendanceChange")]
 public abstract record RecordedAction(double ElapsedSeconds);
 
 public sealed record RecordedCommand(double ElapsedSeconds, string Callsign, string Command, string Initials, string ConnectionId)
@@ -213,6 +214,15 @@ public sealed record RecordedStripRequest(double ElapsedSeconds, string Callsign
 /// rather than re-modelled here because the shape is CRC's wire contract, which Yaat.Sim does not carry.
 /// </summary>
 public sealed record RecordedAsdexSafetyLogicChange(double ElapsedSeconds, string FacilityId, string ConfigJson) : RecordedAction(ElapsedSeconds);
+
+/// <summary>
+/// The set of CRC positions being worked at that second, as the live host derived it from its connection registry.
+/// Applying it replaces the engine's <see cref="Attendance"/> wholesale, so a replay, a rewind and a from-scratch
+/// reconstruction see the attendance the live session had rather than today's connections. The first recorded
+/// <i>input</i> (ADR 0003) rather than a controller action: nothing issues it as a verb, and the live server writes
+/// one only when the derived set changes.
+/// </summary>
+public sealed record RecordedAttendanceChange(double ElapsedSeconds, IReadOnlyList<string> AttendedPositionIds) : RecordedAction(ElapsedSeconds);
 
 public record FlightPlanAmendment(
     string? AircraftType = null,

@@ -85,6 +85,7 @@ The Task Index above tells you *which files*; these docs explain *how each subsy
   - **Follow/Pattern**: `Simulation/FollowStraightInJetBaseTurnTests.cs` (S2-OAK-5 replay: a C172 turns base behind a straight-in LJ60 by projected threshold ETA, not at its touchdown), `Simulation/N342TFollowStraightInDownwindTests.cs` (DA42 behind a straight-in C25C: no cut-in, runway clear at arrival), `Simulation/FollowPatternSequencingAuditTests.cs` (synthetic KOAK circuits: leg holds behind an extending lead), `AirborneFollowTests.cs` (spacing math, sequencing gate, pursuit heading)
   - **Helicopter**: `Simulation/HelicopterLandSpotFromDistanceTests.cs` (S2-OAK-5 replay: an R22 told LAND @SIG1 from 9 nm holds 500 ft until the 6° final instead of diving to air-taxi height), `Simulation/HelicopterLandGateTests.cs` (the on-field gate: on/over the field → AirTaxi chain, off-field LAND → HelicopterApproachPhase, off-field ATXI refused; TOD / final-start math)
   - **Route geometry guards**: `Helpers/RouteGeometryAsserts.cs` (structural: no square pivot where fillet exists)
+  - **Attendance**: `Helpers/AttendanceTestSupport.cs` (test helpers for CRC attendance state), `Simulation/Actions/AttendanceRecordTests.cs` (a RecordedAttendanceChange replaces the engine's set, resolves ids through the room's config, keeps an unresolvable id by id only, round-trips the snapshot and the serializer; a fresh replay starts empty)
 - **Client tests**: `tests/Yaat.Client.Tests/` — view model logic, command input
 - **UI tests**: `tests/Yaat.Client.UI.Tests/` — headless window tests for views and layout
 - **Test data**: `tests/Yaat.Sim.Tests/TestData/` — NavData.dat + `navdata-manifest.json`, FAACIFP18.gz + `cifp-manifest.json`, airport GeoJSON, `oak-u-w-fillet-corner-recording.zip` (E2E fillet routing test fixture), `s2-oak5-follow-heli-recording.zip` (S2-OAK-5 bundle: FOLLOW behind a straight-in jet, helicopter LAND @spot from off-field, CRC flight-plan amendment during a hover hold), `recording-routing-census.json` (per-fixture routing census of every recorded command — the triage worklist for the action-router work). Refresh pins: `tools/refresh-navdata.py`, FAA CIFP via `CifpPathResolver` at test load.
@@ -719,8 +720,7 @@ Commands/EramEntryEngine.cs         # The one body for the ERAM keyboard entries
                                     # RoomEngine.ApplyAndRecord
 Commands/ConsolidationRedirect.cs   # Where a handoff or point-out addressed to an unattended TCP lands: TryRedirect(target) → the attended position whose
                                     # airspace absorbed it (GetConsolidationOwner over the facility hierarchy + ConsolidationState), null when the target is
-                                    # attended or has no other owner. Built per dispatch from the scenario, the engine's ConsolidationState and the host's
-                                    # IsPositionAttended answer (the server: PositionRegistry; Bare/Replay: nobody)
+                                    # attended or has no other owner. Built per dispatch from the scenario, the engine's ConsolidationState and Attendance
 Commands/TrackResolver.cs           # AS-prefix extraction (e.g. "AS 3Y ACCEPT" → "ACCEPT" + "3Y" override); the one TCP→TrackOwner chain (student TCP →
                                     # scenario ATC → facility TCP → ERAM code → STARS interfacility handoff code → ERAM-to-STARS prefix → position callsign or callsign@tcp, reading
                                     # scenario.ArtccConfig); owner→TCP lookup; ResolveIdentity(scenario, selections, connectionId, asOverride) — the one
@@ -1102,6 +1102,10 @@ RunwayOccupancy.cs             # Phase-independent runway-use classifier (Runway
                                # HelicopterLandingPhase by phase; IsRolling = 35 kt, or 20 kt + 2.5 kt/s over 4 s of feed samples; landing-threshold
                                # distance/time helpers.
                                # Consumed by RunwaySafetyAdvisor, GroundConflictDetector.IsOnRunway, SoloTrainingEvaluator.IsTakeoffRoll.
+Attendance.cs                  # CRC attendance as engine state (the first recorded input, ADR 0003): Attendance — Replace(positionIds, config) resolves each vNAS position id to
+                               # its owner + TCP through the room's ARTCC config (an unresolvable id stays id-only); IsTcpAttended / IsPositionIdAttended / IsOwnerAttended,
+                               # ConsolidationOwnerOf + IsTcpControlledByCrc (the tick gates' question over the facility hierarchy + ConsolidationState); PositionIds for the
+                               # snapshot and the record. Written on the tick thread only (the live sync, the router, restore) — no lock. + AttendedPosition(PositionId, Owner?, Tcp?)
 SimulationEngine.cs            # Scenario load, tick orchestration, replay (ReplayFromStartTo — full from-scratch replay;; ControllerAi + TickControllerAi() (post-second AI tick; never in replay/playback) + Actions (the ActionRouter every controller action goes through) + LocalConnectionId (what a bare SendCommand issues under) + RecordAction
                                # FastForwardTo — advance from current time; ReplayRange — between two timestamps;
                                # ReplayRangeWithVerification — diff-against-bundled-snapshots; ReplayOneSecond/SubTick — stepping);
@@ -1140,7 +1144,7 @@ SimulationEngine.RecordedAppliers.cs  # The bodies the router's spawn arms and d
                                       # the recorded snapshot wins on disagreement with a replay-fidelity warning), ApplyRecordedWeatherChange,
                                       # ApplySettingChange (mirrors the server's SimControlService recorders), ApplyGeneratorsJson, ApplyWeatherJson
 SimulationEngine.Consolidation.cs  # Consolidate (CON / CON+ over ConsolidationState: records the override; a full consolidation moves the sender's block —
-                                   # GetConsolidatedDescendants with the host's IsPositionAttended answer — transferring owned tracks and redirecting handoffs)
+                                   # GetConsolidatedDescendants reading Attendance — transferring owned tracks and redirecting handoffs)
                                    # + Deconsolidate (DECON). One body on every run kind; the server's HandleConsolidationCmd and reconstruction wrap it
 AddAircraftOutcome.cs          # What an ADD produced: the aircraft now in the world + its spawn snapshot (baked onto the RecordedCommand), or the refusal
 SimScenarioState.cs            # Per-scenario runtime state: queues, settings, ATC positions, coordination, ArtccConfig (loaded from bundle on replay), LiveTrafficFilter (carried from room settings),
@@ -1160,6 +1164,7 @@ SessionRecording.cs            # v1 (commands) + v2 (commands + snapshots) recor
 RecordedAction.cs              # Polymorphic recorded actions: Command, Chat, AmendFlightPlan, RequestNewBeaconCode, WeatherChange, SettingChange, AircraftSpawn,
                                # LiveTrafficSample (pre-tick, like AircraftSpawn — SimulationEngine.IsPreTickAction), LiveTrafficRemoval,
                                # LiveTrafficStatus (feed health + wall clock per status broadcast; diagnostic only, replay ignores it),
+                               # AttendanceChange (the full set of attended vNAS position ids — a recorded input the live host derives from its connections when it changes, not a controller action),
                                # the derived records a CRC handler writes for state it used to change without a trace (tick-path 3d-5b):
                                # StarsSharedStateChange (a position's per-TCP shared display state), ClearanceChange, HoldAnnotationChange (null = delete),
                                # EramEntry (an ERAM keyboard entry in Commands/EramEntryEngine's grammar + the acting position's AS code), EramCrrGroup (null Lat = delete),
@@ -1226,13 +1231,12 @@ ActionArms.cs                  # The Sim bodies: Aviation (ParseCompound → Rea
                                # DROP lifts the overlay (OnGhostOverlayRemoved) or removes the phantom (OnAircraftDeleted)), GlobalTrack (ACCEPTALL/HOALL via
                                # TrackEngine.DispatchGlobal), GhostTrack (a created phantom is handed to OnAircraftSpawned), Reposition, SquawkAll, HFR/HFROFF/REL (baked jitter else ReleaseJitterRng), Cfr (baked clock else now),
                                # Timer, TaxiAll, AddAircraft (SimulationEngine.AddAircraft; bakes the spawned aircraft onto a fresh record),
-                               # Consolidate/Deconsolidate (SimulationEngine.Consolidate with the host's IsPositionAttended / Deconsolidate; OnConsolidationChanged)
+                               # Consolidate/Deconsolidate (SimulationEngine.Consolidate / Deconsolidate; OnConsolidationChanged)
 IActionHost.cs                 # The action-path view of a host, part of ISimulationHost: slots for the bodies the server still owns (ApplyStrip, ApplyTdls,
                                # ApplyTdlsOpsConfig, ApplyCoordination, ApplyGlobalCoordination, ApplyAsdexEnableAllAlerts, ApplyBookmark(command, initials),
                                # ApplyTransport, ApplyRecordedAsdexMutation / ApplyRecordedSaidMutation / ApplyRecordedEramCrrGroup / ApplyRecordedStripRequest (the host
                                # answers: aircraft gone = refused, id already held = nothing printed) / ApplyRecordedAsdexSafetyLogic for the recorded CRC display
-                               # mutations, CRR groups, manual strip requests and the ASDE-X safety-logic configuration), one query (IsPositionAttended — CRC attendance, the C1 input a full CON+ and the handoff redirect read; false on
-                               # Bare/Replay) and consumers a Sim arm or applier notifies (OnAircraftSpawned, OnAircraftDeleted(callsign, lastState), OnLiveTrafficHidden,
+                               # mutations, CRR groups, manual strip requests and the ASDE-X safety-logic configuration) and consumers a Sim arm or applier notifies (OnAircraftSpawned, OnAircraftDeleted(callsign, lastState), OnLiveTrafficHidden,
                                # OnPositionSelected(conn, owner, tcpCode), OnTrackAcquired, OnGhostOverlayRemoved, OnAsdexTrackTerminated, OnTimersChanged,
                                # OnConsolidationChanged, OnHeldDeparturesChanged, OnFlightPlanAmended, OnWeatherChanged, OnQueuedCommandsShown). No defaults; header lists every slot
                                # as step-4 debt. BareHost + ReplayHost refuse / ignore; yaat-server's RoomHost answers with the room's bodies and gives a fresh

@@ -84,6 +84,13 @@ public sealed partial class SimulationEngine
     public PositionSelections PositionSelections { get; set; } = new();
 
     /// <summary>
+    /// Which CRC positions are being worked. Engine-owned, so a fresh engine starts with nobody attended and the
+    /// snapshot plus the recorded <see cref="RecordedAttendanceChange"/> entries rebuild it; the live server derives it
+    /// from its connection registry and records the changes.
+    /// </summary>
+    public Attendance Attendance { get; } = new();
+
+    /// <summary>
     /// The one router every controller action on this engine goes through — fresh (<see cref="SendCommand"/>,
     /// <see cref="DispatchAiCommand"/>) or recorded (the replay driver). See <see cref="ActionRouter"/>.
     /// </summary>

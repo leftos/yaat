@@ -11,11 +11,11 @@ public sealed partial class SimulationEngine
     /// <summary>
     /// <c>CON</c> / <c>CON+</c>: records the manual override consolidating the sending TCP into the receiving one. A full
     /// consolidation also moves the sender's whole block — the sender plus every descendant that is neither attended
-    /// (<paramref name="isAttended"/>, the host's answer) nor carrying its own override — onto the receiver: owned tracks
-    /// transfer and in-progress handoffs redirect. Refused for an unknown position and for an edge that would close a
-    /// loop (<see cref="Simulation.ConsolidationState.Consolidate"/>), in which case nothing is written.
+    /// (<see cref="Attendance"/>, engine state on every run kind) nor carrying its own override — onto the receiver:
+    /// owned tracks transfer and in-progress handoffs redirect. Refused for an unknown position and for an edge that
+    /// would close a loop (<see cref="Simulation.ConsolidationState.Consolidate"/>), in which case nothing is written.
     /// </summary>
-    public CommandResult Consolidate(ConsolidateCommand con, Func<Tcp, bool> isAttended)
+    public CommandResult Consolidate(ConsolidateCommand con)
     {
         if (Scenario is not { } scenario)
         {
@@ -44,7 +44,7 @@ public sealed partial class SimulationEngine
             return new CommandResult(true, $"Basic consolidation: {con.SendingTcpCode} → {con.ReceivingTcpCode}");
         }
 
-        var (transferred, redirected) = TransferTracksForConsolidation(scenario, sendingTcp, con.ReceivingTcpCode, isAttended);
+        var (transferred, redirected) = TransferTracksForConsolidation(scenario, sendingTcp, con.ReceivingTcpCode);
         var message = $"Full consolidation: {con.SendingTcpCode} → {con.ReceivingTcpCode}";
         if ((transferred > 0) || (redirected > 0))
         {
@@ -79,12 +79,7 @@ public sealed partial class SimulationEngine
     /// that airspace (the ownership-vs-children split of issue #299, one layer down). Falls back to the sender alone when
     /// the scenario carries no ARTCC config or the student facility has no TCP table.
     /// </summary>
-    private (int Transferred, int Redirected) TransferTracksForConsolidation(
-        SimScenarioState scenario,
-        Tcp sendingTcp,
-        string receivingTcpCode,
-        Func<Tcp, bool> isAttended
-    )
+    private (int Transferred, int Redirected) TransferTracksForConsolidation(SimScenarioState scenario, Tcp sendingTcp, string receivingTcpCode)
     {
         var receivingOwner = TrackResolver.ResolveTcpToOwner(scenario, receivingTcpCode);
         if (receivingOwner is null)
@@ -93,8 +88,12 @@ public sealed partial class SimulationEngine
         }
 
         var movedTcps =
-            scenario.ArtccConfig?.GetConsolidatedDescendants(scenario.StudentPosition?.FacilityId ?? "", sendingTcp, isAttended, ConsolidationState)
-            ?? [];
+            scenario.ArtccConfig?.GetConsolidatedDescendants(
+                scenario.StudentPosition?.FacilityId ?? "",
+                sendingTcp,
+                Attendance.IsTcpAttended,
+                ConsolidationState
+            ) ?? [];
         var moved = movedTcps.Count > 0 ? movedTcps : [sendingTcp];
         bool MatchesMoved(TrackOwner owner) => moved.Any(t => (owner.Subset == t.Subset) && (owner.SectorId == t.SectorId));
 

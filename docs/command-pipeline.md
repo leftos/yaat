@@ -214,8 +214,9 @@ Adding a new contextual flag to handlers? Add it to `DispatchContext`, set it at
 **One switch, every run kind.** `TrackEngine.Dispatch` (`Yaat.Sim`) is the track table, run by the `ActionRouter`'s
 `TrackOwnership` arm (`Simulation/Actions/ActionArms.Track`) for the live room, a Sim replay, a server reconstruction
 and the bare test engine alike; its identity guard is `TrackEngine.RequiresIdentity`. `ApplyHandoff` / `ApplyPointOut`
-land an unattended target on its attended consolidation owner through the `ConsolidationRedirect` built from the host's
-`IActionHost.IsPositionAttended` answer (the server: `PositionRegistry`; a bare or replay run attends nobody). The arm
+land an unattended target on its attended consolidation owner through the `ConsolidationRedirect` built from the engine's
+`Attendance` — the recorded input the live room syncs from `PositionRegistry` and every other run kind replays, so a
+rewind redirects exactly as live did. The arm
 also runs the tails a track verb has beyond the track itself, on every run kind: a `TRACK` applies the facility's
 scratchpad rules and voids the aircraft's coordination items (`OnTrackAcquired`), an `INHCA` drops the aircraft's active
 conflicts, a `DROP` of a ghost lifts the overlay (`OnGhostOverlayRemoved`) or deletes the phantom (`OnAircraftDeleted`).

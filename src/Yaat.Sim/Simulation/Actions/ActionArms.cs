@@ -295,7 +295,7 @@ internal static class ActionArms
             return TrackEngine.AcknowledgeConflictAlert(aircraft, engine.ConflictAlerts);
         }
 
-        var redirect = new ConsolidationRedirect(scenario, engine.ConsolidationState, ctx.Host.IsPositionAttended);
+        var redirect = new ConsolidationRedirect(scenario, engine.ConsolidationState, engine.Attendance.IsTcpAttended);
         var result = TrackEngine.Dispatch(ctx.Parsed!, aircraft, ctx.Identity, scenario, redirect) ?? ActionRefusals.HostOnly(ctx.Parsed!);
         if (!result.Success)
         {
@@ -516,11 +516,10 @@ internal static class ActionArms
     }
 
     /// <summary>
-    /// <c>CON</c> / <c>CON+</c>. Which of the sender's descendants move with a full consolidation depends on CRC attendance,
-    /// which only the host knows (<see cref="IActionHost.IsPositionAttended"/>); a bare or replay run attends nobody.
+    /// <c>CON</c> / <c>CON+</c>. Which of the sender's descendants move with a full consolidation depends on CRC
+    /// attendance, which the engine carries on every run kind (<see cref="SimulationEngine.Attendance"/>).
     /// </summary>
-    public static CommandResult Consolidate(ArmContext ctx) =>
-        ConsolidationChanged(ctx, ctx.Engine.Consolidate((ConsolidateCommand)ctx.Parsed!, ctx.Host.IsPositionAttended));
+    public static CommandResult Consolidate(ArmContext ctx) => ConsolidationChanged(ctx, ctx.Engine.Consolidate((ConsolidateCommand)ctx.Parsed!));
 
     public static CommandResult Deconsolidate(ArmContext ctx) =>
         ConsolidationChanged(ctx, ctx.Engine.Deconsolidate((DeconsolidateCommand)ctx.Parsed!));

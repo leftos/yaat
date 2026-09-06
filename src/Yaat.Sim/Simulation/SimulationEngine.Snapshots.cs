@@ -297,6 +297,7 @@ public sealed partial class SimulationEngine
         // Replace, never merge: a pre-feature snapshot (or one with no Server section) restores an empty map, which
         // is what the engine held before the selections were snapshotted.
         PositionSelections.Restore(snapshot.Server?.PositionSelections);
+        Attendance.Replace(snapshot.Server?.AttendedPositionIds ?? [], Scenario?.ArtccConfig);
         if (snapshot.Server is not null)
         {
             RestoreServerSnapshot(snapshot.Server);
@@ -362,6 +363,7 @@ public sealed partial class SimulationEngine
                 BankCursors = new Dictionary<int, uint>(BeaconCodePool.BankCursors),
             },
             PositionSelections = PositionSelections.Snapshot().ToDictionary(kv => kv.Key, kv => kv.Value.ToSnapshot(), StringComparer.Ordinal),
+            AttendedPositionIds = [.. Attendance.PositionIds],
         };
     }
 

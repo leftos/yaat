@@ -8,6 +8,7 @@
 - `RDTXT /DR EXPECT 28R` sets a held release's text on a named coordination list; `AS OAK_GND` and `AS NCT_APP@1M` select a position by callsign when its TCP is shared.
 
 ### Fixed
+- Rewinding or exporting a bundle reproduces which positions a CRC client was working at each second, so auto-accept, point-out auto-acknowledge, delayed handoffs and consolidations decide as they did live instead of as if nobody (a bundle) or today's clients (a rewind) were signed on.
 - A window snapped against a screen edge stays there across launches instead of reopening at the screen's top-left corner. (#408)
 - A window profile applied to an already-maximized window now saves the profile's position, so it returns there after a restart.
 - Replaying or playing back a recording whose generators never fired no longer invents generator traffic the session never had.

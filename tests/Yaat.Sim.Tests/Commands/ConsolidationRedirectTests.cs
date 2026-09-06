@@ -12,7 +12,7 @@ namespace Yaat.Sim.Tests.Commands;
 /// <summary>
 /// The consolidation redirect inside the Sim track table: a handoff or point-out addressed to an unattended TCP lands on
 /// the attended position whose airspace has absorbed it, and a handoff recipient who re-addresses an inbound handoff
-/// re-points it. Attendance is the host's answer, so these run the <c>Track</c> arm with a host that controls it.
+/// re-points it. Attendance is engine state, set here through the recorded attendance the live room writes.
 /// Real NCT hierarchy: <c>4Q</c> under <c>4U</c> under <c>2B</c>.
 /// </summary>
 public class ConsolidationRedirectTests
@@ -60,20 +60,19 @@ public class ConsolidationRedirectTests
 
     private static RecordedCommand Recorded(string command) => new(0, AiTestFixture.Callsign, command, "XX", "conn-1");
 
-    /// <summary>4Q's airspace is combined into 4U by a manual override; whether 4U is attended is the host's answer.</summary>
+    /// <summary>4Q's airspace is combined into 4U by a manual override; whether 4U is attended is the engine's state.</summary>
     private static AttendanceActionHost CombineFourQIntoFourU(SimulationEngine engine, bool fourUAttended)
     {
         var scenario = engine.Scenario!;
         var fourU = TrackResolver.FindTcpByCode(scenario, "4U")!;
         var fourQ = TrackResolver.FindTcpByCode(scenario, "4Q")!;
         Assert.True(engine.ConsolidationState.Consolidate(fourU, fourQ, basic: true));
-        var host = new AttendanceActionHost();
         if (fourUAttended)
         {
-            host.AttendedTcpIds.Add(fourU.Id);
+            AttendanceTestSupport.Attend(engine, "4U");
         }
 
-        return host;
+        return new AttendanceActionHost();
     }
 
     [Fact]

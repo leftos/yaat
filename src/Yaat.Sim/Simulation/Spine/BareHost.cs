@@ -133,7 +133,7 @@ internal sealed class BareHost(SimulationEngine engine) : ISimulationHost
         }
     }
 
-    // --- IActionHost: no room, so every slot is refused, nobody is attended and every consumer is a no-op ---
+    // --- IActionHost: no room, so every slot is refused and every consumer is a no-op ---
 
     public CommandResult ApplyStrip(string callsign, ParsedCommand command, TrackOwner? identity) => ActionRefusals.HostOnly(command);
 
@@ -161,8 +161,6 @@ internal sealed class BareHost(SimulationEngine engine) : ISimulationHost
     public CommandResult ApplyRecordedStripRequest(RecordedStripRequest request) => new(true);
 
     public void ApplyRecordedAsdexSafetyLogic(RecordedAsdexSafetyLogicChange change) { }
-
-    public bool IsPositionAttended(Tcp tcp) => false;
 
     public void OnAircraftSpawned(AircraftState aircraft) { }
 

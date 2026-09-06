@@ -58,12 +58,11 @@ public sealed class ActionRouter
     /// <summary>
     /// Applies one recorded action: a command through <see cref="Apply(RecordedCommand, IActionHost)"/>, a derived
     /// record (spawn, live-traffic sample or removal, flight-plan amendment, beacon recycle, weather, setting,
-    /// generators, STARS shared state, clearance, hold annotation, ERAM entry) through its Sim applier with the host
-    /// told what changed, and a record of host-owned state (an ASDE-X or SAID mutation, a CRR group, a strip request,
-    /// an ASDE-X safety-logic push) through the host's slot. A chat line and a diagnostic record apply nothing. A
-    /// derived record the live room applied whose
-    /// apply refuses here — its aircraft is gone, an ERAM entry's guard answers differently — logs a
-    /// <c>replay-fidelity</c> warning like a command whose verdict changed.
+    /// generators, STARS shared state, clearance, hold annotation, ERAM entry, CRC attendance) through its Sim applier
+    /// with the host told what changed, and a record of host-owned state (an ASDE-X or SAID mutation, a CRR group, a
+    /// strip request, an ASDE-X safety-logic push) through the host's slot. A chat line and a diagnostic record apply
+    /// nothing. A derived record the live room applied whose apply refuses here — its aircraft is gone, an ERAM entry's
+    /// guard answers differently — logs a <c>replay-fidelity</c> warning like a command whose verdict changed.
     /// </summary>
     public CommandResult ApplyRecorded(RecordedAction action, IActionHost host)
     {
@@ -128,10 +127,10 @@ public sealed class ActionRouter
 
     /// <summary>
     /// A derived record produced now rather than read back from the log — a CRC handler's shared-state, clearance,
-    /// hold-annotation, ERAM, CRR-group, strip-request or ASDE-X safety-logic write. Applied through the same body a
-    /// replay uses and appended to the
-    /// action log only when it applied, so the log never carries a write the room refused; a refusal here is the
-    /// live verdict, not a fidelity break, and is not warned about.
+    /// hold-annotation, ERAM, CRR-group, strip-request or ASDE-X safety-logic write, or the live host's derived CRC
+    /// attendance. Applied through the same body a replay uses and appended to the action log only when it applied, so
+    /// the log never carries a write the room refused; a refusal here is the live verdict, not a fidelity break, and is
+    /// not warned about.
     /// </summary>
     public CommandResult IssueDerived(RecordedAction action, IActionHost host)
     {
@@ -144,7 +143,10 @@ public sealed class ActionRouter
         return result;
     }
 
-    /// <summary>The records of state a CRC handler writes, applied through the one body each has.</summary>
+    /// <summary>
+    /// The records of state a CRC handler writes plus the live host's derived attendance, applied through the one body
+    /// each has.
+    /// </summary>
     private CommandResult ApplyStateRecord(RecordedAction action, IActionHost host)
     {
         switch (action)
@@ -170,6 +172,9 @@ public sealed class ActionRouter
                 return host.ApplyRecordedStripRequest(request);
             case RecordedAsdexSafetyLogicChange safetyLogic:
                 host.ApplyRecordedAsdexSafetyLogic(safetyLogic);
+                return Applied;
+            case RecordedAttendanceChange attendance:
+                _engine.Attendance.Replace(attendance.AttendedPositionIds, _engine.Scenario?.ArtccConfig);
                 return Applied;
             default:
                 return Applied;

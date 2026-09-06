@@ -2,7 +2,7 @@ namespace Yaat.Sim.Simulation.Snapshots;
 
 /// <summary>
 /// Engine-level state outside the aircraft list and the scenario: consolidation overrides, conflict alerts, the
-/// beacon code pool, and the per-connection position selections.
+/// beacon code pool, the per-connection position selections, and the attended CRC positions.
 /// </summary>
 public sealed class ServerSnapshotDto
 {
@@ -13,6 +13,9 @@ public sealed class ServerSnapshotDto
 
     /// <summary>Connection id → the position it selected with a bare <c>AS</c>. Absent in pre-feature snapshots (restores empty).</summary>
     public Dictionary<string, TrackOwnerDto>? PositionSelections { get; init; }
+
+    /// <summary>The vNAS position ids a CRC client was working. Absent in pre-feature snapshots (restores empty).</summary>
+    public List<string>? AttendedPositionIds { get; init; }
 }
 
 public sealed class ConsolidationOverrideDto
