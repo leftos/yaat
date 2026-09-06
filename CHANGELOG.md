@@ -4,7 +4,6 @@
 
 ### Added
 - The Discord server shows progress towards YAAT's monthly hosting cost, fed by Ko-fi: a sidebar ticker channel, a pinned progress embed listing this month's supporters (surplus rolls into the next month), and One-time / Monthly Supporter roles claimed through Ko-fi.
-
 - `FP` accepts `OTP/055` as the altitude to file a VFR-on-top plan.
 
 ### Fixed
@@ -37,6 +36,7 @@
 - A flight plan filed by typing `FP`, `VP` or `DA` tags the filing position as its creator, so the STARS auto-track acquires the aircraft when it squawks its assigned code, as a CRC-entered plan does.
 - Recordings and bug bundles include the commands the live session refused, with their verdict.
 - Typing any command during playback takes control of the session, whether or not the command is accepted.
+- `INHCA` and `CAACK` typed without an active position apply instead of being refused, as they always did on playback.
 
 ## v0.12.25-beta [2026/09/02]
 
