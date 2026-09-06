@@ -84,7 +84,7 @@ if ($projText -match 'Include="TUnit"') {
     $classFilterArgs = @('--treenode-filter', "/*/*/$SampleClass/*")
     # Verified against a known-cardinality probe: alternation only binds inside ONE path segment,
     # and untagged tests DO survive '!=' (matching xunit's --filter-not-trait). A top-level '|'
-    # between whole paths silently selects the wrong set - see docs/plans/tunit-migration.md.
+    # between whole paths silently selects the wrong set - see docs/plans/test-suite-speed.md (TUnit decision).
     $devFilterArgs = @('--treenode-filter', '/*/*/*/*[(Category!=Nightly)&(Category!=PathfinderGrid)]')
 } elseif ($projText -match 'Include="xunit\.v3"') {
     $framework = 'xunit.v3'

@@ -218,9 +218,8 @@ mode it lifts its own ceiling (leaving a controller-issued "maintain VFR at or b
 back the pre-hold `TargetAltitude` — `FlightPhysics.UpdateAltitude` nulls that field when the aircraft
 captures the capped goal, so without the restore the climb never resumes. `CanAcceptCommand` returns
 `Allowed` for every command (the hold never rejects controller input). See [phases.md](phases.md) for the
-phase lifecycle, `ManagesSpeed` contagion, and the snapshot contract; see
-[plans/pilot-ai-self-training/m10.1.5-vfr-airspace-respect.md](plans/pilot-ai-self-training/m10.1.5-vfr-airspace-respect.md)
-for milestone history.
+phase lifecycle, `ManagesSpeed` contagion, and the snapshot contract. The feature shipped as pilot-AI milestone M10.1.5
+(`docs/plans/pilot-ai-self-training/README.md`); its subplan is deleted, so git history holds the milestone record.
 
 ### Speed under a shelf — 14 CFR 91.117(c)
 

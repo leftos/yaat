@@ -196,8 +196,8 @@ disables the controls up front via `CanLoadScenario`/`CanUnloadScenario`.
 
 `RestartScenario` is deliberately **not** in that list: it re-runs the same scenario, so unlike unload it can
 neither strand the room nor switch scenarios, and a non-mentor working alone can retry without an instructor.
-Note the gate is a **rating tier**, not the RPO position — a mentor working an RPO position is unaffected. See the
-amendment in [`docs/plans/rpo-limited-access-and-vatusa-artcc.md`](plans/rpo-limited-access-and-vatusa-artcc.md).
+Note the gate is a **rating tier**, not the RPO position — a mentor working an RPO position is unaffected (the
+client flag is `IsNonMentor`; see [`vatsim-auth.md`](vatsim-auth.md) for the lobby-and-pull flow).
 
 ## Server → client broadcast catalog
 

@@ -1,7 +1,7 @@
 # Test suite speed
 
 Current baseline (2026-09-04, Release, 16 cores, quiet machine, median of 3 — measured by
-`tools/measure-test-loop.ps1`; full table in [tunit-migration.md](tunit-migration.md)):
+`tools/measure-test-loop.ps1`):
 
 | | |
 |---|---|
@@ -33,7 +33,7 @@ so class grouping never becomes the constraint.
 Decisions:
 - Snapshot-seek already exists as **hybrid replay** (`Replay(recording, 0)` → `RestoreFromSnapshot` → `ReplayOneSecond`; `docs/e2e-tdd-issue-debugging.md` §5b, 51 test files use it). Converting from-zero `Replay(recording, N)` tests to it is a per-test judgment (hybrid tests only the post-T slice and can false-pass a fix that alters the path before T), so no blanket conversion was done.
 - Stay on xunit.v3 **3.2.2** (not 4.0.0): Avalonia.Headless.XUnit 12.1.0 pins `xunit.v3.extensibility.core 3.2.2`.
-- **Stay on xunit.v3, not TUnit** (evaluated 2026-09-03/04, [tunit-migration.md](tunit-migration.md)): the scheduling prize measures 0.0s, and TUnit's source generator adds ~5s to every incremental build at 9,306 cases — a penalty that grows linearly with test count. The edit-run loop would go from ~5.6s to ~10.4s.
+- **Stay on xunit.v3, not TUnit** (evaluated 2026-09-03/04 in a worktree; the evaluation plan `tunit-migration.md` was deleted 2026-09-06 — git history has the probe-by-probe findings): the scheduling prize measures 0.0s (both scheduling models hit the same 50.7s divisibility bound), and TUnit's source generator adds ~5s to every incremental build at 9,306 cases — a penalty that grows linearly with test count. The edit-run loop would go from ~5.6s to ~10.4s. If it is ever revisited: TUnit and xunit.v3 cannot coexist in one test process (Microsoft.Testing.Platform hosts one framework), so a project converts big-bang, and the swap must be verified by *test count* (`--list-tests` reconciled against the baseline), not by a green summary.
 
 ## Tasks
 
@@ -106,13 +106,15 @@ the control:
 The remaining ~2.17 s is CLR startup plus xunit reflection discovery over YAAT's assembly graph —
 the same synthetic project at the same test count does that phase in ~0.87 s, so ~1.3 s is the cost
 of our assembly graph specifically. Not reducible without changing framework or splitting the
-assembly. (Source-generated discovery *is* the one thing that would attack it — see
-[tunit-migration.md](tunit-migration.md) for why the build-time cost outweighs it anyway.)
+assembly. (Source-generated discovery *is* the one thing that would attack it — see the TUnit
+decision above for why the build-time cost outweighs it anyway.)
 
 Note for anyone re-measuring: `--list-tests` is a poor proxy for discovery. On the synthetic project
 it costs ~1.06 s more than a zero-match run at the same test count, almost all of it printing ~9,300
 lines to the console.
 
 ## Follow-ups (not done)
-- The bounded-detour search itself (`SegmentExpander.RunBoundedDetour`, >1s for one TAXI resolution) — algorithmic; needs its own profile.
-- Per-test review of from-zero `Replay(recording, N)` sites that could legitimately be hybrid replay (see Decisions).
+
+- [ ] The bounded-detour search itself (`SegmentExpander.RunBoundedDetour`, >1s for one TAXI resolution) — algorithmic; needs its own profile.
+- [ ] Per-test review of from-zero `Replay(recording, N)` sites that could legitimately be hybrid replay (see Decisions).
+- [ ] Two strings still carry the dead VSTest filter syntax (`--filter "Name~X"`), stale since the MTP migration: `tools/hooks/claude-guard-cases.jsonl:13` (a guard test case — keep the case, swap the syntax to `-- --filter-method "*X*"`) and the comment at `.claude/workflows/pathfinder-v2-verdict-pass.js:8`.

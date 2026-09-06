@@ -60,16 +60,7 @@ No phase is a technical layer, and no phase leaves either repo broken: `Yaat.Sim
 
 ### Phase 1 — One tick spine
 
-**Goal:** every host that advances a sim-second — Yaat.Sim tests, replay, recording reconstruction,
-the live server and the headless soak host — runs the same simulation-affecting post-physics steps, in
-the same order, with the same arguments.
-**Requirements:** DET-03, subsumed. **Design:** ADRs [0001](../../adr/0001-state-equivalence-is-the-tick-contract.md)-[0006](../../adr/0006-decompose-simulationengine-before-adding-to-it.md) — this phase is no longer owned by the milestone.
-
-1. The set and order of simulation-affecting post-physics steps is defined in exactly one place, and both hosts execute it by iterating that definition rather than each maintaining a list.
-2. Adding a new post-physics step to one host and not the other is a compile error, not a silent divergence — demonstrated by adding a step and observing the build fail until both hosts handle it.
-3. A characterization test records the executed step order per host and shows the refactor changed nothing that was not deliberately decided: `PilotProactive` moves to the server's position, the drain order becomes server-literal, `AutoDelete` and `SoloTrainingEvaluation` run on the replay path, and `TickControllerAi` becomes the final spine step.
-4. Any recording that desyncs is identified by name with its cause understood, and either kept or deleted as a recorded decision — never silenced by relaxing an assertion.
-5. `pwsh tools/test-all.ps1` is green across both repos, and the existing per-feature parity tests still pass unchanged.
+**Shipped 2026-09-04 as tick step 3c** — the tick-path unification programme ([`docs/plans/tick-path/`](../tick-path/README.md), ADRs [0001](../../adr/0001-state-equivalence-is-the-tick-contract.md)-[0006](../../adr/0006-decompose-simulationengine-before-adding-to-it.md)) owns it now. Every host that advances a sim-second runs one spine of typed steps in live order; adding a step to one host and not another is a compile error; the tick oracle records predicted-vs-got per sub-commit; desyncing recordings are triaged by name (ADR 0004), never silenced. **Requirements:** DET-03, subsumed. Phases 2–7 wait on the rest of that programme (steer 2026-09-02, `MAIN.md` Current focus).
 
 ### Phase 2 — Per-position frequency state
 
@@ -183,7 +174,7 @@ Radio requirements (`RADIO-01` … `RADIO-10`) live in [`11-radio-model.md`](./1
 
 | Phase | Requirements | Count |
 |---|---|---|
-| 1 — One tick spine | DET-03 | 1 |
+| 1 — One tick spine (shipped as tick step 3c) | DET-03 | 1 |
 | 2 — Per-position frequency state | RADIO-01, 02, 04, 06, 08 | 5 |
 | 3 — Party line and collisions | RADIO-03, 05, 09 | 3 |
 | 4 — Coordination bus and transfer | RADIO-07, RADIO-10, TOWER-03, 04, 05, 07 | 6 |

@@ -83,21 +83,21 @@ Goal: **the student can fly an aircraft from gate to handoff without a human in 
 
 | | Milestone | Subplan | Summary |
 |---|---|---|---|
-| [x] | **M10.0** | [m10.0-tts-spike.md](m10.0-tts-spike.md) | TTS pipeline spike — sherpa-onnx + Piper LibriTTS-R + radio DSP validated |
-| [x] | **M10.1** | [m10.1-pilot-readbacks.md](m10.1-pilot-readbacks.md) | Pilot voice (text-only readbacks) + AtParking IFR spawn check-in |
-| [x] | **M10.1.1** | [m10.1.1-ground-spawn-checkins.md](m10.1.1-ground-spawn-checkins.md) | Ground spawn check-ins (IFR + VFR): HoldingShort, LinedUp, OnFinal + drop M10.1's IFR-only gate |
-| [x] | **M10.1.2** | [m10.1.2-airborne-spawn-checkins.md](m10.1.2-airborne-spawn-checkins.md) | Airborne-spawn check-ins: VFR inbound, IFR airborne arrival, VFR overflight transition |
-| [x] | **M10.1.3** | [m10.1.3-vfr-pattern-work.md](m10.1.3-vfr-pattern-work.md) | VFR closed-traffic: initial-call request + uncleared-only reminders at midfield-downwind and short-final |
-| [x] | **M10.1.4** | [m10.1.4-hoo-signoff.md](m10.1.4-hoo-signoff.md) | New `CT` and `FCA` commands for the frequency-change instruction (separate from HOO/ACCEPT per 7110.65 §7-6-11) |
-| [x] | **M10.1.5** | [m10.1.5-vfr-airspace-respect.md](m10.1.5-vfr-airspace-respect.md) | VFR self-restrict outside FAA AIS Class B (no clearance) / Class C (no two-way comms) until gate satisfied |
-| [x] | **M10.2** | [m10.2-student-natural-atc.md](m10.2-student-natural-atc.md) | Student speaks/types real ATC; rewires PTT pipeline to the controller side |
-| [x] | **M10.3** | [m10.3-tts-layer.md](m10.3-tts-layer.md) | TTS v1: typed pilot-transmission SignalR event + off-by-default local client voice |
-| [x] | **M10.3.5** | [m10.3.5-frequency-contention.md](m10.3.5-frequency-contention.md) | Frequency queue + activity-aware solo readback verbosity |
-| [x] | **M10.3.6** | [m10.3.6-scenario-pace-controls.md](m10.3.6-scenario-pace-controls.md) | Scenario-load training pace controls: parking initial call-up and arrival generator rate sliders |
-| [x] | **M10.4** | [m10.4-proactive-after-silence.md](m10.4-proactive-after-silence.md) | Pending-request reminders, including slower follow-up after standby |
-| [x] | **M10.5** | [m10.5-da-mda-unable.md](m10.5-da-mda-unable.md) | DA/MDA contingency (warn-then-miss) + "unable" rejection on dispatch failure |
-| [x] | **M10.6** | [m10.6-scenario-pack.md](m10.6-scenario-pack.md) | Solo training USER_GUIDE + scenario-author notes + cleanup |
-| [x] | **M10.7** | [m10.7-session-report-separation-scoring.md](m10.7-session-report-separation-scoring.md) | Live Session Report + FAA-grounded airborne, runway, wake, and advisory scoring |
+| [x] | **M10.0** | shipped, plan deleted | TTS pipeline spike — sherpa-onnx + Piper LibriTTS-R + radio DSP validated |
+| [x] | **M10.1** | shipped, plan deleted | Pilot voice (text-only readbacks) + AtParking IFR spawn check-in |
+| [x] | **M10.1.1** | shipped, plan deleted | Ground spawn check-ins (IFR + VFR): HoldingShort, LinedUp, OnFinal + drop M10.1's IFR-only gate |
+| [x] | **M10.1.2** | shipped, plan deleted | Airborne-spawn check-ins: VFR inbound, IFR airborne arrival, VFR overflight transition |
+| [x] | **M10.1.3** | shipped, plan deleted | VFR closed-traffic: initial-call request + uncleared-only reminders at midfield-downwind and short-final |
+| [x] | **M10.1.4** | shipped, plan deleted | New `CT` and `FCA` commands for the frequency-change instruction (separate from HOO/ACCEPT per 7110.65 §7-6-11) |
+| [x] | **M10.1.5** | shipped, plan deleted | VFR self-restrict outside FAA AIS Class B (no clearance) / Class C (no two-way comms) until gate satisfied |
+| [x] | **M10.2** | shipped, plan deleted | Student speaks/types real ATC; rewires PTT pipeline to the controller side |
+| [x] | **M10.3** | shipped, plan deleted | TTS v1: typed pilot-transmission SignalR event + off-by-default local client voice |
+| [x] | **M10.3.5** | shipped, plan deleted | Frequency queue + activity-aware solo readback verbosity |
+| [x] | **M10.3.6** | shipped, plan deleted | Scenario-load training pace controls: parking initial call-up and arrival generator rate sliders |
+| [x] | **M10.4** | shipped, plan deleted | Pending-request reminders, including slower follow-up after standby |
+| [x] | **M10.5** | shipped, plan deleted | DA/MDA contingency (warn-then-miss) + "unable" rejection on dispatch failure |
+| [x] | **M10.6** | shipped, plan deleted | Solo training USER_GUIDE + scenario-author notes + cleanup |
+| [x] | **M10.7** | shipped, plan deleted | Live Session Report + FAA-grounded airborne, runway, wake, and advisory scoring |
 
 ## Next phase — Realism + Scoring
 
@@ -124,8 +124,8 @@ Brainstormed 2026-05-21. Two categories carved out of a broader "make self-train
 | [ ] | **M12.1** | [m12.1-efficiency-score.md](m12.1-efficiency-score.md) | Vectoring miles vs great-circle, altitude profile vs filed, fuel-burn proxy |
 | [ ] | **M12.2** | [m12.2-phraseology-grading.md](m12.2-phraseology-grading.md) | Per-transmission 7110.65 form score (element order, niner, decimals, altitudes) |
 | [ ] | **M12.3** | [m12.3-rules-of-thumb-compliance.md](m12.3-rules-of-thumb-compliance.md) | Wake spacing on final, no-turns-below-400, hold-short readback enforcement |
-| [x] | **M12.4** | [m12.4-per-aircraft-mini-debrief.md](m12.4-per-aircraft-mini-debrief.md) | Session Report Aircraft tab — one row per aircraft with operation, route, completion, findings, coaching note |
-| [x] | **M12.5** | [m12.5-timeline-scrubber.md](m12.5-timeline-scrubber.md) | Finding + command markers on the existing rewind timeline bar, with Aircraft-tab cross-link filter |
+| [x] | **M12.4** | shipped, plan deleted | Session Report Aircraft tab — one row per aircraft with operation, route, completion, findings, coaching note |
+| [x] | **M12.5** | shipped, plan deleted | Finding + command markers on the existing rewind timeline bar, with Aircraft-tab cross-link filter |
 | [ ] | **M12.6** | [m12.6-par-scoring.md](m12.6-par-scoring.md) | Per-scenario "par" line — measure runs against a curated good run |
 | [ ] | **M12.7** | [m12.7-achievements-badges.md](m12.7-achievements-badges.md) | Persistent unlocks giving self-trainers reasons to come back |
 
@@ -135,8 +135,8 @@ The M11 / M12 tables above are catalog entries. Execution follows the wave group
 
 **Wave 1 — Surface what we already have (highest ROI, zero sim risk)**
 
-1. **M12.4** — Per-aircraft mini-debrief
-2. **M12.5** — Marker overlay on the existing timeline bar (reframed during step 5 — the existing rewind UI already provides scrub controls; M12.5 adds finding/command markers and an aircraft filter)
+1. **M12.4** — Per-aircraft mini-debrief — shipped
+2. **M12.5** — Marker overlay on the existing timeline bar (reframed during step 5 — the existing rewind UI already provides scrub controls; M12.5 adds finding/command markers and an aircraft filter) — shipped
 
 Both consume M10.7 findings and existing infrastructure. No new sim model. Pairs cleanly: each debrief row links to the relevant time on the marker rail.
 

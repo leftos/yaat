@@ -16,8 +16,8 @@ namespace Yaat.Client.UI.Tests.ViewModels;
 /// powers. (The flag was called <c>IsLimitedRpo</c> until it was renamed for exactly that confusion.)
 ///
 /// The controls must be disabled up front. Everything else in a room (pause, sim rate, weather, spawn,
-/// commands) stays open to non-mentors by the confirmed design decision in
-/// docs/plans/rpo-limited-access-and-vatusa-artcc.md — these tests pin that boundary in both directions.
+/// commands) stays open to non-mentors by design — the gated list is in docs/training-hub-contract.md
+/// § "Mentor/instructor gating throws" — and these tests pin that boundary in both directions.
 /// </summary>
 public class MainViewModelNonMentorGatingTests
 {

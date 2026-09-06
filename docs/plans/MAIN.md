@@ -4,18 +4,17 @@ Entry point for `docs/plans/`. One line per item; the detail lives in the linked
 
 ## Current focus
 
-- [ ] **Tick-path unification** — [tick-path/README.md](./tick-path/README.md): one tick spine, one action router, one body per behaviour across live, replay and reconstruction. Steps 1–3 and 3d-0 … 3d-5a shipped; **next is 3d-5b, the Class B records** — [tick-path/03d-action-router.md](./tick-path/03d-action-router.md) § 3d-5b. Controller AI waits on this (steer 2026-09-02).
+- [ ] **Tick-path unification** — [tick-path/README.md](./tick-path/README.md): one tick spine, one action router, one body per behaviour across live, replay and reconstruction. Steps 1–3 and 3d-0 … 3d-5b-2 shipped; **next is 3d-5b-3, the host-slot records** (strip requests + ASDE-X safety logic), then the 3d-6 docs pass — [tick-path/03d-action-router.md](./tick-path/03d-action-router.md) § 3d-5b-3. Controller AI waits on this (steer 2026-09-02).
 
 ## Next up
 
 - [ ] **Controller AI v1** — on hold behind the tick work; [controller-ai/README.md](./controller-ai/README.md) (H0 / CA0 / CA1 / K1-lite shipped; the open follow-ups are listed there) and the v1 slice [controller-ai/12-milestone-v1-scope.md](./controller-ai/12-milestone-v1-scope.md). The per-frequency radio model ([controller-ai/11-radio-model.md](./controller-ai/11-radio-model.md)) ships first.
-- [ ] Pilot AI for solo training — [pilot-ai-self-training/README.md](./pilot-ai-self-training/README.md) (M10.x shipped; M11–M12 are the roadmap)
+- [ ] Pilot AI for solo training — [pilot-ai-self-training/README.md](./pilot-ai-self-training/README.md) (M10.x and Wave 1 shipped; next is Wave 2, M11.2 pilot-initiated requests)
 - [ ] Live traffic via SWIM (#150) — [open-issues/150-live-traffic-swim.md](./open-issues/150-live-traffic-swim.md) → yaat-server `docs/plans/live-traffic-swim/08-remaining-work.md`; **blocked** on FAA ADX access to the LADD list
 - [ ] Live-session assume UX (ZOA Discord 2026-08-31): bulk-assume modes, snapshot-then-assume-all, auto-assume on first command, snapshot-as-scenario authoring — yaat-server [live-traffic-swim/09-live-sessions.md](../../../yaat-server/docs/plans/live-traffic-swim/09-live-sessions.md) §3
-- [ ] RPO limited-access mode + VATUSA ARTCC auto-fill — [rpo-limited-access-and-vatusa-artcc.md](./rpo-limited-access-and-vatusa-artcc.md) (16 open)
 - [ ] CRC protocol support gaps — [crc-protocol-support.md](./crc-protocol-support.md) (13 open of 174; the status table of the CRC hub protocol)
 - [ ] vTDLS emulation v1 — [vtdls-emulation.md](./vtdls-emulation.md) (pre-work landed; the PDC flow remains)
-- [ ] Test-suite speed follow-ups — [test-suite-speed.md](./test-suite-speed.md); the TUnit evaluation is [tunit-migration.md](./tunit-migration.md) (phase 0 measured no scheduling win; phase 1 not started)
+- [ ] Test-suite speed follow-ups — [test-suite-speed.md](./test-suite-speed.md) (two profiling items and two stale VSTest filter strings; the TUnit verdict — do not migrate — is recorded there)
 
 ## Backlog
 
@@ -29,6 +28,7 @@ Findings and small items with no subplan:
 - [ ] Live-traffic follow-ups from the 2026-08-31 aviation review: (a) gate `RunwaySafetyAdvisor.WarnIfTrafficOnFinal` / `WarnIfLiveTrafficOnRunway` on a coasting shadow (7110.65 §5-13-7); (b) validate the three behaviours the receipt-recency fix un-deadened (shadow-vs-simulated conflict alerts, `GroundAcceleration`, assume coast note); (c) surface per-track observation age to the instructor
 - [ ] Review the docs structure — user-facing vs internal dev docs (steer 2026-09-02): the root carries USER_GUIDE / COMMANDS / SOLO_TRAINING / GETTING_STARTED / INSTALL beside `docs/`; decide the boundary and where each audience starts
 - [ ] Regenerate `docs/scenario-validation-known-failures.md` (last full run 2026-03-12) with yaat-server's `python tools/validate-all-scenarios.py`
+- [ ] Hub tests for the non-mentor invite gate (RPO limited access shipped 2026-09-05, plan deleted): an uninvited non-mentor `JoinRoom` is rejected, and a `PullRpo` invite → auto-join round-trips; `TrainingHubAccessHandlerTests` and the kick/invite store tests already cover the rest
 - [ ] Audit the rest of the hub surface for client-trusted authorization — the ARTCC entitlement fix pattern may recur in other `TrainingHub.cs` methods
 - [ ] Bounded HOLDP (EFC model) — 7110.65 §4-6-1.c; `HoldingPatternPhase.MaxCircuits` already self-completes, only the HOLDP argument + release path are missing
 - [ ] FOLLOWG chain E2E — a two-aircraft test that `FOLLOWG X; CROSS <rwy>` fires the crossing at the hold-short (predicate-level pin exists in `IndefiniteHoldMarkerTests`)
@@ -51,6 +51,6 @@ Subplans without a schedule:
 |---|---|
 | [tick-path/](./tick-path/README.md) | The tick-path unification programme — one file per step, predicted-vs-got per sub-commit |
 | [controller-ai/](./controller-ai/README.md) | Controller AI + soak harness — subdesigns 01–12, the milestone table, the open follow-ups |
-| [pilot-ai-self-training/](./pilot-ai-self-training/README.md) | Pilot AI for solo training — the M10–M12 subplans |
+| [pilot-ai-self-training/](./pilot-ai-self-training/README.md) | Pilot AI for solo training — the milestone table plus the M11–M12 stubs (shipped M10.x subplans are deleted) |
 | [open-issues/](./open-issues/) | Plans for open GitHub issues (#150) |
 | the loose `*.md` files | Feature subplans and backlogs that are still open — every one is linked above |
