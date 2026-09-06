@@ -181,6 +181,62 @@ public class RecordedStateChangeTests
     }
 
     [Fact]
+    public void StripRequest_ReachesTheHostSlot_AndTheHostsVerdictIsTheRouters()
+    {
+        if (Engine() is not { } engine)
+        {
+            return;
+        }
+
+        var host = new AttendanceActionHost();
+        var request = new RecordedStripRequest(0, AiTestFixture.Callsign, null, $"STRIP_{AiTestFixture.Callsign}");
+
+        var applied = engine.Actions.ApplyRecorded(request, host);
+
+        Assert.True(applied.Success, applied.Message);
+        Assert.Same(request, Assert.Single(host.StripRequests));
+    }
+
+    [Fact]
+    public void AStripRequestTheHostRefuses_IsReported_WithAReplayFidelityWarning()
+    {
+        if (Engine() is not { } engine)
+        {
+            return;
+        }
+
+        using var tap = new CapturingSimLogProvider(LogLevel.Warning, 100);
+        using var factory = LoggerFactory.Create(b => b.SetMinimumLevel(LogLevel.Trace).AddProvider(tap));
+        SimLog.InitializeForTest(factory);
+
+        var host = new AttendanceActionHost { StripRequestResult = ActionRefusals.AircraftNotFound("NOPE1") };
+
+        var applied = engine.Actions.ApplyRecorded(new RecordedStripRequest(0, "NOPE1", null, "STRIP_NOPE1"), host);
+
+        Assert.False(applied.Success);
+        var warning = Assert.Single(tap.Drain(), r => r.Category == "ActionRouter");
+        Assert.Contains("replay-fidelity", warning.Message);
+        Assert.Contains("NOPE1", warning.Message);
+    }
+
+    [Fact]
+    public void AsdexSafetyLogicChange_ReachesTheHostSlot()
+    {
+        if (Engine() is not { } engine)
+        {
+            return;
+        }
+
+        var host = new AttendanceActionHost();
+        var change = new RecordedAsdexSafetyLogicChange(0, "OAK", """{"Runways":[],"RunwayConfigurationId":"WEST"}""");
+
+        var applied = engine.Actions.ApplyRecorded(change, host);
+
+        Assert.True(applied.Success, applied.Message);
+        Assert.Same(change, Assert.Single(host.AsdexSafetyLogicChanges));
+    }
+
+    [Fact]
     public void ARecordForAMissingAircraft_IsRefused_WithAReplayFidelityWarning()
     {
         if (Engine() is not { } engine)

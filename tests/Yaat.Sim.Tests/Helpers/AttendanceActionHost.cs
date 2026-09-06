@@ -68,6 +68,21 @@ public sealed class AttendanceActionHost : IActionHost
 
     public void ApplyRecordedEramCrrGroup(RecordedEramCrrGroup group) => CrrGroups.Add(group);
 
+    public List<RecordedStripRequest> StripRequests { get; } = [];
+
+    /// <summary>The verdict the strip slot answers with — set to a refusal to stand in for a room whose aircraft is gone.</summary>
+    public CommandResult StripRequestResult { get; set; } = new(true);
+
+    public CommandResult ApplyRecordedStripRequest(RecordedStripRequest request)
+    {
+        StripRequests.Add(request);
+        return StripRequestResult;
+    }
+
+    public List<RecordedAsdexSafetyLogicChange> AsdexSafetyLogicChanges { get; } = [];
+
+    public void ApplyRecordedAsdexSafetyLogic(RecordedAsdexSafetyLogicChange change) => AsdexSafetyLogicChanges.Add(change);
+
     public void OnAircraftSpawned(AircraftState aircraft) => SpawnedCallsigns.Add(aircraft.Callsign);
 
     public void OnAircraftDeleted(string callsign, AircraftState? lastState) => DeletedCallsigns.Add(callsign);

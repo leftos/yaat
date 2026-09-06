@@ -143,6 +143,10 @@ internal sealed class ReplayHost : ISimulationHost
 
     public void ApplyRecordedEramCrrGroup(RecordedEramCrrGroup group) => _bare.ApplyRecordedEramCrrGroup(group);
 
+    public CommandResult ApplyRecordedStripRequest(RecordedStripRequest request) => _bare.ApplyRecordedStripRequest(request);
+
+    public void ApplyRecordedAsdexSafetyLogic(RecordedAsdexSafetyLogicChange change) => _bare.ApplyRecordedAsdexSafetyLogic(change);
+
     public bool IsPositionAttended(Tcp tcp) => _bare.IsPositionAttended(tcp);
 
     public void OnAircraftSpawned(AircraftState aircraft) => _bare.OnAircraftSpawned(aircraft);

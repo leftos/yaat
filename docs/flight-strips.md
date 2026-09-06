@@ -171,6 +171,16 @@ above:
   so multiple strips for one aircraft render independently and stay individually
   addressable via the id-forms of `STRIPD` / `STRIPO` / `AN`.
 
+  Both entry points mint the id first (`StripMutations.MintStripId`) and record a
+  `RecordedStripRequest` carrying it through `RoomEngine.ApplyAndRecord`; the print itself is
+  `RoomEngine.PrintRequestedStrip`, re-applied on every run kind through the `RoomHost` slot.
+  Because the id is baked, a same-room rewind (strip state is in no snapshot and is not reset)
+  finds the departure id already held and prints nothing, while a from-scratch reconstruction
+  (bundle export) prints the strip under the same id; an arrival keeps its one fixed
+  `ARRIVAL_{callsign}` strip and moves it to the printer-queue tail on every request. Only the
+  live room broadcasts the printed item (`BroadcastPrintedStrip`); a rewind must not re-push what
+  clients already hold.
+
 - **Flight-plan amendment** — `RoomEngine.AmendFlightPlan` prints a **new**
   departure strip carrying the bumped revision number rather than editing existing
   strips in place. Outdated departure copies still sitting in the **printer** are

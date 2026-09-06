@@ -4,7 +4,7 @@ Entry point for `docs/plans/`. One line per item; the detail lives in the linked
 
 ## Current focus
 
-- [ ] **Tick-path unification** — [tick-path/README.md](./tick-path/README.md): one tick spine, one action router, one body per behaviour across live, replay and reconstruction. Steps 1–3 and 3d-0 … 3d-5b-2 shipped; **next is 3d-5b-3, the host-slot records** (strip requests + ASDE-X safety logic), then the 3d-6 docs pass — [tick-path/03d-action-router.md](./tick-path/03d-action-router.md) § 3d-5b-3. Controller AI waits on this (steer 2026-09-02).
+- [ ] **Tick-path unification** — [tick-path/README.md](./tick-path/README.md): one tick spine, one action router, one body per behaviour across live, replay and reconstruction. Steps 1–3 and 3d-0 … 3d-5b shipped; **next is 3d-6, the docs pass** (ADR 0007, CONTEXT.md, `command-pipeline.md` / `snapshots-and-replay.md` / `tick-loop.md` § Hosts, `bug_bundle.py history`), then step 4 — [tick-path/03d-action-router.md](./tick-path/03d-action-router.md) § 3d-6. Controller AI waits on this (steer 2026-09-02).
 
 ## Next up
 
@@ -29,6 +29,9 @@ Findings and small items with no subplan:
 - [ ] Review the docs structure — user-facing vs internal dev docs (steer 2026-09-02): the root carries USER_GUIDE / COMMANDS / SOLO_TRAINING / GETTING_STARTED / INSTALL beside `docs/`; decide the boundary and where each audience starts
 - [ ] Regenerate `docs/scenario-validation-known-failures.md` (last full run 2026-03-12) with yaat-server's `python tools/validate-all-scenarios.py`
 - [ ] Hub tests for the non-mentor invite gate (RPO limited access shipped 2026-09-05, plan deleted): an uninvited non-mentor `JoinRoom` is rejected, and a `PullRpo` invite → auto-join round-trips; `TrainingHubAccessHandlerTests` and the kick/invite store tests already cover the rest
+- [ ] `RecordedAction` subtype coverage (finding 2026-09-06, 3d-5b-3): nothing round-trips the subtypes through the polymorphic serializer or asserts every subtype has a `[JsonDerivedType]`, so a missing registration surfaces only as a recording-load failure
+- [ ] `ReprintDepartureStripAfterAmendment` mints a fresh strip id on replay (finding 2026-09-06, 3d-5b-3), so a rewind across a flight-plan amendment stacks a duplicate departure strip — bake the id onto `RecordedAmendFlightPlan` as `RecordedStripRequest` does
+- [ ] `StripMutations.RequestDepartureStripForAircraft` / `BuildDepartureStripFields` still carry optional `displayDestinationAirportIds` parameters (pre-existing; the no-optional-parameters rule)
 - [ ] Audit the rest of the hub surface for client-trusted authorization — the ARTCC entitlement fix pattern may recur in other `TrainingHub.cs` methods
 - [ ] Bounded HOLDP (EFC model) — 7110.65 §4-6-1.c; `HoldingPatternPhase.MaxCircuits` already self-completes, only the HOLDP argument + release path are missing
 - [ ] FOLLOWG chain E2E — a two-aircraft test that `FOLLOWG X; CROSS <rwy>` fires the crossing at the hold-short (predicate-level pin exists in `IndefiniteHoldMarkerTests`)

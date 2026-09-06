@@ -157,6 +157,11 @@ internal sealed class BareHost(SimulationEngine engine) : ISimulationHost
 
     public void ApplyRecordedEramCrrGroup(RecordedEramCrrGroup group) { }
 
+    /// <summary>No strip state outside a room, so nothing to print and nothing to refuse: the record simply applies.</summary>
+    public CommandResult ApplyRecordedStripRequest(RecordedStripRequest request) => new(true);
+
+    public void ApplyRecordedAsdexSafetyLogic(RecordedAsdexSafetyLogicChange change) { }
+
     public bool IsPositionAttended(Tcp tcp) => false;
 
     public void OnAircraftSpawned(AircraftState aircraft) { }

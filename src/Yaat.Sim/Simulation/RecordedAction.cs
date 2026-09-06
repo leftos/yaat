@@ -22,6 +22,8 @@ namespace Yaat.Sim.Simulation;
 [JsonDerivedType(typeof(RecordedHoldAnnotationChange), "HoldAnnotationChange")]
 [JsonDerivedType(typeof(RecordedEramEntry), "EramEntry")]
 [JsonDerivedType(typeof(RecordedEramCrrGroup), "EramCrrGroup")]
+[JsonDerivedType(typeof(RecordedStripRequest), "StripRequest")]
+[JsonDerivedType(typeof(RecordedAsdexSafetyLogicChange), "AsdexSafetyLogicChange")]
 public abstract record RecordedAction(double ElapsedSeconds);
 
 public sealed record RecordedCommand(double ElapsedSeconds, string Callsign, string Command, string Initials, string ConnectionId)
@@ -191,6 +193,26 @@ public sealed record RecordedEramEntry(double ElapsedSeconds, string Callsign, s
 /// </summary>
 public sealed record RecordedEramCrrGroup(double ElapsedSeconds, string Label, string? Color, double? Lat, double? Lon)
     : RecordedAction(ElapsedSeconds);
+
+/// <summary>
+/// A controller asking for a flight strip to be printed for an aircraft: the training-hub
+/// <c>RequestFlightStripForAircraft</c> (a null <see cref="FacilityId"/> — the student's own bay, arrival or departure
+/// format by the aircraft) or the CRC vStrips <c>RequestFlightStrip</c> (a facility — always a departure strip for it).
+/// <see cref="StripId"/> is the id the live print minted, baked onto the record the way a command's reaction delay is:
+/// the manual request mints a fresh id per print, so re-deriving it on replay would stack a second copy. On apply the
+/// baked id is reused — a room that already holds it (a same-room rewind, whose strip state is not reset) prints
+/// nothing, while a from-scratch reconstruction prints it under the same id.
+/// </summary>
+public sealed record RecordedStripRequest(double ElapsedSeconds, string Callsign, string? FacilityId, string StripId)
+    : RecordedAction(ElapsedSeconds);
+
+/// <summary>
+/// A CRC ASDE-X safety-logic configuration push (<c>UpdateAsdexSafetyLogicConfiguration</c>) for one facility: the
+/// runway areas, the active runway-configuration id and the positions whose arrival alerts are inhibited. Room state,
+/// so a host slot applies it; <see cref="ConfigJson"/> is the inbound configuration DTO in its JSON form, kept whole
+/// rather than re-modelled here because the shape is CRC's wire contract, which Yaat.Sim does not carry.
+/// </summary>
+public sealed record RecordedAsdexSafetyLogicChange(double ElapsedSeconds, string FacilityId, string ConfigJson) : RecordedAction(ElapsedSeconds);
 
 public record FlightPlanAmendment(
     string? AircraftType = null,

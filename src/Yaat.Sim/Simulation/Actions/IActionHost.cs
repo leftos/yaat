@@ -65,6 +65,16 @@ public interface IActionHost
     /// </summary>
     void ApplyRecordedEramCrrGroup(RecordedEramCrrGroup group);
 
+    /// <summary>
+    /// A recorded flight-strip request; strips are the room's. The host answers the verdict: the aircraft is gone is a
+    /// refusal, a room that already holds the record's strip id is a success that printed nothing, otherwise the strip
+    /// is printed under the recorded id.
+    /// </summary>
+    CommandResult ApplyRecordedStripRequest(RecordedStripRequest request);
+
+    /// <summary>A recorded CRC ASDE-X safety-logic configuration push; the facility's runway configuration is the room's.</summary>
+    void ApplyRecordedAsdexSafetyLogic(RecordedAsdexSafetyLogicChange change);
+
     // --- Queries: answers only the host has ---
 
     /// <summary>
