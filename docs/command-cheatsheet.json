@@ -300,7 +300,7 @@
         { "verb": "RDAUTO", "aliases": [], "description": "Toggle/set auto-ack for channel [ON|OFF]", "global": true },
         { "verb": "RDDEL", "aliases": [], "description": "Delete release [channel]" },
         { "verb": "RDPOS", "aliases": [], "description": "Move release to line [channel] <line>" },
-        { "verb": "RDTXT", "aliases": [], "description": "Set held release text" }
+        { "verb": "RDTXT", "aliases": [], "description": "Set held release text [/channel] <text>" }
       ],
       "notes": []
     },

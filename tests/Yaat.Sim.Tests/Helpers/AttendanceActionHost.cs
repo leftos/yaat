@@ -70,7 +70,9 @@ public sealed class AttendanceActionHost : IActionHost
 
     public void OnLiveTrafficHidden(string callsign) => HiddenLiveTraffic.Add(callsign);
 
-    public void OnPositionSelected(string connectionId, TrackOwner owner, string tcpCode) { }
+    public List<(string ConnectionId, TrackOwner Owner, string TcpCode)> SelectedPositions { get; } = [];
+
+    public void OnPositionSelected(string connectionId, TrackOwner owner, string tcpCode) => SelectedPositions.Add((connectionId, owner, tcpCode));
 
     public void OnTrackAcquired(string callsign) => AcquiredCallsigns.Add(callsign);
 

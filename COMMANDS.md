@@ -1327,9 +1327,13 @@ By default, you operate as the scenario's student position. Use `AS` to act as a
 | Command | Effect |
 |---------|--------|
 | `AS 2B` | Set your active position to TCP 2B (persistent until changed) |
+| `AS OAK_GND` | Set your active position by callsign — for a position that shares its TCP with another |
+| `AS NCT_APP@1M` | Set your active position by callsign and TCP — for a callsign the config uses on several TCPs |
 | `N135BS AS 2B TRACK` | Act as 2B for this command only (prefix mode) |
 
 Resolution order: per-command `AS` prefix > persistent active position > student position default.
+
+A position argument resolves as a TCP code (`2B`), an ERAM sector (`C44`), an interfacility handoff code, and last as a position callsign (`OAK_GND`) or `callsign@tcp` (`NCT_APP@1M`). A CRC client's position is synced onto its RPO connection as that connection's own recorded `AS`, using the shortest of those forms that names the position exactly.
 
 Ownership and pointout commands (`HO`, `ACCEPT`, `CANCEL`, `DROP`, `PO`, `OK`, `PORJ`, `PORT`) infer the acting position from the track itself — the current owner for `HO`/`CANCEL`/`DROP`/`PO`, the handoff target for `ACCEPT`, the pointout recipient for `OK`/`PORJ`, the pointout sender for `PORT` — so they never need an `AS` prefix. `TRACK` claims an unowned track and so must say who is claiming it: either implicitly (your active position, the student position by default), via an `AS` prefix, or directly with a `TRACK [position]` argument (e.g. `TRACK 3Y` — a one-shot equivalent of `AS 3Y TRACK`). `AS` still matters for the no-argument `PO` (which needs your position to tell an acknowledge from a retract) and for setting your persistent active position.
 
@@ -1505,7 +1509,7 @@ Coordination commands manage departure releases between tower and approach contr
 | `RDAUTO <listId> [ON|OFF]` | Toggle (or explicitly set) auto-acknowledge for a list (global — no callsign needed) |
 | `RDDEL [listId]` | Delete an existing release outright (the CRC F13 re-entry form) |
 | `RDPOS [listId] <line>` | Move a release to a 1-based line in the list |
-| `RDTXT <text>` | Set a held (unsent) release's message text |
+| `RDTXT [/listId] <text>` | Set a held (unsent) release's message text; `/listId` names the list when the sender is on several |
 
 When `listId` is omitted, the server auto-detects the correct coordination list from the sender/receiver TCP. `RDACK` works without a list ID even when the TCP belongs to multiple lists, as long as there is only one unacknowledged release across all lists.
 
@@ -1710,7 +1714,7 @@ These commands don't require an aircraft selection:
 | `RDAUTO <listId> [ON|OFF]` | Toggle or set auto-acknowledge for a coordination list |
 | `RDDEL [listId]` | Delete an existing coordination release |
 | `RDPOS [listId] <line>` | Move a coordination release to a line |
-| `RDTXT <text>` | Set a held release's message text |
+| `RDTXT [/listId] <text>` | Set a held release's message text |
 | `CON` / `CON+` / `DECON` | Consolidation commands (see [Consolidation](#consolidation)) |
 | `TAXIALL 30` | Taxi all parked aircraft to runway 30 |
 

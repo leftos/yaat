@@ -265,7 +265,9 @@ internal static class ActionArms
         var result = ctx.Engine.SelectPosition(connectionId, tcpCode);
         if (result.Success && ctx.Engine.PositionSelections.TryGet(connectionId, out var owner))
         {
-            ctx.Host.OnPositionSelected(connectionId, owner, tcpCode);
+            // The host keys the position's display config on its real TCP code, which the argument need not be — a
+            // position can be named by its callsign (OAK_GND) or callsign@tcp (NCT_APP@1M).
+            ctx.Host.OnPositionSelected(connectionId, owner, TrackResolver.AsPrefixCode(owner));
         }
 
         return result;

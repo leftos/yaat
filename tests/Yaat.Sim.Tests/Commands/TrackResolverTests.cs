@@ -49,6 +49,42 @@ public class TrackResolverTests
     private TrackOwner NctApproach() => _zoa!.ResolvePosition(_zoa!.FindPositionByCallsign("NCT_APP")!.Id)!;
 
     [Fact]
+    public void ResolveTcpToOwner_PositionCallsign_IsTheLastFallback()
+    {
+        Assert.SkipWhen(_zoa is null, "ZOA config not available");
+        var student = TrackOwner.CreateStars("OAK_TWR", "NCT", 3, "O");
+        var scenario = Scenario(student, new Tcp(3, "O", "tcp-3o", null), _zoa);
+
+        var ground = TrackResolver.ResolveTcpToOwner(scenario, "OAK_GND");
+
+        Assert.NotNull(ground);
+        Assert.Equal("OAK_GND", ground.Callsign);
+        Assert.Equal(student, TrackResolver.ResolveTcpToOwner(scenario, "3O"));
+        Assert.Null(TrackResolver.ResolveTcpToOwner(scenario, "NOT_A_POSITION"));
+    }
+
+    [Fact]
+    public void ResolveTcpToOwner_CallsignAtCode_PicksAmongPositionsSharingACallsign()
+    {
+        Assert.SkipWhen(_zoa is null, "ZOA config not available");
+        var scenario = Scenario(TrackOwner.CreateStars("OAK_TWR", "NCT", 3, "O"), new Tcp(3, "O", "tcp-3o", null), _zoa);
+        var byCallsign = TrackResolver.ResolveTcpToOwner(scenario, "NCT_APP");
+        var byCode = TrackResolver.ResolveTcpToOwner(scenario, "1M");
+        Assert.NotNull(byCallsign);
+        Assert.NotNull(byCode);
+        Assert.NotEqual("M", byCallsign.SectorId);
+        Assert.NotEqual("NCT_APP", byCode.Callsign);
+
+        var qualified = TrackResolver.ResolveTcpToOwner(scenario, "NCT_APP@1M");
+
+        Assert.NotNull(qualified);
+        Assert.Equal("NCT_APP", qualified.Callsign);
+        Assert.Equal(1, qualified.Subset);
+        Assert.Equal("M", qualified.SectorId);
+        Assert.Null(TrackResolver.ResolveTcpToOwner(scenario, "NCT_APP@9Z"));
+    }
+
+    [Fact]
     public void ResolveTcpToOwner_StudentTcpWins_OverScenarioAtcSharingIt()
     {
         var student = TrackOwner.CreateStars("OAK_TWR", "OAK", 3, "O");

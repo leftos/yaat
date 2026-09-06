@@ -113,7 +113,7 @@ index and defers to the same `ResolveOwner` walk the item build uses, so the two
   from the prospective receiver to check. This is the only path that *adds* an override, so rejecting here keeps every writer safe —
   see the cycle footgun below for why a loop is dangerous rather than merely meaningless. Callers must surface the rejection
   (`SimulationEngine.Consolidate` refuses with "Circular consolidation" — one body for live, replay and reconstruction, so a rejected
-  `CON` is rejected on every run kind; `CrcMultiFuncConsolidate` returns `INVALID ENTRY`).
+  `CON` is rejected on every run kind; `CrcMultiFuncConsolidate` issues the typed `CON` / `CON+` through `RecordAndDispatch` and shows the router's refusal).
 - `Deconsolidate(tcp)` removes the override keyed by that TCP (the sender).
 - `RemoveOverridesInvolving(tcpId)` removes the override *keyed by* the TCP **and** every override whose `ReceivingTcpId` equals it
   (sender OR receiver) — called on position deactivation/disconnect (`ConsolidationState.cs:49`).

@@ -987,7 +987,10 @@ public static class CommandRegistry
                 "Track Operations",
                 true,
                 ["AS"],
-                [O(null, [R("position", "position ID")], "Set active radar position")]
+                [
+                    O(null, [R("position", "position ID")], "Set active radar position"),
+                    O("Callsign", [R("callsign", "position callsign, or callsign@tcp")], "Set active position by callsign"),
+                ]
             ),
             Cmd(
                 TrackAircraft,
@@ -1617,7 +1620,10 @@ public static class CommandRegistry
                 "Coordination",
                 false,
                 ["RDTXT"],
-                [O(null, [R("text", "message text")], "Set held coordination message text")]
+                [
+                    O(null, [R("text", "message text")], "Set held coordination message text"),
+                    O("Channel", [R("/channel", "coordination channel, slash-prefixed"), R("text", "message text")], "Set text on specific channel"),
+                ]
             ),
         ];
 

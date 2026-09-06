@@ -755,7 +755,7 @@ public static class CommandDescriber
             OnHandoffCommand => "ONHO",
             // Coordination
             CoordinationReleaseCommand cmd => cmd.ListId is not null ? $"RD {cmd.ListId}" : "RD",
-            CoordinationHoldCommand cmd => cmd.ListId is not null ? $"RDH {cmd.ListId}" : "RDH",
+            CoordinationHoldCommand cmd => FormatHoldCanonical(cmd),
             CoordinationRecallCommand cmd => cmd.ListId is not null ? $"RDR {cmd.ListId}" : "RDR",
             CoordinationAcknowledgeCommand cmd => cmd.ListId is not null ? $"RDACK {cmd.ListId}" : "RDACK",
             CoordinationAutoAckCommand cmd => cmd.Enable is null
@@ -763,7 +763,7 @@ public static class CommandDescriber
                 : $"RDAUTO {cmd.ListId} {(cmd.Enable.Value ? "ON" : "OFF")}",
             CoordinationDeleteCommand cmd => cmd.ListId is not null ? $"RDDEL {cmd.ListId}" : "RDDEL",
             CoordinationReorderCommand cmd => cmd.ListId is not null ? $"RDPOS {cmd.ListId} {cmd.Position}" : $"RDPOS {cmd.Position}",
-            CoordinationModifyCommand cmd => cmd.ListId is not null ? $"RDTXT {cmd.ListId} {cmd.Text}" : $"RDTXT {cmd.Text}",
+            CoordinationModifyCommand cmd => cmd.ListId is not null ? $"RDTXT /{cmd.ListId} {cmd.Text}" : $"RDTXT {cmd.Text}",
             // Data / ASDE-X
             AssignRunwayCommand cmd => $"RWY {cmd.RunwayId}",
             Scratchpad1Command cmd => cmd.Text.Length > 0 ? $"SP1 {cmd.Text}" : "SP1",
@@ -795,12 +795,27 @@ public static class CommandDescriber
             },
             AddAircraftCommand cmd => $"ADD {cmd.Args}",
             ConsolidateCommand cmd => cmd.Full
-                ? $"CON {cmd.ReceivingTcpCode} {cmd.SendingTcpCode} FULL"
+                ? $"CON+ {cmd.ReceivingTcpCode} {cmd.SendingTcpCode}"
                 : $"CON {cmd.ReceivingTcpCode} {cmd.SendingTcpCode}",
             DeconsolidateCommand cmd => $"DECON {cmd.TcpCode}",
             UnsupportedCommand cmd => cmd.RawText,
             _ => command.ToString() ?? "?",
         };
+    }
+
+    /// <summary>
+    /// <c>RDH [listId] [text]</c> is positional, so the held text can only be carried behind an explicit list id; a
+    /// hold with text and no list is unreachable from the parser and is rendered by its list-less form. Callers that
+    /// hold with text resolve the list first (the CRC entry fills the sender's single channel).
+    /// </summary>
+    private static string FormatHoldCanonical(CoordinationHoldCommand cmd)
+    {
+        if (cmd.ListId is null)
+        {
+            return "RDH";
+        }
+
+        return cmd.Text is not null ? $"RDH {cmd.ListId} {cmd.Text}" : $"RDH {cmd.ListId}";
     }
 
     private static string FormatGhostCanonical(GhostTrackCommand cmd)

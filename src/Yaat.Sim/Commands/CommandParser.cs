@@ -966,8 +966,7 @@ public static class CommandParser
             CoordinationAutoAck => ParseAutoAckArgs(arg),
             CoordinationDelete => PR.Ok(new CoordinationDeleteCommand(arg?.Trim().ToUpperInvariant())),
             CoordinationReorder => ParseReorderArgs(arg),
-            CoordinationModify when !string.IsNullOrWhiteSpace(arg) => PR.Ok(new CoordinationModifyCommand(null, arg.Trim().ToUpperInvariant())),
-            CoordinationModify => PR.Fail("RDTXT requires the message text"),
+            CoordinationModify => ParseModifyArgs(arg),
             // Consolidation
             Consolidate => ParseConsolidate(arg, false),
             ConsolidateFull => ParseConsolidate(arg, true),
@@ -1163,6 +1162,28 @@ public static class CommandParser
         var listId = parts[0].Trim().ToUpperInvariant();
         var text = parts.Length > 1 ? parts[1].Trim() : null;
         return new CoordinationHoldCommand(listId, text);
+    }
+
+    /// <summary>
+    /// Parses <c>RDTXT [/listId] text</c>. A leading <c>/token</c> names the list — a message never starts with a
+    /// slash — so a list-qualified form round-trips through <see cref="CommandDescriber.DescribeCommand"/>.
+    /// </summary>
+    private static PR ParseModifyArgs(string? arg)
+    {
+        var tokens = (arg ?? "").Trim().ToUpperInvariant().Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        string? listId = null;
+        if ((tokens.Length > 0) && tokens[0].StartsWith('/') && (tokens[0].Length > 1))
+        {
+            listId = tokens[0][1..];
+            tokens = tokens[1..];
+        }
+
+        if (tokens.Length == 0)
+        {
+            return PR.Fail("RDTXT requires the message text");
+        }
+
+        return PR.Ok(new CoordinationModifyCommand(listId, string.Join(' ', tokens)));
     }
 
     private static PR ParseAutoAckArgs(string? arg)

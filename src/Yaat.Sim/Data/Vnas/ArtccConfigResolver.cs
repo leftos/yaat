@@ -64,6 +64,30 @@ public static class ArtccConfigResolver
         return FindPositionByCallsignRec(config.Facility, callsign);
     }
 
+    /// <summary>
+    /// Every position with the callsign, in load order — a config can carry several positions named alike (one per
+    /// split, each on its own TCP), so a caller that also knows the TCP picks among them.
+    /// </summary>
+    public static List<PositionConfig> FindPositionsByCallsign(this ArtccConfigRoot config, string callsign)
+    {
+        var found = new List<PositionConfig>();
+        if (!string.IsNullOrEmpty(callsign))
+        {
+            CollectPositionsByCallsign(config.Facility, callsign, found);
+        }
+
+        return found;
+    }
+
+    private static void CollectPositionsByCallsign(FacilityConfig facility, string callsign, List<PositionConfig> found)
+    {
+        found.AddRange(facility.Positions.Where(pos => pos.Callsign.Equals(callsign, StringComparison.OrdinalIgnoreCase)));
+        foreach (var child in facility.ChildFacilities)
+        {
+            CollectPositionsByCallsign(child, callsign, found);
+        }
+    }
+
     private static PositionConfig? FindPositionByCallsignRec(FacilityConfig facility, string callsign)
     {
         foreach (var pos in facility.Positions)

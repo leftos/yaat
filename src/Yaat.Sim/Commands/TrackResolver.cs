@@ -44,7 +44,8 @@ public static class TrackResolver
     /// scenario's ATC positions, then — when the scenario carries an ARTCC config — the student facility's TCP
     /// table, ERAM codes (<c>C44</c>), STARS interfacility handoff codes entered from the student facility
     /// (<c>`31H</c>), and finally ERAM→STARS prefixed codes (<c>Q2B</c>), which name their receiving facility and so
-    /// resolve without a student facility.
+    /// resolve without a student facility. A code no table knows is tried as a position callsign (<c>OAK_GND</c>) — the
+    /// form a CRC position outside the student facility, or one sharing its TCP with another position, is selected by.
     /// </summary>
     public static TrackOwner? ResolveTcpToOwner(SimScenarioState scenario, string tcpCode)
     {
@@ -84,7 +85,35 @@ public static class TrackResolver
             }
         }
 
-        return artccConfig.ResolveEramToStarsHandoffCode(tcpCode);
+        return artccConfig.ResolveEramToStarsHandoffCode(tcpCode) ?? ResolvePositionName(artccConfig, tcpCode);
+    }
+
+    /// <summary>
+    /// The position named by a callsign (<c>OAK_GND</c>) or, where a config carries several positions of one callsign
+    /// on different TCPs, by <c>{callsign}@{code}</c> (<c>NCT_APP@1M</c>) with the code <see cref="AsPrefixCode"/> gives
+    /// the position. Null when no position matches.
+    /// </summary>
+    private static TrackOwner? ResolvePositionName(ArtccConfigRoot artccConfig, string name)
+    {
+        var at = name.IndexOf('@');
+        if (at < 0)
+        {
+            var position = artccConfig.FindPositionByCallsign(name);
+            return position is null ? null : artccConfig.ResolvePosition(position.Id);
+        }
+
+        var callsign = name[..at];
+        var code = name[(at + 1)..];
+        foreach (var candidate in artccConfig.FindPositionsByCallsign(callsign))
+        {
+            var owner = artccConfig.ResolvePosition(candidate.Id);
+            if ((owner is not null) && AsPrefixCode(owner).Equals(code, StringComparison.OrdinalIgnoreCase))
+            {
+                return owner;
+            }
+        }
+
+        return null;
     }
 
     /// <summary>

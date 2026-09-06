@@ -170,6 +170,10 @@ Two helpers that wrap `PositionRegistry` mutations with the required broadcasts:
 
 **Always go through these.** Calling `PositionRegistry` directly from `HandleStartSession` / `HandleActivateSession` / `HandleDeactivateSession` skips the broadcasts and leaves peer clients with stale consolidation/lobby state. See the `project_crc_session_lifecycle` memory.
 
+## STARS entries are recorded commands
+
+A STARS keyboard entry that changes sim or room state goes through `RoomEngine.RecordAndDispatch` as the typed verb's canonical text under the position's `AS {tcp}` prefix (`CrcClientState.DispatchCrc`), so it is a `RecordedCommand` a rewind or a bundle export re-applies: the track verbs, the F13 coordination entries (`DispatchCoordination` — the sender's single list is filled in so the text names it), and the console consolidation forms `C{receiving}{sending}[+]` / bare `C` (`CON` / `CON+` / `DECON`). A CRC client's position is synced onto its RPO connection the same way — `RoomEngine.SyncCrcPositionToRpo` issues that connection's own `AS {code}`. The router does not echo to the terminal, so the `[CRC] … consolidated` action line stays a `BroadcastStarsAction` of the handler.
+
 ## Flight strips — slightly different
 
 Strip mutations from CRC flow:

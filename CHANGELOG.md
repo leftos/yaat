@@ -5,6 +5,7 @@
 ### Added
 - The Discord server shows progress towards YAAT's monthly hosting cost, fed by Ko-fi: a sidebar ticker channel, a pinned progress embed listing this month's supporters (surplus rolls into the next month), and One-time / Monthly Supporter roles claimed through Ko-fi.
 - `FP` accepts `OTP/055` as the altitude to file a VFR-on-top plan.
+- `RDTXT /DR EXPECT 28R` sets a held release's text on a named coordination list; `AS OAK_GND` and `AS NCT_APP@1M` select a position by callsign when its TCP is shared.
 
 ### Fixed
 - A window snapped against a screen edge stays there across launches instead of reopening at the screen's top-left corner. (#408)
@@ -28,9 +29,11 @@
 - Rewinding a session honours the pilot reaction delay each command had live, so aircraft respond when they did instead of seconds early.
 - Playing back a recording reproduces the pilot read-backs, "unable" responses and frequency gates the live session had.
 - Rewinding a session or exporting a bug bundle applies a typed `APT` destination change with the arrival-procedure clear it had live, instead of only the new destination.
+- Rewinding a session or exporting a bug bundle reproduces the CRC F13 coordination entries, the STARS console consolidations (`C1N1R`, `C1N1R+`, bare `C`) and a CRC client's position sync onto its RPO, instead of dropping them.
 - Rewinding a session or exporting a bug bundle places the unsupported data block a CRC-entered flight plan created where the controller clicked, instead of losing it.
 
 ### Changed
+- A CRC-console full consolidation (`C1N1R+`) moves the sender's consolidated descendants and respects attendance, like the typed `CON+`.
 - `ATXI` to a helicopter off the airport or above 500 ft AGL is refused ("unable, request landing at …"); air taxi stays an on-field movement.
 - A recorded command whose outcome on playback differs from the live session logs a replay-fidelity warning.
 - A flight plan filed by typing `FP`, `VP` or `DA` tags the filing position as its creator, so the STARS auto-track acquires the aircraft when it squawks its assigned code, as a CRC-entered plan does.
