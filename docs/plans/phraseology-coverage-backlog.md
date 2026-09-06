@@ -1,6 +1,6 @@
 # Phraseology coverage backlog
 
-Produced by the systematic audit described in [`archive/phraseology-coverage-audit.md`](./archive/phraseology-coverage-audit.md). One section per audited FAA chapter; one entry per distinct controller or pilot phrasing.
+Produced by the systematic audit whose method spec (`docs/plans/archive/phraseology-coverage-audit.md`) is in git history. One section per audited FAA chapter; one entry per distinct controller or pilot phrasing.
 
 ## Entry format
 

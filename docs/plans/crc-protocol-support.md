@@ -280,7 +280,7 @@ Authoritative interface definitions: `..\vatsim-vnas\messaging\` (sibling repo)
 - [x] SAID surface display vertical limit — 2,500 ft AGL field-relative (`CrcVisibilityTracker`)
 - [ ] ERAM short-term conflict detection + broadcast (clone STARS STCA once validated)
 - [ ] ERAM target history UDP stream (+ `DeleteEramTargetHistoryEntries`) — vNAS sends over UDP, not SignalR
-- [ ] `AsdexHoldBarDto` dynamic `Status` from safety logic (geometry sourced from ASDEX video maps) — sole remaining ASDE-X parity gap; needs hold-bar geometry synthesis + aviation review (see archived `asdex-safety-logic.md`)
+- [ ] `AsdexHoldBarDto` dynamic `Status` from safety logic (geometry sourced from ASDEX video maps) — sole remaining ASDE-X parity gap; needs hold-bar geometry synthesis + aviation review (the shipped safety-logic plan, `docs/plans/archive/asdex-safety-logic.md`, is in git history)
 - [ ] Remaining Bucket E items (QP pointouts, CRR lifecycle)
 
 ---

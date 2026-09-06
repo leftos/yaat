@@ -36,7 +36,7 @@ The table above is a quick index, not the full list — **[`../CLAUDE.md`](../CL
 
 ## 3. Plans & roadmap
 
-→ [`plans/`](./plans/) — the main plan and open-issue plans. Milestone roadmap lives there.
+→ [`plans/`](./plans/) — `MAIN.md` is the index; a programme has a folder with its own README (`tick-path/`, `controller-ai/`, `pilot-ai-self-training/`); finished plans are deleted, not archived.
 
 ---
 

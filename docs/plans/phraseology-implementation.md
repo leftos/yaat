@@ -11,7 +11,7 @@ Each MissingRule entry names a canonical command that already exists in `Yaat.Si
 ## Read these first (in this order)
 
 1. `docs/plans/phraseology-coverage-backlog.md` — the backlog. Every entry has the FAA citation, the canonical, and a one-line note. **Source of truth for what to ship.**
-2. `docs/plans/archive/phraseology-coverage-audit.md` — the original audit method spec. Useful background on why entries are bucketed the way they are.
+2. The original audit method spec (`docs/plans/archive/phraseology-coverage-audit.md`, in git history) — background on why entries are bucketed the way they are.
 3. `src/Yaat.Sim/Speech/PhraseologyRules.cs` — destination file. Read the header doc-comment carefully — it explains pattern syntax (`literal`, `literal?`, `{capture}`), longest-match precedence, the normalized-transcript assumptions, and which canonicals are intentionally out-of-pilot-scope.
 4. `src/Yaat.Sim/Speech/PhraseologyMapper.cs` — how rules get matched. Read enough to understand longest-match + tie-breaking by capture count.
 5. `src/Yaat.Sim/Pilot/PhraseologyVerbalizer.cs` — the inverse pipeline. Pilot AI uses this to render canonical commands back into spoken English. Critical: adding a new STT rule MAY accidentally change which rule the verbalizer picks for pilot readback. Always run the verbalizer tests after adding a rule.
@@ -221,7 +221,7 @@ Then commit. Don't push without the user asking.
 When the backlog's MissingRule count is zero or only blocked-on-product entries remain:
 1. Re-run the audit-wide totals: `awk '...' docs/plans/phraseology-coverage-backlog.md` (the same awk one-liner used in the audit's verification step).
 2. Update the audit-wide summary table at the bottom of the backlog.
-3. Promote this handoff plan + the backlog itself: decide with the user whether to archive both to `docs/plans/archive/` or keep them as living references. The MissingCanonical entries may justify keeping the backlog visible.
+3. Promote this handoff plan + the backlog itself: decide with the user whether to delete both (finished plans live in git history) or keep them as living references. The MissingCanonical entries may justify keeping the backlog visible.
 4. Surface the remaining MissingCanonical groupings to the user (the "After all MissingRule stages" section above).
 
 Good luck. The backlog already did the hard part — comparing FAA against rules. Your job is the mechanical part: shipping the rules the backlog says are missing, one cluster at a time, with tests proving the gap closed.

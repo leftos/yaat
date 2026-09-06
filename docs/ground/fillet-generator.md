@@ -246,7 +246,7 @@ The Legacy pair-based generator, its `LegacyFilletArcGenerator` adapter, and the
 | `src/Yaat.Sim/Data/Airport/AirportGroundLayout.cs` | `GroundArc` (bezier fields, `TaxiwayNames`, `MatchesTaxiway`), `GroundNode`, `GroundEdge` |
 | `tests/Yaat.Sim.Tests/Fillet/FilletCornerSpanGuardTests.cs` | Guard: cut-ID-collision detection (≤ 300 ft corner spans) |
 
-**Historical plan docs** (archived; this doc is the durable reference): `docs/plans/archive/filletv2/`, `docs/plans/archive/ground-graph-v2.md`.
+**Historical plan docs** (deleted — this doc is the durable reference; git history has `docs/plans/archive/filletv2/` and `docs/plans/archive/ground-graph-v2.md`).
 
 **Tooling:** `tools/Yaat.LayoutInspector` with `--fillet-mode standard|none` inspects the chosen graph; `--node N`, `--dump`, `--html [--ticks]`, and `--debug-fillets` (verbose fillet debug logging) are the workhorses for ground/exit/taxi debugging.
 

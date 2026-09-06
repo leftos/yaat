@@ -29,7 +29,7 @@ namespace Yaat.Sim.Tests.Simulation;
 ///
 /// If either reproduces the stuck, that's a deterministic bug to fix. If both depart PCM
 /// cleanly, the stuck is the live-only mid-physics command race (per
-/// docs/plans/command-tick-synchronization.md, Part 2) which deterministic replay can't show.
+/// the 2026-06 command/tick synchronization plan, Part 2 — since shipped and deleted) which deterministic replay can't show.
 /// </summary>
 public class Issue2Pcm28LStuckTests
 {

@@ -4,8 +4,7 @@ This folder coordinates the controller-AI plan. Each subsystem has its own subde
 README is the coordination doc — context, architecture, locked decisions, milestone tracking, reused
 infrastructure, and the deferred list.
 
-**Supersedes** the early-stage `controller-ai.md` plan (now in
-[`archive/controller-ai-solo-training.md`](../archive/controller-ai-solo-training.md)) —
+**Supersedes** the early-stage `controller-ai.md` plan (deleted; `docs/plans/archive/controller-ai-solo-training.md` in git history) —
 that document predates most of the current sim architecture and was not used as design input. The
 solo-training AI co-play idea it described survives as milestone CA7's consumer of the tower brain.
 
@@ -265,3 +264,55 @@ Future (noted, not planned): a nightly xUnit `[Trait("Category","Soak")]` wrappe
 - **H5 `verify`** closes the loop: a captured finding's recording must reproduce the finding on
   replay.
 - Cross-repo: `pwsh tools/test-all.ps1` after any Yaat.Sim signature change.
+
+## Open follow-ups
+
+Carried from the main plan at the 2026-09-05 reorganization: the review follow-ups, soak findings and captured steers still open from the 2026-09-01 session (the shipped milestones are the table above; the per-frequency radio model steer is [11-radio-model.md](./11-radio-model.md)).
+
+### CA0a — review follow-ups (not blocking CA0b)
+
+- [ ] Partition `FrequencyState` per answering position (or airport + type) and route `Enqueue`/`ExpectReadback`/`AcknowledgeControllerResponse` through the resolved addressee — today an AI Ground's answer clears the awaiting-response gate held for a pilot waiting on tower (CA2/CA3)
+- [ ] Same-type AI positions at one airport (LC1/LC2, GC1/GC2 split by runway or area) need a runway/area predicate before multi-position staffing; `ResolveFor` takes the first by position id today
+- [ ] `AiPositionResolver` (CA0b): keep `_DEL` out of Ground by default so a taxi request is never addressed to "… Clearance Delivery", and give a `DEP` position its own "… Departure" call name (AIM TBL 4-2-1) instead of the `APP` fold
+- [ ] `HasLeftStudentFrequency` (`ContactCommandHandler.Route`) is one bool for a multi-position world — revisit when the AI issues `CT` (CA2)
+
+### CA0b — review follow-ups (not blocking CA1)
+
+- [ ] When CA1 skips `ProcessAutoAccept` for AI radar positions, land the AI `ACCEPT` rule in the same change — otherwise every handoff to an AI radar position trips `HandoffUnaccepted` at `AutoAcceptDelay` + 60 s
+- [ ] `ConflictAlertInAiJurisdictionRule` inherits the detector's VFR-to-VFR pattern-entry pairs (converging toward a 45° downwind entry 3+ nm out, where see-and-avoid / tower visual separation §7-2-1 apply) — needs a detector-level VFR pattern exemption before the safety tier is trusted at a VFR field
+- [ ] Multi-position CA: a pair split across two AI positions opens one episode per position by design; the findings aggregator (H1) should fold them by conflict id
+- [ ] `AiPositionResolver.FindCabFacility` falls back to a callsign-prefix match for combined ATCT/TRACON facilities whose id is not the airport's — verify against a real one (FAT, MC1) when those scenarios are soaked
+
+### CA1 — soak findings (H1 detector work, not CA1 bugs)
+
+- [ ] OAK give-way gridlock: with S1-OAK-2/3/4's arrival generators on, arrivals exiting 30 taxi in along W against departures taxiing out on W; the reactive give-way physics locks the opposite flows head-on within ~20 min. Ground v1.1 flow sequencing (route arrivals/departures on different taxiways, or hold one flow) — [04-ground-brain.md](./04-ground-brain.md) rule 3
+- [ ] `VirtualNode` ids come from a process-wide counter, so two runs in one process (or two processes) label hold-short setback / ramp-lane nodes differently in snapshots; the determinism tests mask negative node ids. A per-engine counter would make same-seed snapshots byte-identical across runs (H5 `verify`)
+- [ ] A parked *arrival* that is not deleted re-announces ready-to-taxi as a turnaround (`AtParkingPhase` does not distinguish arrivals); fine for static scenarios, worth a `CompletionReason` reset when it happens
+
+### CA1 — review follow-ups (not blocking K1-lite)
+
+- [ ] Generic calm-wind fallback is by designator (OAK ⇒ `12`); a scenario-observed configuration could replace it at knowledge-less airports
+- [ ] AI `CT` readback lands on the RPO lane in instructor rooms — folded into the per-frequency milestone
+- [ ] `AutoPullUpToParallel` stays false headless (H0 default); flip when the soak should exercise the §3-10-9.b.2 path
+- [ ] The rule-2 request line with an observer Local is by design until CA2's coordination bus (`--positions GC,LC` collects `CoordinationTimeout`s and its arrivals wait for Local's `CT` to ground; the CA1 soak runs `--positions GC`)
+
+### K1-lite — follow-ups
+
+- [ ] K1b with CA2: the Tower-brain sections of `KOAK.json` (departure tables, release rules, missed-approach tables, crossing approvals, pattern preferences)
+- [ ] Generic runway usability by pavement length vs aircraft category belongs in `RunwayUsabilityGate` too (aviation review; today the gate is tailwind-only)
+- [ ] Crosswind gate (§3-5-1.c pairs tailwind *and* crosswind; SFO 1-5's waiver is itself a crosswind number) and gating of a configuration's *arrival* runways — latent at OAK, where every configuration's arrival set equals its departure set
+- [ ] A session `--runway-config` that fails the gate is kept as set with an informational `KnowledgeConflict`; decide whether the runner should refuse it outright
+
+### K1-lite — aviation-review follow-ups (2026-09-01; the must-fixes — go-around over the runway closes the gate, taxi-in waits for the tower's release — are in)
+
+- [ ] Re-check the crossing gate every tick between the clearance and the wheels crossing the markings and convert to a hold when the picture changes (§3-7-2.a.7.2: the conditions apply at crossing time, not clearance time)
+- [ ] "Passed the crossing point" relief: a departure or arrival past the crosser's intersection no longer blocks it (§3-7-2.a.7.1, .a.7.2.2.4) — today any Departing/OnSurface occupant anywhere on the pavement blocks, a likely contributor to the W gridlock
+- [ ] `CROSS <rwy> AT <twy>`: the canonical carries no crossing point, so the readback lacks "at Bravo" (§3-7-2.a.1.1, §3-1-3.b); pre-existing grammar, now with the AI as issuer
+- [ ] Generic runway usability: filter runway ends by pavement length against the aircraft category before ranking by wind (§3-5-1.b.1) — fold into K1-lite's `RunwayUsabilityGate`
+- [ ] A crosser under `Ground.Hold` is refused by the gate forever and the stuck watchdog ignores ordered stops — a held aircraft stalls silently; the brain never issues `RES`
+- [ ] §3-1-3.c completion report when a human Local clears the crossing (CA2's bus)
+- [ ] Prefer the runway-in-use end's name in `CROSS`/hold-short reports on an active runway instead of the nearest threshold (cosmetic; pilot and controller already agree)
+
+### Captured steers
+
+- [ ] CA3/H4: when watching the AI live with TTS on, each AI position speaks its own instructions with a randomly assigned unique TTS voice (`BroadcastPilotTransmission` speaker id + a controller-phraseology verbalizer)
