@@ -87,8 +87,8 @@ an exotic generator target) — one-time, bounded, and fast on the negative cach
 One `RoomEngine` per room. It **owns** its `TrainingRoom` (`Room`, `:66`) and `RecordingManager` (`Recording`, `:64`,
 set by `RoomEngineFactory` right after construction) and exposes `World` (`:67`, delegates to the room's world) and
 `FindAircraft` (`:786`). Everything else is a **shared stateless singleton** injected via the primary constructor
-(`:27`-`41`): `TickProcessor`, the command handlers (`TrackCommandHandler`, `CoordinationCommandHandler`,
-`StripCommandHandler`, `TdlsCommandHandler`, `FlightPlanCommandHandler`), `SimControlService`,
+(`:27`-`41`): `TickProcessor`, the handlers the router's host slots call (`CoordinationCommandHandler`,
+`StripCommandHandler`, `TdlsCommandHandler`), `SimControlService`,
 `ScenarioLifecycleService`, the broadcasters, and the ARTCC/ground data services. Per-room state lives on the
 `TrainingRoom`, never on the singletons.
 
@@ -96,43 +96,34 @@ set by `RoomEngineFactory` right after construction) and exposes `World` (`:67`,
 `[roomId]`. `CreateTempReplayEngine` (`:371`) builds a throwaway engine on a synthetic room with
 `IsBroadcastSuppressed = true` (`:380`) for snapshot generation / replay so it never leaks state to real clients.
 
-### `SendCommandAsync` routing chain (`:515`)
+### `SendCommandAsync` — policy, the router, the echo
 
-A ~30-branch dispatch with order dependencies. After the scenario null-guard (`:519`), the `** ` force-override prefix
-(`:529`), assignment enforcement (`:536`), and `AS <tcp>` extraction via `TrackCommandHandler.ExtractAsPrefix` (`:552`),
-it parses once (`CommandParser.Parse`, `:554`) and dispatches. Key ordering:
+After the scenario null-guard, the `** ` force-override prefix and assignment enforcement, the command goes to the
+engine's `ActionRouter` with the room's `LiveRoomHost` answering (`IssueLive`): every verb — aviation, track,
+coordination, strip, TDLS, spawn, flight plan, the clock — is one `ArmTable` row, the same row a Sim replay and a
+server reconstruction run, and the router records the text with its verdict, accepted or not. A command typed while
+the room plays a tape back takes control first (`RecordingManager.TakeControl`: the tape is cut at the current second
+and the room returns to its own run kind), so the router records it and the host answers it as a fresh action.
 
-- **Flight-plan amendment verbs are intercepted early** — `ChangeDestinationCommand` (bare form only; preset/conditional forms dispatch via `CommandDispatcher.ApplyCommand`), `CreateFlightPlanCommand`
-  (`:597`), `CreateAbbreviatedFlightPlanCommand` (`:610`), `SetRemarksCommand` (`:623`) run before the generic chain so
-  they route through `AmendFlightPlan` for recording + CRC strip push.
-- **`SetActivePositionCommand` is special-cased**: it takes the `HandleSetActivePosition` branch only when
-  `asOverrideTcp is null` (`:655`) — a bare `AS <tcp>` sets the connection's active position; `AS <tcp> <command>`
-  instead resolves identity for the inner command.
-- Then strip (`:659`), TDLS (`:663`), track (`:667`), coordination + global-coordination (`:671`/`:675`), global track
-  ops (`:679`), global squawk (`:683`), taxi-all (`:687`), consolidation (`:691`), pause/unpause/simrate (`:695`-`:709`),
-  ASDE-X all-alerts (`:716`), `ADD` aircraft (`:724`), ghost-track (`:733`), and finally the `else` →
-  `HandleStandardCmd` → `CommandDispatcher` (`:753`).
-- After dispatch, **successful** commands (except pause/unpause/simrate) call
-  `Record(new RecordedCommand(...))` (`:758`), then `FlushTerminalEntries()` (`:765`) surfaces any queued SAY-class
-  terminal entries even while paused.
+The room's remaining part is the terminal echo: `Command` (or `Strip` for a strip verb, so the client's strip-channel
+toggle hides all routine strip traffic in one click) plus `Response` / `Error`; a global or position-scoped command
+echoes with no callsign. `FlushTerminalEntries()` then surfaces the SAY-class and spawn lines the sim queued, even while
+paused. The full route is walked in [command-pipeline.md](command-pipeline.md).
 
-Note the `result.Success` gate here is on the *outer* chain. The standard-command path's own recording behaviour
-(including recording rejects) lives in `CommandDispatcher` / the standard handler — see
-[command-pipeline.md](command-pipeline.md), which walks the standard branch in full.
+### CRC-sourced command entry points
 
-### CRC-sourced command twins
+CRC mutations are routed through the **same router** as typed commands, so live and replay paths agree. The entry
+points prepend an `AS {tcp}` token where the controller's identity must round-trip on replay
+(`TrackResolver.AsPrefixCode(identity)`: `C{sector}` for ERAM, `{subset}{sector}` for STARS, else the callsign):
 
-CRC mutations are routed through the **same canonical command pipeline** as YAAT-client commands, via three twins, so
-live and replay paths agree. Each prepends an `AS {tcp}` token to the recorded text so the controller's identity
-round-trips on replay (built from `OwnerType`/`Subset`/`SectorId`, `:96`-`107`):
-
-- `RecordAndDispatch(callsign, canonical, identity)` (`:86`) — track / coordination / ghost verbs. Records on success
-  with `"AS {tcp} {canonical}"` (`:140`).
-- `RecordAndDispatchStripAsync(callsign, canonical, crcClientId)` (`:153`) — strip verbs (no `AS` prefix; strips are not
-  position-scoped on the ownership axis).
-- `RecordAndDispatchFlightPlanAsync(...)` (`:195`) — CRC STARS-typed DA/VP creates. Spawns an **unsupported** track for
-  an unknown callsign (`:254`) and rolls that spawn back on handler failure, gated on a `spawnedUnsupported` flag (`:314`)
-  so a `DUP NEW ID` collision with a pre-existing aircraft doesn't delete it.
+- `RecordAndDispatch(callsign, canonical, identity)` — track / coordination / ghost / reposition verbs, as `AS {tcp} {canonical}`.
+- `RecordAndDispatchStrip(callsign, canonical, crcClientId)` — strip verbs under the CRC client's id (no `AS` prefix; strips
+  are not position-scoped on the ownership axis).
+- `RecordAndDispatchFlightPlan(callsign, canonical, identity, parsed, clickPosition)` — CRC STARS-typed DA/VP creates.
+  STARS creates an unsupported data block for an unknown callsign, so one is issued first as `AS {tcp} GHOST {callsign}
+  {lat} {lon}` (0,0 without a click) and a `DROP` is issued for it if the plan is refused — both recorded actions in
+  their own right, so a replay places and removes the same block. Echoes the command and its verdict under
+  `[CRC] {tcp}` initials and returns the two readout lines (`FlightPlanEcho.Build`).
 
 A handler that mutates room state without going through one of these (or `Record`) breaks replay silently.
 
@@ -308,11 +299,11 @@ topic (STARS / ASDE-X / ERAM / Tower-Cab / ground), it goes in *that* topic's fi
 - **Fingerprints gate broadcasts.** A new `AircraftStateDto` field not added to `TrainingDtoFingerprint` appears on
   initial subscribe (first `DetectChanges` returns `All`) but never updates live. The struct's structural equality is
   what detects change.
-- **`SendCommandAsync` is order-dependent.** FP amendment verbs (`ChangeDestination`, `SetRemarks`, `CreateFlightPlan`)
-  are intercepted before the generic chain; `SetActivePosition` is special-cased on `asOverrideTcp is null`. Slot a new
-  verb carefully, and most verbs that CRC can also issue need a `RecordAndDispatch*` twin or replays diverge.
-- **Recording is woven into the command path.** Successful commands `Record(...)` the raw text + connection id; CRC twins
-  prepend `AS {tcp}` so identity round-trips on replay. A handler that mutates state without recording breaks replay
+- **`SendCommandAsync` has no routing of its own.** A new verb gets a `RecordedCommandKind` and an `ArmTable` row in
+  Yaat.Sim (and an `IActionHost` slot only while its state is the room's); a CRC handler that can issue it goes through
+  `RecordAndDispatch*` so the same row runs and the text is recorded.
+- **Recording is the router's.** Every routed command is recorded with its verdict (`RecordedCommand.Accepted`) — typed
+  or CRC-sourced; the CRC entry points prepend `AS {tcp}` so identity round-trips on replay. A handler that mutates state without recording breaks replay
   silently.
 - **Callsigns are per-room.** `TrainingRoom` owns its `World`/`ActiveSim`; `FindAircraft` searches only that room. There
   is no global aircraft lookup.

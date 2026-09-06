@@ -137,9 +137,6 @@ internal sealed class ReplayHost : ISimulationHost
 
     public CommandResult ApplyTransport(ParsedCommand command) => _bare.ApplyTransport(command);
 
-    public CommandResult ApplyFlightPlanCommand(string callsign, ParsedCommand command, TrackOwner? identity) =>
-        _bare.ApplyFlightPlanCommand(callsign, command, identity);
-
     public void ApplyRecordedAsdexMutation(RecordedAsdexMutation mutation) => _bare.ApplyRecordedAsdexMutation(mutation);
 
     public void ApplyRecordedSaidMutation(RecordedSaidMutation mutation) => _bare.ApplyRecordedSaidMutation(mutation);
@@ -148,9 +145,17 @@ internal sealed class ReplayHost : ISimulationHost
 
     public void OnAircraftSpawned(AircraftState aircraft) => _bare.OnAircraftSpawned(aircraft);
 
-    public void OnAircraftDeleted(string callsign) => _bare.OnAircraftDeleted(callsign);
+    public void OnAircraftDeleted(string callsign, AircraftState? lastState) => _bare.OnAircraftDeleted(callsign, lastState);
 
-    public void OnPositionSelected(string connectionId, TrackOwner owner) => _bare.OnPositionSelected(connectionId, owner);
+    public void OnLiveTrafficHidden(string callsign) => _bare.OnLiveTrafficHidden(callsign);
+
+    public void OnPositionSelected(string connectionId, TrackOwner owner, string tcpCode) => _bare.OnPositionSelected(connectionId, owner, tcpCode);
+
+    public void OnTrackAcquired(string callsign) => _bare.OnTrackAcquired(callsign);
+
+    public void OnGhostOverlayRemoved(string callsign) => _bare.OnGhostOverlayRemoved(callsign);
+
+    public void OnAsdexTrackTerminated(string callsign) => _bare.OnAsdexTrackTerminated(callsign);
 
     public void OnTimersChanged() => _bare.OnTimersChanged();
 
@@ -161,4 +166,7 @@ internal sealed class ReplayHost : ISimulationHost
     public void OnFlightPlanAmended(string callsign) => _bare.OnFlightPlanAmended(callsign);
 
     public void OnWeatherChanged() => _bare.OnWeatherChanged();
+
+    public void OnQueuedCommandsShown(string connectionId, string callsign, IReadOnlyList<string> lines) =>
+        _bare.OnQueuedCommandsShown(connectionId, callsign, lines);
 }

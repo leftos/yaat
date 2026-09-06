@@ -381,9 +381,9 @@ is a no-op.
 
 Strip commands never interact with flight physics. Live and CRC-sourced strip
 commands are classified by `TrackEngine.IsStripCommand`, which is checked in
-`RoomEngine.SendCommandAsync` / `RecordAndDispatchStripAsync` *before* the
-dispatcher so they bypass aircraft phase gating and go straight to
-`HandleStripCmd`. (Every strip verb — full strips, half-strips, separators, blanks —
+the `ActionRouter` (the `Strip` kind) *before* the dispatcher so they bypass
+aircraft phase gating and go straight to the host's strip slot
+(`RoomHost.ApplyStrip` → `StripCommandHandler`). (Every strip verb — full strips, half-strips, separators, blanks —
 also appears on `CommandDescriber.IsPhaseTransparent`, but for live commands that
 list is not the routing mechanism — the pre-dispatcher `IsStripCommand` check is.
 The list *is* load-bearing for the preset / deferred path below, which runs inside
@@ -744,7 +744,7 @@ When CRC sends a strip mutation (e.g., `UpdateStripItem`), the handler in
 `CrcClientState.Strips.cs` parses the MessagePack payload, converts vNAS
 bay ULIDs to bay names via `ArtccConfigService.GetAccessibleStripBayById`,
 builds a canonical command string via `StripCommandTranslator`, and
-dispatches it through `RoomEngine.RecordAndDispatchStripAsync` with
+dispatches it through `RoomEngine.RecordAndDispatchStrip` with
 `initials="CRC"`. The wire-format wrapper DTOs match vNAS
 `messaging/Commands/` enum definitions for compatibility across systems.
 
@@ -775,7 +775,7 @@ All major vStrips features implemented in YAAT:
   MessagePack invocations, converts bay IDs to names via
   `ArtccConfigService.GetAccessibleStripBayById`, builds canonical
   command strings via `StripCommandTranslator`, and dispatches through
-  `RoomEngine.RecordAndDispatchStripAsync`. Wire-format wrapper DTOs
+  `RoomEngine.RecordAndDispatchStrip`. Wire-format wrapper DTOs
   match vNAS messaging/Commands/ enum layout.
 
 ## Yaat.Client strip view

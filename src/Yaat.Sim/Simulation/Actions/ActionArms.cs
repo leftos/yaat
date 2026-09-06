@@ -1,4 +1,5 @@
 using Yaat.Sim.Commands;
+using Yaat.Sim.Data.Vnas;
 
 namespace Yaat.Sim.Simulation.Actions;
 
@@ -11,9 +12,11 @@ internal static class ActionArms
 {
     /// <summary>
     /// The aviation arm: every instruction to an aircraft that <see cref="CommandDispatcher"/> owns, plus the
-    /// <c>SAY</c>/<c>SHOW</c> queries. Reaction-delayed when the policy says so (a baked delay always wins), else
-    /// dispatched; either way followed by <see cref="SimulationEngine.ApplyPostDispatch"/>, so read-backs, the
-    /// "unable" response, the frequency gates, contact registration and evaluator scoring are sim state on every run kind.
+    /// <c>SAY</c> queries. Reaction-delayed when the policy says so (a baked delay always wins), else dispatched;
+    /// either way followed by <see cref="SimulationEngine.ApplyPostDispatch"/>, so read-backs, the "unable" response,
+    /// the frequency gates, contact registration and evaluator scoring are sim state on every run kind. A landing
+    /// clearance caches the arrival airport's ground layout for the rollout, and a destination change (<c>APT</c>) is
+    /// a flight-plan amendment the host reprints the strip for.
     /// </summary>
     public static CommandResult Aviation(ArmContext ctx)
     {
@@ -53,15 +56,126 @@ internal static class ActionArms
             );
         }
 
+        if (result.Success)
+        {
+            // After CTL: the arrival airport's ground layout for the runway exit after landing. ResolveGroundLayout
+            // falls back to the assigned runway / airport context, so a VFR aircraft with no filed destination still
+            // gets a layout.
+            if ((aircraft.Phases?.LandingClearance is not null) || (aircraft.Pattern.PendingLandingClearance is not null))
+            {
+                aircraft.Ground.Layout ??= engine.ResolveGroundLayout(aircraft);
+            }
+
+            if (compound.Blocks.Any(block => block.Commands.Any(command => command is ChangeDestinationCommand)))
+            {
+                ctx.Host.OnFlightPlanAmended(aircraft.Callsign);
+            }
+        }
+
         engine.ApplyPostDispatch(aircraft, compound, result, origin);
         return result;
     }
 
-    public static CommandResult FlightPlan(ArmContext ctx) => ctx.Host.ApplyFlightPlanCommand(ctx.Input.Callsign, ctx.Parsed!, ctx.Identity);
+    /// <summary>
+    /// <c>SHOWAT</c> / <c>SHOWCOND</c>: the aircraft's pending conditionals with live countdowns, handed to the host
+    /// for the issuing connection alone. A query — never recorded, no state effect.
+    /// </summary>
+    public static CommandResult ShowQueued(ArmContext ctx)
+    {
+        var lines = ConditionalList.ToLines(ctx.Aircraft!, liveCountdown: true);
+        if (lines.Count == 0)
+        {
+            lines.Add("No pending commands");
+        }
+
+        ctx.Host.OnQueuedCommandsShown(ctx.Input.ConnectionId, ctx.Input.Callsign, lines);
+        return new CommandResult(true, null);
+    }
 
     /// <summary>
-    /// <c>DEL</c>. A live-traffic shadow is hidden by the host (its feed suppression is room state, and the live run
-    /// records the <see cref="RecordedLiveTrafficRemoval"/> that removes it), so the Sim leaves it in place here.
+    /// <c>FP</c> / <c>VP</c> / <c>DA</c> / <c>RMK</c>. A fresh action normalises the typed fields into a flight-plan
+    /// amendment (the same normalization the CRC editor uses), applies it through the engine and records the
+    /// <see cref="RecordedAmendFlightPlan"/> the state travels in; <c>DA</c> is create-only (<c>DUP NEW ID</c> on an
+    /// aircraft that already has a plan) while <c>FP</c> / <c>VP</c> create or amend. The filing position becomes the
+    /// plan's creator, which the STARS auto-track acquires when the aircraft squawks its assigned code. An action from
+    /// a recording applies nothing but the creator tag — the amendment recorded beside it carries the plan, and a
+    /// re-derivation would put a flight-plan edit through today's normalization rather than the one live used.
+    /// </summary>
+    public static CommandResult FlightPlan(ArmContext ctx)
+    {
+        var callsign = ctx.Input.Callsign;
+        var engine = ctx.Engine;
+        if (ctx.IsRecorded)
+        {
+            TagCreator(engine.FindAircraft(callsign), ctx.Identity);
+            return new CommandResult(true, null);
+        }
+
+        if (!Callsign.IsValid(callsign))
+        {
+            return new CommandResult(false, "INVALID CALLSIGN");
+        }
+
+        var aircraft = engine.FindAircraft(callsign);
+        if (aircraft is null)
+        {
+            return ActionRefusals.AircraftNotFound(callsign);
+        }
+
+        FlightPlanAmendment amendment;
+        switch (ctx.Parsed)
+        {
+            case SetRemarksCommand remarks:
+                amendment = new FlightPlanAmendment(Remarks: remarks.Text);
+                break;
+            case CreateAbbreviatedFlightPlanCommand abbreviated:
+                if (aircraft.FlightPlan.HasFlightPlan)
+                {
+                    return new CommandResult(false, "DUP NEW ID");
+                }
+
+                amendment = FlightPlanNormalization.FromCreateAbbreviatedCommand(abbreviated);
+                break;
+            case CreateFlightPlanCommand create:
+                amendment = FlightPlanNormalization.FromCreateCommand(create);
+                break;
+            default:
+                return ActionRefusals.HostOnly(ctx.Parsed!);
+        }
+
+        engine.AmendFlightPlan(callsign, amendment);
+        if (engine.Scenario is { } scenario)
+        {
+            engine.RecordAction(new RecordedAmendFlightPlan(scenario.ElapsedSeconds, callsign, amendment));
+        }
+
+        string response;
+        if (ctx.Parsed is SetRemarksCommand)
+        {
+            response = "Remarks updated";
+        }
+        else
+        {
+            TagCreator(aircraft, ctx.Identity);
+            var (line1, line2) = FlightPlanEcho.Build(aircraft, FlightPlanEcho.HasRoute(ctx.Parsed));
+            response = $"{line1} {line2}";
+        }
+
+        ctx.Host.OnFlightPlanAmended(callsign);
+        return new CommandResult(true, response);
+    }
+
+    private static void TagCreator(AircraftState? aircraft, TrackOwner? identity)
+    {
+        if ((aircraft is not null) && (identity is not null))
+        {
+            aircraft.FlightPlan.CreatedByOwner = identity;
+        }
+    }
+
+    /// <summary>
+    /// <c>DEL</c>. A live-traffic shadow is hidden rather than deleted: its feed suppression is room state, so the host
+    /// is told and the live run records the <see cref="RecordedLiveTrafficRemoval"/> that removes it on replay.
     /// </summary>
     public static CommandResult Delete(ArmContext ctx)
     {
@@ -70,6 +184,7 @@ internal static class ActionArms
         var existing = engine.World.FindAircraft(callsign);
         if (existing is { IsShadow: true })
         {
+            ctx.Host.OnLiveTrafficHidden(callsign);
             return new CommandResult(true, $"Hid live traffic {callsign}");
         }
 
@@ -80,7 +195,7 @@ internal static class ActionArms
         }
 
         engine.DeleteAircraft(callsign);
-        ctx.Host.OnAircraftDeleted(callsign);
+        ctx.Host.OnAircraftDeleted(callsign, existing);
         return new CommandResult(true, $"Deleted {callsign}");
     }
 
@@ -105,10 +220,12 @@ internal static class ActionArms
         return new CommandResult(true, $"Deleted all {outcome.DeletedCount} conditional(s)");
     }
 
+    /// <summary>An instructor note on the aircraft — never projected to CRC; the next tick's change tracker carries it.</summary>
     public static CommandResult Note(ArmContext ctx)
     {
-        ctx.Aircraft!.Note = AircraftState.TruncateNote(((NoteCommand)ctx.Parsed!).Text);
-        return new CommandResult(true, null);
+        var aircraft = ctx.Aircraft!;
+        aircraft.Note = AircraftState.TruncateNote(((NoteCommand)ctx.Parsed!).Text);
+        return new CommandResult(true, string.IsNullOrEmpty(aircraft.Note) ? "Note cleared" : "Note updated");
     }
 
     /// <summary><c>SPAWN</c>: pulls a still-queued delayed spawn into the world now.</summary>
@@ -144,10 +261,11 @@ internal static class ActionArms
             return new CommandResult(false, "AS needs an issuing connection to select a position for");
         }
 
-        var result = ctx.Engine.SelectPosition(connectionId, ((SetActivePositionCommand)ctx.Parsed!).TcpCode);
+        var tcpCode = ((SetActivePositionCommand)ctx.Parsed!).TcpCode;
+        var result = ctx.Engine.SelectPosition(connectionId, tcpCode);
         if (result.Success && ctx.Engine.PositionSelections.TryGet(connectionId, out var owner))
         {
-            ctx.Host.OnPositionSelected(connectionId, owner);
+            ctx.Host.OnPositionSelected(connectionId, owner, tcpCode);
         }
 
         return result;
@@ -156,22 +274,78 @@ internal static class ActionArms
     /// <summary>
     /// A STARS track verb under the resolved identity — the one track table (<see cref="TrackEngine.Dispatch"/>), plus
     /// <c>CAACK</c>, whose state is the engine's conflict-alert set rather than the aircraft's. A handoff or point-out
-    /// to an unattended TCP lands on its attended consolidation owner; attendance is the host's answer.
+    /// to an unattended TCP lands on its attended consolidation owner; attendance is the host's answer. The tails a
+    /// track verb has beyond the track itself run here on every run kind: a <c>TRACK</c> applies the facility's
+    /// scratchpad rules and voids the aircraft's coordination items; an <c>INHCA</c> drops its active conflicts; a
+    /// <c>DROP</c> of a ghost lifts the overlay off a real aircraft or deletes a pure phantom.
     /// </summary>
     public static CommandResult Track(ArmContext ctx)
     {
-        if (ctx.Engine.Scenario is not { } scenario)
+        var engine = ctx.Engine;
+        if (engine.Scenario is not { } scenario)
         {
             return ActionRefusals.NoScenario();
         }
 
+        var aircraft = ctx.Aircraft!;
         if (ctx.Parsed is AcknowledgeConflictAlertCommand)
         {
-            return TrackEngine.AcknowledgeConflictAlert(ctx.Aircraft!, ctx.Engine.ConflictAlerts);
+            return TrackEngine.AcknowledgeConflictAlert(aircraft, engine.ConflictAlerts);
         }
 
-        var redirect = new ConsolidationRedirect(scenario, ctx.Engine.ConsolidationState, ctx.Host.IsPositionAttended);
-        return TrackEngine.Dispatch(ctx.Parsed!, ctx.Aircraft!, ctx.Identity, scenario, redirect) ?? ActionRefusals.HostOnly(ctx.Parsed!);
+        var redirect = new ConsolidationRedirect(scenario, engine.ConsolidationState, ctx.Host.IsPositionAttended);
+        var result = TrackEngine.Dispatch(ctx.Parsed!, aircraft, ctx.Identity, scenario, redirect) ?? ActionRefusals.HostOnly(ctx.Parsed!);
+        if (!result.Success)
+        {
+            return result;
+        }
+
+        switch (ctx.Parsed)
+        {
+            case TrackAircraftCommand:
+                ScratchpadRuleEngine.Apply(aircraft, scenario.ArtccConfig?.GetStarsConfigForFacility(scenario.StudentPosition?.FacilityId ?? ""));
+                ctx.Host.OnTrackAcquired(aircraft.Callsign);
+                break;
+            case InhibitConflictAlertCommand when aircraft.Stars.IsCaInhibited:
+                var inhibited = engine
+                    .ConflictAlerts.Conflicts.Values.Where(c => (c.CallsignA == aircraft.Callsign) || (c.CallsignB == aircraft.Callsign))
+                    .Select(c => c.Id)
+                    .ToList();
+                foreach (var id in inhibited)
+                {
+                    engine.ConflictAlerts.Conflicts.Remove(id);
+                }
+
+                break;
+            case AsdexVerbCommand { Verb: AsdexVerb.Terminate }:
+                ctx.Host.OnAsdexTrackTerminated(aircraft.Callsign);
+                break;
+            case DropTrackCommand when aircraft.Ghost.IsUnsupported:
+                DropGhost(ctx, aircraft);
+                break;
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    /// The ghost half of a <c>DROP</c>: an overlay on a real aircraft comes off (the aircraft stays, visible to the
+    /// tower and surface displays as itself); a pure phantom leaves the world outright — nothing coasts.
+    /// </summary>
+    private static void DropGhost(ArmContext ctx, AircraftState aircraft)
+    {
+        if (aircraft.Ghost.Latitude is not null)
+        {
+            aircraft.Ghost.IsUnsupported = false;
+            aircraft.Ghost.IsOverlay = false;
+            aircraft.Ghost.Latitude = null;
+            aircraft.Ghost.Longitude = null;
+            ctx.Host.OnGhostOverlayRemoved(aircraft.Callsign);
+            return;
+        }
+
+        ctx.Engine.World.RemoveAircraft(aircraft.Callsign);
+        ctx.Host.OnAircraftDeleted(aircraft.Callsign, lastState: null);
     }
 
     /// <summary><c>ACCEPTALL</c> / <c>HOALL</c> under the resolved identity.</summary>

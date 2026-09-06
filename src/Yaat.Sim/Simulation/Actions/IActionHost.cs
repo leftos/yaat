@@ -11,12 +11,16 @@ namespace Yaat.Sim.Simulation.Actions;
 ///
 /// <para>
 /// <b>Step-4 debt.</b> Every <c>Apply*</c> member here is a body whose state has not crossed into Yaat.Sim: strips
-/// and TDLS (room-owned state, no snapshot coverage), coordination channels, the ASDE-X and SAID display state (the recorded
-/// mutations included), bookmarks and the room clock, and the flight-plan verbs' input normalization plus the unsupported-track spawn they make for
-/// an unknown callsign. <see cref="IsPositionAttended"/> is the one query: CRC attendance is the first recorded input
-/// ADR 0003 names, and until a recording carries it the consolidate arm asks the host. As each body crosses, its slot is
-/// deleted and the arm becomes a Sim body; the interface
-/// shrinks the way <see cref="Spine.IHostSteps"/> does.
+/// and TDLS (room-owned state, no snapshot coverage), coordination channels, the ASDE-X and SAID display state (the
+/// recorded mutations included), bookmarks and the room clock. <see cref="IsPositionAttended"/> is the one query: CRC
+/// attendance is the first recorded input ADR 0003 names, and until a recording carries it the consolidate arm asks
+/// the host. As each body crosses, its slot is deleted and the arm becomes a Sim body; the interface shrinks the way
+/// <see cref="Spine.IHostSteps"/> does.
+/// </para>
+///
+/// <para>
+/// The consumers are where a Sim arm's result leaves the simulation: the live room broadcasts, prints strips and
+/// pushes display config from them; a replay or reconstruction keeps its change tracker honest and nothing more.
 /// </para>
 /// </summary>
 public interface IActionHost
@@ -49,13 +53,6 @@ public interface IActionHost
     /// <summary><c>PAUSE</c> / <c>UNPAUSE</c> / <c>SIMRATE</c> — the room's clock. Never recorded.</summary>
     CommandResult ApplyTransport(ParsedCommand command);
 
-    /// <summary>
-    /// A fresh <c>DA</c> / <c>FP</c> / <c>RMK</c>: normalise the typed fields into a flight-plan amendment (and spawn an
-    /// unsupported track for an unknown callsign). A recorded one is never applied through here — the
-    /// <see cref="RecordedAmendFlightPlan"/> recorded beside it carries the state.
-    /// </summary>
-    CommandResult ApplyFlightPlanCommand(string callsign, ParsedCommand command, TrackOwner? identity);
-
     /// <summary>A recorded CRC ASDE-X mutation (tag / terminate / suspend / inhibit / edit); ASDE-X display state is the room's.</summary>
     void ApplyRecordedAsdexMutation(RecordedAsdexMutation mutation);
 
@@ -76,11 +73,28 @@ public interface IActionHost
     /// <summary>An aircraft a command put into the world (<c>SPAWN</c>, <c>ADD</c>, <c>GHOST</c>).</summary>
     void OnAircraftSpawned(AircraftState aircraft);
 
-    /// <summary>A <c>DEL</c> removed the aircraft (or its still-queued spawn).</summary>
-    void OnAircraftDeleted(string callsign);
+    /// <summary>
+    /// A <c>DEL</c> removed the aircraft (or its still-queued spawn), a <c>DROP</c> removed a pure ghost, or a recorded
+    /// live-traffic removal took a shadow out. <paramref name="lastState"/> is the aircraft as it was just before — the
+    /// state a display coasts from — null when only a queued spawn was removed, the removal is a recorded one, or the
+    /// aircraft was a pure ghost (an operator-maintained block leaves outright; it never coasts).
+    /// </summary>
+    void OnAircraftDeleted(string callsign, AircraftState? lastState);
 
-    /// <summary>A bare <c>AS</c> selected the connection's acting position.</summary>
-    void OnPositionSelected(string connectionId, TrackOwner owner);
+    /// <summary>A <c>DEL</c> on a live-traffic shadow: the feed is to ignore the callsign from now on; the live run records the removal.</summary>
+    void OnLiveTrafficHidden(string callsign);
+
+    /// <summary>A bare <c>AS</c> selected the connection's acting position; <paramref name="tcpCode"/> is the code as typed.</summary>
+    void OnPositionSelected(string connectionId, TrackOwner owner, string tcpCode);
+
+    /// <summary>A <c>TRACK</c> acquired the aircraft: coordination items on it are moot.</summary>
+    void OnTrackAcquired(string callsign);
+
+    /// <summary>A <c>DROP</c> lifted a ghost overlay off a real aircraft, which stays in the world as itself.</summary>
+    void OnGhostOverlayRemoved(string callsign);
+
+    /// <summary>An ASDE-X <c>TERM</c> verb terminated the aircraft's surface track this tick.</summary>
+    void OnAsdexTrackTerminated(string callsign);
 
     /// <summary>A <c>TIMER</c> set or cancelled a scenario timer.</summary>
     void OnTimersChanged();
@@ -91,9 +105,18 @@ public interface IActionHost
     /// <summary><c>HFR</c> / <c>HFROFF</c> / <c>REL</c> changed the held-departure picture.</summary>
     void OnHeldDeparturesChanged();
 
-    /// <summary>A recorded flight-plan amendment was applied to the aircraft.</summary>
+    /// <summary>
+    /// A flight-plan verb (<c>FP</c> / <c>DA</c> / <c>RMK</c> / <c>APT</c>) or a recorded amendment changed the aircraft's
+    /// flight plan.
+    /// </summary>
     void OnFlightPlanAmended(string callsign);
 
     /// <summary>A recorded weather load or clear was applied: <c>World.Weather</c> and the scenario's timeline changed.</summary>
     void OnWeatherChanged();
+
+    /// <summary>
+    /// <c>SHOWAT</c> / <c>SHOWCOND</c> listed the aircraft's pending conditionals (or "No pending commands") — a
+    /// read-back for the issuing connection alone, never the room.
+    /// </summary>
+    void OnQueuedCommandsShown(string connectionId, string callsign, IReadOnlyList<string> lines);
 }

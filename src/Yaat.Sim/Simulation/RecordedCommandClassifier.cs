@@ -5,14 +5,11 @@ namespace Yaat.Sim.Simulation;
 
 /// <summary>
 /// High-level kind of a controller command: the key into <see cref="Actions.ArmTable"/>, which the
-/// <see cref="Actions.ActionRouter"/> looks up for every fresh and recorded command in Yaat.Sim, and which the server's
-/// <c>RecordingManager.ReplayCommand</c> (bug-bundle export, rewind) still switches on directly.
-///
-/// The two replay paths previously maintained parallel parse-and-decide flows
-/// that drifted apart — most notably commit 1f8d1f66 patched the Sim-side to
-/// fall through to <see cref="CommandParser.ParseCompound"/> on single-parse
-/// failure, but the server-side wasn't ported, silently dropping every recorded
-/// compound command (<c>;</c>/<c>,</c>) in regenerated bug-bundle snapshots.
+/// <see cref="Actions.ActionRouter"/> looks up for every command on every run kind — the live room, a Sim replay, a
+/// server reconstruction, the bare test engine. Before the router, live and the two replay paths kept parallel
+/// parse-and-decide flows that drifted apart (commit 1f8d1f66 patched the Sim side to fall through to
+/// <see cref="CommandParser.ParseCompound"/> on single-parse failure; the server side was not ported and silently
+/// dropped every recorded compound command in regenerated bug-bundle snapshots).
 ///
 /// <para>
 /// Every <see cref="ParsedCommand"/> subtype has exactly one kind, and every kind has one
@@ -33,7 +30,14 @@ public enum RecordedCommandKind
     /// </summary>
     Compound,
 
-    SayOrShow,
+    /// <summary>The <c>SAY*</c> queries — dispatcher-owned, answered with a terminal line.</summary>
+    Say,
+
+    /// <summary>
+    /// <c>SHOWAT</c> / <c>SHOWCOND</c> — the aircraft's pending conditionals, read back only to the issuing connection.
+    /// A query with no state effect, so deliberately never recorded.
+    /// </summary>
+    ShowQueued,
 
     /// <summary>
     /// DA / FP / RMK. Live, the server's flight-plan arm applied these and recorded the resulting
@@ -138,7 +142,8 @@ public static class RecordedCommandClassifier
         kind switch
         {
             RecordedCommandKind.Compound => ActionScope.Aircraft,
-            RecordedCommandKind.SayOrShow => ActionScope.Aircraft,
+            RecordedCommandKind.Say => ActionScope.Aircraft,
+            RecordedCommandKind.ShowQueued => ActionScope.Aircraft,
             RecordedCommandKind.FlightPlan => ActionScope.Callsign,
             RecordedCommandKind.Delete => ActionScope.Callsign,
             RecordedCommandKind.DeleteQueued => ActionScope.Aircraft,
@@ -181,8 +186,8 @@ public static class RecordedCommandClassifier
             or SayExpectedApproachCommand
             or SayAltitudeCommand
             or SayHeadingCommand
-            or SayPositionCommand
-            or ShowQueuedCommand => RecordedCommandKind.SayOrShow,
+            or SayPositionCommand => RecordedCommandKind.Say,
+            ShowQueuedCommand => RecordedCommandKind.ShowQueued,
             // Before the track family: a bare AS is a member of TrackEngine.IsTrackCommand, but it addresses the
             // issuing connection's position, not an aircraft.
             SetActivePositionCommand => RecordedCommandKind.SetActivePosition,

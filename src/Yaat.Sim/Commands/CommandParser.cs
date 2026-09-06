@@ -2968,13 +2968,22 @@ public static class CommandParser
 
         var aircraftType = parts[0].ToUpperInvariant();
 
-        if (!int.TryParse(parts[1], out var altRaw))
+        // An IFR plan's altitude may carry the VFR-on-top notation (OTP/NNN, hundreds) — an IFR flight with the OTP
+        // altitude; the parsed command's rules become "OTP" so the notation survives to the filed altitude.
+        var altitudeText = parts[1].ToUpperInvariant();
+        if ((flightRules == "IFR") && altitudeText.StartsWith("OTP/", StringComparison.Ordinal))
+        {
+            flightRules = "OTP";
+            altitudeText = altitudeText[4..];
+        }
+
+        if (!int.TryParse(altitudeText, out var altRaw))
         {
             return PR.Fail($"invalid altitude '{parts[1]}'");
         }
 
         // IFR altitude in hundreds (≤999 → multiply by 100), VFR is absolute
-        int cruiseAltitude = flightRules == "IFR" && altRaw <= 999 ? altRaw * 100 : altRaw;
+        int cruiseAltitude = flightRules != "VFR" && altRaw <= 999 ? altRaw * 100 : altRaw;
 
         var route = string.Join(" ", parts.Skip(2).Select(p => p.ToUpperInvariant()));
         return PR.Ok(new CreateFlightPlanCommand(flightRules, aircraftType, cruiseAltitude, route));

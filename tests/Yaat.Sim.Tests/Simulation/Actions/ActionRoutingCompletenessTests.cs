@@ -86,7 +86,7 @@ public class ActionRoutingCompletenessTests
 
     /// <summary>
     /// Every kind routes: <see cref="ArmTable.For"/> throws for a kind without a row, each row's scope is the
-    /// classifier's, and the never-recorded set is exactly the transport verbs and bookmarks.
+    /// classifier's, and the never-recorded set is exactly the transport verbs, bookmarks and the SHOW query.
     /// </summary>
     [Fact]
     public void EveryKind_HasAnArm()
@@ -103,7 +103,7 @@ public class ActionRoutingCompletenessTests
             }
         }
 
-        Assert.Equal([RecordedCommandKind.Bookmark, RecordedCommandKind.Transport], neverRecorded.Order());
+        Assert.Equal([RecordedCommandKind.ShowQueued, RecordedCommandKind.Bookmark, RecordedCommandKind.Transport], neverRecorded.Order());
     }
 
     /// <summary>

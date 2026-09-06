@@ -81,7 +81,7 @@ public sealed class ActionRouter
                 break;
             case RecordedLiveTrafficRemoval removal:
                 _engine.ApplyRecordedLiveTrafficRemoval(removal);
-                host.OnAircraftDeleted(removal.Callsign);
+                host.OnAircraftDeleted(removal.Callsign, lastState: null);
                 break;
             case RecordedCommand command:
                 Apply(command, host);
@@ -140,8 +140,9 @@ public sealed class ActionRouter
         var arm = ArmTable.For(classification.Kind);
         var trace = new ActionTrace(arm.Kind, arm.Scope, arm.IsHostSlot);
 
-        // A kind that is never recorded (the room's clock, bookmarks) is never applied from a record either: the
-        // legacy PAUSE / SIMRATE / BM records older recordings carry must not pause a rewind or re-add a bookmark.
+        // A kind that is never recorded (the room's clock, bookmarks, the SHOW query) is never applied from a record
+        // either: the legacy PAUSE / SIMRATE / BM records older recordings carry must not pause a rewind or re-add a
+        // bookmark.
         if ((record is not null) && (arm.Recording == RecordingPolicy.Never))
         {
             var verb = CommandDescriber.DescribeCommand(classification.Parsed!);
@@ -156,12 +157,6 @@ public sealed class ActionRouter
             {
                 return Finish(routing, ActionRefusals.AircraftNotFound(input.Callsign), trace, arm.Recording, ctx: null);
             }
-        }
-
-        if ((record is not null) && arm.AuditOnlyWhenRecorded)
-        {
-            LastTrace = trace;
-            return new ActionOutcome(new CommandResult(true, null), null, trace);
         }
 
         var ctx = new ArmContext

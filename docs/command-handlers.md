@@ -48,8 +48,8 @@ cached layout, else `SimulationEngine.ResolveGroundLayout` from its flight plan 
 spawn has no cached layout, and the no-phase arm used to refuse `LAND @spot` with "No airport ground layout available" for exactly that reason.
 
 Flight-plan verbs (`DA`, `FP`, `RMK` — `CompoundPolicy.IsFlightPlanCommand`) have **no** arm in either switch and are refused at the dispatcher's
-public entries: live, `RoomEngine` routes them through its flight-plan arm before `HandleStandardCmd`, and replay/reconstruction skip them
-(`RecordedCommandKind.FlightPlan`) because the recorded `RecordedAmendFlightPlan` carries their effect.
+public entries: they are the `ActionRouter`'s flight-plan arm (`RecordedCommandKind.FlightPlan`) on every run kind — a fresh one files through
+`SimulationEngine.AmendFlightPlan` and records the `RecordedAmendFlightPlan` that carries its effect; from a record only the creator tag is applied.
 
 `BreakConflictCommand` (`BREAK`) and `GoCommand` (`GO`) are the inverse case: they have an arm **only** in `TryApplyTowerCommand`, never in
 `ApplyCommand`. `BREAK` is classified as a ground command (`CommandDescriber.IsGroundCommand`, `CommandDescriber.cs:933`); `GO` is in neither
@@ -357,10 +357,10 @@ Enum + registry + scheme + parser are covered in `architecture.md`. Inside the d
    correctly (tower verbs need a `TryApplyTowerCommand` arm to avoid the no-dispatcher-arm fallback). The completeness tests (registry / scheme /
    describer per `CanonicalCommandType`) do not cover this: a verb can pass all of them, be documented, and have a working handler yet be broken
    behind any condition because nothing checks that an `ApplyCommand` arm exists. `DryRunValidate` returns early for a conditional first block, so
-   the missing arm surfaces only as a "Triggered block failed during apply" warning mid-session, never at dispatch. A verb the server intercepts
-   early in `RoomEngine.SendCommandAsync` gets no exemption — that intercept matches only bare, non-compound commands, and scenario presets bypass
-   `RoomEngine` entirely (`SimulationEngine.DispatchSinglePreset` → `DispatchCompound`). Always ask what happens when the verb arrives via a preset
-   or behind `AT`/`LV`.
+   the missing arm surfaces only as a "Triggered block failed during apply" warning mid-session, never at dispatch. A verb with its own
+   `RecordedCommandKind` (a router arm that is not the aviation arm) gets no exemption — that arm sees only the bare, single-verb form, and scenario
+   presets bypass the router entirely (`SimulationEngine.DispatchSinglePreset` → `DispatchCompound`). Always ask what happens when the verb arrives
+   via a preset or behind `AT`/`LV`.
 7. **Give it display names** — add an arm for the new `ParsedCommand` in **both** `CommandDescriber.DescribeCommand` (canonical short form) and
    `CommandDescriber.DescribeNatural` (user-friendly text). Without them the command falls through to the record's `ToString()` and leaks raw text
    like `"DeleteCommand { }"` into every queued-block description, the RPO ack, `SHOWAT`/`DELAT`, and the client "Pending Cmds" column (issue #226).
@@ -436,10 +436,10 @@ Enum + registry + scheme + parser are covered in `architecture.md`. Inside the d
   which `BuildMinimalContext` fills from `AssignedRunway`).
 - **`NotifyPhaseCommandAccepted` releases internal phase state only after a successful apply.** Its Unsupported/transparent/sim-control guards are
   load-bearing for the queued-block path even though they look redundant for immediate dispatch — the in-code comment warns against removing them.
-- **APT/DEST has two dispatch routes.** A bare, unconditioned `DEST KOAK` is intercepted server-side in `RoomEngine.SendCommandAsync`,
-  which calls `FlightPlanCommandHandler.TryChangeDestination` and then `AmendFlightPlan` for the immediate CRC/recording push. Scenario
-  presets and conditional forms (`AT 5000 DEST KOAK`) bypass that intercept and queue a normal block, so `ApplyCommand` carries its own
-  `ChangeDestinationCommand` arm; the sim-side mutation reaches CRC via the flight-plan change tracker on the next tick.
+- **APT/DEST is one dispatch route, and phase-transparent.** A bare `DEST KOAK`, a preset and a conditional form (`AT 5000 DEST KOAK`) all reach
+  `ApplyCommand`'s `ChangeDestinationCommand` arm (`FlightPlanCommandHandler.TryChangeDestination`); the router's aviation arm records the bare
+  form as text and tells the host to reprint the strip. `ChangeDestination` is in `IsPhaseTransparent`, so a parked or holding aircraft's plan can
+  be edited without the phase refusing or clearing; the sim-side mutation reaches CRC via the flight-plan change tracker on the next tick.
 - **A queued `CommandBlock.ApplyAction` closure is NOT serialized — it is rehydrated on the next physics tick.**
   `CommandBlock.FromSnapshot` (`CommandQueue.cs`) persists only `SourceCommandText`.
   `SimulationEngine.RehydrateRestoredQueueBlocks` (top of `TickPhysics`, shared by the standalone sim/replay and the live server, before

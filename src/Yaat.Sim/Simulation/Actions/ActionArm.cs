@@ -10,7 +10,10 @@ public enum RecordingPolicy
     /// <summary>Recorded as issued, accepted or not.</summary>
     Text,
 
-    /// <summary>Never recorded: transport verbs (the room's clock) and bookmarks (timeline metadata the rewind paths carry over verbatim).</summary>
+    /// <summary>
+    /// Never recorded: transport verbs (the room's clock), bookmarks (timeline metadata the rewind paths carry over
+    /// verbatim) and the <c>SHOW</c> query (read-only).
+    /// </summary>
     Never,
 }
 
@@ -45,8 +48,6 @@ public sealed class ArmContext
 /// <summary>
 /// One row of the arm table: the body that applies a <see cref="RecordedCommandKind"/>, what it is addressed to,
 /// whether the body is the host's (a slot on <see cref="IActionHost"/>) or the Sim's, and whether its text is recorded.
-/// <see cref="AuditOnlyWhenRecorded"/> marks the flight-plan row: applied from a record, the command is audit trail
-/// only — the <see cref="RecordedAmendFlightPlan"/> recorded beside it is the applier.
 /// </summary>
 public sealed record ActionArm
 {
@@ -54,7 +55,6 @@ public sealed record ActionArm
     public required ActionScope Scope { get; init; }
     public required bool IsHostSlot { get; init; }
     public required RecordingPolicy Recording { get; init; }
-    public required bool AuditOnlyWhenRecorded { get; init; }
     public required Func<ArmContext, CommandResult> Run { get; init; }
 }
 
@@ -77,16 +77,9 @@ public static class ArmTable
         var rows = new List<ActionArm>
         {
             Sim(RecordedCommandKind.Compound, ActionArms.Aviation),
-            Sim(RecordedCommandKind.SayOrShow, ActionArms.Aviation),
-            new()
-            {
-                Kind = RecordedCommandKind.FlightPlan,
-                Scope = ActionScope.Callsign,
-                IsHostSlot = true,
-                Recording = RecordingPolicy.Text,
-                AuditOnlyWhenRecorded = true,
-                Run = ActionArms.FlightPlan,
-            },
+            Sim(RecordedCommandKind.Say, ActionArms.Aviation),
+            Sim(RecordedCommandKind.ShowQueued, RecordingPolicy.Never, ActionArms.ShowQueued),
+            Sim(RecordedCommandKind.FlightPlan, ActionArms.FlightPlan),
             Sim(RecordedCommandKind.Delete, ActionArms.Delete),
             Sim(RecordedCommandKind.DeleteQueued, ActionArms.DeleteQueued),
             Sim(RecordedCommandKind.Note, ActionArms.Note),
@@ -142,14 +135,15 @@ public static class ArmTable
         return rows.ToFrozenDictionary(r => r.Kind);
     }
 
-    private static ActionArm Sim(RecordedCommandKind kind, Func<ArmContext, CommandResult> run) =>
+    private static ActionArm Sim(RecordedCommandKind kind, Func<ArmContext, CommandResult> run) => Sim(kind, RecordingPolicy.Text, run);
+
+    private static ActionArm Sim(RecordedCommandKind kind, RecordingPolicy recording, Func<ArmContext, CommandResult> run) =>
         new()
         {
             Kind = kind,
             Scope = RecordedCommandClassifier.ScopeOf(kind),
             IsHostSlot = false,
-            Recording = RecordingPolicy.Text,
-            AuditOnlyWhenRecorded = false,
+            Recording = recording,
             Run = run,
         };
 
@@ -160,7 +154,6 @@ public static class ArmTable
             Scope = RecordedCommandClassifier.ScopeOf(kind),
             IsHostSlot = true,
             Recording = recording,
-            AuditOnlyWhenRecorded = false,
             Run = run,
         };
 }

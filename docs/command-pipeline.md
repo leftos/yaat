@@ -49,43 +49,44 @@ Resolves the connection's `RoomEngine`, opens a room scope, and delegates to `Ro
 
 (`yaat-server: src/Yaat.Server/Simulation/RoomEngine.cs`)
 
-This is a long `else if (simpleParsed is XCommand)` chain ending in a `HandleStandardCmd` fallback. **Heading/altitude/speed/nav commands take the `HandleStandardCmd` path**; every branch above it bypasses `CommandDispatcher` entirely and mutates room or aircraft state directly.
+The room's part is **policy and echo**; the command itself is routed by Yaat.Sim's `ActionRouter`, the same route a
+Sim replay, a server reconstruction and the bare test engine take:
 
 ```
-SendCommandAsync(callsign, command, initials)
-  ↓ ExtractAsPrefix → strips "AS <tcp>" position override, returns asOverrideTcp
-  ↓ partial callsign resolution
-  ↓ ParsedCommand sniff
-  │
-  ├─ TrackCommandHandler.IsTrackCommand   → HandleTrackCmd        (TRACK, DROP, HO, ACCEPT,
-  │                                                                CANCEL HO, POINTOUT, AS,
-  │                                                                scratchpad, temp alt, …)
-  ├─ CoordinationCommandHandler.IsCoordinationCommand
-  │                                       → HandleCoordinationCmd  (RD, RDH, RDR, RDACK, RDAUTO)
-  ├─ Strip-mutation commands              → HandleStripCmd         (STRIP, AN, HSC/HSA/HSD, …)
-  ├─ Room/session-state commands          → per-command inline handlers
-  │                                          PAUSE, UNPAUSE, SIMRATE, DELETE, SPAWN, SPAWNDELAY,
-  │                                          HFR, HFROFF, REL, CFR, TIMER, BM, CON/DECON, TAXIALL,
-  │                                          SQAWKALL, ACCEPTALL, DA/VP, RMK, NOTE, DEST, …
-  └─ otherwise                            → HandleStandardCmd
-                                              ↓
-                                          CommandDispatcher.DispatchCompound
+SendCommandAsync(connectionId, callsign, command, initials)
+  ↓ "** " force-override prefix; aircraft-assignment enforcement (room policy)
+  ↓ IssueLive → ActiveSim.Actions.Issue(ActionInput, LiveRoomHost)
+  │    (a command typed during tape playback first takes control: the tape is cut at the current second)
+  │    ↓ ExtractAsPrefix → strips "AS <tcp>", returns asOverrideTcp
+  │    ↓ refuse a chain with a non-compoundable verb; split a scoped-special compound into units
+  │    ↓ RecordedCommandClassifier.Classify → ArmTable.For(kind)
+  │    ↓ resolve the scope (Aircraft: FindAircraft, else "Aircraft 'X' not found") and the identity
+  │    ↓ run the row: a Sim body (ActionArms) or a host slot (RoomHost → the room's strip / TDLS /
+  │      coordination handlers, bookmarks, the clock, ASDE-X); the body notifies the host's consumers
+  │    ↓ record the text with its verdict (RecordedCommand.Accepted), accepted or not
+  ↓ terminal echo: "Command" (or "Strip" for a strip verb) + "Response" / "Error"; a global or
+    position-scoped command echoes with no callsign
+  ↓ FlushTerminalEntries — the SAY-class and spawn lines the sim queued
 ```
 
-Adding a new room-state verb means adding a branch to this chain — check the exclusion list on the
-`Record(...)` call below before you do, since a few of these verbs deliberately stay out of the action log.
+Adding a new verb means giving it a `RecordedCommandKind`, an `ArmTable` row and — only if its state is still the
+room's — an `IActionHost` slot; nothing is added to `SendCommandAsync`. The CRC handlers issue through the same router
+(`RecordAndDispatch` / `RecordAndDispatchStrip` / `RecordAndDispatchFlightPlan`, each prefixing `AS {tcp}` where the
+identity must round-trip), so a CRC-entered command and a typed one are one arm.
 
-Track commands take a separate path (see **Track command bypass** below): the **live** server switch (`TrackCommandHandler.HandleTrackCommand`) and the **replay** switch (`TrackEngine.Dispatch`) are two parallel dispatch tables that share only the `TrackEngine.Handle*` leaf logic — not a single adapter.
-
-After validation, every command is recorded for replay: `Record(new RecordedCommand(scenario.ElapsedSeconds, callsign, command, initials, connectionId) { ReactionDelaySeconds = … })` — the pilot-reaction delay, if any, is baked in so replays reproduce it exactly (see [Deferred dispatch](#deferred-dispatch--wait-behind-and-the-command-run-delay)), as are the `REL` spawn jitter (`SpawnJitterSeconds`) and the aircraft an `ADD` generated (`SpawnedAircraft` — the record a replay holds its own derivation against; see [snapshots-and-replay.md](snapshots-and-replay.md)). Only **successful** commands are recorded (`if (result.Success && …) Record(...)`); pause/unpause/sim-rate/CFR/bookmark verbs are excluded.
+The router records **every** routed command with its verdict (`RecordedCommand.Accepted`); the draws a fresh action
+made — the pilot-reaction delay (see [Deferred dispatch](#deferred-dispatch--wait-behind-and-the-command-run-delay)),
+the `REL` spawn jitter (`SpawnJitterSeconds`), the aircraft an `ADD` generated (`SpawnedAircraft`), the `CFR` clock
+(`IssuedAtUtc`) — are baked onto the record so a replay uses them instead of drawing (see
+[snapshots-and-replay.md](snapshots-and-replay.md)).
 
 The connection id also says **who** issued the command: an AI-controller position dispatches under
-`AiConnectionId.Format(positionId)` (`"AI:{positionId}"`, `Commands/DispatchOrigin.cs`), and `HandleStandardCmd` derives
+`AiConnectionId.Format(positionId)` (`"AI:{positionId}"`, `Commands/DispatchOrigin.cs`), and the aviation arm derives
 `DispatchOrigin.ControllerAi` from it — the dispatch runs with `IsScenarioScripted: true` (not the student establishing
 contact) and `ApplyPostDispatch` skips two-way-comms registration and evaluator scoring. Because the origin is derived
 from the recorded connection id, a reconstruction or tape playback (the router's `Apply` under the server's `RoomHost`) replays an AI command exactly as it ran live.
 
-`RecordingPolicy.Never` keeps two kinds out of the action log — `PAUSE`/`UNPAUSE`/`SIMRATE` (transport state, not simulation state) and `BM` (bookmarks are timeline-global metadata that the rewind paths carry over verbatim, so replaying an add would duplicate every bookmark on each rewind) — and the router never applies either kind from a record, so the legacy records older recordings carry stay inert.
+`RecordingPolicy.Never` keeps three kinds out of the action log — `PAUSE`/`UNPAUSE`/`SIMRATE` (transport state, not simulation state), `BM` (bookmarks are timeline-global metadata that the rewind paths carry over verbatim, so replaying an add would duplicate every bookmark on each rewind) and `SHOWAT`/`SHOWCOND` (a read-only query the host shows the issuing connection alone) — and the router never applies any of them from a record, so the legacy records older recordings carry stay inert.
 
 ### 5. CommandDispatcher.DispatchCompound
 
@@ -104,7 +105,7 @@ from the recorded connection id, a reconstruction or tape playback (the router's
 
 `ApplyCommand` is a thin routing switch over command type → `FlightCommandHandler`, `NavigationCommandHandler`, `ApproachCommandHandler`, `DepartureClearanceHandler`, `GroundCommandHandler`, `PatternCommandHandler`, `FlightPlanCommandHandler`, etc. See `Commands/CommandRegistry.cs` for the complete enum. For what happens *inside* the dispatcher and each handler — the two switch surfaces (`ApplyCommand` vs `TryApplyTowerCommand`), the handler read/write contract, and the per-domain effect cheat-sheet — see [command-handlers.md](command-handlers.md).
 
-**Flight-plan commands (VP / FP / DA) canonicalize their inputs.** `FlightPlanCommandHandler` splits `C172/G` into `AircraftType` + `EquipmentSuffix`, canonicalizes departure/destination via `NavigationDatabase.TryResolveAirport` (rejecting unknown airports), and treats a single-token route as destination-only (`VP C172 5500 MOD` → `Destination=KMOD`, `Departure=null`). On the server, `RoomEngine.RecordAndDispatchFlightPlanAsync` spawns an unsupported track before dispatching the handler and rolls that spawn back on handler failure, gated on a `spawnedUnsupported` flag so a DUP-NEW-ID collision with a pre-existing aircraft doesn't delete it.
+**Flight-plan commands (VP / FP / DA / RMK) are the router's flight-plan arm, not the dispatcher's.** `FlightPlanNormalization` (Yaat.Sim) splits `C172/G` into `AircraftType` + `EquipmentSuffix`, canonicalizes departure/destination via `NavigationDatabase.TryResolveAirport` (an unknown identifier passes through), and treats a single-token route as destination-only (`VP C172 5500 MOD` → `Destination=KMOD`, `Departure=null`); the arm files through `SimulationEngine.AmendFlightPlan`, records the `RecordedAmendFlightPlan` the state travels in, and tags the filing identity as `FlightPlan.CreatedByOwner` (the STARS auto-track acquires the aircraft when it squawks its assigned code). `DA` is create-only (`DUP NEW ID`); an unknown callsign is refused. The canonical text carries the rules (`VP …` for VFR, `FP … OTP/NNN` for VFR-on-top) so it round-trips. On the server, `RoomEngine.RecordAndDispatchFlightPlan` (the CRC STARS entry) first issues a `GHOST` at the click position for an unknown callsign — STARS creates an unsupported data block — and issues a `DROP` for it if the plan is refused; both are recorded actions in their own right.
 
 ### 6. CommandQueue & triggers — `CommandQueue.cs`
 
@@ -158,15 +159,25 @@ Threaded through `DispatchCompound` and every handler. Holds:
 
 Adding a new contextual flag to handlers? Add it to `DispatchContext`, set it at the call sites in `SimulationEngine` / `RoomEngine`, and read from `ctx`. Don't pass it as a parameter — the bundle exists to avoid signature creep.
 
-## Track command bypass — `TrackCommandHandler` / `TrackEngine`
+## Track command bypass — `TrackEngine`
 
 `TRACK`, `DROP`, `HO`, `ACCEPT`, `CANCEL HO`, `POINTOUT`, scratchpad, temp alt, cruise, `AS <tcp> …` — these change ownership and STARS-track metadata, not flight controls, and bypass `CommandDispatcher`.
 
-**Two parallel switch tables dispatch them — keep both in sync:**
-- **Live** (server): `TrackCommandHandler.HandleTrackCommand` (yaat-server) has its own `cmd switch` and its own inline identity-guard exemption list. Its `HandleHandoff`/`HandlePointOut` wrap `TrackEngine.ApplyHandoff`/`ApplyPointOut` with the room's CRC attendance as the `ConsolidationRedirect` (the branch that used to be server-only). Its `HandleGlobalTrackCommand`, `HandleGhostTrack`, `HandleRepositionToLocation`/`HandleRepositionMove` and `HandleAcknowledgeConflictAlert` are wrappers over the `TrackEngine` bodies (`DispatchGlobal`, `CreateGhostTrack`, `RepositionToLocation`/`RepositionMove`, `AcknowledgeConflictAlert`) that the router's `GlobalTrack`, `GhostTrack`, `Reposition` and `Track` arms run on every Sim run kind — one body per verb, two entry points until 3d-5. `RoomEngine.HandleConsolidationCmd` is likewise a wrapper over `SimulationEngine.Consolidate`/`Deconsolidate` (the router's `Consolidate`/`Deconsolidate` arms), handing the room's CRC attendance in as the `IActionHost.IsPositionAttended` answer a full consolidation reads.
-- **Every Sim run kind** (replay, the bare test engine, the solo client, the AI's `DispatchAiCommand`): `TrackEngine.Dispatch` (`Yaat.Sim`) is a *second* switch, run by the `ActionRouter`'s `TrackOwnership` arm (`Simulation/Actions/ActionArms.Track`); its guard is `TrackEngine.RequiresIdentity`.
-
-Both ultimately call the shared `TrackEngine.Handle*` leaf methods, so the per-command *behavior* is shared — but the routing, arg handling, and identity guards are **duplicated**. A track-command change applied to only one table passes that path's tests and silently misbehaves on the other (live works, replay doesn't, or vice-versa). Edit both switches **and** both guards, and add tests in both `Yaat.Sim.Tests` (Dispatch) and `Yaat.Server.Tests` (HandleTrackCommand). Example: issue #199 `TRACK [position]`.
+**One switch, every run kind.** `TrackEngine.Dispatch` (`Yaat.Sim`) is the track table, run by the `ActionRouter`'s
+`TrackOwnership` arm (`Simulation/Actions/ActionArms.Track`) for the live room, a Sim replay, a server reconstruction
+and the bare test engine alike; its identity guard is `TrackEngine.RequiresIdentity`. `ApplyHandoff` / `ApplyPointOut`
+land an unattended target on its attended consolidation owner through the `ConsolidationRedirect` built from the host's
+`IActionHost.IsPositionAttended` answer (the server: `PositionRegistry`; a bare or replay run attends nobody). The arm
+also runs the tails a track verb has beyond the track itself, on every run kind: a `TRACK` applies the facility's
+scratchpad rules and voids the aircraft's coordination items (`OnTrackAcquired`), an `INHCA` drops the aircraft's active
+conflicts, a `DROP` of a ghost lifts the overlay (`OnGhostOverlayRemoved`) or deletes the phantom (`OnAircraftDeleted`).
+`ACCEPTALL` / `HOALL`, `GHOST`, `RPOSLOC` / `RPOSMOVE` and `CAACK` are the `GlobalTrack`, `GhostTrack`, `Reposition`
+and `Track` arms over `TrackEngine.DispatchGlobal` / `CreateGhostTrack` / `RepositionToLocation` / `RepositionMove` /
+`AcknowledgeConflictAlert`; `CON` / `CON+` / `DECON` are the `Consolidate` / `Deconsolidate` arms over
+`SimulationEngine.Consolidate` / `Deconsolidate`. yaat-server has no track handler of its own — a CRC click is issued as
+`AS {tcp} <verb>` text through the same router; its test harness's `TrackCommandSeam` wraps the leaves for tests that act
+on a resolved aircraft directly.
+Add a track verb once, in `TrackEngine.Dispatch`, and test it in `Yaat.Sim.Tests`.
 
 **One identity, one map (tick-path step 3d-2).** Who a command acts as is resolved once, in Yaat.Sim, on every run kind: `TrackResolver.ResolveIdentity(scenario, selections, connectionId, asOverrideTcp)` — the `AS` override, else an AI connection's own position (`AiConnectionId`, resolved from `scenario.ArtccConfig`), else the position the connection selected with a bare `AS`, else the student. The selections live in one `PositionSelections` (`Simulation/Actions/`): `SimulationEngine.PositionSelections`, which the server room owns for its lifetime and hands to every engine it creates (`TrainingRoom.PositionSelections`, set in `PopulateRoom`), written by `SimulationEngine.SelectPosition` (live `AS`, Sim replay, server reconstruction, the CRC position sync) and snapshotted in `ServerSnapshotDto.PositionSelections`. TCP arguments resolve through one chain too — `TrackResolver.ResolveTcpToOwner(scenario, code)`: student TCP → scenario ATC positions → facility TCP → ERAM code (`C44`) → STARS interfacility handoff code (`` `31H ``) → ERAM-to-STARS prefixed code (`Q2B`) — reading `scenario.ArtccConfig`, so replay resolves every code live does.
 
@@ -188,7 +199,7 @@ Three things create a deferred dispatch:
 
 1. **`TryDeferLeadingWait`** (inside `DispatchCompound`, before the phase gate) — a leading `WAIT n` (seconds) or `WAITD nm` (flying miles). The WAIT is stripped; the remaining blocks become the payload.
 2. **`TryDeferGiveWay`** (inside `DispatchCompound`) — a leading `BEHIND <callsign>` give-way condition. The payload dispatches once the named aircraft has passed.
-3. **Command-run delay** — `ReactionDelayPolicy.Decide` + `SimulationEngine.DeferForReaction` (`Simulation/Actions/`), called by the `ActionRouter`'s aviation arm and by `RoomEngine.HandleStandardCmd` *around* `DispatchCompound` (not inside it). The configurable pilot-reaction delay (issue #180): when active, the whole compound is deferred a sampled `[min,max]` seconds; the controller gets an immediate "Pilot complying in Ns" acknowledgement and the aircraft acts when the timer expires. In **solo training mode** that acknowledgement is suppressed (empty `CommandResult` message → no terminal `Response`) so the student can't read off the exact sampled delay — the pilot's read-back is the acknowledgement instead.
+3. **Command-run delay** — `ReactionDelayPolicy.Decide` + `SimulationEngine.DeferForReaction` (`Simulation/Actions/`), called by the `ActionRouter`'s aviation arm *around* `DispatchCompound` (not inside it), on every run kind. The configurable pilot-reaction delay (issue #180): when active, the whole compound is deferred a sampled `[min,max]` seconds; the controller gets an immediate "Pilot complying in Ns" acknowledgement and the aircraft acts when the timer expires. In **solo training mode** that acknowledgement is suppressed (empty `CommandResult` message → no terminal `Response`) so the student can't read off the exact sampled delay — the pilot's read-back is the acknowledgement instead.
 
 **A WAIT *after* a condition is NOT a deferred dispatch.** `TryDeferLeadingWait` only fires when the first block has no precondition. `<condition> WAIT n <cmd>` (e.g. `AT TTE WAIT 170 DM 110`, or the scenario-preset shape `CFIX TTE 140; AT TTE WAIT 170 DM 110`) instead becomes a single queued `CommandBlock` with the trigger *and* `IsWaitBlock`/`WaitRemainingSeconds`: `CommandParser.ParseBlock` merges the leading WAIT and its payload into one conditioned block, and `FlightPhysics.ApplyOrCountdownWait` holds the payload until the wait counts down *after* the trigger fires — so `DM 110` runs `n` seconds after the fix, not on it (issue #286). Blocks sequenced after it with `;` (a trailing `RNS`) are held behind the counting-down wait by `ApplyReadyConditionalBlocks`/`NotifyFixSequenced` so they run once it completes, honoring `;` sequencing even when a perpetual CFIX `Navigation` block keeps the queue pinned at index 0.
 
@@ -208,10 +219,10 @@ Three things create a deferred dispatch:
 
 ## Pitfalls
 
-- **Heading/altitude/speed are NOT track commands.** They take `HandleStandardCmd` → `CommandDispatcher`. Track commands are STARS ownership ops. Easy to confuse because both involve callsigns.
+- **Heading/altitude/speed are NOT track commands.** They take the router's aviation arm → `CommandDispatcher`. Track commands are STARS ownership ops. Easy to confuse because both involve callsigns.
 - **Two parsers, one truth.** Client parses for autocomplete; server parses for execution. The server is authoritative — don't trust client-side parse results for behavior.
-- **Records include rejects — on the Sim entry points.** The `ActionRouter` records every fresh command it routes, accepted or not, with `RecordedCommand.Accepted`; a replay that reaches the other verdict logs a `replay-fidelity` warning. The live server's `SendCommandAsync` still records only successful commands until it moves onto the router (tick step 3d-5), so a recording from a live room has no rejected entries yet. Either way, never "fix" replay drift by skipping records.
-- **Bare typed `APT` is amendment-only on replay until 3d-5.** Live, `RoomEngine`'s `ChangeDestinationCommand` arm runs `FlightPlanCommandHandler.TryChangeDestination` (which clears the STAR / pending approach / route through `ClearArrivalProcedureState`) and then `AmendFlightPlan`, recording only the `RecordedAmendFlightPlan` — never the command text. `SimulationEngine.AmendFlightPlan` sets `Destination` without the procedure clear, so a replay of a bare `APT` keeps arrival state the live session dropped. `APT` consumes no non-replayable input, so the fix is text-only recording through the aviation arm (the dispatcher's `ChangeDestination` arm, which the chained form `AT 5000 APT OAK` already takes) — a 3d-5 change to the live arm. Do not move `APT` to the `FlightPlan` kind: replaying it as an amendment is the bug.
+- **Records include rejects.** The `ActionRouter` records every fresh command it routes, accepted or not, with `RecordedCommand.Accepted` — the live room, the CRC entry points and the Sim entry points alike; a replay that reaches the other verdict logs a `replay-fidelity` warning. Never "fix" replay drift by skipping records.
+- **`APT` is an aviation command, recorded as text.** A bare `APT` takes the aviation arm → the dispatcher's `ChangeDestination` arm (`FlightPlanCommandHandler.TryChangeDestination`, which clears the STAR / pending approach / route through `ClearArrivalProcedureState`) on every run kind, and the host reprints the strip (`OnFlightPlanAmended`); the chained form `AT 5000 APT OAK` was always that arm. `ChangeDestination` is phase-transparent, so a parked or holding aircraft's plan can be edited without the phase refusing or clearing. Do not move `APT` to the `FlightPlan` kind: replaying it as an amendment would lose the procedure clear.
 - **Dry-run uses a clone — make handlers idempotent on a clone.** Anything `ApplyCommand` does must work on a snapshot copy without affecting the live aircraft. If a handler writes to non-cloned state (a singleton, a sibling aircraft), dry-run will leak.
 - **`TerminalEmitter` must be nulled in dry-run.** SAY-class verbs broadcast via `ctx.TerminalEmitter`; if dry-run forgets to null it, SAYs fire twice. See the `project_dispatch_context_terminal_emitter` memory.
 - **Phase clearing is post-validation.** `ClearsPhase` does not immediately clear — validation runs first on a clone, then the phase is cleared, then commands apply. This protects against half-applied compound commands.

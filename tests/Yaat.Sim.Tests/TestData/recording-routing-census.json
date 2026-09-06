@@ -23,7 +23,7 @@
       "Delete": 3,
       "FlightPlan": 3,
       "GhostTrack": 4,
-      "SayOrShow": 1,
+      "Say": 1,
       "Strip": 57,
       "TrackOwnership": 17
     },
@@ -278,7 +278,7 @@
       "Delete": 15,
       "FlightPlan": 3,
       "GhostTrack": 6,
-      "SayOrShow": 1,
+      "Say": 1,
       "SetActivePosition": 1,
       "Strip": 143,
       "TrackOwnership": 31
@@ -779,7 +779,7 @@
     "ByKind": {
       "Compound": 29,
       "Delete": 3,
-      "SayOrShow": 3,
+      "Say": 3,
       "TrackOwnership": 4
     },
     "Unparsed": [],
@@ -1135,7 +1135,7 @@
       "Delete": 15,
       "FlightPlan": 3,
       "GhostTrack": 6,
-      "SayOrShow": 1,
+      "Say": 1,
       "SetActivePosition": 1,
       "Strip": 143,
       "TrackOwnership": 31
@@ -1257,7 +1257,7 @@
       "Delete": 15,
       "FlightPlan": 3,
       "GhostTrack": 6,
-      "SayOrShow": 1,
+      "Say": 1,
       "SetActivePosition": 1,
       "Strip": 143,
       "TrackOwnership": 31
@@ -1759,7 +1759,7 @@
       "Delete": 15,
       "FlightPlan": 3,
       "GhostTrack": 6,
-      "SayOrShow": 1,
+      "Say": 1,
       "SetActivePosition": 1,
       "Strip": 143,
       "TrackOwnership": 31

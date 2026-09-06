@@ -699,7 +699,7 @@ public static class CommandDescriber
             CancelAutoDeleteCommand => "NODEL",
             ShowQueuedCommand => "SHOWAT",
             ChangeDestinationCommand cmd => $"APT {cmd.Airport}",
-            CreateFlightPlanCommand cmd => $"FP {cmd.AircraftType} {cmd.CruiseAltitude / 100:D3} {cmd.Route}",
+            CreateFlightPlanCommand cmd => FormatCreateFlightPlanCanonical(cmd),
             CreateAbbreviatedFlightPlanCommand cmd => FormatDaCanonical(cmd),
             SetRemarksCommand cmd => $"REMARKS {cmd.Text}",
             NoteCommand cmd => cmd.Text.Length > 0 ? $"NOTE {cmd.Text}" : "NOTE",
@@ -1493,6 +1493,10 @@ public static class CommandDescriber
                 or CanonicalCommandType.ConsolidateFull
                 or CanonicalCommandType.Deconsolidate
                 or CanonicalCommandType.ShowQueuedCommands
+                // A destination change is a flight-plan edit: it must not be gated by the phase (a parked aircraft's
+                // plan is fixed before taxi; a holding VFR keeps holding) — the handler itself clears an arrival
+                // procedure the old destination had.
+                or CanonicalCommandType.ChangeDestination
                 or CanonicalCommandType.SetTurnRate
                 or CanonicalCommandType.ReportFieldInSight
                 or CanonicalCommandType.ReportFieldInSightForced
@@ -2590,6 +2594,19 @@ public static class CommandDescriber
     private static string TurnWord(SafetyAlertTurn turn) => turn == SafetyAlertTurn.Left ? "left" : "right";
 
     private static string VerticalWord(SafetyAlertVertical vertical) => vertical == SafetyAlertVertical.Climb ? "climb" : "descend";
+
+    /// <summary>
+    /// The create-FP text carries its rules so it round-trips through the parser: <c>VP</c> with an absolute altitude
+    /// for a VFR plan, <c>FP</c> with hundreds for IFR, and <c>FP … OTP/NNN</c> for VFR-on-top (an IFR flight with the
+    /// OTP altitude notation).
+    /// </summary>
+    private static string FormatCreateFlightPlanCanonical(CreateFlightPlanCommand cmd) =>
+        cmd.FlightRules.ToUpperInvariant() switch
+        {
+            "VFR" => $"VP {cmd.AircraftType} {cmd.CruiseAltitude} {cmd.Route}",
+            "OTP" => $"FP {cmd.AircraftType} OTP/{cmd.CruiseAltitude / 100:D3} {cmd.Route}",
+            _ => $"FP {cmd.AircraftType} {cmd.CruiseAltitude / 100:D3} {cmd.Route}",
+        };
 
     private static string FormatDaCanonical(CreateAbbreviatedFlightPlanCommand cmd)
     {

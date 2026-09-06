@@ -70,7 +70,7 @@ it sees `LiveTrafficSample`s for a callsign and never knows where they came from
 
 `CommandDispatcher.Dispatch`/`DispatchCompound` route a lone `AssumeCommand` to `LiveTrafficAssumer.Assume(aircraft, ctx)`
 *before* the shadow gate (so it is the one command a shadow accepts; `ASSUME ; H 180` is rejected like any compound). It goes
-through the normal `HandleStandardCmd` path on the server, so it is recorded as a `RecordedCommand` and replays through the
+through the router's aviation arm like any other instruction, so it is recorded as a `RecordedCommand` and replays through the
 same dispatcher in both brains with no extra arm. **Never refused** (owner decision): the RPO always gets control; on a
 non-shadow it fails with "not live traffic".
 

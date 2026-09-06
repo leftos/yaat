@@ -5,6 +5,8 @@
 ### Added
 - The Discord server shows progress towards YAAT's monthly hosting cost, fed by Ko-fi: a sidebar ticker channel, a pinned progress embed listing this month's supporters (surplus rolls into the next month), and One-time / Monthly Supporter roles claimed through Ko-fi.
 
+- `FP` accepts `OTP/055` as the altitude to file a VFR-on-top plan.
+
 ### Fixed
 - A window snapped against a screen edge stays there across launches instead of reopening at the screen's top-left corner. (#408)
 - A window profile applied to an already-maximized window now saves the profile's position, so it returns there after a restart.
@@ -26,10 +28,15 @@
 - Rewinding a session or exporting a bug bundle applies the `ADD`, `TAXIALL`, squawk-all, `CON`/`DECON` and `ASDXALERTS` commands the live session issued, instead of dropping them.
 - Rewinding a session honours the pilot reaction delay each command had live, so aircraft respond when they did instead of seconds early.
 - Playing back a recording reproduces the pilot read-backs, "unable" responses and frequency gates the live session had.
+- Rewinding a session or exporting a bug bundle applies a typed `APT` destination change with the arrival-procedure clear it had live, instead of only the new destination.
+- Rewinding a session or exporting a bug bundle places the unsupported data block a CRC-entered flight plan created where the controller clicked, instead of losing it.
 
 ### Changed
 - `ATXI` to a helicopter off the airport or above 500 ft AGL is refused ("unable, request landing at …"); air taxi stays an on-field movement.
 - A recorded command whose outcome on playback differs from the live session logs a replay-fidelity warning.
+- A flight plan filed by typing `FP`, `VP` or `DA` tags the filing position as its creator, so the STARS auto-track acquires the aircraft when it squawks its assigned code, as a CRC-entered plan does.
+- Recordings and bug bundles include the commands the live session refused, with their verdict.
+- Typing any command during playback takes control of the session, whether or not the command is accepted.
 
 ## v0.12.25-beta [2026/09/02]
 

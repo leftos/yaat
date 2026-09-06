@@ -127,9 +127,9 @@ single-command parser accepts whole (free-text `NOTE …`) is not a chain.
    pins the full property set by reflection.
 5. **Idle-phase stranding** (#407/#311): a new "waiting for a command" ground phase must override
    `IsIdleAwaitingCommands` or untriggered chains behind it strand forever.
-6. **Dual TRACK tables** (#199, CASUP): live (`TrackCommandHandler.HandleTrackCommand`) and
-   replay (`TrackEngine.Dispatch`) switch tables must agree — `TrackDispatchParityTests` sweeps
-   every track command through both.
+6. **One TRACK table** (#199, CASUP): every run kind — the live room included — dispatches a track
+   verb through `TrackEngine.Dispatch` via the router's `Track` arm; add a verb there and nowhere
+   else (the live/replay divergences of #199 and CASUP came from a second, server-side table).
 7. **Restore rehydration**: a queued block's `ApplyAction` is a closure; snapshot restore rebuilds
    it from `SourceCommandText` (`RehydrateRestoredQueueBlocks`) — without it a restored block fires
    as a silent no-op.

@@ -176,7 +176,7 @@ Strip mutations from CRC flow:
 
 ```
 CRC strip DTO → StripCommandTranslator.Build*Canonical → canonical command string
-              → RoomEngine.RecordAndDispatchStripAsync → same path as terminal-typed strip commands
+              → RoomEngine.RecordAndDispatchStrip → same path as terminal-typed strip commands
 ```
 
 Strips are **item-based** (bay/rack/index), not aircraft-owned. Mutations replay through the same recorded-command path, so history stays divergence-free.

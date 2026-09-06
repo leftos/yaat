@@ -151,8 +151,6 @@ internal sealed class BareHost(SimulationEngine engine) : ISimulationHost
 
     public CommandResult ApplyTransport(ParsedCommand command) => ActionRefusals.HostOnly(command);
 
-    public CommandResult ApplyFlightPlanCommand(string callsign, ParsedCommand command, TrackOwner? identity) => ActionRefusals.HostOnly(command);
-
     public void ApplyRecordedAsdexMutation(RecordedAsdexMutation mutation) { }
 
     public void ApplyRecordedSaidMutation(RecordedSaidMutation mutation) { }
@@ -161,9 +159,17 @@ internal sealed class BareHost(SimulationEngine engine) : ISimulationHost
 
     public void OnAircraftSpawned(AircraftState aircraft) { }
 
-    public void OnAircraftDeleted(string callsign) { }
+    public void OnAircraftDeleted(string callsign, AircraftState? lastState) { }
 
-    public void OnPositionSelected(string connectionId, TrackOwner owner) { }
+    public void OnLiveTrafficHidden(string callsign) { }
+
+    public void OnPositionSelected(string connectionId, TrackOwner owner, string tcpCode) { }
+
+    public void OnTrackAcquired(string callsign) { }
+
+    public void OnGhostOverlayRemoved(string callsign) { }
+
+    public void OnAsdexTrackTerminated(string callsign) { }
 
     public void OnTimersChanged() { }
 
@@ -174,4 +180,6 @@ internal sealed class BareHost(SimulationEngine engine) : ISimulationHost
     public void OnFlightPlanAmended(string callsign) { }
 
     public void OnWeatherChanged() { }
+
+    public void OnQueuedCommandsShown(string connectionId, string callsign, IReadOnlyList<string> lines) { }
 }

@@ -181,8 +181,8 @@ someone else, `TrackEngine.ApplyHandoff` redirects it. `ConsolidationRedirect.Tr
 The user sees `Handoff … to <code> (redirected to <ownerSubset><ownerSector>)`. Whether a TCP is attended is the host's answer
 (`IActionHost.IsPositionAttended`): the server hands in its `PositionRegistry`; a bare or replay run attends nobody, so it never
 redirects — a recording cannot yet reproduce a redirect the live session made (the C1 attendance debt of ADR 0003). The
-`ConsolidationRedirect` is built per dispatch by the router's `Track` arm and by the server's `TrackCommandHandler.HandleHandoff` /
-`HandlePointOut` wrappers; a preset or chained track block dispatches with none and never redirects.
+`ConsolidationRedirect` is built per dispatch by the router's `Track` arm (and by the server test harness's
+`TrackCommandSeam.HandleHandoff` / `HandlePointOut`); a preset or chained track block dispatches with none and never redirects.
 
 `TrackEngine.ApplyPointOut` applies the same `TryRedirect` to the **pointout recipient**: a point-out
 addressed to a TCP consolidated under someone else has its `Pointout.Recipient` set to the attended owner. Without this, the
@@ -214,7 +214,7 @@ Display state that one position sets and other positions can observe lives **per
 `WasPreviouslyOwned` is the one field the sim writes on its own: when a handoff is accepted, the *previous* owner's `SharedState`
 entry is flagged `WasPreviouslyOwned = true` so CRC keeps the datablock as a full datablock (white) until that controller slews to
 acknowledge. Both accept paths go through `TrackEngine.MarkPreviousOwnerRetained` (`TrackEngine.cs`) — the auto-accept timer
-(`ProcessAutoAccept`) and the manual `ACCEPT` / accept-all commands (`TrackEngine.HandleAccept`, `TrackCommandHandler`). The previous
+(`ProcessAutoAccept`) and the manual `ACCEPT` / accept-all commands (`TrackEngine.HandleAccept`, `TrackEngine.DispatchGlobal`). The previous
 owner's TCP is resolved via `TrackResolver.FindTcpForOwner`, so a previous owner with no scenario TCP (e.g. an unmodelled adjacent
 facility) is a no-op.
 
@@ -342,7 +342,7 @@ Per-track shared state and pointouts do **not** have their own topic — they ri
 - **Center→TRACON handoff codes carry a STARS-facility prefix (`Q2B`).** A handoff code like `Q2B` from an ERAM (Center) position is
   `singleCharacterStarsId` + TCP: `Q` is `facility.eramConfiguration.neighboringStarsConfigurations[].singleCharacterStarsId` (NCT → "Q"),
   `2B` is the TCP. `ArtccConfigResolver.ResolveEramToStarsHandoffCode(code)` strips the prefix, then `ResolveTcpCode(facility, rest)`; it is
-  wired **last** in both `TrackResolver.ResolveTcpToOwner` (Sim) and `TrackCommandHandler.ResolveTcpToOwner` (server) so it never shadows a
+  wired **last** in `TrackResolver.ResolveTcpToOwner` (the one resolver every run kind uses) so it never shadows a
   bare TCP. It models a facility-level `EramFacilityConfig`/`NeighboringStarsConfig` in `ArtccConfig.cs` (previously only the position-level
   `EramPositionConfig.sectorId` existed), extending STARS interfacility handoff-code resolution (see [crc-display-state.md](crc-display-state.md))
   to the Center→TRACON direction. Preset/triggered track commands themselves route via `SimulationEngine.ProcessTriggeredTrackBlocks` — see

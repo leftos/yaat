@@ -26,6 +26,16 @@ public sealed class AttendanceActionHost : IActionHost
 
     public List<string> DeletedCallsigns { get; } = [];
 
+    public List<string> HiddenLiveTraffic { get; } = [];
+
+    public List<string> AcquiredCallsigns { get; } = [];
+
+    public List<string> OverlaysRemoved { get; } = [];
+
+    public List<string> AmendedCallsigns { get; } = [];
+
+    public List<(string ConnectionId, string Callsign, List<string> Lines)> ShownQueues { get; } = [];
+
     public bool IsPositionAttended(Tcp tcp) => AttendedTcpIds.Contains(tcp.Id);
 
     public void OnConsolidationChanged() => ConsolidationChanges++;
@@ -54,19 +64,28 @@ public sealed class AttendanceActionHost : IActionHost
 
     public void ApplyRecordedSaidMutation(RecordedSaidMutation mutation) => SaidMutations.Add(mutation);
 
-    public CommandResult ApplyFlightPlanCommand(string callsign, ParsedCommand command, TrackOwner? identity) => ActionRefusals.HostOnly(command);
-
     public void OnAircraftSpawned(AircraftState aircraft) => SpawnedCallsigns.Add(aircraft.Callsign);
 
-    public void OnAircraftDeleted(string callsign) => DeletedCallsigns.Add(callsign);
+    public void OnAircraftDeleted(string callsign, AircraftState? lastState) => DeletedCallsigns.Add(callsign);
 
-    public void OnPositionSelected(string connectionId, TrackOwner owner) { }
+    public void OnLiveTrafficHidden(string callsign) => HiddenLiveTraffic.Add(callsign);
+
+    public void OnPositionSelected(string connectionId, TrackOwner owner, string tcpCode) { }
+
+    public void OnTrackAcquired(string callsign) => AcquiredCallsigns.Add(callsign);
+
+    public void OnGhostOverlayRemoved(string callsign) => OverlaysRemoved.Add(callsign);
+
+    public void OnAsdexTrackTerminated(string callsign) { }
+
+    public void OnQueuedCommandsShown(string connectionId, string callsign, IReadOnlyList<string> lines) =>
+        ShownQueues.Add((connectionId, callsign, lines.ToList()));
 
     public void OnTimersChanged() { }
 
     public void OnHeldDeparturesChanged() { }
 
-    public void OnFlightPlanAmended(string callsign) { }
+    public void OnFlightPlanAmended(string callsign) => AmendedCallsigns.Add(callsign);
 
     public void OnWeatherChanged() => WeatherChanges++;
 }

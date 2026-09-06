@@ -117,6 +117,26 @@ public static class TrackResolver
     }
 
     /// <summary>
+    /// The code an <c>AS {code}</c> prefix names <paramref name="owner"/> by, so a command issued as that owner
+    /// round-trips through <see cref="ResolveTcpToOwner"/> on replay: <c>C{sector}</c> for an ERAM sector,
+    /// <c>{subset}{sector}</c> for a STARS TCP, else the owner's callsign.
+    /// </summary>
+    public static string AsPrefixCode(TrackOwner owner)
+    {
+        if ((owner.OwnerType == TrackOwnerType.Eram) && (owner.SectorId is not null))
+        {
+            return $"C{owner.SectorId}";
+        }
+
+        if ((owner.Subset is not null) && (owner.SectorId is not null))
+        {
+            return $"{owner.Subset}{owner.SectorId}";
+        }
+
+        return owner.Callsign;
+    }
+
+    /// <summary>
     /// Returns the TCP corresponding to a given owner by searching the scenario's
     /// ATC positions, then falling back to the student TCP if the callsign matches.
     /// </summary>

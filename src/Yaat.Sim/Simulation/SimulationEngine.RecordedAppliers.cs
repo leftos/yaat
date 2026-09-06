@@ -126,10 +126,23 @@ public sealed partial class SimulationEngine
         }
 
         scenario.DelayedQueue.Remove(entry);
-        entry.Aircraft.State.SpawnedAtSeconds = scenario.ElapsedSeconds;
-        World.AddAircraft(entry.Aircraft.State);
+        var state = entry.Aircraft.State;
+        state.SpawnedAtSeconds = scenario.ElapsedSeconds;
+        // A ground departure manually spawned under an armed airport still holds short until released.
+        HeldReleaseService.MarkHeldOnSpawnIfArmed(scenario, state);
+        World.AddAircraft(state);
         DispatchPresetCommands(entry.Aircraft);
-        return entry.Aircraft.State;
+        foreach (var msg in entry.Aircraft.AutoTrackMessages)
+        {
+            EmitTerminal("System", state.Callsign, msg);
+        }
+
+        if (state.Approach.Expected is not null)
+        {
+            EmitTerminal("System", state.Callsign, $"Expecting {state.Approach.Expected} approach");
+        }
+
+        return state;
     }
 
     /// <summary>
