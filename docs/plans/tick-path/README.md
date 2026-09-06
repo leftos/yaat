@@ -1,6 +1,6 @@
 # Tick-path unification
 
-**Status:** top priority (steer 2026-09-02; controller AI waits). Steps 1–3 and 3d-0 … 3d-5b shipped; **3d-6, the docs pass, is next** (ADR 0007, CONTEXT.md, the pipeline / replay / tick-loop docs) — [03d-action-router.md](./03d-action-router.md).
+**Status:** top priority (steer 2026-09-02; controller AI waits). Steps 1–3 and 3d shipped (ADRs 0001–0007); **step 4, relocation, is next** — [04-relocation.md](./04-relocation.md). Attendance as a recorded input comes first: it unblocks the CST auto-accept finding below and retires the `ProcessAutoAccept` family the step-5 residual is made of.
 
 The design was re-derived clean-room this session; the decisions are ADRs [0001](../../adr/0001-state-equivalence-is-the-tick-contract.md)–[0006](../../adr/0006-decompose-simulationengine-before-adding-to-it.md) and the vocabulary is [`CONTEXT.md`](../../../CONTEXT.md). It replaces the deleted `tick-loop-unification.md`, which scoped to post-physics only and carried three factual claims that did not hold. Ordered steps, each green on its own, incremental to main:
 
@@ -11,8 +11,8 @@ The design was re-derived clean-room this session; the decisions are ADRs [0001]
 | 1. Oracle first (+ 1b: the missing legs and the two blind-spot fixtures) | [01-oracle.md](./01-oracle.md) | shipped 2026-09-02 |
 | 2. `SimulationEngine` decomposition | [02-engine-decomposition.md](./02-engine-decomposition.md) | shipped 2026-09-02 |
 | 3. Spine over the whole sim-second, run profile, `host` rename (3a, 3b, 3c-0, 3c) | [03-spine.md](./03-spine.md) | shipped 2026-09-04 |
-| 3d. The action router (3d-0 … 3d-6) | [03d-action-router.md](./03d-action-router.md) | 3d-0 … 3d-5b shipped 2026-09-06; 3d-6 docs next |
-| 4. Relocate tick-reachable ATC logic into `Yaat.Sim` | [04-relocation.md](./04-relocation.md) | not started |
+| 3d. The action router (3d-0 … 3d-6) | [03d-action-router.md](./03d-action-router.md) | shipped 2026-09-06 (ADR 0007) |
+| 4. Relocate tick-reachable ATC logic into `Yaat.Sim` | [04-relocation.md](./04-relocation.md) | **next**; not started |
 | 5. Retire the accepted divergences; hash + step trace | [05-retirements.md](./05-retirements.md) | three retirements done 2026-09-04; the rest open |
 
 ## Rules every step follows

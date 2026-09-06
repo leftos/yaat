@@ -1201,7 +1201,7 @@ StepTrace.cs                   # Per-second (StepId, subTick) sequence + FNV-1a 
 BareHost.cs                    # The Test-run host: every spine slot empty, consumers fire the engine's events; as an IActionHost every slot is refused
                                # (ActionRefusals.HostOnly), the recorded ASDE-X / SAID mutations are dropped, IsPositionAttended is false and every consumer discarded
 
-# Simulation/Actions/ — the action router: a controller action is routed once, in Yaat.Sim (tick-path step 3d)
+# Simulation/Actions/ — the action router: a controller action is routed once, in Yaat.Sim (ADR 0007; docs/command-pipeline.md § one routing table)
 ActionRouter.cs                # SimulationEngine.Actions. Issue(ActionInput, host) for a fresh command, Apply(RecordedCommand, host) for a recorded one,
                                # ApplyRecorded(RecordedAction, host) for any recorded action (spawn / live-traffic / amendment / weather / setting / generators /
                                # the derived state records — shared state, clearance, hold annotation via their Sim appliers, an ERAM entry via EramEntryEngine

@@ -4,7 +4,7 @@ Entry point for `docs/plans/`. One line per item; the detail lives in the linked
 
 ## Current focus
 
-- [ ] **Tick-path unification** — [tick-path/README.md](./tick-path/README.md): one tick spine, one action router, one body per behaviour across live, replay and reconstruction. Steps 1–3 and 3d-0 … 3d-5b shipped; **next is 3d-6, the docs pass** (ADR 0007, CONTEXT.md, `command-pipeline.md` / `snapshots-and-replay.md` / `tick-loop.md` § Hosts, `bug_bundle.py history`), then step 4 — [tick-path/03d-action-router.md](./tick-path/03d-action-router.md) § 3d-6. Controller AI waits on this (steer 2026-09-02).
+- [ ] **Tick-path unification** — [tick-path/README.md](./tick-path/README.md): one tick spine, one action router, one body per behaviour across live, replay and reconstruction. Steps 1–3 and 3d shipped (ADRs 0001–0007); **next is step 4, relocation** — attendance as a recorded input first, then sim-time for TDLS / strip timestamps, strips + TDLS into the snapshot, shrink `IActionHost` — [tick-path/04-relocation.md](./tick-path/04-relocation.md). Controller AI waits on this (steer 2026-09-02).
 
 ## Next up
 

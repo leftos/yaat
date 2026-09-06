@@ -40,10 +40,10 @@ public enum RecordedCommandKind
     ShowQueued,
 
     /// <summary>
-    /// DA / FP / RMK. Live, the server's flight-plan arm applied these and recorded the resulting
-    /// <see cref="RecordedAmendFlightPlan"/> alongside the command, so on replay the command itself is a
-    /// no-op: the flight-plan state arrives through the amendment, and dispatching the command would put
-    /// a flight-plan edit through the phase gate (a hold cancels on any non-additive command).
+    /// <c>FP</c> / <c>VP</c> / <c>DA</c> / <c>REMARKS</c> — the flight-plan verbs, filed on every run kind through the Sim's
+    /// flight-plan arm (<see cref="Actions.ActionArms.FlightPlan"/>), which applies them through
+    /// <see cref="SimulationEngine.AmendFlightPlan"/> and records the <see cref="RecordedAmendFlightPlan"/> the state travels in. Never
+    /// through <see cref="CommandDispatcher"/>, whose phase gate would read a flight-plan edit as a non-additive command and cancel a hold.
     /// </summary>
     FlightPlan,
     Delete,
@@ -63,7 +63,11 @@ public enum RecordedCommandKind
     SquawkAll,
     AcceptAllHandoffs,
     InitiateHandoffAll,
+
+    /// <summary><c>NOTE</c> — a free-text instructor note on the aircraft; never projected to CRC.</summary>
     Note,
+
+    /// <summary><c>TIMER</c> — a countdown timer on the scenario clock, keyed by callsign; applied by <see cref="TimerCommandApplier"/>.</summary>
     Timer,
     HoldForRelease,
     DisarmHoldForRelease,

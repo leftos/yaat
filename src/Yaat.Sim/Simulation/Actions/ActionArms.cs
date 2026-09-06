@@ -93,7 +93,7 @@ internal static class ActionArms
     }
 
     /// <summary>
-    /// <c>FP</c> / <c>VP</c> / <c>DA</c> / <c>RMK</c>. A fresh action normalises the typed fields into a flight-plan
+    /// <c>FP</c> / <c>VP</c> / <c>DA</c> / <c>REMARKS</c>. A fresh action normalises the typed fields into a flight-plan
     /// amendment (the same normalization the CRC editor uses), applies it through the engine and records the
     /// <see cref="RecordedAmendFlightPlan"/> the state travels in; <c>DA</c> is create-only (<c>DUP NEW ID</c> on an
     /// aircraft that already has a plan) while <c>FP</c> / <c>VP</c> create or amend. The filing position becomes the

@@ -12,6 +12,7 @@
 
 | Area | Doc |
 |------|-----|
+| Vocabulary and decisions | [`../CONTEXT.md`](../CONTEXT.md) (the glossary — sim-second, spine, host, run kind, action, arm, baked draw), [`adr/`](./adr/) (0001–0007: the tick-path and action-router decisions) |
 | Ground / taxi / exits | [`ground/README.md`](./ground/README.md) |
 | Phases | [`phases.md`](./phases.md) |
 | Command input → queue | [`command-pipeline.md`](./command-pipeline.md), [`command-handlers.md`](./command-handlers.md) |

@@ -74,6 +74,54 @@ room's — an `IActionHost` slot; nothing is added to `SendCommandAsync`. The CR
 (`RecordAndDispatch` / `RecordAndDispatchStrip` / `RecordAndDispatchFlightPlan`, each prefixing `AS {tcp}` where the
 identity must round-trip), so a CRC-entered command and a typed one are one arm.
 
+#### One routing table
+
+Every entry point — the typed terminal, the CRC handlers, the AI sink, Sim replay, server reconstruction, tape playback,
+the bare test engine — goes through this table and nothing else (ADR [0007](adr/0007-one-action-router.md)). *Scope* is
+what the router resolves before the arm runs: `Global` resolves nothing (an empty callsign applies), `Callsign` hands the
+arm the text, `Aircraft` requires a present aircraft (else the identical "Aircraft 'X' not found" on every run kind),
+`Position` resolves the acting position. A *Host* body is an `IActionHost` slot the room fills and the bare / replay
+hosts refuse or ignore — step-4 debt, listed in the interface header. `Never` means the verb is not written to the action
+log and the router ignores it from a record.
+
+| Kind | Verbs | Scope | Body | Recorded |
+|---|---|---|---|---|
+| `Compound` | every dispatcher-owned verb or chain (`IsAviationCommand`, ~150 types; also an unparseable multi-verb chain) | Aircraft | Sim: `CommandDispatcher.DispatchCompound` + `ApplyPostDispatch` | Text |
+| `Say` | `SAY*` | Aircraft | Sim: the aviation arm | Text |
+| `ShowQueued` | `SHOWAT` / `SHOWCOND` | Aircraft | Sim: `ConditionalList.ToLines` → `OnQueuedCommandsShown` | Never |
+| `FlightPlan` | `FP` / `VP` / `DA` / `REMARKS` | Callsign | Sim: `SimulationEngine.AmendFlightPlan` fresh, recording a `RecordedAmendFlightPlan` that carries the state; from a record only the creator tag (the amendment record replays the plan) | Text |
+| `Delete` | `DEL` | Callsign | Sim: `SimulationEngine.DeleteAircraft` | Text |
+| `DeleteQueued` | `DELAT` / `DELCOND` | Aircraft | Sim: `ConditionalList.Delete` | Text |
+| `TrackOwnership` | `TRACK`, `DROP`, `HO`, `ACCEPT`, `PO`, `ACK`, `CAACK`, `INHCA`, scratchpads, `TEMPALT`, cruise, leader / J-ring / cone, ASDE-X edits … (`TrackEngine.IsTrackCommand` minus `AS`) | Aircraft | Sim: `TrackEngine.Dispatch` (+ scratchpad rules, `OnTrackAcquired`, the ghost-drop tails) | Text |
+| `GhostTrack` | `GHOST` | Callsign | Sim: `TrackEngine.CreateGhostTrack` | Text |
+| `Reposition` | `RPOSLOC` / `RPOSMOVE` | Aircraft | Sim: `TrackEngine.RepositionToLocation` / `RepositionMove` | Text |
+| `Strip` | `STRIP*`, `AN`, `SEPM`, `HSC` … (`TrackEngine.IsStripCommand`) | Callsign | Host: `ApplyStrip` | Text |
+| `Coordination` | `RD`, `RDH`, `RDR`, `RDACK`, `RDDEL`, `RDPOS`, `RDTXT` | Aircraft | Host: `ApplyCoordination` | Text |
+| `GlobalCoordination` | `RDAUTO` | Position | Host: `ApplyGlobalCoordination` | Text |
+| `Consolidate` / `Deconsolidate` | `CON` / `CON+` / `DECON` | Global | Sim: `SimulationEngine.Consolidate` / `Deconsolidate` | Text |
+| `SpawnNow` / `SpawnDelay` | `SPAWN` / `SPAWNDELAY` | Callsign | Sim: `SimulationEngine.SpawnNow` / `SpawnDelay` | Text |
+| `SquawkAll` | `SQALL` / `SNALL` / `SSALL` | Global | Sim: `SimulationEngine.SquawkAll` | Text |
+| `AcceptAllHandoffs` / `InitiateHandoffAll` | `ACCEPTALL` / `HOALL` | Position | Sim: `TrackEngine.DispatchGlobal` | Text |
+| `Note` | `NOTE` | Aircraft | Sim: `aircraft.Note` | Text |
+| `Timer` | `TIMER` | Callsign | Sim: `TimerCommandApplier.Apply` | Text |
+| `HoldForRelease` / `DisarmHoldForRelease` / `ReleaseDeparture` | `HFR` / `HFROFF` / `REL` | Global | Sim: `HeldReleaseService.Arm` / `Disarm` / `Release` | Text |
+| `TaxiAll` | `TAXIALL` | Global | Sim: `SimulationEngine.TaxiAll` | Text |
+| `Tdls` | `TDLSQ` / `TDLSS` / `TDLSW` / `TDLSDUMP` | Aircraft | Host: `ApplyTdls` (refused while replaying) | Text |
+| `TdlsOps` | `TDLSOPS` | Global | Host: `ApplyTdlsOpsConfig` (refused while replaying) | Text |
+| `AsdexEnableAllAlerts` | `ASDXALERTS` | Global | Host: `ApplyAsdexEnableAllAlerts` | Text |
+| `AddAircraft` | `ADD` | Global | Sim: `SimulationEngine.AddAircraft` (derives the spawn; a baked snapshot is the authority) | Text |
+| `Cfr` | `CFR` | Aircraft | Sim: `CfrDepartureService.Apply` | Text |
+| `SetActivePosition` | bare `AS` | Position | Sim: `SimulationEngine.SelectPosition` | Text |
+| `Bookmark` | `BM` | Global | Host: `ApplyBookmark` | Never |
+| `Transport` | `PAUSE` / `UNPAUSE` / `SIMRATE` | Global | Host: `ApplyTransport` | Never |
+
+Two kinds are matched before the family predicates that also contain them: a bare `AS` (a member of the track family, but
+it addresses the issuing connection's position, not an aircraft) and `RDAUTO` (a member of the coordination family,
+addressed to a position). The CRC entries that write state no verb covers are not rows here — they are derived records
+(`RecordedStarsSharedStateChange`, `RecordedClearanceChange`, `RecordedHoldAnnotationChange`, `RecordedEramEntry`,
+`RecordedEramCrrGroup`, `RecordedStripRequest`, `RecordedAsdexSafetyLogicChange`), applied by `ActionRouter.ApplyRecorded`
+through their Sim applier or host slot; see [snapshots-and-replay.md](snapshots-and-replay.md) § RecordedAction.
+
 The router records **every** routed command with its verdict (`RecordedCommand.Accepted`); the draws a fresh action
 made — the pilot-reaction delay (see [Deferred dispatch](#deferred-dispatch--wait-behind-and-the-command-run-delay)),
 the `REL` spawn jitter (`SpawnJitterSeconds`), the aircraft an `ADD` generated (`SpawnedAircraft`), the `CFR` clock
@@ -105,7 +153,7 @@ from the recorded connection id, a reconstruction or tape playback (the router's
 
 `ApplyCommand` is a thin routing switch over command type → `FlightCommandHandler`, `NavigationCommandHandler`, `ApproachCommandHandler`, `DepartureClearanceHandler`, `GroundCommandHandler`, `PatternCommandHandler`, `FlightPlanCommandHandler`, etc. See `Commands/CommandRegistry.cs` for the complete enum. For what happens *inside* the dispatcher and each handler — the two switch surfaces (`ApplyCommand` vs `TryApplyTowerCommand`), the handler read/write contract, and the per-domain effect cheat-sheet — see [command-handlers.md](command-handlers.md).
 
-**Flight-plan commands (VP / FP / DA / RMK) are the router's flight-plan arm, not the dispatcher's.** `FlightPlanNormalization` (Yaat.Sim) splits `C172/G` into `AircraftType` + `EquipmentSuffix`, canonicalizes departure/destination via `NavigationDatabase.TryResolveAirport` (an unknown identifier passes through), and treats a single-token route as destination-only (`VP C172 5500 MOD` → `Destination=KMOD`, `Departure=null`); the arm files through `SimulationEngine.AmendFlightPlan`, records the `RecordedAmendFlightPlan` the state travels in, and tags the filing identity as `FlightPlan.CreatedByOwner` (the STARS auto-track acquires the aircraft when it squawks its assigned code). `DA` is create-only (`DUP NEW ID`); an unknown callsign is refused. The canonical text carries the rules (`VP …` for VFR, `FP … OTP/NNN` for VFR-on-top) so it round-trips. On the server, `RoomEngine.RecordAndDispatchFlightPlan` (the CRC STARS entry) first issues a `GHOST` at the click position for an unknown callsign — STARS creates an unsupported data block — and issues a `DROP` for it if the plan is refused; both are recorded actions in their own right.
+**Flight-plan commands (VP / FP / DA / REMARKS) are the router's flight-plan arm, not the dispatcher's.** `FlightPlanNormalization` (Yaat.Sim) splits `C172/G` into `AircraftType` + `EquipmentSuffix`, canonicalizes departure/destination via `NavigationDatabase.TryResolveAirport` (an unknown identifier passes through), and treats a single-token route as destination-only (`VP C172 5500 MOD` → `Destination=KMOD`, `Departure=null`); the arm files through `SimulationEngine.AmendFlightPlan`, records the `RecordedAmendFlightPlan` the state travels in, and tags the filing identity as `FlightPlan.CreatedByOwner` (the STARS auto-track acquires the aircraft when it squawks its assigned code). `DA` is create-only (`DUP NEW ID`); an unknown callsign is refused. The canonical text carries the rules (`VP …` for VFR, `FP … OTP/NNN` for VFR-on-top) so it round-trips. On the server, `RoomEngine.RecordAndDispatchFlightPlan` (the CRC STARS entry) first issues a `GHOST` at the click position for an unknown callsign — STARS creates an unsupported data block — and issues a `DROP` for it if the plan is refused; both are recorded actions in their own right.
 
 ### 6. CommandQueue & triggers — `CommandQueue.cs`
 

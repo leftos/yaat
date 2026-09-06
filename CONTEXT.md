@@ -64,3 +64,45 @@ projection is the server's; the concept is the simulation's.
 **Coast**:
 The interval during which a track that has gone away is still displayed before its delete is emitted.
 Measured in sim-seconds.
+
+## Controller actions
+
+**Action**:
+One thing a controller did to the simulation — a typed command, a CRC keyboard entry, an AI position's
+instruction — as one text, one issuer and one verdict. The unit the action log holds.
+_Avoid_: command (a command is the text; an action is the text plus who issued it and what it did), event
+
+**Action router**:
+The single route every action takes, on every run kind, from text to effect. There is exactly one,
+it lives in `Yaat.Sim`, and no entry point decides anything the router decides.
+_Avoid_: dispatch chain, handler chain, command pipeline (the pipeline is the whole path from keyboard to aircraft)
+
+**Kind**:
+What sort of action a text is, decided once by the router before anything runs. Every text has exactly
+one kind; a text with none is an error, never a default.
+_Avoid_: category, verb type
+
+**Arm**:
+The router's body for one kind: either simulation logic, or a slot the host fills because the state
+is still the host's.
+_Avoid_: handler, branch, case
+
+**Scope**:
+What the router resolves before an arm runs — nothing, a callsign, a present aircraft, or the acting
+position. A property of the kind, not of the recorded text.
+_Avoid_: target, addressee
+
+**Baked draw**:
+A value a live action drew — a reaction delay, a spawned aircraft, a strip id — carried on its record
+so every later run reuses it instead of drawing again.
+_Avoid_: cached value, seed
+
+**Derived record**:
+A record of a state change no verb names, written by whatever made the change so that a later run
+reproduces it.
+_Avoid_: synthetic action, side-effect record
+
+**Replay fidelity**:
+The property that a recorded action reaches the same verdict when re-applied as it did live. A
+difference is reported, never hidden by dropping the record.
+_Avoid_: determinism (determinism is the same-seed, same-world property of the simulation itself)
