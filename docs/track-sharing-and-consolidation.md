@@ -2,7 +2,7 @@
 
 > Read this before touching `ConsolidationEngine`, `ConsolidationState`, `AircraftStarsState.SharedState`, `AircraftEramState`,
 > `StarsPointout`, `EramPointoutState`, the consolidation bodies (`SimulationEngine.Consolidate` / `Deconsolidate` /
-> `TransferTracksForConsolidation` in `SimulationEngine.Consolidation.cs`, the server's `TryConsolidationRedirect`), or the `StarsConsolidation` CRC topic. This is the
+> `TransferTracksForConsolidation` in `SimulationEngine.Consolidation.cs`, `ConsolidationRedirect`), or the `StarsConsolidation` CRC topic. This is the
 > multiplayer scope-sharing layer that sits **on top of** the TRACK/DROP/HO/ACCEPT ownership state machine.
 
 ## Scope: two layers, not one
@@ -52,7 +52,7 @@ attended-position predicate, the manual-override store, and the CRC broadcast.
 | Server config-service facade | `../yaat-server/src/Yaat.Server/Data/ArtccConfigService.Consolidation.cs` | yaat-server |
 | Attended-position registry + CRC-control test | `../yaat-server/src/Yaat.Server/Data/PositionRegistry.cs` | yaat-server |
 | `CONS` / `DECON` command handlers + track transfer | `../yaat-server/src/Yaat.Server/Simulation/RoomEngine.cs` | yaat-server |
-| Handoff consolidation redirect | `../yaat-server/src/Yaat.Server/Simulation/TrackCommandHandler.cs` (`TryConsolidationRedirect`) | yaat-server |
+| Handoff / point-out consolidation redirect | `src/Yaat.Sim/Commands/ConsolidationRedirect.cs` (`TryRedirect`; the attendance answer is the host's) | Yaat.Sim |
 | Auto-accept suppression for CRC-controlled targets | `../yaat-server/src/Yaat.Server/Simulation/TickProcessor.cs` (`ProcessAutoAccept`, delayed-handoff guard) | yaat-server |
 | `StarsConsolidation` topic broadcast | `../yaat-server/src/Yaat.Server/Simulation/CrcBroadcastService.cs` (`BuildConsolidationData`, `BroadcastStarsConsolidationAsync`) | yaat-server |
 | DTO mappers (shared state, STARS/ERAM pointouts, consolidation item) | `../yaat-server/src/Yaat.Server/Simulation/DtoConverter.cs` | yaat-server |
@@ -172,15 +172,19 @@ Basic consolidation does neither — it only records the override and rebroadcas
 ### Handoff redirection at issue time
 
 Independently of full-consolidation transfer, when a controller issues a handoff to a TCP that is currently consolidated under
-someone else, `TrackCommandHandler.HandleHandoff` redirects it. `TryConsolidationRedirect` (`TrackCommandHandler.cs:675`):
+someone else, `TrackEngine.ApplyHandoff` redirects it. `ConsolidationRedirect.TryRedirect(target)` (`Commands/ConsolidationRedirect.cs`):
 
 1. If the target TCP is already attended → no redirect.
 2. Otherwise resolve `GetConsolidationOwner(... ConsolidationState)`; if the owner differs from the target, the handoff peer
-   becomes the owner and `Track.HandoffRedirectedBy` records the originally-targeted TCP (`TrackCommandHandler.cs:262`).
+   becomes the owner and `Track.HandoffRedirectedBy` records the originally-targeted TCP.
 
-The user sees `Handoff … to <code> (redirected to <ownerSubset><ownerSector>)`.
+The user sees `Handoff … to <code> (redirected to <ownerSubset><ownerSector>)`. Whether a TCP is attended is the host's answer
+(`IActionHost.IsPositionAttended`): the server hands in its `PositionRegistry`; a bare or replay run attends nobody, so it never
+redirects — a recording cannot yet reproduce a redirect the live session made (the C1 attendance debt of ADR 0003). The
+`ConsolidationRedirect` is built per dispatch by the router's `Track` arm and by the server's `TrackCommandHandler.HandleHandoff` /
+`HandlePointOut` wrappers; a preset or chained track block dispatches with none and never redirects.
 
-`TrackCommandHandler.HandlePointOut` applies the same `TryConsolidationRedirect` to the **pointout recipient**: a point-out
+`TrackEngine.ApplyPointOut` applies the same `TryRedirect` to the **pointout recipient**: a point-out
 addressed to a TCP consolidated under someone else has its `Pointout.Recipient` set to the attended owner. Without this, the
 controller working the combined position (acting under the owner's identity) can never match the literal child recipient and the
 point-out sticks pending forever. Unlike the handoff path, the originally-targeted TCP is not preserved (`StarsPointout` has no
@@ -325,7 +329,7 @@ Per-track shared state and pointouts do **not** have their own topic — they ri
   (`CrcClientState.Session.cs:305`) must call `RemoveOverridesInvolving(tcp.Id)` (sender OR receiver) when a position deactivates.
   Skip it and a stale override survives for the rest of the room session, silently reshaping the hierarchy.
 - **A circular override is a safety hazard, not just nonsense.** `ResolveOwner` bails out to `null` when its visited set trips, and
-  `null` means *"no attended owner"* to `TryConsolidationRedirect` (no redirect) and `PositionRegistry.IsTcpControlledByCrc`
+  `null` means *"no attended owner"* to `ConsolidationRedirect.TryRedirect` (no redirect) and `PositionRegistry.IsTcpControlledByCrc`
   (**auto-accept suppression off**). A loop would therefore make the server auto-accept a handoff into a sector a live CRC
   controller is working — the machine taking a handoff out from under a human. `ConsolidationState.Consolidate` rejects the edge
   that would close the loop; don't add an override-writing path that bypasses it.

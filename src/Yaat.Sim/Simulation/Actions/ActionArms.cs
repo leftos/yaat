@@ -155,7 +155,8 @@ internal static class ActionArms
 
     /// <summary>
     /// A STARS track verb under the resolved identity — the one track table (<see cref="TrackEngine.Dispatch"/>), plus
-    /// <c>CAACK</c>, whose state is the engine's conflict-alert set rather than the aircraft's.
+    /// <c>CAACK</c>, whose state is the engine's conflict-alert set rather than the aircraft's. A handoff or point-out
+    /// to an unattended TCP lands on its attended consolidation owner; attendance is the host's answer.
     /// </summary>
     public static CommandResult Track(ArmContext ctx)
     {
@@ -169,7 +170,8 @@ internal static class ActionArms
             return TrackEngine.AcknowledgeConflictAlert(ctx.Aircraft!, ctx.Engine.ConflictAlerts);
         }
 
-        return TrackEngine.Dispatch(ctx.Parsed!, ctx.Aircraft!, ctx.Identity, scenario) ?? ActionRefusals.HostOnly(ctx.Parsed!);
+        var redirect = new ConsolidationRedirect(scenario, ctx.Engine.ConsolidationState, ctx.Host.IsPositionAttended);
+        return TrackEngine.Dispatch(ctx.Parsed!, ctx.Aircraft!, ctx.Identity, scenario, redirect) ?? ActionRefusals.HostOnly(ctx.Parsed!);
     }
 
     /// <summary><c>ACCEPTALL</c> / <c>HOALL</c> under the resolved identity.</summary>

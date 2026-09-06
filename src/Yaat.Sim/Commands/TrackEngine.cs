@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Simulation;
 
@@ -9,6 +10,8 @@ namespace Yaat.Sim.Commands;
 /// </summary>
 public static partial class TrackEngine
 {
+    private static readonly ILogger Log = SimLog.CreateLogger("TrackEngine");
+
     public static string FormatOwner(TrackOwner owner)
     {
         string tcp;
@@ -600,39 +603,85 @@ public static partial class TrackEngine
     }
 
     /// <summary>
-    /// Mirrors yaat-server's <c>TrackCommandHandler.HandleHandoff</c> mutation step
-    /// (without the consolidation-redirect logic, which depends on the live
-    /// PositionRegistry attendance map). Resolves the target TCP via the scenario,
-    /// then writes <c>Track.HandoffPeer</c>.
+    /// <c>HO</c>: offers the track to a position. Three outcomes. The pending handoff's <em>recipient</em> — not the owner —
+    /// entering a new handoff ID re-points the inbound handoff at that position (stars.md "Redirecting a Handoff"), with
+    /// <c>HandoffRedirectedBy</c> carrying the recipient it was redirected away from, the convention CRC renders from.
+    /// A target that is unattended but consolidated under an attended position receives the handoff there
+    /// (<paramref name="redirect"/>, null when no host answers attendance), <c>HandoffRedirectedBy</c> carrying the
+    /// addressed position. Otherwise the target itself becomes the peer.
     /// </summary>
-    public static CommandResult ApplyHandoff(AircraftState ac, SimScenarioState scenario, string? tcpCode)
+    public static CommandResult ApplyHandoff(
+        AircraftState ac,
+        SimScenarioState scenario,
+        TrackOwner? identity,
+        string? tcpCode,
+        ConsolidationRedirect? redirect
+    )
     {
         if (ac.Track.Owner is null)
         {
             return new CommandResult(false, $"{ac.Callsign} is not tracked");
         }
 
-        TrackOwner? target;
         if (tcpCode is null)
         {
-            target = scenario.StudentPosition;
-            if (target is null)
+            var studentPos = scenario.StudentPosition;
+            if (studentPos is null)
             {
                 return new CommandResult(false, "No student position configured");
             }
+
+            ac.Track.HandoffPeer = studentPos;
+            ac.Track.HandoffInitiatedAt = scenario.ElapsedSeconds;
+            return new CommandResult(true, $"Handoff {ac.Callsign} to {FormatOwner(studentPos)}");
         }
-        else
+
+        var target = TrackResolver.ResolveTcpToOwner(scenario, tcpCode);
+        if (target is null)
         {
-            target = TrackResolver.ResolveTcpToOwner(scenario, tcpCode);
-            if (target is null)
-            {
-                return new CommandResult(false, $"Unknown position: {tcpCode}");
-            }
+            return new CommandResult(false, $"Unknown position: {tcpCode}");
+        }
+
+        if (
+            (identity is not null)
+            && (ac.Track.HandoffPeer is not null)
+            && ac.Track.HandoffPeer.MatchesPosition(identity)
+            && !ac.Track.Owner.MatchesPosition(identity)
+        )
+        {
+            var manualRedirectFrom = ac.Track.HandoffPeer;
+            ac.Track.HandoffPeer = redirect?.TryRedirect(target) ?? target;
+            ac.Track.HandoffRedirectedBy = manualRedirectFrom;
+            ac.Track.HandoffInitiatedAt = scenario.ElapsedSeconds;
+            return new CommandResult(true, $"Redirected handoff {ac.Callsign} to {tcpCode}");
+        }
+
+        if (redirect?.TryRedirect(target) is { } redirectOwner)
+        {
+            ac.Track.HandoffPeer = redirectOwner;
+            ac.Track.HandoffRedirectedBy = target;
+            ac.Track.HandoffInitiatedAt = scenario.ElapsedSeconds;
+            return new CommandResult(true, $"Handoff {ac.Callsign} to {tcpCode} (redirected to {redirectOwner.Subset}{redirectOwner.SectorId})");
         }
 
         ac.Track.HandoffPeer = target;
         ac.Track.HandoffInitiatedAt = scenario.ElapsedSeconds;
-        return new CommandResult(true, $"Handoff {ac.Callsign} to {tcpCode ?? FormatOwner(target)}");
+        Log.LogInformation(
+            "[Handoff] {Callsign}: Owner={OwnerCallsign} (type={OwnerType}, fac={OwnerFac}, {OwnerSubset}{OwnerSector}) → "
+                + "Peer={PeerCallsign} (type={PeerType}, fac={PeerFac}, {PeerSubset}{PeerSector})",
+            ac.Callsign,
+            ac.Track.Owner.Callsign,
+            ac.Track.Owner.OwnerType,
+            ac.Track.Owner.FacilityId,
+            ac.Track.Owner.Subset,
+            ac.Track.Owner.SectorId,
+            target.Callsign,
+            target.OwnerType,
+            target.FacilityId,
+            target.Subset,
+            target.SectorId
+        );
+        return new CommandResult(true, $"Handoff {ac.Callsign} to {tcpCode}");
     }
 
     /// <summary>
@@ -658,11 +707,13 @@ public static partial class TrackEngine
     }
 
     /// <summary>
-    /// Mirrors yaat-server's <c>TrackCommandHandler.HandlePointOut(... tcpCode)</c>:
-    /// resolves the target and sender TCPs (sender = current owner), then delegates to
-    /// <see cref="HandlePointOut(AircraftState, Tcp, Tcp)"/>.
+    /// <c>PO {tcp}</c>: resolves the target and sender TCPs (the sender is the track owner — no acting position
+    /// needed), then files the point-out. An unattended target consolidated under an attended position receives it
+    /// there (<paramref name="redirect"/>, null when no host answers attendance): the controller working the combined
+    /// position acts under the parent's identity, so a point-out left on the literal child TCP could never be
+    /// acknowledged and would stick pending.
     /// </summary>
-    public static CommandResult ApplyPointOut(AircraftState ac, SimScenarioState scenario, string tcpCode)
+    public static CommandResult ApplyPointOut(AircraftState ac, SimScenarioState scenario, string tcpCode, ConsolidationRedirect? redirect)
     {
         if (ac.Track.Owner is null)
         {
@@ -675,11 +726,20 @@ public static partial class TrackEngine
             return new CommandResult(false, $"Unknown position: {tcpCode}");
         }
 
-        // The pointout sender is the track owner — no separate "acting position" needed.
         var senderTcp = TrackResolver.FindTcpForOwner(ac.Track.Owner, scenario);
         if (senderTcp is null)
         {
             return new CommandResult(false, "Cannot determine sender TCP");
+        }
+
+        var targetOwner = TrackResolver.ResolveTcpToOwner(scenario, tcpCode);
+        if ((targetOwner is not null) && (redirect?.TryRedirect(targetOwner) is { } redirectOwner))
+        {
+            var redirectedTcp = TrackResolver.FindTcpForOwner(redirectOwner, scenario);
+            if (redirectedTcp is not null)
+            {
+                targetTcp = redirectedTcp;
+            }
         }
 
         return HandlePointOut(ac, targetTcp, senderTcp, scenario.ElapsedSeconds);
@@ -782,12 +842,18 @@ public static partial class TrackEngine
     ///
     /// Per-aircraft only: the position-scoped verbs (<see cref="DispatchGlobal"/>), the ghost and reposition
     /// display objects (<c>TrackEngine.Ghost.cs</c>) and <c>CAACK</c> (<see cref="AcknowledgeConflictAlert"/>,
-    /// which needs the engine's conflict-alert set) have their own entry points; the consolidation-redirect
-    /// handoff is the one branch still only in yaat-server's <c>TrackCommandHandler</c>. Returns
-    /// <see langword="null"/> when the parsed command is not one this method dispatches, so callers can fall
-    /// through to their own logic.
+    /// which needs the engine's conflict-alert set) have their own entry points. <paramref name="redirect"/> is
+    /// where a handoff or point-out to an unattended TCP lands (<see cref="ConsolidationRedirect"/>); null when no
+    /// host answers attendance, and then nothing redirects. Returns <see langword="null"/> when the parsed command
+    /// is not one this method dispatches, so callers can fall through to their own logic.
     /// </summary>
-    public static CommandResult? Dispatch(ParsedCommand parsed, AircraftState ac, TrackOwner? identity, SimScenarioState scenario)
+    public static CommandResult? Dispatch(
+        ParsedCommand parsed,
+        AircraftState ac,
+        TrackOwner? identity,
+        SimScenarioState scenario,
+        ConsolidationRedirect? redirect
+    )
     {
         if (identity is null && RequiresIdentity(parsed))
         {
@@ -801,11 +867,11 @@ public static partial class TrackEngine
         {
             TrackAircraftCommand t => HandleTrack(ac, t.TcpCode, identity, scenario),
             DropTrackCommand => HandleDrop(ac),
-            InitiateHandoffCommand ho => ApplyHandoff(ac, scenario, ho.TcpCode),
+            InitiateHandoffCommand ho => ApplyHandoff(ac, scenario, identity, ho.TcpCode, redirect),
             ForceHandoffCommand hof => ApplyForceHandoff(ac, scenario, hof.TcpCode),
             AcceptHandoffCommand => HandleAccept(ac, scenario),
             CancelHandoffCommand => HandleCancel(ac),
-            PointOutCommand po when po.TcpCode is not null => ApplyPointOut(ac, scenario, po.TcpCode),
+            PointOutCommand po when po.TcpCode is not null => ApplyPointOut(ac, scenario, po.TcpCode, redirect),
             PointOutCommand => HandlePointOutNoArgs(ac, identity!),
             AcknowledgeCommand => HandleAcknowledge(ac),
             RejectPointoutCommand => HandleRejectPointout(ac),

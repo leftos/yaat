@@ -55,7 +55,7 @@ public class ConsolidationArmTests
             return;
         }
 
-        var host = new AttendanceHost();
+        var host = new AttendanceActionHost();
         var ac = engine.FindAircraft(AiTestFixture.Callsign)!;
         ac.Track.Owner = Nct4Q;
 
@@ -81,7 +81,7 @@ public class ConsolidationArmTests
             return;
         }
 
-        var host = new AttendanceHost();
+        var host = new AttendanceActionHost();
         var ac = engine.FindAircraft(AiTestFixture.Callsign)!;
         ac.Track.Owner = Nct4Q;
         ac.Track.HandoffPeer = Nct4U;
@@ -107,7 +107,7 @@ public class ConsolidationArmTests
             return;
         }
 
-        var host = new AttendanceHost();
+        var host = new AttendanceActionHost();
         host.AttendedTcpIds.Add(TcpId(engine, "4Q"));
         var ac = engine.FindAircraft(AiTestFixture.Callsign)!;
         ac.Track.Owner = Nct4Q;
@@ -127,7 +127,7 @@ public class ConsolidationArmTests
             return;
         }
 
-        var host = new AttendanceHost();
+        var host = new AttendanceActionHost();
 
         var unknown = engine.Actions.Apply(Recorded("CON 2B 6Q"), host);
         var first = engine.Actions.Apply(Recorded("CON 2B 4U"), host);
@@ -150,7 +150,7 @@ public class ConsolidationArmTests
             return;
         }
 
-        var host = new AttendanceHost();
+        var host = new AttendanceActionHost();
         engine.Actions.Apply(Recorded("CON 2B 4U"), host);
 
         var outcome = engine.Actions.Apply(Recorded("DECON 4U"), host);
@@ -160,48 +160,5 @@ public class ConsolidationArmTests
         Assert.Equal(new ActionTrace(RecordedCommandKind.Deconsolidate, ActionScope.Global, IsHostSlot: false), outcome.Trace);
         Assert.Null(engine.ConsolidationState.GetOverride(TcpId(engine, "4U")));
         Assert.Equal(2, host.ConsolidationChanges);
-    }
-
-    /// <summary>A host with no room: every slot refused, every consumer a no-op — except the two the consolidation arms use.</summary>
-    private sealed class AttendanceHost : IActionHost
-    {
-        public HashSet<string> AttendedTcpIds { get; } = [];
-
-        public int ConsolidationChanges { get; private set; }
-
-        public bool IsPositionAttended(Tcp tcp) => AttendedTcpIds.Contains(tcp.Id);
-
-        public void OnConsolidationChanged() => ConsolidationChanges++;
-
-        public CommandResult ApplyStrip(string callsign, ParsedCommand command, TrackOwner? identity) => ActionRefusals.HostOnly(command);
-
-        public CommandResult ApplyTdls(AircraftState aircraft, ParsedCommand command) => ActionRefusals.HostOnly(command);
-
-        public CommandResult ApplyTdlsOpsConfig(TdlsOpsConfigCommand command) => ActionRefusals.HostOnly(command);
-
-        public CommandResult ApplyCoordination(AircraftState aircraft, ParsedCommand command, TrackOwner? identity) =>
-            ActionRefusals.HostOnly(command);
-
-        public CommandResult ApplyGlobalCoordination(CoordinationAutoAckCommand command, TrackOwner? identity) => ActionRefusals.HostOnly(command);
-
-        public CommandResult ApplyAsdexEnableAllAlerts() => ActionRefusals.HostOnly("ASDXALERTS");
-
-        public CommandResult ApplyBookmark(BookmarkCommand command) => ActionRefusals.HostOnly(command);
-
-        public CommandResult ApplyTransport(ParsedCommand command) => ActionRefusals.HostOnly(command);
-
-        public CommandResult ApplyFlightPlanCommand(string callsign, ParsedCommand command, TrackOwner? identity) => ActionRefusals.HostOnly(command);
-
-        public void OnAircraftSpawned(AircraftState aircraft) { }
-
-        public void OnAircraftDeleted(string callsign) { }
-
-        public void OnPositionSelected(string connectionId, TrackOwner owner) { }
-
-        public void OnTimersChanged() { }
-
-        public void OnHeldDeparturesChanged() { }
-
-        public void OnFlightPlanAmended(string callsign) { }
     }
 }
