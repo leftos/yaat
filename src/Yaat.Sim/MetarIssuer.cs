@@ -6,26 +6,49 @@ namespace Yaat.Sim;
 /// a SPECI for a station whenever its conditions change significantly (see <see cref="SpeciCriteria"/>)
 /// since that station's last issued report. Conditions are sampled and frozen at issuance, so the
 /// reported string holds steady between issuances (a realistic observation lag); operational logic
-/// must keep using the continuous weather, never these reports. The observation clock is anchored
-/// at construction and advanced by elapsed sim time.
+/// must keep using the continuous weather, never these reports. The observation clock is the session
+/// start plus elapsed sim time, so the :53 grid is a function of sim time — a room returning to live
+/// resumes the grid the live room was on.
 /// </summary>
 public sealed class MetarIssuer
 {
     public const int RoutineObservationMinute = 53;
 
-    private readonly DateTime _anchorUtc;
+    private readonly DateTime _sessionStartUtc;
     private readonly List<string> _stationOrder = [];
     private readonly Dictionary<string, StationReport> _stations = new(StringComparer.OrdinalIgnoreCase);
     private DateTime _lastRoutineInstantUtc;
 
     /// <param name="weather">The loaded weather; its METAR strings seed the station list and baselines.</param>
-    /// <param name="anchorUtc">Real-world UTC at load; the observation clock is this plus elapsed sim time.</param>
+    /// <param name="sessionStartUtc">
+    /// The instant the session clock is anchored to (<see cref="Simulation.SimScenarioState.SessionStartUtc"/>);
+    /// the observation clock is this plus elapsed sim time, so the :53 grid is a function of sim time.
+    /// </param>
+    /// <param name="elapsedSeconds">
+    /// Sim time at construction. An issuer built mid-session (a rebuild after a rewind) starts from the
+    /// conditions at that second and already carries the routine that fell inside the session, so its
+    /// first tick re-issues nothing.
+    /// </param>
     /// <param name="stationLocator">Maps a station id to its coordinates for magnetic-variation lookup.</param>
-    public MetarIssuer(WeatherProfile weather, DateTime anchorUtc, Func<string, (double Lat, double Lon)?> stationLocator)
+    public MetarIssuer(
+        WeatherProfile weather,
+        DateTime sessionStartUtc,
+        double elapsedSeconds,
+        Func<string, (double Lat, double Lon)?> stationLocator
+    )
     {
-        _anchorUtc = anchorUtc;
+        _sessionStartUtc = sessionStartUtc;
+        var observationUtc = sessionStartUtc.AddSeconds(elapsedSeconds);
 
-        var obs = WindObservation.Observe(weather, 0);
+        // The most recent routine instant counts as already issued so construction never re-stamps
+        // every station at the upcoming :53 twice. A routine that fell inside this session was issued
+        // by the session being rebuilt, so it is composed here (an issuer rebuilt after a rewind
+        // resumes the grid rather than reverting to the loaded string); one from before the session
+        // started was never issued here, and the loaded report stands.
+        var routineInstant = MostRecentRoutineInstant(observationUtc);
+        bool carriesRoutine = routineInstant >= sessionStartUtc;
+
+        var obs = WindObservation.Observe(weather, elapsedSeconds);
         foreach (var raw in weather.Metars)
         {
             var parsed = MetarParser.Parse(raw);
@@ -34,17 +57,17 @@ public sealed class MetarIssuer
                 continue;
             }
 
+            var baseMetar = raw.Trim();
+            var conditions = Sample(parsed.StationId, weather, stationLocator, obs, elapsedSeconds, observationUtc);
             _stationOrder.Add(parsed.StationId);
             _stations[parsed.StationId] = new StationReport(
-                raw.Trim(),
-                Sample(parsed.StationId, weather, stationLocator, obs, elapsedSeconds: 0, observationUtc: anchorUtc),
-                anchorUtc
+                carriesRoutine ? MetarComposer.Compose(baseMetar, conditions, routineInstant, isSpeci: false) : baseMetar,
+                conditions,
+                carriesRoutine ? routineInstant : observationUtc
             );
         }
 
-        // Treat the most recent routine instant as already issued so loading mid-hour does not
-        // immediately re-stamp every station; the next routine fires at the upcoming :53.
-        _lastRoutineInstantUtc = MostRecentRoutineInstant(anchorUtc);
+        _lastRoutineInstantUtc = routineInstant;
     }
 
     /// <summary>The current reported METAR string per station, in the order they were loaded.</summary>
@@ -68,7 +91,7 @@ public sealed class MetarIssuer
     /// </summary>
     public bool Tick(double elapsedSeconds, WeatherProfile weather, Func<string, (double Lat, double Lon)?> stationLocator)
     {
-        var observationUtc = _anchorUtc.AddSeconds(elapsedSeconds);
+        var observationUtc = _sessionStartUtc.AddSeconds(elapsedSeconds);
         var routineInstant = MostRecentRoutineInstant(observationUtc);
         bool routineDue = routineInstant > _lastRoutineInstantUtc;
 
