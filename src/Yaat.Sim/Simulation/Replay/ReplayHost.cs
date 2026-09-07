@@ -109,7 +109,8 @@ internal sealed class ReplayHost : ISimulationHost
 
     // --- IActionHost: a replay has no room, so every slot is the bare host's refusal and every consumer its no-op ---
 
-    public CommandResult ApplyStrip(string callsign, ParsedCommand command, TrackOwner? identity) => _bare.ApplyStrip(callsign, command, identity);
+    public StripApplyResult ApplyStrip(string callsign, ParsedCommand command, TrackOwner? identity, string? bakedStripId) =>
+        _bare.ApplyStrip(callsign, command, identity, bakedStripId);
 
     public CommandResult ApplyTdls(AircraftState aircraft, ParsedCommand command) => _bare.ApplyTdls(aircraft, command);
 

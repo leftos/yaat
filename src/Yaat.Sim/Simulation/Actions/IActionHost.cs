@@ -3,6 +3,13 @@ using Yaat.Sim.Commands;
 namespace Yaat.Sim.Simulation.Actions;
 
 /// <summary>
+/// What a strip verb answers: the verdict, and — for a verb that creates an item under a minted id (<c>SEP</c>,
+/// <c>HSC</c>, <c>SCAN</c>, <c>BLANK</c>) — the id it minted or reused. Null for every other strip verb and for a refusal; the
+/// router bakes a non-null one onto the record so replay creates the item under the same id.
+/// </summary>
+public sealed record StripApplyResult(CommandResult Result, string? StripId);
+
+/// <summary>
 /// The action-path view of a host: the arm bodies the host still owns and the consumers a Sim arm notifies. The
 /// <see cref="ActionRouter"/> resolves an action's scope and identity, then either runs a Sim body or calls one of the
 /// slots here; a host that has nothing to do in a slot refuses it with a result rather than silently succeeding,
@@ -34,8 +41,10 @@ public interface IActionHost
 
     /// <summary>
     /// A strip verb (<c>STRIP</c>, <c>AN</c>, <c>HSC</c>, …); the callsign may name no aircraft (half strips, separators, blanks).
+    /// <paramref name="bakedStripId"/> is the id the live run minted for a creating verb, replayed from the record —
+    /// null on a fresh action, where the host mints and reports the id it used.
     /// </summary>
-    CommandResult ApplyStrip(string callsign, ParsedCommand command, TrackOwner? identity);
+    StripApplyResult ApplyStrip(string callsign, ParsedCommand command, TrackOwner? identity, string? bakedStripId);
 
     /// <summary><c>TDLSQ</c> / <c>TDLSS</c> / <c>TDLSW</c> / <c>TDLSD</c> against an aircraft that exists.</summary>
     CommandResult ApplyTdls(AircraftState aircraft, ParsedCommand command);

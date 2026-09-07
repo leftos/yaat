@@ -57,6 +57,17 @@ public sealed record RecordedCommand(double ElapsedSeconds, string Callsign, str
     public DateTime? IssuedAtUtc { get; init; }
 
     /// <summary>
+    /// The strip id a creating strip verb minted at the live run: <c>SEP</c> and <c>HSC</c> draw a fresh
+    /// <see cref="Guid"/> for the item they create, <c>SCAN</c> for the copy it puts in the external bay, and
+    /// <c>BLANK</c> takes the next value off the room's blank counter (which a snapshot carries, so a re-mint over a
+    /// restore would hand out the one after it rather than the same one). Replay
+    /// creates the item under this id instead of drawing, so a later recorded command addressing it — a
+    /// <c>SEPD SEP_x</c>, an <c>HSA</c>/<c>HSD HSTRIP_x</c>, a <c>STRIP</c> move of the copy — resolves the same item
+    /// the live run did. Null for every other command and for recordings written before the field existed.
+    /// </summary>
+    public string? StripId { get; init; }
+
+    /// <summary>
     /// Whether the command was accepted when issued. A replay that reaches a different verdict logs a replay-fidelity
     /// warning. Null on recordings written before rejections were recorded — every such command was accepted.
     /// </summary>

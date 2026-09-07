@@ -174,9 +174,9 @@ above:
   Both entry points mint the id first (`StripMutations.MintStripId`) and record a
   `RecordedStripRequest` carrying it through `RoomEngine.ApplyAndRecord`; the print itself is
   `RoomEngine.PrintRequestedStrip`, re-applied on every run kind through the `RoomHost` slot.
-  Because the id is baked, a same-room rewind (strip state is in no snapshot and is not reset)
-  finds the departure id already held and prints nothing, while a from-scratch reconstruction
-  (bundle export) prints the strip under the same id; an arrival keeps its one fixed
+  Because the id is baked, a rewind that restored a snapshot already holding the strip finds the
+  id present and prints nothing, while a from-scratch reconstruction (a live-room rewind, a bundle
+  export) prints the strip under the same id; an arrival keeps its one fixed
   `ARRIVAL_{callsign}` strip and moves it to the printer-queue tail on every request. Only the
   live room broadcasts the printed item (`BroadcastPrintedStrip`); a rewind must not re-push what
   clients already hold.
@@ -209,13 +209,23 @@ and never parses it.
 Strip state is the engine's: `SimulationEngine.Strips`, typed as `FlightStripState`
 (`src/Yaat.Sim/Simulation/Strips/FlightStripState.cs`). A fresh engine starts with empty bays (a
 restart therefore starts from the scenario's own strips — `RecordingManager.RestartScenarioAsync`
-carries only the user's separators across, by id, into the fresh racks), the snapshot's server section carries it
+re-issues only the user's separators, as fresh `SEP` commands recorded at t=0 of the new tape under the
+restarting controller's connection, so they get new ids and every later rewind or export reproduces them), the snapshot's server section carries it
 (`ServerSnapshotDto.Strips`, `FlightStripSnapshotMapper`), and a rewind or bundle reconstruction
 rebuilds it from the recorded strip requests plus the host's auto-print bodies, after which the room
 re-pushes the result to its clients (`RecordingManager.ResyncStripsAndTdlsAsync`). The mutation helpers
 (`StripMutations`, `StripCommandHandler`, the auto-print tick steps) are still yaat-server's and read
 `room.ActiveSim!.Strips`; a room with no scenario has no strips, and the broadcasters send an empty
 full state for it.
+
+The verbs that mint a Guid id at dispatch — `SEP`, `HSC`, `SCAN` — bake it onto their `RecordedCommand`
+(`RecordedCommand.StripId`, through `BakedDraws.StripId` and the strip arm's `StripApplyResult`), so a
+rewind or bundle reconstruction re-creates the strip under the live id and a later `SEPD` / `HSA` / `HSD`
+that addresses it resolves; a host that already holds the baked id (a snapshot restore) creates nothing.
+`BLANK` draws from the `NextBlankId` counter (deterministic) but bakes its id too, so a re-applied
+record over a snapshot that already holds the blank creates no second one. The oracle cannot script the Guid verbs:
+its live leg is a second run compared against the first run's log, and two runs never draw the same
+Guid — `StripIdBakingTests` is their pin.
 
 ```csharp
 public sealed class FlightStripState

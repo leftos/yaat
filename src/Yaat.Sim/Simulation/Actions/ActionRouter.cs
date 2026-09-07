@@ -343,6 +343,7 @@ public sealed class ActionRouter
                 SpawnJitterSeconds = ctx?.SpawnJitterSeconds,
                 SpawnedAircraft = ctx?.SpawnedAircraft,
                 IssuedAtUtc = ctx?.IssuedAtUtc,
+                StripId = ctx?.StripId,
                 Accepted = result.Success,
             };
             _engine.RecordAction(toRecord);

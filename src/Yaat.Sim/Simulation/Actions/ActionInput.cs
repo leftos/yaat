@@ -13,10 +13,21 @@ public sealed record ActionInput(string Callsign, string Command, string Connect
 /// <summary>
 /// The draws a live run made while applying a command, stored on the <see cref="RecordedCommand"/> so no other run has
 /// to make them: the pilot-reaction delay, the airborne spawn jitter of an immediate <c>REL</c>, the aircraft an
-/// <c>ADD</c> generated, and the wall clock a <c>CFR</c> window was anchored to. Each is null when the command did not draw it.
+/// <c>ADD</c> generated, the wall clock a <c>CFR</c> window was anchored to, and the strip id a creating strip verb
+/// minted. Each is null when the command did not draw it.
 /// </summary>
-public sealed record BakedDraws(double? ReactionDelaySeconds, int? SpawnJitterSeconds, AircraftSnapshotDto? SpawnedAircraft, DateTime? IssuedAtUtc)
+/// <param name="StripId">
+/// The id a strip verb that mints one — <c>SEP</c>, <c>HSC</c>, <c>SCAN</c>, <c>BLANK</c> — drew live; reused on replay so a later
+/// command addressing it resolves.
+/// </param>
+public sealed record BakedDraws(
+    double? ReactionDelaySeconds,
+    int? SpawnJitterSeconds,
+    AircraftSnapshotDto? SpawnedAircraft,
+    DateTime? IssuedAtUtc,
+    string? StripId
+)
 {
     public static BakedDraws Of(RecordedCommand record) =>
-        new(record.ReactionDelaySeconds, record.SpawnJitterSeconds, record.SpawnedAircraft, record.IssuedAtUtc);
+        new(record.ReactionDelaySeconds, record.SpawnJitterSeconds, record.SpawnedAircraft, record.IssuedAtUtc, record.StripId);
 }

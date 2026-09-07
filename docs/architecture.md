@@ -86,6 +86,7 @@ The Task Index above tells you *which files*; these docs explain *how each subsy
   - **Helicopter**: `Simulation/HelicopterLandSpotFromDistanceTests.cs` (S2-OAK-5 replay: an R22 told LAND @SIG1 from 9 nm holds 500 ft until the 6° final instead of diving to air-taxi height), `Simulation/HelicopterLandGateTests.cs` (the on-field gate: on/over the field → AirTaxi chain, off-field LAND → HelicopterApproachPhase, off-field ATXI refused; TOD / final-start math)
   - **Route geometry guards**: `Helpers/RouteGeometryAsserts.cs` (structural: no square pivot where fillet exists)
   - **Attendance**: `Helpers/AttendanceTestSupport.cs` (test helpers for CRC attendance state), `Simulation/Actions/AttendanceRecordTests.cs` (a RecordedAttendanceChange replaces the engine's set, resolves ids through the room's config, keeps an unresolvable id by id only, round-trips the snapshot and the serializer; a fresh replay starts empty)
+  - **Strip id baking**: `Simulation/Actions/StripIdBakedDrawTests.cs` (the strip id a creating verb — SEP/HSC/SCAN — draws is a baked draw like the reaction delay and the generated aircraft: `RecordedCommand.StripId` round-trips the archive serializer, `BakedDraws.Of` carries it, and the strip arm bakes the id the host minted onto the record)
 - **Client tests**: `tests/Yaat.Client.Tests/` — view model logic, command input
 - **UI tests**: `tests/Yaat.Client.UI.Tests/` — headless window tests for views and layout
 - **Test data**: `tests/Yaat.Sim.Tests/TestData/` — NavData.dat + `navdata-manifest.json`, FAACIFP18.gz + `cifp-manifest.json`, airport GeoJSON, `oak-u-w-fillet-corner-recording.zip` (E2E fillet routing test fixture), `s2-oak5-follow-heli-recording.zip` (S2-OAK-5 bundle: FOLLOW behind a straight-in jet, helicopter LAND @spot from off-field, CRC flight-plan amendment during a hover hold), `recording-routing-census.json` (per-fixture routing census of every recorded command — the triage worklist for the action-router work). Refresh pins: `tools/refresh-navdata.py`, FAA CIFP via `CifpPathResolver` at test load.
@@ -1198,7 +1199,8 @@ RecordedAction.cs              # Polymorphic recorded actions: Command, Chat, Am
                                # id the live print minted, baked on so a same-room rewind prints nothing and a from-scratch reconstruction prints under the same id),
                                # AsdexSafetyLogicChange (the CRC safety-logic configuration DTO as JSON — room state, applied by the host slot),
                                # AutoTrackChange (a CRC .AUTOTRACK delta — positive ids, -X, none — the second recorded input; SimulationEngine.ApplyAutoTrackChange applies it on every run kind)
-                               # RecordedCommand bakes the live run's draws (ReactionDelaySeconds, SpawnJitterSeconds, SpawnedAircraft, IssuedAtUtc — all nullable)
+                               # RecordedCommand bakes the live run's draws (ReactionDelaySeconds, SpawnJitterSeconds, SpawnedAircraft, IssuedAtUtc, StripId — the id a
+                               # creating strip verb (SEP/HSC/SCAN) minted, so replay creates the item under it instead of drawing again — all nullable)
                                # for replay determinism and carries Accepted (null = pre-feature = accepted) so a replay can compare verdicts
 RecordedTerminalEntry.cs       # One broadcast terminal line (kind/callsign/message) with wall-clock Timestamp + scenario-elapsed ElapsedSeconds; persisted as terminal-log.json.br so a loaded recording repopulates the terminal and each line scrubs the replay
 RecordedCommandClassifier.cs   # The exhaustive command classifier: RecordedCommandKind (one per ParsedCommand subtype, no default —
@@ -1248,7 +1250,9 @@ ActionRouter.cs                # SimulationEngine.Actions. Issue(ActionInput, ho
                                # warning when Accepted disagrees). LastTrace is the parity test's observable. Overloads without a host use the bare host.
 ArmTable.cs (in ActionArm.cs)  # ActionArm (kind, scope, IsHostSlot, RecordingPolicy, Run) + ArmTable.For(kind) — one row per
                                # RecordedCommandKind, scope asserted equal to the classifier's at construction; RecordingPolicy.Never = ShowQueued + Bookmark + Transport;
-                               # ArmContext is what a body sees (engine, host, input, remainder, parsed, resolved aircraft/identity) and writes its draws into
+                               # ArmContext is what a body sees (engine, host, input, remainder, parsed, resolved aircraft/identity) and writes its draws
+                               # (ReactionDelaySeconds, SpawnJitterSeconds, SpawnedAircraft, IssuedAtUtc, StripId — the id a creating strip verb minted) into,
+                               # so the router bakes them onto the record
 ActionArms.cs                  # The Sim bodies: Aviation (ParseCompound → ReactionDelayPolicy → defer or DispatchCompound → ApplyPostDispatch; a landing clearance
                                # caches the ground layout, a successful APT is an amendment the host reprints the strip for), ShowQueued (ConditionalList lines to
                                # OnQueuedCommandsShown, never recorded), FlightPlan (FP/VP/DA/RMK: FlightPlanNormalization → SimulationEngine.AmendFlightPlan +
@@ -1261,7 +1265,8 @@ ActionArms.cs                  # The Sim bodies: Aviation (ParseCompound → Rea
                                # TrackEngine.DispatchGlobal), GhostTrack (a created phantom is handed to OnAircraftSpawned), Reposition, SquawkAll, HFR/HFROFF/REL (baked jitter else ReleaseJitterRng), Cfr (baked clock else now),
                                # Timer, TaxiAll, AddAircraft (SimulationEngine.AddAircraft; bakes the spawned aircraft onto a fresh record),
                                # Consolidate/Deconsolidate (SimulationEngine.Consolidate / Deconsolidate; OnConsolidationChanged)
-IActionHost.cs                 # The action-path view of a host, part of ISimulationHost: slots for the bodies the server still owns (ApplyStrip, ApplyTdls,
+IActionHost.cs                 # The action-path view of a host, part of ISimulationHost: slots for the bodies the server still owns (ApplyStrip(callsign, command,
+                               # identity, bakedStripId) → StripApplyResult(Result, StripId) — the id a creating verb (SEP/HSC/SCAN) minted live and a replay reuses, ApplyTdls,
                                # ApplyTdlsOpsConfig, ApplyCoordination, ApplyGlobalCoordination, ApplyAsdexEnableAllAlerts, ApplyBookmark(command, initials),
                                # ApplyTransport, ApplyRecordedAsdexMutation / ApplyRecordedSaidMutation / ApplyRecordedEramCrrGroup / ApplyRecordedStripRequest (the host
                                # answers: aircraft gone = refused, id already held = nothing printed) / ApplyRecordedAsdexSafetyLogic for the recorded CRC display
@@ -1271,7 +1276,7 @@ IActionHost.cs                 # The action-path view of a host, part of ISimula
                                # as step-4 debt. BareHost + ReplayHost refuse / ignore; yaat-server's RoomHost answers with the room's bodies and gives a fresh
                                # action the room's tails (spawn hooks and broadcasts, display config, CRC broadcasts) that a replaying room skips
 ActionInput.cs                 # ActionInput (callsign, command, connection id, initials, Baked) + BakedDraws (reaction delay, spawn jitter, spawned aircraft,
-                               # issued-at clock) — the values a live run drew, read back from the record so no other run draws them
+                               # issued-at clock, strip id) — the values a live run drew, read back from the record so no other run draws them
 ActionOutcome.cs               # ActionOutcome (result, the record produced, trace) + ActionTrace (kind, scope, IsHostSlot)
 ActionRefusals.cs              # HostOnly / NoScenario / AircraftNotFound — the results for an action no body on this run can apply
 ReactionDelayPolicy.cs         # Decide(scenario, world, aircraft, compound, baked): baked wins; else null when no range is active, the compound carries

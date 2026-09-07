@@ -36,7 +36,21 @@ public sealed class AttendanceActionHost : IActionHost
 
     public void OnConsolidationChanged() => ConsolidationChanges++;
 
-    public CommandResult ApplyStrip(string callsign, ParsedCommand command, TrackOwner? identity) => ActionRefusals.HostOnly(command);
+    /// <summary>
+    /// The id the strip slot answers with when it is asked to mint one — set to stand in for a room whose
+    /// <c>SEP</c>/<c>HSC</c>/<c>SCAN</c>/<c>BLANK</c> drew an id. Null keeps the no-room refusal every other slot gives.
+    /// </summary>
+    public string? MintedStripId { get; set; }
+
+    /// <summary>The baked id the last <see cref="ApplyStrip"/> was handed — null when the action carried none.</summary>
+    public string? LastBakedStripId { get; private set; }
+
+    /// <summary>Reuses the baked id when the router supplies one, exactly as a room's handler does, else mints.</summary>
+    public StripApplyResult ApplyStrip(string callsign, ParsedCommand command, TrackOwner? identity, string? bakedStripId)
+    {
+        LastBakedStripId = bakedStripId;
+        return MintedStripId is null ? new(ActionRefusals.HostOnly(command), null) : new(new CommandResult(true), bakedStripId ?? MintedStripId);
+    }
 
     public CommandResult ApplyTdls(AircraftState aircraft, ParsedCommand command) => ActionRefusals.HostOnly(command);
 

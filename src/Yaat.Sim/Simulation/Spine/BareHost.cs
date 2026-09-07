@@ -125,7 +125,8 @@ internal sealed class BareHost(SimulationEngine engine) : ISimulationHost
 
     // --- IActionHost: no room, so every slot is refused and every consumer is a no-op ---
 
-    public CommandResult ApplyStrip(string callsign, ParsedCommand command, TrackOwner? identity) => ActionRefusals.HostOnly(command);
+    public StripApplyResult ApplyStrip(string callsign, ParsedCommand command, TrackOwner? identity, string? bakedStripId) =>
+        new(ActionRefusals.HostOnly(command), null);
 
     public CommandResult ApplyTdls(AircraftState aircraft, ParsedCommand command) => ActionRefusals.HostOnly(command);
 

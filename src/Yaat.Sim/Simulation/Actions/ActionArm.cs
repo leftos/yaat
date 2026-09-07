@@ -43,6 +43,9 @@ public sealed class ArmContext
     public int? SpawnJitterSeconds { get; set; }
     public AircraftSnapshotDto? SpawnedAircraft { get; set; }
     public DateTime? IssuedAtUtc { get; set; }
+
+    /// <summary>The id the host minted (or reused) for a creating strip verb; null for every other command.</summary>
+    public string? StripId { get; set; }
 }
 
 /// <summary>
@@ -101,7 +104,7 @@ public static class ArmTable
             Sim(RecordedCommandKind.Consolidate, ActionArms.Consolidate),
             Sim(RecordedCommandKind.Deconsolidate, ActionArms.Deconsolidate),
             Sim(RecordedCommandKind.AddAircraft, ActionArms.AddAircraft),
-            Host(RecordedCommandKind.Strip, RecordingPolicy.Text, static ctx => ctx.Host.ApplyStrip(ctx.Input.Callsign, ctx.Parsed!, ctx.Identity)),
+            Host(RecordedCommandKind.Strip, RecordingPolicy.Text, static ctx => ApplyStrip(ctx)),
             Host(RecordedCommandKind.Tdls, RecordingPolicy.Text, static ctx => ctx.Host.ApplyTdls(ctx.Aircraft!, ctx.Parsed!)),
             Host(RecordedCommandKind.TdlsOps, RecordingPolicy.Text, static ctx => ctx.Host.ApplyTdlsOpsConfig((TdlsOpsConfigCommand)ctx.Parsed!)),
             Host(
@@ -133,6 +136,18 @@ public static class ArmTable
         }
 
         return rows.ToFrozenDictionary(r => r.Kind);
+    }
+
+    /// <summary>
+    /// The strip slot, with the id channel around it: a creating verb (<c>SEP</c>, <c>HSC</c>, <c>SCAN</c>, <c>BLANK</c>) mints one
+    /// live and the router bakes it onto the record, while a recorded one hands the baked id back to the host so the
+    /// item is created under the id the live run used. Every other strip verb answers null and bakes nothing.
+    /// </summary>
+    private static CommandResult ApplyStrip(ArmContext ctx)
+    {
+        var applied = ctx.Host.ApplyStrip(ctx.Input.Callsign, ctx.Parsed!, ctx.Identity, ctx.Input.Baked?.StripId);
+        ctx.StripId = applied.StripId;
+        return applied.Result;
     }
 
     private static ActionArm Sim(RecordedCommandKind kind, Func<ArmContext, CommandResult> run) => Sim(kind, RecordingPolicy.Text, run);

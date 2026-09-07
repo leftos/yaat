@@ -17,7 +17,8 @@
 
 ### Fixed
 - Rewinding a session restores the flight strips and PDCs as they were at the target time — including the clearance a sent PDC carried and its pending auto-acknowledge — and re-sends them to every Strips and TDLS view; restarting a scenario starts from the scenario's own strips and PDCs instead of carrying the previous run's. Strips and the TDLS session are now part of every recording, bundle and session checkpoint.
-- Leaving a room empties the Strips and TDLS views, docked or popped out, so the previous room's strips can no longer be moved or printed; restarting a scenario keeps only the separators you placed (#424).
+- Leaving a room empties the Strips and TDLS views, docked or popped out, so the previous room's strips can no longer be moved or printed; restarting a scenario keeps only the separators you placed, and a rewind after the restart keeps them too (#424).
+- Rewinds and bug-report bundles re-create separators, half-strips, blank strips and scanned strip copies under the ids the session gave them, so a later edit, move or delete of one of them replays correctly (each was re-created under a fresh random id before).
 - Bug-report bundles and rewinds reproduce the departure strip and PDC of an aircraft added with `ADD` during the session, re-apply the TDLS actions the session recorded (they were skipped on reconstruction before), and drop the room assignment of an aircraft that was deleted.
 - `MLT 28R 15` and `CTO MLT 28R 15` keep their runway and altitude in the command's canonical text (they were echoed as bare `MLT`/`CTO MLT`).
 - A `FOLLOW` issued after `COPT MLT 28L` keeps the armed pattern runway, so the transition still happens after the option; the RPO is warned that the follower will leave the sequence then.
