@@ -257,6 +257,112 @@ public static class PatternGeometry
         GroundRunway? authoredRunway
     )
     {
+        // Departure end of runway. Deliberately the pavement end, not a displaced-threshold-derived
+        // point: the crosswind turn is a *departure* geometry anchor (AIM 4-3-2, "beyond the departure
+        // end"), and pre-threshold pavement is available for takeoff in either direction
+        // (AIM 2-3-3.b.8.2). Only the arrival side of the pattern moves with the displacement.
+        return ComputeCore(
+            runway,
+            runway.EndLatitude,
+            runway.EndLongitude,
+            category,
+            aircraftType,
+            windSpeedKt,
+            direction,
+            sizeOverrideNm,
+            altitudeOverrideFt,
+            airportRunways,
+            authoredRunway
+        );
+    }
+
+    /// <summary>
+    /// Pattern geometry for an aircraft transitioning from <paramref name="flownRunway"/>'s upwind
+    /// onto <paramref name="patternRunway"/>'s pattern: identical to
+    /// <see cref="Compute(RunwayInfo, AircraftCategory, string, double, PatternDirection, double?, double?, IReadOnlyList{RunwayInfo}?, GroundRunway?)"/>
+    /// for the pattern runway, except that the crosswind turn is anchored at whichever of the two
+    /// runways' departure ends lies farther along the pattern runway's heading.
+    ///
+    /// AIM 4-3-2 commences the crosswind turn beyond the departure end of the runway; for a runway
+    /// switch the aircraft has to clear <em>both</em> departure ends before turning, or the turn
+    /// carries it back over the runway it is leaving (or over the one it is joining). Everything
+    /// downstream of the turn point — the downwind start, and therefore the crosswind leg's target —
+    /// follows from it.
+    /// </summary>
+    public static PatternWaypoints ComputeTransition(
+        RunwayInfo flownRunway,
+        RunwayInfo patternRunway,
+        AircraftCategory category,
+        string aircraftType,
+        double windSpeedKt,
+        PatternDirection direction,
+        double? sizeOverrideNm,
+        double? altitudeOverrideFt,
+        IReadOnlyList<RunwayInfo>? airportRunways,
+        GroundRunway? patternAuthoredRunway
+    )
+    {
+        var patternThreshold = new LatLon(patternRunway.ThresholdLatitude, patternRunway.ThresholdLongitude);
+        double flownAlong = GeoMath.AlongTrackDistanceNm(
+            new LatLon(flownRunway.EndLatitude, flownRunway.EndLongitude),
+            patternThreshold,
+            patternRunway.TrueHeading
+        );
+        double patternAlong = GeoMath.AlongTrackDistanceNm(
+            new LatLon(patternRunway.EndLatitude, patternRunway.EndLongitude),
+            patternThreshold,
+            patternRunway.TrueHeading
+        );
+        bool flownIsFarther = flownAlong > patternAlong;
+
+        return ComputeCore(
+            patternRunway,
+            flownIsFarther ? flownRunway.EndLatitude : patternRunway.EndLatitude,
+            flownIsFarther ? flownRunway.EndLongitude : patternRunway.EndLongitude,
+            category,
+            aircraftType,
+            windSpeedKt,
+            direction,
+            sizeOverrideNm,
+            altitudeOverrideFt,
+            airportRunways,
+            patternAuthoredRunway
+        );
+    }
+
+    /// <summary>
+    /// Along-track distance (nm) of the downwind leg's midfield point, measured from the landing
+    /// threshold along the downwind heading — the axis <see cref="Pattern.DownwindPhase"/> measures
+    /// every trigger on. Midfield is the midpoint between the downwind start (abeam the departure
+    /// end) and the abeam-the-threshold point, which is exactly the point
+    /// <see cref="Pattern.MidfieldCrossingPhase"/> steers to. Note the abeam point itself sits at
+    /// along-track ≈ 0 — it is projected perpendicular from the threshold — so half its along-track
+    /// is the threshold, not midfield.
+    /// </summary>
+    public static double MidfieldAlongTrackNm(PatternWaypoints waypoints) =>
+        GeoMath.AlongTrackDistanceNm(
+            new LatLon(
+                (waypoints.DownwindStartLat + waypoints.DownwindAbeamLat) / 2.0,
+                (waypoints.DownwindStartLon + waypoints.DownwindAbeamLon) / 2.0
+            ),
+            new LatLon(waypoints.ThresholdLat, waypoints.ThresholdLon),
+            waypoints.DownwindHeading
+        );
+
+    private static PatternWaypoints ComputeCore(
+        RunwayInfo runway,
+        double depEndLat,
+        double depEndLon,
+        AircraftCategory category,
+        string aircraftType,
+        double windSpeedKt,
+        PatternDirection direction,
+        double? sizeOverrideNm,
+        double? altitudeOverrideFt,
+        IReadOnlyList<RunwayInfo>? airportRunways,
+        GroundRunway? authoredRunway
+    )
+    {
         TrueHeading rwyHdg = runway.TrueHeading;
 
         // Turn offset: +90 for left pattern, -90 for right pattern
@@ -307,14 +413,7 @@ public static class PatternGeometry
         // and the final's aim point. A displaced threshold moves all three downfield with it.
         var threshold = LandingThreshold.Resolve(runway, authoredRunway);
 
-        // Departure end of runway. Deliberately the pavement end, not a displaced-threshold-derived
-        // point: the crosswind turn is a *departure* geometry anchor (AIM 4-3-2, "beyond the departure
-        // end"), and pre-threshold pavement is available for takeoff in either direction
-        // (AIM 2-3-3.b.8.2). Only the arrival side of the pattern moves with the displacement.
-        double depEndLat = runway.EndLatitude;
-        double depEndLon = runway.EndLongitude;
-
-        // Crosswind turn point: at the departure end of the runway.
+        // Crosswind turn point: at the departure end anchor the caller supplied.
         (double Lat, double Lon) crosswindTurn = (depEndLat, depEndLon);
 
         // Downwind start: crosswind turn + offset perpendicular to runway

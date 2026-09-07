@@ -184,20 +184,57 @@ Every sequence ends with `FinalApproachPhase` then a landing phase (`HelicopterL
 next full circuit from upwind for auto-cycling traffic; `UpdateWaypoints` (`PatternBuilder.cs:101`) re-points the
 waypoints of all pending/active pattern phases (used when the pattern is resized live).
 
-### Cross-runway closed-traffic departure — `BuildCrossRunwayDepartureCircuit`
+### Runway transitions — `BuildRunwayTransitionCircuit`
 
-`CTO MRT 28R` from runway 33 ("cleared for takeoff rwy 33, make right traffic rwy 28R") departs one runway and
-joins the pattern of another. `DepartureClearanceHandler.ApplyClosedTraffic` detects this (pattern runway ≠
-takeoff runway) and builds the first circuit via `PatternBuilder.BuildCrossRunwayDepartureCircuit`:
-`UpwindPhase` (waypoints from the **departure** runway) → `MidfieldCrossingPhase` (`BiasTurnToPatternSide=true`,
-waypoints from the **pattern** runway) → `DownwindPhase`/`BasePhase`/`FinalApproachPhase`/`TouchAndGoPhase`
-(pattern runway). Per AIM 4-3-2 the departure/upwind leg belongs to the departure runway; downwind/base/final
-belong to the landing runway. The departure runway is carried on `PhaseList.DepartureRunway` (read by
+Two commands move an aircraft from one runway's pattern into another's: a cross-runway takeoff clearance
+(`CTO MRT 28R` from runway 33, "cleared for takeoff rwy 33, make right traffic rwy 28R" —
+`DepartureClearanceHandler.ApplyClosedTraffic` detects pattern runway ≠ takeoff runway) and an `MLT`/`MRT` with a
+runway argument issued while the aircraft is on an active pattern leg (`TryChangePatternDirection`, below). Both
+build the first circuit through `PatternBuilder.BuildRunwayTransitionCircuit(flownRunway, patternRunway, …)`, which
+picks one of two shapes by `RunwayGeometry.AreCloseParallels` (same airport, headings within 5°, centerlines within
+0.25 nm — AIM §5-4-19's side-step envelope, shared with the `EF` sidestep):
+
+- **Close parallels** (OAK 28R → 28L): `UpwindPhase` → `CrosswindPhase` on *transition* waypoints
+  (`PatternGeometry.ComputeTransition`) → `DownwindPhase` (`RejoinTrack = true`) → `BasePhase` →
+  `FinalApproachPhase` → terminator on the pattern runway. The transition waypoints are the pattern runway's
+  geometry with the crosswind turn anchored at whichever of the two departure ends projects farther along the pattern
+  runway's heading, so the aircraft continues the upwind it is on and turns crosswind only once it has cleared
+  **both** departure ends (AIM 4-3-2); the downwind start follows from that turn point. No midfield crossing.
+- **Crossing runways** (33 → 28R): `UpwindPhase` (waypoints from the **departure** runway) →
+  `MidfieldCrossingPhase` (`InitialTurn` toward the pattern side, waypoints from the **pattern** runway) →
+  `DownwindPhase` (`RejoinTrack = true`) / `BasePhase` / `FinalApproachPhase` / terminator (pattern runway). Per
+  AIM 4-3-2 the departure/upwind leg belongs to the departure runway; downwind/base/final belong to the landing runway.
+
+For a takeoff clearance the departure runway is carried on `PhaseList.DepartureRunway` (read by
 `LineUpPhase`/`LinedUpAndWaitingPhase`/`TakeoffPhase`), while `AssignedRunway`/`PatternRunway` hold the pattern
 runway (read by the circuit/final/landing phases). Subsequent circuits auto-cycle entirely on the pattern runway
-(`BuildNextCircuit`, which reads `PatternRunway ?? AssignedRunway`). `MidfieldCrossingPhase.BiasTurnToPatternSide`
-forces the initial join turn toward the assigned side (released once roughly pointed at the join target); it is
-left `false` for arrival / wrong-side joins so their established shortest-turn behavior is unchanged.
+(`BuildNextCircuit`, which reads `PatternRunway ?? AssignedRunway`) — which is why every writer of `AssignedRunway`
+that changes the runway (`TryChangePatternDirection`, `ApplyRebuiltPatternChain`) writes `PatternRunway` too; a stale
+one built the next circuit on the runway the aircraft had been told to leave.
+`MidfieldCrossingPhase.InitialTurn` biases the initial join turn (released once roughly pointed at the join target);
+it is null for arrival / wrong-side joins so their established shortest-turn behavior is unchanged.
+
+**`MLT`/`MRT` on an active pattern leg** (`PatternCommandHandler.BuildActiveLegChain`). The runway the aircraft is
+flying is read from the active leg's own waypoints (`ResolveFlownRunway` matches the leg's threshold waypoint to a
+runway within 0.05 nm), not from the PhaseList metadata. With a runway switch the aircraft transitions leg to leg
+instead of re-entering the pattern from outside it:
+
+| Active leg | Same side | Opposite side |
+|---|---|---|
+| Upwind | transition circuit above (either direction) | transition circuit above |
+| Crosswind | same-side rebuild | wrong-side midfield crossing (unchanged) |
+| Downwind, close parallels | same-side rebuild with `RejoinTrack` (the parallel's downwind is laterally offset) | **crossover at midfield**: the old runway's `DownwindPhase` with `ExitAtMidfield` → `MidfieldCrossingPhase` (`CrossAtPatternAltitude`, `InitialTurn` toward the field = the old pattern's turn sense) → new `DownwindPhase` (`RejoinTrack`) → … Past midfield already: the chain starts at the crossing |
+| Downwind, other pairs | same-side rebuild with `RejoinTrack` | wrong-side midfield crossing (unchanged) |
+| Base | same-side rebuild | wrong-side midfield crossing (unchanged) |
+
+`CrossAtPatternAltitude` keeps an in-pattern crossover at TPA for every category — the +500 ft crossing height
+(AIM 4-3-3.1.b) is an entry rule for aircraft arriving from outside the pattern. Midfield is
+`PatternGeometry.MidfieldAlongTrackNm`: the along-track (threshold origin, downwind heading — the axis
+`DownwindPhase` measures every trigger on) of the midpoint between the downwind start and the abeam point, i.e. the
+point `MidfieldCrossingPhase` steers to. The abeam point itself sits at along-track ≈ 0, so half *its* along-track
+is the threshold, not midfield; the "midfield downwind" reminder and `ExitAtMidfield` both use `MidfieldAlongTrackNm`.
+Guards: `ParallelRunwayMltFromUpwindTests`, `ParallelRunwayMltFromDownwindTests`, `Issue7MltCrossRunwayWrongSideTests`
+(all on the OAK 28R/28L recording), `IssueCrossRunwayCtoMrtTests` (33 → 28R keeps the crossing).
 
 **The critical model: legs complete on along-track / cross-track, NOT waypoint arrival.** A pattern leg phase does
 not "arrive at" the next waypoint — it measures the aircraft's projection onto the leg axis and fires when the
@@ -404,14 +441,17 @@ also the `touchAndGo` terminator choice). Same-runway re-entry keeps it. Mirrors
 (MRT/MLT). `ApplySidestep` returns before this and deliberately *transfers* the clearance — the instrument
 approach clearance authorizes the parallel (§4-8-7).
 
-**Wrong-side has a deadband for MLT/MRT, not for entries.** `TryChangePatternDirection` decides through
-`IsOnWrongSideForPattern`: the signed offset toward the pattern side must fall below `-WrongSidePatternDeadbandNm`
-(0.1 nm) before a `MidfieldCrossingPhase` is inserted, so an aircraft essentially on the extended centerline
-(climbing out on upwind after a go-around, offset ≈ 0) is *not* wrong-side and rebuilds standard closed traffic
-(upwind → crosswind → downwind) instead of banking across the field at 600 ft. The inline check in `TryEnterPattern`
-(downwind/base entries) is still `patternSideOffset < 0` with no deadband — deliberately left alone; the two are meant
-to differ. Guards: `Issue7MltCrossRunwayWrongSideTests` (−0.165 nm, off the parallel runway, must still cross midfield)
-and `BugN500mMltUpwindTurnsLeftImmediateTests` (−0.021 nm on the upwind centerline, must not).
+**Wrong-side has a deadband for a same-runway MLT/MRT, not for entries.** `TryChangePatternDirection` decides
+through `IsOnWrongSideForPattern`: the signed offset toward the pattern side must fall below
+`-WrongSidePatternDeadbandNm` (0.1 nm) before a `MidfieldCrossingPhase` is inserted, so an aircraft essentially on
+the extended centerline (climbing out on upwind after a go-around, offset ≈ 0) is *not* wrong-side and rebuilds
+standard closed traffic (upwind → crosswind → downwind) instead of banking across the field at 600 ft. The inline
+check in `TryEnterPattern` (downwind/base entries) is still `patternSideOffset < 0` with no deadband — deliberately
+left alone; the two are meant to differ. A command that also *switches runways* does not turn on the deadband at all:
+the aircraft is on a leg of the runway it is leaving, and the transition table above picks the manoeuvre from that leg
+(the side only chooses between the crossover and the same-side rebuild on the downwind). Guards:
+`BugN500mMltUpwindTurnsLeftImmediateTests` (−0.021 nm on the upwind centerline, bare `MLT`, must not cross) and
+`ParallelRunwayMltFromUpwindTests` (the 28R upwind is −0.165 nm off 28L, `MLT 28L` must not cross either).
 
 **Pre-issued clearances fold into the same `standingClearance`.** A `CLAND`/`TG`/`SG`/`LA`/`COPT` issued while the
 entry that would build the approach is still *queued* is stored on `AircraftPattern.PendingLandingClearance`

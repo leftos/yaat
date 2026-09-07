@@ -164,7 +164,7 @@ internal static class PatternCommandHandler
             && previousAssignedRunway is not null
             && previousActivePhase is FinalApproachPhase finalApproach
             && !string.Equals(previousAssignedRunway.Designator, runway.Designator, StringComparison.OrdinalIgnoreCase)
-            && IsParallelSidestepCandidate(previousAssignedRunway, runway)
+            && RunwayGeometry.AreCloseParallels(previousAssignedRunway, runway)
         )
         {
             // AGL gate: below the stabilized-approach floor (FAA AC 120-71) the aircraft
@@ -906,6 +906,12 @@ internal static class PatternCommandHandler
         AirportGroundLayout? groundLayout = null
     )
     {
+        // Captured before the resolution below overwrites them: the runway and direction the aircraft
+        // was flying decide whether this is a runway switch and, for a crossover, where its current
+        // leg runs.
+        var previousAssignedRunway = aircraft.Phases?.AssignedRunway;
+        var previousDirection = aircraft.Phases?.TrafficDirection ?? CurrentLegWaypoints(aircraft.Phases?.CurrentPhase)?.Direction;
+
         // Resolve runway from argument if provided
         if (runwayId is not null)
         {
@@ -924,6 +930,10 @@ internal static class PatternCommandHandler
             aircraft.Phases ??= new PhaseList();
             bool runwayChanged = !string.Equals(aircraft.Phases.ClearedRunwayId, resolved.Designator, StringComparison.OrdinalIgnoreCase);
             aircraft.Phases.AssignedRunway = resolved;
+            // The pattern runway moves with the assignment. Leaving the old one behind let the
+            // auto-cycle (PatternRunway ?? AssignedRunway) build the next circuit on the runway the
+            // aircraft was told to leave.
+            aircraft.Phases.PatternRunway = resolved;
             NavigationCommandHandler.SyncDestinationRunwayWithActiveStar(aircraft, resolved.Designator);
             // Changing runway clears altitude override — different runway, different TPA
             aircraft.Pattern.AltitudeOverrideFt = null;
@@ -1017,67 +1027,42 @@ internal static class PatternCommandHandler
         var currentLeg = GetCurrentPatternLeg(aircraft.Phases.CurrentPhase);
         if (!aircraft.IsOnGround && currentLeg is { } activeLeg)
         {
-            bool wrongSide = IsOnWrongSideForPattern(aircraft.Position, runway, newDirection);
-            var rebuiltChain = new List<Phase>();
-            if (wrongSide)
-            {
-                // Mirror TryEnterPattern's wrong-side path: cross the field
-                // and join downwind on the correct (new) pattern side.
-                rebuiltChain.Add(new MidfieldCrossingPhase { Waypoints = waypoints });
-                rebuiltChain.AddRange(
-                    PatternBuilder.BuildCircuit(
-                        runway,
-                        category,
-                        aircraft.AircraftType,
-                        aircraft.WindSpeedKts,
-                        newDirection,
-                        PatternEntryLeg.Downwind,
-                        touchAndGo: true,
-                        finalDistanceNm: null,
-                        sizeOv,
-                        altOv,
-                        airportRunways,
-                        AuthoredRunway(aircraft, groundLayout, runway)
-                    )
-                );
-                // The crossing can drop the aircraft inside the computed downwind track; re-intercept it.
-                if (rebuiltChain.OfType<DownwindPhase>().FirstOrDefault() is { } joinDownwind)
-                {
-                    joinDownwind.RejoinTrack = true;
-                }
-            }
-            else
-            {
-                // Same side: rebuild from the leg the aircraft is currently
-                // flying. The new active-phase instance's OnStart rewrites
-                // Targets.TargetTrueHeading from the new waypoints.
-                rebuiltChain.AddRange(
-                    PatternBuilder.BuildCircuit(
-                        runway,
-                        category,
-                        aircraft.AircraftType,
-                        aircraft.WindSpeedKts,
-                        newDirection,
-                        activeLeg,
-                        touchAndGo: true,
-                        finalDistanceNm: null,
-                        sizeOv,
-                        altOv,
-                        airportRunways,
-                        AuthoredRunway(aircraft, groundLayout, runway)
-                    )
-                );
-            }
+            // The runway the aircraft is really flying comes from the active leg's own geometry, not
+            // from the PhaseList metadata: an auto-cycle can leave AssignedRunway naming one runway
+            // while the circuit it built belongs to another.
+            var previousRunway = ResolveFlownRunway(CurrentLegWaypoints(aircraft.Phases.CurrentPhase), airportRunways) ?? previousAssignedRunway;
+            var legSwitch = new PatternLegSwitch(
+                activeLeg,
+                previousRunway,
+                previousDirection ?? newDirection,
+                (previousRunway is not null) && !string.Equals(previousRunway.Designator, runway.Designator, StringComparison.OrdinalIgnoreCase),
+                IsOnWrongSideForPattern(aircraft.Position, runway, newDirection)
+            );
+
+            var rebuiltChain = BuildActiveLegChain(
+                aircraft,
+                groundLayout,
+                legSwitch,
+                runway,
+                newDirection,
+                waypoints,
+                category,
+                sizeOv,
+                altOv,
+                airportRunways
+            );
 
             ApplyRebuiltPatternChain(aircraft, runway, newDirection, rebuiltChain);
 
             Log.LogDebug(
-                "[ChangePatternDirection] {Callsign}: rebuilt chain from {Leg} for {Dir} {Rwy}, wrongSide={WrongSide}",
+                "[ChangePatternDirection] {Callsign}: rebuilt chain from {Leg} for {Dir} {Rwy} (flown {Flown}), runwaySwitch={Switch}, wrongSide={WrongSide}",
                 aircraft.Callsign,
                 activeLeg,
                 newDirection,
                 runway.Designator,
-                wrongSide
+                previousRunway?.Designator ?? "?",
+                legSwitch.RunwaySwitch,
+                legSwitch.WrongSide
             );
 
             var dirStrRebuild = newDirection == PatternDirection.Left ? "left" : "right";
@@ -1158,10 +1143,12 @@ internal static class PatternCommandHandler
     // side-aware: an aircraft displaced toward the pattern side (positive) is
     // never wrong-side. A WrongSidePatternDeadbandNm deadband treats an
     // aircraft essentially on the extended centerline (e.g. climbing out on
-    // the upwind leg, offset ≈ 0) as NOT wrong-side, so a direction change
-    // there flies standard closed traffic instead of an immediate midfield
-    // crossing. Only a non-pattern-side displacement beyond the deadband (e.g.
-    // off the parallel runway) drives MidfieldCrossing insertion.
+    // the upwind leg, offset ≈ 0) as NOT wrong-side, so a same-runway direction
+    // change there flies standard closed traffic instead of an immediate
+    // midfield crossing. The side decides which pattern an aircraft joins; a
+    // command that also switches runways picks its transition from the leg it
+    // is flying (see PatternLegSwitch / BuildActiveLegChain) rather than from
+    // the side alone.
     private static bool IsOnWrongSideForPattern(LatLon position, RunwayInfo runway, PatternDirection direction)
     {
         TrueHeading crosswindHdg = direction == PatternDirection.Right ? runway.TrueHeading + 90.0 : runway.TrueHeading - 90.0;
@@ -1172,6 +1159,334 @@ internal static class PatternCommandHandler
         );
         return patternSideOffset < -WrongSidePatternDeadbandNm;
     }
+
+    /// <summary>
+    /// What the aircraft is flying when an MLT/MRT lands on an active pattern leg: the leg itself,
+    /// the runway and direction that leg belongs to, whether the command names a different runway,
+    /// and whether the aircraft is on the wrong side for the new pattern.
+    /// </summary>
+    private readonly record struct PatternLegSwitch(
+        PatternEntryLeg ActiveLeg,
+        RunwayInfo? PreviousRunway,
+        PatternDirection PreviousDirection,
+        bool RunwaySwitch,
+        bool WrongSide
+    );
+
+    /// <summary>
+    /// The replacement chain for an MLT/MRT issued on an active pattern leg.
+    ///
+    /// <para>A runway switch from a leg transitions leg to leg rather than re-entering the pattern
+    /// from outside it: from the upwind the aircraft continues its climb-out and turns crosswind
+    /// beyond both departure ends (AIM 4-3-2), and from the downwind it crosses over at midfield or
+    /// rejoins the parallel's offset downwind. Everything else — a same-runway direction change, a
+    /// crosswind or base leg — keeps the established wrong-side crossing / same-side rebuild.</para>
+    /// </summary>
+    private static List<Phase> BuildActiveLegChain(
+        AircraftState aircraft,
+        AirportGroundLayout? groundLayout,
+        PatternLegSwitch legSwitch,
+        RunwayInfo runway,
+        PatternDirection newDirection,
+        PatternWaypoints newWaypoints,
+        AircraftCategory category,
+        double? sizeOv,
+        double? altOv,
+        IReadOnlyList<RunwayInfo>? airportRunways
+    )
+    {
+        if (legSwitch.RunwaySwitch && (legSwitch.PreviousRunway is { } flownRunway))
+        {
+            if (legSwitch.ActiveLeg == PatternEntryLeg.Upwind)
+            {
+                return PatternBuilder.BuildRunwayTransitionCircuit(
+                    flownRunway,
+                    runway,
+                    category,
+                    aircraft.AircraftType,
+                    aircraft.WindSpeedKts,
+                    newDirection,
+                    touchAndGo: true,
+                    sizeOv,
+                    altOv,
+                    airportRunways,
+                    AuthoredRunway(aircraft, groundLayout, flownRunway),
+                    AuthoredRunway(aircraft, groundLayout, runway)
+                );
+            }
+
+            if (legSwitch.ActiveLeg == PatternEntryLeg.Downwind)
+            {
+                return BuildDownwindSwitchChain(
+                    aircraft,
+                    groundLayout,
+                    legSwitch,
+                    runway,
+                    newDirection,
+                    newWaypoints,
+                    category,
+                    sizeOv,
+                    altOv,
+                    airportRunways
+                );
+            }
+        }
+
+        return legSwitch.WrongSide
+            ? BuildWrongSideJoin(aircraft, groundLayout, runway, newDirection, newWaypoints, category, sizeOv, altOv, airportRunways, crossing: null)
+            : BuildSameSideRebuild(
+                aircraft,
+                groundLayout,
+                legSwitch.ActiveLeg,
+                runway,
+                newDirection,
+                category,
+                sizeOv,
+                altOv,
+                airportRunways,
+                rejoinTrack: false
+            );
+    }
+
+    /// <summary>
+    /// Runway switch off an active downwind. Same side: the parallel's downwind is laterally offset,
+    /// so the rebuilt leg re-intercepts its track. Opposite side, close parallels: the aircraft flies
+    /// its current downwind out to midfield and crosses the field there at pattern altitude, turning
+    /// toward the field (AIM 4-3-3 — the +500 ft crossing height is an entry rule for aircraft
+    /// arriving from outside the pattern, and this one is already in it). Past midfield there is no
+    /// downwind left to fly, so the crossing starts immediately. Runways that are not close parallels
+    /// keep the established wrong-side crossing.
+    /// </summary>
+    private static List<Phase> BuildDownwindSwitchChain(
+        AircraftState aircraft,
+        AirportGroundLayout? groundLayout,
+        PatternLegSwitch legSwitch,
+        RunwayInfo runway,
+        PatternDirection newDirection,
+        PatternWaypoints newWaypoints,
+        AircraftCategory category,
+        double? sizeOv,
+        double? altOv,
+        IReadOnlyList<RunwayInfo>? airportRunways
+    )
+    {
+        var flownRunway = legSwitch.PreviousRunway!;
+        if (!legSwitch.WrongSide)
+        {
+            return BuildSameSideRebuild(
+                aircraft,
+                groundLayout,
+                PatternEntryLeg.Downwind,
+                runway,
+                newDirection,
+                category,
+                sizeOv,
+                altOv,
+                airportRunways,
+                rejoinTrack: true
+            );
+        }
+
+        if (!RunwayGeometry.AreCloseParallels(flownRunway, runway))
+        {
+            return BuildWrongSideJoin(
+                aircraft,
+                groundLayout,
+                runway,
+                newDirection,
+                newWaypoints,
+                category,
+                sizeOv,
+                altOv,
+                airportRunways,
+                crossing: null
+            );
+        }
+
+        var crossing = new MidfieldCrossingPhase
+        {
+            Waypoints = newWaypoints,
+            CrossAtPatternAltitude = true,
+            InitialTurn = legSwitch.PreviousDirection == PatternDirection.Left ? TurnDirection.Left : TurnDirection.Right,
+        };
+        var chain = BuildWrongSideJoin(aircraft, groundLayout, runway, newDirection, newWaypoints, category, sizeOv, altOv, airportRunways, crossing);
+
+        var flownWaypoints = ComputeFlownWaypoints(aircraft, groundLayout, flownRunway, legSwitch.PreviousDirection, category, airportRunways);
+        double aircraftAlongTrack = GeoMath.AlongTrackDistanceNm(
+            aircraft.Position,
+            new LatLon(flownWaypoints.ThresholdLat, flownWaypoints.ThresholdLon),
+            flownWaypoints.DownwindHeading
+        );
+        if (aircraftAlongTrack < PatternGeometry.MidfieldAlongTrackNm(flownWaypoints) - DownwindPhase.AlongTrackToleranceNm)
+        {
+            chain.Insert(0, new DownwindPhase { Waypoints = flownWaypoints, ExitAtMidfield = true });
+        }
+
+        return chain;
+    }
+
+    /// <summary>
+    /// Cross the field and join the downwind on the correct (new) pattern side — the established
+    /// wrong-side path, shared with <see cref="TryEnterPattern"/>'s. <paramref name="crossing"/>
+    /// carries a pre-built crossing when the caller needs one with its own altitude / turn rules.
+    /// </summary>
+    private static List<Phase> BuildWrongSideJoin(
+        AircraftState aircraft,
+        AirportGroundLayout? groundLayout,
+        RunwayInfo runway,
+        PatternDirection newDirection,
+        PatternWaypoints newWaypoints,
+        AircraftCategory category,
+        double? sizeOv,
+        double? altOv,
+        IReadOnlyList<RunwayInfo>? airportRunways,
+        MidfieldCrossingPhase? crossing
+    )
+    {
+        var chain = new List<Phase> { crossing ?? new MidfieldCrossingPhase { Waypoints = newWaypoints } };
+        chain.AddRange(
+            PatternBuilder.BuildCircuit(
+                runway,
+                category,
+                aircraft.AircraftType,
+                aircraft.WindSpeedKts,
+                newDirection,
+                PatternEntryLeg.Downwind,
+                touchAndGo: true,
+                finalDistanceNm: null,
+                sizeOv,
+                altOv,
+                airportRunways,
+                AuthoredRunway(aircraft, groundLayout, runway)
+            )
+        );
+        // The crossing can drop the aircraft inside the computed downwind track; re-intercept it.
+        if (chain.OfType<DownwindPhase>().FirstOrDefault() is { } joinDownwind)
+        {
+            joinDownwind.RejoinTrack = true;
+        }
+
+        return chain;
+    }
+
+    /// <summary>
+    /// Rebuild from the leg the aircraft is currently flying. The new active-phase instance's OnStart
+    /// rewrites Targets.TargetTrueHeading from the new waypoints. <paramref name="rejoinTrack"/> is
+    /// set when the rebuilt downwind sits on a different centerline than the one being flown.
+    /// </summary>
+    private static List<Phase> BuildSameSideRebuild(
+        AircraftState aircraft,
+        AirportGroundLayout? groundLayout,
+        PatternEntryLeg entryLeg,
+        RunwayInfo runway,
+        PatternDirection newDirection,
+        AircraftCategory category,
+        double? sizeOv,
+        double? altOv,
+        IReadOnlyList<RunwayInfo>? airportRunways,
+        bool rejoinTrack
+    )
+    {
+        var chain = PatternBuilder.BuildCircuit(
+            runway,
+            category,
+            aircraft.AircraftType,
+            aircraft.WindSpeedKts,
+            newDirection,
+            entryLeg,
+            touchAndGo: true,
+            finalDistanceNm: null,
+            sizeOv,
+            altOv,
+            airportRunways,
+            AuthoredRunway(aircraft, groundLayout, runway)
+        );
+
+        if (rejoinTrack && (chain.OfType<DownwindPhase>().FirstOrDefault() is { } downwind))
+        {
+            downwind.RejoinTrack = true;
+        }
+
+        return chain;
+    }
+
+    /// <summary>Pattern geometry of the leg the aircraft is flying now, on its own runway and direction.</summary>
+    private static PatternWaypoints ComputeFlownWaypoints(
+        AircraftState aircraft,
+        AirportGroundLayout? groundLayout,
+        RunwayInfo flownRunway,
+        PatternDirection flownDirection,
+        AircraftCategory category,
+        IReadOnlyList<RunwayInfo>? airportRunways
+    )
+    {
+        var authored = AuthoredRunway(aircraft, groundLayout, flownRunway);
+        var (sizeOv, altOv) = PatternGeometry.ResolveAuthoredOverrides(
+            flownRunway,
+            authored,
+            category,
+            aircraft.Pattern.SizeOverrideNm,
+            aircraft.Pattern.AltitudeOverrideFt
+        );
+        return PatternGeometry.Compute(
+            flownRunway,
+            category,
+            aircraft.AircraftType,
+            aircraft.WindSpeedKts,
+            flownDirection,
+            sizeOv,
+            altOv,
+            airportRunways,
+            authored
+        );
+    }
+
+    /// <summary>The waypoints of an active pattern leg, or null when the phase is not one.</summary>
+    private static PatternWaypoints? CurrentLegWaypoints(Phase? phase) =>
+        phase switch
+        {
+            UpwindPhase up => up.Waypoints,
+            CrosswindPhase cw => cw.Waypoints,
+            DownwindPhase dw => dw.Waypoints,
+            BasePhase bp => bp.Waypoints,
+            _ => null,
+        };
+
+    /// <summary>
+    /// The runway a pattern leg was built for, identified by its own threshold rather than by the
+    /// PhaseList metadata (which an auto-cycle can leave naming a runway the circuit was not built
+    /// for). Returns null when there are no waypoints or no runway matches.
+    /// </summary>
+    private static RunwayInfo? ResolveFlownRunway(PatternWaypoints? waypoints, IReadOnlyList<RunwayInfo>? airportRunways)
+    {
+        if (waypoints is null || airportRunways is null)
+        {
+            return null;
+        }
+
+        foreach (var candidate in airportRunways)
+        {
+            double distanceNm = GeoMath.DistanceNm(
+                waypoints.ThresholdLat,
+                waypoints.ThresholdLon,
+                candidate.ThresholdLatitude,
+                candidate.ThresholdLongitude
+            );
+            if (distanceNm <= FlownRunwayThresholdMatchNm)
+            {
+                return candidate;
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// How close a pattern leg's threshold waypoint has to sit to a runway's own threshold to name it
+    /// (nm). The waypoint is that threshold, displaced-threshold resolution aside; the next-nearest
+    /// candidate is the parallel's, thousands of feet away, so the match needs no more room than that.
+    /// </summary>
+    private const double FlownRunwayThresholdMatchNm = 0.05;
 
     // Replace the aircraft's phase list with a freshly-built chain, preserving
     // LandingClearance / ClearedRunwayId metadata. Sets DestinationRunway and
@@ -1185,6 +1500,9 @@ internal static class PatternCommandHandler
         var phases = new PhaseList
         {
             AssignedRunway = runway,
+            // The rebuilt circuit belongs to this runway; the auto-cycle reads PatternRunway first,
+            // so leaving a stale one behind would build the next circuit on the old runway.
+            PatternRunway = runway,
             LandingClearance = aircraft.Phases.LandingClearance,
             ClearedRunwayId = aircraft.Phases.ClearedRunwayId,
             TrafficDirection = direction,
@@ -2918,24 +3236,6 @@ internal static class PatternCommandHandler
     }
 
     /// <summary>
-    /// Maximum lateral separation (nm) between two parallel runway centerlines for
-    /// EF to be treated as a sidestep instead of a fresh pattern-entry build. AIM
-    /// §5-4-19.1 anchors the side-step maneuver at runways "no more than 1200 feet"
-    /// between centerlines; 0.25 nm (~1520 ft) leaves a small buffer for nominal
-    /// mag-variation differences while still excluding non-parallel pairs (e.g.
-    /// OAK 28L/30, where the headings alone already disqualify them).
-    /// </summary>
-    private const double MaxSidestepCenterlineSeparationNm = 0.25;
-
-    /// <summary>
-    /// Maximum runway-heading difference (degrees) between two runways for EF to be
-    /// treated as a sidestep. True parallels are typically &lt;1°; CIFP / mag-var
-    /// rounding can push apparent deltas to a few degrees; 5° is a safe cap that
-    /// still excludes non-parallel pairs.
-    /// </summary>
-    private const double MaxSidestepHeadingDeltaDeg = 5.0;
-
-    /// <summary>
     /// Minimum AGL (ft) at which a sidestep retarget is still safe. Below the
     /// stabilized-approach floor (FAA AC 120-71 / InFO 11009 — 500 ft VMC) the
     /// aircraft is committed to the original runway and doesn't have enough lateral
@@ -3154,14 +3454,18 @@ internal static class PatternCommandHandler
     }
 
     /// <summary>
-    /// Cross-track deadband (NM) for the MLT/MRT wrong-side test. An aircraft within this
-    /// distance of the runway's extended centerline is treated as essentially ON the
-    /// centerline (e.g. climbing out on the upwind leg), NOT on the wrong side — a
-    /// direction change there flies standard closed traffic (upwind → crosswind →
-    /// downwind) and the crosswind turn naturally carries it to the correct pattern side,
-    /// so no midfield crossing is needed. Only a displacement to the non-pattern side
-    /// beyond this deadband (e.g. an aircraft off the parallel runway) is a genuine
-    /// wrong-side that warrants crossing midfield. ~0.1 NM ≈ 600 ft (runway is 150 ft wide).
+    /// Cross-track deadband (NM) for the MLT/MRT wrong-side test on a <em>same-runway</em>
+    /// direction change. An aircraft within this distance of the runway's extended centerline
+    /// is treated as essentially ON the centerline (e.g. climbing out on the upwind leg), NOT
+    /// on the wrong side — the rebuilt closed traffic (upwind → crosswind → downwind) carries
+    /// it to the correct side on the crosswind turn, so no midfield crossing is needed. Only a
+    /// displacement to the non-pattern side beyond this deadband is a genuine wrong-side that
+    /// warrants crossing midfield. ~0.1 NM ≈ 600 ft (runway is 150 ft wide).
+    ///
+    /// A command that also switches runways does not turn on this number: the aircraft is on a
+    /// leg of the runway it is leaving, and <see cref="BuildActiveLegChain"/> picks the
+    /// transition from that leg (the side only chooses between the crossover and the same-side
+    /// rebuild on the downwind).
     /// </summary>
     private const double WrongSidePatternDeadbandNm = 0.1;
 
@@ -3183,34 +3487,6 @@ internal static class PatternCommandHandler
             return 45.0;
         }
         return alongTrackNm < 2.0 ? 20.0 : 30.0;
-    }
-
-    /// <summary>
-    /// True when <paramref name="target"/> is parallel to <paramref name="current"/>
-    /// and their centerlines are within <see cref="MaxSidestepCenterlineSeparationNm"/>.
-    /// Both runways must be at the same airport; the heading delta must be within
-    /// <see cref="MaxSidestepHeadingDeltaDeg"/>.
-    /// </summary>
-    private static bool IsParallelSidestepCandidate(RunwayInfo current, RunwayInfo target)
-    {
-        if (!string.Equals(current.AirportId, target.AirportId, StringComparison.OrdinalIgnoreCase))
-        {
-            return false;
-        }
-
-        if (current.TrueHeading.AbsAngleTo(target.TrueHeading) > MaxSidestepHeadingDeltaDeg)
-        {
-            return false;
-        }
-
-        double crossTrackNm = Math.Abs(
-            GeoMath.SignedCrossTrackDistanceNm(
-                new LatLon(target.ThresholdLatitude, target.ThresholdLongitude),
-                new LatLon(current.ThresholdLatitude, current.ThresholdLongitude),
-                current.TrueHeading
-            )
-        );
-        return crossTrackNm <= MaxSidestepCenterlineSeparationNm;
     }
 
     /// <summary>
@@ -3500,7 +3776,7 @@ internal static class PatternCommandHandler
     // ("Unless otherwise authorized by ATC, the low approach should be made straight ahead...").
 
     // Divergence band for the low-approach runway change. Below the minimum the runways are
-    // near-parallel — that is a sidestep (IsParallelSidestepCandidate/ApplySidestep), not this
+    // near-parallel — that is a sidestep (RunwayGeometry.AreCloseParallels/ApplySidestep), not this
     // maneuver. Above the maximum the heading change exceeds a single continuous base-leg turn (>90°
     // puts the new final behind the abeam line) and needs a downwind/base re-entry, so the pilot
     // declines. 90° is the clean textbook base-to-final edge (aviation review).

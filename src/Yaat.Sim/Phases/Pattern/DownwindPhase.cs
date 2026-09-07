@@ -15,7 +15,9 @@ public sealed class DownwindPhase : Phase
 {
     private static readonly ILogger Log = SimLog.CreateLogger("DownwindPhase");
 
-    private const double AlongTrackToleranceNm = 0.3;
+    /// <summary>Along-track slop (nm) every downwind trigger is armed with; shared with the callers
+    /// that have to decide the same thresholds from outside the phase (the runway-switch crossover).</summary>
+    public const double AlongTrackToleranceNm = 0.3;
 
     // Downwind-track re-intercept. After a wrong-side / cross-runway MidfieldCrossing join the aircraft
     // can be left off the computed downwind line (e.g. dropped inside its own pattern); steer back onto
@@ -28,6 +30,7 @@ public sealed class DownwindPhase : Phase
 
     private double _baseTurnAlongTrack;
     private double _abeamAlongTrack;
+    private double _midfieldAlongTrack;
     private double _thresholdLat;
     private double _thresholdLon;
     private TrueHeading _downwindHeading;
@@ -59,6 +62,14 @@ public sealed class DownwindPhase : Phase
     /// the track, so this stays false there to leave that flow untouched.
     /// </summary>
     public bool RejoinTrack { get; set; }
+
+    /// <summary>
+    /// If true, the leg ends at midfield (<see cref="PatternGeometry.MidfieldAlongTrackNm"/> — the same
+    /// point the midfield broadcast uses) instead of at the base turn, and never starts the past-abeam
+    /// descent. Set for the first leg of an in-pattern crossover to a parallel runway: the aircraft
+    /// flies its current downwind up to midfield, then turns across the field at pattern altitude.
+    /// </summary>
+    public bool ExitAtMidfield { get; set; }
 
     /// <summary>
     /// Active lateral offset state set by OFL/OFR. While non-null, OnTick overrides
@@ -102,6 +113,8 @@ public sealed class DownwindPhase : Phase
             _thresholdLon,
             _downwindHeading
         );
+
+        _midfieldAlongTrack = PatternGeometry.MidfieldAlongTrackNm(Waypoints);
 
         // Short approach armed before activation — compress the past-abeam extension
         // so the base turn fires near abeam-the-threshold instead of after the normal
@@ -212,6 +225,15 @@ public sealed class DownwindPhase : Phase
 
         double aircraftAlongTrack = GeoMath.AlongTrackDistanceNm(ctx.Aircraft.Position, new LatLon(_thresholdLat, _thresholdLon), _downwindHeading);
 
+        // Crossover exit: hand off at midfield, before any descent or base-turn logic. The aircraft
+        // is leaving this downwind for the parallel runway's, so it holds pattern altitude and never
+        // starts the past-abeam descent toward a base turn it will not fly.
+        if (ExitAtMidfield && (aircraftAlongTrack >= _midfieldAlongTrack - AlongTrackToleranceNm))
+        {
+            Log.LogDebug("[Downwind] {Callsign}: midfield reached, exiting downwind for the crossover", ctx.Aircraft.Callsign);
+            return true;
+        }
+
         // Midfield downwind broadcast: remind controller if no landing clearance.
         // Solo-training VFR pattern aircraft voice the reminder as delayed pilot speech.
         // RPO mode keeps the controller-facing warning (PendingWarnings).
@@ -219,8 +241,7 @@ public sealed class DownwindPhase : Phase
         // the aircraft is being actively managed, so the "uncleared" nag is suppressed.
         if (!_midfieldBroadcastIssued && !ctx.AutoClearedToLand)
         {
-            double midfieldAlongTrack = _abeamAlongTrack / 2.0;
-            if (aircraftAlongTrack >= midfieldAlongTrack - AlongTrackToleranceNm)
+            if (aircraftAlongTrack >= _midfieldAlongTrack - AlongTrackToleranceNm)
             {
                 _midfieldBroadcastIssued = true;
                 if (!HasLandingClearance(ctx) && !IsExtended)
@@ -575,6 +596,7 @@ public sealed class DownwindPhase : Phase
             IsExtended = IsExtended,
             BaseTurnAlongTrack = _baseTurnAlongTrack,
             AbeamAlongTrack = _abeamAlongTrack,
+            MidfieldAlongTrack = _midfieldAlongTrack,
             ThresholdLat = _thresholdLat,
             ThresholdLon = _thresholdLon,
             DownwindHeadingDeg = _downwindHeading.Degrees,
@@ -583,6 +605,7 @@ public sealed class DownwindPhase : Phase
             MidfieldBroadcastIssued = _midfieldBroadcastIssued,
             ShortApproachArmed = ShortApproachArmed,
             RejoinTrack = RejoinTrack,
+            ExitAtMidfield = ExitAtMidfield,
             LateralOffsetTargetNm = LateralOffset?.TargetNm,
             LateralOffsetDirection = LateralOffset is not null ? (int)LateralOffset.Direction : null,
             LateralOffsetAcquired = LateralOffset?.Acquired ?? false,
@@ -597,6 +620,7 @@ public sealed class DownwindPhase : Phase
             IsExtended = dto.IsExtended,
             ShortApproachArmed = dto.ShortApproachArmed,
             RejoinTrack = dto.RejoinTrack ?? false,
+            ExitAtMidfield = dto.ExitAtMidfield ?? false,
             LateralOffset = dto.LateralOffsetTargetNm is { } target
                 ? new PatternLateralOffsetState
                 {
@@ -610,6 +634,10 @@ public sealed class DownwindPhase : Phase
         phase.ElapsedSeconds = dto.ElapsedSeconds;
         phase._baseTurnAlongTrack = dto.BaseTurnAlongTrack;
         phase._abeamAlongTrack = dto.AbeamAlongTrack;
+        // Recordings predating the field carry no midfield along-track; recompute it from the
+        // waypoints, which is where OnStart derives it from anyway.
+        phase._midfieldAlongTrack =
+            dto.MidfieldAlongTrack ?? (phase.Waypoints is not null ? PatternGeometry.MidfieldAlongTrackNm(phase.Waypoints) : 0.0);
         phase._thresholdLat = dto.ThresholdLat;
         phase._thresholdLon = dto.ThresholdLon;
         phase._downwindHeading = new TrueHeading(dto.DownwindHeadingDeg);

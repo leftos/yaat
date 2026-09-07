@@ -18,8 +18,26 @@ namespace Yaat.Sim.Tests.Pilot;
 /// </summary>
 public class M103PatternTrafficCheckInTests
 {
-    private static RunwayInfo DefaultRunway() =>
-        TestRunwayFactory.Make(designator: "28R", heading: 280, elevationFt: 9, thresholdLat: 37.7212, thresholdLon: -122.2208);
+    /// <summary>
+    /// Runway 28R, threshold at (37.7212, -122.2208) with its departure end projected 1 nm along the
+    /// runway heading (the OAK-28R-shaped magnitude <c>LahsoTests.MakeLandingRunway</c> uses). The end
+    /// has to lie on the runway heading: pattern geometry anchors the crosswind turn — and therefore
+    /// the downwind start and the leg's midfield point — on it, so the factory default (a point 44 nm
+    /// away on a 167° bearing) puts midfield 8.7 nm down an imaginary downwind.
+    /// </summary>
+    private static RunwayInfo DefaultRunway()
+    {
+        var end = GeoMath.ProjectPoint(37.7212, -122.2208, new TrueHeading(280), 1.0);
+        return TestRunwayFactory.Make(
+            designator: "28R",
+            heading: 280,
+            elevationFt: 9,
+            thresholdLat: 37.7212,
+            thresholdLon: -122.2208,
+            endLat: end.Lat,
+            endLon: end.Lon
+        );
+    }
 
     private static PatternWaypoints DefaultWaypoints(PatternDirection dir = PatternDirection.Left) =>
         PatternGeometry.Compute(DefaultRunway(), AircraftCategory.Piston, "", 0, dir, null, null, null, authoredRunway: null);
@@ -182,8 +200,9 @@ public class M103PatternTrafficCheckInTests
 
     /// <summary>
     /// Positions the aircraft at the downwind-abeam waypoint. By construction this is past the
-    /// midfield-along-track trigger (midfield = _abeamAlongTrack / 2), so OnTick fires the
-    /// midfield broadcast on the first call.
+    /// midfield-along-track trigger (midfield = midway between the downwind start and the abeam
+    /// point, i.e. half a runway length short of abeam), so OnTick fires the midfield broadcast on
+    /// the first call.
     /// </summary>
     private static (DownwindPhase phase, AircraftState ac, PhaseContext ctx) BuildDownwindAtMidfield(
         bool isVfr = true,

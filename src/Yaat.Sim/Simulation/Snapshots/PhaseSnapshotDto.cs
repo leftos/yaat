@@ -862,10 +862,14 @@ public sealed class MidfieldCrossingPhaseDto : PhaseDto
     public required double TargetLon { get; init; }
 
     /// <summary>
-    /// Initial-turn bias toward the assigned pattern side. Non-required, defaults false
-    /// so pre-feature snapshots and arrival/wrong-side joins round-trip unchanged.
+    /// Direction the initial join turn is biased in (0=Left, 1=Right, matches TurnDirection);
+    /// null for the shortest-way arrival/wrong-side join.
     /// </summary>
-    public bool BiasTurnToPatternSide { get; init; }
+    public int? InitialTurn { get; init; }
+
+    /// <summary>Crossing flown at pattern altitude for every category (in-pattern crossover).
+    /// Nullable for tolerance of recordings predating this field.</summary>
+    public bool? CrossAtPatternAltitude { get; init; }
 }
 
 public sealed class TeardropReentryPhaseDto : PhaseDto
@@ -938,6 +942,11 @@ public sealed class DownwindPhaseDto : PhaseDto
     public required bool IsExtended { get; init; }
     public required double BaseTurnAlongTrack { get; init; }
     public required double AbeamAlongTrack { get; init; }
+
+    /// <summary>Along-track of the leg's midfield point (midway between the downwind start and the
+    /// abeam point). Nullable for recordings predating this field, which recompute it from the waypoints.</summary>
+    public double? MidfieldAlongTrack { get; init; }
+
     public required double ThresholdLat { get; init; }
     public required double ThresholdLon { get; init; }
     public required double DownwindHeadingDeg { get; init; }
@@ -949,6 +958,10 @@ public sealed class DownwindPhaseDto : PhaseDto
     /// <summary>Downwind re-intercepts its computed track (wrong-side / cross-runway join). Nullable
     /// for tolerance of recordings predating this field.</summary>
     public bool? RejoinTrack { get; init; }
+
+    /// <summary>Downwind ends at midfield for an in-pattern crossover to a parallel runway. Nullable
+    /// for tolerance of recordings predating this field.</summary>
+    public bool? ExitAtMidfield { get; init; }
     public double? LateralOffsetTargetNm { get; init; }
     public int? LateralOffsetDirection { get; init; }
     public bool LateralOffsetAcquired { get; init; }

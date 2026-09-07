@@ -25,13 +25,21 @@ public sealed class MidfieldCrossingPhase : Phase
     public PatternWaypoints? Waypoints { get; set; }
 
     /// <summary>
-    /// When true, the initial join turn is biased toward the assigned pattern side
-    /// (<see cref="PatternWaypoints.Direction"/>) rather than the geometric shortest way.
-    /// Set for the cross-runway departure join (climb out on the departure runway, then
-    /// turn the correct way onto the pattern runway's downwind). Left false for arrival /
-    /// wrong-side joins, which keep their established shortest-turn behavior.
+    /// When set, the initial join turn is biased in this direction rather than taking the
+    /// geometric shortest way. The cross-runway departure join sets it toward the assigned
+    /// pattern side (climb out on the departure runway, then turn the correct way onto the
+    /// pattern runway's downwind); an in-pattern crossover sets it toward the field. Left null
+    /// for arrival / wrong-side joins, which keep their established shortest-turn behavior.
     /// </summary>
-    public bool BiasTurnToPatternSide { get; init; }
+    public TurnDirection? InitialTurn { get; init; }
+
+    /// <summary>
+    /// When true, the crossing is flown at pattern altitude regardless of category. An aircraft
+    /// already established in the pattern crosses at the altitude it is already at — the AIM 4-3-3.1.b
+    /// large/turbine "pattern altitude + 500 ft" is an <em>entry</em> rule for aircraft arriving from
+    /// outside the pattern.
+    /// </summary>
+    public bool CrossAtPatternAltitude { get; init; }
 
     public override string Name => "MidfieldCrossing";
     public override bool ManagesSpeed => true;
@@ -50,22 +58,22 @@ public sealed class MidfieldCrossingPhase : Phase
         // Set heading toward midfield target
         double bearing = GeoMath.BearingTo(ctx.Aircraft.Position, new LatLon(_targetLat, _targetLon));
         ctx.Targets.TargetTrueHeading = new TrueHeading(bearing);
-        // Cross-runway departure join: bias the initial turn toward the assigned pattern
-        // side so the aircraft turns the correct way onto the pattern instead of the
-        // geometric shortest way (which can roll across the extended centerline /
-        // departure path the wrong direction — AIM 4-3-3, 4-3-5). Released in OnTick once
-        // roughly pointed at the target; DownwindPhase clears it on entry regardless.
-        // Arrival / wrong-side joins keep their established shortest-turn behavior.
-        ctx.Targets.PreferredTurnDirection = BiasTurnToPatternSide
-            ? (Waypoints.Direction == PatternDirection.Left ? TurnDirection.Left : TurnDirection.Right)
-            : null;
+        // Bias the initial turn so the aircraft turns the way the join requires instead of the
+        // geometric shortest way (which can roll across the extended centerline / departure path
+        // the wrong direction — AIM 4-3-3, 4-3-5). Released in OnTick once roughly pointed at the
+        // target; DownwindPhase clears it on entry regardless. Arrival / wrong-side joins leave it
+        // unset and keep their established shortest-turn behavior.
+        ctx.Targets.PreferredTurnDirection = InitialTurn;
         ctx.Targets.NavigationRoute.Clear();
 
         // Large/turbine cross at TPA+500 (AIM 4-3-3.1.b); pistons/helicopters
-        // cross at pattern altitude (AC 90-66B §11.3-§11.4).
-        double crossingAlt = ctx.Category is AircraftCategory.Jet or AircraftCategory.Turboprop
-            ? Waypoints.PatternAltitude + LargeTurbineAltitudeOffsetFt
-            : Waypoints.PatternAltitude;
+        // cross at pattern altitude (AC 90-66B §11.3-§11.4). An aircraft already
+        // in the pattern crosses at pattern altitude whatever its category — the
+        // +500 ft belongs to an entry from outside the pattern.
+        double crossingAlt =
+            !CrossAtPatternAltitude && ctx.Category is AircraftCategory.Jet or AircraftCategory.Turboprop
+                ? Waypoints.PatternAltitude + LargeTurbineAltitudeOffsetFt
+                : Waypoints.PatternAltitude;
         ctx.Targets.TargetAltitude = crossingAlt;
         ctx.Targets.DesiredVerticalRate = null;
 
@@ -161,7 +169,8 @@ public sealed class MidfieldCrossingPhase : Phase
             Waypoints = Waypoints?.ToSnapshot(),
             TargetLat = _targetLat,
             TargetLon = _targetLon,
-            BiasTurnToPatternSide = BiasTurnToPatternSide,
+            InitialTurn = InitialTurn is { } turn ? (int)turn : null,
+            CrossAtPatternAltitude = CrossAtPatternAltitude,
         };
 
     public static MidfieldCrossingPhase FromSnapshot(MidfieldCrossingPhaseDto dto)
@@ -169,7 +178,8 @@ public sealed class MidfieldCrossingPhase : Phase
         var phase = new MidfieldCrossingPhase
         {
             Waypoints = dto.Waypoints is not null ? PatternWaypoints.FromSnapshot(dto.Waypoints) : null,
-            BiasTurnToPatternSide = dto.BiasTurnToPatternSide,
+            InitialTurn = dto.InitialTurn is { } turn ? (TurnDirection)turn : null,
+            CrossAtPatternAltitude = dto.CrossAtPatternAltitude ?? false,
         };
         phase.Status = (PhaseStatus)dto.Status;
         phase.ElapsedSeconds = dto.ElapsedSeconds;

@@ -765,12 +765,13 @@ internal static class DepartureClearanceHandler
             aircraft.Pattern.AltitudeOverrideFt
         );
         // Cross-runway closed traffic (e.g. takeoff 33, make right traffic 28R): the
-        // first circuit climbs out on the DEPARTURE runway then joins the PATTERN
-        // runway's downwind. Same-runway closed traffic flies a normal upwind-entry
-        // circuit on the one runway.
+        // first circuit climbs out on the DEPARTURE runway then transitions to the PATTERN
+        // runway's circuit — crossing midfield for a crossing pair, continuing the upwind
+        // past both departure ends for a close parallel. Same-runway closed traffic flies a
+        // normal upwind-entry circuit on the one runway.
         bool crossRunway = !string.Equals(patternRunway.Designator, fallbackRunway.Designator, StringComparison.OrdinalIgnoreCase);
         var circuit = crossRunway
-            ? PatternBuilder.BuildCrossRunwayDepartureCircuit(
+            ? PatternBuilder.BuildRunwayTransitionCircuit(
                 fallbackRunway,
                 patternRunway,
                 cat,

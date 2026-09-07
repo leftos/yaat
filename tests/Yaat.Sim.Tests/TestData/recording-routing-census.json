@@ -1427,6 +1427,22 @@
     "Solo": true
   },
   {
+    "File": "parallel-mlt-from-upwind-recording.yaat-bug-report-bundle.zip",
+    "Commands": 121,
+    "ByKind": {
+      "Compound": 26,
+      "Delete": 5,
+      "FlightPlan": 2,
+      "GhostTrack": 3,
+      "Strip": 68,
+      "TrackOwnership": 17
+    },
+    "Unparsed": [],
+    "ReactionDelayed": 0,
+    "AsPrefixed": 17,
+    "Solo": false
+  },
+  {
     "File": "piston-arrival-overspeed-recording.yaat-bug-report-bundle.zip",
     "Commands": 4,
     "ByKind": {

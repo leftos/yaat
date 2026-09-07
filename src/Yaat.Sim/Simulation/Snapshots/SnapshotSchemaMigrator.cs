@@ -29,7 +29,7 @@ public sealed class SnapshotSchemaException : Exception
 /// </summary>
 public static class SnapshotSchemaMigrator
 {
-    public const int CurrentSchemaVersion = 19;
+    public const int CurrentSchemaVersion = 20;
 
     /// <summary>
     /// Migrates a snapshot to <see cref="CurrentSchemaVersion"/> in place.
@@ -120,6 +120,12 @@ public static class SnapshotSchemaMigrator
         //   pattern altitude keeps its own field datum. No data transformation — older snapshots have no
         //   AirportElevationFt, and RunwayInfo.FromSnapshot falls back to the mean of the two ends, which
         //   in those snapshots are both airport elevation. That reproduces their pattern altitudes exactly.
+        // V19→V20: MidfieldCrossingPhaseDto.BiasTurnToPatternSide (bool) replaced by InitialTurn (nullable
+        //   TurnDirection ordinal), and CrossAtPatternAltitude added. The bias bool is ignored on read: a
+        //   snapshot taken mid-crossing restores with no initial-turn bias, which only affects the first
+        //   seconds of the turn onto the join heading (the phase releases the bias as soon as it is roughly
+        //   pointed at the midfield target, and the target itself is unchanged). CrossAtPatternAltitude
+        //   defaults to false — the pre-feature crossing altitude rule — so those snapshots fly as before.
         if (snapshot.SchemaVersion < 4)
         {
             foreach (var ac in snapshot.Aircraft)

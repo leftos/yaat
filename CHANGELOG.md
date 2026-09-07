@@ -8,6 +8,9 @@
 - `RDTXT /DR EXPECT 28R` sets a held release's text on a named coordination list; `AS OAK_GND` and `AS NCT_APP@1M` select a position by callsign when its TCP is shared.
 
 ### Fixed
+- An aircraft on one runway's upwind told `MLT`/`MRT` to a close parallel (OAK 28R → 28L) continues its upwind and turns crosswind only beyond both departure ends into the new runway's pattern, instead of turning across the field to the new downwind; from the parallel's downwind it crosses over at midfield at pattern altitude (opposite side) or re-intercepts the offset downwind (same side). A takeoff clearance onto a parallel's pattern (`CTO 28R MLT 28L`) flies the same transition.
+- `MLT`/`MRT` with a runway now also moves the pattern runway, so the circuit built after the next go-around or touch-and-go belongs to the runway named, not the one the aircraft was told to leave.
+- The pilot's "midfield downwind" reminder fires at midfield of the downwind leg instead of abeam the landing threshold.
 - Restoring a room after a planned server restart no longer stalls every other room's tick until the restore finishes.
 - A point-out nobody acknowledges is withdrawn after 30 seconds and the initiator is told to coordinate verbally, instead of being acknowledged on the absent controller's behalf (7110.65 §5-4-7); a point-out to your own position in solo mode still waits for you even when the room's student TCP did not resolve.
 - A room restored after a planned server restart can no longer be advanced by the tick loop while its restore is still in progress.

@@ -195,19 +195,25 @@ public static class PatternBuilder
     }
 
     /// <summary>
-    /// Build the first circuit for a cross-runway closed-traffic departure (e.g. takeoff
-    /// runway 33, make right traffic runway 28R). The upwind leg is flown on the
-    /// <paramref name="departureRunway"/>'s extended centerline (where the aircraft actually
-    /// lifts off); a <see cref="MidfieldCrossingPhase"/> then connects to the
-    /// <paramref name="patternRunway"/>'s downwind, and the rest of the circuit
-    /// (downwind/base/final) belongs to the pattern runway. Subsequent circuits are built
-    /// entirely from the pattern runway by the auto-cycle.
+    /// Build the circuit for an aircraft that climbs out on <paramref name="flownRunway"/> and flies
+    /// the pattern of <paramref name="patternRunway"/> — a cross-runway closed-traffic departure
+    /// (takeoff runway 33, make right traffic runway 28R) or an in-pattern runway switch on the
+    /// upwind leg. Downwind/base/final always belong to the pattern (landing) runway; only the
+    /// upwind belongs to the runway the aircraft is actually flying (AIM 4-3-2). Subsequent circuits
+    /// are built entirely from the pattern runway by the auto-cycle.
     ///
-    /// Per AIM 4-3-2: departure/upwind belong to the departure runway; downwind/base/final
-    /// belong to the landing (pattern) runway.
+    /// <para><b>Close parallels</b> (<see cref="RunwayGeometry.AreCloseParallels"/>): the two
+    /// centerlines are a few hundred feet apart on the same heading, so the aircraft simply continues
+    /// its upwind and turns crosswind beyond both departure ends
+    /// (<see cref="PatternGeometry.ComputeTransition"/>), then flies the pattern runway's crosswind
+    /// onto its downwind. Crossing the field is neither needed nor desirable there.</para>
+    ///
+    /// <para><b>Crossing runways</b>: the upwind is flown on the flown runway's extended centerline
+    /// and a <see cref="MidfieldCrossingPhase"/> — with the initial turn biased toward the pattern
+    /// side — connects to the pattern runway's downwind.</para>
     /// </summary>
-    public static List<Phase> BuildCrossRunwayDepartureCircuit(
-        RunwayInfo departureRunway,
+    public static List<Phase> BuildRunwayTransitionCircuit(
+        RunwayInfo flownRunway,
         RunwayInfo patternRunway,
         AircraftCategory category,
         string aircraftType,
@@ -217,21 +223,10 @@ public static class PatternBuilder
         double? patternSizeNm,
         double? altitudeOverrideFt,
         IReadOnlyList<RunwayInfo>? airportRunways,
-        GroundRunway? departureAuthoredRunway,
+        GroundRunway? flownAuthoredRunway,
         GroundRunway? patternAuthoredRunway
     )
     {
-        var departureWaypoints = PatternGeometry.Compute(
-            departureRunway,
-            category,
-            aircraftType,
-            windSpeedKt,
-            direction,
-            patternSizeNm,
-            altitudeOverrideFt,
-            airportRunways,
-            departureAuthoredRunway
-        );
         var patternWaypoints = PatternGeometry.Compute(
             patternRunway,
             category,
@@ -244,20 +239,115 @@ public static class PatternBuilder
             patternAuthoredRunway
         );
 
-        var phases = new List<Phase>
-        {
-            new UpwindPhase { Waypoints = departureWaypoints },
-            new MidfieldCrossingPhase { Waypoints = patternWaypoints, BiasTurnToPatternSide = true },
-            // The midfield crossing can drop the aircraft inside the pattern-runway downwind track;
-            // re-intercept it so the base/final geometry rolls out on centerline.
-            new DownwindPhase { Waypoints = patternWaypoints, RejoinTrack = true },
-            new BasePhase { Waypoints = patternWaypoints },
-            new FinalApproachPhase(),
-        };
+        var phases = RunwayGeometry.AreCloseParallels(flownRunway, patternRunway)
+            ? BuildParallelTransitionLegs(
+                flownRunway,
+                patternRunway,
+                category,
+                aircraftType,
+                windSpeedKt,
+                direction,
+                patternSizeNm,
+                altitudeOverrideFt,
+                airportRunways,
+                patternAuthoredRunway,
+                patternWaypoints
+            )
+            : BuildCrossingTransitionLegs(
+                flownRunway,
+                category,
+                aircraftType,
+                windSpeedKt,
+                direction,
+                patternSizeNm,
+                altitudeOverrideFt,
+                airportRunways,
+                flownAuthoredRunway,
+                patternWaypoints
+            );
+
+        phases.Add(new BasePhase { Waypoints = patternWaypoints });
+        phases.Add(new FinalApproachPhase());
         Phase landingPhase = category == AircraftCategory.Helicopter ? new HelicopterLandingPhase() : new LandingPhase();
         phases.Add(touchAndGo ? new TouchAndGoPhase() : landingPhase);
 
         return phases;
+    }
+
+    private static List<Phase> BuildParallelTransitionLegs(
+        RunwayInfo flownRunway,
+        RunwayInfo patternRunway,
+        AircraftCategory category,
+        string aircraftType,
+        double windSpeedKt,
+        PatternDirection direction,
+        double? patternSizeNm,
+        double? altitudeOverrideFt,
+        IReadOnlyList<RunwayInfo>? airportRunways,
+        GroundRunway? patternAuthoredRunway,
+        PatternWaypoints patternWaypoints
+    )
+    {
+        var transitionWaypoints = PatternGeometry.ComputeTransition(
+            flownRunway,
+            patternRunway,
+            category,
+            aircraftType,
+            windSpeedKt,
+            direction,
+            patternSizeNm,
+            altitudeOverrideFt,
+            airportRunways,
+            patternAuthoredRunway
+        );
+
+        return
+        [
+            new UpwindPhase { Waypoints = transitionWaypoints },
+            new CrosswindPhase { Waypoints = transitionWaypoints },
+            // The transition crosswind ends abeam its own (farther) turn point, off the pattern
+            // runway's computed downwind track; re-intercept it so base/final roll out on centerline.
+            new DownwindPhase { Waypoints = patternWaypoints, RejoinTrack = true },
+        ];
+    }
+
+    private static List<Phase> BuildCrossingTransitionLegs(
+        RunwayInfo flownRunway,
+        AircraftCategory category,
+        string aircraftType,
+        double windSpeedKt,
+        PatternDirection direction,
+        double? patternSizeNm,
+        double? altitudeOverrideFt,
+        IReadOnlyList<RunwayInfo>? airportRunways,
+        GroundRunway? flownAuthoredRunway,
+        PatternWaypoints patternWaypoints
+    )
+    {
+        var flownWaypoints = PatternGeometry.Compute(
+            flownRunway,
+            category,
+            aircraftType,
+            windSpeedKt,
+            direction,
+            patternSizeNm,
+            altitudeOverrideFt,
+            airportRunways,
+            flownAuthoredRunway
+        );
+
+        return
+        [
+            new UpwindPhase { Waypoints = flownWaypoints },
+            new MidfieldCrossingPhase
+            {
+                Waypoints = patternWaypoints,
+                InitialTurn = direction == PatternDirection.Left ? TurnDirection.Left : TurnDirection.Right,
+            },
+            // The midfield crossing can drop the aircraft inside the pattern-runway downwind track;
+            // re-intercept it so the base/final geometry rolls out on centerline.
+            new DownwindPhase { Waypoints = patternWaypoints, RejoinTrack = true },
+        ];
     }
 
     /// <summary>
