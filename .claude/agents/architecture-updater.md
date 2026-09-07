@@ -1,7 +1,7 @@
 ---
 name: architecture-updater
 description: "Checks if docs/architecture.md needs updating based on changed files"
-model: haiku
+model: sonnet
 ---
 
 # Architecture Doc Updater
