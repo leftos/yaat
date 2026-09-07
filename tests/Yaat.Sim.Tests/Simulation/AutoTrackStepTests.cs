@@ -116,7 +116,7 @@ public class AutoTrackStepTests
         }
 
         var engine = new SimulationEngine(groundData);
-        engine.LoadScenario(File.ReadAllText(OakArrivalGeneratorsScenario), rngSeed: 42, magneticModelDateUtc: MagneticDeclination.EvaluationDateUtc);
+        engine.LoadScenario(File.ReadAllText(OakArrivalGeneratorsScenario), rngSeed: 42, sessionStartUtc: MagneticDeclination.EvaluationDateUtc);
 
         // The generators in this scenario carry an autoTrackConfiguration whose position id resolves through the
         // room's ARTCC config — the fallback the scenario's own (unresolved) ATC roster leaves to the config.

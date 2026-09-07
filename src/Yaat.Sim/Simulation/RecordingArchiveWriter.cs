@@ -167,7 +167,7 @@ public sealed class RecordingArchiveWriter : IDisposable
             ArtccId = metadata.ArtccId,
             RecordedAtUtc = metadata.RecordedAtUtc,
             RecordedBy = metadata.RecordedBy,
-            MagneticModelDateUtc = metadata.MagneticModelDateUtc,
+            SessionStartUtc = metadata.SessionStartUtc,
             ClientVersion = metadata.ClientVersion,
             ClientBuildKind = metadata.ClientBuildKind,
             ServerVersion = metadata.ServerVersion,

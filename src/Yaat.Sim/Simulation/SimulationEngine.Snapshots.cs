@@ -69,9 +69,9 @@ public sealed partial class SimulationEngine
         if (Scenario is not null)
         {
             Scenario.ElapsedSeconds = scenarioDto.ElapsedSeconds;
-            if (scenarioDto.MagneticModelDateUtc is { } magneticModelDateUtc)
+            if (scenarioDto.SessionStartUtc is { } sessionStartUtc)
             {
-                Scenario.MagneticModelDateUtc = magneticModelDateUtc;
+                Scenario.SessionStartUtc = sessionStartUtc;
             }
 
             Scenario.AutoClearedToLand = scenarioDto.AutoClearedToLand;

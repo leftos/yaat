@@ -159,7 +159,7 @@ internal sealed class ReplayDriver(SimulationEngine engine)
     public void To(SessionRecording recording, double targetSeconds, Action<SimScenarioState> configureAfterLoad)
     {
         _engine.TickTimings?.Clear();
-        _engine.LoadScenario(recording.ScenarioJson, recording.RngSeed, recording.MagneticModelDateUtc ?? MagneticDeclination.EvaluationDateUtc);
+        _engine.LoadScenario(recording.ScenarioJson, recording.RngSeed, recording.SessionStartUtc ?? SimScenarioState.ProcessDayUtc);
 
         // The scenario JSON does not carry the resolved runtime student position (the server sets it
         // at load via InitializeTrackPositions). Restore it from the recording so CanInitiateWithStudent,

@@ -60,11 +60,12 @@ public sealed class SessionRecording
     public DateTime? RecordedAtUtc { get; init; }
 
     /// <summary>
-    /// The UTC day the session evaluated the World Magnetic Model at (<see cref="SimScenarioState.MagneticModelDateUtc"/>).
-    /// Replay loads the scenario with it so declinations match the original run. Null for recordings written before
-    /// the date was captured; <see cref="RecordingArchive"/> then falls back to the manifest's record date.
+    /// The instant the session clock was anchored to (<see cref="SimScenarioState.SessionStartUtc"/>). Replay loads the
+    /// scenario with it so the session clock — and the declinations derived from its day — match the original run. Null
+    /// for recordings written before it was captured; <see cref="RecordingArchive"/> then falls back to the manifest's
+    /// record date.
     /// </summary>
-    public DateTime? MagneticModelDateUtc { get; init; }
+    public DateTime? SessionStartUtc { get; init; }
     public string? RecordedBy { get; init; }
 
     /// <summary>

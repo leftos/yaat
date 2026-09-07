@@ -40,7 +40,7 @@ public class OakArrivalGeneratorsE2ETests(ITestOutputHelper output)
         }
 
         var engine = new SimulationEngine(groundData);
-        var warnings = engine.LoadScenario(scenarioJson, rngSeed: 42, magneticModelDateUtc: MagneticDeclination.EvaluationDateUtc);
+        var warnings = engine.LoadScenario(scenarioJson, rngSeed: 42, sessionStartUtc: MagneticDeclination.EvaluationDateUtc);
         foreach (var w in warnings)
         {
             output.WriteLine($"[load-warn] {w}");

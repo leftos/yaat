@@ -45,16 +45,16 @@ public sealed class RecordingManifest
     public string? RecordedBy { get; init; }
 
     /// <summary>
-    /// The UTC day the session evaluated the World Magnetic Model at. Null for archives written before it was
-    /// captured — see <see cref="ResolveMagneticModelDateUtc"/>.
+    /// The instant the session clock was anchored to. Null for archives written before it was captured — see
+    /// <see cref="ResolveSessionStartUtc"/>.
     /// </summary>
-    public DateTime? MagneticModelDateUtc { get; init; }
+    public DateTime? SessionStartUtc { get; init; }
 
     /// <summary>
-    /// The magnetic-model day a replay of this archive must load with: the recorded value, else the day the archive
+    /// The session start a replay of this archive must load with: the recorded value, else the day the archive
     /// was recorded (the best estimate for pre-feature archives), else the process day.
     /// </summary>
-    public DateTime ResolveMagneticModelDateUtc() => MagneticModelDateUtc ?? RecordedAtUtc?.Date ?? MagneticDeclination.EvaluationDateUtc;
+    public DateTime ResolveSessionStartUtc() => SessionStartUtc ?? RecordedAtUtc?.Date ?? SimScenarioState.ProcessDayUtc;
 
     /// <summary>
     /// Version of the YAAT client (Yaat.Client) that produced this recording, e.g. "0.7.20-beta".
@@ -117,8 +117,8 @@ public sealed record RecordingMetadata
     public DateTime? RecordedAtUtc { get; init; }
     public string? RecordedBy { get; init; }
 
-    /// <summary>The session's magnetic-model day (<see cref="SimScenarioState.MagneticModelDateUtc"/>); every writer sets it.</summary>
-    public DateTime? MagneticModelDateUtc { get; init; }
+    /// <summary>The instant the session clock was anchored to (<see cref="SimScenarioState.SessionStartUtc"/>); every writer sets it.</summary>
+    public DateTime? SessionStartUtc { get; init; }
 
     public string? ClientVersion { get; init; }
     public string? ClientBuildKind { get; init; }

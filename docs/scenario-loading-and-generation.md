@@ -499,9 +499,9 @@ typed commands — a malformed preset is rejected and logged (`[Preset] Unparsea
 
 There are two server entry points that build a scenario, and they share one load core:
 
-- **`LoadScenarioAsync`** (`ScenarioLifecycleService.cs`) — the live load: draws a fresh `rngSeed` and today's magnetic-model
-  day and calls **`LoadScenarioSeededAsync`**, the same load with an explicit `(rngSeed, magneticModelDateUtc)` that the headless
-  soak host uses so a run reproduces from scenario + seed + date. Both go through the private `LoadSeeded` (creates the engine,
+- **`LoadScenarioAsync`** (`ScenarioLifecycleService.cs`) — the live load: draws a fresh `rngSeed`, reads the session start
+  from the room's `TimeProvider` clock and calls **`LoadScenarioSeededAsync`**, the same load with an explicit `(rngSeed, sessionStartUtc)`
+  that the headless soak host uses (with the process day) so a run reproduces from scenario + seed + session start. Both go through the private `LoadSeeded` (creates the engine,
   seeds all three world RNG streams — `Rng`, `ReactionDelayRng`, `ReleaseJitterRng` — like the standalone
   `SimulationEngine.LoadScenario`, runs `ScenarioLoader.Load`) and `PopulateRoom` (builds `SimScenarioState`, applies the room's
   session settings then the live load's pacing overrides, sets the ground layout, warms per-aircraft layouts, resolves track
@@ -515,7 +515,7 @@ There are two server entry points that build a scenario, and they share one load
   `LoadScenario` — so catalog loads get the same difficulty prompt as local-file loads, and client JSON tampering still can't
   obtain gated content (the gate is enforced at fetch).
 - **`ReloadForRewindAsync`** / **`ReloadForRewind`** — the rewind twin. Takes the **provided** `rngSeed` and
-  `magneticModelDateUtc` (the session's, or the recording manifest's for an imported archive) and the saved scenario JSON, runs
+  `sessionStartUtc` (the session's, or the recording manifest's for an imported archive; a restart reads the room clock again) and the saved scenario JSON, runs
   the same `LoadSeeded` + `PopulateRoom` core, but skips broadcasting (caller sets `IsBroadcastSuppressed`) and the
   pacing-override recording. After reload, the caller in `RecordingManager` either restores the nearest snapshot and replays the
   remaining seconds, or replays from scratch.

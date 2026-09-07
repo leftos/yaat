@@ -10,6 +10,9 @@
 - `FP` accepts `OTP/055` as the altitude to file a VFR-on-top plan.
 - `RDTXT /DR EXPECT 28R` sets a held release's text on a named coordination list; `AS OAK_GND` and `AS NCT_APP@1M` select a position by callsign when its TCP is shared.
 
+### Changed
+- One session clock: a session's start instant is pinned at load (the server's clock; a restart re-pins it) and rides the recording, so a replay or a rewound bundle computes its magnetic declinations from the day the session started (it used the day the server *process* started) and every later time-of-day readout derives from the same instant. Bug-bundle manifests carry it as `SessionStartUtc`.
+
 ### Fixed
 - `MLT 28R 15` and `CTO MLT 28R 15` keep their runway and altitude in the command's canonical text (they were echoed as bare `MLT`/`CTO MLT`).
 - A `FOLLOW` issued after `COPT MLT 28L` keeps the armed pattern runway, so the transition still happens after the option; the RPO is warned that the follower will leave the sequence then.

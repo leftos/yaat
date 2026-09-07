@@ -29,7 +29,7 @@ public sealed class SnapshotSchemaException : Exception
 /// </summary>
 public static class SnapshotSchemaMigrator
 {
-    public const int CurrentSchemaVersion = 20;
+    public const int CurrentSchemaVersion = 21;
 
     /// <summary>
     /// Migrates a snapshot to <see cref="CurrentSchemaVersion"/> in place.
@@ -126,6 +126,10 @@ public static class SnapshotSchemaMigrator
         //   seconds of the turn onto the join heading (the phase releases the bias as soon as it is roughly
         //   pointed at the midfield target, and the target itself is unchanged). CrossAtPatternAltitude
         //   defaults to false — the pre-feature crossing altitude rule — so those snapshots fly as before.
+        // V20→V21: ScenarioSnapshotDto.MagneticModelDateUtc (a day) replaced by SessionStartUtc (the instant t=0 is
+        //   anchored to; the magnetic day is derived from it). The old field is ignored on read; a legacy snapshot
+        //   restores with the session start the loader resolved from the manifest — the same day, so declinations
+        //   are unchanged.
         if (snapshot.SchemaVersion < 4)
         {
             foreach (var ac in snapshot.Aircraft)

@@ -73,7 +73,7 @@ public class ArrivalGeneratorStaggeredStartTests(ITestOutputHelper output)
         var warnings = engine.LoadScenario(
             TwoGeneratorScenario(randomizeInterval),
             rngSeed: 42,
-            magneticModelDateUtc: MagneticDeclination.EvaluationDateUtc
+            sessionStartUtc: MagneticDeclination.EvaluationDateUtc
         );
         foreach (var w in warnings)
         {

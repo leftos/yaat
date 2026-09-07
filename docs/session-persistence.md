@@ -17,7 +17,7 @@ Each `{roomId}.checkpoint.zip` contains:
 
 | Entry | Purpose |
 |-------|---------|
-| `manifest.json` | Room id, creator, members (CID), elapsed time, schema version |
+| `manifest.json` | Room id, creator, members (CID), elapsed time, schema version, `SessionStartUtc` (the session clock's anchor; a checkpoint written before it was captured restores with `SavedAtUtc.Date` — a midnight-anchored clock, so PDC/strip times on that one restored room read from midnight until it reloads) |
 | `scenario.json.br` | Original scenario JSON |
 | `actions.json.br` | Full `ActionLog` (rewind/export) |
 | `snapshot-final.json.br` | Live `StateSnapshotDto` at save time |

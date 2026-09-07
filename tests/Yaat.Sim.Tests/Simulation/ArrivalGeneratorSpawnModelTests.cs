@@ -63,7 +63,7 @@ public class ArrivalGeneratorSpawnModelTests(ITestOutputHelper output)
         var warnings = engine.LoadScenario(
             ScenarioJson(intervalTime, randomizeInterval),
             rngSeed: 42,
-            magneticModelDateUtc: MagneticDeclination.EvaluationDateUtc
+            sessionStartUtc: MagneticDeclination.EvaluationDateUtc
         );
         foreach (var w in warnings)
         {

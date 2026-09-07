@@ -24,11 +24,11 @@ namespace Yaat.Sim.Simulation;
 public sealed partial class SimulationEngine
 {
     /// <summary>
-    /// Loads a scenario into a fresh world. <paramref name="magneticModelDateUtc"/> is the UTC day the magnetic model
-    /// is evaluated at for the whole session (<see cref="SimScenarioState.MagneticModelDateUtc"/>): today for a new
-    /// session, the recorded date when replaying.
+    /// Loads a scenario into a fresh world. <paramref name="sessionStartUtc"/> is the instant t=0 of the session is
+    /// anchored to (<see cref="SimScenarioState.SessionStartUtc"/>): the room clock for a new session, the recorded
+    /// instant when replaying.
     /// </summary>
-    public List<string> LoadScenario(string json, int rngSeed, DateTime magneticModelDateUtc)
+    public List<string> LoadScenario(string json, int rngSeed, DateTime sessionStartUtc)
     {
         World.Clear();
         World.Rng = new SerializableRandom(rngSeed);
@@ -38,7 +38,7 @@ public sealed partial class SimulationEngine
         SoloTrainingEvaluator.Reset();
         BeaconCodePool.Clear();
 
-        var result = ScenarioLoader.Load(json, _groundData, World.Rng, magneticModelDateUtc);
+        var result = ScenarioLoader.Load(json, _groundData, World.Rng, sessionStartUtc.Date);
 
         // No ARTCC config reaches Yaat.Sim, so the pool has no banks here and falls back to sequential
         // codes. The server configures banks from the facility before running its own assignment pass.
@@ -49,7 +49,7 @@ public sealed partial class SimulationEngine
             ScenarioId = ScenarioIdentity.ResolveScenarioId(result.Id, json),
             ScenarioName = result.Name,
             RngSeed = rngSeed,
-            MagneticModelDateUtc = magneticModelDateUtc,
+            SessionStartUtc = sessionStartUtc,
             OriginalScenarioJson = json,
             PrimaryAirportId = result.PrimaryAirportId,
             ArtccId = result.ArtccId,

@@ -615,7 +615,7 @@ SpeciCriteria.cs               # Static: SPECI decision vs last issued (wind shi
 MetarIssuer.cs                 # Per-room state machine: routine METAR at :53 + SPECI on change; freezes conditions at issuance
 WindsAloftParser.cs            # Static: parses FAA FD fixed-width text → StationWinds[]; DecodeWind handles 100+kt, light/variable
 MagneticDeclination.cs         # Static: NOAA World Magnetic Model (WMM) declination via the Geo library, memoized on a 0.02° grid (cell-centre eval) per evaluation day; TrueToMagnetic/MagneticToTrue conversion.
-                               # Sim state passes the scenario's MagneticModelDateUtc (recorded with the session so replays never drift); display-only callers use EvaluationDateUtc (the process day)
+                               # Sim state passes the scenario's MagneticModelDateUtc (the day of its SessionStartUtc, recorded with the session so replays never drift); display-only callers use EvaluationDateUtc (the process day)
 VisualDetection.cs             # Static: TryAcquireAirport, TryAcquireAirportForRunway, TryAcquireTraffic, IsOccludedByBank
                                # Maintained-contact variants (already-in-sight, weather-only incl. visibility-collapse × 1.25 tolerance): TryMaintainAirportContact, TryMaintainTrafficContact
                                # Airport visibility envelope AirportVisibilityRangeNm (vis × 0.869 × 1.5 × max(1, AGL/3000ft) — Koschmieder slab; shared by acquire + maintain; traffic keeps the literal cap)
@@ -1174,7 +1174,7 @@ SimulationEngine.TrackAutomation.cs # Track automation on every run kind. ApplyA
                                    # → the autoTrackAirportIds position). The [AutoTrack]/[AutoAccept]/[Pointout] lines go through EmitTerminal
 AddAircraftOutcome.cs          # What an ADD produced: the aircraft now in the world + its spawn snapshot (baked onto the RecordedCommand), or the refusal
 SimScenarioState.cs            # Per-scenario runtime state: queues, settings, ATC positions, coordination, ArtccConfig (loaded from bundle on replay), LiveTrafficFilter (carried from room settings),
-                               # MagneticModelDateUtc (the WMM evaluation day: today for a live load, the recorded day for a replay; snapshotted + in the recording manifest),
+                               # SessionStartUtc (the pinned instant t=0 is anchored to: the room clock for a live load or restart, the recorded instant for a replay, ProcessDayUtc — the unclamped process day — where no clock exists; snapshotted + in the recording manifest) + SimTimeUtc (start + elapsed) + MagneticModelDateUtc (derived: the start's UTC day),
                                # AiStaffedPositions (published by the AI host; never snapshotted) + PilotContacts (memoized PilotContactRoster) + IsAiStaffed
 ScenarioPacing.cs              # Shared solo-training pacing helpers for parking call-up intervals and arrival generator rates
 ArrivalSpacingManager.cs       # Pure in-trail spacing math (SpeedCeiling) for the generator stream — simulated approach-controller speed equalization; SimulationEngine.ApplyArrivalSpacing drives it
@@ -1214,7 +1214,7 @@ RecordingArchive.cs            # v4 ZIP archive reader: on-demand snapshot loadi
                                # ReadBookmarks / static WriteBookmarks (client-injected bookmarks.json; optional, manifest-untracked)
 TimelineBookmark.cs            # TimelineBookmark + RecordingBookmarks records (the bookmarks.json payload)
 RecordingArchiveWriter.cs      # v4 ZIP archive writer: streaming snapshots + deduplicated layouts/source GeoJSON + bundled ArtccConfig
-RecordingManifest.cs           # Archive manifest: snapshot index, LayoutAirportIds, AirportGeoJsonIds, HasArtccConfig, metadata, MagneticModelDateUtc (+ ResolveMagneticModelDateUtc: recorded day → RecordedAtUtc day → process day)
+RecordingManifest.cs           # Archive manifest: snapshot index, LayoutAirportIds, AirportGeoJsonIds, HasArtccConfig, metadata, SessionStartUtc (+ ResolveSessionStartUtc: recorded instant → RecordedAtUtc day → process day)
 RecordingSchemaUpgrader.cs     # Surgical in-place snapshot schema upgrade (via SnapshotSchemaMigrator, never re-sim); handles .br/v4-zip/bug-bundle; drives yaat-server's Yaat.RecordingUpgrader CLI.
                                # Also rewrites recorded canonicals in place: retired HSE → HSA id form (HalfStripEditCanonicalRewriter) and the required FACILITY/BAY bay token (StripBayCanonicalQualifier, resolved against the recording's own ArtccConfig + student position).
 StripBayCanonicalQualifier.cs  # Idempotent bay-token qualifier for recorded canonicals: adds the owning facility to STRIP/SCAN/HSC/HSM/SEP/SEPM/BLANK/... dest-specs; leaves id-form and bayless verbs alone.

@@ -9,9 +9,9 @@ public sealed class ScenarioSnapshotDto
     public required string ScenarioName { get; init; }
     public required int RngSeed { get; init; }
 
-    // Optional — null in snapshots that predate the recorded magnetic-model date; the loader then keeps the date
-    // it resolved from the recording manifest (or today for a live session).
-    public DateTime? MagneticModelDateUtc { get; init; }
+    // Optional — null in snapshots that predate it; the loader then keeps the instant it resolved from the
+    // recording manifest (or the room clock for a live session).
+    public DateTime? SessionStartUtc { get; init; }
 
     // Optional — null when the controller AI is off and in every snapshot that predates it.
     public ControllerAiConfigDto? ControllerAi { get; init; }

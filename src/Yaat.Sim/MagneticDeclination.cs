@@ -10,9 +10,10 @@ namespace Yaat.Sim;
 /// negative west — matching the geodetic convention used throughout Yaat.Sim.
 ///
 /// The model is evaluated at a whole UTC day. Anything that feeds simulation state passes the scenario's
-/// <see cref="Simulation.SimScenarioState.MagneticModelDateUtc"/> (recorded with the session, so a replay a
-/// year later computes the same declinations); display-only readouts use <see cref="EvaluationDateUtc"/>,
-/// the day the process started.
+/// <see cref="Simulation.SimScenarioState.MagneticModelDateUtc"/> (the day of its
+/// <see cref="Simulation.SimScenarioState.SessionStartUtc"/>, recorded with the session, so a replay a year later
+/// computes the same declinations); display-only readouts use <see cref="EvaluationDateUtc"/>, the day the process
+/// started.
 /// </summary>
 public static class MagneticDeclination
 {
@@ -26,8 +27,10 @@ public static class MagneticDeclination
     private static readonly DateTime EpochDate = ResolveEpochDate();
 
     /// <summary>
-    /// The instant display-only readouts evaluate the WMM at: the UTC day the process started, never a time of
-    /// day, so two processes started seconds apart agree. Simulation state uses the scenario's recorded date.
+    /// The instant display-only readouts evaluate the WMM at: the UTC day the process started, clamped into the
+    /// bundled model range (so a stale package still evaluates), never a time of day, so two processes started seconds
+    /// apart agree. Not a clock: the session clock's fallback is <see cref="Simulation.SimScenarioState.ProcessDayUtc"/>. Simulation state uses the scenario's
+    /// <see cref="Simulation.SimScenarioState.MagneticModelDateUtc"/> — the day of its recorded session start.
     /// </summary>
     public static DateTime EvaluationDateUtc => EpochDate;
 

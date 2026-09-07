@@ -16,13 +16,30 @@ public sealed class SimScenarioState
     public double ElapsedSeconds { get; set; }
 
     /// <summary>
-    /// The UTC day the World Magnetic Model is evaluated at for everything that feeds simulation state (aircraft
-    /// declination, magnetic→true heading conversions at load and spawn). Set once when the session loads — today
-    /// for a live session, the recorded date for a replay — and carried in every snapshot and the recording
-    /// manifest, so a recording or bug bundle replays a year later with the same declinations instead of drifting
-    /// with the model's secular variation.
+    /// The UTC day this process started, unclamped: the session start where no clock is available (a bare Sim engine, a
+    /// headless run, an archive written before the start was captured). The WMM's own <see cref="MagneticDeclination.EvaluationDateUtc"/>
+    /// is clamped into the bundled model range and is only for display-side declination.
     /// </summary>
-    public DateTime MagneticModelDateUtc { get; set; } = MagneticDeclination.EvaluationDateUtc;
+    public static DateTime ProcessDayUtc { get; } = DateTime.UtcNow.Date;
+
+    /// <summary>
+    /// The instant the session clock is anchored to — t=0 of <see cref="ElapsedSeconds"/>. The room's clock at load for
+    /// a live session, the recorded instant for a replay; carried in every snapshot and manifest. Everything that needs a
+    /// time of day in the session — the magnetic-model day, the METAR observation clock, PDC timestamps, strip PDT/ETA
+    /// text — derives from it, so a reconstruction shows the clock the live session showed. Set at load; the only writer
+    /// afterwards is the snapshot restore.
+    /// </summary>
+    public DateTime SessionStartUtc { get; set; } = ProcessDayUtc;
+
+    /// <summary>The session clock now: <see cref="SessionStartUtc"/> plus <see cref="ElapsedSeconds"/>.</summary>
+    public DateTime SimTimeUtc => SessionStartUtc.AddSeconds(ElapsedSeconds);
+
+    /// <summary>
+    /// The UTC day the World Magnetic Model is evaluated at for everything that feeds simulation state (aircraft
+    /// declination, magnetic→true conversions at load and spawn): the day the session started, so a recording replays
+    /// a year later with the same declinations instead of drifting with the model's secular variation.
+    /// </summary>
+    public DateTime MagneticModelDateUtc => SessionStartUtc.Date;
 
     private IReadOnlyList<ControllerAi.AiPositionConfig> _aiStaffedPositions = [];
     private Pilot.PilotContactRoster? _pilotContacts;
@@ -367,7 +384,7 @@ public sealed class SimScenarioState
             ScenarioId = ScenarioId,
             ScenarioName = ScenarioName,
             RngSeed = RngSeed,
-            MagneticModelDateUtc = MagneticModelDateUtc,
+            SessionStartUtc = SessionStartUtc,
             ControllerAi = ControllerAi?.ToSnapshot(),
             PrimaryAirportId = PrimaryAirportId,
             ElapsedSeconds = ElapsedSeconds,

@@ -121,7 +121,7 @@ public class Issue236SfoAF1BConnectorTests(ITestOutputHelper output)
         engine.LoadScenario(
             BuildScenarioJson(spawn.Lat, spawn.Lon, headingMag: 178),
             rngSeed: 42,
-            magneticModelDateUtc: MagneticDeclination.EvaluationDateUtc
+            sessionStartUtc: MagneticDeclination.EvaluationDateUtc
         );
 
         double peakIasOnF1 = 0.0;
