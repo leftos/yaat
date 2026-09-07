@@ -724,6 +724,8 @@ Selecting a bay button shows that bay's racks side by side. Each rack is a fixed
 
 Bay layout (number of racks per bay, which bays are own vs external, whether separators are locked, whether arrivals get a separate printer) comes from the ARTCC config. There is no client-side override.
 
+Strips follow the session: rewinding the timeline shows the strips and PDCs as they were at that moment, restarting the scenario starts over with the scenario's own strips (keeping only the separators you placed), and leaving the room empties the Strips and TDLS views — docked tabs and popped-out windows alike — until you join a room again.
+
 #### Strip types
 
 | Type | What it is |
@@ -922,7 +924,7 @@ Both API and local scenarios appear in the **Scenario > Load Recent Scenario** m
 
 ### Restarting a Scenario
 
-**Scenario > Restart Scenario** re-runs the loaded scenario from the beginning with freshly generated traffic — useful for retrying a situation you didn't like the outcome of. All aircraft are cleared, the clock returns to zero, and the session's command history, terminal log, and bookmarks are discarded. A confirmation dialog appears first.
+**Scenario > Restart Scenario** re-runs the loaded scenario from the beginning with freshly generated traffic — useful for retrying a situation you didn't like the outcome of. All aircraft are cleared, the clock returns to zero, and the session's command history, terminal log, and bookmarks are discarded. The flight strips and PDC lists start over with the scenario's own strips; the only thing kept from the previous run is the **separators you placed**, which stay in their bays and racks. A confirmation dialog appears first.
 
 Restart is available to **every** room member, mentor or not — unlike loading or unloading, it can't strand the room or swap in a different scenario.
 

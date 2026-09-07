@@ -191,7 +191,7 @@ Services/
   YaatTdlsHubJsonContext.cs     # Source-generated JsonSerializerContext for the TDLS DTO subset. Inserted into the JsonHubProtocol resolver chain by both ServerConnection (alongside YaatHubJsonContext + YaatStripsHubJsonContext) and BrowserTdlsTransport (alone).
 
 ViewModels/
-  VTdlsViewModel.cs             # Root vTDLS VM; reconciles DCL (Pending) and PDC (Sent+Wilco) lists from broadcast events; surfaces accessible-facility list + Switch/Refresh. Ctor takes ITdlsTransport + send-command delegate + Func<string>? getUserInitials.
+  VTdlsViewModel.cs             # Root vTDLS VM; reconciles DCL (Pending) and PDC (Sent+Wilco) lists from broadcast events; surfaces accessible-facility list + Switch/Refresh. Ctor takes ITdlsTransport + send-command delegate + Func<string>? getUserInitials. Clear() empties every item, the selection and any open editor (called on connection loss and by the host when the room's session goes away).
   TdlsItemViewModel.cs          # Per-item observable: AircraftId, Status, Sequence, timestamps, SentPayload. Instance identity preserved across reconciles so Avalonia bindings stay stable.
   TdlsFlightPlanEditorViewModel.cs # Nine-field editor; wraps a working ClearanceDto, exposes per-field dropdowns from the facility's TdlsConfigDto, applies SID+transition defaults on selection, gates Send button on mandatory-field completion.
   VTdlsCanonicalBuilder.cs      # Build canonical TDLS commands (TDLSQ / TDLSS Expect|Sid|... | LocalInfo / TDLSW / TDLSDUMP) from UI gestures.
@@ -315,7 +315,7 @@ ViewModels/
   MainViewModel.cs              # Root VM; SendCommandAsync pipeline; nav data init
   MainViewModel.Rooms.cs        # Partial: room lifecycle (create/join/leave), aircraft assignments; PermittedArtccs + the Create Room ARTCC picker; SetActiveArtcc — UserPreferences.ArtccId is the ARTCC in effect (home at sign-in, the room's while in a room)
   MainViewModel.Aircraft.cs     # Partial: aircraft management (spawn/delete/update), terminal broadcast handling, and PilotTransmissionBroadcast gate to PilotVoiceService.
-  MainViewModel.Scenario.cs     # Partial: scenario load/unload/restart. Load+Unload are mentor-only (CanLoadScenario/CanUnloadScenario gate on IsNonMentor); Restart is open to any room member. Rejections raise a terminal warning via ReportScenarioActionFailure, not just StatusText.
+  MainViewModel.Scenario.cs     # Partial: scenario load/unload/restart. Load+Unload are mentor-only (CanLoadScenario/CanUnloadScenario gate on IsNonMentor); Restart is open to any room member. Rejections raise a terminal warning via ReportScenarioActionFailure, not just StatusText. ClearScenarioState (unload, and via MainViewModel.Rooms.cs's ClearRoomState on Leave Room) also empties every open Strips/TDLS view — StripsEntries via VStripsViewModel.ApplyBayConfig(null) (primary + secondary VM) and TdlsEntries via VTdlsViewModel.Clear() — since strips/PDCs are pushed state nothing else retracts.
   MainViewModel.ArrivalGenerators.cs # Partial: live arrival-generator editing (open editor window, push edits to sim, Save As)
   MainViewModel.HoldForRelease.cs # Partial: hold-for-release rundown mirror + REL release commands (HeldDeparturesChanged handler, RoomStateDto.Rundown seed)
   MainViewModel.Timers.cs       # Partial: TIMER countdown mirror + cancel command (TimersChanged handler, RoomStateDto.Timers seed, command-bar timers panel)

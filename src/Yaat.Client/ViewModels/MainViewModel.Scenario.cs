@@ -649,7 +649,7 @@ public partial class MainViewModel
         });
     }
 
-    private void ClearScenarioState()
+    internal void ClearScenarioState()
     {
         ActiveScenarioId = null;
         ActiveScenarioName = null;
@@ -669,6 +669,23 @@ public partial class MainViewModel
         PendingDelayedSpawnCount = 0;
         Ground.ClearLayout();
         Radar.ClearVideoMaps();
+
+        // Strips and PDCs are pushed state that nothing retracts once the session they belong to is gone, so
+        // every open view drops its content here — the docked tabs, the split panes and the popped-out windows
+        // alike, which hold the same VM instances (MainWindow.axaml.cs pops a window over the entry's Vm rather
+        // than a copy). The bay layout and facility scope stay: an unload is not a room exit, and a
+        // linked-facility tab is never re-bootstrapped by the next scenario load (see MainViewModel.Strips.cs,
+        // which builds it with autoBootstrapFromScenarioLoaded: false), so dropping its facility would leave it
+        // blank for the rest of the session. ClearRoomState drops the scope on top of this.
+        foreach (var entry in StripsEntries)
+        {
+            entry.Vm.Clear();
+            entry.SecondaryVm?.Clear();
+        }
+        foreach (var entry in TdlsEntries)
+        {
+            entry.Vm.Clear();
+        }
         ApplySessionSettings(new SessionSettingsDto(null, null, -1, false, false, true, true, true, true, false, 100, 100, 0, false, false, false));
 
         // Active position no longer applies without a scenario; hide the indicator.

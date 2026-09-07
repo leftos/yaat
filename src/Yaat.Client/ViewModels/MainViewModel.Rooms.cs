@@ -882,6 +882,15 @@ public partial class MainViewModel
         AssignableMembers.Clear();
         OnPropertyChanged(nameof(HasAnyAssignments));
         ClearScenarioState();
+
+        // Out of the room the strip views lose their facility scope too, not just their content: the bays came
+        // from the room's ARTCC config, and the next room re-bootstraps them from its own. ApplyBayConfig(null)
+        // is the drop — it takes the bays, the printer layout and the facility with it.
+        foreach (var entry in StripsEntries)
+        {
+            entry.Vm.ApplyBayConfig(null);
+            entry.SecondaryVm?.ApplyBayConfig(null);
+        }
     }
 
     private void OnRoomMemberChanged(RoomMemberChangedDto dto)

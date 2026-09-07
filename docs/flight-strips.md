@@ -208,7 +208,8 @@ and never parses it.
 
 Strip state is the engine's: `SimulationEngine.Strips`, typed as `FlightStripState`
 (`src/Yaat.Sim/Simulation/Strips/FlightStripState.cs`). A fresh engine starts with empty bays (a
-restart therefore starts from the scenario's own strips), the snapshot's server section carries it
+restart therefore starts from the scenario's own strips — `RecordingManager.RestartScenarioAsync`
+carries only the user's separators across, by id, into the fresh racks), the snapshot's server section carries it
 (`ServerSnapshotDto.Strips`, `FlightStripSnapshotMapper`), and a rewind or bundle reconstruction
 rebuilds it from the recorded strip requests plus the host's auto-print bodies, after which the room
 re-pushes the result to its clients (`RecordingManager.ResyncStripsAndTdlsAsync`). The mutation helpers

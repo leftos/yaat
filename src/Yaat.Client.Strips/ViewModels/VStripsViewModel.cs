@@ -191,16 +191,28 @@ public partial class VStripsViewModel : ObservableObject
 
     /// <summary>
     /// Called on the UI thread whenever the SignalR transport drops or starts
-    /// reconnecting. Clears the strip lookup, every rack's strip list, and the
-    /// printer queue so the on-screen content reflects "no live data" — the
-    /// bay layout itself stays so the user still sees the workspace shape.
-    /// Cached broadcasts are dropped too: when the connection comes back the
-    /// server will re-broadcast scenario + state, so honoring stale snapshots
-    /// would just race the fresh ones.
+    /// reconnecting. The content goes (see <see cref="Clear"/>) so the view
+    /// reflects "no live data"; the bay layout stays.
     /// </summary>
     private void OnConnectionLost()
     {
         IsConnected = false;
+        Clear();
+    }
+
+    /// <summary>
+    /// Empties the strip content: the strip lookup, every rack's strip list, and the
+    /// printer queue, so the on-screen content reflects "no live data" — the bay layout
+    /// and the facility scope stay, so the user still sees the workspace shape.
+    /// Cached broadcasts are dropped too: whatever comes next (a reconnect, the next
+    /// scenario) re-broadcasts state, so honoring stale snapshots would just race the
+    /// fresh ones. Called on a transport drop and when the session the strips belong to
+    /// goes away — nothing retracts a pushed strip, so the view drops them itself.
+    /// Must run on the UI thread.
+    /// </summary>
+    public void Clear()
+    {
+        Dispatcher.UIThread.VerifyAccess();
         _items.Clear();
         SelectedStrip = null;
         foreach (var bay in Bays)

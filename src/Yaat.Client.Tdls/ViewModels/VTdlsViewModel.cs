@@ -288,6 +288,18 @@ public partial class VTdlsViewModel : ObservableObject
     private void OnConnectionLost()
     {
         IsConnected = false;
+        Clear();
+    }
+
+    /// <summary>
+    /// Empties the page — every item, the selection and any open editor — the way a
+    /// <c>TdlsStateChanged</c> carrying no items would. The host calls this when the session the
+    /// PDCs belong to goes away (leaving the room, unloading the scenario): no broadcast retracts
+    /// them, so without this the list keeps showing the old room's clearances. Must run on the UI thread.
+    /// </summary>
+    public void Clear()
+    {
+        Dispatcher.UIThread.VerifyAccess();
         _itemsById.Clear();
         DclItems.Clear();
         PdcItems.Clear();
