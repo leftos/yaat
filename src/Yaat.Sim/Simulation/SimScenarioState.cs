@@ -355,7 +355,7 @@ public sealed class SimScenarioState
     /// position from the YAAT client can still answer the point-out (<c>OK</c>) before it goes away. Deliberately not
     /// the 5 s handoff auto-accept, which is flow-critical (traffic stops moving until it fires) where this is not.
     /// </summary>
-    public const int PointoutNoActionSeconds = 30;
+    public const double PointoutNoActionSeconds = 30;
 
     public TimeSpan AutoAcceptDelay { get; set; } = TimeSpan.FromSeconds(5);
     public bool IsStudentTowerPosition { get; set; }

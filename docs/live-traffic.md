@@ -291,7 +291,7 @@ bundle's sim seconds back to the real-world feed window (see *Reproducing a repo
   `TrackOwner` (real position callsign when a TCP/sector matches, synthetic with the right subset/sector otherwise) plus
   the `HandoffPeer`/`OnHandoff` pending display. **The feed yields silently**: `AircraftTrack.Owner`'s setter clears
   `OwnerFromLiveFeed` on any ordinary write, so a controller's TRACK takes the target and only a DROP (owner back to
-  null) lets the feed re-apply; `ProcessAutoAccept` skips feed-owned tracks so real-world handoffs complete only when
+  null) lets the feed re-apply; `SimulationEngine.TickAutoAccept` skips feed-owned tracks so real-world handoffs complete only when
   the feed says so. `RoomControllerCollector.Collect` fills the CRC OpenPositions topic and the client controller list
   with synthesized "Real World" positions (ARTCC root + student facility subtree, radar-capable only) during live
   sessions, so owned tracks point at positions that exist. Tests: `ShadowOwnershipTests`.

@@ -316,7 +316,7 @@ public sealed partial class SimulationEngine
         IEnumerable<string> entries
     )
     {
-        var stolen = new List<(string, TrackOwner)>();
+        var stolen = new List<(string AirportId, TrackOwner FormerOwner)>();
 
         foreach (var raw in entries)
         {
@@ -329,45 +329,69 @@ public sealed partial class SimulationEngine
 
             if (string.Equals(entry, "none", StringComparison.OrdinalIgnoreCase))
             {
-                atcPos.Source.AutoTrackAirportIds.Clear();
-                continue;
+                ClearCallerList(atcPos);
             }
-
-            if (entry.StartsWith('-'))
+            else if (entry.StartsWith('-'))
             {
-                var airportId = entry[1..].Trim();
-                if (string.IsNullOrEmpty(airportId))
-                {
-                    continue;
-                }
-                foreach (var p in scenario.AtcPositions)
-                {
-                    p.Source.AutoTrackAirportIds.RemoveAll(a => string.Equals(a, airportId, StringComparison.OrdinalIgnoreCase));
-                }
-                continue;
+                RemoveAirportEverywhere(scenario, entry[1..].Trim());
             }
-
-            // Positive: caller takes ownership; strip from every other position so each airport
-            // has a single owner ("last write wins").
-            foreach (var p in scenario.AtcPositions)
+            else
             {
-                if (ReferenceEquals(p, atcPos))
-                {
-                    continue;
-                }
-                if (p.Source.AutoTrackAirportIds.RemoveAll(a => string.Equals(a, entry, StringComparison.OrdinalIgnoreCase)) > 0)
-                {
-                    stolen.Add((entry, p.Owner));
-                }
-            }
-
-            if (!atcPos.Source.AutoTrackAirportIds.Any(a => string.Equals(a, entry, StringComparison.OrdinalIgnoreCase)))
-            {
-                atcPos.Source.AutoTrackAirportIds.Add(entry);
+                TakeAirport(scenario, atcPos, entry, stolen);
             }
         }
 
         return stolen;
+    }
+
+    /// <summary>"none": the caller stops auto-tracking every airport it held, leaving other positions untouched.</summary>
+    private static void ClearCallerList(ResolvedAtcPosition atcPos) => atcPos.Source.AutoTrackAirportIds.Clear();
+
+    /// <summary>
+    /// "-X": the airport stops being auto-tracked by every position, whoever held it. An entry that is a bare dash
+    /// names no airport and is ignored.
+    /// </summary>
+    private static void RemoveAirportEverywhere(SimScenarioState scenario, string airportId)
+    {
+        if (string.IsNullOrEmpty(airportId))
+        {
+            return;
+        }
+
+        foreach (var p in scenario.AtcPositions)
+        {
+            p.Source.AutoTrackAirportIds.RemoveAll(a => string.Equals(a, airportId, StringComparison.OrdinalIgnoreCase));
+        }
+    }
+
+    /// <summary>
+    /// A positive entry: the caller takes ownership, stripping the airport from every other position so each airport
+    /// has a single owner ("last write wins"). Every position it was taken from is appended to
+    /// <paramref name="stolen"/> with the owner that held it.
+    /// </summary>
+    private static void TakeAirport(
+        SimScenarioState scenario,
+        ResolvedAtcPosition atcPos,
+        string airportId,
+        List<(string AirportId, TrackOwner FormerOwner)> stolen
+    )
+    {
+        foreach (var p in scenario.AtcPositions)
+        {
+            if (ReferenceEquals(p, atcPos))
+            {
+                continue;
+            }
+            if (p.Source.AutoTrackAirportIds.RemoveAll(a => string.Equals(a, airportId, StringComparison.OrdinalIgnoreCase)) > 0)
+            {
+                stolen.Add((airportId, p.Owner));
+            }
+        }
+
+        if (!atcPos.Source.AutoTrackAirportIds.Any(a => string.Equals(a, airportId, StringComparison.OrdinalIgnoreCase)))
+        {
+            atcPos.Source.AutoTrackAirportIds.Add(airportId);
+        }
     }
 
     /// <summary>

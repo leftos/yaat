@@ -13,7 +13,7 @@ in [08](08-detectors-and-findings.md); live attach in [09](09-live-attach.md).
    RecordedCommand(...))`; standalone `SimulationEngine.SendCommand` does **not** append to
    `ActionLog`, so a SimulationEngine-only runner would produce non-replayable artifacts.
 2. The full lifecycle machinery is server-side: `TickProcessor.ProcessPostPhysics` runs auto-accept
-   (without it every AI handoff strands), pointout auto-ack, autotrack, conflict/ERAM/ASDEX
+   (without it every AI handoff strands), the pointout timeout, autotrack, conflict/ERAM/ASDEX
    processing, auto-delete, warnings fan-out. `RoomEngine.AdvanceOneSecond` is the exact live tick
    path and is already driven headless by `RoomEngineTestHarness.Tick()`.
 3. Tool-project precedent exists in that dependency direction (`yaat-server/tools/Yaat.SwimSlice`

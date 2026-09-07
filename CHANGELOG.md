@@ -8,6 +8,7 @@
 - `RDTXT /DR EXPECT 28R` sets a held release's text on a named coordination list; `AS OAK_GND` and `AS NCT_APP@1M` select a position by callsign when its TCP is shared.
 
 ### Fixed
+- Restoring a room after a planned server restart no longer stalls every other room's tick until the restore finishes.
 - A point-out nobody acknowledges is withdrawn after 30 seconds and the initiator is told to coordinate verbally, instead of being acknowledged on the absent controller's behalf (7110.65 §5-4-7); a point-out to your own position in solo mode still waits for you even when the room's student TCP did not resolve.
 - A room restored after a planned server restart can no longer be advanced by the tick loop while its restore is still in progress.
 - Replaying a recording in the client auto-tracks a departure appearing on STARS over an `autoTrackAirportIds` airport, and a `.AUTOTRACK` change made mid-session, as the live session did; rewinds and bundle reconstructions reproduce both.

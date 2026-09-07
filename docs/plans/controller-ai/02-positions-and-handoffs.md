@@ -104,7 +104,7 @@ rather than the server timers where they are the receiving party.
 The server already "plays" unstaffed positions. An AI-staffed position must be treated like a
 *human-staffed* one by those services, or they race the brain:
 
-- `TickProcessor.ProcessAutoAccept`: already skips CRC-controlled TCPs
+- `SimulationEngine.TickAutoAccept` (was `TickProcessor.ProcessAutoAccept`): already skips CRC-controlled TCPs
   (`PositionRegistry.IsTcpControlledByCrc`) and the solo `StudentPosition`. Add a third skip:
   `IAiStaffing.IsAiControlled(handoffPeer)`. The AI brain ACCEPTs on its own (deterministic 5–15 s
   delay from the AI RNG stream), exercising the real accept path.

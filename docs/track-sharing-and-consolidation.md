@@ -53,7 +53,7 @@ attended-position predicate, the manual-override store, and the CRC broadcast.
 | Attended-position registry + CRC-control test | `../yaat-server/src/Yaat.Server/Data/PositionRegistry.cs` | yaat-server |
 | `CONS` / `DECON` command handlers + track transfer | `../yaat-server/src/Yaat.Server/Simulation/RoomEngine.cs` | yaat-server |
 | Handoff / point-out consolidation redirect | `src/Yaat.Sim/Commands/ConsolidationRedirect.cs` (`TryRedirect`; the attendance answer is the host's) | Yaat.Sim |
-| Auto-accept suppression for CRC-controlled targets | `../yaat-server/src/Yaat.Server/Simulation/TickProcessor.cs` (`ProcessAutoAccept`, delayed-handoff guard) | yaat-server |
+| Auto-accept suppression for CRC-controlled targets | `src/Yaat.Sim/Simulation/SimulationEngine.TrackAutomation.cs` (`TickAutoAccept`, `TickDelayedHandoffs` — the `Attendance` gate) | yaat |
 | `StarsConsolidation` topic broadcast | `../yaat-server/src/Yaat.Server/Simulation/CrcBroadcastService.cs` (`BuildConsolidationData`, `BroadcastStarsConsolidationAsync`) | yaat-server |
 | DTO mappers (shared state, STARS/ERAM pointouts, consolidation item) | `../yaat-server/src/Yaat.Server/Simulation/DtoConverter.cs` | yaat-server |
 | CRC-side consolidate/deconsolidate + cleanup | `../yaat-server/src/Yaat.Server/Hubs/CrcClientState.Stars.cs`, `CrcClientState.Session.cs` | yaat-server |
@@ -192,11 +192,11 @@ point-out sticks pending forever. Unlike the handoff path, the originally-target
 
 ### Auto-accept suppression
 
-The server normally auto-accepts handoffs after `AutoAcceptDelay`. But if the handoff peer is **CRC-controlled** — either directly
-attended or attended via consolidation — the server must NOT auto-accept; the real CRC controller owns that action.
-`TickProcessor.ProcessAutoAccept` (`TickProcessor.cs:984`) calls
-`PositionRegistry.IsTcpControlledByCrc(tcp, t => GetConsolidationOwner(...), roomId)` (`PositionRegistry.cs:120`) and skips the
-target when it returns true. The same consolidation check guards delayed scenario handoffs (`TickProcessor.cs:872`): a handoff to a
+The engine normally auto-accepts handoffs after `AutoAcceptDelay`. But if the handoff peer is **CRC-controlled** — either directly
+attended or attended via consolidation — it must NOT auto-accept; the real CRC controller owns that action.
+`SimulationEngine.TickAutoAccept` (`SimulationEngine.TrackAutomation.cs`) calls
+`Attendance.IsTcpControlledByCrc(tcp, scenario, ConsolidationState)` (`Simulation/Attendance.cs`) over the recorded attendance and skips the
+target when it returns true. The same consolidation check guards delayed scenario handoffs (`TickDelayedHandoffs`): a handoff to a
 TCP consolidated under another attended TCP is held until that TCP activates (otherwise it would be a handoff to oneself).
 
 ## Per-track shared display state
@@ -214,7 +214,7 @@ Display state that one position sets and other positions can observe lives **per
 `WasPreviouslyOwned` is the one field the sim writes on its own: when a handoff is accepted, the *previous* owner's `SharedState`
 entry is flagged `WasPreviouslyOwned = true` so CRC keeps the datablock as a full datablock (white) until that controller slews to
 acknowledge. Both accept paths go through `TrackEngine.MarkPreviousOwnerRetained` (`TrackEngine.cs`) — the auto-accept timer
-(`ProcessAutoAccept`) and the manual `ACCEPT` / accept-all commands (`TrackEngine.HandleAccept`, `TrackEngine.DispatchGlobal`). The previous
+(`SimulationEngine.TickAutoAccept`) and the manual `ACCEPT` / accept-all commands (`TrackEngine.HandleAccept`, `TrackEngine.DispatchGlobal`). The previous
 owner's TCP is resolved via `TrackResolver.FindTcpForOwner`, so a previous owner with no scenario TCP (e.g. an unmodelled adjacent
 facility) is a no-op.
 

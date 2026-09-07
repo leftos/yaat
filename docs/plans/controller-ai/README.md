@@ -206,7 +206,7 @@ Future (noted, not planned): a nightly xUnit `[Trait("Category","Soak")]` wrappe
   feedback for free.
 - **`PilotProactive` / `PilotRequestTracker`** — the pilot requests the AI answers, and the
   bookkeeping that closes them.
-- **`ProcessDeferredAutoTrack` / `ProcessAutoAccept`** — kept; AI positions are added as a skip
+- **`SimulationEngine.TickDeferredAutoTrack` / `TickAutoAccept` / `TickPointoutTimeout`** (the former `Process*` bodies, Yaat.Sim since step 4) — kept; AI positions are added as a skip
   (staffed), not a replacement.
 - **`RngSeed`/`SerializableRandom` + `RecordedCommand`/ActionLog + `RecordingArchiveWriter`
   (streaming `WriteSnapshot`, `WriteBookmarks`)** — determinism and artifacts end-to-end.
@@ -278,7 +278,7 @@ Carried from the main plan at the 2026-09-05 reorganization: the review follow-u
 
 ### CA0b — review follow-ups (not blocking CA1)
 
-- [ ] When CA1 skips `ProcessAutoAccept` for AI radar positions, land the AI `ACCEPT` rule in the same change — otherwise every handoff to an AI radar position trips `HandoffUnaccepted` at `AutoAcceptDelay` + 60 s
+- [ ] When CA1 skips `SimulationEngine.TickAutoAccept` (and `TickPointoutTimeout`, which now withdraws after 30 s) for AI radar positions, land the AI `ACCEPT` rule in the same change — otherwise every handoff to an AI radar position trips `HandoffUnaccepted` at `AutoAcceptDelay` + 60 s
 - [ ] `ConflictAlertInAiJurisdictionRule` inherits the detector's VFR-to-VFR pattern-entry pairs (converging toward a 45° downwind entry 3+ nm out, where see-and-avoid / tower visual separation §7-2-1 apply) — needs a detector-level VFR pattern exemption before the safety tier is trusted at a VFR field
 - [ ] Multi-position CA: a pair split across two AI positions opens one episode per position by design; the findings aggregator (H1) should fold them by conflict id
 - [ ] `AiPositionResolver.FindCabFacility` falls back to a callsign-prefix match for combined ATCT/TRACON facilities whose id is not the airport's — verify against a real one (FAT, MC1) when those scenarios are soaked
