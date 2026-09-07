@@ -57,6 +57,7 @@ public class SplitBlockPreservationTests : IDisposable
         ["IsApplied"] = "copied",
         ["TriggerMet"] = "copied",
         ["TriggerCrossingObserved"] = "copied",
+        ["TriggerTerminatorObserved"] = "copied",
         ["TriggerMissed"] = "copied",
         ["TriggerClosestApproach"] = "copied",
     };
@@ -107,6 +108,7 @@ public class SplitBlockPreservationTests : IDisposable
         // Distinctive runtime state the rebuild must carry over verbatim.
         original.TriggerMet = true;
         original.TriggerCrossingObserved = true;
+        original.TriggerTerminatorObserved = true;
         original.TriggerMissed = true;
         original.TriggerClosestApproach = 3.25;
         original.TrackApplied = true;
@@ -136,6 +138,7 @@ public class SplitBlockPreservationTests : IDisposable
         // Runtime state explicitly copied:
         Assert.True(survivor.TriggerMet, "TriggerMet latch lost — the rebuilt block would re-arm against a passed fix");
         Assert.True(survivor.TriggerCrossingObserved);
+        Assert.True(survivor.TriggerTerminatorObserved);
         Assert.True(survivor.TriggerMissed);
         Assert.Equal(3.25, survivor.TriggerClosestApproach);
         Assert.True(survivor.TrackApplied, "TrackApplied guard lost — an already-fired handoff would re-dispatch");

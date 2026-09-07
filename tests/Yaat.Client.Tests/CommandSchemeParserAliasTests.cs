@@ -50,12 +50,30 @@ public class CommandSchemeParserAliasTests
     [InlineData("AT TTE WAIT 5 SAY X AND Y")]
     [InlineData("wait 1 say foo and then, bar")]
     [InlineData("WAIT 1 SAY WAIT FOR THE TAG TO \"DISAPPEAR\", AND THEN, TYPE F4 (CALLSIGN) ENTER.")]
+    [InlineData("ONHS SAY HOLDING SHORT AND WAITING")]
+    [InlineData("OTG SAY CLIMBING AND TURNING")]
     public void NormalizeSeparatorAliases_PreservesSayAfterTransparentPrefixes(string input)
     {
-        // WAIT/DELAY/WAITD and condition verbs (AT/LV/ATFN/ONHO/ONH/ONHS) are transparent
+        // WAIT/DELAY/WAITD and condition verbs (AT/LV/ATFN/ONHO/ONH/ONHS/OTG) are transparent
         // prefixes: the token after them starts a command, so SAY there begins a literal
         // message whose AND/THEN words must not become separators.
         Assert.Equal(input, CommandSchemeParser.NormalizeSeparatorAliases(input));
+    }
+
+    /// <summary>
+    /// <c>OTG</c> ("on the go") is a condition prefix like <c>ONHS</c>: the canonicalizer keeps the
+    /// prefix and its inner command in one block, and is case-insensitive about both.
+    /// </summary>
+    [Theory]
+    [InlineData("OTG MLT 28L", "OTG MLT 28L")]
+    [InlineData("otg mlt 28l", "OTG MLT 28L")]
+    [InlineData("OTG CM 020", "OTG CM 020")]
+    public void SchemeParser_OtgCondition_Canonicalizes(string input, string expected)
+    {
+        var result = CommandSchemeParser.ParseCompound(input, Scheme);
+
+        Assert.NotNull(result);
+        Assert.Equal(expected, result.CanonicalString);
     }
 
     [Fact]

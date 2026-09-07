@@ -2832,6 +2832,8 @@ public static class CommandDispatcher
                 return new BlockLabels($"at {df.DistanceNm}nm final: ", $"At {df.DistanceNm}nm final: ");
             case OnHoldShortCondition:
                 return new BlockLabels("on hold-short: ", "Once holding short: ");
+            case OnTheGoCondition:
+                return new BlockLabels("on the go: ", "On the go: ");
             case OnHandoffCondition:
                 return new BlockLabels("on handoff: ", "On handoff: ");
             default:
@@ -3013,6 +3015,7 @@ public static class CommandDispatcher
         rebuilt.IsApplied = block.IsApplied;
         rebuilt.TriggerMet = block.TriggerMet;
         rebuilt.TriggerCrossingObserved = block.TriggerCrossingObserved;
+        rebuilt.TriggerTerminatorObserved = block.TriggerTerminatorObserved;
         rebuilt.TriggerMissed = block.TriggerMissed;
         rebuilt.TriggerClosestApproach = block.TriggerClosestApproach;
 
@@ -3231,6 +3234,7 @@ public static class CommandDispatcher
             DistanceFinalCondition df => new BlockTrigger { Type = BlockTriggerType.DistanceFinal, DistanceFinalNm = df.DistanceNm },
             OnHandoffCondition => new BlockTrigger { Type = BlockTriggerType.OnHandoff },
             OnHoldShortCondition => new BlockTrigger { Type = BlockTriggerType.EnteringHoldingAfterExit },
+            OnTheGoCondition => new BlockTrigger { Type = BlockTriggerType.AfterCycleTerminator },
             _ => null,
         };
     }

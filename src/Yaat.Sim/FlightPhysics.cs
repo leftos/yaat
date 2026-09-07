@@ -1786,6 +1786,7 @@ public static class FlightPhysics
             BlockTriggerType.AtGroundEntity => IsGroundEntityReached(aircraft, trigger),
             BlockTriggerType.EnteringHoldingAfterExit => aircraft.Phases?.CurrentPhase is Yaat.Sim.Phases.Ground.HoldingAfterExitPhase,
             BlockTriggerType.AfterRunwayCrossing => IsAfterRunwayCrossingMet(aircraft, block),
+            BlockTriggerType.AfterCycleTerminator => IsAfterCycleTerminatorMet(aircraft, block),
             _ => true,
         };
     }
@@ -1823,6 +1824,33 @@ public static class FlightPhysics
         }
 
         return block.TriggerCrossingObserved;
+    }
+
+    /// <summary>
+    /// Latches when the aircraft enters a cycle-terminator phase — touch-and-go, stop-and-go,
+    /// low approach or go-around — and fires once it has left that phase and is airborne again.
+    /// The latch is what makes the trigger mean "after the next one": an aircraft issued
+    /// <c>OTG</c> while already climbing out has no terminator behind it, so the block simply
+    /// waits for the next circuit rather than firing immediately. The airborne check keeps a
+    /// stop-and-go from firing during its stop on the runway, where the phase has ended for the
+    /// roll but the aircraft has not gone anywhere yet.
+    /// </summary>
+    private static bool IsAfterCycleTerminatorMet(AircraftState aircraft, CommandBlock block)
+    {
+        var phase = aircraft.Phases?.CurrentPhase;
+        if (
+            phase
+            is Yaat.Sim.Phases.Tower.TouchAndGoPhase
+                or Yaat.Sim.Phases.Tower.StopAndGoPhase
+                or Yaat.Sim.Phases.Tower.LowApproachPhase
+                or Yaat.Sim.Phases.Tower.GoAroundPhase
+        )
+        {
+            block.TriggerTerminatorObserved = true;
+            return false;
+        }
+
+        return block.TriggerTerminatorObserved && !aircraft.IsOnGround;
     }
 
     private static bool IsGroundEntityReached(AircraftState aircraft, BlockTrigger trigger)

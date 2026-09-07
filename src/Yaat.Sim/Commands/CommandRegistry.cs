@@ -1474,6 +1474,7 @@ public static class CommandRegistry
             ),
             Bare(OnHandoff, "On Handoff", "Track Operations", false, ["ONHO", "ONH"]),
             Bare(OnHoldShort, "On Hold-Short", "Track Operations", false, ["ONHS"]),
+            Bare(OnTheGo, "On the Go", "Track Operations", false, ["OTG"]),
             Cmd(
                 AsdexScratchpad1,
                 "ASDE-X Scratchpad 1",

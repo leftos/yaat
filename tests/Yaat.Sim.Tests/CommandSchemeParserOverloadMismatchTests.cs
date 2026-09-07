@@ -47,6 +47,7 @@ public class CommandSchemeParserOverloadMismatchTests : IDisposable
     [
         CanonicalCommandType.OnHandoff,
         CanonicalCommandType.OnHoldShort,
+        CanonicalCommandType.OnTheGo,
         CanonicalCommandType.GiveWay,
     ];
 

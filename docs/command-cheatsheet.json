@@ -235,6 +235,7 @@
         { "verb": "OK", "aliases": [], "description": "Acknowledge" },
         { "verb": "ONHO", "aliases": ["onh"], "description": "On handoff action" },
         { "verb": "ONHS", "aliases": [], "description": "Condition prefix: on hold-short (e.g. `ONHS DEL`)" },
+        { "verb": "OTG", "aliases": [], "description": "Condition prefix: on the go — after the next touch-and-go / low approach / go-around (e.g. `OTG MLT 28L`)" },
         { "verb": "CAACK", "aliases": [], "description": "Acknowledge conflict alert" },
         { "verb": "CAINH", "aliases": ["cai"], "description": "Inhibit conflict alert" },
         { "verb": "CASUP UAL123", "aliases": [], "description": "Toggle conflict-alert suppression for this pair only (live traffic on a visual, MARSA)" },

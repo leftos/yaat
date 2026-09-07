@@ -3,6 +3,7 @@
 ## Unreleased
 
 ### Added
+- `OTG` ("on the go") condition prefix: `OTG MLT 28L` fires the command once the aircraft is climbing out after its next touch-and-go, stop-and-go, low approach or go-around, so a runway or direction change can be given together with the option it is about to fly.
 - The Discord server shows progress towards YAAT's monthly hosting cost, fed by Ko-fi: a sidebar ticker channel, a pinned progress embed listing this month's supporters (surplus rolls into the next month), and One-time / Monthly Supporter roles claimed through Ko-fi.
 - `FP` accepts `OTP/055` as the altitude to file a VFR-on-top plan.
 - `RDTXT /DR EXPECT 28R` sets a held release's text on a named coordination list; `AS OAK_GND` and `AS NCT_APP@1M` select a position by callsign when its TCP is shared.

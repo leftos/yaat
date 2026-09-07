@@ -44,7 +44,8 @@ public static class CommandSchemeParser
                 || upper.StartsWith("ATFN ")
                 || upper.StartsWith("ONHO ")
                 || upper.StartsWith("ONH ")
-                || upper.StartsWith("ONHS ");
+                || upper.StartsWith("ONHS ")
+                || upper.StartsWith("OTG ");
 
             // GIVEWAY/BEHIND/GW are compound only if they have 3+ tokens (condition form)
             if (!isCompound && (upper.StartsWith("GIVEWAY ") || upper.StartsWith("BEHIND ") || upper.StartsWith("GW ")))
@@ -201,9 +202,10 @@ public static class CommandSchemeParser
         return upper.StartsWith("LV ")
             || upper.StartsWith("AT ")
             || upper.StartsWith("ATFN ")
-            || upper is "ONHO" or "ONHS"
+            || upper is "ONHO" or "ONHS" or "OTG"
             || upper.StartsWith("ONHO ")
             || upper.StartsWith("ONHS ")
+            || upper.StartsWith("OTG ")
             || IsGiveWayConditionBlock(canonicalBlock);
     }
 
@@ -247,6 +249,7 @@ public static class CommandSchemeParser
         "ATFN",
         "ONHO",
         "ONHS",
+        "OTG",
         "GIVEWAY",
         "WAIT",
     };
@@ -411,6 +414,31 @@ public static class CommandSchemeParser
             }
 
             parts.Add("ONHS");
+        }
+        else if (upper.StartsWith("OTG "))
+        {
+            var tokens = remaining.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);
+            if (tokens.Length < 2)
+            {
+                failure = new ParseFailure("OTG", "expects a command (e.g. OTG MLT 28L)");
+                return null;
+            }
+
+            remaining = tokens[1];
+            var remainderUpper = remaining.ToUpperInvariant();
+
+            if (remainderUpper.StartsWith("AT ") || remainderUpper.StartsWith("LV ") || remainderUpper.StartsWith("ATFN "))
+            {
+                var innerCanonical = ParseBlockToCanonical(remaining, scheme, out failure);
+                if (innerCanonical is null)
+                {
+                    return null;
+                }
+
+                return $"OTG; {innerCanonical}";
+            }
+
+            parts.Add("OTG");
         }
 
         // Apply ExpandWait and ExpandSpeedUntil to the remainder after condition extraction
@@ -819,7 +847,7 @@ public static class CommandSchemeParser
     /// block per the parser's literal-SAY rule; SAY after a <c>,</c> consumes only until the next
     /// <c>,</c> or <c>;</c>. Transparent prefixes — <c>WAIT</c>/<c>DELAY</c>/<c>WAITD</c> and the
     /// condition verbs <c>AT</c>/<c>LV</c>/<c>ATFN</c> (each with one argument token) and
-    /// <c>ONHO</c>/<c>ONH</c>/<c>ONHS</c> (bare) — don't end the command start, so SAY after
+    /// <c>ONHO</c>/<c>ONH</c>/<c>ONHS</c>/<c>OTG</c> (bare) — don't end the command start, so SAY after
     /// <c>WAIT 1</c> or <c>AT FIX</c> still begins a literal message.
     /// </summary>
     public static string NormalizeSeparatorAliases(string input)
@@ -941,7 +969,7 @@ public static class CommandSchemeParser
     /// <summary>
     /// Number of argument tokens a transparent prefix consumes at a command start, or null when the
     /// token is not a transparent prefix. WAIT/DELAY/WAITD and the conditions AT/LV/ATFN carry one
-    /// argument; ONHO/ONH/ONHS are bare.
+    /// argument; ONHO/ONH/ONHS/OTG are bare.
     /// </summary>
     private static int? TransparentPrefixArgCount(ReadOnlySpan<char> token)
     {
@@ -961,6 +989,7 @@ public static class CommandSchemeParser
             token.Equals("ONHO", StringComparison.OrdinalIgnoreCase)
             || token.Equals("ONH", StringComparison.OrdinalIgnoreCase)
             || token.Equals("ONHS", StringComparison.OrdinalIgnoreCase)
+            || token.Equals("OTG", StringComparison.OrdinalIgnoreCase)
         )
         {
             return 0;

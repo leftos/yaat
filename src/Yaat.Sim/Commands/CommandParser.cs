@@ -38,7 +38,8 @@ public static class CommandParser
                 || upperCheck.StartsWith("AT ")
                 || upperCheck.StartsWith("ATFN ")
                 || upperCheck.StartsWith("ONHO ")
-                || upperCheck.StartsWith("ONHS ");
+                || upperCheck.StartsWith("ONHS ")
+                || upperCheck.StartsWith("OTG ");
 
             // GIVEWAY/BEHIND/GW are compound only when followed by callsign + a known ground command verb
             if (!isCompound && (upperCheck.StartsWith("GIVEWAY ") || upperCheck.StartsWith("BEHIND ") || upperCheck.StartsWith("GW ")))
@@ -258,6 +259,33 @@ public static class CommandParser
             }
 
             condition = new OnHoldShortCondition();
+        }
+        else if (upper.StartsWith("OTG "))
+        {
+            var tokens = remaining.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);
+            if (tokens.Length < 2)
+            {
+                _lastBlockFailure = "OTG requires a command";
+                return null;
+            }
+
+            remaining = tokens[1];
+            var remainingUpper = remaining.ToUpperInvariant();
+
+            // OTG followed by another condition (AT/LV/ATFN) → two sequential blocks
+            if (remainingUpper.StartsWith("AT ") || remainingUpper.StartsWith("LV ") || remainingUpper.StartsWith("ATFN "))
+            {
+                var innerBlocks = ParseBlock(remaining, aircraftRoute, debugLog);
+                if (innerBlocks is null)
+                {
+                    return null;
+                }
+
+                var otgBlock = new ParsedBlock(new OnTheGoCondition(), []);
+                return [otgBlock, .. innerBlocks];
+            }
+
+            condition = new OnTheGoCondition();
         }
 
         if (condition is not null)

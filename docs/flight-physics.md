@@ -308,7 +308,8 @@ Full depth is in [command-pipeline.md](command-pipeline.md) and [phases.md](phas
   `ControlTargets`. Only conditional triggers are still watched (`ApplyReadyConditionalBlocks`, `:1143`), so e.g. `SPD 210 UNTIL 10` can fire its
   block mid-approach (`:1076`).
 - **Trigger types** (`IsTriggerMet`, `:1264`): `ReachAltitude`, `ReachFix`, `InterceptRadial`, `ReachFrdPoint`, `GiveWay`, `DistanceFinal`,
-  `OnHandoff`, `AtGroundEntity`, `EnteringHoldingAfterExit`, `AfterRunwayCrossing`.
+  `OnHandoff`, `AtGroundEntity`, `EnteringHoldingAfterExit`, `AfterRunwayCrossing`, `AfterCycleTerminator` (`OTG`: latches on a
+  touch-and-go / stop-and-go / low approach / go-around phase and fires once the aircraft has left it and is airborne).
 - **The three `Notify*` hooks** are the *only* way a queued block fires while a phase owns control: `NotifyFixSequenced` (`:1513`, from route/
   approach sequencing), `NotifyGroundEntityReached` (`:1555`, from `TaxiingPhase`), `NotifyPhaseAdvanced` (`:1629`, from `PhaseRunner`). Forget the
   hook and a sequential compound like `TAXI…;CTO` sits untouched until the next user dispatch.

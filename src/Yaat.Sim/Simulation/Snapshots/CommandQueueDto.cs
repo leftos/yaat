@@ -15,6 +15,10 @@ public sealed class CommandBlockDto
     public required double TriggerClosestApproach { get; init; }
     public required bool TriggerMissed { get; init; }
     public bool TriggerCrossingObserved { get; init; }
+
+    // Latch for the OTG condition's AfterCycleTerminator trigger. Defaults false so older snapshots —
+    // and every block with a different trigger — deserialize as "no terminator seen yet".
+    public bool TriggerTerminatorObserved { get; init; }
     public required bool IsWaitBlock { get; init; }
     public required double WaitRemainingSeconds { get; init; }
     public required double WaitRemainingDistanceNm { get; init; }

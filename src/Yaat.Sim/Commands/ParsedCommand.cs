@@ -615,6 +615,12 @@ public record OnHandoffCondition : BlockCondition;
 
 public record OnHoldShortCondition : BlockCondition;
 
+/// <summary>
+/// "On the go": holds the block until the aircraft is climbing out after its next cycle terminator —
+/// a touch-and-go, stop-and-go or low approach — or after a go-around off the runway it is flying.
+/// </summary>
+public record OnTheGoCondition : BlockCondition;
+
 public enum GroundEntityKind
 {
     Taxiway,

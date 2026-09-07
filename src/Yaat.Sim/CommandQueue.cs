@@ -24,6 +24,18 @@ public enum BlockTriggerType
     /// runway or mid-crossing.
     /// </summary>
     AfterRunwayCrossing,
+
+    /// <summary>
+    /// Fires once the aircraft is climbing out after a cycle terminator — a
+    /// <see cref="Yaat.Sim.Phases.Tower.TouchAndGoPhase"/>,
+    /// <see cref="Yaat.Sim.Phases.Tower.StopAndGoPhase"/>,
+    /// <see cref="Yaat.Sim.Phases.Tower.LowApproachPhase"/> or
+    /// <see cref="Yaat.Sim.Phases.Tower.GoAroundPhase"/> — i.e. it has been in one of
+    /// those phases at least once since the block was queued, is no longer in it, and is
+    /// airborne. Backs the <c>OTG</c> condition prefix: <c>OTG MLT 28L</c> changes the
+    /// pattern on the climb-out, never on approach and never on the runway.
+    /// </summary>
+    AfterCycleTerminator,
 }
 
 public class BlockTrigger
@@ -187,6 +199,15 @@ public class CommandBlock
     /// </summary>
     public bool TriggerCrossingObserved { get; set; }
 
+    /// <summary>
+    /// Latched state for <see cref="BlockTriggerType.AfterCycleTerminator"/>: set to
+    /// <c>true</c> the first tick the aircraft is observed in a cycle-terminator phase
+    /// (touch-and-go, stop-and-go, low approach, go-around) so the trigger fires on the
+    /// climb-out that follows, not merely because the aircraft happens to be airborne in
+    /// some other phase when the block was queued.
+    /// </summary>
+    public bool TriggerTerminatorObserved { get; set; }
+
     public bool IsWaitBlock { get; init; }
     public double WaitRemainingSeconds { get; set; }
     public double WaitRemainingDistanceNm { get; set; }
@@ -273,6 +294,7 @@ public class CommandBlock
             TriggerClosestApproach = TriggerClosestApproach,
             TriggerMissed = TriggerMissed,
             TriggerCrossingObserved = TriggerCrossingObserved,
+            TriggerTerminatorObserved = TriggerTerminatorObserved,
             IsWaitBlock = IsWaitBlock,
             WaitRemainingSeconds = WaitRemainingSeconds,
             WaitRemainingDistanceNm = WaitRemainingDistanceNm,
@@ -295,6 +317,7 @@ public class CommandBlock
             TriggerClosestApproach = dto.TriggerClosestApproach,
             TriggerMissed = dto.TriggerMissed,
             TriggerCrossingObserved = dto.TriggerCrossingObserved,
+            TriggerTerminatorObserved = dto.TriggerTerminatorObserved,
             IsWaitBlock = dto.IsWaitBlock,
             WaitRemainingSeconds = dto.WaitRemainingSeconds,
             WaitRemainingDistanceNm = dto.WaitRemainingDistanceNm,

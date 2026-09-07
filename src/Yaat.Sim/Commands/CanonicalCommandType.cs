@@ -154,6 +154,7 @@ public enum CanonicalCommandType
     Cruise,
     OnHandoff,
     OnHoldShort,
+    OnTheGo,
     CancelAutoDelete,
     Contact,
     FrequencyChangeApproved,

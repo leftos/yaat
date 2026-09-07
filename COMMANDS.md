@@ -598,6 +598,7 @@ preference: it applies to the commands *you* issue, and other controllers in the
 | Pilot reported altitude | `PRA 250` / `PRA 0` (clear) | — | — |
 | On-handoff | `ONHO` | `ONH` | — |
 | On hold-short | `ONHS` | — | Condition prefix only — use as `ONHS DEL` for auto-delete on reaching the hold-short after landing. |
+| On the go | `OTG` | — | Condition prefix only — `OTG MLT 28L` fires the command once the aircraft is climbing out after its next touch-and-go, stop-and-go, low approach or go-around. |
 
 ### vTDLS (Pre-Departure Clearance)
 
@@ -964,7 +965,8 @@ A pattern entry that is still **queued** behind another instruction (`DCT VPCOL;
 | `EF` | Enter final (straight-in) |
 | `EF 28R` | Enter final, assign runway |
 | `MLT` / `MRT` | Make left/right traffic (sets pattern direction) |
-| `MLT 28R` / `MRT 28R` | Make left/right traffic for a specific runway (cross-runway pattern) |
+| `MLT 28R` / `MRT 28R` | Make left/right traffic for a specific runway (cross-runway pattern). Issued on an active pattern leg of another runway the aircraft transitions leg to leg rather than re-entering: from the upwind it continues straight ahead and turns crosswind only beyond both departure ends (AIM 4-3-2), from a close parallel's downwind it crosses over at midfield at pattern altitude (opposite side) or slides onto the parallel's downwind (same side); crosswind and base keep the wrong-side midfield crossing. Voids a landing clearance held for the old runway. |
+| `OTG MLT 28L` / `OTG MRT 28R` | Same, but only once the aircraft is climbing out after its next touch-and-go / stop-and-go / low approach / go-around ("on the go"). Any command can follow `OTG`. |
 | `TC` / `TD` / `TB` | Turn crosswind / downwind / base (advance to next leg). `TC` is also accepted during the takeoff roll / initial climb on a closed-traffic or pattern-exit departure (`CTO MR…` / `ML…`): it arms the crosswind turn, which fires the moment the aircraft reaches the upwind leg (~400 ft AGL, the safe-turn floor), turning crosswind earlier than the normal turn point. |
 | `EXT` / `EXTEND` | Extend the current pattern leg (upwind, crosswind, or downwind — not base). Before the numbered leg becomes active — while navigating a pattern entry (after `ERD`/`ERC`/…) or during a touch-and-go ground roll — it extends the leg the aircraft is heading onto (the next queued upwind/crosswind/downwind). The pre-arm also reaches a pattern entry that is itself still queued behind another command (e.g. `EXT DOWNWIND` while `ERD 28R` sits queued behind `DCT VPCOL`), so the leg comes out extended when the entry later builds it. |
 | `EXT UPWIND` / `EXT UW` | Extend upwind. If aircraft has just started turning crosswind, cancels the turn and re-establishes the upwind leg. Also accepted before the upwind has begun — during a touch-and-go ground roll, on short final for a planned touch-and-go, or while holding short pre-takeoff — and arms the upcoming upwind so it extends without a second command after liftoff. |
