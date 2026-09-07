@@ -76,7 +76,7 @@ public sealed partial class SimulationEngine
     /// <summary>How far past its spawn corridor an overflight flies before it is deleted, when the author gives no exitDistance.</summary>
     private const double DefaultOverflightExitMarginNm = 5.0;
 
-    private void ProcessGenerators(List<GeneratorSpawn> generatorSpawns)
+    private void ProcessGenerators(List<AircraftState> spawned)
     {
         var scenario = Scenario!;
         if (!RunProfile.RunsGenerators)
@@ -92,7 +92,7 @@ public sealed partial class SimulationEngine
             {
                 if (IsGeneratorActive(gen))
                 {
-                    TrySpawnArrival(gen, ratePercent, generatorSpawns);
+                    TrySpawnArrival(gen, ratePercent, spawned);
                 }
             }
 
@@ -100,7 +100,7 @@ public sealed partial class SimulationEngine
             {
                 if (IsGeneratorActive(gen))
                 {
-                    TrySpawnVfrArrival(gen, ratePercent, generatorSpawns);
+                    TrySpawnVfrArrival(gen, ratePercent, spawned);
                 }
             }
         }
@@ -109,7 +109,7 @@ public sealed partial class SimulationEngine
         {
             if (IsGeneratorActive(gen))
             {
-                TrySpawnOverflight(gen, generatorSpawns);
+                TrySpawnOverflight(gen, spawned);
             }
         }
     }
@@ -168,7 +168,7 @@ public sealed partial class SimulationEngine
     /// never exceeded. An empty corridor has no rearmost, so the arrival spawns exactly at
     /// <c>InitialDistance</c> — the cold start needs no special case.
     /// </summary>
-    private void TrySpawnArrival(GeneratorState gen, int ratePercent, List<GeneratorSpawn> generatorSpawns)
+    private void TrySpawnArrival(GeneratorState gen, int ratePercent, List<AircraftState> spawned)
     {
         var scenario = Scenario!;
         if (scenario.ElapsedSeconds < gen.NextSpawnSeconds)
@@ -217,7 +217,8 @@ public sealed partial class SimulationEngine
             return;
         }
 
-        generatorSpawns.Add(new GeneratorSpawn(state, gen.Config.AutoTrackConfiguration));
+        AutoTrackGeneratedSpawn(state, gen.Config.AutoTrackConfiguration);
+        spawned.Add(state);
         _generatorSpawnLog.Add(
             new GeneratorSpawnRecord(gen.Config.Id, state.Callsign, scenario.ElapsedSeconds, placement, rearmost?.DistanceNm, gap)
         );
@@ -463,7 +464,7 @@ public sealed partial class SimulationEngine
         World.AddAircraft(state);
 
         // A generator without autotrack has no owner/scratchpad to wait for, so record it now. When the
-        // generator carries an AutoTrackConfiguration, the server applies it then calls RecordGeneratedSpawn
+        // generator carries an AutoTrackConfiguration, AutoTrackGeneratedSpawn applies it and records after,
         // so the recorded snapshot captures the owner/scratchpad and replays with them intact.
         if (gen.Config.AutoTrackConfiguration is null)
         {
@@ -485,7 +486,7 @@ public sealed partial class SimulationEngine
         return state;
     }
 
-    private void TrySpawnVfrArrival(VfrArrivalGeneratorState gen, int ratePercent, List<GeneratorSpawn> generatorSpawns)
+    private void TrySpawnVfrArrival(VfrArrivalGeneratorState gen, int ratePercent, List<AircraftState> spawned)
     {
         var scenario = Scenario!;
         if (scenario.ElapsedSeconds < gen.NextSpawnSeconds)
@@ -500,13 +501,14 @@ public sealed partial class SimulationEngine
             return;
         }
 
-        generatorSpawns.Add(new GeneratorSpawn(state, gen.Config.AutoTrackConfiguration));
+        AutoTrackGeneratedSpawn(state, gen.Config.AutoTrackConfiguration);
+        spawned.Add(state);
         gen.NextSpawnSeconds =
             scenario.ElapsedSeconds
             + JitteredInterval(gen.Config, ScenarioPacing.EffectiveArrivalGeneratorIntervalSeconds(gen.Config.IntervalTime, ratePercent));
     }
 
-    private void TrySpawnOverflight(OverflightGeneratorState gen, List<GeneratorSpawn> generatorSpawns)
+    private void TrySpawnOverflight(OverflightGeneratorState gen, List<AircraftState> spawned)
     {
         var scenario = Scenario!;
         if (scenario.ElapsedSeconds < gen.NextSpawnSeconds)
@@ -521,7 +523,7 @@ public sealed partial class SimulationEngine
             return;
         }
 
-        generatorSpawns.Add(new GeneratorSpawn(state, null));
+        spawned.Add(state);
         gen.NextSpawnSeconds = scenario.ElapsedSeconds + JitteredInterval(gen.Config, gen.Config.IntervalTime);
     }
 
@@ -1023,10 +1025,31 @@ public sealed partial class SimulationEngine
     }
 
     /// <summary>
-    /// Records a generated arrival's spawn for replay AFTER the server has applied its autotrack
-    /// configuration, so the recorded snapshot carries the owner / scratchpad / temporary altitude.
-    /// Generated arrivals without an autotrack configuration are instead recorded eagerly at spawn
-    /// (see <see cref="SpawnGeneratedArrival"/>); this method is only for the autotrack-bearing path.
+    /// A generated aircraft whose generator carries an autotrack configuration is owned / scratchpad-tagged /
+    /// queued for a student handoff before its spawn is recorded, so the recorded snapshot carries the owner and
+    /// the first broadcast shows no untracked flash. Generated aircraft without one are recorded eagerly at spawn
+    /// (see <see cref="SpawnGeneratedArrival"/>), which is why this records only the autotrack-bearing path.
     /// </summary>
-    public void RecordGeneratedSpawn(AircraftState state) => RecordGeneratedAircraftSpawn(state);
+    private void AutoTrackGeneratedSpawn(AircraftState state, AutoTrackConditions? autoTrack)
+    {
+        if (autoTrack is null)
+        {
+            return;
+        }
+
+        var loaded = new LoadedAircraft
+        {
+            State = state,
+            AutoTrackConditions = autoTrack,
+            SpawnDelaySeconds = (int)state.SpawnedAtSeconds,
+        };
+
+        ApplyAutoTrackConditions(loaded);
+        RecordGeneratedAircraftSpawn(state);
+
+        foreach (var msg in loaded.AutoTrackMessages)
+        {
+            EmitTerminal("System", state.Callsign, msg);
+        }
+    }
 }

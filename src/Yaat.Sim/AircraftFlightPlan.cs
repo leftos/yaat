@@ -73,7 +73,7 @@ public class AircraftFlightPlan
     /// TCP that originally created this flight plan via a CRC STARS command (DA / VP / implied
     /// forms). Populated by <c>RoomEngine.RecordAndDispatchFlightPlanAsync</c>; null for plans
     /// created any other way (scenario-spawned, scenario JSON, recordings predating this field).
-    /// Used by <c>TickProcessor.ProcessFlightPlanCreatorAutoTrack</c> to auto-acquire the track
+    /// Used by <c>SimulationEngine.TickFlightPlanCreatorAutoTrack</c> to auto-acquire the track
     /// to the creating TCP once the pilot is squawking the assigned beacon code.
     /// </summary>
     public TrackOwner? CreatedByOwner { get; set; }

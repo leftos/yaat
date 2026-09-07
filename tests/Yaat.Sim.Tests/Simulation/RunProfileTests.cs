@@ -168,12 +168,12 @@ public class RunProfileTests(ITestOutputHelper output)
 
         engine.RunProfile = RunProfile.Replay;
         engine.RecordAction(new RecordedChat(1, "LF", "not recorded"));
-        engine.RecordGeneratedSpawn(generated);
+        engine.RecordGeneratedAircraftSpawn(generated);
         Assert.Empty(engine.Scenario.ActionLog);
 
         engine.RunProfile = RunProfile.Live;
         engine.RecordAction(new RecordedChat(1, "LF", "recorded"));
-        engine.RecordGeneratedSpawn(generated);
+        engine.RecordGeneratedAircraftSpawn(generated);
         Assert.Equal(2, engine.Scenario.ActionLog.Count);
     }
 

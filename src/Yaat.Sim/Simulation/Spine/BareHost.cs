@@ -23,10 +23,6 @@ internal sealed class BareHost(SimulationEngine engine) : ISimulationHost
 
     public void LiveTrafficSync() { }
 
-    public void FlightPlanCreatorAutoTrack() { }
-
-    public void DeferredAutoTrack() { }
-
     public void CoordinationTimers() { }
 
     public void TowerLists() { }

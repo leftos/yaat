@@ -37,14 +37,13 @@ public sealed partial class SimulationEngine
         var scenario = Scenario;
         if (scenario is null)
         {
-            return new TickPrePhysicsResult([], []);
+            return new TickPrePhysicsResult([]);
         }
 
         var spawned = new List<AircraftState>();
-        var generatorSpawns = new List<GeneratorSpawn>();
 
         ProcessDelayedSpawns(spawned);
-        ProcessGenerators(generatorSpawns);
+        ProcessGenerators(spawned);
         ApplyArrivalSpacing();
         ProcessTriggers();
         ProcessTimedPresets();
@@ -62,7 +61,7 @@ public sealed partial class SimulationEngine
         // second reads RunwayQueuePosition for the datablock "#N" and the Info-column status.
         RunwayDepartureQueue.UpdatePositions(World.GetSnapshot());
 
-        return new TickPrePhysicsResult(spawned, generatorSpawns);
+        return new TickPrePhysicsResult(spawned);
     }
 
     /// <summary>

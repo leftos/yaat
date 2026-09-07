@@ -53,7 +53,7 @@ public static class SnapshotSchemaMigrator
         //   No data transformation — V1 snapshots have Server = null, which
         //   RestoreFromSnapshot handles gracefully by clearing state.
         // V2→V3: Added AircraftFlightPlanDto.CreatedByOwner. No data transformation —
-        //   legacy snapshots default to null, which makes ProcessFlightPlanCreatorAutoTrack
+        //   legacy snapshots default to null, which makes TickFlightPlanCreatorAutoTrack
         //   a no-op for those aircraft (preserving prior replay behavior).
         // V3→V4: Split actual vs filed aircraft type — added AircraftFlightPlanDto.AircraftType.
         //   Legacy snapshots default the new field to "". Seed it from the parent aircraft's

@@ -421,17 +421,16 @@ All four drain in `TickPrePhysics` (`SimulationEngine.cs:465`) once per sim-seco
   time-spaced; a short `IntervalTime` packs the stream back toward `MaxDistance` at `gap` spacing, then throttles on "no room".
   Each spawn appends a `GeneratorSpawnRecord` to `GeneratorSpawnLog` (diagnostic). The solo-training arrival-rate percent (via
   `ScenarioPacing`) widens the interval and can clamp the generator off entirely.
-  - **AutoTrack threading (server-side application).** Generator spawns leave the sim in
-    `TickPrePhysicsResult.GeneratorSpawns` — each a `GeneratorSpawn(State, AutoTrackConditions?)` carrying the generator's
-    `AutoTrackConfiguration`. The server's `TickProcessor.ProcessPrePhysics` runs each autotrack-bearing spawn through the same
-    `ApplyAutoTrackConditions` scenario aircraft use (owner + scratchpad + a delayed handoff to the student) **before**
-    broadcasting it, so the owner is in the first datablock. Replay-safety: a spawn **with** autotrack is recorded
-    (`RecordGeneratedSpawn`) *after* the server applies the owner, so the recorded snapshot replays with owner/scratchpad
-    intact; a spawn **without** autotrack is recorded eagerly in `SpawnGeneratedArrival` (no owner to wait for). The eager-in-sim
-    record would otherwise capture an untracked state and replay would lose the autotrack.
+  - **AutoTrack at spawn is a Sim body.** `SimulationEngine.ApplyAutoTrackConditions(loaded)` — owner from the generator's or the
+    aircraft's `AutoTrackConfiguration` / `autoTrackConditions` (else the `autoTrackAirportIds` position for an airborne departure),
+    scratchpad rules, the ERAM altitudes, and a delayed handoff to the student queued on `DelayedHandoffQueue` — runs from the
+    server's `PopulateRoom` (the one load that holds a resolved ARTCC config and student / ATC positions; the engine's own
+    `LoadScenario` carries neither, and a replay restores its positions from snapshot 0) and, inside `TickPrePhysics`, on a generator spawn
+    carrying an autotrack configuration **before** the spawn is recorded and handed to the host, so the recorded snapshot and
+    the first datablock both carry the owner. Its `[AutoTrack] …` lines ride `LoadedAircraft.AutoTrackMessages`.
   - **AutoTrack altitudes (`interimAltitude` / `clearedAltitude`).** `AutoTrackConditions` carries both (vNAS-faithful;
     `interimAltitude` was previously dropped on deserialize). They are inherited **datablock-display** state and never touch the
-    aircraft's flight target. `ApplyAutoTrackConditions` (server) resolves each STARS hundreds-of-feet string (stripping a leading
+    aircraft's flight target. `ApplyAutoTrackConditions` resolves each STARS hundreds-of-feet string (stripping a leading
     qualifier like `"P040"`) and wires them to the **ERAM datablock only**: `interim → Eram.InterimAltitude`,
     `cleared → Eram.ControllerEnteredAltitude`. The STARS datablock is deliberately **not** populated from these fields (the old
     `cleared → Stars.TemporaryAltitude` mapping was removed) pending confirmation of whether/how non-ERAM (STARS) scenarios use

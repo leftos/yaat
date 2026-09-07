@@ -161,16 +161,17 @@ spine's (`SpineOrder` in Yaat.Sim, [tick-loop.md](tick-loop.md)), and `RoomHost`
   (auto-strip / auto-TDLS), and records generator spawns *after* their autotrack so the recorded snapshot carries the
   owner; `BroadcastTerminalEntries` takes the spine's drain; `ProcessDelayedHandoffs`; `SyncLiveTraffic` runs
   `ShadowTrafficSync.Sync` last — the pre-physics mutator of the aircraft set (see [live-traffic.md](live-traffic.md)).
-- **Post-physics**: the ATC passes (`ProcessAutoAccept`, `ProcessPointoutAutoAck`, `ProcessFlightPlanCreatorAutoTrack`
-  **before** `ProcessDeferredAutoTrack` so an explicit VP/DA controller wins over scenario `AutoTrackAirportIds` for the
-  aircraft they just filed for, `ProcessCoordinationTimers`, `ProcessTowerLists`), the consumers of the engine's
+- **Post-physics**: the remaining ATC passes (`ProcessCoordinationTimers`, `ProcessTowerLists` — auto-accept, point-out
+  auto-ack and the two autotrack passes are Yaat.Sim spine steps now, `SimulationEngine.TrackAutomation`, and read the
+  recorded `Attendance`), the consumers of the engine's
   detectors (`BroadcastConflictAlerts`, `BroadcastEramConflictAlerts`), `ProcessAsdexAlerts`,
   `ProcessSoloTrainingEvaluation`, the drain consumers (`BroadcastWarnings` / `Notifications` / `PilotSpeech` /
   `PilotReadbacks` / `PilotTransmissions`, `ProcessApproachScores`, `ProcessDeferredStripDispatches`), the auto-strip and
   TDLS processors, `ProcessAutoDelete`, `ProcessSurfaceCoast`, and the rundown / live-traffic-status / timers
-  "broadcast if changed" tail. `ProcessDeferredAutoTrack` claims a departure only once it first appears on STARS —
-  i.e. crosses the acquisition floor (`FieldElevationResolver.IsBelowDisplayFloor`), not the instant its wheels leave
-  the ground — so a track is never owned before it is displayed.
+  "broadcast if changed" tail. (`SimulationEngine.TickDeferredAutoTrack` claims a departure only once it first appears on
+  STARS — i.e. crosses the acquisition floor, `FieldElevationResolver.IsBelowDisplayFloor` — so a track is never owned
+  before it is displayed; `TickFlightPlanCreatorAutoTrack` runs before it so an explicit VP/DA controller wins over
+  scenario `AutoTrackAirportIds` for the aircraft they just filed for.)
 
 Per-step timing lives on the engine: attach a dictionary to `SimulationEngine.TickTimings` and every spine step records
 under its `StepId` name (the soak runner's `--timings`, `ReconstructionBenchmarkTests`).

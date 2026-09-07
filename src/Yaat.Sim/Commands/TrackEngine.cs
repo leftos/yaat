@@ -169,7 +169,7 @@ public static partial class TrackEngine
         // would render against a null owner — clear it.
         ClearRecentHandoffAccepted(ac);
         // Consume the FP-creator auto-track entitlement so the next tick's
-        // ProcessFlightPlanCreatorAutoTrack doesn't immediately re-acquire when
+        // TickFlightPlanCreatorAutoTrack doesn't immediately re-acquire when
         // the pilot is still squawking the assigned code. Without this, manual
         // TERM CTLs are silently undone every tick (bug N427MX six-drop loop).
         ac.FlightPlan.CreatedByOwner = null;

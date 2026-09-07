@@ -51,10 +51,6 @@ internal sealed class ReplayHost : ISimulationHost
 
     public void LiveTrafficSync() => _bare.LiveTrafficSync();
 
-    public void FlightPlanCreatorAutoTrack() => _bare.FlightPlanCreatorAutoTrack();
-
-    public void DeferredAutoTrack() => _bare.DeferredAutoTrack();
-
     public void CoordinationTimers() => _bare.CoordinationTimers();
 
     public void TowerLists() => _bare.TowerLists();

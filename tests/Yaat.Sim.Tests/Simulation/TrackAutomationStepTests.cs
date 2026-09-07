@@ -317,4 +317,46 @@ public class TrackAutomationStepTests
 
         Assert.True(attendedAircraft.Track.Pointout!.IsPending);
     }
+
+    [Fact]
+    public void SoloModeLeavesAPointoutToTheStudentsOwnTcpPendingAndFloorsTheDelayAtThreeSeconds()
+    {
+        if (Engine() is not { } toStudent)
+        {
+            return;
+        }
+
+        // The student answers a pointout addressed to their own sector by hand, exactly as they accept their own
+        // handoff; every other recipient is a simulated position and auto-acknowledges after the solo floor.
+        var studentScenario = toStudent.Scenario!;
+        studentScenario.SoloTrainingMode = true;
+        studentScenario.AutoAcceptDelay = TimeSpan.Zero;
+        var pointedAtStudent = Owned(toStudent, Nct4U);
+        pointedAtStudent.Track.Pointout = new StarsPointout(studentScenario.StudentTcp!, TrackResolver.FindTcpByCode(studentScenario, "4U")!)
+        {
+            InitiatedAt = studentScenario.ElapsedSeconds,
+        };
+
+        AiTestFixture.Tick(toStudent, 10);
+
+        Assert.True(pointedAtStudent.Track.Pointout!.IsPending);
+
+        var toAi = Engine()!;
+        var aiScenario = toAi.Scenario!;
+        aiScenario.SoloTrainingMode = true;
+        aiScenario.AutoAcceptDelay = TimeSpan.Zero;
+        var pointedAtAi = Owned(toAi, Student);
+        pointedAtAi.Track.Pointout = new StarsPointout(TrackResolver.FindTcpByCode(aiScenario, "4U")!, aiScenario.StudentTcp!)
+        {
+            InitiatedAt = aiScenario.ElapsedSeconds,
+        };
+
+        AiTestFixture.Tick(toAi, 2);
+
+        Assert.True(pointedAtAi.Track.Pointout!.IsPending);
+
+        AiTestFixture.Tick(toAi, 1);
+
+        Assert.False(pointedAtAi.Track.Pointout!.IsPending);
+    }
 }

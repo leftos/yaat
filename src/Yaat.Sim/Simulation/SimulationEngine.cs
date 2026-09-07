@@ -23,20 +23,11 @@ using Yaat.Sim.Training;
 namespace Yaat.Sim.Simulation;
 
 /// <summary>
-/// Result from <see cref="SimulationEngine.TickPrePhysics"/>. <see cref="SpawnedAircraft"/> lists the
-/// delayed-queue aircraft spawned this tick; <see cref="GeneratorSpawns"/> lists the arrival-generator
-/// spawns paired with their autotrack configuration. The server broadcasts both and, for generator
-/// spawns that carry autotrack, applies the owner/scratchpad/handoff before broadcasting.
+/// Result from <see cref="SimulationEngine.TickPrePhysics"/>: every aircraft spawned this tick — the
+/// delayed queue's and the generators' — for the host to broadcast. An autotrack-bearing generator spawn is
+/// already owned and recorded by the time it appears here.
 /// </summary>
-public record struct TickPrePhysicsResult(List<AircraftState> SpawnedAircraft, List<GeneratorSpawn> GeneratorSpawns);
-
-/// <summary>
-/// One arrival-generator spawn this tick paired with its generator's <see cref="AutoTrackConditions"/>
-/// (null when the generator has none). Threaded out of the sim so the server can apply the autotrack and
-/// record the spawn AFTER, so the owner/scratchpad land in the initial broadcast and the recorded
-/// snapshot replays with them intact (the eager in-sim recording would capture an untracked state).
-/// </summary>
-public readonly record struct GeneratorSpawn(AircraftState State, AutoTrackConditions? AutoTrack);
+public record struct TickPrePhysicsResult(List<AircraftState> SpawnedAircraft);
 
 /// <summary>
 /// Diagnostic record of one arrival-generator spawn. Lets the time-first spawn cadence and placement

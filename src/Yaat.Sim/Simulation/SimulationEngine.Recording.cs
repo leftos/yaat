@@ -23,7 +23,8 @@ namespace Yaat.Sim.Simulation;
 // Recording actions and applying recorded ones back onto the world.
 public sealed partial class SimulationEngine
 {
-    private void RecordGeneratedAircraftSpawn(AircraftState state)
+    /// <summary>Records a generator-spawned aircraft for replay; a no-op on a run kind that records nothing.</summary>
+    public void RecordGeneratedAircraftSpawn(AircraftState state)
     {
         var scenario = Scenario;
         if (scenario is null || !RunProfile.RecordsActions)

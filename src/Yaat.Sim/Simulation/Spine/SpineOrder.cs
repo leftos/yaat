@@ -42,8 +42,8 @@ public static class SpineOrder
         SpineStep.Sim(StepId.PointoutAutoAck, static (engine, _) => engine.TickPointoutAutoAck()),
         // FP-creator autotrack runs before the airport-based deferred autotrack so a controller who explicitly
         // types VP/DA wins over scenario AutoTrackAirportIds for the aircraft they just created the FP for.
-        SpineStep.Host(StepId.FlightPlanCreatorAutoTrack, static host => host.FlightPlanCreatorAutoTrack()),
-        SpineStep.Host(StepId.DeferredAutoTrack, static host => host.DeferredAutoTrack()),
+        SpineStep.Sim(StepId.FlightPlanCreatorAutoTrack, static (engine, _) => engine.TickFlightPlanCreatorAutoTrack()),
+        SpineStep.Sim(StepId.DeferredAutoTrack, static (engine, _) => engine.TickDeferredAutoTrack()),
         // The track-automation steps above emit their lines in post-physics, and the pre-physics drain has already
         // run; this second drain hands them to the room the same second, in the position the live server broadcast
         // them inline from.

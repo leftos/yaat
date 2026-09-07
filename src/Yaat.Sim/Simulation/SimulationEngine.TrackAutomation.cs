@@ -1,14 +1,294 @@
 using Microsoft.Extensions.Logging;
 using Yaat.Sim.Commands;
+using Yaat.Sim.Data;
 using Yaat.Sim.Data.Vnas;
+using Yaat.Sim.Scenarios;
 
 namespace Yaat.Sim.Simulation;
 
-// The track-automation spine steps: the delayed-handoff queue in pre-physics, auto-accept and point-out
-// auto-acknowledge in post-physics. They decide from engine state alone — the scenario's queue and delay, the
-// recorded CRC attendance and the consolidation hierarchy — so every run kind reaches the same verdict.
+// The track-automation spine steps: the delayed-handoff queue in pre-physics, auto-accept, point-out
+// auto-acknowledge and the two autotrack passes in post-physics, plus the autotrack conditions a scenario or
+// generator aircraft carries. They decide from engine state alone — the scenario's queue and delay, its ATC
+// roster and ARTCC config, the recorded CRC attendance and the consolidation hierarchy — so every run kind
+// reaches the same verdict.
 public sealed partial class SimulationEngine
 {
+    /// <summary>
+    /// Applies a scenario or generator aircraft's auto-track conditions: the airport-based owner from the ATC
+    /// roster, the scratchpad rules, the configured owner and scratchpad, the delayed handoff to the student and
+    /// the ERAM datablock altitudes. The <c>[AutoTrack] …</c> lines go into
+    /// <see cref="LoadedAircraft.AutoTrackMessages"/>, which the spawn paths echo to the terminal.
+    /// </summary>
+    public void ApplyAutoTrackConditions(LoadedAircraft loaded)
+    {
+        var scenario = Scenario!;
+        var messages = loaded.AutoTrackMessages;
+
+        if (
+            loaded.State.Track.Owner is null
+            && !FieldElevationResolver.IsBelowDisplayFloor(loaded.State, NavigationDatabase.Instance)
+            && !string.IsNullOrEmpty(loaded.State.FlightPlan.Departure)
+        )
+        {
+            foreach (var atcPos in scenario.AtcPositions)
+            {
+                if (atcPos.Source.AutoTrackAirportIds.Count == 0)
+                {
+                    continue;
+                }
+
+                var dep = loaded.State.FlightPlan.Departure;
+                string? matchedAirportId = null;
+                foreach (var airportId in atcPos.Source.AutoTrackAirportIds)
+                {
+                    if (NavigationDatabase.Instance.AirportIdsMatchResolved(dep, airportId))
+                    {
+                        loaded.State.Track.Owner = atcPos.Owner;
+                        matchedAirportId = airportId;
+                        break;
+                    }
+                }
+
+                if (loaded.State.Track.Owner is not null)
+                {
+                    messages.Add(
+                        $"[AutoTrack] Owned by " + $"{TrackEngine.FormatOwner(atcPos.Owner)} " + $"(autoTrackAirportIds: {matchedAirportId})"
+                    );
+                    break;
+                }
+            }
+        }
+
+        ScratchpadRuleEngine.Apply(loaded.State, scenario.ArtccConfig?.GetStarsConfigForFacility(scenario.StudentPosition?.FacilityId ?? ""));
+
+        var autoTrack = loaded.AutoTrackConditions;
+        if (autoTrack is null)
+        {
+            return;
+        }
+
+        // Prefer the resolved ATC roster: it is ARTCC-aware, so a position in a *neighboring*
+        // ARTCC ("ZLC starts with the track") resolves against its own facility tree. Falling
+        // back to the scenario's own ARTCC covers positions not listed in the roster (e.g.
+        // generator autoTrackConfiguration in scenarios with an empty atc array).
+        var owner =
+            scenario.AtcPositions.FirstOrDefault(p => p.Source.PositionId == autoTrack.PositionId)?.Owner
+            ?? scenario.ArtccConfig?.ResolvePosition(autoTrack.PositionId);
+
+        if (owner is not null)
+        {
+            loaded.State.Track.Owner = owner;
+            messages.Add($"[AutoTrack] Owned by " + $"{TrackEngine.FormatOwner(owner)} " + "(autoTrackConditions)");
+        }
+        else
+        {
+            _logger.LogWarning(
+                "[AutoTrack] {Callsign}: could not resolve autoTrackConditions position {PositionId} "
+                    + "(not in the scenario ATC roster or {ArtccId}); aircraft spawns untracked",
+                loaded.State.Callsign,
+                autoTrack.PositionId,
+                scenario.ArtccId ?? ""
+            );
+        }
+
+        if (autoTrack.HandoffDelay is not null && scenario.StudentPosition is not null)
+        {
+            var targetLabel = TrackEngine.FormatOwner(scenario.StudentPosition);
+            // Always queue autotrack handoffs — don't set HandoffPeer immediately.
+            // TickDelayedHandoffs will fire them once the target position is online.
+            var spawnAt = loaded.SpawnDelaySeconds;
+            var fireAt = autoTrack.HandoffDelay == 0 ? Math.Max((int)scenario.ElapsedSeconds, spawnAt) : spawnAt + autoTrack.HandoffDelay.Value;
+            scenario.DelayedHandoffQueue.Add(
+                new DelayedHandoff
+                {
+                    Callsign = loaded.State.Callsign,
+                    Target = scenario.StudentPosition,
+                    FireAtSeconds = fireAt,
+                }
+            );
+            messages.Add(
+                $"[AutoTrack] Handoff to {targetLabel} queued (fireAt={fireAt}s, spawnDelay={spawnAt}s, handoffDelay={autoTrack.HandoffDelay}s)"
+            );
+        }
+
+        if (!string.IsNullOrEmpty(autoTrack.ScratchPad))
+        {
+            // ATCTrainer convention: '+' prefix means SP2, bare value means SP1.
+            // Supports space-separated values, e.g. "FOO +RGT" → SP1=FOO, SP2=RGT.
+            foreach (var token in autoTrack.ScratchPad.Split(' ', StringSplitOptions.RemoveEmptyEntries))
+            {
+                if (token.StartsWith('+'))
+                {
+                    var sp2Value = token[1..];
+                    loaded.State.Stars.Scratchpad2 = sp2Value;
+                    messages.Add($"[AutoTrack] SP2 set: {sp2Value}");
+                }
+                else
+                {
+                    loaded.State.Stars.Scratchpad1 = token;
+                    messages.Add($"[AutoTrack] SP1 set: {token}");
+                }
+            }
+        }
+
+        // Auto-track interim/cleared altitudes are inherited DATABLOCK-DISPLAY state -- they must never
+        // change what the aircraft physically flies (no Targets.AssignedAltitude write here). They are
+        // wired to the ERAM datablock only: interim -> Eram.InterimAltitude, cleared ->
+        // Eram.ControllerEnteredAltitude (both hundreds of feet), which keeps the two values distinct in
+        // ERAM field B. The STARS datablock is deliberately NOT populated from these fields: whether and
+        // how non-ERAM (STARS) scenarios use interim/cleared altitudes is still being confirmed with
+        // VATUSA staff, so we leave Stars.TemporaryAltitude untouched until that guidance lands.
+        var interimHundreds = ResolveDatablockAltitudeHundreds(autoTrack.InterimAltitude);
+        var clearedHundreds = ResolveDatablockAltitudeHundreds(autoTrack.ClearedAltitude);
+        if (interimHundreds is not null)
+        {
+            loaded.State.Eram.InterimAltitude = interimHundreds;
+        }
+        if (clearedHundreds is not null)
+        {
+            loaded.State.Eram.ControllerEnteredAltitude = clearedHundreds;
+        }
+        if ((interimHundreds ?? clearedHundreds) is { } shown)
+        {
+            messages.Add($"[AutoTrack] ERAM datablock altitude set: {shown}");
+        }
+    }
+
+    /// <summary>
+    /// Resolves a vNAS auto-track datablock altitude (a STARS hundreds-of-feet string, optionally with a
+    /// leading qualifier letter such as "P040") to hundreds of feet -- the unit the ERAM/STARS altitude
+    /// fields use. A single leading non-digit qualifier is stripped before parsing. Returns null when the
+    /// value is empty or unparseable.
+    /// </summary>
+    private static int? ResolveDatablockAltitudeHundreds(string? raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw))
+        {
+            return null;
+        }
+
+        var token = raw.Trim();
+        if (!char.IsDigit(token[0]))
+        {
+            token = token[1..];
+        }
+
+        var feet = AltitudeResolver.Resolve(token);
+        return feet is null ? null : feet.Value / 100;
+    }
+
+    /// <summary>
+    /// Auto-track aircraft once they first appear on STARS — i.e. after they climb through the
+    /// acquisition floor (field elevation + 100 ft AGL), not the instant their wheels leave the
+    /// ground. Owning a track that isn't yet displayed would hand a still-on-the-surface departure
+    /// to a radar controller before it exists on the scope.
+    /// </summary>
+    internal void TickDeferredAutoTrack()
+    {
+        if (Scenario is not { } scenario)
+        {
+            return;
+        }
+
+        var snapshot = World.GetSnapshot();
+
+        foreach (var ac in snapshot)
+        {
+            if (
+                ac.Track.Owner is not null
+                || FieldElevationResolver.IsBelowDisplayFloor(ac, NavigationDatabase.Instance)
+                || string.IsNullOrEmpty(ac.FlightPlan.Departure)
+            )
+            {
+                continue;
+            }
+
+            var dep = ac.FlightPlan.Departure;
+            foreach (var atcPos in scenario.AtcPositions)
+            {
+                if (atcPos.Source.AutoTrackAirportIds.Count == 0)
+                {
+                    continue;
+                }
+
+                string? matchedAirportId = null;
+                foreach (var airportId in atcPos.Source.AutoTrackAirportIds)
+                {
+                    if (NavigationDatabase.Instance.AirportIdsMatchResolved(dep, airportId))
+                    {
+                        ac.Track.Owner = atcPos.Owner;
+                        matchedAirportId = airportId;
+                        break;
+                    }
+                }
+
+                if (ac.Track.Owner is not null)
+                {
+                    ScratchpadRuleEngine.Apply(ac, scenario.ArtccConfig?.GetStarsConfigForFacility(scenario.StudentPosition?.FacilityId ?? ""));
+                    _logger.LogInformation(
+                        "[DeferredAutoTrack] {Callsign} appeared on STARS — owned by {Owner} (departure {Dep}, matched {Airport})",
+                        ac.Callsign,
+                        TrackEngine.FormatOwner(atcPos.Owner),
+                        dep,
+                        matchedAirportId
+                    );
+                    EmitTerminal(
+                        "System",
+                        ac.Callsign,
+                        $"[AutoTrack] On STARS — owned by {TrackEngine.FormatOwner(atcPos.Owner)} (autoTrackAirportIds: {matchedAirportId})"
+                    );
+                    break;
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// Auto-track aircraft to the TCP that created their flight plan via VP/DA, once the pilot
+    /// is squawking the assigned beacon code. Mirrors STARS flight-plan-to-track correlation:
+    /// when an FP's beacon code matches the aircraft's Mode-3 transponder, the data block flips
+    /// to the creating facility. Skips aircraft that already have a track owner (no overwrite).
+    /// </summary>
+    internal void TickFlightPlanCreatorAutoTrack()
+    {
+        if (Scenario is not { } scenario)
+        {
+            return;
+        }
+
+        var snapshot = World.GetSnapshot();
+
+        foreach (var ac in snapshot)
+        {
+            if (ac.Track.Owner is not null)
+            {
+                continue;
+            }
+
+            var creator = ac.FlightPlan.CreatedByOwner;
+            if (creator is null)
+            {
+                continue;
+            }
+
+            if (ac.Transponder.AssignedCode == 0 || ac.Transponder.Code != ac.Transponder.AssignedCode)
+            {
+                continue;
+            }
+
+            ac.Track.Owner = creator;
+            ScratchpadRuleEngine.Apply(ac, scenario.ArtccConfig?.GetStarsConfigForFacility(scenario.StudentPosition?.FacilityId ?? ""));
+
+            _logger.LogInformation(
+                "[FlightPlanCreatorAutoTrack] {Callsign} squawking assigned code {Code:D4} — owned by {Owner} (FP creator)",
+                ac.Callsign,
+                ac.Transponder.Code,
+                TrackEngine.FormatOwner(creator)
+            );
+            EmitTerminal("System", ac.Callsign, $"[AutoTrack] Squawking assigned code — owned by {TrackEngine.FormatOwner(creator)} (FP creator)");
+        }
+    }
+
     internal void TickDelayedHandoffs()
     {
         if (Scenario is not { } scenario)
