@@ -184,7 +184,7 @@ When invoking aviation-sim-expert, always include:
 - **Bug fixes and sim changes**: `test-fix` implements the mandatory TDD loop below.
 - **Review gates**: invoke the `aviation-sim-expert` and `csharp-reviewer` agents directly (via `Agent`); the `architecture-updater` agent covers the pre-commit `docs/architecture.md` obligation.
 - **Landing work**: `changelog-and-commit` → `merge-session-to-main` → `ship` (the last one composes all three, pushes, and closes issues — invoking it *is* the approval).
-- **Release**: `prepare-release`. Maintenance: `consolidate-recordings`, `crc-update-check` (any time CRC ships a new version — decides whether the server or client must follow).
+- **Release**: `prepare-release`. Maintenance: `consolidate-recordings`, `crc-update-check` (any time CRC ships a new version — decides whether the server or client must follow), `triage-open-issues` (folding the open GitHub issues into `docs/plans/` — verdicts, placement, grouping; never closes an issue).
 
 ## Problem Solving
 
@@ -248,7 +248,7 @@ When invoking aviation-sim-expert, always include:
 - **Commits**: `fix:`/`feat:`/`add:`/`docs:`/`ref:`/`test:` etc. Imperative, ≤72 chars.
 - **Cross-repo issues**: GitHub issues tracked on **yaat** repo. In yaat-server commits use full URL `Closes https://github.com/leftos/yaat/issues/N`, never bare `Closes #N`.
 - **Cross-repo completeness**: Features spanning both repos must be implemented together — no half-done features.
-- **Issue plans**: Write plans to `docs/plans/open-issues/`. Delete plan file after implementing.
+- **Issue plans**: Write plans to `docs/plans/open-issues/`. Delete plan file after implementing. Folding the open tracker into the plans is the `triage-open-issues` skill.
 - **Plans**: [`docs/plans/MAIN.md`](docs/plans/MAIN.md) is the index — Current focus, Next up, Backlog, Blockers, one line per item with the detail in a subplan. The active programme is the tick-path unification ([`docs/plans/tick-path/README.md`](docs/plans/tick-path/README.md)); controller AI ([`docs/plans/controller-ai/README.md`](docs/plans/controller-ai/README.md)) follows it. Finished plans are deleted — git history is the archive.
 
 ### Misc
