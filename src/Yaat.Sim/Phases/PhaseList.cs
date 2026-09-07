@@ -184,11 +184,23 @@ public sealed class PhaseList
     public PatternDirection? TrafficDirection { get; set; }
 
     /// <summary>
-    /// When set, the pattern circuit uses a different runway than the takeoff runway.
-    /// Used for cross-runway closed traffic (e.g., takeoff 33, pattern for 28R).
-    /// <see cref="AssignedRunway"/> holds this pattern runway (so the circuit/final/landing
-    /// phases use it); <see cref="DepartureRunway"/> holds the takeoff runway. PhaseRunner
-    /// uses this for auto-cycle.
+    /// The runway the <em>next</em> circuit is built for — what <c>PhaseRunner</c>'s auto-cycle reads
+    /// (<c>PatternRunway ?? AssignedRunway</c>). Its relationship to <see cref="AssignedRunway"/> depends
+    /// on how it was set:
+    ///
+    /// <list type="bullet">
+    /// <item>Cross-runway closed traffic (takeoff 33, pattern for 28R): equal to
+    /// <see cref="AssignedRunway"/>, which the clearance moved to the pattern runway so the
+    /// circuit/final/landing phases use it, while <see cref="DepartureRunway"/> holds the takeoff
+    /// runway.</item>
+    /// <item>An option clearance's pattern modifier (<c>COPT MLT 28L</c> on the 28R final): the runway
+    /// the aircraft will transition to. <see cref="AssignedRunway"/> stays the runway the clearance is
+    /// being flown on until the auto-cycle builds the transition circuit and moves it.</item>
+    /// </list>
+    ///
+    /// Every writer that changes the runway an aircraft is patterning on writes both fields (or leaves
+    /// the transition to the auto-cycle); a stale one builds the next circuit on the runway the aircraft
+    /// was told to leave.
     /// </summary>
     public RunwayInfo? PatternRunway { get; set; }
 

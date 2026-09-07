@@ -319,19 +319,23 @@ public static class PilotResponder
             TouchAndGoCommand tg => AppendTrafficPatternClause(
                 BuildRunwayInstructionClause(aircraft, "cleared touch and go", explicitRunwayId: tg.RunwayId)
                     ?? VerbalizeDual(tg, personality, activityLevel),
-                tg.TrafficPattern
+                tg.TrafficPattern,
+                tg.PatternRunwayId
             ),
             StopAndGoCommand sg => AppendTrafficPatternClause(
                 BuildRunwayInstructionClause(aircraft, "cleared stop and go") ?? VerbalizeDual(sg, personality, activityLevel),
-                sg.TrafficPattern
+                sg.TrafficPattern,
+                sg.PatternRunwayId
             ),
             LowApproachCommand la => AppendTrafficPatternClause(
                 BuildRunwayInstructionClause(aircraft, "cleared low approach") ?? VerbalizeDual(la, personality, activityLevel),
-                la.TrafficPattern
+                la.TrafficPattern,
+                la.PatternRunwayId
             ),
             ClearedForOptionCommand option => AppendTrafficPatternClause(
                 BuildRunwayInstructionClause(aircraft, "cleared for the option") ?? VerbalizeDual(option, personality, activityLevel),
-                option.TrafficPattern
+                option.TrafficPattern,
+                option.PatternRunwayId
             ),
             ExpediteCommand exp => BuildExpediteClause(aircraft, exp),
             ExtendPatternCommand ext => BuildExtendPatternClause(aircraft, ext),
@@ -701,15 +705,28 @@ public static class PilotResponder
         );
     }
 
-    private static PilotSpeechText? AppendTrafficPatternClause(PilotSpeechText? clause, PatternDirection? direction)
+    /// <summary>
+    /// Appends an option clearance's pattern modifier to its readback — ", make left traffic runway two
+    /// eight left". The runway is spoken whenever the clearance named one: it is a runway assignment for
+    /// the circuit after this one, and a runway assignment is read back (AIM 4-4-7.b.4). A bare MLT/MRT
+    /// keeps the runway-less clause, which means the runway the clearance itself was issued for.
+    /// </summary>
+    private static PilotSpeechText? AppendTrafficPatternClause(PilotSpeechText? clause, PatternDirection? direction, string? patternRunwayId)
     {
         if (clause is null || direction is null)
         {
             return clause;
         }
 
-        var suffix = $", make {PatternDirectionWord(direction.Value)} traffic";
-        return new PilotSpeechText(clause.Terminal + suffix, clause.Tts + suffix);
+        var lead = $", make {PatternDirectionWord(direction.Value)} traffic";
+        bool namesRunway = !string.IsNullOrWhiteSpace(patternRunwayId);
+        var terminalSuffix = lead + (namesRunway ? $" runway {PhraseologyVerbalizer.CompactRunway(patternRunwayId!)}" : "");
+        var spokenSuffix = lead + (namesRunway ? $" runway {PhraseologyVerbalizer.SpellRunway(patternRunwayId!)}" : "");
+
+        return new PilotSpeechText(clause.Terminal + terminalSuffix, clause.Tts + spokenSuffix)
+        {
+            RpoTerminal = clause.RpoTerminal is { } rpoTerminal ? rpoTerminal + terminalSuffix : null,
+        };
     }
 
     private static string ResolveRunwayId(AircraftState aircraft, string? explicitRunwayId = null)

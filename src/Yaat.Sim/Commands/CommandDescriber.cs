@@ -608,10 +608,10 @@ public static class CommandDescriber
             OffsetRightPatternCommand ofr => ofr.OffsetNm is { } nm ? $"OFR {nm:G}" : "OFR",
             Plan270Command => "P270",
             CircleAirportCommand => "CA",
-            TouchAndGoCommand => "TG",
-            StopAndGoCommand => "SG",
-            LowApproachCommand => "LA",
-            ClearedForOptionCommand => "COPT",
+            TouchAndGoCommand tg => FormatOptionClearanceCanonical("TG", tg.RunwayId, tg.TrafficPattern, tg.PatternRunwayId, tg.PatternAltitude),
+            StopAndGoCommand sg => FormatOptionClearanceCanonical("SG", null, sg.TrafficPattern, sg.PatternRunwayId, sg.PatternAltitude),
+            LowApproachCommand la => FormatOptionClearanceCanonical("LA", null, la.TrafficPattern, la.PatternRunwayId, la.PatternAltitude),
+            ClearedForOptionCommand opt => FormatOptionClearanceCanonical("COPT", null, opt.TrafficPattern, opt.PatternRunwayId, opt.PatternAltitude),
             HoldPresentPosition360Command cmd => cmd.Direction == TurnDirection.Left ? "HPPL" : "HPPR",
             HoldPresentPositionHoverCommand => "HPP",
             HoldAtFixOrbitCommand cmd => $"HFIX{(cmd.Direction == TurnDirection.Left ? "L" : "R")} {cmd.FixName}",
@@ -1701,6 +1701,52 @@ public static class CommandDescriber
 
         return $"CTO{suffix}{alt}{cwt}{imm}";
     }
+
+    /// <summary>
+    /// Canonical text for an option clearance (<c>TG</c>/<c>SG</c>/<c>LA</c>/<c>COPT</c>): the verb, the
+    /// landing runway where the verb carries one, and the pattern modifier with its optional pattern
+    /// runway and altitude. Every field the parser accepts is rendered — the action router re-parses this
+    /// text on every run kind, so a dropped pattern runway would replay as a different clearance.
+    /// </summary>
+    private static string FormatOptionClearanceCanonical(
+        string verb,
+        string? runwayId,
+        PatternDirection? trafficPattern,
+        string? patternRunwayId,
+        int? patternAltitude
+    )
+    {
+        var parts = new List<string> { verb };
+        if (runwayId is not null)
+        {
+            parts.Add(runwayId);
+        }
+
+        if (trafficPattern is { } direction)
+        {
+            parts.Add(direction == PatternDirection.Left ? "MLT" : "MRT");
+            if (patternRunwayId is not null)
+            {
+                parts.Add(patternRunwayId);
+            }
+
+            if (patternAltitude is { } altitude)
+            {
+                parts.Add(FormatPatternAltitudeCanonical(altitude));
+            }
+        }
+
+        return string.Join(' ', parts);
+    }
+
+    /// <summary>
+    /// A pattern altitude in the hundreds-of-feet shorthand the parser reads back as the same number
+    /// (<c>1500</c> → <c>15</c>). <see cref="AltitudeResolver"/> multiplies any value below 1000 by 100,
+    /// so the full-feet form is only safe at or above 1000 ft — an 800 ft pattern written out as "800"
+    /// would come back as 80,000.
+    /// </summary>
+    private static string FormatPatternAltitudeCanonical(int altitude) =>
+        (altitude % 100 == 0) && (altitude / 100 < 1000) ? $"{altitude / 100}" : $"{altitude}";
 
     private static string FormatClearedToLandCanonical(ClearedToLandCommand cmd)
     {

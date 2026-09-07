@@ -14,7 +14,7 @@ namespace Yaat.Sim.Tests.Simulation;
 /// <summary>
 /// Switching an aircraft that is already on a downwind to the parallel runway's opposite-side
 /// pattern is a crossover at midfield: it flies its current downwind to midfield, crosses the field
-/// perpendicular at pattern altitude (it is already in the pattern, so the AIM 4-3-3.1.b entry rule's
+/// perpendicular at pattern altitude (it is already in the pattern, so the AIM 4-3-3.a.2 entry rule's
 /// +500 ft does not apply), and rejoins the new runway's downwind. Switching to the parallel's
 /// same-side pattern is just a rebuild that re-intercepts the laterally offset downwind track.
 ///
@@ -84,6 +84,8 @@ public class ParallelRunwayMltFromDownwindTests(ITestOutputHelper output)
 
             var result = PatternCommandHandler.TryChangePatternDirection(aircraft, PatternDirection.Left, "28L", null, aircraft.Ground.Layout);
             Assert.True(result.Success, $"MLT 28L was refused: {result.Message}");
+            // The RPO reads only this line; an unannounced field crossing is the AIM 4-3-5 surprise.
+            Assert.Contains("crossing midfield", result.Message ?? "", StringComparison.Ordinal);
 
             var chain = aircraft.Phases?.Phases ?? [];
             output.WriteLine($"chain=[{string.Join(",", chain.Select(p => $"{p.GetType().Name}:{p.Status}"))}]");
@@ -91,7 +93,7 @@ public class ParallelRunwayMltFromDownwindTests(ITestOutputHelper output)
             var exitLeg = Assert.IsType<DownwindPhase>(chain.ElementAtOrDefault(0));
             Assert.True(exitLeg.ExitAtMidfield, "the leading downwind must exit at midfield for the crossover");
             var crossing = Assert.IsType<MidfieldCrossingPhase>(chain.ElementAtOrDefault(1));
-            Assert.True(crossing.CrossAtPatternAltitude, "an in-pattern crossover crosses at TPA, not TPA+500");
+            Assert.True(crossing.CrossAtPatternAltitude, "an in-pattern crossover crosses at TPA, not the entry height");
             Assert.Equal(TurnDirection.Right, crossing.InitialTurn);
             var rejoin = Assert.IsType<DownwindPhase>(chain.ElementAtOrDefault(2));
             Assert.True(rejoin.RejoinTrack, "the new downwind must re-intercept its track after the crossing");
@@ -129,13 +131,14 @@ public class ParallelRunwayMltFromDownwindTests(ITestOutputHelper output)
 
             var result = PatternCommandHandler.TryChangePatternDirection(aircraft, PatternDirection.Left, "28L", null, aircraft.Ground.Layout);
             Assert.True(result.Success, $"MLT 28L was refused: {result.Message}");
+            Assert.Contains("crossing midfield", result.Message ?? "", StringComparison.Ordinal);
 
             var chain = aircraft.Phases?.Phases ?? [];
             output.WriteLine($"chain=[{string.Join(",", chain.Select(p => $"{p.GetType().Name}:{p.Status}"))}]");
 
             // Past midfield there is nothing left of the old downwind to fly — the crossover starts now.
             var crossing = Assert.IsType<MidfieldCrossingPhase>(chain.ElementAtOrDefault(0));
-            Assert.True(crossing.CrossAtPatternAltitude, "an in-pattern crossover crosses at TPA, not TPA+500");
+            Assert.True(crossing.CrossAtPatternAltitude, "an in-pattern crossover crosses at TPA, not the entry height");
             Assert.Equal(TurnDirection.Right, crossing.InitialTurn);
             Assert.DoesNotContain(chain, p => p is DownwindPhase { ExitAtMidfield: true });
             var rejoin = chain.OfType<DownwindPhase>().FirstOrDefault();
@@ -171,6 +174,8 @@ public class ParallelRunwayMltFromDownwindTests(ITestOutputHelper output)
 
             var result = PatternCommandHandler.TryChangePatternDirection(aircraft, PatternDirection.Right, "28L", null, aircraft.Ground.Layout);
             Assert.True(result.Success, $"MRT 28L was refused: {result.Message}");
+            // Same-side rebuild: no field crossing, so the readback must not announce one.
+            Assert.DoesNotContain("crossing midfield", result.Message ?? "", StringComparison.Ordinal);
 
             var chain = aircraft.Phases?.Phases ?? [];
             output.WriteLine($"chain=[{string.Join(",", chain.Select(p => $"{p.GetType().Name}:{p.Status}"))}]");
@@ -241,14 +246,14 @@ public class ParallelRunwayMltFromDownwindTests(ITestOutputHelper output)
         if (beforeMidfield)
         {
             Assert.True(
-                alongTrack < midfield - DownwindPhase.AlongTrackToleranceNm,
+                alongTrack < midfield - DownwindPhase.MidfieldLeadNm,
                 $"restore point t={snapshotTime} is not before midfield (along-track {alongTrack:F3} vs midfield {midfield:F3})"
             );
         }
         else
         {
             Assert.True(
-                alongTrack >= midfield - DownwindPhase.AlongTrackToleranceNm,
+                alongTrack >= midfield - DownwindPhase.MidfieldLeadNm,
                 $"restore point t={snapshotTime} is not past midfield (along-track {alongTrack:F3} vs midfield {midfield:F3})"
             );
         }
@@ -324,7 +329,7 @@ public class ParallelRunwayMltFromDownwindTests(ITestOutputHelper output)
         );
 
         Assert.True(
-            crossingStartAlongTrack >= midfieldAlongTrack - DownwindPhase.AlongTrackToleranceNm,
+            crossingStartAlongTrack >= midfieldAlongTrack - DownwindPhase.MidfieldLeadNm,
             $"the crossing started at along-track {crossingStartAlongTrack:F3} nm, before midfield ({midfieldAlongTrack:F3} nm)"
         );
         Assert.NotNull(crossingTargetAltitude);

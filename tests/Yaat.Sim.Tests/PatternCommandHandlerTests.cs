@@ -712,6 +712,68 @@ public class PatternCommandHandlerTests
         Assert.DoesNotContain(ac.Phases.Phases, p => p is CrosswindPhase);
     }
 
+    /// <summary>
+    /// A wrong-side MLT/MRT crosses the field at the jet/turboprop entry height, so the aircraft has to
+    /// lose that height before joining the downwind — the same <see cref="TeardropReentryPhase"/> an
+    /// arrival entry gets (AIM 4-3-3.a.2 + AC 90-66B §11.4). Without it the jet joined the downwind
+    /// hundreds of feet above pattern altitude.
+    /// </summary>
+    [Fact]
+    public void TryChangePatternDirection_ActiveCrosswindWrongSide_Jet_InsertsTeardropReentry()
+    {
+        // DefaultRunway heading 280° → Left crosswind = 190° (south), so north is the wrong side.
+        var rwy = DefaultRunway();
+        var (northLat, northLon) = GeoMath.ProjectPoint(rwy.ThresholdLatitude, rwy.ThresholdLongitude, new TrueHeading(10.0), 2.0);
+
+        var wpRight = PatternGeometry.Compute(rwy, AircraftCategory.Jet, "B738", 0, PatternDirection.Right, null, null, null, authoredRunway: null);
+        var ac = MakeAircraft(lat: northLat, lon: northLon, altitude: 1500); // B738 → Jet
+        ac.Phases = new PhaseList { AssignedRunway = rwy, TrafficDirection = PatternDirection.Right };
+        ac.Pattern.TrafficDirection = PatternDirection.Right;
+        ac.Phases.Add(new CrosswindPhase { Waypoints = wpRight });
+        ac.Phases.Add(new DownwindPhase { Waypoints = wpRight });
+        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac));
+
+        var result = PatternCommandHandler.TryChangePatternDirection(ac, PatternDirection.Left, runwayId: null, altitudeOverride: null);
+
+        Assert.True(result.Success, result.Message);
+        Assert.IsType<MidfieldCrossingPhase>(ac.Phases!.CurrentPhase);
+        Assert.Contains(ac.Phases.Phases, p => p is TeardropReentryPhase);
+    }
+
+    /// <summary>
+    /// The in-pattern crossover to a close parallel is the counterpart: it crosses at pattern altitude
+    /// (<see cref="MidfieldCrossingPhase.CrossAtPatternAltitude"/>), so there is nothing to descend and
+    /// no teardrop — even for a jet.
+    /// </summary>
+    [Fact]
+    public void TryChangePatternDirection_DownwindCrossoverToParallel_Jet_HasNoTeardrop()
+    {
+        var rwy28R = Data.NavigationDatabase.Instance.GetRunway("OAK", "28R");
+        if (rwy28R is null)
+        {
+            return;
+        }
+
+        var airportRunways = Data.NavigationDatabase.Instance.GetRunways(rwy28R.AirportId);
+        var wpRight = PatternGeometry.Compute(rwy28R, AircraftCategory.Jet, "B738", 0, PatternDirection.Right, null, null, airportRunways, null);
+        // Early on the right downwind, before midfield.
+        var onDownwind = GeoMath.ProjectPoint(wpRight.DownwindStartLat, wpRight.DownwindStartLon, wpRight.DownwindHeading, 0.3);
+
+        var ac = MakeAircraft(lat: onDownwind.Lat, lon: onDownwind.Lon, altitude: wpRight.PatternAltitude);
+        ac.TrueHeading = wpRight.DownwindHeading;
+        ac.Phases = new PhaseList { AssignedRunway = rwy28R, TrafficDirection = PatternDirection.Right };
+        ac.Pattern.TrafficDirection = PatternDirection.Right;
+        ac.Phases.Add(new DownwindPhase { Waypoints = wpRight });
+        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac));
+
+        var result = PatternCommandHandler.TryChangePatternDirection(ac, PatternDirection.Left, runwayId: "28L", altitudeOverride: null);
+
+        Assert.True(result.Success, result.Message);
+        var crossing = Assert.Single(ac.Phases!.Phases.OfType<MidfieldCrossingPhase>());
+        Assert.True(crossing.CrossAtPatternAltitude, "an in-pattern crossover crosses at pattern altitude");
+        Assert.DoesNotContain(ac.Phases.Phases, p => p is TeardropReentryPhase);
+    }
+
     [Fact]
     public void TryChangePatternDirection_ActiveCrosswindCorrectSide_RewritesTargetHeading()
     {
@@ -1583,10 +1645,10 @@ public class PatternCommandHandlerTests
 
         var result = verb switch
         {
-            "TG" => PatternCommandHandler.TrySetupTouchAndGo(ac, null, TestDispatch.Context(Random.Shared)),
-            "SG" => PatternCommandHandler.TrySetupStopAndGo(ac, null, TestDispatch.Context(Random.Shared)),
-            "LA" => PatternCommandHandler.TrySetupLowApproach(ac, null, TestDispatch.Context(Random.Shared)),
-            "COPT" => PatternCommandHandler.TrySetupClearedForOption(ac, null, TestDispatch.Context(Random.Shared)),
+            "TG" => PatternCommandHandler.TrySetupTouchAndGo(ac, OptionPatternModifier.None, TestDispatch.Context(Random.Shared)),
+            "SG" => PatternCommandHandler.TrySetupStopAndGo(ac, OptionPatternModifier.None, TestDispatch.Context(Random.Shared)),
+            "LA" => PatternCommandHandler.TrySetupLowApproach(ac, OptionPatternModifier.None, TestDispatch.Context(Random.Shared)),
+            "COPT" => PatternCommandHandler.TrySetupClearedForOption(ac, OptionPatternModifier.None, TestDispatch.Context(Random.Shared)),
             _ => throw new Xunit.Sdk.XunitException($"Unknown verb: {verb}"),
         };
 
@@ -1607,10 +1669,10 @@ public class PatternCommandHandlerTests
 
         var result = verb switch
         {
-            "TG" => PatternCommandHandler.TrySetupTouchAndGo(ac, null, TestDispatch.Context(Random.Shared)),
-            "SG" => PatternCommandHandler.TrySetupStopAndGo(ac, null, TestDispatch.Context(Random.Shared)),
-            "LA" => PatternCommandHandler.TrySetupLowApproach(ac, null, TestDispatch.Context(Random.Shared)),
-            "COPT" => PatternCommandHandler.TrySetupClearedForOption(ac, null, TestDispatch.Context(Random.Shared)),
+            "TG" => PatternCommandHandler.TrySetupTouchAndGo(ac, OptionPatternModifier.None, TestDispatch.Context(Random.Shared)),
+            "SG" => PatternCommandHandler.TrySetupStopAndGo(ac, OptionPatternModifier.None, TestDispatch.Context(Random.Shared)),
+            "LA" => PatternCommandHandler.TrySetupLowApproach(ac, OptionPatternModifier.None, TestDispatch.Context(Random.Shared)),
+            "COPT" => PatternCommandHandler.TrySetupClearedForOption(ac, OptionPatternModifier.None, TestDispatch.Context(Random.Shared)),
             _ => throw new Xunit.Sdk.XunitException($"Unknown verb: {verb}"),
         };
 

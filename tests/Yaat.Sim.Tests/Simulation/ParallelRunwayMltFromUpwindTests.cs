@@ -82,6 +82,9 @@ public class ParallelRunwayMltFromUpwindTests(ITestOutputHelper output)
 
             var result = PatternCommandHandler.TryChangePatternDirection(aircraft, PatternDirection.Left, "28L", null, aircraft.Ground.Layout);
             Assert.True(result.Success, $"MLT 28L was refused: {result.Message}");
+            // The transition continues the upwind past both departure ends — there is no field crossing
+            // to announce, and claiming one would have the RPO expecting a track across the runway.
+            Assert.DoesNotContain("crossing midfield", result.Message ?? "", StringComparison.Ordinal);
 
             AssertTransitionInstalled(aircraft, rwy28L, rwy28R);
             FlyTheTransition(engine, rwy28L, rwy28R, PatternDirection.Left);

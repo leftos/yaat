@@ -15,9 +15,19 @@ public sealed class DownwindPhase : Phase
 {
     private static readonly ILogger Log = SimLog.CreateLogger("DownwindPhase");
 
-    /// <summary>Along-track slop (nm) every downwind trigger is armed with; shared with the callers
-    /// that have to decide the same thresholds from outside the phase (the runway-switch crossover).</summary>
+    /// <summary>Along-track slop (nm) the abeam and base-turn triggers are armed with; shared with the
+    /// callers that have to decide the same thresholds from outside the phase.</summary>
     public const double AlongTrackToleranceNm = 0.3;
+
+    /// <summary>
+    /// Along-track lead (nm) for the midfield point — the crossover exit, the midfield-downwind report,
+    /// and the caller that decides whether there is any downwind left to fly before the crossover.
+    /// Much tighter than <see cref="AlongTrackToleranceNm"/>: along-track grows monotonically along the
+    /// leg, so a small lead cannot miss the trigger, while the turn-anticipation slop the abeam and
+    /// base-turn triggers need starts the crossover 0.15 nm into a 0.9 nm runway's downwind (OAK 28R) —
+    /// short of the midfield the aircraft was told to cross at.
+    /// </summary>
+    public const double MidfieldLeadNm = 0.05;
 
     // Downwind-track re-intercept. After a wrong-side / cross-runway MidfieldCrossing join the aircraft
     // can be left off the computed downwind line (e.g. dropped inside its own pattern); steer back onto
@@ -228,7 +238,7 @@ public sealed class DownwindPhase : Phase
         // Crossover exit: hand off at midfield, before any descent or base-turn logic. The aircraft
         // is leaving this downwind for the parallel runway's, so it holds pattern altitude and never
         // starts the past-abeam descent toward a base turn it will not fly.
-        if (ExitAtMidfield && (aircraftAlongTrack >= _midfieldAlongTrack - AlongTrackToleranceNm))
+        if (ExitAtMidfield && (aircraftAlongTrack >= _midfieldAlongTrack - MidfieldLeadNm))
         {
             Log.LogDebug("[Downwind] {Callsign}: midfield reached, exiting downwind for the crossover", ctx.Aircraft.Callsign);
             return true;
@@ -241,7 +251,7 @@ public sealed class DownwindPhase : Phase
         // the aircraft is being actively managed, so the "uncleared" nag is suppressed.
         if (!_midfieldBroadcastIssued && !ctx.AutoClearedToLand)
         {
-            if (aircraftAlongTrack >= _midfieldAlongTrack - AlongTrackToleranceNm)
+            if (aircraftAlongTrack >= _midfieldAlongTrack - MidfieldLeadNm)
             {
                 _midfieldBroadcastIssued = true;
                 if (!HasLandingClearance(ctx) && !IsExtended)

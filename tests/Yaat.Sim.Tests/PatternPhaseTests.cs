@@ -45,14 +45,14 @@ public class PatternPhaseTests
         return ac;
     }
 
-    private static PhaseContext Ctx(AircraftState ac, double dt = 1.0)
+    private static PhaseContext Ctx(AircraftState ac, double dt = 1.0, AircraftCategory category = AircraftCategory.Jet)
     {
         var rwy = DefaultRunway();
         return new PhaseContext
         {
             Aircraft = ac,
             Targets = ac.Targets,
-            Category = AircraftCategory.Jet,
+            Category = category,
             DeltaSeconds = dt,
             Runway = rwy,
             FieldElevation = rwy.ElevationFt,
@@ -509,8 +509,15 @@ public class PatternPhaseTests
     // MidfieldCrossingPhase
     // -------------------------------------------------------------------------
 
+    /// <summary>
+    /// A jet entering the pattern from outside it crosses at the AIM 4-3-3.a.2 entry height — 1,500 ft
+    /// above the field — not at the turbine pattern altitude plus 500. The turbine TPA is already
+    /// 1,500 ft AGL (CategoryPerformance.PatternAltitudeAgl), so stacking a +500 on it
+    /// crossed the field at 2,000 AGL: the AIM's "1,500 feet AGL" and "500 feet above the established
+    /// pattern altitude" are alternatives, not a sum.
+    /// </summary>
     [Fact]
-    public void MidfieldCrossing_OnStart_SetsHeadingTowardMidfieldAndHigherAlt()
+    public void MidfieldCrossing_OnStart_TurbineEntry_CrossesAt1500AboveTheField()
     {
         var wp = DefaultWaypoints();
         var ac = MakeAircraft(altitude: wp.PatternAltitude);
@@ -519,9 +526,104 @@ public class PatternPhaseTests
 
         phase.OnStart(ctx);
 
-        // Target altitude should be pattern + 500ft
-        Assert.Equal(wp.PatternAltitude + 500, ac.Targets.TargetAltitude);
+        Assert.Equal(DefaultRunway().AirportElevationFt + 1500, ac.Targets.TargetAltitude);
         Assert.NotNull(ac.Targets.TargetTrueHeading);
+    }
+
+    /// <summary>
+    /// A field that authors a low pattern still gets the 1,500 ft AGL entry crossing from a turbine:
+    /// the authored altitude sizes the pattern, not the height an arrival crosses the field at.
+    /// </summary>
+    [Fact]
+    public void MidfieldCrossing_OnStart_TurbineEntry_LowAuthoredPattern_StillCrossesAt1500AboveTheField()
+    {
+        var rwy = DefaultRunway();
+        // A 600 ft AGL authored pattern, resolved for a turbine (authored + 500 — see
+        // PatternGeometry.ResolveAuthoredOverrides), gives a 1,100 ft AGL pattern altitude.
+        double authoredPatternAltitude = rwy.AirportElevationFt + 1100;
+        var wp = PatternGeometry.Compute(
+            rwy,
+            AircraftCategory.Jet,
+            "",
+            0,
+            PatternDirection.Left,
+            null,
+            authoredPatternAltitude,
+            null,
+            authoredRunway: null
+        );
+        var ac = MakeAircraft(altitude: wp.PatternAltitude);
+        var phase = new MidfieldCrossingPhase { Waypoints = wp };
+        var ctx = Ctx(ac);
+
+        phase.OnStart(ctx);
+
+        Assert.Equal(authoredPatternAltitude, wp.PatternAltitude);
+        Assert.Equal(rwy.AirportElevationFt + 1500, ac.Targets.TargetAltitude);
+    }
+
+    /// <summary>
+    /// A controller-assigned pattern altitude (the argument of an MLT/MRT/CTO) is an assignment the pilot
+    /// reads back and flies (AIM 4-4-7.b), so it outranks the turbine entry floor: the jet crosses at the
+    /// assigned altitude, not at 1,500 ft above the field.
+    /// </summary>
+    [Fact]
+    public void MidfieldCrossing_OnStart_TurbineEntry_AssignedPatternAltitude_CrossesAtTheAssignedAltitude()
+    {
+        var rwy = DefaultRunway();
+        const double AssignedPatternAltitude = 1200;
+        var wp = PatternGeometry.Compute(
+            rwy,
+            AircraftCategory.Jet,
+            "",
+            0,
+            PatternDirection.Left,
+            null,
+            AssignedPatternAltitude,
+            null,
+            authoredRunway: null
+        );
+        var ac = MakeAircraft(altitude: wp.PatternAltitude);
+        ac.Pattern.AltitudeOverrideFt = AssignedPatternAltitude;
+        var phase = new MidfieldCrossingPhase { Waypoints = wp };
+        var ctx = Ctx(ac);
+
+        phase.OnStart(ctx);
+
+        Assert.Equal(AssignedPatternAltitude, wp.PatternAltitude);
+        Assert.Equal(AssignedPatternAltitude, ac.Targets.TargetAltitude);
+        Assert.NotEqual(rwy.AirportElevationFt + 1500, ac.Targets.TargetAltitude);
+    }
+
+    /// <summary>A piston entry crosses at pattern altitude (AC 90-66B §11.3-§11.4).</summary>
+    [Fact]
+    public void MidfieldCrossing_OnStart_PistonEntry_CrossesAtPatternAltitude()
+    {
+        var wp = DefaultWaypoints();
+        var ac = MakeAircraft(altitude: wp.PatternAltitude);
+        var phase = new MidfieldCrossingPhase { Waypoints = wp };
+        var ctx = Ctx(ac, category: AircraftCategory.Piston);
+
+        phase.OnStart(ctx);
+
+        Assert.Equal(wp.PatternAltitude, ac.Targets.TargetAltitude);
+    }
+
+    /// <summary>
+    /// An aircraft already established in the pattern crosses over at pattern altitude whatever its
+    /// category — the entry height is for arrivals from outside the pattern.
+    /// </summary>
+    [Fact]
+    public void MidfieldCrossing_OnStart_InPatternCrossover_CrossesAtPatternAltitudeForAJet()
+    {
+        var wp = DefaultWaypoints();
+        var ac = MakeAircraft(altitude: wp.PatternAltitude);
+        var phase = new MidfieldCrossingPhase { Waypoints = wp, CrossAtPatternAltitude = true };
+        var ctx = Ctx(ac);
+
+        phase.OnStart(ctx);
+
+        Assert.Equal(wp.PatternAltitude, ac.Targets.TargetAltitude);
     }
 
     [Fact]

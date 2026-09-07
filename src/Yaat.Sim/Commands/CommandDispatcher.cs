@@ -1151,13 +1151,29 @@ public static class CommandDispatcher
             // handler so it can pre-issue the clearance against a queued pattern entry. Without these
             // arms they fall to the default NoDispatcherArm rejection instead.
             case TouchAndGoCommand tg:
-                return PatternCommandHandler.TrySetupTouchAndGo(aircraft, tg.TrafficPattern, ctx);
+                return PatternCommandHandler.TrySetupTouchAndGo(
+                    aircraft,
+                    new OptionPatternModifier(tg.TrafficPattern, tg.PatternRunwayId, tg.PatternAltitude),
+                    ctx
+                );
             case StopAndGoCommand sg:
-                return PatternCommandHandler.TrySetupStopAndGo(aircraft, sg.TrafficPattern, ctx);
+                return PatternCommandHandler.TrySetupStopAndGo(
+                    aircraft,
+                    new OptionPatternModifier(sg.TrafficPattern, sg.PatternRunwayId, sg.PatternAltitude),
+                    ctx
+                );
             case LowApproachCommand la:
-                return PatternCommandHandler.TrySetupLowApproach(aircraft, la.TrafficPattern, ctx);
+                return PatternCommandHandler.TrySetupLowApproach(
+                    aircraft,
+                    new OptionPatternModifier(la.TrafficPattern, la.PatternRunwayId, la.PatternAltitude),
+                    ctx
+                );
             case ClearedForOptionCommand opt:
-                return PatternCommandHandler.TrySetupClearedForOption(aircraft, opt.TrafficPattern, ctx);
+                return PatternCommandHandler.TrySetupClearedForOption(
+                    aircraft,
+                    new OptionPatternModifier(opt.TrafficPattern, opt.PatternRunwayId, opt.PatternAltitude),
+                    ctx
+                );
 
             case FollowCommand follow:
                 return TryAirborneFollow(aircraft, follow, ctx);
@@ -2237,13 +2253,29 @@ public static class CommandDispatcher
 
             // Option approach / special ops commands
             case TouchAndGoCommand tg:
-                return PatternCommandHandler.TrySetupTouchAndGo(aircraft, tg.TrafficPattern, ctx);
+                return PatternCommandHandler.TrySetupTouchAndGo(
+                    aircraft,
+                    new OptionPatternModifier(tg.TrafficPattern, tg.PatternRunwayId, tg.PatternAltitude),
+                    ctx
+                );
             case StopAndGoCommand sg:
-                return PatternCommandHandler.TrySetupStopAndGo(aircraft, sg.TrafficPattern, ctx);
+                return PatternCommandHandler.TrySetupStopAndGo(
+                    aircraft,
+                    new OptionPatternModifier(sg.TrafficPattern, sg.PatternRunwayId, sg.PatternAltitude),
+                    ctx
+                );
             case LowApproachCommand la:
-                return PatternCommandHandler.TrySetupLowApproach(aircraft, la.TrafficPattern, ctx);
+                return PatternCommandHandler.TrySetupLowApproach(
+                    aircraft,
+                    new OptionPatternModifier(la.TrafficPattern, la.PatternRunwayId, la.PatternAltitude),
+                    ctx
+                );
             case ClearedForOptionCommand opt:
-                return PatternCommandHandler.TrySetupClearedForOption(aircraft, opt.TrafficPattern, ctx);
+                return PatternCommandHandler.TrySetupClearedForOption(
+                    aircraft,
+                    new OptionPatternModifier(opt.TrafficPattern, opt.PatternRunwayId, opt.PatternAltitude),
+                    ctx
+                );
 
             // Hold commands
             case HoldPresentPosition360Command hpp:
@@ -3651,7 +3683,7 @@ public static class CommandDispatcher
     /// circuit for the same runway, and on close parallels it descends a base leg across
     /// the neighboring runway's final approach course (AIM §4-3-3 FIG 4-3-3 note 7). A
     /// follower left on the wrong side for the chosen circuit takes the published
-    /// midfield-crossing entry at pattern altitude (AIM §4-3-3.1.b) via
+    /// midfield-crossing entry at pattern altitude (AIM §4-3-3.a.2) via
     /// <see cref="PatternCommandHandler.TryEnterPattern"/>'s wrong-side path — crossing
     /// the field at TPA is the maneuver the AIM prescribes for exactly this geometry.
     /// </summary>

@@ -4,7 +4,6 @@ Entry point for `docs/plans/`. One line per item; the detail lives in the linked
 
 ## Current focus
 
-- [ ] **In-pattern runway switches** (MLT/MRT to a parallel, `OTG`, `COPT MLT 28L`) — [open-issues/parallel-runway-switch.md](./open-issues/parallel-runway-switch.md): N342T went around off OAK 28R, `MLT 28L` on the upwind crossed midfield instead of continuing to the crosswind (report 2026-09-06); leg-to-leg transitions for parallels, `OTG` condition prefix, pattern modifiers on the option clearances
 - [ ] **Tick-path unification** — [tick-path/README.md](./tick-path/README.md): one tick spine, one action router, one body per behaviour across live, replay and reconstruction. Steps 1–3 and 3d shipped (ADRs 0001–0007); step 4 (relocation) is underway — its first slice shipped 2026-09-06 (attendance as a recorded input; delayed handoffs, auto-accept, point-out auto-ack and the autotrack passes are Sim steps; all twelve oracle baselines empty), **next is sim-time for TDLS / strip timestamps, then strips + TDLS into the snapshot, then shrink `IActionHost`, plus a reconstruct-vs-live-log pin on the 2026-09-06 S2-OAK-4 bundle (the reconstruction went around 5–10 s after the live run; possibly already fixed by 3d-4b)** — [tick-path/04-relocation.md](./tick-path/04-relocation.md). Controller AI waits on this (steer 2026-09-02).
 
 ## Next up

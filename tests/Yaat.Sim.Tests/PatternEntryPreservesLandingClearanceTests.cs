@@ -123,7 +123,11 @@ public class PatternEntryPreservesLandingClearanceTests : IDisposable
         var runway = MakeOak28R();
         var ac = MakeOnRightBase(runway);
 
-        var tg = PatternCommandHandler.TrySetupTouchAndGo(ac, PatternDirection.Right, TestDispatch.Context(Random.Shared));
+        var tg = PatternCommandHandler.TrySetupTouchAndGo(
+            ac,
+            new OptionPatternModifier(PatternDirection.Right, null, null),
+            TestDispatch.Context(Random.Shared)
+        );
         Assert.True(tg.Success, tg.Message);
         Assert.Equal(ClearanceType.ClearedTouchAndGo, ac.Phases!.LandingClearance);
 

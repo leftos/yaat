@@ -1232,10 +1232,10 @@ public class PatternEntryTests : IDisposable
     }
 
     // ───────────────────────────────────────────────────────────────────────
-    // Wrong-side teardrop re-entry (AIM 4-3-3.1.b, AC 90-66B §11.3-§11.4)
+    // Wrong-side teardrop re-entry (AIM 4-3-3.a.2, AC 90-66B §11.3-§11.4)
     //
     // Pistons and helicopters cross midfield at pattern altitude and drop
-    // directly into DownwindPhase. Turboprops and jets cross at TPA+500 and
+    // directly into DownwindPhase. Turboprops and jets cross at the 1,500 ft AGL entry height and
     // hand off to TeardropReentryPhase, which descends to TPA via an outbound
     // leg and 45° intercept to abeam.
     // ───────────────────────────────────────────────────────────────────────
@@ -1263,9 +1263,11 @@ public class PatternEntryTests : IDisposable
     }
 
     [Fact]
-    public void WrongSide_Jet_CrossesAtTpaPlus500()
+    public void WrongSide_Jet_CrossesAt1500AboveTheField()
     {
-        // B738 same position. Jet crosses at TPA+500.
+        // B738 same position. A jet entering from outside the pattern crosses at the AIM 4-3-3.a.2
+        // entry height — 1,500 ft AGL — not at TPA+500: the turbine TPA is already 1,500 AGL, so
+        // adding 500 to it crossed the field at 2,000 AGL.
         var runway = MakeOak28R();
         var aircraft = MakeAircraft(37.63, -122.21, 2500, 0);
         aircraft.AircraftType = "B738";
@@ -1277,9 +1279,10 @@ public class PatternEntryTests : IDisposable
         var ctx = MakeContext(aircraft);
         mc.OnStart(ctx);
 
-        double expectedAlt = mc.Waypoints!.PatternAltitude + 500.0;
+        double expectedAlt = runway.AirportElevationFt + 1500.0;
         _output.WriteLine($"Jet crossing target alt: {ctx.Targets.TargetAltitude:F0}ft (expected {expectedAlt:F0}ft)");
         Assert.Equal(expectedAlt, ctx.Targets.TargetAltitude);
+        Assert.NotEqual(mc.Waypoints!.PatternAltitude + 500.0, ctx.Targets.TargetAltitude);
     }
 
     [Fact]

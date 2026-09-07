@@ -804,9 +804,9 @@ public static class CommandParser
             CircleAirport when arg is null => PR.Ok(new CircleAirportCommand()),
             // Option / special ops (all accept optional MLT/MRT for traffic direction)
             TouchAndGo => ParseTouchAndGo(arg),
-            StopAndGo => ParseOptionWithDirection(arg, dir => new StopAndGoCommand(dir)),
-            LowApproach => ParseOptionWithDirection(arg, dir => new LowApproachCommand(dir)),
-            ClearedForOption => ParseOptionWithDirection(arg, dir => new ClearedForOptionCommand(dir)),
+            StopAndGo => ParseOptionWithDirection(arg, "SG", (dir, rwy, alt) => new StopAndGoCommand(dir, rwy, alt)),
+            LowApproach => ParseOptionWithDirection(arg, "LA", (dir, rwy, alt) => new LowApproachCommand(dir, rwy, alt)),
+            ClearedForOption => ParseOptionWithDirection(arg, "COPT", (dir, rwy, alt) => new ClearedForOptionCommand(dir, rwy, alt)),
             // Hold
             HoldPresentPosition360Left when arg is null => PR.Ok(new HoldPresentPosition360Command(TurnDirection.Left)),
             HoldPresentPosition360Right when arg is null => PR.Ok(new HoldPresentPosition360Command(TurnDirection.Right)),
@@ -1632,40 +1632,61 @@ public static class CommandParser
         return null;
     }
 
+    /// <summary>
+    /// Parses <c>TG [landingRwy] [MLT|MRT [patternRwy] [alt]]</c>. The leading runway is the one the
+    /// touch-and-go is flown on; the modifier names the pattern the aircraft climbs out into.
+    /// </summary>
     private static PR ParseTouchAndGo(string? arg)
     {
-        if (arg is null)
+        var tokens = arg?.Split(' ', StringSplitOptions.RemoveEmptyEntries) ?? [];
+        if (tokens.Length == 0)
         {
-            return PR.Ok(new TouchAndGoCommand(null, null));
+            return PR.Ok(new TouchAndGoCommand(null, null, null, null));
         }
 
-        var dir = ParsePatternDir(arg);
-        if (dir is not null)
-        {
-            return PR.Ok(new TouchAndGoCommand(null, dir));
-        }
+        // A leading token that is not MLT/MRT is the landing runway ("TG 28R", "TG 28R MLT 28L").
+        string? landingRunwayId = ParsePatternDir(tokens[0]) is null ? tokens[0].ToUpperInvariant() : null;
+        int modifierStart = landingRunwayId is null ? 0 : 1;
 
-        // May be "28R" or "28R MLT"
-        var parts = arg.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-        string runwayId = parts[0].Trim().ToUpperInvariant();
-        PatternDirection? traffic = parts.Length > 1 ? ParsePatternDir(parts[1]) : null;
-        return PR.Ok(new TouchAndGoCommand(runwayId, traffic));
+        return ParseOptionModifier(tokens, modifierStart, "TG", (dir, rwy, alt) => new TouchAndGoCommand(landingRunwayId, dir, rwy, alt));
     }
 
-    private static PR ParseOptionWithDirection(string? arg, Func<PatternDirection?, ParsedCommand> factory)
+    /// <summary>
+    /// Parses <c>SG|LA|COPT [MLT|MRT [patternRwy] [alt]]</c>. Unlike <c>TG</c> these carry no landing
+    /// runway of their own — they clear the approach the aircraft is already flying.
+    /// </summary>
+    private static PR ParseOptionWithDirection(string? arg, string verb, Func<PatternDirection?, string?, int?, ParsedCommand> factory)
     {
-        if (arg is null)
+        var tokens = arg?.Split(' ', StringSplitOptions.RemoveEmptyEntries) ?? [];
+        return ParseOptionModifier(tokens, 0, verb, factory);
+    }
+
+    /// <summary>
+    /// Parses an option clearance's optional <c>MLT|MRT [runway] [altitude]</c> tail starting at
+    /// <paramref name="start"/>. No tokens left means no modifier; anything other than MLT/MRT where the
+    /// modifier belongs is rejected rather than silently dropped — the pattern runway and altitude are
+    /// flown, so a typo has to come back to the controller.
+    /// </summary>
+    private static PR ParseOptionModifier(string[] tokens, int start, string verb, Func<PatternDirection?, string?, int?, ParsedCommand> factory)
+    {
+        if (start >= tokens.Length)
         {
-            return PR.Ok(factory(null));
+            return PR.Ok(factory(null, null, null));
         }
 
-        var dir = ParsePatternDir(arg);
-        if (dir is not null)
+        var dir = ParsePatternDir(tokens[start]);
+        if (dir is null)
         {
-            return PR.Ok(factory(dir));
+            return PR.Fail($"unexpected argument '{tokens[start]}' (expected MLT or MRT)");
         }
 
-        return PR.Fail($"unexpected argument '{arg}' (expected MLT or MRT)");
+        var args = DepartureCommandParser.ParsePatternModifierArgs(tokens, start + 1);
+        if (args.UnexpectedToken is { } unexpected)
+        {
+            return PR.Fail($"{verb} {tokens[start].ToUpperInvariant()} does not understand '{unexpected}'");
+        }
+
+        return PR.Ok(factory(dir, args.RunwayId, args.Altitude));
     }
 
     /// <summary>
@@ -1675,41 +1696,17 @@ public static class CommandParser
     /// </summary>
     private static PR ParseMakeTraffic(string? arg, PatternDirection direction)
     {
-        if (arg is null)
+        var tokens = arg?.Split(' ', StringSplitOptions.RemoveEmptyEntries) ?? [];
+        var args = DepartureCommandParser.ParsePatternModifierArgs(tokens, 0);
+        string verb = direction == PatternDirection.Left ? "MLT" : "MRT";
+        if (args.UnexpectedToken is { } unexpected)
         {
-            return direction == PatternDirection.Left
-                ? PR.Ok(new MakeLeftTrafficCommand(null, null))
-                : PR.Ok(new MakeRightTrafficCommand(null, null));
-        }
-
-        var tokens = arg.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-        string? runwayId = null;
-        int? altitude = null;
-
-        foreach (var token in tokens)
-        {
-            if (runwayId is null && IsRunwayDesignator(token))
-            {
-                runwayId = token.ToUpperInvariant();
-            }
-            else
-            {
-                var resolved = AltitudeResolver.Resolve(token);
-                if (resolved is not null)
-                {
-                    altitude = resolved;
-                }
-                else
-                {
-                    // Could be a runway without L/R/C suffix — try as runway
-                    runwayId = token.ToUpperInvariant();
-                }
-            }
+            return PR.Fail($"{verb} does not understand '{unexpected}'");
         }
 
         return direction == PatternDirection.Left
-            ? PR.Ok(new MakeLeftTrafficCommand(runwayId, altitude))
-            : PR.Ok(new MakeRightTrafficCommand(runwayId, altitude));
+            ? PR.Ok(new MakeLeftTrafficCommand(args.RunwayId, args.Altitude))
+            : PR.Ok(new MakeRightTrafficCommand(args.RunwayId, args.Altitude));
     }
 
     /// <summary>

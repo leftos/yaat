@@ -131,6 +131,7 @@ public static class PhaseRunner
                 // (and downstream pattern-mode predicates that read it) reflect the
                 // direction actually being flown.
                 phases.TrafficDirection = dir;
+                VoidArmedPatternRunwayOnGoAround(ctx, phases, current, dir);
                 var runway = phases.PatternRunway ?? phases.AssignedRunway;
                 var airportRunways = Data.NavigationDatabase.Instance.GetRunways(runway.AirportId);
                 // Resolve authored pattern data from the context's resolved ground layout (which falls
@@ -150,19 +151,50 @@ public static class PhaseRunner
                 // (full-stop → next circuit ends in LandingPhase). After any other
                 // cycle terminator the aircraft was already cycling, so keep cycling with TG.
                 bool nextTouchAndGo = current is GoAroundPhase ga ? !ga.NextLandingFullStop : true;
-                var nextCircuit = PatternBuilder.BuildNextCircuit(
-                    runway,
-                    ctx.Category,
-                    ctx.Aircraft.AircraftType,
-                    ctx.Aircraft.WindSpeedKts,
-                    dir,
-                    sizeOv,
-                    altOv,
-                    airportRunways,
-                    authoredRunway,
-                    nextTouchAndGo
-                );
+
+                // A pattern runway that is not the one just flown (an option clearance's `COPT MLT 28L`
+                // on the 28R final) makes this circuit the runway transition: the aircraft climbs out on
+                // the runway it just used and joins the named runway's pattern (AIM 4-3-2). Every later
+                // circuit belongs to the new runway, so the assignment moves with it. A cross-runway CTO
+                // has already moved AssignedRunway to the pattern runway at clearance time, so its
+                // designators match here and it takes the plain next circuit.
+                var flownRunway = phases.AssignedRunway;
+                bool runwayTransition = !string.Equals(flownRunway.Designator, runway.Designator, StringComparison.OrdinalIgnoreCase);
+                var nextCircuit = runwayTransition
+                    ? PatternBuilder.BuildRunwayTransitionCircuit(
+                        flownRunway,
+                        runway,
+                        ctx.Category,
+                        ctx.Aircraft.AircraftType,
+                        ctx.Aircraft.WindSpeedKts,
+                        dir,
+                        nextTouchAndGo,
+                        sizeOv,
+                        altOv,
+                        airportRunways,
+                        patternLayout?.FindRunway(flownRunway.Designator),
+                        authoredRunway
+                    )
+                    : PatternBuilder.BuildNextCircuit(
+                        runway,
+                        ctx.Category,
+                        ctx.Aircraft.AircraftType,
+                        ctx.Aircraft.WindSpeedKts,
+                        dir,
+                        sizeOv,
+                        altOv,
+                        airportRunways,
+                        authoredRunway,
+                        nextTouchAndGo
+                    );
                 phases.Phases.AddRange(nextCircuit);
+
+                if (runwayTransition)
+                {
+                    // The circuit/final/landing phases read AssignedRunway, and the aircraft has left the
+                    // old runway's pattern for good.
+                    phases.AssignedRunway = runway;
+                }
 
                 // Consume the one-shot EXT pre-arm set by EXT during T/G or pre-T/G
                 // FinalApproach. The first UpwindPhase of the new circuit gets
@@ -189,5 +221,38 @@ public static class PhaseRunner
                 }
             }
         }
+    }
+
+    /// <summary>
+    /// Drops a pattern runway armed by an option clearance's MLT/MRT modifier when the approach ended in
+    /// a go-around, and tells the RPO. The modifier rode on the clearance ("cleared for the option runway
+    /// 28R, make left traffic runway 28L"), and a go-around voids that clearance — AIM 5-5-5.a.6 has the
+    /// pilot request the next action rather than carry the old instruction into the climb-out, so the
+    /// aircraft stays in the pattern it is flying until the controller re-issues. A completed terminator
+    /// (touch-and-go / stop-and-go / low approach) is the clearance flown as issued and still transitions.
+    ///
+    /// <para>Only an <em>armed</em> modifier is affected: a cross-runway takeoff clearance and an
+    /// <c>MLT</c>/<c>MRT</c> runway switch both write <see cref="PhaseList.AssignedRunway"/> and
+    /// <see cref="PhaseList.PatternRunway"/> together, so their designators match here and nothing is
+    /// voided. An <c>OTG</c>-queued pattern change is a standalone instruction that fires on the
+    /// climb-out through its own command path and is likewise untouched.</para>
+    /// </summary>
+    private static void VoidArmedPatternRunwayOnGoAround(PhaseContext ctx, PhaseList phases, Phase current, PatternDirection direction)
+    {
+        if (
+            (current is not GoAroundPhase)
+            || (phases.AssignedRunway is not { } assignedRunway)
+            || (phases.PatternRunway is not { } armedRunway)
+            || string.Equals(armedRunway.Designator, assignedRunway.Designator, StringComparison.OrdinalIgnoreCase)
+        )
+        {
+            return;
+        }
+
+        phases.PatternRunway = assignedRunway;
+        string directionWord = direction == PatternDirection.Left ? "left" : "right";
+        ctx.Aircraft.PendingWarnings.Add(
+            $"{ctx.Aircraft.Callsign} went around — {directionWord} traffic runway {Data.Airport.RunwayIdentifier.ToDisplayDesignator(armedRunway.Designator)} cancelled, re-issue"
+        );
     }
 }

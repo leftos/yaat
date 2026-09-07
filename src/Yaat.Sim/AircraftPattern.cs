@@ -26,8 +26,15 @@ public sealed record PendingEntryModifier(PendingEntryModifierKind Kind, Pattern
 /// controller gave a bare verb. It is never empty: a clearance states its runway (7110.65 §3-10-5.a),
 /// the pilot reads it back (AIM §4-4-7.b.4), and a circuit built for a different runway voids the
 /// clearance — none of which works without one, so arming is refused when neither side names a runway.
+///
+/// <para><see cref="PatternRunwayId"/> and <see cref="PatternAltitudeFt"/> carry the option clearance's
+/// MLT/MRT modifier (<c>COPT MLT 28L</c>): the pattern the aircraft climbs out into after the clearance,
+/// applied to the circuit the queued entry builds. Both null when the clearance named no pattern runway
+/// or altitude. The modifier's <em>direction</em> is not here — it is stamped on
+/// <see cref="AircraftPattern.TrafficDirection"/> when the clearance is armed, like every other
+/// side effect that lives outside the PhaseList.</para>
 /// </summary>
-public sealed record PendingLandingClearance(ClearanceType Clearance, string RunwayId);
+public sealed record PendingLandingClearance(ClearanceType Clearance, string RunwayId, string? PatternRunwayId, int? PatternAltitudeFt);
 
 /// <summary>
 /// Per-aircraft pattern overrides. Null fields fall back to category defaults
@@ -88,6 +95,8 @@ public class AircraftPattern
             PendingEntryModifierLeg = PendingEntryModifier is not null ? (byte)PendingEntryModifier.TargetLeg : null,
             PendingLandingClearanceType = PendingLandingClearance is not null ? (byte)PendingLandingClearance.Clearance : null,
             PendingLandingClearanceRunwayId = PendingLandingClearance?.RunwayId,
+            PendingLandingClearancePatternRunwayId = PendingLandingClearance?.PatternRunwayId,
+            PendingLandingClearancePatternAltitudeFt = PendingLandingClearance?.PatternAltitudeFt,
         };
 
     public static AircraftPattern FromSnapshot(AircraftPatternDto dto) =>
@@ -103,7 +112,12 @@ public class AircraftPattern
                     : null,
             PendingLandingClearance =
                 dto.PendingLandingClearanceType is { } clearance && !string.IsNullOrEmpty(dto.PendingLandingClearanceRunwayId)
-                    ? new PendingLandingClearance((ClearanceType)clearance, dto.PendingLandingClearanceRunwayId)
+                    ? new PendingLandingClearance(
+                        (ClearanceType)clearance,
+                        dto.PendingLandingClearanceRunwayId,
+                        dto.PendingLandingClearancePatternRunwayId,
+                        dto.PendingLandingClearancePatternAltitudeFt
+                    )
                     : null,
         };
 }

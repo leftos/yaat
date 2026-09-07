@@ -5,19 +5,27 @@ using Yaat.Sim.Simulation.Snapshots;
 namespace Yaat.Sim.Phases.Pattern;
 
 /// <summary>
-/// Crosses midfield from the wrong side to the correct pattern side. Per
-/// AIM 4-3-3.1.b and AC 90-66B §11.3-§11.4: small pistons/helicopters cross
-/// at pattern altitude (1000 AGL); large and turbine-powered aircraft cross
-/// at pattern altitude + 500 ft. Turboprops/jets are handed off to
-/// <see cref="TeardropReentryPhase"/> afterward to descend to TPA; pistons
-/// and helicopters drop directly into <see cref="DownwindPhase"/>.
+/// Crosses midfield from the wrong side to the correct pattern side. Pistons and helicopters cross at
+/// pattern altitude (AC 90-66B §11.3-§11.4). Jets and turboprops entering from outside the pattern cross
+/// at the AIM 4-3-3.a.2 entry height — "not less than 1,500 feet AGL", i.e. the field elevation plus
+/// 1,500 ft, or the pattern altitude when the pattern itself is higher — and are handed off to
+/// <see cref="TeardropReentryPhase"/> afterward to descend to TPA; pistons and helicopters drop directly
+/// into <see cref="DownwindPhase"/>. An aircraft already established in the pattern
+/// (<see cref="CrossAtPatternAltitude"/>) crosses at pattern altitude whatever its category.
 /// </summary>
 public sealed class MidfieldCrossingPhase : Phase
 {
     private static readonly ILogger Log = SimLog.CreateLogger("MidfieldCrossingPhase");
 
     private const double ArrivalNm = 0.5;
-    private const double LargeTurbineAltitudeOffsetFt = 500.0;
+
+    /// <summary>
+    /// Minimum crossing height above the field (ft) for a jet/turboprop entering from outside the
+    /// pattern — AIM 4-3-3.a.2's "not less than 1,500 feet AGL". Adding 500 ft to the pattern altitude
+    /// instead would stack on top of a turbine TPA that is already 1,500 ft AGL (or authored + 500),
+    /// putting the crossing at 2,000 ft AGL; the AIM's two figures are alternatives, not a sum.
+    /// </summary>
+    private const double TurbineEntryCrossingHeightAglFt = 1500.0;
 
     private double _targetLat;
     private double _targetLon;
@@ -35,9 +43,9 @@ public sealed class MidfieldCrossingPhase : Phase
 
     /// <summary>
     /// When true, the crossing is flown at pattern altitude regardless of category. An aircraft
-    /// already established in the pattern crosses at the altitude it is already at — the AIM 4-3-3.1.b
-    /// large/turbine "pattern altitude + 500 ft" is an <em>entry</em> rule for aircraft arriving from
-    /// outside the pattern.
+    /// already established in the pattern crosses at the altitude it is already at — the AIM 4-3-3.a.2
+    /// large/turbine crossing height is an <em>entry</em> rule for aircraft arriving from outside the
+    /// pattern.
     /// </summary>
     public bool CrossAtPatternAltitude { get; init; }
 
@@ -66,14 +74,11 @@ public sealed class MidfieldCrossingPhase : Phase
         ctx.Targets.PreferredTurnDirection = InitialTurn;
         ctx.Targets.NavigationRoute.Clear();
 
-        // Large/turbine cross at TPA+500 (AIM 4-3-3.1.b); pistons/helicopters
-        // cross at pattern altitude (AC 90-66B §11.3-§11.4). An aircraft already
-        // in the pattern crosses at pattern altitude whatever its category — the
-        // +500 ft belongs to an entry from outside the pattern.
-        double crossingAlt =
-            !CrossAtPatternAltitude && ctx.Category is AircraftCategory.Jet or AircraftCategory.Turboprop
-                ? Waypoints.PatternAltitude + LargeTurbineAltitudeOffsetFt
-                : Waypoints.PatternAltitude;
+        // A jet/turboprop entering from outside the pattern crosses at or above 1,500 ft AGL
+        // (AIM 4-3-3.a.2); pistons/helicopters cross at pattern altitude (AC 90-66B §11.3-§11.4).
+        // An aircraft already in the pattern crosses at pattern altitude whatever its category —
+        // the entry height belongs to an entry from outside the pattern.
+        double crossingAlt = ResolveCrossingAltitude(ctx, Waypoints.PatternAltitude);
         ctx.Targets.TargetAltitude = crossingAlt;
         ctx.Targets.DesiredVerticalRate = null;
 
@@ -84,6 +89,32 @@ public sealed class MidfieldCrossingPhase : Phase
         }
 
         Log.LogDebug("[MidfieldCrossing] {Callsign}: started, cat={Cat}, crossingAlt={Alt:F0}ft", ctx.Aircraft.Callsign, ctx.Category, crossingAlt);
+    }
+
+    /// <summary>
+    /// The altitude (ft MSL) this crossing is flown at. An in-pattern crossover and a piston/helicopter
+    /// entry cross at <paramref name="patternAltitude"/>; a jet/turboprop entry crosses at the higher of
+    /// the pattern altitude and 1,500 ft above the field (AIM 4-3-3.a.2). Field elevation comes from the
+    /// runway (<see cref="RunwayInfo.AirportElevationFt"/> is the field's, not a threshold's); with no
+    /// runway in context there is nothing to measure AGL from, so the pattern altitude stands.
+    ///
+    /// <para>A <em>controller-assigned</em> pattern altitude
+    /// (<see cref="AircraftPattern.AltitudeOverrideFt"/>, from an <c>MLT</c>/<c>MRT</c>/<c>CTO</c>
+    /// altitude argument) outranks the entry floor for every category: it is an altitude assignment the
+    /// pilot reads back and flies (AIM 4-4-7.b), not a recommended entry height to be raised.</para>
+    /// </summary>
+    private double ResolveCrossingAltitude(PhaseContext ctx, double patternAltitude)
+    {
+        if (
+            CrossAtPatternAltitude
+            || (ctx.Aircraft.Pattern.AltitudeOverrideFt is not null)
+            || ctx.Category is not (AircraftCategory.Jet or AircraftCategory.Turboprop)
+        )
+        {
+            return patternAltitude;
+        }
+
+        return ctx.Runway is { } runway ? Math.Max(patternAltitude, runway.AirportElevationFt + TurbineEntryCrossingHeightAglFt) : patternAltitude;
     }
 
     public override bool OnTick(PhaseContext ctx)

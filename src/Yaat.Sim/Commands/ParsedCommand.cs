@@ -412,14 +412,25 @@ public record Plan270Command : ParsedCommand;
 
 public record CircleAirportCommand : ParsedCommand;
 
-// Option approach / special ops commands
-public record TouchAndGoCommand(string? RunwayId, PatternDirection? TrafficPattern) : ParsedCommand;
+// Option approach / special ops commands.
+//
+// Each carries the same pattern modifier CTO does: MLT/MRT with an optional pattern runway and pattern
+// altitude. The clearance is flown on the runway the aircraft is already on; the modifier says which
+// pattern it climbs out into, so `COPT MLT 28L` on the 28R final means "the option on 28R, then left
+// traffic for 28L". PatternRunwayId is null unless the modifier named one; a null TrafficPattern means
+// no modifier was given at all.
 
-public record StopAndGoCommand(PatternDirection? TrafficPattern) : ParsedCommand;
+/// <summary><c>TG [landingRwy] [MLT|MRT [patternRwy] [alt]]</c>.</summary>
+public record TouchAndGoCommand(string? RunwayId, PatternDirection? TrafficPattern, string? PatternRunwayId, int? PatternAltitude) : ParsedCommand;
 
-public record LowApproachCommand(PatternDirection? TrafficPattern) : ParsedCommand;
+/// <summary><c>SG [MLT|MRT [patternRwy] [alt]]</c>.</summary>
+public record StopAndGoCommand(PatternDirection? TrafficPattern, string? PatternRunwayId, int? PatternAltitude) : ParsedCommand;
 
-public record ClearedForOptionCommand(PatternDirection? TrafficPattern) : ParsedCommand;
+/// <summary><c>LA [MLT|MRT [patternRwy] [alt]]</c>.</summary>
+public record LowApproachCommand(PatternDirection? TrafficPattern, string? PatternRunwayId, int? PatternAltitude) : ParsedCommand;
+
+/// <summary><c>COPT [MLT|MRT [patternRwy] [alt]]</c>.</summary>
+public record ClearedForOptionCommand(PatternDirection? TrafficPattern, string? PatternRunwayId, int? PatternAltitude) : ParsedCommand;
 
 // Hold commands
 

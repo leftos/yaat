@@ -8,9 +8,10 @@ namespace Yaat.Sim.Phases.Pattern;
 
 /// <summary>
 /// For turboprop/jet aircraft entering the pattern from the wrong side.
-/// Inserted after <see cref="MidfieldCrossingPhase"/> to descend from
-/// pattern altitude + 500 ft (the large/turbine crossing altitude per
-/// AIM 4-3-3.1.b and AC 90-66B §11.4) to pattern altitude, rejoining
+/// Inserted after <see cref="MidfieldCrossingPhase"/> to descend from the
+/// turbine entry crossing height (the higher of pattern altitude and 1,500 ft
+/// above the field, AIM 4-3-3.a.2 — see
+/// <see cref="MidfieldCrossingPhase"/>) to pattern altitude, rejoining
 /// downwind at the midfield abeam point via a 45° intercept.
 ///
 /// Geometry: three waypoints on a single outbound-then-inbound path.
@@ -18,8 +19,8 @@ namespace Yaat.Sim.Phases.Pattern;
 /// 2. 45° lead-in — abeam + reverse-45°-entry heading × category lead-in distance (same as ChooseDownwindLeadIn floors).
 /// 3. Abeam — the midfield abeam point itself.
 ///
-/// Altitude restrictions on each waypoint give a linear descent from TPA+500
-/// down to TPA. After the route drains, DownwindPhase takes over at abeam
+/// Altitude restrictions on each waypoint step the aircraft down to TPA from
+/// whatever height it crossed at. After the route drains, DownwindPhase takes over at abeam
 /// with the aircraft already tracking the 45° intercept course.
 ///
 /// Not inserted for pistons or helicopters — they cross at TPA (no teardrop needed).
@@ -110,7 +111,7 @@ public sealed class TeardropReentryPhase : Phase
         }
 
         Log.LogDebug(
-            "[TeardropReentry] {Callsign}: descending TPA+500→TPA via outbound+45° (cat={Cat}, leadIn={Lead:F2}nm)",
+            "[TeardropReentry] {Callsign}: descending to TPA via outbound+45° (cat={Cat}, leadIn={Lead:F2}nm)",
             ctx.Aircraft.Callsign,
             ctx.Category,
             leadInNm

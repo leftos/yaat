@@ -415,11 +415,30 @@ public class PilotResponderTests
             { new LineUpAndWaitCommand(), "line up and wait runway two eight right" },
             { new ClearedToLandCommand(), "cleared to land runway two eight right" },
             { new LandAndHoldShortCommand("28L"), "cleared to land runway two eight right, hold short runway two eight left" },
-            { new TouchAndGoCommand(null, null), "cleared touch and go runway two eight right" },
-            { new StopAndGoCommand(null), "cleared stop and go runway two eight right" },
-            { new LowApproachCommand(null), "cleared low approach runway two eight right" },
-            { new ClearedForOptionCommand(null), "cleared for the option runway two eight right" },
-            { new ClearedForOptionCommand(PatternDirection.Right), "cleared for the option runway two eight right, make right traffic" },
+            { new TouchAndGoCommand(null, null, null, null), "cleared touch and go runway two eight right" },
+            { new StopAndGoCommand(null, null, null), "cleared stop and go runway two eight right" },
+            { new LowApproachCommand(null, null, null), "cleared low approach runway two eight right" },
+            { new ClearedForOptionCommand(null, null, null), "cleared for the option runway two eight right" },
+            { new ClearedForOptionCommand(PatternDirection.Right, null, null), "cleared for the option runway two eight right, make right traffic" },
+            // A pattern modifier that names a runway assigns one for the next circuit, so the readback
+            // states it (AIM 4-4-7.b.4) — "the option on 28R, then left traffic for 28L".
+            {
+                new ClearedForOptionCommand(PatternDirection.Left, "28L", null),
+                "cleared for the option runway two eight right, make left traffic runway two eight left"
+            },
+            { new TouchAndGoCommand(null, PatternDirection.Right, null, null), "cleared touch and go runway two eight right, make right traffic" },
+            {
+                new TouchAndGoCommand(null, PatternDirection.Left, "28L", 1500),
+                "cleared touch and go runway two eight right, make left traffic runway two eight left"
+            },
+            {
+                new StopAndGoCommand(PatternDirection.Right, "10L", null),
+                "cleared stop and go runway two eight right, make right traffic runway one zero left"
+            },
+            {
+                new LowApproachCommand(PatternDirection.Left, "28L", null),
+                "cleared low approach runway two eight right, make left traffic runway two eight left"
+            },
         };
 
     [Theory]
@@ -432,6 +451,40 @@ public class PilotResponderTests
         var result = PilotResponder.BuildReadback(compound, ac)?.Tts;
 
         Assert.Equal($"{expectedClause}, november four three six mike sierra.", result);
+    }
+
+    /// <summary>
+    /// The three output forms are built independently, so a clause added to the spoken readback can
+    /// silently miss the compact terminal (solo student) and RPO forms. The pattern runway an option
+    /// clearance names has to reach all three.
+    /// </summary>
+    [Fact]
+    public void BuildReadback_OptionClearanceWithPatternRunway_CarriesItInEveryForm()
+    {
+        var ac = MakeAircraftWithAssignedRunway("N436MS", "28R");
+        var compound = Compound(new ClearedForOptionCommand(PatternDirection.Left, "28L", null));
+
+        var speech = PilotResponder.BuildReadback(compound, ac);
+
+        Assert.NotNull(speech);
+        Assert.Contains("cleared for the option runway 28R, make left traffic runway 28L", speech.Terminal, StringComparison.Ordinal);
+        Assert.Contains("cleared for the option runway 28R, make left traffic runway 28L", speech.TerminalForRpo, StringComparison.Ordinal);
+        Assert.Contains("make left traffic runway two eight left", speech.Tts, StringComparison.Ordinal);
+    }
+
+    /// <summary>A bare MLT/MRT keeps the runway-less clause — it means the runway just cleared for.</summary>
+    [Fact]
+    public void BuildReadback_OptionClearanceWithoutPatternRunway_OmitsTheRunwayFromTheTrafficClause()
+    {
+        var ac = MakeAircraftWithAssignedRunway("N436MS", "28R");
+        var compound = Compound(new ClearedForOptionCommand(PatternDirection.Left, null, null));
+
+        var speech = PilotResponder.BuildReadback(compound, ac);
+
+        Assert.NotNull(speech);
+        Assert.Contains("make left traffic", speech.Terminal, StringComparison.Ordinal);
+        Assert.DoesNotContain("make left traffic runway", speech.Terminal, StringComparison.Ordinal);
+        Assert.DoesNotContain("make left traffic runway", speech.Tts, StringComparison.Ordinal);
     }
 
     // --- A8-1: heavy/super wake-class suffix on the aircraft's own callsign (AIM 4-2-4.a.5) ---

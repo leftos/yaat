@@ -39,4 +39,18 @@ public sealed class AircraftPatternDto
     /// either both are present or the aircraft has no pre-issued clearance.
     /// </summary>
     public string? PendingLandingClearanceRunwayId { get; init; }
+
+    /// <summary>
+    /// Pattern runway named by the pre-issued clearance's MLT/MRT modifier (<c>COPT MLT 28L</c>), applied
+    /// to the circuit the queued entry builds. Additive and independently nullable: a clearance without a
+    /// modifier, and every snapshot written before the modifier existed, leaves it null and restores
+    /// exactly as before.
+    /// </summary>
+    public string? PendingLandingClearancePatternRunwayId { get; init; }
+
+    /// <summary>
+    /// Pattern altitude (ft MSL) named by the pre-issued clearance's MLT/MRT modifier. Additive and
+    /// independently nullable, like <see cref="PendingLandingClearancePatternRunwayId"/>.
+    /// </summary>
+    public int? PendingLandingClearancePatternAltitudeFt { get; init; }
 }

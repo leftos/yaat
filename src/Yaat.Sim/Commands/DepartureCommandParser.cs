@@ -306,16 +306,25 @@ internal static class DepartureCommandParser
     }
 
     /// <summary>
-    /// Parses CTO closed traffic with optional runway and altitude.
-    /// Forms: CTO MLT, CTO MLT 28R, CTO MLT 15, CTO MLT 28R 15.
+    /// The pattern runway and pattern altitude a <c>MLT</c>/<c>MRT</c> modifier carries, or the token
+    /// that is neither. <see cref="UnexpectedToken"/> is non-null only on failure; the caller turns it
+    /// into its own rejection so each verb keeps its own wording.
     /// </summary>
-    private static PR ParseCtoClosedTraffic(ClosedTrafficDeparture ct, string[] tokens)
-    {
-        // tokens[0] = "MLT"/"MRT", rest are runway and/or altitude
-        string? runwayId = null;
-        int? patternAlt = null;
+    internal readonly record struct PatternModifierArgs(string? RunwayId, int? Altitude, string? UnexpectedToken);
 
-        for (int i = 1; i < tokens.Length; i++)
+    /// <summary>
+    /// Parses the <c>[runway] [altitude]</c> tail every pattern modifier takes — the arguments of a bare
+    /// <c>MLT</c>/<c>MRT</c>, of <c>CTO MLT</c>, and of the option clearances' <c>TG|SG|LA|COPT MLT</c> —
+    /// from <paramref name="tokens"/> starting at <paramref name="start"/>. Forms: none, <c>28R</c>,
+    /// <c>15</c>, <c>28R 15</c>. A runway designator carries an L/R/C suffix or a leading zero
+    /// (<see cref="CommandParser.IsRunwayDesignator"/>); a bare number is an altitude.
+    /// </summary>
+    internal static PatternModifierArgs ParsePatternModifierArgs(string[] tokens, int start)
+    {
+        string? runwayId = null;
+        int? altitude = null;
+
+        for (int i = start; i < tokens.Length; i++)
         {
             if (runwayId is null && CommandParser.IsRunwayDesignator(tokens[i]))
             {
@@ -324,16 +333,32 @@ internal static class DepartureCommandParser
             }
 
             var resolved = AltitudeResolver.Resolve(tokens[i]);
-            if (resolved is not null && patternAlt is null)
+            if (resolved is not null && altitude is null)
             {
-                patternAlt = resolved;
+                altitude = resolved;
                 continue;
             }
 
-            return PR.Fail($"CTO {tokens[0].ToUpperInvariant()} does not understand '{tokens[i]}'");
+            return new PatternModifierArgs(null, null, tokens[i]);
         }
 
-        return PR.Ok(new ClearedForTakeoffCommand(ct with { RunwayId = runwayId, PatternAltitude = patternAlt }));
+        return new PatternModifierArgs(runwayId, altitude, null);
+    }
+
+    /// <summary>
+    /// Parses CTO closed traffic with optional runway and altitude.
+    /// Forms: CTO MLT, CTO MLT 28R, CTO MLT 15, CTO MLT 28R 15.
+    /// </summary>
+    private static PR ParseCtoClosedTraffic(ClosedTrafficDeparture ct, string[] tokens)
+    {
+        // tokens[0] = "MLT"/"MRT", rest are runway and/or altitude
+        var args = ParsePatternModifierArgs(tokens, 1);
+        if (args.UnexpectedToken is { } unexpected)
+        {
+            return PR.Fail($"CTO {tokens[0].ToUpperInvariant()} does not understand '{unexpected}'");
+        }
+
+        return PR.Ok(new ClearedForTakeoffCommand(ct with { RunwayId = args.RunwayId, PatternAltitude = args.Altitude }));
     }
 
     /// <summary>

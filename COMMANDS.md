@@ -453,11 +453,11 @@ The restriction covers only codes YAAT chooses on its own. `SQ {code}` still mak
 | Land and hold short | `LAHSO` | — | — |
 | Cancel landing | `CLC` | `CTLC` | — |
 | Go around | `GA` | — | — |
-| Touch and go | `TG` | — | — |
-| Stop and go | `SG` | — | — |
+| Touch and go | `TG [rwy] [MLT/MRT [rwy] [alt]]` | — | The pattern modifier may name the runway (and altitude) for the circuit flown after the option: `TG MLT 28L`. |
+| Stop and go | `SG [MLT/MRT [rwy] [alt]]` | — | Same modifier as `TG`. |
 | Begin takeoff (stop-and-go) | `GO` | — | — |
-| Low approach | `LA` | — | — |
-| Cleared for option | `COPT` | — | — |
+| Low approach | `LA [MLT/MRT [rwy] [alt]]` | — | Same modifier as `TG`. |
+| Cleared for option | `COPT [MLT/MRT [rwy] [alt]]` | — | Same modifier as `TG`: `COPT MLT 28L` = the option on the current runway, then left traffic for 28L. |
 
 ### Pattern
 
@@ -1049,10 +1049,11 @@ For **IFR** visual approaches, use `CVA 28R FOLLOW AAL123` instead — a distinc
 | `LA MLT` / `LA MRT` | Low approach, make left/right traffic |
 | `COPT` | Cleared for the option |
 | `COPT MLT` / `COPT MRT` | Cleared for the option, make left/right traffic |
+| `COPT MLT 28L` / `TG MLT 28L 15` / `SG MRT 28R` / `LA MLT 28L` | The option (or touch-and-go / stop-and-go / low approach) on the current runway, then left/right traffic for the named runway — with an optional pattern altitude, as `CTO MLT 28R 15`. The clearance is flown on the runway the aircraft is established for; the next circuit is the runway transition described under `MLT 28R` in [Pattern Commands](#pattern-commands) (close parallels: climb straight ahead, crosswind beyond both departure ends; crossing runways: join through a midfield crossing). Readback: "Cleared for the option, Runway 28R, make left traffic Runway 28L". `TG 28R MLT 28L` names the landing runway first. |
 
-TG, SG, LA, and COPT accept an optional `MLT`/`MRT` argument to set the traffic pattern direction on the go. Without one, the side is inferred the way a go-around infers it: the side you last assigned, then the pattern the aircraft is already flying, then the runway's L/R suffix, then left traffic.
+TG, SG, LA, and COPT accept an optional `MLT`/`MRT` argument to set the traffic pattern direction on the go, optionally followed by the runway and pattern altitude for the circuit that follows (`COPT MLT 28L`, `TG MLT 28L 15`). Without one, the side is inferred the way a go-around infers it: the side you last assigned, then the pattern the aircraft is already flying, then the runway's L/R suffix, then left traffic.
 
-All four are also **pre-issuable** against a pattern entry that is still queued (`DCT VPCOL; ERD 28R` then `COPT`) — the clearance is applied when the entry builds its circuit, and any `MLT`/`MRT` takes effect immediately as the aircraft's standing pattern direction. See the `CLAND` rows in the Tower Commands table for the full behavior.
+All four are also **pre-issuable** against a pattern entry that is still queued (`DCT VPCOL; ERD 28R` then `COPT`) — the clearance is applied when the entry builds its circuit, and any `MLT`/`MRT` takes effect immediately as the aircraft's standing pattern direction; a pattern runway named on it is applied when that entry builds its circuit. See the `CLAND` rows in the Tower Commands table for the full behavior.
 
 ### Approach Control Commands
 

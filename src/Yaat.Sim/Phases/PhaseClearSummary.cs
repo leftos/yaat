@@ -35,8 +35,10 @@ public static class PhaseClearSummary
         // when a genuine VFR circuit is present: a real circuit leg (any pattern-family
         // phase other than Final/Landing) remains, or closed-traffic is set
         // (TrafficDirection, the same signal FinalApproachPhase uses for IsPatternTraffic).
-        // The runway tag comes from PatternRunway when set (cross-runway closed traffic)
-        // or AssignedRunway.
+        // The runway tag is AssignedRunway — the runway the phases being cleared are actually flown
+        // to. Cross-runway closed traffic sets AssignedRunway to the pattern runway at clearance
+        // time, so it reads the same there; an armed option-clearance modifier (COPT MLT 28L on the
+        // 28R final) sets only PatternRunway, and reading that would tag a 28R approach as 28L.
         int patternFamilyCount = 0;
         int totalRemaining = 0;
         bool hasCircuitLeg = false;
@@ -63,7 +65,7 @@ public static class PhaseClearSummary
         bool isVfrPattern = hasCircuitLeg || phases.TrafficDirection is not null;
         if (patternFamilyCount >= 2 && patternFamilyCount == totalRemaining && isVfrPattern)
         {
-            var runwayId = phases.PatternRunway?.Designator ?? phases.AssignedRunway?.Designator;
+            var runwayId = phases.AssignedRunway?.Designator;
             return runwayId is not null ? $"pattern to RWY {RunwayIdentifier.ToDisplayDesignator(runwayId)}" : "pattern";
         }
 

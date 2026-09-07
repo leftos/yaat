@@ -130,10 +130,10 @@
         { "verb": "CLANDF", "aliases": [], "description": "Force landing (RPO-only): clears + forces touchdown, no go-around" },
         { "verb": "LAHSO", "aliases": [], "description": "Land and hold short of runway" },
         { "verb": "CLC", "aliases": ["ctlc"], "description": "Cancel landing clearance" },
-        { "verb": "TG", "aliases": [], "description": "Touch and go [rwy / MLT / MRT]" },
-        { "verb": "SG", "aliases": [], "description": "Stop and go [MLT / MRT]" },
-        { "verb": "LA", "aliases": [], "description": "Low approach [MLT / MRT]" },
-        { "verb": "COPT", "aliases": [], "description": "Cleared for option [MLT / MRT]" }
+        { "verb": "TG", "aliases": [], "description": "Touch and go [rwy] [MLT/MRT [rwy] [alt]] — e.g. `TG MLT 28L`: then left traffic 28L" },
+        { "verb": "SG", "aliases": [], "description": "Stop and go [MLT/MRT [rwy] [alt]]" },
+        { "verb": "LA", "aliases": [], "description": "Low approach [MLT/MRT [rwy] [alt]]" },
+        { "verb": "COPT", "aliases": [], "description": "Cleared for option [MLT/MRT [rwy] [alt]] — e.g. `COPT MLT 28L`" }
       ],
       "notes": [
         "CTO modes: `H270` `RH270`/`LH270` `RT270`/`LT270` `RH`/`MRH`/`MSO` (all both; `RH`/`MRH`/`MSO` = fly runway heading, suppresses SID for IFR); `MRC`/`MLC` `MRD`/`MLD` `MR270`/`ML270` `OC` `DCT fix` `TLDCT fix`/`TRDCT fix` (all both); `MRT [rwy]`/`MLT [rwy]` (VFR — for IFR, needs the \"VFR commands for IFR aircraft\" setting on All)",

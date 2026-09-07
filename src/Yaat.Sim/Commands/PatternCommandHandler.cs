@@ -21,6 +21,19 @@ internal enum BaseDescentFeasibility
     Infeasible,
 }
 
+/// <summary>
+/// The <c>MLT</c>/<c>MRT</c> pattern modifier an option clearance carries — the pattern the aircraft
+/// climbs out into after the clearance it is being given (<c>COPT MLT 28L</c> on the 28R final = the
+/// option on 28R, then left traffic for 28L). All three fields are independently optional: a bare
+/// <c>MLT</c> names neither runway nor altitude, and <see cref="Direction"/> null means the clearance
+/// carried no modifier at all.
+/// </summary>
+internal readonly record struct OptionPatternModifier(PatternDirection? Direction, string? RunwayId, int? AltitudeFt)
+{
+    /// <summary>No modifier — the bare verb.</summary>
+    public static OptionPatternModifier None => new(null, null, null);
+}
+
 internal static class PatternCommandHandler
 {
     private static readonly ILogger Log = SimLog.CreateLogger("PatternCommandHandler");
@@ -833,21 +846,11 @@ internal static class PatternCommandHandler
 
         if (isOnWrongSide)
         {
-            phases.Add(new MidfieldCrossingPhase { Waypoints = waypoints });
-
-            // Large/turbine cross at TPA+500 per AIM 4-3-3.1.b; they still need to
-            // descend to TPA before joining downwind. TeardropReentryPhase does that
-            // via an outbound leg + 45° intercept to abeam. Pistons/helicopters already
-            // cross at TPA (see MidfieldCrossingPhase) and can drop straight into downwind.
-            if (category is AircraftCategory.Jet or AircraftCategory.Turboprop)
+            foreach (
+                var joinPhase in BuildFieldCrossingPrefix(new MidfieldCrossingPhase { Waypoints = waypoints }, waypoints, category, circuitPhases)
+            )
             {
-                phases.Add(new TeardropReentryPhase { Waypoints = waypoints });
-            }
-            else if (circuitPhases.OfType<DownwindPhase>().FirstOrDefault() is { } joinDownwind)
-            {
-                // The crossing can drop a piston/helicopter inside the computed downwind track; have
-                // the downwind re-intercept it so the base/final geometry rolls out on centerline.
-                joinDownwind.RejoinTrack = true;
+                phases.Add(joinPhase);
             }
         }
 
@@ -1066,7 +1069,9 @@ internal static class PatternCommandHandler
             );
 
             var dirStrRebuild = newDirection == PatternDirection.Left ? "left" : "right";
-            return CommandDispatcher.Ok($"Make {dirStrRebuild} traffic{CommandDispatcher.RunwayLabel(aircraft)}");
+            return CommandDispatcher.Ok(
+                $"Make {dirStrRebuild} traffic{CommandDispatcher.RunwayLabel(aircraft)}{MidfieldCrossingLabel(rebuiltChain)}"
+            );
         }
 
         // Update waypoints on existing pattern phases
@@ -1132,8 +1137,21 @@ internal static class PatternCommandHandler
         }
 
         var dirStr = newDirection == PatternDirection.Left ? "left" : "right";
-        return CommandDispatcher.Ok($"Make {dirStr} traffic{CommandDispatcher.RunwayLabel(aircraft)}");
+        return CommandDispatcher.Ok($"Make {dirStr} traffic{CommandDispatcher.RunwayLabel(aircraft)}{MidfieldCrossingLabel(aircraft.Phases.Phases)}");
     }
+
+    /// <summary>
+    /// The " (crossing midfield)" suffix <see cref="TryEnterPattern"/> appends, for a pattern-direction
+    /// change whose chain crosses the field. Flying an aircraft across the runway is exactly the
+    /// "unexpected maneuver" AIM 4-3-5 has the controller informed of, and the RPO only ever sees the
+    /// command's own result text — a crossing that goes unannounced there is a surprise on the radar.
+    /// Completed crossings are ignored: the suffix describes what the aircraft is about to fly.
+    /// </summary>
+    private static string MidfieldCrossingLabel(IEnumerable<Phase> chain) =>
+        chain.Any(p => p is MidfieldCrossingPhase { Status: PhaseStatus.Pending or PhaseStatus.Active }) ? MidfieldCrossingSuffix : "";
+
+    /// <summary>Result-text suffix for a chain that crosses the field, shared by every clearance that can build one.</summary>
+    private const string MidfieldCrossingSuffix = " (crossing midfield)";
 
     // Aircraft is on the "wrong side" of the runway for the requested pattern
     // direction when its along-track projection onto the crosswind-heading
@@ -1317,7 +1335,7 @@ internal static class PatternCommandHandler
             new LatLon(flownWaypoints.ThresholdLat, flownWaypoints.ThresholdLon),
             flownWaypoints.DownwindHeading
         );
-        if (aircraftAlongTrack < PatternGeometry.MidfieldAlongTrackNm(flownWaypoints) - DownwindPhase.AlongTrackToleranceNm)
+        if (aircraftAlongTrack < PatternGeometry.MidfieldAlongTrackNm(flownWaypoints) - DownwindPhase.MidfieldLeadNm)
         {
             chain.Insert(0, new DownwindPhase { Waypoints = flownWaypoints, ExitAtMidfield = true });
         }
@@ -1343,30 +1361,56 @@ internal static class PatternCommandHandler
         MidfieldCrossingPhase? crossing
     )
     {
-        var chain = new List<Phase> { crossing ?? new MidfieldCrossingPhase { Waypoints = newWaypoints } };
-        chain.AddRange(
-            PatternBuilder.BuildCircuit(
-                runway,
-                category,
-                aircraft.AircraftType,
-                aircraft.WindSpeedKts,
-                newDirection,
-                PatternEntryLeg.Downwind,
-                touchAndGo: true,
-                finalDistanceNm: null,
-                sizeOv,
-                altOv,
-                airportRunways,
-                AuthoredRunway(aircraft, groundLayout, runway)
-            )
+        var circuit = PatternBuilder.BuildCircuit(
+            runway,
+            category,
+            aircraft.AircraftType,
+            aircraft.WindSpeedKts,
+            newDirection,
+            PatternEntryLeg.Downwind,
+            touchAndGo: true,
+            finalDistanceNm: null,
+            sizeOv,
+            altOv,
+            airportRunways,
+            AuthoredRunway(aircraft, groundLayout, runway)
         );
-        // The crossing can drop the aircraft inside the computed downwind track; re-intercept it.
-        if (chain.OfType<DownwindPhase>().FirstOrDefault() is { } joinDownwind)
+
+        var chain = BuildFieldCrossingPrefix(crossing ?? new MidfieldCrossingPhase { Waypoints = newWaypoints }, newWaypoints, category, circuit);
+        chain.AddRange(circuit);
+        return chain;
+    }
+
+    /// <summary>
+    /// The phases that carry an aircraft across the field and onto the downwind of
+    /// <paramref name="circuit"/>: the crossing itself, and — when the crossing is flown at the
+    /// jet/turboprop entry height rather than at pattern altitude — a
+    /// <see cref="TeardropReentryPhase"/> to lose that height on an outbound leg and a 45° intercept to
+    /// abeam before joining. Anything that crosses at pattern altitude (a piston or helicopter entry, or
+    /// an in-pattern crossover) drops straight into the downwind, and that downwind re-intercepts its
+    /// computed track — the crossing can leave the aircraft inside it, and base/final geometry built for
+    /// the computed width would otherwise turn early. Shared by the arrival entry
+    /// (<see cref="TryEnterPattern"/>) and the wrong-side MLT/MRT rebuild, which must fly the same join.
+    /// </summary>
+    private static List<Phase> BuildFieldCrossingPrefix(
+        MidfieldCrossingPhase crossing,
+        PatternWaypoints waypoints,
+        AircraftCategory category,
+        IReadOnlyList<Phase> circuit
+    )
+    {
+        var prefix = new List<Phase> { crossing };
+        bool descendsFromEntryHeight = !crossing.CrossAtPatternAltitude && (category is AircraftCategory.Jet or AircraftCategory.Turboprop);
+        if (descendsFromEntryHeight)
+        {
+            prefix.Add(new TeardropReentryPhase { Waypoints = waypoints });
+        }
+        else if (circuit.OfType<DownwindPhase>().FirstOrDefault() is { } joinDownwind)
         {
             joinDownwind.RejoinTrack = true;
         }
 
-        return chain;
+        return prefix;
     }
 
     /// <summary>
@@ -1453,40 +1497,92 @@ internal static class PatternCommandHandler
         };
 
     /// <summary>
-    /// The runway a pattern leg was built for, identified by its own threshold rather than by the
-    /// PhaseList metadata (which an auto-cycle can leave naming a runway the circuit was not built
-    /// for). Returns null when there are no waypoints or no runway matches.
+    /// The runway a pattern leg was built for, identified by its own threshold waypoint rather than by
+    /// the PhaseList metadata (which an auto-cycle can leave naming a runway the circuit was not built
+    /// for). Returns null when there are no waypoints or no runway end matches.
+    ///
+    /// <para>Both ends of every candidate are tested. <see cref="NavigationDatabase.GetRunways"/> hands
+    /// back one <see cref="RunwayInfo"/> per physical runway anchored at one end, so a leg built for the
+    /// 28 end of a runway stored as 10L/10R matches nothing at all against
+    /// <see cref="RunwayInfo.ThresholdLatitude"/> — the helper silently fell back to the metadata it
+    /// exists to distrust. The leg's threshold names an end when it sits on that end's centerline and
+    /// within a landing threshold's worth of pavement downfield of it.</para>
+    ///
+    /// <para>The <em>nearest</em> qualifying end wins, and the downfield window is capped at half the
+    /// pavement. On a short strip the opposite threshold sits inside a fixed window — a 2,400 ft runway
+    /// is 0.4 nm end to end — and the first-match-wins order would name the reciprocal, turning a
+    /// same-runway direction change into a runway switch (or the reverse).</para>
     /// </summary>
-    private static RunwayInfo? ResolveFlownRunway(PatternWaypoints? waypoints, IReadOnlyList<RunwayInfo>? airportRunways)
+    internal static RunwayInfo? ResolveFlownRunway(PatternWaypoints? waypoints, IReadOnlyList<RunwayInfo>? airportRunways)
     {
         if (waypoints is null || airportRunways is null)
         {
             return null;
         }
 
+        var thresholdWaypoint = new LatLon(waypoints.ThresholdLat, waypoints.ThresholdLon);
+        RunwayInfo? nearest = null;
+        double nearestDistanceNm = double.MaxValue;
+
         foreach (var candidate in airportRunways)
         {
-            double distanceNm = GeoMath.DistanceNm(
-                waypoints.ThresholdLat,
-                waypoints.ThresholdLon,
-                candidate.ThresholdLatitude,
-                candidate.ThresholdLongitude
-            );
-            if (distanceNm <= FlownRunwayThresholdMatchNm)
+            double halfPavementNm = candidate.PavementLengthFt / GeoMath.FeetPerNm / 2.0;
+            double downfieldToleranceNm = Math.Min(FlownRunwayDisplacementToleranceNm, halfPavementNm);
+
+            foreach (var (designator, lat, lon, heading) in RunwayEnds(candidate))
             {
-                return candidate;
+                var end = new LatLon(lat, lon);
+                double crossTrackNm = Math.Abs(GeoMath.SignedCrossTrackDistanceNm(thresholdWaypoint, end, heading));
+                if (crossTrackNm > FlownRunwayCenterlineToleranceNm)
+                {
+                    continue;
+                }
+
+                double alongTrackNm = GeoMath.AlongTrackDistanceNm(thresholdWaypoint, end, heading);
+                if ((alongTrackNm < -FlownRunwayBeforeEndToleranceNm) || (alongTrackNm > downfieldToleranceNm))
+                {
+                    continue;
+                }
+
+                if (Math.Abs(alongTrackNm) < nearestDistanceNm)
+                {
+                    nearestDistanceNm = Math.Abs(alongTrackNm);
+                    nearest = candidate.ForApproach(designator);
+                }
             }
         }
 
-        return null;
+        return nearest;
+    }
+
+    /// <summary>Both ends of a runway as (designator, latitude, longitude, heading toward the other end).</summary>
+    private static IEnumerable<(string Designator, double Lat, double Lon, TrueHeading Heading)> RunwayEnds(RunwayInfo runway)
+    {
+        yield return (runway.Id.End1, runway.Lat1, runway.Lon1, runway.TrueHeading1);
+        yield return (runway.Id.End2, runway.Lat2, runway.Lon2, runway.TrueHeading2);
     }
 
     /// <summary>
-    /// How close a pattern leg's threshold waypoint has to sit to a runway's own threshold to name it
-    /// (nm). The waypoint is that threshold, displaced-threshold resolution aside; the next-nearest
-    /// candidate is the parallel's, thousands of feet away, so the match needs no more room than that.
+    /// How far off a runway end's centerline a pattern leg's threshold waypoint may sit and still name
+    /// that end (nm). The waypoint is on the centerline by construction; the next-nearest candidate is
+    /// the parallel's, hundreds of feet abeam (OAK 28R/28L: 0.165 nm), so the match needs no more room.
     /// </summary>
-    private const double FlownRunwayThresholdMatchNm = 0.05;
+    private const double FlownRunwayCenterlineToleranceNm = 0.05;
+
+    /// <summary>
+    /// How far short of the pavement end (nm) a pattern leg's threshold waypoint may sit and still name
+    /// that end — slop for a hand-built or snapshot-restored fixture, not a real geometry.
+    /// </summary>
+    private const double FlownRunwayBeforeEndToleranceNm = 0.3;
+
+    /// <summary>
+    /// How far downfield of the pavement end (nm) a pattern leg's threshold waypoint may sit and still
+    /// name that end, before the per-runway half-pavement cap. A displaced landing threshold (the point
+    /// <c>LandingThreshold.Resolve</c> hands <c>PatternGeometry</c>) sits downfield of the pavement end,
+    /// and 0.5 nm covers the published displacements; on a runway shorter than 1 nm the cap takes over,
+    /// because past the midpoint the nearer end is the opposite one.
+    /// </summary>
+    private const double FlownRunwayDisplacementToleranceNm = 0.5;
 
     // Replace the aircraft's phase list with a freshly-built chain, preserving
     // LandingClearance / ClearedRunwayId metadata. Sets DestinationRunway and
@@ -2245,7 +2341,7 @@ internal static class PatternCommandHandler
         AircraftState aircraft,
         ClearanceType clearance,
         string? requestedRunwayId,
-        PatternDirection? trafficPattern,
+        OptionPatternModifier modifier,
         DispatchContext ctx
     )
     {
@@ -2272,12 +2368,19 @@ internal static class PatternCommandHandler
             return new CommandResult(false, $"Cannot clear {aircraft.Callsign} — neither the clearance nor the queued pattern entry names a runway");
         }
 
-        aircraft.Pattern.PendingLandingClearance = new PendingLandingClearance(clearance, resolvedRunwayId);
+        // The pattern modifier's runway and altitude ride in the record: with no PhaseList there is
+        // nothing to stamp them on yet, so they are applied to the circuit the queued entry builds.
+        aircraft.Pattern.PendingLandingClearance = new PendingLandingClearance(
+            clearance,
+            resolvedRunwayId,
+            modifier.RunwayId is { } armedRunwayId ? RunwayIdentifier.NormalizeDesignator(armedRunwayId) : null,
+            modifier.AltitudeFt
+        );
 
         // Side effects that live outside the PhaseList are applied now rather than carried in the record:
         // the persistent pattern direction an option clearance names, and the full-stop intent CLAND
         // signals (which drops any standing MLT/MRT so the circuit doesn't auto-cycle after touchdown).
-        if (trafficPattern is { } dir)
+        if (modifier.Direction is { } dir)
         {
             aircraft.Pattern.TrafficDirection = dir;
         }
@@ -2295,7 +2398,7 @@ internal static class PatternCommandHandler
         );
 
         RunwaySafetyAdvisor.WarnIfRunwayOccupied(aircraft, resolvedRunwayId, ctx);
-        return CommandDispatcher.Ok(PendingClearanceMessage(clearance, resolvedRunwayId, trafficPattern));
+        return CommandDispatcher.Ok(PendingClearanceMessage(clearance, resolvedRunwayId, modifier));
     }
 
     /// <summary>
@@ -2305,18 +2408,11 @@ internal static class PatternCommandHandler
     /// the §3-10-1.a "expect landing clearance two mile final" case — a clearance that was *not* issued.
     /// "Armed" states the sim outcome instead, matching the FOLLOW branch's ", will land behind …".
     /// </summary>
-    private static string PendingClearanceMessage(ClearanceType clearance, string runwayId, PatternDirection? trafficPattern)
+    private static string PendingClearanceMessage(ClearanceType clearance, string runwayId, OptionPatternModifier modifier)
     {
-        string verb = clearance switch
-        {
-            ClearanceType.ClearedToLand => "Cleared to land",
-            ClearanceType.ClearedTouchAndGo => "Cleared touch-and-go",
-            ClearanceType.ClearedStopAndGo => "Cleared stop-and-go",
-            ClearanceType.ClearedLowApproach => "Cleared low approach",
-            ClearanceType.ClearedForOption => "Cleared for the option",
-            _ => "Cleared",
-        };
-        return $"{verb} runway {RunwayIdentifier.ToDisplayDesignator(runwayId)}{TrafficLabel(trafficPattern)}, armed for the queued pattern entry";
+        string verb = ClearanceVerb(clearance);
+        string pattern = $"{TrafficLabel(modifier.Direction)}{PatternRunwayLabel(modifier.Direction, modifier.RunwayId)}";
+        return $"{verb} runway {RunwayIdentifier.ToDisplayDesignator(runwayId)}{pattern}, armed for the queued pattern entry";
     }
 
     /// <summary>
@@ -2370,17 +2466,66 @@ internal static class PatternCommandHandler
             CommandDispatcher.ReplaceApproachEnding(aircraft.Phases, exactTerminal);
         }
 
+        // The clearance's pattern modifier applies to the circuit that just built: the aircraft flies
+        // this approach on the runway it was cleared for, then climbs out into the named runway's
+        // pattern. Resolved now rather than at arming time — arming happens with no PhaseList at all.
+        if (pending.PatternRunwayId is not null)
+        {
+            var armedModifier = new OptionPatternModifier(null, pending.PatternRunwayId, pending.PatternAltitudeFt);
+            ResolveOptionClearancePattern(aircraft, armedModifier, out var pendingPatternRunway);
+            if (pendingPatternRunway is null)
+            {
+                aircraft.PendingWarnings.Add(
+                    $"{aircraft.Callsign} pre-issued clearance names pattern runway {RunwayIdentifier.ToDisplayDesignator(pending.PatternRunwayId)}, which does not exist at this airport — pattern unchanged"
+                );
+            }
+            else
+            {
+                // Direction only ever comes from the arm-time stamp on Pattern.TrafficDirection: the
+                // entry that just built this circuit owns the side it is being flown on, and the
+                // modifier's side belongs to the circuits after it.
+                ApplyOptionClearancePattern(aircraft, armedModifier, pendingPatternRunway);
+                WarnIfArmedTransitionCrossesField(aircraft, runway, pendingPatternRunway);
+            }
+        }
+        else if (pending.PatternAltitudeFt is { } pendingPatternAltitude)
+        {
+            aircraft.Pattern.AltitudeOverrideFt = pendingPatternAltitude;
+        }
+
         Log.LogDebug(
-            "[PatternClearance] {Callsign}: consumed pre-issued {Clearance} onto the new {Runway} circuit",
+            "[PatternClearance] {Callsign}: consumed pre-issued {Clearance} onto the new {Runway} circuit (pattern runway {PatternRunway})",
             aircraft.Callsign,
             pending.Clearance,
-            runway.Designator
+            runway.Designator,
+            pending.PatternRunwayId ?? "same"
         );
     }
 
     /// <summary>A pre-issued clearance applies only to the runway it names (7110.65 §3-10-5).</summary>
     private static bool MatchesRunway(string pendingRunwayId, RunwayInfo runway) =>
         string.Equals(pendingRunwayId, runway.Designator, StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Warns the RPO when a pattern modifier armed on a pre-issued clearance will fly the aircraft across
+    /// the field. A live clearance says so in its own result text
+    /// (<see cref="ArmedTransitionCrossesField"/>), but a pre-issued one was answered before the circuit
+    /// existed — the runway it will transition to is only known to be a crossing pair now — so the notice
+    /// goes out on the warning channel instead. Silence would leave the AIM 4-3-5 unexpected maneuver
+    /// unannounced.
+    /// </summary>
+    private static void WarnIfArmedTransitionCrossesField(AircraftState aircraft, RunwayInfo flownRunway, RunwayInfo patternRunway)
+    {
+        if (RunwayGeometry.AreCloseParallels(flownRunway, patternRunway))
+        {
+            return;
+        }
+
+        string directionWord = aircraft.Pattern.TrafficDirection == PatternDirection.Right ? "right" : "left";
+        aircraft.PendingWarnings.Add(
+            $"{aircraft.Callsign}: {directionWord} traffic runway {RunwayIdentifier.ToDisplayDesignator(patternRunway.Designator)} will cross midfield"
+        );
+    }
 
     /// <summary>
     /// Applies a pending EXT/SA/MNA pre-arm (set while the entry was still queued) onto the circuit
@@ -2729,121 +2874,184 @@ internal static class PatternCommandHandler
         };
     }
 
-    internal static CommandResult TrySetupTouchAndGo(AircraftState aircraft, PatternDirection? trafficPattern, DispatchContext ctx)
+    /// <summary>
+    /// Resolves the pattern runway named by an option clearance's MLT/MRT modifier (<c>COPT MLT 28L</c>)
+    /// at the aircraft's airport, exactly as <see cref="TryChangePatternDirection"/> resolves an MLT's
+    /// own runway argument. Returns a rejection when the airport or the runway cannot be resolved —
+    /// checked before the clearance itself is applied, so a typo leaves the aircraft untouched — and
+    /// null (with <paramref name="patternRunway"/> null) when the clearance names no pattern runway.
+    /// </summary>
+    private static CommandResult? ResolveOptionClearancePattern(AircraftState aircraft, OptionPatternModifier modifier, out RunwayInfo? patternRunway)
     {
+        patternRunway = null;
+        if (modifier.RunwayId is not { } patternRunwayId)
+        {
+            return null;
+        }
+
+        var airportId = ResolveAirportContext(aircraft);
+        if (string.IsNullOrEmpty(airportId))
+        {
+            return new CommandResult(false, "No airport context to resolve runway");
+        }
+
+        patternRunway = NavigationDatabase.Instance.GetRunway(airportId, patternRunwayId);
+        if (patternRunway is null)
+        {
+            return new CommandResult(false, $"Runway {RunwayIdentifier.ToDisplayDesignator(patternRunwayId)} not found at {airportId}");
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Applies an option clearance's pattern modifier and returns its readback clause. The clearance is
+    /// flown on the runway the aircraft is already assigned — only <see cref="PhaseList.PatternRunway"/>
+    /// moves, so the auto-cycle builds the next circuit for the new runway once the clearance has been
+    /// flown (<c>COPT MLT 28L</c> on the 28R final = the option on 28R, then left traffic for 28L).
+    /// A pattern runway other than the one being flown clears a standing pattern-altitude override the
+    /// way a runway-changing MLT does — different runway, different TPA — before any altitude the
+    /// modifier itself names is applied.
+    /// </summary>
+    private static string ApplyOptionClearancePattern(AircraftState aircraft, OptionPatternModifier modifier, RunwayInfo? patternRunway)
+    {
+        var phases = aircraft.Phases;
+        if ((phases is not null) && (patternRunway is not null))
+        {
+            bool runwayChanged = !string.Equals(
+                phases.PatternRunway?.Designator ?? phases.AssignedRunway?.Designator,
+                patternRunway.Designator,
+                StringComparison.OrdinalIgnoreCase
+            );
+            phases.PatternRunway = patternRunway;
+            if (runwayChanged)
+            {
+                aircraft.Pattern.AltitudeOverrideFt = null;
+            }
+        }
+
+        if (modifier.Direction is { } dir)
+        {
+            if (phases is not null)
+            {
+                phases.TrafficDirection = dir;
+            }
+
+            aircraft.Pattern.TrafficDirection = dir;
+        }
+
+        if (modifier.AltitudeFt is { } altitude)
+        {
+            aircraft.Pattern.AltitudeOverrideFt = altitude;
+        }
+
+        return $"{TrafficLabel(modifier.Direction)}{PatternRunwayLabel(modifier.Direction, patternRunway?.Designator)}"
+            + ArmedTransitionCrossesField(phases?.AssignedRunway, patternRunway);
+    }
+
+    /// <summary>
+    /// The pattern runway clause of an option clearance's readback — "…, make left traffic Runway 28L".
+    /// Named only when the modifier named it; a bare MLT/MRT keeps today's runway-less clause, which
+    /// means the runway the clearance was issued for.
+    /// </summary>
+    private static string PatternRunwayLabel(PatternDirection? trafficPattern, string? patternRunwayId) =>
+        (trafficPattern is not null) && (patternRunwayId is not null) ? $" Runway {RunwayIdentifier.ToDisplayDesignator(patternRunwayId)}" : "";
+
+    /// <summary>
+    /// The crossing-midfield suffix for an armed pattern-runway transition. The circuit is not built yet
+    /// — the auto-cycle builds it after the clearance is flown — so the shape is read off the geometry
+    /// the builder will use: close parallels continue the upwind past both departure ends, and every
+    /// other pair joins through a <see cref="MidfieldCrossingPhase"/>. Flying an aircraft across the
+    /// field is the AIM 4-3-5 "unexpected maneuver" the RPO has to be told about, and the clearance's
+    /// result text is the only place they are told.
+    /// </summary>
+    private static string ArmedTransitionCrossesField(RunwayInfo? flownRunway, RunwayInfo? patternRunway) =>
+        (flownRunway is not null) && (patternRunway is not null) && !RunwayGeometry.AreCloseParallels(flownRunway, patternRunway)
+            ? MidfieldCrossingSuffix
+            : "";
+
+    internal static CommandResult TrySetupTouchAndGo(AircraftState aircraft, OptionPatternModifier modifier, DispatchContext ctx) =>
+        TrySetupOptionClearance(aircraft, ClearanceType.ClearedTouchAndGo, modifier, ctx);
+
+    internal static CommandResult TrySetupStopAndGo(AircraftState aircraft, OptionPatternModifier modifier, DispatchContext ctx) =>
+        TrySetupOptionClearance(aircraft, ClearanceType.ClearedStopAndGo, modifier, ctx);
+
+    internal static CommandResult TrySetupLowApproach(AircraftState aircraft, OptionPatternModifier modifier, DispatchContext ctx) =>
+        TrySetupOptionClearance(aircraft, ClearanceType.ClearedLowApproach, modifier, ctx);
+
+    internal static CommandResult TrySetupClearedForOption(AircraftState aircraft, OptionPatternModifier modifier, DispatchContext ctx) =>
+        TrySetupOptionClearance(aircraft, ClearanceType.ClearedForOption, modifier, ctx);
+
+    /// <summary>
+    /// Issues one of the four option clearances (TG / SG / LA / COPT). They differ only in the terminal
+    /// phase they install and the verb they read back, so the sequence is shared: validate the pattern
+    /// modifier's runway before anything is applied, pre-issue against a queued pattern entry when there
+    /// is no PhaseList yet, replace the approach's ending with this clearance's terminal, then stamp the
+    /// clearance and the modifier.
+    /// </summary>
+    private static CommandResult TrySetupOptionClearance(
+        AircraftState aircraft,
+        ClearanceType clearance,
+        OptionPatternModifier modifier,
+        DispatchContext ctx
+    )
+    {
+        if (ResolveOptionClearancePattern(aircraft, modifier, out var patternRunway) is { } rejection)
+        {
+            return rejection;
+        }
+
+        string verb = ClearanceVerb(clearance);
         if (aircraft.Phases is null)
         {
-            return TryArmPendingLandingClearance(aircraft, ClearanceType.ClearedTouchAndGo, null, trafficPattern, ctx)
+            return TryArmPendingLandingClearance(aircraft, clearance, requestedRunwayId: null, modifier, ctx)
                 ?? new CommandResult(false, "Aircraft has no active phase sequence");
         }
 
-        if (!CommandDispatcher.ReplaceApproachEnding(aircraft.Phases, new TouchAndGoPhase()))
+        if (!CommandDispatcher.ReplaceApproachEnding(aircraft.Phases, OptionClearanceTerminal(clearance)))
         {
-            return new CommandResult(false, "Cleared touch-and-go requires a pending approach (no landing phase to replace)");
+            return new CommandResult(false, $"{verb} requires a pending approach (no landing phase to replace)");
         }
 
-        aircraft.Phases.LandingClearance = ClearanceType.ClearedTouchAndGo;
+        aircraft.Phases.LandingClearance = clearance;
         aircraft.Phases.ClearedRunwayId = aircraft.Phases.AssignedRunway?.Designator;
-        if (trafficPattern is { } dir)
-        {
-            aircraft.Phases.TrafficDirection = dir;
-            aircraft.Pattern.TrafficDirection = dir;
-        }
+        string patternLabel = ApplyOptionClearancePattern(aircraft, modifier, patternRunway);
         EnsurePatternMode(aircraft);
 
         if (aircraft.Phases.AssignedRunway is { } clearedRunway)
         {
             RunwaySafetyAdvisor.WarnIfRunwayOccupied(aircraft, clearedRunway, ctx);
         }
-        return CommandDispatcher.Ok($"Cleared touch-and-go{CommandDispatcher.RunwayLabel(aircraft)}{TrafficLabel(trafficPattern)}");
+
+        return CommandDispatcher.Ok($"{verb}{CommandDispatcher.RunwayLabel(aircraft)}{patternLabel}");
     }
 
-    internal static CommandResult TrySetupStopAndGo(AircraftState aircraft, PatternDirection? trafficPattern, DispatchContext ctx)
-    {
-        if (aircraft.Phases is null)
+    /// <summary>
+    /// The phase an option clearance ends its approach with. A touch-and-go and the option both roll and
+    /// go (the option's other outcomes — full stop, stop-and-go, low approach — are the pilot's choice
+    /// per P/CG OPTION APPROACH, and the sim flies the touch-and-go); stop-and-go and low approach each
+    /// have their own terminal.
+    /// </summary>
+    private static Phase OptionClearanceTerminal(ClearanceType clearance) =>
+        clearance switch
         {
-            return TryArmPendingLandingClearance(aircraft, ClearanceType.ClearedStopAndGo, null, trafficPattern, ctx)
-                ?? new CommandResult(false, "Aircraft has no active phase sequence");
-        }
+            ClearanceType.ClearedTouchAndGo or ClearanceType.ClearedForOption => new TouchAndGoPhase(),
+            ClearanceType.ClearedStopAndGo => new StopAndGoPhase(),
+            ClearanceType.ClearedLowApproach => new LowApproachPhase(),
+            _ => throw new ArgumentOutOfRangeException(nameof(clearance), clearance, "Not an option clearance"),
+        };
 
-        if (!CommandDispatcher.ReplaceApproachEnding(aircraft.Phases, new StopAndGoPhase()))
+    /// <summary>Controller-facing verb for a landing/option clearance, shared by the live and pre-issued messages.</summary>
+    private static string ClearanceVerb(ClearanceType clearance) =>
+        clearance switch
         {
-            return new CommandResult(false, "Cleared stop-and-go requires a pending approach (no landing phase to replace)");
-        }
-
-        aircraft.Phases.LandingClearance = ClearanceType.ClearedStopAndGo;
-        aircraft.Phases.ClearedRunwayId = aircraft.Phases.AssignedRunway?.Designator;
-        if (trafficPattern is { } dir)
-        {
-            aircraft.Phases.TrafficDirection = dir;
-            aircraft.Pattern.TrafficDirection = dir;
-        }
-        EnsurePatternMode(aircraft);
-
-        if (aircraft.Phases.AssignedRunway is { } clearedRunway)
-        {
-            RunwaySafetyAdvisor.WarnIfRunwayOccupied(aircraft, clearedRunway, ctx);
-        }
-        return CommandDispatcher.Ok($"Cleared stop-and-go{CommandDispatcher.RunwayLabel(aircraft)}{TrafficLabel(trafficPattern)}");
-    }
-
-    internal static CommandResult TrySetupLowApproach(AircraftState aircraft, PatternDirection? trafficPattern, DispatchContext ctx)
-    {
-        if (aircraft.Phases is null)
-        {
-            return TryArmPendingLandingClearance(aircraft, ClearanceType.ClearedLowApproach, null, trafficPattern, ctx)
-                ?? new CommandResult(false, "Aircraft has no active phase sequence");
-        }
-
-        if (!CommandDispatcher.ReplaceApproachEnding(aircraft.Phases, new LowApproachPhase()))
-        {
-            return new CommandResult(false, "Cleared low approach requires a pending approach (no landing phase to replace)");
-        }
-
-        aircraft.Phases.LandingClearance = ClearanceType.ClearedLowApproach;
-        aircraft.Phases.ClearedRunwayId = aircraft.Phases.AssignedRunway?.Designator;
-        if (trafficPattern is { } dir)
-        {
-            aircraft.Phases.TrafficDirection = dir;
-            aircraft.Pattern.TrafficDirection = dir;
-        }
-        EnsurePatternMode(aircraft);
-
-        if (aircraft.Phases.AssignedRunway is { } clearedRunway)
-        {
-            RunwaySafetyAdvisor.WarnIfRunwayOccupied(aircraft, clearedRunway, ctx);
-        }
-        return CommandDispatcher.Ok($"Cleared low approach{CommandDispatcher.RunwayLabel(aircraft)}{TrafficLabel(trafficPattern)}");
-    }
-
-    internal static CommandResult TrySetupClearedForOption(AircraftState aircraft, PatternDirection? trafficPattern, DispatchContext ctx)
-    {
-        if (aircraft.Phases is null)
-        {
-            return TryArmPendingLandingClearance(aircraft, ClearanceType.ClearedForOption, null, trafficPattern, ctx)
-                ?? new CommandResult(false, "Aircraft has no active phase sequence");
-        }
-
-        if (!CommandDispatcher.ReplaceApproachEnding(aircraft.Phases, new TouchAndGoPhase()))
-        {
-            return new CommandResult(false, "Cleared for the option requires a pending approach (no landing phase to replace)");
-        }
-
-        aircraft.Phases.LandingClearance = ClearanceType.ClearedForOption;
-        aircraft.Phases.ClearedRunwayId = aircraft.Phases.AssignedRunway?.Designator;
-        if (trafficPattern is { } dir)
-        {
-            aircraft.Phases.TrafficDirection = dir;
-            aircraft.Pattern.TrafficDirection = dir;
-        }
-        EnsurePatternMode(aircraft);
-
-        if (aircraft.Phases.AssignedRunway is { } clearedRunway)
-        {
-            RunwaySafetyAdvisor.WarnIfRunwayOccupied(aircraft, clearedRunway, ctx);
-        }
-        return CommandDispatcher.Ok($"Cleared for the option{CommandDispatcher.RunwayLabel(aircraft)}{TrafficLabel(trafficPattern)}");
-    }
+            ClearanceType.ClearedToLand => "Cleared to land",
+            ClearanceType.ClearedTouchAndGo => "Cleared touch-and-go",
+            ClearanceType.ClearedStopAndGo => "Cleared stop-and-go",
+            ClearanceType.ClearedLowApproach => "Cleared low approach",
+            ClearanceType.ClearedForOption => "Cleared for the option",
+            _ => "Cleared",
+        };
 
     private static string TrafficLabel(PatternDirection? dir)
     {
@@ -3675,7 +3883,7 @@ internal static class PatternCommandHandler
         {
             // No phase sequence at all, but the entry that will build one may be queued behind another
             // instruction (CLAND while ERD 28R sits behind DCT VPCOL). Pre-issue against that entry.
-            if (TryArmPendingLandingClearance(aircraft, ClearanceType.ClearedToLand, ctl.RunwayId, null, ctx) is { } armed)
+            if (TryArmPendingLandingClearance(aircraft, ClearanceType.ClearedToLand, ctl.RunwayId, OptionPatternModifier.None, ctx) is { } armed)
             {
                 if (armed.Success && ctl.NoDelete)
                 {

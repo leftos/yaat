@@ -3,12 +3,17 @@
 ## Unreleased
 
 ### Added
+- `COPT`, `TG`, `SG` and `LA` accept the `CTO` pattern modifiers with a runway and altitude (`COPT MLT 28L`, `TG MLT 28L 15`): the clearance is flown on the current runway and the next circuit transitions into the named runway's pattern. Pre-issued clearances carry the runway too. A go-around instead of the option cancels the armed runway and warns the RPO to re-issue; the pilot reads the pattern runway back.
 - `OTG` ("on the go") condition prefix: `OTG MLT 28L` fires the command once the aircraft is climbing out after its next touch-and-go, stop-and-go, low approach or go-around, so a runway or direction change can be given together with the option it is about to fly.
 - The Discord server shows progress towards YAAT's monthly hosting cost, fed by Ko-fi: a sidebar ticker channel, a pinned progress embed listing this month's supporters (surplus rolls into the next month), and One-time / Monthly Supporter roles claimed through Ko-fi.
 - `FP` accepts `OTP/055` as the altitude to file a VFR-on-top plan.
 - `RDTXT /DR EXPECT 28R` sets a held release's text on a named coordination list; `AS OAK_GND` and `AS NCT_APP@1M` select a position by callsign when its TCP is shared.
 
 ### Fixed
+- A jet or turboprop crossing midfield to enter a pattern from the wrong side crosses at 1,500 ft above the field (or its own pattern altitude if higher) instead of 500 ft above its already-elevated pattern altitude.
+- `MLT`/`MRT` that switches runways reports "(crossing midfield)" when the transition crosses the field, as pattern entries do.
+- A jet or turboprop sent across the field by `MLT`/`MRT` from the wrong side flies the same teardrop descent to pattern altitude that a wrong-side pattern entry does, instead of joining the downwind at its crossing height.
+- A pre-issued option clearance whose pattern runway is not a close parallel (`COPT MLT 01L` behind a queued entry for 28R) warns that the transition will cross midfield when the entry builds its circuit.
 - An aircraft on one runway's upwind told `MLT`/`MRT` to a close parallel (OAK 28R → 28L) continues its upwind and turns crosswind only beyond both departure ends into the new runway's pattern, instead of turning across the field to the new downwind; from the parallel's downwind it crosses over at midfield at pattern altitude (opposite side) or re-intercepts the offset downwind (same side). A takeoff clearance onto a parallel's pattern (`CTO 28R MLT 28L`) flies the same transition.
 - `MLT`/`MRT` with a runway now also moves the pattern runway, so the circuit built after the next go-around or touch-and-go belongs to the runway named, not the one the aircraft was told to leave.
 - The pilot's "midfield downwind" reminder fires at midfield of the downwind leg instead of abeam the landing threshold.
