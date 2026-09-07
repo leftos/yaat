@@ -104,6 +104,8 @@ internal sealed class ReplayDriver(SimulationEngine engine)
         {
             _engine.PositionSelections.Clear();
             _engine.Attendance.Clear();
+            _engine.Strips.ClearSession();
+            _engine.Tdls.ClearSession();
         }
 
         using (_engine.EnterReplay())

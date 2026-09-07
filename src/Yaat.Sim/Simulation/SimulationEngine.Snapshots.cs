@@ -305,6 +305,28 @@ public sealed partial class SimulationEngine
         // is what the engine held before the selections were snapshotted.
         PositionSelections.Restore(snapshot.Server?.PositionSelections);
         Attendance.Replace(snapshot.Server?.AttendedPositionIds ?? [], Scenario?.ArtccConfig);
+
+        // ClearSession, not Reset: the load that ran before this restore re-derived the bay rack skeleton from the
+        // ARTCC, and the snapshot never carried it. A real section is authoritative and replaces the racks too.
+        if (snapshot.Server?.Strips is { } stripsDto)
+        {
+            FlightStripSnapshotMapper.Restore(Strips, stripsDto);
+        }
+        else
+        {
+            Strips.ClearSession();
+        }
+
+        // Likewise: the load re-derived Tdls.Configs from the ARTCC, and the snapshot never carried them.
+        if (snapshot.Server?.Tdls is { } tdlsDto)
+        {
+            TdlsSnapshotMapper.Restore(Tdls, tdlsDto);
+        }
+        else
+        {
+            Tdls.ClearSession();
+        }
+
         if (snapshot.Server is not null)
         {
             RestoreServerSnapshot(snapshot.Server);
@@ -371,6 +393,8 @@ public sealed partial class SimulationEngine
             },
             PositionSelections = PositionSelections.Snapshot().ToDictionary(kv => kv.Key, kv => kv.Value.ToSnapshot(), StringComparer.Ordinal),
             AttendedPositionIds = [.. Attendance.PositionIds],
+            Strips = FlightStripSnapshotMapper.Capture(Strips),
+            Tdls = TdlsSnapshotMapper.Capture(Tdls),
         };
     }
 

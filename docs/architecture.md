@@ -1299,6 +1299,24 @@ HeldReleaseService.cs          # Hold-for-release: Arm/Disarm/Release an airport
 CfrDepartureService.cs         # CFR: sets/clears/reports a departure's alert-only release-time window (AircraftGroundOps.ReleaseWindow*Utc) + echo
 ConsolidationState.cs          # Thread-safe manual consolidation overrides
 
+# Simulation/Strips/ — flight-strip state, engine-owned (SimulationEngine.Strips)
+FlightStripState.cs            # The strips, the bay/rack layout and the two printer queues for one run. A fresh engine starts empty and the
+                               # snapshot's server section carries it across a rewind, a restore or a reconstruction, so every run kind has the
+                               # same strips at the same second. Mutations funnel through the host's StripMutations under the single Gate lock
+                               # (moves touch Items + source rack + dest rack together); Items/Bays are concurrent collections for read-only
+                               # enumeration only. StripItemRecord: one strip (id, aircraft id, type, offset, field values, facility/bay/rack/index)
+
+# Simulation/Tdls/ — vTDLS session state, engine-owned (SimulationEngine.Tdls)
+TdlsState.cs                   # The DCL (Pending) and PDC (Sent/Wilco) lists plus a Dumped lockout (keeps a controller-removed entry from being
+                               # re-created) for one run. Engine-owned; a fresh engine starts empty and the snapshot carries the session. Configs
+                               # (per-facility TdlsConfig) is the exception — reloaded from the ARTCC on every scenario load and never snapshotted,
+                               # so ClearSession (not Reset) is what a restore uses and leaves Configs alone; Reset also clears Configs, for
+                               # scenario unload. ResolveActiveOpConfigId / ResolveSids honor the facility's active operational configuration.
+                               # TdlsItemRecord: one list entry (Pending → Sent → Wilco, removed on Dump/TTL-expiry/activation); TdlsItemStatus
+TdlsClearance.cs               # The clearance a PDC carries: the nine canonical TDLSS payload fields, in the order the command describes them.
+                               # The simulation's clearance model — held by TdlsItemRecord and round-tripped by the snapshot; the server projects
+                               # it onto the CRC wire ClearanceDto on its way out
+
 # Simulation/Oracle/ — state-equivalence between run kinds (docs/tick-loop.md, ADR 0004). Driver: yaat-server TickOracleTests.
 SnapshotTreeDiff.cs            # Parallel JsonNode walk over two StateSnapshotDto captures -> one SnapshotDivergence per differing leaf, at the JSON-pointer path.
                                # Aircraft keyed by callsign (only list that reorders), everything else index-keyed; embedded-JSON strings (WeatherJson,
@@ -1318,7 +1336,16 @@ PhaseSnapshotDto.cs            # Polymorphic PhaseDto with [JsonDerivedType] for
                                # RunwayInfoDto, ApproachClearanceDto, DepartureClearanceDto, PatternWaypointsDto, etc.
 ScenarioSnapshotDto.cs         # SimScenarioState DTO: queues, generators, settings, coordination channels; ControllerAi (ControllerAiConfigDto, null when off);
                                # AtcPositions (AtcPositionDto: the resolved ATC roster — scenario atc record + owner + TCP; null in a pre-feature snapshot leaves the loader's roster)
-ServerSnapshotDto.cs           # Server-side state: consolidation overrides, conflict alerts, beacon code pool
+ServerSnapshotDto.cs           # Server-side state: consolidation overrides, conflict alerts, beacon code pool, position selections, attended CRC
+                               # positions, and the flight strips (Strips) + vTDLS session (Tdls) — both null-absent in a pre-feature snapshot,
+                               # which restores empty
+FlightStripSnapshotDto.cs      # Every strip, the bay/rack layout, both printer queues and the blank-id counter
+FlightStripSnapshotMapper.cs   # FlightStripState ⇄ FlightStripSnapshotDto. Restore replaces, never merges — the snapshot is the whole strip state
+                               # at its second, so anything the target engine held is cleared first
+TdlsSnapshotDto.cs             # The vTDLS items, the dumped lockout, the active ops configs, the pending auto-WILCOs and the id counter. The
+                               # per-facility TdlsConfig map is deliberately out — a load re-derives it from the ARTCC before the restore runs
+TdlsSnapshotMapper.cs          # TdlsState ⇄ TdlsSnapshotDto. Restore replaces the session state and leaves TdlsState.Configs alone — the scenario
+                               # load that runs before a restore has just re-derived it from the ARTCC, and the snapshot never carried it
 TaxiRouteDto.cs                # Taxi route segments + hold-short points (re-resolved from ground layout on restore)
 SnapshotSchemaMigrator.cs      # Sequential migration chain for snapshot DTO versioning; SnapshotSchemaException
 

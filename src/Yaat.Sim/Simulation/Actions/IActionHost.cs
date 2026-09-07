@@ -10,9 +10,12 @@ namespace Yaat.Sim.Simulation.Actions;
 /// There are no default implementations — a new slot fails the build in every host until each has answered.
 ///
 /// <para>
-/// <b>Step-4 debt.</b> Every <c>Apply*</c> member here is a body whose state has not crossed into Yaat.Sim: strips
-/// and TDLS (room-owned state, no snapshot coverage), coordination channels, the ASDE-X and SAID display state (the
-/// recorded mutations included), bookmarks and the room clock. The slots are all that is left — the host answers no
+/// <b>Step-4 debt.</b> Every <c>Apply*</c> member here is a body whose state has not crossed into Yaat.Sim:
+/// coordination channels, the ASDE-X and SAID display state (the recorded mutations included), bookmarks and the
+/// room clock. Strips and TDLS are the halfway case — the <i>state</i> has crossed
+/// (<see cref="SimulationEngine.Strips"/>, <see cref="SimulationEngine.Tdls"/>: engine-owned, snapshotted, so every
+/// run kind carries it), but <see cref="ApplyStrip"/>, <see cref="ApplyTdls"/>, <see cref="ApplyTdlsOpsConfig"/> and
+/// <see cref="ApplyRecordedStripRequest"/> stay because the mutation bodies are still the host's. The host answers no
 /// questions, because CRC attendance, the last one it was asked, is now engine state every run kind carries
 /// (<see cref="SimulationEngine.Attendance"/>, fed by <see cref="RecordedAttendanceChange"/>). As each body crosses,
 /// its slot is deleted and the arm becomes a Sim body; the interface shrinks the way <see cref="Spine.IHostSteps"/> does.

@@ -204,21 +204,31 @@ request computed. Neither reads `DateTime.UtcNow`, so a rewind or a bundle
 reconstruction re-prints the text the live session showed; the client prefixes `P`
 and never parses it.
 
-## Server state model
+## State model
 
-Strip state lives on the per-room `TrainingRoom.StripState` property,
-typed as `FlightStripState` (`src/Yaat.Server/Simulation/FlightStripState.cs`):
+Strip state is the engine's: `SimulationEngine.Strips`, typed as `FlightStripState`
+(`src/Yaat.Sim/Simulation/Strips/FlightStripState.cs`). A fresh engine starts with empty bays (a
+restart therefore starts from the scenario's own strips), the snapshot's server section carries it
+(`ServerSnapshotDto.Strips`, `FlightStripSnapshotMapper`), and a rewind or bundle reconstruction
+rebuilds it from the recorded strip requests plus the host's auto-print bodies, after which the room
+re-pushes the result to its clients (`RecordingManager.ResyncStripsAndTdls`). The mutation helpers
+(`StripMutations`, `StripCommandHandler`, the auto-print tick steps) are still yaat-server's and read
+`room.ActiveSim!.Strips`; a room with no scenario has no strips, and the broadcasters send an empty
+full state for it.
 
 ```csharp
 public sealed class FlightStripState
 {
-    // Every strip in the room, keyed by strip id.
+    public object Gate { get; } = new();   // every multi-slice mutation runs under it
+
+    // Every strip in the run, keyed by strip id.
     public ConcurrentDictionary<string, StripItemRecord> Items { get; } = new();
 
-    // Bay -> rack -> rows of strip ids. rows[0] is the top of the rack.
+    // Bay -> rack -> columns of strip ids. columns[0] is the rack's single column today.
     public ConcurrentDictionary<string, Dictionary<string, List<string>[]>> Bays { get; } = new();
 
-    public ConcurrentQueue<string> PrinterQueue { get; } = new();
+    public List<string> DeparturePrinterQueue { get; } = new();
+    public List<string> ArrivalPrinterQueue { get; } = new();
     public int NextBlankId { get; set; } = 1;
 }
 

@@ -16,6 +16,7 @@
 - The reported-METAR observation clock (the :53 routine issuance and SPECI look-backs) runs on the session clock, so the :53 grid follows sim time rather than real time; after a rewind the rebuilt issuer resumes that grid, carries the routine already issued instead of reverting to the loaded METAR text until the next :53, and no longer re-stamps every station on its first tick.
 
 ### Fixed
+- Rewinding a session restores the flight strips as they were at the target time and re-sends the strips and the PDC list to every Strips and TDLS view; restarting a scenario starts from the scenario's own strips and PDCs instead of carrying the previous run's. Strips and the TDLS session are now part of every recording, bundle and session checkpoint, and a PDC restored from one still auto-acknowledges at the sim second it would have.
 - `MLT 28R 15` and `CTO MLT 28R 15` keep their runway and altitude in the command's canonical text (they were echoed as bare `MLT`/`CTO MLT`).
 - A `FOLLOW` issued after `COPT MLT 28L` keeps the armed pattern runway, so the transition still happens after the option; the RPO is warned that the follower will leave the sequence then.
 - A jet or turboprop cleared for takeoff into another runway's pattern (`CTO 33 MRT 28R`) crosses midfield at pattern altitude — it never left the pattern, so the entry height does not apply — and a wrong-side entry with a controller-assigned pattern altitude no longer flies a teardrop it has no height to lose in.

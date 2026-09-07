@@ -29,7 +29,7 @@ public sealed class SnapshotSchemaException : Exception
 /// </summary>
 public static class SnapshotSchemaMigrator
 {
-    public const int CurrentSchemaVersion = 21;
+    public const int CurrentSchemaVersion = 22;
 
     /// <summary>
     /// Migrates a snapshot to <see cref="CurrentSchemaVersion"/> in place.
@@ -130,6 +130,11 @@ public static class SnapshotSchemaMigrator
         //   anchored to; the magnetic day is derived from it). The old field is ignored on read; a legacy snapshot
         //   restores with the session start the loader resolved from the manifest — the same day, so declinations
         //   are unchanged.
+        // V21→V22: Added ServerSnapshotDto.Strips and .Tdls — the flight strips and the vTDLS session became
+        //   engine state instead of the room's. No data transformation: both default to null, and
+        //   RestoreFromSnapshot reads a null section as "restore empty", which is what those snapshots'
+        //   engines held. A same-room rewind of an older recording therefore starts with no strips and no
+        //   PDCs and rebuilds them from the recorded requests and the host's auto-print steps.
         if (snapshot.SchemaVersion < 4)
         {
             foreach (var ac in snapshot.Aircraft)

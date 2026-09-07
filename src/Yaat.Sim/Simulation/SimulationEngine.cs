@@ -18,6 +18,8 @@ using Yaat.Sim.Simulation.Actions;
 using Yaat.Sim.Simulation.Replay;
 using Yaat.Sim.Simulation.Snapshots;
 using Yaat.Sim.Simulation.Spine;
+using Yaat.Sim.Simulation.Strips;
+using Yaat.Sim.Simulation.Tdls;
 using Yaat.Sim.Training;
 
 namespace Yaat.Sim.Simulation;
@@ -80,6 +82,22 @@ public sealed partial class SimulationEngine
     /// from its connection registry and records the changes.
     /// </summary>
     public Attendance Attendance { get; } = new();
+
+    /// <summary>
+    /// The run's flight strips. Engine-owned, so a fresh engine starts with an empty bay and the snapshot's
+    /// server section is what carries them across a rewind, a restore or a reconstruction. The mutation bodies
+    /// (<c>StripMutations</c>, the strip command handler, the auto-print tick steps) are still the host's; only
+    /// the state has crossed.
+    /// </summary>
+    public FlightStripState Strips { get; } = new();
+
+    /// <summary>
+    /// The run's vTDLS session (DCL/PDC items, dumped lockout, pending auto-WILCOs). Engine-owned on the same
+    /// terms as <see cref="Strips"/>: a fresh engine starts empty and the snapshot carries it. The mutation
+    /// bodies (<c>TdlsMutations</c>, the TDLS command handler, the auto-queue/WILCO/expiry tick steps) are still
+    /// the host's; only the state has crossed.
+    /// </summary>
+    public TdlsState Tdls { get; } = new();
 
     /// <summary>
     /// The one router every controller action on this engine goes through — fresh (<see cref="SendCommand"/>,

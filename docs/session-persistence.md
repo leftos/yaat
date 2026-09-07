@@ -20,8 +20,9 @@ Each `{roomId}.checkpoint.zip` contains:
 | `manifest.json` | Room id, creator, members (CID), elapsed time, schema version, `SessionStartUtc` (the session clock's anchor; a checkpoint written before it was captured restores with `SavedAtUtc.Date` — a midnight-anchored clock, so PDC/strip times on that one restored room read from midnight until it reloads) |
 | `scenario.json.br` | Original scenario JSON |
 | `actions.json.br` | Full `ActionLog` (rewind/export) |
-| `snapshot-final.json.br` | Live `StateSnapshotDto` at save time |
-| `room-state.json.br` | Strips, ASDEX, ERAM prefs, line numbers, assignments by CID |
+| `terminal-log.json.br` | `TerminalLog` (omitted when empty) |
+| `snapshot-final.json.br` | Live `StateSnapshotDto` at save time — including the strips and the vTDLS session (`ServerSnapshotDto.Strips` / `.Tdls`, since 2026-09-07) |
+| `room-state.json.br` | ASDEX, SAID, ERAM prefs, line numbers, assignments by CID (`RoomStateSnapshotDto`; strips and TDLS left it for the Sim snapshot) |
 | `weather.json` / `artcc-config.json.br` | Optional bundled weather and ARTCC config |
 
 Restore applies the final snapshot directly (no replay-from-zero). Coordination channel in-flight items are included in the scenario snapshot DTO.

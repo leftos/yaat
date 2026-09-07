@@ -177,27 +177,36 @@ Empty fields are omitted from the summary. RPOs in the room see this
 in their terminal pane without subscribing to the SignalR TDLS events,
 so they can follow the student's PDC stream while focused on radar.
 
-## Snapshot persistence
+## State ownership and snapshot persistence
 
-`RoomStateSnapshotMapper.CaptureTdls` writes:
+`TdlsState` is the engine's (`SimulationEngine.Tdls`, `src/Yaat.Sim/Simulation/Tdls/TdlsState.cs`),
+and `TdlsItemRecord` is the simulation's model: `Status` is the Sim enum `TdlsItemStatus` and
+`SentPayload` the Sim record `TdlsClearance` (the nine canonical `TDLSS` fields). The CRC wire
+types `TdlsStatus` and `ClearanceDto` stay in yaat-server, pinned by `CrcWireContractTests`;
+`DtoConverter.ToTdlsItem` / `ToClearanceDto` project onto them. The mutation bodies
+(`TdlsMutations`, `TdlsCommandHandler`, the auto-queue / auto-WILCO / expiry / track-removal tick
+steps) are still yaat-server's and read `room.ActiveSim!.Tdls`.
+
+`TdlsSnapshotMapper.Capture` (into `ServerSnapshotDto.Tdls`, every snapshot the engine takes —
+recordings, bundles, session checkpoints) writes:
 
 - `Items` (with full `SentPayload` for Sent/Wilco items)
 - `Dumped` lockout
 - `NextItemId`
+- `ActiveOpConfigs`
+- `ScheduledWilco` — the pending auto-WILCO instants. They run on the session clock
+  (`SimScenarioState.SimTimeUtc`), so a restored or rewound run acknowledges at the same
+  sim second the live one did; the old "restored Sent items sit at Sent" caveat is gone.
 
-`Configs` and `ScheduledWilcoAt` are NOT persisted:
+`Configs` is NOT persisted: it is re-derived from the ARTCC at scenario load via
+`InitializeFromArtcc`, which runs before any restore; `TdlsState.ClearSession()` is what a restore
+(and a fresh replay) clears, and it leaves the configs alone.
 
-- `Configs` are re-fetched from the data-api on restore via
-  `InitializeFromArtcc`.
-- `ScheduledWilcoAt` is reset; restored Sent items stay at Sent until a
-  manual `TDLSW` or TTL expiry. This is a deliberate choice — a 2-hour
-  restart shouldn't auto-wilco every Pending PDC immediately on come-up.
-- `TdlsState` is not in the Sim snapshot, so a same-room rewind keeps the room's
-  records: a rewind backwards un-expires a record whose `ExpiresUtc` is again in
-  the future and leaves `CreatedUtc`/`SentUtc` ahead of the clock; a rewind forward
-  past `ExpiresUtc` expires it on the first live tick; a `ScheduledWilcoAt` entry
-  fires whenever the clock re-crosses it. Resolved when `TdlsState` enters the
-  snapshot (tick-path step 4).
+A fresh engine starts with no items, so a restart starts clean and a rewind holds the target's. A
+live-session rewind is a from-scratch reconstruction (a live room carries no snapshots), and a
+recorded TDLS verb is still refused while replaying — so a rewound PDC currently comes back as the
+auto-queue's Pending item, not the Sent one; sub-commit A2 of
+[the step-4 plan](plans/tick-path/04b-strips-and-tdls-snapshot.md) lifts the refusal.
 
 ## Lifecycle
 
