@@ -7,8 +7,8 @@ using Yaat.Sim.Simulation.Actions;
 
 namespace Yaat.Sim.Simulation;
 
-// The track-automation spine steps: the delayed-handoff queue in pre-physics, auto-accept, point-out
-// auto-acknowledge and the two autotrack passes in post-physics, plus the autotrack conditions a scenario or
+// The track-automation spine steps: the delayed-handoff queue in pre-physics, auto-accept, the point-out
+// timeout and the two autotrack passes in post-physics, plus the autotrack conditions a scenario or
 // generator aircraft carries. They decide from engine state alone — the scenario's queue and delay, its ATC
 // roster and ARTCC config, the recorded CRC attendance and the consolidation hierarchy — so every run kind
 // reaches the same verdict.
@@ -538,11 +538,16 @@ public sealed partial class SimulationEngine
     }
 
     /// <summary>
-    /// Auto-acknowledges pointouts addressed to simulated/unattended positions after the
-    /// auto-accept delay — parity with <see cref="TickAutoAccept"/>: in real vNAS a human always
-    /// answers a pointout, so one left on a virtual sector would flash at the sender forever.
+    /// Withdraws a pointout addressed to a simulated/unattended position that has sat unanswered for
+    /// <see cref="SimScenarioState.PointoutNoActionSeconds"/>, and tells the sender to coordinate verbally.
+    /// 7110.65 §5-4-7.a.1.(a): when the receiving controller takes no action, revert to verbal procedures — a
+    /// non-response is not approval, so nothing acknowledges the pointout on the absent controller's behalf. That
+    /// sub-paragraph is en route; terminal automated approval (§5-4-7.a.1.(b)) still requires a facility directive and
+    /// the receiving controller's own system response, so silence is not approval there either.
+    /// A pointout to an attended CRC position, or in solo mode to the student's own position, is left pending:
+    /// there is a receiving controller and they are the one who must act.
     /// </summary>
-    internal void TickPointoutAutoAck()
+    internal void TickPointoutTimeout()
     {
         if (Scenario is not { } scenario)
         {
@@ -554,10 +559,6 @@ public sealed partial class SimulationEngine
         {
             return;
         }
-
-        var effectiveDelay = soloMode
-            ? TimeSpan.FromSeconds(Math.Max(scenario.AutoAcceptDelay.TotalSeconds, SimScenarioState.SoloAutoAcceptFloorSeconds))
-            : scenario.AutoAcceptDelay;
 
         foreach (var aircraft in World.GetSnapshot())
         {
@@ -571,33 +572,54 @@ public sealed partial class SimulationEngine
                 continue;
             }
 
-            if (
-                soloMode
-                && scenario.StudentTcp is { } studentTcp
-                && (pointout.Recipient.Subset == studentTcp.Subset)
-                && string.Equals(pointout.Recipient.SectorId, studentTcp.SectorId, StringComparison.OrdinalIgnoreCase)
-            )
+            if (soloMode && IsStudentRecipient(pointout.Recipient, scenario))
             {
                 continue;
             }
 
-            if (scenario.ElapsedSeconds - pointout.InitiatedAt.Value < effectiveDelay.TotalSeconds)
+            if (scenario.ElapsedSeconds - pointout.InitiatedAt.Value < SimScenarioState.PointoutNoActionSeconds)
             {
                 continue;
             }
 
-            var result = TrackEngine.HandleAcknowledge(aircraft);
+            var result = TrackEngine.HandleRetractPointout(aircraft);
             if (result.Success)
             {
-                EmitTerminal("System", aircraft.Callsign, $"[AutoAck] Pointout acknowledged by {pointout.Recipient}");
-                _logger.LogInformation(
-                    "Auto-acknowledged pointout: {Callsign} to {Recipient} at t={T}s",
+                EmitTerminal(
+                    "System",
                     aircraft.Callsign,
+                    $"[Pointout] {pointout.Sender} → {pointout.Recipient}: no action taken — point-out withdrawn, coordinate verbally before entering their airspace"
+                );
+                _logger.LogInformation(
+                    "Point-out withdrawn (no action): {Callsign} {Sender}→{Recipient} at t={T}s",
+                    aircraft.Callsign,
+                    pointout.Sender,
                     pointout.Recipient,
                     scenario.ElapsedSeconds
                 );
             }
         }
+    }
+
+    /// <summary>
+    /// Whether <paramref name="recipient"/> addresses the student's own position — either the room's student TCP, or,
+    /// when that never resolved, a TCP code that resolves back to <see cref="SimScenarioState.StudentPosition"/> the
+    /// way <see cref="TickAutoAccept"/> matches a handoff peer against it.
+    /// </summary>
+    private static bool IsStudentRecipient(Tcp recipient, SimScenarioState scenario)
+    {
+        if (
+            scenario.StudentTcp is { } studentTcp
+            && (recipient.Subset == studentTcp.Subset)
+            && string.Equals(recipient.SectorId, studentTcp.SectorId, StringComparison.OrdinalIgnoreCase)
+        )
+        {
+            return true;
+        }
+
+        return scenario.StudentPosition is { } student
+            && TrackResolver.ResolveTcpToOwner(scenario, recipient.ToString()) is { } recipientOwner
+            && recipientOwner.MatchesPosition(student);
     }
 
     internal void TickAutoAccept()

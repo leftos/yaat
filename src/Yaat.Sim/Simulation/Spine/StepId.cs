@@ -22,7 +22,7 @@ public enum StepId
     LiveTrafficRunwayUse,
     Transponders,
     AutoAccept,
-    PointoutAutoAck,
+    PointoutTimeout,
     FlightPlanCreatorAutoTrack,
     DeferredAutoTrack,
     PostPhysicsTerminalEntries,

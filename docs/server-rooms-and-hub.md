@@ -142,8 +142,8 @@ restart / rewind reload, and on return to live (`TakeControl`, `LeavePlayback`, 
 while the room is replaying or playing a tape back, when the log is the authority. A room nobody attends records
 nothing.
 
-Readers of the engine's set: `TickProcessor.ProcessAutoAccept` / `ProcessPointoutAutoAck`
-(`Attendance.IsTcpControlledByCrc`), `ProcessDelayedHandoffs` (`Attendance.ConsolidationOwnerOf`), and in Yaat.Sim the
+Readers of the engine's set: `SimulationEngine.TickAutoAccept` / `TickPointoutTimeout`
+(`Attendance.IsTcpControlledByCrc`), `TickDelayedHandoffs` (`Attendance.ConsolidationOwnerOf`), and in Yaat.Sim the
 `Consolidate` arm and the handoff / point-out `ConsolidationRedirect`. Readers that stay on the registry, on
 purpose — live handler-time questions that never run on a reconstruction, and the registry is what the set is
 derived from: the STARS `HO` shorthand's `ILL POS` validation (`CrcClientState.Stars.cs`), the secondary-display
@@ -161,8 +161,8 @@ spine's (`SpineOrder` in Yaat.Sim, [tick-loop.md](tick-loop.md)), and `RoomHost`
   (auto-strip / auto-TDLS), and records generator spawns *after* their autotrack so the recorded snapshot carries the
   owner; `BroadcastTerminalEntries` takes the spine's drain; `ProcessDelayedHandoffs`; `SyncLiveTraffic` runs
   `ShadowTrafficSync.Sync` last — the pre-physics mutator of the aircraft set (see [live-traffic.md](live-traffic.md)).
-- **Post-physics**: the remaining ATC passes (`ProcessCoordinationTimers`, `ProcessTowerLists` — auto-accept, point-out
-  auto-ack and the two autotrack passes are Yaat.Sim spine steps now, `SimulationEngine.TrackAutomation`, and read the
+- **Post-physics**: the remaining ATC passes (`ProcessCoordinationTimers`, `ProcessTowerLists` — auto-accept, the point-out
+  timeout and the two autotrack passes are Yaat.Sim spine steps now, `SimulationEngine.TrackAutomation`, and read the
   recorded `Attendance`), the consumers of the engine's
   detectors (`BroadcastConflictAlerts`, `BroadcastEramConflictAlerts`), `ProcessAsdexAlerts`,
   `ProcessSoloTrainingEvaluation`, the drain consumers (`BroadcastWarnings` / `Notifications` / `PilotSpeech` /

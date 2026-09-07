@@ -348,6 +348,15 @@ public sealed class SimScenarioState
     // are left pending for the student to accept by hand.
     public const double SoloAutoAcceptFloorSeconds = 3;
 
+    /// <summary>
+    /// How long a point-out addressed to a position nobody is working may sit before it is withdrawn. 7110.65
+    /// §5-4-7.a.1.(a) prescribes no interval — it says only to revert to verbal procedures when the receiving
+    /// controller takes no action — so 30 s is a product judgement: long enough that an RPO working an unattended
+    /// position from the YAAT client can still answer the point-out (<c>OK</c>) before it goes away. Deliberately not
+    /// the 5 s handoff auto-accept, which is flow-critical (traffic stops moving until it fires) where this is not.
+    /// </summary>
+    public const int PointoutNoActionSeconds = 30;
+
     public TimeSpan AutoAcceptDelay { get; set; } = TimeSpan.FromSeconds(5);
     public bool IsStudentTowerPosition { get; set; }
     public Dictionary<string, CoordinationChannel> CoordinationChannels { get; set; } = [];

@@ -6,7 +6,7 @@ date: 2026-09-02
 # Tick-reachable simulation logic moves into Yaat.Sim
 
 `TickProcessor.cs` is 1,974 lines, of which roughly 1,315 are undelegated ATC decision logic —
-handoff auto-accept, three auto-track passes, pointout auto-acknowledgement, coordination timers,
+handoff auto-accept, three auto-track passes, the pointout no-action timeout, coordination timers,
 the TDLS clearance lifecycle, strip auto-print, ASDE-X alerting, delayed handoffs. None of it has a
 replay-path equivalent, and none of it records an action, so a replayed world reconstructs track
 ownership, handoff state and coordination expiry only when a snapshot restore happens to overwrite

@@ -108,7 +108,7 @@ The server already "plays" unstaffed positions. An AI-staffed position must be t
   (`PositionRegistry.IsTcpControlledByCrc`) and the solo `StudentPosition`. Add a third skip:
   `IAiStaffing.IsAiControlled(handoffPeer)`. The AI brain ACCEPTs on its own (deterministic 5–15 s
   delay from the AI RNG stream), exercising the real accept path.
-- `ProcessPointoutAutoAck`: same skip; AI acknowledges pointouts by rule.
+- `TickPointoutTimeout` (was the auto-ack): same skip, and it is load-bearing now — the body withdraws a point-out nobody acts on after 30 s, so an AI-attended recipient must be skipped or its legitimately pending point-outs are pulled; AI acknowledges pointouts by rule.
 - Engine auto-CTO (`SimulationEngine.ProcessReleasedGroundDepartures`): suppressed for airports
   whose Local position is AI-staffed — the AI Local issues the CTO itself with real sequencing.
   This lives in Yaat.Sim, so `SimScenarioState` needs the staffing answer (an

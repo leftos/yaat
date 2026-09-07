@@ -87,7 +87,6 @@ public class AttendanceRecordTests
 
         engine.Actions.IssueDerived(new RecordedAttendanceChange(engine.Scenario!.ElapsedSeconds, ["NOPE"]));
 
-        Assert.True(engine.Attendance.IsPositionIdAttended("NOPE"));
         Assert.Contains("NOPE", engine.Attendance.PositionIds);
         Assert.False(engine.Attendance.IsTcpAttended(Tcp(engine, "4U")));
         Assert.False(engine.Attendance.IsTcpAttended(Tcp(engine, "4Q")));

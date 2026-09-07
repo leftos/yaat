@@ -57,12 +57,6 @@ public sealed class Attendance
     /// <summary>Whether an attended position holds this TCP.</summary>
     public bool IsTcpAttended(Tcp tcp) => _positions.Any(p => p.Tcp is not null && p.Tcp.Id == tcp.Id);
 
-    /// <summary>Whether this exact vNAS position id is attended — tower-cab positions share TCPs, so the id is finer.</summary>
-    public bool IsPositionIdAttended(string positionId) => _positions.Any(p => string.Equals(p.PositionId, positionId, StringComparison.Ordinal));
-
-    /// <summary>Whether an attended position matches this track owner (by callsign or facility/subset/sector).</summary>
-    public bool IsOwnerAttended(TrackOwner owner) => _positions.Any(p => p.Owner is not null && p.Owner.MatchesPosition(owner));
-
     /// <summary>
     /// The attended TCP that currently owns <paramref name="tcp"/> through the student facility's consolidation
     /// hierarchy and the manual overrides, or null when the scenario carries no ARTCC configuration, no student

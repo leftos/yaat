@@ -8,7 +8,7 @@ public class StarsPointout(Tcp recipient, Tcp sender)
     public Tcp Sender { get; set; } = sender;
     public StarsPointoutStatus Status { get; set; } = StarsPointoutStatus.Pending;
 
-    /// <summary>Sim-elapsed seconds when the pointout was created — drives the auto-acknowledge timer.</summary>
+    /// <summary>Sim-elapsed seconds when the pointout was created — drives the no-action withdrawal timer (<see cref="Simulation.SimScenarioState.PointoutNoActionSeconds"/>).</summary>
     public double? InitiatedAt { get; set; }
 
     public bool IsPending => Status == StarsPointoutStatus.Pending;

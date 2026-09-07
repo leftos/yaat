@@ -39,7 +39,7 @@ public static class SpineOrder
         SpineStep.Sim(StepId.LiveTrafficRunwayUse, static (engine, _) => engine.TickLiveTrafficRunwayUse()),
         SpineStep.Sim(StepId.Transponders, static (engine, _) => engine.TickTransponders()),
         SpineStep.Sim(StepId.AutoAccept, static (engine, _) => engine.TickAutoAccept()),
-        SpineStep.Sim(StepId.PointoutAutoAck, static (engine, _) => engine.TickPointoutAutoAck()),
+        SpineStep.Sim(StepId.PointoutTimeout, static (engine, _) => engine.TickPointoutTimeout()),
         // FP-creator autotrack runs before the airport-based deferred autotrack so a controller who explicitly
         // types VP/DA wins over scenario AutoTrackAirportIds for the aircraft they just created the FP for.
         SpineStep.Sim(StepId.FlightPlanCreatorAutoTrack, static (engine, _) => engine.TickFlightPlanCreatorAutoTrack()),

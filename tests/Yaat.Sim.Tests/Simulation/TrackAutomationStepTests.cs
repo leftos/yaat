@@ -11,7 +11,7 @@ namespace Yaat.Sim.Tests.Simulation;
 
 /// <summary>
 /// The three track-automation spine steps on the bare engine: delayed handoffs fire in pre-physics, auto-accept and
-/// point-out auto-acknowledge run post-physics. They decide from engine state alone — the scenario's queue and delay,
+/// the point-out timeout run post-physics. They decide from engine state alone — the scenario's queue and delay,
 /// the recorded CRC attendance, the consolidation hierarchy — so a plain <see cref="SimulationEngine.TickOneSecond"/>
 /// over the real OAK data reaches every gate the live room reaches. Real NCT hierarchy from the ZOA config: <c>4U</c>
 /// is the parent of <c>4Q</c>, and the student works <c>2B</c>.
@@ -278,8 +278,12 @@ public class TrackAutomationStepTests
         Assert.True(aircraft.Track.Owner!.MatchesPosition(Student));
     }
 
+    /// <summary>
+    /// Nobody answers for an absent controller: after the no-action interval the point-out is withdrawn and the
+    /// sender is told to coordinate verbally (7110.65 §5-4-7.a.1.(a)), never acknowledged on the recipient's behalf.
+    /// </summary>
     [Fact]
-    public void PendingPointoutToAnUnattendedRecipientAutoAcknowledges()
+    public void PendingPointoutToAnUnattendedRecipientIsWithdrawnAfterThirtySeconds()
     {
         if (Engine() is not { } engine)
         {
@@ -293,70 +297,136 @@ public class TrackAutomationStepTests
         var recipient = TrackResolver.FindTcpByCode(scenario, "4U")!;
         aircraft.Track.Pointout = new StarsPointout(recipient, scenario.StudentTcp!) { InitiatedAt = scenario.ElapsedSeconds };
 
-        AiTestFixture.Tick(engine, 4);
+        AiTestFixture.Tick(engine, 29);
 
         Assert.True(aircraft.Track.Pointout!.IsPending);
 
         AiTestFixture.Tick(engine, 1);
 
-        Assert.False(aircraft.Track.Pointout!.IsPending);
-        Assert.Contains(lines, line => line.Contains("[AutoAck] Pointout acknowledged", StringComparison.Ordinal));
-
-        var attended = Engine()!;
-        var attendedScenario = attended.Scenario!;
-        attendedScenario.AutoAcceptDelay = TimeSpan.FromSeconds(5);
-        AttendanceTestSupport.Attend(attended, "4U");
-        var attendedAircraft = Owned(attended, Student);
-        var attendedRecipient = TrackResolver.FindTcpByCode(attendedScenario, "4U")!;
-        attendedAircraft.Track.Pointout = new StarsPointout(attendedRecipient, attendedScenario.StudentTcp!)
-        {
-            InitiatedAt = attendedScenario.ElapsedSeconds,
-        };
-
-        AiTestFixture.Tick(attended, 10);
-
-        Assert.True(attendedAircraft.Track.Pointout!.IsPending);
+        Assert.Null(aircraft.Track.Pointout);
+        Assert.Contains(lines, line => line.Contains("[Pointout] ", StringComparison.Ordinal));
+        Assert.Contains(lines, line => line.Contains("point-out withdrawn, coordinate verbally", StringComparison.Ordinal));
+        Assert.DoesNotContain(lines, line => line.Contains("[AutoAck]", StringComparison.Ordinal));
     }
 
     [Fact]
-    public void SoloModeLeavesAPointoutToTheStudentsOwnTcpPendingAndFloorsTheDelayAtThreeSeconds()
+    public void PendingPointoutToAnAttendedRecipientIsLeftForTheHuman()
     {
-        if (Engine() is not { } toStudent)
+        if (Engine() is not { } engine)
         {
             return;
         }
 
-        // The student answers a pointout addressed to their own sector by hand, exactly as they accept their own
-        // handoff; every other recipient is a simulated position and auto-acknowledges after the solo floor.
-        var studentScenario = toStudent.Scenario!;
-        studentScenario.SoloTrainingMode = true;
-        studentScenario.AutoAcceptDelay = TimeSpan.Zero;
-        var pointedAtStudent = Owned(toStudent, Nct4U);
-        pointedAtStudent.Track.Pointout = new StarsPointout(studentScenario.StudentTcp!, TrackResolver.FindTcpByCode(studentScenario, "4U")!)
+        var scenario = engine.Scenario!;
+        scenario.AutoAcceptDelay = TimeSpan.FromSeconds(5);
+        AttendanceTestSupport.Attend(engine, "4U");
+        var aircraft = Owned(engine, Student);
+        var recipient = TrackResolver.FindTcpByCode(scenario, "4U")!;
+        aircraft.Track.Pointout = new StarsPointout(recipient, scenario.StudentTcp!) { InitiatedAt = scenario.ElapsedSeconds };
+
+        AiTestFixture.Tick(engine, 40);
+
+        Assert.True(aircraft.Track.Pointout!.IsPending);
+    }
+
+    [Fact]
+    public void SoloModeLeavesAPointoutToTheStudentPending()
+    {
+        if (Engine() is not { } engine)
         {
-            InitiatedAt = studentScenario.ElapsedSeconds,
+            return;
+        }
+
+        // The student is the receiving controller of §5-4-7.b: they answer a point-out addressed to their own sector
+        // by hand, exactly as they accept their own handoff, and nothing withdraws it out from under them.
+        var scenario = engine.Scenario!;
+        scenario.SoloTrainingMode = true;
+        scenario.AutoAcceptDelay = TimeSpan.Zero;
+        var aircraft = Owned(engine, Nct4U);
+        aircraft.Track.Pointout = new StarsPointout(scenario.StudentTcp!, TrackResolver.FindTcpByCode(scenario, "4U")!)
+        {
+            InitiatedAt = scenario.ElapsedSeconds,
         };
 
-        AiTestFixture.Tick(toStudent, 10);
+        AiTestFixture.Tick(engine, 40);
 
-        Assert.True(pointedAtStudent.Track.Pointout!.IsPending);
+        Assert.True(aircraft.Track.Pointout!.IsPending);
+    }
 
-        var toAi = Engine()!;
-        var aiScenario = toAi.Scenario!;
-        aiScenario.SoloTrainingMode = true;
-        aiScenario.AutoAcceptDelay = TimeSpan.Zero;
-        var pointedAtAi = Owned(toAi, Student);
-        pointedAtAi.Track.Pointout = new StarsPointout(TrackResolver.FindTcpByCode(aiScenario, "4U")!, aiScenario.StudentTcp!)
+    /// <summary>
+    /// A room whose <see cref="SimScenarioState.StudentTcp"/> never resolved still knows the student's position: the
+    /// recipient resolves back to it, so the student's own point-out stays pending for them.
+    /// </summary>
+    [Fact]
+    public void SoloModeLeavesThePointoutPendingWhenOnlyTheStudentPositionResolves()
+    {
+        if (Engine() is not { } engine)
         {
-            InitiatedAt = aiScenario.ElapsedSeconds,
+            return;
+        }
+
+        var scenario = engine.Scenario!;
+        scenario.SoloTrainingMode = true;
+        scenario.AutoAcceptDelay = TimeSpan.Zero;
+        var studentTcp = scenario.StudentTcp!;
+        var sender = TrackResolver.FindTcpByCode(scenario, "4U")!;
+        scenario.StudentTcp = null;
+        var aircraft = Owned(engine, Nct4U);
+        aircraft.Track.Pointout = new StarsPointout(studentTcp, sender) { InitiatedAt = scenario.ElapsedSeconds };
+
+        AiTestFixture.Tick(engine, 40);
+
+        Assert.True(aircraft.Track.Pointout!.IsPending);
+    }
+
+    [Fact]
+    public void SoloModeWithdrawsAPointoutToAnAiPositionAfterThirtySeconds()
+    {
+        if (Engine() is not { } engine)
+        {
+            return;
+        }
+
+        var scenario = engine.Scenario!;
+        scenario.SoloTrainingMode = true;
+        scenario.AutoAcceptDelay = TimeSpan.Zero;
+        var aircraft = Owned(engine, Student);
+        aircraft.Track.Pointout = new StarsPointout(TrackResolver.FindTcpByCode(scenario, "4U")!, scenario.StudentTcp!)
+        {
+            InitiatedAt = scenario.ElapsedSeconds,
         };
 
-        AiTestFixture.Tick(toAi, 2);
+        AiTestFixture.Tick(engine, 29);
 
-        Assert.True(pointedAtAi.Track.Pointout!.IsPending);
+        Assert.True(aircraft.Track.Pointout!.IsPending);
 
-        AiTestFixture.Tick(toAi, 1);
+        AiTestFixture.Tick(engine, 1);
 
-        Assert.False(pointedAtAi.Track.Pointout!.IsPending);
+        Assert.Null(aircraft.Track.Pointout);
+    }
+
+    /// <summary>
+    /// The enable gate is unchanged by the timeout: outside solo mode a room that disabled auto-accept keeps its
+    /// point-outs flashing forever, the way a real STARS display does.
+    /// </summary>
+    [Fact]
+    public void AutoAcceptDisabledOutsideSoloLeavesPointoutsPendingForever()
+    {
+        if (Engine() is not { } engine)
+        {
+            return;
+        }
+
+        var scenario = engine.Scenario!;
+        scenario.AutoAcceptDelay = TimeSpan.Zero;
+        var aircraft = Owned(engine, Student);
+        aircraft.Track.Pointout = new StarsPointout(TrackResolver.FindTcpByCode(scenario, "4U")!, scenario.StudentTcp!)
+        {
+            InitiatedAt = scenario.ElapsedSeconds,
+        };
+
+        AiTestFixture.Tick(engine, 60);
+
+        Assert.True(aircraft.Track.Pointout!.IsPending);
     }
 }
