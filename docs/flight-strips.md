@@ -211,7 +211,7 @@ Strip state is the engine's: `SimulationEngine.Strips`, typed as `FlightStripSta
 restart therefore starts from the scenario's own strips), the snapshot's server section carries it
 (`ServerSnapshotDto.Strips`, `FlightStripSnapshotMapper`), and a rewind or bundle reconstruction
 rebuilds it from the recorded strip requests plus the host's auto-print bodies, after which the room
-re-pushes the result to its clients (`RecordingManager.ResyncStripsAndTdls`). The mutation helpers
+re-pushes the result to its clients (`RecordingManager.ResyncStripsAndTdlsAsync`). The mutation helpers
 (`StripMutations`, `StripCommandHandler`, the auto-print tick steps) are still yaat-server's and read
 `room.ActiveSim!.Strips`; a room with no scenario has no strips, and the broadcasters send an empty
 full state for it.

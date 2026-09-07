@@ -203,10 +203,12 @@ recordings, bundles, session checkpoints) writes:
 (and a fresh replay) clears, and it leaves the configs alone.
 
 A fresh engine starts with no items, so a restart starts clean and a rewind holds the target's. A
-live-session rewind is a from-scratch reconstruction (a live room carries no snapshots), and a
-recorded TDLS verb is still refused while replaying — so a rewound PDC currently comes back as the
-auto-queue's Pending item, not the Sent one; sub-commit A2 of
-[the step-4 plan](plans/tick-path/04b-strips-and-tdls-snapshot.md) lifts the refusal.
+live-session rewind is a from-scratch reconstruction (a live room carries no snapshots): the spawn
+hooks re-queue each departure's PDC on every run kind, and the recorded `TDLSQ` / `TDLSS` / `TDLSW` /
+`TDLSD` / `TDLSOPS` re-apply through the same `TdlsCommandHandler` body live used, so the rewound
+item carries the status, clearance and pending auto-WILCO the run had (`StripTdlsRewindTests`).
+The broadcasts are what a reconstruction leaves out: it runs with broadcasts suppressed and the room
+re-pushes the full state when it lands, while tape playback broadcasts as it goes.
 
 ## Lifecycle
 

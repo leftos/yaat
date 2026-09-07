@@ -22,8 +22,10 @@ namespace Yaat.Sim.Simulation.Actions;
 /// </para>
 ///
 /// <para>
-/// The consumers are where a Sim arm's result leaves the simulation: the live room broadcasts, prints strips and
-/// pushes display config from them; a replay or reconstruction keeps its change tracker honest and nothing more.
+/// The consumers are where a Sim arm's result leaves the simulation: the live room broadcasts and pushes display
+/// config from them. What a replay or reconstruction takes from them is the state a run kind must carry — a spawn's
+/// strip and PDC are printed and queued on every run kind, since they are engine state a reconstruction has to
+/// reproduce — and the broadcasts are what it leaves out.
 /// </para>
 /// </summary>
 public interface IActionHost
