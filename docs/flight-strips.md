@@ -196,6 +196,14 @@ Both flows funnel through the non-idempotent
 the idempotent `StripMutations.RequestDepartureStripForAircraft` / `…IntoBay` so
 per-tick re-firing never duplicates a strip.
 
+The printed field text is derived once, at print time, from the **session clock**:
+the departure strip's proposed-departure time (`FieldValues[5]`, `StripMutations.FormatProposedDepartureTime`)
+is `SimScenarioState.SimTimeUtc` as `HHmm`, and the arrival strip's ETA
+(`FieldValues[7]`, `FormatEta`) is the session clock plus the minutes-to-arrival the
+request computed. Neither reads `DateTime.UtcNow`, so a rewind or a bundle
+reconstruction re-prints the text the live session showed; the client prefixes `P`
+and never parses it.
+
 ## Server state model
 
 Strip state lives on the per-room `TrainingRoom.StripState` property,

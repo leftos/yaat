@@ -99,8 +99,8 @@ status flips on the issuer's vTDLS tab
 | `FacilityId`    | TDLS facility id (resolved from the filed departure airport)          |
 | `Status`        | `Pending` / `Sent` / `Wilco`                                          |
 | `Sequence`      | Monotonic per-state, for sort stability                               |
-| `CreatedUtc` / `SentUtc` / `WilcoUtc` | Lifecycle timestamps                            |
-| `ExpiresUtc`    | `CreatedUtc + 2 hours` (upstream TTL)                                 |
+| `CreatedUtc` / `SentUtc` / `WilcoUtc` | Lifecycle timestamps on the **session clock** (`SimScenarioState.SimTimeUtc` = `SessionStartUtc` + elapsed), never `DateTime.UtcNow` — a rewind or bundle reconstruction reproduces them |
+| `ExpiresUtc`    | `CreatedUtc + 2 hours` (upstream TTL) in sim time: a paused room expires nothing, a 4× room expires after 2 sim hours |
 | `SentPayload`   | Snapshot of the `ClearanceDto` at TDLSS time (null while Pending)     |
 
 ## vNAS data-api config integration
@@ -192,6 +192,12 @@ so they can follow the student's PDC stream while focused on radar.
 - `ScheduledWilcoAt` is reset; restored Sent items stay at Sent until a
   manual `TDLSW` or TTL expiry. This is a deliberate choice — a 2-hour
   restart shouldn't auto-wilco every Pending PDC immediately on come-up.
+- `TdlsState` is not in the Sim snapshot, so a same-room rewind keeps the room's
+  records: a rewind backwards un-expires a record whose `ExpiresUtc` is again in
+  the future and leaves `CreatedUtc`/`SentUtc` ahead of the clock; a rewind forward
+  past `ExpiresUtc` expires it on the first live tick; a `ScheduledWilcoAt` entry
+  fires whenever the clock re-crosses it. Resolved when `TdlsState` enters the
+  snapshot (tick-path step 4).
 
 ## Lifecycle
 
@@ -376,10 +382,10 @@ footer reads "CLEARANCE TYPE: PDC — SENT (READ ONLY)". Dump and Cancel
 remain available. (Selecting a Pending DCL item opens the same editor
 editable, `IsReadOnly == false`.)
 
-Auto-WILCO at ~3 s simulates the real FMS auto-acknowledgement (which
-fires near-instantly). The 2-hour TTL matches upstream's policy. Both
-are tunable via `SimScenarioState.TdlsWilcoDelaySeconds` and a
-session-snapshot constant if needed.
+Auto-WILCO at 3 sim seconds simulates the real FMS auto-acknowledgement (which
+fires near-instantly). The 2-hour TTL matches upstream's policy. Both count
+sim seconds (`TdlsCommandHandler.DefaultWilcoDelay`, `TdlsMutations.DefaultTtl`)
+against the session clock.
 
 `ProcessTdlsTrackRemoval` (the `TdlsTrackRemoval` spine step) removes any
 TDLS item — Pending or Sent/Wilco — once its aircraft is tracked on

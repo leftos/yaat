@@ -12,6 +12,7 @@
 
 ### Changed
 - One session clock: a session's start instant is pinned at load (the server's clock; a restart re-pins it) and rides the recording, so a replay or a rewound bundle computes its magnetic declinations from the day the session started (it used the day the server *process* started) and every later time-of-day readout derives from the same instant. Bug-bundle manifests carry it as `SessionStartUtc`.
+- PDC timestamps and the strip proposed-departure / ETA text read the session clock, so a rewind or a bundle reconstruction shows the times the live session showed. A departure strip's PDT is the session time at print (it was real time plus the elapsed seconds, ten minutes ahead at t=600); the PDC two-hour expiry and the three-second auto-WILCO count sim seconds, so a paused room expires nothing and a 4× room expires after two sim hours.
 
 ### Fixed
 - `MLT 28R 15` and `CTO MLT 28R 15` keep their runway and altitude in the command's canonical text (they were echoed as bare `MLT`/`CTO MLT`).
