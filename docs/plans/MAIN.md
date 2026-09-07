@@ -4,7 +4,7 @@ Entry point for `docs/plans/`. One line per item; the detail lives in the linked
 
 ## Current focus
 
-- [ ] **Tick-path unification** — [tick-path/README.md](./tick-path/README.md): one tick spine, one action router, one body per behaviour across live, replay and reconstruction. Steps 1–3 and 3d shipped (ADRs 0001–0007); **next is step 4, relocation** — attendance as a recorded input first, then sim-time for TDLS / strip timestamps, strips + TDLS into the snapshot, shrink `IActionHost` — [tick-path/04-relocation.md](./tick-path/04-relocation.md). Controller AI waits on this (steer 2026-09-02).
+- [ ] **Tick-path unification** — [tick-path/README.md](./tick-path/README.md): one tick spine, one action router, one body per behaviour across live, replay and reconstruction. Steps 1–3 and 3d shipped (ADRs 0001–0007); step 4 (relocation) is underway — its first slice shipped 2026-09-06 (attendance as a recorded input; delayed handoffs, auto-accept, point-out auto-ack and the autotrack passes are Sim steps; all twelve oracle baselines empty), **next is sim-time for TDLS / strip timestamps, then strips + TDLS into the snapshot, then shrink `IActionHost`** — [tick-path/04-relocation.md](./tick-path/04-relocation.md). Controller AI waits on this (steer 2026-09-02).
 
 ## Next up
 
