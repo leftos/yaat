@@ -1,4 +1,4 @@
-using Microsoft.Extensions.Logging;
+﻿using Microsoft.Extensions.Logging;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Vnas;
@@ -1248,6 +1248,8 @@ public static class FlightPhysics
             return;
         }
 
+        DiscardMissedCycleTerminatorBlocks(aircraft);
+
         // During active phases, the phase system owns control targets. The full
         // command queue logic (block advancement, untriggered block application) is
         // skipped, but triggered blocks still need to be watched. This lets commands
@@ -1850,7 +1852,87 @@ public static class FlightPhysics
             return false;
         }
 
+        if (HasLandedFullStop(aircraft, phase))
+        {
+            MarkCycleTerminatorMissed(block);
+            return false;
+        }
+
         return block.TriggerTerminatorObserved && !aircraft.IsOnGround;
+    }
+
+    /// <summary>
+    /// The aircraft has ended the cycle on the runway instead of climbing out of it: rolling out from a
+    /// full-stop landing, or already off the runway. Detected the same way the terminator latch is —
+    /// from the phase the aircraft is in — so a block armed on the approach and a block that latched
+    /// during the terminator are both caught.
+    /// </summary>
+    private static bool HasLandedFullStop(AircraftState aircraft, Yaat.Sim.Phases.Phase? phase) =>
+        (phase is Yaat.Sim.Phases.Ground.RunwayExitPhase or Yaat.Sim.Phases.Ground.HoldingAfterExitPhase)
+        || ((phase is Yaat.Sim.Phases.Tower.LandingPhase or Yaat.Sim.Phases.Tower.HelicopterLandingPhase) && aircraft.IsOnGround);
+
+    /// <summary>
+    /// The <c>OTG</c> condition can no longer be met — the aircraft landed full stop, so there is no
+    /// climb-out for the block to fire on. Only the flag is set here; the removal and the warning belong
+    /// to <see cref="DiscardMissedCycleTerminatorBlocks"/>, which runs where the block list may be
+    /// mutated. An aircraft cleared for the option becomes a departure only once it touches down and
+    /// continues (7110.65 §3-8-2); a full stop ends the cycle instead, and the pilot simply could not
+    /// comply with the queued instruction — P/CG UNABLE.
+    /// </summary>
+    private static void MarkCycleTerminatorMissed(CommandBlock block)
+    {
+        block.TriggerMissed = true;
+    }
+
+    /// <summary>
+    /// Drops the blocks whose <see cref="BlockTriggerType.AfterCycleTerminator"/> condition was marked
+    /// missed by <see cref="MarkCycleTerminatorMissed"/>, and tells the RPO. Done here rather than at
+    /// detection time because the detection runs inside the queue scans, which must not mutate the block
+    /// list under themselves; one pass at the top of the queue update owns the removal.
+    ///
+    /// <para>The rest of the missed block's own transmission goes with it
+    /// (<see cref="CommandQueue.DiscardChainRemainder"/>, the same abort a fire-time failure runs): the
+    /// follow-on instructions were premised on the one that can no longer happen. The warning quotes the
+    /// source text verbatim — never through a runway de-padder, which would turn the <c>015</c> of
+    /// <c>OTG MLT 28R 015</c> into a <c>15</c> that reads as a runway.</para>
+    /// </summary>
+    private static void DiscardMissedCycleTerminatorBlocks(AircraftState aircraft)
+    {
+        var queue = aircraft.Queue;
+        for (int i = queue.Blocks.Count - 1; i >= 0; i--)
+        {
+            var block = queue.Blocks[i];
+            if (block.IsApplied || !block.TriggerMissed || (block.Trigger?.Type is not BlockTriggerType.AfterCycleTerminator))
+            {
+                continue;
+            }
+
+            var discarded = queue.DiscardChainRemainder(block);
+            int index = queue.Blocks.IndexOf(block);
+            if (index >= 0)
+            {
+                queue.Blocks.RemoveAt(index);
+                if (queue.CurrentBlockIndex > index)
+                {
+                    queue.CurrentBlockIndex--;
+                }
+            }
+
+            var src = !string.IsNullOrEmpty(block.SourceCommandText)
+                ? block.SourceCommandText
+                : (!string.IsNullOrEmpty(block.Description) ? block.Description : block.NaturalDescription);
+            var warning = $"{aircraft.Callsign} {src}: unable — landed full stop";
+            if (discarded.Count > 0)
+            {
+                warning += $" — rest of transmission discarded ({discarded.Count}): {string.Join("; ", discarded)}";
+            }
+            aircraft.PendingWarnings.Add(warning);
+        }
+
+        if (queue.CurrentBlockIndex > queue.Blocks.Count)
+        {
+            queue.CurrentBlockIndex = queue.Blocks.Count;
+        }
     }
 
     private static bool IsGroundEntityReached(AircraftState aircraft, BlockTrigger trigger)
@@ -2077,12 +2159,13 @@ public static class FlightPhysics
             // CommandDispatcher.DryRunValidate only validates the first
             // immediately-applied block — deferred blocks reach their handler
             // here at trigger fire time. Surface failures so the RPO sees them
-            // in the terminal log rather than having them swallowed.
-            var src = RunwayIdentifier.ToDisplayDesignator(
-                !string.IsNullOrEmpty(block.SourceCommandText)
-                    ? block.SourceCommandText
-                    : (!string.IsNullOrEmpty(block.Description) ? block.Description : block.NaturalDescription)
-            );
+            // in the terminal log rather than having them swallowed. The source text
+            // is quoted verbatim: the runway de-padder strips the leading zero from
+            // every 0-led token, and in an argument slot where a runway and an
+            // altitude compete a de-padded "015" reads back as runway 15.
+            var src = !string.IsNullOrEmpty(block.SourceCommandText)
+                ? block.SourceCommandText
+                : (!string.IsNullOrEmpty(block.Description) ? block.Description : block.NaturalDescription);
             var reason = !string.IsNullOrEmpty(result.Message) ? result.Message : "command failed";
             var discarded = aircraft.Queue.DiscardChainRemainder(block);
             var warning = $"{aircraft.Callsign} {src}: {reason}";

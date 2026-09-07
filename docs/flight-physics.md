@@ -309,7 +309,7 @@ Full depth is in [command-pipeline.md](command-pipeline.md) and [phases.md](phas
   block mid-approach (`:1076`).
 - **Trigger types** (`IsTriggerMet`, `:1264`): `ReachAltitude`, `ReachFix`, `InterceptRadial`, `ReachFrdPoint`, `GiveWay`, `DistanceFinal`,
   `OnHandoff`, `AtGroundEntity`, `EnteringHoldingAfterExit`, `AfterRunwayCrossing`, `AfterCycleTerminator` (`OTG`: latches on a
-  touch-and-go / stop-and-go / low approach / go-around phase and fires once the aircraft has left it and is airborne).
+  touch-and-go / stop-and-go / low approach / go-around phase and fires once the aircraft has left it and is airborne; a full-stop landing marks it `TriggerMissed` and `DiscardMissedCycleTerminatorBlocks` drops it and its chain remainder (`DiscardChainRemainder`) with an "unable — landed full stop" warning at the next queue update; P/CG UNABLE, 7110.65 §3-8-2).
 - **The three `Notify*` hooks** are the *only* way a queued block fires while a phase owns control: `NotifyFixSequenced` (`:1513`, from route/
   approach sequencing), `NotifyGroundEntityReached` (`:1555`, from `TaxiingPhase`), `NotifyPhaseAdvanced` (`:1629`, from `PhaseRunner`). Forget the
   hook and a sequential compound like `TAXI…;CTO` sits untouched until the next user dispatch.

@@ -1319,6 +1319,30 @@ public class PatternEntryTests : IDisposable
         Assert.IsType<DownwindPhase>(phases[2]);
     }
 
+    /// <summary>
+    /// A controller-assigned pattern altitude is flown as assigned by every category (AIM 4-4-7.b), so
+    /// the jet crosses at that altitude rather than the 1,500 ft AGL entry height — and a teardrop whose
+    /// whole job is to lose the entry height has nothing to descend. The gate is the height actually
+    /// flown, not the category.
+    /// </summary>
+    [Fact]
+    public void WrongSide_Jet_WithAssignedPatternAltitude_NoTeardrop()
+    {
+        var runway = MakeOak28R();
+        var aircraft = MakeAircraft(37.63, -122.21, 2500, 0);
+        aircraft.AircraftType = "B738";
+        aircraft.Phases!.AssignedRunway = runway;
+        aircraft.Pattern.AltitudeOverrideFt = 1500;
+
+        PatternCommandHandler.TryEnterPattern(aircraft, PatternDirection.Right, PatternEntryLeg.Downwind, runwayId: "28R", finalDistanceNm: null);
+
+        var phases = aircraft.Phases!.Phases;
+        DumpPhases(aircraft);
+        Assert.IsType<MidfieldCrossingPhase>(phases[0]);
+        Assert.IsType<DownwindPhase>(phases[1]);
+        Assert.DoesNotContain(phases, p => p is TeardropReentryPhase);
+    }
+
     [Fact]
     public void WrongSide_Piston_PhaseChain_NoTeardrop()
     {

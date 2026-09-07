@@ -202,6 +202,9 @@ public sealed class ClosedTrafficDepartureDto : DepartureInstructionDto
 
     /// <summary>Optional pattern altitude override (ft MSL).</summary>
     public int? PatternAltitude { get; init; }
+
+    /// <summary>The pattern-altitude token as typed, so a restored clearance renders the canonical text it was issued with.</summary>
+    public string? PatternAltitudeText { get; init; }
 }
 
 // --- Pattern waypoints ---

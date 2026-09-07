@@ -1,9 +1,10 @@
-using System.Linq;
+﻿using System.Linq;
 using Microsoft.Extensions.Logging;
 using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
 using Yaat.Sim.Phases;
+using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Phases.Pattern;
 using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Simulation;
@@ -261,6 +262,233 @@ public class OnTheGoConditionTests(ITestOutputHelper output)
             Assert.True(sawCrosswind, "never reached the crosswind — the circuit did not advance normally");
             Assert.True(sawDownwind, "never reached the downwind — the circuit did not advance normally");
         }
+    }
+
+    /// <summary>
+    /// A full stop is the end of the cycle the block was waiting on: the aircraft never climbs out, so
+    /// the trigger it latched on can never fire and the block would sit in the queue for the rest of the
+    /// session. Landing full stop discards it with the missed-condition warning instead, and the pattern
+    /// change never happens — the aircraft keeps the runway it landed on.
+    /// </summary>
+    [Fact]
+    public void OtgMlt_QueuedOnFinal_IsDiscardedWhenTheAircraftLandsFullStop()
+    {
+        var archive = RecordingLoader.OpenArchive(RecordingPath);
+        if (archive is null)
+        {
+            return;
+        }
+
+        using (archive)
+        {
+            var engine = BuildEngine();
+            if (engine is null)
+            {
+                return;
+            }
+
+            var warnings = new List<string>();
+            engine.WarningEmitted += (_, warning) => warnings.Add(warning);
+
+            var ac = RestoreAt(engine, archive, FinalBeforeTouchAndGoTime);
+            if (ac is null)
+            {
+                return;
+            }
+
+            Assert.IsType<FinalApproachPhase>(ac.Phases?.CurrentPhase);
+
+            // Full stop instead of the recorded option: the touch-and-go terminator never happens.
+            var cland = engine.SendCommand(Callsign, "CLAND");
+            Assert.True(cland.Success, $"CLAND was refused: {cland.Message}");
+            var otg = engine.SendCommand(Callsign, "OTG MLT 28L");
+            Assert.True(otg.Success, $"OTG MLT 28L was refused: {otg.Message}");
+            Assert.Contains(ac.Queue.Blocks, b => b.Trigger?.Type == BlockTriggerType.AfterCycleTerminator);
+
+            AircraftState? afterRollout = null;
+            for (int t = 1; t <= MaxTicks; t++)
+            {
+                engine.TickOneSecond();
+                var live = engine.FindAircraft(Callsign);
+                if (live is null)
+                {
+                    break;
+                }
+
+                if (live.Phases?.CurrentPhase is RunwayExitPhase or HoldingAfterExitPhase)
+                {
+                    afterRollout = live;
+                    break;
+                }
+            }
+
+            Assert.NotNull(afterRollout);
+            output.WriteLine($"after rollout: phase={afterRollout.Phases?.CurrentPhase?.Name} queue={afterRollout.Queue.Blocks.Count} blocks");
+
+            Assert.DoesNotContain(afterRollout.Queue.Blocks, b => b.Trigger?.Type == BlockTriggerType.AfterCycleTerminator);
+            Assert.Equal("28R", afterRollout.Phases?.AssignedRunway?.Designator);
+            // P/CG UNABLE: the pilot could not comply — the controller never cancelled anything.
+            Assert.Contains(warnings, w => w.Contains("unable — landed full stop", StringComparison.Ordinal));
+            Assert.Contains(warnings, w => w.Contains("OTG MLT 28L", StringComparison.OrdinalIgnoreCase));
+        }
+    }
+
+    /// <summary>
+    /// The warning quotes the source text verbatim. Running it through the runway de-padder — which the
+    /// fire-time failure path does — would turn <c>015</c> into <c>15</c>, and in the modifier's own
+    /// grammar a bare <c>15</c> is runway 15: the RPO would be told about an instruction nobody issued.
+    /// </summary>
+    [Fact]
+    public void OtgMlt_FullStop_QuotesAThreeDigitPatternAltitudeVerbatim()
+    {
+        var archive = RecordingLoader.OpenArchive(RecordingPath);
+        if (archive is null)
+        {
+            return;
+        }
+
+        using (archive)
+        {
+            var engine = BuildEngine();
+            if (engine is null)
+            {
+                return;
+            }
+
+            var warnings = new List<string>();
+            engine.WarningEmitted += (_, warning) => warnings.Add(warning);
+
+            var ac = RestoreAt(engine, archive, FinalBeforeTouchAndGoTime);
+            if (ac is null)
+            {
+                return;
+            }
+
+            Assert.True(engine.SendCommand(Callsign, "CLAND").Success);
+            var otg = engine.SendCommand(Callsign, "OTG MLT 28R 015");
+            Assert.True(otg.Success, $"OTG MLT 28R 015 was refused: {otg.Message}");
+
+            var afterRollout = FlyToRollout(engine);
+            Assert.NotNull(afterRollout);
+
+            Assert.DoesNotContain(afterRollout.Queue.Blocks, b => b.Trigger?.Type == BlockTriggerType.AfterCycleTerminator);
+            Assert.Contains(warnings, w => w.Contains("OTG MLT 28R 015", StringComparison.Ordinal));
+            Assert.DoesNotContain(warnings, w => w.Contains("OTG MLT 28R 15:", StringComparison.Ordinal));
+        }
+    }
+
+    /// <summary>
+    /// The rest of the transmission goes with the missed block, exactly as a fire-time failure discards
+    /// its chain: the speed was issued for the circuit the aircraft is no longer flying.
+    /// </summary>
+    [Fact]
+    public void OtgMlt_FullStop_DiscardsTheRestOfItsTransmission()
+    {
+        var archive = RecordingLoader.OpenArchive(RecordingPath);
+        if (archive is null)
+        {
+            return;
+        }
+
+        using (archive)
+        {
+            var engine = BuildEngine();
+            if (engine is null)
+            {
+                return;
+            }
+
+            var warnings = new List<string>();
+            engine.WarningEmitted += (_, warning) => warnings.Add(warning);
+
+            var ac = RestoreAt(engine, archive, FinalBeforeTouchAndGoTime);
+            if (ac is null)
+            {
+                return;
+            }
+
+            Assert.True(engine.SendCommand(Callsign, "CLAND").Success);
+            var otg = engine.SendCommand(Callsign, "OTG MLT 28L; SPD 200");
+            Assert.True(otg.Success, $"OTG MLT 28L; SPD 200 was refused: {otg.Message}");
+            Assert.Equal(2, ac.Queue.Blocks.Count);
+
+            var afterRollout = FlyToRollout(engine);
+            Assert.NotNull(afterRollout);
+            output.WriteLine($"after rollout: {afterRollout.Queue.Blocks.Count} blocks, warnings: {string.Join(" | ", warnings)}");
+
+            Assert.DoesNotContain(afterRollout.Queue.Blocks, b => (b.SourceCommandText ?? "").Contains("SPD 200", StringComparison.Ordinal));
+            Assert.DoesNotContain(afterRollout.Queue.Blocks, b => b.Trigger?.Type == BlockTriggerType.AfterCycleTerminator);
+            Assert.Contains(warnings, w => w.Contains("rest of transmission discarded", StringComparison.Ordinal));
+        }
+    }
+
+    /// <summary>
+    /// The same verbatim-quoting rule on the fire-time failure path: an <c>OTG</c> block whose inner
+    /// command is refused when it fires is quoted as issued. Through the runway de-padder the pattern
+    /// altitude <c>015</c> would come back as <c>15</c> — a runway, in that slot — so the RPO would be
+    /// shown an instruction nobody typed.
+    /// </summary>
+    [Fact]
+    public void OtgMlt_FailingAtFireTime_QuotesTheSourceTextVerbatim()
+    {
+        var archive = RecordingLoader.OpenArchive(RecordingPath);
+        if (archive is null)
+        {
+            return;
+        }
+
+        using (archive)
+        {
+            var engine = BuildEngine();
+            if (engine is null)
+            {
+                return;
+            }
+
+            var warnings = new List<string>();
+            engine.WarningEmitted += (_, warning) => warnings.Add(warning);
+
+            var ac = RestoreAt(engine, archive, FinalBeforeTouchAndGoTime);
+            if (ac is null)
+            {
+                return;
+            }
+
+            // OAK has no runway 01L, so the block fires on the climb-out and is refused there.
+            var otg = engine.SendCommand(Callsign, "OTG MLT 01L 015");
+            Assert.True(otg.Success, $"OTG MLT 01L 015 was refused at issue: {otg.Message}");
+
+            for (int t = 1; (t <= MaxTicks) && (warnings.Count == 0); t++)
+            {
+                engine.TickOneSecond();
+            }
+
+            output.WriteLine($"warnings: {string.Join(" | ", warnings)}");
+            Assert.Contains(warnings, w => w.Contains("OTG MLT 01L 015", StringComparison.Ordinal));
+            Assert.DoesNotContain(warnings, w => w.Contains("MLT 1L 15", StringComparison.Ordinal));
+            Assert.Equal("28R", engine.FindAircraft(Callsign)?.Phases?.AssignedRunway?.Designator);
+        }
+    }
+
+    /// <summary>Ticks until the aircraft is off the runway after its full-stop landing.</summary>
+    private AircraftState? FlyToRollout(SimulationEngine engine)
+    {
+        for (int t = 1; t <= MaxTicks; t++)
+        {
+            engine.TickOneSecond();
+            var live = engine.FindAircraft(Callsign);
+            if (live is null)
+            {
+                return null;
+            }
+
+            if (live.Phases?.CurrentPhase is RunwayExitPhase or HoldingAfterExitPhase)
+            {
+                return live;
+            }
+        }
+
+        return null;
     }
 
     /// <summary>

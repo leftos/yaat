@@ -1,4 +1,4 @@
-using Yaat.Sim.Data.Airport;
+﻿using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases.Pattern;
 using Yaat.Sim.Phases.Tower;
 
@@ -336,18 +336,59 @@ public static class PatternBuilder
             flownAuthoredRunway
         );
 
-        return
-        [
-            new UpwindPhase { Waypoints = flownWaypoints },
-            new MidfieldCrossingPhase
-            {
-                Waypoints = patternWaypoints,
-                InitialTurn = direction == PatternDirection.Left ? TurnDirection.Left : TurnDirection.Right,
-            },
-            // The midfield crossing can drop the aircraft inside the pattern-runway downwind track;
-            // re-intercept it so the base/final geometry rolls out on centerline.
-            new DownwindPhase { Waypoints = patternWaypoints, RejoinTrack = true },
-        ];
+        var crossing = new MidfieldCrossingPhase
+        {
+            Waypoints = patternWaypoints,
+            InitialTurn = direction == PatternDirection.Left ? TurnDirection.Left : TurnDirection.Right,
+            // A departure into another runway's pattern never left the pattern: it climbs out on the
+            // runway it used and crosses to the other downwind at traffic-pattern altitude. AIM
+            // 4-3-3.a.2's 1,500 ft AGL crossing is an *entry* rule for arrivals joining from outside.
+            CrossAtPatternAltitude = true,
+        };
+        var downwind = new DownwindPhase { Waypoints = patternWaypoints };
+
+        List<Phase> phases = [new UpwindPhase { Waypoints = flownWaypoints }];
+        phases.AddRange(BuildFieldCrossingPrefix(crossing, patternWaypoints, category, altitudeOverrideFt, [downwind]));
+        phases.Add(downwind);
+        return phases;
+    }
+
+    /// <summary>
+    /// The phases that carry an aircraft across the field and onto the downwind of
+    /// <paramref name="circuit"/>: the crossing itself, and — when it is flown at the AIM 4-3-3.a.2
+    /// entry height rather than at pattern altitude — a <see cref="TeardropReentryPhase"/> to shed that
+    /// height on an outbound leg and a 45° intercept to abeam before joining. The gate is what the
+    /// crossing will actually be flown at
+    /// (<see cref="MidfieldCrossingPhase.CrossesAtPatternAltitude"/>), not the category alone: a piston
+    /// or helicopter entry, an in-pattern crossover, a departure crossing into another runway's pattern,
+    /// and a jet flying a controller-assigned pattern altitude all cross at pattern altitude and have
+    /// nothing to descend. Those drop straight into the downwind, and that downwind re-intercepts its
+    /// computed track — the crossing can leave the aircraft inside it, and base/final geometry built for
+    /// the computed width would otherwise turn early.
+    ///
+    /// <para>Every join that crosses the field flies this: the arrival entry and the wrong-side MLT/MRT
+    /// rebuild (<c>PatternCommandHandler</c>) and the crossing-runway transition circuit
+    /// (<see cref="BuildRunwayTransitionCircuit"/>, e.g. <c>CTO 33 MRT 28R</c>).</para>
+    /// </summary>
+    public static List<Phase> BuildFieldCrossingPrefix(
+        MidfieldCrossingPhase crossing,
+        PatternWaypoints waypoints,
+        AircraftCategory category,
+        double? altitudeOverrideFt,
+        IReadOnlyList<Phase> circuit
+    )
+    {
+        var prefix = new List<Phase> { crossing };
+        if (!MidfieldCrossingPhase.CrossesAtPatternAltitude(crossing.CrossAtPatternAltitude, category, altitudeOverrideFt))
+        {
+            prefix.Add(new TeardropReentryPhase { Waypoints = waypoints });
+        }
+        else if (circuit.OfType<DownwindPhase>().FirstOrDefault() is { } joinDownwind)
+        {
+            joinDownwind.RejoinTrack = true;
+        }
+
+        return prefix;
     }
 
     /// <summary>

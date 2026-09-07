@@ -1,4 +1,4 @@
-using System.Text;
+﻿using System.Text;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Faa;
@@ -588,8 +588,8 @@ public static class CommandDescriber
             EnterLeftBaseCommand elb => DescribePatternBase("ELB", elb.RunwayId, elb.FinalDistanceNm),
             EnterRightBaseCommand erb => DescribePatternBase("ERB", erb.RunwayId, erb.FinalDistanceNm),
             EnterFinalCommand ef => ef.RunwayId is not null ? $"EF {ef.RunwayId}" : "EF",
-            MakeLeftTrafficCommand => "MLT",
-            MakeRightTrafficCommand => "MRT",
+            MakeLeftTrafficCommand mlt => FormatPatternModifierCanonical("MLT", mlt.RunwayId, mlt.Altitude, mlt.AltitudeText),
+            MakeRightTrafficCommand mrt => FormatPatternModifierCanonical("MRT", mrt.RunwayId, mrt.Altitude, mrt.AltitudeText),
             TurnCrosswindCommand => "TC",
             TurnDownwindCommand => "TD",
             TurnBaseCommand => "TB",
@@ -608,10 +608,38 @@ public static class CommandDescriber
             OffsetRightPatternCommand ofr => ofr.OffsetNm is { } nm ? $"OFR {nm:G}" : "OFR",
             Plan270Command => "P270",
             CircleAirportCommand => "CA",
-            TouchAndGoCommand tg => FormatOptionClearanceCanonical("TG", tg.RunwayId, tg.TrafficPattern, tg.PatternRunwayId, tg.PatternAltitude),
-            StopAndGoCommand sg => FormatOptionClearanceCanonical("SG", null, sg.TrafficPattern, sg.PatternRunwayId, sg.PatternAltitude),
-            LowApproachCommand la => FormatOptionClearanceCanonical("LA", null, la.TrafficPattern, la.PatternRunwayId, la.PatternAltitude),
-            ClearedForOptionCommand opt => FormatOptionClearanceCanonical("COPT", null, opt.TrafficPattern, opt.PatternRunwayId, opt.PatternAltitude),
+            TouchAndGoCommand tg => FormatOptionClearanceCanonical(
+                "TG",
+                tg.RunwayId,
+                tg.TrafficPattern,
+                tg.PatternRunwayId,
+                tg.PatternAltitude,
+                tg.PatternAltitudeText
+            ),
+            StopAndGoCommand sg => FormatOptionClearanceCanonical(
+                "SG",
+                null,
+                sg.TrafficPattern,
+                sg.PatternRunwayId,
+                sg.PatternAltitude,
+                sg.PatternAltitudeText
+            ),
+            LowApproachCommand la => FormatOptionClearanceCanonical(
+                "LA",
+                null,
+                la.TrafficPattern,
+                la.PatternRunwayId,
+                la.PatternAltitude,
+                la.PatternAltitudeText
+            ),
+            ClearedForOptionCommand opt => FormatOptionClearanceCanonical(
+                "COPT",
+                null,
+                opt.TrafficPattern,
+                opt.PatternRunwayId,
+                opt.PatternAltitude,
+                opt.PatternAltitudeText
+            ),
             HoldPresentPosition360Command cmd => cmd.Direction == TurnDirection.Left ? "HPPL" : "HPPR",
             HoldPresentPositionHoverCommand => "HPP",
             HoldAtFixOrbitCommand cmd => $"HFIX{(cmd.Direction == TurnDirection.Left ? "L" : "R")} {cmd.FixName}",
@@ -1688,10 +1716,7 @@ public static class CommandDescriber
             DirectFixDeparture { Direction: TurnDirection.Left } dfd => $" TLDCT {dfd.FixName}",
             DirectFixDeparture { Direction: TurnDirection.Right } dfd => $" TRDCT {dfd.FixName}",
             DirectFixDeparture dfd => $" DCT {dfd.FixName}",
-            ClosedTrafficDeparture { Direction: PatternDirection.Right, RunwayId: { } rwyR } => $" MRT {rwyR}",
-            ClosedTrafficDeparture { Direction: PatternDirection.Right } => " MRT",
-            ClosedTrafficDeparture { RunwayId: { } rwyL } => $" MLT {rwyL}",
-            ClosedTrafficDeparture => " MLT",
+            ClosedTrafficDeparture ct => $" {DescribeClosedTrafficModifier(ct)}",
             _ => "",
         };
 
@@ -1713,7 +1738,8 @@ public static class CommandDescriber
         string? runwayId,
         PatternDirection? trafficPattern,
         string? patternRunwayId,
-        int? patternAltitude
+        int? patternAltitude,
+        string? patternAltitudeText
     )
     {
         var parts = new List<string> { verb };
@@ -1724,29 +1750,66 @@ public static class CommandDescriber
 
         if (trafficPattern is { } direction)
         {
-            parts.Add(direction == PatternDirection.Left ? "MLT" : "MRT");
-            if (patternRunwayId is not null)
-            {
-                parts.Add(patternRunwayId);
-            }
+            parts.Add(
+                FormatPatternModifierCanonical(
+                    direction == PatternDirection.Left ? "MLT" : "MRT",
+                    patternRunwayId,
+                    patternAltitude,
+                    patternAltitudeText
+                )
+            );
+        }
 
-            if (patternAltitude is { } altitude)
-            {
-                parts.Add(FormatPatternAltitudeCanonical(altitude));
-            }
+        return string.Join(' ', parts);
+    }
+
+    /// <summary>The <c>CTO</c> closed-traffic modifier, runway and altitude included.</summary>
+    private static string DescribeClosedTrafficModifier(ClosedTrafficDeparture ct) =>
+        FormatPatternModifierCanonical(
+            ct.Direction == PatternDirection.Right ? "MRT" : "MLT",
+            ct.RunwayId,
+            ct.PatternAltitude,
+            ct.PatternAltitudeText
+        );
+
+    /// <summary>
+    /// Canonical text for a pattern modifier — the standalone <c>MLT</c>/<c>MRT</c>, the <c>CTO</c>
+    /// closed-traffic modifier and the option clearances' modifier all take the same
+    /// <c>[runway] [altitude]</c> tail (<see cref="DepartureCommandParser.ParsePatternModifierArgs"/>),
+    /// so they all render through here. Every field the parser accepts is rendered: the action router
+    /// re-parses this text on every run kind, and a dropped pattern runway or altitude replays as a
+    /// different instruction.
+    /// </summary>
+    private static string FormatPatternModifierCanonical(string verb, string? runwayId, int? altitude, string? altitudeText)
+    {
+        var parts = new List<string> { verb };
+        if (runwayId is not null)
+        {
+            parts.Add(runwayId);
+        }
+
+        if (altitudeText is not null)
+        {
+            parts.Add(altitudeText);
+        }
+        else if (altitude is { } feet)
+        {
+            parts.Add(FormatPatternAltitudeCanonical(feet));
         }
 
         return string.Join(' ', parts);
     }
 
     /// <summary>
-    /// A pattern altitude in the hundreds-of-feet shorthand the parser reads back as the same number
-    /// (<c>1500</c> → <c>15</c>). <see cref="AltitudeResolver"/> multiplies any value below 1000 by 100,
-    /// so the full-feet form is only safe at or above 1000 ft — an 800 ft pattern written out as "800"
-    /// would come back as 80,000.
+    /// A pattern altitude for a command built in code rather than parsed, so no token was typed: the
+    /// hundreds shorthand written with three digits (<c>1500</c> → <c>015</c>), because one or two
+    /// digits in the first modifier slot is a runway (<see cref="Arguments.RunwayArgument"/>). Anything
+    /// that is not a whole number of hundreds is written out in feet. A parsed command renders its own
+    /// token instead — the only faithful rendering of the AGL form, whose resolved feet (509 ft) have
+    /// no numeric spelling that reads back as the same altitude.
     /// </summary>
     private static string FormatPatternAltitudeCanonical(int altitude) =>
-        (altitude % 100 == 0) && (altitude / 100 < 1000) ? $"{altitude / 100}" : $"{altitude}";
+        (altitude % 100 == 0) && (altitude / 100 < 1000) ? $"{altitude / 100:D3}" : $"{altitude}";
 
     private static string FormatClearedToLandCanonical(ClearedToLandCommand cmd)
     {

@@ -15,6 +15,7 @@ Entry point for `docs/plans/`. One line per item; the detail lives in the linked
 - [ ] CRC protocol support gaps — [crc-protocol-support.md](./crc-protocol-support.md) (13 open of 174; the status table of the CRC hub protocol)
 - [ ] vTDLS emulation v1 — [vtdls-emulation.md](./vtdls-emulation.md) (pre-work landed; the PDC flow remains)
 - [ ] Test-suite speed follow-ups — [test-suite-speed.md](./test-suite-speed.md) (two profiling items and two stale VSTest filter strings; the TUnit verdict — do not migrate — is recorded there)
+- [ ] **Typed command arguments** (steer 2026-09-07) — [typed-command-arguments.md](./typed-command-arguments.md): the registry names each argument's type instead of a prose hint, one small validator per type, arguments bind to record fields by type, and a slot that takes a runway or an altitude is two overloads resolved like a compiler resolves them — the token is tried against each viable overload's declared type (`RunwayArgument`: 1–2 digits + optional L/C/R; `AltitudeArgument`: 3+ digits) — with no combined type; a runway the airport lacks is rejected at dispatch. Step 1 (the pattern modifiers) is in flight; the audit of the remaining slots is step 2
 
 ## Backlog
 

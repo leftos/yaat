@@ -1,4 +1,4 @@
-using Xunit;
+﻿using Xunit;
 using Yaat.Sim.Commands;
 
 namespace Yaat.Client.Tests;
@@ -169,5 +169,32 @@ public class CommandSchemeParserAliasTests
 
         Assert.NotNull(result);
         Assert.Equal("SPDN 80", result.CanonicalString);
+    }
+
+    /// <summary>
+    /// The pattern modifier's runway and altitude arguments have to survive the client canonicalizer
+    /// exactly as the server describer renders them (issue #335): the text typed here is what the
+    /// server re-parses, so a dropped pattern runway would fly a different circuit than the one typed.
+    /// </summary>
+    [Theory]
+    [InlineData("MLT", "MLT")]
+    [InlineData("MRT", "MRT")]
+    [InlineData("MLT 28R", "MLT 28R")]
+    [InlineData("mlt 28r", "MLT 28R")]
+    [InlineData("MLT 28R 015", "MLT 28R 015")]
+    [InlineData("MLT 28R 15", "MLT 28R 15")]
+    [InlineData("MRT 15", "MRT 15")]
+    [InlineData("MLT 33", "MLT 33")]
+    [InlineData("CTO MLT 28R", "CTO MLT 28R")]
+    [InlineData("CTO MLT 28R 15", "CTO MLT 28R 15")]
+    [InlineData("CTO MRT 15", "CTO MRT 15")]
+    [InlineData("COPT MLT 28L", "COPT MLT 28L")]
+    [InlineData("TG 28R MLT 28L 15", "TG 28R MLT 28L 15")]
+    public void ParseCompound_PatternModifierArguments_RoundTripThroughTheCanonicalizer(string input, string expected)
+    {
+        var result = CommandSchemeParser.ParseCompound(input, Scheme);
+
+        Assert.NotNull(result);
+        Assert.Equal(expected, result.CanonicalString);
     }
 }

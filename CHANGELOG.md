@@ -3,6 +3,7 @@
 ## Unreleased
 
 ### Added
+- Pattern modifiers name any runway: `MLT 33`, `CTO MLT 33`, `COPT MLT 15`. In the first slot a 1–2 digit token (with an optional L/C/R) is a runway, so a pattern altitude given alone needs three or more digits (`MLT 015`); after a runway the shorthand still works (`CTO MLT 28R 15`). A runway the airport does not have is rejected.
 - `COPT`, `TG`, `SG` and `LA` accept the `CTO` pattern modifiers with a runway and altitude (`COPT MLT 28L`, `TG MLT 28L 15`): the clearance is flown on the current runway and the next circuit transitions into the named runway's pattern. Pre-issued clearances carry the runway too. A go-around instead of the option cancels the armed runway and warns the RPO to re-issue; the pilot reads the pattern runway back.
 - `OTG` ("on the go") condition prefix: `OTG MLT 28L` fires the command once the aircraft is climbing out after its next touch-and-go, stop-and-go, low approach or go-around, so a runway or direction change can be given together with the option it is about to fly.
 - The Discord server shows progress towards YAAT's monthly hosting cost, fed by Ko-fi: a sidebar ticker channel, a pinned progress embed listing this month's supporters (surplus rolls into the next month), and One-time / Monthly Supporter roles claimed through Ko-fi.
@@ -10,6 +11,10 @@
 - `RDTXT /DR EXPECT 28R` sets a held release's text on a named coordination list; `AS OAK_GND` and `AS NCT_APP@1M` select a position by callsign when its TCP is shared.
 
 ### Fixed
+- `MLT 28R 15` and `CTO MLT 28R 15` keep their runway and altitude in the command's canonical text (they were echoed as bare `MLT`/`CTO MLT`).
+- A `FOLLOW` issued after `COPT MLT 28L` keeps the armed pattern runway, so the transition still happens after the option; the RPO is warned that the follower will leave the sequence then.
+- A jet or turboprop cleared for takeoff into another runway's pattern (`CTO 33 MRT 28R`) crosses midfield at pattern altitude — it never left the pattern, so the entry height does not apply — and a wrong-side entry with a controller-assigned pattern altitude no longer flies a teardrop it has no height to lose in.
+- An `OTG` command on an aircraft that then lands full-stop is dropped with "unable — landed full stop" (together with anything chained behind it) instead of waiting forever.
 - A jet or turboprop crossing midfield to enter a pattern from the wrong side crosses at 1,500 ft above the field (or its own pattern altitude if higher) instead of 500 ft above its already-elevated pattern altitude.
 - `MLT`/`MRT` that switches runways reports "(crossing midfield)" when the transition crosses the field, as pattern entries do.
 - A jet or turboprop sent across the field by `MLT`/`MRT` from the wrong side flies the same teardrop descent to pattern altitude that a wrong-side pattern entry does, instead of joining the downwind at its crossing height.

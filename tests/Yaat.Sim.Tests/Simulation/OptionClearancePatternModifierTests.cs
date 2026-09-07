@@ -1,4 +1,4 @@
-using System.Linq;
+﻿using System.Linq;
 using Microsoft.Extensions.Logging;
 using Xunit;
 using Yaat.Sim.Commands;
@@ -57,9 +57,20 @@ public class OptionClearancePatternModifierTests(ITestOutputHelper output)
     [InlineData("TG MLT 28L 15")]
     [InlineData("COPT")]
     [InlineData("COPT MLT 28L")]
+    [InlineData("SG MRT 28R 015")]
     [InlineData("SG MRT 28R 15")]
     [InlineData("LA MLT")]
     [InlineData("LA MRT")]
+    [InlineData("MLT")]
+    [InlineData("MRT")]
+    [InlineData("MLT 28R")]
+    [InlineData("MLT 28R 015")]
+    [InlineData("MLT 28R 15")]
+    [InlineData("MRT 15")]
+    [InlineData("CTO MLT")]
+    [InlineData("CTO MLT 28R")]
+    [InlineData("CTO MLT 28R 15")]
+    [InlineData("CTO MRT 15")]
     public void OptionClearanceCanonical_RoundTripsThroughTheParser(string canonical)
     {
         TestVnasData.EnsureInitialized();
@@ -265,9 +276,7 @@ public class OptionClearancePatternModifierTests(ITestOutputHelper output)
     /// <summary>
     /// A pattern runway that is not a close parallel of the one being flown joins through a midfield
     /// crossing (SFO 28R → 1L), and the clearance's own result text is the only place the RPO learns that
-    /// the aircraft will fly across the field — AIM 4-3-5's unexpected maneuver. Unit-scoped: the OAK
-    /// fixture has no crossing runway whose designator survives the pattern-modifier grammar (a bare
-    /// "33" is read as a 3,300 ft pattern altitude, the same rule <c>CTO MLT 15</c> follows).
+    /// the aircraft will fly across the field — AIM 4-3-5's unexpected maneuver.
     /// </summary>
     [Fact]
     public void CoptMlt_CrossingRunway_AnnouncesTheMidfieldCrossing()
@@ -295,6 +304,47 @@ public class OptionClearancePatternModifierTests(ITestOutputHelper output)
         output.WriteLine($"COPT MLT 01L: success={result.Success} — {result.Message}");
         Assert.True(result.Success, $"COPT MLT 01L was refused: {result.Message}");
         Assert.Equal("01L", ac.Phases?.PatternRunway?.Designator);
+        Assert.Equal("28R", ac.Phases?.AssignedRunway?.Designator);
+        Assert.Contains("crossing midfield", result.Message ?? "", StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// The OAK variant of the crossing case, reachable now that a bare two-digit token is a runway
+    /// rather than a pattern altitude: <c>COPT MLT 33</c> on the 28R final arms OAK's crossing runway,
+    /// and the readback says so. This is the field the E2E fixtures fly, so the grammar and the
+    /// announcement are pinned on the same airport the recordings use.
+    /// </summary>
+    [Fact]
+    public void CoptMlt_OakCrossingRunway33_ArmsItAndAnnouncesTheMidfieldCrossing()
+    {
+        TestVnasData.EnsureInitialized();
+        if (TestVnasData.NavigationDb is null)
+        {
+            return;
+        }
+
+        var runway28R = NavigationDatabase.Instance.GetRunway(AirportId, "28R");
+        if (runway28R is null)
+        {
+            return;
+        }
+
+        var parsed = CommandParser.Parse("COPT MLT 33");
+        Assert.True(parsed.IsSuccess, parsed.Reason);
+        var opt = Assert.IsType<ClearedForOptionCommand>(parsed.Value);
+        Assert.Equal("33", opt.PatternRunwayId);
+        Assert.Null(opt.PatternAltitude);
+
+        var ac = OnFinalFor(runway28R);
+        var result = PatternCommandHandler.TrySetupClearedForOption(
+            ac,
+            new OptionPatternModifier(opt.TrafficPattern, opt.PatternRunwayId, opt.PatternAltitude),
+            TestDispatch.Context(Random.Shared)
+        );
+
+        output.WriteLine($"COPT MLT 33: success={result.Success} — {result.Message}");
+        Assert.True(result.Success, $"COPT MLT 33 was refused: {result.Message}");
+        Assert.Equal("33", ac.Phases?.PatternRunway?.Designator);
         Assert.Equal("28R", ac.Phases?.AssignedRunway?.Designator);
         Assert.Contains("crossing midfield", result.Message ?? "", StringComparison.Ordinal);
     }

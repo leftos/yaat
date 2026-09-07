@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases;
@@ -804,9 +804,21 @@ public static class CommandParser
             CircleAirport when arg is null => PR.Ok(new CircleAirportCommand()),
             // Option / special ops (all accept optional MLT/MRT for traffic direction)
             TouchAndGo => ParseTouchAndGo(arg),
-            StopAndGo => ParseOptionWithDirection(arg, "SG", (dir, rwy, alt) => new StopAndGoCommand(dir, rwy, alt)),
-            LowApproach => ParseOptionWithDirection(arg, "LA", (dir, rwy, alt) => new LowApproachCommand(dir, rwy, alt)),
-            ClearedForOption => ParseOptionWithDirection(arg, "COPT", (dir, rwy, alt) => new ClearedForOptionCommand(dir, rwy, alt)),
+            StopAndGo => ParseOptionWithDirection(
+                arg,
+                "SG",
+                (dir, rwy, alt, altText) => new StopAndGoCommand(dir, rwy, alt) { PatternAltitudeText = altText }
+            ),
+            LowApproach => ParseOptionWithDirection(
+                arg,
+                "LA",
+                (dir, rwy, alt, altText) => new LowApproachCommand(dir, rwy, alt) { PatternAltitudeText = altText }
+            ),
+            ClearedForOption => ParseOptionWithDirection(
+                arg,
+                "COPT",
+                (dir, rwy, alt, altText) => new ClearedForOptionCommand(dir, rwy, alt) { PatternAltitudeText = altText }
+            ),
             // Hold
             HoldPresentPosition360Left when arg is null => PR.Ok(new HoldPresentPosition360Command(TurnDirection.Left)),
             HoldPresentPosition360Right when arg is null => PR.Ok(new HoldPresentPosition360Command(TurnDirection.Right)),
@@ -1648,14 +1660,19 @@ public static class CommandParser
         string? landingRunwayId = ParsePatternDir(tokens[0]) is null ? tokens[0].ToUpperInvariant() : null;
         int modifierStart = landingRunwayId is null ? 0 : 1;
 
-        return ParseOptionModifier(tokens, modifierStart, "TG", (dir, rwy, alt) => new TouchAndGoCommand(landingRunwayId, dir, rwy, alt));
+        return ParseOptionModifier(
+            tokens,
+            modifierStart,
+            "TG",
+            (dir, rwy, alt, altText) => new TouchAndGoCommand(landingRunwayId, dir, rwy, alt) { PatternAltitudeText = altText }
+        );
     }
 
     /// <summary>
     /// Parses <c>SG|LA|COPT [MLT|MRT [patternRwy] [alt]]</c>. Unlike <c>TG</c> these carry no landing
     /// runway of their own — they clear the approach the aircraft is already flying.
     /// </summary>
-    private static PR ParseOptionWithDirection(string? arg, string verb, Func<PatternDirection?, string?, int?, ParsedCommand> factory)
+    private static PR ParseOptionWithDirection(string? arg, string verb, Func<PatternDirection?, string?, int?, string?, ParsedCommand> factory)
     {
         var tokens = arg?.Split(' ', StringSplitOptions.RemoveEmptyEntries) ?? [];
         return ParseOptionModifier(tokens, 0, verb, factory);
@@ -1667,11 +1684,16 @@ public static class CommandParser
     /// modifier belongs is rejected rather than silently dropped — the pattern runway and altitude are
     /// flown, so a typo has to come back to the controller.
     /// </summary>
-    private static PR ParseOptionModifier(string[] tokens, int start, string verb, Func<PatternDirection?, string?, int?, ParsedCommand> factory)
+    private static PR ParseOptionModifier(
+        string[] tokens,
+        int start,
+        string verb,
+        Func<PatternDirection?, string?, int?, string?, ParsedCommand> factory
+    )
     {
         if (start >= tokens.Length)
         {
-            return PR.Ok(factory(null, null, null));
+            return PR.Ok(factory(null, null, null, null));
         }
 
         var dir = ParsePatternDir(tokens[start]);
@@ -1681,32 +1703,33 @@ public static class CommandParser
         }
 
         var args = DepartureCommandParser.ParsePatternModifierArgs(tokens, start + 1);
-        if (args.UnexpectedToken is { } unexpected)
+        if (args.Failure is { } failure)
         {
-            return PR.Fail($"{verb} {tokens[start].ToUpperInvariant()} does not understand '{unexpected}'");
+            return PR.Fail($"{verb} {tokens[start].ToUpperInvariant()} {failure}");
         }
 
-        return PR.Ok(factory(dir, args.RunwayId, args.Altitude));
+        return PR.Ok(factory(dir, args.RunwayId, args.Altitude, args.AltitudeText));
     }
 
     /// <summary>
     /// Parses MLT/MRT with optional runway and/or altitude.
-    /// Forms: MLT, MLT 28R, MLT 15, MLT 28R 15.
-    /// Runway designators contain letters (L/R/C) or start with 0; pure numbers are altitudes.
+    /// Forms: MLT, MLT 28R, MLT 33, MLT 015, MLT 28R 15.
+    /// Where a runway and an altitude compete the runway wins (MLT 15 is runway 15); the slot after a
+    /// bound runway is an altitude (see <see cref="DepartureCommandParser.ParsePatternModifierArgs"/>).
     /// </summary>
     private static PR ParseMakeTraffic(string? arg, PatternDirection direction)
     {
         var tokens = arg?.Split(' ', StringSplitOptions.RemoveEmptyEntries) ?? [];
         var args = DepartureCommandParser.ParsePatternModifierArgs(tokens, 0);
         string verb = direction == PatternDirection.Left ? "MLT" : "MRT";
-        if (args.UnexpectedToken is { } unexpected)
+        if (args.Failure is { } failure)
         {
-            return PR.Fail($"{verb} does not understand '{unexpected}'");
+            return PR.Fail($"{verb} {failure}");
         }
 
         return direction == PatternDirection.Left
-            ? PR.Ok(new MakeLeftTrafficCommand(args.RunwayId, args.Altitude))
-            : PR.Ok(new MakeRightTrafficCommand(args.RunwayId, args.Altitude));
+            ? PR.Ok(new MakeLeftTrafficCommand(args.RunwayId, args.Altitude) { AltitudeText = args.AltitudeText })
+            : PR.Ok(new MakeRightTrafficCommand(args.RunwayId, args.Altitude) { AltitudeText = args.AltitudeText });
     }
 
     /// <summary>

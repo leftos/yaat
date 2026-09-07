@@ -1,4 +1,4 @@
-using Microsoft.Extensions.Logging;
+﻿using Microsoft.Extensions.Logging;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
@@ -287,12 +287,13 @@ public sealed class VfrFollowPhase : Phase
         var phases = ctx.Aircraft.Phases ?? new PhaseList();
         var armedClearance = phases.LandingClearance;
         string? armedClearedRunwayId = phases.ClearedRunwayId;
+        var patternRunway = CarryArmedPatternRunway(ctx.Aircraft, phases, leadRunway, leadWaypoints.Direction);
         phases.Clear(ctx);
         ctx.Aircraft.Phases = new PhaseList
         {
             AssignedRunway = leadRunway,
             TrafficDirection = leadWaypoints.Direction,
-            PatternRunway = leadRunway,
+            PatternRunway = patternRunway,
         };
         if (!alreadyOnDownwind)
         {
@@ -492,12 +493,13 @@ public sealed class VfrFollowPhase : Phase
         var phases = ctx.Aircraft.Phases ?? new PhaseList();
         var armedClearance = phases.LandingClearance;
         string? armedClearedRunwayId = phases.ClearedRunwayId;
+        var patternRunway = CarryArmedPatternRunway(ctx.Aircraft, phases, runway, direction);
         phases.Clear(ctx);
         ctx.Aircraft.Phases = new PhaseList
         {
             AssignedRunway = runway,
             TrafficDirection = direction,
-            PatternRunway = runway,
+            PatternRunway = patternRunway,
         };
         ctx.Aircraft.Phases.Add(
             new PatternEntryPhase
@@ -529,6 +531,63 @@ public sealed class VfrFollowPhase : Phase
 
         ctx.Aircraft.Phases.Start(ctx);
     }
+
+    /// <summary>
+    /// The <see cref="PhaseList.PatternRunway"/> the rebuilt list starts on. An option clearance's
+    /// pattern modifier (<c>COPT MLT 28L</c> flown on 28R) arms the pattern runway ahead of
+    /// <see cref="PhaseList.AssignedRunway"/> and waits for the next cycle terminator to build the
+    /// transition circuit; a FOLLOW issued in between replaces the whole phase list, and stamping
+    /// <paramref name="joinRunway"/> into both fields would cancel that armed clearance without saying
+    /// so. The arming is carried over instead: the follow's own circuit belongs to the lead's runway,
+    /// and the armed transition still applies after the terminator that follows it. When the follower
+    /// joins the armed runway itself the arming is already satisfied, so both fields become that
+    /// runway. A carried-over arming is always announced: the follower will break out of the sequence it
+    /// was just put into one terminator later, which is not what "follow that traffic" led the
+    /// controller to expect (AIM 4-3-5 — an unexpected maneuver in the pattern). When the transition
+    /// also crosses the field, the midfield notice comes on top.
+    /// </summary>
+    private static RunwayInfo CarryArmedPatternRunway(AircraftState aircraft, PhaseList previous, RunwayInfo joinRunway, PatternDirection direction)
+    {
+        if (
+            (previous.PatternRunway is not { } armed)
+            || (previous.AssignedRunway is not { } flown)
+            || string.Equals(armed.Designator, flown.Designator, StringComparison.OrdinalIgnoreCase)
+            || string.Equals(armed.Designator, joinRunway.Designator, StringComparison.OrdinalIgnoreCase)
+            // A pattern runway at another airport is not this circuit's business — the follower is
+            // joining traffic here, and carrying it would arm a transition to a field it is not at.
+            || !string.Equals(armed.AirportId, joinRunway.AirportId, StringComparison.OrdinalIgnoreCase)
+        )
+        {
+            return joinRunway;
+        }
+
+        Log.LogDebug(
+            "[VfrFollow] {Callsign}: carrying the armed pattern runway {Armed} onto the {Join} follow circuit",
+            aircraft.Callsign,
+            armed.Designator,
+            joinRunway.Designator
+        );
+        string directionWord = direction == PatternDirection.Right ? "right" : "left";
+        aircraft.PendingWarnings.Add(
+            $"{aircraft.Callsign}: {directionWord} traffic runway {RunwayIdentifier.ToDisplayDesignator(armed.Designator)} stays armed — will leave the {RunwayIdentifier.ToDisplayDesignator(joinRunway.Designator)} sequence after the next {DescribeArmedTerminator(previous.LandingClearance)}"
+        );
+        Commands.PatternCommandHandler.WarnIfArmedTransitionCrossesField(aircraft, joinRunway, armed, direction);
+        return armed;
+    }
+
+    /// <summary>
+    /// The cycle terminator the armed transition will follow, named from the clearance the modifier rode
+    /// on. With no clearance the aircraft is doing pattern work, whose default terminal is a
+    /// touch-and-go (the circuit builders' <c>touchAndGo: true</c>).
+    /// </summary>
+    private static string DescribeArmedTerminator(ClearanceType? clearance) =>
+        clearance switch
+        {
+            ClearanceType.ClearedForOption => "option",
+            ClearanceType.ClearedStopAndGo => "stop-and-go",
+            ClearanceType.ClearedLowApproach => "low approach",
+            _ => "touch-and-go",
+        };
 
     /// <summary>
     /// Carry an armed landing clearance (set by <c>CLAND</c> while the follower was

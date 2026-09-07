@@ -200,9 +200,13 @@ picks one of two shapes by `RunwayGeometry.AreCloseParallels` (same airport, hea
   geometry with the crosswind turn anchored at whichever of the two departure ends projects farther along the pattern
   runway's heading, so the aircraft continues the upwind it is on and turns crosswind only once it has cleared
   **both** departure ends (AIM 4-3-2); the downwind start follows from that turn point. No midfield crossing.
-- **Crossing runways** (33 → 28R): `UpwindPhase` (waypoints from the **departure** runway) →
-  `MidfieldCrossingPhase` (`InitialTurn` toward the pattern side, waypoints from the **pattern** runway) →
-  `DownwindPhase` (`RejoinTrack = true`) / `BasePhase` / `FinalApproachPhase` / terminator (pattern runway). Per
+- **Crossing runways** (33 → 28R): `UpwindPhase` (waypoints from the **departure** runway) → the shared field-crossing
+  prefix (`PatternBuilder`: `MidfieldCrossingPhase` with `InitialTurn` toward the pattern side, waypoints from the **pattern**
+  runway, `CrossAtPatternAltitude` — a departure never left the pattern, so AIM 4-3-3.a's entry height does not apply →
+  `DownwindPhase` with `RejoinTrack`) / `BasePhase` / `FinalApproachPhase` / terminator (pattern runway). The same prefix
+  serves `TryEnterPattern`'s wrong-side entry and the MLT/MRT wrong-side switch, where it inserts `TeardropReentryPhase`
+  only when the crossing altitude is actually above the pattern altitude (a jet entering at field + 1,500 ft; never with
+  a controller-assigned pattern altitude). Per
   AIM 4-3-2 the departure/upwind leg belongs to the departure runway; downwind/base/final belong to the landing runway.
 
 For a takeoff clearance the departure runway is carried on `PhaseList.DepartureRunway` (read by
@@ -228,6 +232,13 @@ armed runway is not a close parallel, since that transition joins through a `Mid
 handlers share one carrier for the modifier (`OptionPatternModifier`: direction, runway, altitude) and one body
 (`TrySetupOptionClearance`); the parser's `PatternModifierArgs` is a separate, parse-only result type. A pre-issued
 modifier naming a runway that is not a close parallel warns "… will cross midfield" when the entry builds its circuit.
+A `FOLLOW` rebuilds the phase list but carries an armed `PatternRunway` across (`VfrFollowPhase`, same airport only) and
+warns that the follower will leave the sequence after its next terminator; when the follow's runway is the armed one
+the arming is satisfied. The modifier's runway/altitude tokens resolve through
+`Commands/Arguments/` (`RunwayArgument`, `AltitudeArgument`, `CommandArgumentResolver` walking the overload shapes
+`[]`, `[Runway]`, `[Altitude]`, `[Runway, Altitude]`): where `Runway` and `Altitude` are both candidates a 1–2 digit token
+binds as the runway and an altitude needs 3+ digits; once the runway slot is bound only `Altitude` remains and the
+usual shorthand applies (`MLT 15 15`).
 Guard: `OptionClearancePatternModifierTests`. `OTG MLT 28L` reaches the same transition through the queue instead
 (`BlockTriggerType.AfterCycleTerminator`, see docs/flight-physics.md), firing `MLT 28L` on the fresh upwind.
 `MidfieldCrossingPhase.InitialTurn` biases the initial join turn (released once roughly pointed at the join target);

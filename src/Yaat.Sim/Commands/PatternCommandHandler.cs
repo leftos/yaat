@@ -1,4 +1,4 @@
-using Microsoft.Extensions.Logging;
+﻿using Microsoft.Extensions.Logging;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases;
@@ -847,7 +847,13 @@ internal static class PatternCommandHandler
         if (isOnWrongSide)
         {
             foreach (
-                var joinPhase in BuildFieldCrossingPrefix(new MidfieldCrossingPhase { Waypoints = waypoints }, waypoints, category, circuitPhases)
+                var joinPhase in PatternBuilder.BuildFieldCrossingPrefix(
+                    new MidfieldCrossingPhase { Waypoints = waypoints },
+                    waypoints,
+                    category,
+                    aircraft.Pattern.AltitudeOverrideFt,
+                    circuitPhases
+                )
             )
             {
                 phases.Add(joinPhase);
@@ -1376,41 +1382,15 @@ internal static class PatternCommandHandler
             AuthoredRunway(aircraft, groundLayout, runway)
         );
 
-        var chain = BuildFieldCrossingPrefix(crossing ?? new MidfieldCrossingPhase { Waypoints = newWaypoints }, newWaypoints, category, circuit);
+        var chain = PatternBuilder.BuildFieldCrossingPrefix(
+            crossing ?? new MidfieldCrossingPhase { Waypoints = newWaypoints },
+            newWaypoints,
+            category,
+            aircraft.Pattern.AltitudeOverrideFt,
+            circuit
+        );
         chain.AddRange(circuit);
         return chain;
-    }
-
-    /// <summary>
-    /// The phases that carry an aircraft across the field and onto the downwind of
-    /// <paramref name="circuit"/>: the crossing itself, and — when the crossing is flown at the
-    /// jet/turboprop entry height rather than at pattern altitude — a
-    /// <see cref="TeardropReentryPhase"/> to lose that height on an outbound leg and a 45° intercept to
-    /// abeam before joining. Anything that crosses at pattern altitude (a piston or helicopter entry, or
-    /// an in-pattern crossover) drops straight into the downwind, and that downwind re-intercepts its
-    /// computed track — the crossing can leave the aircraft inside it, and base/final geometry built for
-    /// the computed width would otherwise turn early. Shared by the arrival entry
-    /// (<see cref="TryEnterPattern"/>) and the wrong-side MLT/MRT rebuild, which must fly the same join.
-    /// </summary>
-    private static List<Phase> BuildFieldCrossingPrefix(
-        MidfieldCrossingPhase crossing,
-        PatternWaypoints waypoints,
-        AircraftCategory category,
-        IReadOnlyList<Phase> circuit
-    )
-    {
-        var prefix = new List<Phase> { crossing };
-        bool descendsFromEntryHeight = !crossing.CrossAtPatternAltitude && (category is AircraftCategory.Jet or AircraftCategory.Turboprop);
-        if (descendsFromEntryHeight)
-        {
-            prefix.Add(new TeardropReentryPhase { Waypoints = waypoints });
-        }
-        else if (circuit.OfType<DownwindPhase>().FirstOrDefault() is { } joinDownwind)
-        {
-            joinDownwind.RejoinTrack = true;
-        }
-
-        return prefix;
     }
 
     /// <summary>
@@ -2485,7 +2465,7 @@ internal static class PatternCommandHandler
                 // entry that just built this circuit owns the side it is being flown on, and the
                 // modifier's side belongs to the circuits after it.
                 ApplyOptionClearancePattern(aircraft, armedModifier, pendingPatternRunway);
-                WarnIfArmedTransitionCrossesField(aircraft, runway, pendingPatternRunway);
+                WarnIfArmedTransitionCrossesField(aircraft, runway, pendingPatternRunway, aircraft.Pattern.TrafficDirection ?? PatternDirection.Left);
             }
         }
         else if (pending.PatternAltitudeFt is { } pendingPatternAltitude)
@@ -2514,14 +2494,19 @@ internal static class PatternCommandHandler
     /// goes out on the warning channel instead. Silence would leave the AIM 4-3-5 unexpected maneuver
     /// unannounced.
     /// </summary>
-    private static void WarnIfArmedTransitionCrossesField(AircraftState aircraft, RunwayInfo flownRunway, RunwayInfo patternRunway)
+    internal static void WarnIfArmedTransitionCrossesField(
+        AircraftState aircraft,
+        RunwayInfo flownRunway,
+        RunwayInfo patternRunway,
+        PatternDirection direction
+    )
     {
         if (RunwayGeometry.AreCloseParallels(flownRunway, patternRunway))
         {
             return;
         }
 
-        string directionWord = aircraft.Pattern.TrafficDirection == PatternDirection.Right ? "right" : "left";
+        string directionWord = direction == PatternDirection.Right ? "right" : "left";
         aircraft.PendingWarnings.Add(
             $"{aircraft.Callsign}: {directionWord} traffic runway {RunwayIdentifier.ToDisplayDesignator(patternRunway.Designator)} will cross midfield"
         );

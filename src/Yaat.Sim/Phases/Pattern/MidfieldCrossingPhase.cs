@@ -6,12 +6,19 @@ namespace Yaat.Sim.Phases.Pattern;
 
 /// <summary>
 /// Crosses midfield from the wrong side to the correct pattern side. Pistons and helicopters cross at
-/// pattern altitude (AC 90-66B §11.3-§11.4). Jets and turboprops entering from outside the pattern cross
-/// at the AIM 4-3-3.a.2 entry height — "not less than 1,500 feet AGL", i.e. the field elevation plus
-/// 1,500 ft, or the pattern altitude when the pattern itself is higher — and are handed off to
-/// <see cref="TeardropReentryPhase"/> afterward to descend to TPA; pistons and helicopters drop directly
-/// into <see cref="DownwindPhase"/>. An aircraft already established in the pattern
-/// (<see cref="CrossAtPatternAltitude"/>) crosses at pattern altitude whatever its category.
+/// pattern altitude (AC 90-66B §11.3-§11.4). A jet or turboprop <em>entering from outside the pattern</em>
+/// crosses at the AIM 4-3-3.a.2 entry height — the higher of its own pattern altitude and the field
+/// elevation plus 1,500 ft. At an unauthored field those are the same number (the turbine TPA is itself
+/// 1,500 ft AGL), so the entry crossing is usually flown at TPA; a lower authored pattern (OAK 28L's
+/// 600 ft AGL) is where the two diverge and the crossing really is above the circuit.
+///
+/// <para>An aircraft already established in the pattern, and a departure crossing into another runway's
+/// pattern (<see cref="CrossAtPatternAltitude"/>), cross at pattern altitude whatever their category, as
+/// does any aircraft flying a controller-assigned pattern altitude (AIM 4-4-7.b).
+/// <see cref="CrossesAtPatternAltitude"/> is the single predicate for all of that, and the one the
+/// builders key the follow-on <see cref="TeardropReentryPhase"/> off: the teardrop exists to shed the
+/// entry height on an outbound leg and a 45° re-entry to abeam, so only an entry-height crossing gets
+/// one. Everything else drops straight into <see cref="DownwindPhase"/>.</para>
 /// </summary>
 public sealed class MidfieldCrossingPhase : Phase
 {
@@ -103,19 +110,46 @@ public sealed class MidfieldCrossingPhase : Phase
     /// altitude argument) outranks the entry floor for every category: it is an altitude assignment the
     /// pilot reads back and flies (AIM 4-4-7.b), not a recommended entry height to be raised.</para>
     /// </summary>
-    private double ResolveCrossingAltitude(PhaseContext ctx, double patternAltitude)
+    private double ResolveCrossingAltitude(PhaseContext ctx, double patternAltitude) =>
+        ResolveCrossingAltitude(
+            CrossAtPatternAltitude,
+            ctx.Category,
+            ctx.Aircraft.Pattern.AltitudeOverrideFt,
+            patternAltitude,
+            ctx.Runway?.AirportElevationFt
+        );
+
+    /// <summary>
+    /// The rule of <see cref="ResolveCrossingAltitude(PhaseContext, double)"/> as a pure function, so
+    /// the phase builders can ask what a crossing they are about to construct will be flown at.
+    /// </summary>
+    public static double ResolveCrossingAltitude(
+        bool crossAtPatternAltitude,
+        AircraftCategory category,
+        double? altitudeOverrideFt,
+        double patternAltitude,
+        double? airportElevationFt
+    )
     {
-        if (
-            CrossAtPatternAltitude
-            || (ctx.Aircraft.Pattern.AltitudeOverrideFt is not null)
-            || ctx.Category is not (AircraftCategory.Jet or AircraftCategory.Turboprop)
-        )
+        if (CrossesAtPatternAltitude(crossAtPatternAltitude, category, altitudeOverrideFt))
         {
             return patternAltitude;
         }
 
-        return ctx.Runway is { } runway ? Math.Max(patternAltitude, runway.AirportElevationFt + TurbineEntryCrossingHeightAglFt) : patternAltitude;
+        return airportElevationFt is { } elevation ? Math.Max(patternAltitude, elevation + TurbineEntryCrossingHeightAglFt) : patternAltitude;
     }
+
+    /// <summary>
+    /// Whether this crossing is flown at pattern altitude rather than at the AIM 4-3-3.a.2 entry height:
+    /// an aircraft that never left the pattern (<paramref name="crossAtPatternAltitude"/> — an
+    /// in-pattern crossover, or a departure crossing into another runway's pattern), one flying a
+    /// controller-assigned pattern altitude (AIM 4-4-7.b outranks a recommended entry height), and any
+    /// piston or helicopter. The builders read this to decide whether a
+    /// <c>TeardropReentryPhase</c> has anything to do: it exists to shed the entry height, so a crossing
+    /// already at pattern altitude never gets one.
+    /// </summary>
+    public static bool CrossesAtPatternAltitude(bool crossAtPatternAltitude, AircraftCategory category, double? altitudeOverrideFt) =>
+        crossAtPatternAltitude || (altitudeOverrideFt is not null) || (category is not (AircraftCategory.Jet or AircraftCategory.Turboprop));
 
     public override bool OnTick(PhaseContext ctx)
     {

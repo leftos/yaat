@@ -25,7 +25,7 @@ public class PatternAltitudeArgumentTests
     [Fact]
     public void ParseMLT_WithAltitude_ParsesCorrectly()
     {
-        var result = CommandParser.ParseCompound("MLT 15");
+        var result = CommandParser.ParseCompound("MLT 015");
         Assert.True(result.IsSuccess);
         var cmd = Assert.IsType<MakeLeftTrafficCommand>(result.Value!.Blocks[0].Commands[0]);
         Assert.Null(cmd.RunwayId);
@@ -127,7 +127,7 @@ public class PatternAltitudeArgumentTests
     [Fact]
     public void ParseCTO_MRT_WithAltitudeOnly()
     {
-        var result = CommandParser.ParseCompound("CTO MRT 15");
+        var result = CommandParser.ParseCompound("CTO MRT 015");
         Assert.True(result.IsSuccess);
         var cmd = Assert.IsType<ClearedForTakeoffCommand>(result.Value!.Blocks[0].Commands[0]);
         var ct = Assert.IsType<ClosedTrafficDeparture>(cmd.Departure);

@@ -1,4 +1,4 @@
-using Yaat.Sim.Data.Airport;
+﻿using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Simulation.Snapshots;
 
@@ -194,7 +194,10 @@ public abstract record DepartureInstruction
             ),
             PresentPositionHoverDepartureDto h => new PresentPositionHoverDeparture(h.HoverAltitudeAglFt),
             PatternExitDepartureDto pe => new PatternExitDeparture((PatternEntryLeg)pe.ExitLeg, (PatternDirection)pe.Direction),
-            ClosedTrafficDepartureDto ct => new ClosedTrafficDeparture((PatternDirection)ct.Direction, ct.RunwayId, ct.PatternAltitude),
+            ClosedTrafficDepartureDto ct => new ClosedTrafficDeparture((PatternDirection)ct.Direction, ct.RunwayId, ct.PatternAltitude)
+            {
+                PatternAltitudeText = ct.PatternAltitudeText,
+            },
             DefaultDepartureDto => new DefaultDeparture(),
             _ => new DefaultDeparture(),
         };
@@ -267,12 +270,21 @@ public record DirectFixDeparture(string FixName, double Lat, double Lon, TurnDir
 /// <param name="PatternAltitude">Optional pattern altitude override (feet MSL).</param>
 public record ClosedTrafficDeparture(PatternDirection Direction, string? RunwayId, int? PatternAltitude) : DepartureInstruction
 {
+    /// <summary>
+    /// The pattern-altitude token exactly as typed, so canonical text renders what the controller
+    /// wrote. An AGL altitude (<c>KOAK+005</c> = 509 ft at OAK, below the 1,000 ft the numeric
+    /// shorthand can express) has no numeric form that reads back as the same number, so re-rendering
+    /// it from the resolved feet would change the clearance on replay.
+    /// </summary>
+    public string? PatternAltitudeText { get; init; }
+
     public override DepartureInstructionDto ToSnapshot() =>
         new ClosedTrafficDepartureDto
         {
             Direction = (int)Direction,
             RunwayId = RunwayId,
             PatternAltitude = PatternAltitude,
+            PatternAltitudeText = PatternAltitudeText,
         };
 }
 
@@ -360,9 +372,17 @@ public record EnterRightBaseCommand(string? RunwayId = null, double? FinalDistan
 
 public record EnterFinalCommand(string? RunwayId = null) : ParsedCommand;
 
-public record MakeLeftTrafficCommand(string? RunwayId, int? Altitude) : ParsedCommand;
+public record MakeLeftTrafficCommand(string? RunwayId, int? Altitude) : ParsedCommand
+{
+    /// <summary>The altitude token as typed, rendered verbatim in canonical text (see <see cref="ClosedTrafficDeparture.PatternAltitudeText"/>).</summary>
+    public string? AltitudeText { get; init; }
+}
 
-public record MakeRightTrafficCommand(string? RunwayId, int? Altitude) : ParsedCommand;
+public record MakeRightTrafficCommand(string? RunwayId, int? Altitude) : ParsedCommand
+{
+    /// <summary>The altitude token as typed, rendered verbatim in canonical text (see <see cref="ClosedTrafficDeparture.PatternAltitudeText"/>).</summary>
+    public string? AltitudeText { get; init; }
+}
 
 public record TurnCrosswindCommand : ParsedCommand;
 
@@ -421,16 +441,32 @@ public record CircleAirportCommand : ParsedCommand;
 // no modifier was given at all.
 
 /// <summary><c>TG [landingRwy] [MLT|MRT [patternRwy] [alt]]</c>.</summary>
-public record TouchAndGoCommand(string? RunwayId, PatternDirection? TrafficPattern, string? PatternRunwayId, int? PatternAltitude) : ParsedCommand;
+public record TouchAndGoCommand(string? RunwayId, PatternDirection? TrafficPattern, string? PatternRunwayId, int? PatternAltitude) : ParsedCommand
+{
+    /// <summary>The pattern-altitude token as typed, rendered verbatim in canonical text (see <see cref="ClosedTrafficDeparture.PatternAltitudeText"/>).</summary>
+    public string? PatternAltitudeText { get; init; }
+}
 
 /// <summary><c>SG [MLT|MRT [patternRwy] [alt]]</c>.</summary>
-public record StopAndGoCommand(PatternDirection? TrafficPattern, string? PatternRunwayId, int? PatternAltitude) : ParsedCommand;
+public record StopAndGoCommand(PatternDirection? TrafficPattern, string? PatternRunwayId, int? PatternAltitude) : ParsedCommand
+{
+    /// <summary>The pattern-altitude token as typed, rendered verbatim in canonical text (see <see cref="ClosedTrafficDeparture.PatternAltitudeText"/>).</summary>
+    public string? PatternAltitudeText { get; init; }
+}
 
 /// <summary><c>LA [MLT|MRT [patternRwy] [alt]]</c>.</summary>
-public record LowApproachCommand(PatternDirection? TrafficPattern, string? PatternRunwayId, int? PatternAltitude) : ParsedCommand;
+public record LowApproachCommand(PatternDirection? TrafficPattern, string? PatternRunwayId, int? PatternAltitude) : ParsedCommand
+{
+    /// <summary>The pattern-altitude token as typed, rendered verbatim in canonical text (see <see cref="ClosedTrafficDeparture.PatternAltitudeText"/>).</summary>
+    public string? PatternAltitudeText { get; init; }
+}
 
 /// <summary><c>COPT [MLT|MRT [patternRwy] [alt]]</c>.</summary>
-public record ClearedForOptionCommand(PatternDirection? TrafficPattern, string? PatternRunwayId, int? PatternAltitude) : ParsedCommand;
+public record ClearedForOptionCommand(PatternDirection? TrafficPattern, string? PatternRunwayId, int? PatternAltitude) : ParsedCommand
+{
+    /// <summary>The pattern-altitude token as typed, rendered verbatim in canonical text (see <see cref="ClosedTrafficDeparture.PatternAltitudeText"/>).</summary>
+    public string? PatternAltitudeText { get; init; }
+}
 
 // Hold commands
 
