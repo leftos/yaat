@@ -8,6 +8,7 @@
 - `RDTXT /DR EXPECT 28R` sets a held release's text on a named coordination list; `AS OAK_GND` and `AS NCT_APP@1M` select a position by callsign when its TCP is shared.
 
 ### Fixed
+- A room restored after a planned server restart can no longer be advanced by the tick loop while its restore is still in progress.
 - Replaying a recording in the client auto-tracks a departure appearing on STARS over an `autoTrackAirportIds` airport, and a `.AUTOTRACK` change made mid-session, as the live session did; rewinds and bundle reconstructions reproduce both.
 - Replaying a recording in the client auto-tracks an aircraft squawking the beacon its flight plan was filed with, as the live session did.
 - Replaying a recording in the client runs delayed handoffs, auto-accept and point-out auto-acknowledge, so track ownership follows the live session between snapshots instead of snapping to it at each restore.

@@ -26,6 +26,8 @@ Each `{roomId}.checkpoint.zip` contains:
 
 Restore applies the final snapshot directly (no replay-from-zero). Coordination channel in-flight items are included in the scenario snapshot DTO.
 
+The room is registered in `TrainingRoomManager` before any of its state exists, so `RestoreRoomFromArchiveAsync` runs the whole rebuild — engine creation, `ReloadForRewindAsync`, the snapshot and room-state restores, `LeavePlayback`, the attendance sync and the returned summary — under the room's tick gate (`TrainingRoom.GuardAsync`, the same semaphore `RoomTickLoopService` takes per second). Without it the tick loop could advance a half-restored room between the awaits. `TrainingRoomManager.RoomRegistered` (raised outside the manager's lock) is how `SessionPersistenceTests` takes the gate at registration and asserts the restore cannot finish while it is held.
+
 Restored rooms report **zero members** until someone reconnects. A room member is a SignalR connection, and
 `TrainingRoomManager.CreateRestoredRoom` deliberately does not repopulate `TrainingRoom.Members` — only `RestoredMemberCids`
 (the rejoin whitelist) and the CID→room mappings. It also arms **no** abandoned-room cleanup timer; a restored room nobody
