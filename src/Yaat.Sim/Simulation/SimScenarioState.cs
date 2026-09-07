@@ -395,6 +395,7 @@ public sealed class SimScenarioState
             StudentPosition = StudentPosition?.ToSnapshot(),
             StudentTcp = StudentTcp?.ToSnapshot(),
             StudentPositionType = StudentPositionType,
+            AtcPositions = AtcPositions.Select(p => p.ToSnapshot()).ToList(),
             DelayedQueue =
                 DelayedQueue.Count > 0
                     ? DelayedQueue

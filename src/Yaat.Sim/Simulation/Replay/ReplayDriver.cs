@@ -173,6 +173,14 @@ internal sealed class ReplayDriver(SimulationEngine engine)
             _engine.Scenario.IsStudentTowerPosition = studentPosition.IsTowerPosition;
         }
 
+        // Same reason for the resolved ATC roster: the scenario's atc entries are unresolved, so without this the
+        // deferred autotrack pass has nothing to match a departure's airport against. Fresh objects on every replay —
+        // the client scrubs by calling Replay on one SessionRecording many times.
+        if (_engine.Scenario is not null && recording.InitialAtcPositions is { } roster)
+        {
+            _engine.Scenario.AtcPositions = roster.Select(ResolvedAtcPosition.FromSnapshot).ToList();
+        }
+
         if (_engine.Scenario is not null)
         {
             configureAfterLoad(_engine.Scenario);

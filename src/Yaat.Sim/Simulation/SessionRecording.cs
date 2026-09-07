@@ -76,6 +76,15 @@ public sealed class SessionRecording
     /// </summary>
     public ReplayStudentPosition? StudentPositionState { get; init; }
 
+    /// <summary>
+    /// The resolved ATC roster captured at record time (read from snapshot 0's scenario block). The scenario JSON
+    /// carries only unresolved <c>atc</c> entries — the server resolves them at load via
+    /// <c>InitializeTrackPositions</c> — so a Sim-side replay restores the roster from here. Without it the deferred
+    /// autotrack pass runs over an empty roster and a departure crossing the display floor replays unowned. Null for
+    /// recordings without snapshots (legacy v1) and for those written before the roster was captured.
+    /// </summary>
+    public IReadOnlyList<AtcPositionDto>? InitialAtcPositions { get; init; }
+
     public bool HasSnapshots => (Snapshots?.Count ?? 0) > 0;
 }
 

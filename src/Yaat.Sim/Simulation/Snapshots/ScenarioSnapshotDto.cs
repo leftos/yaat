@@ -96,6 +96,14 @@ public sealed class ScenarioSnapshotDto
     public TcpDto? StudentTcp { get; init; }
     public string? StudentPositionType { get; init; }
 
+    /// <summary>
+    /// The resolved ATC roster (<c>SimScenarioState.AtcPositions</c>). Optional: absent in snapshots that predate it.
+    /// A null restores nothing and <b>leaves the loader's roster in place</b> — unlike the other nullable server-side
+    /// fields, whose only source is the snapshot: the roster's other source is the scenario load, so clearing it on a
+    /// pre-feature snapshot would strip a live room's positions on rewind.
+    /// </summary>
+    public List<AtcPositionDto>? AtcPositions { get; init; }
+
     // Queues
     public List<DelayedSpawnDto>? DelayedQueue { get; init; }
     public List<ScheduledTriggerDto>? TriggerQueue { get; init; }
@@ -116,6 +124,23 @@ public sealed class ScenarioSnapshotDto
     // Active TIMER countdowns. Optional so older snapshots deserialize cleanly (no timers).
     public List<ActiveTimerDto>? ActiveTimers { get; init; }
     public int NextTimerId { get; init; }
+}
+
+/// <summary>
+/// One entry of the resolved ATC roster: the scenario's <c>atc</c> record plus the owner and TCP the room's ARTCC
+/// configuration resolved it to. The scenario JSON carries only the unresolved record, so this is what lets a run
+/// with no ARTCC config — a Sim-side replay of a recording — auto-track and resolve positions as the live room did.
+/// </summary>
+public sealed class AtcPositionDto
+{
+    public required string Id { get; init; }
+    public required string ArtccId { get; init; }
+    public required string FacilityId { get; init; }
+    public required string PositionId { get; init; }
+    public bool AutoConnect { get; init; }
+    public required List<string> AutoTrackAirportIds { get; init; }
+    public required TrackOwnerDto Owner { get; init; }
+    public TcpDto? Tcp { get; init; }
 }
 
 public sealed class DelayedSpawnDto

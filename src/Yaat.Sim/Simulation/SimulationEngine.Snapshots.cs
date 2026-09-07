@@ -127,6 +127,13 @@ public sealed partial class SimulationEngine
             World.StudentTcp = Scenario.StudentTcp;
             Scenario.StudentPositionType = scenarioDto.StudentPositionType;
 
+            // A pre-feature snapshot carries no roster; the loader's stays, because the scenario load is the roster's
+            // other source (unlike the student position, whose only source is the snapshot on a Sim-side run).
+            if (scenarioDto.AtcPositions is { } atcPositions)
+            {
+                Scenario.AtcPositions = atcPositions.Select(ResolvedAtcPosition.FromSnapshot).ToList();
+            }
+
             // Clear and restore queues
             Scenario.DelayedQueue.Clear();
             Scenario.TriggerQueue.Clear();

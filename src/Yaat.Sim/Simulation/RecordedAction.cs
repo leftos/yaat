@@ -25,6 +25,7 @@ namespace Yaat.Sim.Simulation;
 [JsonDerivedType(typeof(RecordedStripRequest), "StripRequest")]
 [JsonDerivedType(typeof(RecordedAsdexSafetyLogicChange), "AsdexSafetyLogicChange")]
 [JsonDerivedType(typeof(RecordedAttendanceChange), "AttendanceChange")]
+[JsonDerivedType(typeof(RecordedAutoTrackChange), "AutoTrackChange")]
 public abstract record RecordedAction(double ElapsedSeconds);
 
 public sealed record RecordedCommand(double ElapsedSeconds, string Callsign, string Command, string Initials, string ConnectionId)
@@ -223,6 +224,16 @@ public sealed record RecordedAsdexSafetyLogicChange(double ElapsedSeconds, strin
 /// one only when the derived set changes.
 /// </summary>
 public sealed record RecordedAttendanceChange(double ElapsedSeconds, IReadOnlyList<string> AttendedPositionIds) : RecordedAction(ElapsedSeconds);
+
+/// <summary>
+/// A CRC <c>.AUTOTRACK</c> as received: <see cref="Entries"/> is the delta, not the resulting list — a positive
+/// airport id the calling position takes (stealing it from whoever held it), <c>-X</c> removing X everywhere, and
+/// <c>none</c> clearing the caller's list. Applied by <c>SimulationEngine.ApplyAutoTrackChange</c> on every run kind,
+/// so a rewind and a from-scratch reconstruction reach the roster the live session had rather than the scenario's.
+/// A recorded input like <see cref="RecordedAttendanceChange"/>: nothing issues it as a verb.
+/// </summary>
+public sealed record RecordedAutoTrackChange(double ElapsedSeconds, string PositionId, IReadOnlyList<string> Entries)
+    : RecordedAction(ElapsedSeconds);
 
 public record FlightPlanAmendment(
     string? AircraftType = null,

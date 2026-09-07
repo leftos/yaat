@@ -3,6 +3,7 @@ using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Scenarios;
+using Yaat.Sim.Simulation.Actions;
 
 namespace Yaat.Sim.Simulation;
 
@@ -175,6 +176,198 @@ public sealed partial class SimulationEngine
 
         var feet = AltitudeResolver.Resolve(token);
         return feet is null ? null : feet.Value / 100;
+    }
+
+    /// <summary>
+    /// Applies a CRC <c>.AUTOTRACK</c> delta: resolves (or creates) the calling position's roster entry, applies the
+    /// delta to the roster, and claims every airborne untracked aircraft whose filed departure now matches one of the
+    /// caller's airports. The one body every run kind runs — the live CRC handler records the change through
+    /// <see cref="Actions.ActionRouter.IssueDerived(RecordedAction, Actions.IActionHost)"/>, and a rewind or a
+    /// from-scratch reconstruction replays it here — so no run can reach a different roster.
+    /// </summary>
+    internal CommandResult ApplyAutoTrackChange(RecordedAutoTrackChange change)
+    {
+        if (Scenario is not { } scenario)
+        {
+            return ActionRefusals.NoScenario();
+        }
+
+        var atcPos = ResolveAutoTrackPosition(scenario, change.PositionId);
+        if (atcPos is null)
+        {
+            return new CommandResult(false, $"Could not resolve position {change.PositionId} for .AUTOTRACK");
+        }
+
+        var stolen = ApplyAutoTrackDelta(scenario, atcPos, change.Entries);
+        var airports = atcPos.Source.AutoTrackAirportIds;
+
+        _logger.LogInformation(
+            "Auto-track airports for {PositionId} ({Owner}): [{Airports}]",
+            change.PositionId,
+            TrackEngine.FormatOwner(atcPos.Owner),
+            string.Join(", ", airports)
+        );
+
+        foreach (var (airportId, formerOwner) in stolen)
+        {
+            _logger.LogInformation(
+                "[AutoTrack] {Owner} took {Airport} from {FormerOwner}",
+                TrackEngine.FormatOwner(atcPos.Owner),
+                airportId,
+                TrackEngine.FormatOwner(formerOwner)
+            );
+        }
+
+        if (airports.Count > 0)
+        {
+            ClaimUntrackedDepartures(scenario, atcPos);
+            EmitTerminal("System", "", $"Auto-track airports for {TrackEngine.FormatOwner(atcPos.Owner)}: {string.Join(", ", airports)}");
+        }
+        else
+        {
+            EmitTerminal("System", "", $"Auto-track airports cleared for {TrackEngine.FormatOwner(atcPos.Owner)}");
+        }
+
+        return new CommandResult(true);
+    }
+
+    /// <summary>
+    /// The roster entry the delta targets. A CRC position the scenario JSON never listed is resolved through the
+    /// room's ARTCC configuration and added; a position that configuration cannot place is refused rather than
+    /// invented, so the delta has no target and nothing is written.
+    /// </summary>
+    private ResolvedAtcPosition? ResolveAutoTrackPosition(SimScenarioState scenario, string positionId)
+    {
+        if (scenario.AtcPositions.FirstOrDefault(p => p.Source.PositionId == positionId) is { } existing)
+        {
+            return existing;
+        }
+
+        var owner = scenario.ArtccConfig?.ResolvePosition(positionId);
+        if (owner is null)
+        {
+            _logger.LogWarning("[AutoTrack] could not resolve position {PositionId} in {ArtccId}", positionId, scenario.ArtccId ?? "");
+            return null;
+        }
+
+        var added = new ResolvedAtcPosition
+        {
+            Source = new ScenarioAtc { PositionId = positionId, ArtccId = scenario.ArtccId ?? "" },
+            Owner = owner,
+            Tcp = scenario.ArtccConfig?.GetTcpForPosition(positionId),
+        };
+        scenario.AtcPositions.Add(added);
+        return added;
+    }
+
+    /// <summary>
+    /// Hands the position every airborne untracked aircraft filed out of one of its airports. Airborne rather than
+    /// above the display floor: this is the retroactive sweep a controller expects when taking an airport over, and
+    /// the deferred pass owns the floor crossing for the ones still on the ground.
+    /// </summary>
+    private void ClaimUntrackedDepartures(SimScenarioState scenario, ResolvedAtcPosition atcPos)
+    {
+        var starsConfig = scenario.ArtccConfig?.GetStarsConfigForFacility(scenario.StudentPosition?.FacilityId ?? "");
+
+        foreach (var ac in World.GetSnapshot())
+        {
+            if (ac.Track.Owner is not null || ac.IsOnGround || string.IsNullOrEmpty(ac.FlightPlan.Departure))
+            {
+                continue;
+            }
+
+            ClaimIfDepartureMatches(ac, atcPos, starsConfig);
+        }
+    }
+
+    private void ClaimIfDepartureMatches(AircraftState ac, ResolvedAtcPosition atcPos, StarsConfig? starsConfig)
+    {
+        var dep = ac.FlightPlan.Departure;
+
+        foreach (var airportId in atcPos.Source.AutoTrackAirportIds)
+        {
+            if (!NavigationDatabase.Instance.AirportIdsMatchResolved(dep, airportId))
+            {
+                continue;
+            }
+
+            ac.Track.Owner = atcPos.Owner;
+            ScratchpadRuleEngine.Apply(ac, starsConfig);
+            _logger.LogInformation(
+                "[AutoTrack] {Callsign} auto-owned by {Owner} (departure {Dep})",
+                ac.Callsign,
+                TrackEngine.FormatOwner(atcPos.Owner),
+                dep
+            );
+            return;
+        }
+    }
+
+    /// <summary>
+    /// Applies a CRC-style autotrack delta to <paramref name="atcPos"/>: each entry is one of
+    /// "none" (clear caller's list), "-X" (remove X from every position globally), or a
+    /// positive airport ID (add to caller's list AND remove from every other position so each
+    /// airport has at most one owner). Returns the airports stolen from other positions paired
+    /// with their former owner.
+    /// </summary>
+    private static List<(string AirportId, TrackOwner FormerOwner)> ApplyAutoTrackDelta(
+        SimScenarioState scenario,
+        ResolvedAtcPosition atcPos,
+        IEnumerable<string> entries
+    )
+    {
+        var stolen = new List<(string, TrackOwner)>();
+
+        foreach (var raw in entries)
+        {
+            if (string.IsNullOrWhiteSpace(raw))
+            {
+                continue;
+            }
+
+            var entry = raw.Trim();
+
+            if (string.Equals(entry, "none", StringComparison.OrdinalIgnoreCase))
+            {
+                atcPos.Source.AutoTrackAirportIds.Clear();
+                continue;
+            }
+
+            if (entry.StartsWith('-'))
+            {
+                var airportId = entry[1..].Trim();
+                if (string.IsNullOrEmpty(airportId))
+                {
+                    continue;
+                }
+                foreach (var p in scenario.AtcPositions)
+                {
+                    p.Source.AutoTrackAirportIds.RemoveAll(a => string.Equals(a, airportId, StringComparison.OrdinalIgnoreCase));
+                }
+                continue;
+            }
+
+            // Positive: caller takes ownership; strip from every other position so each airport
+            // has a single owner ("last write wins").
+            foreach (var p in scenario.AtcPositions)
+            {
+                if (ReferenceEquals(p, atcPos))
+                {
+                    continue;
+                }
+                if (p.Source.AutoTrackAirportIds.RemoveAll(a => string.Equals(a, entry, StringComparison.OrdinalIgnoreCase)) > 0)
+                {
+                    stolen.Add((entry, p.Owner));
+                }
+            }
+
+            if (!atcPos.Source.AutoTrackAirportIds.Any(a => string.Equals(a, entry, StringComparison.OrdinalIgnoreCase)))
+            {
+                atcPos.Source.AutoTrackAirportIds.Add(entry);
+            }
+        }
+
+        return stolen;
     }
 
     /// <summary>

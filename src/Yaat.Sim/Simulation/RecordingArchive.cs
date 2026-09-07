@@ -359,8 +359,20 @@ public sealed class RecordingArchive : IDisposable
             RecordedBy = Manifest.RecordedBy,
             MagneticModelDateUtc = Manifest.ResolveMagneticModelDateUtc(),
             StudentPositionState = ReadInitialStudentPosition(),
+            InitialAtcPositions = ReadInitialAtcPositions(),
             FinalApproachSpeedVarietyEnabled = ReadInitialFinalApproachSpeedVariety(),
         };
+    }
+
+    /// <summary>
+    /// Read the resolved ATC roster from the first snapshot's scenario block, mirroring
+    /// <see cref="ReadInitialStudentPosition"/> — the scenario JSON's <c>atc</c> entries are unresolved, so this is
+    /// how a Sim-side replay recovers the roster the deferred autotrack pass matches departures against. Returns null
+    /// when the recording has no snapshots or the snapshot predates the roster.
+    /// </summary>
+    private IReadOnlyList<AtcPositionDto>? ReadInitialAtcPositions()
+    {
+        return Manifest.Snapshots.Count == 0 ? null : FirstSnapshot.State.Scenario.AtcPositions;
     }
 
     /// <summary>
@@ -448,6 +460,7 @@ public sealed class RecordingArchive : IDisposable
             RecordedBy = Manifest.RecordedBy,
             MagneticModelDateUtc = Manifest.ResolveMagneticModelDateUtc(),
             StudentPositionState = ReadInitialStudentPosition(),
+            InitialAtcPositions = ReadInitialAtcPositions(),
             FinalApproachSpeedVarietyEnabled = ReadInitialFinalApproachSpeedVariety(),
         };
     }

@@ -1286,6 +1286,7 @@ _ACTION_TAGS = {
     "StripRequest": "STRIP",
     "AsdexSafetyLogicChange": "ASDXSL",
     "AttendanceChange": "ATTEND",
+    "AutoTrackChange": "AUTOTRK",
 }
 
 
