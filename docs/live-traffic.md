@@ -324,8 +324,8 @@ rewind are untouched), then `SetLiveTrafficEnabled(true)`, the ceiling, and `Res
 a property of the loaded scenario, not a session setting: it survives rewinds and recordings because the JSON does.
 `GetArtccFacilityTree(artccId)` returns the `FacilityTreeDto` tree the picker uses: `AirportId` only when the facility id
 resolves as an airport (`LiveSessionScenario.IsKnownAirport` — an `AtctTracon` like MC1 is not one), `PrimaryAirportId` =
-`ArtccConfigService.PrimaryFacilityAirport` (first underlying airport of the first STARS area: SFO for NCT and O90, SMF for MC1),
-`Airports` = `ResolveFacilityAirports`. Time model: a paused live session freezes its shadows (the tick loop skips the room);
+`ArtccConfigService.PrimaryFacilityAirport` (first underlying airport of the first STARS area: SJC for NCT in the current ZOA config, whose Area A lists the South Bay first; SMF for MC1),
+`Airports` = `ResolveFacilityAirports`. The picker's default is the airport the position's callsign names when the facility offers it (`LiveSessionAirportDefaults.PositionAirport`: `OAK_APP` → OAK, `SFO_B_APP` → SFO; `NCT_APP` names none), else own airport → STARS primary → the busiest child's preference. Time model: a paused live session freezes its shadows (the tick loop skips the room);
 `RoomTickLoopService.ProcessRoomSecond` at the tape end calls `TakeControl` and keeps running for a live session (instead of
 pausing) — the tape's future was only feed samples the store re-supplies; `RoomEngine.GoLive` (hub `GoLive`) = `TakeControl` +
 `Resume`, refused outside a live session. **Rejoining real time is a reacquire, not a teleport** (aviation review): when
