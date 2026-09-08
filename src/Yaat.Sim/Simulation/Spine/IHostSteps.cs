@@ -10,8 +10,8 @@ namespace Yaat.Sim.Simulation.Spine;
 /// <para>
 /// <b>Step-4 debt.</b> Members whose live body mutates snapshot state let the host decide whether a
 /// simulation-affecting step runs — the residue ADR 0001 forbids. They are, today:
-/// <see cref="LiveTrafficSync"/>, <see cref="CoordinationTimers"/>, <see cref="TowerLists"/> and
-/// <see cref="TdlsExpiry"/>. ADR 0003 moves each into the engine, deleting the member here and turning its spine
+/// <see cref="LiveTrafficSync"/>, <see cref="CoordinationTimers"/>, <see cref="TowerLists"/> and the two strip
+/// auto-print passes. ADR 0003 moves each into the engine, deleting the member here and turning its spine
 /// entry into a sim step; the interface shrinks as that work lands. The remaining members are broadcast and wire
 /// projection, which is the server's.
 /// </para>
@@ -40,10 +40,6 @@ public interface IHostSteps
 
     void AutoArrivalStrips();
     void AutoApproachDepartureStrips();
-    void AutoTdlsQueue();
-    void TdlsAutoWilco();
-    void TdlsExpiry();
-    void TdlsTrackRemoval();
 
     void SurfaceCoastExpiry();
     void RundownBroadcast();

@@ -2,6 +2,7 @@ using Yaat.Sim.Commands;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Pilot;
 using Yaat.Sim.Simulation.Actions;
+using Yaat.Sim.Simulation.Tdls;
 using Yaat.Sim.Training;
 
 namespace Yaat.Sim.Simulation.Spine;
@@ -32,14 +33,6 @@ internal sealed class BareHost(SimulationEngine engine) : ISimulationHost
     public void AutoArrivalStrips() { }
 
     public void AutoApproachDepartureStrips() { }
-
-    public void AutoTdlsQueue() { }
-
-    public void TdlsAutoWilco() { }
-
-    public void TdlsExpiry() { }
-
-    public void TdlsTrackRemoval() { }
 
     public void SurfaceCoastExpiry() { }
 
@@ -128,10 +121,6 @@ internal sealed class BareHost(SimulationEngine engine) : ISimulationHost
     public StripApplyResult ApplyStrip(string callsign, ParsedCommand command, TrackOwner? identity, string? bakedStripId) =>
         new(ActionRefusals.HostOnly(command), null);
 
-    public CommandResult ApplyTdls(AircraftState aircraft, ParsedCommand command) => ActionRefusals.HostOnly(command);
-
-    public CommandResult ApplyTdlsOpsConfig(TdlsOpsConfigCommand command) => ActionRefusals.HostOnly(command);
-
     public CommandResult ApplyCoordination(AircraftState aircraft, ParsedCommand command, TrackOwner? identity) => ActionRefusals.HostOnly(command);
 
     public CommandResult ApplyGlobalCoordination(CoordinationAutoAckCommand command, TrackOwner? identity) => ActionRefusals.HostOnly(command);
@@ -166,6 +155,9 @@ internal sealed class BareHost(SimulationEngine engine) : ISimulationHost
     public void OnGhostOverlayRemoved(string callsign) { }
 
     public void OnAsdexTrackTerminated(string callsign) { }
+
+    /// <summary>Discarded: a bare engine has no vTDLS client to push items to. The mutations themselves are engine state.</summary>
+    public void OnTdlsChanged(TdlsChangeSet changes) { }
 
     public void OnTimersChanged() { }
 

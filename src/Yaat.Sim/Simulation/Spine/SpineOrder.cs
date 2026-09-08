@@ -73,13 +73,16 @@ public static class SpineOrder
         SpineStep.Sim(StepId.ApproachScores, static (engine, host) => host.OnApproachScores(engine.World.DrainAllApproachScores())),
         SpineStep.Host(StepId.AutoArrivalStrips, static host => host.AutoArrivalStrips()),
         SpineStep.Host(StepId.AutoApproachDepartureStrips, static host => host.AutoApproachDepartureStrips()),
-        SpineStep.Host(StepId.AutoTdlsQueue, static host => host.AutoTdlsQueue()),
-        SpineStep.Host(StepId.TdlsAutoWilco, static host => host.TdlsAutoWilco()),
-        SpineStep.Host(StepId.TdlsExpiry, static host => host.TdlsExpiry()),
-        SpineStep.Host(StepId.TdlsTrackRemoval, static host => host.TdlsTrackRemoval()),
+        SpineStep.Sim(StepId.AutoTdlsQueue, static (engine, _) => engine.TickAutoTdlsQueue()),
+        SpineStep.Sim(StepId.TdlsAutoWilco, static (engine, _) => engine.TickTdlsAutoWilco()),
+        SpineStep.Sim(StepId.TdlsExpiry, static (engine, _) => engine.TickTdlsExpiry()),
+        SpineStep.Sim(StepId.TdlsTrackRemoval, static (engine, _) => engine.TickTdlsTrackRemoval()),
         // Immediately before AutoDelete, the only post-physics mutator that removes aircraft, so a strip command's
         // callsign still resolves on the tick it fires.
         SpineStep.Sim(StepId.StripDispatches, static (engine, host) => host.OnStripDispatches(engine.World.DrainAllStripDispatches())),
+        // What this second's steps touched, handed over before AutoDelete so an item's aircraft still resolves for the
+        // DTO the host builds.
+        SpineStep.Sim(StepId.StripTdlsChanges, static (engine, host) => engine.DrainStripTdlsChangesInto(host)),
         // The only step that removes aircraft, on every path (ADR 0002 membership: live wins) — a replay that kept
         // an aircraft the live session auto-deleted drifted until the next snapshot restore snapped it back.
         SpineStep.Sim(StepId.AutoDelete, static (engine, host) => host.OnAutoDeleted(engine.TickAutoDelete())),

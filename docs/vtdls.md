@@ -3,8 +3,9 @@
 Reference for the Tower Data Link Services emulation in YAAT. Read this
 before changing anything under:
 
-- `src/Yaat.Server/Simulation/TdlsState.cs`,
-  `TdlsMutations.cs`, `TdlsCommandHandler.cs`, `TdlsBroadcaster.cs`
+- `src/Yaat.Sim/Simulation/Tdls/` (`TdlsState.cs`, `TdlsMutations.cs`, `TdlsCommandHandler.cs`,
+  `TdlsChangeTracker.cs`) and `src/Yaat.Sim/Simulation/SimulationEngine.Tdls.cs` (the tick steps, the spawn hook)
+- `src/Yaat.Server/Simulation/TdlsBroadcaster.cs` (the wire projection and the SignalR pushes)
 - `src/Yaat.Server/Dtos/CrcDtos.Tdls.cs`
 - `src/Yaat.Server/Hubs/TrainingHub.cs` (TDLS hub methods)
 - `src/Yaat.Sim/Data/Vnas/ArtccConfig.cs` (TDLS config records)
@@ -22,9 +23,10 @@ For the user-facing command surface, see
 
 vTDLS is a separate vNAS web app that real controllers use to issue
 Pre-Departure Clearances (PDCs). YAAT plays the role of that web app —
-the **yaat-server** persists vTDLS state per training room and the
-**Yaat.Client** desktop app + a browser-hosted WASM client (served at
-`/vtdls/`) consume the state.
+the simulation engine (`Yaat.Sim`) owns the vTDLS state and its whole
+lifecycle on every run kind, the **yaat-server** broadcasts it per training
+room, and the **Yaat.Client** desktop app + a browser-hosted WASM client
+(served at `/vtdls/`) consume the state.
 
 Unlike vStrips, vTDLS broadcasts are **SignalR-only**. CRC does not
 subscribe to a TDLS topic on the WebSocket; the trainee's CRC client
@@ -52,42 +54,52 @@ CommandParser.ParseTdlsSend         TrainingHub.SendCommand
    │                                RoomEngine.SendCommandAsync
    │                                 │
    │                                 ▼
-   │                                IsTdlsCommand → HandleTdlsCmd
+   │                                ActionRouter → the Tdls arm (Yaat.Sim)
    │                                 │
    │                                 ▼
-   │                                TdlsCommandHandler.HandleSend
+   │                                TdlsCommandHandler.HandleSend (Yaat.Sim)
    │                                 ├── validate facility config + mandatory fields
-   │                                 ├── snapshot ClearanceDto, Status → Sent
-   │                                 ├── ScheduledWilcoAt[id] = now + 3s
-   │                                 ├── ApplyClearance(ac, dto, viaTdls:true)  → no voice readback
-   │                                 ├── TerminalBroadcast (RPO-visible "[TDLS PDC sent at OAK] …")
-   │                                 └── TdlsBroadcaster.BroadcastItemAsync
-   │                                      │
+   │                                 ├── snapshot TdlsClearance, Status → Sent
+   │                                 ├── ScheduledWilcoAt[id] = SimTimeUtc + 3s
+   │                                 ├── EmitTerminal (RPO-visible "[TDLS PDC sent at OAK] …")
+   │                                 └── Tdls.Changes marks the item
+   │                                      │  drained by ActionRouter.Finish →
+   │                                      │  RoomHost.OnTdlsChanged → TdlsBroadcaster
    │                                      │  SignalR: TdlsItemChanged
    │                                      ▼
-   │                                                                    pilot's clearance is set
-   │                                                                    silently — no PendingPilotTransmissions
-   │                                 (3s later: ProcessTdlsAutoWilco → Status=Wilco, broadcast)
+   │                                                                    (the pilot model is untouched —
+   │                                                                    see "Pilot side" below)
+   │                                 (3s later: TickTdlsAutoWilco → Status=Wilco, drained the same way)
    ▼
 status flips on the issuer's vTDLS tab
 ```
 
 ## State model
 
-`TdlsState` (per `TrainingRoom`) holds three things:
+`TdlsState` (engine-owned, `SimulationEngine.Tdls`) holds these things:
 
 - **`Items`** — every TDLS list entry, keyed by item id (`TDLS_{n}`).
   - DCL list = items with `Status == Pending`.
   - PDC list = items with `Status == Sent` or `Wilco`.
 - **`Configs`** — per-facility `TdlsConfig` (FE-defined SIDs, transitions,
-  field defaults, mandatory-field flags). Loaded from the vNAS data-api
-  on scenario load via `InitializeFromArtcc`. NOT snapshotted — re-fetched
+  field defaults, mandatory-field flags). Derived from the loaded ARTCC by
+  `SimulationEngine.InitializeStripsAndTdlsFromArtcc` (the server's scenario
+  load and the Sim replay driver both call it). NOT snapshotted — re-derived
   on session restore.
 - **`Dumped`** — `(facility, callsign)` lockout (case-insensitive) so the
   auto-generator won't re-create entries the controller explicitly removed.
   Persists across snapshots.
 - **`ScheduledWilcoAt`** — Sent items awaiting the 3 s auto-WILCO. Cleared
   on manual `TDLSW` or on Dump/expiry.
+- **`Changes`** — the broadcast seam (`TdlsChangeTracker`): every mutation records
+  the ids it touched, the items it removed and whether a full state is owed. Not
+  snapshotted; the host drains it (below).
+- **`Changes`** — the broadcast seam (`TdlsChangeTracker`): every mutation records
+  the ids it touched, the items it removed and whether a full state is owed. Not
+  snapshotted; the host drains it (below).
+- **`Changes`** — the broadcast seam (`TdlsChangeTracker`): every mutation records
+  the ids it touched, the items it removed and whether a full state is owed. Not
+  snapshotted; the host drains it (below).
 
 `TdlsItemRecord` (mirrors `TdlsItemDto` on the wire):
 
@@ -130,32 +142,32 @@ ZBW → ALB/BDL/BOS/PVD.
 The full canonical syntax is enforced by `CommandRegistry` entries with
 group `"vTDLS"` and asserted by completeness tests.
 
-## Pilot side: TDLS-silent
+## Pilot side: not wired yet
 
-A PDC issued via `TDLSS` calls `ApplyClearance(ac, dto, viaTdls: true)`.
-`viaTdls=true` suppresses every voice-readback path:
+A PDC does not reach the pilot model today. `TDLSS` records the clearance on
+the TDLS item (`SentPayload`) and nothing else: no `AircraftState` field is
+written, no pilot transmission is queued or suppressed, and a follow-up voice
+`CL` behaves exactly as it would without the PDC. The remaining PDC flow —
+applying the sent clearance to the aircraft silently — is the open item in
+[`docs/plans/vtdls-emulation.md`](plans/vtdls-emulation.md).
 
-- `PilotResponder` skips the standard clearance readback.
-- `PilotProactive` and `PilotRequestTracker` honor `ac.Voice.TdlsDumped`
-  (set on auto-WILCO) so no pilot transmission is queued for the
-  clearance event.
-- Subsequent voice events (CTO/takeoff readback, frequency changes,
-  etc.) are unaffected — the pilot still talks normally after the
-  silent PDC.
-
-After a `TDLSDUMP`, the pilot is in the standard voice-clearance flow
-(no flag set), so a follow-up `CL` voice clearance behaves normally.
+`AircraftVoice.TdlsDumped` is CRC's own flight-plan flag ("the PDC was dumped,
+clear this aircraft by voice"), set only by CRC's `TdlsDump` handler
+(`CrcClientState.Session.cs`) and projected onto the `FlightPlans` topic; the
+auto-WILCO does not set it and nothing in `Yaat.Sim` reads it.
 
 ## Auto-generation
 
-`TickProcessor.ProcessAutoTdlsQueue` watches flight-plan creations.
-When a flight plan filed at a TDLS-configured facility lands in the
-room, the tick processor emits an internal `TDLSQ` so the controller
-sees a Pending entry without typing anything. Conditions for the
+`SimulationEngine.TickAutoTdlsQueue` (a post-physics Sim step) sweeps the
+world every second, and `SimulationEngine.AfterAircraftSpawned` runs the same
+check inline for every spawn (scenario load, a delayed or generated spawn,
+`ADD`, a recorded spawn on replay), so a departure filed at a
+TDLS-configured facility shows a Pending entry without the controller typing
+anything. Both go through `TryQueueAutoTdlsForAircraft`. Conditions for the
 auto-queue:
 
 - The flight plan's departure airport (with leading `K` stripped) must
-  match a facility id in `room.TdlsState.Configs`.
+  match a facility id in `TdlsState.Configs`.
 - `(facility, callsign)` must not be in the Dumped lockout.
 - No existing Pending item for this (facility, callsign).
 
@@ -166,8 +178,9 @@ their flight plan is displayed in the DCL list."
 
 ## RPO terminal broadcasts
 
-When `TDLSS` succeeds, `TdlsCommandHandler.HandleSend` emits a
-`TerminalBroadcast` to the room's group with the issued clearance:
+When `TDLSS` succeeds, `TdlsCommandHandler.HandleSend` emits a `Tdls`
+terminal entry through the engine (`EmitTerminal`), which the room drains
+with its other terminal lines:
 
 ```
 [TDLS PDC sent at OAK] Expect=10 MIN, SID=OAKLAND4.ALTAM, Maintain=5000, DepFreq=120.9
@@ -183,9 +196,25 @@ so they can follow the student's PDC stream while focused on radar.
 and `TdlsItemRecord` is the simulation's model: `Status` is the Sim enum `TdlsItemStatus` and
 `SentPayload` the Sim record `TdlsClearance` (the nine canonical `TDLSS` fields). The CRC wire
 types `TdlsStatus` and `ClearanceDto` stay in yaat-server, pinned by `CrcWireContractTests`;
-`DtoConverter.ToTdlsItem` / `ToClearanceDto` project onto them. The mutation bodies
-(`TdlsMutations`, `TdlsCommandHandler`, the auto-queue / auto-WILCO / expiry / track-removal tick
-steps) are still yaat-server's and read `room.ActiveSim!.Tdls`.
+`DtoConverter.ToTdlsItem` / `ToClearanceDto` project onto them. The mutation bodies are the
+engine's too (since 2026-09-07): `TdlsMutations` and `TdlsCommandHandler` in
+`src/Yaat.Sim/Simulation/Tdls/`, and the auto-queue / auto-WILCO / expiry / track-removal tick steps as
+`SimulationEngine.TickAutoTdlsQueue` / `TickTdlsAutoWilco` / `TickTdlsExpiry` / `TickTdlsTrackRemoval`
+(`SimulationEngine.Tdls.cs`, `SpineStep.Sim` entries in `SpineOrder.PostPhysics`). The router's `Tdls`
+and `TdlsOps` arms are Sim arms, so a bare engine, a client-side replay, a server reconstruction and the
+live room all run one body; nothing about TDLS is a host slot any more.
+
+**The broadcast seam.** The mutations do not broadcast. Each records what it touched in
+`TdlsState.Changes` (`TdlsChangeTracker`: changed item ids, `TdlsRemoval`s carrying the facility,
+callsign and whether it was a dump, and a full-state flag for `TDLSOPS`). Two drains hand a
+`TdlsChangeSet` to the host's `OnTdlsChanged` (declared once on `ITdlsChangeConsumer`, which both
+`IActionHost` and `IHostConsumers` extend): `ActionRouter.Finish` after every routed action, so a live
+command's pushes still precede its result and tape playback pushes per record, and the
+`StripTdlsChanges` spine step after the post-physics steps, before `AutoDelete` so an item's aircraft still
+resolves for the DTO. `RoomHost.OnTdlsChanged` → `TdlsBroadcaster.BroadcastChanges`: items first, then
+removals, then the full state when flagged, and nothing at all while `TrainingRoom.IsBroadcastSuppressed`
+(a reconstruction; the room re-syncs when it lands). The scenario load drains once at the end of
+`PopulateRoom` so the load-time PDCs reach the clients as before. `BareHost` discards the set.
 
 `TdlsSnapshotMapper.Capture` (into `ServerSnapshotDto.Tdls`, every snapshot the engine takes —
 recordings, bundles, session checkpoints) writes:
@@ -204,9 +233,13 @@ recordings, bundles, session checkpoints) writes:
 
 A fresh engine starts with no items, so a restart starts clean and a rewind holds the target's. A
 live-session rewind is a from-scratch reconstruction (a live room carries no snapshots): the spawn
-hooks re-queue each departure's PDC on every run kind, and the recorded `TDLSQ` / `TDLSS` / `TDLSW` /
+hook re-queues each departure's PDC on every run kind, and the recorded `TDLSQ` / `TDLSS` / `TDLSW` /
 `TDLSD` / `TDLSOPS` re-apply through the same `TdlsCommandHandler` body live used, so the rewound
-item carries the status, clearance and pending auto-WILCO the run had (`StripTdlsRewindTests`).
+item carries the status, clearance and pending auto-WILCO the run had (`StripTdlsRewindTests`; the
+bare-engine pins are `TdlsStepTests` in Yaat.Sim.Tests, and a client-side `ReplayDriver` replay now
+builds the same lists — it refused every TDLS verb before the bodies crossed; because the Sim scenario load runs
+no spawn hook, the replay runs it over the loaded aircraft at t=0 itself, right after its session reset, so a
+load-time departure's PDC carries the session-start timestamp live gave it).
 The broadcasts are what a reconstruction leaves out: it runs with broadcasts suppressed and the room
 re-pushes the full state when it lands, while tape playback broadcasts as it goes.
 
@@ -216,11 +249,11 @@ re-pushes the full state when it lands, while tape playback broadcasts as it goe
 |--------------------------------------|--------------------------------------------------------------|
 | Flight plan filed at TDLS facility   | `TDLSQ` auto-emitted → Pending entry                          |
 | Controller selects Pending + Send    | Status → Sent; SentPayload snapshotted; auto-WILCO scheduled  |
-| `ProcessTdlsAutoWilco` fires ~3 s later | Status → Wilco; `Voice.TdlsDumped = true`                  |
+| `TickTdlsAutoWilco` fires ~3 s later    | Status → Wilco                                                |
 | Controller force-WILCOs              | Same as auto-WILCO; scheduler entry cleared                   |
 | Controller dumps                     | Item removed from `Items`; (facility, callsign) → `Dumped`    |
-| TTL > 2 hours since `CreatedUtc`     | `ProcessTdlsExpiry` removes the item; lockout NOT set         |
-| Aircraft tracked on STARS by anyone  | `ProcessTdlsTrackRemoval` removes the item (any status); lockout NOT set |
+| TTL > 2 hours since `CreatedUtc`     | `TickTdlsExpiry` removes the item; lockout NOT set            |
+| Aircraft tracked on STARS by anyone  | `TickTdlsTrackRemoval` removes the item (any status); lockout NOT set |
 
 ## Multi-facility tabs and the consolidated parent view
 
@@ -338,13 +371,13 @@ facilities controllers use most. `ResolveDefaultSidId` / `ResolveDefaultTransiti
 same rule; whether a config sets them is per-facility (SFO both, BOS SID only, OAK neither).
 
 The active config is **shared room state**, not a per-controller preference: it decides what a
-PDC contains, so `TdlsState.ActiveOpConfigIds` holds it server-side, `TdlsStateDto.ActiveOpConfigs`
+PDC contains, so `TdlsState.ActiveOpConfigIds` holds it engine-side, `TdlsStateDto.ActiveOpConfigs`
 broadcasts it, and it is snapshotted so a replay from a snapshot rebuilds the clearance that was
 actually sent.
 
-The only writer is the global `TDLSOPS` command, routed like `TIMER`/`PAUSE` through
-`RoomEngine.HandleTdlsOpsConfigCmd`. Deliberately a **command, not a hub RPC**: `RoomEngine`
-records every successful command into the action log, and a replay from t=0 re-applies it — an RPC
+The only writer is the global `TDLSOPS` command, the router's `TdlsOps` arm
+(`SimulationEngine.ApplyTdlsOpConfig`). Deliberately a **command, not a hub RPC**: the router
+records every command into the action log, and a replay from t=0 re-applies it — an RPC
 (as bookmarks use) is invisible to that log, so a mid-session configuration change would silently
 fail to reproduce and the replay would rebuild clearances from the wrong config. The client never
 applies a selection locally, which is what makes upstream's Save-not-select semantics fall out
@@ -398,7 +431,7 @@ fires near-instantly). The 2-hour TTL matches upstream's policy. Both count
 sim seconds (`TdlsCommandHandler.DefaultWilcoDelay`, `TdlsMutations.DefaultTtl`)
 against the session clock.
 
-`ProcessTdlsTrackRemoval` (the `TdlsTrackRemoval` spine step) removes any
+`SimulationEngine.TickTdlsTrackRemoval` (the `TdlsTrackRemoval` spine step) removes any
 TDLS item — Pending or Sent/Wilco — once its aircraft is tracked on
 STARS by any controller (a non-null `AircraftTrack.Owner`). A tracked
 departure has left the clearance-delivery workflow, so the strip clears

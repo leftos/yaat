@@ -44,6 +44,14 @@ public sealed partial class SimulationEngine
 
         ProcessDelayedSpawns(spawned);
         ProcessGenerators(spawned);
+
+        // The spawn hooks run before the result reaches the host, so what a spawn queues (its PDC) is engine state on
+        // every run kind and the host's own spawn tail — the broadcast — still sees the callsign first.
+        foreach (var state in spawned)
+        {
+            AfterAircraftSpawned(state);
+        }
+
         ApplyArrivalSpacing();
         ProcessTriggers();
         ProcessTimedPresets();

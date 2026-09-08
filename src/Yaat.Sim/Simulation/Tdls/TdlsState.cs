@@ -9,7 +9,8 @@ namespace Yaat.Sim.Simulation.Tdls;
 /// (<see cref="SimulationEngine.Tdls"/>) — a fresh engine starts empty and the snapshot's server section carries
 /// the session state, so every run kind holds the same items at the same second.
 /// <para>
-/// Mutations funnel through the host's <c>TdlsMutations</c> under the single <see cref="Gate"/> lock.
+/// Mutations funnel through <see cref="TdlsMutations"/> under the single <see cref="Gate"/> lock, and record what
+/// they touched in <see cref="Changes"/> for the host to broadcast.
 /// Per-facility configuration (<see cref="Configs"/>) is the exception: it is loaded from the ARTCC at scenario
 /// load and is NOT snapshotted — <see cref="ClearSession"/> is what a restore clears, and it leaves the configs
 /// the load just derived in place.
@@ -44,6 +45,12 @@ public sealed class TdlsState
     public Dictionary<string, DateTime> ScheduledWilcoAt { get; } = new();
 
     public int NextItemId { get; set; } = 1;
+
+    /// <summary>
+    /// What the mutations have touched since the host last drained it. Transient rather than snapshotted: it describes
+    /// the broadcasts owed for the changes just made, not the session, so a restore starts it empty.
+    /// </summary>
+    public TdlsChangeTracker Changes { get; } = new();
 
     /// <summary>Walks the facility tree of the loaded ARTCC and registers a <see cref="TdlsConfig"/> entry for every facility node with a non-null <c>tdlsConfiguration</c>. Idempotent.</summary>
     public void InitializeFromArtcc(FacilityConfig artccRoot)
@@ -99,6 +106,7 @@ public sealed class TdlsState
             Dumped.Clear();
             ScheduledWilcoAt.Clear();
             NextItemId = 1;
+            Changes.Clear();
         }
     }
 

@@ -11,6 +11,16 @@ namespace Yaat.Sim.Simulation.Actions;
 internal static class ActionArms
 {
     /// <summary>
+    /// An aircraft an arm put into the world: the engine's spawn hooks first (what a spawn queues — its PDC — is
+    /// engine state every run kind carries), then the host's tail, which broadcasts the callsign before it.
+    /// </summary>
+    private static void HandOverSpawn(ArmContext ctx, AircraftState aircraft)
+    {
+        ctx.Engine.AfterAircraftSpawned(aircraft);
+        ctx.Host.OnAircraftSpawned(aircraft);
+    }
+
+    /// <summary>
     /// The aviation arm: every instruction to an aircraft that <see cref="CommandDispatcher"/> owns, plus the
     /// <c>SAY</c> queries. Reaction-delayed when the policy says so (a baked delay always wins), else dispatched;
     /// either way followed by <see cref="SimulationEngine.ApplyPostDispatch"/>, so read-backs, the "unable" response,
@@ -238,7 +248,7 @@ internal static class ActionArms
             return new CommandResult(false, $"No queued spawn for {callsign}");
         }
 
-        ctx.Host.OnAircraftSpawned(spawned);
+        HandOverSpawn(ctx, spawned);
         return new CommandResult(true, $"Spawned {callsign}");
     }
 
@@ -377,7 +387,7 @@ internal static class ActionArms
         var outcome = TrackEngine.CreateGhostTrack((GhostTrackCommand)ctx.Parsed!, ctx.Engine.World, scenario, identity);
         if (outcome.Created is { } created)
         {
-            ctx.Host.OnAircraftSpawned(created);
+            HandOverSpawn(ctx, created);
         }
 
         return outcome.Result;
@@ -417,7 +427,7 @@ internal static class ActionArms
         }
 
         ctx.SpawnedAircraft = outcome.Spawned;
-        ctx.Host.OnAircraftSpawned(outcome.Aircraft);
+        HandOverSpawn(ctx, outcome.Aircraft);
         return new CommandResult(true, $"Spawned {outcome.Aircraft.Callsign} ({outcome.Aircraft.AircraftType})");
     }
 

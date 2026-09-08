@@ -1,54 +1,42 @@
 using Yaat.Sim.Commands;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Pilot;
+using Yaat.Sim.Simulation;
 using Yaat.Sim.Simulation.Actions;
 using Yaat.Sim.Simulation.Spine;
 using Yaat.Sim.Simulation.Tdls;
 using Yaat.Sim.Training;
 
-namespace Yaat.Sim.Simulation.Replay;
+namespace Yaat.Sim.Tests.Helpers;
 
 /// <summary>
-/// The host of a <see cref="RunKind.Replay"/> run. It differs from the bare host in exactly two steps: the recorded
-/// pre-tick actions (spawns, live-traffic samples) land after the clock increment and before physics, and the
-/// remaining recorded actions at or before the completed second are applied after it. Everything else — every other
-/// spine step, every consumer, every action-host slot — delegates to the bare host, so a replay produces the same
-/// events a test tick does. The log is walked by a <see cref="RecordedActionPump"/> (one per traversal — the driver
-/// keeps one for its stepping entry points, a range replay builds its own, so the two never interfere); recorded
-/// actions go through <see cref="ActionRouter.ApplyRecorded(RecordedAction, IActionHost)"/> with this host unless the
-/// caller supplies its own applier.
+/// A whole-spine host for a bare engine: every step, slot and consumer is the engine's own bare host, so
+/// <see cref="SimulationEngine.RunSecond"/> under this behaves exactly as <see cref="SimulationEngine.TickOneSecond"/>
+/// does — except that the TDLS change sets the post-physics drain step hands over are recorded here. That is what it
+/// is for: the action router drains into the host too, so only a second driven with this host can show that the
+/// <see cref="StepId.StripTdlsChanges"/> entry delivers what the tick steps produced.
 /// </summary>
-internal sealed class ReplayHost : ISimulationHost
+public sealed class SpineCapturingHost : ISimulationHost
 {
-    private readonly SimulationEngine _engine;
-    private readonly RecordedActionPump _pump;
-    private readonly Action<RecordedAction> _applier;
-    private readonly BareHost _bare;
+    private readonly ISimulationHost _bare;
 
-    public ReplayHost(SimulationEngine engine, RecordedActionPump pump, Action<RecordedAction>? applier)
+    public SpineCapturingHost(SimulationEngine engine)
     {
-        _engine = engine;
-        _pump = pump;
         _bare = engine.BareHost;
-        _applier = applier ?? (action => _engine.Actions.ApplyRecorded(action, this));
     }
 
-    public RecordedActionPump Pump => _pump;
+    /// <summary>Every change set the spine's drain step handed over, in order.</summary>
+    public List<TdlsChangeSet> TdlsChanges { get; } = [];
 
-    public void ApplyPreTickRecordedActions(int second) => _pump.ApplyPreTick(second, _applier);
-
-    public void ApplyRecordedActions()
+    public void OnTdlsChanged(TdlsChangeSet changes)
     {
-        if (_engine.Scenario is not { } scenario)
-        {
-            return;
-        }
-
-        ApplyRecordedActionsThrough((int)scenario.ElapsedSeconds);
+        TdlsChanges.Add(changes);
+        _bare.OnTdlsChanged(changes);
     }
 
-    /// <summary>Applies every action at or before <paramref name="second"/> the pre-tick pass did not, advancing the cursor past them.</summary>
-    public void ApplyRecordedActionsThrough(int second) => _pump.ApplyThrough(second, _applier);
+    // --- IHostSteps ---
+
+    public void ApplyPreTickRecordedActions(int second) => _bare.ApplyPreTickRecordedActions(second);
 
     public void LiveTrafficSync() => _bare.LiveTrafficSync();
 
@@ -71,6 +59,10 @@ internal sealed class ReplayHost : ISimulationHost
     public void TimersBroadcast() => _bare.TimersBroadcast();
 
     public void IssueMetars() => _bare.IssueMetars();
+
+    public void ApplyRecordedActions() => _bare.ApplyRecordedActions();
+
+    // --- IHostConsumers ---
 
     public void OnPrePhysics(TickPrePhysicsResult result) => _bare.OnPrePhysics(result);
 
@@ -100,7 +92,7 @@ internal sealed class ReplayHost : ISimulationHost
 
     public void OnStripDispatches(List<(string Callsign, ParsedCommand Command)> dispatches) => _bare.OnStripDispatches(dispatches);
 
-    // --- IActionHost: a replay has no room, so every slot is the bare host's refusal and every consumer its no-op ---
+    // --- IActionHost ---
 
     public StripApplyResult ApplyStrip(string callsign, ParsedCommand command, TrackOwner? identity, string? bakedStripId) =>
         _bare.ApplyStrip(callsign, command, identity, bakedStripId);
@@ -140,8 +132,6 @@ internal sealed class ReplayHost : ISimulationHost
     public void OnGhostOverlayRemoved(string callsign) => _bare.OnGhostOverlayRemoved(callsign);
 
     public void OnAsdexTrackTerminated(string callsign) => _bare.OnAsdexTrackTerminated(callsign);
-
-    public void OnTdlsChanged(TdlsChangeSet changes) => _bare.OnTdlsChanged(changes);
 
     public void OnTimersChanged() => _bare.OnTimersChanged();
 

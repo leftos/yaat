@@ -1,6 +1,7 @@
 using Yaat.Sim.Commands;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Simulation.Actions;
+using Yaat.Sim.Simulation.Tdls;
 
 namespace Yaat.Sim.Tests.Helpers;
 
@@ -51,10 +52,6 @@ public sealed class AttendanceActionHost : IActionHost
         LastBakedStripId = bakedStripId;
         return MintedStripId is null ? new(ActionRefusals.HostOnly(command), null) : new(new CommandResult(true), bakedStripId ?? MintedStripId);
     }
-
-    public CommandResult ApplyTdls(AircraftState aircraft, ParsedCommand command) => ActionRefusals.HostOnly(command);
-
-    public CommandResult ApplyTdlsOpsConfig(TdlsOpsConfigCommand command) => ActionRefusals.HostOnly(command);
 
     public CommandResult ApplyCoordination(AircraftState aircraft, ParsedCommand command, TrackOwner? identity) => ActionRefusals.HostOnly(command);
 
@@ -111,6 +108,11 @@ public sealed class AttendanceActionHost : IActionHost
 
     public void OnQueuedCommandsShown(string connectionId, string callsign, IReadOnlyList<string> lines) =>
         ShownQueues.Add((connectionId, callsign, lines.ToList()));
+
+    /// <summary>Every change set the router or the spine drained into this host, in order.</summary>
+    public List<TdlsChangeSet> TdlsChanges { get; } = [];
+
+    public void OnTdlsChanged(TdlsChangeSet changes) => TdlsChanges.Add(changes);
 
     public void OnTimersChanged() { }
 

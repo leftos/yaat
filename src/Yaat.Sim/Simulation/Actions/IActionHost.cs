@@ -1,4 +1,5 @@
 using Yaat.Sim.Commands;
+using Yaat.Sim.Simulation.Tdls;
 
 namespace Yaat.Sim.Simulation.Actions;
 
@@ -19,10 +20,11 @@ public sealed record StripApplyResult(CommandResult Result, string? StripId);
 /// <para>
 /// <b>Step-4 debt.</b> Every <c>Apply*</c> member here is a body whose state has not crossed into Yaat.Sim:
 /// coordination channels, the ASDE-X and SAID display state (the recorded mutations included), bookmarks and the
-/// room clock. Strips and TDLS are the halfway case — the <i>state</i> has crossed
-/// (<see cref="SimulationEngine.Strips"/>, <see cref="SimulationEngine.Tdls"/>: engine-owned, snapshotted, so every
-/// run kind carries it), but <see cref="ApplyStrip"/>, <see cref="ApplyTdls"/>, <see cref="ApplyTdlsOpsConfig"/> and
-/// <see cref="ApplyRecordedStripRequest"/> stay because the mutation bodies are still the host's. The host answers no
+/// room clock. Strips are the halfway case — the <i>state</i> has crossed
+/// (<see cref="SimulationEngine.Strips"/>: engine-owned, snapshotted, so every run kind carries it), but
+/// <see cref="ApplyStrip"/> and <see cref="ApplyRecordedStripRequest"/> stay because the mutation bodies are still the
+/// host's. TDLS has crossed whole: its bodies are the engine's and what they touched reaches the host through
+/// <see cref="OnTdlsChanged"/>. The host answers no
 /// questions, because CRC attendance, the last one it was asked, is now engine state every run kind carries
 /// (<see cref="SimulationEngine.Attendance"/>, fed by <see cref="RecordedAttendanceChange"/>). As each body crosses,
 /// its slot is deleted and the arm becomes a Sim body; the interface shrinks the way <see cref="Spine.IHostSteps"/> does.
@@ -35,7 +37,7 @@ public sealed record StripApplyResult(CommandResult Result, string? StripId);
 /// reproduce — and the broadcasts are what it leaves out.
 /// </para>
 /// </summary>
-public interface IActionHost
+public interface IActionHost : ITdlsChangeConsumer
 {
     // --- Slots: bodies the host owns ---
 
@@ -45,12 +47,6 @@ public interface IActionHost
     /// null on a fresh action, where the host mints and reports the id it used.
     /// </summary>
     StripApplyResult ApplyStrip(string callsign, ParsedCommand command, TrackOwner? identity, string? bakedStripId);
-
-    /// <summary><c>TDLSQ</c> / <c>TDLSS</c> / <c>TDLSW</c> / <c>TDLSD</c> against an aircraft that exists.</summary>
-    CommandResult ApplyTdls(AircraftState aircraft, ParsedCommand command);
-
-    /// <summary><c>TDLSOPS</c> — a facility's active operational configuration.</summary>
-    CommandResult ApplyTdlsOpsConfig(TdlsOpsConfigCommand command);
 
     /// <summary><c>RD</c> / <c>RDH</c> / <c>RDR</c> / <c>RDACK</c> / <c>RDDEL</c> / … against an aircraft that exists.</summary>
     CommandResult ApplyCoordination(AircraftState aircraft, ParsedCommand command, TrackOwner? identity);

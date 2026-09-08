@@ -61,7 +61,7 @@ SendCommandAsync(connectionId, callsign, command, initials)
   │    ↓ refuse a chain with a non-compoundable verb; split a scoped-special compound into units
   │    ↓ RecordedCommandClassifier.Classify → ArmTable.For(kind)
   │    ↓ resolve the scope (Aircraft: FindAircraft, else "Aircraft 'X' not found") and the identity
-  │    ↓ run the row: a Sim body (ActionArms) or a host slot (RoomHost → the room's strip / TDLS /
+  │    ↓ run the row: a Sim body (ActionArms, TdlsCommandHandler) or a host slot (RoomHost → the room's strip /
   │      coordination handlers, bookmarks, the clock, ASDE-X); the body notifies the host's consumers
   │    ↓ record the text with its verdict (RecordedCommand.Accepted), accepted or not
   ↓ terminal echo: "Command" (or "Strip" for a strip verb) + "Response" / "Error"; a global or
@@ -106,8 +106,8 @@ log and the router ignores it from a record.
 | `Timer` | `TIMER` | Callsign | Sim: `TimerCommandApplier.Apply` | Text |
 | `HoldForRelease` / `DisarmHoldForRelease` / `ReleaseDeparture` | `HFR` / `HFROFF` / `REL` | Global | Sim: `HeldReleaseService.Arm` / `Disarm` / `Release` | Text |
 | `TaxiAll` | `TAXIALL` | Global | Sim: `SimulationEngine.TaxiAll` | Text |
-| `Tdls` | `TDLSQ` / `TDLSS` / `TDLSW` / `TDLSDUMP` | Aircraft | Host: `ApplyTdls` (refused while replaying) | Text |
-| `TdlsOps` | `TDLSOPS` | Global | Host: `ApplyTdlsOpsConfig` (refused while replaying) | Text |
+| `Tdls` | `TDLSQ` / `TDLSS` / `TDLSW` / `TDLSDUMP` | Aircraft | Sim: `TdlsCommandHandler.Handle` | Text |
+| `TdlsOps` | `TDLSOPS` | Global | Sim: `SimulationEngine.ApplyTdlsOpConfig` | Text |
 | `AsdexEnableAllAlerts` | `ASDXALERTS` | Global | Host: `ApplyAsdexEnableAllAlerts` | Text |
 | `AddAircraft` | `ADD` | Global | Sim: `SimulationEngine.AddAircraft` (derives the spawn; a baked snapshot is the authority) | Text |
 | `Cfr` | `CFR` | Aircraft | Sim: `CfrDepartureService.Apply` | Text |

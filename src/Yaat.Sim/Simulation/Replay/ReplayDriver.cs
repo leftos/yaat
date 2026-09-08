@@ -106,6 +106,16 @@ internal sealed class ReplayDriver(SimulationEngine engine)
             _engine.Attendance.Clear();
             _engine.Strips.ClearSession();
             _engine.Tdls.ClearSession();
+
+            // The scenario load put its immediate aircraft in the world without the spawn hooks, and the clear above
+            // has just emptied what an earlier pass queued. Running them here — in the world's insertion order, at
+            // elapsed 0 — is what stamps a load-time departure's PDC at the second and under the id the live run gave
+            // it, rather than one second late from the next tick's catch-up sweep. A no-op when the run carries no
+            // TDLS configuration.
+            foreach (var aircraft in _engine.World.GetSnapshot())
+            {
+                _engine.AfterAircraftSpawned(aircraft);
+            }
         }
 
         using (_engine.EnterReplay())
@@ -220,6 +230,12 @@ internal sealed class ReplayDriver(SimulationEngine engine)
                 _engine.Logger.LogWarning(ex, "Failed to deserialize bundled ArtccConfig; replay will fall back to scenario-only resolution");
             }
         }
+
+        // The strip bays and TDLS facility configurations the mutations assume exist: the server's load builds them
+        // from the ARTCC, and a replay has just restored the config and the student position it needs to do the same.
+        // It survives the ClearSession the range below runs at t=0 because that clears the session only — TdlsState
+        // spares Configs and FlightStripState spares Bays.
+        _engine.InitializeStripsAndTdlsFromArtcc();
 
         FromStartTo((int)targetSeconds, recording.Actions, actionApplier: null);
 

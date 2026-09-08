@@ -55,6 +55,7 @@ public class SpineTraceTests
         new(StepId.TdlsExpiry, 0),
         new(StepId.TdlsTrackRemoval, 0),
         new(StepId.StripDispatches, 0),
+        new(StepId.StripTdlsChanges, 0),
         new(StepId.AutoDelete, 0),
         new(StepId.SurfaceCoastExpiry, 0),
         new(StepId.RundownBroadcast, 0),

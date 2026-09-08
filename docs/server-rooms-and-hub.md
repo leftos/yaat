@@ -88,7 +88,7 @@ One `RoomEngine` per room. It **owns** its `TrainingRoom` (`Room`, `:66`) and `R
 set by `RoomEngineFactory` right after construction) and exposes `World` (`:67`, delegates to the room's world) and
 `FindAircraft` (`:786`). Everything else is a **shared stateless singleton** injected via the primary constructor
 (`:27`-`41`): `TickProcessor`, the handlers the router's host slots call (`CoordinationCommandHandler`,
-`StripCommandHandler`, `TdlsCommandHandler`), `SimControlService`,
+`StripCommandHandler`), `SimControlService`,
 `ScenarioLifecycleService`, the broadcasters, and the ARTCC/ground data services. Per-room state lives on the
 `TrainingRoom`, never on the singletons.
 
@@ -158,7 +158,8 @@ spine's (`SpineOrder` in Yaat.Sim, [tick-loop.md](tick-loop.md)), and `RoomHost`
 `ReconstructionHost` — maps each host step and consumer onto one `internal` method here:
 
 - **Pre-physics**: `HandlePrePhysicsResult` broadcasts each newly-spawned aircraft and runs `AfterAircraftSpawned`
-  (auto-strip / auto-TDLS), and records generator spawns *after* their autotrack so the recorded snapshot carries the
+  (auto-strip; the TDLS auto-queue is the engine's own spawn hook, `SimulationEngine.AfterAircraftSpawned`, which runs
+  before the result reaches the host), and records generator spawns *after* their autotrack so the recorded snapshot carries the
   owner; `BroadcastTerminalEntries` takes the spine's drain; `ProcessDelayedHandoffs`; `SyncLiveTraffic` runs
   `ShadowTrafficSync.Sync` last — the pre-physics mutator of the aircraft set (see [live-traffic.md](live-traffic.md)).
 - **Post-physics**: the remaining ATC passes (`ProcessCoordinationTimers`, `ProcessTowerLists` — auto-accept, the point-out
@@ -166,8 +167,9 @@ spine's (`SpineOrder` in Yaat.Sim, [tick-loop.md](tick-loop.md)), and `RoomHost`
   recorded `Attendance`), the consumers of the engine's
   detectors (`BroadcastConflictAlerts`, `BroadcastEramConflictAlerts`), `ProcessAsdexAlerts`,
   `ProcessSoloTrainingEvaluation`, the drain consumers (`BroadcastWarnings` / `Notifications` / `PilotSpeech` /
-  `PilotReadbacks` / `PilotTransmissions`, `ProcessApproachScores`, `ProcessDeferredStripDispatches`), the auto-strip and
-  TDLS processors, `ProcessAutoDelete`, `ProcessSurfaceCoast`, and the rundown / live-traffic-status / timers
+  `PilotReadbacks` / `PilotTransmissions`, `ProcessApproachScores`, `ProcessDeferredStripDispatches`), the auto-strip
+  processors (the four TDLS steps are Sim steps, `SimulationEngine.Tdls.cs`; the room only pushes what the change
+  tracker drained, `RoomHost.OnTdlsChanged` → `TdlsBroadcaster.BroadcastChanges`), `ProcessAutoDelete`, `ProcessSurfaceCoast`, and the rundown / live-traffic-status / timers
   "broadcast if changed" tail. (`SimulationEngine.TickDeferredAutoTrack` claims a departure only once it first appears on
   STARS — i.e. crosses the acquisition floor, `FieldElevationResolver.IsBelowDisplayFloor` — so a track is never owned
   before it is displayed; `TickFlightPlanCreatorAutoTrack` runs before it so an explicit VP/DA controller wins over

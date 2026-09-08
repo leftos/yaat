@@ -73,14 +73,14 @@ public sealed class ActionRouter
                 _engine.ApplyRecordedAircraftSpawn(spawn);
                 if (_engine.World.FindAircraft(spawn.Aircraft.Callsign) is { } spawned)
                 {
-                    host.OnAircraftSpawned(spawned);
+                    HandOverSpawn(host, spawned);
                 }
                 return Applied;
             case RecordedLiveTrafficSample sample:
                 _engine.ApplyRecordedLiveTrafficSample(sample);
                 if ((sample.SpawnState is not null) && (_engine.World.FindAircraft(sample.Callsign) is { } shadow))
                 {
-                    host.OnAircraftSpawned(shadow);
+                    HandOverSpawn(host, shadow);
                 }
                 return Applied;
             case RecordedLiveTrafficRemoval removal:
@@ -182,6 +182,17 @@ public sealed class ActionRouter
             default:
                 return Applied;
         }
+    }
+
+    /// <summary>
+    /// An aircraft a recorded action put into the world: the engine's spawn hooks first (what a spawn queues is engine
+    /// state every run kind carries), then the host's tail. Same order as <see cref="ActionArms"/>' spawn arms and the
+    /// pre-physics spawns, so a client learns the callsign before the PDC for it.
+    /// </summary>
+    private void HandOverSpawn(IActionHost host, AircraftState aircraft)
+    {
+        _engine.AfterAircraftSpawned(aircraft);
+        host.OnAircraftSpawned(aircraft);
     }
 
     private CommandResult ApplyToAircraft(string callsign, Action<AircraftState> apply)
@@ -327,6 +338,11 @@ public sealed class ActionRouter
     private ActionOutcome Finish(Routing routing, CommandResult result, ActionTrace trace, RecordingPolicy recording, ArmContext? ctx)
     {
         LastTrace = trace;
+
+        // Whatever the arm touched reaches the host before the result does — fresh or recorded, accepted or refused —
+        // so a live command's broadcast still precedes its response and a playback pushes per record.
+        _engine.DrainStripTdlsChangesInto(routing.Host);
+
         if (routing.Record is { } record)
         {
             WarnOnVerdictChange(record, result);

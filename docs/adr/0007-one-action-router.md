@@ -63,7 +63,8 @@ The consequences that were genuine choices:
   them), the `SHOW` query (read-only), aircraft assignments (room policy applied *before* the router —
   a command it refuses never reached the simulation), `TdlsDumped` and the rest of TDLS state (in no
   snapshot until step 4; a replayed `TDLSQ` would duplicate live state, so the slots refuse while
-  replaying), and surface temp data (drawn areas, labels, presets — facility furniture that
+  replaying — superseded 2026-09-07: `TdlsState` is snapshotted and the TDLS verbs are Sim arms that apply on
+  every run kind), and surface temp data (drawn areas, labels, presets — facility furniture that
   `FacilityTempDataStore` persists across rooms and restarts, so a rewind must not un-draw what the
   store still holds). Attendance becomes a recorded input in step 4 (ADR 0003).
 

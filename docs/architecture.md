@@ -87,6 +87,7 @@ The Task Index above tells you *which files*; these docs explain *how each subsy
   - **Route geometry guards**: `Helpers/RouteGeometryAsserts.cs` (structural: no square pivot where fillet exists)
   - **Attendance**: `Helpers/AttendanceTestSupport.cs` (test helpers for CRC attendance state), `Simulation/Actions/AttendanceRecordTests.cs` (a RecordedAttendanceChange replaces the engine's set, resolves ids through the room's config, keeps an unresolvable id by id only, round-trips the snapshot and the serializer; a fresh replay starts empty)
   - **Strip id baking**: `Simulation/Actions/StripIdBakedDrawTests.cs` (the strip id a creating verb — SEP/HSC/SCAN — draws is a baked draw like the reaction delay and the generated aircraft: `RecordedCommand.StripId` round-trips the archive serializer, `BakedDraws.Of` carries it, and the strip arm bakes the id the host minted onto the record)
+  - **TDLS**: `Simulation/Tdls/TdlsStepTests.cs` (the vTDLS bodies on the bare engine: the spawn hook's auto-queue, the four tick steps — auto-queue, auto-WILCO, TTL expiry, track removal — the `TDLSQ`/`TDLSS`/`TDLSW`/`TDLSDUMP`/`TDLSOPS` command handler, and the change tracker the router drains into the host — over real OAK navdata with no server in the process)
 - **Client tests**: `tests/Yaat.Client.Tests/` — view model logic, command input
 - **UI tests**: `tests/Yaat.Client.UI.Tests/` — headless window tests for views and layout
 - **Test data**: `tests/Yaat.Sim.Tests/TestData/` — NavData.dat + `navdata-manifest.json`, FAACIFP18.gz + `cifp-manifest.json`, airport GeoJSON, `oak-u-w-fillet-corner-recording.zip` (E2E fillet routing test fixture), `s2-oak5-follow-heli-recording.zip` (S2-OAK-5 bundle: FOLLOW behind a straight-in jet, helicopter LAND @spot from off-field, CRC flight-plan amendment during a hover hold), `recording-routing-census.json` (per-fixture routing census of every recorded command — the triage worklist for the action-router work). Refresh pins: `tools/refresh-navdata.py`, FAA CIFP via `CifpPathResolver` at test load.
@@ -1173,6 +1174,12 @@ SimulationEngine.TrackAutomation.cs # Track automation on every run kind. ApplyA
                                    # outside solo), TickFlightPlanCreatorAutoTrack (an untracked aircraft
                                    # squawking its assigned code → the plan's CreatedByOwner) before TickDeferredAutoTrack (an untracked departure above the display floor
                                    # → the autoTrackAirportIds position). The [AutoTrack]/[AutoAccept]/[Pointout] lines go through EmitTerminal
+SimulationEngine.Tdls.cs       # The vTDLS spine steps (TickAutoTdlsQueue, TickTdlsAutoWilco, TickTdlsExpiry, TickTdlsTrackRemoval), the AfterAircraftSpawned spawn
+                               # hook (auto-queues a departure's PDC inline at spawn; TickAutoTdlsQueue stays the catch-up path for a plan edited after spawn),
+                               # SetTdlsOpConfig/ApplyTdlsOpConfig (TDLSOPS), IsDepartureAircraft, InitializeStripsAndTdlsFromArtcc (pre-creates strip bay slots +
+                               # registers a TdlsConfig for every ARTCC facility that has one; run by scenario load and ReplayDriver), and
+                               # DrainStripTdlsChangesInto (hands the host what TdlsState.Changes accumulated since the last drain). Decides from engine state
+                               # alone (the session clock, the ARTCC's TDLS configuration, the world), so every run kind builds the same DCL/PDC lists.
 AddAircraftOutcome.cs          # What an ADD produced: the aircraft now in the world + its spawn snapshot (baked onto the RecordedCommand), or the refusal
 SimScenarioState.cs            # Per-scenario runtime state: queues, settings, ATC positions, coordination, ArtccConfig (loaded from bundle on replay), LiveTrafficFilter (carried from room settings),
                                # SessionStartUtc (the pinned instant t=0 is anchored to: the room clock for a live load or restart, the recorded instant for a replay, ProcessDayUtc — the unclamped process day — where no clock exists; snapshotted + in the recording manifest) + SimTimeUtc (start + elapsed) + MagneticModelDateUtc (derived: the start's UTC day),
@@ -1230,8 +1237,10 @@ StepId.cs                      # One member per step, in spine order; the trace'
                                # track-automation steps emit so they reach the room the same second
 SpineStep.cs                   # One list entry: a sim step (engine body, gets only IHostConsumers) or a host step (gets only IHostSteps)
 IHostSteps.cs                  # The host's step view — every server-owned body as a named member, no defaults (a new member breaks every host); header lists the
-                               # step-4 debt (LiveTrafficSync, the autotrack passes, CoordinationTimers, TowerLists, TdlsExpiry)
-IHostConsumers.cs              # The host's consumer view — OnPrePhysics / OnTerminalEntries / OnConflictAlerts / the drains
+                               # step-4 debt (LiveTrafficSync, CoordinationTimers, TowerLists, the two strip auto-print passes). The four TDLS tick steps
+                               # (AutoTdlsQueue/TdlsAutoWilco/TdlsExpiry/TdlsTrackRemoval) moved out — they're Sim steps now, engine bodies in SimulationEngine.Tdls.cs
+IHostConsumers.cs              # The host's consumer view — OnPrePhysics / OnTerminalEntries / OnConflictAlerts / the drains / OnTdlsChanged (ITdlsChangeConsumer,
+                               # shared with IActionHost) for what the TDLS mutations touched
 ISimulationHost.cs             # IHostSteps + IHostConsumers + Actions.IActionHost; four implementations (BareHost, ReplayHost, yaat-server LiveRoomHost / ReconstructionHost)
 StepTrace.cs                   # Per-second (StepId, subTick) sequence + FNV-1a digest + counts; on by default, allocation-free once warm
 BareHost.cs                    # The Test-run host: every spine slot empty, consumers fire the engine's events; as an IActionHost every slot is refused
@@ -1247,7 +1256,8 @@ ActionRouter.cs                # SimulationEngine.Actions. Issue(ActionInput, ho
                                # Stages: strip the AS prefix → refuse a chain with a non-compoundable verb → split a scoped-special compound into units
                                # → classify → resolve scope (Aircraft: FindAircraft or the identical "Aircraft 'X' not found") and identity → run the
                                # ArmTable row → record (fresh: through RecordAction, accepted or not) or compare verdicts (recorded: the replay-fidelity
-                               # warning when Accepted disagrees). LastTrace is the parity test's observable. Overloads without a host use the bare host.
+                               # warning when Accepted disagrees) → drain what the TDLS/strip mutations touched into the host (DrainStripTdlsChangesInto,
+                               # ITdlsChangeConsumer.OnTdlsChanged) before the result returns. LastTrace is the parity test's observable. Overloads without a host use the bare host.
 ArmTable.cs (in ActionArm.cs)  # ActionArm (kind, scope, IsHostSlot, RecordingPolicy, Run) + ArmTable.For(kind) — one row per
                                # RecordedCommandKind, scope asserted equal to the classifier's at construction; RecordingPolicy.Never = ShowQueued + Bookmark + Transport;
                                # ArmContext is what a body sees (engine, host, input, remainder, parsed, resolved aircraft/identity) and writes its draws
@@ -1265,16 +1275,18 @@ ActionArms.cs                  # The Sim bodies: Aviation (ParseCompound → Rea
                                # TrackEngine.DispatchGlobal), GhostTrack (a created phantom is handed to OnAircraftSpawned), Reposition, SquawkAll, HFR/HFROFF/REL (baked jitter else ReleaseJitterRng), Cfr (baked clock else now),
                                # Timer, TaxiAll, AddAircraft (SimulationEngine.AddAircraft; bakes the spawned aircraft onto a fresh record),
                                # Consolidate/Deconsolidate (SimulationEngine.Consolidate / Deconsolidate; OnConsolidationChanged)
-IActionHost.cs                 # The action-path view of a host, part of ISimulationHost: slots for the bodies the server still owns (ApplyStrip(callsign, command,
-                               # identity, bakedStripId) → StripApplyResult(Result, StripId) — the id a creating verb (SEP/HSC/SCAN) minted live and a replay reuses, ApplyTdls,
-                               # ApplyTdlsOpsConfig, ApplyCoordination, ApplyGlobalCoordination, ApplyAsdexEnableAllAlerts, ApplyBookmark(command, initials),
+IActionHost.cs                 # The action-path view of a host, part of ISimulationHost and ITdlsChangeConsumer: slots for the bodies the server still owns (ApplyStrip(callsign, command,
+                               # identity, bakedStripId) → StripApplyResult(Result, StripId) — the id a creating verb (SEP/HSC/SCAN) minted live and a replay reuses,
+                               # ApplyCoordination, ApplyGlobalCoordination, ApplyAsdexEnableAllAlerts, ApplyBookmark(command, initials),
                                # ApplyTransport, ApplyRecordedAsdexMutation / ApplyRecordedSaidMutation / ApplyRecordedEramCrrGroup / ApplyRecordedStripRequest (the host
                                # answers: aircraft gone = refused, id already held = nothing printed) / ApplyRecordedAsdexSafetyLogic for the recorded CRC display
                                # mutations, CRR groups, manual strip requests and the ASDE-X safety-logic configuration) and consumers a Sim arm or applier notifies (OnAircraftSpawned, OnAircraftDeleted(callsign, lastState), OnLiveTrafficHidden,
-                               # OnPositionSelected(conn, owner, tcpCode), OnTrackAcquired, OnGhostOverlayRemoved, OnAsdexTrackTerminated, OnTimersChanged,
-                               # OnConsolidationChanged, OnHeldDeparturesChanged, OnFlightPlanAmended, OnWeatherChanged, OnQueuedCommandsShown). No defaults; header lists every slot
-                               # as step-4 debt. BareHost + ReplayHost refuse / ignore; yaat-server's RoomHost answers with the room's bodies and gives a fresh
-                               # action the room's tails (spawn hooks and broadcasts, display config, CRC broadcasts) that a replaying room skips
+                               # OnPositionSelected(conn, owner, tcpCode), OnTrackAcquired, OnGhostOverlayRemoved, OnAsdexTrackTerminated, OnTdlsChanged(TdlsChangeSet) (ITdlsChangeConsumer,
+                               # shared with IHostConsumers — the router drains it after every routed action; TDLS itself crossed whole into Yaat.Sim, so this is only
+                               # the broadcast the host still owes), OnTimersChanged, OnConsolidationChanged, OnHeldDeparturesChanged, OnFlightPlanAmended, OnWeatherChanged,
+                               # OnQueuedCommandsShown). No defaults; header lists every remaining slot as step-4 debt (TDLS no longer among them). BareHost + ReplayHost
+                               # refuse / ignore; yaat-server's RoomHost answers with the room's bodies and gives a fresh action the room's tails (spawn hooks and
+                               # broadcasts, display config, CRC broadcasts) that a replaying room skips
 ActionInput.cs                 # ActionInput (callsign, command, connection id, initials, Baked) + BakedDraws (reaction delay, spawn jitter, spawned aircraft,
                                # issued-at clock, strip id) — the values a live run drew, read back from the record so no other run draws them
 ActionOutcome.cs               # ActionOutcome (result, the record produced, trace) + ActionTrace (kind, scope, IsHostSlot)
@@ -1292,7 +1304,9 @@ RecordedActionPump.cs          # The one pump behind a Sim replay, the server's 
                                # ApplyThrough(second) applies the rest and advances past all of it, SeekTo repositions after a jump, Reseat adopts a cursor
                                # kept elsewhere (the room's PlaybackCursor) and forgets the pre-tick bookkeeping when it moved
 ReplayDriver.cs                # Drives a recording forward (range / one second / one sub-tick) by running the spine under a ReplayHost;
-                               # owns the driver's RecordedActionPump. Internal — SimulationEngine.Replay.cs is the public surface over it.
+                               # owns the driver's RecordedActionPump. Rebuilds strip bays + TDLS facility configs from the ARTCC
+                               # (SimulationEngine.InitializeStripsAndTdlsFromArtcc) once the config and student position are restored, so the mutations
+                               # find what they assume exists. Internal — SimulationEngine.Replay.cs is the public surface over it.
 ReplayHost.cs                  # The bare host plus pre-tick recorded actions and post-second action application through the pump and
                                # Actions.ApplyRecorded (unless the caller supplies its own applier); as an IActionHost it delegates every member to the bare host
 SnapshotDiff.cs                # Pure-function diff between an engine's live aircraft state and a captured snapshot's DTOs.
@@ -1311,13 +1325,28 @@ FlightStripState.cs            # The strips, the bay/rack layout and the two pri
                                # (moves touch Items + source rack + dest rack together); Items/Bays are concurrent collections for read-only
                                # enumeration only. StripItemRecord: one strip (id, aircraft id, type, offset, field values, facility/bay/rack/index)
 
-# Simulation/Tdls/ — vTDLS session state, engine-owned (SimulationEngine.Tdls)
+# Simulation/Tdls/ — vTDLS session state + command/tick logic, engine-owned (SimulationEngine.Tdls, SimulationEngine.Tdls.cs)
 TdlsState.cs                   # The DCL (Pending) and PDC (Sent/Wilco) lists plus a Dumped lockout (keeps a controller-removed entry from being
                                # re-created) for one run. Engine-owned; a fresh engine starts empty and the snapshot carries the session. Configs
                                # (per-facility TdlsConfig) is the exception — reloaded from the ARTCC on every scenario load and never snapshotted,
                                # so ClearSession (not Reset) is what a restore uses and leaves Configs alone; Reset also clears Configs, for
                                # scenario unload. ResolveActiveOpConfigId / ResolveSids honor the facility's active operational configuration.
+                               # Changes (TdlsChangeTracker) records what TdlsMutations touched since the host's last drain — transient, not
+                               # snapshotted, cleared by ClearSession alongside the session state.
                                # TdlsItemRecord: one list entry (Pending → Sent → Wilco, removed on Dump/TTL-expiry/activation); TdlsItemStatus
+TdlsChangeTracker.cs           # The broadcast seam for TdlsState: TdlsRemoval (one item that left Items — dumped, or removed by TTL/track-removal),
+                               # TdlsChangeSet (ChangedItemIds, Removed, FullState — what the host broadcasts from) and TdlsChangeTracker itself
+                               # (MarkChanged/MarkRemoved/MarkFullState; Drain takes everything accumulated and resets). ITdlsChangeConsumer.OnTdlsChanged
+                               # is the interface both IActionHost and IHostConsumers share, so the router (after every routed action) and the
+                               # post-physics StripTdlsChanges spine step (for what the tick steps produced) each reach it once. Transient — never
+                               # snapshotted, cleared by TdlsState.ClearSession — mutated under TdlsState.Gate like the state it describes.
+TdlsMutations.cs               # Stateless mutation helpers for TdlsState (queue/send/mark-Wilco/dump/expire, ResolveFacilityForAirport, FindActiveItem) —
+                               # callers hold Gate externally. Helpers that allocate new ids advance NextItemId; helpers that change status return the
+                               # updated record (or null if the item didn't exist) and record it in TdlsState.Changes for the host to broadcast.
+TdlsCommandHandler.cs          # Static dispatch for TDLSQ / TDLSS / TDLSW / TDLSDUMP against SimulationEngine.Tdls: resolves the aircraft's TDLS facility,
+                               # mutates through TdlsMutations, and builds the ACARS PDC text for a TDLSS send; owns the auto/manual WILCO delay
+                               # (DefaultWilcoDelay). ArmTable's Tdls/TdlsOps rows call it (and SimulationEngine.ApplyTdlsOpConfig) as Sim bodies now,
+                               # not host slots.
 TdlsClearance.cs               # The clearance a PDC carries: the nine canonical TDLSS payload fields, in the order the command describes them.
                                # The simulation's clearance model — held by TdlsItemRecord and round-tripped by the snapshot; the server projects
                                # it onto the CRC wire ClearanceDto on its way out

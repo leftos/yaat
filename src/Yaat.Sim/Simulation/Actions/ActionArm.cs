@@ -1,6 +1,7 @@
 using System.Collections.Frozen;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Simulation.Snapshots;
+using Yaat.Sim.Simulation.Tdls;
 
 namespace Yaat.Sim.Simulation.Actions;
 
@@ -105,8 +106,12 @@ public static class ArmTable
             Sim(RecordedCommandKind.Deconsolidate, ActionArms.Deconsolidate),
             Sim(RecordedCommandKind.AddAircraft, ActionArms.AddAircraft),
             Host(RecordedCommandKind.Strip, RecordingPolicy.Text, static ctx => ApplyStrip(ctx)),
-            Host(RecordedCommandKind.Tdls, RecordingPolicy.Text, static ctx => ctx.Host.ApplyTdls(ctx.Aircraft!, ctx.Parsed!)),
-            Host(RecordedCommandKind.TdlsOps, RecordingPolicy.Text, static ctx => ctx.Host.ApplyTdlsOpsConfig((TdlsOpsConfigCommand)ctx.Parsed!)),
+            Sim(
+                RecordedCommandKind.Tdls,
+                RecordingPolicy.Text,
+                static ctx => TdlsCommandHandler.Handle(ctx.Engine, ctx.Parsed!, ctx.Aircraft!.Callsign)
+            ),
+            Sim(RecordedCommandKind.TdlsOps, RecordingPolicy.Text, static ctx => ctx.Engine.ApplyTdlsOpConfig((TdlsOpsConfigCommand)ctx.Parsed!)),
             Host(
                 RecordedCommandKind.Coordination,
                 RecordingPolicy.Text,

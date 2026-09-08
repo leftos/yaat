@@ -1,6 +1,7 @@
 using Yaat.Sim.Commands;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Pilot;
+using Yaat.Sim.Simulation.Tdls;
 using Yaat.Sim.Training;
 
 namespace Yaat.Sim.Simulation.Spine;
@@ -11,7 +12,7 @@ namespace Yaat.Sim.Simulation.Spine;
 /// a host slot. Every drain the engine performs delivers here on every run kind; the bare test host turns them into
 /// the engine's events, the live server into broadcasts.
 /// </summary>
-public interface IHostConsumers
+public interface IHostConsumers : ITdlsChangeConsumer
 {
     /// <summary>The aircraft <see cref="SimulationEngine.TickPrePhysics"/> spawned this second.</summary>
     void OnPrePhysics(TickPrePhysicsResult result);

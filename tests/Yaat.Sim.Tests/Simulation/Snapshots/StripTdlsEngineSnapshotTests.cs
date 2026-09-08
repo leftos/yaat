@@ -233,9 +233,14 @@ public class StripTdlsEngineSnapshotTests
         Assert.Empty(engine.Tdls.Items);
     }
 
-    /// <summary>A replay from second 0 on a reused engine is a fresh run: it must not inherit the strips or PDCs of the last one.</summary>
+    /// <summary>
+    /// A replay from second 0 on a reused engine is a fresh run: it must not inherit the strips or PDCs of the last
+    /// one. What it does rebuild is what a load produces — the spawn hook queues the scenario departure's PDC at
+    /// elapsed 0, exactly as the live room's load did, so the item standing afterwards is a freshly minted Pending one
+    /// and not the Sent one seeded here.
+    /// </summary>
     [Fact]
-    public void AReplayFromSecondZero_StartsWithNoStripsAndNoPdcs()
+    public void AReplayFromSecondZero_RebuildsTheLoadTimePdcAndInheritsNothing()
     {
         var engine = Load();
         Seed(engine);
@@ -244,9 +249,16 @@ public class StripTdlsEngineSnapshotTests
         engine.ReplayFromStartTo(0, []);
 
         Assert.Empty(engine.Strips.Items);
-        Assert.Empty(engine.Tdls.Items);
         Assert.Empty(engine.Tdls.ScheduledWilcoAt);
-        Assert.Equal(1, engine.Tdls.NextItemId);
+
+        // Nothing of the seeded run survives: its Sent status, its clearance and its scheduled WILCO are gone, and the
+        // id counter went back to 1 before the hook spent it again.
+        var item = Assert.Single(engine.Tdls.Items.Values);
+        Assert.Equal("TDLS_1", item.Id);
+        Assert.Equal(TdlsItemStatus.Pending, item.Status);
+        Assert.Null(item.SentPayload);
+        Assert.Equal(SessionStart, item.CreatedUtc);
+        Assert.Equal(2, engine.Tdls.NextItemId);
 
         // The facility configuration is the scenario load's, not the run's — a replay reset keeps it.
         Assert.True(engine.Tdls.Configs.ContainsKey("OAK"));
