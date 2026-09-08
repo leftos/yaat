@@ -319,7 +319,20 @@ public static class CommandDescriber
         // classifies them as Lateral — so without this arm a queued hold's aggregate block dimension
         // reports a lateral conflict while its per-command keep-test reads None, and SplitBlockNonConflicting
         // keeps (survives) the very hold a superseding vector was meant to cancel.
-        if (IsPatternEntryCommand(command) || IsApproachCommand(command) || IsHoldCommand(command))
+        //
+        // MLT/MRT are the same shape: excluded from IsPatternEntryCommand (they build no lead-in of
+        // their own) and with no ClassifyCommand arm (→ Immediate → None), yet they are tower commands
+        // so GetCommandDimension reports All. A queued MLT/MRT that survives a superseding vector fires
+        // TryChangePatternDirection's "departure told to stay in closed traffic" path, which builds and
+        // activates a full circuit — a real turn back into the pattern the vector was meant to prevent
+        // (the RELR-20 shape the command-handlers doc warns about). While queued it is a lateral plan, so
+        // a fresh vector/DCT must cancel it; an altitude/speed assignment on the way to the trigger must not.
+        if (
+            IsPatternEntryCommand(command)
+            || IsApproachCommand(command)
+            || IsHoldCommand(command)
+            || command is MakeLeftTrafficCommand or MakeRightTrafficCommand
+        )
         {
             return CommandDimension.Lateral;
         }
