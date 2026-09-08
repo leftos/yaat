@@ -115,6 +115,13 @@ public static class CompoundPolicy
     /// single command, an aviation-only compound (dispatched whole so its triggers survive), or any compound
     /// containing a bail-set command. A block containing a scoped special is split on <c>,</c> into single commands
     /// so each dispatches alone; an aviation-only block is kept whole.
+    /// <para>
+    /// Also false when the split gives back the input unchanged. A condition-prefixed scoped special
+    /// (<c>WAIT 1 AN 1 ✓</c>, <c>AT FIX HO 3G</c>) has no separator at all: the scheme expander turns the one block
+    /// into two commands, which passes the multi-command check, but it is one dispatch unit and splitting it on
+    /// <c>,</c> yields the whole input back. The caller re-routes each unit, so returning true there is an infinite
+    /// recursion — the aviation arm must take it instead, queueing the strip verb behind the condition.
+    /// </para>
     /// </summary>
     public static bool TrySplitSpecialCompound(string command, out List<CompoundUnit> units)
     {
@@ -140,6 +147,11 @@ public static class CompoundPolicy
             {
                 return false;
             }
+        }
+
+        if ((built.Count == 1) && string.Equals(built[0].Text.Trim(), command.Trim(), StringComparison.Ordinal))
+        {
+            return false;
         }
 
         units = built;

@@ -344,6 +344,41 @@ public class StripStepTests
         Assert.Equal("✓", engine.Strips.Items[stripId].FieldValues[10]);
     }
 
+    /// <summary>
+    /// The same deferred annotation typed by a controller instead of loaded as a preset. It reaches the engine through
+    /// the action router, where the scoped-special splitter sees a comma-less block that expands to two commands
+    /// (<c>WAIT</c> + <c>AN</c>) — it must decline to split it, or the router re-routes byte-identical text forever and
+    /// the process dies on a stack overflow. Declined, the aviation arm builds the <c>WAIT</c> block exactly as the
+    /// preset path does.
+    /// </summary>
+    [Fact]
+    public void WaitPrefixedStripVerb_IssuedThroughTheRouter_AppliesAfterTheWait()
+    {
+        if (Engine(DepartureAtOak, "OAK_TWR", "TWR") is not { } engine)
+        {
+            return;
+        }
+
+        var host = new AttendanceActionHost();
+        engine.AfterAircraftSpawned(Departure(engine, Callsign));
+        var stripId = Assert.Single(engine.Strips.Items.Values).Id;
+
+        var outcome = Issue(engine, host, Callsign, "WAIT 1 AN 1 ✓");
+
+        Assert.True(outcome.Result.Success, outcome.Result.Message);
+        Assert.Equal("", engine.Strips.Items[stripId].FieldValues[10]);
+
+        engine.TickOneSecond();
+        engine.TickOneSecond();
+
+        // Box 1 is FieldValues[10] — the annotation lands when the WAIT fires, not at issue time.
+        Assert.Equal("✓", engine.Strips.Items[stripId].FieldValues[10]);
+
+        // One recorded command, the text as typed: the router did not split it into units.
+        var recorded = Assert.Single(engine.Scenario!.ActionLog.OfType<RecordedCommand>());
+        Assert.Equal("WAIT 1 AN 1 ✓", recorded.Command);
+    }
+
     [Fact]
     public void ChangeSet_DeliversItemsBeforeFullState()
     {

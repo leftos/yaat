@@ -17,6 +17,7 @@
 - The reported-METAR observation clock (the :53 routine issuance and SPECI look-backs) runs on the session clock, so the :53 grid follows sim time rather than real time; after a rewind the rebuilt issuer resumes that grid, carries the routine already issued instead of reverting to the loaded METAR text until the next :53, and no longer re-stamps every station on its first tick.
 
 ### Fixed
+- Typing a strip, track, coordination or TDLS command behind a condition prefix (`WAIT 1 AN 1 ✓`, `AT FIX HO 3G`) no longer crashes the server: the compound splitter treated the single-unit result as a compound and re-routed it forever.
 - Rewinding across a flight-plan amendment (`FP`, or an amendment from CRC's flight-plan editor) no longer stacks a duplicate departure strip in the printer: the reprint keeps the id the live session gave it.
 - Rewinding a session restores the flight strips and PDCs as they were at the target time — including the clearance a sent PDC carried and its pending auto-acknowledge — and re-sends them to every Strips and TDLS view; restarting a scenario starts from the scenario's own strips and PDCs instead of carrying the previous run's. Strips and the TDLS session are now part of every recording, bundle and session checkpoint.
 - Leaving a room empties the Strips and TDLS views, docked or popped out, so the previous room's strips can no longer be moved or printed; restarting a scenario keeps only the separators you placed, and a rewind after the restart keeps them too (#424).
