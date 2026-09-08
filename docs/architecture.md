@@ -482,6 +482,8 @@ AircraftState.cs               # Mutable aircraft entity. Identity + kinematics 
                                # WindSpeedKts: computed wind magnitude (sqrt of N²+E² components) used for pattern flyability floor
                                # LiveTraffic (AircraftLiveTraffic?): non-null ⇔ IsShadow — a real aircraft mirrored from a feed,
                                # driven by LiveTraffic/LiveTrafficKinematics instead of FlightPhysics. See live-traffic.md.
+                               # AssumedFromLiveTraffic (bool, snapshotted, default false): set by LiveTrafficAssumer.Assume as LiveTraffic is cleared —
+                               # the marker UNASSUME requires (a scenario aircraft with the same callsign is not restorable)
                                # FOOTGUN: changes here must be mirrored in AircraftSnapshotDto + SnapshotSchemaMigrator
 ControlTargets.cs              # Autopilot targets: heading, altitude, speed (IAS), NavigationRoute
 AircraftPattern.cs             # Aircraft pattern state; PendingLandingClearance carries PatternRunwayId / PatternAltitudeFt for runway-change clearance routing
@@ -600,7 +602,9 @@ LiveTraffic/LiveTrafficSample.cs     # LiveTrafficSample (sim-time observation: 
                                      # LiveTrafficSource (Stars/Eram/Asdex), LiveTrafficRemovalReason
 LiveTraffic/AircraftLiveTraffic.cs   # Shadow satellite: last sample fields, SecondsSinceSample (dead-reckoning clock), AppliedAtSimSeconds + DeliverySilenceSeconds (freshness clock — coast/removal), IsCoasting, ExternalId
 LiveTraffic/LiveTrafficAssumer.cs    # ASSUME hand-off: shadow → simulated aircraft in place; feed clearances first, then level/climb/descent, hold, final/visual,
-                                     # route rejoin (NextFixAhead), initial climb, VFR, runway/surface kinds. Never refused. See live-traffic.md.
+                                     # route rejoin (NextFixAhead), initial climb, VFR, runway/surface kinds. Never refused. Also run implicitly by
+                                     # CommandDispatcher.DispatchCompound's shadow gate for any non-SAY command to a shadow (2026-09-08); stamps
+                                     # AircraftState.AssumedFromLiveTraffic, the marker UNASSUME (ActionArms.Unassume) requires. See live-traffic.md.
 LiveTraffic/LiveTrafficKinematics.cs # CreateShadow / Apply(sample) / Resync(simNow) / Advance(dt): dead-reckons a shadow from its latest sample and writes the air vector (heading+IAS)
                                      # so the computed GroundSpeed equals the sampled GS under the room wind; coasts after two missed sweeps. See live-traffic.md.
 LiveTraffic/LiveTrafficFilter.cs     # Shared live-traffic filter model (rules VFR/IFR/both, flight-plan airport list, radius); canonical-string TryParse/Serialize/Describe; carried on SimScenarioState.LiveTrafficFilter
@@ -698,7 +702,9 @@ Commands/CommandDescriber.cs        # Static: DescribeCommand, DescribeNatural, 
                                     # commands are phase-transparent (STRIP/STRIPD/SCAN/etc., half-strip, separators, blanks)
                                     # InstallsIndefiniteHoldPhase: HP/VFR-hold/FOLLOW installers → dispatch-time chain warning
 Commands/CompoundPolicy.cs          # Shared client+server chained-command policy: IsNonCompoundable rejection set +
-                                    # FindNonCompoundableInChain ("{verb} cannot be part of a chained command"); DEL/DEST excluded (they chain)
+                                    # FindNonCompoundableInChain ("{verb} cannot be part of a chained command"); DEL/DEST excluded (they chain);
+                                    # ASSUME/UNASSUME are in the set (a spaced "ASSUME ; H 180" parses as one UnsupportedCommand and slips this
+                                    # pre-check, so CommandDispatcher carries its own guard with the same message)
                                     # IsFlightPlanCommand: identifies DA/FP/RMK (flight-plan amend commands that skip replay and bypass dispatch)
 Commands/TrafficAdvisoryMatcher.cs  # Shared RTIS/SAFAL target matching: clock + VFR relative-octant/pattern-leg/landmark forms, best-candidate-by-weighted-error + Exact/Imprecise grade
 Commands/AltitudeResolver.cs        # Plain int or AGL format → feet MSL
@@ -1314,7 +1320,8 @@ ActionArms.cs                  # The Sim bodies: Aviation (ParseCompound → Rea
                                # ReprintDepartureStripAfterAmendment (its id baked onto RecordedAmendFlightPlan.StripId, so a replay reprints under it instead
                                # of minting a second copy) + the filing identity as FlightPlan.CreatedByOwner; DA is create-only (DUP NEW ID); from a record only
                                # the creator tag is applied — the amendment recorded beside it carries the plan), Delete (a shadow → OnLiveTrafficHidden),
-                               # DeleteQueued, Note, SpawnNow/SpawnDelay, SetActivePosition (OnPositionSelected with the typed code), Track
+                               # Unassume (UNASSUME: an AssumedFromLiveTraffic aircraft leaves as DEL does, minus OnLiveTrafficHidden and the removal record, so the
+                               # next ShadowTrafficSync re-spawns the shadow), DeleteQueued, Note, SpawnNow/SpawnDelay, SetActivePosition (OnPositionSelected with the typed code), Track
                                # (TrackEngine.Dispatch; CAACK to TrackEngine.AcknowledgeConflictAlert; the tails on every run kind — TRACK applies the facility's
                                # scratchpad rules + RemoveCoordinationOnRadarAcquisition, INHCA drops the aircraft's active conflicts, ASDE-X TERM → OnAsdexTrackTerminated, a ghost's
                                # DROP lifts the overlay (OnGhostOverlayRemoved) or removes the phantom (OnAircraftDeleted)), GlobalTrack (ACCEPTALL/HOALL via
