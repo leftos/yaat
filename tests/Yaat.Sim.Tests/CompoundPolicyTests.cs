@@ -33,6 +33,21 @@ public class CompoundPolicyTests
     }
 
     /// <summary>
+    /// A coordination message runs to the end of the line, so the words in it are message text and never chained
+    /// commands: only the head typed before the message is scanned. Scanned whole, "…RDTXT /1 HOLD, PAUSE" refused the
+    /// line as a chained PAUSE. The same tail typed as a real chain is still found.
+    /// </summary>
+    [Fact]
+    public void FreeTextCoordinationMessage_TailIsNotScannedForNonCompoundables()
+    {
+        Assert.Null(CompoundPolicy.FindNonCompoundableInChain("FH 090; RDTXT /1 HOLD, PAUSE"));
+
+        var found = CompoundPolicy.FindNonCompoundableInChain("FH 090; PAUSE");
+        Assert.NotNull(found);
+        Assert.IsType<PauseCommand>(found);
+    }
+
+    /// <summary>
     /// A parallel block pairing a takeoff clearance with an immediate turn (`CTO, R270`) is the mis-spelling of
     /// the departure modifier `CTO MR270`: the turn is refused on the ground, so the block leaves the aircraft
     /// rolling with only half of what was typed. Both orders are found, and every takeoff clearance in the family

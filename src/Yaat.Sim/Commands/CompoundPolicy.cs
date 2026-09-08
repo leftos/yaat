@@ -86,6 +86,12 @@ public static class CompoundPolicy
     /// parser accepts the line whole (a free-text command such as NOTE legitimately swallows a <c>;</c> into its
     /// text, and the server's single-command router handles it as that one command), when the line does not parse
     /// as a compound at all, or when the compound turns out to hold a single command.
+    /// <para>
+    /// A free-text coordination message ends the chain the way it ends a split: everything from the message's start
+    /// to the end of the line is message content, so only the head typed before it is parsed. <c>FH 090; RDTXT /1
+    /// HOLD, PAUSE</c> is a heading plus a message whose text happens to end in "PAUSE", not a chained PAUSE, and the
+    /// head alone decides the verdict. The head needs only one command — the message is the second.
+    /// </para>
     /// </summary>
     private static bool TryParseGenuineCompound(string command, [NotNullWhen(true)] out CompoundCommand? compound)
     {
@@ -97,13 +103,29 @@ public static class CompoundPolicy
             return false;
         }
 
-        var parsed = CommandParser.ParseCompound(command);
-        if ((!parsed.IsSuccess) || (parsed.Value is null))
+        if (TryWalkUnits(command, out _, out var freeTextStart) && (freeTextStart >= 0))
         {
-            return false;
+            var head = command[..freeTextStart].TrimEnd(' ', '\t', ';', ',');
+            if (head.Length == 0)
+            {
+                return false;
+            }
+
+            return TryParseCompoundOfAtLeast(head, 1, out compound);
         }
 
-        if (parsed.Value.Blocks.Sum(b => b.Commands.Count) < 2)
+        return TryParseCompoundOfAtLeast(command, 2, out compound);
+    }
+
+    /// <summary>
+    /// The compound <paramref name="text"/> parses as, when it carries at least <paramref name="minCommands"/> commands.
+    /// </summary>
+    private static bool TryParseCompoundOfAtLeast(string text, int minCommands, [NotNullWhen(true)] out CompoundCommand? compound)
+    {
+        compound = null;
+
+        var parsed = CommandParser.ParseCompound(text);
+        if ((!parsed.IsSuccess) || (parsed.Value is null) || (parsed.Value.Blocks.Sum(b => b.Commands.Count) < minCommands))
         {
             return false;
         }
@@ -179,6 +201,30 @@ public static class CompoundPolicy
         || TrackEngine.IsTdlsCommand(cmd);
 
     /// <summary>
+    /// True for a scoped special whose argument is a free-text message that runs to the end of the line: the
+    /// coordination message verbs (<c>RDTXT</c>, and <c>RDH &lt;list&gt; &lt;text&gt;</c>). A <c>,</c> or <c>;</c>
+    /// the instructor typed inside such a message is message content, so the walk stops there and the message keeps
+    /// the rest of the line — mirroring the <c>NOTE …; …</c> rule in <see cref="TryParseGenuineCompound"/>.
+    /// Deliberately NOT free text: the scratchpad verbs (a STARS scratchpad is 3–4 alphanumerics, so a separator
+    /// after one is never message text — <c>SP1 ABC, HO 3G</c> stays a chain), <see cref="StripAnnotateCommand"/>
+    /// (the pinned chain contracts <c>AN 1 X, AN 2 Y</c> and <c>AN 1 X; SQVFR</c>), and the half-strip verbs (the
+    /// pinned recording rewrite <c>HSA HSTRIP_x a; AN 3 RV</c>). A hold-release with no message (<c>RDH</c>,
+    /// <c>RDH 1</c>) carries no text and is not free text.
+    /// </summary>
+    private static bool IsFreeTextSpecial(ParsedCommand cmd) => cmd is CoordinationModifyCommand or CoordinationHoldCommand { Text: not null };
+
+    /// <summary>
+    /// True when <paramref name="text"/> parses whole as one free-text special — i.e. the single-command parser owns
+    /// every separator after its verb as message text. Asked of one walked piece, never of the whole line: a message
+    /// can start after a <c>,</c> as easily as after a <c>;</c>.
+    /// </summary>
+    private static bool IsFreeTextLine(string text)
+    {
+        var parsed = CommandParser.Parse(text);
+        return (parsed.IsSuccess) && (parsed.Value is not null) && IsFreeTextSpecial(parsed.Value);
+    }
+
+    /// <summary>
     /// The splitter's bail set: the rejection set plus <c>DEL</c> and <c>APT</c>, which DO have aviation-path chain
     /// semantics (<c>CROSS 28R; DEL</c>, <c>AT 5000 APT OAK</c>) and must reach the dispatcher whole — never be
     /// special-split, never be rejected.
@@ -196,68 +242,119 @@ public static class CompoundPolicy
     /// (<c>WAIT 1 AN 1 ✓</c>, <c>AT FIX HO 3G</c>) has no separator at all: the scheme expander turns the one block
     /// into two commands, which passes the multi-command check, but it is one dispatch unit and splitting it on
     /// <c>,</c> yields the whole input back. The caller re-routes each unit, so returning true there is an infinite
-    /// recursion — the aviation arm must take it instead, queueing the strip verb behind the condition.
+    /// recursion — the aviation arm must take it instead, queueing the strip verb behind the condition. That same
+    /// guard declines a line that is nothing but a free-text message (<c>RDTXT /1 HOLD, GO</c>).
+    /// </para>
+    /// <para>
+    /// A free-text message (<see cref="IsFreeTextSpecial"/>) ends the walk wherever it starts — after a <c>;</c> or
+    /// after a <c>,</c> — and becomes one unit holding the rest of the line, because everything past its verb is
+    /// message content. Its words are never parsed: scanning them for scoped specials or bail verbs is what made
+    /// <c>HO 3G; RDTXT /1 HOLD, DEL</c> look like a chained delete.
     /// </para>
     /// </summary>
     public static bool TrySplitSpecialCompound(string command, out List<CompoundUnit> units)
     {
         units = [];
 
-        var parsed = CommandParser.ParseCompound(command);
-        if (!parsed.IsSuccess || parsed.Value is null)
+        if (!TryWalkUnits(command, out var walked, out var freeTextStart))
         {
             return false;
         }
 
-        var allCommands = parsed.Value.Blocks.SelectMany(b => b.Commands).ToList();
-        if ((allCommands.Count < 2) || (!allCommands.Any(IsScopedSpecial)) || (allCommands.Any(IsSplitterBail)))
+        if ((walked.Count == 1) && string.Equals(walked[0].Text.Trim(), command.Trim(), StringComparison.Ordinal))
         {
             return false;
         }
 
-        var blockStrings = command.Split(';');
-        var built = new List<CompoundUnit>();
-        for (int bi = 0; bi < blockStrings.Length; bi++)
-        {
-            if (!TrySplitBlock(blockStrings[bi].Trim(), bi, built))
-            {
-                return false;
-            }
-        }
-
-        if ((built.Count == 1) && string.Equals(built[0].Text.Trim(), command.Trim(), StringComparison.Ordinal))
+        var freeTextUnits = freeTextStart >= 0 ? 1 : 0;
+        if ((!TryParseUnitCommands(walked, walked.Count - freeTextUnits, out var commands)) || (!IsSplittableChain(commands, freeTextUnits)))
         {
             return false;
         }
 
-        units = built;
+        units = walked;
         return true;
     }
 
     /// <summary>
-    /// Adds one <c>;</c> block's units: a block containing a scoped special is split on <c>,</c> into single commands, an
-    /// aviation-only block is kept whole. False when a fragment no longer parses — a comma inside a free-text scoped
-    /// argument (scratchpad, annotate) would over-split, so the caller bails to the single-command path.
+    /// Walks the line's dispatch units in order: <c>;</c> splits it into blocks, a block holding a scoped special
+    /// splits further on <c>,</c> into pieces, and a block without one stays whole. The first piece that is a free-text
+    /// message ends the walk — it contributes one last unit holding the rest of the original line, taken by offset from
+    /// <paramref name="command"/> so the typed spacing survives, and <paramref name="freeTextStart"/> reports where in
+    /// <paramref name="command"/> that message starts (-1 when the line has none). False when a block or a piece no
+    /// longer parses, which puts the caller back on the single-command path.
     /// </summary>
-    private static bool TrySplitBlock(string block, int blockIndex, List<CompoundUnit> built)
+    private static bool TryWalkUnits(string command, out List<CompoundUnit> units, out int freeTextStart)
     {
-        if (block.Length == 0)
+        units = [];
+        freeTextStart = -1;
+
+        var blockStrings = command.Split(';');
+        var blockStart = 0;
+        for (int bi = 0; bi < blockStrings.Length; bi++)
+        {
+            if (!TryBlockPieces(blockStrings[bi], blockStart, out var pieces))
+            {
+                units = [];
+                return false;
+            }
+
+            foreach (var piece in pieces)
+            {
+                if (IsFreeTextLine(piece.Text))
+                {
+                    freeTextStart = piece.Start;
+                    units.Add(new CompoundUnit(bi, command[piece.Start..].Trim()));
+                    return true;
+                }
+
+                units.Add(new CompoundUnit(bi, piece.Text));
+            }
+
+            blockStart += blockStrings[bi].Length + 1;
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    /// The pieces one <c>;</c> block contributes, each with its offset in the original line: a block holding a scoped
+    /// special is split on <c>,</c> so every command dispatches alone, an aviation-only block stays whole. False when
+    /// the block itself no longer parses.
+    /// </summary>
+    private static bool TryBlockPieces(string block, int blockStart, out List<LinePiece> pieces)
+    {
+        pieces = [];
+
+        var trimmed = block.Trim();
+        if (trimmed.Length == 0)
         {
             return false;
         }
 
-        var blockParsed = CommandParser.ParseCompound(block);
-        if ((!blockParsed.IsSuccess) || (blockParsed.Value is null))
+        var parsed = CommandParser.ParseCompound(trimmed);
+        if ((!parsed.IsSuccess) || (parsed.Value is null))
         {
             return false;
         }
 
-        if (!blockParsed.Value.Blocks.SelectMany(b => b.Commands).Any(IsScopedSpecial))
+        if (!parsed.Value.Blocks.SelectMany(b => b.Commands).Any(IsScopedSpecial))
         {
-            built.Add(new CompoundUnit(blockIndex, block));
+            pieces.Add(new LinePiece(blockStart, trimmed));
             return true;
         }
 
+        return TryCommaPieces(block, blockStart, pieces);
+    }
+
+    /// <summary>
+    /// Splits a block on <c>,</c> into single-command pieces. False when a fragment no longer parses: a comma inside a
+    /// scoped argument that is not free text over-splits into pieces the parser rejects, and the caller bails to the
+    /// single-command path rather than dispatch half an argument.
+    /// </summary>
+    private static bool TryCommaPieces(string block, int blockStart, List<LinePiece> pieces)
+    {
+        var pieceStart = blockStart;
         foreach (var piece in block.Split(','))
         {
             var text = piece.Trim();
@@ -266,11 +363,58 @@ public static class CompoundPolicy
                 return false;
             }
 
-            built.Add(new CompoundUnit(blockIndex, text));
+            pieces.Add(new LinePiece(pieceStart, text));
+            pieceStart += piece.Length + 1;
         }
 
         return true;
     }
+
+    /// <summary>
+    /// The commands the first <paramref name="count"/> units parse to — the units before a free-text tail. The tail is
+    /// deliberately not parsed: everything in it is message content, so scanning it for verbs is the bug the free-text
+    /// rule exists to prevent.
+    /// </summary>
+    private static bool TryParseUnitCommands(List<CompoundUnit> units, int count, out List<ParsedCommand> commands)
+    {
+        commands = [];
+
+        for (int i = 0; i < count; i++)
+        {
+            var parsed = CommandParser.ParseCompound(units[i].Text);
+            if ((!parsed.IsSuccess) || (parsed.Value is null))
+            {
+                return false;
+            }
+
+            commands.AddRange(parsed.Value.Blocks.SelectMany(b => b.Commands));
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    /// The split verdict over the walked units: at least two commands in all, at least one scoped special, and no
+    /// bail-set command among them. A free-text tail counts as the one scoped-special command it is, and can never be
+    /// a bail command — its words were never commands.
+    /// </summary>
+    private static bool IsSplittableChain(List<ParsedCommand> commands, int freeTextUnits)
+    {
+        if (commands.Count + freeTextUnits < 2)
+        {
+            return false;
+        }
+
+        if ((freeTextUnits == 0) && (!commands.Any(IsScopedSpecial)))
+        {
+            return false;
+        }
+
+        return !commands.Any(IsSplitterBail);
+    }
+
+    /// <summary>One walked piece of the typed line: its offset in the original string and its trimmed text.</summary>
+    private readonly record struct LinePiece(int Start, string Text);
 }
 
 /// <summary>One dispatch unit of a split scoped-special compound: the <c>;</c> block it came from and its text.</summary>

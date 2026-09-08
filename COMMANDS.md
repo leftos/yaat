@@ -1514,6 +1514,8 @@ Coordination commands manage departure releases between tower and approach contr
 | `RDPOS [listId] <line>` | Move a release to a 1-based line in the list |
 | `RDTXT [/listId] <text>` | Set a held (unsent) release's message text; `/listId` names the list when the sender is on several |
 
+The `text` of `RDH` and `RDTXT` runs to the end of the line, separators included: `RDTXT /1 HOLD, GO` sets the message `HOLD, GO` rather than chaining a `GO`. Put the message last when chaining (`HO 3G; RDTXT /1 HOLD, GO`).
+
 When `listId` is omitted, the server auto-detects the correct coordination list from the sender/receiver TCP. `RDACK` works without a list ID even when the TCP belongs to multiple lists, as long as there is only one unacknowledged release across all lists.
 
 Example flow using `AS` to role-play both sides:
