@@ -226,6 +226,7 @@ public class ClassifyCommandCompletenessTests(ITestOutputHelper output)
         "TurnBaseCommand",
         "TurnCrosswindCommand",
         "TurnDownwindCommand",
+        "UnassumeCommand",
         "UnpauseCommand",
         "UnsupportedCommand",
         "WakeAdvisoryCommand",

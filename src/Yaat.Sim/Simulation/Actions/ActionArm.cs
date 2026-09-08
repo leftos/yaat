@@ -89,6 +89,7 @@ public static class ArmTable
             Sim(RecordedCommandKind.ShowQueued, RecordingPolicy.Never, ActionArms.ShowQueued),
             Sim(RecordedCommandKind.FlightPlan, ActionArms.FlightPlan),
             Sim(RecordedCommandKind.Delete, ActionArms.Delete),
+            Sim(RecordedCommandKind.Unassume, ActionArms.Unassume),
             Sim(RecordedCommandKind.DeleteQueued, ActionArms.DeleteQueued),
             Sim(RecordedCommandKind.Note, ActionArms.Note),
             Sim(RecordedCommandKind.SpawnNow, ActionArms.SpawnNow),

@@ -256,20 +256,25 @@ public sealed partial class SimulationEngine
     }
 
     /// <summary>
-    /// The sim-side half of a <c>DEL</c>: stamps <see cref="CompletionReason.Dropped"/> on a still-active aircraft so
-    /// <see cref="SimulationWorld.RemoveAircraft"/> records a debrief row instead of a silent vanish, clears a
-    /// still-queued delayed spawn, and removes the aircraft from the world. The live server
-    /// (<c>RoomEngine.RemoveSimulatedAircraft</c>) and the router's <c>DEL</c> arm both call this so the two cannot
-    /// drift. Landed / HandedOff / Transited stamps are preserved.
+    /// Takes an aircraft out of the world on a controller's or a host's decision: stamps
+    /// <see cref="CompletionReason.Dropped"/> on a still-active one so <see cref="SimulationWorld.RemoveAircraft"/>
+    /// records a debrief row instead of a silent vanish, clears a still-queued delayed spawn, and removes it. Every
+    /// such path funnels here — the router's <c>DEL</c> and <c>UNASSUME</c> arms and the server's live-traffic seek —
+    /// so they cannot drift. Landed / HandedOff / Transited stamps are preserved.
     /// </summary>
-    public void DeleteAircraft(string callsign)
+    /// <param name="completionDetail">
+    /// What the debrief row says removed the aircraft: <c>DEL</c> for a delete, <c>UNASSUME</c> for one handed back to
+    /// the live feed, <c>SEEK</c> for one dropped because the room moved to another feed instant. Required: the caller
+    /// knows which it is, and a default would silently label one as the other.
+    /// </param>
+    public void DeleteAircraft(string callsign, string completionDetail)
     {
         var ac = World.FindAircraft(callsign);
         if (ac is { CompletionReason: CompletionReason.Active })
         {
             ac.CompletedAtSeconds = Scenario?.ElapsedSeconds;
             ac.CompletionReason = CompletionReason.Dropped;
-            ac.CompletionDetail = "DEL";
+            ac.CompletionDetail = completionDetail;
         }
 
         Scenario?.DelayedQueue.RemoveAll(e => e.Aircraft.State.Callsign.Equals(callsign, StringComparison.OrdinalIgnoreCase));

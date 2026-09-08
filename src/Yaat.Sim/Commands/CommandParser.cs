@@ -747,6 +747,7 @@ public static class CommandParser
             // Sim control
             Delete when arg is null => PR.Ok(new DeleteCommand()),
             Assume when arg is null => PR.Ok(new AssumeCommand()),
+            Unassume when arg is null => PR.Ok(new UnassumeCommand()),
             CancelAutoDelete when arg is null => PR.Ok(new CancelAutoDeleteCommand()),
             Pause when arg is null => PR.Ok(new PauseCommand()),
             Unpause when arg is null => PR.Ok(new UnpauseCommand()),

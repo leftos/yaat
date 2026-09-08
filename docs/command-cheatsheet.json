@@ -356,7 +356,8 @@
       "name": "Sim Control",
       "rows": [
         { "verb": "DEL", "aliases": ["x"], "description": "Delete aircraft" },
-        { "verb": "ASSUME", "aliases": [], "description": "Take control of a live-traffic shadow (never refused; seeds a controllable state)" },
+        { "verb": "ASSUME", "aliases": [], "description": "Take control of a live-traffic shadow (never refused; seeds a controllable state). Rarely needed airborne: any control command assumes it first — queries, ground shadows and scripted/AI commands still refuse" },
+        { "verb": "UNASSUME", "aliases": [], "description": "Release an assumed aircraft to the live feed; the shadow returns on the next update if the feed still tracks it (no DEL suppression)" },
         { "verb": "ONHS DEL", "aliases": [], "description": "Auto-delete when aircraft reaches hold-short after landing" },
         { "verb": "CROSS 19R; DEL", "aliases": [], "description": "Auto-delete once clear of the far side of the crossed runway" },
         { "verb": "NODEL", "aliases": [], "description": "Cancel every queued delete (ONHS DEL, CROSS...; DEL); re-arm AutoDeleteExempt" },

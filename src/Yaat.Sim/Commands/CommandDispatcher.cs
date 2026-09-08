@@ -54,17 +54,30 @@ public static class CommandDispatcher
             return LiveTraffic.LiveTrafficAssumer.Assume(aircraft, ctx);
         }
 
-        if (aircraft.IsShadow)
-        {
-            return RejectShadow(aircraft);
-        }
-
         // Anywhere in the compound, not just the leading command: replay reaches this entry without the
         // server's non-compoundable pre-check, so a recorded chain could carry one in a later block.
+        // Ahead of the shadow gate: a flight-plan edit is never dispatched to an aircraft, so it must not
+        // be the thing that takes control of a live-traffic shadow either.
         var flightPlanCmd = compound.Blocks.SelectMany(b => b.Commands).FirstOrDefault(CompoundPolicy.IsFlightPlanCommand);
         if (flightPlanCmd is not null)
         {
             return RejectFlightPlanCommand(flightPlanCmd);
+        }
+
+        // The router refuses a chain carrying a rejection-set verb before it dispatches anything
+        // (CompoundPolicy.IsNonCompoundable). Repeated here, with the router's own wording, so a direct dispatch —
+        // a deferred payload, a reconstruction, a test — cannot instead have the shadow gate take the aircraft and
+        // then drop the rest of the chain on the missing arm.
+        var chainedVerb = FindChainedNonCompoundable(compound);
+        if (chainedVerb is not null)
+        {
+            return RejectChainedCommand(chainedVerb);
+        }
+
+        var refusal = TryAssumeShadow(aircraft, compound, ctx, out string? assumed);
+        if (refusal is not null)
+        {
+            return refusal;
         }
 
         // A successful command issued to a ground aircraft by the controller is itself evidence of
@@ -84,15 +97,97 @@ public static class CommandDispatcher
         {
             aircraft.HasMadeInitialContact = true;
         }
-        return result;
+
+        return PrefixAssumed(result, assumed);
     }
 
     /// <summary>
-    /// Live traffic is not controllable: the real pilot is flying it. Gated at the public entries so
-    /// phase-transparent commands (SQ, ident, RTIS) cannot slip through either.
+    /// The shadow gate. A live-traffic shadow is assumed (<see cref="LiveTraffic.LiveTrafficAssumer.Assume"/>) so the
+    /// compound applies to a controllable aircraft, and <paramref name="assumed"/> comes back as the line to prefix onto
+    /// the result. Returns a refusal — leaving the aircraft live traffic — in the three cases where taking a real
+    /// aircraft would be wrong, and null for every other compound (including on an aircraft that is not a shadow):
+    /// <list type="bullet">
+    /// <item>a read-only query (<see cref="IsReadOnlyQuery"/>): a question must not take control as a side effect;</item>
+    /// <item>a scripted dispatch — a scenario preset or an AI controller (<see cref="DispatchContext.IsScenarioScripted"/>):
+    /// taking a real aircraft is the RPO's decision, never something the scenario or the AI does on its own;</item>
+    /// <item>a shadow on the ground: the client offers no assume for one either
+    /// (<c>AircraftCommandApplicability.CanAssume</c>), because a surface track carries too little to seed a taxi state.
+    /// A typed <c>ASSUME</c> is still honoured — it is answered before this gate.</item>
+    /// </list>
+    /// </summary>
+    private static CommandResult? TryAssumeShadow(AircraftState aircraft, CompoundCommand compound, DispatchContext ctx, out string? assumed)
+    {
+        assumed = null;
+        if (!aircraft.IsShadow)
+        {
+            return null;
+        }
+
+        if (IsReadOnlyQuery(compound) || ctx.IsScenarioScripted || aircraft.IsOnGround)
+        {
+            return RejectShadow(aircraft);
+        }
+
+        var assumeResult = LiveTraffic.LiveTrafficAssumer.Assume(aircraft, ctx);
+        if (!assumeResult.Success)
+        {
+            return assumeResult;
+        }
+
+        assumed = $"{aircraft.Callsign} assumed";
+        return null;
+    }
+
+    /// <summary>
+    /// One line, whatever the command's own verdict: the hand-off already happened, so a command the seeded state then
+    /// refuses still has to say the aircraft is no longer live traffic. The seeded state's own summary is on the log
+    /// line and its caveats are on <c>PendingWarnings</c>; the command that follows overrides most of what the seed
+    /// guessed anyway.
+    /// </summary>
+    private static CommandResult PrefixAssumed(CommandResult result, string? assumed)
+    {
+        if (assumed is null)
+        {
+            return result;
+        }
+
+        return result with
+        {
+            Message = result.Message is { Length: > 0 } message ? $"{assumed} — {message}" : assumed,
+        };
+    }
+
+    /// <summary>
+    /// The refusal a live-traffic shadow still gives. Every other command assumes the shadow first and then applies;
+    /// see <see cref="TryAssumeShadow"/> for the cases that keep this.
     /// </summary>
     private static CommandResult RejectShadow(AircraftState aircraft) =>
         new(false, $"ASSUME {aircraft.Callsign} first — live traffic is not controllable");
+
+    /// <summary>
+    /// A compound that only asks and changes nothing: the <c>SAY*</c> queries plus <c>SAYEXIT</c>, which is the
+    /// dispatcher's (<see cref="RecordedCommandKind.Compound"/>) rather than the router's <c>Say</c> arm and so is not
+    /// covered by <see cref="RecordedCommandClassifier.IsSayQuery"/> — widening that would move its recorded kind.
+    /// Every other compound issued to a shadow assumes it first, so a chain carrying one instruction alongside a query
+    /// is an instruction.
+    /// </summary>
+    private static bool IsReadOnlyQuery(CompoundCommand compound) =>
+        compound.Blocks.SelectMany(b => b.Commands).All(c => RecordedCommandClassifier.IsSayQuery(c) || c is SayExitFixEstimateCommand);
+
+    /// <summary>
+    /// The first rejection-set verb (<see cref="CompoundPolicy.IsNonCompoundable"/>) in a compound that carries more
+    /// than one command, or null. A lone one is not a chain, and <c>DEL</c> / <c>APT</c> are outside the set because
+    /// they do have chain semantics (<c>CROSS 28R; DEL</c>).
+    /// </summary>
+    private static ParsedCommand? FindChainedNonCompoundable(CompoundCommand compound)
+    {
+        var commands = compound.Blocks.SelectMany(b => b.Commands).ToList();
+        return commands.Count > 1 ? commands.Find(CompoundPolicy.IsNonCompoundable) : null;
+    }
+
+    /// <summary>The router's wording for a rejection-set verb inside a chain, so the two verdicts cannot drift.</summary>
+    private static CommandResult RejectChainedCommand(ParsedCommand cmd) =>
+        new(false, $"{CommandDescriber.DescribeCommand(cmd)} cannot be part of a chained command");
 
     /// <summary>
     /// A flight-plan edit (DA / FP / RMK) is the server's flight-plan arm's to apply — it never reaches the

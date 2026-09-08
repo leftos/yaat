@@ -25,6 +25,7 @@ public enum CanonicalCommandType
     AppendDirectTo,
     Delete,
     Assume,
+    Unassume,
     Pause,
     Unpause,
     SimRate,

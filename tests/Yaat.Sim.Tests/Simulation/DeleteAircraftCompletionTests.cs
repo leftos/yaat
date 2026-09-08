@@ -22,7 +22,7 @@ public class DeleteAircraftCompletionTests
         ac.SpawnedAtSeconds = 100;
         engine.World.AddAircraft(ac);
 
-        engine.DeleteAircraft("N1");
+        engine.DeleteAircraft("N1", "DEL");
 
         Assert.Null(engine.World.FindAircraft("N1"));
         Assert.Equal(CompletionReason.Dropped, ac.CompletionReason);
@@ -45,7 +45,7 @@ public class DeleteAircraftCompletionTests
         ac.CompletionDetail = "28R";
         engine.World.AddAircraft(ac);
 
-        engine.DeleteAircraft("N1");
+        engine.DeleteAircraft("N1", "DEL");
 
         var record = Assert.Single(engine.World.GetCompletedAircraft());
         Assert.Equal(CompletionReason.Landed, record.Reason);
@@ -65,7 +65,7 @@ public class DeleteAircraftCompletionTests
             }
         );
 
-        engine.DeleteAircraft("N2");
+        engine.DeleteAircraft("N2", "DEL");
 
         Assert.Empty(engine.Scenario.DelayedQueue);
         Assert.Empty(engine.World.GetCompletedAircraft());

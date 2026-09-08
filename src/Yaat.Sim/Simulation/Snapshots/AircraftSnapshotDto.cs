@@ -155,6 +155,13 @@ public sealed class AircraftSnapshotDto
     /// <summary>Live-traffic shadow state. Null for simulated aircraft and on snapshots written before the field existed.</summary>
     public AircraftLiveTrafficDto? LiveTraffic { get; init; }
 
+    /// <summary>
+    /// Whether this aircraft was assumed from a live-traffic shadow (<c>UNASSUME</c> hands it back to the feed).
+    /// False for an aircraft that was never live traffic, and on snapshots written before the field existed — the
+    /// same answer, so no migration step.
+    /// </summary>
+    public bool AssumedFromLiveTraffic { get; init; }
+
     // Position history
     public List<PositionDto>? PositionHistory { get; init; }
 

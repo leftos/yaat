@@ -386,6 +386,14 @@ public class AircraftState
     [JsonIgnore]
     public bool IsShadow => LiveTraffic is not null;
 
+    /// <summary>
+    /// True for an aircraft that used to be a live-traffic shadow: <c>LiveTrafficAssumer.Assume</c> sets it when it
+    /// converts the shadow and clears <see cref="LiveTraffic"/>. <c>UNASSUME</c> reads it to tell an aircraft the feed
+    /// can take back from one the simulation created. A flag rather than the feed identity, because a track no product
+    /// gave a GUFI has none. Snapshot-serialized.
+    /// </summary>
+    public bool AssumedFromLiveTraffic { get; set; }
+
     /// <summary>Sim-seconds between <see cref="PositionHistory"/> samples (the <c>PositionHistory</c> spine step).</summary>
     public const int PositionHistorySampleSeconds = 5;
 
@@ -446,6 +454,7 @@ public class AircraftState
             DataBlock = dto.DataBlock is not null ? AircraftDataBlock.FromSnapshot(dto.DataBlock) : new(),
             MilitaryRoute = dto.MilitaryRoute is not null ? AircraftMilitaryRoute.FromSnapshot(dto.MilitaryRoute) : new(),
             LiveTraffic = dto.LiveTraffic is not null ? AircraftLiveTraffic.FromSnapshot(dto.LiveTraffic) : null,
+            AssumedFromLiveTraffic = dto.AssumedFromLiveTraffic,
             Queue = CommandQueue.FromSnapshot(dto.Queue),
             Phases = dto.Phases is not null ? PhaseList.FromSnapshot(dto.Phases, groundLayout) : null,
             ActiveApproachScore = dto.ActiveApproachScore is not null ? ApproachScore.FromSnapshot(dto.ActiveApproachScore) : null,
@@ -547,6 +556,7 @@ public class AircraftState
             DataBlock = DataBlock.ToSnapshot(),
             MilitaryRoute = MilitaryRoute.ToSnapshot(),
             LiveTraffic = LiveTraffic?.ToSnapshot(),
+            AssumedFromLiveTraffic = AssumedFromLiveTraffic,
             PositionHistory = PositionHistory.Count > 0 ? PositionHistory.Select(p => new PositionDto { Lat = p.Lat, Lon = p.Lon }).ToList() : null,
             ActiveApproachScore = ActiveApproachScore?.ToSnapshot(),
             Targets = Targets.ToSnapshot(),

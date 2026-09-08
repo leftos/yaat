@@ -6,6 +6,8 @@ using Yaat.Sim.LiveTraffic;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Phases.Tower;
+using Yaat.Sim.Simulation;
+using Yaat.Sim.Simulation.Actions;
 using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests.LiveTraffic;
@@ -65,7 +67,6 @@ public class LiveTrafficAssumeTests
     public void Assume_ClearsShadowState_AndCommandsWorkAfterwards()
     {
         var ac = Shadow(Sample(0, EnRoute, 11_000, 300, 90, 0));
-        Assert.False(Send(ac, "H 180").Success);
 
         var result = Assume(ac);
 
@@ -89,15 +90,123 @@ public class LiveTrafficAssumeTests
         Assert.Contains("not live traffic", again.Message, StringComparison.Ordinal);
     }
 
+    /// <summary>An engine whose world holds <paramref name="ac"/>, for the verbs the action router owns.</summary>
+    private static SimulationEngine EngineWith(AircraftState ac)
+    {
+        var engine = new SimulationEngine(new TestAirportGroundData())
+        {
+            Scenario = new SimScenarioState
+            {
+                ScenarioId = "t",
+                ScenarioName = "t",
+                RngSeed = 42,
+                OriginalScenarioJson = "{}",
+            },
+        };
+        engine.World.AddAircraft(ac);
+        return engine;
+    }
+
+    private static CommandResult Route(SimulationEngine engine, string command) =>
+        engine.Actions.Issue(new ActionInput(Callsign, command, "conn-1", "XX", Baked: null)).Result;
+
     [Fact]
-    public void AssumeInsideACompound_IsRejectedLikeAnyOtherCommand()
+    public void Unassume_OnNeverAssumed_IsRejected()
     {
         var ac = Shadow(Sample(0, EnRoute, 11_000, 300, 90, 0));
+        ac.LiveTraffic = null;
+        var engine = EngineWith(ac);
 
-        var result = Send(ac, "ASSUME ; H 180");
+        var result = Route(engine, "UNASSUME");
 
         Assert.False(result.Success);
-        Assert.True(ac.IsShadow);
+        Assert.Equal($"{Callsign} was not assumed from live traffic", result.Message);
+        Assert.NotNull(engine.World.FindAircraft(Callsign));
+    }
+
+    [Fact]
+    public void Unassume_OnStillShadow_IsRejected()
+    {
+        var ac = Shadow(Sample(0, EnRoute, 11_000, 300, 90, 0));
+        var engine = EngineWith(ac);
+
+        var result = Route(engine, "UNASSUME");
+
+        Assert.False(result.Success);
+        Assert.Equal($"{Callsign} is live traffic already", result.Message);
+        Assert.True(engine.World.FindAircraft(Callsign)!.IsShadow);
+    }
+
+    /// <summary>
+    /// The aircraft leaves the world the way a <c>DEL</c> removes one, but nothing tells the feed to stop: no
+    /// <see cref="RecordedLiveTrafficRemoval"/> is written, so the next sync re-spawns the shadow from the store.
+    /// The shadow here carries no feed identity — a track no product gave a GUFI — and is still handed back, because
+    /// the marker is a flag rather than that identity.
+    /// </summary>
+    [Fact]
+    public void Unassume_AfterAssume_RemovesTheAircraft_AndRecordsNoLiveTrafficRemoval()
+    {
+        var ac = Shadow(Sample(0, EnRoute, 11_000, 300, 90, 0));
+        Assert.Null(ac.LiveTraffic!.ExternalId);
+        var engine = EngineWith(ac);
+        Assert.True(Route(engine, "ASSUME").Success);
+        Assert.True(ac.AssumedFromLiveTraffic);
+
+        var result = Route(engine, "UNASSUME");
+
+        Assert.True(result.Success, result.Message);
+        Assert.Null(engine.World.FindAircraft(Callsign));
+        Assert.Empty(engine.Scenario!.ActionLog.OfType<RecordedLiveTrafficRemoval>());
+        var record = Assert.Single(engine.Scenario.ActionLog.OfType<RecordedCommand>(), r => r.Command == "UNASSUME");
+        Assert.True(record.Accepted);
+        Assert.Equal("UNASSUME", Assert.Single(engine.World.GetCompletedAircraft()).Detail);
+    }
+
+    /// <summary>
+    /// A chain carrying any rejection-set verb (<see cref="CompoundPolicy.IsNonCompoundable"/>) is refused before
+    /// anything happens, so the aircraft is still live traffic afterwards — the gate must not take a real aircraft for
+    /// a chain that is going to fail on the missing arm anyway. Pinned on both paths that can dispatch one: the
+    /// router's pre-check, and the dispatcher's own guard, which is what catches the spaced form (the pre-check reads
+    /// <c>ASSUME ; H 180</c> as one unsupported command) and any direct dispatch — a deferred payload, a
+    /// reconstruction — that never passes the pre-check at all.
+    /// </summary>
+    [Theory]
+    [InlineData("ASSUME ; H 180", "ASSUME")]
+    [InlineData("PAUSE ; H 180", "PAUSE")]
+    [InlineData("SPAWN ; H 180", "SPAWN")]
+    public void AChainedNonCompoundable_IsRefused_BeforeTheAircraftIsTaken(string command, string verb)
+    {
+        var viaDispatcher = Shadow(Sample(0, EnRoute, 11_000, 300, 90, 0));
+
+        var dispatched = Send(viaDispatcher, command);
+
+        Assert.False(dispatched.Success);
+        Assert.Equal($"{verb} cannot be part of a chained command", dispatched.Message);
+        Assert.True(viaDispatcher.IsShadow);
+        Assert.Null(viaDispatcher.Targets.AssignedMagneticHeading);
+
+        var viaRouter = Shadow(Sample(0, EnRoute, 11_000, 300, 90, 0));
+        var routed = Route(EngineWith(viaRouter), command);
+
+        Assert.False(routed.Success);
+        Assert.Equal(dispatched.Message, routed.Message);
+        Assert.True(viaRouter.IsShadow);
+    }
+
+    /// <summary>The way back is a lone verb too: <c>H 070; UNASSUME</c> never reaches the arm that would remove it.</summary>
+    [Fact]
+    public void UnassumeInsideACompound_IsRefused()
+    {
+        var ac = Shadow(Sample(0, EnRoute, 11_000, 300, 90, 0));
+        var engine = EngineWith(ac);
+        Assert.True(Route(engine, "ASSUME").Success);
+
+        var result = Route(engine, "H 070; UNASSUME");
+
+        Assert.False(result.Success);
+        Assert.Equal("UNASSUME cannot be part of a chained command", result.Message);
+        Assert.NotNull(engine.World.FindAircraft(Callsign));
+        Assert.Null(ac.Targets.AssignedMagneticHeading);
     }
 
     [Fact]

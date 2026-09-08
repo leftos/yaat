@@ -662,7 +662,8 @@ These mutate ASDE-X display state only; they never change the underlying scenari
 | Unpause | `UNPAUSE` | `U`, `UN`, `UNP`, `UP` | — |
 | Sim rate | `SIMRATE 2` | — | — |
 | Delete aircraft | `DEL` | `X` | — |
-| Assume live traffic | `ASSUME` | — | — |
+| Assume live traffic | `ASSUME` | — | Rarely needed for an airborne shadow: any control command assumes it first (see [Live Traffic](#live-traffic-assume)) |
+| Return to live traffic | `UNASSUME` | — | Releases an assumed aircraft to the feed; the shadow returns on the next update if the feed still tracks it |
 | Auto-delete on hold-short | `ONHS DEL` | — | Queues a delete that fires when the aircraft reaches HoldingAfterExit after landing. Datablock shows a trailing `*` while armed. |
 | Auto-delete after a crossing | `CROSS 19R; DEL` | — | Queues a delete that fires once the aircraft is clear of the far side of the runway it just crossed. Same `*` marker. |
 | Cancel auto-delete | `NODEL` | — | Strips every queued delete — `ONHS DEL`, `CROSS …; DEL`, `AT <fix> DEL` — and re-arms `AutoDeleteExempt` so scenario-level auto-delete also won't touch the aircraft. Distinct from the `NODEL` *modifier* on `CLAND`/`TAXI`/`EL`/`ER`/`EXIT`/`LAND`, which sets the exempt flag at the time those commands are issued. |
@@ -1726,11 +1727,27 @@ These commands don't require an aircraft selection:
 ### Live Traffic (ASSUME)
 
 `ASSUME` takes control of a **live-traffic shadow** — a real aircraft mirrored from an external surveillance feed. Until it is
-assumed, a shadow shows `LIVE` (or `LIVE CST` while its track is coasting) and rejects every command with
-`ASSUME <callsign> first — live traffic is not controllable`; track, handoff and coordination commands still work on it.
+assumed, a shadow shows `LIVE` (or `LIVE CST` while its track is coasting); track, handoff and coordination commands work on it
+as on any target.
 
-`ASSUME` is never refused. It converts the aircraft in place (same callsign, squawk, strips and track ownership) and seeds
-a controllable state for whatever it is doing, in this order:
+**You rarely have to type it.** Any control command issued to an airborne shadow — a heading, an altitude, a squawk, a
+chain of them — assumes the aircraft first and then applies, and the response says so:
+`UAL123 assumed — Fly heading 070`. Three things still answer with
+`ASSUME <callsign> first — live traffic is not controllable`, and typing `ASSUME` is what gets you past each: the read-only
+`SAY*` / `SAYEXIT` queries (a question about an aircraft must not take control of it); a shadow **on the ground** (a surface
+track carries too little to seed a taxi state, so the hand-off stays your explicit decision); and a command issued by a
+scenario preset or an AI controller rather than by you. (A flight-plan edit is refused too — it is never dispatched to the
+aircraft — and `ASSUME`/`UNASSUME` cannot be chained: `ASSUME; H 180` is refused whole.)
+
+`UNASSUME` is the way back: the aircraft leaves the simulation and is released to the feed, so the shadow re-appears at the
+next feed update — **if the feed still tracks it**. It is a removal, not a swap: if the real flight has landed or left your
+airspace since you took it, the aircraft is simply gone. Unlike `DEL` — which hides a shadow until live traffic is toggled
+off and on — `UNASSUME` suppresses nothing. It refuses on an aircraft that is still live traffic
+(`<callsign> is live traffic already`) or that never came from the feed (`<callsign> was not assumed from live traffic`).
+Anything the simulation did to the aircraft while you had it — phases, clearances, the queue — is discarded with it.
+
+The hand-off is never refused, typed or automatic. It converts the aircraft in place (same callsign, squawk, strips and track
+ownership) and seeds a controllable state for whatever it is doing, in this order:
 
 - **Clearances from the feed win**: an interim or assigned altitude, cleared heading, or cleared speed carried by the feed
   seeds the targets before anything is inferred.

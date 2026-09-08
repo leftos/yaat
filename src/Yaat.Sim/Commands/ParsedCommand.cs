@@ -1139,6 +1139,12 @@ public record DeleteCommand : ParsedCommand;
 public record AssumeCommand : ParsedCommand;
 
 /// <summary>
+/// Hands an aircraft that was assumed from live traffic back to the feed: it leaves the world the way <c>DEL</c>
+/// removes an aircraft, but without the feed suppression, so the next sync re-spawns it as a shadow.
+/// </summary>
+public record UnassumeCommand : ParsedCommand;
+
+/// <summary>
 /// Cancel any pending auto-delete on this aircraft and re-arm
 /// <see cref="AircraftGroundOps.AutoDeleteExempt"/>. Bare verb <c>NODEL</c>.
 /// </summary>

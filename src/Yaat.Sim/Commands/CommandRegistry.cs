@@ -913,6 +913,7 @@ public static class CommandRegistry
         [
             Bare(Delete, "Delete", "Sim Control", CommandDimension.None, false, ["DEL", "X"]),
             Bare(Assume, "Assume live traffic", "Sim Control", CommandDimension.None, false, ["ASSUME"]),
+            Bare(Unassume, "Return an assumed aircraft to the live feed", "Sim Control", CommandDimension.None, false, ["UNASSUME"]),
             Bare(CancelAutoDelete, "Cancel Auto-Delete", "Sim Control", CommandDimension.None, false, ["NODEL"]),
             Bare(Pause, "Pause", "Sim Control", CommandDimension.None, true, ["PAUSE", "P"]),
             Bare(Unpause, "Unpause", "Sim Control", CommandDimension.None, true, ["UNPAUSE", "U", "UN", "UNP", "UP"]),

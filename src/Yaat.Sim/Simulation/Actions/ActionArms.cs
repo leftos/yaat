@@ -212,9 +212,44 @@ internal static class ActionArms
             return ActionRefusals.AircraftNotFound(callsign);
         }
 
-        engine.DeleteAircraft(callsign);
+        engine.DeleteAircraft(callsign, "DEL");
         ctx.Host.OnAircraftDeleted(callsign, existing);
         return new CommandResult(true, $"Deleted {callsign}");
+    }
+
+    /// <summary>
+    /// <c>UNASSUME</c>: an aircraft assumed from live traffic goes back to the feed. The same teardown as <c>DEL</c>
+    /// minus the two things that would stop the feed re-supplying it — no <c>OnLiveTrafficHidden</c> (the room's
+    /// suppression set) and no <see cref="RecordedLiveTrafficRemoval"/> — so the next
+    /// <c>ShadowTrafficSync.Sync</c> re-spawns the shadow <b>if the store still tracks the callsign</b>. Whether it
+    /// does is deliberately not checked: the store is the live host's, so a guard on it would make the verb succeed
+    /// live and fail on replay. The removal is therefore unconditional and the message says what was promised —
+    /// released, not restored. Refused for an aircraft that is still a shadow (nothing was assumed) or was never
+    /// live traffic.
+    /// </summary>
+    public static CommandResult Unassume(ArmContext ctx)
+    {
+        var engine = ctx.Engine;
+        var callsign = ctx.Input.Callsign;
+        var existing = engine.World.FindAircraft(callsign);
+        if (existing is null)
+        {
+            return ActionRefusals.AircraftNotFound(callsign);
+        }
+
+        if (existing.IsShadow)
+        {
+            return new CommandResult(false, $"{callsign} is live traffic already");
+        }
+
+        if (!existing.AssumedFromLiveTraffic)
+        {
+            return new CommandResult(false, $"{callsign} was not assumed from live traffic");
+        }
+
+        engine.DeleteAircraft(callsign, "UNASSUME");
+        ctx.Host.OnAircraftDeleted(callsign, existing);
+        return new CommandResult(true, $"{callsign} released to the live feed — the shadow returns on the next update if the feed still tracks it");
     }
 
     /// <summary><c>DELAT</c> / <c>DELCOND</c>: one numbered conditional, or every deletable one.</summary>

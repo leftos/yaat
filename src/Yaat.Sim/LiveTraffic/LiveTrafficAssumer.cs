@@ -81,6 +81,9 @@ public static class LiveTrafficAssumer
         }
 
         LiveTrafficKinematics.Advance(aircraft, 0, ctx.Weather, ctx.ScenarioElapsedSeconds);
+        // Outlives the satellite: it is what tells UNASSUME there is a feed to hand this aircraft back to. A flag
+        // rather than the feed identity, which is null for a track no product gave a GUFI.
+        aircraft.AssumedFromLiveTraffic = true;
         aircraft.LiveTraffic = null;
         aircraft.Queue.Blocks.Clear();
         aircraft.DeferredDispatches.Clear();

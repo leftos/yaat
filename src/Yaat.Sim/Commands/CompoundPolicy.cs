@@ -21,7 +21,12 @@ public static class CompoundPolicy
     /// </summary>
     public static bool IsNonCompoundable(ParsedCommand cmd) =>
         cmd
-            is ShowQueuedCommand
+            // The live-traffic hand-off verbs. ASSUME is answered by the dispatcher before its shadow gate and only in
+            // the lone form; UNASSUME has a router arm of its own. Chained, either one would be taken by the gate (which
+            // assumes a shadow for any command) and then dropped for want of an arm — refuse the line instead.
+            is AssumeCommand
+                or UnassumeCommand
+                or ShowQueuedCommand
                 or CreateFlightPlanCommand
                 or CreateAbbreviatedFlightPlanCommand
                 or SetRemarksCommand

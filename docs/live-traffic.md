@@ -59,20 +59,59 @@ it sees `LiveTrafficSample`s for a callsign and never knows where they came from
   by more than the data supports), and an ASDE-X surface sample is never extrapolated past
   `AsdexProjectionCapSeconds` (15 s) — a frozen surface target beats a straight-line taxi through turns.
   Removal is the feed host's decision (`SimulationEngine.RemoveLiveTraffic`).
-- **Commands are rejected** at the top of `CommandDispatcher.Dispatch` and `DispatchCompound` — before the transparent
-  fast path, so `SQ`/ident cannot slip through — with `ASSUME <cs> first — live traffic is not controllable`. Track,
-  coordination and delete commands never reach the dispatcher and stay allowed (tracking a real target is normal work).
+- **A command assumes the shadow first.** The gate at the top of `CommandDispatcher.DispatchCompound` (every entry funnels
+  through it: the router, presets, a deferred WAIT payload, the AI sink, replay) calls `LiveTrafficAssumer.Assume` for any
+  compound that is not a lone `ASSUME`, then falls through to `DispatchCompoundCore` for the same compound; the result's
+  message is prefixed `{callsign} assumed — ` so one line says both things happened (`CommandDispatcher.TryAssumeShadow`).
+  Three cases keep the old refusal `ASSUME <cs> first — live traffic is not controllable`, and each is a case where taking a
+  real aircraft would be wrong: a compound whose every command is a **read-only query** (`SAY*` plus `SAYEXIT`); a
+  **scripted dispatch** (`DispatchContext.IsScenarioScripted` — a scenario preset or an AI controller must never take a
+  real aircraft on its own); and a **shadow on the ground**, which the client offers no assume for either
+  (`AircraftCommandApplicability.CanAssume`). A typed `ASSUME` is answered before the gate and is honoured in all three.
+  Two more refusals are checked *ahead* of the gate, with their own wording: a flight-plan edit, which is never dispatched
+  to an aircraft at all, and a chain carrying a rejection-set verb, so the gate cannot take an aircraft the chain then
+  fails on. Track, coordination, strip and
+  delete commands never reach the dispatcher and stay allowed on a shadow (tracking a real target is normal work).
+  No new recording surface: `Assume` draws no RNG and mints no id, so a replayed `FH 070` re-derives the same hand-off at
+  the same second (`LiveTrafficAutoAssumeReplayTests`).
 - **Status**: `AircraftStatusDescriber` shows `LIVE` / `LIVE CST` and nothing else for a shadow.
 - **Pilot AI**: `SimulationEngine.TickPilotProactive` skips shadows. The transponder pool never assigns to a shadow — its
   code is whatever the feed reported. A removed shadow is not a completion (`CompletionReason` stays `Active`).
 
-## `ASSUME` — `LiveTrafficAssumer`
+## `ASSUME` / `UNASSUME` — `LiveTrafficAssumer`
 
 `CommandDispatcher.Dispatch`/`DispatchCompound` route a lone `AssumeCommand` to `LiveTrafficAssumer.Assume(aircraft, ctx)`
-*before* the shadow gate (so it is the one command a shadow accepts; `ASSUME ; H 180` is rejected like any compound). It goes
+*before* the shadow gate; every other command reaches the same call through the gate itself (§ Contract), so typing `ASSUME`
+is the explicit form of what any instruction does anyway. It goes
 through the router's aviation arm like any other instruction, so it is recorded as a `RecordedCommand` and replays through the
 same dispatcher in both brains with no extra arm. **Never refused** (owner decision): the RPO always gets control; on a
 non-shadow it fails with "not live traffic".
+
+`UNASSUME` is the way back — its own `RecordedCommandKind.Unassume` row (`ActionArms.Unassume`, callsign-scoped) rather than
+the dispatcher's. It removes the aircraft exactly as `DEL` does (`SimulationEngine.DeleteAircraft(callsign, "UNASSUME")` —
+the completion detail is a required parameter so a debrief row says which verb removed it) but **without** the two things that
+would stop the feed re-supplying it: no `IActionHost.OnLiveTrafficHidden` (so the callsign never enters
+`RoomLiveTrafficState.Suppressed`) and no `RecordedLiveTrafficRemoval`. The next `ShadowTrafficSync.Sync` therefore re-spawns
+the shadow **while the store still tracks the callsign** — the aircraft is released to the feed, not restored from it, and
+if the real flight has since landed or left scope the removal is simply a delete. The arm deliberately does not check the
+store first: that is the live host's, so a guard on it would make the verb succeed live and fail on replay; the message
+says what was promised instead ("released to the live feed — the shadow returns on the next update if the feed still
+tracks it"). Refused on an aircraft that is still a shadow
+("is live traffic already") or that was never assumed from the feed ("was not assumed from live traffic"); the marker is
+`AircraftState.AssumedFromLiveTraffic`, set as `Assume` clears the satellite and snapshot-serialized (bool, false default,
+no schema bump). Deliberately a flag and not the feed identity: `LiveTrack.ExternalId` is `EramGufi ?? SfdpsGufi`, so a
+TAIS- or ASDE-X-only track has none, and keying the refusal on an id would strand exactly those aircraft.
+
+Both verbs are lone-command verbs (`CompoundPolicy.IsNonCompoundable`): a chain carrying one is refused with
+`{verb} cannot be part of a chained command` before anything is dispatched. Two guards, because neither covers the other's
+case. The router's pre-check catches `H 070; UNASSUME`, but not `ASSUME ; H 180` — written with a space before the
+separator the leading token is the bare verb, `CommandParser.Parse` reads the whole line as that verb with `; H 180` as its
+argument, and an argument no arm accepts comes back as an `UnsupportedCommand`, which is a successful single-command parse
+and exactly where `CompoundPolicy.TryParseGenuineCompound` bails (a pre-existing property of the walker, not of these
+verbs — `PAUSE ; H 180` reads the same way). `DispatchCompound`'s own guard catches that form, and covers a direct dispatch
+— a deferred payload, a reconstruction — that never passes the pre-check at all. It refuses the whole rejection set, not
+just these two: without it, `PAUSE ; H 180` to a shadow would have the gate take a real aircraft and then fail on the
+missing `PAUSE` arm.
 
 Order of business: `Advance(0)` to make the pose current → `LiveTraffic = null`, queue and deferred dispatches cleared →
 squawk note (7700/7600) → coasting note → `SeedState`:

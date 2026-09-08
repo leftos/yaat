@@ -47,6 +47,13 @@ public enum RecordedCommandKind
     /// </summary>
     FlightPlan,
     Delete,
+
+    /// <summary>
+    /// <c>UNASSUME</c> — an aircraft assumed from live traffic goes back to the feed. Its own kind rather than
+    /// <see cref="Delete"/>'s: the aircraft leaves the world the same way, but the feed suppression a <c>DEL</c>
+    /// records must not be applied, or the next sync would never re-spawn the shadow.
+    /// </summary>
+    Unassume,
     DeleteQueued,
     TrackOwnership,
     GhostTrack,
@@ -150,6 +157,7 @@ public static class RecordedCommandClassifier
             RecordedCommandKind.ShowQueued => ActionScope.Aircraft,
             RecordedCommandKind.FlightPlan => ActionScope.Callsign,
             RecordedCommandKind.Delete => ActionScope.Callsign,
+            RecordedCommandKind.Unassume => ActionScope.Callsign,
             RecordedCommandKind.DeleteQueued => ActionScope.Aircraft,
             RecordedCommandKind.TrackOwnership => ActionScope.Aircraft,
             RecordedCommandKind.GhostTrack => ActionScope.Callsign,
@@ -184,19 +192,14 @@ public static class RecordedCommandClassifier
     private static RecordedCommandKind KindOf(ParsedCommand parsed) =>
         parsed switch
         {
-            SayCommand
-            or SaySpeedCommand
-            or SayMachCommand
-            or SayExpectedApproachCommand
-            or SayAltitudeCommand
-            or SayHeadingCommand
-            or SayPositionCommand => RecordedCommandKind.Say,
+            _ when IsSayQuery(parsed) => RecordedCommandKind.Say,
             ShowQueuedCommand => RecordedCommandKind.ShowQueued,
             // Before the track family: a bare AS is a member of TrackEngine.IsTrackCommand, but it addresses the
             // issuing connection's position, not an aircraft.
             SetActivePositionCommand => RecordedCommandKind.SetActivePosition,
             _ when CompoundPolicy.IsFlightPlanCommand(parsed) => RecordedCommandKind.FlightPlan,
             DeleteCommand => RecordedCommandKind.Delete,
+            UnassumeCommand => RecordedCommandKind.Unassume,
             DeleteQueuedCommand => RecordedCommandKind.DeleteQueued,
             GhostTrackCommand => RecordedCommandKind.GhostTrack,
             RepositionToLocationCommand or RepositionMoveCommand => RecordedCommandKind.Reposition,
@@ -229,6 +232,21 @@ public static class RecordedCommandClassifier
             _ when IsAviationCommand(parsed) => RecordedCommandKind.Compound,
             _ => throw new UnroutedCommandException(parsed.GetType()),
         };
+
+    /// <summary>
+    /// The <c>SAY*</c> queries (<see cref="RecordedCommandKind.Say"/>): read-only questions to the pilot, answered
+    /// with a terminal line and changing nothing. <see cref="CommandDispatcher"/> reads this too — a query must not
+    /// take control of a live-traffic shadow as a side effect, so it is refused there where an instruction assumes.
+    /// </summary>
+    public static bool IsSayQuery(ParsedCommand cmd) =>
+        cmd
+            is SayCommand
+                or SaySpeedCommand
+                or SayMachCommand
+                or SayExpectedApproachCommand
+                or SayAltitudeCommand
+                or SayHeadingCommand
+                or SayPositionCommand;
 
     /// <summary>
     /// The command types <see cref="CommandDispatcher"/> owns — every instruction to an aircraft, from a heading to a
