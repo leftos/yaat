@@ -1,6 +1,7 @@
 using System.Collections.Frozen;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Simulation.Snapshots;
+using Yaat.Sim.Simulation.Strips;
 using Yaat.Sim.Simulation.Tdls;
 
 namespace Yaat.Sim.Simulation.Actions;
@@ -105,7 +106,7 @@ public static class ArmTable
             Sim(RecordedCommandKind.Consolidate, ActionArms.Consolidate),
             Sim(RecordedCommandKind.Deconsolidate, ActionArms.Deconsolidate),
             Sim(RecordedCommandKind.AddAircraft, ActionArms.AddAircraft),
-            Host(RecordedCommandKind.Strip, RecordingPolicy.Text, static ctx => ApplyStrip(ctx)),
+            Sim(RecordedCommandKind.Strip, RecordingPolicy.Text, static ctx => ApplyStrip(ctx)),
             Sim(
                 RecordedCommandKind.Tdls,
                 RecordingPolicy.Text,
@@ -144,13 +145,13 @@ public static class ArmTable
     }
 
     /// <summary>
-    /// The strip slot, with the id channel around it: a creating verb (<c>SEP</c>, <c>HSC</c>, <c>SCAN</c>, <c>BLANK</c>) mints one
-    /// live and the router bakes it onto the record, while a recorded one hands the baked id back to the host so the
-    /// item is created under the id the live run used. Every other strip verb answers null and bakes nothing.
+    /// The strip arm, with the id channel around it: a creating verb (<c>SEP</c>, <c>HSC</c>, <c>SCAN</c>, <c>BLANK</c>) mints one
+    /// live and the router bakes it onto the record, while a recorded one hands the baked id back so the item is
+    /// created under the id the live run used. Every other strip verb answers null and bakes nothing.
     /// </summary>
     private static CommandResult ApplyStrip(ArmContext ctx)
     {
-        var applied = ctx.Host.ApplyStrip(ctx.Input.Callsign, ctx.Parsed!, ctx.Identity, ctx.Input.Baked?.StripId);
+        var applied = StripCommandHandler.Handle(ctx.Engine, ctx.Parsed!, ctx.Input.Callsign, ctx.Input.Baked?.StripId);
         ctx.StripId = applied.StripId;
         return applied.Result;
     }

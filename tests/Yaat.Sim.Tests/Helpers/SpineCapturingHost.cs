@@ -4,6 +4,7 @@ using Yaat.Sim.Pilot;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Simulation.Actions;
 using Yaat.Sim.Simulation.Spine;
+using Yaat.Sim.Simulation.Strips;
 using Yaat.Sim.Simulation.Tdls;
 using Yaat.Sim.Training;
 
@@ -14,7 +15,8 @@ namespace Yaat.Sim.Tests.Helpers;
 /// <see cref="SimulationEngine.RunSecond"/> under this behaves exactly as <see cref="SimulationEngine.TickOneSecond"/>
 /// does — except that the TDLS change sets the post-physics drain step hands over are recorded here. That is what it
 /// is for: the action router drains into the host too, so only a second driven with this host can show that the
-/// <see cref="StepId.StripTdlsChanges"/> entry delivers what the tick steps produced.
+/// <see cref="StepId.StripTdlsChanges"/> entry delivers what the tick steps produced. The strip change sets are
+/// recorded the same way.
 /// </summary>
 public sealed class SpineCapturingHost : ISimulationHost
 {
@@ -25,13 +27,22 @@ public sealed class SpineCapturingHost : ISimulationHost
         _bare = engine.BareHost;
     }
 
-    /// <summary>Every change set the spine's drain step handed over, in order.</summary>
+    /// <summary>Every TDLS change set the spine's drain step handed over, in order.</summary>
     public List<TdlsChangeSet> TdlsChanges { get; } = [];
+
+    /// <summary>Every strip change set the spine's drain step handed over, in order.</summary>
+    public List<StripChangeSet> StripChanges { get; } = [];
 
     public void OnTdlsChanged(TdlsChangeSet changes)
     {
         TdlsChanges.Add(changes);
         _bare.OnTdlsChanged(changes);
+    }
+
+    public void OnStripsChanged(StripChangeSet changes)
+    {
+        StripChanges.Add(changes);
+        _bare.OnStripsChanged(changes);
     }
 
     // --- IHostSteps ---
@@ -45,10 +56,6 @@ public sealed class SpineCapturingHost : ISimulationHost
     public void TowerLists() => _bare.TowerLists();
 
     public void AsdexAlerts() => _bare.AsdexAlerts();
-
-    public void AutoArrivalStrips() => _bare.AutoArrivalStrips();
-
-    public void AutoApproachDepartureStrips() => _bare.AutoApproachDepartureStrips();
 
     public void SurfaceCoastExpiry() => _bare.SurfaceCoastExpiry();
 
@@ -90,12 +97,7 @@ public sealed class SpineCapturingHost : ISimulationHost
 
     public void OnApproachScores(List<ApproachScore> scores) => _bare.OnApproachScores(scores);
 
-    public void OnStripDispatches(List<(string Callsign, ParsedCommand Command)> dispatches) => _bare.OnStripDispatches(dispatches);
-
     // --- IActionHost ---
-
-    public StripApplyResult ApplyStrip(string callsign, ParsedCommand command, TrackOwner? identity, string? bakedStripId) =>
-        _bare.ApplyStrip(callsign, command, identity, bakedStripId);
 
     public CommandResult ApplyCoordination(AircraftState aircraft, ParsedCommand command, TrackOwner? identity) =>
         _bare.ApplyCoordination(aircraft, command, identity);
@@ -114,8 +116,6 @@ public sealed class SpineCapturingHost : ISimulationHost
     public void ApplyRecordedSaidMutation(RecordedSaidMutation mutation) => _bare.ApplyRecordedSaidMutation(mutation);
 
     public void ApplyRecordedEramCrrGroup(RecordedEramCrrGroup group) => _bare.ApplyRecordedEramCrrGroup(group);
-
-    public CommandResult ApplyRecordedStripRequest(RecordedStripRequest request) => _bare.ApplyRecordedStripRequest(request);
 
     public void ApplyRecordedAsdexSafetyLogic(RecordedAsdexSafetyLogicChange change) => _bare.ApplyRecordedAsdexSafetyLogic(change);
 
@@ -138,8 +138,6 @@ public sealed class SpineCapturingHost : ISimulationHost
     public void OnConsolidationChanged() => _bare.OnConsolidationChanged();
 
     public void OnHeldDeparturesChanged() => _bare.OnHeldDeparturesChanged();
-
-    public void OnFlightPlanAmended(string callsign) => _bare.OnFlightPlanAmended(callsign);
 
     public void OnWeatherChanged() => _bare.OnWeatherChanged();
 

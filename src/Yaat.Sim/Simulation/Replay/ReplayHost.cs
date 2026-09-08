@@ -3,6 +3,7 @@ using Yaat.Sim.Phases;
 using Yaat.Sim.Pilot;
 using Yaat.Sim.Simulation.Actions;
 using Yaat.Sim.Simulation.Spine;
+using Yaat.Sim.Simulation.Strips;
 using Yaat.Sim.Simulation.Tdls;
 using Yaat.Sim.Training;
 
@@ -58,10 +59,6 @@ internal sealed class ReplayHost : ISimulationHost
 
     public void AsdexAlerts() => _bare.AsdexAlerts();
 
-    public void AutoArrivalStrips() => _bare.AutoArrivalStrips();
-
-    public void AutoApproachDepartureStrips() => _bare.AutoApproachDepartureStrips();
-
     public void SurfaceCoastExpiry() => _bare.SurfaceCoastExpiry();
 
     public void RundownBroadcast() => _bare.RundownBroadcast();
@@ -98,12 +95,7 @@ internal sealed class ReplayHost : ISimulationHost
 
     public void OnApproachScores(List<ApproachScore> scores) => _bare.OnApproachScores(scores);
 
-    public void OnStripDispatches(List<(string Callsign, ParsedCommand Command)> dispatches) => _bare.OnStripDispatches(dispatches);
-
     // --- IActionHost: a replay has no room, so every slot is the bare host's refusal and every consumer its no-op ---
-
-    public StripApplyResult ApplyStrip(string callsign, ParsedCommand command, TrackOwner? identity, string? bakedStripId) =>
-        _bare.ApplyStrip(callsign, command, identity, bakedStripId);
 
     public CommandResult ApplyCoordination(AircraftState aircraft, ParsedCommand command, TrackOwner? identity) =>
         _bare.ApplyCoordination(aircraft, command, identity);
@@ -123,8 +115,6 @@ internal sealed class ReplayHost : ISimulationHost
 
     public void ApplyRecordedEramCrrGroup(RecordedEramCrrGroup group) => _bare.ApplyRecordedEramCrrGroup(group);
 
-    public CommandResult ApplyRecordedStripRequest(RecordedStripRequest request) => _bare.ApplyRecordedStripRequest(request);
-
     public void ApplyRecordedAsdexSafetyLogic(RecordedAsdexSafetyLogicChange change) => _bare.ApplyRecordedAsdexSafetyLogic(change);
 
     public void OnAircraftSpawned(AircraftState aircraft) => _bare.OnAircraftSpawned(aircraft);
@@ -141,6 +131,8 @@ internal sealed class ReplayHost : ISimulationHost
 
     public void OnAsdexTrackTerminated(string callsign) => _bare.OnAsdexTrackTerminated(callsign);
 
+    public void OnStripsChanged(StripChangeSet changes) => _bare.OnStripsChanged(changes);
+
     public void OnTdlsChanged(TdlsChangeSet changes) => _bare.OnTdlsChanged(changes);
 
     public void OnTimersChanged() => _bare.OnTimersChanged();
@@ -148,8 +140,6 @@ internal sealed class ReplayHost : ISimulationHost
     public void OnConsolidationChanged() => _bare.OnConsolidationChanged();
 
     public void OnHeldDeparturesChanged() => _bare.OnHeldDeparturesChanged();
-
-    public void OnFlightPlanAmended(string callsign) => _bare.OnFlightPlanAmended(callsign);
 
     public void OnWeatherChanged() => _bare.OnWeatherChanged();
 

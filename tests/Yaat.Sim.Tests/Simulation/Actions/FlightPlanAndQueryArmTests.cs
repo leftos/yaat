@@ -68,7 +68,8 @@ public class FlightPlanAndQueryArmTests
         Assert.Equal("IFR", aircraft.FlightPlan.FlightRules);
         Assert.NotNull(aircraft.FlightPlan.CreatedByOwner);
         Assert.Equal("U", aircraft.FlightPlan.CreatedByOwner.SectorId);
-        Assert.Equal([AiTestFixture.Callsign], host.AmendedCallsigns);
+        // The amendment's tail is the engine's departure-strip reprint, so a fresh strip carries the amended plan.
+        Assert.Equal($"STRIP_{AiTestFixture.Callsign}", Assert.Single(engine.Strips.Items.Values).Id);
         Assert.Contains($"{AiTestFixture.Callsign} C172/G", outcome.Result.Message);
 
         // The amendment the state travels in is recorded before the command's text, both by the router's run.
@@ -158,7 +159,7 @@ public class FlightPlanAndQueryArmTests
         Assert.Equal(RecordedCommandKind.Compound, outcome.Trace.Kind);
         Assert.Equal("KSFO", aircraft.FlightPlan.Destination);
         Assert.Null(aircraft.Approach.Expected);
-        Assert.Equal([AiTestFixture.Callsign], host.AmendedCallsigns);
+        Assert.Equal($"STRIP_{AiTestFixture.Callsign}", Assert.Single(engine.Strips.Items.Values).Id);
         var recorded = Assert.IsType<RecordedCommand>(Assert.Single(engine.Scenario!.ActionLog, a => a is RecordedCommand));
         Assert.Equal("APT SFO", recorded.Command);
         Assert.DoesNotContain(engine.Scenario.ActionLog, a => a is RecordedAmendFlightPlan);

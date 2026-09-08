@@ -1,14 +1,7 @@
 using Yaat.Sim.Commands;
-using Yaat.Sim.Simulation.Tdls;
+using Yaat.Sim.Simulation.Spine;
 
 namespace Yaat.Sim.Simulation.Actions;
-
-/// <summary>
-/// What a strip verb answers: the verdict, and — for a verb that creates an item under a minted id (<c>SEP</c>,
-/// <c>HSC</c>, <c>SCAN</c>, <c>BLANK</c>) — the id it minted or reused. Null for every other strip verb and for a refusal; the
-/// router bakes a non-null one onto the record so replay creates the item under the same id.
-/// </summary>
-public sealed record StripApplyResult(CommandResult Result, string? StripId);
 
 /// <summary>
 /// The action-path view of a host: the arm bodies the host still owns and the consumers a Sim arm notifies. The
@@ -20,11 +13,11 @@ public sealed record StripApplyResult(CommandResult Result, string? StripId);
 /// <para>
 /// <b>Step-4 debt.</b> Every <c>Apply*</c> member here is a body whose state has not crossed into Yaat.Sim:
 /// coordination channels, the ASDE-X and SAID display state (the recorded mutations included), bookmarks and the
-/// room clock. Strips are the halfway case — the <i>state</i> has crossed
-/// (<see cref="SimulationEngine.Strips"/>: engine-owned, snapshotted, so every run kind carries it), but
-/// <see cref="ApplyStrip"/> and <see cref="ApplyRecordedStripRequest"/> stay because the mutation bodies are still the
-/// host's. TDLS has crossed whole: its bodies are the engine's and what they touched reaches the host through
-/// <see cref="OnTdlsChanged"/>. The host answers no
+/// room clock. Strips and TDLS have both crossed whole: their state is the engine's
+/// (<see cref="SimulationEngine.Strips"/> / <see cref="SimulationEngine.Tdls"/>, snapshotted, so every run kind
+/// carries them), their mutation bodies are the engine's, and what those bodies touched reaches the host through
+/// <see cref="IStateChangeConsumer.OnStripsChanged"/> and <see cref="IStateChangeConsumer.OnTdlsChanged"/> —
+/// the broadcast is all the host still owes. The host answers no
 /// questions, because CRC attendance, the last one it was asked, is now engine state every run kind carries
 /// (<see cref="SimulationEngine.Attendance"/>, fed by <see cref="RecordedAttendanceChange"/>). As each body crosses,
 /// its slot is deleted and the arm becomes a Sim body; the interface shrinks the way <see cref="Spine.IHostSteps"/> does.
@@ -37,16 +30,9 @@ public sealed record StripApplyResult(CommandResult Result, string? StripId);
 /// reproduce — and the broadcasts are what it leaves out.
 /// </para>
 /// </summary>
-public interface IActionHost : ITdlsChangeConsumer
+public interface IActionHost : IStateChangeConsumer
 {
     // --- Slots: bodies the host owns ---
-
-    /// <summary>
-    /// A strip verb (<c>STRIP</c>, <c>AN</c>, <c>HSC</c>, …); the callsign may name no aircraft (half strips, separators, blanks).
-    /// <paramref name="bakedStripId"/> is the id the live run minted for a creating verb, replayed from the record —
-    /// null on a fresh action, where the host mints and reports the id it used.
-    /// </summary>
-    StripApplyResult ApplyStrip(string callsign, ParsedCommand command, TrackOwner? identity, string? bakedStripId);
 
     /// <summary><c>RD</c> / <c>RDH</c> / <c>RDR</c> / <c>RDACK</c> / <c>RDDEL</c> / … against an aircraft that exists.</summary>
     CommandResult ApplyCoordination(AircraftState aircraft, ParsedCommand command, TrackOwner? identity);
@@ -74,13 +60,6 @@ public interface IActionHost : ITdlsChangeConsumer
     /// while membership rides each aircraft's ERAM state through the Sim's <c>LF</c> entries.
     /// </summary>
     void ApplyRecordedEramCrrGroup(RecordedEramCrrGroup group);
-
-    /// <summary>
-    /// A recorded flight-strip request; strips are the room's. The host answers the verdict: the aircraft is gone is a
-    /// refusal, a room that already holds the record's strip id is a success that printed nothing, otherwise the strip
-    /// is printed under the recorded id.
-    /// </summary>
-    CommandResult ApplyRecordedStripRequest(RecordedStripRequest request);
 
     /// <summary>A recorded CRC ASDE-X safety-logic configuration push; the facility's runway configuration is the room's.</summary>
     void ApplyRecordedAsdexSafetyLogic(RecordedAsdexSafetyLogicChange change);
@@ -121,12 +100,6 @@ public interface IActionHost : ITdlsChangeConsumer
 
     /// <summary><c>HFR</c> / <c>HFROFF</c> / <c>REL</c> changed the held-departure picture.</summary>
     void OnHeldDeparturesChanged();
-
-    /// <summary>
-    /// A flight-plan verb (<c>FP</c> / <c>DA</c> / <c>RMK</c> / <c>APT</c>) or a recorded amendment changed the aircraft's
-    /// flight plan.
-    /// </summary>
-    void OnFlightPlanAmended(string callsign);
 
     /// <summary>A recorded weather load or clear was applied: <c>World.Weather</c> and the scenario's timeline changed.</summary>
     void OnWeatherChanged();

@@ -143,8 +143,6 @@ public class Issue396GateTaxiPresetTests
 
         var terminal = new List<TerminalEntry>();
         engine.TerminalEntryEmitted += terminal.Add;
-        var strips = new List<(string Callsign, ParsedCommand Command)>();
-        engine.StripDispatchRequested += (cs, cmd) => strips.Add((cs, cmd));
 
         // AAL436's WAIT 30 fires at ≈650, ASA811's at ≈675.
         engine.Replay(recording, 621);
@@ -155,9 +153,10 @@ public class Issue396GateTaxiPresetTests
 
         foreach (var callsign in new[] { "AAL436", "ASA811" })
         {
-            var move = strips.FirstOrDefault(s => s.Callsign == callsign && s.Command is StripMoveCommand).Command as StripMoveCommand;
-            Assert.True(move is not null, $"{callsign}: deferred STRIP Local never reached the strip dispatch queue");
-            Assert.Contains("Local", move.Tokens);
+            Assert.Empty(engine.FindAircraft(callsign)!.PendingStripDispatches);
+            var strip = engine.Strips.Items.Values.FirstOrDefault(i => i.AircraftId == callsign);
+            Assert.True(strip is not null, $"{callsign}: deferred STRIP Local never reached the strip handler");
+            Assert.False(string.IsNullOrEmpty(strip.BayId), $"{callsign}: deferred STRIP Local never filed the strip into a bay");
             Assert.DoesNotContain(terminal, e => e.Callsign == callsign && e.Message.Contains("could not apply", StringComparison.OrdinalIgnoreCase));
         }
     }

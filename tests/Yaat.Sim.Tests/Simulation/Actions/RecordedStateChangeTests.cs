@@ -181,7 +181,7 @@ public class RecordedStateChangeTests
     }
 
     [Fact]
-    public void StripRequest_ReachesTheHostSlot_AndTheHostsVerdictIsTheRouters()
+    public void StripRequest_PrintsInTheEngine_UnderTheRecordedId()
     {
         if (Engine() is not { } engine)
         {
@@ -194,11 +194,13 @@ public class RecordedStateChangeTests
         var applied = engine.Actions.ApplyRecorded(request, host);
 
         Assert.True(applied.Success, applied.Message);
-        Assert.Same(request, Assert.Single(host.StripRequests));
+        var printed = Assert.Single(engine.Strips.Items.Values);
+        Assert.Equal($"STRIP_{AiTestFixture.Callsign}", printed.Id);
+        Assert.Equal([printed.Id], engine.Strips.DeparturePrinterQueue);
     }
 
     [Fact]
-    public void AStripRequestTheHostRefuses_IsReported_WithAReplayFidelityWarning()
+    public void AStripRequestTheEngineRefuses_IsReported_WithAReplayFidelityWarning()
     {
         if (Engine() is not { } engine)
         {
@@ -209,8 +211,9 @@ public class RecordedStateChangeTests
         using var factory = LoggerFactory.Create(b => b.SetMinimumLevel(LogLevel.Trace).AddProvider(tap));
         SimLog.InitializeForTest(factory);
 
-        var host = new AttendanceActionHost { StripRequestResult = ActionRefusals.AircraftNotFound("NOPE1") };
+        var host = new AttendanceActionHost();
 
+        // The aircraft is gone, so the print body refuses — the same verdict the live room reached.
         var applied = engine.Actions.ApplyRecorded(new RecordedStripRequest(0, "NOPE1", null, "STRIP_NOPE1"), host);
 
         Assert.False(applied.Success);

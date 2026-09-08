@@ -2,11 +2,13 @@
 
 Reference for how flight strips (full and half) work end-to-end in YAAT.
 Read this before changing anything under
-`src/Yaat.Server/Dtos/CrcDtos.Strips.cs`,
-`src/Yaat.Server/Simulation/FlightStripState.cs`,
-`src/Yaat.Server/Hubs/CrcClientState.Strips.cs`,
-`src/Yaat.Server/Simulation/RoomEngine.cs` (strip handlers),
-`src/Yaat.Server/Data/ArtccConfigService.cs` (bay lookup), or the
+`src/Yaat.Sim/Simulation/Strips/` (`FlightStripState`, `StripMutations`,
+`StripCommandHandler`, `StripRequests`, `StripChangeTracker`, `StripItemType`),
+`src/Yaat.Sim/Simulation/SimulationEngine.Strips.cs` (the auto-print steps, the
+deferred dispatch, the spawn hook, the amendment reprint),
+`src/Yaat.Sim/Data/Vnas/ArtccConfigResolver.cs` (bay lookup),
+`src/Yaat.Server/Dtos/CrcDtos.Strips.cs`, `src/Yaat.Server/Simulation/StripBroadcaster.cs`,
+`src/Yaat.Server/Hubs/CrcClientState.Strips.cs`, or the
 strip-related entries in `src/Yaat.Sim/Commands/` (parser, registry,
 canonical type, describer).
 
@@ -18,8 +20,9 @@ UI behavior, and terminology — see [`docs/crc/vstrips.md`](crc/vstrips.md).
 ## Overview
 
 CRC's vStrips is a web app that simulates paper flight progress strips;
-YAAT reimplements it. The **yaat-server** persists strip state per
-training room and broadcasts every change over the training hub
+YAAT reimplements it. The simulation engine (`Yaat.Sim`) owns the strip
+state and every mutation of it on every run kind; the **yaat-server**
+broadcasts what changed over the training hub
 (`StripItemsChanged` for item deltas, `FlightStripsStateChanged` for the
 full-state rebroadcast deletions need). Two YAAT-side displays
 render it, both built on `Yaat.Client.Strips` and both talking to the
@@ -60,16 +63,17 @@ CommandParser.Parse                   TrainingHub.SendCommand
    │                                  RoomEngine.SendCommandAsync
    │                                   │
    │                                   ▼
-   │                                  IsStripCommand → HandleStripCmd
+   │                                  ActionRouter → the Strip arm (Yaat.Sim)
    │                                   │
    │                                   ▼
-   │                                  HandleHalfStripCreate
-   │                                   ├── ArtccConfigService.GetAccessibleStripBay
-   │                                   ├── StripItemRecord(HSTRIP_{guid}, HalfStripLeft, …)
-   │                                   ├── Room.StripState.Items[id] = record
+   │                                  StripCommandHandler.HandleHalfStripCreate (Yaat.Sim)
+   │                                   ├── ArtccConfig.GetAccessibleStripBay (ArtccConfigResolver)
+   │                                   ├── StripItemRecord(HSTRIP_{hex}, HalfStripLeft, …)
+   │                                   ├── engine.Strips.Items[id] = record
    │                                   ├── PrependStripToBay(state, bayId, rack, id)
-   │                                   └── BroadcastStripItemsAsync
-   │                                        │
+   │                                   └── Strips.Changes marks the item (+ full state)
+   │                                        │  drained by ActionRouter.Finish →
+   │                                        │  RoomHost.OnStripsChanged → StripBroadcaster
    │                                        │  SignalR: StripItemsChanged [StripItemDto]
    │                                        │  (+ CRC WebSocket ReceiveStripItems for CRC-protocol subscribers)
    │                                        ▼
@@ -97,7 +101,7 @@ as the `StripItemType` enum, and match CRC vStrips one-for-one:
 
 YAAT produces types `0` (via `STRIP`), `1` (auto), `2`–`8` (via `SEP`,
 `HSC`, `HSS`, `BLANK`, etc.). Arrival strip auto-printing is triggered
-by `TickProcessor.ProcessAutoArrivalStrips` when the arrival is within
+by `SimulationEngine.TickAutoArrivalStrips` (a post-physics Sim step) when the arrival is within
 `StripMutations.ArrivalAutoPrintMinutes` (default 20.0) of destination —
 gated on the owning facility's vNAS `flightStripsConfiguration.enableArrivalStrips`
 (e.g. ZOA's OAK ATCT has it off, so real vStrips never auto-prints arrivals
@@ -125,12 +129,12 @@ type (resolved from the callsign suffix in `DeterminePositionType`):
 |--------------|----------|------------------------|
 | Tower | `_TWR`, `_LOC` | First own bay whose name starts with "Ground" (case- and whitespace-insensitive). Falls back to printer queue if no Ground bay exists. |
 | Ground | `_GND`, `_DEL` | Departure printer queue (student plays Clearance Delivery and physically picks the strip up). |
-| Approach | `_APP`, `_DEP` | No spawn auto-print. `TickProcessor.ProcessAutoApproachDepartureStrips` creates the strip on takeoff roll (`TakeoffPhase` / `HelicopterTakeoffPhase`) and places it directly in the bay whose name matches the student's position display name (e.g. "Friant" bay for FAT_F_APP). Mimics the tower's "rolling call" handoff. |
+| Approach | `_APP`, `_DEP` | No spawn auto-print. `SimulationEngine.TickAutoApproachDepartureStrips` creates the strip on takeoff roll (`TakeoffPhase` / `HelicopterTakeoffPhase`) and places it directly in the bay whose name matches the student's position display name (e.g. "Friant" bay for FAT_F_APP). Mimics the tower's "rolling call" handoff. |
 | Center / unknown | `_CTR`, other | Departure printer queue (current default). |
 
-Tower routing uses `ArtccConfigService.FindFirstOwnBayWithNamePrefix`;
-approach routing uses `FindPositionByCallsign` + `FindFirstOwnBayWithNamePrefix`
-together. Both filter to **own** (non-external) bays so auto-routed
+Tower routing uses `ArtccConfigResolver.FindFirstOwnBayWithNamePrefix` over
+`SimScenarioState.ArtccConfig`; approach routing uses `FindPositionByCallsign` +
+`FindFirstOwnBayWithNamePrefix` together. Both filter to **own** (non-external) bays so auto-routed
 strips always land in the student's own facility, never in a linked
 external bay.
 
@@ -148,7 +152,7 @@ The runtime `AircraftState` only carries the **callsign** back to a config entry
 `ScenarioLoader.Load` resolves the array into a callsign-keyed
 `Dictionary<string, ScenarioStripBayAssignment>` (`ScenarioLoadResult.InitialStripBayByCallsign`),
 carried onto `SimScenarioState.InitialStripBayByCallsign`.
-`TickProcessor.AfterAircraftSpawned` consults it (via `TryPlaceConfiguredStrip`) **before**
+`SimulationEngine.AfterAircraftSpawned` consults it (via `TryPlaceConfiguredStrip`) **before**
 the position-type routing above: if the callsign is configured and the bay resolves as
 accessible to the student position (`GetAccessibleStripBayById`), the strip is placed into
 that bay via `RequestDepartureStripForAircraftIntoBay` and the default routing is skipped.
@@ -173,17 +177,21 @@ above:
 
   Both entry points mint the id first (`StripMutations.MintStripId`) and record a
   `RecordedStripRequest` carrying it through `RoomEngine.ApplyAndRecord`; the print itself is
-  `RoomEngine.PrintRequestedStrip`, re-applied on every run kind through the `RoomHost` slot.
+  `StripRequests.PrintRequestedStrip` (Yaat.Sim), which the router applies on every run kind.
   Because the id is baked, a rewind that restored a snapshot already holding the strip finds the
   id present and prints nothing, while a from-scratch reconstruction (a live-room rewind, a bundle
   export) prints the strip under the same id; an arrival keeps its one fixed
-  `ARRIVAL_{callsign}` strip and moves it to the printer-queue tail on every request. Only the
-  live room broadcasts the printed item (`BroadcastPrintedStrip`); a rewind must not re-push what
-  clients already hold.
+  `ARRIVAL_{callsign}` strip and moves it to the printer-queue tail on every request. The print
+  marks the change tracker; the room broadcasts it unless it is suppressed, so a rewind never
+  re-pushes what clients already hold and tape playback pushes each print as it lands.
 
-- **Flight-plan amendment** — `RoomEngine.AmendFlightPlan` prints a **new**
+- **Flight-plan amendment** — `SimulationEngine.ReprintDepartureStripAfterAmendment`
+  (run by the `FP` arm and by a `RecordedAmendFlightPlan`, live or replayed) prints a **new**
   departure strip carrying the bumped revision number rather than editing existing
-  strips in place. Outdated departure copies still sitting in the **printer** are
+  strips in place. The id it prints under is baked onto the record (`RecordedCommand.StripId`
+  for the typed verb, `RecordedAmendFlightPlan.StripId` for a CRC or hub amendment), so a
+  rewind across the amendment reprints the same copy and a record re-applied over a snapshot
+  that already holds it prints nothing. Outdated departure copies still sitting in the **printer** are
   removed first; copies already moved into a bay rack are left untouched (the
   controller removes them by hand). This mirrors vStrips ([`vstrips.md`](crc/vstrips.md):
   "a revised flight strip … removes outdated flight strips … from the printer …
@@ -212,18 +220,37 @@ restart therefore starts from the scenario's own strips — `RecordingManager.Re
 re-issues only the user's separators, as fresh `SEP` commands recorded at t=0 of the new tape under the
 restarting controller's connection, so they get new ids and every later rewind or export reproduces them), the snapshot's server section carries it
 (`ServerSnapshotDto.Strips`, `FlightStripSnapshotMapper`), and a rewind or bundle reconstruction
-rebuilds it from the recorded strip requests plus the host's auto-print bodies, after which the room
-re-pushes the result to its clients (`RecordingManager.ResyncStripsAndTdlsAsync`). The mutation helpers
-(`StripMutations`, `StripCommandHandler`, the auto-print tick steps) are still yaat-server's and read
-`room.ActiveSim!.Strips`; a room with no scenario has no strips, and the broadcasters send an empty
-full state for it.
+rebuilds it from the recorded strip requests plus the engine's auto-print bodies, after which the room
+re-pushes the result to its clients (`RecordingManager.ResyncStripsAndTdlsAsync`). The mutation bodies are
+the engine's too (since 2026-09-07): `StripMutations`, `StripCommandHandler` (static, over the engine) and
+`StripRequests` in `src/Yaat.Sim/Simulation/Strips/`, the auto-print steps as
+`SimulationEngine.TickAutoArrivalStrips` / `TickAutoApproachDepartureStrips`, the deferred dispatch as
+`TickStripDispatches`, the spawn hook as `AfterAircraftSpawned` and the amendment reprint as
+`ReprintDepartureStripAfterAmendment` (`SimulationEngine.Strips.cs`). The router's `Strip` arm is a Sim
+arm and `RecordedStripRequest` applies in the engine, so a bare engine, a client-side replay, a server
+reconstruction and the live room run one body; the bays are pre-created by
+`SimulationEngine.InitializeStripsAndTdlsFromArtcc`, which the server's load and the Sim replay driver
+both call. A room with no scenario has no strips, and the broadcasters send an empty full state for it.
+
+**The broadcast seam.** The mutations do not broadcast. Each marks `FlightStripState.Changes`
+(`StripChangeTracker`: changed item ids and a full-state flag — a print or edit marks the item, a move,
+delete or printer-queue change marks the full state, a create marks both in that order). Two drains hand a
+`StripChangeSet` to the host's `OnStripsChanged` (on `IStateChangeConsumer`, which both `IActionHost` and
+`IHostConsumers` extend, beside `OnTdlsChanged`): `ActionRouter.Finish` after every routed action and
+state record, and the `StripTdlsChanges` spine step after the post-physics steps. `RoomHost.OnStripsChanged`
+→ `StripBroadcaster.BroadcastChanges`: the items first (so a client seeds the payload), then the full state
+when flagged, and nothing while `TrainingRoom.IsBroadcastSuppressed` (a reconstruction; the room re-syncs
+when it lands). The scenario load drains once at the end of `PopulateRoom`. `BareHost` discards the set.
 
 The verbs that mint a Guid id at dispatch — `SEP`, `HSC`, `SCAN` — bake it onto their `RecordedCommand`
 (`RecordedCommand.StripId`, through `BakedDraws.StripId` and the strip arm's `StripApplyResult`), so a
 rewind or bundle reconstruction re-creates the strip under the live id and a later `SEPD` / `HSA` / `HSD`
 that addresses it resolves; a host that already holds the baked id (a snapshot restore) creates nothing.
 `BLANK` draws from the `NextBlankId` counter (deterministic) but bakes its id too, so a re-applied
-record over a snapshot that already holds the blank creates no second one. The oracle cannot script the Guid verbs:
+record over a snapshot that already holds the blank creates no second one. The amendment reprint bakes the
+id it printed under the same way (`RecordedCommand.StripId` for `FP`, `RecordedAmendFlightPlan.StripId`
+for a derived amendment). A deferred or preset `SCAN` / `HSC` is the one creator that still mints per run
+kind: the queue it fires from carries no record to bake onto (MAIN.md backlog). The oracle cannot script the Guid verbs:
 its live leg is a second run compared against the first run's log, and two runs never draw the same
 Guid — `StripIdBakingTests` is their pin.
 
@@ -293,10 +320,11 @@ The fix lives on the bay-resolver side, not the track-owner side.
 Use:
 
 ```csharp
-ArtccConfigService.GetAccessibleStripBay(string artccId, string positionCallsign, string facilityId, string bayName)
+ArtccConfigRoot.GetAccessibleStripBay(string positionCallsign, string facilityId, string bayName)   // ArtccConfigResolver (Yaat.Sim)
 ```
 
-This walks the facility tree looking for a facility that contains a
+(The server's `ArtccConfigService` forwards its per-ARTCC-id overloads onto the same extension methods over the
+cached `ArtccConfigRoot`; the strip bodies read `SimScenarioState.ArtccConfig` directly.) This walks the facility tree looking for a facility that contains a
 position whose callsign matches (e.g. "OAK_TWR" lives inside the OAK
 ATCT facility), then resolves `facilityId`/`bayName` against the
 **command-targetable** bay set. Matching is case- and
@@ -421,8 +449,8 @@ is a no-op.
 Strip commands never interact with flight physics. Live and CRC-sourced strip
 commands are classified by `TrackEngine.IsStripCommand`, which is checked in
 the `ActionRouter` (the `Strip` kind) *before* the dispatcher so they bypass
-aircraft phase gating and go straight to the host's strip slot
-(`RoomHost.ApplyStrip` → `StripCommandHandler`). (Every strip verb — full strips, half-strips, separators, blanks —
+aircraft phase gating and go straight to the Sim arm
+(`StripCommandHandler.Handle(engine, parsed, callsign, bakedStripId)`). (Every strip verb — full strips, half-strips, separators, blanks —
 also appears on `CommandDescriber.IsPhaseTransparent`, but for live commands that
 list is not the routing mechanism — the pre-dispatcher `IsStripCommand` check is.
 The list *is* load-bearing for the preset / deferred path below, which runs inside
@@ -434,15 +462,13 @@ the Sim's phase gate: `STRIP`/`SCAN`/`HSM` presets used to be refused while park
 
 Presets and deferred payloads (`WAIT 2 ANNOTATE 10 ✓`) are dispatched **inside
 `Yaat.Sim`** (`SimulationEngine.DispatchPresetCommands` / `ProcessDeferredDispatches`),
-which never touch `RoomEngine`'s pre-dispatcher interception. Because the Sim has
-no strip state, `CommandDispatcher.ApplyCommand` **queues** any strip command onto
-`AircraftState.PendingStripDispatches` (rather than failing on the no-dispatcher-arm
-default). The host drains that queue every tick:
-`TickProcessor.ProcessDeferredStripDispatches` calls `World.DrainAllStripDispatches()`
-and routes each command through `StripCommandHandler.HandleAsync`, so a preset
-checkmark lands on the aircraft's auto-printed strip. (Standalone `Yaat.Sim`
-consumers drain-and-discard via `SimulationEngine.TickPostPhysics`, firing the
-optional `StripDispatchRequested` event.) Before this bridge existed, every preset
+which never reach the router. `CommandDispatcher.ApplyCommand` **queues** any strip
+command onto `AircraftState.PendingStripDispatches` (rather than failing on the
+no-dispatcher-arm default), and the `StripDispatches` spine step
+(`SimulationEngine.TickStripDispatches`, immediately before `AutoDelete`) drains
+`World.DrainAllStripDispatches()` and runs each through `StripCommandHandler.Handle`
+on every run kind, so a preset checkmark lands on the aircraft's auto-printed strip;
+a failure is a `Warning` terminal line. Before this bridge existed, every preset
 strip command failed with `[Deferred] could not apply: Unable to Annotate strip box …`.
 
 ### Full strip: `STRIP`, `AN`, `STRIPD`, `STRIPO`
@@ -494,7 +520,7 @@ The strips UI always emits the id form so scanned copies are addressable;
 terminal users keep the bare callsign-keyed shorthand, and old
 recordings (which only carry the bare form) replay deterministically.
 
-`HandleStripMoveAsync` resolves the bay using `GetAccessibleStripBay(artccId, positionCallsign, bayName)`,
+`HandleStripMove` resolves the bay using `ArtccConfig.GetAccessibleStripBay(positionCallsign, facilityId, bayName)`,
 closing the tower-vs-TRACON facility gap. Tower students can now `STRIP`
 against all bays visible to their tower position.
 
@@ -516,10 +542,14 @@ is deep-copied at scan time; subsequent `AN` / `STRIPO` on the originator
 do **not** propagate to the copy (and vice-versa — each facility owns its
 working copy after a scan).
 
-The destination-facility check from `HandleStripMoveAsync` carries over:
-if no connected CRC client staffs a position in the receiving facility,
-the result message includes a "no controller connected" warning so the
-sending controller knows the coordination preview has no live receiver.
+The destination-facility check from `HandleStripMove` carries over:
+if no attended position (`SimulationEngine.Attendance`, the recorded
+CRC-client derivation) belongs to the receiving facility, the result message
+includes a "no controller connected" warning so the sending controller knows
+the coordination preview has no live receiver. It reads attendance rather than
+sockets so a reconstruction reproduces the warning; a CRC client's *secondary*
+positions are not in the attended set, so a facility staffed only as a
+secondary still warns.
 
 **Scope limits and known gaps:**
 
@@ -631,7 +661,7 @@ inside `RecordingSchemaUpgrader`.
 
 `HandleHalfStripCreate`:
 
-1. Resolve the bay via `GetAccessibleStripBay(artccId, studentCallsign, cmd.BayName)`.
+1. Resolve the bay via `ArtccConfig.GetAccessibleStripBay(studentCallsign, facilityId, bayName)`.
    Errors if the bay isn't in the position's accessible set.
 2. Validate `rack < bayConfig.NumberOfRacks`.
 3. Compose the `FieldValues` array:
@@ -639,13 +669,13 @@ inside `RecordingSchemaUpgrader`.
    - Aircraft-scoped: `[callsign, …userLines]`.
 4. Reject if the result would be empty (global, no lines) or longer
    than 6.
-5. Generate a fresh 8-char hex id via `StripMutations.NewHalfStripId` (re-rolls on collision against the room's existing ids; e.g. `HSTRIP_aece26a3`) and build a `StripItemRecord`
+5. Generate a fresh 8-char hex id via `StripMutations.NewHalfStripId` (re-rolls on collision against the engine's existing ids; e.g. `HSTRIP_aece26a3`), unless the record carries a baked id, and build a `StripItemRecord`
    with `Type = HalfStripLeft (6)` and `FacilityId` set to the **bay's
    owning facility** (from the resolver), not the scenario's
    `StudentPosition.FacilityId`. This is the tower-vs-TRACON fix —
    the strip ends up scoped to the ATCT where the bay lives.
 6. Insert into `Items`, prepend into `Bays[bayId]` via
-   `PrependStripToBay`, and broadcast.
+   `PrependStripToBay`, and mark the change tracker (item, then full state).
 
 `HandleHalfStripAmend`:
 
@@ -669,8 +699,8 @@ inside `RecordingSchemaUpgrader`.
    - 0 matches → `"No half-strip matching '{key}'{scopeSuffix}"`.
    - &gt;1 matches → `"Multiple half-strips match '{key}' — specify bay: bay1/rack, bay2/rack, …"`.
 4. On a unique match, `StripMutations.UpdateStripFields` replaces the
-   record's `FieldValues` under the state lock and the single updated
-   item is broadcast.
+   record's `FieldValues` under the state lock and marks the single
+   updated item.
 
 `HandleHalfStripDelete`:
 
@@ -681,15 +711,14 @@ inside `RecordingSchemaUpgrader`.
      `HSD`) or 1 with that token becoming the explicit key; otherwise
      default to the callsign.
 3. Same find-exactly-one logic as amend.
-4. On a unique match, `StripState.Items.TryRemove` and walk
-   `StripState.Bays[existing.BayId]` to remove the id from its rack
-   list. Broadcasts the full `FlightStripsStateDto` (not just the
-   item) because the CRC topic is additive — deletions require the
-   full-state rebroadcast, the same pattern used by
-   `CrcClientState.Strips.cs::HandleDeleteStripItem`.
+4. On a unique match, `Items.TryRemove` and walk
+   `Bays[existing.BayId]` to remove the id from its rack
+   list. Marks the full state (not just the item) because the CRC topic
+   is additive — deletions require the full-state rebroadcast, the same
+   pattern used by `CrcClientState.Strips.cs::HandleDeleteStripItem`.
 
-All three are also wired into `HandleStripReplay` so recording tapes
-that contain half-strip commands replay correctly.
+All three are one arm of the `ActionRouter`, so a recording tape that
+contains half-strip commands replays through the same body.
 
 #### `HSM` (half-strip move)
 
@@ -789,11 +818,13 @@ dispatches it through `RoomEngine.RecordAndDispatchStrip` with
 
 ## Yaat.Client strip view (continued)
 
-Tests for strips run on the server side (`tests/Yaat.Server.Tests/HalfStripCommandTests.cs`,
-`tests/Yaat.Sim.Tests/HalfStripCommandParserTests.cs`, `StripCommandParserTests.cs`)
-and in the client unit tests for `VStripsViewModel`. The architecture
-delegates all state management to the server and broadcasts — both apps
-(embedded and standalone) consume identical payloads.
+Tests for strips run on the bare engine (`tests/Yaat.Sim.Tests/Simulation/Strips/StripStepTests.cs`:
+the spawn hook per student type, the auto-print steps, `SEP`/`HSC` with baked ids, the deferred
+dispatch, the `SCAN` staffing warning, the amendment reprint), on the server
+(`tests/Yaat.Server.Tests/HalfStripCommandTests.cs`, `StripIdBakingTests.cs`, `StripTdlsRewindTests.cs`,
+…), in the parser suites (`tests/Yaat.Sim.Tests/HalfStripCommandParserTests.cs`,
+`StripCommandParserTests.cs`) and in the client unit tests for `VStripsViewModel`. The engine owns the
+state; the server broadcasts — both apps (embedded and standalone) consume identical payloads.
 
 ## vStrips clone work (completed)
 

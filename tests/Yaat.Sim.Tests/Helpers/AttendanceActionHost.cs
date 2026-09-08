@@ -1,6 +1,7 @@
 using Yaat.Sim.Commands;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Simulation.Actions;
+using Yaat.Sim.Simulation.Strips;
 using Yaat.Sim.Simulation.Tdls;
 
 namespace Yaat.Sim.Tests.Helpers;
@@ -31,27 +32,9 @@ public sealed class AttendanceActionHost : IActionHost
 
     public List<string> OverlaysRemoved { get; } = [];
 
-    public List<string> AmendedCallsigns { get; } = [];
-
     public List<(string ConnectionId, string Callsign, List<string> Lines)> ShownQueues { get; } = [];
 
     public void OnConsolidationChanged() => ConsolidationChanges++;
-
-    /// <summary>
-    /// The id the strip slot answers with when it is asked to mint one — set to stand in for a room whose
-    /// <c>SEP</c>/<c>HSC</c>/<c>SCAN</c>/<c>BLANK</c> drew an id. Null keeps the no-room refusal every other slot gives.
-    /// </summary>
-    public string? MintedStripId { get; set; }
-
-    /// <summary>The baked id the last <see cref="ApplyStrip"/> was handed — null when the action carried none.</summary>
-    public string? LastBakedStripId { get; private set; }
-
-    /// <summary>Reuses the baked id when the router supplies one, exactly as a room's handler does, else mints.</summary>
-    public StripApplyResult ApplyStrip(string callsign, ParsedCommand command, TrackOwner? identity, string? bakedStripId)
-    {
-        LastBakedStripId = bakedStripId;
-        return MintedStripId is null ? new(ActionRefusals.HostOnly(command), null) : new(new CommandResult(true), bakedStripId ?? MintedStripId);
-    }
 
     public CommandResult ApplyCoordination(AircraftState aircraft, ParsedCommand command, TrackOwner? identity) => ActionRefusals.HostOnly(command);
 
@@ -74,17 +57,6 @@ public sealed class AttendanceActionHost : IActionHost
     public List<RecordedEramCrrGroup> CrrGroups { get; } = [];
 
     public void ApplyRecordedEramCrrGroup(RecordedEramCrrGroup group) => CrrGroups.Add(group);
-
-    public List<RecordedStripRequest> StripRequests { get; } = [];
-
-    /// <summary>The verdict the strip slot answers with — set to a refusal to stand in for a room whose aircraft is gone.</summary>
-    public CommandResult StripRequestResult { get; set; } = new(true);
-
-    public CommandResult ApplyRecordedStripRequest(RecordedStripRequest request)
-    {
-        StripRequests.Add(request);
-        return StripRequestResult;
-    }
 
     public List<RecordedAsdexSafetyLogicChange> AsdexSafetyLogicChanges { get; } = [];
 
@@ -109,16 +81,19 @@ public sealed class AttendanceActionHost : IActionHost
     public void OnQueuedCommandsShown(string connectionId, string callsign, IReadOnlyList<string> lines) =>
         ShownQueues.Add((connectionId, callsign, lines.ToList()));
 
-    /// <summary>Every change set the router or the spine drained into this host, in order.</summary>
+    /// <summary>Every TDLS change set the router or the spine drained into this host, in order.</summary>
     public List<TdlsChangeSet> TdlsChanges { get; } = [];
 
     public void OnTdlsChanged(TdlsChangeSet changes) => TdlsChanges.Add(changes);
 
+    /// <summary>Every strip change set the router or the spine drained into this host, in order.</summary>
+    public List<StripChangeSet> StripChanges { get; } = [];
+
+    public void OnStripsChanged(StripChangeSet changes) => StripChanges.Add(changes);
+
     public void OnTimersChanged() { }
 
     public void OnHeldDeparturesChanged() { }
-
-    public void OnFlightPlanAmended(string callsign) => AmendedCallsigns.Add(callsign);
 
     public void OnWeatherChanged() => WeatherChanges++;
 }

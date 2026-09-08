@@ -152,8 +152,8 @@ It also surfaces `InitialStripBayByCallsign` — the scenario's top-level `fligh
 `Dictionary<string, ScenarioStripBayAssignment>`. The config references aircraft by **ULID**
 (`ScenarioAircraft.Id`), but the runtime `AircraftState` only carries the callsign back to a config
 entry, so `ResolveStripBayAssignments` joins ULID → callsign at load. Both load paths copy it onto
-`SimScenarioState.InitialStripBayByCallsign`, where the server's spawn hook
-(`TickProcessor.AfterAircraftSpawned`) reads it to drop configured departures straight into their
+`SimScenarioState.InitialStripBayByCallsign`, where the engine's spawn hook
+(`SimulationEngine.AfterAircraftSpawned`) reads it to drop configured departures straight into their
 bay instead of the printer queue (see [`flight-strips.md`](flight-strips.md)).
 
 The server's `LoadScenarioAsync` (`ScenarioLifecycleService.cs:180`) iterates the three buckets: immediate aircraft are added

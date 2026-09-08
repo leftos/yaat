@@ -11,8 +11,8 @@ namespace Yaat.Sim.Tests.Simulation.Actions;
 
 /// <summary>
 /// The strip id a creating strip verb draws is a baked draw like the reaction delay and the generated aircraft: the
-/// host mints it, the arm writes it back onto the context, the router bakes it onto the record, and the record carries
-/// it through the archive so a replay can hand it back rather than drawing again.
+/// verb mints it, the arm writes it back onto the context, the router bakes it onto the record, and the record carries
+/// it through the archive so a replay hands it back rather than drawing again.
 /// </summary>
 public class StripIdBakedDrawTests
 {
@@ -23,7 +23,19 @@ public class StripIdBakedDrawTests
         TestVnasData.EnsureInitialized();
     }
 
-    private SimulationEngine? Engine() => _zoa is null ? null : AiTestFixture.Load(AiTestFixture.ParkedAtOak, _zoa, 7, []);
+    /// <summary>The bare engine with the student position and the strip bays a creating verb resolves its destination against.</summary>
+    private SimulationEngine? Engine()
+    {
+        if (_zoa is null)
+        {
+            return null;
+        }
+
+        var engine = AiTestFixture.Load(AiTestFixture.ParkedAtOak, _zoa, 7, []);
+        engine.Scenario!.StudentPosition = TrackOwner.CreateStars("OAK_TWR", "OAK", 3, "O");
+        engine.InitializeStripsAndTdlsFromArtcc();
+        return engine;
+    }
 
     [Fact]
     public void ARecordedCommandsStripId_RoundTripsTheArchiveSerializer()
@@ -45,44 +57,46 @@ public class StripIdBakedDrawTests
     }
 
     /// <summary>
-    /// The live half of the channel: whatever id the host reports for a creating verb is what the router writes onto
-    /// the command it records — no other run kind has to mint one.
+    /// The live half of the channel: whatever id the creating verb drew is what the router writes onto the command it
+    /// records — no other run kind has to mint one.
     /// </summary>
     [Fact]
-    public void TheStripArm_BakesTheIdTheHostMinted_OntoTheRecord()
+    public void TheStripArm_BakesTheIdTheVerbMinted_OntoTheRecord()
     {
         if (Engine() is not { } engine)
         {
             return;
         }
 
-        var host = new AttendanceActionHost { MintedStripId = "SEP_deadbeef" };
+        var host = new AttendanceActionHost();
 
         var outcome = engine.Actions.Issue(new ActionInput("", "SEP W OAK/Ground1/1/1 HOLD LINE", "conn-1", "XX", Baked: null), host);
 
         Assert.True(outcome.Result.Success, outcome.Result.Message);
-        Assert.Equal("SEP_deadbeef", outcome.ToRecord?.StripId);
-        Assert.Equal("SEP_deadbeef", Assert.Single(engine.Scenario!.ActionLog.OfType<RecordedCommand>()).StripId);
+        var created = Assert.Single(engine.Strips.Items.Values);
+        Assert.StartsWith("SEP_", created.Id, StringComparison.Ordinal);
+        Assert.Equal(created.Id, outcome.ToRecord?.StripId);
+        Assert.Equal(created.Id, Assert.Single(engine.Scenario!.ActionLog.OfType<RecordedCommand>()).StripId);
     }
 
     /// <summary>
-    /// The replay half: the id on the record reaches the host, so the item is created under it rather than under one
-    /// the host would have drawn.
+    /// The replay half: the id on the record is what the item is created under, rather than one the verb would have
+    /// drawn for itself.
     /// </summary>
     [Fact]
-    public void ARecordedStripCommand_HandsItsBakedIdToTheHost()
+    public void ARecordedStripCommand_CreatesTheItemUnderItsBakedId()
     {
         if (Engine() is not { } engine)
         {
             return;
         }
 
-        var host = new AttendanceActionHost { MintedStripId = "SEP_freshdraw" };
+        var host = new AttendanceActionHost();
         var record = new RecordedCommand(0, "", "SEP W OAK/Ground1/1/1 HOLD LINE", "XX", "conn-1") { StripId = "SEP_baked", Accepted = true };
 
         var outcome = engine.Actions.Apply(record, host);
 
         Assert.True(outcome.Result.Success, outcome.Result.Message);
-        Assert.Equal("SEP_baked", host.LastBakedStripId);
+        Assert.Equal("SEP_baked", Assert.Single(engine.Strips.Items.Values).Id);
     }
 }

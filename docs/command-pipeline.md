@@ -61,8 +61,8 @@ SendCommandAsync(connectionId, callsign, command, initials)
   │    ↓ refuse a chain with a non-compoundable verb; split a scoped-special compound into units
   │    ↓ RecordedCommandClassifier.Classify → ArmTable.For(kind)
   │    ↓ resolve the scope (Aircraft: FindAircraft, else "Aircraft 'X' not found") and the identity
-  │    ↓ run the row: a Sim body (ActionArms, TdlsCommandHandler) or a host slot (RoomHost → the room's strip /
-  │      coordination handlers, bookmarks, the clock, ASDE-X); the body notifies the host's consumers
+  │    ↓ run the row: a Sim body (ActionArms, StripCommandHandler, TdlsCommandHandler) or a host slot (RoomHost →
+  │      the room's coordination handler, bookmarks, the clock, ASDE-X); the body notifies the host's consumers
   │    ↓ record the text with its verdict (RecordedCommand.Accepted), accepted or not
   ↓ terminal echo: "Command" (or "Strip" for a strip verb) + "Response" / "Error"; a global or
     position-scoped command echoes with no callsign
@@ -95,7 +95,7 @@ log and the router ignores it from a record.
 | `TrackOwnership` | `TRACK`, `DROP`, `HO`, `ACCEPT`, `PO`, `ACK`, `CAACK`, `INHCA`, scratchpads, `TEMPALT`, cruise, leader / J-ring / cone, ASDE-X edits … (`TrackEngine.IsTrackCommand` minus `AS`) | Aircraft | Sim: `TrackEngine.Dispatch` (+ scratchpad rules, `OnTrackAcquired`, the ghost-drop tails) | Text |
 | `GhostTrack` | `GHOST` | Callsign | Sim: `TrackEngine.CreateGhostTrack` | Text |
 | `Reposition` | `RPOSLOC` / `RPOSMOVE` | Aircraft | Sim: `TrackEngine.RepositionToLocation` / `RepositionMove` | Text |
-| `Strip` | `STRIP*`, `AN`, `SEPM`, `HSC` … (`TrackEngine.IsStripCommand`) | Callsign | Host: `ApplyStrip` | Text |
+| `Strip` | `STRIP*`, `AN`, `SEPM`, `HSC` … (`TrackEngine.IsStripCommand`) | Callsign | Sim: `StripCommandHandler.Handle` (bakes the id a creating verb minted) | Text |
 | `Coordination` | `RD`, `RDH`, `RDR`, `RDACK`, `RDDEL`, `RDPOS`, `RDTXT` | Aircraft | Host: `ApplyCoordination` | Text |
 | `GlobalCoordination` | `RDAUTO` | Position | Host: `ApplyGlobalCoordination` | Text |
 | `Consolidate` / `Deconsolidate` | `CON` / `CON+` / `DECON` | Global | Sim: `SimulationEngine.Consolidate` / `Deconsolidate` | Text |
@@ -271,7 +271,7 @@ Three things create a deferred dispatch:
 - **Heading/altitude/speed are NOT track commands.** They take the router's aviation arm → `CommandDispatcher`. Track commands are STARS ownership ops. Easy to confuse because both involve callsigns.
 - **Two parsers, one truth.** Client parses for autocomplete; server parses for execution. The server is authoritative — don't trust client-side parse results for behavior.
 - **Records include rejects.** The `ActionRouter` records every fresh command it routes, accepted or not, with `RecordedCommand.Accepted` — the live room, the CRC entry points and the Sim entry points alike; a replay that reaches the other verdict logs a `replay-fidelity` warning. Never "fix" replay drift by skipping records.
-- **`APT` is an aviation command, recorded as text.** A bare `APT` takes the aviation arm → the dispatcher's `ChangeDestination` arm (`FlightPlanCommandHandler.TryChangeDestination`, which clears the STAR / pending approach / route through `ClearArrivalProcedureState`) on every run kind, and the host reprints the strip (`OnFlightPlanAmended`); the chained form `AT 5000 APT OAK` was always that arm. `ChangeDestination` is phase-transparent, so a parked or holding aircraft's plan can be edited without the phase refusing or clearing. Do not move `APT` to the `FlightPlan` kind: replaying it as an amendment would lose the procedure clear.
+- **`APT` is an aviation command, recorded as text.** A bare `APT` takes the aviation arm → the dispatcher's `ChangeDestination` arm (`FlightPlanCommandHandler.TryChangeDestination`, which clears the STAR / pending approach / route through `ClearArrivalProcedureState`) on every run kind, and the engine reprints the strip (`ReprintDepartureStripAfterAmendment`); the chained form `AT 5000 APT OAK` was always that arm. `ChangeDestination` is phase-transparent, so a parked or holding aircraft's plan can be edited without the phase refusing or clearing. Do not move `APT` to the `FlightPlan` kind: replaying it as an amendment would lose the procedure clear.
 - **Dry-run uses a clone — make handlers idempotent on a clone.** Anything `ApplyCommand` does must work on a snapshot copy without affecting the live aircraft. If a handler writes to non-cloned state (a singleton, a sibling aircraft), dry-run will leak.
 - **`TerminalEmitter` must be nulled in dry-run.** SAY-class verbs broadcast via `ctx.TerminalEmitter`; if dry-run forgets to null it, SAYs fire twice. See the `project_dispatch_context_terminal_emitter` memory.
 - **Phase clearing is post-validation.** `ClearsPhase` does not immediately clear — validation runs first on a clone, then the phase is cleared, then commands apply. This protects against half-applied compound commands.

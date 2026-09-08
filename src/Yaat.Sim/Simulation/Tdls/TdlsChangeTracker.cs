@@ -14,21 +14,6 @@ public sealed record TdlsChangeSet(IReadOnlyList<string> ChangedItemIds, IReadOn
 }
 
 /// <summary>
-/// Where a drained <see cref="TdlsChangeSet"/> goes. Declared on its own because both halves of a host reach it: the
-/// action router holds the action view (<c>IActionHost</c>) and the post-physics drain step the consumer view
-/// (<c>IHostConsumers</c>), and one implementation on a host answers both.
-/// </summary>
-public interface ITdlsChangeConsumer
-{
-    /// <summary>
-    /// What the TDLS bodies touched since the last drain: the items whose records changed, the items removed, and
-    /// whether a full state is owed. The host broadcasts them unless it is suppressed; a reconstruction drops them and
-    /// the room re-syncs afterwards.
-    /// </summary>
-    void OnTdlsChanged(TdlsChangeSet changes);
-}
-
-/// <summary>
 /// The broadcast seam for <see cref="TdlsState"/>: the mutations record what they touched here and the host drains it
 /// (the action router after every routed action, one post-physics spine step for what the tick steps produced).
 /// Transient: never snapshotted, cleared by <see cref="TdlsState.ClearSession"/>. What serialises it is what

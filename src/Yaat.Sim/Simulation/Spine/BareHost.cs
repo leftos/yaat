@@ -2,6 +2,7 @@ using Yaat.Sim.Commands;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Pilot;
 using Yaat.Sim.Simulation.Actions;
+using Yaat.Sim.Simulation.Strips;
 using Yaat.Sim.Simulation.Tdls;
 using Yaat.Sim.Training;
 
@@ -11,7 +12,7 @@ namespace Yaat.Sim.Simulation.Spine;
 /// The host of a bare engine — a <see cref="RunKind.Test"/> run stepped through <see cref="SimulationEngine.TickOneSecond"/>.
 /// Every host step is empty: there is no room, no feed, no controller to broadcast to. The consumers fire the
 /// engine's events (<see cref="SimulationEngine.WarningEmitted"/>, <see cref="SimulationEngine.TerminalEntryEmitted"/>,
-/// <see cref="SimulationEngine.PilotSpeechEmitted"/>, <see cref="SimulationEngine.StripDispatchRequested"/>) so tests
+/// <see cref="SimulationEngine.PilotSpeechEmitted"/>) so tests
 /// and the solo client observe the same lines the RPO would see. As an <see cref="IActionHost"/> it refuses every slot
 /// (the bodies are the live server's) and discards every consumer. The replay host delegates everything it does not
 /// override here.
@@ -29,10 +30,6 @@ internal sealed class BareHost(SimulationEngine engine) : ISimulationHost
     public void TowerLists() { }
 
     public void AsdexAlerts() { }
-
-    public void AutoArrivalStrips() { }
-
-    public void AutoApproachDepartureStrips() { }
 
     public void SurfaceCoastExpiry() { }
 
@@ -108,18 +105,7 @@ internal sealed class BareHost(SimulationEngine engine) : ISimulationHost
     /// <summary>Discarded: the scores are consumed by the approach evaluator only where a controller can be debriefed.</summary>
     public void OnApproachScores(List<ApproachScore> scores) { }
 
-    public void OnStripDispatches(List<(string Callsign, ParsedCommand Command)> dispatches)
-    {
-        foreach (var (callsign, command) in dispatches)
-        {
-            _engine.FireStripDispatchRequested(callsign, command);
-        }
-    }
-
     // --- IActionHost: no room, so every slot is refused and every consumer is a no-op ---
-
-    public StripApplyResult ApplyStrip(string callsign, ParsedCommand command, TrackOwner? identity, string? bakedStripId) =>
-        new(ActionRefusals.HostOnly(command), null);
 
     public CommandResult ApplyCoordination(AircraftState aircraft, ParsedCommand command, TrackOwner? identity) => ActionRefusals.HostOnly(command);
 
@@ -137,9 +123,6 @@ internal sealed class BareHost(SimulationEngine engine) : ISimulationHost
 
     public void ApplyRecordedEramCrrGroup(RecordedEramCrrGroup group) { }
 
-    /// <summary>No strip state outside a room, so nothing to print and nothing to refuse: the record simply applies.</summary>
-    public CommandResult ApplyRecordedStripRequest(RecordedStripRequest request) => new(true);
-
     public void ApplyRecordedAsdexSafetyLogic(RecordedAsdexSafetyLogicChange change) { }
 
     public void OnAircraftSpawned(AircraftState aircraft) { }
@@ -156,6 +139,9 @@ internal sealed class BareHost(SimulationEngine engine) : ISimulationHost
 
     public void OnAsdexTrackTerminated(string callsign) { }
 
+    /// <summary>Discarded: a bare engine has no vStrips client to push items to. The mutations themselves are engine state.</summary>
+    public void OnStripsChanged(StripChangeSet changes) { }
+
     /// <summary>Discarded: a bare engine has no vTDLS client to push items to. The mutations themselves are engine state.</summary>
     public void OnTdlsChanged(TdlsChangeSet changes) { }
 
@@ -164,8 +150,6 @@ internal sealed class BareHost(SimulationEngine engine) : ISimulationHost
     public void OnConsolidationChanged() { }
 
     public void OnHeldDeparturesChanged() { }
-
-    public void OnFlightPlanAmended(string callsign) { }
 
     public void OnWeatherChanged() { }
 

@@ -81,7 +81,15 @@ public sealed record RecordedCommand(double ElapsedSeconds, string Callsign, str
 /// </summary>
 public sealed record RecordedChat(double ElapsedSeconds, string Initials, string Message) : RecordedAction(ElapsedSeconds);
 
-public sealed record RecordedAmendFlightPlan(double ElapsedSeconds, string Callsign, FlightPlanAmendment Amendment) : RecordedAction(ElapsedSeconds);
+/// <summary>
+/// A flight-plan amendment applied to the aircraft, from any source: the <c>FP</c>/<c>DA</c>/<c>RMK</c>/<c>APT</c>
+/// verbs, the training hub's editor and every CRC amendment. <see cref="StripId"/> is the id the amendment's
+/// departure-strip reprint printed under, drawn once live and baked here so a replay reprints under the same id
+/// instead of minting a second copy beside the one a snapshot restore carried in; null on a pre-feature record and
+/// when the reprint printed nothing, both of which mint as before.
+/// </summary>
+public sealed record RecordedAmendFlightPlan(double ElapsedSeconds, string Callsign, FlightPlanAmendment Amendment, string? StripId)
+    : RecordedAction(ElapsedSeconds);
 
 /// <summary>
 /// A controller "recycle beacon code" request (CRC Flight Plan Editor button, the YAAT training-hub

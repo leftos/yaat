@@ -28,6 +28,12 @@ public sealed class FlightStripState
     public int NextBlankId { get; set; } = 1;
 
     /// <summary>
+    /// What the mutations have touched since the last drain — the broadcast seam, not simulation state: transient,
+    /// never snapshotted, cleared with the session.
+    /// </summary>
+    public StripChangeTracker Changes { get; } = new();
+
+    /// <summary>
     /// Pre-creates one empty rack-list per rack index for every bay in the given facility's
     /// flight-strips configuration. Safe to call multiple times (existing bay contents are
     /// preserved; only missing rack slots are created). Called from the scenario-load path
@@ -72,6 +78,7 @@ public sealed class FlightStripState
             DeparturePrinterQueue.Clear();
             ArrivalPrinterQueue.Clear();
             NextBlankId = 1;
+            Changes.Clear();
         }
     }
 

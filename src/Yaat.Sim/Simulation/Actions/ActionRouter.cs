@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Yaat.Sim.Commands;
+using Yaat.Sim.Simulation.Strips;
 
 namespace Yaat.Sim.Simulation.Actions;
 
@@ -91,7 +92,8 @@ public sealed class ActionRouter
                 return Apply(command, host).Result;
             case RecordedAmendFlightPlan amend:
                 _engine.AmendFlightPlan(amend.Callsign, amend.Amendment);
-                host.OnFlightPlanAmended(amend.Callsign);
+                _engine.ReprintDepartureStripAfterAmendment(amend.Callsign, amend.StripId);
+                _engine.DrainStripTdlsChangesInto(host);
                 return Applied;
             case RecordedRequestNewBeaconCode recycle:
                 _engine.RequestNewBeaconCode(recycle.Callsign, recycle.AssignedByFacilityId, recycle.AssignedBySectorId);
@@ -146,9 +148,17 @@ public sealed class ActionRouter
 
     /// <summary>
     /// The records of state a CRC handler writes plus the live host's recorded inputs — the derived attendance and a
-    /// <c>.AUTOTRACK</c> roster change — applied through the one body each has.
+    /// <c>.AUTOTRACK</c> roster change — applied through the one body each has, with what the body touched handed to
+    /// the host before the verdict is, exactly as <see cref="Finish"/> does for a routed command.
     /// </summary>
     private CommandResult ApplyStateRecord(RecordedAction action, IActionHost host)
+    {
+        var result = ApplyStateRecordCore(action, host);
+        _engine.DrainStripTdlsChangesInto(host);
+        return result;
+    }
+
+    private CommandResult ApplyStateRecordCore(RecordedAction action, IActionHost host)
     {
         switch (action)
         {
@@ -170,7 +180,7 @@ public sealed class ActionRouter
                 host.ApplyRecordedEramCrrGroup(group);
                 return Applied;
             case RecordedStripRequest request:
-                return host.ApplyRecordedStripRequest(request);
+                return StripRequests.PrintRequestedStrip(_engine, request);
             case RecordedAsdexSafetyLogicChange safetyLogic:
                 host.ApplyRecordedAsdexSafetyLogic(safetyLogic);
                 return Applied;

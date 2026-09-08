@@ -5,6 +5,7 @@ using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Scenarios;
 using Yaat.Sim.Simulation;
+using Yaat.Sim.Simulation.Strips;
 using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests.Simulation;
@@ -22,7 +23,8 @@ namespace Yaat.Sim.Tests.Simulation;
 /// identically.
 ///
 /// The fix queues strip commands onto <see cref="AircraftState.PendingStripDispatches"/> (drained by the
-/// host into <c>StripCommandHandler</c>) and routes deferred all-track payloads through the track engine.
+/// engine's <c>StripDispatches</c> step into <see cref="StripCommandHandler"/>) and routes deferred all-track
+/// payloads through the track engine.
 /// </summary>
 public class DeferredPresetStripAndTrackDispatchTests
 {
@@ -104,8 +106,10 @@ public class DeferredPresetStripAndTrackDispatchTests
         ac.Phases.Add(new AtParkingPhase());
         ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac));
 
-        var stripDispatches = new List<(string Callsign, ParsedCommand Command)>();
-        engine.StripDispatchRequested += (cs, cmd) => stripDispatches.Add((cs, cmd));
+        Assert.IsType(expectedType, CommandParser.Parse(command).Value);
+
+        var terminal = new List<TerminalEntry>();
+        engine.TerminalEntryEmitted += terminal.Add;
         var warnings = new List<(string Callsign, string Warning)>();
         engine.WarningEmitted += (cs, w) => warnings.Add((cs, w));
 
@@ -118,9 +122,12 @@ public class DeferredPresetStripAndTrackDispatchTests
             engine.TickOneSecond();
         }
 
-        var fired = Assert.Single(stripDispatches);
-        Assert.IsType(expectedType, fired.Command);
+        // The engine's strip step drained and applied it: what comes back is the strip handler's own verdict — this
+        // bare engine has no ARTCC configuration, so it has no bays — and never the dispatcher's "no arm" refusal.
+        Assert.Empty(ac.PendingStripDispatches);
+        Assert.Contains(terminal, e => e.Callsign == "DAL2272" && e.Message.Contains("No accessible strip bays", StringComparison.Ordinal));
         Assert.DoesNotContain(warnings, w => w.Warning.Contains("could not apply", StringComparison.OrdinalIgnoreCase));
+        Assert.DoesNotContain(terminal, e => e.Message.Contains("could not apply", StringComparison.OrdinalIgnoreCase));
         Assert.IsType<AtParkingPhase>(ac.Phases.CurrentPhase);
     }
 
@@ -130,8 +137,13 @@ public class DeferredPresetStripAndTrackDispatchTests
         var engine = BuildEngine();
         var ac = AddParked(engine, "DAL2272");
 
-        var stripDispatches = new List<(string Callsign, ParsedCommand Command)>();
-        engine.StripDispatchRequested += (cs, cmd) => stripDispatches.Add((cs, cmd));
+        // A strip filed into a bay, which is what the annotation guard requires; the preset then has something to
+        // write on, so the drain's effect is visible on the record itself.
+        var printed = StripMutations.RequestDepartureStripForAircraftIntoBay(engine.Strips, ac, engine.Scenario!, "SFO", "bay-1", 0);
+        Assert.NotNull(printed);
+
+        var terminal = new List<TerminalEntry>();
+        engine.TerminalEntryEmitted += terminal.Add;
         var warnings = new List<(string Callsign, string Warning)>();
         engine.WarningEmitted += (cs, w) => warnings.Add((cs, w));
 
@@ -144,19 +156,19 @@ public class DeferredPresetStripAndTrackDispatchTests
 
         // Deferred behind the WAIT — nothing dispatched yet.
         Assert.Single(ac.DeferredDispatches);
-        Assert.Empty(stripDispatches);
+        Assert.Empty(ac.PendingStripDispatches);
+        Assert.Equal("", engine.Strips.Items[printed.Id].FieldValues[10]);
 
         for (int t = 0; t < 4; t++)
         {
             engine.TickOneSecond();
         }
 
-        var fired = Assert.Single(stripDispatches);
-        Assert.Equal("DAL2272", fired.Callsign);
-        var annotate = Assert.IsType<StripAnnotateCommand>(fired.Command);
-        Assert.Equal("1", annotate.Box);
-        Assert.Equal(Checkmark, annotate.Text);
+        // Box 1 is FieldValues[10]: the engine applied the annotation itself, with no host in the process.
+        Assert.Empty(ac.PendingStripDispatches);
+        Assert.Equal(Checkmark, engine.Strips.Items[printed.Id].FieldValues[10]);
         Assert.DoesNotContain(warnings, w => w.Warning.Contains("could not apply", StringComparison.OrdinalIgnoreCase));
+        Assert.DoesNotContain(terminal, e => e.Message.Contains("could not apply", StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]
@@ -210,14 +222,15 @@ public class DeferredPresetStripAndTrackDispatchTests
         return ac;
     }
 
-    private static void AssertStripMoveDispatched(
-        List<(string Callsign, ParsedCommand Command)> stripDispatches,
-        List<TerminalEntry> terminal,
-        string callsign
-    )
+    /// <summary>
+    /// The deferred <c>STRIP Local</c> reached the strip handler: the queue is drained and the verdict that came back
+    /// is the handler's own (this bare engine carries no ARTCC configuration, so it has no bays), never the
+    /// dispatcher's "no arm" refusal.
+    /// </summary>
+    private static void AssertStripMoveDispatched(AircraftState aircraft, List<TerminalEntry> terminal, string callsign)
     {
-        var move = Assert.IsType<StripMoveCommand>(Assert.Single(stripDispatches).Command);
-        Assert.Contains("Local", move.Tokens);
+        Assert.Empty(aircraft.PendingStripDispatches);
+        Assert.Contains(terminal, e => e.Callsign == callsign && e.Message.Contains("No accessible strip bays", StringComparison.Ordinal));
         Assert.DoesNotContain(terminal, e => e.Callsign == callsign && e.Message.Contains("could not apply", StringComparison.OrdinalIgnoreCase));
     }
 
@@ -233,8 +246,6 @@ public class DeferredPresetStripAndTrackDispatchTests
         var engine = BuildEngine();
         var ac = AddParkedAtGate(engine, "DAL2272", "B4");
 
-        var stripDispatches = new List<(string Callsign, ParsedCommand Command)>();
-        engine.StripDispatchRequested += (cs, cmd) => stripDispatches.Add((cs, cmd));
         var terminal = new List<TerminalEntry>();
         engine.TerminalEntryEmitted += terminal.Add;
 
@@ -247,7 +258,7 @@ public class DeferredPresetStripAndTrackDispatchTests
             engine.TickOneSecond();
         }
 
-        AssertStripMoveDispatched(stripDispatches, terminal, "DAL2272");
+        AssertStripMoveDispatched(ac, terminal, "DAL2272");
     }
 
     [Fact]
@@ -263,8 +274,6 @@ public class DeferredPresetStripAndTrackDispatchTests
         var taxi = engine.SendCommand("SWA162", "TAXI Y H B M1 1L");
         Assert.True(taxi.Success, taxi.Message);
 
-        var stripDispatches = new List<(string Callsign, ParsedCommand Command)>();
-        engine.StripDispatchRequested += (cs, cmd) => stripDispatches.Add((cs, cmd));
         var terminal = new List<TerminalEntry>();
         engine.TerminalEntryEmitted += terminal.Add;
 
@@ -277,7 +286,7 @@ public class DeferredPresetStripAndTrackDispatchTests
             engine.TickOneSecond();
         }
 
-        AssertStripMoveDispatched(stripDispatches, terminal, "SWA162");
+        AssertStripMoveDispatched(ac, terminal, "SWA162");
     }
 
     /// <summary>

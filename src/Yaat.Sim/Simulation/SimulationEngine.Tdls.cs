@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Vnas;
+using Yaat.Sim.Simulation.Spine;
 using Yaat.Sim.Simulation.Tdls;
 
 namespace Yaat.Sim.Simulation;
@@ -240,10 +241,11 @@ public sealed partial class SimulationEngine
     }
 
     /// <summary>
-    /// The hooks every spawn runs, whatever put the aircraft in the world: the TDLS auto-queue for a departure filed at
-    /// the scenario's primary airport. Fired inline at spawn time so the DCL list populates immediately rather than on
-    /// the next tick; <see cref="TickAutoTdlsQueue"/> stays as the catch-up path for flight plans edited after spawn.
-    /// The broadcast is the later drain's, so a client learns the callsign before the PDC for it arrives.
+    /// The hooks every spawn runs, whatever put the aircraft in the world, for a departure filed at the scenario's
+    /// primary airport: the TDLS auto-queue first, then the strip auto-print — the order the live room ran them in.
+    /// Fired inline at spawn time so the DCL and strip lists populate immediately rather than on the next tick;
+    /// <see cref="TickAutoTdlsQueue"/> stays as the catch-up path for flight plans edited after spawn. The broadcasts
+    /// are the later drain's, so a client learns the callsign before the PDC and the strip for it arrive.
     /// </summary>
     internal void AfterAircraftSpawned(AircraftState ac)
     {
@@ -257,6 +259,12 @@ public sealed partial class SimulationEngine
             return;
         }
 
+        QueueSpawnTdlsPdc(ac, scenario);
+        PrintSpawnStrip(ac, scenario);
+    }
+
+    private void QueueSpawnTdlsPdc(AircraftState ac, SimScenarioState scenario)
+    {
         var queued = TryQueueAutoTdlsForAircraft(Tdls, ac, scenario.SimTimeUtc);
         if (queued is null)
         {
@@ -311,12 +319,18 @@ public sealed partial class SimulationEngine
     }
 
     /// <summary>
-    /// Hands the host what the strip and TDLS mutations have touched since the last drain. Called by the action router
-    /// after every routed action and by the post-physics spine step for what the tick steps produced; a host that
-    /// broadcasts turns it into messages, a bare or replaying one drops it.
+    /// Hands the host what the strip and TDLS mutations have touched since the last drain — strips first, so an item
+    /// the same drain's TDLS half references is already there. Called by the action router after every routed action
+    /// and by the post-physics spine step for what the tick steps produced; a host that broadcasts turns it into
+    /// messages, a bare or replaying one drops it.
     /// </summary>
-    internal void DrainStripTdlsChangesInto(ITdlsChangeConsumer host)
+    internal void DrainStripTdlsChangesInto(IStateChangeConsumer host)
     {
+        if (Strips.Changes.HasAny)
+        {
+            host.OnStripsChanged(Strips.Changes.Drain());
+        }
+
         if (Tdls.Changes.HasAny)
         {
             host.OnTdlsChanged(Tdls.Changes.Drain());

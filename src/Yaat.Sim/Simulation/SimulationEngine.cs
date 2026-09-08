@@ -184,15 +184,6 @@ public sealed partial class SimulationEngine
     }
 
     /// <summary>
-    /// Fires during the post-physics drain for each <see cref="AircraftState.PendingStripDispatches"/>
-    /// entry — a strip command (AN / STRIP / SCAN / …) produced by preset, deferred, or triggered
-    /// dispatch that the Sim cannot apply (strip state is host-owned). The host (yaat-server) drains
-    /// <see cref="SimulationWorld.DrainAllStripDispatches"/> directly and routes to
-    /// <c>StripCommandHandler</c>; this event lets standalone consumers (solo client, tests) observe
-    /// the same commands. Default null = the entry is still drained (so it does not accumulate) but
-    /// otherwise discarded. Mirrors <see cref="WarningEmitted"/>.
-    /// </summary>
-    /// <summary>
     /// Fires during the post-physics drain for each <see cref="AircraftState.PendingPilotSpeech"/>
     /// entry — an RPO-mode pilot transmission produced this tick. Mirrors the server's
     /// <c>TickProcessor.BroadcastPilotSpeech</c> fan-out so non-server consumers (solo client, tests)
@@ -204,13 +195,6 @@ public sealed partial class SimulationEngine
     internal void FirePilotSpeechEmitted(string callsign, string speech)
     {
         PilotSpeechEmitted?.Invoke(callsign, speech);
-    }
-
-    public event Action<string, ParsedCommand>? StripDispatchRequested;
-
-    internal void FireStripDispatchRequested(string callsign, ParsedCommand command)
-    {
-        StripDispatchRequested?.Invoke(callsign, command);
     }
 
     public SimulationEngine(IAirportGroundData groundData, ILogger? logger = null)

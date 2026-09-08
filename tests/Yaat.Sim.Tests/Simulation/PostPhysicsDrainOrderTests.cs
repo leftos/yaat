@@ -82,21 +82,24 @@ public class PostPhysicsDrainOrderTests
         aircraft.PendingNotifications.Add(NotificationMarker);
         aircraft.PendingPilotSpeech.Add(SpeechMarker);
         aircraft.PendingPilotReadbacks.Add(ReadbackMarker);
-        aircraft.PendingStripDispatches.Add(new StripAnnotateCommand("1", StripMarker));
+        // Addressed by id so the strip step's refusal — no such strip on this bare engine — names the marker.
+        aircraft.PendingStripDispatches.Add(new StripAnnotateCommand("1", "x", StripMarker));
 
         // One ordered stream across both surfaces the drains emit on. PilotSpeechEmitted is deliberately not
         // subscribed: pilot speech already arrives as a terminal entry, and taking both would record it twice.
         var emissions = new List<string>();
         engine.WarningEmitted += (_, warning) => emissions.Add(warning);
         engine.TerminalEntryEmitted += entry => emissions.Add(entry.Message);
-        engine.StripDispatchRequested += (_, command) => emissions.Add(((StripAnnotateCommand)command).Text!);
 
         engine.TickPostPhysics();
 
         // Filtered to the seeded markers: the detectors and the proactive pass emit their own lines, and this
-        // test is about the relative order of the drains, not about what else a tick says.
+        // test is about the relative order of the drains, not about what else a tick says. The strip step applies
+        // its dispatch inside the engine, so its line is the refusal that names the marker id.
         var seeded = new[] { WarningMarker, NotificationMarker, SpeechMarker, ReadbackMarker, StripMarker };
-        Assert.Equal([WarningMarker, NotificationMarker, SpeechMarker, ReadbackMarker, StripMarker], emissions.Where(seeded.Contains).ToList());
+        var ordered = emissions.Where(e => seeded.Any(marker => e.Contains(marker, StringComparison.Ordinal))).ToList();
+        Assert.Equal([WarningMarker, NotificationMarker, SpeechMarker, ReadbackMarker], ordered[..^1]);
+        Assert.Contains(StripMarker, ordered[^1], StringComparison.Ordinal);
     }
 
     [Fact]

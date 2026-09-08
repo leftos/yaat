@@ -361,11 +361,10 @@ public sealed class SimulationWorld
     }
 
     /// <summary>
-    /// Drains every aircraft's <see cref="AircraftState.PendingStripDispatches"/> — strip commands
-    /// queued by preset/deferred/triggered dispatch that the Sim cannot apply itself (strip state is
-    /// host-owned). The host (yaat-server) dispatches each through <c>StripCommandHandler</c>; the
-    /// standalone engine's <see cref="SimulationEngine.TickPostPhysics"/> drains-and-discards so the
-    /// lists never accumulate. Mirrors <see cref="DrainAllWarnings"/>.
+    /// Drains every aircraft's <see cref="AircraftState.PendingStripDispatches"/> — the strip commands
+    /// preset/deferred/triggered dispatch queued so they apply after the aviation dispatch rather than inside it.
+    /// The engine's <c>TickStripDispatches</c> step is the one caller: it applies each through
+    /// <see cref="Simulation.Strips.StripCommandHandler"/>, on every run kind. Mirrors <see cref="DrainAllWarnings"/>.
     /// </summary>
     public List<(string Callsign, Commands.ParsedCommand Command)> DrainAllStripDispatches()
     {

@@ -78,7 +78,9 @@ internal static class ActionArms
 
             if (compound.Blocks.Any(block => block.Commands.Any(command => command is ChangeDestinationCommand)))
             {
-                ctx.Host.OnFlightPlanAmended(aircraft.Callsign);
+                // The reprint draws an id; the router bakes what it reports onto the record, so a replay reprints
+                // under it instead of minting a second copy.
+                ctx.StripId = ctx.Engine.ReprintDepartureStripAfterAmendment(aircraft.Callsign, ctx.Input.Baked?.StripId);
             }
         }
 
@@ -154,9 +156,16 @@ internal static class ActionArms
         }
 
         engine.AmendFlightPlan(callsign, amendment);
+
+        // The reprint runs before the amendment record is appended so that record carries the id it printed under.
+        // That record is the only replay path for this verb: a recorded FP returns at the ctx.IsRecorded guard above,
+        // so the arm never reprints again and the id baked onto the command record is never read back. It is baked
+        // anyway, through the same channel every creating strip verb uses, so the id the run drew is on the command
+        // as well as on the amendment it wrote.
+        ctx.StripId = ctx.Engine.ReprintDepartureStripAfterAmendment(callsign, ctx.Input.Baked?.StripId);
         if (engine.Scenario is { } scenario)
         {
-            engine.RecordAction(new RecordedAmendFlightPlan(scenario.ElapsedSeconds, callsign, amendment));
+            engine.RecordAction(new RecordedAmendFlightPlan(scenario.ElapsedSeconds, callsign, amendment, ctx.StripId));
         }
 
         string response;
@@ -171,7 +180,6 @@ internal static class ActionArms
             response = $"{line1} {line2}";
         }
 
-        ctx.Host.OnFlightPlanAmended(callsign);
         return new CommandResult(true, response);
     }
 

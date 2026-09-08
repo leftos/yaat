@@ -176,11 +176,11 @@ public class AircraftState
 
     /// <summary>
     /// Strip commands (AN / STRIP / SCAN / HSC / …) produced by preset, deferred, or triggered
-    /// dispatch. The Sim has no strip state — <c>FlightStripState</c> lives on the host
-    /// (yaat-server's <c>TrainingRoom</c>), so <see cref="Commands.CommandDispatcher.ApplyCommand"/>
-    /// queues strip commands here instead of failing, and the host drains them each tick
-    /// (yaat-server's <c>TickProcessor.ProcessDeferredStripDispatches</c>) into
-    /// <c>StripCommandHandler</c>. Transient — not snapshot-serialized.
+    /// dispatch. <see cref="Commands.CommandDispatcher.ApplyCommand"/> queues them here rather than applying them
+    /// inline, so a strip verb chained behind an aviation one lands after that dispatch instead of in the middle of
+    /// it; the engine's own <c>TickStripDispatches</c> step drains the queue into
+    /// <see cref="Simulation.Strips.StripCommandHandler"/> once per second, on every run kind.
+    /// Transient — not snapshot-serialized.
     /// </summary>
     public List<Commands.ParsedCommand> PendingStripDispatches { get; } = [];
 

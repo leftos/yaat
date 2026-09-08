@@ -1199,10 +1199,10 @@ public static class CommandDispatcher
                 return new CommandResult(false, $"Command not yet supported: {cmd.RawText}");
 
             case var strip when TrackEngine.IsStripCommand(strip):
-                // Strip state is host-owned (yaat-server's TrainingRoom.StripState) — the Sim has no
-                // strip handler. Queue preset/deferred/triggered strip commands for the host to drain
-                // (TickProcessor.ProcessDeferredStripDispatches → StripCommandHandler) rather than
-                // letting them fall to the no-dispatcher-arm default below.
+                // A strip verb has no effect on the aircraft, so it is queued rather than applied here: the
+                // engine's own TickStripDispatches step drains the queue into StripCommandHandler at the end of the
+                // second, which is what lets a preset/deferred/triggered strip verb land after the aviation dispatch
+                // instead of falling to the no-dispatcher-arm default below.
                 aircraft.PendingStripDispatches.Add(strip);
                 return Ok(CommandDescriber.DescribeNatural(strip));
 

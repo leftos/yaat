@@ -207,7 +207,7 @@ live room all run one body; nothing about TDLS is a host slot any more.
 **The broadcast seam.** The mutations do not broadcast. Each records what it touched in
 `TdlsState.Changes` (`TdlsChangeTracker`: changed item ids, `TdlsRemoval`s carrying the facility,
 callsign and whether it was a dump, and a full-state flag for `TDLSOPS`). Two drains hand a
-`TdlsChangeSet` to the host's `OnTdlsChanged` (declared once on `ITdlsChangeConsumer`, which both
+`TdlsChangeSet` to the host's `OnTdlsChanged` (declared once on `IStateChangeConsumer`, beside `OnStripsChanged`, which both
 `IActionHost` and `IHostConsumers` extend): `ActionRouter.Finish` after every routed action, so a live
 command's pushes still precede its result and tape playback pushes per record, and the
 `StripTdlsChanges` spine step after the post-physics steps, before `AutoDelete` so an item's aircraft still
