@@ -18,7 +18,11 @@ one of its commands tested as non-conflicting, and the whole block survived the 
   (`Bare`, `Cmd`, `PatternEntry`), so all 255 entries declare one and the compiler rejects a new command that
   does not.
 - `CommandDimension.Ground` — a fourth axis outside `AllAirborne`, so `All` keeps its stored value semantics
-  and the clear-everything fast path tests `AllAirborne`. Surface verbs queue as `Ground`, fire as `All`.
+  and the clear-everything fast path tests `AllAirborne`. Surface verbs queue as `Ground` and, since the
+  2026-09-08 follow-up, fire as `Ground` too (the exit verbs and `ATXI` included); `GO`, `CTOPP` and helicopter
+  `LAND`, which fired `None` and so cleared the whole queue, fire `All`; `APT` and `FOLLOW`, the same defect, fire
+  `Lateral`. A registry-wide sweep in
+  `QueuedCommandDimensionTests` pins queued ⊆ fired for every command type.
 - `GetQueuedCommandDimension` is now a registry lookup, plus the two instance-sensitive verbs (`EXP`,
   `CFIX`) whose dimension depends on which optional argument was given, and it throws rather than
   defaulting to `None` for an unregistered verb.
@@ -171,9 +175,3 @@ supersede now yields to the command that replaced its plan.
 **Transponder** (9) — all `None`
 
 **vTDLS** (5) — all `None`
-
-## Still open
-
-- **Narrow the *incoming* dimension of the pure-surface verbs** from `All | Ground` to `Ground`. Today a taxi
-  clearance clears every queued airborne block, including the pre-departure "maintain" altitude (§4-3-2.e,
-  AIM §4-4-10.7). Fixing that is a change to the fired side, with a wider blast radius than this table.

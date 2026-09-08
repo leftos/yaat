@@ -1,5 +1,9 @@
 using Xunit;
 using Yaat.Sim.Commands;
+using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Phases;
+using Yaat.Sim.Phases.Ground;
+using Yaat.Sim.Simulation.Snapshots;
 using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests.Commands;
@@ -11,7 +15,7 @@ namespace Yaat.Sim.Tests.Commands;
 /// Before the table, <c>CommandDescriber.GetQueuedCommandDimension</c> was a hand-maintained <c>or</c> chain
 /// (pattern entries, approaches, holds, and — after #422 — MLT/MRT) and every other verb fell through
 /// <c>ClassifyCommand</c> to <c>Immediate</c> → <c>None</c>. Meanwhile <c>CommandBlock.Dimensions</c> is built
-/// from <c>GetCommandDimension</c>, which reports every tower and ground verb as <c>All</c>. So in
+/// from <c>GetCommandDimension</c>, which reports a tower verb as <c>All</c> and a surface verb as <c>Ground</c>. So in
 /// <c>SplitBlockNonConflicting</c> the block reported a conflict in aggregate while every one of its commands
 /// tested as non-conflicting, and the whole block survived the supersede — for ~50 verbs.
 ///
@@ -60,7 +64,9 @@ public class QueuedCommandDimensionTests
 
     /// <summary>True when a not-yet-fired block still holds a command of <paramref name="type"/>.</summary>
     private static bool StillQueued(AircraftState ac, CanonicalCommandType type) =>
-        ac.Queue.Blocks.Any(b => (b.ParsedCommands ?? []).Any(c => c is not UnsupportedCommand && CommandDescriber.ToCanonicalType(c) == type));
+        ac.Queue.Blocks.Any(b =>
+            !b.IsApplied && (b.ParsedCommands ?? []).Any(c => c is not UnsupportedCommand && CommandDescriber.ToCanonicalType(c) == type)
+        );
 
     /// <summary>Queues "AT 5000 {queued}", then issues {incoming} as a fresh command.</summary>
     private static AircraftState QueueThen(string queued, string incoming) => QueueThen(Airborne(), queued, incoming);
@@ -151,10 +157,10 @@ public class QueuedCommandDimensionTests
 
     // ---------------------------------------------------------------------------------------------------
     // ...but a surface clearance still supersedes a queued surface clearance. This is the regression the
-    // Ground bit could have introduced: ground verbs fire as All (which now includes Ground), so the queued
-    // Ground value stays reachable. It matters on the reaction-delay path, where DeferForReaction
-    // re-dispatches with PreserveConditionals: true and the All/None clear-everything fast path is skipped,
-    // leaving the per-command QueuedDimension test decisive.
+    // Ground bit could have introduced: a ground verb fires as Ground, and Ground & Ground is not None, so
+    // the queued Ground value stays reachable by the only family that should reach it. It matters on the
+    // reaction-delay path, where DeferForReaction re-dispatches with PreserveConditionals: true and the
+    // All/None clear-everything fast path is skipped, leaving the per-command QueuedDimension test decisive.
     // ---------------------------------------------------------------------------------------------------
 
     [Fact]
@@ -171,10 +177,10 @@ public class QueuedCommandDimensionTests
         var queued = CommandDescriber.GetQueuedCommandDimension(queuedHoldShort);
         Assert.Equal(CommandDimension.Ground, queued);
 
-        // A surface clearance must still be able to displace a queued surface clearance. Ground verbs fire
-        // as All, which includes Ground, so the queued value stays reachable. This matters on the
-        // reaction-delay path: DeferForReaction re-dispatches with PreserveConditionals: true, which skips
-        // the clear-everything fast path and leaves this per-command test decisive.
+        // A surface clearance must still be able to displace a queued surface clearance. A ground verb fires
+        // as Ground and the queued value is Ground, so the two overlap and the queued clearance stays
+        // reachable. This matters on the reaction-delay path: DeferForReaction re-dispatches with
+        // PreserveConditionals: true, which skips the clear-everything fast path and leaves this test decisive.
         Assert.NotEqual(CommandDimension.None, CommandDescriber.GetCommandDimension(freshTaxi) & queued);
 
         // ...while a vector cannot reach it at all. This is the whole point of the separate bit.
@@ -187,8 +193,9 @@ public class QueuedCommandDimensionTests
     // for a different runway, because the approach clearance names the runway it is issued for (7110.65
     // §3-10-5.c). That is lateral work (plus the Ground half, for the on-the-ground departure-runway
     // branch) and nothing more — a runway re-assignment must not cancel queued altitude or speed work.
-    // TAXIAUTO is the same gap from the other side: a taxi clearance missing from IsGroundCommand, so it too
-    // fired as None and the fast path wiped the queue on its way to a rejection.
+    // TAXIAUTO was the same gap from the other side: until 2026-09-08 it was missing from IsGroundCommand, so
+    // it fired as None and the fast path wiped the queue on its way to a rejection. It is in the predicate now,
+    // and both cases below assert the taxi clearance behaviour it inherits from that membership.
     // ---------------------------------------------------------------------------------------------------
 
     [Fact]
@@ -372,5 +379,279 @@ public class QueuedCommandDimensionTests
         var bad = CommandRegistry.All.Values.Where(d => (d.QueuedDimension & ~Known) != CommandDimension.None).ToList();
 
         Assert.Empty(bad);
+    }
+
+    // ---------------------------------------------------------------------------------------------------
+    // The registry-wide form of the same invariant. The curated theory above pins the verbs a reader needs
+    // to see; this sweep catches the ones nobody listed. A verb in no family predicate and no ClassifyCommand
+    // arm fires as None while its registry row declares a real queued axis — "occupies the surface plan while
+    // it waits, seizes nothing when it fires" — and that None also trips the clear-everything fast path in
+    // ClearConflictingBlocks, so the queue is wiped on the way to a command that claims no axis at all.
+    // ---------------------------------------------------------------------------------------------------
+
+    [Fact]
+    public void EveryCommandType_QueuedDimensionIsNeverBroaderThanFired()
+    {
+        var violators = new List<string>();
+        var unconstructible = new List<string>();
+
+        foreach (var type in ParsedCommandDummies.ConcreteTypes())
+        {
+            var dummy = ParsedCommandDummies.Create(type);
+            if (dummy is UnsupportedCommand)
+            {
+                continue;
+            }
+
+            // A type no dummy can be built for is not a pass: it would leave its row unchecked and defeat the
+            // guardrail silently. Fail on it too, the way CommandDescriberCompletenessTests does.
+            if (dummy is null)
+            {
+                unconstructible.Add(type.Name);
+                continue;
+            }
+
+            var queued = CommandDescriber.GetQueuedCommandDimension(dummy);
+            var fired = CommandDescriber.GetCommandDimension(dummy);
+            if ((queued & ~fired) != CommandDimension.None)
+            {
+                violators.Add($"{type.Name} (queued {queued}, fired {fired})");
+            }
+        }
+
+        Assert.True(
+            violators.Count == 0,
+            "queued dimension broader than fired — the verb occupies an axis while it waits that it never seizes: " + string.Join(", ", violators)
+        );
+        Assert.True(
+            unconstructible.Count == 0,
+            "ParsedCommandDummies.Create cannot build (extend MakeDummyArg): " + string.Join(", ", unconstructible)
+        );
+    }
+
+    // ---------------------------------------------------------------------------------------------------
+    // What each family seizes when it fires. A surface clearance takes the surface plan and nothing else:
+    // 7110.65 §3-7-2 taxi clearances, the departure clearance's altitude (§4-3-2.e) and its initial heading
+    // (§5-8-2.a) are disjoint instruments, so a taxi never amends airborne work. The exit verbs are taxi
+    // instructions too (§3-10-9.a/.b) — they sit in the tower family only because the tower issues them.
+    // ---------------------------------------------------------------------------------------------------
+
+    [Theory]
+    [InlineData("TAXI 28R")]
+    [InlineData("PUSH")]
+    [InlineData("HS 28R")]
+    [InlineData("CROSS 28R")]
+    [InlineData("EL D")]
+    [InlineData("ATXI 28R")]
+    public void SurfaceClearance_SeizesTheGroundAxisOnly(string text)
+    {
+        var parsed = CommandParser.Parse(text);
+        Assert.True(parsed.IsSuccess, $"parse failed for '{text}': {parsed.Reason}");
+        Assert.Equal(CommandDimension.Ground, CommandDescriber.GetCommandDimension(parsed.Value!));
+    }
+
+    // ...while the clearances that commit an aircraft to a runway own every axis from that point: GO releases
+    // a stopped departure into its takeoff roll (§3-8-2 — it is then a departing aircraft), CTOPP is a takeoff
+    // clearance (§3-11-2.a) and LAND is a landing clearance (§3-11-6.a).
+    [Theory]
+    [InlineData("GO")]
+    [InlineData("CTOPP")]
+    [InlineData("LAND @H1")]
+    public void RunwayCommitment_SeizesEveryAxis(string text)
+    {
+        var parsed = CommandParser.Parse(text);
+        Assert.True(parsed.IsSuccess, $"parse failed for '{text}': {parsed.Reason}");
+        Assert.Equal(CommandDimension.All, CommandDescriber.GetCommandDimension(parsed.Value!));
+    }
+
+    // ...and the two re-plans that take the lateral axis alone. APT/DEST replaces the destination, and
+    // ChangeDestinationCommand's handler clears the arrival procedure state with it — a route amendment
+    // (§4-2-5.a.3), which is lateral work and nothing more. FOLLOW installs VfrFollowPhase: also a lateral
+    // plan, and one that accepts altitude and speed adjustments without being cancelled by them
+    // (VfrFollowPhase.CanAcceptCommand), so it must not claim those axes on the way in either.
+    [Theory]
+    [InlineData("APT KSFO")]
+    [InlineData("FOLLOW")]
+    public void LateralReplan_SeizesTheLateralAxisOnly(string text)
+    {
+        var parsed = CommandParser.Parse(text);
+        Assert.True(parsed.IsSuccess, $"parse failed for '{text}': {parsed.Reason}");
+        Assert.Equal(CommandDimension.Lateral, CommandDescriber.GetCommandDimension(parsed.Value!));
+    }
+
+    // ---------------------------------------------------------------------------------------------------
+    // End-to-end on the real OAK layout, on the shape that actually reaches the queue. A BARE surface
+    // clearance never does: with a ground phase active, DispatchWithPhase hands the TAXI to
+    // TryApplyTowerCommand and DispatchCompound returns that result directly, so ClearConflictingBlocks is
+    // never called at all. On that path the clear runs only for a compound of more than one block — the
+    // Blocks.Count > 1 guard in CommandDispatcher.cs:244-247, on the union GetCompoundDimensions reports — so a chained
+    // ground compound is where the fired dimension bites, and where the union of two ground verbs used to
+    // add up to All and take the clear-everything fast path through queued airborne work.
+    // ---------------------------------------------------------------------------------------------------
+
+    /// <summary>The chained surface clearance under test: two ground verbs, so the dispatcher reaches the queue.</summary>
+    private const string TaxiChain = "TAXI D; CROSS 28L";
+
+    private static AirportGroundLayout? OaklandLayout() => new TestAirportGroundData().GetLayout("OAK");
+
+    /// <summary>A jet parked at OAK NEW7 in <see cref="AtParkingPhase"/> — the state a TAXI is issued from.</summary>
+    private static AircraftState ParkedAtNew7(AirportGroundLayout layout)
+    {
+        var parking = layout.Nodes.Values.FirstOrDefault(n =>
+            (n.Type == GroundNodeType.Parking || n.Type == GroundNodeType.Spot) && string.Equals(n.Name, "NEW7", StringComparison.OrdinalIgnoreCase)
+        );
+        Assert.NotNull(parking);
+
+        var ac = new AircraftState
+        {
+            Callsign = "TEST1",
+            AircraftType = "B738",
+            Position = parking.Position,
+            TrueHeading = new TrueHeading(280),
+            Altitude = 6,
+            IndicatedAirspeed = 0,
+            IsOnGround = true,
+            FlightPlan = new AircraftFlightPlan { Departure = "OAK" },
+        };
+        ac.Phases = new PhaseList();
+        ac.Phases.Add(new AtParkingPhase());
+        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac));
+        return ac;
+    }
+
+    private static void DispatchOnGround(string text, AircraftState ac, AirportGroundLayout layout, bool preserveConditionals)
+    {
+        var parsed = CommandParser.ParseCompound(text);
+        Assert.True(parsed.IsSuccess, $"parse failed for '{text}': {parsed.Reason}");
+        var ctx = TestDispatch.Context(Random.Shared, validateDctFixes: false, groundLayout: layout, preserveConditionals: preserveConditionals);
+        var result = CommandDispatcher.DispatchCompound(parsed.Value!, ac, ctx);
+        Assert.True(result.Success, $"dispatch failed for '{text}': {result.Message}");
+    }
+
+    [Fact]
+    public void ChainedTaxiClearance_LeavesQueuedAirborneBlockAlone()
+    {
+        var layout = OaklandLayout();
+        if (layout is null)
+        {
+            return;
+        }
+
+        var ac = ParkedAtNew7(layout);
+        DispatchOnGround("AT 5000 SPD 180", ac, layout, preserveConditionals: false);
+        DispatchOnGround(TaxiChain, ac, layout, preserveConditionals: false);
+
+        Assert.True(StillQueued(ac, CanonicalCommandType.Speed), "a taxi clearance must not cancel queued airborne work (§3-7-2)");
+        Assert.DoesNotContain(ac.PendingWarnings, w => w.Contains("queue cleared by", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void ChainedTaxiClearance_LeavesUntriggeredAirborneBlockAlone_OnReactionDelayPath()
+    {
+        var layout = OaklandLayout();
+        if (layout is null)
+        {
+            return;
+        }
+
+        var ac = ParkedAtNew7(layout);
+        DispatchOnGround("AT 5000 SPD 180; CM 7000", ac, layout, preserveConditionals: false);
+
+        // The chained second block carries no trigger of its own, so the reaction-delay path below cannot
+        // spare it as a pending conditional: SimulationEngine.DeferForReaction re-dispatches with
+        // PreserveConditionals: true, which skips the clear-everything fast path and leaves the per-command
+        // dimension test decisive for this block.
+        var climb = ac.Queue.Blocks.FirstOrDefault(b =>
+            (b.ParsedCommands ?? []).Any(c =>
+                c is not UnsupportedCommand && CommandDescriber.ToCanonicalType(c) == CanonicalCommandType.ClimbMaintain
+            )
+        );
+        Assert.NotNull(climb);
+        Assert.Null(climb.Trigger);
+
+        DispatchOnGround(TaxiChain, ac, layout, preserveConditionals: true);
+
+        Assert.True(StillQueued(ac, CanonicalCommandType.ClimbMaintain), "a taxi clearance must not cancel a queued altitude (§3-7-2 vs §4-3-2.e)");
+    }
+
+    [Fact]
+    public void ChainedTaxiClearance_StillDisplacesQueuedSurfaceClearance()
+    {
+        // The half the narrowing must not break: a taxi clearance still supersedes queued surface work.
+        // This passes on both sides of the change — before, the All/None fast path wiped the whole queue;
+        // after, the incoming Ground overlaps the queued hold-short's Ground and the per-block test drops it.
+        var layout = OaklandLayout();
+        if (layout is null)
+        {
+            return;
+        }
+
+        var ac = ParkedAtNew7(layout);
+        DispatchOnGround("AT 5000 HS 28L", ac, layout, preserveConditionals: false);
+        DispatchOnGround(TaxiChain, ac, layout, preserveConditionals: false);
+
+        Assert.False(StillQueued(ac, CanonicalCommandType.HoldShort), "a fresh taxi clearance supersedes a queued hold-short");
+    }
+
+    // ---------------------------------------------------------------------------------------------------
+    // The lateral half of the same contract, on the reaction-delay path: DeferForReaction re-dispatches with
+    // PreserveConditionals: true, which skips the clear-everything fast path, so the per-command test decides.
+    // A destination change is a route amendment and takes the lateral axis; a queued altitude is on another
+    // axis and must survive it.
+    //
+    // A pin, not a regression catcher: this case is green on both sides of APT's None → Lateral change
+    // (verified by reverting the arm). With the fast path skipped, an incoming None overlaps nothing either,
+    // so the queued altitude survived for the wrong reason before. It is here so the right reason is asserted.
+    // ---------------------------------------------------------------------------------------------------
+
+    [Fact]
+    public void LateralReplan_LeavesUntriggeredAltitudeAlone_OnReactionDelayPath()
+    {
+        var ac = Airborne();
+        Dispatch("AT 5000 SPD 180; CM 7000", ac, preserveConditionals: false);
+        Dispatch("APT KSFO", ac, preserveConditionals: true);
+
+        Assert.True(StillQueued(ac, CanonicalCommandType.ClimbMaintain), "a destination change must not cancel a queued altitude — different axis");
+    }
+
+    // ---------------------------------------------------------------------------------------------------
+    // Restore. CommandBlock.Dimensions IS serialized, so a queue restored from a rewind, a session restore or
+    // a bug bundle carries whatever the writing build computed — a surface block written before this change
+    // comes back claiming All, and would wipe airborne work the first time a fresh command tested against it.
+    // RehydrateRestoredBlock re-derives the aggregate from the reparsed commands, so the live table wins.
+    // ---------------------------------------------------------------------------------------------------
+
+    [Fact]
+    public void RestoredSurfaceBlock_TakesItsDimensionsFromTheLiveTable()
+    {
+        var parsed = CommandParser.Parse("HS 28L");
+        Assert.True(parsed.IsSuccess, $"parse failed for 'HS 28L': {parsed.Reason}");
+
+        // The snapshot an older build would have written: this block's own source text, and All for the
+        // aggregate because every ground verb fired All then.
+        var dto = new CommandBlockDto
+        {
+            Commands = [new TrackedCommandDto { Type = (int)CommandDescriber.ClassifyCommand(parsed.Value!), IsComplete = false }],
+            IsApplied = false,
+            TriggerMet = false,
+            TriggerClosestApproach = double.MaxValue,
+            TriggerMissed = false,
+            IsWaitBlock = false,
+            WaitRemainingSeconds = 0,
+            WaitRemainingDistanceNm = 0,
+            Description = CommandDescriber.DescribeCommand(parsed.Value!),
+            NaturalDescription = CommandDescriber.DescribeNatural(parsed.Value!),
+            SourceCommandText = "HS 28L",
+            Dimensions = (int)CommandDimension.All,
+        };
+
+        var block = CommandBlock.FromSnapshot(dto);
+        Assert.Equal(CommandDimension.All, block.Dimensions);
+
+        Assert.True(
+            CommandDispatcher.RehydrateRestoredBlock(block, Airborne(), Ctx(preserveConditionals: true)),
+            "the block must rehydrate from its source text"
+        );
+        Assert.Equal(CommandDimension.Ground, block.Dimensions);
     }
 }

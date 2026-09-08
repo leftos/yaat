@@ -2736,7 +2736,10 @@ public static class CommandDispatcher
             return [];
         }
 
-        // Mark conflicting tracked commands in the current applied block as complete (superseded)
+        // Mark conflicting tracked commands in the current applied block as complete (superseded).
+        // GetDimension(TrackedCommandType) can never yield Ground — no tracked type is a surface command — so an
+        // incoming Ground marks nothing here by design; the surface half of a supersede is decided per command in
+        // SplitBlockNonConflicting, against the queued dimension.
         var current = queue.CurrentBlock;
         if (current is { IsApplied: true })
         {
@@ -2925,12 +2928,12 @@ public static class CommandDispatcher
         var applyCommands = hasTrackCommand ? parsedCommands.Where(c => !TrackEngine.IsTrackCommand(c)).ToList() : parsedCommands;
 
         var tracked = new List<TrackedCommand>(parsedCommands.Count);
-        var dimensions = CommandDimension.None;
         foreach (var cmd in parsedCommands)
         {
             tracked.Add(new TrackedCommand { Type = CommandDescriber.ClassifyCommand(cmd) });
-            dimensions |= CommandDescriber.GetCommandDimension(cmd);
         }
+
+        var dimensions = AggregateDimensions(parsedCommands);
 
         // Sum all leading waits — `AT A WAIT 5 WAIT 10 <cmd>` merges two WaitCommands into one block.
         double waitSeconds = parsedCommands.OfType<WaitCommand>().Sum(w => w.Seconds);
@@ -3008,7 +3011,29 @@ public static class CommandDispatcher
         var applyCommands = matched.Where(c => !TrackEngine.IsTrackCommand(c)).ToList();
         block.ParsedCommands = matched;
         block.ApplyAction = BuildApplyAction(applyCommands, ctx);
+
+        // Dimensions is a coarse pre-filter derived from the commands, not durable state, so the live table
+        // wins over the value the writing build serialized: a snapshot taken before surface clearances
+        // narrowed from All to Ground would otherwise restore a taxi block that still wipes airborne work.
+        block.Dimensions = AggregateDimensions(matched);
         return true;
+    }
+
+    /// <summary>
+    /// The union of what a block's commands seize when they fire — <see cref="CommandBlock.Dimensions"/>. A coarse
+    /// pre-filter only: once it reports an overlap, <see cref="SplitBlockNonConflicting"/> re-tests command by
+    /// command. Derived here for both writers (<see cref="CreateBlock"/> and <see cref="RehydrateRestoredBlock"/>)
+    /// so the rule has one definition.
+    /// </summary>
+    private static CommandDimension AggregateDimensions(List<ParsedCommand> parsedCommands)
+    {
+        var dimensions = CommandDimension.None;
+        foreach (var cmd in parsedCommands)
+        {
+            dimensions |= CommandDescriber.GetCommandDimension(cmd);
+        }
+
+        return dimensions;
     }
 
     private static CommandBlock? SplitBlockNonConflicting(CommandBlock block, CommandDimension conflictingDims, DispatchContext ctx)

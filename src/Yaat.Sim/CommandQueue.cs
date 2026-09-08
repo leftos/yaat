@@ -135,7 +135,7 @@ public enum CommandDimension
     /// <summary>The three airborne axes. This is the mask the clear-everything fast path tests against.</summary>
     AllAirborne = Lateral | Vertical | Speed,
 
-    /// <summary>Every axis. What a tower or ground clearance, or DEL, seizes when it fires.</summary>
+    /// <summary>Every axis. What a tower clearance, or DEL, seizes when it fires — a surface clearance seizes <see cref="Ground"/>.</summary>
     All = AllAirborne | Ground,
 }
 

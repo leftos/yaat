@@ -128,7 +128,10 @@ single-command parser accepts whole (free-text `NOTE …`) is not a chain.
 
    The two axes to keep straight:
 
-   - **Fired** — what the command seizes once it runs. A tower or ground clearance takes everything.
+   - **Fired** — what the command seizes once it runs. A tower clearance takes everything; a surface
+     clearance (taxi, pushback, hold-short, crossing, exit instruction, air taxi) takes `Ground` only, so
+     queued airborne work — a pre-departure altitude, a pre-armed departure turn — survives the taxi phase
+     (§3-7-2 vs §4-3-2.e / §5-8-2.a).
    - **Queued** — what it occupies while it waits, i.e. which incoming commands displace it first. A
      pattern entry takes all three axes when it fires, but while it waits it is only a lateral plan.
 

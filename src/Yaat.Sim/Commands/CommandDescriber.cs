@@ -373,16 +373,26 @@ public static class CommandDescriber
 
     internal static CommandDimension GetCommandDimension(ParsedCommand command)
     {
+        // An exit instruction is a taxi instruction (7110.65 §3-10-9.b): it writes RequestedExit and touches no
+        // control target. It sits in IsTowerCommand only because the tower is the position that issues it — which
+        // is why this arm has to come first — and routing still depends on that membership, so it stays there.
+        if (command is ExitLeftCommand or ExitRightCommand or ExitTaxiwayCommand)
+        {
+            return CommandDimension.Ground;
+        }
+
         // Tower commands (includes pattern entries) control all dimensions
         if (IsTowerCommand(command))
         {
             return CommandDimension.All;
         }
 
-        // Ground commands control all dimensions
+        // A surface clearance seizes the surface plan only. 7110.65 §3-7-2 taxi clearances, the departure
+        // clearance's altitude (§4-3-2.e) and its initial heading (§5-8-2.a) are disjoint instruments — a taxi
+        // clearance never amends airborne work — so queued altitude and speed survive a taxi.
         if (IsGroundCommand(command))
         {
-            return CommandDimension.All;
+            return CommandDimension.Ground;
         }
 
         // ClimbVia/DescendVia affect both lateral (procedure route) and vertical (altitude constraints)
@@ -415,6 +425,37 @@ public static class CommandDescriber
         if (command is AssignRunwayCommand)
         {
             return CommandDimension.Lateral | CommandDimension.Ground;
+        }
+
+        // The clearances that commit an aircraft to a runway or a helipad. Each declares its dimension here
+        // because none of them is in a family predicate, for two different reasons. GO and CTOPP are outside
+        // both because their only arms live in the phase-gated tower switch (GO needs a StopAndGoPhase to
+        // release; CTOPP is ground-guarded) — docs/command-handlers.md and the PhaseGatedArms row for
+        // GoCommand in ActionRoutingCompletenessTests record that blind spot. LAND is outside because it is
+        // issued to an aircraft in the air, where the dry-run guard rejects every IsGroundCommand verb.
+        // GO releases a stopped departure into its takeoff roll: past that point it is a departing aircraft
+        // (§3-8-2), so the clearance owns every axis. CTOPP is a takeoff clearance (§3-11-2.a) and LAND is a
+        // landing clearance (§3-11-6.a) — the same.
+        if (command is GoCommand or ClearedTakeoffPresentCommand or LandCommand)
+        {
+            return CommandDimension.All;
+        }
+
+        // ATXI is a ground movement (AIM 4-3-17.b) — the surface plan and nothing else — but it too stays out
+        // of IsGroundCommand: it is flown, so the dry-run guard would reject it as a taxi to an airborne aircraft.
+        if (command is AirTaxiCommand)
+        {
+            return CommandDimension.Ground;
+        }
+
+        // Two lateral re-plans that belong to no family predicate either. APT replaces the lateral plan — its
+        // handler's ClearArrivalProcedureState wipes NavigationRoute (§4-2-5.a.3) — and nothing else. FOLLOW
+        // installs VfrFollowPhase, a lateral plan of its own; the phase manages speed but explicitly accepts
+        // altitude and speed adjustments without cancelling the follow (VfrFollowPhase.CanAcceptCommand), so a
+        // fresh FOLLOW must not cancel queued vertical or speed work.
+        if (command is ChangeDestinationCommand or FollowCommand)
+        {
+            return CommandDimension.Lateral;
         }
 
         // Holding patterns are lateral
