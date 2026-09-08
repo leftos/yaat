@@ -259,6 +259,16 @@ public sealed class ActionRouter
             return Finish(routing, refusal, refusalTrace, RecordingPolicy.Text, ctx: null);
         }
 
+        // `CTO, R270` is the mis-spelling of the departure modifier `CTO MR270`: the turn is refused on the ground,
+        // so the block would clear the aircraft for takeoff and drop half of what was typed. Refused whole, naming
+        // the modifier. The sequential `CTO; R270` queues the turn until airborne and is left alone.
+        if (CompoundPolicy.FindTakeoffPairedWithImmediateTurn(remainder) is { } pairedTurn)
+        {
+            var refusal = new CommandResult(false, CompoundPolicy.TakeoffPairedWithImmediateTurnMessage(pairedTurn));
+            var refusalTrace = new ActionTrace(RecordedCommandKind.Compound, ActionScope.Aircraft, IsHostSlot: false);
+            return Finish(routing, refusal, refusalTrace, RecordingPolicy.Text, ctx: null);
+        }
+
         // A compound that concatenates a track/coordination/strip/TDLS command with ';'/',' cannot be classified as one
         // command — the single-command parser would swallow the separator tail as an argument. Route each unit.
         if (CompoundPolicy.TrySplitSpecialCompound(remainder, out var units))

@@ -111,6 +111,15 @@ server (`RoomEngine.SendCommandAsync`) and client (`MainViewModel`, same shared 
 they chain correctly through the queue (`CROSS 28R; DEL` #311, `AT 5000 APT OAK`). A line the
 single-command parser accepts whole (free-text `NOTE …`) is not a chain.
 
+The same two sites refuse a *parallel* block that pairs a takeoff clearance with an immediate turn
+(`CTO, R270`, also `CTOPP`/`GO`; `CompoundPolicy.FindTakeoffPairedWithImmediateTurn`) with *"… cannot be
+paired with a takeoff clearance — for a 270° departure use CTO MR270 or CTO ML270"* (for a 360: clear for
+takeoff, then issue it once airborne — `CTO 360` is a heading): it is a mis-spelling
+of the departure modifier, and applied as typed it would roll the aircraft and reject (or, before the
+handler guard, wedge) the turn. The sequential `CTO; R270` is deliberate and allowed — the turn queues
+until airborne. `L270`/`R270`/`L360`/`R360` themselves refuse an aircraft on the ground
+(`PatternCommandHandler.TryMakeTurn`).
+
 ## Historical failure classes (what regressions look like)
 
 1. **Single-path fixes** (#294): `UpdateCommandQueue` has parallel scan paths (current-block,

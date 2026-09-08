@@ -2800,6 +2800,15 @@ internal static class PatternCommandHandler
     {
         var dirStr = direction == TurnDirection.Left ? "left" : "right";
 
+        // On the ground the turn phase would be inserted ahead of the takeoff chain and never complete — a stationary
+        // aircraft cannot pivot (FlightPhysics.UpdateHeading) — stranding every phase behind it. The departure turn
+        // the controller usually means is a CTO modifier.
+        if (aircraft.IsOnGround)
+        {
+            var hint = CompoundPolicy.DepartureTurnHint((int)degrees);
+            return new CommandResult(false, $"Make {dirStr} {degrees:F0} requires the aircraft to be airborne — {hint}");
+        }
+
         // Standalone turn: no active phases — create a minimal phase list with
         // just the turn so R360/L360/R270/L270 work on airborne aircraft that
         // haven't been given a pattern entry (e.g. VFR traffic handed off to tower).

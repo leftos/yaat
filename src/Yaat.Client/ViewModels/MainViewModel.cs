@@ -2539,12 +2539,21 @@ public partial class MainViewModel : ObservableObject
             return;
         }
 
-        // Mirror of the server's chained non-compoundable rejection — CompoundPolicy is the single
-        // shared predicate, so the verdicts cannot drift; this just saves the round-trip and gives
-        // the RPO immediate feedback while the typed text is still in the box.
+        // Mirror of the server's chained non-compoundable rejection and of its paired takeoff-clearance-plus-turn
+        // rejection (`CTO, R270`, the mis-spelling of `CTO MR270`) — CompoundPolicy is the single shared predicate
+        // for both, so the verdicts cannot drift; this just saves the round-trip and gives the RPO immediate
+        // feedback while the typed text is still in the box.
         if (CompoundPolicy.FindNonCompoundableInChain(compound.CanonicalString) is { } nonCompoundable)
         {
             var rejectMsg = $"{CommandDescriber.DescribeCommand(nonCompoundable)} cannot be part of a chained command";
+            StatusText = rejectMsg;
+            AddWarningEntry(rejectMsg);
+            return;
+        }
+
+        if (CompoundPolicy.FindTakeoffPairedWithImmediateTurn(compound.CanonicalString) is { } pairedTurn)
+        {
+            var rejectMsg = CompoundPolicy.TakeoffPairedWithImmediateTurnMessage(pairedTurn);
             StatusText = rejectMsg;
             AddWarningEntry(rejectMsg);
             return;

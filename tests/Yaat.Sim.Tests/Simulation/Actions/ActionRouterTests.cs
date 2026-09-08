@@ -3,6 +3,7 @@ using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Vnas;
+using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Pilot;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Simulation.Actions;
@@ -61,6 +62,13 @@ public class ActionRouterTests
             FlightPlan = new AircraftFlightPlan(),
         };
         ac.Transponder.AssignCode(assignedCode, null, null);
+        engine.World.AddAircraft(ac);
+        return ac;
+    }
+
+    private static AircraftState AddLinedUpForDeparture(SimulationEngine engine, string callsign)
+    {
+        var ac = LinedUpAircraft.AtOak28R(callsign);
         engine.World.AddAircraft(ac);
         return ac;
     }
@@ -224,6 +232,28 @@ public class ActionRouterTests
 
         Assert.False(outcome.Result.Success);
         Assert.Contains("cannot be part of a chained command", outcome.Result.Message);
+        var recorded = Assert.IsType<RecordedCommand>(Assert.Single(engine.Scenario!.ActionLog));
+        Assert.False(recorded.Accepted);
+    }
+
+    /// <summary>
+    /// The same shape for a takeoff clearance paired with an immediate turn (`CTO, R270`, the mis-spelling of the
+    /// departure modifier `CTO MR270`): refused before dispatch, so the aircraft keeps the phase it was on and no
+    /// MakeTurnPhase is inserted ahead of its takeoff chain.
+    /// </summary>
+    [Fact]
+    public void ChainPairingATakeoffClearanceWithATurn_IsRefused_AndRecordedAsRejected()
+    {
+        var engine = BuildEngine(soloTrainingMode: false, reactionDelaySeconds: 0);
+        var ac = AddLinedUpForDeparture(engine, "UAL123");
+        var phaseBefore = ac.Phases!.CurrentPhase;
+
+        var outcome = engine.Actions.Issue(new ActionInput("UAL123", "CTO, R270", "conn-1", "XX", Baked: null));
+
+        Assert.False(outcome.Result.Success);
+        Assert.Contains("cannot be paired with a takeoff clearance", outcome.Result.Message);
+        Assert.Same(phaseBefore, ac.Phases!.CurrentPhase);
+        Assert.DoesNotContain(ac.Phases.Phases, p => p is MakeTurnPhase);
         var recorded = Assert.IsType<RecordedCommand>(Assert.Single(engine.Scenario!.ActionLog));
         Assert.False(recorded.Accepted);
     }

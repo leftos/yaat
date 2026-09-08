@@ -31,4 +31,32 @@ public class CompoundPolicyTests
     {
         Assert.Null(CompoundPolicy.FindNonCompoundableInChain(command));
     }
+
+    /// <summary>
+    /// A parallel block pairing a takeoff clearance with an immediate turn (`CTO, R270`) is the mis-spelling of
+    /// the departure modifier `CTO MR270`: the turn is refused on the ground, so the block leaves the aircraft
+    /// rolling with only half of what was typed. Both orders are found, and every takeoff clearance in the family
+    /// (CTO, CTOPP, GO) counts.
+    /// </summary>
+    [Theory]
+    [InlineData("CTO, R270", typeof(MakeRight270Command))]
+    [InlineData("R270, CTO", typeof(MakeRight270Command))]
+    [InlineData("CTOPP, R270", typeof(MakeRight270Command))]
+    [InlineData("GO, L360", typeof(MakeLeft360Command))]
+    public void TakeoffPairedWithImmediateTurn_IsFound(string command, Type expectedType)
+    {
+        var found = CompoundPolicy.FindTakeoffPairedWithImmediateTurn(command);
+        Assert.NotNull(found);
+        Assert.IsType(expectedType, found);
+    }
+
+    [Theory]
+    [InlineData("CTO; R270")] // sequential: the turn queues until airborne, which is what the RPO asked for
+    [InlineData("CTO MR270")] // the departure modifier itself
+    [InlineData("R270")] // single command, not a pairing
+    [InlineData("CTO, SQ 1234")] // a takeoff clearance may still be paired with other verbs
+    public void TakeoffWithoutAPairedImmediateTurn_PassesThrough(string command)
+    {
+        Assert.Null(CompoundPolicy.FindTakeoffPairedWithImmediateTurn(command));
+    }
 }

@@ -976,8 +976,8 @@ A pattern entry that is still **queued** behind another instruction (`DCT VPCOL;
 | `ELC 28R` / `ERC 28R` | Enter left/right crosswind, assign runway |
 | `SA` / `MSA` | Make short approach — compress the unflown pattern. Issue while on or before downwind/base; can be chained with `ERD`/`ERB` (e.g. `ERD 28R; SA`) to arm the upcoming leg, or issued separately while a pattern entry is still queued behind another command (e.g. `DCT VPCOL; ERD 28R`, then a separate `SA`) to pre-arm the downwind the entry builds. |
 | `MNA` | Make normal approach — clear an armed/active short approach or a pre-armed leg extension. Same chaining/queued-entry semantics as `SA`; issued while a pattern entry is still queued, it cancels any pending `EXT`/`SA` pre-arm for that entry. |
-| `L360` / `R360` (`ML3`/`ML360`, `MR3`/`MR360`) | Left/right 360° orbit in the pattern (resumes same leg after). Flies the orbit at holding speed, then resumes normal speed. |
-| `L270` / `R270` | Left/right 270° turn (immediate). Flies at holding speed, then resumes normal speed. |
+| `L360` / `R360` (`ML3`/`ML360`, `MR3`/`MR360`) | Left/right 360° orbit in the pattern (resumes same leg after). Flies the orbit at holding speed, then resumes normal speed. Airborne only; there is no 360 departure form — clear for takeoff, then issue it once airborne. |
+| `L270` / `R270` | Left/right 270° turn (immediate). Flies at holding speed, then resumes normal speed. Airborne only — for a 270° departure use `CTO MR270` / `CTO ML270`; the paired form `CTO, R270` is refused with that pointer. |
 | `P270` / `PLAN270` | Plan a 270° turn at the next pattern turn point |
 | `NO270` | Cancel a 270 in progress or a planned 270 |
 | `PS 1.5` / `PATTSIZE 1.5` | Set pattern size (0.25–10.0 NM downwind offset). A size below the aircraft's turn-radius minimum (roughly two pattern-turn radii at its downwind/base speeds) gets an "unable" readback and the pattern is flown at that minimum instead — a tighter pattern would overshoot the turn to final. |

@@ -1,3 +1,5 @@
+using System.Diagnostics.CodeAnalysis;
+
 namespace Yaat.Sim.Commands;
 
 /// <summary>
@@ -71,26 +73,100 @@ public static class CompoundPolicy
     /// </summary>
     public static ParsedCommand? FindNonCompoundableInChain(string command)
     {
-        var single = CommandParser.Parse(command);
-        if (single.IsSuccess && single.Value is not null)
+        if (!TryParseGenuineCompound(command, out var compound))
         {
             return null;
+        }
+
+        return compound.Blocks.SelectMany(b => b.Commands).FirstOrDefault(IsNonCompoundable);
+    }
+
+    /// <summary>
+    /// Parses a line as a genuinely multi-command compound. False — with no compound — when the single-command
+    /// parser accepts the line whole (a free-text command such as NOTE legitimately swallows a <c>;</c> into its
+    /// text, and the server's single-command router handles it as that one command), when the line does not parse
+    /// as a compound at all, or when the compound turns out to hold a single command.
+    /// </summary>
+    private static bool TryParseGenuineCompound(string command, [NotNullWhen(true)] out CompoundCommand? compound)
+    {
+        compound = null;
+
+        var single = CommandParser.Parse(command);
+        if ((single.IsSuccess) && (single.Value is not null))
+        {
+            return false;
         }
 
         var parsed = CommandParser.ParseCompound(command);
-        if (!parsed.IsSuccess || parsed.Value is null)
+        if ((!parsed.IsSuccess) || (parsed.Value is null))
         {
-            return null;
+            return false;
         }
 
-        var allCommands = parsed.Value.Blocks.SelectMany(b => b.Commands).ToList();
-        if (allCommands.Count < 2)
+        if (parsed.Value.Blocks.Sum(b => b.Commands.Count) < 2)
         {
-            return null;
+            return false;
         }
 
-        return allCommands.Find(IsNonCompoundable);
+        compound = parsed.Value;
+        return true;
     }
+
+    /// <summary>
+    /// The immediate turn in a parallel block that also carries a takeoff clearance (CTO, CTOPP or GO), or null.
+    /// `CTO, R270` is a mis-spelling of the departure modifier `CTO MR270`: applied as typed, the clearance rolls
+    /// the aircraft and the turn is rejected on the ground (or, before the guard, wedged it). The sequential form
+    /// `CTO; R270` is deliberate — the turn queues until airborne — and is not matched.
+    /// </summary>
+    private static ParsedCommand? FindTakeoffPairedWithImmediateTurn(CompoundCommand compound)
+    {
+        foreach (var block in compound.Blocks)
+        {
+            if (!block.Commands.Any(IsTakeoffClearance))
+            {
+                continue;
+            }
+
+            var turn = block.Commands.FirstOrDefault(IsImmediateTurn);
+            if (turn is not null)
+            {
+                return turn;
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// The text form the enforcement sites (the server's routing, the client's pre-send validation) call: they hold
+    /// the typed line, not a parsed compound.
+    /// </summary>
+    public static ParsedCommand? FindTakeoffPairedWithImmediateTurn(string command) =>
+        TryParseGenuineCompound(command, out var compound) ? FindTakeoffPairedWithImmediateTurn(compound) : null;
+
+    /// <summary>The single wording of the paired-turn refusal, so the server and the client cannot drift.</summary>
+    public static string TakeoffPairedWithImmediateTurnMessage(ParsedCommand turn) =>
+        $"{CommandDescriber.DescribeCommand(turn)} cannot be paired with a takeoff clearance — {DepartureTurnHint(TurnDegrees(turn))}";
+
+    /// <summary>
+    /// The departure form to reach for instead of an immediate turn on the ground. There is a CTO modifier for a
+    /// 270 (<c>CTO MR270</c> / <c>CTO ML270</c>) but none for a 360: a bare <c>CTO 360</c> is the fly-heading-360
+    /// departure and the MR/ML modifiers cap at 359, so a 360 can only be flown once the aircraft is airborne.
+    /// </summary>
+    internal static string DepartureTurnHint(int degrees) =>
+        degrees == 360
+            ? "there is no 360 departure form — clear for takeoff, then issue R360/L360 once airborne"
+            : "for a 270° departure use CTO MR270 or CTO ML270";
+
+    /// <summary>A takeoff clearance: bare CTO, the present-position form (CTOPP), and the takeoff-roll release (GO).</summary>
+    private static bool IsTakeoffClearance(ParsedCommand cmd) => cmd is ClearedForTakeoffCommand or ClearedTakeoffPresentCommand or GoCommand;
+
+    /// <summary>A 270/360 turn verb: dispatched, it installs a MakeTurnPhase at once rather than queueing.</summary>
+    private static bool IsImmediateTurn(ParsedCommand cmd) =>
+        cmd is MakeLeft270Command or MakeRight270Command or MakeLeft360Command or MakeRight360Command;
+
+    /// <summary>How far an immediate turn verb turns — the discriminator for the departure-form hint.</summary>
+    private static int TurnDegrees(ParsedCommand turn) => turn is MakeLeft360Command or MakeRight360Command ? 360 : 270;
 
     /// <summary>
     /// A per-aircraft immediate STARS op that bypasses <see cref="CommandDispatcher"/> (track, coordination, strip,

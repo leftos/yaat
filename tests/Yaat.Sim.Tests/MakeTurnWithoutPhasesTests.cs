@@ -36,6 +36,57 @@ public class MakeTurnWithoutPhasesTests(ITestOutputHelper output)
         };
     }
 
+    private static AircraftState MakeGroundAircraftWithoutPhases()
+    {
+        var ac = MakeAirborneAircraft();
+        ac.Altitude = 9;
+        ac.IndicatedAirspeed = 0;
+        ac.IsOnGround = true;
+        ac.Phases = null;
+        return ac;
+    }
+
+    /// <summary>
+    /// A turn verb issued to an aircraft on the ground is refused. MakeTurnPhase would go in ahead of the
+    /// takeoff chain and never complete — a stationary aircraft cannot pivot — stranding every phase behind
+    /// it, which is what happened when `CTO, R270` was typed for the departure modifier `CTO MR270`.
+    /// </summary>
+    [Theory]
+    [InlineData("R270", true, "for a 270° departure use CTO MR270 or CTO ML270")]
+    [InlineData("L270", true, "for a 270° departure use CTO MR270 or CTO ML270")]
+    [InlineData("R360", true, "there is no 360 departure form — clear for takeoff, then issue R360/L360 once airborne")]
+    [InlineData("L360", true, "there is no 360 departure form — clear for takeoff, then issue R360/L360 once airborne")]
+    [InlineData("R270", false, "for a 270° departure use CTO MR270 or CTO ML270")]
+    [InlineData("L270", false, "for a 270° departure use CTO MR270 or CTO ML270")]
+    [InlineData("R360", false, "there is no 360 departure form — clear for takeoff, then issue R360/L360 once airborne")]
+    [InlineData("L360", false, "there is no 360 departure form — clear for takeoff, then issue R360/L360 once airborne")]
+    public void MakeTurn_OnGround_IsRejected(string command, bool withTakeoffPhases, string expectedHint)
+    {
+        var ac = withTakeoffPhases ? LinedUpAircraft.AtOak28R("TEST1") : MakeGroundAircraftWithoutPhases();
+        var phaseBefore = ac.Phases?.CurrentPhase;
+
+        var parsed = CommandParser.Parse(command);
+        Assert.True(parsed.IsSuccess, $"Parse failed: {parsed.Reason}");
+
+        var result = CommandDispatcher.Dispatch(parsed.Value!, ac, TestDispatch.Context(new Random(0), validateDctFixes: false));
+
+        output.WriteLine($"{command} (takeoffPhases={withTakeoffPhases}): Success={result.Success} Message={result.Message}");
+
+        Assert.False(result.Success, $"{command} on the ground should be refused but got: {result.Message}");
+        Assert.Contains("requires the aircraft to be airborne", result.Message);
+        Assert.Contains(expectedHint, result.Message);
+
+        if (withTakeoffPhases)
+        {
+            Assert.Same(phaseBefore, ac.Phases?.CurrentPhase);
+            Assert.DoesNotContain(ac.Phases!.Phases, p => p is MakeTurnPhase);
+        }
+        else
+        {
+            Assert.Null(ac.Phases);
+        }
+    }
+
     [Theory]
     [InlineData("R360", "Make right 360")]
     [InlineData("L360", "Make left 360")]

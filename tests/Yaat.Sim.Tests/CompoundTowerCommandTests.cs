@@ -23,50 +23,6 @@ public class CompoundTowerCommandTests
         TestVnasData.EnsureInitialized();
     }
 
-    private static RunwayInfo Oak28R() =>
-        TestRunwayFactory.Make(
-            designator: "28R",
-            airportId: "OAK",
-            thresholdLat: 37.72,
-            thresholdLon: -122.22,
-            endLat: 37.73,
-            endLon: -122.27,
-            heading: 280,
-            elevationFt: 9
-        );
-
-    private static AircraftState MakeLinedUpAircraft(RunwayInfo runway)
-    {
-        var ac = new AircraftState
-        {
-            Callsign = "TEST1",
-            AircraftType = "B738",
-            Position = new LatLon(runway.ThresholdLatitude, runway.ThresholdLongitude),
-            TrueHeading = runway.TrueHeading,
-            Altitude = runway.ElevationFt,
-            IndicatedAirspeed = 0,
-            IsOnGround = true,
-            // VFR — the CTO modifiers exercised in these tests (MR270) are VFR-only.
-            // IFR aircraft are restricted to bare CTO or a numeric heading vector.
-            FlightPlan = new AircraftFlightPlan
-            {
-                Departure = "OAK",
-                Altitude = PlannedAltitude.Vfr(5000),
-                FlightRules = "VFR",
-            },
-        };
-
-        var phases = new PhaseList { AssignedRunway = runway };
-        phases.Add(new LinedUpAndWaitingPhase());
-        phases.Add(new TakeoffPhase());
-        phases.Add(new InitialClimbPhase { Departure = new DefaultDeparture(), CruiseAltitude = 5000 });
-
-        ac.Phases = phases;
-        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac));
-
-        return ac;
-    }
-
     private static PhaseContext MakePhaseContext(AircraftState ac, double delta = 1.0)
     {
         var runway = ac.Phases?.AssignedRunway;
@@ -146,8 +102,7 @@ public class CompoundTowerCommandTests
             return;
         }
 
-        var runway = Oak28R();
-        var ac = MakeLinedUpAircraft(runway);
+        var ac = LinedUpAircraft.AtOak28R("TEST1");
 
         // Parse the compound command
         var parseResult = CommandParser.ParseCompound("CTO MR270; DCT SUNOL", ac.FlightPlan.Route);
@@ -180,8 +135,7 @@ public class CompoundTowerCommandTests
             return;
         }
 
-        var runway = Oak28R();
-        var ac = MakeLinedUpAircraft(runway);
+        var ac = LinedUpAircraft.AtOak28R("TEST1");
 
         // Parse and dispatch
         var parseResult = CommandParser.ParseCompound("CTO MR270; DCT SUNOL", ac.FlightPlan.Route);
@@ -392,7 +346,7 @@ public class CompoundTowerCommandTests
     [Fact]
     public void CtoImmediate_SetsExpeditingLineupFlag()
     {
-        var ac = MakeLinedUpAircraft(Oak28R());
+        var ac = LinedUpAircraft.AtOak28R("TEST1");
         var compound = Block(new ClearedForTakeoffCommand(new DefaultDeparture()) { Immediate = true });
 
         var result = CommandDispatcher.DispatchCompound(compound, ac, TestDispatch.Context(new Random(42), validateDctFixes: false));
@@ -404,7 +358,7 @@ public class CompoundTowerCommandTests
     [Fact]
     public void PlainCto_DoesNotSetExpeditingLineupFlag()
     {
-        var ac = MakeLinedUpAircraft(Oak28R());
+        var ac = LinedUpAircraft.AtOak28R("TEST1");
         var compound = Block(new ClearedForTakeoffCommand(new DefaultDeparture()));
 
         var result = CommandDispatcher.DispatchCompound(compound, ac, TestDispatch.Context(new Random(42), validateDctFixes: false));
@@ -416,7 +370,7 @@ public class CompoundTowerCommandTests
     [Fact]
     public void Ctoc_ClearsExpeditingLineupFlag()
     {
-        var ac = MakeLinedUpAircraft(Oak28R());
+        var ac = LinedUpAircraft.AtOak28R("TEST1");
         CommandDispatcher.DispatchCompound(
             Block(new ClearedForTakeoffCommand(new DefaultDeparture()) { Immediate = true }),
             ac,
@@ -431,5 +385,44 @@ public class CompoundTowerCommandTests
         );
 
         Assert.False(ac.Ground.IsExpeditingLineup);
+    }
+
+    /// <summary>
+    /// `CTO, R270` — the RPO means the departure modifier `CTO MR270`. Applied as typed, the turn would go in
+    /// ahead of the takeoff chain and never complete on a stationary aircraft, wedging every phase behind it and
+    /// leaving CTO/CTOC refused. The block must fail with no MakeTurnPhase anywhere in the list, and the takeoff
+    /// clearance the driver applied before the sibling failed must still be cancellable with CTOC.
+    /// </summary>
+    [Fact]
+    public void CtoComma_R270_OnGround_DoesNotWedge()
+    {
+        var ac = LinedUpAircraft.AtOak28R("TEST1");
+
+        var parseResult = CommandParser.ParseCompound("CTO, R270", ac.FlightPlan.Route);
+        Assert.True(parseResult.IsSuccess, $"Parse failed: {parseResult.Reason}");
+
+        var result = CommandDispatcher.DispatchCompound(parseResult.Value!, ac, TestDispatch.Context(new Random(42), validateDctFixes: false));
+
+        _output.WriteLine($"CTO, R270: Success={result.Success} Message={result.Message}");
+
+        Assert.False(result.Success, $"CTO, R270 should be refused on the ground but got: {result.Message}");
+        Assert.DoesNotContain(ac.Phases!.Phases, p => p is MakeTurnPhase);
+
+        // CTO applied before the sibling turn failed: the lineup phase's takeoff-clearance requirement is satisfied.
+        var lineUp = Assert.IsType<LinedUpAndWaitingPhase>(ac.Phases.CurrentPhase);
+        Assert.True(
+            lineUp.Requirements.Single(r => r.Type == ClearanceType.ClearedForTakeoff).IsSatisfied,
+            "CTO was applied before the sibling failed, so the takeoff clearance requirement should be satisfied"
+        );
+
+        var ctoc = CommandDispatcher.DispatchCompound(
+            Block(new CancelTakeoffClearanceCommand()),
+            ac,
+            TestDispatch.Context(new Random(42), validateDctFixes: false)
+        );
+
+        _output.WriteLine($"CTOC: Success={ctoc.Success} Message={ctoc.Message}");
+        Assert.True(ctoc.Success, $"CTOC should cancel the takeoff clearance CTO applied but got: {ctoc.Message}");
+        Assert.False(lineUp.Requirements.Single(r => r.Type == ClearanceType.ClearedForTakeoff).IsSatisfied);
     }
 }
