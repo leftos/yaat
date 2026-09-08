@@ -61,8 +61,8 @@ SendCommandAsync(connectionId, callsign, command, initials)
   │    ↓ refuse a chain with a non-compoundable verb; split a scoped-special compound into units
   │    ↓ RecordedCommandClassifier.Classify → ArmTable.For(kind)
   │    ↓ resolve the scope (Aircraft: FindAircraft, else "Aircraft 'X' not found") and the identity
-  │    ↓ run the row: a Sim body (ActionArms, StripCommandHandler, TdlsCommandHandler) or a host slot (RoomHost →
-  │      the room's coordination handler, bookmarks, the clock, ASDE-X); the body notifies the host's consumers
+  │    ↓ run the row: a Sim body (ActionArms, StripCommandHandler, TdlsCommandHandler, CoordinationCommandHandler) or a host slot (RoomHost →
+  │      bookmarks, the clock, ASDE-X); the body notifies the host's consumers
   │    ↓ record the text with its verdict (RecordedCommand.Accepted), accepted or not
   ↓ terminal echo: "Command" (or "Strip" for a strip verb) + "Response" / "Error"; a global or
     position-scoped command echoes with no callsign
@@ -92,12 +92,12 @@ log and the router ignores it from a record.
 | `FlightPlan` | `FP` / `VP` / `DA` / `REMARKS` | Callsign | Sim: `SimulationEngine.AmendFlightPlan` fresh, recording a `RecordedAmendFlightPlan` that carries the state; from a record only the creator tag (the amendment record replays the plan) | Text |
 | `Delete` | `DEL` | Callsign | Sim: `SimulationEngine.DeleteAircraft` | Text |
 | `DeleteQueued` | `DELAT` / `DELCOND` | Aircraft | Sim: `ConditionalList.Delete` | Text |
-| `TrackOwnership` | `TRACK`, `DROP`, `HO`, `ACCEPT`, `PO`, `ACK`, `CAACK`, `INHCA`, scratchpads, `TEMPALT`, cruise, leader / J-ring / cone, ASDE-X edits … (`TrackEngine.IsTrackCommand` minus `AS`) | Aircraft | Sim: `TrackEngine.Dispatch` (+ scratchpad rules, `OnTrackAcquired`, the ghost-drop tails) | Text |
+| `TrackOwnership` | `TRACK`, `DROP`, `HO`, `ACCEPT`, `PO`, `ACK`, `CAACK`, `INHCA`, scratchpads, `TEMPALT`, cruise, leader / J-ring / cone, ASDE-X edits … (`TrackEngine.IsTrackCommand` minus `AS`) | Aircraft | Sim: `TrackEngine.Dispatch` (+ scratchpad rules, `RemoveCoordinationOnRadarAcquisition`, the ghost-drop tails) | Text |
 | `GhostTrack` | `GHOST` | Callsign | Sim: `TrackEngine.CreateGhostTrack` | Text |
 | `Reposition` | `RPOSLOC` / `RPOSMOVE` | Aircraft | Sim: `TrackEngine.RepositionToLocation` / `RepositionMove` | Text |
 | `Strip` | `STRIP*`, `AN`, `SEPM`, `HSC` … (`TrackEngine.IsStripCommand`) | Callsign | Sim: `StripCommandHandler.Handle` (bakes the id a creating verb minted) | Text |
-| `Coordination` | `RD`, `RDH`, `RDR`, `RDACK`, `RDDEL`, `RDPOS`, `RDTXT` | Aircraft | Host: `ApplyCoordination` | Text |
-| `GlobalCoordination` | `RDAUTO` | Position | Host: `ApplyGlobalCoordination` | Text |
+| `Coordination` | `RD`, `RDH`, `RDR`, `RDACK`, `RDDEL`, `RDPOS`, `RDTXT` | Aircraft | Sim: `CoordinationCommandHandler.Handle` | Text |
+| `GlobalCoordination` | `RDAUTO` | Position | Sim: `CoordinationCommandHandler.HandleGlobal` | Text |
 | `Consolidate` / `Deconsolidate` | `CON` / `CON+` / `DECON` | Global | Sim: `SimulationEngine.Consolidate` / `Deconsolidate` | Text |
 | `SpawnNow` / `SpawnDelay` | `SPAWN` / `SPAWNDELAY` | Callsign | Sim: `SimulationEngine.SpawnNow` / `SpawnDelay` | Text |
 | `SquawkAll` | `SQALL` / `SNALL` / `SSALL` | Global | Sim: `SimulationEngine.SquawkAll` | Text |
@@ -218,7 +218,7 @@ land an unattended target on its attended consolidation owner through the `Conso
 `Attendance` — the recorded input the live room syncs from `PositionRegistry` and every other run kind replays, so a
 rewind redirects exactly as live did. The arm
 also runs the tails a track verb has beyond the track itself, on every run kind: a `TRACK` applies the facility's
-scratchpad rules and voids the aircraft's coordination items (`OnTrackAcquired`), an `INHCA` drops the aircraft's active
+scratchpad rules and voids the aircraft's coordination items (`SimulationEngine.RemoveCoordinationOnRadarAcquisition`), an `INHCA` drops the aircraft's active
 conflicts, a `DROP` of a ghost lifts the overlay (`OnGhostOverlayRemoved`) or deletes the phantom (`OnAircraftDeleted`).
 `ACCEPTALL` / `HOALL`, `GHOST`, `RPOSLOC` / `RPOSMOVE` and `CAACK` are the `GlobalTrack`, `GhostTrack`, `Reposition`
 and `Track` arms over `TrackEngine.DispatchGlobal` / `CreateGhostTrack` / `RepositionToLocation` / `RepositionMove` /
@@ -234,9 +234,9 @@ Add a track verb once, in `TrackEngine.Dispatch`, and test it in `Yaat.Sim.Tests
 
 **Non-compoundable rejection.** A genuinely multi-command compound containing a rejection-set command (PAUSE, spawn, flight-plan ops, room-wide commands — `CompoundPolicy.IsNonCompoundable` in Yaat.Sim, the single predicate shared with the client's pre-send check in `MainViewModel`) is rejected outright with *"{verb} cannot be part of a chained command"* instead of falling through to the single-command router, where the queued unit would no-op at fire time. A line the single-command parser accepts whole (free-text `NOTE …; …`) is not a chain and passes through; `DEL` and `DEST`/`APT` are deliberately **not** in the rejection set — they have real chain semantics (`CROSS 28R; DEL`, `AT 5000 APT OAK`).
 
-## Coordination command bypass — `CoordinationCommandHandler`
+## Coordination command bypass — `CoordinationCommandHandler` (`Simulation/Coordination/`)
 
-`RD`, `RDH`, `RDR`, `RDACK`, `RDAUTO`, `RDDEL`, `RDPOS`, `RDTXT` — STARS coordination items between TCPs. Channels are resolved from ARTCC config; items auto-expire 5 min after ack. The router's `Coordination` / `GlobalCoordination` arms hand the parsed verb to the host's slot (`RoomHost.ApplyCoordination` → `CoordinationCommandHandler`); CRC's F13 entries (`CrcClientState.CrcCoordinationCommand`) build the verb, fill a list-less sender verb with the sender's single list (`CoordinationCommandHandler.InferSenderListId`), and issue its canonical text through `RoomEngine.RecordAndDispatch`, so every entry is a recorded `AS {tcp} RD…` command a rewind re-applies. The canonical forms round-trip through the parser (`CoordinationCanonicalRoundTripTests`): `RDH {list} {text}` carries the held text, and a list-qualified modify is `RDTXT /{list} {text}` — a leading `/token` is the list, a message never starts with a slash.
+`RD`, `RDH`, `RDR`, `RDACK`, `RDAUTO`, `RDDEL`, `RDPOS`, `RDTXT` — STARS coordination items between TCPs. Channels are loaded from the ARTCC config by `SimulationEngine.InitializeFromArtcc` into `SimScenarioState.CoordinationChannels` (snapshotted). The router's `Coordination` / `GlobalCoordination` arms run the static handler over the engine on every run kind (the bodies crossed from yaat-server on 2026-09-07); a new item's id is `{ListId}-{SequenceNumber}`, so a replay or reconstruction holds the same item as live. `SimulationEngine.TickCoordinationTimers` (post-physics) expires an acknowledged release `SimScenarioState.CoordinationAckExpirySeconds` (180 s) after the ack, flags the departure-expiration warning once `CoordinationExpiryWarningSeconds` (120 s) remain, and removes a recalled item after `CoordinationRecallLingerSeconds` (10 s); a `TRACK` removes the aircraft's items (`RemoveCoordinationOnRadarAcquisition`, from the Track arm). Every mutation sets the engine's coordination dirty flag, drained as `IStateChangeConsumer.OnCoordinationChanged()` — the live room re-pushes the whole `StarsCoordination` topic. CRC's F13 entries (`CrcClientState.CrcCoordinationCommand`) build the verb, fill a list-less sender verb with the sender's single list (`CoordinationCommandHandler.InferSenderListId`), and issue its canonical text through `RoomEngine.RecordAndDispatch`, so every entry is a recorded `AS {tcp} RD…` command a rewind re-applies. The canonical forms round-trip through the parser (`CoordinationCanonicalRoundTripTests`): `RDH {list} {text}` carries the held text, and a list-qualified modify is `RDTXT /{list} {text}` — a leading `/token` is the list, a message never starts with a slash.
 
 ## Deferred dispatch — WAIT, BEHIND, and the command-run delay
 

@@ -324,7 +324,7 @@ internal static class ActionArms
         {
             case TrackAircraftCommand:
                 ScratchpadRuleEngine.Apply(aircraft, scenario.ArtccConfig?.GetStarsConfigForFacility(scenario.StudentPosition?.FacilityId ?? ""));
-                ctx.Host.OnTrackAcquired(aircraft.Callsign);
+                engine.RemoveCoordinationOnRadarAcquisition(aircraft.Callsign);
                 break;
             case InhibitConflictAlertCommand when aircraft.Stars.IsCaInhibited:
                 var inhibited = engine

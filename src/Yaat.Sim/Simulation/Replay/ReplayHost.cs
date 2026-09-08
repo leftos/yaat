@@ -53,8 +53,6 @@ internal sealed class ReplayHost : ISimulationHost
 
     public void LiveTrafficSync() => _bare.LiveTrafficSync();
 
-    public void CoordinationTimers() => _bare.CoordinationTimers();
-
     public void TowerLists() => _bare.TowerLists();
 
     public void AsdexAlerts() => _bare.AsdexAlerts();
@@ -97,12 +95,6 @@ internal sealed class ReplayHost : ISimulationHost
 
     // --- IActionHost: a replay has no room, so every slot is the bare host's refusal and every consumer its no-op ---
 
-    public CommandResult ApplyCoordination(AircraftState aircraft, ParsedCommand command, TrackOwner? identity) =>
-        _bare.ApplyCoordination(aircraft, command, identity);
-
-    public CommandResult ApplyGlobalCoordination(CoordinationAutoAckCommand command, TrackOwner? identity) =>
-        _bare.ApplyGlobalCoordination(command, identity);
-
     public CommandResult ApplyAsdexEnableAllAlerts() => _bare.ApplyAsdexEnableAllAlerts();
 
     public CommandResult ApplyBookmark(BookmarkCommand command, string initials) => _bare.ApplyBookmark(command, initials);
@@ -125,8 +117,6 @@ internal sealed class ReplayHost : ISimulationHost
 
     public void OnPositionSelected(string connectionId, TrackOwner owner, string tcpCode) => _bare.OnPositionSelected(connectionId, owner, tcpCode);
 
-    public void OnTrackAcquired(string callsign) => _bare.OnTrackAcquired(callsign);
-
     public void OnGhostOverlayRemoved(string callsign) => _bare.OnGhostOverlayRemoved(callsign);
 
     public void OnAsdexTrackTerminated(string callsign) => _bare.OnAsdexTrackTerminated(callsign);
@@ -134,6 +124,8 @@ internal sealed class ReplayHost : ISimulationHost
     public void OnStripsChanged(StripChangeSet changes) => _bare.OnStripsChanged(changes);
 
     public void OnTdlsChanged(TdlsChangeSet changes) => _bare.OnTdlsChanged(changes);
+
+    public void OnCoordinationChanged() => _bare.OnCoordinationChanged();
 
     public void OnTimersChanged() => _bare.OnTimersChanged();
 

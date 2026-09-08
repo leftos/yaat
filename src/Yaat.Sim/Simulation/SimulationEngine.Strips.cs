@@ -10,7 +10,7 @@ namespace Yaat.Sim.Simulation;
 // deferred strip dispatch — plus the spawn hook's auto-print and the reprint a flight-plan amendment owes. They decide
 // from engine state alone (the session clock, the scenario's student position, the ARTCC's bay configuration, the
 // world), so every run kind builds the same racks and printer queues; what the mutations touched is drained to the
-// host from <see cref="DrainStripTdlsChangesInto"/>.
+// host from <see cref="DrainStateChangesInto"/>.
 public sealed partial class SimulationEngine
 {
     /// <summary>

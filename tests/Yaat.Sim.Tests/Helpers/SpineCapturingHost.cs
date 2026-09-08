@@ -13,10 +13,10 @@ namespace Yaat.Sim.Tests.Helpers;
 /// <summary>
 /// A whole-spine host for a bare engine: every step, slot and consumer is the engine's own bare host, so
 /// <see cref="SimulationEngine.RunSecond"/> under this behaves exactly as <see cref="SimulationEngine.TickOneSecond"/>
-/// does — except that the TDLS change sets the post-physics drain step hands over are recorded here. That is what it
+/// does — except that the state changes the post-physics drain step hands over are recorded here. That is what it
 /// is for: the action router drains into the host too, so only a second driven with this host can show that the
-/// <see cref="StepId.StripTdlsChanges"/> entry delivers what the tick steps produced. The strip change sets are
-/// recorded the same way.
+/// <see cref="StepId.StateChanges"/> entry delivers what the tick steps produced. The strip change sets and the
+/// coordination notifications are recorded the same way.
 /// </summary>
 public sealed class SpineCapturingHost : ISimulationHost
 {
@@ -32,6 +32,15 @@ public sealed class SpineCapturingHost : ISimulationHost
 
     /// <summary>Every strip change set the spine's drain step handed over, in order.</summary>
     public List<StripChangeSet> StripChanges { get; } = [];
+
+    /// <summary>How many times a drain — the router's or the spine's — reported the coordination lists changed.</summary>
+    public int CoordinationChangeCount { get; private set; }
+
+    public void OnCoordinationChanged()
+    {
+        CoordinationChangeCount++;
+        _bare.OnCoordinationChanged();
+    }
 
     public void OnTdlsChanged(TdlsChangeSet changes)
     {
@@ -50,8 +59,6 @@ public sealed class SpineCapturingHost : ISimulationHost
     public void ApplyPreTickRecordedActions(int second) => _bare.ApplyPreTickRecordedActions(second);
 
     public void LiveTrafficSync() => _bare.LiveTrafficSync();
-
-    public void CoordinationTimers() => _bare.CoordinationTimers();
 
     public void TowerLists() => _bare.TowerLists();
 
@@ -99,12 +106,6 @@ public sealed class SpineCapturingHost : ISimulationHost
 
     // --- IActionHost ---
 
-    public CommandResult ApplyCoordination(AircraftState aircraft, ParsedCommand command, TrackOwner? identity) =>
-        _bare.ApplyCoordination(aircraft, command, identity);
-
-    public CommandResult ApplyGlobalCoordination(CoordinationAutoAckCommand command, TrackOwner? identity) =>
-        _bare.ApplyGlobalCoordination(command, identity);
-
     public CommandResult ApplyAsdexEnableAllAlerts() => _bare.ApplyAsdexEnableAllAlerts();
 
     public CommandResult ApplyBookmark(BookmarkCommand command, string initials) => _bare.ApplyBookmark(command, initials);
@@ -126,8 +127,6 @@ public sealed class SpineCapturingHost : ISimulationHost
     public void OnLiveTrafficHidden(string callsign) => _bare.OnLiveTrafficHidden(callsign);
 
     public void OnPositionSelected(string connectionId, TrackOwner owner, string tcpCode) => _bare.OnPositionSelected(connectionId, owner, tcpCode);
-
-    public void OnTrackAcquired(string callsign) => _bare.OnTrackAcquired(callsign);
 
     public void OnGhostOverlayRemoved(string callsign) => _bare.OnGhostOverlayRemoved(callsign);
 

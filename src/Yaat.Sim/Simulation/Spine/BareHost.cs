@@ -25,8 +25,6 @@ internal sealed class BareHost(SimulationEngine engine) : ISimulationHost
 
     public void LiveTrafficSync() { }
 
-    public void CoordinationTimers() { }
-
     public void TowerLists() { }
 
     public void AsdexAlerts() { }
@@ -107,10 +105,6 @@ internal sealed class BareHost(SimulationEngine engine) : ISimulationHost
 
     // --- IActionHost: no room, so every slot is refused and every consumer is a no-op ---
 
-    public CommandResult ApplyCoordination(AircraftState aircraft, ParsedCommand command, TrackOwner? identity) => ActionRefusals.HostOnly(command);
-
-    public CommandResult ApplyGlobalCoordination(CoordinationAutoAckCommand command, TrackOwner? identity) => ActionRefusals.HostOnly(command);
-
     public CommandResult ApplyAsdexEnableAllAlerts() => ActionRefusals.HostOnly("ASDXALERTS");
 
     public CommandResult ApplyBookmark(BookmarkCommand command, string initials) => ActionRefusals.HostOnly(command);
@@ -133,8 +127,6 @@ internal sealed class BareHost(SimulationEngine engine) : ISimulationHost
 
     public void OnPositionSelected(string connectionId, TrackOwner owner, string tcpCode) { }
 
-    public void OnTrackAcquired(string callsign) { }
-
     public void OnGhostOverlayRemoved(string callsign) { }
 
     public void OnAsdexTrackTerminated(string callsign) { }
@@ -144,6 +136,9 @@ internal sealed class BareHost(SimulationEngine engine) : ISimulationHost
 
     /// <summary>Discarded: a bare engine has no vTDLS client to push items to. The mutations themselves are engine state.</summary>
     public void OnTdlsChanged(TdlsChangeSet changes) { }
+
+    /// <summary>Discarded: a bare engine has no CRC client to re-push the coordination topic to. The lists are engine state.</summary>
+    public void OnCoordinationChanged() { }
 
     public void OnTimersChanged() { }
 

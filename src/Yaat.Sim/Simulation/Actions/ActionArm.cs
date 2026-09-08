@@ -1,5 +1,6 @@
 using System.Collections.Frozen;
 using Yaat.Sim.Commands;
+using Yaat.Sim.Simulation.Coordination;
 using Yaat.Sim.Simulation.Snapshots;
 using Yaat.Sim.Simulation.Strips;
 using Yaat.Sim.Simulation.Tdls;
@@ -113,15 +114,23 @@ public static class ArmTable
                 static ctx => TdlsCommandHandler.Handle(ctx.Engine, ctx.Parsed!, ctx.Aircraft!.Callsign)
             ),
             Sim(RecordedCommandKind.TdlsOps, RecordingPolicy.Text, static ctx => ctx.Engine.ApplyTdlsOpConfig((TdlsOpsConfigCommand)ctx.Parsed!)),
-            Host(
+            Sim(
                 RecordedCommandKind.Coordination,
                 RecordingPolicy.Text,
-                static ctx => ctx.Host.ApplyCoordination(ctx.Aircraft!, ctx.Parsed!, ctx.Identity)
+                static ctx =>
+                    ctx.Identity is null
+                        ? ActionRefusals.NoActivePosition()
+                        : CoordinationCommandHandler.Handle(ctx.Engine, ctx.Parsed!, ctx.Aircraft!.Callsign, ctx.Identity)
             ),
-            Host(
+            // Pattern-matched rather than cast: a recorded RDAUTO whose text re-parses to something else after a
+            // grammar change becomes a replay-fidelity disagreement, not an InvalidCastException mid-replay.
+            Sim(
                 RecordedCommandKind.GlobalCoordination,
                 RecordingPolicy.Text,
-                static ctx => ctx.Host.ApplyGlobalCoordination((CoordinationAutoAckCommand)ctx.Parsed!, ctx.Identity)
+                static ctx =>
+                    ctx.Identity is null ? ActionRefusals.NoActivePosition()
+                    : ctx.Parsed is CoordinationAutoAckCommand autoAck ? CoordinationCommandHandler.HandleGlobal(ctx.Engine, autoAck, ctx.Identity)
+                    : new CommandResult(false, "Unknown coordination command")
             ),
             Host(RecordedCommandKind.AsdexEnableAllAlerts, RecordingPolicy.Text, static ctx => ctx.Host.ApplyAsdexEnableAllAlerts()),
             Host(

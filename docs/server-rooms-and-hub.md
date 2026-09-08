@@ -87,7 +87,7 @@ an exotic generator target) — one-time, bounded, and fast on the negative cach
 One `RoomEngine` per room. It **owns** its `TrainingRoom` (`Room`, `:66`) and `RecordingManager` (`Recording`, `:64`,
 set by `RoomEngineFactory` right after construction) and exposes `World` (`:67`, delegates to the room's world) and
 `FindAircraft` (`:786`). Everything else is a **shared stateless singleton** injected via the primary constructor
-(`:27`-`41`): `TickProcessor`, the handler the router's host slots call (`CoordinationCommandHandler`), `SimControlService`,
+(`:27`-`41`): `TickProcessor`, `SimControlService`,
 `ScenarioLifecycleService`, the broadcasters, and the ARTCC/ground data services. Per-room state lives on the
 `TrainingRoom`, never on the singletons.
 
@@ -161,9 +161,9 @@ spine's (`SpineOrder` in Yaat.Sim, [tick-loop.md](tick-loop.md)), and `RoomHost`
   the host), and records generator spawns *after* their autotrack so the recorded snapshot carries the
   owner; `BroadcastTerminalEntries` takes the spine's drain; `ProcessDelayedHandoffs`; `SyncLiveTraffic` runs
   `ShadowTrafficSync.Sync` last — the pre-physics mutator of the aircraft set (see [live-traffic.md](live-traffic.md)).
-- **Post-physics**: the remaining ATC passes (`ProcessCoordinationTimers`, `ProcessTowerLists` — auto-accept, the point-out
-  timeout and the two autotrack passes are Yaat.Sim spine steps now, `SimulationEngine.TrackAutomation`, and read the
-  recorded `Attendance`), the consumers of the engine's
+- **Post-physics**: the remaining ATC pass (`ProcessTowerLists` — auto-accept, the point-out timeout, the two autotrack passes and the
+  coordination timers are Yaat.Sim spine steps now, `SimulationEngine.TrackAutomation` / `SimulationEngine.Coordination.cs`,
+  and the first three read the recorded `Attendance`), the consumers of the engine's
   detectors (`BroadcastConflictAlerts`, `BroadcastEramConflictAlerts`), `ProcessAsdexAlerts`,
   `ProcessSoloTrainingEvaluation`, the drain consumers (`BroadcastWarnings` / `Notifications` / `PilotSpeech` /
   `PilotReadbacks` / `PilotTransmissions`, `ProcessApproachScores`) — the strip auto-print, the deferred strip dispatch
@@ -178,7 +178,7 @@ spine's (`SpineOrder` in Yaat.Sim, [tick-loop.md](tick-loop.md)), and `RoomHost`
 Per-step timing lives on the engine: attach a dictionary to `SimulationEngine.TickTimings` and every spine step records
 under its `StepId` name (the soak runner's `--timings`, `ReconstructionBenchmarkTests`).
 
-Several of these guard on `room.IsBroadcastSuppressed` before broadcasting (e.g. `ProcessCoordinationTimers`,
+Several of these guard on `room.IsBroadcastSuppressed` before broadcasting (e.g. `ProcessTowerLists`,
 `BroadcastConflictAlerts`, `ProcessAutoDelete`). A new broadcast from a tick-processor method must add the
 same guard or it leaks replay/snapshot-engine state to real clients.
 

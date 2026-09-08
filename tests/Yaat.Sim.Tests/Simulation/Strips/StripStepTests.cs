@@ -168,7 +168,7 @@ public class StripStepTests
         var scenario = engine.Scenario!;
         scenario.StudentPosition = TrackOwner.CreateStars(positionCallsign, positionCallsign[..3], 3, "O");
         scenario.StudentPositionType = positionType;
-        engine.InitializeStripsAndTdlsFromArtcc();
+        engine.InitializeFromArtcc();
         return engine;
     }
 

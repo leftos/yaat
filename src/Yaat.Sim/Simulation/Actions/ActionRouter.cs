@@ -93,7 +93,7 @@ public sealed class ActionRouter
             case RecordedAmendFlightPlan amend:
                 _engine.AmendFlightPlan(amend.Callsign, amend.Amendment);
                 _engine.ReprintDepartureStripAfterAmendment(amend.Callsign, amend.StripId);
-                _engine.DrainStripTdlsChangesInto(host);
+                _engine.DrainStateChangesInto(host);
                 return Applied;
             case RecordedRequestNewBeaconCode recycle:
                 _engine.RequestNewBeaconCode(recycle.Callsign, recycle.AssignedByFacilityId, recycle.AssignedBySectorId);
@@ -154,7 +154,7 @@ public sealed class ActionRouter
     private CommandResult ApplyStateRecord(RecordedAction action, IActionHost host)
     {
         var result = ApplyStateRecordCore(action, host);
-        _engine.DrainStripTdlsChangesInto(host);
+        _engine.DrainStateChangesInto(host);
         return result;
     }
 
@@ -351,7 +351,7 @@ public sealed class ActionRouter
 
         // Whatever the arm touched reaches the host before the result does — fresh or recorded, accepted or refused —
         // so a live command's broadcast still precedes its response and a playback pushes per record.
-        _engine.DrainStripTdlsChangesInto(routing.Host);
+        _engine.DrainStateChangesInto(routing.Host);
 
         if (routing.Record is { } record)
         {

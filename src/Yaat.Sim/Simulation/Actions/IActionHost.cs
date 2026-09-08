@@ -11,12 +11,14 @@ namespace Yaat.Sim.Simulation.Actions;
 /// There are no default implementations — a new slot fails the build in every host until each has answered.
 ///
 /// <para>
-/// <b>Step-4 debt.</b> Every <c>Apply*</c> member here is a body whose state has not crossed into Yaat.Sim:
-/// coordination channels, the ASDE-X and SAID display state (the recorded mutations included), bookmarks and the
-/// room clock. Strips and TDLS have both crossed whole: their state is the engine's
-/// (<see cref="SimulationEngine.Strips"/> / <see cref="SimulationEngine.Tdls"/>, snapshotted, so every run kind
-/// carries them), their mutation bodies are the engine's, and what those bodies touched reaches the host through
-/// <see cref="IStateChangeConsumer.OnStripsChanged"/> and <see cref="IStateChangeConsumer.OnTdlsChanged"/> —
+/// <b>Step-4 debt.</b> Every <c>Apply*</c> member here is a body whose state has not crossed into Yaat.Sim: the
+/// ASDE-X and SAID display state (the recorded mutations included), the ERAM CRR groups, bookmarks and the
+/// room clock. Strips, TDLS and coordination have all crossed whole: their state is the engine's
+/// (<see cref="SimulationEngine.Strips"/> / <see cref="SimulationEngine.Tdls"/> /
+/// <see cref="SimScenarioState.CoordinationChannels"/>, snapshotted, so every run
+/// kind carries them), their mutation bodies are the engine's, and what those bodies touched reaches the host through
+/// <see cref="IStateChangeConsumer.OnStripsChanged"/>, <see cref="IStateChangeConsumer.OnTdlsChanged"/> and
+/// <see cref="IStateChangeConsumer.OnCoordinationChanged"/> —
 /// the broadcast is all the host still owes. The host answers no
 /// questions, because CRC attendance, the last one it was asked, is now engine state every run kind carries
 /// (<see cref="SimulationEngine.Attendance"/>, fed by <see cref="RecordedAttendanceChange"/>). As each body crosses,
@@ -33,12 +35,6 @@ namespace Yaat.Sim.Simulation.Actions;
 public interface IActionHost : IStateChangeConsumer
 {
     // --- Slots: bodies the host owns ---
-
-    /// <summary><c>RD</c> / <c>RDH</c> / <c>RDR</c> / <c>RDACK</c> / <c>RDDEL</c> / … against an aircraft that exists.</summary>
-    CommandResult ApplyCoordination(AircraftState aircraft, ParsedCommand command, TrackOwner? identity);
-
-    /// <summary><c>RDAUTO</c> — coordination auto-acknowledge for the acting position.</summary>
-    CommandResult ApplyGlobalCoordination(CoordinationAutoAckCommand command, TrackOwner? identity);
 
     /// <summary><c>ASDXALERTS</c> — clear every ASDE-X alert inhibit in the room.</summary>
     CommandResult ApplyAsdexEnableAllAlerts();
@@ -82,9 +78,6 @@ public interface IActionHost : IStateChangeConsumer
 
     /// <summary>A bare <c>AS</c> selected the connection's acting position; <paramref name="tcpCode"/> is the code as typed.</summary>
     void OnPositionSelected(string connectionId, TrackOwner owner, string tcpCode);
-
-    /// <summary>A <c>TRACK</c> acquired the aircraft: coordination items on it are moot.</summary>
-    void OnTrackAcquired(string callsign);
 
     /// <summary>A <c>DROP</c> lifted a ghost overlay off a real aircraft, which stays in the world as itself.</summary>
     void OnGhostOverlayRemoved(string callsign);

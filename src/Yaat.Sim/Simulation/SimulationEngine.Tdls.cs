@@ -11,7 +11,7 @@ namespace Yaat.Sim.Simulation;
 // the spawn hook that queues a departure's PDC, the ops-configuration verb and the strip/TDLS initialisation a scenario
 // load runs. They decide from engine state alone (the session clock, the ARTCC's TDLS configuration, the world), so
 // every run kind builds the same DCL and PDC lists; what the mutations touched is drained to the host from
-// <see cref="DrainStripTdlsChangesInto"/>.
+// <see cref="DrainStateChangesInto"/>.
 public sealed partial class SimulationEngine
 {
     /// <summary>
@@ -290,17 +290,20 @@ public sealed partial class SimulationEngine
     }
 
     /// <summary>
-    /// Pre-creates the empty rack slots of every strip bay the student's position can see, and registers a
-    /// <see cref="TdlsConfig"/> for every facility in the loaded ARTCC that has one, so the mutations can assume both
+    /// Everything a loaded ARTCC configuration puts on the engine before any verb runs: the scenario's coordination
+    /// channels, the empty rack slots of every strip bay the student's position can see, and a
+    /// <see cref="TdlsConfig"/> for every facility in the tree that has one — so the mutations can assume all three
     /// exist. Run by every path that resolves a scenario's ARTCC configuration: the server's scenario load and the
     /// replay driver once it has restored the config and the student position. A no-op without either.
     /// </summary>
-    public void InitializeStripsAndTdlsFromArtcc()
+    public void InitializeFromArtcc()
     {
         if (Scenario is not { ArtccConfig: { } config })
         {
             return;
         }
+
+        InitializeCoordinationChannelsFromArtcc();
 
         var positionCallsign = Scenario.StudentPosition?.Callsign ?? "";
         if (!string.IsNullOrEmpty(positionCallsign))
@@ -319,12 +322,12 @@ public sealed partial class SimulationEngine
     }
 
     /// <summary>
-    /// Hands the host what the strip and TDLS mutations have touched since the last drain — strips first, so an item
-    /// the same drain's TDLS half references is already there. Called by the action router after every routed action
-    /// and by the post-physics spine step for what the tick steps produced; a host that broadcasts turns it into
-    /// messages, a bare or replaying one drops it.
+    /// Hands the host what the engine's bodies have touched since the last drain — the strip change set first, so an
+    /// item the same drain's TDLS half references is already there, then the TDLS one, then the coordination flag.
+    /// Called by the action router after every routed action and by the post-physics spine step for what the tick
+    /// steps produced; a host that broadcasts turns it into messages, a bare or replaying one drops it.
     /// </summary>
-    internal void DrainStripTdlsChangesInto(IStateChangeConsumer host)
+    internal void DrainStateChangesInto(IStateChangeConsumer host)
     {
         if (Strips.Changes.HasAny)
         {
@@ -334,6 +337,12 @@ public sealed partial class SimulationEngine
         if (Tdls.Changes.HasAny)
         {
             host.OnTdlsChanged(Tdls.Changes.Drain());
+        }
+
+        if (CoordinationChanged)
+        {
+            CoordinationChanged = false;
+            host.OnCoordinationChanged();
         }
     }
 }

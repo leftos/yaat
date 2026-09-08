@@ -48,7 +48,7 @@ public static class SpineOrder
         // run; this second drain hands them to the room the same second, in the position the live server broadcast
         // them inline from.
         SpineStep.Sim(StepId.PostPhysicsTerminalEntries, static (engine, host) => host.OnTerminalEntries(engine.DrainTerminalEntries())),
-        SpineStep.Host(StepId.CoordinationTimers, static host => host.CoordinationTimers()),
+        SpineStep.Sim(StepId.CoordinationTimers, static (engine, _) => engine.TickCoordinationTimers()),
         SpineStep.Host(StepId.TowerLists, static host => host.TowerLists()),
         SpineStep.Sim(StepId.VisualDetection, static (engine, _) => engine.TickVisualDetection()),
         // The detectors run on every path so a conflict set a snapshot restore repopulated is re-examined rather
@@ -82,7 +82,7 @@ public static class SpineOrder
         SpineStep.Sim(StepId.StripDispatches, static (engine, _) => engine.TickStripDispatches()),
         // What this second's steps touched, handed over before AutoDelete so an item's aircraft still resolves for the
         // DTO the host builds.
-        SpineStep.Sim(StepId.StripTdlsChanges, static (engine, host) => engine.DrainStripTdlsChangesInto(host)),
+        SpineStep.Sim(StepId.StateChanges, static (engine, host) => engine.DrainStateChangesInto(host)),
         // The only step that removes aircraft, on every path (ADR 0002 membership: live wins) — a replay that kept
         // an aircraft the live session auto-deleted drifted until the next snapshot restore snapped it back.
         SpineStep.Sim(StepId.AutoDelete, static (engine, host) => host.OnAutoDeleted(engine.TickAutoDelete())),

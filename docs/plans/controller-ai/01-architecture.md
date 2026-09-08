@@ -141,7 +141,9 @@ Track and coordination routing currently lives server-side (`TrackCommandHandler
 `SimulationEngine`'s deferred dispatch already "handles the track engine directly, mirroring
 DispatchSinglePreset"). CA0 must either verify the sim-side engines cover TRACK/HO/ACCEPT/DROP/PO +
 the RD family headless, or extract a shared router used by the test sink. Cross-repo change, planned
-together per house rules.
+together per house rules. *Resolved:* the shared router is `ActionRouter` in Yaat.Sim (tick-path 3d), and the RD
+family itself is a Sim arm since 2026-09-07 (`CoordinationCommandHandler` in `Yaat.Sim.Simulation.Coordination`) —
+`AiSinkRoutingParityTests` pins the parity.
 
 ## Hosting
 

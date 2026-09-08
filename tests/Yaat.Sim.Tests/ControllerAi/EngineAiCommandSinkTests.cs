@@ -73,6 +73,11 @@ public class EngineAiCommandSinkTests
         Assert.False(recorded.Accepted);
     }
 
+    /// <summary>
+    /// A verb whose body is still the live server's — <c>ASDXALERTS</c>, whose ASDE-X alert inhibits are room state —
+    /// is refused by the bare engine's host with the "live server" message rather than half-applied, and the refusal is
+    /// recorded as rejected like every routed command.
+    /// </summary>
     [Fact]
     public void ServerOnlyVerb_IsRefused()
     {
@@ -84,11 +89,12 @@ public class EngineAiCommandSinkTests
         var ground = TestAiPositions.OakGround(_zoa);
         var engine = AiTestFixture.Load(AiTestFixture.ParkedAtOak, _zoa, 7, [ground]);
 
-        var result = engine.DispatchAiCommand(ground, AiTestFixture.Callsign, "RDACK");
+        var result = engine.DispatchAiCommand(ground, "", "ASDXALERTS");
 
         Assert.False(result.Success);
         Assert.Contains("live server", result.Message);
         var recorded = Assert.IsType<RecordedCommand>(Assert.Single(engine.Scenario!.ActionLog));
+        Assert.Equal("ASDXALERTS", recorded.Command);
         Assert.False(recorded.Accepted);
     }
 

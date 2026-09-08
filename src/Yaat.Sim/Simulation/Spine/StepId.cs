@@ -47,7 +47,7 @@ public enum StepId
     TdlsExpiry,
     TdlsTrackRemoval,
     StripDispatches,
-    StripTdlsChanges,
+    StateChanges,
     AutoDelete,
     SurfaceCoastExpiry,
     RundownBroadcast,

@@ -221,7 +221,7 @@ re-issues only the user's separators, as fresh `SEP` commands recorded at t=0 of
 restarting controller's connection, so they get new ids and every later rewind or export reproduces them), the snapshot's server section carries it
 (`ServerSnapshotDto.Strips`, `FlightStripSnapshotMapper`), and a rewind or bundle reconstruction
 rebuilds it from the recorded strip requests plus the engine's auto-print bodies, after which the room
-re-pushes the result to its clients (`RecordingManager.ResyncStripsAndTdlsAsync`). The mutation bodies are
+re-pushes the result to its clients (`RecordingManager.ResyncEngineStateAsync`). The mutation bodies are
 the engine's too (since 2026-09-07): `StripMutations`, `StripCommandHandler` (static, over the engine) and
 `StripRequests` in `src/Yaat.Sim/Simulation/Strips/`, the auto-print steps as
 `SimulationEngine.TickAutoArrivalStrips` / `TickAutoApproachDepartureStrips`, the deferred dispatch as
@@ -229,7 +229,7 @@ the engine's too (since 2026-09-07): `StripMutations`, `StripCommandHandler` (st
 `ReprintDepartureStripAfterAmendment` (`SimulationEngine.Strips.cs`). The router's `Strip` arm is a Sim
 arm and `RecordedStripRequest` applies in the engine, so a bare engine, a client-side replay, a server
 reconstruction and the live room run one body; the bays are pre-created by
-`SimulationEngine.InitializeStripsAndTdlsFromArtcc`, which the server's load and the Sim replay driver
+`SimulationEngine.InitializeFromArtcc`, which the server's load and the Sim replay driver
 both call. A room with no scenario has no strips, and the broadcasters send an empty full state for it.
 
 **The broadcast seam.** The mutations do not broadcast. Each marks `FlightStripState.Changes`
@@ -237,7 +237,7 @@ both call. A room with no scenario has no strips, and the broadcasters send an e
 delete or printer-queue change marks the full state, a create marks both in that order). Two drains hand a
 `StripChangeSet` to the host's `OnStripsChanged` (on `IStateChangeConsumer`, which both `IActionHost` and
 `IHostConsumers` extend, beside `OnTdlsChanged`): `ActionRouter.Finish` after every routed action and
-state record, and the `StripTdlsChanges` spine step after the post-physics steps. `RoomHost.OnStripsChanged`
+state record, and the `StateChanges` spine step after the post-physics steps. `RoomHost.OnStripsChanged`
 → `StripBroadcaster.BroadcastChanges`: the items first (so a client seeds the payload), then the full state
 when flagged, and nothing while `TrainingRoom.IsBroadcastSuppressed` (a reconstruction; the room re-syncs
 when it lands). The scenario load drains once at the end of `PopulateRoom`. `BareHost` discards the set.

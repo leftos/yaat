@@ -90,7 +90,7 @@ public class TdlsStepTests
         var scenario = engine.Scenario!;
         scenario.StudentPosition = Student;
         scenario.StudentTcp = TrackResolver.FindTcpByCode(scenario, "2B")!;
-        engine.InitializeStripsAndTdlsFromArtcc();
+        engine.InitializeFromArtcc();
         Assert.True(engine.Tdls.Configs.ContainsKey(Facility), "OAK should carry a TDLS configuration from the ZOA tree");
         return engine;
     }

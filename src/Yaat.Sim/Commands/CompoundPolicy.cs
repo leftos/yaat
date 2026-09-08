@@ -48,8 +48,8 @@ public static class CompoundPolicy
                 or AsdexEnableAllAlertsCommand
                 or AddAircraftCommand
                 or GhostTrackCommand
-                // The global coordination command (RDAUTO) — mirrors
-                // CoordinationCommandHandler.IsGlobalCoordinationCommand on the server.
+                // The global coordination command (RDAUTO): it acts on the position's list membership, not on an
+                // aircraft, so it cannot ride an aircraft compound.
                 or CoordinationAutoAckCommand;
 
     /// <summary>

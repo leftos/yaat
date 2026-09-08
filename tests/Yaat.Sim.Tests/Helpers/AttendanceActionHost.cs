@@ -28,17 +28,11 @@ public sealed class AttendanceActionHost : IActionHost
 
     public List<string> HiddenLiveTraffic { get; } = [];
 
-    public List<string> AcquiredCallsigns { get; } = [];
-
     public List<string> OverlaysRemoved { get; } = [];
 
     public List<(string ConnectionId, string Callsign, List<string> Lines)> ShownQueues { get; } = [];
 
     public void OnConsolidationChanged() => ConsolidationChanges++;
-
-    public CommandResult ApplyCoordination(AircraftState aircraft, ParsedCommand command, TrackOwner? identity) => ActionRefusals.HostOnly(command);
-
-    public CommandResult ApplyGlobalCoordination(CoordinationAutoAckCommand command, TrackOwner? identity) => ActionRefusals.HostOnly(command);
 
     public CommandResult ApplyAsdexEnableAllAlerts() => ActionRefusals.HostOnly("ASDXALERTS");
 
@@ -72,8 +66,6 @@ public sealed class AttendanceActionHost : IActionHost
 
     public void OnPositionSelected(string connectionId, TrackOwner owner, string tcpCode) => SelectedPositions.Add((connectionId, owner, tcpCode));
 
-    public void OnTrackAcquired(string callsign) => AcquiredCallsigns.Add(callsign);
-
     public void OnGhostOverlayRemoved(string callsign) => OverlaysRemoved.Add(callsign);
 
     public void OnAsdexTrackTerminated(string callsign) { }
@@ -90,6 +82,11 @@ public sealed class AttendanceActionHost : IActionHost
     public List<StripChangeSet> StripChanges { get; } = [];
 
     public void OnStripsChanged(StripChangeSet changes) => StripChanges.Add(changes);
+
+    /// <summary>How many times a drain reported the coordination lists changed.</summary>
+    public int CoordinationChanges { get; private set; }
+
+    public void OnCoordinationChanged() => CoordinationChanges++;
 
     public void OnTimersChanged() { }
 

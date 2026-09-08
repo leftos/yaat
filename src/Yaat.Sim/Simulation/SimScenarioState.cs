@@ -374,6 +374,15 @@ public sealed class SimScenarioState
     /// </summary>
     public const double PointoutNoActionSeconds = 30;
 
+    /// <summary>How long an acknowledged release stands before it voids itself.</summary>
+    public const double CoordinationAckExpirySeconds = 180;
+
+    /// <summary>Remaining seconds at which an acknowledged release shows the departure-expiration warning.</summary>
+    public const double CoordinationExpiryWarningSeconds = 120;
+
+    /// <summary>How long a recalled message lingers on the list before the timers step removes it.</summary>
+    public const double CoordinationRecallLingerSeconds = 10;
+
     public TimeSpan AutoAcceptDelay { get; set; } = TimeSpan.FromSeconds(5);
     public bool IsStudentTowerPosition { get; set; }
     public Dictionary<string, CoordinationChannel> CoordinationChannels { get; set; } = [];

@@ -33,7 +33,7 @@ public class StripIdBakedDrawTests
 
         var engine = AiTestFixture.Load(AiTestFixture.ParkedAtOak, _zoa, 7, []);
         engine.Scenario!.StudentPosition = TrackOwner.CreateStars("OAK_TWR", "OAK", 3, "O");
-        engine.InitializeStripsAndTdlsFromArtcc();
+        engine.InitializeFromArtcc();
         return engine;
     }
 
