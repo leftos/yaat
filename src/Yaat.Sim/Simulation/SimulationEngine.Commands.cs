@@ -41,9 +41,23 @@ public sealed partial class SimulationEngine
     /// aircraft begins complying when it fires through <c>ProcessDeferredDispatches</c>. The seconds come from
     /// <see cref="ReactionDelayPolicy.Decide"/> — sampled live, baked on replay. The deferral carries the origin as its
     /// <c>IsScenarioScripted</c> flag, so an AI command that fires after the delay still never marks student contact.
+    ///
+    /// <para>
+    /// Deferring replaces the dispatch, so this performs the issue-time supersede
+    /// <see cref="CommandDispatcher.DispatchCompound"/> would have done: a fresh immediate compound cancels the
+    /// controller-authored WAIT / BEHIND deferrals pending on the aircraft, exactly as the dispatcher clears them.
+    /// Sibling reaction deferrals are kept, so several commands issued in a row still fire in issue order. A
+    /// conditional incoming (<see cref="CommandDispatcher.IsConditionalIncoming"/>) is purely additive and cancels
+    /// nothing — the same rule the dispatcher applies.
+    /// </para>
     /// </summary>
     public void DeferForReaction(AircraftState aircraft, CompoundCommand compound, double seconds, DispatchOrigin origin)
     {
+        if (!CommandDispatcher.IsConditionalIncoming(compound))
+        {
+            aircraft.DeferredDispatches.RemoveAll(d => !d.IsReactionDelay);
+        }
+
         aircraft.DeferredDispatches.Add(
             new DeferredDispatch(seconds, compound)
             {

@@ -6,7 +6,6 @@ Entry point for `docs/plans/`. One line per item; the detail lives in the linked
 
 ## Bug reports and feature requests
 
-- [ ] **Pilot-reaction delay defeats clears-on-supersede** (#420, reported 2026-09-06): with `CommandRunDelayMaxSeconds > 0` a fresh immediate command never cancels a pending `WAIT`/`BEHIND`, which resurrects later and overrides it — `SimulationEngine.DeferForReaction` needs the issue-time supersede `DispatchCompound` does, with conditional incomings still exempt
 - [ ] **Rejected-takeoff scan never blocks on a preceding rolling departure** (#416, follow-up to #410): two departures rolling on one runway and the trailer lifts off through the leader — `RejectedTakeoff.FindBlockingOccupant` skips `Departing` occupants; project §3-9-6.a spacing via `SameRunwaySeparation` with a `WillBeFlying`-style projection (aviation review)
 - [ ] **Favorites menu issues** (#425, reported 2026-09-08 via Discord): the favorites menu does not switch tab with the selected aircraft's state (clicking a ground target should open the ground tab); buttons should sit next to each other and, when added one by one, fill from the top-left and pad toward the middle — reference photos on the issue
 - [ ] Live session: selecting ZOA > NCT > OAK_APP picks SJC as the primary airport instead of OAK (reported 2026-08-31)

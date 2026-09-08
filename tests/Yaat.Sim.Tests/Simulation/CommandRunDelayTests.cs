@@ -294,6 +294,69 @@ public class CommandRunDelayTests
         Assert.Equal(5.0, restored.RemainingSeconds);
     }
 
+    /// <summary>
+    /// Issue #420: a fresh immediate command must supersede a pending controller-authored WAIT even while the
+    /// pilot-reaction delay is active. The reaction path defers the new command instead of dispatching it, so the
+    /// issue-time supersede <c>DispatchCompound</c> performs has to happen in <c>DeferForReaction</c> too — otherwise
+    /// the superseded WAIT still fires later and snaps the aircraft back to the heading the controller replaced.
+    /// </summary>
+    [Fact]
+    public void FreshImmediate_SupersedesPendingWait_EvenWhenReactionDelayActive()
+    {
+        var engine = BuildEngine(minDelay: 3, maxDelay: 3);
+        var ac = AddAirborne(engine);
+
+        // A controller-authored WAIT carries its own timing, so it is exempt from the reaction delay and parks
+        // itself as a deferral firing at t=30.
+        var wait = engine.SendCommand("UAL123", "WAIT 30 FH 090");
+        Assert.True(wait.Success);
+        Assert.Single(ac.DeferredDispatches);
+
+        // A fresh immediate heading — reaction-delayed 3 s — supersedes that pending WAIT at issue time.
+        var fresh = engine.SendCommand("UAL123", "FH 270");
+        Assert.True(fresh.Success);
+
+        for (int i = 0; i < 35; i++)
+        {
+            engine.TickOneSecond();
+        }
+
+        Assert.Empty(ac.DeferredDispatches);
+        Assert.Equal(270, ac.Targets.AssignedMagneticHeading!.Value.Degrees, precision: 0);
+    }
+
+    /// <summary>
+    /// The mirror of the supersede rule: a conditional incoming is purely additive, exactly as it is on the
+    /// dispatcher path. <c>AT 6000 FH 270</c> is still reaction-delayed (only a leading WAIT/BEHIND is exempt), and
+    /// when its deferral fires the block joins the queue waiting on its altitude trigger — which never fires here,
+    /// the aircraft being level at 5000 with nothing assigned. The pending WAIT is untouched and fires on schedule.
+    /// </summary>
+    [Fact]
+    public void ConditionalIncoming_KeepsPendingWait_WhenReactionDelayActive()
+    {
+        var engine = BuildEngine(minDelay: 3, maxDelay: 3);
+        var ac = AddAirborne(engine);
+
+        var wait = engine.SendCommand("UAL123", "WAIT 30 FH 090");
+        Assert.True(wait.Success);
+        Assert.Single(ac.DeferredDispatches);
+
+        var conditional = engine.SendCommand("UAL123", "AT 6000 FH 270");
+        Assert.True(conditional.Success);
+        // Both survive the issue: the WAIT deferral and the conditional's own reaction deferral.
+        Assert.Equal(2, ac.DeferredDispatches.Count);
+
+        for (int i = 0; i < 35; i++)
+        {
+            engine.TickOneSecond();
+        }
+
+        // The WAIT fired unsuperseded...
+        Assert.Equal(90, ac.Targets.AssignedMagneticHeading!.Value.Degrees, precision: 0);
+        // ...and the conditional is still queued, waiting on 6000 ft.
+        Assert.Contains(ac.Queue.Blocks, b => (b.Trigger is { Type: BlockTriggerType.ReachAltitude }) && !b.IsApplied);
+    }
+
     private sealed class NullGroundData : IAirportGroundData
     {
         public AirportGroundLayout? GetLayout(string airportId) => null;

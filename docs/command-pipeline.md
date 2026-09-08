@@ -264,7 +264,7 @@ Three things create a deferred dispatch:
 
 ### The clears-on-supersede invariant
 
-`DispatchCompound` calls `aircraft.DeferredDispatches.Clear()` so a **new** controller command cancels pending WAITs (the new instruction supersedes). A deferred **re-dispatch** must *not* cancel its siblings, so `ProcessDeferredDispatches` detaches the surviving (not-yet-ready) deferrals across the dispatch and restores them afterward. Without this, two stacked reaction-delayed (or WAIT) commands would wipe each other when the first fires.
+`DispatchCompound` calls `aircraft.DeferredDispatches.Clear()` so a **new** controller command cancels pending WAITs (the new instruction supersedes). A deferred **re-dispatch** must *not* cancel its siblings, so `ProcessDeferredDispatches` detaches the surviving (not-yet-ready) deferrals across the dispatch and restores them afterward. Without this, two stacked reaction-delayed (or WAIT) commands would wipe each other when the first fires. When the pilot-reaction delay stands in for the dispatch (`SimulationEngine.DeferForReaction`, issue #420), the same supersede happens there at issue time: a fresh immediate compound drops the pending controller-authored `WAIT`/`BEHIND` deferrals and keeps its sibling reaction deferrals (issue order), while a conditional incoming (`CommandDispatcher.IsConditionalIncoming`) is additive and drops nothing.
 
 ## Pitfalls
 

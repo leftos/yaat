@@ -525,7 +525,7 @@ public static class CommandDispatcher
     /// Such commands are purely additive — they never clear sibling conditionals or pending
     /// deferred dispatches; only a fresh immediate command supersedes pending work.
     /// </summary>
-    private static bool IsConditionalIncoming(CompoundCommand compound) => compound.Blocks.Count > 0 && compound.Blocks[0].Condition is not null;
+    public static bool IsConditionalIncoming(CompoundCommand compound) => compound.Blocks.Count > 0 && compound.Blocks[0].Condition is not null;
 
     /// <summary>
     /// CAPP issued to an aircraft already established on a JFAC/JLOC lateral join authorizes the
