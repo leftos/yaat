@@ -2,8 +2,8 @@ namespace Yaat.Sim.Simulation.Snapshots;
 
 /// <summary>
 /// Engine-level state outside the aircraft list and the scenario: consolidation overrides, conflict alerts, the
-/// beacon code pool, the per-connection position selections, the attended CRC positions, and the flight strips
-/// and vTDLS session.
+/// beacon code pool, the per-connection position selections, the attended CRC positions, the flight strips
+/// and vTDLS session, and the tower lists' dwell entries.
 /// </summary>
 public sealed class ServerSnapshotDto
 {
@@ -23,6 +23,9 @@ public sealed class ServerSnapshotDto
 
     /// <summary>The vTDLS session: items, dumped lockout, active ops configs, pending auto-WILCOs. Absent in pre-feature snapshots (restores empty).</summary>
     public TdlsSnapshotDto? Tdls { get; init; }
+
+    /// <summary>Each STARS P-list's aircraft with the second they came into range at. Absent in pre-feature snapshots (restores empty).</summary>
+    public TowerListSnapshotDto? TowerLists { get; init; }
 }
 
 public sealed class ConsolidationOverrideDto

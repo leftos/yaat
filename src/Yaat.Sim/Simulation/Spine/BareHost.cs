@@ -25,8 +25,6 @@ internal sealed class BareHost(SimulationEngine engine) : ISimulationHost
 
     public void LiveTrafficSync() { }
 
-    public void TowerLists() { }
-
     public void AsdexAlerts() { }
 
     public void SurfaceCoastExpiry() { }

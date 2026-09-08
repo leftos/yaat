@@ -3,16 +3,19 @@ using Yaat.Sim.Data.Vnas;
 
 namespace Yaat.Sim.Simulation;
 
-// The STARS coordination half of the engine: the release-rundown timers spine step, the removal a radar acquisition
-// owes, the ARTCC initialisation that builds the scenario's channels, and the dirty flag the drain turns into the
-// host's one broadcast. The verb bodies live in Simulation/Coordination/CoordinationCommandHandler.cs. Everything here
-// decides from engine state alone — the scenario's channels and its elapsed clock — so every run kind reaches the same
-// list; what changed is drained to the host from DrainStateChangesInto.
+// The STARS coordination half of the engine: the release-rundown timers spine step, the tower lists' proximity step,
+// the removal a radar acquisition owes, the ARTCC initialisation that builds the scenario's channels and the tower
+// list airports, and the dirty flag the drain turns into the host's one broadcast. The verb bodies live in
+// Simulation/Coordination/CoordinationCommandHandler.cs. Everything here decides from engine state alone — the
+// scenario's channels, the world's positions and its elapsed clock — so every run kind reaches the same lists; what
+// changed is drained to the host from DrainStateChangesInto. The tower lists share that one flag because they share
+// the wire topic: CRC's StarsCoordination payload carries every channel and every tower list together.
 public sealed partial class SimulationEngine
 {
     /// <summary>
-    /// True when a coordination body has changed a channel since the last drain. Payload-less on purpose: the wire
-    /// carries the whole <c>StarsCoordination</c> topic anyway, so what a host needs to know is only "re-push it".
+    /// True when a coordination body has changed a channel — or the proximity step a tower list — since the last
+    /// drain. Payload-less on purpose: the wire carries the whole <c>StarsCoordination</c> topic anyway, channels and
+    /// tower lists together, so what a host needs to know is only "re-push it".
     /// </summary>
     internal bool CoordinationChanged { get; private set; }
 
@@ -102,6 +105,25 @@ public sealed partial class SimulationEngine
     }
 
     /// <summary>
+    /// The tower lists' proximity pass, run once per second on every run kind: every aircraft within a list
+    /// airport's range is on that list, stamped with the elapsed second it arrived at, and one that left or was
+    /// deleted comes off. The entry second is the P-list's <c>DropZoneEntryTime</c> sort key, which is why it is
+    /// snapshotted rather than re-derived — see <see cref="Snapshots.TowerListSnapshotMapper"/>.
+    /// </summary>
+    public void TickTowerLists()
+    {
+        if (Scenario is not { } scenario)
+        {
+            return;
+        }
+
+        if (TowerListTracker.Update(World.GetSnapshot(), scenario.ElapsedSeconds))
+        {
+            MarkCoordinationChanged();
+        }
+    }
+
+    /// <summary>
     /// Drops every coordination item for <paramref name="callsign"/>: once a controller owns the track, the release
     /// rundown that got it there is moot. Run by the <c>TRACK</c> arm on every run kind.
     /// </summary>
@@ -146,6 +168,28 @@ public sealed partial class SimulationEngine
         {
             MarkCoordinationChanged();
             _logger.LogInformation("Loaded {Count} coordination channels for scenario '{Name}'", channels.Count, scenario.ScenarioName);
+        }
+    }
+
+    /// <summary>
+    /// Builds the tower list airports from every STARS area in the loaded ARTCC's facility tree, so the proximity
+    /// step has lists to fill. Run by every path that resolves a scenario's ARTCC configuration, alongside the
+    /// coordination channels, and a no-op without one. The dwell entries it clears are the session's, not the
+    /// configuration's: a snapshot restore later replaces them, and it is only ever the airports that come from here.
+    /// </summary>
+    public void InitializeTowerListsFromArtcc()
+    {
+        if (Scenario is not { ArtccConfig: { } config } scenario)
+        {
+            return;
+        }
+
+        TowerListTracker.Initialize(config);
+
+        var listCount = TowerListTracker.GetListIds().Count;
+        if (listCount > 0)
+        {
+            _logger.LogInformation("Initialized {Count} tower list(s) for scenario '{Name}'", listCount, scenario.ScenarioName);
         }
     }
 }

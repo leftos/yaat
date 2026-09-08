@@ -106,10 +106,13 @@ internal sealed class ReplayDriver(SimulationEngine engine)
             _engine.Attendance.Clear();
             _engine.Strips.ClearSession();
             _engine.Tdls.ClearSession();
+            _engine.TowerListTracker.ClearSession();
 
             // The coordination channels need no clear: Range runs InitializeFromArtcc first, which replaces every
             // channel whole — items, NextSequence and receivers — from the ARTCC, and a recording that carries no
-            // ARTCC has no channels for a verb to have minted into.
+            // ARTCC has no channels for a verb to have minted into. The tower lists above need the clear even though
+            // that same init rebuilds their airports, because the dwell entries are session state the proximity step
+            // owns rather than anything the ARTCC decides.
 
             // The scenario load put its immediate aircraft in the world without the spawn hooks, and the clear above
             // has just emptied what an earlier pass queued. Running them here — in the world's insertion order, at
@@ -235,10 +238,11 @@ internal sealed class ReplayDriver(SimulationEngine engine)
             }
         }
 
-        // The strip bays and TDLS facility configurations the mutations assume exist: the server's load builds them
-        // from the ARTCC, and a replay has just restored the config and the student position it needs to do the same.
-        // It survives the ClearSession the range below runs at t=0 because that clears the session only — TdlsState
-        // spares Configs and FlightStripState spares Bays.
+        // The strip bays, TDLS facility configurations and tower list airports the mutations and the tick steps assume
+        // exist: the server's load builds them from the ARTCC, and a replay has just restored the config and the
+        // student position it needs to do the same. They survive the ClearSession the range below runs at t=0 because
+        // that clears the session only — TdlsState spares Configs, FlightStripState spares Bays and TowerListTracker
+        // spares its airports.
         _engine.InitializeFromArtcc();
 
         FromStartTo((int)targetSeconds, recording.Actions, actionApplier: null);

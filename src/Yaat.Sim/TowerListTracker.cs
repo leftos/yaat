@@ -7,6 +7,13 @@ namespace Yaat.Sim;
 /// Tracks aircraft proximity to tower list airports. Each STARS area defines
 /// tower list configurations with an airportId and range. Aircraft within range
 /// appear in the tower P-list, sorted by entry time.
+/// <para>
+/// Engine-owned (<see cref="Simulation.SimulationEngine.TowerListTracker"/>) and split like the vTDLS session: the
+/// airports come from the ARTCC at scenario load and are NOT snapshotted, while the dwell entries are — so
+/// <see cref="ClearSession"/> is what a restore clears and the configured lists survive it. A run that restores
+/// mid-stream therefore keeps each aircraft's original entry second and the P-list's
+/// <c>DropZoneEntryTime</c> order with it.
+/// </para>
 /// </summary>
 public sealed class TowerListTracker
 {
@@ -130,6 +137,22 @@ public sealed class TowerListTracker
 
     /// <summary>Returns all configured tower list IDs (matching StarsListConfig.Id values).</summary>
     public List<string> GetListIds() => _airports.Select(a => a.ListId).Distinct().ToList();
+
+    /// <summary>
+    /// Drops every dwell entry and leaves the configured airports alone. This is what a snapshot restore replaces:
+    /// the airports were re-derived from the ARTCC by the load that ran just before it.
+    /// </summary>
+    public void ClearSession() => _entries.Clear();
+
+    /// <summary>
+    /// Puts one list's dwell entries back as a snapshot recorded them, replacing whatever that list held. The
+    /// restore path's writer (<see cref="Simulation.Snapshots.TowerListSnapshotMapper"/>); the entry second is the
+    /// captured run's, never the restore's.
+    /// </summary>
+    public void RestoreEntries(string listId, IEnumerable<(string Callsign, double EnteredAtSeconds)> entries)
+    {
+        _entries[listId] = [.. entries.Select(e => new TowerListEntry(e.Callsign, e.EnteredAtSeconds))];
+    }
 
     // --- Private ---
 

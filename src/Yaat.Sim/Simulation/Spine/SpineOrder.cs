@@ -49,7 +49,7 @@ public static class SpineOrder
         // them inline from.
         SpineStep.Sim(StepId.PostPhysicsTerminalEntries, static (engine, host) => host.OnTerminalEntries(engine.DrainTerminalEntries())),
         SpineStep.Sim(StepId.CoordinationTimers, static (engine, _) => engine.TickCoordinationTimers()),
-        SpineStep.Host(StepId.TowerLists, static host => host.TowerLists()),
+        SpineStep.Sim(StepId.TowerLists, static (engine, _) => engine.TickTowerLists()),
         SpineStep.Sim(StepId.VisualDetection, static (engine, _) => engine.TickVisualDetection()),
         // The detectors run on every path so a conflict set a snapshot restore repopulated is re-examined rather
         // than pinned; only a broadcasting host does anything with the returned diff.

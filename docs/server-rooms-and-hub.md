@@ -161,8 +161,8 @@ spine's (`SpineOrder` in Yaat.Sim, [tick-loop.md](tick-loop.md)), and `RoomHost`
   the host), and records generator spawns *after* their autotrack so the recorded snapshot carries the
   owner; `BroadcastTerminalEntries` takes the spine's drain; `ProcessDelayedHandoffs`; `SyncLiveTraffic` runs
   `ShadowTrafficSync.Sync` last — the pre-physics mutator of the aircraft set (see [live-traffic.md](live-traffic.md)).
-- **Post-physics**: the remaining ATC pass (`ProcessTowerLists` — auto-accept, the point-out timeout, the two autotrack passes and the
-  coordination timers are Yaat.Sim spine steps now, `SimulationEngine.TrackAutomation` / `SimulationEngine.Coordination.cs`,
+- **Post-physics**: no ATC pass of its own (auto-accept, the point-out timeout, the two autotrack passes, the coordination timers and
+  the tower lists are Yaat.Sim spine steps now, `SimulationEngine.TrackAutomation` / `SimulationEngine.Coordination.cs`,
   and the first three read the recorded `Attendance`), the consumers of the engine's
   detectors (`BroadcastConflictAlerts`, `BroadcastEramConflictAlerts`), `ProcessAsdexAlerts`,
   `ProcessSoloTrainingEvaluation`, the drain consumers (`BroadcastWarnings` / `Notifications` / `PilotSpeech` /
@@ -178,8 +178,8 @@ spine's (`SpineOrder` in Yaat.Sim, [tick-loop.md](tick-loop.md)), and `RoomHost`
 Per-step timing lives on the engine: attach a dictionary to `SimulationEngine.TickTimings` and every spine step records
 under its `StepId` name (the soak runner's `--timings`, `ReconstructionBenchmarkTests`).
 
-Several of these guard on `room.IsBroadcastSuppressed` before broadcasting (e.g. `ProcessTowerLists`,
-`BroadcastConflictAlerts`, `ProcessAutoDelete`). A new broadcast from a tick-processor method must add the
+Several of these guard on `room.IsBroadcastSuppressed` before broadcasting (e.g. `BroadcastConflictAlerts`,
+`ProcessAutoDelete`). A new broadcast from a tick-processor method must add the
 same guard or it leaks replay/snapshot-engine state to real clients.
 
 ## `AircraftChangeTracker` — the delta engine (`Simulation/AircraftChangeTracker.cs`)

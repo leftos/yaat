@@ -53,8 +53,6 @@ internal sealed class ReplayHost : ISimulationHost
 
     public void LiveTrafficSync() => _bare.LiveTrafficSync();
 
-    public void TowerLists() => _bare.TowerLists();
-
     public void AsdexAlerts() => _bare.AsdexAlerts();
 
     public void SurfaceCoastExpiry() => _bare.SurfaceCoastExpiry();

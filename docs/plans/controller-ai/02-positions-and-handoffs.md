@@ -66,7 +66,7 @@ phases), `CT`s the rolled-out arrival to ground — except where clearing the la
 entering another runway, in which case Local retains the aircraft and issues the exit + crossing
 itself before the `CT` (§3-10-9.b.2, both positions protecting the intersection per §3-10-9.c);
 **AI Ground** then answers the taxi-in request and taxis to parking. Tower-cab positions never radar-track arrivals — the track drops per existing
-surface rules; `ProcessTowerLists` and visual detection are unaffected.
+surface rules; the tower-list step (`SimulationEngine.TickTowerLists`) and visual detection are unaffected.
 
 ## GC↔LC coordination (crossings; 7110.65 §3-1-3.a–c)
 

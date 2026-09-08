@@ -290,11 +290,17 @@ public sealed partial class SimulationEngine
     }
 
     /// <summary>
-    /// Everything a loaded ARTCC configuration puts on the engine before any verb runs: the scenario's coordination
-    /// channels, the empty rack slots of every strip bay the student's position can see, and a
-    /// <see cref="TdlsConfig"/> for every facility in the tree that has one — so the mutations can assume all three
-    /// exist. Run by every path that resolves a scenario's ARTCC configuration: the server's scenario load and the
-    /// replay driver once it has restored the config and the student position. A no-op without either.
+    /// Everything a loaded ARTCC configuration puts on the engine before any verb or step runs: the scenario's
+    /// coordination channels, the tower list airports, the empty rack slots of every strip bay the student's position
+    /// can see, and a <see cref="TdlsConfig"/> for every facility in the tree that has one — so the mutations and the
+    /// proximity step can assume all four exist. Run by every path that resolves a scenario's ARTCC configuration:
+    /// the server's scenario load and the replay driver once it has restored the config and the student position. A
+    /// no-op without either.
+    /// <para>
+    /// The tower lists follow the coordination channels because they are the other half of the same wire topic and
+    /// neither reads the other; both precede the strip bays, which are the only part of this that needs the student
+    /// position resolved as well as the configuration.
+    /// </para>
     /// </summary>
     public void InitializeFromArtcc()
     {
@@ -304,6 +310,7 @@ public sealed partial class SimulationEngine
         }
 
         InitializeCoordinationChannelsFromArtcc();
+        InitializeTowerListsFromArtcc();
 
         var positionCallsign = Scenario.StudentPosition?.Callsign ?? "";
         if (!string.IsNullOrEmpty(positionCallsign))

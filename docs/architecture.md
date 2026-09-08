@@ -88,6 +88,7 @@ The Task Index above tells you *which files*; these docs explain *how each subsy
   - **Attendance**: `Helpers/AttendanceTestSupport.cs` (test helpers for CRC attendance state), `Simulation/Actions/AttendanceRecordTests.cs` (a RecordedAttendanceChange replaces the engine's set, resolves ids through the room's config, keeps an unresolvable id by id only, round-trips the snapshot and the serializer; a fresh replay starts empty)
   - **Strip id baking**: `Simulation/Actions/StripIdBakedDrawTests.cs` (the strip id a creating verb — SEP/HSC/SCAN — draws is a baked draw like the reaction delay and the generated aircraft: `RecordedCommand.StripId` round-trips the archive serializer, `BakedDraws.Of` carries it, and the strip arm bakes the id the verb minted onto the record)
   - **Strip steps**: `Simulation/Strips/StripStepTests.cs` (the flight-strip bodies on the bare engine: the spawn hook's auto-print, the approach student's takeoff-roll print, the creating verbs behind `SEP`/`HSC`, the deferred strip dispatch the engine applies itself, and the change tracker the router and the post-physics drain step hand to the host — over real ZOA data with no server in the process)
+  - **Tower lists**: `Simulation/TowerLists/TowerListStepTests.cs` (the P-list step on the bare engine over real ZOA data: an in-range aircraft enters with the tick's second, the coordination flag is raised by the spine step, a static second re-stamps nothing, a snapshot restore keeps the live dwell second), `Simulation/Snapshots/TowerListSnapshotMapperTests.cs` (round-trip incl. entry order, null → empty, ClearSession keeps the airports), `TowerListTrackerTests.cs` (the tracker's range geometry — moved from the server suite)
   - **Coordination**: `Simulation/Coordination/CoordinationStepTests.cs` (the coordination bodies on the bare engine over the real ZOA `POAK` list: `RD`/`RDH`/`RDR`/`RDACK`/`RDDEL`/`RDPOS`/`RDTXT`/`RDAUTO`, the deterministic `{ListId}-{SequenceNumber}` id, the timers step reached through `RunSecond` and its dirty flag delivered by the `StateChanges` spine step, a `TRACK` voiding the items, a non-sender refused, and a `ReplayDriver` replay holding the same item id as live)
   - **TDLS**: `Simulation/Tdls/TdlsStepTests.cs` (the vTDLS bodies on the bare engine: the spawn hook's auto-queue, the four tick steps — auto-queue, auto-WILCO, TTL expiry, track removal — the `TDLSQ`/`TDLSS`/`TDLSW`/`TDLSDUMP`/`TDLSOPS` command handler, and the change tracker the router drains into the host — over real OAK navdata with no server in the process)
 - **Client tests**: `tests/Yaat.Client.Tests/` — view model logic, command input
@@ -657,6 +658,9 @@ EramPointoutState.cs           # Per-aircraft ERAM pointout record (mirrors vats
 CoordinationChannel.cs         # Channel config: ListId, Title, SendingTcps, Receivers, Items
 CoordinationItem.cs            # Single coordination entry: status lifecycle, expiry, origin TCP
 StarsCoordinationStatus.cs     # Enum: Unsent→Unacknowledged→Acknowledged→Recalled→Expiry→Void
+TowerListTracker.cs            # The STARS tower P-lists: airports (listId, airport, range) from the ARTCC's TowerListConfigurations, and per-list dwell
+                               # entries (callsign, EnteredAtSeconds) Update() maintains from the world snapshot each tick; ClearSession / RestoreEntries are the
+                               # snapshot seam (TowerListSnapshotMapper). Known defect: entries are keyed by list id alone, and ZOA's FAT and NCT both define P1
 
 # Commands/
 Commands/CanonicalCommandType.cs    # Enum of every command type
@@ -1188,7 +1192,9 @@ SimulationEngine.Coordination.cs # The coordination bodies (crossed from yaat-se
                                # recalled item is removed after CoordinationRecallLingerSeconds — SimScenarioState constants), RemoveCoordinationOnRadarAcquisition
                                # (the Track arm's tail: a TRACK voids the aircraft's items), InitializeCoordinationChannelsFromArtcc (Scenario.CoordinationChannels
                                # from the ARTCC's STARS lists), and the CoordinationChanged dirty flag (MarkCoordinationChanged / DrainCoordinationChanged) every
-                               # mutation sets — payload-less because the StarsCoordination topic is always pushed whole
+                               # mutation sets — payload-less because the StarsCoordination topic is always pushed whole. Also the tower-list half of that topic:
+                               # TickTowerLists (post-physics: TowerListTracker.Update over the world snapshot, marks the flag on change) and
+                               # InitializeTowerListsFromArtcc (the P-list airports from the ARTCC, run by InitializeFromArtcc after the coordination channels)
 SimulationEngine.Strips.cs     # The flight-strip spine steps (TickAutoArrivalStrips, TickAutoApproachDepartureStrips, TickStripDispatches — the queued
                                # preset/deferred/triggered strip verbs the command queue could not apply when they were issued), the spawn hook's strip half
                                # (PrintSpawnStrip/TryPlaceConfiguredStrip — position-type default routing vs. a scenario-configured bay/rack), and
@@ -1256,7 +1262,7 @@ StepId.cs                      # One member per step, in spine order; the trace'
                                # track-automation steps emit so they reach the room the same second
 SpineStep.cs                   # One list entry: a sim step (engine body, gets only IHostConsumers) or a host step (gets only IHostSteps)
 IHostSteps.cs                  # The host's step view — every server-owned body as a named member, no defaults (a new member breaks every host); header lists the
-                               # step-4 debt (LiveTrafficSync, TowerLists). CoordinationTimers moved out 2026-09-07 (SimulationEngine.TickCoordinationTimers). The two strip auto-print passes (AutoArrivalStrips/
+                               # step-4 debt (LiveTrafficSync). CoordinationTimers and TowerLists moved out 2026-09-07 (SimulationEngine.TickCoordinationTimers / TickTowerLists). The two strip auto-print passes (AutoArrivalStrips/
                                # AutoApproachDepartureStrips) and the four TDLS tick steps (AutoTdlsQueue/TdlsAutoWilco/TdlsExpiry/TdlsTrackRemoval) moved
                                # out — they're Sim steps now, engine bodies in SimulationEngine.Strips.cs / SimulationEngine.Tdls.cs
 IHostConsumers.cs              # The host's consumer view — OnPrePhysics / OnTerminalEntries / OnConflictAlerts / the drains / OnStripsChanged / OnTdlsChanged / OnCoordinationChanged
@@ -1429,13 +1435,15 @@ PhaseSnapshotDto.cs            # Polymorphic PhaseDto with [JsonDerivedType] for
 ScenarioSnapshotDto.cs         # SimScenarioState DTO: queues, generators, settings, coordination channels; ControllerAi (ControllerAiConfigDto, null when off);
                                # AtcPositions (AtcPositionDto: the resolved ATC roster — scenario atc record + owner + TCP; null in a pre-feature snapshot leaves the loader's roster)
 ServerSnapshotDto.cs           # Server-side state: consolidation overrides, conflict alerts, beacon code pool, position selections, attended CRC
-                               # positions, and the flight strips (Strips) + vTDLS session (Tdls) — both null-absent in a pre-feature snapshot,
-                               # which restores empty
+                               # positions, the flight strips (Strips) + vTDLS session (Tdls), and the tower-list dwell entries (TowerLists, schema 23) — all
+                               # null-absent in a pre-feature snapshot, which restores empty
 FlightStripSnapshotDto.cs      # Every strip, the bay/rack layout, both printer queues and the blank-id counter
 FlightStripSnapshotMapper.cs   # FlightStripState ⇄ FlightStripSnapshotDto. Restore replaces, never merges — the snapshot is the whole strip state
                                # at its second, so anything the target engine held is cleared first
 TdlsSnapshotDto.cs             # The vTDLS items, the dumped lockout, the active ops configs, the pending auto-WILCOs and the id counter. The
                                # per-facility TdlsConfig map is deliberately out — a load re-derives it from the ARTCC before the restore runs
+TowerListSnapshotMapper.cs     # TowerListTracker ⇄ TowerListSnapshotDto (lists with entries only; Restore clears the session and re-adds; null → empty; the
+                               # list airports are the ARTCC's, never snapshotted)
 TdlsSnapshotMapper.cs          # TdlsState ⇄ TdlsSnapshotDto. Restore replaces the session state and leaves TdlsState.Configs alone — the scenario
                                # load that runs before a restore has just re-derived it from the ARTCC, and the snapshot never carried it
 TaxiRouteDto.cs                # Taxi route segments + hold-short points (re-resolved from ground layout on restore)
@@ -1628,7 +1636,7 @@ See [session-persistence.md](session-persistence.md) for planned-restart room ch
     ConsolidationState.cs      # Thread-safe manual consolidation overrides per room
     RoomEngineFactory.cs       # Creates RoomEngine with shared singleton deps
     RoomTickLoopService.cs # Thin orchestrator: 1s tick loop iterating rooms
-    TickProcessor.cs           # Stateless tick logic (physics, spawns, triggers, pilot proactive hooks, tower lists, ASDE-X alerts); drains ready solo frequency transmissions as SAY entries and emits PilotTransmissionBroadcast
+    TickProcessor.cs           # Stateless tick logic (physics, spawns, triggers, pilot proactive hooks, ASDE-X alerts); drains ready solo frequency transmissions as SAY entries and emits PilotTransmissionBroadcast
     ScenarioLifecycleService.cs # Scenario load/unload/spawn/generator logic
     ScenarioState.cs           # Per-room active scenario state: queues, positions, generators, channels
     TrainingBroadcastService.cs # SignalR hub context wrapper for training clients, including PilotTransmissionBroadcast fan-out.

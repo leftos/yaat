@@ -29,7 +29,7 @@ public sealed class SnapshotSchemaException : Exception
 /// </summary>
 public static class SnapshotSchemaMigrator
 {
-    public const int CurrentSchemaVersion = 22;
+    public const int CurrentSchemaVersion = 23;
 
     /// <summary>
     /// Migrates a snapshot to <see cref="CurrentSchemaVersion"/> in place.
@@ -135,6 +135,12 @@ public static class SnapshotSchemaMigrator
         //   RestoreFromSnapshot reads a null section as "restore empty", which is what those snapshots'
         //   engines held. A same-room rewind of an older recording therefore starts with no strips and no
         //   PDCs and rebuilds them from the recorded requests and the host's auto-print steps.
+        // V22→V23: Added ServerSnapshotDto.TowerLists — the tower lists' dwell entries (which aircraft each STARS
+        //   P-list holds and the elapsed second it came into range at) became engine state instead of the room's.
+        //   No data transformation: it defaults to null and RestoreFromSnapshot reads a null section as "restore
+        //   empty", which is what those snapshots carried. A restore of an older recording therefore starts with
+        //   empty P-lists and the proximity step refills them on the next second, at that second — the entry order
+        //   those lists sort on is only exact from a V23 snapshot onward.
         if (snapshot.SchemaVersion < 4)
         {
             foreach (var ac in snapshot.Aircraft)

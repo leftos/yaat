@@ -327,6 +327,11 @@ public sealed partial class SimulationEngine
             Tdls.ClearSession();
         }
 
+        // Likewise for the tower lists: the load re-derived their airports from the ARTCC, and only the dwell entries
+        // are in the snapshot. Restoring them is what keeps each aircraft's entry second — the P-lists' sort key —
+        // from being re-stamped at the restore second.
+        TowerListSnapshotMapper.Restore(TowerListTracker, snapshot.Server?.TowerLists);
+
         if (snapshot.Server is not null)
         {
             RestoreServerSnapshot(snapshot.Server);
@@ -395,6 +400,7 @@ public sealed partial class SimulationEngine
             AttendedPositionIds = [.. Attendance.PositionIds],
             Strips = FlightStripSnapshotMapper.Capture(Strips),
             Tdls = TdlsSnapshotMapper.Capture(Tdls),
+            TowerLists = TowerListSnapshotMapper.Capture(TowerListTracker),
         };
     }
 
