@@ -130,10 +130,21 @@ public partial class FavoritesBarView : UserControl
 
     private void OnViewModelPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
-        if (e.PropertyName == nameof(MainViewModel.SelectedAircraft))
+        if (e.PropertyName != nameof(MainViewModel.SelectedAircraft))
         {
-            RebuildButtons();
+            return;
         }
+
+        // The palette tab follows the selection: a ground aircraft brings up Ground, an airborne
+        // one Air. Vehicle and Airport are only ever picked by hand, and a hand-picked tab is left
+        // alone by every other rebuild (#364) — only the next selection change moves it. The
+        // category is set before the rebuild below, which restores it onto the fresh TabItems.
+        if (IsPaletteMode && _boundVm?.SelectedAircraft is { } selected)
+        {
+            _selectedPaletteCategory = selected.IsOnGround ? FavoriteCommandCategory.Ground : FavoriteCommandCategory.Air;
+        }
+
+        RebuildButtons();
     }
 
     private void RebuildRoot()
@@ -325,7 +336,6 @@ public partial class FavoritesBarView : UserControl
     private Button CreateFavoriteButton(FavoriteDisplayEntry entry)
     {
         var fav = entry.Favorite;
-        var width = GetButtonWidth(fav);
         var height = GetButtonHeight(fav);
         var btn = new Button
         {
@@ -339,13 +349,16 @@ public partial class FavoritesBarView : UserControl
                 VerticalAlignment = VerticalAlignment.Center,
             },
             Tag = entry,
-            Margin = new Thickness(0, 0, 4, 4),
+            // In the palette the button fills its UniformGrid cell edge to edge, so the row reads
+            // as a strip separated only by the 1px borders; the inline bar keeps its 4px gaps. The
+            // per-favorite height survives as a floor on the (uniform) row height.
+            Margin = IsPaletteMode ? new Thickness(0) : new Thickness(0, 0, 4, 4),
             Padding = IsPaletteMode ? new Thickness(6, 2) : new Thickness(8, 2),
             FontSize = IsPaletteMode ? 13 : 12,
             FontWeight = FontWeight.SemiBold,
-            Width = IsPaletteMode ? width : double.NaN,
-            Height = IsPaletteMode ? height : double.NaN,
-            MinWidth = IsPaletteMode ? width : 0,
+            Width = double.NaN,
+            Height = double.NaN,
+            MinWidth = 0,
             MinHeight = IsPaletteMode ? height : 0,
             Background = ParseBrush(fav.BackgroundColor, FavoriteCommandDefaults.BackgroundColor),
             Foreground = ParseBrush(fav.TextColor, FavoriteCommandDefaults.TextColor),
@@ -355,6 +368,12 @@ public partial class FavoritesBarView : UserControl
             VerticalContentAlignment = VerticalAlignment.Center,
         };
 
+        if (IsPaletteMode)
+        {
+            btn.HorizontalAlignment = HorizontalAlignment.Stretch;
+            btn.VerticalAlignment = VerticalAlignment.Stretch;
+        }
+
         ToolTip.SetTip(btn, BuildFavoriteToolTip(fav));
 
         btn.AddHandler(PointerPressedEvent, OnFavoritePointerPressed, RoutingStrategies.Tunnel);
@@ -363,20 +382,25 @@ public partial class FavoritesBarView : UserControl
         return btn;
     }
 
+    /// <summary>
+    /// Builds the placeholder button for a spacer favorite. Spacers are shown in the palette only
+    /// (the inline bar filters them out), so the slot always fills its UniformGrid cell.
+    /// </summary>
     private Button CreateBlankSlot(FavoriteDisplayEntry entry)
     {
         var fav = entry.Favorite;
-        var width = GetButtonWidth(fav);
         var height = GetButtonHeight(fav);
         var btn = new Button
         {
             Tag = entry,
-            Margin = new Thickness(0, 0, 4, 4),
+            Margin = new Thickness(0),
             Padding = new Thickness(0),
-            Width = width,
-            Height = height,
-            MinWidth = width,
+            Width = double.NaN,
+            Height = double.NaN,
+            MinWidth = 0,
             MinHeight = height,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            VerticalAlignment = VerticalAlignment.Stretch,
             Background = Brushes.Transparent,
             BorderBrush = new SolidColorBrush(Color.FromArgb(110, 255, 255, 255)),
             BorderThickness = new Thickness(1),
