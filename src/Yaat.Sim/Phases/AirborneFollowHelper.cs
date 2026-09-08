@@ -280,7 +280,13 @@ public static class AirborneFollowHelper
             DownwindPhase => 3,
             BasePhase => 4,
             FinalApproachPhase => 5,
-            LandingPhase or TouchAndGoPhase or HelicopterLandingPhase => 6,
+            // Every terminal a pattern circuit can end on. A helicopter's circuit ends on
+            // HelicopterLandingPhase, and a stop-and-go or low-approach clearance swaps the terminal
+            // via ReplaceApproachEnding — all four sit in the slot LandingPhase occupies, and all four
+            // are still flown (the helicopter is airborne on its hover-descent until touchdown). Leaving
+            // one out reads as leg null, which makes both the flow-ahead and flow-behind tests false and
+            // drops the sequencing guard while the lead is still on the runway.
+            LandingPhase or TouchAndGoPhase or HelicopterLandingPhase or StopAndGoPhase or LowApproachPhase => 6,
             _ => null,
         };
 
