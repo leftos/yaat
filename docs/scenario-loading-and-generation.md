@@ -543,6 +543,18 @@ The division of labour:
   reconstruction `RecordingManager` calls `CaptureFrom(newScenario)` so the room copy follows the rewound values.
 - **Adding a setting means adding it to `RoomSessionSettings` in both `ApplyTo` and `CaptureFrom`.**
   `RoomSessionSettingsTests` walks the type reflectively and fails if you list it in only one.
+- **A seeded setting is recorded at t=0, or every reconstruction runs the default.** `SimControlService`'s setters record a
+  `RecordedSettingChange` only for a toggle made *during* the scenario; a setting already on when the scenario loaded reaches
+  it through `ApplyTo` and left no trace. The live load (`ScenarioLifecycleService.LoadScenarioSeededAsync`) therefore calls
+  `RecordSeededSessionSettings`, which writes a t=0 record for every `ApplyTo` field that differs from a fresh
+  `SimScenarioState` (same setting names and value formats as the setters, so `ApplySettingChange` applies them unchanged;
+  `MetarReissuanceEnabled` is excluded because it travels on the weather record and the manifest). Only the live load records —
+  a rewind or restart replays the log it already holds, so `PopulateRoom` must not. Why it matters: `RoomEngine.CreateTempReplayEngine`
+  builds a brand-new `TrainingRoom` for the export's snapshot regeneration, so before this every exported bundle's snapshots
+  were generated under default settings — the S2-OAK-4 bundle of 2026-09-06 spoke "going around, traffic on the runway" at
+  t=1100 in its terminal log while its own snapshots had `AutoGoAroundOnOccupiedRunway: false` and went around at t≈1108
+  from the no-clearance gate. Pinned by `SeededSessionSettingsRecordingTests`. Bundles exported before 2026-09-08 cannot be
+  repaired; a hand-injected t=0 record in `actions.json.br` plus a snapshot regeneration is the only route.
 - **`ApplyTo` must run before `DispatchPresetCommands`, not just somewhere in the reload.** A preset `TAXI` resolves its
   route — and runs `TaxiRouteAutoCross.Apply` against `AutoCrossRunway` — inside `PopulateRoomForRewind` itself, so seeding
   afterwards leaves every restarted departure holding short of crossings the controller had already cleared (#314).
