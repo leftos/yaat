@@ -1,11 +1,17 @@
 # Changelog
 
-## Unreleased
+## v0.12.26-beta [2026/09/08]
+
+### Highlights
+- Pattern modifiers name any runway (`MLT 33`, `CTO MLT 33`, `COPT MLT 28L`), and the new `OTG` prefix fires a command after the aircraft's next touch-and-go, low approach or go-around.
+- Replaying a recording, rewinding or opening a bug bundle now rebuilds the flight strips, PDCs, coordination lists and STARS display state as the live session had them.
+- A departure no longer rolls through a preceding departure on the same runway, and a taxi clearance no longer cancels a pre-armed departure turn or altitude.
+- The Favorites panel follows the selected aircraft (Ground tab for a ground target, Air for an airborne one) and packs its buttons edge to edge.
 
 ### Added
 - Pattern modifiers name any runway: `MLT 33`, `CTO MLT 33`, `COPT MLT 15`. In the first slot a 1–2 digit token (with an optional L/C/R) is a runway, so a pattern altitude given alone needs three or more digits (`MLT 015`); after a runway the shorthand still works (`CTO MLT 28R 15`). A runway the airport does not have is rejected.
 - `COPT`, `TG`, `SG` and `LA` accept the `CTO` pattern modifiers with a runway and altitude (`COPT MLT 28L`, `TG MLT 28L 15`): the clearance is flown on the current runway and the next circuit transitions into the named runway's pattern. Pre-issued clearances carry the runway too. A go-around instead of the option cancels the armed runway and warns the RPO to re-issue; the pilot reads the pattern runway back.
-- `OTG` ("on the go") condition prefix: `OTG MLT 28L` fires the command once the aircraft is climbing out after its next touch-and-go, stop-and-go, low approach or go-around, so a runway or direction change can be given together with the option it is about to fly.
+- `OTG` ("on the go") condition prefix: `OTG MLT 28L` fires the command once the aircraft is climbing out after its next touch-and-go, stop-and-go, low approach or go-around, so a runway or direction change can be given together with the option it is about to fly; if the aircraft lands full-stop instead, the command (and anything chained behind it) is dropped with "unable — landed full stop".
 - The Discord server shows progress towards YAAT's monthly hosting cost, fed by Ko-fi: a sidebar ticker channel, a pinned progress embed listing this month's supporters (surplus rolls into the next month), and One-time / Monthly Supporter roles claimed through Ko-fi.
 - `FP` accepts `OTP/055` as the altitude to file a VFR-on-top plan.
 - `RDTXT /DR EXPECT 28R` sets a held release's text on a named coordination list; `AS OAK_GND` and `AS NCT_APP@1M` select a position by callsign when its TCP is shared.
@@ -17,6 +23,13 @@
 - One session clock: a session's start instant is pinned at load (the server's clock; a restart re-pins it) and rides the recording, so a replay or a rewound bundle computes its magnetic declinations from the day the session started (it used the day the server *process* started) and every later time-of-day readout derives from the same instant. Bug-bundle manifests carry it as `SessionStartUtc`.
 - PDC timestamps and the strip proposed-departure / ETA text read the session clock, so a rewind or a bundle reconstruction shows the times the live session showed. A departure strip's PDT is the session time at print (it was real time plus the elapsed seconds, ten minutes ahead at t=600); the PDC two-hour expiry and the three-second auto-WILCO count sim seconds, so a paused room expires nothing and a 4× room expires after two sim hours.
 - The reported-METAR observation clock (the :53 routine issuance and SPECI look-backs) runs on the session clock, so the :53 grid follows sim time rather than real time; after a rewind the rebuilt issuer resumes that grid, carries the routine already issued instead of reverting to the loaded METAR text until the next :53, and no longer re-stamps every station on its first tick.
+- A CRC-console full consolidation (`C1N1R+`) moves the sender's consolidated descendants and respects attendance, like the typed `CON+`.
+- `ATXI` to a helicopter off the airport or above 500 ft AGL is refused ("unable, request landing at …"); air taxi stays an on-field movement.
+- A recorded command whose outcome on playback differs from the live session logs a replay-fidelity warning.
+- A flight plan filed by typing `FP`, `VP` or `DA` tags the filing position as its creator, so the STARS auto-track acquires the aircraft when it squawks its assigned code, as a CRC-entered plan does.
+- Recordings and bug bundles include the commands the live session refused, with their verdict.
+- Typing any command during playback takes control of the session, whether or not the command is accepted.
+- `INHCA` and `CAACK` typed without an active position apply instead of being refused, as they always did on playback.
 
 ### Fixed
 - A departure no longer rolls through a preceding departure on the same runway: at a standstill the pilot declines the clearance until the aircraft ahead has crossed the runway end or is airborne with the 7110.65 §3-9-6 spacing (3,000 / 4,500 / 6,000 ft by category; a departure ahead that has rejected its takeoff never counts as airborne), and once rolling the takeoff is rejected when the roll would reach a leader still on the runway; the Category I behind Category II spacing is 3,000 ft (was 4,500) in the solo-training evaluator too.
@@ -35,15 +48,10 @@
 - Leaving a room empties the Strips and TDLS views, docked or popped out, so the previous room's strips can no longer be moved or printed; restarting a scenario keeps only the separators you placed, and a rewind after the restart keeps them too (#424).
 - Rewinds and bug-report bundles re-create separators, half-strips, blank strips and scanned strip copies under the ids the session gave them, so a later edit, move or delete of one of them replays correctly (each was re-created under a fresh random id before).
 - Bug-report bundles and rewinds reproduce the departure strip and PDC of an aircraft added with `ADD` during the session, re-apply the TDLS actions the session recorded (they were skipped on reconstruction before), and drop the room assignment of an aircraft that was deleted.
-- `MLT 28R 15` and `CTO MLT 28R 15` keep their runway and altitude in the command's canonical text (they were echoed as bare `MLT`/`CTO MLT`).
-- A `FOLLOW` issued after `COPT MLT 28L` keeps the armed pattern runway, so the transition still happens after the option; the RPO is warned that the follower will leave the sequence then.
 - A `FOLLOW` keeps its sequencing hold when the lead reaches the runway on a helicopter landing, a stop-and-go or a low approach (#418): only a full-stop landing and a touch-and-go counted as being ahead in the pattern, so the follower stopped holding and closed on traffic still over the runway.
-- A jet or turboprop cleared for takeoff into another runway's pattern (`CTO 33 MRT 28R`) crosses midfield at pattern altitude — it never left the pattern, so the entry height does not apply — and a wrong-side entry with a controller-assigned pattern altitude no longer flies a teardrop it has no height to lose in.
-- An `OTG` command on an aircraft that then lands full-stop is dropped with "unable — landed full stop" (together with anything chained behind it) instead of waiting forever.
 - A jet or turboprop crossing midfield to enter a pattern from the wrong side crosses at 1,500 ft above the field (or its own pattern altitude if higher) instead of 500 ft above its already-elevated pattern altitude.
 - `MLT`/`MRT` that switches runways reports "(crossing midfield)" when the transition crosses the field, as pattern entries do.
 - A jet or turboprop sent across the field by `MLT`/`MRT` from the wrong side flies the same teardrop descent to pattern altitude that a wrong-side pattern entry does, instead of joining the downwind at its crossing height.
-- A pre-issued option clearance whose pattern runway is not a close parallel (`COPT MLT 01L` behind a queued entry for 28R) warns that the transition will cross midfield when the entry builds its circuit.
 - An aircraft on one runway's upwind told `MLT`/`MRT` to a close parallel (OAK 28R → 28L) continues its upwind and turns crosswind only beyond both departure ends into the new runway's pattern, instead of turning across the field to the new downwind; from the parallel's downwind it crosses over at midfield at pattern altitude (opposite side) or re-intercepts the offset downwind (same side). A takeoff clearance onto a parallel's pattern (`CTO 28R MLT 28L`) flies the same transition.
 - `MLT`/`MRT` with a runway now also moves the pattern runway, so the circuit built after the next go-around or touch-and-go belongs to the runway named, not the one the aircraft was told to leave.
 - A fresh vector or `DCT` cancels a queued `MLT`/`MRT` (#422): the pattern-direction command waiting behind a condition survived the supersede and turned the aircraft back into the pattern the vector had taken it out of.
@@ -83,15 +91,6 @@
 - Rewinding a session or exporting a bug bundle applies a typed `APT` destination change with the arrival-procedure clear it had live, instead of only the new destination.
 - Rewinding a session or exporting a bug bundle reproduces the CRC F13 coordination entries, the STARS console consolidations (`C1N1R`, `C1N1R+`, bare `C`) and a CRC client's position sync onto its RPO, instead of dropping them.
 - Rewinding a session or exporting a bug bundle places the unsupported data block a CRC-entered flight plan created where the controller clicked, instead of losing it.
-
-### Changed
-- A CRC-console full consolidation (`C1N1R+`) moves the sender's consolidated descendants and respects attendance, like the typed `CON+`.
-- `ATXI` to a helicopter off the airport or above 500 ft AGL is refused ("unable, request landing at …"); air taxi stays an on-field movement.
-- A recorded command whose outcome on playback differs from the live session logs a replay-fidelity warning.
-- A flight plan filed by typing `FP`, `VP` or `DA` tags the filing position as its creator, so the STARS auto-track acquires the aircraft when it squawks its assigned code, as a CRC-entered plan does.
-- Recordings and bug bundles include the commands the live session refused, with their verdict.
-- Typing any command during playback takes control of the session, whether or not the command is accepted.
-- `INHCA` and `CAACK` typed without an active position apply instead of being refused, as they always did on playback.
 
 ## v0.12.25-beta [2026/09/02]
 
