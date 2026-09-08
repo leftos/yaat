@@ -30,9 +30,7 @@ public class ActionRoutingCompletenessTests
     /// </summary>
     private static readonly Dictionary<string, string> PhaseGatedArms = new(StringComparer.Ordinal)
     {
-        ["AssignRunwayCommand"] = "TryApplyTowerCommand only",
         ["GoCommand"] = "TryApplyTowerCommand only (docs/command-handlers.md: GO is in neither IsGroundCommand nor IsTowerCommand)",
-        ["TaxiAutoCommand"] = "TryApplyTowerCommand only",
     };
 
     public ActionRoutingCompletenessTests()

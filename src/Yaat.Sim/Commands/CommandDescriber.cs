@@ -408,6 +408,15 @@ public static class CommandDescriber
             return CommandDimension.Lateral | CommandDimension.Vertical;
         }
 
+        // RWY applies on and off the ground (ApplyCommandCore and the tower switch both route to TryAssignRunway,
+        // which has no ground guard), and airborne it re-assigns the arrival runway and clears a pending approach
+        // held for another runway (7110.65 §3-10-5.c) — a lateral re-plan, not a surface clearance, so it is not a
+        // ground command. It is not All either: a runway re-assignment must not cancel queued altitude or speed work.
+        if (command is AssignRunwayCommand)
+        {
+            return CommandDimension.Lateral | CommandDimension.Ground;
+        }
+
         // Holding patterns are lateral
         if (IsHoldCommand(command))
         {
@@ -1479,6 +1488,7 @@ public static class CommandDescriber
         return command
             is PushbackCommand
                 or TaxiCommand
+                or TaxiAutoCommand
                 or TaxiAllCommand
                 or HoldPositionCommand
                 or ResumeCommand

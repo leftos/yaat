@@ -177,7 +177,3 @@ supersede now yields to the command that replaced its plan.
 - **Narrow the *incoming* dimension of the pure-surface verbs** from `All | Ground` to `Ground`. Today a taxi
   clearance clears every queued airborne block, including the pre-departure "maintain" altitude (§4-3-2.e,
   AIM §4-4-10.7). Fixing that is a change to the fired side, with a wider blast radius than this table.
-- **`AssignRunway` and `TaxiAuto` report `None` on the incoming side** (in neither `IsGroundCommand` nor
-  `ClassifyCommand`), and the fast path clears the queue on `None` as well as `All` — so a bare `RWY 28R` to
-  an airborne aircraft wipes the entire queue today. Pre-existing, unrelated to this table, needs its own
-  failing test first.

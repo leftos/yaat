@@ -940,6 +940,12 @@ public static class CommandDispatcher
             case DescendViaCommand cmd:
                 return NavigationCommandHandler.DispatchDescendVia(cmd, aircraft);
 
+            // RWY assigns the arrival/departure runway, which is a route decision rather than a surface one, so it
+            // must apply with no phase active too — the tower switch has the same arm for the phase path.
+            // TryAssignRunway creates the PhaseList itself when there is none.
+            case AssignRunwayCommand assignRwy:
+                return GroundCommandHandler.TryAssignRunway(aircraft, assignRwy.RunwayId);
+
             case ExpectApproachCommand eapp:
             {
                 var eappResolved = ApproachCommandHandler.ResolveApproach(eapp.ApproachId, eapp.AirportCode, aircraft);
@@ -1218,7 +1224,7 @@ public static class CommandDispatcher
                 );
                 var fallbackMessage =
                     CommandDescriber.IsGroundCommand(command) && !aircraft.IsOnGround
-                        ? $"{CommandDescriber.DescribeNatural(command)} requires the aircraft to be on the ground"
+                        ? GroundCommandRequiresGroundMessage(command)
                         : $"Unable to {CommandDescriber.DescribeNatural(command)}";
                 return new CommandResult(false, fallbackMessage, NoDispatcherArm: true);
         }
@@ -1334,6 +1340,13 @@ public static class CommandDispatcher
     }
 
     /// <summary>
+    /// The rejection a ground verb earns when the aircraft is airborne. Shared by the dispatcher's no-arm fallback
+    /// and the dry-run ground guard so the user reads the same sentence whichever one rejects the command.
+    /// </summary>
+    private static string GroundCommandRequiresGroundMessage(ParsedCommand cmd) =>
+        $"{CommandDescriber.DescribeNatural(cmd)} requires the aircraft to be on the ground";
+
+    /// <summary>
     /// Applies a single command during dry-run validation. Handles both normal
     /// commands (via ApplyCommand) and tower-only commands that are normally
     /// dispatched through TryApplyTowerCommand.
@@ -1363,6 +1376,16 @@ public static class CommandDispatcher
         if (CommandDescriber.IsTowerCommand(cmd))
         {
             return new CommandResult(false, $"{CommandDescriber.DescribeNatural(cmd)} requires an active runway assignment");
+        }
+
+        // A ground command with no phase-less arm reaches here for an airborne aircraft. The real path would reject
+        // it in ApplyBlock — after the queue was already cleared — so reject it here, with the message the real
+        // path uses, and leave the queue untouched. NoDispatcherArm is carried through with it: the flag is what
+        // tells WithRejectedCommand not to stamp a RejectedCommandType, which would otherwise make the solo pilot
+        // answer a taxi-to-an-airborne-aircraft with a spoken "unable".
+        if (CommandDescriber.IsGroundCommand(cmd) && !clone.IsOnGround)
+        {
+            return new CommandResult(false, GroundCommandRequiresGroundMessage(cmd), NoDispatcherArm: true);
         }
 
         // Commands not handled at the Sim level (e.g. DEL, server-side commands)

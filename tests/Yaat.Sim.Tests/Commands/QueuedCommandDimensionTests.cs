@@ -34,6 +34,19 @@ public class QueuedCommandDimensionTests
             IsOnGround = false,
         };
 
+    /// <summary>
+    /// The same airborne aircraft, operating at KOAK so <c>CommandDispatcher.ResolveRunway</c> can resolve
+    /// "28R" — <c>Airborne()</c> files no airport, and an unresolvable runway would reject RWY for a reason
+    /// that has nothing to do with the dimension under test. Kept separate so the shared factory stays
+    /// airport-free for every other case.
+    /// </summary>
+    private static AircraftState AirborneAtOakland()
+    {
+        var ac = Airborne();
+        ac.AirportId = "KOAK";
+        return ac;
+    }
+
     private static DispatchContext Ctx(bool preserveConditionals) =>
         TestDispatch.Context(Random.Shared, validateDctFixes: false, preserveConditionals: preserveConditionals);
 
@@ -50,9 +63,14 @@ public class QueuedCommandDimensionTests
         ac.Queue.Blocks.Any(b => (b.ParsedCommands ?? []).Any(c => c is not UnsupportedCommand && CommandDescriber.ToCanonicalType(c) == type));
 
     /// <summary>Queues "AT 5000 {queued}", then issues {incoming} as a fresh command.</summary>
-    private static AircraftState QueueThen(string queued, string incoming)
+    private static AircraftState QueueThen(string queued, string incoming) => QueueThen(Airborne(), queued, incoming);
+
+    /// <summary>
+    /// As <see cref="QueueThen(string, string)"/>, on a caller-supplied aircraft — the runway cases need one
+    /// operating at KOAK so the designator resolves.
+    /// </summary>
+    private static AircraftState QueueThen(AircraftState ac, string queued, string incoming)
     {
-        var ac = Airborne();
         Dispatch($"AT 5000 {queued}", ac, preserveConditionals: false);
         Dispatch(incoming, ac, preserveConditionals: false);
         return ac;
@@ -164,6 +182,106 @@ public class QueuedCommandDimensionTests
     }
 
     // ---------------------------------------------------------------------------------------------------
+    // RWY is a lateral re-plan, not a surface clearance. TryAssignRunway (GroundCommandHandler) carries no
+    // ground guard: airborne it re-assigns the arrival runway and clears a pending approach clearance held
+    // for a different runway, because the approach clearance names the runway it is issued for (7110.65
+    // §3-10-5.c). That is lateral work (plus the Ground half, for the on-the-ground departure-runway
+    // branch) and nothing more — a runway re-assignment must not cancel queued altitude or speed work.
+    // TAXIAUTO is the same gap from the other side: a taxi clearance missing from IsGroundCommand, so it too
+    // fired as None and the fast path wiped the queue on its way to a rejection.
+    // ---------------------------------------------------------------------------------------------------
+
+    [Fact]
+    public void RunwayAssignment_LeavesQueuedSpeedAlone()
+    {
+        // Through the compound helper, which is the production path (ActionArms dispatches every controller
+        // command through DispatchCompound) and asserts the dispatch succeeded — so the queued speed surviving
+        // is the outcome of an APPLIED runway assignment, not of one that was harmlessly rejected.
+        var ac = AirborneAtOakland();
+        Dispatch("AT 5000 SPD 180", ac, preserveConditionals: false);
+        Dispatch("RWY 28R", ac, preserveConditionals: false);
+
+        Assert.Equal("28R", ac.Phases?.AssignedRunway?.Designator);
+        Assert.True(StillQueued(ac, CanonicalCommandType.Speed), "a runway assignment must not cancel a queued speed");
+    }
+
+    [Fact]
+    public void RunwayAssignment_CancelsQueuedLateralPlan()
+    {
+        // The other half: RWY does claim the lateral axis, so a queued pattern modifier goes. This pins the
+        // Lateral bit rather than catching a regression — it passed before too, back when RWY read None and
+        // ClearConflictingBlocks wiped the queue wholesale.
+        var ac = AirborneAtOakland();
+        Dispatch("AT 5000 EXT", ac, preserveConditionals: false);
+        Dispatch("RWY 28R", ac, preserveConditionals: false);
+
+        Assert.False(StillQueued(ac, CanonicalCommandType.ExtendPattern), "a runway assignment supersedes a queued lateral plan");
+    }
+
+    [Fact]
+    public void FreshVector_CancelsQueuedRunwayAssignment()
+    {
+        // The production-visible half of the same bit: while it waits, a queued RWY holds the lateral axis, so
+        // a fresh vector must take it out. It survived a vector before, because the block's aggregate
+        // Dimensions came from GetCommandDimension and read None.
+        var ac = QueueThen(AirborneAtOakland(), "RWY 28R", "FH 270");
+
+        Assert.False(StillQueued(ac, CanonicalCommandType.AssignRunway), "the fresh FH vector should have cancelled the queued RWY");
+    }
+
+    [Fact]
+    public void AltitudeAssignment_LeavesQueuedRunwayAssignmentAlone()
+    {
+        // ...and only the lateral axis: an altitude issued on the way to the trigger leaves it queued.
+        var ac = QueueThen(AirborneAtOakland(), "RWY 28R", "CM 7000");
+
+        Assert.True(StillQueued(ac, CanonicalCommandType.AssignRunway), "CM must not cancel a queued RWY — different axis");
+    }
+
+    [Theory]
+    [InlineData("TAXIAUTO 28R")]
+    [InlineData("TAXI 28R")]
+    public void RejectedSurfaceClearance_LeavesQueueIntact(string text)
+    {
+        // A taxi clearance to an airborne aircraft must fail without side effects. No ground verb has a
+        // phase-less arm in ApplyCommandCore (they all live in TryApplyTowerCommandCore), so the dry run's
+        // ApplyCommand comes back NoDispatcherArm — which DryRunApplyCommand otherwise reads as "cannot
+        // validate, assume valid". Dispatch then enqueues the block, ApplyBlock rejects it for real, and the
+        // first-block failure path clears the WHOLE queue. The dry-run ground guard is what keeps the
+        // rejection ahead of the clear. Asserted on DispatchCompound because that is where the dry run is;
+        // CommandDispatcher.Dispatch routes ground verbs straight into it.
+        var ac = Airborne();
+        Dispatch("AT 5000 SPD 180", ac, preserveConditionals: false);
+
+        var parsed = CommandParser.ParseCompound(text);
+        Assert.True(parsed.IsSuccess, $"parse failed for '{text}': {parsed.Reason}");
+        var result = CommandDispatcher.DispatchCompound(parsed.Value!, ac, Ctx(false));
+
+        Assert.False(result.Success, $"{text} must reject an airborne aircraft, got: {result.Message}");
+        Assert.True(result.NoDispatcherArm, $"the rejection must carry the no-arm flag, got: {result.Message}");
+        Assert.Contains("on the ground", result.Message);
+        Assert.True(
+            StillQueued(ac, CanonicalCommandType.Speed),
+            $"a rejected '{text}' must not have destroyed the queue (rejection: {result.Message})"
+        );
+    }
+
+    [Fact]
+    public void FreshTaxiAuto_ReachesAQueuedSurfaceClearance()
+    {
+        // TAXIAUTO is a taxi clearance, so it must displace a queued surface clearance exactly as TAXI does
+        // (see FreshSurfaceClearance_ReachesAQueuedSurfaceClearance for why this is asserted on the
+        // classifier rather than end-to-end).
+        var freshTaxiAuto = CommandParser.Parse("TAXIAUTO 28R").Value!;
+        var queuedHoldShort = CommandParser.Parse("HS 28R").Value!;
+
+        Assert.NotEqual(
+            CommandDimension.None,
+            CommandDescriber.GetCommandDimension(freshTaxiAuto) & CommandDescriber.GetQueuedCommandDimension(queuedHoldShort)
+        );
+    }
+
+    // ---------------------------------------------------------------------------------------------------
     // CrossFix declared the wrong axis. 7110.65 §4-2-5.b NOTE 1: "If altitude to 'maintain' is changed or
     // restated ... previously issued altitude restrictions are canceled." Queued CFIX read Lateral (via
     // ClassifyCommand -> Navigation) while it fires as Vertical [| Speed], so a restated altitude did NOT
@@ -225,6 +343,8 @@ public class QueuedCommandDimensionTests
     [InlineData("HS 28R")]
     [InlineData("PUSH")]
     [InlineData("TAXI 28R")]
+    [InlineData("TAXIAUTO 28R")]
+    [InlineData("RWY 28R")]
     [InlineData("CFIX SUNOL 8000")]
     [InlineData("EXP 5000")]
     [InlineData("HPPL")]
