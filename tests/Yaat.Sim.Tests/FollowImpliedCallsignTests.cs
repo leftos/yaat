@@ -2,6 +2,7 @@
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
 using Yaat.Sim.Phases;
+using Yaat.Sim.Phases.Pattern;
 
 namespace Yaat.Sim.Tests;
 
@@ -136,6 +137,43 @@ public class FollowImpliedCallsignTests : IDisposable
         Assert.True(follow.Success, $"Expected bare FOLLOWF to fold in the pending RTIS but got: {follow.Message}");
         Assert.Equal("LEAD", ownship.Approach.FollowingCallsign);
         Assert.Empty(ownship.PendingObservations); // pending look-for-traffic superseded
+    }
+
+    /// <summary>
+    /// The same fold-in, with speed work already queued: FOLLOW is <see cref="CommandDimension.Lateral"/>, so a
+    /// pending "AT 5000 SPD 180" is not the follow's to cancel and must still be waiting at its trigger afterwards.
+    /// </summary>
+    [Fact]
+    public void BareFollowF_WhileRtisPending_KeepsQueuedSpeedBlock()
+    {
+        var ownship = MakeVfrOwnship(); // heading 180 (south)
+        var lead = MakeLeader("LEAD", lat: 37.80); // north of ownship → behind
+        var ctx = TestDispatch.Context(Random.Shared, findAircraft: cs => cs == "LEAD" ? lead : null);
+
+        var queued = CommandDispatcher.DispatchCompound(
+            new CompoundCommand([new ParsedBlock(new LevelCondition(5000), [new SpeedCommand(180)])]),
+            ownship,
+            ctx
+        );
+        Assert.True(queued.Success, $"AT 5000 SPD 180 setup failed: {queued.Message}");
+        Assert.Single(ownship.Queue.Blocks);
+
+        var rtis = CommandDispatcher.Dispatch(new ReportTrafficInSightCommand("LEAD"), ownship, ctx);
+        Assert.True(rtis.Success, $"RTIS soft-fail setup failed: {rtis.Message}");
+        Assert.Single(ownship.PendingObservations);
+
+        var follow = CommandDispatcher.Dispatch(new FollowCommand(null, true), ownship, ctx);
+
+        Assert.True(follow.Success, $"Expected bare FOLLOWF to fold in the pending RTIS but got: {follow.Message}");
+        Assert.Equal("LEAD", ownship.Approach.FollowingCallsign);
+        Assert.IsType<VfrFollowPhase>(ownship.Phases?.CurrentPhase);
+
+        // The surviving block is the AT 5000 SPD 180 itself, still unfired at its trigger — not merely
+        // "something with a trigger".
+        var survivor = Assert.Single(ownship.Queue.Blocks, b => b.Trigger is { Type: BlockTriggerType.ReachAltitude });
+        Assert.False(survivor.IsApplied);
+        var queuedSpeed = Assert.IsType<SpeedCommand>(Assert.Single(survivor.ParsedCommands!));
+        Assert.Equal(180, queuedSpeed.Speed);
     }
 
     // -------------------------------------------------------------------------

@@ -664,61 +664,13 @@ public static class CommandDispatcher
         return new CommandResult(true, string.Join(", ", messages));
     }
 
-    public static CommandResult Dispatch(ParsedCommand command, AircraftState aircraft, DispatchContext ctx)
-    {
-        if (command is AssumeCommand)
-        {
-            return LiveTraffic.LiveTrafficAssumer.Assume(aircraft, ctx);
-        }
-
-        if (aircraft.IsShadow)
-        {
-            return RejectShadow(aircraft);
-        }
-
-        if (CompoundPolicy.IsFlightPlanCommand(command))
-        {
-            return RejectFlightPlanCommand(command);
-        }
-
-        // Route ground commands through DispatchCompound for phase interaction
-        if (CommandDescriber.IsGroundCommand(command))
-        {
-            var compound = new CompoundCommand([new ParsedBlock(null, [command])]);
-            return DispatchCompound(compound, aircraft, ctx);
-        }
-
-        // Phase-transparent commands: apply without clearing queue or phases. EXP <alt> is
-        // transparent to the phase system but not to the queue — it assigns an altitude, so
-        // it must still supersede conflicting vertical blocks below.
-        if (
-            (aircraft.Phases?.CurrentPhase is not null)
-            && CommandDescriber.IsPhaseTransparent(CommandDescriber.ToCanonicalType(command))
-            && !NeedsVerticalSupersede(command)
-        )
-        {
-            return ApplyCommand(command, aircraft, ctx);
-        }
-
-        // Selectively clear queue: remove only blocks whose dimensions conflict. This single-
-        // command path is always a fresh immediate command (a precondition is a block-level
-        // attribute, absent here), so it supersedes — preserveTriggeredBlocks stays false.
-        var singleDims = CommandDescriber.GetCommandDimension(command);
-        var singlePreserved = ClearConflictingBlocks(aircraft, singleDims, ctx, preserveTriggeredBlocks: false, out var singleDropped);
-        EmitQueueClearWarning(aircraft, singleDropped, new CompoundCommand([new ParsedBlock(null, [command])]));
-        aircraft.Queue.Blocks.AddRange(singlePreserved);
-
-        bool hadProcedure = aircraft.Procedure.ActiveSidId is not null || aircraft.Procedure.ActiveStarId is not null;
-        bool hadViaMode = aircraft.Procedure.SidViaMode || aircraft.Procedure.StarViaMode;
-        var result = ApplyCommand(command, aircraft, ctx);
-        if (!result.Success)
-        {
-            return WithRejectedCommand(result, command);
-        }
-
-        CheckVectoringWarning(aircraft, [command], hadProcedure, hadViaMode);
-        return result;
-    }
+    /// <summary>
+    /// Single-command convenience over <see cref="DispatchCompound"/>: wraps <paramref name="command"/> in one
+    /// unconditional block so a lone verb takes the production path — dry run on a clone, phase gate, dimension-aware
+    /// supersede — and never a path of its own.
+    /// </summary>
+    public static CommandResult Dispatch(ParsedCommand command, AircraftState aircraft, DispatchContext ctx) =>
+        DispatchCompound(new CompoundCommand([new ParsedBlock(null, [command])]), aircraft, ctx);
 
     private static CommandResult ApplyCommand(ParsedCommand command, AircraftState aircraft, DispatchContext ctx)
     {
@@ -1304,6 +1256,11 @@ public static class CommandDispatcher
             cloneApproach.Procedure = aircraft.Phases?.ActiveApproach?.Procedure;
         }
 
+        // PendingObservations is ephemeral runtime state that no snapshot carries, so the clone comes back with an empty
+        // list — and a bare FOLLOWF or RTISF that folds in a still-pending traffic acquisition would be rejected here
+        // for a reason the real aircraft does not have. The clone is discarded, so sharing the entries is safe.
+        clone.PendingObservations.AddRange(aircraft.PendingObservations);
+
         // Dry-run uses a deterministic RNG and suppresses auto-cross-runway side effects and terminal emission.
         // The clone is discarded; emitting SAY broadcasts here would surface phantom pilot transmissions before the
         // trigger actually fires. DCT-fix validation stays ENABLED: the real path clears conflicting queue blocks and
@@ -1323,8 +1280,12 @@ public static class CommandDispatcher
         // (e.g. "EXT DOWNWIND; CLAND") passes dry-run against the intact clone queue but fails on the
         // real aircraft after ClearConflictingBlocks wipes the queued entry — a silent-wipe-then-fail.
         // A conditional first block already returned above, so the real path always clears here
-        // (non-conditional-incoming); mirror its dims and preserve flag.
-        ClearConflictingBlocks(clone, CommandDescriber.GetCompoundDimensions(compound), ctx, ctx.PreserveConditionals, out _);
+        // (non-conditional-incoming); mirror its dims and preserve flag. ClearConflictingBlocks is a
+        // partition — it removes every pending block and returns the survivors — so the clone has to model
+        // the caller's re-append too, or a handler that reads the queue to accept sees a queue the real
+        // aircraft will never have.
+        var clonePreserved = ClearConflictingBlocks(clone, CommandDescriber.GetCompoundDimensions(compound), ctx, ctx.PreserveConditionals, out _);
+        clone.Queue.Blocks.AddRange(clonePreserved);
 
         var firstBlock = compound.Blocks[0];
         foreach (var cmd in firstBlock.Commands)

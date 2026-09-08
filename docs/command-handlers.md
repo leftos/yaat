@@ -55,8 +55,8 @@ public entries: they are the `ActionRouter`'s flight-plan arm (`RecordedCommandK
 `ApplyCommand`. `BREAK` is classified as a ground command (`CommandDescriber.IsGroundCommand`, `CommandDescriber.cs:933`); `GO` is in neither
 `IsGroundCommand` nor `IsTowerCommand` (`CommandDescriber.cs:868`). Both reach `TryApplyTowerCommand` only when a phase is active: a directly-typed
 `BREAK`/`GO` parses into a `CompoundCommand` and flows through `DispatchCompound` → the phase gate (`DispatchWithPhase`) → `TryApplyTowerCommand`.
-(The single-command `Dispatch` entry point at `CommandDispatcher.cs:326` — used by the engine-level `TaxiAll` fan-out — also re-wraps any ground
-command into a compound for `DispatchCompound`, but that path is not how a user-typed `BREAK`/`GO` arrives.)
+(The single-command `Dispatch` entry point — used by the engine-level `TaxiAll` fan-out and by tests — is a thin wrapper that puts the verb in
+one unconditional block and calls `DispatchCompound`; there is no second dispatch path.)
 
 > If you add a phase-interactive verb to **only** `ApplyCommand`, an immediate dispatch may work, but a *queued/triggered* instance of that verb that
 > re-fires after a phase transition will hit the no-dispatcher-arm fallback in `BuildApplyAction` (see [Triggered re-dispatch](#triggered-re-dispatch-buildapplyaction)). Add it to both, or to `TryApplyTowerCommand` only if it always requires a phase.

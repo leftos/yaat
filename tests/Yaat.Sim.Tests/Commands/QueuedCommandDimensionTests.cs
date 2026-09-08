@@ -654,4 +654,32 @@ public class QueuedCommandDimensionTests
         );
         Assert.Equal(CommandDimension.Ground, block.Dimensions);
     }
+
+    // ---------------------------------------------------------------------------------------------------
+    // The dry-run clone must model the WHOLE partition. ClearConflictingBlocks removes every pending block
+    // and returns the survivors for the caller to re-append (DispatchCompoundCore does that after
+    // EnqueueBlocks); the clone only ever did the removing, so the survivors vanished and a handler that
+    // reads the queue to accept — TryArmPendingEntryModifier, scanning for the pattern entry EXT exists to
+    // modify — rejected on the clone what the real aircraft would have taken. Reachable only where the
+    // clear-everything fast path is skipped: the PreserveConditionals reaction-delay re-dispatch.
+    //
+    // EXT leads a compound here because a LONE modifier never reaches the dry run at all — the
+    // Blocks.All(IsImmediatePhaseModifierBlock) branch above DryRunValidate applies it directly.
+    // ---------------------------------------------------------------------------------------------------
+
+    [Fact]
+    public void PreservedConditionalEntry_IsVisibleToTheDryRunClone()
+    {
+        var ac = AirborneAtOakland();
+        Dispatch("AT 5000 ERD 28R", ac, preserveConditionals: false);
+        Assert.True(StillQueued(ac, CanonicalCommandType.EnterRightDownwind), "setup: the pattern entry should be queued behind its AT trigger");
+
+        var parsed = CommandParser.ParseCompound("EXT DOWNWIND; CLAND 28R");
+        Assert.True(parsed.IsSuccess, $"parse failed: {parsed.Reason}");
+        var result = CommandDispatcher.DispatchCompound(parsed.Value!, ac, Ctx(preserveConditionals: true));
+
+        Assert.True(result.Success, $"EXT must arm against the preserved queued entry, but got: {result.Message}");
+        Assert.True(StillQueued(ac, CanonicalCommandType.EnterRightDownwind), "the queued entry must survive the modifier that targets it");
+        Assert.Equal(PendingEntryModifierKind.ExtendLeg, ac.Pattern.PendingEntryModifier?.Kind);
+    }
 }

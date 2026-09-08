@@ -19,7 +19,7 @@ namespace Yaat.Sim.Tests;
 ///   <item>Parse it via <see cref="CommandParser.ParseCompound"/>.</item>
 ///   <item>If parse fails: assert the reason is non-empty AND descriptive (length &gt; 5,
 ///   not a generic placeholder).</item>
-///   <item>If parse succeeds: dispatch via <see cref="CommandDispatcher.Dispatch"/> on a
+///   <item>If parse succeeds: dispatch via <see cref="CommandDispatcher.DispatchCompound"/> on a
 ///   parked aircraft (no phases, no flight plan, no runway). If dispatch fails, assert
 ///   the message contract.</item>
 /// </list>

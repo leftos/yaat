@@ -31,6 +31,13 @@ public class NavigationCommandTests : IDisposable
         };
     }
 
+    /// <summary>
+    /// The follow-on block a navigation verb queues behind itself (JRADI/JRADO/JAWY intercept, DEPART/DFIX reach-fix).
+    /// The dispatched verb occupies its own applied block ahead of it, so the trigger block is located by its trigger
+    /// rather than by index.
+    /// </summary>
+    private static CommandBlock TriggerBlock(AircraftState aircraft) => Assert.Single(aircraft.Queue.Blocks, b => b.Trigger is not null);
+
     // --- JRADO ---
 
     [Fact]
@@ -45,9 +52,10 @@ public class NavigationCommandTests : IDisposable
         Assert.Contains("180", result.Message);
         Assert.Contains("outbound", result.Message);
         Assert.Equal(090, aircraft.Targets.TargetTrueHeading?.Degrees);
-        Assert.Single(aircraft.Queue.Blocks);
-        Assert.Equal(BlockTriggerType.InterceptRadial, aircraft.Queue.Blocks[0].Trigger!.Type);
-        Assert.Equal(180, aircraft.Queue.Blocks[0].Trigger!.Radial);
+        Assert.Equal(2, aircraft.Queue.Blocks.Count); // the applied JRADO, then its intercept block
+        var intercept = TriggerBlock(aircraft);
+        Assert.Equal(BlockTriggerType.InterceptRadial, intercept.Trigger!.Type);
+        Assert.Equal(180, intercept.Trigger!.Radial);
     }
 
     [Fact]
@@ -59,7 +67,7 @@ public class NavigationCommandTests : IDisposable
         CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
         // Simulate trigger met: apply the intercept block
-        var block = aircraft.Queue.Blocks[0];
+        var block = TriggerBlock(aircraft);
         block.ApplyAction?.Invoke(aircraft);
 
         Assert.Equal(270, aircraft.Targets.TargetTrueHeading?.Degrees);
@@ -79,8 +87,8 @@ public class NavigationCommandTests : IDisposable
         Assert.True(result.Success);
         Assert.Contains("inbound", result.Message);
         Assert.Equal(270, aircraft.Targets.TargetTrueHeading?.Degrees);
-        Assert.Single(aircraft.Queue.Blocks);
-        Assert.Equal(BlockTriggerType.InterceptRadial, aircraft.Queue.Blocks[0].Trigger!.Type);
+        Assert.Equal(2, aircraft.Queue.Blocks.Count); // the applied verb, then its intercept block
+        Assert.Equal(BlockTriggerType.InterceptRadial, TriggerBlock(aircraft).Trigger!.Type);
     }
 
     [Fact]
@@ -92,7 +100,7 @@ public class NavigationCommandTests : IDisposable
         CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
         // Simulate trigger met
-        var block = aircraft.Queue.Blocks[0];
+        var block = TriggerBlock(aircraft);
         block.ApplyAction?.Invoke(aircraft);
 
         Assert.Single(aircraft.Targets.NavigationRoute);
@@ -115,8 +123,8 @@ public class NavigationCommandTests : IDisposable
         Assert.Contains("270", result.Message);
         Assert.Single(aircraft.Targets.NavigationRoute);
         Assert.Equal("SUNOL", aircraft.Targets.NavigationRoute[0].Name);
-        Assert.Single(aircraft.Queue.Blocks);
-        Assert.Equal(BlockTriggerType.ReachFix, aircraft.Queue.Blocks[0].Trigger!.Type);
+        Assert.Equal(2, aircraft.Queue.Blocks.Count); // the applied DEPART, then its reach-fix block
+        Assert.Equal(BlockTriggerType.ReachFix, TriggerBlock(aircraft).Trigger!.Type);
     }
 
     [Fact]
@@ -127,7 +135,7 @@ public class NavigationCommandTests : IDisposable
 
         CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
-        var block = aircraft.Queue.Blocks[0];
+        var block = TriggerBlock(aircraft);
         block.ApplyAction?.Invoke(aircraft);
 
         Assert.Equal(270, aircraft.Targets.TargetTrueHeading?.Degrees);
@@ -161,7 +169,7 @@ public class NavigationCommandTests : IDisposable
         Assert.Equal(6000, fix.AltitudeRestriction?.Altitude1Ft);
 
         // On reaching CASST the depart block turns the aircraft and pins the crossing speed.
-        aircraft.Queue.Blocks[0].ApplyAction?.Invoke(aircraft);
+        TriggerBlock(aircraft).ApplyAction?.Invoke(aircraft);
         Assert.Equal(267, aircraft.Targets.TargetTrueHeading?.Degrees);
         Assert.Equal(210, aircraft.Targets.SpeedCeiling);
     }
@@ -184,8 +192,9 @@ public class NavigationCommandTests : IDisposable
         Assert.Single(aircraft.Targets.NavigationRoute);
         Assert.NotNull(aircraft.Targets.NavigationRoute[0].AltitudeRestriction);
         Assert.Equal(4000, aircraft.Targets.AssignedAltitude);
-        // No revert block — revert is on the NavigationTarget
-        Assert.Empty(aircraft.Queue.Blocks);
+        // No revert block — revert is on the NavigationTarget. The queue holds the applied CFIX and nothing else.
+        var appliedCfix = Assert.Single(aircraft.Queue.Blocks);
+        Assert.Null(appliedCfix.Trigger);
     }
 
     [Fact]
@@ -927,11 +936,11 @@ public class NavigationCommandTests : IDisposable
         Assert.Contains("V25", result.Message);
         // Should set present heading and create intercept block
         Assert.Equal(090, aircraft.Targets.TargetTrueHeading?.Degrees);
-        Assert.Single(aircraft.Queue.Blocks);
-        Assert.Equal(BlockTriggerType.InterceptRadial, aircraft.Queue.Blocks[0].Trigger!.Type);
+        Assert.Equal(2, aircraft.Queue.Blocks.Count); // the applied verb, then its intercept block
+        Assert.Equal(BlockTriggerType.InterceptRadial, TriggerBlock(aircraft).Trigger!.Type);
 
         // Simulate intercept: apply the block action
-        aircraft.Queue.Blocks[0].ApplyAction!(aircraft);
+        TriggerBlock(aircraft).ApplyAction!(aircraft);
 
         // After intercept, should have TRACY → MODEN → CEDES in nav route
         Assert.Equal(3, aircraft.Targets.NavigationRoute.Count);
@@ -954,7 +963,7 @@ public class NavigationCommandTests : IDisposable
         Assert.True(result.Success);
 
         // Simulate intercept
-        aircraft.Queue.Blocks[0].ApplyAction!(aircraft);
+        TriggerBlock(aircraft).ApplyAction!(aircraft);
 
         // After intercept, should follow TRACY → SUNOL (westbound)
         Assert.Equal(2, aircraft.Targets.NavigationRoute.Count);
@@ -976,7 +985,7 @@ public class NavigationCommandTests : IDisposable
         Assert.True(result.Success);
 
         // Simulate intercept
-        aircraft.Queue.Blocks[0].ApplyAction!(aircraft);
+        TriggerBlock(aircraft).ApplyAction!(aircraft);
 
         // Should navigate from SUNOL onward
         Assert.True(aircraft.Targets.NavigationRoute.Count >= 1);
@@ -1020,7 +1029,7 @@ public class NavigationCommandTests : IDisposable
 
         CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
-        var block = aircraft.Queue.Blocks[0];
+        var block = TriggerBlock(aircraft);
         block.ApplyAction?.Invoke(aircraft);
 
         Assert.Equal(270, aircraft.Targets.AssignedMagneticHeading?.Degrees);
@@ -1045,7 +1054,7 @@ public class NavigationCommandTests : IDisposable
 
         CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
-        var block = aircraft.Queue.Blocks[0];
+        var block = TriggerBlock(aircraft);
         block.ApplyAction?.Invoke(aircraft);
 
         Assert.Null(aircraft.Targets.AssignedMagneticHeading?.Degrees);
@@ -1071,7 +1080,7 @@ public class NavigationCommandTests : IDisposable
 
         CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
-        var block = aircraft.Queue.Blocks[0];
+        var block = TriggerBlock(aircraft);
         block.ApplyAction?.Invoke(aircraft);
 
         Assert.Equal(270, aircraft.Targets.AssignedMagneticHeading?.Degrees);
@@ -1199,7 +1208,7 @@ public class NavigationCommandTests : IDisposable
 
         CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
-        aircraft.Queue.Blocks[0].ApplyAction!(aircraft);
+        TriggerBlock(aircraft).ApplyAction!(aircraft);
 
         Assert.Null(aircraft.Targets.AssignedMagneticHeading?.Degrees);
     }
@@ -1284,8 +1293,9 @@ public class NavigationCommandTests : IDisposable
         var cmd = new CrossFixCommand("SUNOL", 37.6, -121.9, 4000, CrossFixAltitudeType.At, null);
         CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
-        // No revert block in the command queue
-        Assert.Empty(aircraft.Queue.Blocks);
+        // The dispatched CFIX occupies its own applied block; no second, triggered revert block joins it.
+        var appliedCfix = Assert.Single(aircraft.Queue.Blocks);
+        Assert.Null(appliedCfix.Trigger);
     }
 
     // --- Step-based planning activates for non-via-mode routes with constraints ---
