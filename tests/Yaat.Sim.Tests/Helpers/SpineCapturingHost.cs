@@ -42,6 +42,24 @@ public sealed class SpineCapturingHost : ISimulationHost
         _bare.OnCoordinationChanged();
     }
 
+    /// <summary>How many times a drain — the router's or the spine's — reported the timeline bookmarks changed.</summary>
+    public int BookmarkChangeCount { get; private set; }
+
+    public void OnBookmarksChanged()
+    {
+        BookmarkChangeCount++;
+        _bare.OnBookmarksChanged();
+    }
+
+    /// <summary>How many times a drain — the router's or the spine's — reported the session clock changed.</summary>
+    public int SimStateChangeCount { get; private set; }
+
+    public void OnSimStateChanged()
+    {
+        SimStateChangeCount++;
+        _bare.OnSimStateChanged();
+    }
+
     public void OnTdlsChanged(TdlsChangeSet changes)
     {
         TdlsChanges.Add(changes);
@@ -105,10 +123,6 @@ public sealed class SpineCapturingHost : ISimulationHost
     // --- IActionHost ---
 
     public CommandResult ApplyAsdexEnableAllAlerts() => _bare.ApplyAsdexEnableAllAlerts();
-
-    public CommandResult ApplyBookmark(BookmarkCommand command, string initials) => _bare.ApplyBookmark(command, initials);
-
-    public CommandResult ApplyTransport(ParsedCommand command) => _bare.ApplyTransport(command);
 
     public void ApplyRecordedAsdexMutation(RecordedAsdexMutation mutation) => _bare.ApplyRecordedAsdexMutation(mutation);
 

@@ -12,13 +12,16 @@ namespace Yaat.Sim.Simulation.Actions;
 ///
 /// <para>
 /// <b>Step-4 debt.</b> Every <c>Apply*</c> member here is a body whose state has not crossed into Yaat.Sim: the
-/// ASDE-X and SAID display state (the recorded mutations included), the ERAM CRR groups, bookmarks and the
-/// room clock. Strips, TDLS and coordination have all crossed whole: their state is the engine's
+/// ASDE-X and SAID display state (the recorded mutations included) and the ERAM CRR groups. Strips, TDLS,
+/// coordination, bookmarks and the session clock have all crossed whole: their state is the engine's
 /// (<see cref="SimulationEngine.Strips"/> / <see cref="SimulationEngine.Tdls"/> /
-/// <see cref="SimScenarioState.CoordinationChannels"/>, snapshotted, so every run
+/// <see cref="SimScenarioState.CoordinationChannels"/> / <see cref="SimScenarioState.Bookmarks"/> /
+/// <see cref="SimScenarioState.IsPaused"/> and <see cref="SimScenarioState.SimRate"/>, all but the
+/// bookmarks snapshotted — the timeline metadata a rewind carries over verbatim instead — so every run
 /// kind carries them), their mutation bodies are the engine's, and what those bodies touched reaches the host through
-/// <see cref="IStateChangeConsumer.OnStripsChanged"/>, <see cref="IStateChangeConsumer.OnTdlsChanged"/> and
-/// <see cref="IStateChangeConsumer.OnCoordinationChanged"/> —
+/// <see cref="IStateChangeConsumer.OnStripsChanged"/>, <see cref="IStateChangeConsumer.OnTdlsChanged"/>,
+/// <see cref="IStateChangeConsumer.OnCoordinationChanged"/>, <see cref="IStateChangeConsumer.OnBookmarksChanged"/> and
+/// <see cref="IStateChangeConsumer.OnSimStateChanged"/> —
 /// the broadcast is all the host still owes. The host answers no
 /// questions, because CRC attendance, the last one it was asked, is now engine state every run kind carries
 /// (<see cref="SimulationEngine.Attendance"/>, fed by <see cref="RecordedAttendanceChange"/>). As each body crosses,
@@ -38,12 +41,6 @@ public interface IActionHost : IStateChangeConsumer
 
     /// <summary><c>ASDXALERTS</c> — clear every ASDE-X alert inhibit in the room.</summary>
     CommandResult ApplyAsdexEnableAllAlerts();
-
-    /// <summary>A mutating <c>BM</c> verb, with the issuing controller's initials for the bookmark's author. Never recorded.</summary>
-    CommandResult ApplyBookmark(BookmarkCommand command, string initials);
-
-    /// <summary><c>PAUSE</c> / <c>UNPAUSE</c> / <c>SIMRATE</c> — the room's clock. Never recorded.</summary>
-    CommandResult ApplyTransport(ParsedCommand command);
 
     /// <summary>A recorded CRC ASDE-X mutation (tag / terminate / suspend / inhibit / edit); ASDE-X display state is the room's.</summary>
     void ApplyRecordedAsdexMutation(RecordedAsdexMutation mutation);

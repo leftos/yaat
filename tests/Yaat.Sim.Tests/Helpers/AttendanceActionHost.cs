@@ -16,8 +16,6 @@ public sealed class AttendanceActionHost : IActionHost
 
     public int WeatherChanges { get; private set; }
 
-    public int TransportApplies { get; private set; }
-
     public List<RecordedAsdexMutation> AsdexMutations { get; } = [];
 
     public List<RecordedSaidMutation> SaidMutations { get; } = [];
@@ -35,14 +33,6 @@ public sealed class AttendanceActionHost : IActionHost
     public void OnConsolidationChanged() => ConsolidationChanges++;
 
     public CommandResult ApplyAsdexEnableAllAlerts() => ActionRefusals.HostOnly("ASDXALERTS");
-
-    public CommandResult ApplyBookmark(BookmarkCommand command, string initials) => ActionRefusals.HostOnly(command);
-
-    public CommandResult ApplyTransport(ParsedCommand command)
-    {
-        TransportApplies++;
-        return ActionRefusals.HostOnly(command);
-    }
 
     public void ApplyRecordedAsdexMutation(RecordedAsdexMutation mutation) => AsdexMutations.Add(mutation);
 
@@ -87,6 +77,16 @@ public sealed class AttendanceActionHost : IActionHost
     public int CoordinationChanges { get; private set; }
 
     public void OnCoordinationChanged() => CoordinationChanges++;
+
+    /// <summary>How many times a drain reported the shared timeline bookmarks changed.</summary>
+    public int BookmarkChanges { get; private set; }
+
+    public void OnBookmarksChanged() => BookmarkChanges++;
+
+    /// <summary>How many times a drain reported the session clock changed.</summary>
+    public int SimStateChanges { get; private set; }
+
+    public void OnSimStateChanged() => SimStateChanges++;
 
     public void OnTimersChanged() { }
 

@@ -95,10 +95,6 @@ internal sealed class ReplayHost : ISimulationHost
 
     public CommandResult ApplyAsdexEnableAllAlerts() => _bare.ApplyAsdexEnableAllAlerts();
 
-    public CommandResult ApplyBookmark(BookmarkCommand command, string initials) => _bare.ApplyBookmark(command, initials);
-
-    public CommandResult ApplyTransport(ParsedCommand command) => _bare.ApplyTransport(command);
-
     public void ApplyRecordedAsdexMutation(RecordedAsdexMutation mutation) => _bare.ApplyRecordedAsdexMutation(mutation);
 
     public void ApplyRecordedSaidMutation(RecordedSaidMutation mutation) => _bare.ApplyRecordedSaidMutation(mutation);
@@ -124,6 +120,10 @@ internal sealed class ReplayHost : ISimulationHost
     public void OnTdlsChanged(TdlsChangeSet changes) => _bare.OnTdlsChanged(changes);
 
     public void OnCoordinationChanged() => _bare.OnCoordinationChanged();
+
+    public void OnBookmarksChanged() => _bare.OnBookmarksChanged();
+
+    public void OnSimStateChanged() => _bare.OnSimStateChanged();
 
     public void OnTimersChanged() => _bare.OnTimersChanged();
 

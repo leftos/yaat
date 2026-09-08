@@ -89,6 +89,8 @@ The Task Index above tells you *which files*; these docs explain *how each subsy
   - **Strip id baking**: `Simulation/Actions/StripIdBakedDrawTests.cs` (the strip id a creating verb — SEP/HSC/SCAN — draws is a baked draw like the reaction delay and the generated aircraft: `RecordedCommand.StripId` round-trips the archive serializer, `BakedDraws.Of` carries it, and the strip arm bakes the id the verb minted onto the record)
   - **Strip steps**: `Simulation/Strips/StripStepTests.cs` (the flight-strip bodies on the bare engine: the spawn hook's auto-print, the approach student's takeoff-roll print, the creating verbs behind `SEP`/`HSC`, the deferred strip dispatch the engine applies itself, and the change tracker the router and the post-physics drain step hand to the host — over real ZOA data with no server in the process)
   - **Tower lists**: `Simulation/TowerLists/TowerListStepTests.cs` (the P-list step on the bare engine over real ZOA data: an in-range aircraft enters with the tick's second, the coordination flag is raised by the spine step, a static second re-stamps nothing, a snapshot restore keeps the live dwell second), `Simulation/Snapshots/TowerListSnapshotMapperTests.cs` (round-trip incl. entry order, null → empty, ClearSession keeps the airports), `TowerListTrackerTests.cs` (the tracker's range geometry — moved from the server suite)
+  - **Bookmarks**: `Simulation/Bookmarks/BookmarkStepTests.cs` (the bookmark bodies on the bare engine: `BM ADD`/`RENAME`/`DELETE`/`DEL ALL`, one `OnBookmarksChanged` per successful mutation and none for a refused one, a recorded `BM ADD` inert)
+  - **Session clock**: `Simulation/TransportStepTests.cs` (`PAUSE`/`UNPAUSE`/`SIMRATE` on the bare engine: the clamp to 1..16, the live-traffic refusal, `(false, "No active scenario")`, one `OnSimStateChanged` per accepted verb, a recorded `PAUSE` inert)
   - **Coordination**: `Simulation/Coordination/CoordinationStepTests.cs` (the coordination bodies on the bare engine over the real ZOA `POAK` list: `RD`/`RDH`/`RDR`/`RDACK`/`RDDEL`/`RDPOS`/`RDTXT`/`RDAUTO`, the deterministic `{ListId}-{SequenceNumber}` id, the timers step reached through `RunSecond` and its dirty flag delivered by the `StateChanges` spine step, a `TRACK` voiding the items, a non-sender refused, and a `ReplayDriver` replay holding the same item id as live)
   - **TDLS**: `Simulation/Tdls/TdlsStepTests.cs` (the vTDLS bodies on the bare engine: the spawn hook's auto-queue, the four tick steps — auto-queue, auto-WILCO, TTL expiry, track removal — the `TDLSQ`/`TDLSS`/`TDLSW`/`TDLSDUMP`/`TDLSOPS` command handler, and the change tracker the router drains into the host — over real OAK navdata with no server in the process)
 - **Client tests**: `tests/Yaat.Client.Tests/` — view model logic, command input
@@ -1186,8 +1188,17 @@ SimulationEngine.Tdls.cs       # The vTDLS spine steps (TickAutoTdlsQueue, TickT
                                # SetTdlsOpConfig/ApplyTdlsOpConfig (TDLSOPS), IsDepartureAircraft, InitializeFromArtcc (loads the coordination channels — SimulationEngine.Coordination.cs — pre-creates strip bay slots +
                                # registers a TdlsConfig for every ARTCC facility that has one; run by scenario load and ReplayDriver), and
                                # DrainStateChangesInto (hands the host what FlightStripState.Changes and TdlsState.Changes accumulated since the last drain,
-                               # strips first, then the coordination dirty flag as OnCoordinationChanged). Decides from engine state alone (the session clock, the ARTCC's TDLS configuration, the world), so every run
+                               # strips first, then the coordination, bookmark and session-clock dirty flags as OnCoordinationChanged / OnBookmarksChanged / OnSimStateChanged). Decides from engine state alone (the session clock, the ARTCC's TDLS configuration, the world), so every run
                                # kind builds the same DCL/PDC lists.
+SimulationEngine.Bookmarks.cs  # The bookmark bodies (crossed from yaat-server 2026-09-08): AddBookmark(timeSeconds, name, initials) / RenameBookmark / DeleteBookmark /
+                               # DeleteAllBookmarks over SimScenarioState.Bookmarks + NextBookmarkId (MaxBookmarks 500, the id in the result Message), each marking the
+                               # bookmark dirty flag that DrainStateChangesInto hands the host as OnBookmarksChanged. Bookmarks stay out of the snapshot on purpose (a
+                               # rewind carries them over) and BM is RecordingPolicy.Never. The server's RoomEngine.AddBookmark/RenameBookmark/DeleteBookmark wrappers
+                               # (the desktop client's bookmark RPCs, explicit timeSeconds) call these then drain, so a paused room still broadcasts
+SimulationEngine.Transport.cs  # The session-clock bodies (crossed from yaat-server 2026-09-08): Pause() / Resume() / SetSimRate(int) over SimScenarioState.IsPaused /
+                               # SimRate (clamped 1..16; refused while LiveTrafficEnabled; (false, "No active scenario") without one), each marking the sim-state dirty flag
+                               # (OnSimStateChanged → the host's BroadcastSimState). The unattended-pause and rewind paths still write IsPaused directly and broadcast
+                               # themselves. PAUSE/UNPAUSE/SIMRATE stay RecordingPolicy.Never — a rewind must never pause itself
 SimulationEngine.Coordination.cs # The coordination bodies (crossed from yaat-server 2026-09-07): TickCoordinationTimers (post-physics: an acknowledged release voids
                                # CoordinationAckExpirySeconds after the ack, flags DepartureExpirationWarning at CoordinationExpiryWarningSeconds remaining, a
                                # recalled item is removed after CoordinationRecallLingerSeconds — SimScenarioState constants), RemoveCoordinationOnRadarAcquisition
@@ -1415,6 +1426,14 @@ CoordinationCommandHandler.cs  # Static dispatch for the aircraft-scoped verbs (
                                # ahead of time so the recorded canonical carries the list explicitly. Item ids are {ListId}-{SequenceNumber} off the
                                # channel's snapshotted counter, not a fresh draw, so a rebuilt list holds the same items under the same ids; every
                                # successful mutation calls SimulationEngine.MarkCoordinationChanged
+
+# Simulation/Bookmarks/ — timeline-bookmark verb logic, engine-owned (SimulationEngine.Bookmarks.cs owns the bodies + dirty flag)
+BookmarkCommandHandler.cs      # Static dispatch of BM ADD / RENAME / DELETE / DEL ALL (HandleAdd/HandleRename/HandleDelete/HandleDeleteAll) onto the engine bodies;
+                               # ADD stamps the scenario's ElapsedSeconds. Sim arm since 2026-09-08 (was the IActionHost.ApplyBookmark slot)
+
+# Simulation/Transport/ — session-clock verb logic, engine-owned (SimulationEngine.Transport.cs owns the bodies + dirty flag)
+TransportCommandHandler.cs     # Static dispatch of PAUSE / UNPAUSE / SIMRATE onto SimulationEngine.Pause/Resume/SetSimRate. Sim arm since 2026-09-08 (was the
+                               # IActionHost.ApplyTransport slot)
 
 # Simulation/Oracle/ — state-equivalence between run kinds (docs/tick-loop.md, ADR 0004). Driver: yaat-server TickOracleTests.
 SnapshotTreeDiff.cs            # Parallel JsonNode walk over two StateSnapshotDto captures -> one SnapshotDivergence per differing leaf, at the JSON-pointer path.

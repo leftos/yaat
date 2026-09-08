@@ -190,10 +190,13 @@ public class ActionRouterTests
         var engine = BuildEngine(soloTrainingMode: false, reactionDelaySeconds: 0);
         var ac = AddAirborne(engine, "UAL123", 1234);
 
+        engine.Scenario!.IsPaused = false;
+
         var outcome = engine.Actions.Apply(Recorded("", "PAUSE"));
 
         Assert.False(outcome.Result.Success);
-        Assert.Equal(new ActionTrace(RecordedCommandKind.Transport, ActionScope.Global, IsHostSlot: true), outcome.Trace);
+        Assert.Equal(new ActionTrace(RecordedCommandKind.Transport, ActionScope.Global, IsHostSlot: false), outcome.Trace);
+        Assert.False(engine.Scenario!.IsPaused);
         Assert.Empty(engine.Scenario!.ActionLog);
         Assert.Empty(ac.DeferredDispatches);
     }

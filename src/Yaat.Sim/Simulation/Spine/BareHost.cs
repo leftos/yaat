@@ -105,10 +105,6 @@ internal sealed class BareHost(SimulationEngine engine) : ISimulationHost
 
     public CommandResult ApplyAsdexEnableAllAlerts() => ActionRefusals.HostOnly("ASDXALERTS");
 
-    public CommandResult ApplyBookmark(BookmarkCommand command, string initials) => ActionRefusals.HostOnly(command);
-
-    public CommandResult ApplyTransport(ParsedCommand command) => ActionRefusals.HostOnly(command);
-
     public void ApplyRecordedAsdexMutation(RecordedAsdexMutation mutation) { }
 
     public void ApplyRecordedSaidMutation(RecordedSaidMutation mutation) { }
@@ -137,6 +133,12 @@ internal sealed class BareHost(SimulationEngine engine) : ISimulationHost
 
     /// <summary>Discarded: a bare engine has no CRC client to re-push the coordination topic to. The lists are engine state.</summary>
     public void OnCoordinationChanged() { }
+
+    /// <summary>Discarded: a bare engine has no room to re-send the bookmark list to. The bookmarks are engine state.</summary>
+    public void OnBookmarksChanged() { }
+
+    /// <summary>Discarded: a bare engine has no room to re-send the sim state to. The clock is engine state.</summary>
+    public void OnSimStateChanged() { }
 
     public void OnTimersChanged() { }
 

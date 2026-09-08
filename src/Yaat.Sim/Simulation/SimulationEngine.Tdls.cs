@@ -330,9 +330,10 @@ public sealed partial class SimulationEngine
 
     /// <summary>
     /// Hands the host what the engine's bodies have touched since the last drain — the strip change set first, so an
-    /// item the same drain's TDLS half references is already there, then the TDLS one, then the coordination flag.
-    /// Called by the action router after every routed action and by the post-physics spine step for what the tick
-    /// steps produced; a host that broadcasts turns it into messages, a bare or replaying one drops it.
+    /// item the same drain's TDLS half references is already there, then the TDLS one, then the coordination flag,
+    /// then the bookmark one, then the clock's. Called by the action router after every routed action and by the
+    /// post-physics spine step for what the tick steps produced; a host that broadcasts turns it into messages, a bare
+    /// or replaying one drops it.
     /// </summary>
     internal void DrainStateChangesInto(IStateChangeConsumer host)
     {
@@ -350,6 +351,18 @@ public sealed partial class SimulationEngine
         {
             CoordinationChanged = false;
             host.OnCoordinationChanged();
+        }
+
+        if (BookmarksChanged)
+        {
+            BookmarksChanged = false;
+            host.OnBookmarksChanged();
+        }
+
+        if (SimStateChanged)
+        {
+            SimStateChanged = false;
+            host.OnSimStateChanged();
         }
     }
 }

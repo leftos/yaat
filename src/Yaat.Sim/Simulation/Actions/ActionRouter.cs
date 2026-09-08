@@ -280,7 +280,7 @@ public sealed class ActionRouter
         var arm = ArmTable.For(classification.Kind);
         var trace = new ActionTrace(arm.Kind, arm.Scope, arm.IsHostSlot);
 
-        // A kind that is never recorded (the room's clock, bookmarks, the SHOW query) is never applied from a record
+        // A kind that is never recorded (the session clock, bookmarks, the SHOW query) is never applied from a record
         // either: the legacy PAUSE / SIMRATE / BM records older recordings carry must not pause a rewind or re-add a
         // bookmark.
         if ((record is not null) && (arm.Recording == RecordingPolicy.Never))

@@ -12,8 +12,9 @@ namespace Yaat.Sim.Tests.Simulation.Actions;
 /// <summary>
 /// What the router hands the host when it applies a recorded action: the records of host-owned state (ASDE-X and SAID
 /// mutations) reach their slots, a weather change and a live-traffic removal reach their consumers, and a kind that is
-/// never recorded — the room's clock, bookmarks — is inert from a record without the host being asked at all, so a
-/// legacy <c>PAUSE</c> record can never pause a rewind.
+/// never recorded — the session clock, bookmarks — is inert from a record: refused in the router before its arm runs,
+/// so the Sim bodies behind both are never reached, and a legacy <c>PAUSE</c> or <c>BM</c> record can never pause a
+/// rewind or re-add a bookmark to it.
 /// </summary>
 public class RecordedActionHostRoutingTests
 {
@@ -80,7 +81,7 @@ public class RecordedActionHostRoutingTests
     }
 
     [Fact]
-    public void NeverRecordedKinds_AreInertFromARecord_WithoutAskingTheHost()
+    public void NeverRecordedKinds_AreInertFromARecord_LeavingTheScenarioStateUntouched()
     {
         if (Engine() is not { } engine)
         {
@@ -88,14 +89,18 @@ public class RecordedActionHostRoutingTests
         }
 
         var host = new AttendanceActionHost();
+        engine.Scenario!.IsPaused = false;
 
         var pause = engine.Actions.Apply(Recorded("PAUSE"), host);
         var bookmark = engine.Actions.Apply(Recorded("BM ADD test"), host);
 
         Assert.False(pause.Result.Success);
-        Assert.Equal(new ActionTrace(RecordedCommandKind.Transport, ActionScope.Global, IsHostSlot: true), pause.Trace);
+        Assert.Equal(new ActionTrace(RecordedCommandKind.Transport, ActionScope.Global, IsHostSlot: false), pause.Trace);
+        Assert.False(engine.Scenario!.IsPaused);
+        Assert.Equal(0, host.SimStateChanges);
         Assert.False(bookmark.Result.Success);
-        Assert.Equal(new ActionTrace(RecordedCommandKind.Bookmark, ActionScope.Global, IsHostSlot: true), bookmark.Trace);
-        Assert.Equal(0, host.TransportApplies);
+        Assert.Equal(new ActionTrace(RecordedCommandKind.Bookmark, ActionScope.Global, IsHostSlot: false), bookmark.Trace);
+        Assert.Empty(engine.Scenario!.Bookmarks);
+        Assert.Equal(0, host.BookmarkChanges);
     }
 }

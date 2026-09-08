@@ -1,9 +1,11 @@
 using System.Collections.Frozen;
 using Yaat.Sim.Commands;
+using Yaat.Sim.Simulation.Bookmarks;
 using Yaat.Sim.Simulation.Coordination;
 using Yaat.Sim.Simulation.Snapshots;
 using Yaat.Sim.Simulation.Strips;
 using Yaat.Sim.Simulation.Tdls;
+using Yaat.Sim.Simulation.Transport;
 
 namespace Yaat.Sim.Simulation.Actions;
 
@@ -14,7 +16,7 @@ public enum RecordingPolicy
     Text,
 
     /// <summary>
-    /// Never recorded: transport verbs (the room's clock), bookmarks (timeline metadata the rewind paths carry over
+    /// Never recorded: transport verbs (the session clock), bookmarks (timeline metadata the rewind paths carry over
     /// verbatim) and the <c>SHOW</c> query (read-only).
     /// </summary>
     Never,
@@ -132,13 +134,13 @@ public static class ArmTable
                     : ctx.Parsed is CoordinationAutoAckCommand autoAck ? CoordinationCommandHandler.HandleGlobal(ctx.Engine, autoAck, ctx.Identity)
                     : new CommandResult(false, "Unknown coordination command")
             ),
-            Host(RecordedCommandKind.AsdexEnableAllAlerts, RecordingPolicy.Text, static ctx => ctx.Host.ApplyAsdexEnableAllAlerts()),
-            Host(
+            Sim(
                 RecordedCommandKind.Bookmark,
                 RecordingPolicy.Never,
-                static ctx => ctx.Host.ApplyBookmark((BookmarkCommand)ctx.Parsed!, ctx.Input.Initials)
+                static ctx => BookmarkCommandHandler.Handle(ctx.Engine, (BookmarkCommand)ctx.Parsed!, ctx.Input.Initials)
             ),
-            Host(RecordedCommandKind.Transport, RecordingPolicy.Never, static ctx => ctx.Host.ApplyTransport(ctx.Parsed!)),
+            Sim(RecordedCommandKind.Transport, RecordingPolicy.Never, static ctx => TransportCommandHandler.Handle(ctx.Engine, ctx.Parsed!)),
+            Host(RecordedCommandKind.AsdexEnableAllAlerts, RecordingPolicy.Text, static ctx => ctx.Host.ApplyAsdexEnableAllAlerts()),
         };
 
         foreach (var row in rows)
