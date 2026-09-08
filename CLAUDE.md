@@ -183,6 +183,7 @@ When invoking aviation-sim-expert, always include:
 - **Prefer the skill over ad-hoc CLI**: `layout-inspect` (never compose LayoutInspector flags from memory), `bug-bundle` (any `*-recording.zip` / `*.yaat-bug-report-bundle.zip`), `stt-pipeline-debugging` (any speech sample or "why doesn't this transcript match").
 - **Bug fixes and sim changes**: `test-fix` implements the mandatory TDD loop below.
 - **Review gates**: invoke the `aviation-sim-expert` and `csharp-reviewer` agents directly (via `Agent`); the `architecture-updater` agent covers the pre-commit `docs/architecture.md` obligation.
+- **Starting a session from the plan**: `nextup` ("next up", "what's next", "clear the bug list") — pipelines the queued MAIN.md items: explorations fan out first, independent items run in their own worktrees, each ships as it lands.
 - **Landing work**: `changelog-and-commit` → `merge-session-to-main` → `ship` (the last one composes all three, pushes, and closes issues — invoking it *is* the approval).
 - **Release**: `prepare-release`. Maintenance: `consolidate-recordings`, `crc-update-check` (any time CRC ships a new version — decides whether the server or client must follow), `triage-open-issues` (folding the open GitHub issues into `docs/plans/` — verdicts, placement, grouping; never closes an issue).
 
