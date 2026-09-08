@@ -1,4 +1,6 @@
-# Plan: vTDLS emulation (Pre-Departure Clearance, v1)
+# vTDLS emulation (Pre-Departure Clearance) — design record
+
+> Design rationale kept for reference (moved out of `docs/plans/` 2026-09-07 by decision): the shipped behaviour is documented in [`../vtdls.md`](../vtdls.md); the unbuilt remainder of the PDC flow has no scheduled work and is picked up only through a specific bug report or feature request.
 
 ## Context
 

@@ -83,7 +83,7 @@ status flips on the issuer's vTDLS tab
   - PDC list = items with `Status == Sent` or `Wilco`.
 - **`Configs`** — per-facility `TdlsConfig` (FE-defined SIDs, transitions,
   field defaults, mandatory-field flags). Derived from the loaded ARTCC by
-  `SimulationEngine.InitializeStripsAndTdlsFromArtcc` (the server's scenario
+  `SimulationEngine.InitializeFromArtcc` (the server's scenario
   load and the Sim replay driver both call it). NOT snapshotted — re-derived
   on session restore.
 - **`Dumped`** — `(facility, callsign)` lockout (case-insensitive) so the
@@ -148,8 +148,8 @@ A PDC does not reach the pilot model today. `TDLSS` records the clearance on
 the TDLS item (`SentPayload`) and nothing else: no `AircraftState` field is
 written, no pilot transmission is queued or suppressed, and a follow-up voice
 `CL` behaves exactly as it would without the PDC. The remaining PDC flow —
-applying the sent clearance to the aircraft silently — is the open item in
-[`docs/plans/vtdls-emulation.md`](plans/vtdls-emulation.md).
+applying the sent clearance to the aircraft silently — is unbuilt and unscheduled (design record:
+[`docs/vtdls/emulation-design.md`](vtdls/emulation-design.md)).
 
 `AircraftVoice.TdlsDumped` is CRC's own flight-plan flag ("the PDC was dumped,
 clear this aircraft by voice"), set only by CRC's `TdlsDump` handler
@@ -210,7 +210,7 @@ callsign and whether it was a dump, and a full-state flag for `TDLSOPS`). Two dr
 `TdlsChangeSet` to the host's `OnTdlsChanged` (declared once on `IStateChangeConsumer`, beside `OnStripsChanged`, which both
 `IActionHost` and `IHostConsumers` extend): `ActionRouter.Finish` after every routed action, so a live
 command's pushes still precede its result and tape playback pushes per record, and the
-`StripTdlsChanges` spine step after the post-physics steps, before `AutoDelete` so an item's aircraft still
+`StateChanges` spine step after the post-physics steps, before `AutoDelete` so an item's aircraft still
 resolves for the DTO. `RoomHost.OnTdlsChanged` → `TdlsBroadcaster.BroadcastChanges`: items first, then
 removals, then the full state when flagged, and nothing at all while `TrainingRoom.IsBroadcastSuppressed`
 (a reconstruction; the room re-syncs when it lands). The scenario load drains once at the end of

@@ -59,6 +59,8 @@ Invoke the `changelog-and-commit` skill. It snapshots the index, drafts bullets 
 
 **Tolerance rule:** that skill halts with "nothing to commit" when both trees are clean. Under `/ship` that is a **no-op, not a failure** — say `Phase 1: skipped (working trees clean)` and continue to Phase 2. Only a real failure (hook failure, secrets file, dirty state it can't resolve) stops `/ship`.
 
+**Plan reconciliation happens in this phase even when the trees are clean.** `changelog-and-commit`'s Step 2b ticks the `docs/plans/MAIN.md` items the diff resolves. When Phase 1 is skipped because both trees are clean, run that step yourself over the session's commits (`git log origin/main..HEAD --oneline` in both repos): scan MAIN.md and the active subplan for unchecked items those commits resolve, tick or delete them, and commit the plan as `docs:` before Phase 2. Either way the outcome is one line in Phase 6: `Plan: <n> items closed — …` or `Plan: nothing to reconcile`.
+
 **No-bullet outcome:** that skill's Step 2 gate can decide the diff warrants no changelog entry (planning docs for unbuilt work, internal refactors, test/CI-only diffs) and commit anyway. `/ship` inherits that decision — it is a normal Phase 1 result, not a skipped phase. Report `Phase 1: committed, no changelog bullet (<reason>)` and carry the reason into Phase 6 where the changelog line would go.
 
 If a pre-commit hook fails: surface the output, fix forward, new commit. Never `--amend`, never `--no-verify`. If the fix isn't obvious, stop `/ship` here — nothing has been pushed yet, so stopping is cheap.
@@ -207,6 +209,7 @@ Shipped.
   yaat-server <sha> — <subject>          pushed (M commits)
 
   Changelog:  <bullet>
+  Plan:       2 items closed — <item>, <item>   (or: nothing to reconcile)
   Issues:     #291 closed · #285 already closed by push · #300 left open (broader than this fix)
 
   Source worktree X:/dev/yaat.wt/<branch> untouched — `wt rm <branch>` when ready.

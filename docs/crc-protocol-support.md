@@ -1,5 +1,7 @@
 # CRC Protocol Support
 
+> Reference, not a plan (moved out of `docs/plans/` 2026-09-07 by decision): the unchecked rows are methods YAAT does not emulate and has no scheduled work for. A gap gets worked only when a specific bug report or feature request names it.
+
 Status of yaat-server's support for the CRC WebSocket hub protocol.
 Authoritative interface definitions: `..\vatsim-vnas\messaging\` (sibling repo)
 

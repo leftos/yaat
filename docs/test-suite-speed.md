@@ -1,5 +1,7 @@
 # Test suite speed
 
+> Reference (moved out of `docs/plans/` 2026-09-07 by decision): the baselines, method and the TUnit verdict (do not migrate) stay; the three open follow-ups at the end are not scheduled. Profiling itself is the `dotnet-test-suite-profiling` skill.
+
 Current baseline (2026-09-04, Release, 16 cores, quiet machine, median of 3 — measured by
 `tools/measure-test-loop.ps1`):
 
