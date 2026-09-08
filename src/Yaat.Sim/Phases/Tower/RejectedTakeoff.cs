@@ -25,9 +25,9 @@ namespace Yaat.Sim.Phases.Tower;
 /// Blocking occupants come from <see cref="RunwayOccupancy.Classify"/>: anything OnSurface or
 /// Landing always blocks; a Crossing blocks unless projected past the runway holding-position
 /// standoff (P/CG CLEAR OF THE RUNWAY) by the time the departure arrives; a preceding Departing
-/// aircraft never blocks here — an interim simplification tracked as issue #416 (§3-9-5 only
-/// authorizes issuing the clearance in anticipation of separation; §3-9-6.a's landmark
-/// distances behind a preceding departure are not yet projected); airborne approach traffic
+/// aircraft blocks per <see cref="PrecedingDepartureBlock"/> — §3-9-6.a's landmark distances
+/// before the roll starts, and once it is underway a projected rendezvous with a leader still
+/// on the ground (an opposite-direction roller always); airborne approach traffic
 /// (ShortFinal/OnFinal) is the go-around logic's problem. Stated simplifications: the sim pilot
 /// always sees the occupant (no visibility model), and occupants on intersecting runways
 /// (§3-9-8) are not considered. <see cref="StopMarginFt"/> stands in for the unmodeled aircraft
@@ -184,17 +184,22 @@ internal static class RejectedTakeoff
                 continue;
             }
 
+            // A preceding departure is judged where it will be, not where it is, so it reports the
+            // projected distance the reject chain must measure against; every other kind is judged
+            // where it sits.
+            double candidateFt = dFt;
             bool blocks = use.Kind switch
             {
                 RunwayUseKind.OnSurface => true,
                 RunwayUseKind.Landing => true,
                 RunwayUseKind.Crossing => !ProjectedClearOfRunway(other, runway, ArrivalTimeSeconds(departure, dFt)),
+                RunwayUseKind.Departing => PrecedingDepartureBlock.Blocks(departure, other, runway, dFt, out candidateFt),
                 _ => false,
             };
 
-            if (blocks && (dFt < distanceFt))
+            if (blocks && (candidateFt < distanceFt))
             {
-                distanceFt = dFt;
+                distanceFt = candidateFt;
                 nearest = other;
             }
         }

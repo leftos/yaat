@@ -5,6 +5,7 @@ using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Tests.Helpers;
+using static Yaat.Sim.Tests.Simulation.RejectedTakeoffTestRig;
 
 namespace Yaat.Sim.Tests.Simulation;
 
@@ -25,112 +26,6 @@ public class Issue410RejectedTakeoffTests
     public Issue410RejectedTakeoffTests()
     {
         TestVnasData.EnsureInitialized();
-    }
-
-    private const double PavementLengthNm = 2.0;
-
-    private static RunwayInfo Runway28R()
-    {
-        var end = GeoMath.ProjectPoint(37.72, -122.22, new TrueHeading(270), PavementLengthNm);
-        return TestRunwayFactory.Make(
-            designator: "28R",
-            airportId: "OAK",
-            thresholdLat: 37.72,
-            thresholdLon: -122.22,
-            endLat: end.Lat,
-            endLon: end.Lon,
-            heading: 270,
-            elevationFt: 9
-        );
-    }
-
-    private static AircraftState MakeRollingDeparture(RunwayInfo runway, double iasKts)
-    {
-        var ac = new AircraftState
-        {
-            Callsign = "DEP1",
-            AircraftType = "B738",
-            Position = new LatLon(runway.ThresholdLatitude, runway.ThresholdLongitude),
-            TrueHeading = runway.TrueHeading,
-            Altitude = runway.ElevationFt,
-            IndicatedAirspeed = iasKts,
-            IsOnGround = true,
-            FlightPlan = new AircraftFlightPlan { Departure = "OAK", Altitude = PlannedAltitude.Ifr(5000) },
-        };
-        ac.Phases = new PhaseList { AssignedRunway = runway };
-        ac.Phases.Add(new TakeoffPhase());
-        return ac;
-    }
-
-    private static AircraftState MakeLuawOccupant(RunwayInfo runway, double downfieldFt)
-    {
-        var pos = GeoMath.ProjectPoint(runway.ThresholdLatitude, runway.ThresholdLongitude, runway.TrueHeading, downfieldFt / GeoMath.FeetPerNm);
-        var occ = new AircraftState
-        {
-            Callsign = "OCC1",
-            AircraftType = "B738",
-            Position = new LatLon(pos.Lat, pos.Lon),
-            TrueHeading = runway.TrueHeading,
-            Altitude = runway.ElevationFt,
-            IndicatedAirspeed = 0,
-            IsOnGround = true,
-            FlightPlan = new AircraftFlightPlan { Departure = "OAK", Altitude = PlannedAltitude.Ifr(5000) },
-        };
-        occ.Phases = new PhaseList { AssignedRunway = runway };
-        occ.Phases.Add(new LinedUpAndWaitingPhase());
-        occ.Phases.Start(CommandDispatcher.BuildMinimalContext(occ));
-        return occ;
-    }
-
-    private static PhaseContext Ctx(AircraftState departure, RunwayInfo runway, AircraftState occupant, bool autoReject)
-    {
-        return new PhaseContext
-        {
-            Aircraft = departure,
-            Targets = departure.Targets,
-            Category = AircraftCategorization.Categorize(departure.AircraftType),
-            DeltaSeconds = 1.0,
-            Runway = runway,
-            FieldElevation = runway.ElevationFt,
-            Logger = NullLogger.Instance,
-            ListAircraft = () => [departure, occupant],
-            AutoRejectTakeoffOnOccupiedRunway = autoReject,
-        };
-    }
-
-    /// <summary>
-    /// Ticks the departure's phase list for up to <paramref name="seconds"/>, integrating ground
-    /// displacement manually (position integration is FlightPhysics' job, absent here); stops
-    /// early once airborne.
-    /// </summary>
-    private static (bool WentAirborne, double MinSeparationFt) RunRoll(AircraftState departure, PhaseContext ctx, AircraftState occupant, int seconds)
-    {
-        bool airborne = false;
-        double minSepFt = double.MaxValue;
-        for (int t = 0; t < seconds; t++)
-        {
-            PhaseRunner.Tick(departure, ctx);
-            IntegrateGroundDisplacement(departure);
-            minSepFt = Math.Min(minSepFt, GeoMath.DistanceNm(departure.Position, occupant.Position) * GeoMath.FeetPerNm);
-            if (!departure.IsOnGround)
-            {
-                airborne = true;
-                break;
-            }
-        }
-
-        return (airborne, minSepFt);
-    }
-
-    private static void IntegrateGroundDisplacement(AircraftState departure)
-    {
-        if (!departure.IsOnGround || (departure.GroundSpeed <= 0))
-        {
-            return;
-        }
-
-        var moved = GeoMath.ProjectPoint(departure.Position.Lat, departure.Position.Lon, departure.TrueHeading, departure.GroundSpeed / 3600.0);
-        departure.Position = new LatLon(moved.Lat, moved.Lon);
     }
 
     // -------------------------------------------------------------------------

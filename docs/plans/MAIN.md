@@ -6,7 +6,6 @@ Entry point for `docs/plans/`. One line per item; the detail lives in the linked
 
 ## Bug reports and feature requests
 
-- [ ] **Rejected-takeoff scan never blocks on a preceding rolling departure** (#416, follow-up to #410): two departures rolling on one runway and the trailer lifts off through the leader — `RejectedTakeoff.FindBlockingOccupant` skips `Departing` occupants; project §3-9-6.a spacing via `SameRunwaySeparation` with a `WillBeFlying`-style projection (aviation review)
 - [ ] Live-session assume UX (ZOA Discord 2026-08-31): bulk-assume modes, snapshot-then-assume-all, auto-assume on first command, snapshot-as-scenario authoring — yaat-server [live-traffic-swim/09-live-sessions.md](../../../yaat-server/docs/plans/live-traffic-swim/09-live-sessions.md) §3
 
 ## Current programme

@@ -171,7 +171,11 @@ auto-reject); `FlightPhysics.UpdatePosition`'s clamp stays a last-resort backsto
 
 - **Blockers** come from `RunwayOccupancy.Classify`: anything `OnSurface` or `Landing` blocks; a `Crossing` blocks unless it is projected past the
   `ClearOfRunwayStandoffFt` (250 ft) hold-line standoff — not the pavement edge — by the time the departure arrives; a preceding `Departing` aircraft
-  is skipped (#416). Every distance is measured to the occupant minus `StopMarginFt` (500 ft, a stand-in for the unmodelled aircraft length).
+  blocks per `PrecedingDepartureBlock`: at a standstill, 7110.65 §3-9-6.a is applied at roll start — the leader projected `ReactionSeconds`
+  ahead must have crossed the runway end or be airborne (`SameRunwaySeparation.WillBeFlying`; a decelerating leader never is) with the
+  SRS-category spacing (`RequiredDepartureBehindDepartureFt`: 3,000 / 4,500 / 6,000 ft) — else the clearance is declined; once rolling the
+  question is collision, so the leader blocks only when the trailer's projected roll reaches it while it is still on the ground, and the usual
+  `ShouldReject`/`CanOverfly` chain decides; an opposite-direction roller on the same pavement blocks unconditionally. Every distance is measured to the occupant minus `StopMarginFt` (500 ft, a stand-in for the unmodelled aircraft length).
 - **Decision** (`ShouldReject`): below `CategoryPerformance.LowSpeedRejectThresholdKts` (jet 80 / turboprop 60 / piston 35) reject for *any* blocker
   ahead; at or above it reject only when `!CanOverfly` — the liftoff point (`IasToTas(Vr)` minus headwind, in the ground frame) plus
   `RejectedTakeoffOverflyMarginFt` (3000 / 2000 / 1500 ft, all-engines sized) does not fit inside the effective distance. Past V1 the same

@@ -26,7 +26,12 @@ public enum SrsCategory
 /// </summary>
 public static class SameRunwaySeparation
 {
-    /// <summary>§3-9-6.b: departure behind a preceding departure that has not crossed the runway end.</summary>
+    /// <summary>
+    /// §3-9-6.a: departure behind a preceding departure that is airborne but has not crossed the runway end.
+    /// The rule is not symmetric in the two categories — a.3 gives 4,500 ft "when either the succeeding or both
+    /// are Category II", while a.2 leaves a Category I preceded by a Category II at a.1's 3,000 ft. Only a
+    /// Category III on either side (a.4) raises it to 6,000 ft.
+    /// </summary>
     public static double RequiredDepartureBehindDepartureFt(SrsCategory preceding, SrsCategory succeeding)
     {
         if ((preceding == SrsCategory.III) || (succeeding == SrsCategory.III))
@@ -34,12 +39,7 @@ public static class SameRunwaySeparation
             return 6000.0;
         }
 
-        if ((preceding == SrsCategory.II) || (succeeding == SrsCategory.II))
-        {
-            return 4500.0;
-        }
-
-        return 3000.0;
+        return succeeding == SrsCategory.II ? 4500.0 : 3000.0;
     }
 
     /// <summary>§3-10-3.a.2: arrival crossing the landing threshold behind an airborne departure still over the runway.</summary>
@@ -68,7 +68,7 @@ public static class SameRunwaySeparation
     }
 
     /// <summary>
-    /// §3-9-6.b satisfied: the preceding departure has crossed the runway end, or is airborne with the required
+    /// §3-9-6.a satisfied: the preceding departure has crossed the runway end, or is airborne with the required
     /// spacing ahead of the succeeding departure.
     /// </summary>
     public static bool DepartureBehindDepartureSatisfied(
@@ -140,6 +140,26 @@ public static class SameRunwaySeparation
             null => runwayUse == RunwayUseKind.Departing,
             _ => false,
         };
+
+    /// <summary>
+    /// Airborne within <paramref name="seconds"/>: already airborne, or still accelerating and projected to reach
+    /// rotation speed in time — the "has departed" half of §3-9-6.a and §3-10-3.a.2, both of which credit the
+    /// preceding aircraft only once it is flying. A rejected takeoff (decelerating) is never "about to fly",
+    /// however fast it is still rolling — that is the one case the callers must not talk themselves out of. The
+    /// measured acceleration (feed history) wins; a simulated or history-less aircraft uses its type's ground
+    /// acceleration.
+    /// </summary>
+    public static bool WillBeFlying(AircraftState aircraft, double seconds)
+    {
+        if (!aircraft.IsOnGround)
+        {
+            return true;
+        }
+
+        var category = AircraftCategorization.Categorize(aircraft.AircraftType);
+        double accel = RunwayOccupancy.GroundAccelerationKtPerSec(aircraft) ?? AircraftPerformance.GroundAccelRate(aircraft.AircraftType, category);
+        return (accel > 0) && (aircraft.GroundSpeed + (accel * seconds) >= AircraftPerformance.RotationSpeed(aircraft.AircraftType, category));
+    }
 
     /// <summary>
     /// Resolves the aircraft's category from the FAA aircraft database's SRS column, falling back to weight and

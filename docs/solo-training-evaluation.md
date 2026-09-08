@@ -281,7 +281,7 @@ cases clear when the preceding aircraft passed the computed intersection (`HasPa
 
 | Rule | I behind I | any II involved | any III involved |
 |---|---|---|---|
-| `RequiredDepartureBehindDepartureFt` (`:3272`) | 3000 ft | 4500 ft | 6000 ft |
+| `RequiredDepartureBehindDepartureFt` (`:3272`) | 3000 ft | 4500 ft (succeeding II; a I behind a II stays 3000, §3-9-6.a.2) | 6000 ft |
 | `RequiredArrivalBehindDepartureFt` (`:3287`) | 3000 ft | 4500 ft (succeeding II) | 6000 ft |
 | `RequiredLandingBehindLandingExceptionFt` (`:3297`) | 3000 ft | 4500 ft (succeeding II) | `null` (no exception — must be clear) |
 
