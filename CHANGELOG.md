@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+### Changed
+- `PAUSE`, `UNPAUSE`, `SIMRATE` and the `BM` bookmark verbs are simulation bodies now (the server only relays the result), so a client-side replay or a headless room accepts them like any other command. With no scenario loaded they answer "No active scenario" instead of reporting success and doing nothing.
+
 ### Fixed
 - A recording now carries the session settings that were already on when the scenario loaded (auto go-around on an occupied runway, auto cross, solo mode and the rest), so a bug bundle's snapshots, a rewind into another room and a client-side replay run the session as it was flown. Before, only a setting toggled mid-session was recorded, and every exported bundle's snapshots were regenerated with the defaults — the S2-OAK-4 bundle spoke a traffic-on-the-runway go-around at t=1100 while its own snapshots showed the trigger off and a later go-around for a missing landing clearance.
 
