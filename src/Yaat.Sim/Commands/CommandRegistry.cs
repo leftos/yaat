@@ -169,13 +169,38 @@ public static class CommandRegistry
 
     private static CommandDefinition[] HeadingCommands() =>
         [
-            Cmd(FlyHeading, "Fly Heading", "Heading", false, ["FH", "H"], [O(null, [R("heading", "0-360")], "Fly assigned heading")]),
-            Cmd(TurnLeft, "Turn Left", "Heading", false, ["TL", "L"], [O(null, [R("heading", "0-360")], "Turn left to heading")]),
-            Cmd(TurnRight, "Turn Right", "Heading", false, ["TR", "R"], [O(null, [R("heading", "0-360")], "Turn right to heading")]),
+            Cmd(
+                FlyHeading,
+                "Fly Heading",
+                "Heading",
+                CommandDimension.Lateral,
+                false,
+                ["FH", "H"],
+                [O(null, [R("heading", "0-360")], "Fly assigned heading")]
+            ),
+            Cmd(
+                TurnLeft,
+                "Turn Left",
+                "Heading",
+                CommandDimension.Lateral,
+                false,
+                ["TL", "L"],
+                [O(null, [R("heading", "0-360")], "Turn left to heading")]
+            ),
+            Cmd(
+                TurnRight,
+                "Turn Right",
+                "Heading",
+                CommandDimension.Lateral,
+                false,
+                ["TR", "R"],
+                [O(null, [R("heading", "0-360")], "Turn right to heading")]
+            ),
             Cmd(
                 RelativeLeft,
                 "Relative Left",
                 "Heading",
+                CommandDimension.Lateral,
                 false,
                 ["RELL", "LT"],
                 [O(null, [R("degrees", "1-360")], "Turn left by degrees")],
@@ -185,12 +210,13 @@ public static class CommandRegistry
                 RelativeRight,
                 "Relative Right",
                 "Heading",
+                CommandDimension.Lateral,
                 false,
                 ["RELR", "RT"],
                 [O(null, [R("degrees", "1-360")], "Turn right by degrees")],
                 syntaxPatterns: ["T{n}R"]
             ),
-            Bare(FlyPresentHeading, "Fly Present Heading", "Heading", false, ["FPH", "FCH"]),
+            Bare(FlyPresentHeading, "Fly Present Heading", "Heading", CommandDimension.Lateral, false, ["FPH", "FCH"]),
         ];
 
     private static CommandDefinition[] AltitudeSpeedCommands() =>
@@ -199,6 +225,7 @@ public static class CommandRegistry
                 ClimbMaintain,
                 "Climb/Maintain",
                 "Altitude / Speed",
+                CommandDimension.Vertical,
                 false,
                 ["CM"],
                 [O(null, [R("altitude", "altitude in hundreds")], "Climb and maintain altitude")]
@@ -207,6 +234,7 @@ public static class CommandRegistry
                 DescendMaintain,
                 "Descend/Maintain",
                 "Altitude / Speed",
+                CommandDimension.Vertical,
                 false,
                 ["DM"],
                 [O(null, [R("altitude", "altitude in hundreds")], "Descend and maintain altitude")]
@@ -215,6 +243,7 @@ public static class CommandRegistry
                 Speed,
                 "Speed",
                 "Altitude / Speed",
+                CommandDimension.Speed,
                 false,
                 ["SPD", "SPEED", "DS", "IS", "SLOW", "SL"],
                 [O(null, [R("speed", "knots IAS")], "Maintain speed")]
@@ -223,17 +252,19 @@ public static class CommandRegistry
                 ForceSpeedFinal,
                 "Force Speed (Final)",
                 "Altitude / Speed",
+                CommandDimension.Speed,
                 false,
                 ["SPEEDF", "SPDF", "SLF"],
                 [O(null, [R("speed", "knots IAS (+/- ok)")], "Maintain speed, overriding the 5nm-final restriction")]
             ),
-            Bare(ResumeNormalSpeed, "Resume Normal Speed", "Altitude / Speed", false, ["RNS", "NS"]),
-            Bare(ReduceToFinalApproachSpeed, "Reduce to Final Approach Speed", "Altitude / Speed", false, ["RFAS", "FAS"]),
-            Bare(DeleteSpeedRestrictions, "Delete Speed Restrictions", "Altitude / Speed", false, ["DSR"]),
+            Bare(ResumeNormalSpeed, "Resume Normal Speed", "Altitude / Speed", CommandDimension.Speed, false, ["RNS", "NS"]),
+            Bare(ReduceToFinalApproachSpeed, "Reduce to Final Approach Speed", "Altitude / Speed", CommandDimension.Speed, false, ["RFAS", "FAS"]),
+            Bare(DeleteSpeedRestrictions, "Delete Speed Restrictions", "Altitude / Speed", CommandDimension.Speed, false, ["DSR"]),
             Cmd(
                 Expedite,
                 "Expedite",
                 "Altitude / Speed",
+                CommandDimension.None,
                 false,
                 ["EXP"],
                 [
@@ -241,17 +272,34 @@ public static class CommandRegistry
                     O("Altitude", [R("altitude", "altitude in hundreds")], "Assign altitude and expedite the climb/descent to it"),
                 ]
             ),
-            Bare(NormalRate, "Normal Rate", "Altitude / Speed", false, ["NORM"]),
-            Cmd(Mach, "Maintain Mach", "Altitude / Speed", false, ["MACH", "M"], [O(null, [R("mach", ".XX mach number")], "Maintain Mach number")]),
+            Bare(NormalRate, "Normal Rate", "Altitude / Speed", CommandDimension.None, false, ["NORM"]),
+            Cmd(
+                Mach,
+                "Maintain Mach",
+                "Altitude / Speed",
+                CommandDimension.Speed,
+                false,
+                ["MACH", "M"],
+                [O(null, [R("mach", ".XX mach number")], "Maintain Mach number")]
+            ),
         ];
 
     private static CommandDefinition[] ForceCommands() =>
         [
-            Cmd(ForceHeading, "Force Heading", "Sim Control", false, ["FHN"], [O(null, [R("heading", "0-360")], "Instantly set heading")]),
+            Cmd(
+                ForceHeading,
+                "Force Heading",
+                "Sim Control",
+                CommandDimension.None,
+                false,
+                ["FHN"],
+                [O(null, [R("heading", "0-360")], "Instantly set heading")]
+            ),
             Cmd(
                 ForceAltitude,
                 "Force Altitude",
                 "Sim Control",
+                CommandDimension.None,
                 false,
                 ["CMN"],
                 [O(null, [R("altitude", "altitude in hundreds")], "Instantly set altitude")]
@@ -260,6 +308,7 @@ public static class CommandRegistry
                 ForceSpeed,
                 "Force Speed",
                 "Sim Control",
+                CommandDimension.None,
                 false,
                 ["SPDN", "SLN", "SPEEDN"],
                 [O(null, [R("speed", "knots IAS")], "Instantly set speed")]
@@ -268,6 +317,7 @@ public static class CommandRegistry
                 Warp,
                 "Warp to Position",
                 "Sim Control",
+                CommandDimension.None,
                 false,
                 ["WARP"],
                 [
@@ -287,6 +337,7 @@ public static class CommandRegistry
                 WarpGround,
                 "Warp Ground",
                 "Sim Control",
+                CommandDimension.None,
                 false,
                 ["WARPG"],
                 [O(null, [R("location", "C B / #42 / @B12 / $9")], "Teleport aircraft on ground")]
@@ -299,27 +350,37 @@ public static class CommandRegistry
                 Squawk,
                 "Squawk",
                 "Transponder",
+                CommandDimension.None,
                 false,
                 ["SQ", "SQUAWK"],
                 [O(null, [], "Assign random squawk code"), O("Code", [R("code", "0000-7777")], "Assign squawk code")]
             ),
-            Bare(SquawkVfr, "Squawk VFR", "Transponder", false, ["SQVFR", "SQV"]),
-            Bare(SquawkNormal, "Squawk Normal", "Transponder", false, ["SQNORM", "SN", "SQA", "SQON"]),
-            Bare(SquawkStandby, "Squawk Standby", "Transponder", false, ["SQSBY", "SQS", "SS"]),
-            Bare(Ident, "Ident", "Transponder", false, ["IDENT", "ID", "SQI", "SQID"]),
-            Bare(RandomSquawk, "Random Squawk", "Transponder", false, ["RANDSQ"]),
-            Bare(SquawkAll, "Squawk All", "Transponder", true, ["SQALL"]),
-            Bare(SquawkNormalAll, "Squawk Normal All", "Transponder", true, ["SNALL"]),
-            Bare(SquawkStandbyAll, "Squawk Standby All", "Transponder", true, ["SSALL"]),
+            Bare(SquawkVfr, "Squawk VFR", "Transponder", CommandDimension.None, false, ["SQVFR", "SQV"]),
+            Bare(SquawkNormal, "Squawk Normal", "Transponder", CommandDimension.None, false, ["SQNORM", "SN", "SQA", "SQON"]),
+            Bare(SquawkStandby, "Squawk Standby", "Transponder", CommandDimension.None, false, ["SQSBY", "SQS", "SS"]),
+            Bare(Ident, "Ident", "Transponder", CommandDimension.None, false, ["IDENT", "ID", "SQI", "SQID"]),
+            Bare(RandomSquawk, "Random Squawk", "Transponder", CommandDimension.None, false, ["RANDSQ"]),
+            Bare(SquawkAll, "Squawk All", "Transponder", CommandDimension.None, true, ["SQALL"]),
+            Bare(SquawkNormalAll, "Squawk Normal All", "Transponder", CommandDimension.None, true, ["SNALL"]),
+            Bare(SquawkStandbyAll, "Squawk Standby All", "Transponder", CommandDimension.None, true, ["SSALL"]),
         ];
 
     private static CommandDefinition[] NavigationCommands() =>
         [
-            Cmd(DirectTo, "Direct To", "Navigation", false, ["DCT"], [O(null, [R("fix", "fix name")], "Proceed direct to fix")]),
+            Cmd(
+                DirectTo,
+                "Direct To",
+                "Navigation",
+                CommandDimension.Lateral,
+                false,
+                ["DCT"],
+                [O(null, [R("fix", "fix name")], "Proceed direct to fix")]
+            ),
             Cmd(
                 ForceDirectTo,
                 "Force Direct To Fix",
                 "Navigation",
+                CommandDimension.Lateral,
                 false,
                 ["DCTF"],
                 [O(null, [R("fix", "fix name")], "Direct to fix (bypass validation)")]
@@ -328,6 +389,7 @@ public static class CommandRegistry
                 AppendDirectTo,
                 "Append Direct To",
                 "Navigation",
+                CommandDimension.Lateral,
                 false,
                 ["ADCT"],
                 [O(null, [R("fix", "fix name")], "Append direct-to after current route")]
@@ -336,6 +398,7 @@ public static class CommandRegistry
                 AppendForceDirectTo,
                 "Append Force Direct To",
                 "Navigation",
+                CommandDimension.Lateral,
                 false,
                 ["ADCTF"],
                 [O(null, [R("fix", "fix name")], "Append force direct-to after current route")]
@@ -344,6 +407,7 @@ public static class CommandRegistry
                 TurnLeftDirectTo,
                 "Turn Left Direct To",
                 "Navigation",
+                CommandDimension.Lateral,
                 false,
                 ["TLDCT"],
                 [O(null, [R("fix", "fix name")], "Turn left, proceed direct to fix")]
@@ -352,6 +416,7 @@ public static class CommandRegistry
                 TurnRightDirectTo,
                 "Turn Right Direct To",
                 "Navigation",
+                CommandDimension.Lateral,
                 false,
                 ["TRDCT"],
                 [O(null, [R("fix", "fix name")], "Turn right, proceed direct to fix")]
@@ -364,6 +429,7 @@ public static class CommandRegistry
                 LineUpAndWait,
                 "Line Up and Wait",
                 "Tower",
+                CommandDimension.Ground,
                 false,
                 ["LUAW", "POS", "LU", "PH"],
                 [O(null, [], "Line up and wait")],
@@ -373,6 +439,7 @@ public static class CommandRegistry
                 ClearedForTakeoff,
                 "Cleared for Takeoff",
                 "Tower",
+                CommandDimension.Ground,
                 false,
                 ["CTO"],
                 [
@@ -397,11 +464,12 @@ public static class CommandRegistry
                 ],
                 [Mod("CWT", null, false), Mod("IMM", null, false), Mod("WD", null, false), Mod("ND", null, false)]
             ),
-            Bare(CancelTakeoffClearance, "Cancel Takeoff Clearance", "Tower", false, ["CTOC"]),
+            Bare(CancelTakeoffClearance, "Cancel Takeoff Clearance", "Tower", CommandDimension.Ground, false, ["CTOC"]),
             Cmd(
                 GoAround,
                 "Go Around",
                 "Tower",
+                CommandDimension.Lateral,
                 false,
                 ["GA"],
                 [
@@ -418,6 +486,7 @@ public static class CommandRegistry
                 ClearedToLand,
                 "Cleared to Land",
                 "Tower",
+                CommandDimension.Lateral,
                 false,
                 ["CLAND", "CL", "FS"],
                 [O(null, [], "Cleared to land"), O(null, [R("runway", "runway")], "Cleared to land on runway")],
@@ -427,16 +496,18 @@ public static class CommandRegistry
                 LandAndHoldShort,
                 "Land and Hold Short",
                 "Tower",
+                CommandDimension.Lateral | CommandDimension.Ground,
                 false,
                 ["LAHSO"],
                 [O(null, [R("runway", "hold short runway")], "Cleared to land, hold short of runway")]
             ),
-            Bare(CancelLandingClearance, "Cancel Landing Clearance", "Tower", false, ["CLC", "CTLC"]),
-            Bare(ForceLanding, "Force Landing", "Tower", false, ["CLANDF"]),
+            Bare(CancelLandingClearance, "Cancel Landing Clearance", "Tower", CommandDimension.Lateral, false, ["CLC", "CTLC"]),
+            Bare(ForceLanding, "Force Landing", "Tower", CommandDimension.Lateral, false, ["CLANDF"]),
             Cmd(
                 TouchAndGo,
                 "Touch and Go",
                 "Tower",
+                CommandDimension.Lateral,
                 false,
                 ["TG"],
                 [
@@ -449,6 +520,7 @@ public static class CommandRegistry
                 StopAndGo,
                 "Stop and Go",
                 "Tower",
+                CommandDimension.Lateral,
                 false,
                 ["SG"],
                 [O(null, [], "Stop and go"), O("Traffic", [R("direction", "MLT/MRT")], "Stop and go, make traffic")]
@@ -457,6 +529,7 @@ public static class CommandRegistry
                 LowApproach,
                 "Low Approach",
                 "Tower",
+                CommandDimension.Lateral,
                 false,
                 ["LA"],
                 [O(null, [], "Low approach"), O("Traffic", [R("direction", "MLT/MRT")], "Low approach, make traffic")]
@@ -465,6 +538,7 @@ public static class CommandRegistry
                 ClearedForOption,
                 "Cleared for the Option",
                 "Tower",
+                CommandDimension.Lateral,
                 false,
                 ["COPT"],
                 [O(null, [], "Cleared for the option"), O("Traffic", [R("direction", "MLT/MRT")], "Option, make traffic")]
@@ -473,14 +547,15 @@ public static class CommandRegistry
 
     private static CommandDefinition[] PatternCommands() =>
         [
-            PatternEntry(EnterLeftDownwind, "Enter Left Downwind", ["ELD"]),
-            PatternEntry(EnterRightDownwind, "Enter Right Downwind", ["ERD"]),
-            PatternEntry(EnterLeftCrosswind, "Enter Left Crosswind", ["ELC"]),
-            PatternEntry(EnterRightCrosswind, "Enter Right Crosswind", ["ERC"]),
+            PatternEntry(EnterLeftDownwind, "Enter Left Downwind", CommandDimension.Lateral, ["ELD"]),
+            PatternEntry(EnterRightDownwind, "Enter Right Downwind", CommandDimension.Lateral, ["ERD"]),
+            PatternEntry(EnterLeftCrosswind, "Enter Left Crosswind", CommandDimension.Lateral, ["ELC"]),
+            PatternEntry(EnterRightCrosswind, "Enter Right Crosswind", CommandDimension.Lateral, ["ERC"]),
             Cmd(
                 EnterLeftBase,
                 "Enter Left Base",
                 "Pattern",
+                CommandDimension.Lateral,
                 false,
                 ["ELB"],
                 [
@@ -493,6 +568,7 @@ public static class CommandRegistry
                 EnterRightBase,
                 "Enter Right Base",
                 "Pattern",
+                CommandDimension.Lateral,
                 false,
                 ["ERB"],
                 [
@@ -501,11 +577,12 @@ public static class CommandRegistry
                     O("Runway + Distance", [R("runway", "runway designator"), R("distance", "nm from threshold")], "Enter right base at distance"),
                 ]
             ),
-            PatternEntry(EnterFinal, "Enter Final", ["EF"]),
+            PatternEntry(EnterFinal, "Enter Final", CommandDimension.Lateral, ["EF"]),
             Cmd(
                 MakeLeftTraffic,
                 "Make Left Traffic",
                 "Pattern",
+                CommandDimension.Lateral,
                 false,
                 ["MLT"],
                 [
@@ -519,6 +596,7 @@ public static class CommandRegistry
                 MakeRightTraffic,
                 "Make Right Traffic",
                 "Pattern",
+                CommandDimension.Lateral,
                 false,
                 ["MRT"],
                 [
@@ -532,13 +610,14 @@ public static class CommandRegistry
                     ),
                 ]
             ),
-            Bare(TurnCrosswind, "Turn Crosswind", "Pattern", false, ["TC"]),
-            Bare(TurnDownwind, "Turn Downwind", "Pattern", false, ["TD"]),
-            Bare(TurnBase, "Turn Base", "Pattern", false, ["TB"]),
+            Bare(TurnCrosswind, "Turn Crosswind", "Pattern", CommandDimension.Lateral, false, ["TC"]),
+            Bare(TurnDownwind, "Turn Downwind", "Pattern", CommandDimension.Lateral, false, ["TD"]),
+            Bare(TurnBase, "Turn Base", "Pattern", CommandDimension.Lateral, false, ["TB"]),
             Cmd(
                 ExtendPattern,
                 "Extend Pattern Leg",
                 "Pattern",
+                CommandDimension.Lateral,
                 false,
                 ["EXT", "EXTEND"],
                 [
@@ -546,17 +625,18 @@ public static class CommandRegistry
                     O("Leg", [R("leg", "pattern leg")], "Extend specific pattern leg (rolls back one leg if already past it)"),
                 ]
             ),
-            Bare(MakeShortApproach, "Make Short Approach", "Pattern", false, ["SA", "MSA"]),
-            Bare(MakeNormalApproach, "Make Normal Approach", "Pattern", false, ["MNA"]),
-            Bare(Cancel270, "Cancel 270", "Pattern", false, ["NO270"]),
-            Bare(MakeLeft360, "Make Left 360", "Pattern", false, ["L360", "ML3", "ML360"]),
-            Bare(MakeRight360, "Make Right 360", "Pattern", false, ["R360", "MR3", "MR360"]),
-            Bare(MakeLeft270, "Make Left 270", "Pattern", false, ["L270"]),
-            Bare(MakeRight270, "Make Right 270", "Pattern", false, ["R270"]),
+            Bare(MakeShortApproach, "Make Short Approach", "Pattern", CommandDimension.Lateral, false, ["SA", "MSA"]),
+            Bare(MakeNormalApproach, "Make Normal Approach", "Pattern", CommandDimension.Lateral, false, ["MNA"]),
+            Bare(Cancel270, "Cancel 270", "Pattern", CommandDimension.Lateral, false, ["NO270"]),
+            Bare(MakeLeft360, "Make Left 360", "Pattern", CommandDimension.Lateral, false, ["L360", "ML3", "ML360"]),
+            Bare(MakeRight360, "Make Right 360", "Pattern", CommandDimension.Lateral, false, ["R360", "MR3", "MR360"]),
+            Bare(MakeLeft270, "Make Left 270", "Pattern", CommandDimension.Lateral, false, ["L270"]),
+            Bare(MakeRight270, "Make Right 270", "Pattern", CommandDimension.Lateral, false, ["R270"]),
             Cmd(
                 PatternSize,
                 "Pattern Size",
                 "Pattern",
+                CommandDimension.None,
                 false,
                 ["PS", "PATTSIZE"],
                 [O(null, [R("multiplier", "e.g. 0.5 / 1.0 / 2.0")], "Set traffic pattern size multiplier")]
@@ -565,6 +645,7 @@ public static class CommandRegistry
                 MakeLeftSTurns,
                 "S-Turns (Initial Left)",
                 "Pattern",
+                CommandDimension.Lateral,
                 false,
                 ["MLS"],
                 [O(null, [], "Make S-turns, initial turn left"), O("Count", [R("count", "number of turns")], "Make N S-turns, initial turn left")]
@@ -573,6 +654,7 @@ public static class CommandRegistry
                 MakeRightSTurns,
                 "S-Turns (Initial Right)",
                 "Pattern",
+                CommandDimension.Lateral,
                 false,
                 ["MRS"],
                 [O(null, [], "Make S-turns, initial turn right"), O("Count", [R("count", "number of turns")], "Make N S-turns, initial turn right")]
@@ -581,6 +663,7 @@ public static class CommandRegistry
                 OffsetLeftPattern,
                 "Offset Pattern Left",
                 "Pattern",
+                CommandDimension.Lateral,
                 false,
                 ["OFL", "OFFSETL"],
                 [
@@ -592,6 +675,7 @@ public static class CommandRegistry
                 OffsetRightPattern,
                 "Offset Pattern Right",
                 "Pattern",
+                CommandDimension.Lateral,
                 false,
                 ["OFR", "OFFSETR"],
                 [
@@ -599,18 +683,42 @@ public static class CommandRegistry
                     O("OffsetNm", [R("offsetNm", "0.1-2.0 NM")], "Dogleg right, hold N NM right of current pattern heading"),
                 ]
             ),
-            Bare(Plan270, "Plan 270 at Next Turn", "Pattern", false, ["P270", "PLAN270"]),
-            Bare(CircleAirport, "Circle Airport", "Pattern", false, ["CA", "CIRCLE"]),
+            Bare(Plan270, "Plan 270 at Next Turn", "Pattern", CommandDimension.Lateral, false, ["P270", "PLAN270"]),
+            Bare(CircleAirport, "Circle Airport", "Pattern", CommandDimension.Lateral, false, ["CA", "CIRCLE"]),
         ];
 
     private static CommandDefinition[] HoldCommands() =>
         [
-            Bare(HoldPresentPosition360Left, "Hold (360 Left)", "Hold", false, ["HPPL"]),
-            Bare(HoldPresentPosition360Right, "Hold (360 Right)", "Hold", false, ["HPPR"]),
-            Bare(HoldPresentPositionHover, "Hold Present Position", "Hold", false, ["HPP"]),
-            Cmd(HoldAtFixLeft, "Hold at Fix (Left)", "Hold", false, ["HFIXL"], [O(null, [R("fix", "fix name")], "Hold at fix with left turns")]),
-            Cmd(HoldAtFixRight, "Hold at Fix (Right)", "Hold", false, ["HFIXR"], [O(null, [R("fix", "fix name")], "Hold at fix with right turns")]),
-            Cmd(HoldAtFixHover, "Hold at Fix", "Hold", false, ["HFIX"], [O(null, [R("fix", "fix name")], "Hold/hover at fix")]),
+            Bare(HoldPresentPosition360Left, "Hold (360 Left)", "Hold", CommandDimension.Lateral, false, ["HPPL"]),
+            Bare(HoldPresentPosition360Right, "Hold (360 Right)", "Hold", CommandDimension.Lateral, false, ["HPPR"]),
+            Bare(HoldPresentPositionHover, "Hold Present Position", "Hold", CommandDimension.Lateral, false, ["HPP"]),
+            Cmd(
+                HoldAtFixLeft,
+                "Hold at Fix (Left)",
+                "Hold",
+                CommandDimension.Lateral,
+                false,
+                ["HFIXL"],
+                [O(null, [R("fix", "fix name")], "Hold at fix with left turns")]
+            ),
+            Cmd(
+                HoldAtFixRight,
+                "Hold at Fix (Right)",
+                "Hold",
+                CommandDimension.Lateral,
+                false,
+                ["HFIXR"],
+                [O(null, [R("fix", "fix name")], "Hold at fix with right turns")]
+            ),
+            Cmd(
+                HoldAtFixHover,
+                "Hold at Fix",
+                "Hold",
+                CommandDimension.Lateral,
+                false,
+                ["HFIX"],
+                [O(null, [R("fix", "fix name")], "Hold/hover at fix")]
+            ),
         ];
 
     private static CommandDefinition[] HelicopterCommands() =>
@@ -619,6 +727,7 @@ public static class CommandRegistry
                 AirTaxi,
                 "Air Taxi",
                 "Helicopter",
+                CommandDimension.Ground,
                 false,
                 ["ATXI"],
                 [O(null, [], "Air taxi to destination"), O("Helipad", [R("helipad", "helipad/gate ID")], "Air taxi to helipad")]
@@ -627,6 +736,7 @@ public static class CommandRegistry
                 Land,
                 "Land",
                 "Helicopter",
+                CommandDimension.Lateral | CommandDimension.Ground,
                 false,
                 ["LAND"],
                 [O(null, [R("helipad", "helipad/gate ID")], "Land at helipad")],
@@ -636,6 +746,7 @@ public static class CommandRegistry
                 ClearedTakeoffPresent,
                 "Cleared Takeoff Present Position",
                 "Helicopter",
+                CommandDimension.Ground,
                 false,
                 ["CTOPP"],
                 [
@@ -658,6 +769,7 @@ public static class CommandRegistry
                 Pushback,
                 "Pushback",
                 "Ground",
+                CommandDimension.Ground,
                 false,
                 ["PUSH"],
                 [
@@ -673,6 +785,7 @@ public static class CommandRegistry
                 Taxi,
                 "Taxi",
                 "Ground",
+                CommandDimension.Ground,
                 false,
                 ["TAXI"],
                 [O(null, [R("route", "taxiway names")], "Taxi via route")],
@@ -685,11 +798,12 @@ public static class CommandRegistry
                     Mod("$", "spot", false),
                 ]
             ),
-            Bare(HoldPosition, "Hold Position", "Ground", false, ["HOLD", "HP"]),
+            Bare(HoldPosition, "Hold Position", "Ground", CommandDimension.Ground, false, ["HOLD", "HP"]),
             Cmd(
                 Resume,
                 "Resume Taxi",
                 "Ground",
+                CommandDimension.Ground,
                 false,
                 ["RES", "RESUME"],
                 [O(null, [], "Resume taxi")],
@@ -699,6 +813,7 @@ public static class CommandRegistry
                 CrossRunway,
                 "Cross Runway",
                 "Ground",
+                CommandDimension.Ground,
                 false,
                 ["CROSS"],
                 [O(null, [], "Cross next hold-short"), O(null, [Rep("runway", "runway designator")], "Cross runway(s)")],
@@ -708,6 +823,7 @@ public static class CommandRegistry
                 HoldShort,
                 "Hold Short",
                 "Ground",
+                CommandDimension.Ground,
                 false,
                 ["HS"],
                 [O(null, [R("taxiway", "taxiway/runway/$spot")], "Hold short of taxiway, runway, or spot")]
@@ -716,6 +832,7 @@ public static class CommandRegistry
                 AssignRunway,
                 "Assign Runway",
                 "Ground",
+                CommandDimension.Lateral | CommandDimension.Ground,
                 false,
                 ["RWY"],
                 [O(null, [R("runway", "runway number")], "Assign departure/arrival runway")],
@@ -725,6 +842,7 @@ public static class CommandRegistry
                 FollowGround,
                 "Follow (Ground)",
                 "Ground",
+                CommandDimension.Ground,
                 false,
                 ["FOLLOWG", "FOLG"],
                 [O(null, [R("callsign", "traffic callsign")], "Follow traffic on ground")]
@@ -733,6 +851,7 @@ public static class CommandRegistry
                 GiveWay,
                 "Give Way",
                 "Ground",
+                CommandDimension.Ground,
                 false,
                 ["GIVEWAY", "BEHIND", "GW"],
                 [O(null, [R("callsign", "traffic callsign")], "Give way to traffic")]
@@ -741,6 +860,7 @@ public static class CommandRegistry
                 ExitLeft,
                 "Exit Left",
                 "Ground",
+                CommandDimension.Ground,
                 false,
                 ["EL", "EXITL"],
                 [O(null, [], "Exit runway to the left"), O("Taxiway", [R("taxiway", "taxiway name")], "Exit runway left onto taxiway")],
@@ -750,6 +870,7 @@ public static class CommandRegistry
                 ExitRight,
                 "Exit Right",
                 "Ground",
+                CommandDimension.Ground,
                 false,
                 ["ER", "EXITR"],
                 [O(null, [], "Exit runway to the right"), O("Taxiway", [R("taxiway", "taxiway name")], "Exit runway right onto taxiway")],
@@ -759,6 +880,7 @@ public static class CommandRegistry
                 ExitTaxiway,
                 "Exit Taxiway",
                 "Ground",
+                CommandDimension.Ground,
                 false,
                 ["EXIT"],
                 [O(null, [R("taxiway", "taxiway name")], "Exit onto taxiway")],
@@ -768,6 +890,7 @@ public static class CommandRegistry
                 TaxiAll,
                 "Taxi All",
                 "Ground",
+                CommandDimension.Ground,
                 true,
                 ["TAXIALL"],
                 [O(null, [R("destination", "runway, @parking, or $spot")], "Taxi all parked aircraft to destination (A* pathfinding)")]
@@ -776,27 +899,29 @@ public static class CommandRegistry
                 TaxiAuto,
                 "Taxi Auto",
                 "Ground",
+                CommandDimension.Ground,
                 false,
                 ["TAXIAUTO"],
                 [O(null, [R("destination", "runway or @parking")], "Auto-route taxi to runway or parking (A* pathfinding)")]
             ),
-            Bare(BreakConflict, "Break Conflict", "Ground", false, ["BREAK"]),
-            Bare(ClearRunway, "Clear Runway", "Ground", false, ["CLRWY", "CLEARRWY"]),
-            Bare(Go, "Begin Takeoff Roll", "Tower", false, ["GO"]),
+            Bare(BreakConflict, "Break Conflict", "Ground", CommandDimension.Ground, false, ["BREAK"]),
+            Bare(ClearRunway, "Clear Runway", "Ground", CommandDimension.Ground, false, ["CLRWY", "CLEARRWY"]),
+            Bare(Go, "Begin Takeoff Roll", "Tower", CommandDimension.Ground, false, ["GO"]),
         ];
 
     private static CommandDefinition[] SimControlCommands() =>
         [
-            Bare(Delete, "Delete", "Sim Control", false, ["DEL", "X"]),
-            Bare(Assume, "Assume live traffic", "Sim Control", false, ["ASSUME"]),
-            Bare(CancelAutoDelete, "Cancel Auto-Delete", "Sim Control", false, ["NODEL"]),
-            Bare(Pause, "Pause", "Sim Control", true, ["PAUSE", "P"]),
-            Bare(Unpause, "Unpause", "Sim Control", true, ["UNPAUSE", "U", "UN", "UNP", "UP"]),
-            Cmd(SimRate, "Sim Rate", "Sim Control", true, ["SIMRATE"], [O(null, [R("rate", "1-8")], "Set simulation speed")]),
+            Bare(Delete, "Delete", "Sim Control", CommandDimension.None, false, ["DEL", "X"]),
+            Bare(Assume, "Assume live traffic", "Sim Control", CommandDimension.None, false, ["ASSUME"]),
+            Bare(CancelAutoDelete, "Cancel Auto-Delete", "Sim Control", CommandDimension.None, false, ["NODEL"]),
+            Bare(Pause, "Pause", "Sim Control", CommandDimension.None, true, ["PAUSE", "P"]),
+            Bare(Unpause, "Unpause", "Sim Control", CommandDimension.None, true, ["UNPAUSE", "U", "UN", "UNP", "UP"]),
+            Cmd(SimRate, "Sim Rate", "Sim Control", CommandDimension.None, true, ["SIMRATE"], [O(null, [R("rate", "1-8")], "Set simulation speed")]),
             Cmd(
                 SetTurnRate,
                 "Set Turn Rate",
                 "Sim Control",
+                CommandDimension.None,
                 false,
                 ["TRATE"],
                 [O(null, [Opt("rate", "deg/sec, 0.5-45; omit to clear")], "Set aircraft turn rate")]
@@ -805,6 +930,7 @@ public static class CommandRegistry
                 Wait,
                 "Wait (seconds)",
                 "Sim Control",
+                CommandDimension.None,
                 false,
                 ["WAIT", "DELAY"],
                 [O(null, [R("seconds", "delay in seconds")], "Wait before next command")]
@@ -813,6 +939,7 @@ public static class CommandRegistry
                 WaitDistance,
                 "Wait (distance)",
                 "Sim Control",
+                CommandDimension.None,
                 false,
                 ["WAITD"],
                 [O(null, [R("distance", "nm from fix")], "Wait until distance from fix")]
@@ -821,6 +948,7 @@ public static class CommandRegistry
                 CanonicalCommandType.Timer,
                 "Timer",
                 "Sim Control",
+                CommandDimension.None,
                 false,
                 ["TIMER", "TMR"],
                 [
@@ -836,6 +964,7 @@ public static class CommandRegistry
                 CanonicalCommandType.Bookmark,
                 "Bookmark",
                 "Sim Control",
+                CommandDimension.None,
                 false,
                 ["BM", "BOOKMARK"],
                 [
@@ -853,6 +982,7 @@ public static class CommandRegistry
                 Add,
                 "Add Aircraft",
                 "Sim Control",
+                CommandDimension.None,
                 true,
                 ["ADD"],
                 [
@@ -921,11 +1051,12 @@ public static class CommandRegistry
                     ),
                 ]
             ),
-            Bare(SpawnNow, "Spawn Now", "Sim Control", false, ["SPAWN"]),
+            Bare(SpawnNow, "Spawn Now", "Sim Control", CommandDimension.None, false, ["SPAWN"]),
             Cmd(
                 SpawnDelay,
                 "Set Spawn Delay",
                 "Sim Control",
+                CommandDimension.None,
                 false,
                 ["SPAWNDELAY"],
                 [O(null, [R("seconds", "delay in seconds")], "Set deferred spawn delay")]
@@ -934,6 +1065,7 @@ public static class CommandRegistry
                 HoldForRelease,
                 "Hold for Release",
                 "Sim Control",
+                CommandDimension.None,
                 true,
                 ["HFR"],
                 [O(null, [R("airport", "airport ID")], "Arm hold-for-release for an airport's IFR departures")]
@@ -942,6 +1074,7 @@ public static class CommandRegistry
                 DisarmHoldForRelease,
                 "Disarm Hold for Release",
                 "Sim Control",
+                CommandDimension.None,
                 true,
                 ["HFROFF"],
                 [O(null, [R("airport", "airport ID")], "Disarm hold-for-release (auto-releases anything still held)")]
@@ -950,6 +1083,7 @@ public static class CommandRegistry
                 ReleaseDeparture,
                 "Release Departure",
                 "Sim Control",
+                CommandDimension.None,
                 true,
                 ["REL", "CTOA"],
                 [
@@ -965,6 +1099,7 @@ public static class CommandRegistry
                 Cfr,
                 "Call For Release",
                 "Sim Control",
+                CommandDimension.None,
                 false,
                 ["CFR"],
                 [
@@ -985,6 +1120,7 @@ public static class CommandRegistry
                 SetActivePosition,
                 "Act As Position",
                 "Track Operations",
+                CommandDimension.None,
                 true,
                 ["AS"],
                 [
@@ -996,15 +1132,17 @@ public static class CommandRegistry
                 TrackAircraft,
                 "Track",
                 "Track Operations",
+                CommandDimension.None,
                 false,
                 ["TRACK"],
                 [O(null, [], "Track aircraft"), O("Position", [R("position", "position ID")], "Track with position")]
             ),
-            Bare(DropTrack, "Drop Track", "Track Operations", false, ["DROP"]),
+            Bare(DropTrack, "Drop Track", "Track Operations", CommandDimension.None, false, ["DROP"]),
             Cmd(
                 Contact,
                 "Contact",
                 "Track Operations",
+                CommandDimension.None,
                 false,
                 ["CT", "CONT"],
                 [
@@ -1012,13 +1150,21 @@ public static class CommandRegistry
                     O("Position", [R("position", "TCP code or position callsign")], "Contact specific position"),
                 ]
             ),
-            Bare(FrequencyChangeApproved, "Frequency Change Approved", "Track Operations", false, ["FCA"]),
-            Bare(ClearedBravoAirspace, "Cleared Bravo Airspace", "Track Operations", false, ["CLBRV", "CBRV", "BRAVO"]),
-            Bare(AcknowledgePilotContact, "Acknowledge Pilot Contact", "Track Operations", false, ["STBY", "STANDBY", "ROGER", "RGR"]),
+            Bare(FrequencyChangeApproved, "Frequency Change Approved", "Track Operations", CommandDimension.None, false, ["FCA"]),
+            Bare(ClearedBravoAirspace, "Cleared Bravo Airspace", "Track Operations", CommandDimension.None, false, ["CLBRV", "CBRV", "BRAVO"]),
+            Bare(
+                AcknowledgePilotContact,
+                "Acknowledge Pilot Contact",
+                "Track Operations",
+                CommandDimension.None,
+                false,
+                ["STBY", "STANDBY", "ROGER", "RGR"]
+            ),
             Cmd(
                 InitiateHandoff,
                 "Handoff",
                 "Track Operations",
+                CommandDimension.None,
                 false,
                 ["HO"],
                 [O(null, [], "Initiate handoff"), O("Position", [R("position", "position ID")], "Initiate handoff to position")]
@@ -1027,6 +1173,7 @@ public static class CommandRegistry
                 ForceHandoff,
                 "Force Handoff",
                 "Track Operations",
+                CommandDimension.None,
                 false,
                 ["HOF"],
                 [O(null, [R("position", "position ID")], "Force handoff to position")]
@@ -1035,16 +1182,18 @@ public static class CommandRegistry
                 AcceptHandoff,
                 "Accept Handoff",
                 "Track Operations",
+                CommandDimension.None,
                 false,
                 ["ACCEPT", "A"],
                 [O(null, [], "Accept handoff"), O("Callsign", [R("callsign", "aircraft callsign")], "Accept specific callsign")]
             ),
-            Bare(CancelHandoff, "Cancel Handoff", "Track Operations", false, ["CANCEL"]),
-            Bare(AcceptAllHandoffs, "Accept All Handoffs", "Track Operations", true, ["ACCEPTALL"]),
+            Bare(CancelHandoff, "Cancel Handoff", "Track Operations", CommandDimension.None, false, ["CANCEL"]),
+            Bare(AcceptAllHandoffs, "Accept All Handoffs", "Track Operations", CommandDimension.None, true, ["ACCEPTALL"]),
             Cmd(
                 InitiateHandoffAll,
                 "Handoff All",
                 "Track Operations",
+                CommandDimension.None,
                 true,
                 ["HOALL"],
                 [O(null, [R("position", "position ID")], "Handoff all tracked aircraft")]
@@ -1053,18 +1202,20 @@ public static class CommandRegistry
                 PointOut,
                 "Point Out",
                 "Track Operations",
+                CommandDimension.None,
                 false,
                 ["PO"],
                 [O(null, [], "Point out"), O("Position", [R("position", "position ID")], "Point out to position")]
             ),
-            Bare(Acknowledge, "Acknowledge", "Track Operations", false, ["OK"]),
-            Bare(RejectPointout, "Reject Pointout", "Track Operations", false, ["PORJ"]),
-            Bare(RetractPointout, "Retract Pointout", "Track Operations", false, ["PORT"]),
-            Bare(ConvertPointout, "Convert Pointout To Handoff", "Track Operations", false, ["POHO"]),
+            Bare(Acknowledge, "Acknowledge", "Track Operations", CommandDimension.None, false, ["OK"]),
+            Bare(RejectPointout, "Reject Pointout", "Track Operations", CommandDimension.None, false, ["PORJ"]),
+            Bare(RetractPointout, "Retract Pointout", "Track Operations", CommandDimension.None, false, ["PORT"]),
+            Bare(ConvertPointout, "Convert Pointout To Handoff", "Track Operations", CommandDimension.None, false, ["POHO"]),
             Cmd(
                 ForceQuicklook,
                 "Force Quicklook",
                 "Track Operations",
+                CommandDimension.None,
                 false,
                 ["FQL"],
                 [O(null, [R("tcps", "TCP code(s), space-separated")], "Force quicklook at TCP(s) (STARS **)")]
@@ -1073,25 +1224,28 @@ public static class CommandRegistry
                 ForceQuicklookClear,
                 "Clear Forced Quicklook",
                 "Track Operations",
+                CommandDimension.None,
                 false,
                 ["FQLCLR"],
                 [O(null, [R("tcp", "TCP code")], "Clear a forced quicklook (STARS slew acknowledge)")]
             ),
-            Bare(AcknowledgeConflictAlert, "Acknowledge Conflict Alert", "Track Operations", false, ["CAACK"]),
-            Bare(InhibitConflictAlert, "Inhibit Conflict Alert", "Track Operations", false, ["CAINH", "CAI"]),
+            Bare(AcknowledgeConflictAlert, "Acknowledge Conflict Alert", "Track Operations", CommandDimension.None, false, ["CAACK"]),
+            Bare(InhibitConflictAlert, "Inhibit Conflict Alert", "Track Operations", CommandDimension.None, false, ["CAINH", "CAI"]),
             Cmd(
                 SuppressConflictAlert,
                 "Suppress Conflict Alert Pair",
                 "Track Operations",
+                CommandDimension.None,
                 false,
                 ["CASUP"],
                 [O("Callsign", [R("callsign", "other aircraft callsign")], "Toggle conflict-alert suppression between this aircraft and another")]
             ),
-            Bare(InhibitDuplicateBeacon, "Inhibit Duplicate Beacon", "Track Operations", false, ["DBINH"]),
+            Bare(InhibitDuplicateBeacon, "Inhibit Duplicate Beacon", "Track Operations", CommandDimension.None, false, ["DBINH"]),
             Cmd(
                 PilotReportedAltitude,
                 "Pilot Reported Altitude",
                 "Data Operations",
+                CommandDimension.None,
                 false,
                 ["PRA"],
                 [O(null, [R("altitude", "altitude in hundreds (0 = clear)")], "Set pilot reported altitude")]
@@ -1100,6 +1254,7 @@ public static class CommandRegistry
                 LeaderDirection,
                 "Leader Direction",
                 "Display Operations",
+                CommandDimension.None,
                 false,
                 ["LDR"],
                 [O(null, [R("direction", "1-9 (5 = default)")], "Set leader line direction")]
@@ -1108,15 +1263,25 @@ public static class CommandRegistry
                 JRing,
                 "J-Ring",
                 "Display Operations",
+                CommandDimension.None,
                 false,
                 ["JRING"],
                 [O(null, [], "Clear J-Ring"), O(null, [R("radius", "radius")], "Set J-Ring")]
             ),
-            Cmd(Cone, "Cone", "Display Operations", false, ["CONE"], [O(null, [], "Clear cone"), O(null, [R("radius", "radius")], "Set cone")]),
+            Cmd(
+                Cone,
+                "Cone",
+                "Display Operations",
+                CommandDimension.None,
+                false,
+                ["CONE"],
+                [O(null, [], "Clear cone"), O(null, [R("radius", "radius")], "Set cone")]
+            ),
             Cmd(
                 GhostTrack,
                 "Ghost Track",
                 "Track Operations",
+                CommandDimension.None,
                 true,
                 ["GHOST"],
                 [
@@ -1141,6 +1306,7 @@ public static class CommandRegistry
                 RepositionToLocation,
                 "Reposition Datablock To Location",
                 "Track Operations",
+                CommandDimension.None,
                 true,
                 ["RPOSLOC"],
                 [
@@ -1155,6 +1321,7 @@ public static class CommandRegistry
                 RepositionMove,
                 "Reposition Datablock To Track",
                 "Track Operations",
+                CommandDimension.None,
                 true,
                 ["RPOSMOVE"],
                 [O(null, [R("from", "source callsign"), R("to", "target callsign")], "Move datablock onto another track (STARS TRK RPOS)")]
@@ -1167,6 +1334,7 @@ public static class CommandRegistry
                 Annotate,
                 "Annotate Strip Box",
                 "Strip Operations",
+                CommandDimension.None,
                 false,
                 ["ANNOTATE", "AN", "BOX"],
                 [O(null, [R("box", "1-9"), R("text", "annotation text")], "Write text in strip annotation box")]
@@ -1175,6 +1343,7 @@ public static class CommandRegistry
                 StripMove,
                 "Move Strip to Bay",
                 "Strip Operations",
+                CommandDimension.None,
                 false,
                 ["STRIP"],
                 [
@@ -1187,6 +1356,7 @@ public static class CommandRegistry
                 StripScan,
                 "Scan Strip to External Bay",
                 "Strip Operations",
+                CommandDimension.None,
                 false,
                 ["SCAN"],
                 [
@@ -1195,11 +1365,20 @@ public static class CommandRegistry
                     O(null, [R("dest", "facility/external-bay/rack/index")], "Copy flight strip to specific 1-based position in external bay"),
                 ]
             ),
-            Cmd(StripDelete, "Delete Flight Strip", "Strip Operations", false, ["STRIPD"], [O(null, [], "Delete the aircraft's flight strip")]),
+            Cmd(
+                StripDelete,
+                "Delete Flight Strip",
+                "Strip Operations",
+                CommandDimension.None,
+                false,
+                ["STRIPD"],
+                [O(null, [], "Delete the aircraft's flight strip")]
+            ),
             Cmd(
                 StripOffset,
                 "Toggle Strip Offset",
                 "Strip Operations",
+                CommandDimension.None,
                 false,
                 ["STRIPO"],
                 [O(null, [], "Toggle offset on the aircraft's flight strip")]
@@ -1208,6 +1387,7 @@ public static class CommandRegistry
                 HalfStripMove,
                 "Move Half-Strip",
                 "Strip Operations",
+                CommandDimension.None,
                 false,
                 ["HSM", "HALFSTRIPMOVE"],
                 [
@@ -1228,6 +1408,7 @@ public static class CommandRegistry
                 HalfStripOffset,
                 "Toggle Half-Strip Offset",
                 "Strip Operations",
+                CommandDimension.None,
                 false,
                 ["HSO", "HALFSTRIPOFFSET"],
                 [
@@ -1240,6 +1421,7 @@ public static class CommandRegistry
                 HalfStripSlide,
                 "Slide Half-Strip Left/Right",
                 "Strip Operations",
+                CommandDimension.None,
                 false,
                 ["HSS", "HALFSTRIPSLIDE"],
                 [
@@ -1252,6 +1434,7 @@ public static class CommandRegistry
                 SeparatorCreate,
                 "Create Separator",
                 "Strip Operations",
+                CommandDimension.None,
                 false,
                 ["SEP", "SEPARATOR"],
                 [
@@ -1268,6 +1451,7 @@ public static class CommandRegistry
                 SeparatorDelete,
                 "Delete Separator",
                 "Strip Operations",
+                CommandDimension.None,
                 false,
                 ["SEPD", "SEPARATORDEL"],
                 [
@@ -1279,6 +1463,7 @@ public static class CommandRegistry
                 SeparatorEdit,
                 "Edit Separator Label",
                 "Strip Operations",
+                CommandDimension.None,
                 false,
                 ["SEPE"],
                 [
@@ -1298,6 +1483,7 @@ public static class CommandRegistry
                 SeparatorMove,
                 "Move Separator",
                 "Strip Operations",
+                CommandDimension.None,
                 false,
                 ["SEPM"],
                 [
@@ -1313,6 +1499,7 @@ public static class CommandRegistry
                 TdlsQueue,
                 "Queue PDC for Aircraft",
                 "vTDLS",
+                CommandDimension.None,
                 false,
                 ["TDLSQ"],
                 [O(null, [], "Queue a Pending PDC for the aircraft's filed departure facility (auto-gen also emits this internally)")]
@@ -1321,6 +1508,7 @@ public static class CommandRegistry
                 TdlsOpsConfig,
                 "Set ops config",
                 "vTDLS",
+                CommandDimension.None,
                 false,
                 ["TDLSOPS"],
                 [
@@ -1335,6 +1523,7 @@ public static class CommandRegistry
                 TdlsSend,
                 "Send PDC",
                 "vTDLS",
+                CommandDimension.None,
                 false,
                 ["TDLSS"],
                 [
@@ -1349,6 +1538,7 @@ public static class CommandRegistry
                 TdlsWilco,
                 "Force PDC Wilco",
                 "vTDLS",
+                CommandDimension.None,
                 false,
                 ["TDLSW"],
                 [O(null, [], "Manually mark the Sent PDC as WILCO'd (normally auto-fired)")]
@@ -1357,6 +1547,7 @@ public static class CommandRegistry
                 TdlsDump,
                 "Dump PDC",
                 "vTDLS",
+                CommandDimension.None,
                 false,
                 ["TDLSDUMP", "TDLSD"],
                 [O(null, [], "Remove the PDC from TDLS — clearance must now be given by voice. Terminal: cannot be re-added this session.")]
@@ -1365,6 +1556,7 @@ public static class CommandRegistry
                 BlankCreate,
                 "Create Blank Strip",
                 "Strip Operations",
+                CommandDimension.None,
                 false,
                 ["BLANK", "BLANKSTRIP"],
                 [
@@ -1378,6 +1570,7 @@ public static class CommandRegistry
                 BlankDelete,
                 "Delete Blank Strip",
                 "Strip Operations",
+                CommandDimension.None,
                 false,
                 ["BLANKD", "BLANKSTRIPDEL"],
                 [
@@ -1389,6 +1582,7 @@ public static class CommandRegistry
                 HalfStripCreate,
                 "Create Half-Strip",
                 "Strip Operations",
+                CommandDimension.None,
                 false,
                 ["HSC", "HALFSTRIPCREATE"],
                 [
@@ -1403,6 +1597,7 @@ public static class CommandRegistry
                 HalfStripAmend,
                 "Amend Half-Strip",
                 "Strip Operations",
+                CommandDimension.None,
                 false,
                 ["HSA", "HALFSTRIPAMEND"],
                 [
@@ -1420,6 +1615,7 @@ public static class CommandRegistry
                 HalfStripDelete,
                 "Delete Half-Strip",
                 "Strip Operations",
+                CommandDimension.None,
                 false,
                 ["HSD", "HALFSTRIPDEL"],
                 [
@@ -1436,6 +1632,7 @@ public static class CommandRegistry
                 Scratchpad1,
                 "Scratchpad 1",
                 "Data Operations",
+                CommandDimension.None,
                 false,
                 ["SP1", "SP", "SCRATCHPAD"],
                 [O(null, [], "Clear scratchpad 1"), O(null, [R("text", "up to 3 chars (4 if facility allows)")], "Set scratchpad 1")]
@@ -1444,6 +1641,7 @@ public static class CommandRegistry
                 Scratchpad2,
                 "Scratchpad 2",
                 "Data Operations",
+                CommandDimension.None,
                 false,
                 ["SP2"],
                 [O(null, [], "Clear scratchpad 2"), O(null, [R("text", "up to 3 chars (4 if facility allows)")], "Set scratchpad 2")]
@@ -1452,6 +1650,7 @@ public static class CommandRegistry
                 Note,
                 "Note",
                 "Data Operations",
+                CommandDimension.None,
                 false,
                 ["NOTE"],
                 [O(null, [], "Clear note"), O(null, [R("text", "freetext note, max 40 chars")], "Set instructor note")]
@@ -1460,6 +1659,7 @@ public static class CommandRegistry
                 TemporaryAltitude,
                 "Temporary Altitude",
                 "Data Operations",
+                CommandDimension.None,
                 false,
                 ["TEMPALT", "TA", "TEMP", "QQ"],
                 [O(null, [R("altitude", "altitude in hundreds")], "Set temporary altitude")]
@@ -1468,17 +1668,19 @@ public static class CommandRegistry
                 Cruise,
                 "Cruise Altitude",
                 "Data Operations",
+                CommandDimension.None,
                 false,
                 ["CRUISE", "QZ"],
                 [O(null, [R("altitude", "altitude in hundreds")], "Set cruise altitude")]
             ),
-            Bare(OnHandoff, "On Handoff", "Track Operations", false, ["ONHO", "ONH"]),
-            Bare(OnHoldShort, "On Hold-Short", "Track Operations", false, ["ONHS"]),
-            Bare(OnTheGo, "On the Go", "Track Operations", false, ["OTG"]),
+            Bare(OnHandoff, "On Handoff", "Track Operations", CommandDimension.None, false, ["ONHO", "ONH"]),
+            Bare(OnHoldShort, "On Hold-Short", "Track Operations", CommandDimension.None, false, ["ONHS"]),
+            Bare(OnTheGo, "On the Go", "Track Operations", CommandDimension.None, false, ["OTG"]),
             Cmd(
                 AsdexScratchpad1,
                 "ASDE-X Scratchpad 1",
                 "ASDE-X",
+                CommandDimension.None,
                 false,
                 ["ASDXSP1"],
                 [O(null, [], "Clear ASDE-X scratchpad 1"), O(null, [R("text", "display text")], "Set ASDE-X scratchpad 1")]
@@ -1487,6 +1689,7 @@ public static class CommandRegistry
                 AsdexScratchpad2,
                 "ASDE-X Scratchpad 2",
                 "ASDE-X",
+                CommandDimension.None,
                 false,
                 ["ASDXSP2"],
                 [O(null, [], "Clear ASDE-X scratchpad 2"), O(null, [R("text", "display text")], "Set ASDE-X scratchpad 2")]
@@ -1495,6 +1698,7 @@ public static class CommandRegistry
                 AsdexCallsign,
                 "ASDE-X Callsign Override",
                 "ASDE-X",
+                CommandDimension.None,
                 false,
                 ["ASDXCS"],
                 [O(null, [], "Clear ASDE-X callsign override"), O(null, [R("text", "display callsign")], "Override ASDE-X callsign")]
@@ -1503,6 +1707,7 @@ public static class CommandRegistry
                 AsdexBeaconCode,
                 "ASDE-X Beacon Code Override",
                 "ASDE-X",
+                CommandDimension.None,
                 false,
                 ["ASDXBCN"],
                 [O(null, [], "Clear ASDE-X beacon override"), O(null, [R("code", "beacon code")], "Override ASDE-X beacon code")]
@@ -1511,6 +1716,7 @@ public static class CommandRegistry
                 AsdexCategory,
                 "ASDE-X Category Override",
                 "ASDE-X",
+                CommandDimension.None,
                 false,
                 ["ASDXCAT"],
                 [O(null, [], "Clear ASDE-X category override"), O(null, [R("cat", "wake category")], "Override ASDE-X category")]
@@ -1519,6 +1725,7 @@ public static class CommandRegistry
                 AsdexAircraftType,
                 "ASDE-X Aircraft Type Override",
                 "ASDE-X",
+                CommandDimension.None,
                 false,
                 ["ASDXTYPE"],
                 [O(null, [], "Clear ASDE-X type override"), O(null, [R("type", "aircraft type")], "Override ASDE-X aircraft type")]
@@ -1527,16 +1734,17 @@ public static class CommandRegistry
                 AsdexFix,
                 "ASDE-X Fix Override",
                 "ASDE-X",
+                CommandDimension.None,
                 false,
                 ["ASDXFIX"],
                 [O(null, [], "Clear ASDE-X fix override"), O(null, [R("fix", "fix identifier")], "Override ASDE-X fix")]
             ),
-            Bare(AsdexTagTarget, "ASDE-X Tag Target (untermination)", "ASDE-X", false, ["ASDXTAG"]),
-            Bare(AsdexTerminate, "ASDE-X Terminate Track", "ASDE-X", false, ["ASDXTERM"]),
-            Bare(AsdexSuspend, "ASDE-X Suspend Track", "ASDE-X", false, ["ASDXSUSP"]),
-            Bare(AsdexUnsuspend, "ASDE-X Unsuspend Track", "ASDE-X", false, ["ASDXUSUS"]),
-            Bare(AsdexInhibitAlerts, "ASDE-X Inhibit Alerts", "ASDE-X", false, ["ASDXINHIB"]),
-            Bare(AsdexEnableAllAlerts, "ASDE-X Enable All Alerts", "ASDE-X", true, ["ASDXALERTS"]),
+            Bare(AsdexTagTarget, "ASDE-X Tag Target (untermination)", "ASDE-X", CommandDimension.None, false, ["ASDXTAG"]),
+            Bare(AsdexTerminate, "ASDE-X Terminate Track", "ASDE-X", CommandDimension.None, false, ["ASDXTERM"]),
+            Bare(AsdexSuspend, "ASDE-X Suspend Track", "ASDE-X", CommandDimension.None, false, ["ASDXSUSP"]),
+            Bare(AsdexUnsuspend, "ASDE-X Unsuspend Track", "ASDE-X", CommandDimension.None, false, ["ASDXUSUS"]),
+            Bare(AsdexInhibitAlerts, "ASDE-X Inhibit Alerts", "ASDE-X", CommandDimension.None, false, ["ASDXINHIB"]),
+            Bare(AsdexEnableAllAlerts, "ASDE-X Enable All Alerts", "ASDE-X", CommandDimension.None, true, ["ASDXALERTS"]),
         ];
 
     private static CommandDefinition[] CoordinationCommands() =>
@@ -1545,6 +1753,7 @@ public static class CommandRegistry
                 CoordinationRelease,
                 "Release (Rundown)",
                 "Coordination",
+                CommandDimension.None,
                 false,
                 ["RD"],
                 [O(null, [], "Release on default channel"), O("Channel", [R("channel", "coordination channel")], "Release on specific channel")]
@@ -1553,6 +1762,7 @@ public static class CommandRegistry
                 CoordinationHold,
                 "Hold Release",
                 "Coordination",
+                CommandDimension.None,
                 false,
                 ["RDH"],
                 [
@@ -1564,6 +1774,7 @@ public static class CommandRegistry
                 CoordinationRecall,
                 "Recall Release",
                 "Coordination",
+                CommandDimension.None,
                 false,
                 ["RDR"],
                 [
@@ -1575,6 +1786,7 @@ public static class CommandRegistry
                 CoordinationAcknowledge,
                 "Acknowledge Release",
                 "Coordination",
+                CommandDimension.None,
                 false,
                 ["RDACK"],
                 [
@@ -1586,6 +1798,7 @@ public static class CommandRegistry
                 CoordinationAutoAck,
                 "Toggle Auto-Ack",
                 "Coordination",
+                CommandDimension.None,
                 true,
                 ["RDAUTO"],
                 [
@@ -1597,6 +1810,7 @@ public static class CommandRegistry
                 CoordinationDelete,
                 "Delete Release",
                 "Coordination",
+                CommandDimension.None,
                 false,
                 ["RDDEL"],
                 [
@@ -1608,6 +1822,7 @@ public static class CommandRegistry
                 CoordinationReorder,
                 "Reorder Release",
                 "Coordination",
+                CommandDimension.None,
                 false,
                 ["RDPOS"],
                 [
@@ -1619,6 +1834,7 @@ public static class CommandRegistry
                 CoordinationModify,
                 "Modify Release Text",
                 "Coordination",
+                CommandDimension.None,
                 false,
                 ["RDTXT"],
                 [
@@ -1630,17 +1846,26 @@ public static class CommandRegistry
 
     private static CommandDefinition[] BroadcastCommands() =>
         [
-            Cmd(Say, "Say", "Broadcast", false, ["SAY", "SAYF"], [O(null, [R("message", "free text")], "Broadcast pilot message")]),
-            Bare(SaySpeed, "Say Speed", "Broadcast", false, ["SSPD"]),
-            Bare(SayMach, "Say Mach", "Broadcast", false, ["SMACH"]),
-            Bare(SayExpectedApproach, "Say Expected Approach", "Broadcast", false, ["SEAPP"]),
-            Bare(SayAltitude, "Say Altitude", "Broadcast", false, ["SALT"]),
-            Bare(SayHeading, "Say Heading", "Broadcast", false, ["SHDG"]),
-            Bare(SayPosition, "Say Position", "Broadcast", false, ["SPOS"]),
+            Cmd(
+                Say,
+                "Say",
+                "Broadcast",
+                CommandDimension.None,
+                false,
+                ["SAY", "SAYF"],
+                [O(null, [R("message", "free text")], "Broadcast pilot message")]
+            ),
+            Bare(SaySpeed, "Say Speed", "Broadcast", CommandDimension.None, false, ["SSPD"]),
+            Bare(SayMach, "Say Mach", "Broadcast", CommandDimension.None, false, ["SMACH"]),
+            Bare(SayExpectedApproach, "Say Expected Approach", "Broadcast", CommandDimension.None, false, ["SEAPP"]),
+            Bare(SayAltitude, "Say Altitude", "Broadcast", CommandDimension.None, false, ["SALT"]),
+            Bare(SayHeading, "Say Heading", "Broadcast", CommandDimension.None, false, ["SHDG"]),
+            Bare(SayPosition, "Say Position", "Broadcast", CommandDimension.None, false, ["SPOS"]),
             Cmd(
                 Report,
                 "Report",
                 "Approach",
+                CommandDimension.None,
                 false,
                 ["REPORT"],
                 [
@@ -1658,6 +1883,7 @@ public static class CommandRegistry
                 ExpectApproach,
                 "Expect Approach",
                 "Approach",
+                CommandDimension.None,
                 false,
                 ["EAPP", "EXPECT"],
                 [O(null, [R("approach", "approach ID")], "Advise expected approach")]
@@ -1666,15 +1892,25 @@ public static class CommandRegistry
                 ClearedApproach,
                 "Cleared Approach",
                 "Approach",
+                CommandDimension.Lateral,
                 false,
                 ["CAPP", "CTL"],
                 [O(null, [], "Auto-resolve approach"), O("Approach", [R("approach", "approach ID")], "Clear for approach")]
             ),
-            Cmd(JoinApproach, "Join Approach", "Approach", false, ["JAPP"], [O(null, [R("approach", "approach ID")], "Join approach course")]),
+            Cmd(
+                JoinApproach,
+                "Join Approach",
+                "Approach",
+                CommandDimension.Lateral,
+                false,
+                ["JAPP"],
+                [O(null, [R("approach", "approach ID")], "Join approach course")]
+            ),
             Cmd(
                 ClearedApproachStraightIn,
                 "Cleared Straight-In",
                 "Approach",
+                CommandDimension.Lateral,
                 false,
                 ["CAPPSI"],
                 [O(null, [R("approach", "approach ID")], "Clear for straight-in approach")]
@@ -1683,6 +1919,7 @@ public static class CommandRegistry
                 JoinApproachStraightIn,
                 "Join Straight-In",
                 "Approach",
+                CommandDimension.Lateral,
                 false,
                 ["JAPPSI"],
                 [O(null, [R("approach", "approach ID")], "Join straight-in approach")]
@@ -1691,6 +1928,7 @@ public static class CommandRegistry
                 ClearedApproachForce,
                 "Cleared Approach (Force)",
                 "Approach",
+                CommandDimension.Lateral,
                 false,
                 ["CAPPF"],
                 [O(null, [R("approach", "approach ID")], "Clear for approach (force)")]
@@ -1699,6 +1937,7 @@ public static class CommandRegistry
                 JoinApproachForce,
                 "Join Approach (Force)",
                 "Approach",
+                CommandDimension.Lateral,
                 false,
                 ["JAPPF"],
                 [O(null, [R("approach", "approach ID")], "Join approach (force)")]
@@ -1707,6 +1946,7 @@ public static class CommandRegistry
                 JoinFinalApproachCourse,
                 "Join Final Approach Course",
                 "Approach",
+                CommandDimension.Lateral,
                 false,
                 ["JFAC", "JLOC", "JF"],
                 [O(null, [], "Auto-resolve approach"), O("Approach", [R("approach", "approach ID")], "Join final approach course")]
@@ -1715,15 +1955,25 @@ public static class CommandRegistry
                 JoinStar,
                 "Join STAR",
                 "Approach",
+                CommandDimension.Lateral,
                 false,
                 ["JARR", "ARR", "STAR", "JSTAR"],
                 [O(null, [R("STAR", "STAR name"), R("entry_fix", "entry fix")], "Join STAR at entry fix")]
             ),
-            Cmd(JoinAirway, "Join Airway", "Approach", false, ["JAWY"], [O(null, [R("airway", "airway ID")], "Intercept and join airway")]),
+            Cmd(
+                JoinAirway,
+                "Join Airway",
+                "Approach",
+                CommandDimension.Lateral,
+                false,
+                ["JAWY"],
+                [O(null, [R("airway", "airway ID")], "Intercept and join airway")]
+            ),
             Cmd(
                 ClearedIntoMilitaryRoute,
                 "Cleared Into Military Route",
                 "Navigation",
+                CommandDimension.Lateral,
                 false,
                 ["CMTR", "CIR"],
                 [
@@ -1739,6 +1989,7 @@ public static class CommandRegistry
                 MaintainMilitaryRouteAltitudes,
                 "Maintain Military Route Altitudes",
                 "Navigation",
+                CommandDimension.Vertical,
                 false,
                 ["MTRA", "MRA"],
                 [O(null, [], "Revert to the route's published altitude blocks")]
@@ -1747,6 +1998,7 @@ public static class CommandRegistry
                 ClearedOutOfMilitaryRoute,
                 "Cleared Out Of Military Route",
                 "Navigation",
+                CommandDimension.Lateral,
                 false,
                 ["XMTR", "EMTR"],
                 [
@@ -1763,6 +2015,7 @@ public static class CommandRegistry
                 SayExitFixEstimate,
                 "Say Exit Fix Estimate",
                 "Broadcast",
+                CommandDimension.None,
                 false,
                 ["SAYEXIT", "SAYXF"],
                 [O(null, [], "Verify exit fix estimate and requested altitude after exit")]
@@ -1771,6 +2024,7 @@ public static class CommandRegistry
                 ClearedToConductRefueling,
                 "Cleared To Conduct Refueling",
                 "Navigation",
+                CommandDimension.Lateral,
                 false,
                 ["CAR", "CREF"],
                 [
@@ -1786,6 +2040,7 @@ public static class CommandRegistry
                 JoinRadialOutbound,
                 "Join Radial Outbound",
                 "Approach",
+                CommandDimension.Lateral,
                 false,
                 ["JRADO", "JRAD"],
                 [O(null, [R("radial", "FIX + bearing")], "Join radial outbound")]
@@ -1794,6 +2049,7 @@ public static class CommandRegistry
                 JoinRadialInbound,
                 "Join Radial Inbound",
                 "Approach",
+                CommandDimension.Lateral,
                 false,
                 ["JRADI", "JICRS"],
                 [O(null, [R("radial", "FIX + bearing")], "Join radial inbound")]
@@ -1802,6 +2058,7 @@ public static class CommandRegistry
                 HoldingPattern,
                 "Holding Pattern",
                 "Approach",
+                CommandDimension.Lateral,
                 false,
                 ["HOLDP"],
                 [
@@ -1816,6 +2073,7 @@ public static class CommandRegistry
                 PositionTurnAltitudeClearance,
                 "PTAC",
                 "Approach",
+                CommandDimension.Lateral | CommandDimension.Vertical,
                 false,
                 ["PTAC"],
                 [
@@ -1832,6 +2090,7 @@ public static class CommandRegistry
                 PositionTurnAltitudeClearanceForce,
                 "PTAC (Force)",
                 "Approach",
+                CommandDimension.Lateral | CommandDimension.Vertical,
                 false,
                 ["PTACF"],
                 [
@@ -1848,6 +2107,7 @@ public static class CommandRegistry
                 ClimbVia,
                 "Climb Via",
                 "Approach",
+                CommandDimension.Lateral | CommandDimension.Vertical,
                 false,
                 ["CVIA"],
                 [
@@ -1859,6 +2119,7 @@ public static class CommandRegistry
                 DescendVia,
                 "Descend Via",
                 "Approach",
+                CommandDimension.Lateral | CommandDimension.Vertical,
                 false,
                 ["DVIA"],
                 [
@@ -1870,6 +2131,7 @@ public static class CommandRegistry
                 CrossFix,
                 "Cross Fix",
                 "Approach",
+                CommandDimension.None,
                 false,
                 ["CFIX", "CF"],
                 [O(null, [R("fix", "fix name"), R("constraint", "A/B + altitude")], "Cross fix at altitude constraint")]
@@ -1878,6 +2140,7 @@ public static class CommandRegistry
                 DepartFix,
                 "Depart Fix",
                 "Approach",
+                CommandDimension.Lateral | CommandDimension.Vertical,
                 false,
                 ["DEPART", "DEP", "D"],
                 [O(null, [R("fix", "fix name"), R("heading", "0-360")], "Depart fix on heading")]
@@ -1886,6 +2149,7 @@ public static class CommandRegistry
                 ListApproaches,
                 "List Approaches",
                 "Approach",
+                CommandDimension.None,
                 true,
                 ["APPS"],
                 [O(null, [], "List approaches for primary airport"), O("Airport", [R("airport", "airport ID")], "List approaches for airport")]
@@ -1894,6 +2158,7 @@ public static class CommandRegistry
                 ClearedVisualApproach,
                 "Cleared Visual Approach",
                 "Approach",
+                CommandDimension.Lateral,
                 false,
                 ["CVA", "VISUAL"],
                 [O(null, [R("runway", "runway designator")], "Clear for visual approach to runway")]
@@ -1902,6 +2167,7 @@ public static class CommandRegistry
                 ClearedVisualApproachForce,
                 "Cleared Visual Approach (Force)",
                 "Approach",
+                CommandDimension.Lateral,
                 false,
                 ["CVAF", "VISUALF"],
                 [O(null, [R("runway", "runway designator")], "Clear for visual approach without RFIS/RTIS first (RPO-only)")]
@@ -1910,6 +2176,7 @@ public static class CommandRegistry
                 Follow,
                 "Follow Traffic",
                 "Approach",
+                CommandDimension.Lateral,
                 false,
                 ["FOLLOW", "FOL"],
                 [O(null, [], "Follow last-reported traffic in sight"), O("Target", [R("callsign", "traffic callsign")], "Follow specific traffic")]
@@ -1918,6 +2185,7 @@ public static class CommandRegistry
                 FollowForce,
                 "Follow Traffic (Force)",
                 "Approach",
+                CommandDimension.Lateral,
                 false,
                 ["FOLLOWF", "FOLF"],
                 [
@@ -1929,6 +2197,7 @@ public static class CommandRegistry
                 ReportFieldInSight,
                 "Report Field In Sight",
                 "Approach",
+                CommandDimension.None,
                 true,
                 ["RFIS"],
                 [
@@ -1936,11 +2205,12 @@ public static class CommandRegistry
                     O("Descriptive", [R("clock", "1-12"), R("miles", "NM")], "Issue field advisory"),
                 ]
             ),
-            Bare(ReportFieldInSightForced, "Report Field In Sight (Forced)", "Approach", true, ["RFISF"]),
+            Bare(ReportFieldInSightForced, "Report Field In Sight (Forced)", "Approach", CommandDimension.None, true, ["RFISF"]),
             Cmd(
                 ReportTrafficInSight,
                 "Report Traffic In Sight",
                 "Approach",
+                CommandDimension.None,
                 true,
                 ["RTIS"],
                 [
@@ -1980,6 +2250,7 @@ public static class CommandRegistry
                 ReportTrafficInSightForced,
                 "Report Traffic In Sight (Forced)",
                 "Approach",
+                CommandDimension.None,
                 true,
                 ["RTISF"],
                 [O(null, [], "Force traffic in sight"), O("Target", [R("callsign", "traffic callsign")], "Force specific traffic in sight")]
@@ -1988,6 +2259,7 @@ public static class CommandRegistry
                 SafetyAlert,
                 "Safety Alert",
                 "Approach",
+                CommandDimension.None,
                 true,
                 ["SAFAL"],
                 [
@@ -1999,7 +2271,7 @@ public static class CommandRegistry
                     ),
                 ]
             ),
-            Bare(WakeAdvisory, "Caution Wake Turbulence", "Approach", true, ["CWT"]),
+            Bare(WakeAdvisory, "Caution Wake Turbulence", "Approach", CommandDimension.None, true, ["CWT"]),
         ];
 
     private static CommandDefinition[] QueueCommands() =>
@@ -2008,11 +2280,12 @@ public static class CommandRegistry
                 DeleteQueuedCommands,
                 "Delete Queued Commands",
                 "Queue",
+                CommandDimension.None,
                 false,
                 ["DELAT", "DELCOND", "DC", "CXL", "CLR"],
                 [O(null, [], "Delete all queued conditionals"), O("Index", [R("index", "1-based index")], "Delete specific conditional")]
             ),
-            Bare(ShowQueuedCommands, "Show Queued Commands", "Queue", false, ["SHOWAT", "SHOWCOND"]),
+            Bare(ShowQueuedCommands, "Show Queued Commands", "Queue", CommandDimension.None, false, ["SHOWAT", "SHOWCOND"]),
         ];
 
     private static CommandDefinition[] FlightPlanCommands() =>
@@ -2021,6 +2294,7 @@ public static class CommandRegistry
                 ChangeDestination,
                 "Change Destination",
                 "Flight Plan",
+                CommandDimension.Lateral,
                 false,
                 ["APT", "DEST"],
                 [O(null, [R("airport", "airport ID")], "Change destination airport")]
@@ -2029,6 +2303,7 @@ public static class CommandRegistry
                 CreateFlightPlan,
                 "Create Flight Plan (IFR)",
                 "Flight Plan",
+                CommandDimension.None,
                 false,
                 ["FP"],
                 [
@@ -2043,6 +2318,7 @@ public static class CommandRegistry
                 CreateVfrFlightPlan,
                 "Create Flight Plan (VFR)",
                 "Flight Plan",
+                CommandDimension.None,
                 false,
                 ["VP"],
                 [
@@ -2057,6 +2333,7 @@ public static class CommandRegistry
                 CreateAbbreviatedFlightPlan,
                 "Flight Data (Abbreviated FP)",
                 "Flight Plan",
+                CommandDimension.None,
                 false,
                 ["DA"],
                 [O(null, [R("fields", "beacon scratchpad type altitude rules")], "Create abbreviated flight plan (optional fields, any order)")]
@@ -2065,20 +2342,30 @@ public static class CommandRegistry
                 SetRemarks,
                 "Set Remarks",
                 "Flight Plan",
+                CommandDimension.None,
                 false,
                 ["REMARKS", "REM"],
                 [O(null, [R("text", "remarks text")], "Set flight plan remarks")]
             ),
-            Bare(CancelIfr, "Cancel IFR", "Flight Plan", false, ["CIFR"]),
+            Bare(CancelIfr, "Cancel IFR", "Flight Plan", CommandDimension.None, false, ["CIFR"]),
         ];
 
     private static CommandDefinition[] ConsolidationCommands() =>
         [
-            Cmd(Consolidate, "Consolidate", "Consolidation", true, ["CON"], [O(null, [R("positions", "position IDs")], "Consolidate positions")]),
+            Cmd(
+                Consolidate,
+                "Consolidate",
+                "Consolidation",
+                CommandDimension.None,
+                true,
+                ["CON"],
+                [O(null, [R("positions", "position IDs")], "Consolidate positions")]
+            ),
             Cmd(
                 ConsolidateFull,
                 "Consolidate (Full)",
                 "Consolidation",
+                CommandDimension.None,
                 true,
                 ["CON+"],
                 [O(null, [R("positions", "position IDs")], "Full consolidate positions")]
@@ -2087,6 +2374,7 @@ public static class CommandRegistry
                 Deconsolidate,
                 "Deconsolidate",
                 "Consolidation",
+                CommandDimension.None,
                 true,
                 ["DECON"],
                 [O(null, [R("position", "position ID")], "Deconsolidate position")]
@@ -2125,11 +2413,19 @@ public static class CommandRegistry
         return new CompoundModifier(keyword, argHint, repeatable);
     }
 
-    private static CommandDefinition Bare(CanonicalCommandType type, string label, string category, bool isGlobal, string[] aliases)
+    private static CommandDefinition Bare(
+        CanonicalCommandType type,
+        string label,
+        string category,
+        CommandDimension queuedDimension,
+        bool isGlobal,
+        string[] aliases
+    )
     {
         return new CommandDefinition(type, label, category, isGlobal, aliases, [O(null, [], null)])
         {
             ProducesPilotUnable = DefaultProducesPilotUnable(category, isGlobal),
+            QueuedDimension = queuedDimension,
         };
     }
 
@@ -2137,6 +2433,7 @@ public static class CommandRegistry
         CanonicalCommandType type,
         string label,
         string category,
+        CommandDimension queuedDimension,
         bool isGlobal,
         string[] aliases,
         CommandOverload[] overloads,
@@ -2147,10 +2444,11 @@ public static class CommandRegistry
         return new CommandDefinition(type, label, category, isGlobal, aliases, overloads, modifiers, syntaxPatterns)
         {
             ProducesPilotUnable = DefaultProducesPilotUnable(category, isGlobal),
+            QueuedDimension = queuedDimension,
         };
     }
 
-    private static CommandDefinition PatternEntry(CanonicalCommandType type, string label, string[] aliases)
+    private static CommandDefinition PatternEntry(CanonicalCommandType type, string label, CommandDimension queuedDimension, string[] aliases)
     {
         return new CommandDefinition(
             type,
@@ -2162,6 +2460,7 @@ public static class CommandRegistry
         )
         {
             ProducesPilotUnable = true,
+            QueuedDimension = queuedDimension,
         };
     }
 

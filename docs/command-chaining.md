@@ -119,9 +119,29 @@ single-command parser accepts whole (free-text `NOTE …`) is not a chain.
 2. **Client canonicalizer drift** (#335): server-side condition/WAIT/compound-policy changes need
    the client mirror updated in lockstep — bugs otherwise reproduce only on the typed path. Shared
    predicates (`CompoundPolicy`) remove the drift by construction.
-3. **Dimension-table drift** (#296/#336): `GetCommandDimension` and `GetQueuedCommandDimension`
-   are parallel classification tables; adding a command to only one mis-clears or mis-preserves
-   queued chains.
+3. **Dimension-table drift** (#296/#336/#422): `GetCommandDimension` and `GetQueuedCommandDimension`
+   answer two different questions and drifted apart for ~50 verbs. **Closed by construction as of
+   2026-09-08**: the queued side is now declared per verb as `CommandDefinition.QueuedDimension`, a
+   `required` property, so the compiler rejects a new command that does not state one. The fired side
+   (`GetCommandDimension`) is still a predicate-driven switch; `QueuedDimension_IsNeverBroaderThanFiredDimension`
+   in `QueuedCommandDimensionTests` pins the invariant that binds them.
+
+   The two axes to keep straight:
+
+   - **Fired** — what the command seizes once it runs. A tower or ground clearance takes everything.
+   - **Queued** — what it occupies while it waits, i.e. which incoming commands displace it first. A
+     pattern entry takes all three axes when it fires, but while it waits it is only a lateral plan.
+
+   `CommandDimension.Ground` is a fourth axis, deliberately outside `AllAirborne`: 7110.65 §3-7-2 taxi
+   clearances and §5-6-2 vectors are disjoint clearance domains. §5-8-2.a *requires* the initial heading
+   be assigned before departure, so a takeoff clearance sharing the `Lateral` bit would be deleted by the
+   very heading that accompanies it. Surface verbs therefore queue as `Ground` and fire as `All`
+   (`AllAirborne | Ground`), which keeps them reachable by a fresh surface clearance while a vector or an
+   altitude cannot touch them.
+
+   Note the word `None` means opposite things on the two sides: an *incoming* `None` trips the
+   clear-everything fast path in `ClearConflictingBlocks`, while a *queued* `None` means nothing
+   supersedes it.
 4. **Split-block metadata loss** (#281): `SplitBlockNonConflicting` rebuilds a partially-superseded
    block; every `CommandBlock` field must be re-derived or copied. `SplitBlockPreservationTests`
    pins the full property set by reflection.

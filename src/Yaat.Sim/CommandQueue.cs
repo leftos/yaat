@@ -121,7 +121,22 @@ public enum CommandDimension
     Lateral = 1 << 0,
     Vertical = 1 << 1,
     Speed = 1 << 2,
-    All = Lateral | Vertical | Speed,
+
+    /// <summary>
+    /// The surface plan: taxi routes, hold-shorts, runway crossings, pushbacks, and the takeoff
+    /// clearances that commit an aircraft to a runway. Deliberately its own axis rather than a
+    /// second meaning for <see cref="Lateral"/>: 7110.65 §3-7-2 taxi clearances and §5-6-2 vectors
+    /// are disjoint clearance domains, and an instruction in one never amends an instruction in the
+    /// other. Sharing a bit would let a departure heading — which §5-8-2.a requires be assigned
+    /// before departure — delete the very takeoff clearance it accompanies.
+    /// </summary>
+    Ground = 1 << 3,
+
+    /// <summary>The three airborne axes. This is the mask the clear-everything fast path tests against.</summary>
+    AllAirborne = Lateral | Vertical | Speed,
+
+    /// <summary>Every axis. What a tower or ground clearance, or DEL, seizes when it fires.</summary>
+    All = AllAirborne | Ground,
 }
 
 public class TrackedCommand

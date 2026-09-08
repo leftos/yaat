@@ -313,31 +313,31 @@ public static class CommandDescriber
     /// </summary>
     internal static CommandDimension GetQueuedCommandDimension(ParsedCommand command)
     {
-        // Pattern entries, approach clearances, and holds are all "lateral plans" while they wait: a
-        // fresh vector or DCT replaces the plan and must cancel the queued block. The four VFR holds
-        // have no arm in ClassifyCommand (they fall through to Immediate → None), yet GetCommandDimension
-        // classifies them as Lateral — so without this arm a queued hold's aggregate block dimension
-        // reports a lateral conflict while its per-command keep-test reads None, and SplitBlockNonConflicting
-        // keeps (survives) the very hold a superseding vector was meant to cancel.
-        //
-        // MLT/MRT are the same shape: excluded from IsPatternEntryCommand (they build no lead-in of
-        // their own) and with no ClassifyCommand arm (→ Immediate → None), yet they are tower commands
-        // so GetCommandDimension reports All. A queued MLT/MRT that survives a superseding vector fires
-        // TryChangePatternDirection's "departure told to stay in closed traffic" path, which builds and
-        // activates a full circuit — a real turn back into the pattern the vector was meant to prevent
-        // (the RELR-20 shape the command-handlers doc warns about). While queued it is a lateral plan, so
-        // a fresh vector/DCT must cancel it; an altitude/speed assignment on the way to the trigger must not.
-        if (
-            IsPatternEntryCommand(command)
-            || IsApproachCommand(command)
-            || IsHoldCommand(command)
-            || command is MakeLeftTrafficCommand or MakeRightTrafficCommand
-        )
+        // Two verbs carry a dimension that depends on which optional argument was given, so no per-verb
+        // table value can describe them. EXP <alt> assigns an altitude; bare EXP is only a rate modifier.
+        // CrossFix annotates the route rather than replacing it — DispatchCrossFix stamps the restriction on
+        // a fix already on the route and appends it otherwise, leaving every other fix in place — so it is
+        // vertical (plus speed when one was given), never lateral. A chain of crossing restrictions must not
+        // cancel the lateral work the aircraft is flying toward.
+        switch (command)
         {
-            return CommandDimension.Lateral;
+            case ExpediteCommand expedite:
+                return expedite.Altitude is not null ? CommandDimension.Vertical : CommandDimension.None;
+            case CrossFixCommand crossFix:
+                return CommandDimension.Vertical | (crossFix.Speed is not null ? CommandDimension.Speed : CommandDimension.None);
+            case UnsupportedCommand:
+                return CommandDimension.None;
         }
 
-        return GetDimension(ClassifyCommand(command));
+        // Everything else declares its queued dimension in the registry, which the compiler forces every
+        // command to fill in. A verb missing from the registry is a completeness bug (CommandRegistry.All
+        // covers every CanonicalCommandType and a test enforces it), so fail loudly rather than defaulting
+        // to None — silently occupying no axis is the defect this table exists to remove.
+        var definition = CommandRegistry.Get(ToCanonicalType(command));
+        return definition?.QueuedDimension
+            ?? throw new InvalidOperationException(
+                $"No CommandRegistry definition for {command.GetType().Name} — every command must declare a QueuedDimension"
+            );
     }
 
     /// <summary>

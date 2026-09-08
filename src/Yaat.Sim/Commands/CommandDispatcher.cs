@@ -2697,7 +2697,7 @@ public static class CommandDispatcher
         // so the per-block loop below can spare them.
         if (
             !preserveTriggeredBlocks
-            && ((incomingDimensions & CommandDimension.All) == CommandDimension.All || incomingDimensions == CommandDimension.None)
+            && ((incomingDimensions & CommandDimension.AllAirborne) == CommandDimension.AllAirborne || incomingDimensions == CommandDimension.None)
         )
         {
             int fastStart = queue.CurrentBlockIndex + (queue.CurrentBlock is { IsApplied: true } ? 1 : 0);

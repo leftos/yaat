@@ -37,6 +37,9 @@
 - An aircraft on one runway's upwind told `MLT`/`MRT` to a close parallel (OAK 28R → 28L) continues its upwind and turns crosswind only beyond both departure ends into the new runway's pattern, instead of turning across the field to the new downwind; from the parallel's downwind it crosses over at midfield at pattern altitude (opposite side) or re-intercepts the offset downwind (same side). A takeoff clearance onto a parallel's pattern (`CTO 28R MLT 28L`) flies the same transition.
 - `MLT`/`MRT` with a runway now also moves the pattern runway, so the circuit built after the next go-around or touch-and-go belongs to the runway named, not the one the aircraft was told to leave.
 - A fresh vector or `DCT` cancels a queued `MLT`/`MRT` (#422): the pattern-direction command waiting behind a condition survived the supersede and turned the aircraft back into the pattern the vector had taken it out of.
+- A fresh vector cancels a queued pattern modifier (`EXT`, `TD`, `SA`, `L360`, `P270`, `CA`) or landing option (`TG`, `SG`, `LA`, `COPT`) instead of letting it fire later.
+- A vector or an altitude assignment no longer cancels a queued taxi, hold-short, pushback or takeoff clearance.
+- A restated altitude cancels a queued crossing restriction (`CFIX`), and a vector leaves it alone.
 - The pilot's "midfield downwind" reminder fires at midfield of the downwind leg instead of abeam the landing threshold.
 - Restoring a room after a planned server restart no longer stalls every other room's tick until the restore finishes.
 - A point-out nobody acknowledges is withdrawn after 30 seconds and the initiator is told to coordinate verbally, instead of being acknowledged on the absent controller's behalf (7110.65 §5-4-7); a point-out to your own position in solo mode still waits for you even when the room's student TCP did not resolve.
