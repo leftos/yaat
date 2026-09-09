@@ -9,8 +9,53 @@ using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Scenarios;
 using Yaat.Sim.Simulation;
+using Yaat.Sim.Simulation.Snapshots;
 
 namespace Yaat.Sim.LiveTraffic;
+
+/// <summary>
+/// What <see cref="LiveTrafficAssumer.Rollback"/> needs to make an assumed aircraft a live-traffic shadow again:
+/// everything <see cref="LiveTrafficAssumer.Assume"/> replaces, captured before it seeds anything. The rollback is a
+/// pure function of the aircraft and this token — no RNG, no recorded action, nothing outside the aircraft — so a
+/// replay of the same refused command re-derives the same shadow at the same second.
+/// <para>
+/// Three invariants of a shadow are what make the token safe, and they are owned elsewhere: it has <b>no phase list</b>
+/// (so <see cref="Phases"/> can be a reference — the seed's approach install would otherwise mutate the captured
+/// object in place through <c>PhaseList.Clear</c>; <see cref="LiveTrafficAssumer.Assume"/> throws rather than trust
+/// this silently), <b>no pending observations</b> and <b>no armed reports or queued transmissions</b> (nothing ticks
+/// a shadow's pilot and no <c>REPORT</c> can be issued to one). The lists are captured anyway so that a change to any
+/// of the three cannot leak seeded state onto a restored shadow.
+/// </para>
+/// </summary>
+public readonly record struct AssumeUndo
+{
+    /// <summary>The satellite the aircraft was driven by — the same object, so its sample history survives.</summary>
+    public required AircraftLiveTraffic LiveTraffic { get; init; }
+
+    public required PhaseList? Phases { get; init; }
+
+    public required ControlTargetsDto Targets { get; init; }
+
+    public required AircraftProcedureDto Procedure { get; init; }
+
+    public required AircraftApproachStateDto Approach { get; init; }
+
+    /// <summary>Warnings the aircraft already carried; the seed's own notes are appended past this and are dropped.</summary>
+    public required int PendingWarningCount { get; init; }
+
+    /// <summary>
+    /// A copy, not a count: the seed's approach install <em>removes</em> entries
+    /// (<c>ApproachCommandHandler.ClearExistingPhases</c> drops every traffic-acquisition observation), which a
+    /// truncation could not undo.
+    /// </summary>
+    public required IReadOnlyList<PilotObservation> PendingObservations { get; init; }
+
+    /// <summary>Solo pilot transmissions the first seeded phase's <c>OnStart</c> can queue; appended, so a count.</summary>
+    public required int PendingPilotTransmissionCount { get; init; }
+
+    /// <summary>The RPO-mode form of the same transmissions.</summary>
+    public required int PendingPilotSpeechCount { get; init; }
+}
 
 /// <summary>
 /// <c>ASSUME</c>: converts a live-traffic shadow in place into an ordinary simulated aircraft. Never
@@ -73,12 +118,42 @@ public static class LiveTrafficAssumer
     /// <summary>A rollout still faster than this gets <see cref="RunwayExitPhase"/> rather than a bare ground state.</summary>
     public const double RolloutExitMinSpeedKts = 30;
 
-    public static CommandResult Assume(AircraftState aircraft, DispatchContext ctx)
+    /// <summary>
+    /// Takes the shadow. <paramref name="undo"/> comes back with everything the seed is about to replace, for the
+    /// caller that has to hand the aircraft back (<c>CommandDispatcher</c>'s shadow gate, when the command the
+    /// aircraft was taken for is refused); null when there was nothing to assume.
+    /// </summary>
+    public static CommandResult Assume(AircraftState aircraft, DispatchContext ctx, out AssumeUndo? undo)
     {
+        undo = null;
         if (aircraft.LiveTraffic is not { } lt)
         {
             return new CommandResult(false, $"{aircraft.Callsign} is not live traffic");
         }
+
+        // The token captures the phase list by reference, and the seed's approach install clears whatever list is
+        // there in place (ApproachCommandHandler.ClearExistingPhases) — which would empty the captured one too. A
+        // shadow has no phases (LiveTrafficKinematics.CreateShadow, and the tick loop never gives it any), so this
+        // says so out loud instead of letting a future change corrupt a rollback silently.
+        if (aircraft.Phases is not null)
+        {
+            throw new InvalidOperationException(
+                $"{aircraft.Callsign} is a live-traffic shadow with a phase list; the assume undo captures Phases by reference and a shadow must have none"
+            );
+        }
+
+        undo = new AssumeUndo
+        {
+            LiveTraffic = lt,
+            Phases = aircraft.Phases,
+            Targets = aircraft.Targets.ToSnapshot(),
+            Procedure = aircraft.Procedure.ToSnapshot(),
+            Approach = aircraft.Approach.ToSnapshot(),
+            PendingWarningCount = aircraft.PendingWarnings.Count,
+            PendingObservations = aircraft.PendingObservations.ToList(),
+            PendingPilotTransmissionCount = aircraft.PendingPilotTransmissions.Count,
+            PendingPilotSpeechCount = aircraft.PendingPilotSpeech.Count,
+        };
 
         LiveTrafficKinematics.Advance(aircraft, 0, ctx.Weather, ctx.ScenarioElapsedSeconds);
         // Outlives the satellite: it is what tells UNASSUME there is a feed to hand this aircraft back to. A flag
@@ -103,6 +178,45 @@ public static class LiveTrafficAssumer
 
         Log.LogInformation("{Callsign} assumed: {Summary}", aircraft.Callsign, summary);
         return new CommandResult(true, $"{aircraft.Callsign} assumed — {summary}");
+    }
+
+    /// <summary>
+    /// Hands an assumed aircraft back to the feed in place: it is a shadow again, driven by the same satellite object,
+    /// with the seeded phases, targets, procedure, approach state, observations and queued pilot transmissions put
+    /// back and the seed's warnings dropped. The queue and the deferred dispatches are not restored because
+    /// <see cref="Assume"/> cleared nothing — a shadow refuses every command, so both are empty when it is taken.
+    /// <para>
+    /// Only what <see cref="Assume"/> seeds is restored. A <c>;</c>-sequenced compound whose earlier block succeeded
+    /// and committed something outside that set (<c>SQ 1234; TAXI A</c> leaves the new beacon code) leaves that
+    /// mutation on the restored shadow — the same partial-commit property an ordinary aircraft already has for a chain
+    /// that fails halfway. The pose is not restored either: a shadow's position, heading and speed are re-derived from
+    /// its samples on every tick (<see cref="LiveTrafficKinematics.Advance"/>), so the next tick writes them anyway.
+    /// </para>
+    /// </summary>
+    public static void Rollback(AircraftState aircraft, AssumeUndo undo)
+    {
+        aircraft.AssumedFromLiveTraffic = false;
+        aircraft.LiveTraffic = undo.LiveTraffic;
+        aircraft.Phases = undo.Phases;
+        ControlTargets.RestoreFrom(undo.Targets, aircraft.Targets);
+        aircraft.Procedure = AircraftProcedure.FromSnapshot(undo.Procedure);
+        aircraft.Approach = AircraftApproachState.FromSnapshot(undo.Approach);
+        TruncateTo(aircraft.PendingWarnings, undo.PendingWarningCount);
+        TruncateTo(aircraft.PendingPilotTransmissions, undo.PendingPilotTransmissionCount);
+        TruncateTo(aircraft.PendingPilotSpeech, undo.PendingPilotSpeechCount);
+        aircraft.PendingObservations.Clear();
+        aircraft.PendingObservations.AddRange(undo.PendingObservations);
+
+        Log.LogInformation("{Callsign}: assume rolled back — the aircraft is live traffic again", aircraft.Callsign);
+    }
+
+    /// <summary>Drops everything appended past <paramref name="count"/>; a no-op when nothing was.</summary>
+    private static void TruncateTo<T>(List<T> list, int count)
+    {
+        if (list.Count > count)
+        {
+            list.RemoveRange(count, list.Count - count);
+        }
     }
 
     private static string SeedState(AircraftState ac, AircraftLiveTraffic lt, DispatchContext ctx, List<string> notes)

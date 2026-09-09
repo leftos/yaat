@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
@@ -207,6 +208,105 @@ public class LiveTrafficAssumeTests
         Assert.Equal("UNASSUME cannot be part of a chained command", result.Message);
         Assert.NotNull(engine.World.FindAircraft(Callsign));
         Assert.Null(ac.Targets.AssignedMagneticHeading);
+    }
+
+    private static string Json<T>(T dto) => JsonSerializer.Serialize(dto);
+
+    /// <summary>
+    /// The automatic assume is undone when the command it took the aircraft for is refused: the seeded state goes
+    /// back the way it was, the satellite is the same object, and the refusal reads as the plain refusal it is —
+    /// no "assumed —" prefix for a hand-off that did not stick.
+    /// </summary>
+    [Fact]
+    public void AutoAssume_RefusedCommand_RollsBackToShadow()
+    {
+        var ac = Shadow(Sample(0, EnRoute, 11_000, 300, 90, 0));
+        var satellite = ac.LiveTraffic;
+        string targets = Json(ac.Targets.ToSnapshot());
+        string procedure = Json(ac.Procedure.ToSnapshot());
+        string approach = Json(ac.Approach.ToSnapshot());
+        int warnings = ac.PendingWarnings.Count;
+
+        // A ground verb on an airborne aircraft: refused by the seeded state, deterministically.
+        var result = Send(ac, "TAXI A");
+
+        Assert.False(result.Success);
+        Assert.Contains("requires the aircraft to be on the ground", result.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain("assumed", result.Message, StringComparison.Ordinal);
+        Assert.True(ac.IsShadow);
+        Assert.False(ac.AssumedFromLiveTraffic);
+        Assert.Same(satellite, ac.LiveTraffic);
+        Assert.Null(ac.Phases);
+        Assert.Equal(targets, Json(ac.Targets.ToSnapshot()));
+        Assert.Equal(procedure, Json(ac.Procedure.ToSnapshot()));
+        Assert.Equal(approach, Json(ac.Approach.ToSnapshot()));
+        Assert.Equal(warnings, ac.PendingWarnings.Count);
+    }
+
+    /// <summary>
+    /// The same rollback on the seed's heaviest path: established on a final installs an approach, which is where the
+    /// phase list is cleared in place and where a first phase's <c>OnStart</c> can queue a pilot transmission. Nothing
+    /// the seed touched survives the refusal.
+    /// </summary>
+    [Fact]
+    public void AutoAssume_RefusedCommand_OnTheFinal_RollsBackTheApproachSeed()
+    {
+        var runway = NavigationDatabase.Instance.GetRunway("OAK", "28R");
+        Assert.NotNull(runway);
+        var threshold = new LatLon(runway.ThresholdLatitude, runway.ThresholdLongitude);
+        var pos = GeoMath.ProjectPoint(threshold, runway.TrueHeading.ToReciprocal(), 3.0);
+        var plan = new AircraftFlightPlan
+        {
+            HasFlightPlan = true,
+            Departure = "KLAX",
+            Destination = "KOAK",
+        };
+        var ac = Shadow(Sample(0, pos, runway.ElevationFt + 950, 140, runway.TrueHeading.Degrees, -700), plan);
+        var satellite = ac.LiveTraffic;
+        string targets = Json(ac.Targets.ToSnapshot());
+        string procedure = Json(ac.Procedure.ToSnapshot());
+        string approach = Json(ac.Approach.ToSnapshot());
+        var observations = ac.PendingObservations.ToList();
+        int warnings = ac.PendingWarnings.Count;
+        int transmissions = ac.PendingPilotTransmissions.Count;
+        int speech = ac.PendingPilotSpeech.Count;
+
+        var result = Send(ac, "TAXI A");
+
+        Assert.False(result.Success);
+        Assert.DoesNotContain("assumed", result.Message, StringComparison.Ordinal);
+        Assert.True(ac.IsShadow);
+        Assert.False(ac.AssumedFromLiveTraffic);
+        Assert.Same(satellite, ac.LiveTraffic);
+        Assert.Null(ac.Phases);
+        Assert.Equal(targets, Json(ac.Targets.ToSnapshot()));
+        Assert.Equal(procedure, Json(ac.Procedure.ToSnapshot()));
+        Assert.Equal(approach, Json(ac.Approach.ToSnapshot()));
+        Assert.Equal(observations, ac.PendingObservations);
+        Assert.Equal(warnings, ac.PendingWarnings.Count);
+        Assert.Equal(transmissions, ac.PendingPilotTransmissions.Count);
+        Assert.Equal(speech, ac.PendingPilotSpeech.Count);
+
+        // The seed really does install an approach on this fixture, so the rollback above undid something.
+        var assumed = Assume(ac);
+        Assert.True(assumed.Success, assumed.Message);
+        Assert.NotNull(ac.Phases?.ActiveApproach);
+    }
+
+    /// <summary>The other side of the rollback branch: a command the seeded state accepts keeps the aircraft.</summary>
+    [Fact]
+    public void AutoAssume_AcceptedCommand_StaysAssumed()
+    {
+        var ac = Shadow(Sample(0, EnRoute, 11_000, 300, 90, 0));
+
+        var result = Send(ac, "FH 070");
+
+        Assert.True(result.Success, result.Message);
+        Assert.StartsWith($"{Callsign} assumed — ", result.Message, StringComparison.Ordinal);
+        Assert.False(ac.IsShadow);
+        Assert.True(ac.AssumedFromLiveTraffic);
+        Assert.Null(ac.LiveTraffic);
+        Assert.NotNull(ac.Targets.TargetTrueHeading);
     }
 
     [Fact]

@@ -63,6 +63,12 @@ it sees `LiveTrafficSample`s for a callsign and never knows where they came from
   through it: the router, presets, a deferred WAIT payload, the AI sink, replay) calls `LiveTrafficAssumer.Assume` for any
   compound that is not a lone `ASSUME`, then falls through to `DispatchCompoundCore` for the same compound; the result's
   message is prefixed `{callsign} assumed — ` so one line says both things happened (`CommandDispatcher.TryAssumeShadow`).
+  A command the seeded state then refuses rolls the assume back (`LiveTrafficAssumer.Rollback` with the `AssumeUndo` token
+  `Assume` captured before seeding: the satellite, the null phase list, the targets/procedure/approach snapshots and the
+  pending warning/observation/transmission lists), so the aircraft is a shadow again and the refusal carries no prefix; the
+  rollback is a pure function of the aircraft and the token — no draw, no record, no host call — so a replay re-derives it.
+  A `;`-sequenced compound whose earlier block succeeded and wrote outside that set keeps the write, the same partial-commit
+  property ordinary aircraft have. A typed `ASSUME` is never rolled back.
   Three cases keep the old refusal `ASSUME <cs> first — live traffic is not controllable`, and each is a case where taking a
   real aircraft would be wrong: a compound whose every command is a **read-only query** (`SAY*` plus `SAYEXIT`); a
   **scripted dispatch** (`DispatchContext.IsScenarioScripted` — a scenario preset or an AI controller must never take a

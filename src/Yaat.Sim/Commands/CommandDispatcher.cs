@@ -51,7 +51,9 @@ public static class CommandDispatcher
     {
         if (compound.Blocks is [{ Condition: null, Commands: [AssumeCommand] }])
         {
-            return LiveTraffic.LiveTrafficAssumer.Assume(aircraft, ctx);
+            // A typed ASSUME is the whole instruction: there is no follow-on command that can refuse it, so the
+            // undo token the automatic gate below needs is discarded here.
+            return LiveTraffic.LiveTrafficAssumer.Assume(aircraft, ctx, out _);
         }
 
         // Anywhere in the compound, not just the leading command: replay reaches this entry without the
@@ -74,7 +76,7 @@ public static class CommandDispatcher
             return RejectChainedCommand(chainedVerb);
         }
 
-        var refusal = TryAssumeShadow(aircraft, compound, ctx, out string? assumed);
+        var refusal = TryAssumeShadow(aircraft, compound, ctx, out var autoAssumed);
         if (refusal is not null)
         {
             return refusal;
@@ -93,18 +95,29 @@ public static class CommandDispatcher
         // post-takeoff check-in.
         var wasOnGround = aircraft.IsOnGround;
         var result = DispatchCompoundCore(compound, aircraft, ctx);
+
+        // The gate took a real aircraft only so this command could apply to it. It did not, so hand it back: the
+        // aircraft is live traffic again and the refusal is the plain refusal, with nothing claiming a hand-off.
+        if (autoAssumed is { } undo && !result.Success)
+        {
+            LiveTraffic.LiveTrafficAssumer.Rollback(aircraft, undo);
+            return result;
+        }
+
         if (result.Success && wasOnGround && !ctx.IsScenarioScripted)
         {
             aircraft.HasMadeInitialContact = true;
         }
 
-        return PrefixAssumed(result, assumed);
+        return PrefixAssumed(result, aircraft, autoAssumed);
     }
 
     /// <summary>
     /// The shadow gate. A live-traffic shadow is assumed (<see cref="LiveTraffic.LiveTrafficAssumer.Assume"/>) so the
-    /// compound applies to a controllable aircraft, and <paramref name="assumed"/> comes back as the line to prefix onto
-    /// the result. Returns a refusal — leaving the aircraft live traffic — in the three cases where taking a real
+    /// compound applies to a controllable aircraft, and <paramref name="autoAssumed"/> comes back as the token that
+    /// says the hand-off happened here — the prefix on the result, and what
+    /// <see cref="LiveTraffic.LiveTrafficAssumer.Rollback"/> hands the aircraft back with when the compound is then
+    /// refused. Returns a refusal — leaving the aircraft live traffic — in the three cases where taking a real
     /// aircraft would be wrong, and null for every other compound (including on an aircraft that is not a shadow):
     /// <list type="bullet">
     /// <item>a read-only query (<see cref="IsReadOnlyQuery"/>): a question must not take control as a side effect;</item>
@@ -115,9 +128,14 @@ public static class CommandDispatcher
     /// A typed <c>ASSUME</c> is still honoured — it is answered before this gate.</item>
     /// </list>
     /// </summary>
-    private static CommandResult? TryAssumeShadow(AircraftState aircraft, CompoundCommand compound, DispatchContext ctx, out string? assumed)
+    private static CommandResult? TryAssumeShadow(
+        AircraftState aircraft,
+        CompoundCommand compound,
+        DispatchContext ctx,
+        out LiveTraffic.AssumeUndo? autoAssumed
+    )
     {
-        assumed = null;
+        autoAssumed = null;
         if (!aircraft.IsShadow)
         {
             return null;
@@ -128,33 +146,32 @@ public static class CommandDispatcher
             return RejectShadow(aircraft);
         }
 
-        var assumeResult = LiveTraffic.LiveTrafficAssumer.Assume(aircraft, ctx);
+        var assumeResult = LiveTraffic.LiveTrafficAssumer.Assume(aircraft, ctx, out var undo);
         if (!assumeResult.Success)
         {
             return assumeResult;
         }
 
-        assumed = $"{aircraft.Callsign} assumed";
+        autoAssumed = undo;
         return null;
     }
 
     /// <summary>
-    /// One line, whatever the command's own verdict: the hand-off already happened, so a command the seeded state then
-    /// refuses still has to say the aircraft is no longer live traffic. The seeded state's own summary is on the log
-    /// line and its caveats are on <c>PendingWarnings</c>; the command that follows overrides most of what the seed
-    /// guessed anyway.
+    /// One line for the two things that happened: the aircraft was taken from live traffic, and the command applied.
+    /// Only a command that applied gets it — a refusal rolls the hand-off back
+    /// (<see cref="LiveTraffic.LiveTrafficAssumer.Rollback"/>) and reads as the plain refusal, because after it the
+    /// aircraft is live traffic again. The seeded state's own summary is on the log line and its caveats are on
+    /// <c>PendingWarnings</c>; the command that follows overrides most of what the seed guessed anyway.
     /// </summary>
-    private static CommandResult PrefixAssumed(CommandResult result, string? assumed)
+    private static CommandResult PrefixAssumed(CommandResult result, AircraftState aircraft, LiveTraffic.AssumeUndo? autoAssumed)
     {
-        if (assumed is null)
+        if (autoAssumed is null)
         {
             return result;
         }
 
-        return result with
-        {
-            Message = result.Message is { Length: > 0 } message ? $"{assumed} — {message}" : assumed,
-        };
+        string assumed = $"{aircraft.Callsign} assumed";
+        return result with { Message = result.Message is { Length: > 0 } message ? $"{assumed} — {message}" : assumed };
     }
 
     /// <summary>

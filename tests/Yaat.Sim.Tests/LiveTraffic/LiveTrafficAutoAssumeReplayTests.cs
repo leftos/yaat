@@ -62,6 +62,74 @@ public class LiveTrafficAutoAssumeReplayTests(ITestOutputHelper output)
         engine.TickPostPhysics();
     }
 
+    /// <summary>A live engine holding the shadow, ticked through second 5 the way the server would.</summary>
+    private static SimulationEngine LiveWithShadow(SessionRecording baseline)
+    {
+        var live = new SimulationEngine(new TestAirportGroundData());
+        live.Replay(WithActions(baseline, [], 0), 0);
+
+        var spawnState = LiveTrafficKinematics
+            .CreateShadow(Callsign, "B738", Sample(1, Origin, 90), new AircraftFlightPlan { HasFlightPlan = true, Destination = "KOAK" })
+            .ToSnapshot();
+
+        LiveSecond(live, 1, () => live.ApplyLiveTrafficSample(Callsign, Sample(1, Origin, 90), spawnState));
+        for (int t = 2; t <= 5; t++)
+        {
+            LiveSecond(live, t, null);
+        }
+
+        return live;
+    }
+
+    /// <summary>
+    /// A refused command rolls the automatic assume back, and the rollback is a pure function of the aircraft and the
+    /// undo token — no RNG, no action of its own — so replaying the same rejected command re-derives the same shadow.
+    /// Live it is one ordinary rejected <see cref="RecordedCommand"/>, exactly as the accepted case is one accepted one.
+    /// </summary>
+    [Fact]
+    public void ARefusedAutoAssumingCommand_LeavesTheShadow_LiveAndOnReplay()
+    {
+        var baseline = LoadBaseline(output);
+        if (baseline is null)
+        {
+            return;
+        }
+
+        var live = LiveWithShadow(baseline);
+        Assert.True(live.World.FindAircraft(Callsign)!.IsShadow);
+
+        // A ground verb on an airborne aircraft: the seeded state refuses it, so the assume is rolled back.
+        var issued = live.Actions.Issue(new ActionInput(Callsign, "TAXI A", "conn-1", "XX", Baked: null));
+        Assert.False(issued.Result.Success);
+        Assert.DoesNotContain("assumed", issued.Result.Message ?? "", StringComparison.Ordinal);
+
+        for (int t = 6; t <= 20; t++)
+        {
+            LiveSecond(live, t, null);
+        }
+
+        var liveAircraft = live.World.FindAircraft(Callsign)!;
+        Assert.True(liveAircraft.IsShadow);
+        Assert.False(liveAircraft.AssumedFromLiveTraffic);
+
+        var actions = live.Scenario!.ActionLog.ToList();
+        var command = Assert.Single(actions.OfType<RecordedCommand>());
+        Assert.Equal("TAXI A", command.Command);
+        Assert.False(command.Accepted);
+        Assert.Equal(2, actions.Count);
+
+        var replay = new SimulationEngine(new TestAirportGroundData());
+        replay.Replay(WithActions(baseline, actions, 22), 20);
+        var replayed = replay.World.FindAircraft(Callsign);
+
+        Assert.NotNull(replayed);
+        Assert.True(replayed.IsShadow);
+        Assert.InRange(GeoMath.DistanceNm(liveAircraft.Position, replayed.Position), 0, 0.001);
+        Assert.Equal(liveAircraft.Altitude, replayed.Altitude, 3);
+        Assert.Equal(liveAircraft.TrueHeading.Degrees, replayed.TrueHeading.Degrees, 3);
+        Assert.Equal(liveAircraft.IndicatedAirspeed, replayed.IndicatedAirspeed, 3);
+    }
+
     [Fact]
     public void AnAutoAssumingCommand_ReplaysToTheSameStateAsTheLiveRun()
     {
