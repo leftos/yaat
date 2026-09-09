@@ -382,6 +382,12 @@ public static class CommandDescriber
             return CommandDimension.Ground;
         }
 
+        // The takeoff family, same shape: it fires only the axes it assigns (the helpers below carry the rule).
+        if (command is LineUpAndWaitCommand or CancelTakeoffClearanceCommand or GoCommand or ClearedForTakeoffCommand or ClearedTakeoffPresentCommand)
+        {
+            return TakeoffFamilyDimension(command);
+        }
+
         // Tower commands (includes pattern entries) control all dimensions
         if (IsTowerCommand(command))
         {
@@ -428,16 +434,8 @@ public static class CommandDescriber
             return CommandDimension.Lateral | CommandDimension.Ground;
         }
 
-        // The clearances that commit an aircraft to a runway or a helipad. Each declares its dimension here
-        // because none of them is in a family predicate, for two different reasons. GO and CTOPP are outside
-        // both because their only arms live in the phase-gated tower switch (GO needs a StopAndGoPhase to
-        // release; CTOPP is ground-guarded) — docs/command-handlers.md and the PhaseGatedArms row for
-        // GoCommand in ActionRoutingCompletenessTests record that blind spot. LAND is outside because it is
-        // issued to an aircraft in the air, where the dry-run guard rejects every IsGroundCommand verb.
-        // GO releases a stopped departure into its takeoff roll: past that point it is a departing aircraft
-        // (§3-8-2), so the clearance owns every axis. CTOPP is a takeoff clearance (§3-11-2.a) and LAND is a
-        // landing clearance (§3-11-6.a) — the same.
-        if (command is GoCommand or ClearedTakeoffPresentCommand or LandCommand)
+        // LAND is a landing clearance (§3-11-6.a) that owns every axis; outside IsGroundCommand, whose verbs the dry-run guard rejects airborne.
+        if (command is LandCommand)
         {
             return CommandDimension.All;
         }
@@ -473,6 +471,58 @@ public static class CommandDescriber
 
         // Default: derive from TrackedCommandType
         return GetDimension(ClassifyCommand(command));
+    }
+
+    /// <summary>
+    /// What a takeoff-family verb seizes when it fires. A takeoff clearance is a runway authorization —
+    /// "RUNWAY (number), CLEARED FOR TAKEOFF" (7110.65 §3-9-10.a) — not the route or altitude amendment of
+    /// §4-2-5, so it takes the surface plan plus only the axes its own text assigns, and everything else
+    /// survives it: §5-8-2.a REQUIRES the initial heading be assigned BEFORE departure, so a bare CTO that
+    /// claimed <see cref="CommandDimension.Lateral"/> would delete the very departure turn it was issued
+    /// behind. §5-7-1.d names the clearances that cancel a previously assigned speed — approach, and climb
+    /// via/descend via. A takeoff clearance is not among them, so the assigned speed stands, and no member
+    /// of the family ever claims <see cref="CommandDimension.Speed"/>. AIM 4-4-10.g is the other half: the
+    /// last clearance wins per axis, so a CTO that DOES name a heading or an altitude supersedes the
+    /// earlier one on that axis.
+    ///
+    /// LUAW positions an aircraft on the runway and assigns nothing else (§3-9-4.a); CTOC cancels the
+    /// takeoff clearance and nothing else (§3-9-11); GO releases a stopped departure into its takeoff roll
+    /// and carries no departure instruction of its own. All three are the surface plan alone. None is never
+    /// returned: that value trips the clear-everything fast path in <c>ClearConflictingBlocks</c>.
+    /// </summary>
+    private static CommandDimension TakeoffFamilyDimension(ParsedCommand command) =>
+        command switch
+        {
+            ClearedForTakeoffCommand cto => TakeoffClearanceDimension(cto.Departure, cto.AssignedAltitude),
+            ClearedTakeoffPresentCommand ctopp => TakeoffClearanceDimension(ctopp.Departure, ctopp.AssignedAltitude),
+            LineUpAndWaitCommand or CancelTakeoffClearanceCommand or GoCommand => CommandDimension.Ground,
+            _ => throw new InvalidOperationException($"{command.GetType().Name} is not a takeoff-family command"),
+        };
+
+    /// <summary>
+    /// The axes a CTO/CTOPP seizes: the surface plan, plus <see cref="CommandDimension.Lateral"/> when the
+    /// clearance names a departure other than <see cref="DefaultDeparture"/> — runway heading
+    /// (<see cref="RunwayHeadingDeparture"/>, the "FLY RUNWAY HEADING" of 7110.65 §5-8-2.a), a heading, a
+    /// relative turn, on course, direct to a fix, closed traffic, or a pattern exit — plus
+    /// <see cref="CommandDimension.Vertical"/> when it carries an altitude. So a pre-armed
+    /// <c>AT 2000 TL 270</c> is superseded by <c>CTO RH; …</c>, whose initial heading is the last clearance
+    /// on the lateral axis (the queue-clear warning names the lost block), and survives a bare <c>CTO</c>.
+    /// The two circuit departures — <see cref="ClosedTrafficDeparture"/> and
+    /// <see cref="PatternExitDeparture"/>, which <c>DepartureClearanceHandler.IsCircuitDeparture</c> pairs —
+    /// are vertical as well: each drops the pending <c>InitialClimbPhase</c> and appends a circuit flown at
+    /// the pattern altitude (AIM 4-3-3). A <see cref="PresentPositionHoverDeparture"/>, which a bare CTOPP
+    /// parses to, is vertical WITHOUT lateral: the hover height is an assigned altitude and the helicopter
+    /// is given no track at all.
+    /// </summary>
+    private static CommandDimension TakeoffClearanceDimension(DepartureInstruction departure, int? assignedAltitude)
+    {
+        var lateral = departure is DefaultDeparture or PresentPositionHoverDeparture ? CommandDimension.None : CommandDimension.Lateral;
+        var vertical =
+            (assignedAltitude is not null) || departure is ClosedTrafficDeparture or PatternExitDeparture or PresentPositionHoverDeparture
+                ? CommandDimension.Vertical
+                : CommandDimension.None;
+
+        return CommandDimension.Ground | lateral | vertical;
     }
 
     internal static CommandDimension GetCompoundDimensions(CompoundCommand compound)

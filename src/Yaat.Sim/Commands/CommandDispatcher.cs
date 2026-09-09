@@ -401,7 +401,11 @@ public static class CommandDispatcher
                         hadPendingCrossingBeforeDispatch,
                         ctx
                     );
-                    aircraft.Queue.Blocks.AddRange(phasePreserved);
+                    // Ahead of the compound's own blocks, not behind them: a preserved block predates this
+                    // transmission, so chaining it behind the compound would hold it under the `;` rules of a
+                    // chain it was never part of (ApplyReadyConditionalBlocks stops at the first unapplied
+                    // untriggered block while a phase is active).
+                    aircraft.Queue.Blocks.InsertRange(firstRemainingIdx, phasePreserved);
 
                     var combinedMessages = new List<string> { result.Message ?? "" };
                     combinedMessages.AddRange(modifierMessages);
@@ -482,7 +486,12 @@ public static class CommandDispatcher
         int firstNewBlockIdx = aircraft.Queue.Blocks.Count;
         var messages = EnqueueBlocks(compound, 0, aircraft, ctx);
         AttachAfterRunwayCrossingTrigger(compound, aircraft, firstNewBlockIdx, currentPhaseBeforeDispatch, hadPendingCrossingBeforeDispatch, ctx);
-        aircraft.Queue.Blocks.AddRange(preserved);
+
+        // Preserved blocks go back where they were — ahead of the compound that spared them — rather than
+        // behind it: they predate this transmission and are not part of its `;` chain. The insert shifts the
+        // compound's blocks right, so every index below counts from the moved first block.
+        aircraft.Queue.Blocks.InsertRange(firstNewBlockIdx, preserved);
+        firstNewBlockIdx += preserved.Count;
 
         // Apply the first NEW block immediately (if no trigger).
         // After dimension-aware clearing, CurrentBlock may still point to an old applied block

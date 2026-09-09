@@ -137,19 +137,31 @@ until airborne. `L270`/`R270`/`L360`/`R360` themselves refuse an aircraft on the
 
    The two axes to keep straight:
 
-   - **Fired** — what the command seizes once it runs. A tower clearance takes everything; a surface
+   - **Fired** — what the command seizes once it runs. A landing clearance and a go-around take everything; a surface
      clearance (taxi, pushback, hold-short, crossing, exit instruction, air taxi) takes `Ground` only, so
      queued airborne work — a pre-departure altitude, a pre-armed departure turn — survives the taxi phase
-     (§3-7-2 vs §4-3-2.e / §5-8-2.a).
+     (§3-7-2 vs §4-3-2.e / §5-8-2.a). The takeoff family follows the same rule with one extra step: `LUAW`,
+     `CTOC` and `GO` fire `Ground` alone, and a takeoff clearance adds only the airborne axes its own text
+     assigns — `CTO RH` / `CTO LT270` → `Ground | Lateral`; `CTO MLT`/`MLC` (a circuit) and any `CTO`/`CTOPP`
+     carrying an altitude → plus `Vertical`; a bare `CTOPP` → `Ground | Vertical` (the hover height is an
+     altitude, no track is given). No member of the family ever claims `Speed` (§3-9-10.a, §5-8-2.a,
+     AIM 4-4-10.g; §5-7-1.d names the clearances that cancel a speed and a takeoff clearance is not among
+     them). `CommandDescriber.TakeoffClearanceDimension` is the arm.
    - **Queued** — what it occupies while it waits, i.e. which incoming commands displace it first. A
      pattern entry takes all three axes when it fires, but while it waits it is only a lateral plan.
 
    `CommandDimension.Ground` is a fourth axis, deliberately outside `AllAirborne`: 7110.65 §3-7-2 taxi
    clearances and §5-6-2 vectors are disjoint clearance domains. §5-8-2.a *requires* the initial heading
    be assigned before departure, so a takeoff clearance sharing the `Lateral` bit would be deleted by the
-   very heading that accompanies it. Surface verbs therefore queue as `Ground` and fire as `All`
-   (`AllAirborne | Ground`), which keeps them reachable by a fresh surface clearance while a vector or an
-   altitude cannot touch them.
+   very heading that accompanies it. Surface verbs therefore both queue *and* fire as `Ground`, which keeps them
+   reachable by a fresh surface clearance while a vector, an altitude or a speed cannot touch them.
+
+   Blocks a fresh compound preserves (`ClearConflictingBlocks` survivors) are re-inserted *ahead* of the
+   compound's own new blocks, not behind them: a survivor's trigger predates the transmission, and behind an
+   untriggered chain-mate it was never examined again (`ApplyReadyConditionalBlocks` stops at the first
+   untriggered block while a phase is active), so `AT 1000 CM 5000` then `CTO; SQ 1234` fires the climb. The
+   queue still has one cursor for independent chains, so the fresh compound's chained tail now waits behind
+   an unmet survivor trigger instead — the per-dispatch scoping that closes both sides is a MAIN.md Backlog item.
 
    Note the word `None` means opposite things on the two sides: an *incoming* `None` trips the
    clear-everything fast path in `ClearConflictingBlocks`, while a *queued* `None` means nothing

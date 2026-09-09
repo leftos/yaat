@@ -1,8 +1,11 @@
+using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
+using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Simulation.Snapshots;
 using Yaat.Sim.Tests.Helpers;
 
@@ -450,18 +453,79 @@ public class QueuedCommandDimensionTests
         Assert.Equal(CommandDimension.Ground, CommandDescriber.GetCommandDimension(parsed.Value!));
     }
 
-    // ...while the clearances that commit an aircraft to a runway own every axis from that point: GO releases
-    // a stopped departure into its takeoff roll (§3-8-2 — it is then a departing aircraft), CTOPP is a takeoff
-    // clearance (§3-11-2.a) and LAND is a landing clearance (§3-11-6.a).
+    // ...while a landing clearance owns every axis from the moment it fires: LAND commits the helicopter to a
+    // spot (7110.65 §3-11-6.a) — a lateral plan, a descent and a speed schedule in one clearance.
     [Theory]
-    [InlineData("GO")]
-    [InlineData("CTOPP")]
     [InlineData("LAND @H1")]
-    public void RunwayCommitment_SeizesEveryAxis(string text)
+    public void LandingClearance_SeizesEveryAxis(string text)
     {
         var parsed = CommandParser.Parse(text);
         Assert.True(parsed.IsSuccess, $"parse failed for '{text}': {parsed.Reason}");
         Assert.Equal(CommandDimension.All, CommandDescriber.GetCommandDimension(parsed.Value!));
+    }
+
+    // ---------------------------------------------------------------------------------------------------
+    // The takeoff family fires the axes it assigns and no others. A takeoff clearance is a runway
+    // authorization (7110.65 §3-9-10.a), not the route/altitude amendment of §4-2-5, so the axes it does not
+    // name survive it — §5-8-2.a REQUIRES the initial heading be assigned BEFORE departure, and a CTO that
+    // claimed Lateral would delete the very "AT 2000 TL 270" the controller pre-armed. §5-7-1.d names the
+    // clearances that cancel a previously assigned speed — approach, and climb via/descend via. A takeoff
+    // clearance is not among them, so the assigned speed stands. LUAW only positions (§3-9-4.a) and CTOC
+    // only cancels the clearance (§3-9-11). What a clearance DOES name it takes, per AIM 4-4-10.g (last
+    // clearance wins, per axis).
+    // ---------------------------------------------------------------------------------------------------
+
+    [Theory]
+    [InlineData("CTO", CommandDimension.Ground)]
+    [InlineData("CTO CWT", CommandDimension.Ground)]
+    [InlineData("LUAW", CommandDimension.Ground)]
+    [InlineData("CTOC", CommandDimension.Ground)]
+    [InlineData("GO", CommandDimension.Ground)]
+    [InlineData("CTO LT270", CommandDimension.Ground | CommandDimension.Lateral)]
+    [InlineData("CTO RH", CommandDimension.Ground | CommandDimension.Lateral)]
+    [InlineData("CTO 270 050", CommandDimension.Ground | CommandDimension.Lateral | CommandDimension.Vertical)]
+    // MLT is a ClosedTrafficDeparture and MLC/MRC are PatternExitDepartures — the two shapes
+    // DepartureClearanceHandler.IsCircuitDeparture pairs. Each drops the pending InitialClimbPhase and
+    // appends a circuit flown at the pattern altitude (AIM 4-3-3), so each is vertical as well as lateral
+    // even with no altitude token.
+    [InlineData("CTO MLT", CommandDimension.Ground | CommandDimension.Lateral | CommandDimension.Vertical)]
+    [InlineData("CTO MLC", CommandDimension.Ground | CommandDimension.Lateral | CommandDimension.Vertical)]
+    [InlineData("CTO MRC", CommandDimension.Ground | CommandDimension.Lateral | CommandDimension.Vertical)]
+    // A bare CTOPP parses to PresentPositionHoverDeparture — a hover height (25 ft AGL) and no track at all,
+    // so it is the vertical half without the lateral one.
+    [InlineData("CTOPP", CommandDimension.Ground | CommandDimension.Vertical)]
+    // ...while "CTOPP 270" parses to FlyHeadingDeparture with AssignedAltitude null (ParseCtoppArg only fills
+    // the altitude from a trailing token, which this form has none of), so it is lateral and NOT vertical.
+    [InlineData("CTOPP 270", CommandDimension.Ground | CommandDimension.Lateral)]
+    public void TakeoffFamily_FiresTheAxesItAssigns(string text, CommandDimension expected)
+    {
+        var parsed = CommandParser.Parse(text);
+        Assert.True(parsed.IsSuccess, $"parse failed for '{text}': {parsed.Reason}");
+        Assert.Equal(expected, CommandDescriber.GetCommandDimension(parsed.Value!));
+    }
+
+    [Fact]
+    public void TakeoffClearance_WithAltitudeAndNoDeparture_TakesTheVerticalAxisOnly()
+    {
+        // The vertical-without-lateral shape of a CTO, asserted on a constructed command because no typed
+        // form produces it: ParseCtoArg reads a lone number as a HEADING (1-360) and COMMANDS.md lists the
+        // altitude only as the token AFTER a departure modifier, so "CTO 2000" does not parse at all. The
+        // shape still reaches GetCommandDimension from a restored snapshot (DepartureInstruction.FromSnapshot
+        // yields DefaultDeparture for anything it cannot read), and the axis rule has to hold for it.
+        var cto = new ClearedForTakeoffCommand(new DefaultDeparture(), 2000);
+
+        Assert.Equal(CommandDimension.Ground | CommandDimension.Vertical, CommandDescriber.GetCommandDimension(cto));
+    }
+
+    [Fact]
+    public void TakeoffClearancePresentPosition_WithDefaultDeparture_TakesTheGroundAxisOnly()
+    {
+        // The CTOPP counterpart, also constructed: ParseCtoppArg never yields a DefaultDeparture (a bare
+        // CTOPP is a PresentPositionHoverDeparture), but a restored snapshot can, and the hover's vertical
+        // bit must not leak onto a CTOPP that assigns no altitude and no track.
+        var ctopp = new ClearedTakeoffPresentCommand(new DefaultDeparture());
+
+        Assert.Equal(CommandDimension.Ground, CommandDescriber.GetCommandDimension(ctopp));
     }
 
     // ...and the two re-plans that take the lateral axis alone. APT/DEST replaces the destination, and
@@ -591,6 +655,243 @@ public class QueuedCommandDimensionTests
         DispatchOnGround(TaxiChain, ac, layout, preserveConditionals: false);
 
         Assert.False(StillQueued(ac, CanonicalCommandType.HoldShort), "a fresh taxi clearance supersedes a queued hold-short");
+    }
+
+    [Fact]
+    public void ChainedTaxiClearance_KeepsTheQueuedAirborneBlockAheadOfTheUntriggeredChainMate()
+    {
+        // Same ordering contract on the surface side: the queued climb predates the taxi compound, so it
+        // must not end up behind the compound's untriggered SQ — where the regime-B conditional scan stops
+        // and would never examine it for the whole taxi.
+        var layout = OaklandLayout();
+        if (layout is null)
+        {
+            return;
+        }
+
+        var ac = ParkedAtNew7(layout);
+        DispatchOnGround("AT 5000 CM 7000", ac, layout, preserveConditionals: false);
+        DispatchOnGround("TAXI D; SQ 1234", ac, layout, preserveConditionals: false);
+
+        int climbIdx = QueuedBlockIndex(ac, CanonicalCommandType.ClimbMaintain);
+        int squawkIdx = QueuedBlockIndex(ac, CanonicalCommandType.Squawk);
+        Assert.True(climbIdx >= 0, "the queued climb must survive the taxi clearance");
+        Assert.True(squawkIdx >= 0, "the compound's squawk must still be queued");
+        Assert.True(climbIdx < squawkIdx, $"the surviving climb must sit ahead of the compound's squawk (climb {climbIdx}, squawk {squawkIdx})");
+    }
+
+    // ---------------------------------------------------------------------------------------------------
+    // The same shape for the takeoff clearance, which is where the fired dimension was wrong: a departure
+    // holding short with "AT 2000 TL 270" pre-armed (7110.65 §5-8-2.a REQUIRES the initial heading be
+    // assigned BEFORE departure) lost that turn the moment the clearance was chained with anything else —
+    // CTO fired All, so the compound's union tripped the clear-everything fast path in
+    // ClearConflictingBlocks. As with the taxi cases above, a LONE CTO never reaches the clear at all:
+    // DispatchWithPhase hands it to the tower path and DispatchCompoundCore returns that result directly,
+    // so the repro needs a second block.
+    // ---------------------------------------------------------------------------------------------------
+
+    /// <summary>
+    /// An IFR B738 holding short of OAK 28R — the state a takeoff clearance is issued from. IFR because
+    /// the SID-cap case below needs it (StoreSidInitialAltitude clears the cap for a VFR departure); the
+    /// two dimension cases are indifferent to the flight rules.
+    /// </summary>
+    private static AircraftState HoldingShortOf28RAtOakland()
+    {
+        var ac = new AircraftState
+        {
+            Callsign = "TEST2",
+            AircraftType = "B738",
+            Position = new LatLon(37.728, -122.218),
+            TrueHeading = new TrueHeading(280),
+            Altitude = 6,
+            IndicatedAirspeed = 0,
+            IsOnGround = true,
+            FlightPlan = new AircraftFlightPlan
+            {
+                Departure = "OAK",
+                Destination = "KLAX",
+                FlightRules = "IFR",
+            },
+        };
+        ac.Phases = new PhaseList();
+        ac.Phases.Add(
+            new HoldingShortPhase(
+                new HoldShortPoint
+                {
+                    NodeId = 10,
+                    Reason = HoldShortReason.DestinationRunway,
+                    TargetName = "28R",
+                }
+            )
+        );
+        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac));
+        return ac;
+    }
+
+    [Fact]
+    public void ChainedTakeoffClearance_LeavesQueuedDepartureTurnAlone()
+    {
+        var ac = HoldingShortOf28RAtOakland();
+        Dispatch("AT 2000 TL 270", ac, preserveConditionals: false);
+        Assert.True(StillQueued(ac, CanonicalCommandType.TurnLeft), "setup: the departure turn should be queued behind its AT trigger");
+
+        Dispatch("CTO; SQ 1234", ac, preserveConditionals: false);
+
+        Assert.True(
+            StillQueued(ac, CanonicalCommandType.TurnLeft),
+            "a bare takeoff clearance assigns no heading, so the pre-armed departure turn must survive it (§3-9-10.a vs §5-8-2.a)"
+        );
+        Assert.DoesNotContain(ac.PendingWarnings, w => w.Contains("queue cleared by", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void ChainedTakeoffClearance_WithItsOwnTurn_SupersedesOnlyTheLateralAxis()
+    {
+        // The other half: a CTO that DOES name a heading is the later clearance on the lateral axis (AIM
+        // 4-4-10.g), so the queued turn goes — while a queued speed stays: §5-7-1.d names the clearances
+        // that cancel a previously assigned speed (approach, and climb via/descend via) and a takeoff
+        // clearance is not among them.
+        var ac = HoldingShortOf28RAtOakland();
+        Dispatch("AT 2000 TL 270", ac, preserveConditionals: false);
+        Dispatch("AT 2000 SPD 210", ac, preserveConditionals: false);
+
+        Dispatch("CTO LT270; SQ 1234", ac, preserveConditionals: false);
+
+        Assert.False(StillQueued(ac, CanonicalCommandType.TurnLeft), "CTO LT270 assigns the departure heading itself, so the queued turn goes");
+        Assert.True(
+            StillQueued(ac, CanonicalCommandType.Speed),
+            "...but a takeoff clearance is not one of the clearances §5-7-1.d lists as cancelling an assigned speed"
+        );
+    }
+
+    // ---------------------------------------------------------------------------------------------------
+    // What the surviving block is FOR. An IFR departure cleared with a bare CTO climbs to its SID's
+    // published initial altitude — InitialClimbPhase.ResolveTargetAltitude step 1b, reading the cap
+    // StoreSidInitialAltitude resolved from the TDLS config when the clearance fired (OAK publishes
+    // 2,000 ft). The pre-armed "AT 1000 CM 5000" survives the chained clearance, fires during the climb,
+    // and step 0 — the controller-assigned altitude — outranks the cap, so the aircraft climbs through it
+    // to 5,000. While the clearance fired All this block was wiped and the departure levelled at the cap.
+    //
+    // The clearance is chained with a CONDITIONAL second block here, not the "CTO; SQ 1234" of the cases
+    // above. A preserved block is re-appended behind the compound's own blocks
+    // (DispatchCompoundCore: EnqueueBlocks, then Queue.Blocks.AddRange(preserved)), and while a phase is
+    // active FlightPhysics.ApplyReadyConditionalBlocks stops at the first unapplied UNTRIGGERED block — so
+    // an untriggered chain-mate ahead of the survivor keeps it from being examined for the whole departure
+    // climb, and its 1,000 ft trigger is long past by the time the phase ends. A triggered chain-mate is
+    // skipped over by that scan, which is what lets the survivor fire on its own trigger.
+    // ---------------------------------------------------------------------------------------------------
+
+    /// <summary>OAK's published initial altitude, the first <c>initialAlts</c> entry of its TDLS config.</summary>
+    private const int OakPublishedInitialAltitudeFt = 2000;
+
+    private static void DispatchWithArtccConfig(string text, AircraftState ac, ArtccConfigRoot artccConfig)
+    {
+        var parsed = CommandParser.ParseCompound(text);
+        Assert.True(parsed.IsSuccess, $"parse failed for '{text}': {parsed.Reason}");
+        var ctx = TestDispatch.Context(Random.Shared, validateDctFixes: false, artccConfig: artccConfig);
+        var result = CommandDispatcher.DispatchCompound(parsed.Value!, ac, ctx);
+        Assert.True(result.Success, $"dispatch failed for '{text}': {result.Message}");
+    }
+
+    /// <summary>The index of the first not-yet-applied block holding a command of <paramref name="type"/>, or -1.</summary>
+    private static int QueuedBlockIndex(AircraftState ac, CanonicalCommandType type) =>
+        ac.Queue.Blocks.FindIndex(b =>
+            !b.IsApplied && (b.ParsedCommands ?? []).Any(c => c is not UnsupportedCommand && CommandDescriber.ToCanonicalType(c) == type)
+        );
+
+    /// <summary>
+    /// Flies the departure the takeoff clearance installed: airborne past the DER, into
+    /// <see cref="InitialClimbPhase"/> — the roll itself needs a ground layout this class does not load, so
+    /// the lineup and takeoff phases are skipped the way KaseLindz1DepartureE2ETests skips them — and then
+    /// <paramref name="seconds"/> ticks of phase + physics. The climb starts on the published cap.
+    /// </summary>
+    private static void FlyTheDepartureClimb(AircraftState ac, int seconds)
+    {
+        var runway = ac.Phases!.AssignedRunway!;
+        ac.IsOnGround = false;
+        ac.Position = GeoMath.ProjectPoint(new LatLon(runway.EndLatitude, runway.EndLongitude), runway.TrueHeading, 0.3);
+        ac.TrueHeading = runway.TrueHeading;
+        ac.Altitude = runway.ElevationFt + 450;
+        ac.IndicatedAirspeed = 210;
+
+        var ctx = new PhaseContext
+        {
+            Aircraft = ac,
+            Targets = ac.Targets,
+            Category = AircraftCategorization.Categorize(ac.AircraftType),
+            DeltaSeconds = 1.0,
+            Runway = runway,
+            FieldElevation = runway.ElevationFt,
+            Logger = NullLogger.Instance,
+        };
+        ac.Phases.SkipTo<InitialClimbPhase>(ctx);
+        Assert.Equal(OakPublishedInitialAltitudeFt, ac.Targets.TargetAltitude);
+
+        for (int t = 0; t < seconds; t++)
+        {
+            PhaseRunner.Tick(ac, ctx);
+            FlightPhysics.Update(ac, 1.0);
+        }
+    }
+
+    [Fact]
+    public void ChainedTakeoffClearance_LetsTheSurvivingClimbFireAheadOfTheUntriggeredChainMate()
+    {
+        // The shape the ordering has to get right: the survivor predates the compound, so it belongs AHEAD
+        // of the compound's own untriggered SQ. Behind it, FlightPhysics.ApplyReadyConditionalBlocks — which
+        // stops at the first unapplied untriggered block while a phase is active (regime B) — never examines
+        // it, its 1,000 ft trigger passes unseen during the departure climb, and the controller's altitude
+        // is silently stranded in the queue: worse than the wipe this dimension change replaced.
+        var artccConfig = TestArtccConfig.LoadZoa();
+        if (artccConfig is null)
+        {
+            return;
+        }
+
+        var ac = HoldingShortOf28RAtOakland();
+        DispatchWithArtccConfig("AT 1000 CM 5000", ac, artccConfig);
+        DispatchWithArtccConfig("CTO; SQ 1234", ac, artccConfig);
+
+        int climbIdx = QueuedBlockIndex(ac, CanonicalCommandType.ClimbMaintain);
+        int squawkIdx = QueuedBlockIndex(ac, CanonicalCommandType.Squawk);
+        Assert.True(climbIdx >= 0, "the queued climb must survive the takeoff clearance");
+        Assert.True(squawkIdx >= 0, "the compound's squawk must be queued behind the phase");
+        Assert.True(climbIdx < squawkIdx, $"the surviving climb must sit ahead of the compound's squawk (climb {climbIdx}, squawk {squawkIdx})");
+
+        FlyTheDepartureClimb(ac, seconds: 240);
+
+        Assert.False(StillQueued(ac, CanonicalCommandType.ClimbMaintain), "the surviving climb must fire at its 1,000 ft trigger");
+        Assert.True(
+            ac.Altitude > 4900 && ac.Altitude < 5100,
+            $"...and be flown: the aircraft should level at the commanded 5,000, but is at {ac.Altitude:F0}"
+        );
+        Assert.False(StillQueued(ac, CanonicalCommandType.Squawk), "and the squawk applies once the departure phase releases the queue");
+    }
+
+    [Fact]
+    public void QueuedClimbSurvivingTheTakeoffClearance_OutranksThePublishedSidCap()
+    {
+        var artccConfig = TestArtccConfig.LoadZoa();
+        if (artccConfig is null)
+        {
+            return;
+        }
+
+        var ac = HoldingShortOf28RAtOakland();
+        DispatchWithArtccConfig("AT 1000 CM 5000", ac, artccConfig);
+        DispatchWithArtccConfig("CTO; AT 5000 SPD 250", ac, artccConfig);
+
+        Assert.Equal(OakPublishedInitialAltitudeFt, ac.Procedure.SidInitialAltitudeFt);
+        Assert.True(StillQueued(ac, CanonicalCommandType.ClimbMaintain), "setup: the queued climb must survive the takeoff clearance");
+
+        FlyTheDepartureClimb(ac, seconds: 240);
+
+        Assert.False(StillQueued(ac, CanonicalCommandType.ClimbMaintain), "the queued climb should have fired passing 1,000 ft");
+        Assert.Equal(5000, ac.Targets.AssignedAltitude);
+        Assert.True(
+            ac.Altitude > 4900 && ac.Altitude < 5100,
+            $"the commanded 5,000 outranks the {OakPublishedInitialAltitudeFt} ft published cap, but the aircraft is at {ac.Altitude:F0}"
+        );
     }
 
     // ---------------------------------------------------------------------------------------------------
