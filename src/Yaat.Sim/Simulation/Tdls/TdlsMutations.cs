@@ -67,6 +67,22 @@ public static class TdlsMutations
     }
 
     /// <summary>
+    /// Marks every item held for the call sign changed, whatever facility holds it. A record carries no flight-plan
+    /// fields of its own — the host resolves them from the world when it builds the item's DTO — so this mark is the
+    /// whole of what a flight-plan write owes vTDLS. Caller holds <see cref="TdlsState.Gate"/>.
+    /// </summary>
+    public static void MarkAircraftChanged(TdlsState state, string callsign)
+    {
+        foreach (var item in state.Items.Values)
+        {
+            if (string.Equals(item.AircraftId, callsign, StringComparison.OrdinalIgnoreCase))
+            {
+                state.Changes.MarkChanged(item.Id);
+            }
+        }
+    }
+
+    /// <summary>
     /// Queues a new Pending TDLS item. Returns the existing record if one is already Pending
     /// for the same (facility, callsign) (idempotent), null if (facility, callsign) is in the
     /// Dumped lockout (auto-gen must not re-create), or the freshly-created Pending record.

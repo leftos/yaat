@@ -444,4 +444,73 @@ public class TdlsStepTests
         Assert.Equal(live.CreatedUtc, item.CreatedUtc);
         Assert.Equal(live.ExpiresUtc, item.ExpiresUtc);
     }
+
+    /// <summary>
+    /// A flight-plan amendment marks the aircraft's PDC changed. The item record itself carries no flight-plan fields —
+    /// the host resolves them from the world when it builds the DTO — so the mark is the whole of what an amendment owes
+    /// vTDLS, and without it the change set the host drains is empty and no client learns of the new route.
+    /// </summary>
+    [Fact]
+    public void AmendFlightPlan_MarksTheAircraftsPdcChanged()
+    {
+        if (Engine() is not { } engine)
+        {
+            return;
+        }
+
+        var queued = Queued(engine);
+
+        engine.AmendFlightPlan(Callsign, new FlightPlanAmendment(Route: "SUNOL ALTAM"));
+
+        Assert.Equal("SUNOL ALTAM", Departure(engine).FlightPlan.Route);
+        var changes = engine.Tdls.Changes.Drain();
+        Assert.Equal(queued.Id, Assert.Single(changes.ChangedItemIds));
+    }
+
+    /// <summary>
+    /// <c>APT</c> writes the filed destination straight onto the flight plan instead of going through
+    /// <see cref="SimulationEngine.AmendFlightPlan"/>, and the vTDLS header renders the destination — so the arm that
+    /// already reprints the departure strip for it owes the PDC the same mark.
+    /// </summary>
+    [Fact]
+    public void Apt_MarksTheAircraftsPdcChanged()
+    {
+        if (Engine() is not { } engine)
+        {
+            return;
+        }
+
+        var host = new AttendanceActionHost();
+        var queued = Queued(engine);
+
+        var outcome = Issue(engine, host, Callsign, "APT KSJC");
+
+        Assert.True(outcome.Result.Success, outcome.Result.Message);
+        Assert.Equal("KSJC", Departure(engine).FlightPlan.Destination);
+        var changes = Assert.Single(host.TdlsChanges);
+        Assert.Contains(queued.Id, changes.ChangedItemIds);
+    }
+
+    /// <summary>
+    /// <c>CRUISE</c> is the other filed-field writer that bypasses <see cref="SimulationEngine.AmendFlightPlan"/>: it
+    /// rewrites the filed altitude, which the vTDLS header shows as the flight level, so the track arm marks the PDC.
+    /// </summary>
+    [Fact]
+    public void Cruise_MarksTheAircraftsPdcChanged()
+    {
+        if (Engine() is not { } engine)
+        {
+            return;
+        }
+
+        var host = new AttendanceActionHost();
+        var queued = Queued(engine);
+
+        var outcome = Issue(engine, host, Callsign, "CRUISE 150");
+
+        Assert.True(outcome.Result.Success, outcome.Result.Message);
+        Assert.Equal(15000, Departure(engine).FlightPlan.Altitude.CruiseFeet);
+        var changes = Assert.Single(host.TdlsChanges);
+        Assert.Contains(queued.Id, changes.ChangedItemIds);
+    }
 }

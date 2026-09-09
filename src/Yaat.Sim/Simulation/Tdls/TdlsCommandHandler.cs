@@ -342,7 +342,9 @@ public static class TdlsCommandHandler
     public static string FormatPilotPdcMessage(string callsign, string facility, AircraftState? ac, TdlsConfig? cfg, TdlsClearance payload)
     {
         var fp = ac?.FlightPlan;
-        var aircraftType = !string.IsNullOrEmpty(fp?.AircraftType) ? fp!.AircraftType : (ac?.AircraftType ?? "");
+        // The bare designator, not the filed string: a plan filed as "H/B763/L" already carries the suffix, and the
+        // suffix is appended below, so composing from the filed form would print "H/B763/L/L".
+        var aircraftType = !string.IsNullOrEmpty(fp?.AircraftType) ? fp!.BaseAircraftType : (ac?.AircraftType ?? "");
         var equipment = string.IsNullOrEmpty(fp?.EquipmentSuffix) ? aircraftType : $"{aircraftType}/{fp.EquipmentSuffix}";
         var dep = string.IsNullOrEmpty(fp?.Departure) ? "????" : fp.Departure;
         var dest = string.IsNullOrEmpty(fp?.Destination) ? "????" : fp.Destination;

@@ -516,24 +516,33 @@ public partial class VTdlsViewModel : ObservableObject
         {
             vm = new TdlsItemViewModel(dto);
             _itemsById[dto.Id] = vm;
-        }
-        else
-        {
-            vm.Apply(dto);
+            InsertIntoBucket(vm);
+            return;
         }
 
-        // Re-bucket based on current status.
-        DclItems.Remove(vm);
-        PdcItems.Remove(vm);
-        if (vm.Status == TdlsStatus.Pending)
+        // Removing and re-inserting nulls the two-way bound ListBox selection, which closes any open editor and
+        // discards what the controller has composed — so it happens only when the item actually moved: between the
+        // DCL and PDC lists, or to another slot in its own. A Sent item acknowledged into Wilco stays put, and so
+        // does an amendment that only refreshes the flight-plan header.
+        var movedBucket = (vm.Status == TdlsStatus.Pending) != (dto.Status == TdlsStatus.Pending);
+        var movedSlot = vm.Sequence != dto.Sequence;
+        vm.Apply(dto);
+        if (movedBucket || movedSlot)
         {
-            InsertSortedBySequence(DclItems, vm);
+            DclItems.Remove(vm);
+            PdcItems.Remove(vm);
+            InsertIntoBucket(vm);
         }
-        else
+
+        // The open editor was built from the DTO the item carried at selection time. Its header is read-only, so
+        // pushing the fresh one in is all an amendment owes it — every dropdown already chosen survives.
+        if (ReferenceEquals(SelectedItem, vm) && (Editor is { } editor))
         {
-            InsertSortedBySequence(PdcItems, vm);
+            editor.FlightPlan = vm.FlightPlan;
         }
     }
+
+    private void InsertIntoBucket(TdlsItemViewModel vm) => InsertSortedBySequence(vm.Status == TdlsStatus.Pending ? DclItems : PdcItems, vm);
 
     private static void InsertSortedBySequence(ObservableCollection<TdlsItemViewModel> list, TdlsItemViewModel vm)
     {

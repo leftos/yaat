@@ -81,6 +81,7 @@ internal static class ActionArms
                 // The reprint draws an id; the router bakes what it reports onto the record, so a replay reprints
                 // under it instead of minting a second copy.
                 ctx.StripId = ctx.Engine.ReprintDepartureStripAfterAmendment(aircraft.Callsign, ctx.Input.Baked?.StripId);
+                engine.MarkTdlsItemsChanged(aircraft.Callsign);
             }
         }
 
@@ -367,6 +368,11 @@ internal static class ActionArms
                     engine.ConflictAlerts.Conflicts.Remove(id);
                 }
 
+                break;
+            case CruiseCommand:
+                // The filed altitude is a vTDLS header field, and this verb rewrites it without going through
+                // AmendFlightPlan — so the PDC is marked here instead.
+                engine.MarkTdlsItemsChanged(aircraft.Callsign);
                 break;
             case AsdexVerbCommand { Verb: AsdexVerb.Terminate }:
                 ctx.Host.OnAsdexTrackTerminated(aircraft.Callsign);

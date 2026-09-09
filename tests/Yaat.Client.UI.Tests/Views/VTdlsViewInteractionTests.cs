@@ -170,6 +170,40 @@ public class VTdlsViewInteractionTests
         Assert.Equal("MANDATORY FIELD NOT SET — Departure frequency", view.FooterStatusText);
     }
 
+    /// <summary>
+    /// An amendment that lands while the controller is composing a clearance updates the header in place. Re-inserting
+    /// the item's view-model would null the two-way bound ListBox selection, which closes the editor and discards every
+    /// dropdown already chosen — so the same editor instance has to survive the push and show the new route.
+    /// </summary>
+    [AvaloniaFact]
+    public void AmendedFlightPlan_RefreshesTheOpenEditorInPlace()
+    {
+        var (vm, transport) = MakeVm();
+        SeedFacility(vm, ConfigWithMandatoryDepFreq());
+        transport.PushState(new TdlsStateDto([Item("id1", "UAL1742", FlightPlanWithRoute("SSTIK2"), facilityId: "IAD")], []));
+        Dispatcher.UIThread.RunJobs();
+        BootView(vm);
+
+        vm.SelectedItem = vm.DclItems.Single();
+        Dispatcher.UIThread.RunJobs();
+        var editor = vm.Editor!;
+        var composed = editor.DepFreqs[0];
+        editor.SelectedDepFreq = composed;
+        Dispatcher.UIThread.RunJobs();
+
+        transport.PushItem(Item("id1", "UAL1742", FlightPlanWithRoute("RNLDI4 OTTTO"), facilityId: "IAD"));
+        Dispatcher.UIThread.RunJobs();
+
+        // Same item VM, same selection, same editor — and the clearance composed so far is untouched.
+        Assert.Same(editor, vm.Editor);
+        Assert.Same(vm.DclItems.Single(), vm.SelectedItem);
+        Assert.Same(composed, vm.Editor!.SelectedDepFreq);
+
+        // The header follows the amendment.
+        Assert.Equal("RNLDI4 OTTTO", vm.Editor.FlightPlan!.Route);
+        Assert.Contains("RNLDI4 OTTTO", vm.Editor.FlightPlan.RouteDisplay);
+    }
+
     [AvaloniaFact]
     public void OpsConfig_SwitchingActiveConfig_ReplacesTheSidListAndClosesTheEditor()
     {
@@ -391,6 +425,19 @@ public class VTdlsViewInteractionTests
             DefaultTransitionId: "OTTTO"
         );
 
+    private static TdlsFlightPlanInfoDto FlightPlanWithRoute(string route) =>
+        new(
+            AssignedBeaconCode: 1234,
+            Departure: "KIAD",
+            Destination: "KBOS",
+            Route: route,
+            AircraftType: "B738",
+            EquipmentSuffix: "L",
+            Remarks: "",
+            Cid: "123",
+            CruiseAltitude: 35000
+        );
+
     private static TdlsItemDto Item(string id, string callsign, TdlsFlightPlanInfoDto? fp = null, string facilityId = "") =>
         new(
             id,
@@ -448,12 +495,15 @@ public class VTdlsViewInteractionTests
         public event Action<Exception?>? Closed;
         public event Action<Exception?>? Reconnecting;
         public event Action<string?>? Reconnected;
-        public event Action<TdlsItemDto>? TdlsItemChanged;
         public event Action<TdlsItemRemovedDto>? TdlsItemRemoved;
 #pragma warning restore CS0067
+        public event Action<TdlsItemDto>? TdlsItemChanged;
         public event Action<TdlsStateDto>? TdlsStateChanged;
 
         public void PushState(TdlsStateDto state) => TdlsStateChanged?.Invoke(state);
+
+        /// <summary>One item changed — the incremental broadcast a flight-plan amendment produces.</summary>
+        public void PushItem(TdlsItemDto item) => TdlsItemChanged?.Invoke(item);
 
         public Task<List<AccessibleFacilityDto>> GetAccessibleTdlsFacilitiesAsync() => Task.FromResult(new List<AccessibleFacilityDto>());
 

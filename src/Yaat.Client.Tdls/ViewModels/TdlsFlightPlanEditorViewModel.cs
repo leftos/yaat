@@ -35,8 +35,14 @@ public partial class TdlsFlightPlanEditorViewModel : ObservableObject
 
     public string Callsign { get; }
 
-    /// <summary>Read-only filed flight-plan snapshot rendered above the dropdowns. Null when the aircraft has no filed plan yet (pre-filing window).</summary>
-    public TdlsFlightPlanInfoDto? FlightPlan { get; }
+    /// <summary>
+    /// Read-only filed flight-plan snapshot rendered above the dropdowns. Null when the aircraft has no filed plan yet
+    /// (pre-filing window). Observable because an amendment can land while the controller is composing: the owner
+    /// pushes the fresh DTO in and the header re-renders, leaving the dropdowns as they were. The SID and transition
+    /// seed is deliberately not re-derived from the new route — that runs once, in the constructor.
+    /// </summary>
+    [ObservableProperty]
+    private TdlsFlightPlanInfoDto? _flightPlan;
 
     /// <summary>True when the editor is showing an already-sent PDC for review — every dropdown is disabled, Send is hidden, and no resend is possible. False for the normal compose-a-new-PDC flow.</summary>
     public bool IsReadOnly { get; }

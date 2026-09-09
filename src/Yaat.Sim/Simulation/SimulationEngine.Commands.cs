@@ -5,6 +5,7 @@ using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Pilot;
 using Yaat.Sim.Simulation.Actions;
+using Yaat.Sim.Simulation.Tdls;
 using Yaat.Sim.Training;
 
 namespace Yaat.Sim.Simulation;
@@ -377,6 +378,21 @@ public sealed partial class SimulationEngine
         // CRC displays revision regardless of which fields changed — the counter
         // is a "has been edited" signal, not a per-field diff.
         ac.FlightPlan.RevisionNumber++;
+
+        MarkTdlsItemsChanged(callsign);
+    }
+
+    /// <summary>
+    /// Marks the call sign's TDLS items changed, the counterpart of the departure strip's reprint. Every writer of a
+    /// filed flight-plan field owes this: <see cref="AmendFlightPlan"/> here, and the <c>APT</c> and <c>CRUISE</c>
+    /// arms, which write the plan without passing through it.
+    /// </summary>
+    internal void MarkTdlsItemsChanged(string callsign)
+    {
+        lock (Tdls.Gate)
+        {
+            TdlsMutations.MarkAircraftChanged(Tdls, callsign);
+        }
     }
 
     /// <summary>
