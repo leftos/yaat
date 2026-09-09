@@ -6,9 +6,6 @@ Entry point for `docs/plans/`. One line per item; the detail lives in the linked
 
 ## Bug reports and feature requests
 
-- [ ] **vTDLS / flight-plan editor follow-ups** (user report 2026-09-08, after the amendment-sync fix; repro: S1-SFO-1, amend UAL300's route):
-  - [ ] An amendment pushed into the open vTDLS editor updates the route text but not the SID / transition dropdowns below it (`GAPP7` stayed selected under a `GUNNR7` route) — re-seed the route-derived selections the way the constructor does
-  - [ ] The vTDLS editor's always-populated combo boxes (SID, transition, initial altitude, departure frequency) get squeezed by the wide middle combo — they need a `MinWidth`
 - [ ] Live-session assume UX (ZOA Discord 2026-08-31): bulk-assume modes, snapshot-then-assume-all, snapshot-as-scenario authoring — yaat-server [live-traffic-swim/09-live-sessions.md](../../../yaat-server/docs/plans/live-traffic-swim/09-live-sessions.md) §3. Auto-assume on first command + `UNASSUME` shipped 2026-09-08 (user pick); the right-click menus still offer only Assume control for a shadow and nothing for `UNASSUME` (the client cannot tell an assumed aircraft from a scenario one — the marker is not on the wire), and a command the seeded state then refuses leaves the aircraft assumed with no rollback — both noted in §3
 
 ## Current programme

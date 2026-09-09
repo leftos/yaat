@@ -375,7 +375,10 @@ same rule; whether a config sets them is per-facility (SFO both, BOS SID only, O
 two tokens. The transition matches on its `FirstRoutePoint` first and falls back to its `Name` (2026-09-08): both are
 FE-authored pass-throughs of `tdlsConfiguration.opConfigs[].sids[].transitions[]`, and ZOA's SFO config sets
 `firstRoutePoint` on TRUKN2's ORRCA transition but not SNTNA2's, though both are named `ORRCA`. The no-transition
-placeholder (`- - - -`) never matches. `TdlsFlightPlanEditorViewModelTests` pins the fallback.
+placeholder (`- - - -`) never matches. `TdlsFlightPlanEditorViewModelTests` pins the fallback. An amendment pushed into an
+open editor (`VTdlsViewModel.ApplyItem` → `TdlsFlightPlanEditorViewModel.ApplyAmendedFlightPlan`) re-runs the same match when
+the route changed and re-seeds SID + transition (the transition defaults follow through `OnSelectedSidChanged`); a push that
+leaves the route alone touches no selection, so what the controller composed survives.
 
 The active config is **shared room state**, not a per-controller preference: it decides what a
 PDC contains, so `TdlsState.ActiveOpConfigIds` holds it engine-side, `TdlsStateDto.ActiveOpConfigs`
