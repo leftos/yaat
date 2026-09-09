@@ -842,9 +842,11 @@ public static class CommandSchemeParser
     /// <summary>
     /// Substitutes the word aliases <c>THEN</c> for <c>;</c> and <c>AND</c> for <c>,</c> so users can
     /// write human-readable compounds like <c>H180 AND D250 THEN CTO 28R</c>. Case-insensitive.
-    /// Skips text inside SAY/SAYF arguments so messages like <c>SAYF READING YOU LOUD AND CLEAR</c>
-    /// are preserved verbatim. SAY at block start (after <c>;</c> or input start) consumes the whole
-    /// block per the parser's literal-SAY rule; SAY after a <c>,</c> consumes only until the next
+    /// Skips text inside a free-text argument (<see cref="IsFreeTextArgVerb"/>: SAY/SAYF, TIMER/BOOKMARK
+    /// labels, and the coordination message RDTXT) so messages like <c>SAYF READING YOU LOUD AND
+    /// CLEAR</c> and <c>RDTXT /1 fly direct THEN accept</c> are preserved verbatim. Such a verb at block
+    /// start (after <c>;</c> or input start) consumes the whole block per the parser's literal-SAY rule;
+    /// after a <c>,</c> it consumes only until the next
     /// <c>,</c> or <c>;</c>. Transparent prefixes — <c>WAIT</c>/<c>DELAY</c>/<c>WAITD</c> and the
     /// condition verbs <c>AT</c>/<c>LV</c>/<c>ATFN</c> (each with one argument token) and
     /// <c>ONHO</c>/<c>ONH</c>/<c>ONHS</c>/<c>OTG</c> (bare) — don't end the command start, so SAY after
@@ -926,28 +928,13 @@ public static class CommandSchemeParser
                 continue;
             }
 
-            if (!inSayArg && token.Equals("THEN", StringComparison.OrdinalIgnoreCase))
+            if ((!inSayArg) && (SeparatorAliasFor(token) is { } separator))
             {
-                sb.Append(';');
-                blockStart = true;
+                sb.Append(separator);
+                blockStart = blockStart || (separator == ';');
                 subCommandStart = true;
             }
-            else if (!inSayArg && token.Equals("AND", StringComparison.OrdinalIgnoreCase))
-            {
-                sb.Append(',');
-                subCommandStart = true;
-            }
-            else if (
-                subCommandStart
-                && (
-                    token.Equals("SAY", StringComparison.OrdinalIgnoreCase)
-                    || token.Equals("SAYF", StringComparison.OrdinalIgnoreCase)
-                    || token.Equals("TIMER", StringComparison.OrdinalIgnoreCase)
-                    || token.Equals("TMR", StringComparison.OrdinalIgnoreCase)
-                    || token.Equals("BM", StringComparison.OrdinalIgnoreCase)
-                    || token.Equals("BOOKMARK", StringComparison.OrdinalIgnoreCase)
-                )
-            )
+            else if (subCommandStart && IsFreeTextArgVerb(token))
             {
                 sb.Append(token);
                 inSayArg = true;
@@ -965,6 +952,44 @@ public static class CommandSchemeParser
 
         return sb.ToString();
     }
+
+    /// <summary>
+    /// The word aliases for the compound separators: <c>THEN</c> stands for <c>;</c> and <c>AND</c> for <c>,</c>. This
+    /// is the one table of them — <see cref="NormalizeSeparatorAliases"/> substitutes from it and
+    /// <see cref="CompoundPolicy"/> reads it back when mapping a normalized offset onto the line as typed, so a third
+    /// alias is added here and nowhere else.
+    /// </summary>
+    public static readonly IReadOnlyList<(string Word, char Separator)> SeparatorAliases = [("THEN", ';'), ("AND", ',')];
+
+    /// <summary>The separator a token stands for when it is one of the word aliases, or null for an ordinary token.</summary>
+    private static char? SeparatorAliasFor(ReadOnlySpan<char> token)
+    {
+        foreach (var (word, separator) in SeparatorAliases)
+        {
+            if (token.Equals(word, StringComparison.OrdinalIgnoreCase))
+            {
+                return separator;
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// A verb whose argument is a free-text message running to the end of its block: SAY/SAYF, the labelled
+    /// TIMER/BOOKMARK verbs, and the coordination message RDTXT. The words THEN and AND inside one are message
+    /// content, so the substitution is suspended until the block ends. <c>RDH</c> is deliberately absent: its text is
+    /// optional, so <c>RDH 1 THEN SQVFR</c> stays the chain <c>RDH 1; SQVFR</c> is, and an alias word typed inside an
+    /// RDH message fails loudly on the unknown tail rather than silently minting a hold whose text is "THEN SQVFR".
+    /// </summary>
+    private static bool IsFreeTextArgVerb(ReadOnlySpan<char> token) =>
+        token.Equals("SAY", StringComparison.OrdinalIgnoreCase)
+        || token.Equals("SAYF", StringComparison.OrdinalIgnoreCase)
+        || token.Equals("TIMER", StringComparison.OrdinalIgnoreCase)
+        || token.Equals("TMR", StringComparison.OrdinalIgnoreCase)
+        || token.Equals("BM", StringComparison.OrdinalIgnoreCase)
+        || token.Equals("BOOKMARK", StringComparison.OrdinalIgnoreCase)
+        || token.Equals("RDTXT", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>
     /// Number of argument tokens a transparent prefix consumes at a command start, or null when the

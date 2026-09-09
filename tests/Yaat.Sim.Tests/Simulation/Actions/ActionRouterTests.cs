@@ -240,6 +240,29 @@ public class ActionRouterTests
     }
 
     /// <summary>
+    /// The same refusal when the chain is led by a scoped special whose argument arm takes any tail: `HO 3G; PAUSE`
+    /// parses whole as a handoff to the TCP "3G; PAUSE", so the router used to send the swallowed text to the track
+    /// arm as one command and the PAUSE vanished. The refusal has to fire, be recorded rejected, and leave the
+    /// aircraft's handoff state untouched.
+    /// </summary>
+    [Fact]
+    public void ChainLedByAHandoff_IsRefused_AndInitiatesNoHandoff()
+    {
+        var engine = BuildEngine(soloTrainingMode: false, reactionDelaySeconds: 0);
+        var ac = AddAirborne(engine, "UAL123", 1234);
+        ac.Track.Owner = TrackOwner.CreateStars("OAK_TWR", "OAK", 3, "T");
+
+        var outcome = engine.Actions.Issue(new ActionInput("UAL123", "HO 3G; PAUSE", "conn-1", "XX", Baked: null));
+
+        Assert.False(outcome.Result.Success);
+        Assert.Contains("cannot be part of a chained command", outcome.Result.Message);
+        Assert.Null(ac.Track.HandoffPeer);
+        Assert.Null(ac.Track.HandoffInitiatedAt);
+        var recorded = Assert.IsType<RecordedCommand>(Assert.Single(engine.Scenario!.ActionLog));
+        Assert.False(recorded.Accepted);
+    }
+
+    /// <summary>
     /// The same shape for a takeoff clearance paired with an immediate turn (`CTO, R270`, the mis-spelling of the
     /// departure modifier `CTO MR270`): refused before dispatch, so the aircraft keeps the phase it was on and no
     /// MakeTurnPhase is inserted ahead of its takeoff chain.

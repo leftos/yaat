@@ -18,6 +18,16 @@ public class CompoundPolicyTests
     // no arm, so the line is refused before anything is dispatched.
     [InlineData("ASSUME; H 180", typeof(AssumeCommand))]
     [InlineData("H 070; UNASSUME", typeof(UnassumeCommand))]
+    // A chain led by a scoped special whose argument arm takes any tail: "HO 3G; PAUSE" parses whole as a handoff to
+    // the TCP "3G; PAUSE", so a guard that treats any successful single parse as "not a chain" never sees the PAUSE.
+    [InlineData("HO 3G; PAUSE", typeof(PauseCommand))]
+    [InlineData("SP1 ABC; PAUSE", typeof(PauseCommand))]
+    [InlineData("ACCEPT 3G; PAUSE", typeof(PauseCommand))]
+    // The bare form was already found — "ACCEPT;" matches no alias, so the whole-line parse fails and the walk runs.
+    [InlineData("ACCEPT; PAUSE", typeof(PauseCommand))]
+    // A strip annotation is deliberately not free text (the pinned "AN 1 X; SQVFR" chain), so a chained PAUSE behind
+    // one is refused rather than swallowed into the annotation as the text "X, PAUSE".
+    [InlineData("AN 1 X, PAUSE", typeof(PauseCommand))]
     public void ChainWithNonCompoundable_IsFound(string command, Type expectedType)
     {
         var found = CompoundPolicy.FindNonCompoundableInChain(command);
@@ -39,18 +49,50 @@ public class CompoundPolicyTests
     }
 
     /// <summary>
-    /// Pre-existing gap, pinned rather than fixed: with a space before the separator the leading verb's token is bare,
-    /// so <c>CommandParser.Parse</c> reads the whole line as that verb with <c>"; H 180"</c> as its argument — which no
-    /// arm accepts, so it comes back as an <see cref="UnsupportedCommand"/>. That is a successful single-command parse,
-    /// which is where <c>TryParseGenuineCompound</c> bails, and the chain is never seen. Written <c>ASSUME; H 180</c>
-    /// the token is <c>"ASSUME;"</c>, no verb matches, and the chain is found (above). This is why
-    /// <c>CommandDispatcher</c> carries its own <c>ASSUME</c>/<c>UNASSUME</c> guard instead of relying on this
-    /// predicate alone.
+    /// With a space before the separator the leading verb's token is bare, so <c>CommandParser.Parse</c> reads the whole
+    /// line as that verb with <c>"; H 180"</c> as its argument — which no arm accepts, so it comes back as an
+    /// <see cref="UnsupportedCommand"/>. A successful whole-line parse is not enough to call the line one command: only
+    /// a genuinely free-text command (NOTE/RMK, a coordination message) owns its separators, so the walk runs and finds
+    /// the chained <c>ASSUME</c>.
     /// </summary>
     [Fact]
-    public void AChainLedByASpacedBareVerb_IsNotSeenAsAChain()
+    public void AChainLedByASpacedBareVerb_IsSeenAsAChain()
     {
-        Assert.Null(CompoundPolicy.FindNonCompoundableInChain("ASSUME ; H 180"));
+        var found = CompoundPolicy.FindNonCompoundableInChain("ASSUME ; H 180");
+
+        Assert.NotNull(found);
+        Assert.IsType<AssumeCommand>(found);
+    }
+
+    /// <summary>
+    /// <c>THEN</c> and <c>AND</c> are the separators spelled as words, so a line written with them gets the verdict the
+    /// same line written with <c>;</c>/<c>,</c> gets. The <c>AND</c> rows are the shapes that broke while the head
+    /// typed before a free-text message was sliced by an offset into the typed line: the head kept the alias word, and
+    /// <c>"PAUSE AND"</c> re-parses as a block ending in a separator with nothing after it ("empty command"), so the
+    /// refusal was lost and the PAUSE dispatched. (A trailing <c>;</c> is tolerated by the parser and a trailing
+    /// <c>,</c> is not, which is the only reason the <c>THEN</c> rows survived it.)
+    /// </summary>
+    [Theory]
+    [InlineData("PAUSE; RDTXT /1 HOLD", "PAUSE THEN RDTXT /1 HOLD", typeof(PauseCommand))]
+    [InlineData("PAUSE, RDTXT /1 HOLD", "PAUSE AND RDTXT /1 HOLD", typeof(PauseCommand))]
+    [InlineData("HO 3G, PAUSE, RDTXT /1 HOLD", "HO 3G AND PAUSE AND RDTXT /1 HOLD", typeof(PauseCommand))]
+    [InlineData("FH 090; PAUSE", "FH 090 THEN PAUSE", typeof(PauseCommand))]
+    [InlineData("SP1 ABC, PAUSE", "SP1 ABC AND PAUSE", typeof(PauseCommand))]
+    public void NonCompoundableVerdict_IsTheSameForAliasSeparators(string typed, string aliased, Type expectedType)
+    {
+        Assert.IsType(expectedType, CompoundPolicy.FindNonCompoundableInChain(typed));
+        Assert.IsType(expectedType, CompoundPolicy.FindNonCompoundableInChain(aliased));
+    }
+
+    /// <summary>The paired-turn refusal is the same verdict either way — the alias form must not clear for takeoff.</summary>
+    [Theory]
+    [InlineData("CTO, R270; RDTXT /1 HOLD", "CTO, R270 THEN RDTXT /1 HOLD", typeof(MakeRight270Command))]
+    [InlineData("CTO, R270, RDTXT /1 HOLD", "CTO, R270 AND RDTXT /1 HOLD", typeof(MakeRight270Command))]
+    [InlineData("CTO, R270", "CTO AND R270", typeof(MakeRight270Command))]
+    public void PairedTurnVerdict_IsTheSameForAliasSeparators(string typed, string aliased, Type expectedType)
+    {
+        Assert.IsType(expectedType, CompoundPolicy.FindTakeoffPairedWithImmediateTurn(typed));
+        Assert.IsType(expectedType, CompoundPolicy.FindTakeoffPairedWithImmediateTurn(aliased));
     }
 
     /// <summary>
@@ -79,6 +121,8 @@ public class CompoundPolicyTests
     [InlineData("R270, CTO", typeof(MakeRight270Command))]
     [InlineData("CTOPP, R270", typeof(MakeRight270Command))]
     [InlineData("GO, L360", typeof(MakeLeft360Command))]
+    // Behind a scoped special that swallows the tail on a whole-line parse, the pairing still has to be found.
+    [InlineData("SP1 ABC; CTO, R270", typeof(MakeRight270Command))]
     public void TakeoffPairedWithImmediateTurn_IsFound(string command, Type expectedType)
     {
         var found = CompoundPolicy.FindTakeoffPairedWithImmediateTurn(command);

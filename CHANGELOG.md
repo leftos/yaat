@@ -8,6 +8,7 @@
 - Rewinding or opening a bug bundle onto an aircraft mid-landing restores the landing it was flying — a piston no longer flares and rolls out on jet speeds, and the plan survives a snapshot taken before the aircraft's first tick.
 - After the recall interval a recalled STARS coordination message reverts to Unsent at the sender with its text intact, as CRC shows it, instead of vanishing from every list; a new `RD` while that item stands is refused, and a re-sent one no longer skips the release chime.
 - A strip moved with `STRIP`, `HSM` or `SEPM`, or copied with `SCAN`, reaches the receiving facility's vStrips as a strip and not as an empty slot.
+- A chain headed by a handoff, scratchpad or accept verb (`HO 3G; PAUSE`, `SP1 ABC; PAUSE`, `ACCEPT 3G; PAUSE`) is refused as a chain instead of stuffing the rest of the line into the position or scratchpad, and `THEN`/`AND` chains (`HO 3G THEN ACCEPT`) split into the same units as their `;`/`,` forms.
 
 ## v0.12.27-beta [2026/09/08]
 

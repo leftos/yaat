@@ -26,16 +26,26 @@ public class CommandSchemeParserAliasTests
     [InlineData("H180 And D250", "H180 , D250")]
     [InlineData("H180,D250 AND CTO 28R", "H180,D250 , CTO 28R")]
     [InlineData("H180; D250 AND CTO 28R", "H180; D250 , CTO 28R")]
+    // RDH is not a free-text verb: its text is optional, so "RDH 1 THEN SQVFR" stays the chain "RDH 1; SQVFR" is, and
+    // an alias word typed inside an RDH message becomes a separator (the line then fails on the tail, loudly).
+    [InlineData("RDH 1 hold short THEN advise", "RDH 1 hold short ; advise")]
+    [InlineData("rdh 1 taxi and hold", "rdh 1 taxi , hold")]
     public void NormalizeSeparatorAliases_SubstitutesOutsideSay(string input, string expected)
     {
         Assert.Equal(expected, CommandSchemeParser.NormalizeSeparatorAliases(input));
     }
 
+    /// <summary>
+    /// A verb whose argument is a free-text message keeps its words: SAY/SAYF, and the coordination message
+    /// <c>RDTXT</c>, whose text runs to the end of the line and may well contain the words "then" and "and".
+    /// </summary>
     [Theory]
     [InlineData("SAYF READING YOU LOUD AND CLEAR")]
     [InlineData("SAYF GOOD THEN H180")]
     [InlineData("SAY MORNING AND GOODBYE")]
     [InlineData("sayf hello and world")]
+    [InlineData("RDTXT /1 fly direct THEN accept")]
+    [InlineData("RDTXT EXPECT DELAY AND HOLD")]
     public void NormalizeSeparatorAliases_PreservesSayBlockArguments(string input)
     {
         Assert.Equal(input, CommandSchemeParser.NormalizeSeparatorAliases(input));

@@ -1,4 +1,5 @@
 using System.Diagnostics.CodeAnalysis;
+using Microsoft.Extensions.Logging;
 
 namespace Yaat.Sim.Commands;
 
@@ -9,6 +10,8 @@ namespace Yaat.Sim.Commands;
 /// </summary>
 public static class CompoundPolicy
 {
+    private static readonly ILogger Log = SimLog.CreateLogger("CompoundPolicy");
+
     /// <summary>
     /// True for a command that owns a dedicated server routing arm (sim-control, flight-plan,
     /// spawn, room-wide/global ops) and has no aviation-path chain semantics — e.g. "HO 3G; PAUSE"
@@ -87,10 +90,16 @@ public static class CompoundPolicy
     }
 
     /// <summary>
-    /// Parses a line as a genuinely multi-command compound. False — with no compound — when the single-command
-    /// parser accepts the line whole (a free-text command such as NOTE legitimately swallows a <c>;</c> into its
-    /// text, and the server's single-command router handles it as that one command), when the line does not parse
-    /// as a compound at all, or when the compound turns out to hold a single command.
+    /// Parses a line as a genuinely multi-command compound. False — with no compound — when the line parses whole as a
+    /// free-text command (<see cref="IsFreeTextCommand"/>: NOTE/RMK and the coordination messages legitimately swallow
+    /// a <c>;</c> into their text, and the server's single-command router handles the line as that one command), when
+    /// the line does not parse as a compound at all, or when the compound turns out to hold a single command.
+    /// <para>
+    /// Any other successful whole-line parse still falls through to the walk, because a scoped special whose argument
+    /// arm takes any tail (<c>HO</c>, <c>ACCEPT</c>, the scratchpads) parses <c>HO 3G; PAUSE</c> as a handoff to the
+    /// TCP <c>"3G; PAUSE"</c> — a parse that succeeds while silently eating the chain. So does a bare verb followed by
+    /// a spaced separator, which comes back as an <see cref="UnsupportedCommand"/> holding the rest of the line.
+    /// </para>
     /// <para>
     /// A free-text coordination message ends the chain the way it ends a split: everything from the message's start
     /// to the end of the line is message content, so only the head typed before it is parsed. <c>FH 090; RDTXT /1
@@ -103,14 +112,14 @@ public static class CompoundPolicy
         compound = null;
 
         var single = CommandParser.Parse(command);
-        if ((single.IsSuccess) && (single.Value is not null))
+        if ((single.IsSuccess) && (single.Value is not null) && IsFreeTextCommand(single.Value))
         {
             return false;
         }
 
-        if (TryWalkUnits(command, out _, out var freeTextStart) && (freeTextStart >= 0))
+        if (TryWalkUnits(command, out _, out var freeText) && freeText.Exists)
         {
-            var head = command[..freeTextStart].TrimEnd(' ', '\t', ';', ',');
+            var head = freeText.Normalized[..freeText.NormalizedStart].TrimEnd(' ', '\t', ';', ',');
             if (head.Length == 0)
             {
                 return false;
@@ -219,6 +228,14 @@ public static class CompoundPolicy
     private static bool IsFreeTextSpecial(ParsedCommand cmd) => cmd is CoordinationModifyCommand or CoordinationHoldCommand { Text: not null };
 
     /// <summary>
+    /// True for a command whose argument is free text running to the end of the line, so every <c>;</c>/<c>,</c> after
+    /// its verb is content and the line is one command however much of it would also parse: the instructor notes
+    /// (<c>NOTE</c>, <c>RMK</c>) and the coordination messages (<see cref="IsFreeTextSpecial"/>). Every other whole-line
+    /// parse is only a parse — the walk decides whether the line is a chain.
+    /// </summary>
+    private static bool IsFreeTextCommand(ParsedCommand cmd) => (cmd is NoteCommand or SetRemarksCommand) || IsFreeTextSpecial(cmd);
+
+    /// <summary>
     /// True when <paramref name="text"/> parses whole as one free-text special — i.e. the single-command parser owns
     /// every separator after its verb as message text. Asked of one walked piece, never of the whole line: a message
     /// can start after a <c>,</c> as easily as after a <c>;</c>.
@@ -261,7 +278,7 @@ public static class CompoundPolicy
     {
         units = [];
 
-        if (!TryWalkUnits(command, out var walked, out var freeTextStart))
+        if (!TryWalkUnits(command, out var walked, out var freeText))
         {
             return false;
         }
@@ -271,7 +288,7 @@ public static class CompoundPolicy
             return false;
         }
 
-        var freeTextUnits = freeTextStart >= 0 ? 1 : 0;
+        var freeTextUnits = freeText.Exists ? 1 : 0;
         if ((!TryParseUnitCommands(walked, walked.Count - freeTextUnits, out var commands)) || (!IsSplittableChain(commands, freeTextUnits)))
         {
             return false;
@@ -285,16 +302,31 @@ public static class CompoundPolicy
     /// Walks the line's dispatch units in order: <c>;</c> splits it into blocks, a block holding a scoped special
     /// splits further on <c>,</c> into pieces, and a block without one stays whole. The first piece that is a free-text
     /// message ends the walk — it contributes one last unit holding the rest of the original line, taken by offset from
-    /// <paramref name="command"/> so the typed spacing survives, and <paramref name="freeTextStart"/> reports where in
-    /// <paramref name="command"/> that message starts (-1 when the line has none). False when a block or a piece no
-    /// longer parses, which puts the caller back on the single-command path.
+    /// <paramref name="command"/> so the typed spacing survives, and <paramref name="freeText"/> reports where that
+    /// message starts. False when a block or a piece no longer parses, which puts the caller back on the
+    /// single-command path.
+    /// <para>
+    /// The walk runs over <see cref="CommandSchemeParser.NormalizeSeparatorAliases"/>'s output, the one place that
+    /// decides whether a <c>THEN</c>/<c>AND</c> is a separator or message text, so <c>HO 3G THEN ACCEPT</c> is the
+    /// chain <c>ParseCompound</c> already reads it as. A second, walk-local scanner for the word aliases would be a
+    /// second tokenizer to drift from — see the client-canonicalizer drift in docs/command-chaining.md. Offsets are
+    /// mapped back to <paramref name="command"/> by <see cref="MapNormalizedToOriginal"/> so a free-text tail is still
+    /// sliced out of the line as typed, while the head before it is re-parsed from the normalized form.
+    /// </para>
     /// </summary>
-    private static bool TryWalkUnits(string command, out List<CompoundUnit> units, out int freeTextStart)
+    private static bool TryWalkUnits(string command, out List<CompoundUnit> units, out FreeTextTail freeText)
     {
         units = [];
-        freeTextStart = -1;
 
-        var blockStrings = command.Split(';');
+        var normalized = CommandSchemeParser.NormalizeSeparatorAliases(command);
+        freeText = new FreeTextTail(-1, -1, normalized);
+
+        if (MapNormalizedToOriginal(command, normalized) is not { } map)
+        {
+            return false;
+        }
+
+        var blockStrings = normalized.Split(';');
         var blockStart = 0;
         for (int bi = 0; bi < blockStrings.Length; bi++)
         {
@@ -308,8 +340,8 @@ public static class CompoundPolicy
             {
                 if (IsFreeTextLine(piece.Text))
                 {
-                    freeTextStart = piece.Start;
-                    units.Add(new CompoundUnit(bi, command[piece.Start..].Trim()));
+                    freeText = new FreeTextTail(map[piece.Start], piece.Start, normalized);
+                    units.Add(new CompoundUnit(bi, command[freeText.Start..].Trim()));
                     return true;
                 }
 
@@ -320,6 +352,79 @@ public static class CompoundPolicy
         }
 
         return true;
+    }
+
+    /// <summary>
+    /// Where a walked line's free-text tail begins — in the line as typed (<see cref="Start"/>) and in its
+    /// alias-normalized form (<see cref="NormalizedStart"/>) — together with that normalized form. Both coordinates are
+    /// needed: the tail is sliced from the typed line so its spacing reaches the coordination list unchanged, while the
+    /// head before it is re-parsed from the normalized line, where a <c>THEN</c>/<c>AND</c> that ended the head is
+    /// already the separator it stands for. <see cref="Start"/> is -1 when the line has no free-text tail.
+    /// </summary>
+    private readonly record struct FreeTextTail(int Start, int NormalizedStart, string Normalized)
+    {
+        public bool Exists => Start >= 0;
+    }
+
+    /// <summary>
+    /// For each index of <paramref name="normalized"/>, the index in <paramref name="original"/> it came from. The only
+    /// edits <see cref="CommandSchemeParser.NormalizeSeparatorAliases"/> makes are the word aliases
+    /// (<see cref="CommandSchemeParser.SeparatorAliases"/>) — every other character is copied through — so walking the
+    /// two strings in lockstep and consuming the alias word wherever they diverge recovers the offsets exactly, without
+    /// re-scanning the line's grammar. Null, with a warning, when the two cannot be reconciled: the normalizer would be
+    /// editing the line in a way this map does not know about, and the caller then falls back to the single-command
+    /// path — where a chain is swallowed, so it must not pass silently.
+    /// </summary>
+    private static int[]? MapNormalizedToOriginal(string original, string normalized)
+    {
+        var map = new int[normalized.Length + 1];
+        var oi = 0;
+
+        for (int ni = 0; ni < normalized.Length; ni++)
+        {
+            map[ni] = oi;
+
+            if ((oi < original.Length) && (original[oi] == normalized[ni]))
+            {
+                oi++;
+                continue;
+            }
+
+            var alias = AliasWordFor(normalized[ni]);
+            if ((alias is null) || (!original.AsSpan(oi).StartsWith(alias, StringComparison.OrdinalIgnoreCase)))
+            {
+                Log.LogWarning(
+                    "Could not map the alias-normalized command \"{Normalized}\" back onto \"{Command}\" at index {Index} — routing it as a single command",
+                    normalized,
+                    original,
+                    ni
+                );
+                return null;
+            }
+
+            oi += alias.Length;
+        }
+
+        map[normalized.Length] = original.Length;
+        return map;
+    }
+
+    /// <summary>
+    /// The word alias a substituted separator stands for, or null when the character is not one of them. Read from
+    /// <see cref="CommandSchemeParser.SeparatorAliases"/>, the table the substitution itself uses, so an alias added
+    /// there cannot leave this map unable to reconcile a line.
+    /// </summary>
+    private static string? AliasWordFor(char separator)
+    {
+        foreach (var (word, aliasSeparator) in CommandSchemeParser.SeparatorAliases)
+        {
+            if (aliasSeparator == separator)
+            {
+                return word;
+            }
+        }
+
+        return null;
     }
 
     /// <summary>
