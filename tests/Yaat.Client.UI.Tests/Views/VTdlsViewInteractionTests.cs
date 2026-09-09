@@ -3,6 +3,7 @@ using Avalonia.Headless.XUnit;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
+using Avalonia.VisualTree;
 using Xunit;
 using Yaat.Client.Services;
 using Yaat.Client.ViewModels;
@@ -77,6 +78,46 @@ public class VTdlsViewInteractionTests
 
         Assert.Equal("1/1", view.FindController.MatchSummary);
         Assert.True(vm.DclItems.Single().IsFindMatch);
+    }
+
+    [AvaloniaFact]
+    public void FlightPlanHeaderAndListText_IsSelectable()
+    {
+        // Upstream vTDLS is a web page, so a controller can drag-select the route or the
+        // remarks and copy them out. Plain TextBlocks cannot be selected at all; the
+        // read-only value text therefore has to render as SelectableTextBlock.
+        var (vm, transport) = MakeVm();
+        SeedFacility(vm, ConfigWithMandatoryDepFreq());
+        var fp = new TdlsFlightPlanInfoDto(
+            AssignedBeaconCode: 1234,
+            Departure: "KSFO",
+            Destination: "KLAX",
+            Route: "SSTIK2",
+            AircraftType: "B738",
+            EquipmentSuffix: "L",
+            Remarks: "CTC NORCAL",
+            Cid: "123",
+            CruiseAltitude: 35000
+        );
+        transport.PushState(new TdlsStateDto([Item("id1", "UAL111", fp, facilityId: "IAD")], []));
+        Dispatcher.UIThread.RunJobs();
+        var view = BootView(vm);
+
+        // Selecting the DCL item opens the flight-plan editor, so the header fields render.
+        vm.SelectedItem = vm.DclItems.Single();
+        Dispatcher.UIThread.RunJobs();
+        view.UpdateLayout();
+        Dispatcher.UIThread.RunJobs();
+
+        var selectable = view.GetVisualDescendants().OfType<SelectableTextBlock>().ToList();
+        Assert.Contains(selectable, t => t.Text == "UAL111");
+        Assert.Contains(selectable, t => t.Text == "RMK: CTC NORCAL");
+        var route = Assert.Single(selectable, t => t.Text == "KSFO.SSTIK2.KLAX");
+
+        // "KSFO.SSTIK2.KLAX" — chars 5..10 are the filed route itself.
+        route.SelectionStart = 5;
+        route.SelectionEnd = 11;
+        Assert.Equal("SSTIK2", route.SelectedText);
     }
 
     [AvaloniaFact]

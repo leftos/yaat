@@ -67,10 +67,10 @@
         <!-- Footer status colour lives in styles rather than as a local Foreground:
              a local value outranks a style setter in Avalonia, so a .warning class
              could never repaint an element that set Foreground inline. -->
-        <Style Selector="TextBlock.footer-status">
+        <Style Selector=":is(TextBlock).footer-status">
             <Setter Property="Foreground" Value="{DynamicResource VTdlsFooterFg}"/>
         </Style>
-        <Style Selector="TextBlock.footer-status.warning">
+        <Style Selector=":is(TextBlock).footer-status.warning">
             <Setter Property="Foreground" Value="OrangeRed"/>
         </Style>
     </UserControl.Styles>
@@ -163,6 +163,9 @@
                                 <Grid>
                                     <!-- The facility prefix only renders on a consolidated parent page,
                                          where items from several airports share one list. -->
+                                    <!-- Row text stays a plain TextBlock: SelectableTextBlock marks
+                                         PointerPressed handled, so the press never reaches the ListBox
+                                         and clicking a row would stop selecting it. -->
                                     <StackPanel Orientation="Horizontal" Spacing="6">
                                         <TextBlock Text="{Binding FacilityId}" Opacity="0.65"
                                                    IsVisible="{Binding $parent[UserControl].((vm:VTdlsViewModel)DataContext).IsConsolidated}"/>
@@ -206,6 +209,9 @@
                         <ListBox.ItemTemplate>
                             <DataTemplate DataType="vm:TdlsItemViewModel" x:DataType="vm:TdlsItemViewModel">
                                 <Grid>
+                                    <!-- Row text stays a plain TextBlock: SelectableTextBlock marks
+                                         PointerPressed handled, so the press never reaches the ListBox
+                                         and clicking a row would stop selecting it. -->
                                     <StackPanel Orientation="Horizontal" Spacing="6">
                                         <TextBlock Text="{Binding FacilityId}" Opacity="0.65"
                                                    IsVisible="{Binding $parent[UserControl].((vm:VTdlsViewModel)DataContext).IsConsolidated}"/>
@@ -262,52 +268,52 @@
                      (H) value, exactly like the upstream screenshot. -->
                 <Grid ColumnDefinitions="100,190,*" RowDefinitions="Auto,Auto,Auto,Auto" Margin="0,0,0,12">
                     <!-- Row 0: A B C -->
-                    <TextBlock Grid.Row="0" Grid.Column="0"
-                               Text="{Binding Callsign}"
-                               FontFamily="{StaticResource MonoFont}" FontWeight="Bold" FontSize="13"
-                               Foreground="{DynamicResource VTdlsEditorTextFg}"/>
-                    <TextBlock Grid.Row="0" Grid.Column="1"
-                               Text="{Binding FlightPlan.AssignedBeaconCode, StringFormat='\{0:D4\}', FallbackValue=''}"
-                               FontFamily="{StaticResource MonoFont}" FontSize="11"
-                               Foreground="{DynamicResource VTdlsEditorTextFg}"
-                               VerticalAlignment="Center"/>
-                    <TextBlock Grid.Row="0" Grid.Column="2"
-                               Text="{Binding FlightPlan.RouteDisplay, FallbackValue=''}"
-                               FontFamily="{StaticResource MonoFont}" FontSize="11"
-                               Foreground="{DynamicResource VTdlsEditorTextFg}"
-                               TextTrimming="CharacterEllipsis"
-                               VerticalAlignment="Center"/>
+                    <SelectableTextBlock Grid.Row="0" Grid.Column="0"
+                                         Text="{Binding Callsign}"
+                                         FontFamily="{StaticResource MonoFont}" FontWeight="Bold" FontSize="13"
+                                         Foreground="{DynamicResource VTdlsEditorTextFg}"/>
+                    <SelectableTextBlock Grid.Row="0" Grid.Column="1"
+                                         Text="{Binding FlightPlan.AssignedBeaconCode, StringFormat='\{0:D4\}', FallbackValue=''}"
+                                         FontFamily="{StaticResource MonoFont}" FontSize="11"
+                                         Foreground="{DynamicResource VTdlsEditorTextFg}"
+                                         VerticalAlignment="Center"/>
+                    <SelectableTextBlock Grid.Row="0" Grid.Column="2"
+                                         Text="{Binding FlightPlan.RouteDisplay, FallbackValue=''}"
+                                         FontFamily="{StaticResource MonoFont}" FontSize="11"
+                                         Foreground="{DynamicResource VTdlsEditorTextFg}"
+                                         TextTrimming="CharacterEllipsis"
+                                         VerticalAlignment="Center"/>
 
                     <!-- Row 1: D E F — F right-aligned for "RMK: ..." -->
-                    <TextBlock Grid.Row="1" Grid.Column="0"
-                               Text="{Binding FlightPlan.TypeAndEquipment, FallbackValue=''}"
-                               FontFamily="{StaticResource MonoFont}" FontSize="11"
-                               Foreground="{DynamicResource VTdlsEditorTextFg}"/>
+                    <SelectableTextBlock Grid.Row="1" Grid.Column="0"
+                                         Text="{Binding FlightPlan.TypeAndEquipment, FallbackValue=''}"
+                                         FontFamily="{StaticResource MonoFont}" FontSize="11"
+                                         Foreground="{DynamicResource VTdlsEditorTextFg}"/>
                     <!-- E: proposed departure time. Not tracked by the sim yet;
                          left blank so the layout still has the upstream slot. -->
                     <TextBlock Grid.Row="1" Grid.Column="1"
                                Text=""
                                FontFamily="{StaticResource MonoFont}" FontSize="11"
                                Foreground="{DynamicResource VTdlsEditorTextFg}"/>
-                    <TextBlock Grid.Row="1" Grid.Column="2"
-                               Text="{Binding FlightPlan.RemarksDisplay, FallbackValue=''}"
-                               FontFamily="{StaticResource MonoFont}" FontSize="11"
-                               Foreground="{DynamicResource VTdlsEditorTextFg}"
-                               HorizontalAlignment="Right"
-                               TextTrimming="CharacterEllipsis"/>
+                    <SelectableTextBlock Grid.Row="1" Grid.Column="2"
+                                         Text="{Binding FlightPlan.RemarksDisplay, FallbackValue=''}"
+                                         FontFamily="{StaticResource MonoFont}" FontSize="11"
+                                         Foreground="{DynamicResource VTdlsEditorTextFg}"
+                                         HorizontalAlignment="Right"
+                                         TextTrimming="CharacterEllipsis"/>
 
                     <!-- Row 2: G — CID alone -->
-                    <TextBlock Grid.Row="2" Grid.Column="0"
-                               Text="{Binding FlightPlan.Cid, FallbackValue=''}"
-                               FontFamily="{StaticResource MonoFont}" FontSize="11"
-                               Foreground="{DynamicResource VTdlsEditorTextFg}"/>
+                    <SelectableTextBlock Grid.Row="2" Grid.Column="0"
+                                         Text="{Binding FlightPlan.Cid, FallbackValue=''}"
+                                         FontFamily="{StaticResource MonoFont}" FontSize="11"
+                                         Foreground="{DynamicResource VTdlsEditorTextFg}"/>
 
                     <!-- Row 3: H (cruise FL) + Expect dropdown -->
-                    <TextBlock Grid.Row="3" Grid.Column="0"
-                               Text="{Binding FlightPlan.CruiseFlightLevel, StringFormat='\{0:000\}', FallbackValue=''}"
-                               FontFamily="{StaticResource MonoFont}" FontSize="11"
-                               Foreground="{DynamicResource VTdlsEditorTextFg}"
-                               VerticalAlignment="Center"/>
+                    <SelectableTextBlock Grid.Row="3" Grid.Column="0"
+                                         Text="{Binding FlightPlan.CruiseFlightLevel, StringFormat='\{0:000\}', FallbackValue=''}"
+                                         FontFamily="{StaticResource MonoFont}" FontSize="11"
+                                         Foreground="{DynamicResource VTdlsEditorTextFg}"
+                                         VerticalAlignment="Center"/>
                     <ComboBox PlaceholderText="- - - -" Grid.Row="3" Grid.Column="1"
                               ItemsSource="{Binding Expects}"
                               SelectedItem="{Binding SelectedExpect}"
@@ -448,15 +454,15 @@
 
         <!-- ── Footer: clearance-type status (left) + Ops Config menu + decorative status info + Zulu clock (right) ── -->
         <Grid Grid.Row="4" ColumnDefinitions="*,Auto,Auto,Auto" Background="{DynamicResource VTdlsFooterBg}">
-            <TextBlock Grid.Column="0"
-                       x:Name="FooterStatus"
-                       Classes="footer-status"
-                       Classes.warning="{Binding IsFooterStatusWarning}"
-                       Text="{Binding FooterStatusText}"
-                       FontFamily="{StaticResource MonoFont}"
-                       FontSize="11"
-                       VerticalAlignment="Center"
-                       Margin="8,0"/>
+            <SelectableTextBlock Grid.Column="0"
+                                 x:Name="FooterStatus"
+                                 Classes="footer-status"
+                                 Classes.warning="{Binding IsFooterStatusWarning}"
+                                 Text="{Binding FooterStatusText}"
+                                 FontFamily="{StaticResource MonoFont}"
+                                 FontSize="11"
+                                 VerticalAlignment="Center"
+                                 Margin="8,0"/>
             <!-- Ops Config menu — upstream renders it in the footer only "when enabled",
                  as a teal "Ops Config: <name>" button that opens a small Save/Cancel
                  dialog (docs/vtdls/img/opsconfig.png). -->
