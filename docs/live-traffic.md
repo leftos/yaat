@@ -221,6 +221,20 @@ state rides only on the creating sample. `RemoveLiveTraffic(callsign, reason)` r
 `RecordedLiveTrafficRemoval`. Both are no-ops for assumed aircraft, and neither records while replaying or in playback
 (same guard as `RecordGeneratedAircraftSpawn`).
 
+**A `Deleted` removal carries the suppression.** `SimulationEngine.ApplyRecordedLiveTrafficRemoval(record, host)` — the
+replay twin — takes the shadow out of the world and then, when `Reason == LiveTrafficRemovalReason.Deleted` (the reason
+only the `DEL` arm writes), calls `IActionHost.OnLiveTrafficHidden`, which puts the callsign back into
+`RoomLiveTrafficState.Suppressed`. The replayed `DEL` *text* cannot do it: the removal is recorded inside the arm's host
+call, ahead of the `RecordedCommand` that `ActionRouter.Finish` appends, so on replay the record applies first and the
+command then refuses at the aircraft-exists guard, never reaching the shadow branch that hides it. Without this a rewind
+past a `DEL` un-suppressed the callsign — the rewind's reload clears the set (`RoomLiveTrafficState.Reset`) — and the
+next `ShadowTrafficSync.Sync` re-spawned a shadow the instructor had deleted. `RoomEngine.HideLiveTraffic` is therefore
+reached on every run kind rather than live only: the `Suppressed.Add` is unconditional, and the world teardown behind it
+removes and records only while a shadow is still there, so a replayed record writes no second removal. `BareHost` and
+`ReplayHost` no-op the consumer — a Sim replay has no feed to suppress. A feed-sourced removal (`Stale`, `Dropped`,
+`OutOfScope`, `Disabled`, `Reanchored`) suppresses nothing: that shadow is meant to come back when the feed re-supplies
+it. Pins: `LiveTrafficRemovalSuppressionTests` (Sim), `LiveTrafficReplayServerTests` (the rewind).
+
 **Samples are pre-tick actions.** Live, samples land in pre-physics of second *t*; `SimulationEngine.IsPreTickAction`
 therefore lists `RecordedLiveTrafficSample` next to `RecordedAircraftSpawn`, and every Sim-side replay loop (`Replay`,
 `ReplayOneSecond`, `ReplayOneSubTick`) applies them before `TickPrePhysics` of their second. Applying them after the
@@ -318,7 +332,8 @@ bundle's sim seconds back to the real-world feed window (see *Reproducing a repo
   view while it is still delivered (surface vs airborne must not flap on the ~1 s observation-ordering margin between
   products), else `Freshest`. Teardown mirrors auto-delete in order: `RemoveLiveTraffic`
   (world + recording) → assignments → delayed queue → change tracker → beacon `Release` → `AircraftDeleted` + CRC disconnect.
-  `DEL` on a shadow removes it as `Deleted` and adds it to `RoomLiveTrafficState.Suppressed` until live traffic is toggled;
+  `DEL` on a shadow removes it as `Deleted` and adds it to `RoomLiveTrafficState.Suppressed` until live traffic is toggled
+  (a rewind past the `DEL` rebuilds the set from the removal record — see *Recording and replay*);
   turning the setting off removes every shadow as `Disabled` (assumed aircraft stay).
 - **Real-world ownership** (yaat-server plan 11) — the feed's controlling position becomes the shadow's `TrackOwner`.
   The correlator reads TAIS `cps` gated by `ocr` (ownership change reason): a completed state makes cps the owner, but

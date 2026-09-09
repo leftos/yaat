@@ -14,6 +14,7 @@ using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Pilot;
 using Yaat.Sim.Scenarios;
+using Yaat.Sim.Simulation.Actions;
 using Yaat.Sim.Simulation.Replay;
 using Yaat.Sim.Simulation.Snapshots;
 using Yaat.Sim.Training;
@@ -240,14 +241,28 @@ public sealed partial class SimulationEngine
         }
     }
 
-    /// <summary>Replay twin of <see cref="RemoveLiveTraffic"/> (no recording); public for the server brain.</summary>
-    public void ApplyRecordedLiveTrafficRemoval(RecordedLiveTrafficRemoval recorded)
+    /// <summary>
+    /// Replay twin of <see cref="RemoveLiveTraffic"/> (no recording), reached from
+    /// <see cref="ActionRouter.ApplyRecorded(RecordedAction, IActionHost)"/> — its only caller. A removal the
+    /// instructor's <c>DEL</c> produced (<see cref="LiveTrafficRemovalReason.Deleted"/>) also re-raises the host's feed
+    /// suppression through <see cref="IActionHost.OnLiveTrafficHidden"/>: the suppression is host state a reload clears,
+    /// and the replayed <c>DEL</c> text cannot re-raise it, because this record removes the shadow first and the command
+    /// then refuses at the aircraft-exists guard. The host is told after the world removal, so its own teardown finds
+    /// nothing left to remove or record. A removal the feed produced suppresses nothing — that shadow is meant to come
+    /// back when the feed re-supplies it.
+    /// </summary>
+    public void ApplyRecordedLiveTrafficRemoval(RecordedLiveTrafficRemoval recorded, IActionHost host)
     {
         var ac = World.FindAircraft(recorded.Callsign);
         if (ac is { IsShadow: true })
         {
             World.RemoveAircraft(recorded.Callsign);
             TrackShadowBeacon(ac.Transponder.Code, 0);
+        }
+
+        if (recorded.Reason == LiveTrafficRemovalReason.Deleted)
+        {
+            host.OnLiveTrafficHidden(recorded.Callsign);
         }
     }
 

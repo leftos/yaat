@@ -36,7 +36,17 @@ public sealed class AttendanceActionHost : IActionHost
 
     public void OnAircraftDeleted(string callsign, AircraftState? lastState) => DeletedCallsigns.Add(callsign);
 
-    public void OnLiveTrafficHidden(string callsign) => HiddenLiveTraffic.Add(callsign);
+    /// <summary>
+    /// Runs inside <see cref="OnLiveTrafficHidden"/>, before the callsign is recorded: a test that cares *when* the
+    /// consumer fires reads the world through this rather than after the applier has finished. Null unless a test sets it.
+    /// </summary>
+    public Action<string>? WhenLiveTrafficHidden { get; set; }
+
+    public void OnLiveTrafficHidden(string callsign)
+    {
+        WhenLiveTrafficHidden?.Invoke(callsign);
+        HiddenLiveTraffic.Add(callsign);
+    }
 
     public List<(string ConnectionId, TrackOwner Owner, string TcpCode)> SelectedPositions { get; } = [];
 
