@@ -204,6 +204,49 @@ public class VTdlsViewInteractionTests
         Assert.Contains("RNLDI4 OTTTO", vm.Editor.FlightPlan.RouteDisplay);
     }
 
+    /// <summary>
+    /// The load-time state push lands before any facility page has been fetched, so the items are created
+    /// and listed against an empty member set. Switching to the facility clears the lists while keeping the
+    /// identities, and the full-state re-push that follows the switch is what has to put them back: nothing
+    /// about those items moved between or within the lists, they are simply no longer in either one.
+    /// </summary>
+    [AvaloniaFact]
+    public void FacilitySwitchAfterLoadTimeState_RelistsTheItems()
+    {
+        var (vm, transport) = MakeVm();
+        var state = new TdlsStateDto(
+            [
+                Item("id1", "UAL1742", facilityId: "SFO"),
+                Item("id2", "SWA200", facilityId: "SFO"),
+                Item("id3", "AAL9", facilityId: "SFO", status: TdlsStatus.Sent),
+            ],
+            []
+        );
+
+        transport.PushState(state);
+        Dispatcher.UIThread.RunJobs();
+        Assert.Equal(2, vm.DclItems.Count);
+        Assert.Single(vm.PdcItems);
+        var pendingFirst = vm.DclItems[0];
+        var pendingSecond = vm.DclItems[1];
+        var sent = vm.PdcItems[0];
+
+        // Applying the facility page empties both lists — that is the clearing contract.
+        SeedFacility(vm, ConfigWithMandatoryDepFreq() with { FacilityId = "SFO", FacilityName = "San Francisco Intl ATCT" });
+        Dispatcher.UIThread.RunJobs();
+        Assert.Empty(vm.DclItems);
+        Assert.Empty(vm.PdcItems);
+
+        // The answer to RequestFullTdlsState: same items, same instances, back on their lists.
+        transport.PushState(state);
+        Dispatcher.UIThread.RunJobs();
+        Assert.Equal(2, vm.DclItems.Count);
+        Assert.Single(vm.PdcItems);
+        Assert.Same(pendingFirst, vm.DclItems[0]);
+        Assert.Same(pendingSecond, vm.DclItems[1]);
+        Assert.Same(sent, vm.PdcItems[0]);
+    }
+
     [AvaloniaFact]
     public void OpsConfig_SwitchingActiveConfig_ReplacesTheSidListAndClosesTheEditor()
     {
@@ -438,13 +481,19 @@ public class VTdlsViewInteractionTests
             CruiseAltitude: 35000
         );
 
-    private static TdlsItemDto Item(string id, string callsign, TdlsFlightPlanInfoDto? fp = null, string facilityId = "") =>
+    private static TdlsItemDto Item(
+        string id,
+        string callsign,
+        TdlsFlightPlanInfoDto? fp = null,
+        string facilityId = "",
+        TdlsStatus status = TdlsStatus.Pending
+    ) =>
         new(
             id,
             callsign,
             Cid: null,
             FacilityId: facilityId,
-            TdlsStatus.Pending,
+            status,
             Sequence: 0,
             CreatedUtc: default,
             SentUtc: null,

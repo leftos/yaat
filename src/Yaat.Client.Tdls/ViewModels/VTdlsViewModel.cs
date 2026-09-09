@@ -523,11 +523,13 @@ public partial class VTdlsViewModel : ObservableObject
         // Removing and re-inserting nulls the two-way bound ListBox selection, which closes any open editor and
         // discards what the controller has composed — so it happens only when the item actually moved: between the
         // DCL and PDC lists, or to another slot in its own. A Sent item acknowledged into Wilco stays put, and so
-        // does an amendment that only refreshes the flight-plan header.
+        // does an amendment that only refreshes the flight-plan header. The third case is an item the dictionary
+        // still holds while neither list does — what a facility switch leaves behind — which has to be listed again.
         var movedBucket = (vm.Status == TdlsStatus.Pending) != (dto.Status == TdlsStatus.Pending);
         var movedSlot = vm.Sequence != dto.Sequence;
+        var unlisted = !DclItems.Contains(vm) && !PdcItems.Contains(vm);
         vm.Apply(dto);
-        if (movedBucket || movedSlot)
+        if (movedBucket || movedSlot || unlisted)
         {
             DclItems.Remove(vm);
             PdcItems.Remove(vm);
