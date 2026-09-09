@@ -1153,31 +1153,50 @@ public static class FlightPhysics
 
         double diff = goal - current;
 
-        if (Math.Abs(diff) < SpeedSnapKts)
+        bool accelerating = diff > 0;
+        double rate = SpeedChangeRate(aircraft, cat, accelerating);
+        double maxChange = rate * deltaSeconds;
+
+        // Snap window. Airborne it is a fixed rounding nicety (2 kt is a fraction of a second of jet
+        // acceleration). On the ground it is one sub-tick of change: at the taxi rates 2 kt is two whole
+        // seconds of acceleration, so snapping that far would move the aircraft further in one sub-tick
+        // than the integrator ever would. Closing the last sliver early is fine; jumping is not.
+        double snapWindow = aircraft.IsOnGround ? maxChange : SpeedSnapKts;
+
+        if (Math.Abs(diff) < snapWindow)
         {
             aircraft.IndicatedAirspeed = goal;
             aircraft.Targets.TargetSpeed = null;
             return;
         }
 
-        bool accelerating = diff > 0;
-        double rate;
-        if (accelerating)
-        {
-            rate = AircraftPerformance.AccelRate(aircraft.AircraftType, cat);
-        }
-        else
-        {
-            // Phases (LandingPhase, RunwayExitPhase) override the default
-            // category decel rate during ground rollout when kinematic
-            // firm-braking is required. Null falls back to category default.
-            rate = aircraft.Targets.DesiredDecelRate ?? AircraftPerformance.DecelRate(aircraft.AircraftType, cat);
-        }
-
-        double maxChange = rate * deltaSeconds;
         double change = Math.Min(Math.Abs(diff), maxChange);
 
         aircraft.IndicatedAirspeed += accelerating ? change : -change;
+    }
+
+    /// <summary>
+    /// Rate (kts/sec) at which <see cref="UpdateSpeed"/> drives IAS toward the target. Split by frame: on
+    /// the ground the aircraft is on wheels at taxi power, so it uses the category's taxi accel/brake rates
+    /// (<see cref="CategoryPerformance.TaxiAccelRate"/> / <see cref="CategoryPerformance.TaxiDecelRate"/>);
+    /// airborne it uses the type's flight-envelope rates. Physics is the only integrator of ground speed —
+    /// ground phases and <see cref="Phases.Ground.GroundNavigator"/> publish
+    /// <see cref="ControlTargets.TargetSpeed"/> and let this rate close the gap.
+    /// A phase that needs a specific braking rate (a firm rollout stop, an expedited runway exit) publishes
+    /// <see cref="ControlTargets.DesiredDecelRate"/>; null falls back to the category default.
+    /// </summary>
+    private static double SpeedChangeRate(AircraftState aircraft, AircraftCategory cat, bool accelerating)
+    {
+        if (aircraft.IsOnGround)
+        {
+            return accelerating
+                ? CategoryPerformance.TaxiAccelRate(cat)
+                : (aircraft.Targets.DesiredDecelRate ?? CategoryPerformance.TaxiDecelRate(cat));
+        }
+
+        return accelerating
+            ? AircraftPerformance.AccelRate(aircraft.AircraftType, cat)
+            : (aircraft.Targets.DesiredDecelRate ?? AircraftPerformance.DecelRate(aircraft.AircraftType, cat));
     }
 
     private static void UpdatePosition(
@@ -1199,6 +1218,7 @@ public static class FlightPhysics
         if (aircraft.IsOnGround)
         {
             // Enforce ground conflict speed limit before computing displacement.
+            double iasBeforeLimit = aircraft.IndicatedAirspeed;
             if (aircraft.Ground.SpeedLimit is { } limit && aircraft.IndicatedAirspeed > limit)
             {
                 aircraft.IndicatedAirspeed = limit;
@@ -1214,6 +1234,21 @@ public static class FlightPhysics
 
             // On the ground: Track follows Heading directly (GS is derived from IAS).
             aircraft.TrueTrack = aircraft.TrueHeading;
+
+            if ((aircraft.Ground.SpeedLimit is { } activeLimit) && Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(
+                    "[Ground.Limit] t={Time:F2} {Callsign}: phase={Phase}, ias {Before:F2}->{After:F2}kt, limit={Limit:F2}kt, moved {MovedFt:F2}ft in {Delta:F2}s",
+                    simTimeSeconds,
+                    aircraft.Callsign,
+                    aircraft.Phases?.CurrentPhase?.Name ?? "(none)",
+                    iasBeforeLimit,
+                    aircraft.IndicatedAirspeed,
+                    activeLimit,
+                    speedNmPerSec * deltaSeconds * GeoMath.FeetPerNm,
+                    deltaSeconds
+                );
+            }
         }
         else
         {

@@ -655,6 +655,7 @@ public sealed class StopAndGoPhaseDto : PhaseDto
     public required bool Reaccelerating { get; init; }
     public required bool Airborne { get; init; }
     public required bool GoTriggered { get; init; }
+    public double RollElapsedSeconds { get; init; }
 }
 
 public sealed class TouchAndGoPhaseDto : PhaseDto
@@ -667,6 +668,7 @@ public sealed class TouchAndGoPhaseDto : PhaseDto
     public required double RolloutElapsed { get; init; }
     public required bool Reaccelerating { get; init; }
     public required bool Airborne { get; init; }
+    public double RollElapsedSeconds { get; init; }
 }
 
 public sealed class TakeoffPhaseDto : PhaseDto
@@ -677,6 +679,7 @@ public sealed class TakeoffPhaseDto : PhaseDto
     public required double ThresholdLat { get; init; }
     public required double ThresholdLon { get; init; }
     public DepartureInstructionDto? Departure { get; init; }
+    public double RollElapsedSeconds { get; init; }
 }
 
 public sealed class RejectedTakeoffPhaseDto : PhaseDto
@@ -689,6 +692,7 @@ public sealed class RejectedTakeoffPhaseDto : PhaseDto
     public required bool OverrunReported { get; init; }
     public required bool AutoTriggered { get; init; }
     public string? CannotStopShortOf { get; init; }
+    public double RollElapsedSeconds { get; init; }
 }
 
 public sealed class InitialClimbPhaseDto : PhaseDto

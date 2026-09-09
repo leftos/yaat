@@ -335,11 +335,10 @@ public sealed class RunwayExitPhase : Phase
             const double TerminalStopBufferNm = 0.15;
             if (distToEndNm <= TerminalStopBufferNm)
             {
+                // A runway-overrun backstop brakes at the category's max-effort rate, not the comfort rate
+                // a piston would otherwise coast off the end at (jet 7.5, turboprop 6.0, piston 5.0 kts/s).
                 ctx.Targets.TargetSpeed = 0;
-                // Firm braking (5 kts/s) — same rate LandingPhase uses for explicit
-                // exit commands. From 40 kts coast, this stops the aircraft in
-                // about 0.044 nm (260 ft) — comfortably inside the 0.15 nm buffer.
-                ctx.Targets.DesiredDecelRate = 5.0;
+                ctx.Targets.DesiredDecelRate = CategoryPerformance.ExpediteExitDecelRate(ctx.Category);
                 if (_timeSinceLastLog >= LogIntervalSeconds)
                 {
                     _timeSinceLastLog = 0;

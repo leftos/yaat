@@ -167,6 +167,8 @@ Subsystem references — open the matching doc *before* exploring, searching, or
 - Default speed (kts by altitude): Jet `<10k=250 / <18k=280 / <28k=290 / >=28k=280`; Turboprop `<10k=200 / <24k=250 / >=24k=270`; Piston `<10k=110 / >=10k=120`.
 - Turn rate (deg/s): Jet 2.5, Turboprop/Piston 3.0. Climb fpm (below/above 10k): Jet 2500/1800, TP 1500/1200, Piston 700/500. Descent fpm: Jet 1800, TP 1200, Piston 500.
 - Accel/decel (kts/s): Jet 2.5/3.5, TP 1.5/2.5, Piston 1.0/2.0. Snap thresholds: heading 0.5°, altitude 10 ft, speed 2 kt.
+- Taxi (kts/s, physics is the only ground-speed integrator): accel Jet/TP 1.0, Piston/Heli 0.6 (breakaway thrust, then idle); brake Jet/TP 5.0, Piston/Heli 2.0. Ground snap window = one sub-tick of change.
+- Takeoff roll (`GroundRollProfile`, kts/s idle → steady over the spool): Jet 1.0 → 5.0 over 5 s, TP 0.8 → 4.0 over 4 s, Piston 0.5 → 2.7 over 3 s. The jet steady rate matches a full-rated B738 (145 kt in ~31 s / ~3,560 ft); a C172 rolls ~1,120 ft to Vr 60 (POH 960).
 
 **Local FAA references — DO NOT web-search:**
 

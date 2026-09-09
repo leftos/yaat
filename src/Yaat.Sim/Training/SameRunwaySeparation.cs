@@ -147,7 +147,10 @@ public static class SameRunwaySeparation
     /// preceding aircraft only once it is flying. A rejected takeoff (decelerating) is never "about to fly",
     /// however fast it is still rolling — that is the one case the callers must not talk themselves out of. The
     /// measured acceleration (feed history) wins; a simulated or history-less aircraft uses its type's ground
-    /// acceleration.
+    /// acceleration. That type projection follows the spool ramp the roll itself flies, placed on the ramp by
+    /// the rolling phase's own clock (or, with no such phase, by the speed the aircraft is making) — an
+    /// aircraft still near a standstill is credited with the idle-thrust acceleration it actually has, not
+    /// the steady rate it will reach seconds later.
     /// </summary>
     public static bool WillBeFlying(AircraftState aircraft, double seconds)
     {
@@ -157,8 +160,13 @@ public static class SameRunwaySeparation
         }
 
         var category = AircraftCategorization.Categorize(aircraft.AircraftType);
-        double accel = RunwayOccupancy.GroundAccelerationKtPerSec(aircraft) ?? AircraftPerformance.GroundAccelRate(aircraft.AircraftType, category);
-        return (accel > 0) && (aircraft.GroundSpeed + (accel * seconds) >= AircraftPerformance.RotationSpeed(aircraft.AircraftType, category));
+        var profile = RunwayOccupancy.GroundAccelerationKtPerSec(aircraft) is { } measured
+            ? GroundRollProfile.Constant(measured)
+            : GroundRollProfile.For(aircraft.AircraftType, category);
+
+        double rollElapsed = GroundRollProfile.RollClockSeconds(aircraft, profile);
+        return (profile.SteadyRateKtPerSec > 0)
+            && (profile.SpeedAt(rollElapsed + seconds) >= AircraftPerformance.RotationSpeed(aircraft.AircraftType, category));
     }
 
     /// <summary>

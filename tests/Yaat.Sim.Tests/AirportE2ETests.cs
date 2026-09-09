@@ -971,9 +971,9 @@ public class AirportE2ETests
             $"T7A spur should be short, got {ac.Ground.AssignedTaxiRoute.Segments.Count} segments"
         );
 
-        // Run taxi naturally — T7A spur is ~0.05nm.
-        // TaxiingPhase adjusts heading/speed but doesn't move position;
-        // in the real sim, FlightPhysics.Update does that. We do it manually here.
+        // Run taxi naturally — T7A spur is ~0.05nm. TaxiingPhase publishes heading and speed targets;
+        // FlightPhysics is the only integrator of ground speed and position, so the loop runs both halves
+        // in tick order (phases first, then physics) exactly as the sim's tick spine does.
         var ctx = new PhaseContext
         {
             Aircraft = ac,
@@ -999,7 +999,7 @@ public class AirportE2ETests
             }
 
             PhaseRunner.Tick(ac, ctx);
-            AdvancePosition(ac, ctx.DeltaSeconds);
+            FlightPhysics.Update(ac, ctx.DeltaSeconds, null, null, simTimeSeconds: i);
         }
 
         Assert.True(reachedIdle, $"Taxi should complete with HoldingInPositionPhase, got: {ac.Phases!.CurrentPhase?.Name ?? "null"}");
@@ -1138,24 +1138,6 @@ public class AirportE2ETests
         var result = GroundCommandHandler.TryTaxi(ac, taxi, layout);
 
         Assert.True(result.Success, $"TAXI M1 1L should succeed: {result.Message}");
-    }
-
-    /// <summary>
-    /// Move aircraft position based on current heading and ground speed.
-    /// Replaces FlightPhysics.Update() for ground-only E2E tests.
-    /// </summary>
-    private static void AdvancePosition(AircraftState ac, double deltaSeconds)
-    {
-        if (ac.GroundSpeed <= 0)
-        {
-            return;
-        }
-
-        double distNm = ac.GroundSpeed / 3600.0 * deltaSeconds;
-        double hdgRad = ac.TrueHeading.Degrees * Math.PI / 180.0;
-        double newLat = ac.Position.Lat + distNm / 60.0 * Math.Cos(hdgRad);
-        double newLon = ac.Position.Lon + distNm / 60.0 * Math.Sin(hdgRad) / Math.Cos(ac.Position.Lat * Math.PI / 180.0);
-        ac.Position = new LatLon(newLat, newLon);
     }
 
     [Fact]

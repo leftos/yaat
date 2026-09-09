@@ -381,18 +381,20 @@ public class N152spIfrCtoDeferralTests(ITestOutputHelper output)
             return;
         }
 
-        // Replay past the recorded CTO MRC 020 action (t=768).
-        engine.Replay(recording, 820);
+        // Replay past the recorded CTO MRC 020 action (t=768). With physics-owned taxi and takeoff-roll
+        // acceleration N152SP lifts off at t=869 and passes the 400 ft AGL turn floor at t=901 (measured),
+        // so t=880 (141 ft AGL) is the below-the-floor climb sample the old t=820 used to be.
+        engine.Replay(recording, 880);
 
         var n152sp = engine.FindAircraft("N152SP");
         Assert.NotNull(n152sp);
 
         double aglFt = n152sp.Altitude - FieldElevation;
         output.WriteLine(
-            $"t=820: phase={n152sp.Phases?.CurrentPhase?.Name ?? "(none)"} alt={n152sp.Altitude:F0} agl={aglFt:F0} hdg={n152sp.TrueHeading.Degrees:F1} onGround={n152sp.IsOnGround}"
+            $"t=880: phase={n152sp.Phases?.CurrentPhase?.Name ?? "(none)"} alt={n152sp.Altitude:F0} agl={aglFt:F0} hdg={n152sp.TrueHeading.Degrees:F1} onGround={n152sp.IsOnGround}"
         );
 
-        Assert.True(aglFt < IfrTurnAglFloor, $"Fixture invariant: t=820 must be below the {IfrTurnAglFloor:F0} ft AGL turn floor (agl={aglFt:F0}).");
+        Assert.True(aglFt < IfrTurnAglFloor, $"Fixture invariant: t=880 must be below the {IfrTurnAglFloor:F0} ft AGL turn floor (agl={aglFt:F0}).");
 
         double offRunwayHeading = Math.Abs(NormalizeAngleDiff(n152sp.TrueHeading.Degrees - RunwayTrueHeading));
         Assert.True(

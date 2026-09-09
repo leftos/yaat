@@ -64,13 +64,12 @@ public class ExtDuringTouchAndGoTests(ITestOutputHelper output)
             return;
         }
 
-        // Replay to t=1020 — 6 s into N172SP's second TouchAndGo (t=1014..1052).
-        // The first T/G (now t=597) can't be used: N172SP follows N569SX from t=404,
-        // so sequence-aware base-turn holding extends its downwind and the first T/G
-        // lands after the recorded EXT at t=594 (which arms ExtendNextUpwind, polluting
-        // the precondition). The second T/G is clean (ExtendNextUpwind=false, no follow)
-        // and no recorded N172SP command falls between it and the next Upwind at t=1052.
-        engine.Replay(recording, 1020);
+        // Replay to t=1043 — 6 s into N172SP's second TouchAndGo (t=1037..1077).
+        // The first T/G (t=581..620) can't be used: the recorded EXT at t=594 falls inside
+        // it and arms ExtendNextUpwind, polluting the precondition. The second T/G is clean
+        // (ExtendNextUpwind=false, not following anyone) and no recorded N172SP command falls
+        // between it and the next Upwind at t=1078 — the nearest are COPT at t=895 and EXT at t=1143.
+        engine.Replay(recording, 1043);
 
         var aircraft = engine.FindAircraft(Callsign);
         Assert.NotNull(aircraft);
@@ -98,7 +97,7 @@ public class ExtDuringTouchAndGoTests(ITestOutputHelper output)
             if (ac.Phases?.CurrentPhase is UpwindPhase up)
             {
                 newUpwind = up;
-                output.WriteLine($"t={575 + dt}: entered UpwindPhase, IsExtended={up.IsExtended}, ExtendNextUpwind={ac.Pattern.ExtendNextUpwind}");
+                output.WriteLine($"t={1043 + dt}: entered UpwindPhase, IsExtended={up.IsExtended}, ExtendNextUpwind={ac.Pattern.ExtendNextUpwind}");
                 break;
             }
         }
@@ -162,10 +161,11 @@ public class ExtDuringTouchAndGoTests(ITestOutputHelper output)
             return;
         }
 
-        // Replay to t=200 — just after the CTO MRT at t=195 built the initial
-        // pattern chain. The aircraft is still at the runway in LineUp/HoldingShort
-        // territory and a pending UpwindPhase already exists in the queue.
-        engine.Replay(recording, 200);
+        // Replay to t=215. The CTO MRT at t=195 builds the initial pattern chain when the aircraft reaches
+        // the runway, which is t=208 now that physics owns taxi speed (measured; it was inside the old t=200
+        // sample). The aircraft is still at the runway in LineUp/HoldingShort territory and a pending
+        // UpwindPhase already exists in the queue.
+        engine.Replay(recording, 215);
 
         var aircraft = engine.FindAircraft(Callsign);
         Assert.NotNull(aircraft);
@@ -357,10 +357,10 @@ public class ExtDuringTouchAndGoTests(ITestOutputHelper output)
             return;
         }
 
-        // Replay to t=1020 (during N172SP's second, clean TouchAndGo — see
-        // ExtDuringTouchAndGo_ArmsNextUpwind for why the first T/G is unusable now
-        // that N172SP sequences behind N569SX). No pending Crosswind in queue yet.
-        engine.Replay(recording, 1020);
+        // Replay to t=1043 — 6 s into N172SP's second, clean TouchAndGo (t=1037..1077); see
+        // ExtDuringTouchAndGo_ArmsNextUpwind for why the first T/G is unusable. No pending
+        // Crosswind in queue yet.
+        engine.Replay(recording, 1043);
 
         var aircraft = engine.FindAircraft(Callsign);
         Assert.NotNull(aircraft);

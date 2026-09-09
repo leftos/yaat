@@ -101,6 +101,15 @@ This is the load-bearing model the rest of physics rests on. (This material prev
   headwind lifts off ~20 kt of groundspeed earlier and shortens the roll by the v² law — and touchdown converts
   `TAS − headwind` into wheel speed (`GroundFrame.EnterGround`). Every phase that flips `IsOnGround` with meaningful speed must
   route through these helpers. `AircraftState.HeadwindKts` derives from the cached `WindComponents` (now cached on the ground too).
+  The roll's acceleration is not a constant: `GroundRollProfile` (`GroundRollProfile.cs`) ramps it from the category's
+  idle-thrust rate to the type's steady rate over the category's spool time (`a(t) = idle + (steady − idle)·min(t/spool, 1)`, the
+  FCTM "stabilise ~40 % N1, release, advance to takeoff thrust" technique), and `TakeoffPhase` / `StopAndGoPhase` / `TouchAndGoPhase`
+  each own a roll clock (`RollElapsedSeconds`, snapshotted) and add `SpeedAt(tEnd) − SpeedAt(tStart)` per sub-tick, so the discrete
+  roll tracks the closed form exactly. Everything that predicts a roll — `SameRunwaySeparation.WillBeFlying`,
+  `PrecedingDepartureBlock`, `RejectedTakeoff.CanOverfly/CanStopShort/ArrivalTimeSeconds` — projects on the same profile
+  (`TimeAtSpeed` places an aircraft on the ramp from the speed it is making; a live-traffic shadow's measured acceleration is a
+  `GroundRollProfile.Constant`), so the predictors and the integrator never disagree. A jet reaches 145 kt in 31 s / ~3,560 ft
+  (29 s / ~3,550 ft with the old constant 5 kt/s — the distance is unchanged, the first five seconds are what moved).
 - **TAS is computed, never stored.** `WindInterpolator.IasToTas(ias, altitudeFt)` (`WindInterpolator.cs:105`) converts IAS→TAS via ISA
   compressible-flow relations (CAS→Mach→TAS). TAS rises with altitude even at constant IAS.
 - **`GroundSpeed` is DERIVED on every read — it has no setter** (`AircraftState.cs:85`). On the ground it returns `IndicatedAirspeed` directly.
@@ -204,8 +213,12 @@ Layers 1, 2 and 5 all clamp against `RegulatorySpeedLimit(aircraft, below10k, sp
 5. **14 CFR 91.117** — `goal = min(goal, RegulatorySpeedLimit(...))` (`:966`): 250 below 10,000 ft, 200 under a Class B shelf.
 6. **`SpeedCeiling` continuous clamp** — `goal = min(goal, SpeedCeiling)` again, so even a non-procedural `TargetSpeed` (auto schedule,
    pre-ceiling controller assignment) cannot escape the cap (`:975`).
-7. **Snap + integrate** — `|diff| < SpeedSnapKts` (2 kt, `:14`) → snap IAS, **null `TargetSpeed`**. Otherwise accelerate at
-   `AircraftPerformance.AccelRate` or decelerate at `DesiredDecelRate ?? AircraftPerformance.DecelRate` (`:1000`). `DesiredDecelRate` is honored
+7. **Snap + integrate** — `|diff| < snapWindow` → snap IAS, **null `TargetSpeed`**; the window is `SpeedSnapKts` (2 kt, `:14`) airborne but
+   `rate × deltaSeconds` on the ground, so a taxiing aircraft never snaps further than the one sub-tick it would have integrated anyway
+   (2 kt is two whole seconds of taxi acceleration). Otherwise accelerate/decelerate at `SpeedChangeRate`: airborne
+   `AircraftPerformance.AccelRate` / `DesiredDecelRate ?? AircraftPerformance.DecelRate`; on the ground `CategoryPerformance.TaxiAccelRate` /
+   `DesiredDecelRate ?? CategoryPerformance.TaxiDecelRate` — physics is the only integrator of ground speed; ground phases and the navigator
+   only publish targets. `DesiredDecelRate` is honored
    **only on the deceleration branch** — it is ignored when accelerating.
 
 **Look-ahead planning** (`UpdateSpeedPlanning`, `:458`) runs before the integrator and pre-sets `TargetSpeed` so the aircraft *arrives* at a
@@ -281,6 +294,9 @@ aviation-sim-expert-validated against the AIM / FAA 7110.65. Airborne kinematics
 | `InitialClimbSpeed` (KIAS) | 180 | 130 | 80 | 60 |
 | `InitialClimbRate` (fpm) | 3000 | 1800 | 800 | 1200 |
 | `RotationSpeed` Vr (kt) | 150 | 110 | 65 | 0 |
+| `GroundAccelRate` (kt/s, takeoff roll at takeoff thrust) | 5.0 | 4.0 | 2.7 | 2.0 |
+| `GroundAccelIdleRate` (kt/s, at brake release) | 1.0 | 0.8 | 0.5 | 2.0 |
+| `GroundAccelSpoolSeconds` (s, idle → takeoff thrust) | 5 | 4 | 3 | 0 |
 
 `DefaultSpeed(cat, altitude)` (`AircraftCategory.cs:836`) — the auto-schedule speed by altitude band:
 

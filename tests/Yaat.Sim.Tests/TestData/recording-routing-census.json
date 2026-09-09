@@ -749,19 +749,6 @@
     "Solo": true
   },
   {
-    "File": "issue194-crossing-ready-for-departure-recording.yaat-bug-report-bundle.zip",
-    "Commands": 11,
-    "ByKind": {
-      "Compound": 6,
-      "Delete": 2,
-      "TrackOwnership": 3
-    },
-    "Unparsed": [],
-    "ReactionDelayed": 0,
-    "AsPrefixed": 3,
-    "Solo": true
-  },
-  {
     "File": "issue195-ase-lindz1-turn-altitude-recording.yaat-bug-report-bundle.zip",
     "Commands": 8,
     "ByKind": {

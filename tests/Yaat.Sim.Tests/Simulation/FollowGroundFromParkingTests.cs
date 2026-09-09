@@ -140,29 +140,39 @@ public class FollowGroundFromParkingTests(ITestOutputHelper output)
         Assert.NotNull(kpo);
         Assert.IsType<FollowingPhase>(kpo.Phases?.CurrentPhase);
 
-        // Settle 15 s first so any residual coast from the pre-HOLD taxi speed bleeds off, then
-        // measure sustained movement over the next 45 s. A frozen (still-held) follower produces
-        // ~0 nm here; a real follower keeps taxiing toward the leader.
-        for (int i = 0; i < 15; i++)
+        // Measure movement from the FOLLOWG instant through t=60. The leader is parked 525 ft ahead and the
+        // follower stops 91 ft behind it, so there are 434 ft of room; physics owns ground speed and spools
+        // the follower up from its held stop at the 1.0 kt/s taxi accel, which consumes 391 of those 434 ft
+        // inside the first 15 s and then holds 87.6 ft behind the leader. A window opening at t=15 would see
+        // only the last 59 ft. Over 0-60 s the follower covers 450 ft = 0.074 nm against ~0 nm for a frozen
+        // (still-held) follower, so the assertion still reads "FOLLOWG released the hold and it moved".
+        var startPos = kpo.Position;
+        for (int i = 0; i < 60; i++)
         {
             engine.TickOneSecond();
         }
 
         kpo = engine.FindAircraft("KPO83");
         Assert.NotNull(kpo);
-        var settledPos = kpo.Position;
-        for (int i = 0; i < 45; i++)
-        {
-            engine.TickOneSecond();
-        }
-
-        kpo = engine.FindAircraft("KPO83");
-        Assert.NotNull(kpo);
-        double movedNm = GeoMath.DistanceNm(settledPos.Lat, settledPos.Lon, kpo.Position.Lat, kpo.Position.Lon);
-        output.WriteLine($"KPO83 phase={kpo.Phases?.CurrentPhase?.Name} sustained-move={movedNm:F3}nm gs={kpo.GroundSpeed:F1}");
+        var fth = engine.FindAircraft("FTH399");
+        Assert.NotNull(fth);
+        double movedNm = GeoMath.DistanceNm(startPos.Lat, startPos.Lon, kpo.Position.Lat, kpo.Position.Lon);
+        double gapFt = GeoMath.DistanceNm(kpo.Position, fth.Position) * GeoMath.FeetPerNm;
+        double stopGapFt = FollowingPhase.StopDistanceNm * GeoMath.FeetPerNm;
+        output.WriteLine($"KPO83 phase={kpo.Phases?.CurrentPhase?.Name} moved-0-60s={movedNm:F3}nm gs={kpo.GroundSpeed:F1} gapToFTH399={gapFt:F1}ft");
 
         // With the hold left set (the bug) FollowingPhase.OnTick keeps the follower stopped.
-        Assert.True(movedNm > 0.03, $"held follower did not sustain movement ({movedNm:F3} nm) — FOLLOWG did not clear Ground.Hold");
+        Assert.True(movedNm > 0.03, $"held follower never moved ({movedNm:F3} nm) — FOLLOWG did not clear Ground.Hold");
+
+        // Movement alone only proves the follow STARTED. By t=60 it must also have finished: the follower
+        // closed to the stop gap behind the parked leader (87.6 ft measured against a 91 ft stop gap) and
+        // is stationary there — a follower still rolling at t=60 has not closed up, and one parked further
+        // back has stalled short.
+        Assert.True(
+            gapFt <= (stopGapFt + 10.0),
+            $"follower stopped {gapFt:F1} ft behind FTH399; expected <= {stopGapFt + 10.0:F1} ft (FollowingPhase.StopDistanceNm + 10 ft)"
+        );
+        Assert.Equal(0.0, kpo.GroundSpeed, 0.01);
     }
 
     [Fact]

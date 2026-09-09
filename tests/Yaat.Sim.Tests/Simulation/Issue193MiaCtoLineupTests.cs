@@ -69,10 +69,32 @@ public class Issue193MiaCtoLineupTests(ITestOutputHelper output)
                 + $"onGround={aircraft.IsOnGround} chain={Chain(aircraft)}"
         );
 
-        // The aircraft must have been cleared for takeoff (LineUp/Takeoff/InitialClimb
-        // chain in hand), not left taxiing or in a holding phase.
-        bool hasTowerChain = aircraft.Phases?.Phases.Any(p => p is LineUpPhase or TakeoffPhase or InitialClimbPhase) == true;
-        Assert.True(hasTowerChain, $"{Callsign} has no lineup/takeoff chain: {Chain(aircraft)}");
+        // The aircraft must have been cleared for takeoff (LineUp/Takeoff/InitialClimb chain in hand), not
+        // left taxiing or in a holding phase. The stored CTO is consumed when the aircraft reaches the
+        // runway, which is 77 s past the end of the recording now that physics owns taxi speed (measured),
+        // so give the chain a bounded physics-only tail rather than sampling the recording's last second.
+        bool hasTowerChain = false;
+        for (int t = 1; t <= 120; t++)
+        {
+            var ac = engine.FindAircraft(Callsign);
+            if (ac is null)
+            {
+                break;
+            }
+
+            if (ac.Phases?.Phases.Any(p => p is LineUpPhase or TakeoffPhase or InitialClimbPhase) == true)
+            {
+                hasTowerChain = true;
+                output.WriteLine($"t=end+{t}: lineup/takeoff chain in hand: {Chain(ac)}");
+                break;
+            }
+
+            engine.TickOneSecond();
+        }
+
+        aircraft = engine.FindAircraft(Callsign);
+        Assert.NotNull(aircraft);
+        Assert.True(hasTowerChain, $"{Callsign} has no lineup/takeoff chain within 120 s of the recording end: {Chain(aircraft)}");
 
         // Tick forward and require the aircraft to leave the faulted/frozen state:
         // line up (heading converges to runway 087°), roll, and become airborne.

@@ -181,6 +181,18 @@ public sealed record AircraftProfileOverride
         return (merged, fields);
     }
 
+    /// <summary>Overload for a base field that is itself optional: an override wins, else the base's own value (null included) passes through.</summary>
+    private static double? Resolve(double? overrideValue, double? baseValue, string fieldName, HashSet<string> overridden)
+    {
+        if (overrideValue is { } v)
+        {
+            overridden.Add(fieldName);
+            return v;
+        }
+
+        return baseValue;
+    }
+
     private static double Resolve(double? overrideValue, double baseValue, string fieldName, HashSet<string> overridden)
     {
         if (overrideValue is { } v)

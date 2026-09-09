@@ -107,10 +107,12 @@ public class Issue316SfoCrossWhileLuawTests(ITestOutputHelper output)
         Assert.Equal(HoldShortReason.ExplicitHoldShort, holdShort10R.Reason);
         Assert.Equal(nearBar.Id, holdShort10R.NodeId);
 
-        // SKW5590 is stopped on 28L for this whole window.
+        // SKW5590 occupies 28L for the hold window. Its own line-up taxi runs at the physics taxi rate now,
+        // so at the reroute second it is still LiningUp 186 ft off the centerline (measured) and settles on
+        // the centerline at t=553 - 16 s into the window below - holding it past LastSecondBeforeResume.
         var lineUp = engine.FindAircraft("SKW5590");
         Assert.NotNull(lineUp);
-        Assert.True(DistanceFromRunwayCenterlineFt(lineUp, runway28L) < (runway28L.WidthFt / 2), "SKW5590 should be on 28L at the reroute");
+        int lineUpOn28LAt = -1;
 
         double halfWidthFt = runway28L.WidthFt / 2;
         for (int t = RerouteSeconds + 1; t <= LastSecondBeforeResume; t++)
@@ -118,6 +120,12 @@ public class Issue316SfoCrossWhileLuawTests(ITestOutputHelper output)
             engine.ReplayOneSecond();
             aircraft = engine.FindAircraft("SKW5237");
             Assert.NotNull(aircraft);
+
+            var occupant = engine.FindAircraft("SKW5590");
+            if ((lineUpOn28LAt < 0) && (occupant is not null) && (DistanceFromRunwayCenterlineFt(occupant, runway28L) < halfWidthFt))
+            {
+                lineUpOn28LAt = t;
+            }
 
             double offCenterlineFt = DistanceFromRunwayCenterlineFt(aircraft, runway28L);
             if (t % 5 == 0)
@@ -135,6 +143,15 @@ public class Issue316SfoCrossWhileLuawTests(ITestOutputHelper output)
                     + " while SKW5590 was lined up on it and no crossing clearance had been issued"
             );
         }
+
+        // SKW5590 reaches the 28L centerline 16 s after the re-route (t=553, measured). Pinning the
+        // window rather than "> 0" keeps the test honest about WHEN the lineup happens: a lineup that
+        // slid outside 1-20 s past the re-route no longer exercises the hold this test is about.
+        output.WriteLine(
+            $"SKW5590 on the 28L centerline at t={lineUpOn28LAt} (reroute {RerouteSeconds} + {lineUpOn28LAt - RerouteSeconds}s; "
+                + $"expected {RerouteSeconds + 1}..{RerouteSeconds + 20}, measured 553 = reroute + 16s)"
+        );
+        Assert.InRange(lineUpOn28LAt, RerouteSeconds + 1, RerouteSeconds + 20);
 
         // Still parked at the Foxtrot bar, waiting for a crossing clearance.
         var holding = Assert.IsType<HoldingShortPhase>(aircraft.Phases?.CurrentPhase);

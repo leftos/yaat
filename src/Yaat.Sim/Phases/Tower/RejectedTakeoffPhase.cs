@@ -27,10 +27,20 @@ public sealed class RejectedTakeoffPhase : Phase
     private const double MaxCenterlineCorrectionDeg = 10.0;
 
     private double _reactionRemainingSeconds = RejectedTakeoff.ReactionSeconds;
+    private double _rollElapsedSeconds;
     private TrueHeading _runwayHeading;
     private double _thresholdLat;
     private double _thresholdLon;
     private double _pavementLengthFt;
+
+    /// <param name="rollElapsedSeconds">
+    /// The roll clock of the takeoff being interrupted, so the reaction window keeps accelerating on
+    /// the same point of the spool ramp the roll had reached.
+    /// </param>
+    public RejectedTakeoffPhase(double rollElapsedSeconds)
+    {
+        _rollElapsedSeconds = rollElapsedSeconds;
+    }
 
     public override string Name => "Rejected Takeoff";
 
@@ -57,11 +67,12 @@ public sealed class RejectedTakeoffPhase : Phase
             OverrunReported = OverrunReported,
             AutoTriggered = AutoTriggered,
             CannotStopShortOf = CannotStopShortOf,
+            RollElapsedSeconds = _rollElapsedSeconds,
         };
 
     public static RejectedTakeoffPhase FromSnapshot(RejectedTakeoffPhaseDto dto)
     {
-        var phase = new RejectedTakeoffPhase();
+        var phase = new RejectedTakeoffPhase(dto.RollElapsedSeconds);
         phase.Status = (PhaseStatus)dto.Status;
         phase.ElapsedSeconds = dto.ElapsedSeconds;
         phase.RestoreRequirements(dto.Requirements);
@@ -111,8 +122,14 @@ public sealed class RejectedTakeoffPhase : Phase
         if (_reactionRemainingSeconds > 0)
         {
             _reactionRemainingSeconds -= ctx.DeltaSeconds;
-            double accelRate = AircraftPerformance.GroundAccelRate(ctx.AircraftType, ctx.Category);
-            ctx.Aircraft.IndicatedAirspeed += accelRate * ctx.DeltaSeconds;
+
+            // The spool ramp the interrupted roll was already on, advanced by this sub-tick: the roll
+            // clock carried over from TakeoffPhase places the reaction window at the acceleration the
+            // aircraft actually has, so RejectedTakeoff.CanStopShort predicts the run the sim flies.
+            var profile = GroundRollProfile.For(ctx.AircraftType, ctx.Category);
+            double reactionStartSeconds = _rollElapsedSeconds;
+            _rollElapsedSeconds += ctx.DeltaSeconds;
+            ctx.Aircraft.IndicatedAirspeed += profile.SpeedAt(_rollElapsedSeconds) - profile.SpeedAt(reactionStartSeconds);
             return false;
         }
 

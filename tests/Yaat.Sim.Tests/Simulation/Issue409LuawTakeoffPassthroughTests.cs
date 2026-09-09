@@ -38,7 +38,14 @@ public class Issue409LuawTakeoffPassthroughTests(ITestOutputHelper output)
         }
 
         var groundData = new TestAirportGroundData();
-        SimLogBuilder.CreateForTest(output).EnableCategory("GroundConflictDetector", LogLevel.Debug).InitializeSimLog();
+        SimLogBuilder
+            .CreateForTest(output)
+            .EnableCategory("GroundConflictDetector", LogLevel.Debug)
+            .EnableCategory("TakeoffPhase", LogLevel.Debug)
+            .EnableCategory("FlightPhysics", LogLevel.Debug)
+            .EnableCategory("RejectedTakeoff", LogLevel.Debug)
+            .EnableCategory("RejectedTakeoffPhase", LogLevel.Debug)
+            .InitializeSimLog();
 
         return new SimulationEngine(groundData);
     }

@@ -355,7 +355,12 @@ unreachable. **Any diff between oracle and production is therefore exactly a cas
 `TaxiBudgetDeriver` (`Helpers/TaxiBudgetDeriver.cs`) inspects the optimal A\* route (`TaxiPathfinder.FindRoute`) for an
 origin→destination pair and derives two budgets:
 
-- **Time budget** — `optimalTimeSec × TimeFudgeMultiplier (1.5) + cornerCount × SecondsPerCorner (4 s) + StartupOverheadSec (15 s)`. The
+- **Time budget** — `optimalTimeSec × TimeFudgeMultiplier (2.0) + cornerCount × SecondsPerCorner(cat) + StartupOverheadSec(cat)`, where the
+  two overheads are derived from the physics constants rather than tuned by hand: `StartupOverheadSec = TaxiSpeed / TaxiAccelRate` (jet 30 s —
+  the 0→nominal run the distance/speed term assumes is free) and `SecondsPerCorner = (TaxiSpeed − TaxiCornerSpeed) × (1/TaxiAccelRate +
+  1/TaxiDecelRate)` (jet 18 s — the brake-and-regain a corner costs over cruising through it). A corner is a join turning more than
+  `CornerAngleDeg` **or an arc segment sweeping more than it** — on the fillet graph every real corner is an arc, so counting joins alone
+  gives `cornerCount = 0` on long SFO routes. The
   `optimalTimeSec` term is **arc-aware**: each segment is timed at `min(nominalTaxiKts, segment.MaxSafeSpeedKts)`, so a jet crawling a
   tight fillet at a GA-sized ramp is capped at the arc's safe speed (potentially 5–10 kts), not the nominal 30. A flat
   `distance / nominalKts` budget under-allows such routes by 2–3×.

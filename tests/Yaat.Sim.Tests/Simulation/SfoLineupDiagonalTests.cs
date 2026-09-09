@@ -101,7 +101,9 @@ public class SfoLineupDiagonalTests(ITestOutputHelper output)
         // — polling at whole-second granularity lets TakeoffPhase accelerate
         // the aircraft before we observe it, invalidating the "stopped at
         // exit" assertion.
-        const int budgetSubTicks = 60 * 4;
+        // The line-up completes at sub=262 (65.5 s, measured): the 279 ft nose-out is flown at 4.4 kt and
+        // the 0 -> 4.4 kt ramp alone is 7.3 s at the piston 0.6 kt/s accel. 100 s keeps ~50% headroom.
+        const int budgetSubTicks = 100 * 4;
         for (int sub = 0; sub < budgetSubTicks; sub++)
         {
             engine.ReplayOneSubTick();
@@ -148,7 +150,7 @@ public class SfoLineupDiagonalTests(ITestOutputHelper output)
         }
 
         Assert.True(enteredLineUp, $"Aircraft never entered LineUpPhase (CTO at t=250, enterSubTick={enterTick})");
-        Assert.True(exitedLineUp, $"Aircraft never exited LineUpPhase within 60 s (entered at sub={enterTick}, budget {budgetSubTicks} sub-ticks)");
+        Assert.True(exitedLineUp, $"Aircraft never exited LineUpPhase within 100 s (entered at sub={enterTick}, budget {budgetSubTicks} sub-ticks)");
 
         // End-state contract. Tolerances are slightly looser than the synthetic
         // LineUpPhaseTests fixtures (3 ft / 1° / 0.5 kt) because this is a full

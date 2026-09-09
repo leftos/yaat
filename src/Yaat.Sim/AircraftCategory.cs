@@ -212,15 +212,54 @@ public static class CategoryPerformance
         };
     }
 
-    /// <summary>Ground acceleration during takeoff roll (kts/sec). Helicopter: N/A, vertical liftoff.</summary>
+    /// <summary>
+    /// Steady ground acceleration during the takeoff roll (kts/sec), reached once the engines are at
+    /// takeoff thrust: Jet 5.0, Turboprop 4.0, Piston 2.7. Helicopter: N/A, vertical liftoff.
+    /// The first seconds of the roll accelerate less — see <see cref="GroundAccelIdleRate"/>.
+    /// </summary>
     public static double GroundAccelRate(AircraftCategory cat)
     {
         return cat switch
         {
             AircraftCategory.Jet => 5.0,
-            AircraftCategory.Turboprop => 3.0,
-            AircraftCategory.Piston => 2.0,
+            AircraftCategory.Turboprop => 4.0,
+            AircraftCategory.Piston => 2.7,
             AircraftCategory.Helicopter => 2.0,
+            _ => 5.0,
+        };
+    }
+
+    /// <summary>
+    /// Ground acceleration (kts/sec) at brake release, before the engines reach takeoff thrust:
+    /// Jet 1.0, Turboprop 0.8, Piston 0.5, Helicopter 2.0 (no ramp). The FCTM technique is to
+    /// stabilise around 40% N1, release the brakes and then advance to takeoff thrust, so the roll
+    /// starts at roughly a fifth of its steady acceleration.
+    /// </summary>
+    public static double GroundAccelIdleRate(AircraftCategory cat)
+    {
+        return cat switch
+        {
+            AircraftCategory.Jet => 1.0,
+            AircraftCategory.Turboprop => 0.8,
+            AircraftCategory.Piston => 0.5,
+            AircraftCategory.Helicopter => 2.0,
+            _ => 1.0,
+        };
+    }
+
+    /// <summary>
+    /// Seconds from brake release to takeoff thrust, over which the acceleration ramps from
+    /// <see cref="GroundAccelIdleRate"/> to <see cref="GroundAccelRate"/>: Jet 5, Turboprop 4,
+    /// Piston 3, Helicopter 0 (no spool — the category never rolls to a rotation speed).
+    /// </summary>
+    public static double GroundAccelSpoolSeconds(AircraftCategory cat)
+    {
+        return cat switch
+        {
+            AircraftCategory.Jet => 5.0,
+            AircraftCategory.Turboprop => 4.0,
+            AircraftCategory.Piston => 3.0,
+            AircraftCategory.Helicopter => 0.0,
             _ => 5.0,
         };
     }
@@ -1023,18 +1062,30 @@ public static class CategoryPerformance
         return tightCornerSpeed;
     }
 
-    /// <summary>Taxi acceleration rate (kts/sec).</summary>
+    /// <summary>
+    /// Taxi acceleration rate (kts/sec) — the breakaway-thrust rate an aircraft actually accelerates at on
+    /// the ground. A transport jet breaks away from a standstill on ~30-40% N1 and then taxies at idle
+    /// (AC 120-74B taxi technique, Boeing FCTM "roll straight, then add thrust"), which is about 1 kt/s;
+    /// sustaining 3 kt/s would need roughly 70% N1 and a jet-blast hazard behind it. Pistons are lighter but
+    /// power-limited at taxi power, so they gain speed more slowly still.
+    /// </summary>
     public static double TaxiAccelRate(AircraftCategory cat)
     {
-        _ = cat;
-        return 3;
+        return cat switch
+        {
+            AircraftCategory.Jet => 1.0,
+            AircraftCategory.Turboprop => 1.0,
+            AircraftCategory.Piston => 0.6,
+            AircraftCategory.Helicopter => 0.6,
+            _ => 1.0,
+        };
     }
 
     /// <summary>
-    /// Taxi/runway-exit deceleration rate (kts/sec). Used for both post-landing rollout
-    /// braking and taxi-speed deceleration. Jets and turboprops have powerful brakes and
-    /// sustain 5 kts/s (within autobrake-medium authority). GA pistons with toe brakes
-    /// decelerate more gently — 2 kts/s is a realistic "moderate" pedal application on
+    /// Taxi/runway-exit deceleration rate (kts/sec) — the rate <see cref="FlightPhysics"/> brakes an aircraft
+    /// on the ground at. Used for both post-landing rollout braking and taxi-speed deceleration. Jets and
+    /// turboprops have powerful brakes and sustain 5 kts/s (within autobrake-medium authority). GA pistons
+    /// with toe brakes decelerate more gently — 2 kts/s is a realistic "moderate" pedal application on
     /// a C172, and the lower rate widens the brake look-ahead window so the navigator
     /// can stop at hold-short lines without needing the route to snap speed to zero.
     /// </summary>

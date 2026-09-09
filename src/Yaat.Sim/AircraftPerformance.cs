@@ -260,10 +260,14 @@ public static class AircraftPerformance
         return p is not null ? p.AirborneDecelRate : CategoryPerformance.DecelRate(cat);
     }
 
+    /// <summary>
+    /// Steady takeoff-roll acceleration (kt/s). Most profiles carry no value — the source database
+    /// has no such field — so the category rate applies unless the type was hand-checked.
+    /// </summary>
     public static double GroundAccelRate(string aircraftType, AircraftCategory cat)
     {
         var p = AircraftProfileDatabase.Get(aircraftType);
-        return p is not null ? p.GroundAccelRate : CategoryPerformance.GroundAccelRate(cat);
+        return p?.GroundAccelRate ?? CategoryPerformance.GroundAccelRate(cat);
     }
 
     public static double RotationSpeed(string aircraftType, AircraftCategory cat)

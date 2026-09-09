@@ -1652,7 +1652,7 @@ internal static class DepartureClearanceHandler
             aircraft.Targets.AssignedAltitude = null;
             return CommandDispatcher.Ok($"Takeoff clearance cancelled, hold short{CommandDispatcher.RunwayLabel(aircraft)}");
         }
-        if (currentPhase is TakeoffPhase && aircraft.IsOnGround)
+        if (currentPhase is TakeoffPhase rollingTakeoff && aircraft.IsOnGround)
         {
             // Abort takeoff during ground roll (7110.65 §3-9-11 — mid-roll only for safety).
             // Past V1 (≈ Vr − 5 kts, compared in INDICATED — the on-ground IAS field carries
@@ -1670,7 +1670,10 @@ internal static class DepartureClearanceHandler
                 return new CommandResult(false, $"Unable — past V1 ({v1:F0} kts), continuing the takeoff");
             }
 
-            var reject = RejectedTakeoff.Install(CommandDispatcher.BuildMinimalContext(aircraft, ctx.GroundLayout));
+            var reject = RejectedTakeoff.Install(
+                CommandDispatcher.BuildMinimalContext(aircraft, ctx.GroundLayout),
+                rollingTakeoff.RollElapsedSeconds
+            );
             if ((reject is not null) && (blocked is not null))
             {
                 RejectedTakeoff.WarnIfCannotStopShort(aircraft, cat, blocked, blockedDistanceFt, reject);

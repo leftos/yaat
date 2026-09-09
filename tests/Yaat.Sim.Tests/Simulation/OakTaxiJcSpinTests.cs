@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging;
 using Xunit;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Data.Faa;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
@@ -43,11 +44,15 @@ public class OakTaxiJcSpinTests(ITestOutputHelper output)
     /// <summary>Seconds before the TAXI command (t=879) where we restore from snapshot.</summary>
     private const int RestoreAtSeconds = 875;
 
-    /// <summary>How many seconds after the TAXI to assert progress over.</summary>
-    private const int TicksAfterTaxi = 60;
+    /// <summary>
+    /// How many seconds after the TAXI to assert progress over. N70CS reaches the 28R bar 71 s after the
+    /// TAXI (t=950, measured) now that physics owns taxi speed at 1.0 kt/s accel / 5 kt/s brake; 90 s keeps
+    /// the same 50% headroom the old 60 s window had.
+    /// </summary>
+    private const int TicksAfterTaxi = 90;
 
-    /// <summary>End time of the assertion window. TAXI fires at t=879; we let it tick to t=940.</summary>
-    private const int AssertAtSeconds = 940;
+    /// <summary>End time of the assertion window. TAXI fires at t=879; we let it tick to t=969.</summary>
+    private const int AssertAtSeconds = 969;
 
     /// <summary>
     /// First segment whose endpoint is the runway hold-short at node 501
@@ -77,17 +82,17 @@ public class OakTaxiJcSpinTests(ITestOutputHelper output)
     }
 
     /// <summary>
-    /// Assertion: 60 s after the TAXI command fires, N70CS must have advanced
+    /// Assertion: 90 s after the TAXI command fires, N70CS must have advanced
     /// past the buggy zone (target node 383, segment index 7). A clean
-    /// south-bound taxi on J at 30 kts covers the J leg (segs 0..13, ~0.3 nm)
-    /// in well under 60 s and reaches the hold-short at node 501 (segIdx 14).
+    /// south-bound taxi on J covers the J leg (segs 0..13, ~0.3 nm) and
+    /// reaches the hold-short at node 501 (segIdx 14) 71 s after the TAXI.
     /// We require a more lenient bound (segIdx &gt; 7) so the test isolates
     /// the spin-stall bug without coupling to exact arrival timing at HS 501.
     ///
     /// The bug freezes CurrentSegmentIndex at 7 and IAS below 4 kts forever.
     /// </summary>
     [Fact]
-    public void TaxiOut_N70CS_AdvancesPastNode383_Within60Seconds()
+    public void TaxiOut_N70CS_AdvancesPastNode383_Within90Seconds()
     {
         var archive = RecordingLoader.OpenArchive(RecordingPath);
         var engine = BuildEngine();
@@ -136,11 +141,11 @@ public class OakTaxiJcSpinTests(ITestOutputHelper output)
 
     /// <summary>
     /// Stricter follow-up: N70CS should reach the commanded hold-short at HS
-    /// 501 (28R/10L) within 60 s. This catches softer regressions where the
+    /// 501 (28R/10L) within 90 s. This catches softer regressions where the
     /// aircraft makes some progress but still stalls partway down J.
     /// </summary>
     [Fact]
-    public void TaxiOut_N70CS_ReachesHoldShortAt28R_Within60Seconds()
+    public void TaxiOut_N70CS_ReachesHoldShortAt28R_Within90Seconds()
     {
         var archive = RecordingLoader.OpenArchive(RecordingPath);
         var engine = BuildEngine();
@@ -181,6 +186,64 @@ public class OakTaxiJcSpinTests(ITestOutputHelper output)
                 atOrPastHoldShort || holdingShort,
                 $"N70CS only at segIdx={route.CurrentSegmentIndex}/{route.Segments.Count} after {TicksAfterTaxi}s; "
                     + $"expected segIdx >= {IndexAtFirstHoldShort} (HS 28R/10L at node 501) or HoldingShortPhase."
+            );
+        }
+    }
+
+    /// <summary>
+    /// Where the aircraft actually parks at the bar. <c>HoldShortAnnotator.ComputeHoldShortPositions</c>
+    /// sets a runway hold-short's stop position half a fuselage back from the node so the nose stops AT
+    /// the painted line; the navigator then arrives on that position within its final-node threshold.
+    /// This pins both halves: the node must still be AHEAD of the aircraft (a stop past the bar has the
+    /// nose on the runway) and no further ahead than the setback plus a few feet of arrival slack (a stop
+    /// well short of it leaves the aircraft parked in the junction behind the line).
+    /// </summary>
+    [Fact]
+    public void TaxiOut_N70CS_StopsOnTheApproachSideOfThe28RBar()
+    {
+        var archive = RecordingLoader.OpenArchive(RecordingPath);
+        var engine = BuildEngine();
+        var layout = new TestAirportGroundData().GetLayout("OAK");
+        if (archive is null || engine is null || layout is null)
+        {
+            return;
+        }
+
+        using (archive)
+        {
+            var recording = archive.ToBaseSessionRecording();
+            engine.Replay(recording, 0);
+
+            var snapshot = archive.ReadSnapshotAt(RestoreAtSeconds);
+            if (snapshot is null)
+            {
+                return;
+            }
+            engine.RestoreFromSnapshot(snapshot.State);
+
+            engine.ReplayRange((int)snapshot.ElapsedSeconds, AssertAtSeconds, recording.Actions);
+
+            var ac = engine.FindAircraft(Callsign);
+            Assert.NotNull(ac);
+
+            var holding = Assert.IsType<HoldingShortPhase>(ac.Phases?.CurrentPhase);
+            var hsNode = layout.Nodes[holding.HoldShort.NodeId];
+
+            // Signed along the aircraft's own heading: positive means the bar is still ahead of it.
+            double alongFt = GeoMath.AlongTrackDistanceNm(hsNode.Position, ac.Position, ac.TrueHeading) * GeoMath.FeetPerNm;
+            double lengthFt = FaaAircraftDatabase.Get(ac.AircraftType)?.LengthFt ?? HoldShortAnnotator.CwtFallbackLengthFt(ac.AircraftType);
+            double standoffFt = lengthFt / 2.0;
+
+            output.WriteLine(
+                $"N70CS ({ac.AircraftType}, {lengthFt:F1}ft) holding short of {holding.HoldShort.TargetName} at node {holding.HoldShort.NodeId}: "
+                    + $"alongTrack={alongFt:F1}ft, standoff={standoffFt:F1}ft, gs={ac.GroundSpeed:F2}"
+            );
+
+            Assert.True(alongFt > 0, $"N70CS stopped {-alongFt:F1} ft PAST the {holding.HoldShort.TargetName} bar — its nose is on the runway.");
+            Assert.True(
+                alongFt <= (standoffFt + 10.0),
+                $"N70CS stopped {alongFt:F1} ft short of the {holding.HoldShort.TargetName} bar; expected <= {standoffFt + 10.0:F1} ft "
+                    + $"(half its {lengthFt:F1} ft fuselage plus 10 ft of navigator arrival slack)."
             );
         }
     }

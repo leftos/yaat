@@ -80,8 +80,12 @@ public class Issue161PushFaceThenTaxiTests(ITestOutputHelper output)
         output.WriteLine($"t=52: pos=({ac.Position.Lat:F6},{ac.Position.Lon:F6}) hdg={ac.TrueHeading.Degrees:F0} ias={ac.IndicatedAirspeed:F1}");
         NearestNodeHelper.Log(output, "t=52", ac, layout, count: 5);
 
-        double? latAt10 = null;
-        const int loopSeconds = 15;
+        // Physics owns taxi acceleration (jet 1.0 kt/s), so the post-pushback roll covers 80 ft by t+10 and
+        // 237 ft by t+20 (measured). Sample at t+20 - the same ~250 ft of southbound progress the t+10 sample
+        // used to see - and keep the loop 5 s past the sample as before.
+        double? latAtSample = null;
+        const int southProgressSampleSecond = 20;
+        const int loopSeconds = 25;
         for (int t = 1; t <= loopSeconds; t++)
         {
             engine.ReplayOneSecond();
@@ -94,9 +98,9 @@ public class Issue161PushFaceThenTaxiTests(ITestOutputHelper output)
             minLat = Math.Min(minLat, ac.Position.Lat);
             maxLat = Math.Max(maxLat, ac.Position.Lat);
 
-            if (t == 10)
+            if (t == southProgressSampleSecond)
             {
-                latAt10 = ac.Position.Lat;
+                latAtSample = ac.Position.Lat;
             }
 
             if (t % 3 == 0)
@@ -110,8 +114,10 @@ public class Issue161PushFaceThenTaxiTests(ITestOutputHelper output)
         }
 
         double northwardExcursionFt = (maxLat - startLat) * GeoMath.FeetPerNm * 60.0;
-        double southAt10Ft = latAt10 is { } lat ? (startLat - lat) * GeoMath.FeetPerNm * 60.0 : 0.0;
-        output.WriteLine($"northward excursion peak: {northwardExcursionFt:F0}ft, southward progress at t+10: {southAt10Ft:F0}ft");
+        double southAtSampleFt = latAtSample is { } lat ? (startLat - lat) * GeoMath.FeetPerNm * 60.0 : 0.0;
+        output.WriteLine(
+            $"northward excursion peak: {northwardExcursionFt:F0}ft, southward progress at t+{southProgressSampleSecond}: {southAtSampleFt:F0}ft"
+        );
 
         // The buggy trajectory drifted ~25 ft north before doubling back; a
         // correct southbound A-taxi never goes north at all from the
@@ -122,12 +128,13 @@ public class Issue161PushFaceThenTaxiTests(ITestOutputHelper output)
                 + "after PUSH A FACE E it should taxi straight south on A"
         );
 
-        // 10 seconds in, the aircraft should be well south of its start —
-        // ~250 ft with the fix, ~0 ft (or slightly north) with the bug.
-        Assert.NotNull(latAt10);
+        // 20 seconds in, the aircraft should be well south of its start -
+        // ~237 ft with the fix, ~0 ft (or slightly north) with the bug.
+        Assert.NotNull(latAtSample);
         Assert.True(
-            southAt10Ft > 100.0,
-            $"SKW3404 had only {southAt10Ft:F0}ft of southward progress after 10s — " + "expected >100ft of southbound taxi on A"
+            southAtSampleFt > 100.0,
+            $"SKW3404 had only {southAtSampleFt:F0}ft of southward progress after {southProgressSampleSecond}s - "
+                + "expected >100ft of southbound taxi on A"
         );
     }
 }

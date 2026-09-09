@@ -135,9 +135,19 @@ public class Issue234Spot7AConflictTests(ITestOutputHelper output)
             overshoot.Value.NearStopTicks > 20,
             $"overshoot did not stop the passing jet (nearStopTicks={overshoot.Value.NearStopTicks}); the reproduction geometry has drifted."
         );
+        // MinGs is sampled on the first tick inside the 260 ft window, where the jet is still accelerating
+        // out of the ramp at the physics taxi rate (1.0 kt/s) — measured 8.7 kt for nose-at-spot — so a
+        // fixed +10 kt margin would be an assertion about the accel rate rather than about the gate. The
+        // gate itself is what the two runs must differ on: overshoot brakes the jet to a standstill
+        // (minGs 0.0 kt, nearStopTicks 165) while nose-at-spot never stops it (nearStopTicks 0).
         Assert.True(
-            noseAtSpot.Value.MinGs > overshoot.Value.MinGs + 10.0,
-            $"nose-at-spot did not keep taxiway A moving: nose minGs={noseAtSpot.Value.MinGs:F1}kt vs overshoot minGs={overshoot.Value.MinGs:F1}kt."
+            overshoot.Value.MinGs < 1.0,
+            $"overshoot did not brake the passing jet to a stop (minGs={overshoot.Value.MinGs:F1}kt); the reproduction geometry has drifted."
+        );
+        Assert.True(
+            noseAtSpot.Value.MinGs > 5.0,
+            $"nose-at-spot did not keep taxiway A moving: nose minGs={noseAtSpot.Value.MinGs:F1}kt (measured 8.7 kt); 5.0 kt is the "
+                + "detector's SlowTaxiSpeedKts, below which the jet would count as gated rather than merely still accelerating."
         );
         Assert.Equal(0, noseAtSpot.Value.NearStopTicks);
     }

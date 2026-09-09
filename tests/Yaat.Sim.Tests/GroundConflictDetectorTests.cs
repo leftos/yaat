@@ -423,6 +423,48 @@ public class GroundConflictDetectorTests
     }
 
     [Fact]
+    public void LiningUpAircraft_BelowStationaryThreshold_IsStillStoppedBehindLuawOccupant()
+    {
+        // Issue #409 survivor: LineUpPhase drives at a 2 kt lineup speed, below the 3 kt held-stationary
+        // threshold, so a lining-up aircraft creeping toward a LUAW occupant classified as a parked
+        // obstacle on every sub-tick its speed had just been pinned to zero. No limit was written on
+        // those sub-ticks, and it crept forward at ~3 ft/s. The commanded speed is the intent signal:
+        // an aircraft asking for forward speed is a mover however slowly it happens to be rolling.
+        var luaw = MakeAircraft(
+            "LUAW1",
+            new LatLon(BaseLat + (0.8 * OffsetLatPer100Ft), BaseLon),
+            heading: 0,
+            gs: 0,
+            phase: new LinedUpAndWaitingPhase()
+        );
+        luaw.Targets.TargetSpeed = 0;
+
+        var liningUp = MakeAircraft("LINE1", new LatLon(BaseLat, BaseLon), heading: 0, gs: 0, phase: new LineUpPhase());
+
+        var startPosition = liningUp.Position;
+        var aircraft = new List<AircraftState> { luaw, liningUp };
+
+        for (int k = 1; k <= 4; k++)
+        {
+            // LineUpPhase re-publishes its lineup speed every tick; mirror that before each detector pass.
+            liningUp.Targets.TargetSpeed = 2;
+
+            GroundConflictDetector.ApplySpeedLimits(aircraft, null, 0.25);
+
+            Assert.True(
+                (liningUp.Ground.SpeedLimit is { } limit) && (limit == 0),
+                $"sub-tick {k}: the lining-up aircraft must stay pinned behind the LUAW occupant 80 ft ahead, "
+                    + $"got limit={liningUp.Ground.SpeedLimit?.ToString("F1") ?? "none"} gs={liningUp.GroundSpeed:F2}"
+            );
+
+            FlightPhysics.Update(liningUp, 0.25, null, null, simTimeSeconds: k * 0.25);
+        }
+
+        Assert.Equal(startPosition.Lat, liningUp.Position.Lat, 12);
+        Assert.Equal(startPosition.Lon, liningUp.Position.Lon, 12);
+    }
+
+    [Fact]
     public void LiningUp_WhileStopped_RemainsPassableObstacle()
     {
         // A stationary aircraft in LineUpPhase (e.g. braked at the hold-short bar waiting

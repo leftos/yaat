@@ -232,11 +232,11 @@ public class SnapshotRoundTripTests
     [Fact]
     public void FlightPhysics_UpdateSpeed_NullDesiredDecelRateUsesDefault()
     {
-        // Same setup but with null override: FlightPhysics falls back to
-        // AircraftPerformance.DecelRate(B738, Jet). Compare the observed rate
-        // against the override case — the override (4.0 kt/s) must be strictly
-        // faster than the default, and the default must match the expected
-        // per-type value rather than the firm-brake override.
+        // Same setup but with null override: on the ground FlightPhysics falls back to the taxi brake
+        // rate, CategoryPerformance.TaxiDecelRate(Jet) = 5.0 kt/s, so one second takes 100 -> 95 kt.
+        // (The airborne fallback is AircraftPerformance.DecelRate(B738, Jet); this aircraft is IsOnGround.)
+        // The point of the test is unchanged: the null override must resolve to the category taxi
+        // braking rate rather than silently reusing the 4.0 kt/s firm-brake override of the sibling test.
         var ac = new AircraftState
         {
             Callsign = "TEST",
@@ -252,7 +252,7 @@ public class SnapshotRoundTripTests
 
         FlightPhysics.Update(ac, 1.0);
 
-        double expectedDefault = 100.0 - AircraftPerformance.DecelRate("B738", AircraftCategory.Jet);
+        double expectedDefault = 100.0 - CategoryPerformance.TaxiDecelRate(AircraftCategory.Jet);
         Assert.Equal(expectedDefault, ac.IndicatedAirspeed, 2);
     }
 

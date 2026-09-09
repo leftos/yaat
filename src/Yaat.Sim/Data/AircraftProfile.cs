@@ -36,8 +36,13 @@ public sealed record AircraftProfile
     [JsonPropertyName("airborneDecelRate")]
     public double AirborneDecelRate { get; init; }
 
+    /// <summary>
+    /// Steady takeoff-roll acceleration (kt/s) for this type, when the data source has one. Null
+    /// means the category value (<see cref="CategoryPerformance.GroundAccelRate"/>) applies — the
+    /// source database has no such field, so only hand-checked types carry a value.
+    /// </summary>
     [JsonPropertyName("groundAccelRate")]
-    public double GroundAccelRate { get; init; }
+    public double? GroundAccelRate { get; init; }
 
     [JsonPropertyName("takeoffDistance")]
     public double TakeoffDistance { get; init; }

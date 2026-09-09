@@ -48,22 +48,24 @@ public class Issue289NuevoRollingCtoTests(ITestOutputHelper output)
             return;
         }
 
-        // Replay past the point where the buggy left turn to SAPLY had completed (~t=335).
-        engine.Replay(recording, 340);
+        // Replay past the point where the buggy left turn to SAPLY had completed. The takeoff roll spools
+        // from a standstill now, so PCM8679 lifts off at t=350 (measured, was ~t=335); t=355 samples 5 s of
+        // climb-out - the same margin past liftoff the old t=340 sample had.
+        engine.Replay(recording, 355);
 
         var ac = engine.FindAircraft("PCM8679");
         Assert.NotNull(ac);
-        Assert.False(ac!.IsOnGround, "PCM8679 should be airborne on the NUEVO8 by t=340");
+        Assert.False(ac!.IsOnGround, "PCM8679 should be airborne on the NUEVO8 by t=355");
 
         double heading = ac.TrueHeading.Degrees;
         var nextFix = ac.Targets.NavigationRoute.Count > 0 ? ac.Targets.NavigationRoute[0].Name : "-";
-        output.WriteLine($"PCM8679 t=340 airborne={!ac.IsOnGround} hdg={heading:F1} alt={ac.Altitude:F0} nextfix={nextFix}");
+        output.WriteLine($"PCM8679 t=355 airborne={!ac.IsOnGround} hdg={heading:F1} alt={ac.Altitude:F0} nextfix={nextFix}");
 
         // OAK 28L runway heading is ~291° true (the NUEVO8 VD/VM legs fly runway heading, 278° mag).
         // Pre-fix the aircraft turned ~77° left to ~211° true, navigating direct to SAPLY.
         Assert.True(
             heading is > 255.0 and < 325.0,
-            $"PCM8679 was heading {heading:F0}° true at t=340 — expected to fly the NUEVO8 runway heading "
+            $"PCM8679 was heading {heading:F0}° true at t=355 — expected to fly the NUEVO8 runway heading "
                 + $"(~291° true) off 28L, not turn direct to SAPLY (~211° true). nextfix={nextFix}"
         );
     }

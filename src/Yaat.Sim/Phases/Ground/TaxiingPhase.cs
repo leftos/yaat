@@ -124,16 +124,11 @@ public sealed class TaxiingPhase : Phase
 
         if (ctx.Aircraft.Ground.IsImmobile)
         {
-            // Pin the target, not just the indicated speed: the navigator is skipped while held, so
-            // whatever TargetSpeed it last wrote would otherwise stay live and generic physics would
-            // re-accelerate toward it every sub-tick, fighting the decrement below (issue #407 — two
-            // "held" aircraft kept taxiing into a head-on).
+            // Pin the target: the navigator is skipped while held, so whatever TargetSpeed it last wrote
+            // would otherwise stay live and physics would keep accelerating toward it every sub-tick
+            // (issue #407 — two "held" aircraft kept taxiing into a head-on). Physics brakes toward the
+            // pinned target at the ground decel rate.
             ctx.Targets.TargetSpeed = 0;
-            ctx.Targets.DesiredDecelRate = CategoryPerformance.TaxiDecelRate(ctx.Category);
-            ctx.Aircraft.IndicatedAirspeed = Math.Max(
-                0,
-                ctx.Aircraft.IndicatedAirspeed - CategoryPerformance.TaxiDecelRate(ctx.Category) * ctx.DeltaSeconds
-            );
             return false;
         }
 
@@ -187,9 +182,10 @@ public sealed class TaxiingPhase : Phase
     {
         Log.LogDebug("[Taxi] {Callsign}: OnEnd ({Status})", ctx.Aircraft.Callsign, endStatus);
 
-        // The hold branch pins DesiredDecelRate to the taxi braking rate; ControlTargets
-        // persist across phases, so clear it here or every later airborne deceleration
-        // (descents, approach speed reductions) would brake at ground rates.
+        // GroundNavigator republishes DesiredDecelRate every tick (null when it has no override), so a
+        // running taxi never inherits a stale rate. Clearing on exit is what keeps a rate from crossing
+        // the phase boundary: ControlTargets persist, so a phase that publishes no rate of its own —
+        // an airborne descent, an approach speed reduction — would otherwise brake at ground rates.
         ctx.Targets.DesiredDecelRate = null;
 
         // Completing into a moving runway crossing: keep rolling — the CrossingRunwayPhase
@@ -513,10 +509,8 @@ public sealed class TaxiingPhase : Phase
     {
         if (ctx.Aircraft.IndicatedAirspeed > StartNodeHoldArmSpeedKts)
         {
-            ctx.Aircraft.IndicatedAirspeed = Math.Max(
-                0,
-                ctx.Aircraft.IndicatedAirspeed - CategoryPerformance.TaxiDecelRate(ctx.Category) * ctx.DeltaSeconds
-            );
+            // Physics brakes toward the pinned target at the ground decel rate.
+            ctx.Targets.TargetSpeed = 0;
             return false;
         }
 

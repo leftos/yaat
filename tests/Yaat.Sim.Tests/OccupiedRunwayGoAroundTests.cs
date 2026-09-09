@@ -81,6 +81,15 @@ public class OccupiedRunwayGoAroundTests
             ac.Phases = new PhaseList { AssignedRunway = Runway };
             ac.Phases.Add(phase);
             ac.Phases.CurrentPhase!.Status = PhaseStatus.Active;
+
+            // The sim never carries a rolling TakeoffPhase with a zero roll clock: OnStart seeds it from
+            // the speed the roll enters at, and every predictor reads that clock through
+            // GroundRollProfile.RollClockSeconds. Seed it here too, or an occupant rolling at 100 kt is
+            // projected as though it had just released the brakes.
+            if (phase is TakeoffPhase takeoff)
+            {
+                takeoff.SeedRollClockIfUnset(ac, AircraftCategorization.Categorize(type));
+            }
         }
 
         return ac;

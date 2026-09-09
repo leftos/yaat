@@ -47,8 +47,15 @@ public class Issue315LuawAfterCrossingTests(ITestOutputHelper output)
     /// <summary>Callsign for the synthetic (non-recording) crossing-exit terminus case below.</summary>
     private const string SyntheticCallsign = "SKW9316";
 
-    /// <summary>Recording time at which SKW5237 is stopped on the 28R hold line, before the LUAW at t=624.</summary>
-    private const int Skw5237HoldingTime = 620;
+    /// <summary>
+    /// Recording time at which SKW5237 is stopped on the 28R hold line, before the LUAW at t=624.
+    /// Measured: the 28L crossing ends at t=619 and the taxi on to the 28R bar brakes to a stop at t=624
+    /// (1.5 ft short of the planned stop point, itself 53 ft short of the painted bar) — the recorded LUAW
+    /// lands in that same second and the line-up starts moving at t=625, so t=624 is the one second the
+    /// aircraft is stopped and holding short. Physics owns taxi speed at 1.0 kt/s accel / 5 kt/s brake, so
+    /// the arrival is 4 s later than the t=620 this used to sample.
+    /// </summary>
+    private const int Skw5237HoldingTime = 624;
 
     /// <summary>Recording time just past the LUAW at t=624. Ticking beyond t=666 would replay the controller's panic re-taxi.</summary>
     private const int Skw5237PostLuawTime = 630;

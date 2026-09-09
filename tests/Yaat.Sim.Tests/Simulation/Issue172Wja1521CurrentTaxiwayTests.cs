@@ -73,7 +73,9 @@ public class Issue172Wja1521CurrentTaxiwayTests(ITestOutputHelper output)
         int stalledSeconds = 0;
         bool arrived = false;
         var prev = start;
-        for (int t = 0; t < 120; t++)
+        // WJA1521 parks at spot 2 after 147 s of taxi under the physics taxi rates (measured); a 200 s
+        // window keeps ~35% headroom over the arrival.
+        for (int t = 0; t < 200; t++)
         {
             engine.TickOneSecond();
             var ac = engine.FindAircraft("WJA1521");

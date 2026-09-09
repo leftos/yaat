@@ -16,7 +16,10 @@ namespace Yaat.Sim.Tests.Helpers;
 /// optimalDistFt   = sum of segment.DistanceNm × FeetPerNm
 /// optimalTurnDeg  = sum of (|arr - dep| within each segment) + (|dep[i+1] - arr[i]| at each join)
 /// optimalTimeSec  = sum_segments(distance / min(nominalKts, segMaxSafeSpeed)) -- arc-aware
-/// timeBudgetSec   = optimalTimeSec × TimeFudgeMultiplier + cornerCount × SecondsPerCorner + StartupOverheadSec
+/// timeBudgetSec   = optimalTimeSec × TimeFudgeMultiplier + cornerCount × SecondsPerCorner(cat) + StartupOverheadSec(cat)
+/// cornerCount     = joins > 30° + arc segments sweeping > 30°
+/// StartupOverheadSec(cat) = TaxiSpeed(cat) / TaxiAccelRate(cat)
+/// SecondsPerCorner(cat)   = (TaxiSpeed(cat) - TaxiCornerSpeed(cat)) × (1/TaxiAccelRate(cat) + 1/TaxiDecelRate(cat))
 /// turnBudgetDeg   = optimalTurnDeg + segCount × PerSegmentTurnOverheadDeg + TurnSlackDeg
 /// </code>
 ///
@@ -52,19 +55,32 @@ internal static class TaxiBudgetDeriver
     // their curvature speed (a jet creeps a sharp ramp fillet at ~5 kt), so real taxi runs meaningfully
     // slower than a full-nominal-speed optimum — especially through corner-dense ramp routes. The
     // optimalTimeSec floor is arc-aware (per-segment MaxSafeSpeedKts) but still assumes nominal speed on
-    // straights, so the corner approach/exit slowdown is absorbed by these overheads. The orbit
-    // invariant (ThrowOnOrbit, 360° net turn on one segment) remains the real spin guard.
+    // straights and a standing start that is already at speed, so the corner and startup slowdowns are
+    // absorbed by the two derived overheads below — both computed from the physics constants themselves,
+    // so a change to a taxi accel/decel rate moves the budget with the sim rather than needing a re-tune.
+    // The orbit invariant (ThrowOnOrbit, 360° net turn on one segment) remains the real spin guard.
     public const double TimeFudgeMultiplier = 2.0;
-    public const double SecondsPerCorner = 10.0;
 
     /// <summary>
-    /// Constant startup overhead added to every time budget. Covers the
-    /// parking-exit acceleration from gs=0 plus any initial slow-turn
-    /// synthesis the navigator emits before settling into nominal taxi speed.
-    /// Without this, very short routes (~300-500ft) under-budget because the
-    /// distance/speed formula assumes the aircraft is already at TaxiSpeed.
+    /// Time a corner costs over cruising through it, derived from the same constants physics integrates:
+    /// braking from nominal taxi speed down to the corner speed and regaining nominal afterwards, i.e.
+    /// <c>(TaxiSpeed - TaxiCornerSpeed) × (1/TaxiAccelRate + 1/TaxiDecelRate)</c>. Jet:
+    /// (30 - 15) × (1/1.0 + 1/5) = 15 × 1.2 = 18 s. Same <c>1/d + 1/a</c> form the pathfinder's own corner
+    /// cost uses (<c>RouteCostFunction.SpeedDipSeconds</c>). Deriving it keeps the budget following the
+    /// physics constants instead of needing a hand re-tune whenever a taxi rate moves.
     /// </summary>
-    public const double StartupOverheadSec = 15.0;
+    public static double SecondsPerCorner(AircraftCategory cat) =>
+        (CategoryPerformance.TaxiSpeed(cat) - CategoryPerformance.TaxiCornerSpeed(cat))
+        * ((1.0 / CategoryPerformance.TaxiAccelRate(cat)) + (1.0 / CategoryPerformance.TaxiDecelRate(cat)));
+
+    /// <summary>
+    /// Startup overhead added to every time budget: the 0 → nominal-taxi-speed run the distance/speed
+    /// formula assumes is free, <c>TaxiSpeed(cat) / TaxiAccelRate(cat)</c> (jet: 30 / 1.0 = 30 s). Covers
+    /// the parking-exit acceleration from gs=0 plus any initial slow-turn synthesis the navigator emits
+    /// before settling into nominal taxi speed. Without it, very short routes (~300-500ft) under-budget
+    /// because the distance/speed formula assumes the aircraft is already at TaxiSpeed.
+    /// </summary>
+    public static double StartupOverheadSec(AircraftCategory cat) => CategoryPerformance.TaxiSpeed(cat) / CategoryPerformance.TaxiAccelRate(cat);
 
     /// <summary>
     /// Per-segment cumulative-turn overhead added to the budget. Empirically
@@ -119,6 +135,14 @@ internal static class TaxiBudgetDeriver
             double intra = Math.Abs((((arr - dep) + 540.0) % 360.0) - 180.0);
             optimalTurnDeg += intra;
 
+            // A turn costs the same brake-and-regain time whether the graph models it as a join between two
+            // straight edges or as a single fillet arc that sweeps the heading along its length. On the fillet
+            // graph most >30° turns happen inside an arc, so counting joins alone leaves cornerCount at 0.
+            if (intra > CornerAngleDeg)
+            {
+                cornerCount++;
+            }
+
             if (prevArrivalBrg is { } prev)
             {
                 double join = Math.Abs((((dep - prev) + 540.0) % 360.0) - 180.0);
@@ -132,7 +156,7 @@ internal static class TaxiBudgetDeriver
             prevArrivalBrg = arr;
         }
 
-        double timeBudgetSec = (optimalTimeSec * TimeFudgeMultiplier) + (cornerCount * SecondsPerCorner) + StartupOverheadSec;
+        double timeBudgetSec = (optimalTimeSec * TimeFudgeMultiplier) + (cornerCount * SecondsPerCorner(category)) + StartupOverheadSec(category);
         double turnBudgetDeg = optimalTurnDeg + (route.Segments.Count * PerSegmentTurnOverheadDeg) + TurnSlackDeg;
 
         return new TaxiBudget(optimalDistFt, optimalTurnDeg, cornerCount, optimalTimeSec, timeBudgetSec, turnBudgetDeg, route);

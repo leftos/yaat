@@ -517,6 +517,10 @@ FlightPhysics.cs               # Static 8-step Update: navigation→descentPlan�
                                # UpdateSpeedPlanning: proactive speed look-ahead for procedure fixes (mirrors descent/climb planning)
                                # Auto speed schedule: skipped when ActiveApproach or ManagesSpeed (pattern phases)
                                # 14 CFR 91.117: 250 KIAS cap below 10,000 ft in UpdateSpeed() and ApplyFixConstraints()
+                               # UpdateSpeed: physics is the sole integrator of ground speed. SpeedChangeRate splits airborne
+                               #   AircraftPerformance accel/decel from on-ground CategoryPerformance.TaxiAccelRate/TaxiDecelRate;
+                               #   GroundNavigator only publishes TargetSpeed/DesiredDecelRate for physics to close (roll phases —
+                               #   TakeoffPhase, RunwayHoldingPhase, etc. — still write IndicatedAirspeed directly by design)
                                # Wind physics: TAS = IasToTas(IAS, alt); GS/Track derived from TAS + wind vector; WCA applied to nav
                                # ApplyFixConstraints: SID/STAR via-mode constraint enforcement at waypoints
                                # Bank angle: computed in UpdateHeading from atan(TAS × turnRate × coeff); sign follows turn direction
@@ -557,6 +561,9 @@ RunwayDepartureQueue.cs        # Static per-hold-short departure-queue ranker. U
                                # "28R@E #2" off an intersection) + Info-column "(#N)".
 AircraftPerformance.cs         # Unified perf API: profile-first with category fallback. Altitude-banded
                                # climb/descent rates, Mach-aware speeds, 91.117 waiver support
+GroundRollProfile.cs           # GroundRollProfile: the takeoff-roll spool ramp (idle → steady accel over the category's spool time) with
+                               # closed forms SpeedAt/DistanceKtSecondsAt/TimeAtSpeed/TimeToCoverKtSeconds; the roll phases integrate it
+                               # and every roll predictor (WillBeFlying, PrecedingDepartureBlock, RejectedTakeoff) projects on it.
 GroundConflictDetector.cs      # Static pairwise ground proximity → SpeedLimit overrides. Runway priority via RunwayOccupancy.ClassifyByPhase;
                                # live-traffic shadows = MovementState.External (obstacle, never subject; Ground.ExternalOnRunway by geometry).
                                # Single-pass pair classifier (SameEdgeTrailing/SameEdgeHeadOn/
@@ -564,8 +571,9 @@ GroundConflictDetector.cs      # Static pairwise ground proximity → SpeedLimit
                                # (HoldPosition or GiveWay) via IsImmobile + speed gate for
                                # parked-obstacle classification. Stationary-named phases
                                # (LineUpPhase, HoldingInPositionPhase) only count as Stationary
-                               # while GroundSpeed < HeldStationarySpeedKts, so rolling
-                               # LineUpPhase aircraft don't skip conflict checking (#409).
+                               # while IsAtRest (GroundSpeed < HeldStationarySpeedKts AND no positive
+                               # TargetSpeed), so rolling or pinned-but-commanding LineUpPhase aircraft
+                               # don't skip conflict checking (#409).
                                # Every close-range conflict resolves one-holds-one-goes
                                # (deterministic holder, never both stopped), incl.
                                # converging-merge arbitration. DebugSink logs the specific hold
@@ -1036,7 +1044,9 @@ HoldShortAnnotator.cs          # Annotate hold-short points on taxi routes; Comp
 RunwayCrossingEnd.cs           # Which end of a crossed runway to name (nearest threshold) from a bar's combined "28R/10L" target — the pilot's hold-short report and the AI's CROSS agree
 
 # Data/
-AircraftProfile.cs             # Per-type performance profile record (from AircraftProfiles.json)
+AircraftProfile.cs             # Per-type performance profile record (from AircraftProfiles.json). GroundAccelRate is nullable —
+                               # the bulk BADA-derived data has no such field, so it's set for only a handful of hand-checked
+                               # types (fighters, P3); null falls back to the category rate (AircraftPerformance.GroundAccelRate)
 AircraftProfileDatabase.cs     # Static lookup: Get → merged AircraftProfile?; Initialize(base, overrides), IsOverridden
 AircraftProfiles.json          # ATCTrainer per-type perf data: altitude-banded climb/descent, Mach speeds
 AircraftProfileOverride.cs     # Nullable partial-override DTO + ApplyTo merge (authoritative per-type corrections)

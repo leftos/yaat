@@ -615,6 +615,22 @@ public sealed class LineUpPhase : Phase
         double distToStopNm = GeoMath.DistanceNm(ctx.Aircraft.Position, new LatLon(plan.RolloutToLat, plan.RolloutToLon));
         double distToStopFt = distToStopNm * GeoMath.FeetPerNm;
 
+        // Per-sub-tick trace of the inputs a stalled rollout is judged on: the speed physics is integrating,
+        // the target as of tick entry (this tick's is published below), and the distance still to run.
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[LineUp] {Callsign}: Rollout tick (rolling={Rolling}, ias={Ias:F2}kt, targetIn={TargetIn}, distToStop={D:F1}ft, len={Len:F1}ft, limit={Limit})",
+                ctx.Aircraft.Callsign,
+                RollingMode,
+                ctx.Aircraft.IndicatedAirspeed,
+                ctx.Targets.TargetSpeed,
+                distToStopFt,
+                plan.RolloutLengthFt,
+                ctx.Aircraft.Ground.SpeedLimit
+            );
+        }
+
         if (RollingMode)
         {
             // Hold cruise speed through the rollout; hand off to TakeoffPhase

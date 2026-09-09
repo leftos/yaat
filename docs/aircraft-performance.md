@@ -96,7 +96,7 @@ misses instead of a clear error.
 All fields are nullable. The full set mirrors `AircraftProfile`:
 
 `isProp`, `isHelo`, `isHeavy`, `isSpeedLimitWaived`, `airborneAccelRate`, `airborneDecelRate`,
-`groundAccelRate`, `takeoffDistance`, `rotateSpeed`, `climbSpeedInitial`,
+`groundAccelRate` (also optional in the *bulk* profile: BADA has no such field, so the category value applies unless a type was hand-checked — only F15/F16/F18/F22 and P3 carry one; note the spool ramp's idle rate and spool time are per *category* (`GroundRollProfile.For`), so a per-type steady rate cannot express a brakes-held static takeoff with thrust set before brake release — the fighters ramp 1.0 → 10 kt/s over 5 s like a rolling takeoff), `takeoffDistance`, `rotateSpeed`, `climbSpeedInitial`,
 `climbSpeedFl150`, `climbSpeedFl240`, `climbSpeedFinal`, `climbRateInitial`, `climbRateFl150`,
 `climbRateFl240`, `climbRateFinal`, `cruiseSpeed`, `cruiseAltitude`, `ceiling`, `descentSpeedInitial`,
 `descentSpeedFl100`, `initialApproachSpeed`, `descentRateInitial`, `descentRateFl100`,

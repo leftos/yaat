@@ -245,19 +245,21 @@ public class SfoM2MultiTurnTaxiTests(ITestOutputHelper output)
         //     corner, or the synthesis was skipped and physics drove through
         //     the corner at cruise speed.
         //
-        //   * Upper bound (<= 75 s): before the slow-turn-synthesis fix
+        //   * Upper bound (<= 120 s): before the slow-turn-synthesis fix
         //     (PlanSynthesisLookahead), the aircraft would orbit node 877
-        //     for 30+ s after overshooting the 90° bend at node 507 — total
-        //     taxi time was 80+ s. Capping at 75 s catches any regression
-        //     that reintroduces the spiral or removes the synthesis.
+        //     for 30+ s after overshooting the 90 deg bend at node 507. The
+        //     clean route now measures 90 s - physics owns taxi speed, so the
+        //     standing start and both corner slowdowns are flown at 1.0 kt/s
+        //     accel - and 120 s keeps the same ~1/3 headroom the old 75 s
+        //     bound had, still well under a spiral.
         int taxiDuration = lineUpAt - taxiStartedAt;
         Assert.True(
             taxiDuration >= 30,
             $"taxi should take at least 30 s for the M2 → A → A1 route (catch shortcut/corner-cutting); got {taxiDuration} s"
         );
         Assert.True(
-            taxiDuration <= 75,
-            $"taxi should complete within 75 s for the M2 → A → A1 route (catch spiral regression at node 507); got {taxiDuration} s"
+            taxiDuration <= 120,
+            $"taxi should complete within 120 s for the M2 -> A -> A1 route (catch spiral regression at node 507); got {taxiDuration} s"
         );
     }
 }
@@ -267,7 +269,7 @@ public class SfoM2MultiTurnTaxiTests(ITestOutputHelper output)
 /// straight M2 between the B-crossing (J159) and the A-crossing (J92) — shorter than the tangent length
 /// needed to round at the nose-wheel radius. The entry-alignment slow-turn must still exit on the A
 /// centerline so pure-pursuit doesn't limit-cycle (orbit the corner for ~45 s). Asserts the M2 → A → A1
-/// taxi completes within the 75 s budget. Runs in the parallelization-disabled "Acceptance" collection.
+/// taxi completes within the 120 s budget. Runs in the parallelization-disabled "Acceptance" collection.
 /// </summary>
 [Collection("Acceptance")]
 public class SfoM2MultiTurnAcceptanceTests(ITestOutputHelper output)
@@ -337,9 +339,11 @@ public class SfoM2MultiTurnAcceptanceTests(ITestOutputHelper output)
 
         Assert.True(taxiStartedAt > 0, "aircraft should enter Taxiing after the preset TAXI fires");
         Assert.True(lineUpAt > 0, "aircraft should reach LiningUp after traversing M2 → A → A1");
+        // 90 s measured under the physics taxi rates (1.0 kt/s accel, corner slowdowns); 120 s keeps the
+        // same ~1/3 headroom the old 75 s bound had over the pre-physics timing.
         Assert.True(
-            taxiDuration <= 75,
-            $"M2 → A → A1 taxi should complete within 75 s (no pure-pursuit spin at the M2→A corner); got {taxiDuration} s"
+            taxiDuration <= 120,
+            $"M2 -> A -> A1 taxi should complete within 120 s (no pure-pursuit spin at the M2->A corner); got {taxiDuration} s"
         );
     }
 }

@@ -61,7 +61,10 @@ public sealed class RunwayHoldingPhase : Phase
 
     public override bool OnTick(PhaseContext ctx)
     {
+        // Physics owns ground speed, so a hold re-publishes its zero target every tick: a stale nonzero
+        // TargetSpeed left by an earlier phase would have the integrator accelerating against the pin.
         ctx.Aircraft.IndicatedAirspeed = 0;
+        ctx.Targets.TargetSpeed = 0;
 
         foreach (var req in Requirements)
         {

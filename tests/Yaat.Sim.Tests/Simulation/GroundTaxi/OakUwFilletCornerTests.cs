@@ -24,8 +24,12 @@ public class OakUwFilletCornerTests(ITestOutputHelper output)
     /// <summary>The taxi route is resolved when the preset WAIT expires (t≈235 in the recording).</summary>
     private const int RouteResolvedBySeconds = 240;
 
-    /// <summary>SWA2600 has cleared the U/W corner and is on W well before this.</summary>
-    private const int CornerWindowEndSeconds = 330;
+    /// <summary>
+    /// SWA2600 has cleared the U/W corner and is on W well before this. Measured with physics-owned taxi
+    /// speed: the arc is entered at t=332, its exit node is reached at t=341, and the last corner-window
+    /// sample (one segment past the arc) falls at t=374 - so 420 covers the whole corner with headroom.
+    /// </summary>
+    private const int CornerWindowEndSeconds = 420;
 
     /// <summary>Well above the 3 kt nose-wheel pivot, below the fillet's ~9 kt arc speed for a jet.</summary>
     private const double MinCornerSpeedKts = 6.0;

@@ -144,18 +144,23 @@ internal static class PrecedingDepartureBlock
     /// <summary>
     /// Along-runway distance (ft) the aircraft covers in <paramref name="seconds"/> at its present
     /// ground speed and acceleration, held between a stop and its liftoff ground speed — past
-    /// rotation it is flying, not running, and a braking aircraft does not roll backwards.
+    /// rotation it is flying, not running, and a braking aircraft does not roll backwards. The
+    /// acceleration follows the roll's own spool ramp, entered at the rolling phase's own clock (or,
+    /// with no such phase, at the point the present speed implies), so a standstill departure is
+    /// projected on idle thrust rather than takeoff thrust.
     /// </summary>
     private static double ProjectedGroundRunFt(AircraftState aircraft, double seconds)
     {
         double speedKts = aircraft.GroundSpeed;
-        double accel = AccelerationKtPerSec(aircraft);
+        var profile = RollProfile(aircraft);
+        double accel = profile.SteadyRateKtPerSec;
         double capKts = Math.Max(speedKts, LiftoffGroundSpeedKts(aircraft));
 
         if (accel > 0)
         {
-            double toCapSeconds = Math.Min(seconds, (capKts - speedKts) / accel);
-            double acceleratingKtSeconds = (speedKts * toCapSeconds) + (0.5 * accel * toCapSeconds * toCapSeconds);
+            double rollElapsed = GroundRollProfile.RollClockSeconds(aircraft, profile);
+            double toCapSeconds = Math.Min(seconds, profile.TimeAtSpeed(capKts) - rollElapsed);
+            double acceleratingKtSeconds = profile.DistanceKtSecondsAt(rollElapsed + toCapSeconds) - profile.DistanceKtSecondsAt(rollElapsed);
             return (acceleratingKtSeconds + (capKts * (seconds - toCapSeconds))) * KtSecondsToFt;
         }
 
@@ -164,14 +169,17 @@ internal static class PrecedingDepartureBlock
     }
 
     /// <summary>
-    /// Ground acceleration (kt/s): the measured value (feed history — negative for a braking shadow)
-    /// wins over the type's, as in <see cref="SameRunwaySeparation.WillBeFlying"/>. A simulated
-    /// rejected takeoff never arrives here: <see cref="RunwayOccupancy.Classify"/> reads
-    /// <see cref="RejectedTakeoffPhase"/> as OnSurface, which blocks outright.
+    /// The acceleration profile to project with: the measured value (feed history — negative for a
+    /// braking shadow) wins over the type's spool ramp, as in
+    /// <see cref="SameRunwaySeparation.WillBeFlying"/>, and never ramps — a shadow's history already
+    /// carries whatever thrust the real aircraft has set. A simulated rejected takeoff never arrives
+    /// here: <see cref="RunwayOccupancy.Classify"/> reads <see cref="RejectedTakeoffPhase"/> as
+    /// OnSurface, which blocks outright.
     /// </summary>
-    private static double AccelerationKtPerSec(AircraftState aircraft) =>
-        RunwayOccupancy.GroundAccelerationKtPerSec(aircraft)
-        ?? AircraftPerformance.GroundAccelRate(aircraft.AircraftType, AircraftCategorization.Categorize(aircraft.AircraftType));
+    private static GroundRollProfile RollProfile(AircraftState aircraft) =>
+        RunwayOccupancy.GroundAccelerationKtPerSec(aircraft) is { } measured
+            ? GroundRollProfile.Constant(measured)
+            : GroundRollProfile.For(aircraft.AircraftType, AircraftCategorization.Categorize(aircraft.AircraftType));
 
     /// <summary>Vr in the ground frame (TAS at field altitude minus the headwind) — the speed at which the ground run ends.</summary>
     private static double LiftoffGroundSpeedKts(AircraftState aircraft)

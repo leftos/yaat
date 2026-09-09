@@ -458,7 +458,12 @@ public class OnTheGoConditionTests(ITestOutputHelper output)
             var otg = engine.SendCommand(Callsign, "OTG MLT 01L 015");
             Assert.True(otg.Success, $"OTG MLT 01L 015 was refused at issue: {otg.Message}");
 
-            for (int t = 1; (t <= MaxTicks) && (warnings.Count == 0); t++)
+            // The refusal fires on the climb-out: from the t=890 snapshot the touch-and-go ends and
+            // the upwind starts 44 ticks in (t=934), and the block is refused on that same tick. The
+            // count is pinned rather than stopping at the first warning of any kind — N152SP's
+            // "holding short runway 28R at B" call arrives at tick 42 and would end the loop two
+            // ticks early.
+            for (int t = 1; t <= 44; t++)
             {
                 engine.TickOneSecond();
             }

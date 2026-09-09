@@ -7,10 +7,13 @@ namespace Yaat.Sim.Phases.Tower;
 /// <summary>
 /// Touch-and-go: brief rollout after touchdown, then reaccelerate and take off.
 /// Rollout duration is category-dependent (Jet 10s, Turboprop 8s, Piston 6s).
-/// After rollout, reaccelerates using GroundAccelRate to Vr, then lifts off.
+/// After rollout, reaccelerates along the <see cref="GroundRollProfile"/> spool ramp to Vr — idle-thrust
+/// acceleration as the power comes up, rising to the type's steady rate — then lifts off.
+/// The roll clock starts at zero from the rollout speed rather than being seeded from it: the engines
+/// were at idle at touchdown, so the whole spool still lies ahead however fast the aircraft is rolling.
 /// Completes at 400ft AGL (same as TakeoffPhase).
 /// </summary>
-public sealed class TouchAndGoPhase : Phase
+public sealed class TouchAndGoPhase : Phase, IGroundRollClock
 {
     private static readonly ILogger Log = SimLog.CreateLogger("TouchAndGoPhase");
 
@@ -26,8 +29,12 @@ public sealed class TouchAndGoPhase : Phase
     private double _rolloutElapsed;
     private bool _reaccelerating;
     private bool _airborne;
+    private double _rollElapsedSeconds;
 
     public override string Name => "TouchAndGo";
+
+    /// <inheritdoc />
+    public double RollElapsedSeconds => _rollElapsedSeconds;
 
     public override PhaseDto ToSnapshot() =>
         new TouchAndGoPhaseDto
@@ -43,6 +50,7 @@ public sealed class TouchAndGoPhase : Phase
             RolloutElapsed = _rolloutElapsed,
             Reaccelerating = _reaccelerating,
             Airborne = _airborne,
+            RollElapsedSeconds = _rollElapsedSeconds,
         };
 
     public static TouchAndGoPhase FromSnapshot(TouchAndGoPhaseDto dto)
@@ -59,6 +67,7 @@ public sealed class TouchAndGoPhase : Phase
         phase._rolloutElapsed = dto.RolloutElapsed;
         phase._reaccelerating = dto.Reaccelerating;
         phase._airborne = dto.Airborne;
+        phase._rollElapsedSeconds = dto.RollElapsedSeconds;
         return phase;
     }
 
@@ -122,11 +131,16 @@ public sealed class TouchAndGoPhase : Phase
         if (_reaccelerating && !_airborne)
         {
             double vr = AircraftPerformance.RotationSpeed(ctx.AircraftType, ctx.Category);
-            double accelRate = AircraftPerformance.GroundAccelRate(ctx.AircraftType, ctx.Category);
+            var profile = GroundRollProfile.For(ctx.AircraftType, ctx.Category);
 
             // Ground-frame roll: integrate groundspeed, gate rotation on the indicated
-            // airspeed it implies (headwind + density corrected).
-            double groundSpeed = ctx.Aircraft.IndicatedAirspeed + (accelRate * ctx.DeltaSeconds);
+            // airspeed it implies (headwind + density corrected). The increment is the spool
+            // ramp's own gain over this sub-tick, clocked from the moment the power came up —
+            // its own counter, not the rollout's.
+            double rollStartSeconds = _rollElapsedSeconds;
+            _rollElapsedSeconds += ctx.DeltaSeconds;
+            double increment = profile.SpeedAt(_rollElapsedSeconds) - profile.SpeedAt(rollStartSeconds);
+            double groundSpeed = ctx.Aircraft.IndicatedAirspeed + increment;
             ctx.Targets.TargetSpeed = null;
 
             if (GroundFrame.IasForGroundSpeed(ctx.Aircraft, groundSpeed) >= vr)

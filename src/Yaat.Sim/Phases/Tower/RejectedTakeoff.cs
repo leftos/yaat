@@ -70,11 +70,12 @@ internal static class RejectedTakeoff
     /// <summary>
     /// Rejects (or, from a standstill, declines) the takeoff when a blocking occupant sits on the
     /// runway ahead and doctrine says stop. Called from <see cref="TakeoffPhase"/> each
-    /// ground-roll tick; gated by the session setting. Helicopters never auto-reject (no rolling
-    /// takeoff, Vr = 0 degenerates the whole decision) and live-traffic shadows are feed-driven.
-    /// Returns true when the takeoff phase is over (reject installed or clearance declined).
+    /// ground-roll tick with the roll clock it has flown so far; gated by the session setting.
+    /// Helicopters never auto-reject (no rolling takeoff, Vr = 0 degenerates the whole decision) and
+    /// live-traffic shadows are feed-driven. Returns true when the takeoff phase is over (reject
+    /// installed or clearance declined).
     /// </summary>
-    public static bool TryTrigger(PhaseContext ctx)
+    public static bool TryTrigger(PhaseContext ctx, double rollElapsedSeconds)
     {
         var dep = ctx.Aircraft;
         if ((!ctx.AutoRejectTakeoffOnOccupiedRunway) || (ctx.ListAircraft is null) || (ctx.Category == AircraftCategory.Helicopter) || (dep.IsShadow))
@@ -112,7 +113,7 @@ internal static class RejectedTakeoff
                 distanceFt
             );
             Route(ctx, Pilot.PilotResponder.BuildUnable(dep, "traffic on the runway"));
-            Install(ctx);
+            Install(ctx, rollElapsedSeconds);
             return true;
         }
 
@@ -125,7 +126,7 @@ internal static class RejectedTakeoff
             dep.GroundSpeed
         );
         Route(ctx, Pilot.PilotResponder.BuildRejectingTakeoffTrafficOnRunway(dep));
-        var phase = Install(ctx);
+        var phase = Install(ctx, rollElapsedSeconds);
         if (phase is not null)
         {
             phase.AutoTriggered = true;
@@ -225,37 +226,40 @@ internal static class RejectedTakeoff
 
     /// <summary>
     /// The departure will be past its liftoff point by more than the category's climb margin
-    /// before reaching the occupant: distance to reach Vr (ground frame, v_f² = v_i² + 2ad) plus
-    /// <see cref="CategoryPerformance.RejectedTakeoffOverflyMarginFt"/> fits inside
-    /// <paramref name="effectiveDistanceFt"/>.
+    /// before reaching the occupant: the remaining distance to reach Vr (ground frame, along the
+    /// roll's spool ramp) plus <see cref="CategoryPerformance.RejectedTakeoffOverflyMarginFt"/>
+    /// fits inside <paramref name="effectiveDistanceFt"/>.
     /// </summary>
     public static bool CanOverfly(AircraftState departure, AircraftCategory cat, double effectiveDistanceFt)
     {
         double vr = AircraftPerformance.RotationSpeed(departure.AircraftType, cat);
-        double accel = AircraftPerformance.GroundAccelRate(departure.AircraftType, cat);
-        if ((accel <= 0) || (vr <= 0))
+        var profile = GroundRollProfile.For(departure.AircraftType, cat);
+        if ((profile.SteadyRateKtPerSec <= 0) || (vr <= 0))
         {
             return false;
         }
 
         // Liftoff happens at Vr indicated; the roll integrates groundspeed, so convert the Vr
-        // endpoint into the ground frame (TAS at field altitude minus headwind).
+        // endpoint into the ground frame (TAS at field altitude minus headwind). Both endpoints
+        // are placed on the ramp by the speed they represent.
         double gs = departure.GroundSpeed;
         double gsAtVr = Math.Max(gs, WindInterpolator.IasToTas(vr, departure.Altitude) - departure.HeadwindKts);
-        double liftDistanceFt = ((gsAtVr * gsAtVr) - (gs * gs)) / (2.0 * accel) * KtSecondsToFt;
-        return (liftDistanceFt + CategoryPerformance.RejectedTakeoffOverflyMarginFt(cat)) <= effectiveDistanceFt;
+        double rollElapsed = GroundRollProfile.RollClockSeconds(departure, profile);
+        double liftKtSeconds = profile.DistanceKtSecondsAt(profile.TimeAtSpeed(gsAtVr)) - profile.DistanceKtSecondsAt(rollElapsed);
+        return ((liftKtSeconds * KtSecondsToFt) + CategoryPerformance.RejectedTakeoffOverflyMarginFt(cat)) <= effectiveDistanceFt;
     }
 
     /// <summary>
     /// Whether a reject started now stops inside <paramref name="effectiveDistanceFt"/>: the
-    /// reaction window's continued acceleration plus the max-effort braking run (v²/2a).
+    /// reaction window's continued acceleration (along the roll's spool ramp) plus the max-effort
+    /// braking run (v²/2a).
     /// </summary>
     public static bool CanStopShort(AircraftState departure, AircraftCategory cat, double effectiveDistanceFt)
     {
-        double accel = AircraftPerformance.GroundAccelRate(departure.AircraftType, cat);
-        double gs = departure.GroundSpeed;
-        double gsAfterReaction = gs + Math.Max(0, accel) * ReactionSeconds;
-        double reactionFt = (gs + gsAfterReaction) / 2.0 * ReactionSeconds * KtSecondsToFt;
+        var profile = GroundRollProfile.For(departure.AircraftType, cat);
+        double rollElapsed = GroundRollProfile.RollClockSeconds(departure, profile);
+        double gsAfterReaction = profile.SpeedAt(rollElapsed + ReactionSeconds);
+        double reactionFt = (profile.DistanceKtSecondsAt(rollElapsed + ReactionSeconds) - profile.DistanceKtSecondsAt(rollElapsed)) * KtSecondsToFt;
         double decel = Math.Max(CategoryPerformance.RejectedTakeoffDecelRate(cat), 1.0);
         double brakeFt = (gsAfterReaction * gsAfterReaction) / (2.0 * decel) * KtSecondsToFt;
         return (reactionFt + brakeFt) <= effectiveDistanceFt;
@@ -328,9 +332,11 @@ internal static class RejectedTakeoff
     /// standstill (below <see cref="RollUnderwayMinKts"/>) skips the braking phase and holds
     /// where it is. The takeoff clearance is spent either way: a fresh CTO (or LUAW, then CTO)
     /// is required for another attempt. Shared by the automatic trigger and the CTOC handler;
-    /// returns the braking phase, or null for the standstill hold.
+    /// returns the braking phase, or null for the standstill hold. <paramref name="rollElapsedSeconds"/>
+    /// is the roll clock of the <see cref="TakeoffPhase"/> being interrupted, carried into the braking
+    /// phase so its reaction window keeps accelerating on the same spool ramp the roll was flying.
     /// </summary>
-    public static RejectedTakeoffPhase? Install(PhaseContext ctx)
+    public static RejectedTakeoffPhase? Install(PhaseContext ctx, double rollElapsedSeconds)
     {
         var dep = ctx.Aircraft;
         if (dep.Phases is null)
@@ -350,7 +356,7 @@ internal static class RejectedTakeoff
             return null;
         }
 
-        var reject = new RejectedTakeoffPhase();
+        var reject = new RejectedTakeoffPhase(rollElapsedSeconds);
         dep.Phases.ReplaceUpcoming([reject, new HoldingInPositionPhase()]);
         dep.Phases.AdvanceToNext(ctx);
         FlightPhysics.NotifyPhaseAdvanced(dep);
@@ -358,20 +364,14 @@ internal static class RejectedTakeoff
     }
 
     /// <summary>
-    /// Seconds for the departure to cover <paramref name="dFt"/> at its present groundspeed while
-    /// still accelerating at takeoff thrust (d = v·t + ½at²).
+    /// Seconds for the departure to cover <paramref name="dFt"/> while it keeps accelerating along
+    /// the roll's spool ramp: its present groundspeed places it on the ramp, and the ramp's own
+    /// distance integral says when the remaining feet are behind it.
     /// </summary>
     private static double ArrivalTimeSeconds(AircraftState departure, double dFt)
     {
-        double vFps = departure.GroundSpeed * KtSecondsToFt;
-        double aFps2 =
-            AircraftPerformance.GroundAccelRate(departure.AircraftType, AircraftCategorization.Categorize(departure.AircraftType)) * KtSecondsToFt;
-        if (aFps2 <= 0)
-        {
-            return vFps > 0 ? dFt / vFps : double.PositiveInfinity;
-        }
-
-        return (-vFps + Math.Sqrt((vFps * vFps) + (2.0 * aFps2 * dFt))) / aFps2;
+        var profile = GroundRollProfile.For(departure.AircraftType, AircraftCategorization.Categorize(departure.AircraftType));
+        return profile.TimeToCoverKtSeconds(GroundRollProfile.RollClockSeconds(departure, profile), dFt / KtSecondsToFt);
     }
 
     /// <summary>

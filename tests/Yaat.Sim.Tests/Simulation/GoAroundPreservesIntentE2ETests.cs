@@ -136,7 +136,10 @@ public class GoAroundPreservesIntentE2ETests(ITestOutputHelper output)
             return;
         }
 
-        engine.Replay(recording, 810);
+        // N436MS turns final at t=818 and the live session's auto-go-around fires at t=873 (measured), so
+        // t=830 sits inside the same pre-auto-GA window the old t=810 sample used - the circuit runs later
+        // now because the aircraft's departure taxi does.
+        engine.Replay(recording, 830);
 
         var ac = engine.FindAircraft("N436MS");
         Assert.NotNull(ac);

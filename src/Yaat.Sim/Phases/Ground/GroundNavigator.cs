@@ -69,7 +69,11 @@ public record NavTickDiag(
 /// </para>
 ///
 /// <para>
-/// Responsibilities: steer along each route segment; manage speed; detect per-segment arrival. Not
+/// Responsibilities: steer along each route segment; publish the speed the segment calls for; detect
+/// per-segment arrival. The navigator never integrates speed itself — it writes
+/// <see cref="ControlTargets.TargetSpeed"/> (and <see cref="ControlTargets.DesiredDecelRate"/> when it wants
+/// a braking rate other than the category default) and <see cref="FlightPhysics"/> closes the gap at the
+/// ground rates, so the braking curve planned here and the rate actually flown are the same number. Not
 /// responsible for: route building, hold-short insertion, phase handoff, runway assignment.
 /// </para>
 /// </summary>
@@ -902,9 +906,7 @@ public sealed class GroundNavigator
             targetSpeed = Math.Min(targetSpeed, maxSpeedForDist);
         }
 
-        ctx.Targets.TargetSpeed = ClampBySpeedLimit(ctx, targetSpeed);
-
-        AdjustSpeed(ctx, ctx.Targets.TargetSpeed ?? targetSpeed);
+        PublishSpeed(ctx, targetSpeed);
 
         PrevDistToTarget = distNm;
         UpdateDiag(ctx, distNm, bearingToSteerDeg, targetSpeed, onArc: false);
@@ -957,9 +959,7 @@ public sealed class GroundNavigator
         {
             double tang = prim.Curve.TangentBearing(_bezierT);
             ctx.Targets.TargetTrueHeading = new TrueHeading(tang);
-            double ts0 = ComputeTargetSpeed(ctx, BezierRemainingNm(prim), isHoldShortCleared);
-            ctx.Targets.TargetSpeed = ClampBySpeedLimit(ctx, ts0);
-            AdjustSpeed(ctx, ctx.Targets.TargetSpeed ?? ts0);
+            PublishSpeed(ctx, ComputeTargetSpeed(ctx, BezierRemainingNm(prim), isHoldShortCleared));
             return NavigatorResult.Navigating;
         }
 
@@ -979,8 +979,7 @@ public sealed class GroundNavigator
         // Mirror into targets so physics does not fight the closed-form state.
         ctx.Targets.TargetTrueHeading = new TrueHeading(tangentDeg);
         double targetSpeed = ComputeTargetSpeed(ctx, BezierRemainingNm(prim), isHoldShortCleared);
-        ctx.Targets.TargetSpeed = ClampBySpeedLimit(ctx, targetSpeed);
-        AdjustSpeed(ctx, ctx.Targets.TargetSpeed ?? targetSpeed);
+        PublishSpeed(ctx, targetSpeed);
 
         double distToNode = GeoMath.DistanceNm(ctx.Aircraft.Position, new LatLon(TargetLat, TargetLon));
         PrevDistToTarget = distToNode;
@@ -1034,8 +1033,7 @@ public sealed class GroundNavigator
         {
             double currentTangent = CurrentSlowTurnTangentDeg(prim);
             ctx.Targets.TargetTrueHeading = new TrueHeading(currentTangent);
-            ctx.Targets.TargetSpeed = cappedTarget;
-            AdjustSpeed(ctx, cappedTarget);
+            PublishSpeed(ctx, cappedTarget);
             return NavigatorResult.Navigating;
         }
 
@@ -1060,8 +1058,7 @@ public sealed class GroundNavigator
         // ComputeTargetSpeed braking-curve logic because SlowTurn primitives
         // don't participate in the multi-segment speed constraint system.
         ctx.Targets.TargetTrueHeading = new TrueHeading(tangentDeg);
-        ctx.Targets.TargetSpeed = cappedTarget;
-        AdjustSpeed(ctx, cappedTarget);
+        PublishSpeed(ctx, cappedTarget);
 
         double distToNode = GeoMath.DistanceNm(ctx.Aircraft.Position, new LatLon(TargetLat, TargetLon));
         PrevDistToTarget = distToNode;
@@ -1428,29 +1425,15 @@ public sealed class GroundNavigator
     }
 
     /// <summary>
-    /// Accelerate/decelerate toward <paramref name="targetSpeed"/> bounded by
-    /// the category's taxi accel/decel rates. Mirrors V1's AdjustSpeed so
-    /// physics behaviour at the straight-segment level matches.
+    /// The navigator's only speed-publishing site: physics owns ground speed, and it needs the braking
+    /// rate alongside the target or it closes the gap at the category default. Routing every tick path
+    /// through here is what stops a future site from publishing a target without its rate. Clamping is
+    /// idempotent, so a caller that already capped by the speed limit may pass the capped value.
     /// </summary>
-    private void AdjustSpeed(PhaseContext ctx, double targetSpeed)
+    private void PublishSpeed(PhaseContext ctx, double targetKts)
     {
-        targetSpeed = Math.Max(targetSpeed, MinSpeedKts);
-        if (ctx.Aircraft.Ground.SpeedLimit is { } limit)
-        {
-            targetSpeed = Math.Min(targetSpeed, limit);
-        }
-
-        double current = ctx.Aircraft.IndicatedAirspeed;
-        if (current < targetSpeed)
-        {
-            double rate = CategoryPerformance.TaxiAccelRate(ctx.Category);
-            ctx.Aircraft.IndicatedAirspeed = Math.Min(targetSpeed, current + rate * ctx.DeltaSeconds);
-        }
-        else if (current > targetSpeed)
-        {
-            double rate = CategoryPerformance.TaxiDecelRate(ctx.Category);
-            ctx.Aircraft.IndicatedAirspeed = Math.Max(targetSpeed, current - rate * ctx.DeltaSeconds);
-        }
+        ctx.Targets.TargetSpeed = ClampBySpeedLimit(ctx, targetKts);
+        ctx.Targets.DesiredDecelRate = DecelRateKts;
     }
 
     /// <summary>

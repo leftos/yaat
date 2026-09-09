@@ -46,8 +46,10 @@ public class S2Oak4RvSidCtoTests(ITestOutputHelper output)
         }
 
         // Route filed as NIMI6 at t=10 after early CTO with an empty route; pending InitialClimb
-        // must pick up the 315° RV heading on amend.
-        engine.Replay(recording, 10);
+        // must pick up the 315 deg RV heading on amend. N436MS reaches the 28R hold-short - where the
+        // cleared-for-takeoff chain is built - at t=16 under the physics taxi rates (measured), so the
+        // pending phase is sampled at t=20 instead of at the amend second itself.
+        engine.Replay(recording, 20);
         var ac = engine.FindAircraft("N436MS");
         Assert.NotNull(ac);
 

@@ -5,10 +5,11 @@ using Yaat.Sim.Simulation.Snapshots;
 namespace Yaat.Sim.Phases.Tower;
 
 /// <summary>
-/// Ground roll (accelerate to Vr) then liftoff and climb.
+/// Ground roll (accelerate to Vr along the <see cref="GroundRollProfile"/> spool ramp — idle-thrust
+/// acceleration at brake release rising to the type's steady rate) then liftoff and climb.
 /// Completes at 400ft AGL.
 /// </summary>
-public sealed class TakeoffPhase : Phase
+public sealed class TakeoffPhase : Phase, IGroundRollClock
 {
     private static readonly ILogger Log = SimLog.CreateLogger("TakeoffPhase");
 
@@ -17,6 +18,7 @@ public sealed class TakeoffPhase : Phase
     private const double MaxCenterlineCorrectionDeg = 10.0;
 
     private bool _airborne;
+    private double _rollElapsedSeconds;
     private double _fieldElevation;
     private TrueHeading _runwayHeading;
     private double _thresholdLat;
@@ -24,6 +26,9 @@ public sealed class TakeoffPhase : Phase
     private DepartureInstruction? _departure;
 
     public override string Name => "Takeoff";
+
+    /// <inheritdoc />
+    public double RollElapsedSeconds => _rollElapsedSeconds;
 
     public override PhaseDto ToSnapshot() =>
         new TakeoffPhaseDto
@@ -37,6 +42,7 @@ public sealed class TakeoffPhase : Phase
             ThresholdLat = _thresholdLat,
             ThresholdLon = _thresholdLon,
             Departure = _departure?.ToSnapshot(),
+            RollElapsedSeconds = _rollElapsedSeconds,
         };
 
     public static TakeoffPhase FromSnapshot(TakeoffPhaseDto dto)
@@ -53,7 +59,24 @@ public sealed class TakeoffPhase : Phase
         phase._thresholdLon = dto.ThresholdLon;
         phase._departure = departure;
         phase.Departure = departure;
+        phase._rollElapsedSeconds = dto.RollElapsedSeconds;
         return phase;
+    }
+
+    /// <summary>
+    /// Restores the roll clock of a snapshot taken before the clock existed: its
+    /// <see cref="TakeoffPhaseDto.RollElapsedSeconds"/> is 0, which would re-spool an aircraft already
+    /// rolling at speed. A still-on-the-ground roll with speed on the clock is seeded the same way
+    /// <see cref="OnStart"/> seeds a rolling takeoff.
+    /// </summary>
+    public void SeedRollClockIfUnset(AircraftState aircraft, AircraftCategory category)
+    {
+        if ((_rollElapsedSeconds != 0) || _airborne || (aircraft.IndicatedAirspeed <= 0))
+        {
+            return;
+        }
+
+        _rollElapsedSeconds = GroundRollProfile.For(aircraft.AircraftType, category).TimeAtSpeed(aircraft.IndicatedAirspeed);
     }
 
     /// <summary>Departure instruction from CTO command.</summary>
@@ -85,6 +108,12 @@ public sealed class TakeoffPhase : Phase
         // The lineup is complete — any brisk "immediate"/"without delay" lineup is done.
         ctx.Aircraft.Ground.IsExpeditingLineup = false;
 
+        // Seed the roll clock from the speed the aircraft arrives with. A rolling takeoff brought the
+        // thrust up during the line-up (the FCTM rolling technique: levers to part power while turning
+        // onto the runway), so that speed is the proxy for how far the spool has already progressed —
+        // it must not re-spool from idle. A standing start arrives at 0 kt and seeds 0.
+        _rollElapsedSeconds = GroundRollProfile.For(ctx.AircraftType, ctx.Category).TimeAtSpeed(ctx.Aircraft.IndicatedAirspeed);
+
         Log.LogDebug(
             "[Takeoff] {Callsign}: started, rwy hdg={Hdg:F0}, fieldElev={Elev:F0}ft",
             ctx.Aircraft.Callsign,
@@ -109,7 +138,7 @@ public sealed class TakeoffPhase : Phase
     {
         // A blocking occupant ahead can end the roll before Vr: the reject installs its own
         // phases (RejectedTakeoffPhase → HoldingInPositionPhase) and this phase is over.
-        if (RejectedTakeoff.TryTrigger(ctx))
+        if (RejectedTakeoff.TryTrigger(ctx, _rollElapsedSeconds))
         {
             return false;
         }
@@ -120,14 +149,35 @@ public sealed class TakeoffPhase : Phase
         ctx.Targets.TargetTrueHeading = new TrueHeading(_runwayHeading.Degrees - correction);
 
         double vr = AircraftPerformance.RotationSpeed(ctx.AircraftType, ctx.Category);
-        double accelRate = AircraftPerformance.GroundAccelRate(ctx.AircraftType, ctx.Category);
+        var profile = GroundRollProfile.For(ctx.AircraftType, ctx.Category);
 
         // The roll integrates GROUNDSPEED (the field's ground-frame meaning); the rotation
         // gate is on INDICATED airspeed, which the headwind component and the density
         // correction both feed — a 20 kt headwind lifts off ~20 kt of groundspeed earlier
         // (v² law: ~25% less runway), a high-elevation field needs more.
-        double groundSpeed = ctx.Aircraft.IndicatedAirspeed + (accelRate * ctx.DeltaSeconds);
+        //
+        // The increment is the closed form's own gain over this sub-tick, so the discrete roll
+        // tracks the spool ramp exactly. The clock is the phase's own roll timer, advanced by the
+        // sub-tick it is handed, so a hand-ticked phase rolls the same as an engine-ticked one.
+        double rollStartSeconds = _rollElapsedSeconds;
+        _rollElapsedSeconds += ctx.DeltaSeconds;
+        double increment = profile.SpeedAt(_rollElapsedSeconds) - profile.SpeedAt(rollStartSeconds);
+        double groundSpeed = ctx.Aircraft.IndicatedAirspeed + increment;
         ctx.Targets.TargetSpeed = null;
+
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[Takeoff.Roll] t={Time:F2} {Callsign}: rollClock={Roll:F2}s, ias {Before:F2}->{After:F2}kt (+{Increment:F3}), groundLimit={Limit}",
+                ctx.ScenarioElapsedSeconds,
+                ctx.Aircraft.Callsign,
+                _rollElapsedSeconds,
+                ctx.Aircraft.IndicatedAirspeed,
+                groundSpeed,
+                increment,
+                ctx.Aircraft.Ground.SpeedLimit
+            );
+        }
 
         // Liftoff at Vr indicated
         if (GroundFrame.IasForGroundSpeed(ctx.Aircraft, groundSpeed) >= vr)

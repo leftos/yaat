@@ -84,7 +84,12 @@ public sealed class AircraftProfileOverrideTests
         // (CategoryPerformance.GroundAccelRate(Jet) = 5).
         var profile = AircraftProfileDatabase.Get("SF50");
         Assert.NotNull(profile);
-        Assert.Equal(5, profile.GroundAccelRate);
+        Assert.Equal((double?)5, profile.GroundAccelRate);
+
+        // A profiled type carries no groundAccelRate of its own — the shipped profiles only set it
+        // where a value was hand-checked — so the rate resolves through the same category value.
+        Assert.Null(AircraftProfileDatabase.Get("B738")?.GroundAccelRate);
+        Assert.Equal(5, AircraftPerformance.GroundAccelRate("B738", AircraftCategory.Jet));
     }
 
     // --- IsOverridden tracking ---

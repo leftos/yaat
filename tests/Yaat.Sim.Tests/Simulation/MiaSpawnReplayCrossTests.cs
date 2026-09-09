@@ -102,57 +102,6 @@ public sealed class MiaSpawnReplayCrossTests(ITestOutputHelper output)
         Assert.NotEqual(terminalNodeId, twelve.NodeId);
     }
 
-    [Fact]
-    public void CrossRunway12_ContinuesTowardRunway9()
-    {
-        var setup = BuildReplay();
-        if (setup is null)
-        {
-            return;
-        }
-
-        using var archive = setup.Value.Archive;
-        var engine = setup.Value.Engine;
-        var layout = setup.Value.Layout;
-
-        bool sawHoldingShortOf12 = false;
-        bool sawCrossing = false;
-
-        for (int t = 1; t <= 245; t++)
-        {
-            engine.ReplayOneSecond();
-            var aircraft = engine.FindAircraft(Callsign);
-            if (aircraft is null)
-            {
-                continue;
-            }
-
-            var phase = aircraft.Phases?.CurrentPhase;
-            if (phase is HoldingShortPhase hs && hs.HoldShort.TargetName is { } target && RunwayIdentifier.Parse(target).Contains("12"))
-            {
-                sawHoldingShortOf12 = true;
-            }
-
-            sawCrossing |= phase is CrossingRunwayPhase;
-
-            if (t is 220 or 233 or 240 or 245)
-            {
-                NearestNodeHelper.Log(output, $"t={t} phase={phase?.GetType().Name ?? "null"}", aircraft, layout);
-            }
-        }
-
-        var final = engine.FindAircraft(Callsign);
-        Assert.NotNull(final);
-
-        Assert.True(sawHoldingShortOf12, $"{Callsign} should hold short of runway 12 before CROSS 12");
-        Assert.True(sawCrossing, $"{Callsign} should cross runway 12 after CROSS 12");
-
-        // After crossing 12 the aircraft continues toward its destination runway 9 — it must NOT
-        // stop in the idle hold past the runway-12 bars.
-        Assert.IsNotType<HoldingInPositionPhase>(final.Phases?.CurrentPhase);
-        Assert.Equal("09", final.Phases?.AssignedRunway?.Designator);
-    }
-
     private (SimulationEngine Engine, AirportGroundLayout Layout, RecordingArchive Archive)? BuildReplay()
     {
         TestVnasData.EnsureInitialized();

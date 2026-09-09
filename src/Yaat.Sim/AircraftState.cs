@@ -481,6 +481,14 @@ public class AircraftState
             }
         }
 
+        // A snapshot taken before the roll clock existed carries RollElapsedSeconds = 0 even for an
+        // aircraft already rolling at speed, which would re-spool it from idle thrust. Seed the clock
+        // from the speed the roll is making, the same way a rolling takeoff seeds it at the line-up.
+        if (ac.Phases?.CurrentPhase is Phases.Tower.TakeoffPhase takeoff)
+        {
+            takeoff.SeedRollClockIfUnset(ac, AircraftCategorization.Categorize(ac.AircraftType));
+        }
+
         if (dto.PositionHistory is not null)
         {
             foreach (var p in dto.PositionHistory)

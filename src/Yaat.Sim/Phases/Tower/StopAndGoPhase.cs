@@ -7,10 +7,11 @@ namespace Yaat.Sim.Phases.Tower;
 /// <summary>
 /// Stop-and-go: full stop on runway, brief pause, then takeoff from zero.
 /// Pause duration is category-dependent (Jet 10s, Turboprop 7s, Piston 5s).
-/// After pause, same takeoff profile as normal (GroundAccelRate to Vr, liftoff).
+/// After pause, same takeoff profile as normal (the <see cref="GroundRollProfile"/> spool ramp to
+/// Vr — idle-thrust acceleration at brake release rising to the type's steady rate — then liftoff).
 /// Completes at 400ft AGL.
 /// </summary>
-public sealed class StopAndGoPhase : Phase
+public sealed class StopAndGoPhase : Phase, IGroundRollClock
 {
     private static readonly ILogger Log = SimLog.CreateLogger("StopAndGoPhase");
 
@@ -28,8 +29,12 @@ public sealed class StopAndGoPhase : Phase
     private bool _reaccelerating;
     private bool _airborne;
     private bool _goTriggered;
+    private double _rollElapsedSeconds;
 
     public override string Name => "StopAndGo";
+
+    /// <inheritdoc />
+    public double RollElapsedSeconds => _rollElapsedSeconds;
 
     public override PhaseDto ToSnapshot() =>
         new StopAndGoPhaseDto
@@ -47,6 +52,7 @@ public sealed class StopAndGoPhase : Phase
             Reaccelerating = _reaccelerating,
             Airborne = _airborne,
             GoTriggered = _goTriggered,
+            RollElapsedSeconds = _rollElapsedSeconds,
         };
 
     public static StopAndGoPhase FromSnapshot(StopAndGoPhaseDto dto)
@@ -65,6 +71,7 @@ public sealed class StopAndGoPhase : Phase
         phase._reaccelerating = dto.Reaccelerating;
         phase._airborne = dto.Airborne;
         phase._goTriggered = dto.GoTriggered;
+        phase._rollElapsedSeconds = dto.RollElapsedSeconds;
         return phase;
     }
 
@@ -136,11 +143,16 @@ public sealed class StopAndGoPhase : Phase
         if (!_airborne)
         {
             double vr = AircraftPerformance.RotationSpeed(ctx.AircraftType, ctx.Category);
-            double accelRate = AircraftPerformance.GroundAccelRate(ctx.AircraftType, ctx.Category);
+            var profile = GroundRollProfile.For(ctx.AircraftType, ctx.Category);
 
             // Ground-frame roll: integrate groundspeed, gate rotation on the indicated
-            // airspeed it implies (headwind + density corrected).
-            double groundSpeed = ctx.Aircraft.IndicatedAirspeed + (accelRate * ctx.DeltaSeconds);
+            // airspeed it implies (headwind + density corrected). The increment is the spool
+            // ramp's own gain over this sub-tick, clocked from the start of the reacceleration
+            // (the pause spooled the engines down, so this roll spools up like any other).
+            double rollStartSeconds = _rollElapsedSeconds;
+            _rollElapsedSeconds += ctx.DeltaSeconds;
+            double increment = profile.SpeedAt(_rollElapsedSeconds) - profile.SpeedAt(rollStartSeconds);
+            double groundSpeed = ctx.Aircraft.IndicatedAirspeed + increment;
             ctx.Targets.TargetSpeed = null;
 
             if (GroundFrame.IasForGroundSpeed(ctx.Aircraft, groundSpeed) >= vr)

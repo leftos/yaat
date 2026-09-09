@@ -196,7 +196,7 @@ writing the minimum surviving cap onto `Ground.SpeedLimit`:
 | `PairKind` | Meaning |
 |---|---|
 | `Distant` | Too far apart to interact — no cap |
-| `Stationary` | Both parked or held — no resolution runs (a genuinely stopped pair needs none). "Stationary" requires being actually at rest: a stationary-*named* phase that is rolling (a `LineUpPhase` aircraft driving onto the runway, a held aircraft still decelerating) classifies as a mover instead — the phase-name check is speed-gated on `GroundSpeed < HeldStationarySpeedKts` (#407, #409) |
+| `Stationary` | Both parked or held — no resolution runs (a genuinely stopped pair needs none). "Stationary" requires being actually at rest: a stationary-*named* phase that is rolling (a `LineUpPhase` aircraft driving onto the runway, a held aircraft still decelerating) classifies as a mover instead — the phase-name check is gated on `IsAtRest`: `GroundSpeed < HeldStationarySpeedKts` **and** not commanding forward speed (`TargetSpeed > 0` makes it a mover however slowly it rolls — the 2 kt lineup speed sits below the held threshold, so the speed gate alone let a lining-up aircraft creep through the LUAW occupant ahead one sub-tick in four) (#407, #409) |
 | `Pushback` | A pushing aircraft is involved. A pusher hard-stops for a moving/taxiing/pushing aircraft in its rear arc, but a **genuinely parked/held** neighbor (`IsParkedOrHeld`) is a passable obstacle — it routes through the graduated closing logic (`ApplyClosingLimit`) so a gate pushback clears an aircraft parked at the adjacent gate, stopping only within actual collision distance |
 | `SameEdgeTrailing` | Same edge, same direction (`ToNodeId` matches) — trailing aircraft caps to follow |
 | `SameEdgeHeadOn` | Same edge, opposite direction — deterministic holder picked (more remaining route, callsign tie-break) |
@@ -623,7 +623,7 @@ here and have `aviation-sim-expert` review against the local FAA references.
 - **Ground classification keys on phase *name* strings.** `Classify`/`IsStationaryPhase` (`GroundConflictDetector.cs:325`/`:959`)
   match literals like `"LinedUpAndWaiting"`, `"At Parking"`, and the prefix `"Holding Short"`. Renaming a phase
   silently breaks classification with **no compile error**. See [phases.md](phases.md) for the phase-name contract.
-  The name match alone is not sufficient for `Stationary`: it is speed-gated (`GroundSpeed < HeldStationarySpeedKts`),
+  The name match alone is not sufficient for `Stationary`: it is gated on `IsAtRest` (`GroundSpeed < HeldStationarySpeedKts` and no positive `TargetSpeed`; the same intent test applies to the route-less `GroundSpeed <= 0` fallback),
   because `LineUpPhase` ("LiningUp") actively drives the aircraft onto the runway — without the gate a lining-up/LUAW
   pair fell into the no-op `Stationary` bucket and the lining-up aircraft drove through the one in position (#409).
   `IsParkedOrHeld` carries the same gate.

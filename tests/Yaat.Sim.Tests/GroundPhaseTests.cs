@@ -4,6 +4,7 @@ using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
+using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Simulation.Snapshots;
 
 namespace Yaat.Sim.Tests;
@@ -402,6 +403,10 @@ public class GroundPhaseTests
                 completed = true;
                 break;
             }
+
+            // Physics owns ground speed: the phase publishes the follow target and physics integrates it.
+            // The hold-short check only arms on a moving aircraft, so the tick loop has to run both halves.
+            FlightPhysics.Update(aircraft, 1.0, cs => cs == "LEAD01" ? target : null, null, simTimeSeconds: i);
         }
 
         Assert.True(completed, "FollowingPhase should complete when hold-short is detected");
@@ -456,6 +461,75 @@ public class GroundPhaseTests
 
         // No inserted phases
         Assert.Single(aircraft.Phases.Phases);
+    }
+
+    /// <summary>
+    /// A follower that catches a stopped leader closes up to the stop gap rather than freezing at the
+    /// follow-distance boundary. Matching the leader's speed verbatim inside FollowDistanceNm publishes
+    /// TargetSpeed = 0 behind a parked lead, and physics — the only integrator of ground speed — holds the
+    /// follower wherever it happened to be, up to ~180 ft short. Real traffic rolls up to the stop gap.
+    /// </summary>
+    [Fact]
+    public void FollowingPhase_BehindStoppedLead_ClosesUpToStopDistance()
+    {
+        // Lead parked, engines running, not moving.
+        var lead = MakeGroundAircraft(37.623, -122.380, heading: 0);
+        lead.Callsign = "LEAD01";
+        lead.IndicatedAirspeed = 0;
+
+        // Follower directly behind the lead, just inside the follow distance, still rolling at 5 kt.
+        double startGapNm = FollowingPhase.FollowDistanceNm - 0.002;
+        var follower = MakeGroundAircraft(37.623 - (startGapNm / 60.0), -122.380, heading: 0);
+        follower.IndicatedAirspeed = 5;
+        follower.Phases = new PhaseList();
+        follower.Phases.Add(new FollowingPhase("LEAD01"));
+
+        Func<string, AircraftState?> lookup = cs => cs == "LEAD01" ? lead : null;
+        var ctx = new PhaseContext
+        {
+            Aircraft = follower,
+            Targets = follower.Targets,
+            Category = AircraftCategory.Jet,
+            DeltaSeconds = 0.25,
+            GroundLayout = null,
+            AircraftLookup = lookup,
+            Logger = NullLogger.Instance,
+        };
+        follower.Phases.Start(ctx);
+
+        // 60 s at the sub-tick rate physics runs at.
+        bool everStopped = false;
+        double speedAfterFirstStop = 0;
+        for (int i = 0; i < 240; i++)
+        {
+            PhaseRunner.Tick(follower, ctx);
+            FlightPhysics.Update(follower, ctx.DeltaSeconds, lookup, null, simTimeSeconds: i * ctx.DeltaSeconds);
+
+            if (follower.GroundSpeed <= 0)
+            {
+                everStopped = true;
+            }
+            else if (everStopped)
+            {
+                speedAfterFirstStop = Math.Max(speedAfterFirstStop, follower.GroundSpeed);
+            }
+        }
+
+        double gapNm = GeoMath.DistanceNm(follower.Position, lead.Position);
+
+        // Ten feet of slack over the stop gap covers the brake-out from the close-up speed.
+        double allowedGapNm = FollowingPhase.StopDistanceNm + (10.0 / GeoMath.FeetPerNm);
+        Assert.True(
+            gapNm <= allowedGapNm,
+            $"follower settled {gapNm * GeoMath.FeetPerNm:F0} ft behind the stopped lead, expected at most {allowedGapNm * GeoMath.FeetPerNm:F0} ft"
+        );
+        Assert.Equal(0, follower.GroundSpeed);
+
+        // No chatter: once it first reaches 0 inside the stop gap it stays there. A flat close-up speed
+        // that only zeroes at the StopDistanceNm branch creeps forward, trips the branch, brakes, drifts
+        // back out and creeps again; the brake curve decays to 0 at the gap so the stop is terminal.
+        Assert.True(everStopped, "follower never reached a stop behind the parked lead within 60 s");
+        Assert.Equal(0.0, speedAfterFirstStop, 1e-9);
     }
 
     // --- Pushback speed recovery after conflict ---
@@ -1286,17 +1360,19 @@ public class GroundPhaseTests
 
         Assert.Equal(0, aircraft.Targets.TargetSpeed);
 
+        // Physics owns ground speed: the phase pins the target to 0 and physics brakes toward it at the
+        // category ground decel rate. From 15 kt at 5 kt/s that is three whole-second ticks.
         for (int i = 0; (i < 30) && (aircraft.IndicatedAirspeed > 0); i++)
         {
             taxi.OnTick(ctx);
+            FlightPhysics.Update(aircraft, 1.0, null, null, simTimeSeconds: i);
         }
 
         Assert.Equal(0, aircraft.IndicatedAirspeed);
         Assert.Equal(0, aircraft.Targets.TargetSpeed);
-        Assert.NotNull(aircraft.Targets.DesiredDecelRate);
 
-        // ControlTargets persist across phases: the taxi braking rate pinned while held must
-        // not leak into later airborne decelerations once the taxi phase ends.
+        // ControlTargets persist across phases: no braking-rate override may leak out of the taxi phase
+        // into a later airborne deceleration.
         taxi.OnEnd(ctx, PhaseStatus.Completed);
         Assert.Null(aircraft.Targets.DesiredDecelRate);
     }
@@ -1366,5 +1442,30 @@ public class GroundPhaseTests
             $"{phase.GetType().Name} left Targets.TargetSpeed={aircraft.Targets.TargetSpeed} while held — "
                 + "physics will re-accelerate toward the stale target every sub-tick."
         );
+    }
+
+    /// <summary>
+    /// A LAHSO hold on the runway must re-publish TargetSpeed = 0 on every tick, not only in OnStart:
+    /// ground speed is integrated by physics, so a nonzero target surviving from the landing roll would
+    /// be accelerated toward every sub-tick while the phase pins IndicatedAirspeed to 0.
+    /// </summary>
+    [Fact]
+    public void RunwayHoldingPhase_WhenHolding_RepublishesZeroSpeedTargetEveryTick()
+    {
+        var layout = BuildCrossingLayout();
+        var aircraft = MakeGroundAircraft(37.620, -122.380, heading: 0);
+        var phase = new RunwayHoldingPhase("28L/10R");
+
+        aircraft.Phases = new PhaseList();
+        aircraft.Phases.Add(phase);
+        var ctx = MakeContext(aircraft, layout);
+        aircraft.Phases.Start(ctx);
+
+        // A stale target from the phase that ran before the hold.
+        aircraft.Targets.TargetSpeed = 30;
+        phase.OnTick(ctx);
+
+        Assert.Equal(0, aircraft.Targets.TargetSpeed);
+        Assert.Equal(0, aircraft.IndicatedAirspeed);
     }
 }

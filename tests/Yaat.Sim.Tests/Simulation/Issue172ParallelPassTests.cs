@@ -68,7 +68,10 @@ public class Issue172ParallelPassTests(ITestOutputHelper output)
         int maxConsecutiveYieldTicks = 0;
         int currentConsecutiveYield = 0;
         int observed = 0;
-        for (int t = 1555; t <= 1615; t++)
+        // The JBU-clears-first geometry (JBU moving >12 kt and 300 ft nearer the shared node) now forms at
+        // t=1631 and holds through t=1636 - 16 s later than the old t<=1615 window, because both aircraft
+        // accelerate at the physics taxi rate (1.0 kt/s). 1650 keeps a ~15 s tail past the geometry.
+        for (int t = 1555; t <= 1650; t++)
         {
             engine.ReplayOneSecond();
             var fft = engine.FindAircraft("FFT2083");

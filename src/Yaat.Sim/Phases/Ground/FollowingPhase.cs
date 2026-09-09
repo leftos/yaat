@@ -15,8 +15,18 @@ public sealed class FollowingPhase : Phase
 {
     private static readonly ILogger Log = SimLog.CreateLogger("FollowingPhase");
 
-    private const double FollowDistanceNm = 0.03; // ~180 ft
-    private const double StopDistanceNm = 0.015; // ~90 ft
+    /// <summary>Gap at which the follower stops matching taxi speed and starts closing up on the lead (~180 ft).</summary>
+    public const double FollowDistanceNm = 0.03;
+
+    /// <summary>Gap the follower stops at behind the lead (~90 ft).</summary>
+    public const double StopDistanceNm = 0.015;
+
+    /// <summary>
+    /// Walking-pace speed the follower closes the last stretch at when the lead is stopped or crawling — matching
+    /// the lead's speed verbatim would freeze the follower at the follow distance behind a stationary lead.
+    /// </summary>
+    private const double FollowCloseUpSpeedKts = 5.0;
+
     private const double HoldShortDetectionNm = 0.02; // ~120 ft
     private const double HoldShortAngleThreshold = 90.0;
     private const double LogIntervalSeconds = 3.0;
@@ -43,8 +53,6 @@ public sealed class FollowingPhase : Phase
     {
         if (ctx.Aircraft.Ground.IsImmobile)
         {
-            double decelRate = CategoryPerformance.TaxiDecelRate(ctx.Category);
-            ctx.Aircraft.IndicatedAirspeed = Math.Max(0, ctx.Aircraft.IndicatedAirspeed - decelRate * ctx.DeltaSeconds);
             ctx.Targets.TargetSpeed = 0;
             return false;
         }
@@ -78,36 +86,26 @@ public sealed class FollowingPhase : Phase
         double maxTurn = CategoryPerformance.GroundYawRateAtSpeed(ctx.Category, ctx.Aircraft.GroundSpeed) * ctx.DeltaSeconds;
         ctx.Aircraft.TrueHeading = GeoMath.TurnHeadingToward(ctx.Aircraft.TrueHeading, bearing, maxTurn);
 
-        // Speed: match target with distance-based adjustment
-        double accelRate = CategoryPerformance.TaxiAccelRate(ctx.Category);
-        double decelRate2 = CategoryPerformance.TaxiDecelRate(ctx.Category);
-
+        // Speed: match target with distance-based adjustment. Publish the target and let physics close
+        // the gap at the ground accel/brake rates — the phase never integrates speed itself.
         if (dist <= StopDistanceNm)
         {
-            ctx.Aircraft.IndicatedAirspeed = Math.Max(0, ctx.Aircraft.IndicatedAirspeed - decelRate2 * ctx.DeltaSeconds);
+            ctx.Targets.TargetSpeed = 0;
         }
         else if (dist <= FollowDistanceNm)
         {
-            double targetSpeed = target.GroundSpeed;
-            if (ctx.Aircraft.IndicatedAirspeed > targetSpeed)
-            {
-                ctx.Aircraft.IndicatedAirspeed = Math.Max(targetSpeed, ctx.Aircraft.IndicatedAirspeed - decelRate2 * ctx.DeltaSeconds);
-            }
-            else if (ctx.Aircraft.IndicatedAirspeed < targetSpeed)
-            {
-                ctx.Aircraft.IndicatedAirspeed = Math.Min(targetSpeed, ctx.Aircraft.IndicatedAirspeed + accelRate * ctx.DeltaSeconds);
-            }
+            // Brake curve to the stop gap rather than a flat close-up speed: v = sqrt(2·a·d) decays to 0
+            // exactly at StopDistanceNm, so the follower rolls to a stop instead of holding 5 kt until the
+            // gap trips the branch above and slamming the target to 0 (bang-bang at the boundary). The
+            // lead's own speed still wins when it is moving — a follower never falls behind a rolling lead.
+            double remainingToStopNm = Math.Max(0.0, dist - StopDistanceNm);
+            double brakeCurveKts = Math.Sqrt(2.0 * CategoryPerformance.TaxiDecelRate(ctx.Category) * remainingToStopNm * 3600.0);
+            ctx.Targets.TargetSpeed = Math.Max(target.GroundSpeed, Math.Min(FollowCloseUpSpeedKts, brakeCurveKts));
         }
         else
         {
-            double taxiSpeed = CategoryPerformance.TaxiSpeed(ctx.Category);
-            if (ctx.Aircraft.IndicatedAirspeed < taxiSpeed)
-            {
-                ctx.Aircraft.IndicatedAirspeed = Math.Min(taxiSpeed, ctx.Aircraft.IndicatedAirspeed + accelRate * ctx.DeltaSeconds);
-            }
+            ctx.Targets.TargetSpeed = CategoryPerformance.TaxiSpeed(ctx.Category);
         }
-
-        ctx.Targets.TargetSpeed = ctx.Aircraft.IndicatedAirspeed;
 
         _timeSinceLastLog += ctx.DeltaSeconds;
         if (_timeSinceLastLog >= LogIntervalSeconds)

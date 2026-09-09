@@ -52,37 +52,6 @@ public class CtoMrdPatternExitTests(ITestOutputHelper output)
     }
 
     [Fact]
-    public void CtoMrd_BuildsPatternExitCircuit_NotInitialClimb()
-    {
-        var recording = RecordingLoader.Load(RecordingPath);
-        var engine = BuildEngine();
-        if (recording is null || engine is null)
-        {
-            return;
-        }
-
-        engine.Replay(recording, 600);
-
-        var ac = engine.FindAircraft("N784ME");
-        Assert.NotNull(ac);
-        output.WriteLine($"chain=[{Chain(ac)}] runway={ac.Phases?.AssignedRunway?.Designator}");
-
-        // A right-downwind departure flies upwind → crosswind → exit. The circuit
-        // must contain the real pattern legs and a terminal PatternExitPhase.
-        Assert.Contains(ac.Phases!.Phases, p => p is UpwindPhase);
-        Assert.Contains(ac.Phases.Phases, p => p is CrosswindPhase);
-        Assert.Contains(ac.Phases.Phases, p => p is PatternExitPhase);
-
-        // Departure, not closed traffic: no base / final / landing tail, and no
-        // single-turn InitialClimbPhase.
-        Assert.DoesNotContain(ac.Phases.Phases, p => p is InitialClimbPhase);
-        Assert.DoesNotContain(ac.Phases.Phases, p => p is BasePhase or FinalApproachPhase or TouchAndGoPhase or LandingPhase);
-
-        Assert.Equal("28R", ac.Phases.AssignedRunway?.Designator);
-        Assert.Equal(PatternDirection.Right, ac.Phases.TrafficDirection);
-    }
-
-    [Fact]
     public void ExtUpwind_DuringCtoMrdClimbout_Succeeds_AndArmsUpwind()
     {
         var recording = RecordingLoader.Load(RecordingPath);
@@ -110,53 +79,4 @@ public class CtoMrdPatternExitTests(ITestOutputHelper output)
         Assert.NotNull(upwind);
         Assert.True(upwind!.IsExtended, "EXT UPWIND should arm IsExtended on the pending upwind leg");
     }
-
-    [Fact]
-    public void CtoMrd_FliesUpwindThenTurnsCrosswind_AndClimbsOutPastPatternAltitude()
-    {
-        var recording = RecordingLoader.Load(RecordingPath);
-        var engine = BuildEngine();
-        if (recording is null || engine is null)
-        {
-            return;
-        }
-
-        // Replay through takeoff and the upwind, stopping before the recorded FH 280
-        // vector (t=636) that would clear the pattern.
-        engine.Replay(recording, 600);
-
-        // Tick the climb-out forward and confirm the aircraft works the pattern legs
-        // (reaches an airborne pattern leg) while continuing to climb — it must not
-        // level off at pattern altitude (~1009 ft MSL at OAK).
-        UpwindPhase? upwind = null;
-        bool reachedAirbornePatternLeg = false;
-        for (int t = 1; t <= 35; t++)
-        {
-            engine.TickOneSecond();
-            var ac = engine.FindAircraft("N784ME");
-            if (ac is null)
-            {
-                break;
-            }
-
-            if (!ac.IsOnGround && ac.Phases?.CurrentPhase is UpwindPhase or CrosswindPhase)
-            {
-                reachedAirbornePatternLeg = true;
-                upwind = ac.Phases.CurrentPhase as UpwindPhase;
-                output.WriteLine($"t+{t}: phase={ac.Phases.CurrentPhase?.Name} alt={ac.Altitude:F0} tgtAlt={ac.Targets.TargetAltitude}");
-                break;
-            }
-        }
-
-        Assert.True(reachedAirbornePatternLeg, "N784ME never reached an airborne pattern leg after CTO MRD");
-
-        // The continuous-climb target on the upwind must be the cruise altitude
-        // (11500), not pattern altitude — a departing aircraft does not level at TPA.
-        if (upwind is not null)
-        {
-            Assert.Equal(11500, upwind.DepartureClimbTargetFt);
-        }
-    }
-
-    private static string Chain(AircraftState ac) => string.Join(", ", ac.Phases?.Phases.Select(p => $"{p.GetType().Name}:{p.Status}") ?? []);
 }

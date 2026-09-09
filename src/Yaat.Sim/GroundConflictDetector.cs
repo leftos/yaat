@@ -351,6 +351,16 @@ public static class GroundConflictDetector
 
     // --- Classification ---
 
+    /// <summary>
+    /// True when the aircraft is genuinely at rest: near-stopped AND not commanding forward speed. A phase
+    /// that is commanding speed is a mover however slowly it happens to be rolling — <c>LineUpPhase</c>
+    /// drives at a 2 kt lineup speed, below <see cref="HeldStationarySpeedKts"/>, so judging it by
+    /// instantaneous speed alone made a lining-up aircraft a parked obstacle every time a conflict pin had
+    /// just zeroed its speed, and it crept through the aircraft ahead one sub-tick at a time (#409).
+    /// A held or lined-up-and-waiting aircraft pins <c>TargetSpeed</c> to 0, so it still reads as at rest.
+    /// </summary>
+    private static bool IsAtRest(AircraftState ac) => (ac.GroundSpeed < HeldStationarySpeedKts) && !(ac.Targets.TargetSpeed > 0);
+
     private static (MovementState State, double? MoveDirection) Classify(AircraftState ac)
     {
         if (ac.IsShadow)
@@ -372,7 +382,7 @@ public static class GroundConflictDetector
         // parked put a lining-up/LUAW pair into the no-op Stationary bucket, and the
         // lining-up aircraft drove straight through the one holding in position
         // (issue #409). Same shape as the held-but-moving gate below (#407).
-        if ((IsStationaryPhase(phaseName)) && (ac.GroundSpeed < HeldStationarySpeedKts))
+        if ((IsStationaryPhase(phaseName)) && IsAtRest(ac))
         {
             return (MovementState.Stationary, null);
         }
@@ -387,7 +397,7 @@ public static class GroundConflictDetector
         // (or any state that leaves a held aircraft rolling) it must keep participating
         // as a mover, or a held head-on pair drops out of resolution entirely and the
         // aircraft drive through each other (issue #407).
-        if ((ac.Ground.IsImmobile) && (ac.GroundSpeed < HeldStationarySpeedKts))
+        if ((ac.Ground.IsImmobile) && IsAtRest(ac))
         {
             return (MovementState.Stationary, null);
         }
@@ -402,7 +412,10 @@ public static class GroundConflictDetector
             return (MovementState.Taxiing, ac.TrueHeading.Degrees);
         }
 
-        if (ac.GroundSpeed <= 0)
+        // A stopped aircraft with no route is an obstacle — unless it is commanding forward speed, in
+        // which case it is a mover that a conflict pin is holding at zero this instant, and it keeps its
+        // heading-based closing direction so the pin survives the next sub-tick.
+        if ((ac.GroundSpeed <= 0) && !(ac.Targets.TargetSpeed > 0))
         {
             return (MovementState.Stationary, null);
         }
@@ -1014,7 +1027,7 @@ public static class GroundConflictDetector
     /// is a mover, not an obstacle (#407, #409).
     /// </summary>
     private static bool IsParkedOrHeld(AircraftState ac) =>
-        (ac.Ground.IsImmobile || IsStationaryPhase(ac.Phases?.CurrentPhase?.Name)) && (ac.GroundSpeed < HeldStationarySpeedKts);
+        (ac.Ground.IsImmobile || IsStationaryPhase(ac.Phases?.CurrentPhase?.Name)) && IsAtRest(ac);
 
     private static (double StopFt, double TrailFt) GetSeparation(AircraftState leader, AircraftState trailer)
     {

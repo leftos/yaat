@@ -69,7 +69,7 @@ internal static class RejectedTakeoffTestRig
     {
         var lead = MakeOnRunwayAircraft("LEAD1", runway, downfieldFt, runway.TrueHeading, groundSpeedKts);
         lead.Phases = new PhaseList { AssignedRunway = runway };
-        lead.Phases.Add(rejecting ? new RejectedTakeoffPhase() : new TakeoffPhase());
+        lead.Phases.Add(rejecting ? new RejectedTakeoffPhase(rollElapsedSeconds: 0) : new TakeoffPhase());
         lead.Phases.Start(CommandDispatcher.BuildMinimalContext(lead));
         return lead;
     }
