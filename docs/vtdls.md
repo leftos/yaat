@@ -340,6 +340,8 @@ exactly match real-world PDC structure:
 - **Contact Info** — "CTC SAN FRANCISCO DEP" or equivalent
 - **Local Info** — squawk, hold-short, etc., free-form per facility
 
+Every read-only value in the flight-plan header block and the footer status is a `SelectableTextBlock` (the control the vStrips METAR bar uses), so a controller can copy a route or squawk the way the real vTDLS web page allows; labels and the field ComboBoxes stay plain. The DCL/PDC **list rows stay `TextBlock`**: `SelectableTextBlock` marks `PointerPressed` handled, so the press never reaches the `ListBox` and clicking a row would stop selecting it — the same trap applies to any `SelectableTextBlock` inside a `ListBoxItem` anywhere in the app. The footer's style selectors are `:is(TextBlock).footer-status` because an Avalonia type selector matches the exact type. `VTdlsViewInteractionTests` pins the control type and the selection API; the headless drawing backend cannot hit-test text, so drag-selection itself needs an eyeball in the running client.
+
 The Send button gates on the facility's mandatory-field set
 (`MandatorySid`, `MandatoryExpect`, …) so a PDC missing a required
 field can't be issued — same enforcement upstream's vTDLS does. The
