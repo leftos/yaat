@@ -3,7 +3,7 @@ using Yaat.LayoutInspector.Tick;
 namespace Yaat.LayoutInspector.Commands;
 
 /// <summary>
-/// Runs the tick-table output mode: reads a TickRecorder CSV and emits
+/// Runs the tick-table output mode: reads a TickRecorder JSON recording and emits
 /// either a per-tick compact table (--tick-table) or a per-segment summary
 /// (--tick-summary) to stdout. Optional --tick-ref adds cross-track and
 /// heading-error columns; optional --tick-hold-shorts adds along-track

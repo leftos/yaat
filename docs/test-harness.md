@@ -332,7 +332,7 @@ metadata) for visualization. Attach it to one or more aircraft, `Record(t)` each
 using var _ = TickRecorder.Attach(engine, ".tmp/scenario.json", "N152SP", "N569SX");
 ```
 
-Feed the output to the LayoutInspector `--ticks` overlay or to [tick-animator.md](tick-animator.md) to watch landings, exits, and taxi
+Feed the output to the LayoutInspector `--ticks` overlay ([tick-animator.md](tick-animator.md)) to watch landings, exits, and taxi
 paths play back. `NearestNodeHelper` adds diagnostic logging for graph-snapping investigations.
 
 ## Pathfinder and taxi-coverage infrastructure
@@ -454,7 +454,7 @@ public sealed class MyTaxiExitTests
         // SimLogBuilder.CreateForTest(output).EnableCategory("GroundNavigator", LogLevel.Debug).InitializeSimLog();
 
         // ... build the engine, spawn an aircraft, tick, assert against the real layout ...
-        // ... attach a TickRecorder if you want a LayoutInspector/TickAnimator overlay ...
+        // ... attach a TickRecorder if you want a LayoutInspector --ticks overlay ...
     }
 }
 ```

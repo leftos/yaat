@@ -36,7 +36,7 @@ qodana scan --results-dir .tmp/qodana-results           # Static analysis (local
 
 ## Layout Inspector Tool
 
-`tools/Yaat.LayoutInspector/` queries an airport's ground graph, renders interactive HTML maps, and analyzes per-tick CSVs from `TickRecorder` — the tool for ground/exit/taxi topology questions and for inspecting a failing test's trajectory. **Invoke the `layout-inspect` skill instead of composing CLI invocations by hand** — it carries the current flag reference. Flag-level docs: [`tools/Yaat.LayoutInspector/CLAUDE.md`](tools/Yaat.LayoutInspector/CLAUDE.md); worked examples: [`docs/e2e-tdd-issue-debugging.md`](docs/e2e-tdd-issue-debugging.md).
+`tools/Yaat.LayoutInspector/` queries an airport's ground graph, renders interactive HTML maps, and analyzes per-tick JSON recordings from `TickRecorder` — the tool for ground/exit/taxi topology questions and for inspecting a failing test's trajectory. **Invoke the `layout-inspect` skill instead of composing CLI invocations by hand** — it carries the current flag reference. Flag-level docs: [`tools/Yaat.LayoutInspector/CLAUDE.md`](tools/Yaat.LayoutInspector/CLAUDE.md); worked examples: [`docs/e2e-tdd-issue-debugging.md`](docs/e2e-tdd-issue-debugging.md).
 
 ## Bug Bundle Tool
 
@@ -137,7 +137,7 @@ Subsystem references — open the matching doc *before* exploring, searching, or
 - [`live-traffic.md`](docs/live-traffic.md) — `src/Yaat.Sim/LiveTraffic/` (shadow aircraft from an external feed: `AircraftLiveTraffic`, `LiveTrafficKinematics`, `IsShadow` tick bypass + command gate, `RecordedLiveTrafficSample`)
 - [`aircraft-performance.md`](docs/aircraft-performance.md) — per-type performance resolution + the contributor `AircraftProfileOverrides.json` correction layer (`AircraftProfileOverride`, `OverrideAwareProfileCorrectionAdapter`, `CategoryPerformance.BaselineProfile`)
 - [`test-harness.md`](docs/test-harness.md) — writing any Yaat.Sim test / "passes alone but flakes in the suite"
-- [`tick-animator.md`](docs/tick-animator.md) — animating tick-by-tick aircraft state over a ground layout to eyeball test behavior
+- [`tick-animator.md`](docs/tick-animator.md) — recording tick-by-tick aircraft state with `TickRecorder` and animating it over a ground layout (LayoutInspector `--ticks --html`) to eyeball test behavior
 - [`approach-and-pattern-geometry.md`](docs/approach-and-pattern-geometry.md) — `Phases/Approach/`, `Phases/Pattern/`, `PatternGeometry`, `AirborneFollowHelper`, `HoldingEntryCalculator`, `ApproachEvaluator`
 - [`conflict-and-visual-detection.md`](docs/conflict-and-visual-detection.md) — `ConflictAlertDetector`, `GroundConflictDetector`, `AtpaProcessor`, `VisualDetection`, `WakeTurbulenceData`
 - [`scenario-loading-and-generation.md`](docs/scenario-loading-and-generation.md) — `ScenarioLoader`, `AircraftInitializer`/`AircraftGenerator`/`SpawnParser`, `GroundSpawnSnap`

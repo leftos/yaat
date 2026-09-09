@@ -109,12 +109,12 @@ Most list-valued flags are **repeatable AND accept comma-separated values** — 
 | `--html <path>` | no | Interactive HTML render (pan/zoom, URL-persisted view) |
 | `--html-taxiway T` / `--html-runway R` / `--html-node N` / `--html-route N` | yes / yes | Highlight overlays for `--html` |
 | `--html-annotate NODE TEXT` | yes | Add a labeled annotation at a node |
-| `--ticks <csv>` | no | Overlay TickRecorder CSV as animated path |
-| `--tick-table` / `--tick-summary` | flag | Text-table analysis of a TickRecorder CSV |
+| `--ticks <json>` | no | Overlay a TickRecorder JSON recording as animated path |
+| `--tick-table` / `--tick-summary` | flag | Text-table analysis of a TickRecorder JSON recording |
 | `--tick-range LO-HI` | no | Filter tick analysis to inclusive range |
 | `--tick-ref ICAO/RWY` | no | Reference runway for xte/hdgErr columns |
 | `--tick-hold-shorts HS` | yes / yes | Distance columns to named hold-shorts |
-| `--tick-callsign CS` | no | Filter tick CSV to one callsign |
+| `--tick-callsign CS` | no | Filter the tick recording to one callsign |
 | `--airport-code ICAO` | no | Override airport code (rare) |
 | `--navdata <dir>` | no | Override NavData directory |
 

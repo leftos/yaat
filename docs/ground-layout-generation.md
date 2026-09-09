@@ -903,7 +903,7 @@ public sealed class NavTickDiag
 }
 ```
 
-Recorded via `TickRecorder` CSV export for analysis and visualization.
+Recorded via `TickRecorder` JSON export for analysis and visualization.
 
 ---
 

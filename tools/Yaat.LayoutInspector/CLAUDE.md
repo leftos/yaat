@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What This Is
 
-Yaat.LayoutInspector is a CLI tool for querying and visualizing airport ground graphs parsed from GeoJSON, **and** for post-hoc analysis of per-tick aircraft state CSVs written by `Yaat.Sim.Tests.Helpers.TickRecorder`. It loads an airport layout via `GeoJsonParser` from `Yaat.Sim`, exposes queries over nodes/edges/taxiways/runways/exits/paths, renders interactive HTML maps, and prints tick-by-tick text tables. Primary use: debugging ground/taxi/exit bugs in the YAAT simulator.
+Yaat.LayoutInspector is a CLI tool for querying and visualizing airport ground graphs parsed from GeoJSON, **and** for post-hoc analysis of per-tick aircraft state JSON recordings written by `Yaat.Sim.Tests.Helpers.TickRecorder`. It loads an airport layout via `GeoJsonParser` from `Yaat.Sim`, exposes queries over nodes/edges/taxiways/runways/exits/paths, renders interactive HTML maps, and prints tick-by-tick text tables. Primary use: debugging ground/taxi/exit bugs in the YAAT simulator.
 
 ## Build & Run
 
@@ -27,10 +27,10 @@ Commands/
   HtmlRenderCommand.cs      --html <path>: render interactive HTML
   DumpCommand.cs            --dump: full layout JSON
   QueryCommand.cs           Default text/json query dispatch (--taxiway, --runway, etc.)
-  TickTableCommand.cs       --tick-table / --tick-summary: CSV → stdout text table
+  TickTableCommand.cs       --tick-table / --tick-summary: JSON → stdout text table
 Tick/
-  TickDataRow.cs            Shared record for one TickRecorder CSV row
-  TickCsvReader.cs          CSV → List<TickDataRow>
+  TickDataRow.cs            Shared record for one TickRecorder JSON tick event
+  TickJsonReader.cs         TickRecorder JSON (TickRecording) → List<TickDataRow>
   RunwayReference.cs        Runway centerline for xteFt / hdgErr columns
   HoldShortResolver.cs      Resolve --tick-hold-shorts names → GroundNode + distance math
 LayoutAnalyzer.cs           Core query engine over AirportGroundLayout (from Yaat.Sim)
@@ -70,11 +70,11 @@ inspector-template.html     Client-side pan/zoom/tick-overlay; URL-hash persiste
 |------|---------|
 | `--html <path>` | Interactive HTML render |
 | `--html-taxiway`, `--html-runway`, `--html-node`, `--html-annotate`, `--html-route` | Highlight/overlay options (repeatable) |
-| `--ticks <csv>` | Overlay a TickRecorder CSV as an animated aircraft path |
+| `--ticks <json>` | Overlay a TickRecorder JSON recording as an animated aircraft path |
 
 Pan/zoom state is persisted in `location.hash` — refreshing the page preserves the current view.
 
-### Tick-table (text analysis of TickRecorder CSV)
+### Tick-table (text analysis of a TickRecorder JSON recording)
 | Flag | Purpose |
 |------|---------|
 | `--tick-table` | Compact per-tick text table to stdout (requires `--ticks`) |
@@ -86,7 +86,7 @@ Pan/zoom state is persisted in `location.hash` — refreshing the page preserves
 Example:
 ```bash
 dotnet run --project tools/Yaat.LayoutInspector -- tests/Yaat.Sim.Tests/TestData/sfo.geojson \
-    --ticks .tmp/dal2581-rollout.csv --tick-table --tick-ref SFO/28L --tick-hold-shorts K,D,Q
+    --ticks .tmp/dal2581-rollout.json --tick-table --tick-ref SFO/28L --tick-hold-shorts K,D,Q
 ```
 
 ## Dependencies

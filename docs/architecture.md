@@ -1549,15 +1549,6 @@ inspector-template.html        # Page shell — pan/zoom, search, toggle highlig
 inspector.css / inspector.js   # Extracted styles + client logic (layout polish, forensic restyle); kept out of the C# string template
 ```
 
-## Yaat.TickAnimator — CLI tool (`tools/Yaat.TickAnimator/`)
-
-Renders animated GIFs of aircraft movement over airport ground layouts. Reads tick CSV data (from `TickRecorder` in tests) + airport GeoJSON, renders frames with SkiaSharp, combines via ffmpeg. See `docs/tick-animator.md`.
-
-```
-Program.cs                     # CLI entry: --layout, --ticks, --aircraft, --output, --start/--end, --fit-layout
-FrameRenderer.cs               # SkiaSharp frame rendering: layout, aircraft shape, trail, overlay
-```
-
 ## Yaat.SpeechSandbox — GUI/CLI tool (`tools/Yaat.SpeechSandbox/`)
 
 Interactive sandbox for the speech pipeline (STT) and text-to-speech (TTS) experiments. Loads `UserPreferences` from the standard YAAT config location so the sandbox uses the same models/settings as the live app.

@@ -9,7 +9,7 @@ namespace Yaat.Sim.Tests.Helpers;
 
 /// <summary>
 /// Records per-tick aircraft state for visualization with Yaat.LayoutInspector
-/// (--ticks JSON overlay) and Yaat.TickAnimator. Produces a JSON document with
+/// (--ticks JSON overlay, --tick-table). Produces a JSON document with
 /// embedded aircraft metadata (type, wingspan, length, render color) so the
 /// consumer doesn't need separate CLI flags per aircraft.
 ///
