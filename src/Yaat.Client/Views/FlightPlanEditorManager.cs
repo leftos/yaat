@@ -65,7 +65,7 @@ public static class FlightPlanEditorManager
         window.Closed += (_, _) => _openEditor = null;
         _openEditor = window;
 
-        new WindowGeometryHelper(window, vm.Preferences, "FlightPlanEditor", 640, 250).Restore();
+        new WindowGeometryHelper(window, vm.Preferences, "FlightPlanEditor", 720, 250).Restore();
 
         // Shown un-owned so the editor never locks above the main window or other tool windows (#287).
         window.Show();

@@ -6,7 +6,7 @@
         Background="#1A1A1A"
         SizeToContent="Height"
         Width="810"
-        MinWidth="660"
+        MinWidth="720"
         CanResize="False"
         WindowStartupLocation="CenterOwner">
 
@@ -45,7 +45,7 @@
 
     <StackPanel Margin="12" Spacing="8">
         <!-- Row 1: AID BCN [↻] TYP EQ ICAO-EQ DEP DEST SPD ALT [Submit] -->
-        <Grid ColumnDefinitions="70,60,30,60,40,110,60,60,50,72,*">
+        <Grid ColumnDefinitions="70,60,30,60,40,110,60,60,50,72,Auto">
             <StackPanel Grid.Column="0" Spacing="2">
                 <TextBlock Text="AID" Classes="label" />
                 <TextBlock x:Name="AidText" Classes="value" />
@@ -87,7 +87,7 @@
                 <TextBox x:Name="AltBox" Classes="field" MaxLength="7" Width="68" />
             </StackPanel>
             <StackPanel Grid.Column="10" VerticalAlignment="Bottom" Margin="8,0,0,0">
-                <Button x:Name="SubmitButton" Content="Amend" />
+                <Button x:Name="SubmitButton" Content="Amend" MinWidth="64" />
             </StackPanel>
         </Grid>
 
