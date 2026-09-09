@@ -57,6 +57,8 @@ segments() {
         sed -E 's/&&|\|\||;|\|/\n/g' |
         sed -E 's/^[[:space:]]*//' |
         sed -E 's/^(timeout[[:space:]]+[0-9]+[smhd]?|nice([[:space:]]+-n[[:space:]]*-?[0-9]+)?|command|exec)[[:space:]]+//' |
+        sed -E 's#^(bash[[:space:]]+)?([^[:space:]]*/)?gate\.sh[[:space:]]+[^[:space:]]+[[:space:]]+##' |
+        sed -E 's/^(timeout[[:space:]]+[0-9]+[smhd]?)[[:space:]]+//' |
         sed -E 's/^([A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*[[:space:]]+)+//'
 }
 
@@ -78,8 +80,16 @@ if starts_with 'dotnet' && line_has '[[:space:]](-q|--nologo|-v[[:space:]]*q)([[
     deny 'Never pass -q / -v q / --nologo to a dotnet command — it suppresses output and causes spurious errors. Drop the flag.'
 fi
 
-if starts_with 'dotnet[[:space:]]+(test|build|run)' && ! line_has '\|[[:space:]]*tee[[:space:]]'; then
-    deny 'dotnet test/build/run must tee output to .tmp/ — add: 2>&1 | tee .tmp/<name>.log. Use a generic name (e.g. .tmp/build.log) unless you will need to compare multiple runs later, then use a unique one.'
+# Every line a command prints lands in the agent's context and is re-read on
+# every later turn, so a build or test run writes its full output to a .tmp log
+# and prints only the tail; the log is what to read for more, instead of
+# re-running. `| tee` prints the whole log and reports tee's status, so it is
+# denied even though it captures.
+captured() {
+    line_has '(^|[[:space:]/])gate\.sh[[:space:]]' || line_has '>>?[[:space:]]*["'"'"']?[^[:space:]"'"'"']*\.tmp/[^[:space:]"'"'"']*\.log'
+}
+if starts_with 'dotnet[[:space:]]+(test|build|run)' && ! captured; then
+    deny 'dotnet test/build/run must write its full output to a .tmp/<name>.log and print only the tail: `tools/gate.sh .tmp/<name>.log <command...>` (from yaat-server: `../yaat/tools/gate.sh`), or `<command> > .tmp/<name>.log 2>&1; rc=$?; tail -n 20 .tmp/<name>.log; (exit $rc)`. `| tee` prints the whole log into context and hides the exit status. For more of the output, read the log file — never re-run the command.'
 fi
 
 if starts_with 'dotnet[[:space:]]+test' && ! line_has '(^|[[:space:]])timeout[[:space:]]+[0-9]'; then
