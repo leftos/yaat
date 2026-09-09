@@ -59,10 +59,10 @@ public sealed class ActionRouter
     /// <summary>
     /// Applies one recorded action: a command through <see cref="Apply(RecordedCommand, IActionHost)"/>, a derived
     /// record (spawn, live-traffic sample or removal, flight-plan amendment, beacon recycle, weather, setting,
-    /// generators, STARS shared state, clearance, hold annotation, ERAM entry, ERAM CRR group, CRC attendance, a
-    /// <c>.AUTOTRACK</c> roster change) through its Sim applier
-    /// with the host told what changed, and a record of host-owned state (an ASDE-X or SAID mutation, a
-    /// strip request, an ASDE-X safety-logic push) through the host's slot. A chat line and a diagnostic record apply
+    /// generators, STARS shared state, clearance, hold annotation, ERAM entry, ERAM CRR group, ASDE-X or SAID
+    /// mutation, strip request, CRC attendance, a <c>.AUTOTRACK</c> roster change) through its Sim applier
+    /// with the host told what changed, and a record of host-owned state (an ASDE-X safety-logic push) through the
+    /// host's slot. A chat line and a diagnostic record apply
     /// nothing. A derived record the live room applied whose apply refuses here — its aircraft is gone, an ERAM entry's
     /// guard answers differently — logs a <c>replay-fidelity</c> warning like a command whose verdict changed.
     /// </summary>
@@ -108,12 +108,6 @@ public sealed class ActionRouter
             case RecordedArrivalGeneratorsChange generators:
                 _engine.ApplyGeneratorsJson(generators.GeneratorsJson);
                 return Applied;
-            case RecordedAsdexMutation asdex:
-                host.ApplyRecordedAsdexMutation(asdex);
-                return Applied;
-            case RecordedSaidMutation said:
-                host.ApplyRecordedSaidMutation(said);
-                return Applied;
             default:
                 var result = ApplyStateRecord(action, host);
                 if (!result.Success)
@@ -130,7 +124,7 @@ public sealed class ActionRouter
 
     /// <summary>
     /// A derived record produced now rather than read back from the log — a CRC handler's shared-state, clearance,
-    /// hold-annotation, ERAM, CRR-group, strip-request, ASDE-X safety-logic or <c>.AUTOTRACK</c> write, or the live
+    /// hold-annotation, ERAM, CRR-group, strip-request, ASDE-X / SAID, safety-logic or <c>.AUTOTRACK</c> write, or the live
     /// host's derived CRC attendance. Applied through the same body a replay uses and appended to the action log only when it applied, so
     /// the log never carries a write the room refused; a refusal here is the live verdict, not a fidelity break, and is
     /// not warned about.
@@ -178,6 +172,12 @@ public sealed class ActionRouter
                 return ApplyEramEntry(entry);
             case RecordedEramCrrGroup group:
                 _engine.ApplyCrrGroup(group);
+                return Applied;
+            case RecordedAsdexMutation asdex:
+                _engine.ApplyAsdexMutation(asdex, host);
+                return Applied;
+            case RecordedSaidMutation said:
+                _engine.ApplySaidMutation(said, host);
                 return Applied;
             case RecordedStripRequest request:
                 return StripRequests.PrintRequestedStrip(_engine, request);
@@ -255,7 +255,7 @@ public sealed class ActionRouter
         if (CompoundPolicy.FindNonCompoundableInChain(remainder) is { } nonCompoundable)
         {
             var refusal = new CommandResult(false, $"{CommandDescriber.DescribeCommand(nonCompoundable)} cannot be part of a chained command");
-            var refusalTrace = new ActionTrace(RecordedCommandKind.Compound, ActionScope.Aircraft, IsHostSlot: false);
+            var refusalTrace = new ActionTrace(RecordedCommandKind.Compound, ActionScope.Aircraft);
             return Finish(routing, refusal, refusalTrace, RecordingPolicy.Text, ctx: null);
         }
 
@@ -265,7 +265,7 @@ public sealed class ActionRouter
         if (CompoundPolicy.FindTakeoffPairedWithImmediateTurn(remainder) is { } pairedTurn)
         {
             var refusal = new CommandResult(false, CompoundPolicy.TakeoffPairedWithImmediateTurnMessage(pairedTurn));
-            var refusalTrace = new ActionTrace(RecordedCommandKind.Compound, ActionScope.Aircraft, IsHostSlot: false);
+            var refusalTrace = new ActionTrace(RecordedCommandKind.Compound, ActionScope.Aircraft);
             return Finish(routing, refusal, refusalTrace, RecordingPolicy.Text, ctx: null);
         }
 
@@ -278,7 +278,7 @@ public sealed class ActionRouter
 
         var classification = RecordedCommandClassifier.Classify(remainder);
         var arm = ArmTable.For(classification.Kind);
-        var trace = new ActionTrace(arm.Kind, arm.Scope, arm.IsHostSlot);
+        var trace = new ActionTrace(arm.Kind, arm.Scope);
 
         // A kind that is never recorded (the session clock, bookmarks, the SHOW query) is never applied from a record
         // either: the legacy PAUSE / SIMRATE / BM records older recordings carry must not pause a rewind or re-add a

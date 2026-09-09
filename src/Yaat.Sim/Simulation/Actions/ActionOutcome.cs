@@ -10,8 +10,7 @@ namespace Yaat.Sim.Simulation.Actions;
 public sealed record ActionOutcome(CommandResult Result, RecordedCommand? ToRecord, ActionTrace Trace);
 
 /// <summary>
-/// Which arm an action took: the kind the classifier gave it, the scope the router resolved, and whether the body
-/// ran on the host rather than in the Sim. The parity test's observable — every entry point routing the same bytes
-/// must produce the same trace.
+/// Which arm an action took: the kind the classifier gave it and the scope the router resolved. The parity test's
+/// observable — every entry point routing the same bytes must produce the same trace.
 /// </summary>
-public readonly record struct ActionTrace(RecordedCommandKind Kind, ActionScope Scope, bool IsHostSlot);
+public readonly record struct ActionTrace(RecordedCommandKind Kind, ActionScope Scope);

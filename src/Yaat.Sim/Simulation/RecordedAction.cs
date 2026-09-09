@@ -149,7 +149,9 @@ public sealed record RecordedLiveTrafficStatus(
 /// <summary>
 /// CRC-sourced ASDE-X mutation. <see cref="Kind"/> is one of <c>EditDbFields</c>, <c>Tag</c>,
 /// <c>Terminate</c>, <c>Suspend</c>, <c>Unsuspend</c>, <c>InhibitAlerts</c>, <c>EnableAllAlerts</c>.
-/// All mutations target server-side <c>AsdexRoomState</c>; the sim ignores them during replay.
+/// Applied by <see cref="SimulationEngine.ApplyAsdexMutation"/> onto the aircraft's <c>Asdex*</c> display state on
+/// every run kind; a terminate additionally hands the host the callsign, which the live room turns into its one-shot
+/// delete marker.
 /// </summary>
 public sealed record RecordedAsdexMutation(
     double ElapsedSeconds,
@@ -167,8 +169,8 @@ public sealed record RecordedAsdexMutation(
 /// <summary>
 /// CRC-sourced SAAB SAID mutation. <see cref="Kind"/> is one of <c>EditDbFields</c>, <c>Tag</c>,
 /// <c>Terminate</c>, <c>Suspend</c>, <c>Unsuspend</c> (SAID has no alerts, so no Inhibit/EnableAll).
-/// All mutations target server-side <c>SaidRoomState</c> + per-aircraft SAID state; the sim ignores
-/// them during replay.
+/// The SAID twin of <see cref="RecordedAsdexMutation"/>, applied by
+/// <see cref="SimulationEngine.ApplySaidMutation"/> onto the aircraft's <c>Said*</c> display state.
 /// </summary>
 public sealed record RecordedSaidMutation(
     double ElapsedSeconds,

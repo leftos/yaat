@@ -49,7 +49,7 @@ public class AddAndTaxiAllArmTests
         var outcome = engine.Actions.Issue(Fresh(Add));
 
         Assert.True(outcome.Result.Success, outcome.Result.Message);
-        Assert.Equal(new ActionTrace(RecordedCommandKind.AddAircraft, ActionScope.Global, IsHostSlot: false), outcome.Trace);
+        Assert.Equal(new ActionTrace(RecordedCommandKind.AddAircraft, ActionScope.Global), outcome.Trace);
         var spawned = Assert.Single(engine.World.GetSnapshot(), ac => ac.Callsign != AiTestFixture.Callsign);
         Assert.IsType<AtParkingPhase>(spawned.Phases?.CurrentPhase);
         Assert.Contains(spawned.Callsign, outcome.Result.Message);
@@ -155,7 +155,7 @@ public class AddAndTaxiAllArmTests
 
         Assert.True(outcome.Result.Success, outcome.Result.Message);
         Assert.Equal("TAXIALL: 1 aircraft taxied", outcome.Result.Message);
-        Assert.Equal(new ActionTrace(RecordedCommandKind.TaxiAll, ActionScope.Global, IsHostSlot: false), outcome.Trace);
+        Assert.Equal(new ActionTrace(RecordedCommandKind.TaxiAll, ActionScope.Global), outcome.Trace);
         Assert.IsType<TaxiingPhase>(parked.Phases?.CurrentPhase);
         Assert.Empty(engine.Scenario!.ActionLog);
     }

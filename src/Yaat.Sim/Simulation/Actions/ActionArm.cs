@@ -54,14 +54,13 @@ public sealed class ArmContext
 }
 
 /// <summary>
-/// One row of the arm table: the body that applies a <see cref="RecordedCommandKind"/>, what it is addressed to,
-/// whether the body is the host's (a slot on <see cref="IActionHost"/>) or the Sim's, and whether its text is recorded.
+/// One row of the arm table: the body that applies a <see cref="RecordedCommandKind"/>, what it is addressed to, and
+/// whether its text is recorded. Every body is the Sim's.
 /// </summary>
 public sealed record ActionArm
 {
     public required RecordedCommandKind Kind { get; init; }
     public required ActionScope Scope { get; init; }
-    public required bool IsHostSlot { get; init; }
     public required RecordingPolicy Recording { get; init; }
     public required Func<ArmContext, CommandResult> Run { get; init; }
 }
@@ -141,7 +140,7 @@ public static class ArmTable
                 static ctx => BookmarkCommandHandler.Handle(ctx.Engine, (BookmarkCommand)ctx.Parsed!, ctx.Input.Initials)
             ),
             Sim(RecordedCommandKind.Transport, RecordingPolicy.Never, static ctx => TransportCommandHandler.Handle(ctx.Engine, ctx.Parsed!)),
-            Host(RecordedCommandKind.AsdexEnableAllAlerts, RecordingPolicy.Text, static ctx => ctx.Host.ApplyAsdexEnableAllAlerts()),
+            Sim(RecordedCommandKind.AsdexEnableAllAlerts, RecordingPolicy.Text, static ctx => ctx.Engine.EnableAllAsdexAlerts()),
         };
 
         foreach (var row in rows)
@@ -175,17 +174,6 @@ public static class ArmTable
         {
             Kind = kind,
             Scope = RecordedCommandClassifier.ScopeOf(kind),
-            IsHostSlot = false,
-            Recording = recording,
-            Run = run,
-        };
-
-    private static ActionArm Host(RecordedCommandKind kind, RecordingPolicy recording, Func<ArmContext, CommandResult> run) =>
-        new()
-        {
-            Kind = kind,
-            Scope = RecordedCommandClassifier.ScopeOf(kind),
-            IsHostSlot = true,
             Recording = recording,
             Run = run,
         };

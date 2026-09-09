@@ -88,7 +88,7 @@ public class ActionRouterTests
         Assert.True(outcome.Result.Success, outcome.Result.Message);
         Assert.Equal(1234u, first.Transponder.Code);
         Assert.Equal(4321u, second.Transponder.Code);
-        Assert.Equal(new ActionTrace(RecordedCommandKind.SquawkAll, ActionScope.Global, IsHostSlot: false), outcome.Trace);
+        Assert.Equal(new ActionTrace(RecordedCommandKind.SquawkAll, ActionScope.Global), outcome.Trace);
     }
 
     [Fact]
@@ -195,7 +195,7 @@ public class ActionRouterTests
         var outcome = engine.Actions.Apply(Recorded("", "PAUSE"));
 
         Assert.False(outcome.Result.Success);
-        Assert.Equal(new ActionTrace(RecordedCommandKind.Transport, ActionScope.Global, IsHostSlot: false), outcome.Trace);
+        Assert.Equal(new ActionTrace(RecordedCommandKind.Transport, ActionScope.Global), outcome.Trace);
         Assert.False(engine.Scenario!.IsPaused);
         Assert.Empty(engine.Scenario!.ActionLog);
         Assert.Empty(ac.DeferredDispatches);

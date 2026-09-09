@@ -59,7 +59,7 @@ public class FlightPlanAndQueryArmTests
         var outcome = engine.Actions.Issue(Fresh(AiTestFixture.Callsign, "AS 4U FP C172/G 050 OAK SFO"), host);
 
         Assert.True(outcome.Result.Success, outcome.Result.Message);
-        Assert.Equal(new ActionTrace(RecordedCommandKind.FlightPlan, ActionScope.Callsign, IsHostSlot: false), outcome.Trace);
+        Assert.Equal(new ActionTrace(RecordedCommandKind.FlightPlan, ActionScope.Callsign), outcome.Trace);
         Assert.Equal("C172", aircraft.FlightPlan.AircraftType);
         Assert.Equal("G", aircraft.FlightPlan.EquipmentSuffix);
         Assert.Equal("KOAK", aircraft.FlightPlan.Departure);
@@ -179,7 +179,7 @@ public class FlightPlanAndQueryArmTests
 
         Assert.True(outcome.Result.Success, outcome.Result.Message);
         Assert.Null(outcome.Result.Message);
-        Assert.Equal(new ActionTrace(RecordedCommandKind.ShowQueued, ActionScope.Aircraft, IsHostSlot: false), outcome.Trace);
+        Assert.Equal(new ActionTrace(RecordedCommandKind.ShowQueued, ActionScope.Aircraft), outcome.Trace);
         var shown = Assert.Single(host.ShownQueues);
         Assert.Equal(("conn-1", AiTestFixture.Callsign), (shown.ConnectionId, shown.Callsign));
         Assert.Equal(["No pending commands"], shown.Lines);

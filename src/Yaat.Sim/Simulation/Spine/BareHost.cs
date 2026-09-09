@@ -103,12 +103,6 @@ internal sealed class BareHost(SimulationEngine engine) : ISimulationHost
 
     // --- IActionHost: no room, so every slot is refused and every consumer is a no-op ---
 
-    public CommandResult ApplyAsdexEnableAllAlerts() => ActionRefusals.HostOnly("ASDXALERTS");
-
-    public void ApplyRecordedAsdexMutation(RecordedAsdexMutation mutation) { }
-
-    public void ApplyRecordedSaidMutation(RecordedSaidMutation mutation) { }
-
     public void ApplyRecordedAsdexSafetyLogic(RecordedAsdexSafetyLogicChange change) { }
 
     public void OnAircraftSpawned(AircraftState aircraft) { }
@@ -122,6 +116,8 @@ internal sealed class BareHost(SimulationEngine engine) : ISimulationHost
     public void OnGhostOverlayRemoved(string callsign) { }
 
     public void OnAsdexTrackTerminated(string callsign) { }
+
+    public void OnSaidTrackTerminated(string callsign) { }
 
     /// <summary>Discarded: a bare engine has no vStrips client to push items to. The mutations themselves are engine state.</summary>
     public void OnStripsChanged(StripChangeSet changes) { }

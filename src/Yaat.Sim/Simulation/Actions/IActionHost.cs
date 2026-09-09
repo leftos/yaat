@@ -11,23 +11,23 @@ namespace Yaat.Sim.Simulation.Actions;
 /// There are no default implementations — a new slot fails the build in every host until each has answered.
 ///
 /// <para>
-/// <b>Step-4 debt.</b> Every <c>Apply*</c> member here is a body whose state has not crossed into Yaat.Sim: the
-/// ASDE-X and SAID display state (the recorded mutations included). Strips, TDLS,
-/// coordination, bookmarks, the session clock and the ERAM CRR groups have all crossed whole: their state is the engine's
-/// (<see cref="SimulationEngine.Strips"/> / <see cref="SimulationEngine.Tdls"/> /
+/// One <c>Apply*</c> member is left: the ASDE-X safety-logic configuration, whose state is still the room's. Strips,
+/// TDLS, coordination, bookmarks, the session clock, the ERAM CRR groups and the ASDE-X / SAID display state are the
+/// engine's (<see cref="SimulationEngine.Strips"/> / <see cref="SimulationEngine.Tdls"/> /
 /// <see cref="SimScenarioState.CoordinationChannels"/> / <see cref="SimScenarioState.Bookmarks"/> /
 /// <see cref="SimScenarioState.IsPaused"/> and <see cref="SimScenarioState.SimRate"/> /
-/// <see cref="SimulationEngine.CrrGroups"/>, all but the
-/// bookmarks snapshotted — the timeline metadata a rewind carries over verbatim instead — so every run
-/// kind carries them), their mutation bodies are the engine's, and what those bodies touched reaches the host through
+/// <see cref="SimulationEngine.CrrGroups"/> / the <c>Asdex*</c> and <c>Said*</c> fields of
+/// <see cref="AircraftStarsState"/> — all but the bookmarks snapshotted, the timeline metadata a rewind carries over
+/// verbatim instead, so every run kind carries them), their mutation bodies are the engine's, and what those bodies
+/// touched reaches the host through
 /// <see cref="IStateChangeConsumer.OnStripsChanged"/>, <see cref="IStateChangeConsumer.OnTdlsChanged"/>,
 /// <see cref="IStateChangeConsumer.OnCoordinationChanged"/>, <see cref="IStateChangeConsumer.OnBookmarksChanged"/>,
-/// <see cref="IStateChangeConsumer.OnSimStateChanged"/> and
-/// <see cref="IStateChangeConsumer.OnEramCrrGroupsChanged"/> —
-/// the broadcast is all the host still owes. The host answers no
+/// <see cref="IStateChangeConsumer.OnSimStateChanged"/>,
+/// <see cref="IStateChangeConsumer.OnEramCrrGroupsChanged"/> and — for the surface displays, whose per-aircraft
+/// fields the room's change tracker already fingerprints — <see cref="OnAsdexTrackTerminated"/> /
+/// <see cref="OnSaidTrackTerminated"/>; the broadcast is all the host still owes. The host answers no
 /// questions, because CRC attendance, the last one it was asked, is now engine state every run kind carries
-/// (<see cref="SimulationEngine.Attendance"/>, fed by <see cref="RecordedAttendanceChange"/>). As each body crosses,
-/// its slot is deleted and the arm becomes a Sim body; the interface shrinks the way <see cref="Spine.IHostSteps"/> does.
+/// (<see cref="SimulationEngine.Attendance"/>, fed by <see cref="RecordedAttendanceChange"/>).
 /// </para>
 ///
 /// <para>
@@ -40,15 +40,6 @@ namespace Yaat.Sim.Simulation.Actions;
 public interface IActionHost : IStateChangeConsumer
 {
     // --- Slots: bodies the host owns ---
-
-    /// <summary><c>ASDXALERTS</c> — clear every ASDE-X alert inhibit in the room.</summary>
-    CommandResult ApplyAsdexEnableAllAlerts();
-
-    /// <summary>A recorded CRC ASDE-X mutation (tag / terminate / suspend / inhibit / edit); ASDE-X display state is the room's.</summary>
-    void ApplyRecordedAsdexMutation(RecordedAsdexMutation mutation);
-
-    /// <summary>A recorded CRC SAID mutation; SAID state is the room's.</summary>
-    void ApplyRecordedSaidMutation(RecordedSaidMutation mutation);
 
     /// <summary>A recorded CRC ASDE-X safety-logic configuration push; the facility's runway configuration is the room's.</summary>
     void ApplyRecordedAsdexSafetyLogic(RecordedAsdexSafetyLogicChange change);
@@ -75,8 +66,11 @@ public interface IActionHost : IStateChangeConsumer
     /// <summary>A <c>DROP</c> lifted a ghost overlay off a real aircraft, which stays in the world as itself.</summary>
     void OnGhostOverlayRemoved(string callsign);
 
-    /// <summary>An ASDE-X <c>TERM</c> verb terminated the aircraft's surface track this tick.</summary>
+    /// <summary>An ASDE-X <c>TERM</c> verb or a recorded CRC terminate ended the aircraft's surface track this tick.</summary>
     void OnAsdexTrackTerminated(string callsign);
+
+    /// <summary>The SAAB SAID twin: a recorded CRC terminate ended the aircraft's SAID track this tick.</summary>
+    void OnSaidTrackTerminated(string callsign);
 
     /// <summary>A <c>TIMER</c> set or cancelled a scenario timer.</summary>
     void OnTimersChanged();

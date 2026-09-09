@@ -131,12 +131,6 @@ public sealed class SpineCapturingHost : ISimulationHost
 
     // --- IActionHost ---
 
-    public CommandResult ApplyAsdexEnableAllAlerts() => _bare.ApplyAsdexEnableAllAlerts();
-
-    public void ApplyRecordedAsdexMutation(RecordedAsdexMutation mutation) => _bare.ApplyRecordedAsdexMutation(mutation);
-
-    public void ApplyRecordedSaidMutation(RecordedSaidMutation mutation) => _bare.ApplyRecordedSaidMutation(mutation);
-
     public void ApplyRecordedAsdexSafetyLogic(RecordedAsdexSafetyLogicChange change) => _bare.ApplyRecordedAsdexSafetyLogic(change);
 
     public void OnAircraftSpawned(AircraftState aircraft) => _bare.OnAircraftSpawned(aircraft);
@@ -150,6 +144,8 @@ public sealed class SpineCapturingHost : ISimulationHost
     public void OnGhostOverlayRemoved(string callsign) => _bare.OnGhostOverlayRemoved(callsign);
 
     public void OnAsdexTrackTerminated(string callsign) => _bare.OnAsdexTrackTerminated(callsign);
+
+    public void OnSaidTrackTerminated(string callsign) => _bare.OnSaidTrackTerminated(callsign);
 
     public void OnTimersChanged() => _bare.OnTimersChanged();
 

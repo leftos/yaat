@@ -9,9 +9,9 @@ namespace Yaat.Sim.Tests.ControllerAi;
 
 /// <summary>
 /// <see cref="EngineAiCommandSink"/> / <see cref="SimulationEngine.DispatchAiCommand"/>: aviation verbs run under the
-/// AI origin and are recorded with the AI connection id, track verbs run under the AI position's identity, server-only
-/// verbs are refused (and recorded as rejected, like every routed command), and a recorded AI command replays to the
-/// same state.
+/// AI origin and are recorded with the AI connection id, track verbs run under the AI position's identity, a verb the
+/// engine refuses is recorded as rejected like every routed command, the room-wide ASDE-X sweep is the engine's own,
+/// and a recorded AI command replays to the same state.
 /// </summary>
 public class EngineAiCommandSinkTests
 {
@@ -74,12 +74,11 @@ public class EngineAiCommandSinkTests
     }
 
     /// <summary>
-    /// A verb whose body is still the live server's — <c>ASDXALERTS</c>, whose ASDE-X alert inhibits are room state —
-    /// is refused by the bare engine's host with the "live server" message rather than half-applied, and the refusal is
-    /// recorded as rejected like every routed command.
+    /// <c>ASDXALERTS</c>' alert inhibits are per-aircraft engine state, so the bare engine applies the room-wide sweep
+    /// itself and records the command as accepted.
     /// </summary>
     [Fact]
-    public void ServerOnlyVerb_IsRefused()
+    public void GlobalAsdexVerb_SweepsTheEngine_AndIsRecordedAsAccepted()
     {
         if (_zoa is null)
         {
@@ -88,14 +87,15 @@ public class EngineAiCommandSinkTests
 
         var ground = TestAiPositions.OakGround(_zoa);
         var engine = AiTestFixture.Load(AiTestFixture.ParkedAtOak, _zoa, 7, [ground]);
+        engine.FindAircraft(AiTestFixture.Callsign)!.Stars.AsdexAlertsInhibited = true;
 
         var result = engine.DispatchAiCommand(ground, "", "ASDXALERTS");
 
-        Assert.False(result.Success);
-        Assert.Contains("live server", result.Message);
+        Assert.True(result.Success, result.Message);
+        Assert.False(engine.FindAircraft(AiTestFixture.Callsign)!.Stars.AsdexAlertsInhibited);
         var recorded = Assert.IsType<RecordedCommand>(Assert.Single(engine.Scenario!.ActionLog));
         Assert.Equal("ASDXALERTS", recorded.Command);
-        Assert.False(recorded.Accepted);
+        Assert.True(recorded.Accepted);
     }
 
     [Fact]

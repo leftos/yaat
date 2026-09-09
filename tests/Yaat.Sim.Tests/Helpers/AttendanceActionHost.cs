@@ -7,18 +7,14 @@ using Yaat.Sim.Simulation.Tdls;
 namespace Yaat.Sim.Tests.Helpers;
 
 /// <summary>
-/// An action host with no room: every slot refused, every consumer counted or ignored. Attendance is engine state
-/// (<see cref="AttendanceTestSupport.Attend"/>), not something the host answers.
+/// An action host with no room: the one remaining slot captured, every consumer counted or ignored. Attendance is
+/// engine state (<see cref="AttendanceTestSupport.Attend"/>), not something the host answers.
 /// </summary>
 public sealed class AttendanceActionHost : IActionHost
 {
     public int ConsolidationChanges { get; private set; }
 
     public int WeatherChanges { get; private set; }
-
-    public List<RecordedAsdexMutation> AsdexMutations { get; } = [];
-
-    public List<RecordedSaidMutation> SaidMutations { get; } = [];
 
     public List<string> SpawnedCallsigns { get; } = [];
 
@@ -31,12 +27,6 @@ public sealed class AttendanceActionHost : IActionHost
     public List<(string ConnectionId, string Callsign, List<string> Lines)> ShownQueues { get; } = [];
 
     public void OnConsolidationChanged() => ConsolidationChanges++;
-
-    public CommandResult ApplyAsdexEnableAllAlerts() => ActionRefusals.HostOnly("ASDXALERTS");
-
-    public void ApplyRecordedAsdexMutation(RecordedAsdexMutation mutation) => AsdexMutations.Add(mutation);
-
-    public void ApplyRecordedSaidMutation(RecordedSaidMutation mutation) => SaidMutations.Add(mutation);
 
     public List<RecordedAsdexSafetyLogicChange> AsdexSafetyLogicChanges { get; } = [];
 
@@ -54,7 +44,15 @@ public sealed class AttendanceActionHost : IActionHost
 
     public void OnGhostOverlayRemoved(string callsign) => OverlaysRemoved.Add(callsign);
 
-    public void OnAsdexTrackTerminated(string callsign) { }
+    /// <summary>Every callsign an ASDE-X terminate handed over, in order — the live room's one-shot delete marker.</summary>
+    public List<string> AsdexTerminations { get; } = [];
+
+    public void OnAsdexTrackTerminated(string callsign) => AsdexTerminations.Add(callsign);
+
+    /// <summary>The SAID twin of <see cref="AsdexTerminations"/>.</summary>
+    public List<string> SaidTerminations { get; } = [];
+
+    public void OnSaidTrackTerminated(string callsign) => SaidTerminations.Add(callsign);
 
     public void OnQueuedCommandsShown(string connectionId, string callsign, IReadOnlyList<string> lines) =>
         ShownQueues.Add((connectionId, callsign, lines.ToList()));

@@ -369,12 +369,21 @@ public static partial class TrackEngine
     }
 
     /// <summary>
-    /// Apply an ASDE-X display-field override to <c>AircraftStarsState</c>. An empty
-    /// <paramref name="text"/> clears the override (DTO falls back to scenario/derived value).
+    /// Apply an ASDE-X display-field override typed at the YAAT terminal (<c>ASDXSP1</c> and its family) to
+    /// <c>AircraftStarsState</c>. An empty <paramref name="text"/> is how the typed form clears the override (the
+    /// DTO then falls back to the scenario/derived value); every other value is written as given.
     /// </summary>
-    public static CommandResult HandleAsdexEdit(AircraftState ac, AsdexEditField field, string text)
+    public static CommandResult HandleAsdexEdit(AircraftState ac, AsdexEditField field, string text) =>
+        SetAsdexField(ac, field, string.IsNullOrEmpty(text) ? null : text);
+
+    /// <summary>
+    /// Write one ASDE-X display-field override exactly as given: null clears it, and any other value — the empty
+    /// string included — is stored as written. The typed form maps its empty argument to null before it gets here;
+    /// a CRC <c>EditDbFields</c> mutation echoes the whole displayed row back, so an empty field there is the value
+    /// the controller is looking at, not a request to clear the override.
+    /// </summary>
+    public static CommandResult SetAsdexField(AircraftState ac, AsdexEditField field, string? value)
     {
-        var value = string.IsNullOrEmpty(text) ? null : text;
         switch (field)
         {
             case AsdexEditField.Scratchpad1:
@@ -429,6 +438,67 @@ public static partial class TrackEngine
                 return new CommandResult(true, $"ASDX INHIB: {ac.Callsign}");
             default:
                 return new CommandResult(false, $"Unknown ASDE-X verb '{verb}'");
+        }
+    }
+
+    /// <summary>
+    /// The SAID twin of <see cref="SetAsdexField"/>: write one SAAB SAID display-field override exactly as given.
+    /// SAID has no typed terminal form, so a CRC <c>EditSaabSaidDbFields</c> mutation is the only caller and the
+    /// value is always stored as written; null clears the override the way the ASDE-X writer's does.
+    /// </summary>
+    public static CommandResult SetSaidField(AircraftState ac, SaidEditField field, string? value)
+    {
+        switch (field)
+        {
+            case SaidEditField.Scratchpad1:
+                ac.Stars.SaidScratchpad1 = value;
+                return new CommandResult(true, $"SAID SP1: {value ?? "(cleared)"}");
+            case SaidEditField.Scratchpad2:
+                ac.Stars.SaidScratchpad2 = value;
+                return new CommandResult(true, $"SAID SP2: {value ?? "(cleared)"}");
+            case SaidEditField.Callsign:
+                ac.Stars.SaidCallsignOverride = value;
+                return new CommandResult(true, $"SAID CS: {value ?? "(cleared)"}");
+            case SaidEditField.BeaconCode:
+                ac.Stars.SaidBeaconCodeOverride = value;
+                return new CommandResult(true, $"SAID BCN: {value ?? "(cleared)"}");
+            case SaidEditField.Category:
+                ac.Stars.SaidCategoryOverride = value;
+                return new CommandResult(true, $"SAID CAT: {value ?? "(cleared)"}");
+            case SaidEditField.AircraftType:
+                ac.Stars.SaidAircraftTypeOverride = value;
+                return new CommandResult(true, $"SAID TYPE: {value ?? "(cleared)"}");
+            case SaidEditField.Fix:
+                ac.Stars.SaidFixOverride = value;
+                return new CommandResult(true, $"SAID FIX: {value ?? "(cleared)"}");
+            default:
+                return new CommandResult(false, $"Unknown SAID field '{field}'");
+        }
+    }
+
+    /// <summary>
+    /// The SAID twin of <see cref="HandleAsdexVerb"/>: a per-aircraft verb (Tag/Terminate/Suspend/Unsuspend) on the
+    /// <c>Said*</c> bits. Tag clears the terminated bit (CRC's untermination path). SAID carries no safety logic, so
+    /// there is no alert inhibit here.
+    /// </summary>
+    public static CommandResult HandleSaidVerb(AircraftState ac, SaidVerb verb)
+    {
+        switch (verb)
+        {
+            case SaidVerb.Tag:
+                ac.Stars.SaidTerminated = false;
+                return new CommandResult(true, $"SAID TAG: {ac.Callsign}");
+            case SaidVerb.Terminate:
+                ac.Stars.SaidTerminated = true;
+                return new CommandResult(true, $"SAID TERM: {ac.Callsign}");
+            case SaidVerb.Suspend:
+                ac.Stars.SaidSuspended = true;
+                return new CommandResult(true, $"SAID SUSP: {ac.Callsign}");
+            case SaidVerb.Unsuspend:
+                ac.Stars.SaidSuspended = false;
+                return new CommandResult(true, $"SAID UNSUSP: {ac.Callsign}");
+            default:
+                return new CommandResult(false, $"Unknown SAID verb '{verb}'");
         }
     }
 
@@ -1028,4 +1098,32 @@ public static partial class TrackEngine
             // TRACK (claims an unowned track), pointout acknowledge/reject/retract, force handoff.
             _ => true,
         };
+}
+
+/// <summary>
+/// Which SAAB SAID display-field override a CRC <c>EditSaabSaidDbFields</c> mutation writes. The twin of
+/// <see cref="AsdexEditField"/>: SAID keeps its own <c>Said*</c> slots on <c>AircraftStarsState</c>, and there is no
+/// typed terminal form for it, so no <c>ParsedCommand</c> carries this.
+/// </summary>
+public enum SaidEditField
+{
+    Scratchpad1,
+    Scratchpad2,
+    Callsign,
+    BeaconCode,
+    Category,
+    AircraftType,
+    Fix,
+}
+
+/// <summary>
+/// A per-aircraft SAAB SAID verb a CRC client sends. The twin of <see cref="AsdexVerb"/> minus the alert inhibit:
+/// SAID carries no safety logic.
+/// </summary>
+public enum SaidVerb
+{
+    Tag,
+    Terminate,
+    Suspend,
+    Unsuspend,
 }

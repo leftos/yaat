@@ -69,7 +69,7 @@ public class TrackFamilyArmTests
 
         Assert.True(outcome.Result.Success, outcome.Result.Message);
         Assert.Equal("Accepted 1 handoff(s)", outcome.Result.Message);
-        Assert.Equal(new ActionTrace(RecordedCommandKind.AcceptAllHandoffs, ActionScope.Position, IsHostSlot: false), outcome.Trace);
+        Assert.Equal(new ActionTrace(RecordedCommandKind.AcceptAllHandoffs, ActionScope.Position), outcome.Trace);
         Assert.True(ac.Track.Owner!.MatchesPosition(Student));
         Assert.Null(ac.Track.HandoffPeer);
         Assert.True(ac.Track.HandoffAccepted);
@@ -124,7 +124,7 @@ public class TrackFamilyArmTests
 
         Assert.True(first.Result.Success, first.Result.Message);
         Assert.True(second.Result.Success, second.Result.Message);
-        Assert.Equal(new ActionTrace(RecordedCommandKind.GhostTrack, ActionScope.Callsign, IsHostSlot: false), first.Trace);
+        Assert.Equal(new ActionTrace(RecordedCommandKind.GhostTrack, ActionScope.Callsign), first.Trace);
         var runway = NavigationDatabase.Instance.GetRunway("OAK", "28R")!;
         var reciprocal = runway.TrueHeading.ToReciprocal();
         var ghost1 = engine.FindAircraft("GHOST1")!;
@@ -183,7 +183,7 @@ public class TrackFamilyArmTests
         var parked = engine.Actions.Apply(Recorded(AiTestFixture.Callsign, $"RPOSLOC {AiTestFixture.Callsign} 37.7 -122.2"));
 
         Assert.True(parked.Result.Success, parked.Result.Message);
-        Assert.Equal(new ActionTrace(RecordedCommandKind.Reposition, ActionScope.Aircraft, IsHostSlot: false), parked.Trace);
+        Assert.Equal(new ActionTrace(RecordedCommandKind.Reposition, ActionScope.Aircraft), parked.Trace);
         Assert.Equal(DataBlockBinding.Parked, ac.DataBlock.Binding);
         Assert.Equal($"RPOS{AiTestFixture.Callsign}", ac.DataBlock.DetachedId);
         Assert.Equal(37.7, ac.DataBlock.Latitude);
@@ -219,7 +219,7 @@ public class TrackFamilyArmTests
 
         Assert.True(acknowledged.Result.Success, acknowledged.Result.Message);
         Assert.Equal($"Acknowledged 1 conflict alert(s) for {AiTestFixture.Callsign}", acknowledged.Result.Message);
-        Assert.Equal(new ActionTrace(RecordedCommandKind.TrackOwnership, ActionScope.Aircraft, IsHostSlot: false), acknowledged.Trace);
+        Assert.Equal(new ActionTrace(RecordedCommandKind.TrackOwnership, ActionScope.Aircraft), acknowledged.Trace);
         Assert.True(conflict.IsAcknowledged);
         Assert.False(nothingLeft.Result.Success);
         Assert.Equal($"No active conflict alerts for {AiTestFixture.Callsign}", nothingLeft.Result.Message);

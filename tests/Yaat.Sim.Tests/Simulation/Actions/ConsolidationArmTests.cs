@@ -63,7 +63,7 @@ public class ConsolidationArmTests
 
         Assert.True(outcome.Result.Success, outcome.Result.Message);
         Assert.Equal("Basic consolidation: 4U → 2B", outcome.Result.Message);
-        Assert.Equal(new ActionTrace(RecordedCommandKind.Consolidate, ActionScope.Global, IsHostSlot: false), outcome.Trace);
+        Assert.Equal(new ActionTrace(RecordedCommandKind.Consolidate, ActionScope.Global), outcome.Trace);
         var over = engine.ConsolidationState.GetOverride(TcpId(engine, "4U"));
         Assert.NotNull(over);
         Assert.Equal(TcpId(engine, "2B"), over!.ReceivingTcpId);
@@ -157,7 +157,7 @@ public class ConsolidationArmTests
 
         Assert.True(outcome.Result.Success, outcome.Result.Message);
         Assert.Equal("Deconsolidated: 4U", outcome.Result.Message);
-        Assert.Equal(new ActionTrace(RecordedCommandKind.Deconsolidate, ActionScope.Global, IsHostSlot: false), outcome.Trace);
+        Assert.Equal(new ActionTrace(RecordedCommandKind.Deconsolidate, ActionScope.Global), outcome.Trace);
         Assert.Null(engine.ConsolidationState.GetOverride(TcpId(engine, "4U")));
         Assert.Equal(2, host.ConsolidationChanges);
     }

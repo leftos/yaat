@@ -5,7 +5,11 @@ namespace Yaat.Sim.Simulation.Actions;
 /// <summary>The results the router and the Sim hosts return for an action no body on this run can apply.</summary>
 public static class ActionRefusals
 {
-    /// <summary>The verb's body is the live server's; a bare or replay run has nothing to apply it to.</summary>
+    /// <summary>
+    /// No body in the track table answers this verb on this run — the parsed command reached
+    /// <see cref="Commands.TrackEngine.Dispatch"/> (or the deferred-command applier) and it returned null. No arm is a
+    /// host slot any more, so this is a gap in the table rather than a body the live room owns.
+    /// </summary>
     public static CommandResult HostOnly(ParsedCommand command) => HostOnly(CommandDescriber.DescribeCommand(command));
 
     public static CommandResult HostOnly(string verb) => new(false, $"{verb} is not available here — only the live server dispatches it");
