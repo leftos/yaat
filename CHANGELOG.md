@@ -5,6 +5,7 @@
 ### Fixed
 - Rewinding to an exact snapshot ("test my fix" mode) re-pushes the flight strips, PDCs, coordination lists and CRR groups as the rewound engine holds them, instead of leaving the abandoned run's view on every client.
 - A server running without VATSIM login (`RequireVatsimAuth` off) lists every vNAS ARTCC in the Create Room picker, so a dev session can open a room for any ARTCC.
+- Rewinding or opening a bug bundle onto an aircraft mid-landing restores the landing it was flying — a piston no longer flares and rolls out on jet speeds, and the plan survives a snapshot taken before the aircraft's first tick.
 
 ## v0.12.27-beta [2026/09/08]
 

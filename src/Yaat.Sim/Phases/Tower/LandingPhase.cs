@@ -105,6 +105,27 @@ public sealed class LandingPhase : Phase
     /// <summary>Immutable plan built at OnStart. Null before construction or in Faulted state.</summary>
     public LandingPlan? Plan => _plan;
 
+    /// <summary>
+    /// The runway geometry a phase restored from a snapshot without the plan's constants came back with. It is
+    /// the plan's only surviving half until the first tick rebuilds the rest, and <see cref="ToSnapshot"/> writes
+    /// it back so a second snapshot taken in that window still carries the runway.
+    /// </summary>
+    private LandingGeometry? _restoredGeometry;
+
+    /// <summary>
+    /// Set by <see cref="FromSnapshot"/> on an instance that came back mid-approach from a snapshot written
+    /// before the plan's category constants — flare altitude, flare rate, Vref, touchdown speed, coast speed,
+    /// brake rate — round-tripped, cleared by the first <see cref="OnTick"/> once they have been rebuilt from the
+    /// category table. <see cref="PhaseRunner"/> only calls <see cref="OnStart"/> on a Pending phase, so a
+    /// restored Active phase has to rebuild on its own first tick, the way <see cref="LineUpPhase"/> rebuilds its
+    /// maneuver; without it a restored piston flared and braked on jet numbers. A snapshot that carries the
+    /// constants needs no rebuild — it restores the plan the aircraft actually flew.
+    /// </summary>
+    private bool _needsRestoreRebuild;
+
+    /// <summary>Runway-derived half of <see cref="LandingPlan"/>: the part a snapshot round-trips.</summary>
+    private readonly record struct LandingGeometry(double FieldElevation, TrueHeading RunwayHeading, double ThresholdLat, double ThresholdLon);
+
     /// <summary>Current sub-state. Read-only except from within this class.</summary>
     public State CurrentState { get; set; } = State.StabilizedApproach;
 
@@ -136,16 +157,23 @@ public sealed class LandingPhase : Phase
 
     public override string Name => "Landing";
 
-    public override PhaseDto ToSnapshot() =>
-        new LandingPhaseDto
+    public override PhaseDto ToSnapshot()
+    {
+        // Geometry survives even in the window where a pre-constants snapshot has been restored but not yet
+        // ticked: writing zeros there would make the next restore hand OnTick a null plan, which the phase
+        // runner reads as a completed landing and follows with a runway exit the aircraft never flew.
+        var geometry = _plan is { } plan
+            ? new LandingGeometry(plan.FieldElevation, plan.RunwayHeading, plan.ThresholdLat, plan.ThresholdLon)
+            : _restoredGeometry;
+        return new LandingPhaseDto
         {
             Status = (int)Status,
             ElapsedSeconds = ElapsedSeconds,
             Requirements = Requirements.Count > 0 ? Requirements.Select(r => r.ToSnapshot()).ToList() : null,
-            FieldElevation = _plan?.FieldElevation ?? 0,
-            RunwayHeadingDeg = _plan?.RunwayHeading.Degrees ?? 0,
-            ThresholdLat = _plan?.ThresholdLat ?? 0,
-            ThresholdLon = _plan?.ThresholdLon ?? 0,
+            FieldElevation = geometry?.FieldElevation ?? 0,
+            RunwayHeadingDeg = geometry?.RunwayHeading.Degrees ?? 0,
+            ThresholdLat = geometry?.ThresholdLat ?? 0,
+            ThresholdLon = geometry?.ThresholdLon ?? 0,
             TouchedDown = CurrentState is State.Rollout or State.Unable or State.FullStop or State.Handoff,
             CanGoAround = _canGoAround,
             LahsoHoldShortDistNm = _lahsoHoldShortDistNm,
@@ -167,7 +195,16 @@ public sealed class LandingPhase : Phase
             StabilizedSinceSec = _stabilizedSinceSec,
             UnableBranchPointIds = _unableBranchPoints.Count > 0 ? [.. _unableBranchPoints] : null,
             InferredSideValue = (int?)_inferredSide,
+            RunwayId = _plan?.RunwayId,
+            FlareEntryAgl = _plan?.FlareEntryAgl,
+            FlareFpm = _plan?.FlareFpm,
+            Vref = _plan?.Vref,
+            Vtd = _plan?.Vtd,
+            CoastSpeed = _plan?.CoastSpeed,
+            DefaultDecel = _plan?.DefaultDecel,
+            TouchdownAgl = _plan?.TouchdownAgl,
         };
+    }
 
     public static LandingPhase FromSnapshot(LandingPhaseDto dto, AirportGroundLayout? groundLayout)
     {
@@ -241,8 +278,18 @@ public sealed class LandingPhase : Phase
             };
         }
 
-        // Plan is not round-tripped; rebuild from DTO fields on first tick if the phase is restored mid-state.
-        if (dto.RunwayHeadingDeg != 0 || dto.ThresholdLat != 0)
+        // A snapshot that carries the constants restores the plan verbatim: Vref keeps the gust additive the
+        // aircraft flew and the runway id keeps the assignment it flew, so a rewind reproduces the same flare,
+        // touchdown and rollout rather than recomputing them from the restore-time weather.
+        if (
+            dto.FlareEntryAgl is { } flareEntryAgl
+            && dto.FlareFpm is { } flareFpm
+            && dto.Vref is { } vref
+            && dto.Vtd is { } vtd
+            && dto.CoastSpeed is { } coastSpeed
+            && dto.DefaultDecel is { } defaultDecel
+            && dto.TouchdownAgl is { } touchdownAgl
+        )
         {
             phase._plan = new LandingPlan
             {
@@ -250,18 +297,31 @@ public sealed class LandingPhase : Phase
                 RunwayHeading = new TrueHeading(dto.RunwayHeadingDeg),
                 ThresholdLat = dto.ThresholdLat,
                 ThresholdLon = dto.ThresholdLon,
-                // Category constants aren't round-tripped — restored phase needs OnStart context to rebuild.
-                // These defaults are jet-shaped; if the restored phase needs to continue flare/rollout,
-                // OnTick will regenerate its plan via the category table when the first non-restoration
-                // tick runs. For most practical replays, landing state restores post-touchdown.
-                FlareEntryAgl = 30,
-                FlareFpm = 200,
-                Vref = 140,
-                Vtd = 135,
-                CoastSpeed = 40,
-                DefaultDecel = 2.5,
-                TouchdownAgl = 2,
+                RunwayId = dto.RunwayId,
+                FlareEntryAgl = flareEntryAgl,
+                FlareFpm = flareFpm,
+                Vref = vref,
+                Vtd = vtd,
+                CoastSpeed = coastSpeed,
+                DefaultDecel = defaultDecel,
+                TouchdownAgl = touchdownAgl,
             };
+            phase._needsRestoreRebuild = false;
+        }
+        else if (dto.RunwayHeadingDeg != 0 || dto.ThresholdLat != 0)
+        {
+            // Geometry but no constants: hold the geometry so it survives another ToSnapshot, and let the first
+            // tick fill the constants in from the category table.
+            phase._restoredGeometry = new LandingGeometry(
+                FieldElevation: dto.FieldElevation,
+                RunwayHeading: new TrueHeading(dto.RunwayHeadingDeg),
+                ThresholdLat: dto.ThresholdLat,
+                ThresholdLon: dto.ThresholdLon
+            );
+
+            // Only a phase that was already running needs the rebuild; one snapshotted before it started
+            // still gets its OnStart from the phase runner.
+            phase._needsRestoreRebuild = (PhaseStatus)dto.Status == PhaseStatus.Active;
         }
 
         return phase;
@@ -272,6 +332,7 @@ public sealed class LandingPhase : Phase
         // Full-stop landing ends any standing pattern-leg reports (touch-and-go does not).
         ctx.Aircraft.Approach.ClearArmedReports();
 
+        _needsRestoreRebuild = false;
         _plan = BuildPlan(ctx);
 
         if (ctx.Runway is null)
@@ -334,12 +395,29 @@ public sealed class LandingPhase : Phase
         // pavement behind a displaced threshold is not available for landing in this direction
         // (AIM 2-3-3.b.8.2). Falls back to the pavement end when no airport map is loaded.
         var threshold = rwy is not null ? LandingThreshold.Resolve(rwy, ctx.GroundLayout) : ctx.Aircraft.Position;
+        var geometry = new LandingGeometry(
+            FieldElevation: ctx.FieldElevation,
+            RunwayHeading: rwy?.TrueHeading ?? ctx.Aircraft.TrueHeading,
+            ThresholdLat: threshold.Lat,
+            ThresholdLon: threshold.Lon
+        );
+        return BuildPlan(ctx, geometry);
+    }
+
+    /// <summary>
+    /// Fills <paramref name="geometry"/> out into a full plan with this aircraft's category constants and its
+    /// assigned runway. The single source of those constants: <see cref="OnStart"/> reaches it through the
+    /// geometry it just computed, and a phase restored mid-approach reaches it with the geometry its snapshot
+    /// carried.
+    /// </summary>
+    private static LandingPlan BuildPlan(PhaseContext ctx, LandingGeometry geometry)
+    {
         return new LandingPlan
         {
-            FieldElevation = ctx.FieldElevation,
-            RunwayHeading = rwy?.TrueHeading ?? ctx.Aircraft.TrueHeading,
-            ThresholdLat = threshold.Lat,
-            ThresholdLon = threshold.Lon,
+            FieldElevation = geometry.FieldElevation,
+            RunwayHeading = geometry.RunwayHeading,
+            ThresholdLat = geometry.ThresholdLat,
+            ThresholdLon = geometry.ThresholdLon,
             RunwayId = ctx.Aircraft.Phases?.AssignedRunway?.Designator,
             FlareEntryAgl = CategoryPerformance.FlareAltitude(ctx.Category),
             FlareFpm = CategoryPerformance.FlareDescentRate(ctx.Category),
@@ -355,6 +433,17 @@ public sealed class LandingPhase : Phase
 
     public override bool OnTick(PhaseContext ctx)
     {
+        // Restored mid-approach: the snapshot's geometry plus this aircraft's category constants, before the
+        // state machine reads the plan. OnStart never runs on a restored Active phase.
+        if (_needsRestoreRebuild)
+        {
+            if (_restoredGeometry is { } geometry)
+            {
+                _plan = BuildPlan(ctx, geometry);
+            }
+            _needsRestoreRebuild = false;
+        }
+
         if (_plan is null)
         {
             return true; // Faulted — should not happen if OnStart ran

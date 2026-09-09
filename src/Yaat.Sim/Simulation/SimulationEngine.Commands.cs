@@ -282,70 +282,9 @@ public sealed partial class SimulationEngine
 
         bool wasFiled = ac.FlightPlan.HasFlightPlan;
 
-        if (amendment.AircraftType is not null)
-        {
-            // Filed FP type only — never the actual physical type. Tower Cab (out-the-window)
-            // keeps reading AircraftState.AircraftType, which is fixed at spawn.
-            ac.FlightPlan.AircraftType = amendment.AircraftType;
-        }
-        if (amendment.EquipmentSuffix is not null)
-        {
-            ac.FlightPlan.EquipmentSuffix = amendment.EquipmentSuffix;
-        }
-        if (amendment.IcaoEquipmentCodes is not null)
-        {
-            ac.FlightPlan.IcaoEquipmentCodes = amendment.IcaoEquipmentCodes;
-        }
-        if (amendment.Departure is not null)
-        {
-            ac.FlightPlan.Departure = amendment.Departure;
-        }
-        if (amendment.Destination is not null)
-        {
-            ac.FlightPlan.Destination = amendment.Destination;
-        }
-        if (amendment.CruiseSpeed is not null)
-        {
-            ac.FlightPlan.CruiseSpeed = amendment.CruiseSpeed.Value;
-        }
-        if (amendment.Altitude is not null)
-        {
-            ac.FlightPlan.Altitude = amendment.Altitude;
-        }
-        if (amendment.FlightRules is not null)
-        {
-            ac.FlightPlan.FlightRules = amendment.FlightRules;
-        }
-        if (amendment.Route is not null)
-        {
-            ac.FlightPlan.Route = amendment.Route;
-            DepartureClearanceHandler.RefreshStoredDepartureClearance(ac);
-            DepartureClearanceHandler.RefreshPendingInitialClimbPhases(ac);
-        }
-        if (amendment.Remarks is not null)
-        {
-            ac.FlightPlan.Remarks = amendment.Remarks;
-            // Remarks are canonical for voice type: a /v//r//t/ marker (or its absence = full voice) drives
-            // the CRC voice-type field. A VATSIM operational convention, not an FAA flight-plan field.
-            ac.Voice.Type = FlightPlanVoice.ParseVoiceType(ac.FlightPlan.Remarks);
-        }
-        if (amendment.Scratchpad1 is not null)
-        {
-            ac.Stars.Scratchpad1 = amendment.Scratchpad1;
-            ac.Stars.WasScratchpad1Cleared = string.IsNullOrEmpty(amendment.Scratchpad1);
-        }
-        if (amendment.Scratchpad2 is not null)
-        {
-            ac.Stars.Scratchpad2 = amendment.Scratchpad2;
-        }
-        if (amendment.BeaconCode is not null)
-        {
-            // Amend only the *assigned* beacon code, never the code the transponder transmits — a
-            // controller assigns a beacon; the pilot keeps squawking the current code until told to
-            // squawk the new one (matching the auto-assign-on-filing branch below). The resulting
-            // beacon mismatch is shown on the data block until the pilot complies.
-            ac.Transponder.AssignCode(amendment.BeaconCode.Value, amendment.BeaconAssignedByFacilityId, amendment.BeaconAssignedBySectorId);
-        }
+        ApplyAircraftAndAirportFields(ac, amendment);
+        ApplyClearanceFields(ac, amendment);
+        ApplyStarsAndBeaconFields(ac, amendment);
 
         // Resolve ground layout if departure/destination changed
         if (amendment.Departure is not null || amendment.Destination is not null)
@@ -380,6 +319,96 @@ public sealed partial class SimulationEngine
         ac.FlightPlan.RevisionNumber++;
 
         MarkTdlsItemsChanged(callsign);
+    }
+
+    /// <summary>
+    /// Copies the aircraft and airport identity fields the amendment carries; a null field means "not edited",
+    /// not "cleared". First of the three field groups, which run in the order the fields are filed.
+    /// </summary>
+    private static void ApplyAircraftAndAirportFields(AircraftState ac, FlightPlanAmendment amendment)
+    {
+        if (amendment.AircraftType is not null)
+        {
+            // Filed FP type only — never the actual physical type. Tower Cab (out-the-window)
+            // keeps reading AircraftState.AircraftType, which is fixed at spawn.
+            ac.FlightPlan.AircraftType = amendment.AircraftType;
+        }
+        if (amendment.EquipmentSuffix is not null)
+        {
+            ac.FlightPlan.EquipmentSuffix = amendment.EquipmentSuffix;
+        }
+        if (amendment.IcaoEquipmentCodes is not null)
+        {
+            ac.FlightPlan.IcaoEquipmentCodes = amendment.IcaoEquipmentCodes;
+        }
+        if (amendment.Departure is not null)
+        {
+            ac.FlightPlan.Departure = amendment.Departure;
+        }
+        if (amendment.Destination is not null)
+        {
+            ac.FlightPlan.Destination = amendment.Destination;
+        }
+    }
+
+    /// <summary>
+    /// Copies the cleared profile — speed, altitude, flight rules, route, remarks — and runs the two side effects
+    /// that reach past the plan: a route change refreshes the stored departure clearance and the pending
+    /// initial-climb phases, and remarks re-derive the CRC voice type. Route is applied after flight rules because
+    /// the departure-route resolution reads the amended rules.
+    /// </summary>
+    private static void ApplyClearanceFields(AircraftState ac, FlightPlanAmendment amendment)
+    {
+        if (amendment.CruiseSpeed is not null)
+        {
+            ac.FlightPlan.CruiseSpeed = amendment.CruiseSpeed.Value;
+        }
+        if (amendment.Altitude is not null)
+        {
+            ac.FlightPlan.Altitude = amendment.Altitude;
+        }
+        if (amendment.FlightRules is not null)
+        {
+            ac.FlightPlan.FlightRules = amendment.FlightRules;
+        }
+        if (amendment.Route is not null)
+        {
+            ac.FlightPlan.Route = amendment.Route;
+            DepartureClearanceHandler.RefreshStoredDepartureClearance(ac);
+            DepartureClearanceHandler.RefreshPendingInitialClimbPhases(ac);
+        }
+        if (amendment.Remarks is not null)
+        {
+            ac.FlightPlan.Remarks = amendment.Remarks;
+            // Remarks are canonical for voice type: a /v//r//t/ marker (or its absence = full voice) drives
+            // the CRC voice-type field. A VATSIM operational convention, not an FAA flight-plan field.
+            ac.Voice.Type = FlightPlanVoice.ParseVoiceType(ac.FlightPlan.Remarks);
+        }
+    }
+
+    /// <summary>
+    /// Copies the STARS scratchpads and the assigned beacon code — the display-side fields, which are amended
+    /// after the filed plan itself.
+    /// </summary>
+    private static void ApplyStarsAndBeaconFields(AircraftState ac, FlightPlanAmendment amendment)
+    {
+        if (amendment.Scratchpad1 is not null)
+        {
+            ac.Stars.Scratchpad1 = amendment.Scratchpad1;
+            ac.Stars.WasScratchpad1Cleared = string.IsNullOrEmpty(amendment.Scratchpad1);
+        }
+        if (amendment.Scratchpad2 is not null)
+        {
+            ac.Stars.Scratchpad2 = amendment.Scratchpad2;
+        }
+        if (amendment.BeaconCode is not null)
+        {
+            // Amend only the *assigned* beacon code, never the code the transponder transmits — a
+            // controller assigns a beacon; the pilot keeps squawking the current code until told to
+            // squawk the new one (matching the auto-assign-on-filing branch in AmendFlightPlan). The
+            // resulting beacon mismatch is shown on the data block until the pilot complies.
+            ac.Transponder.AssignCode(amendment.BeaconCode.Value, amendment.BeaconAssignedByFacilityId, amendment.BeaconAssignedBySectorId);
+        }
     }
 
     /// <summary>

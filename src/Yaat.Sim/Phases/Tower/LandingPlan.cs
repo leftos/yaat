@@ -1,10 +1,12 @@
 namespace Yaat.Sim.Phases.Tower;
 
 /// <summary>
-/// Immutable per-aircraft plan built by <see cref="LandingPhase.OnStart"/> from
-/// the runway geometry and category constants. The plan is never mutated after
-/// construction — the phase state machine reads it each tick but only advances
-/// its own sub-state and position tracking variables.
+/// Immutable per-aircraft plan built from the runway geometry and category constants by
+/// <see cref="LandingPhase.OnStart"/>, and rebuilt on the first tick after a restore — a
+/// snapshot round-trips the geometry but not the constants, and a restored Active phase
+/// never sees an <c>OnStart</c>. The plan is never mutated after construction — the phase
+/// state machine reads it each tick but only advances its own sub-state and position
+/// tracking variables.
 ///
 /// <para>
 /// Flare is closed-form: <c>vsi(agl)</c> and <c>spd(agl)</c> are pure functions

@@ -854,6 +854,19 @@ public sealed class LandingPhaseDto : PhaseDto
     public double StabilizedSinceSec { get; init; }
     public List<int>? UnableBranchPointIds { get; init; }
     public int? InferredSideValue { get; init; }
+
+    // The rest of the landing plan. Vref carries the gust additive the aircraft actually flew and the runway id
+    // is the one it was assigned, so a rewind lands on the same numbers instead of recomputing them from the
+    // weather and the phase list at restore time. Null on snapshots written before the plan round-tripped and on
+    // a phase that has not started: those restore by rebuilding from the category table on the first tick.
+    public string? RunwayId { get; init; }
+    public double? FlareEntryAgl { get; init; }
+    public double? FlareFpm { get; init; }
+    public double? Vref { get; init; }
+    public double? Vtd { get; init; }
+    public double? CoastSpeed { get; init; }
+    public double? DefaultDecel { get; init; }
+    public double? TouchdownAgl { get; init; }
 }
 
 // --- Pattern phases ---
