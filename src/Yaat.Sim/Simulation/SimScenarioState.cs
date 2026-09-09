@@ -377,8 +377,13 @@ public sealed class SimScenarioState
     /// <summary>How long an acknowledged release stands before it voids itself.</summary>
     public const double CoordinationAckExpirySeconds = 180;
 
-    /// <summary>Remaining seconds at which an acknowledged release shows the departure-expiration warning.</summary>
-    public const double CoordinationExpiryWarningSeconds = 120;
+    /// <summary>
+    /// Seconds of life left — not elapsed — at which an acknowledged release starts showing the departure-expiration
+    /// warning on the coordination list. STARS words the state as "the acknowledgement is about to expire", so it is a
+    /// short caution at the end of the <see cref="CoordinationAckExpirySeconds"/> window rather than most of it: 30 s,
+    /// the same judgement as <see cref="PointoutNoActionSeconds"/> — long enough for the RPO to act by hand.
+    /// </summary>
+    public const double CoordinationExpiryWarningSeconds = 30;
 
     /// <summary>How long a recalled message lingers on the list before the timers step removes it.</summary>
     public const double CoordinationRecallLingerSeconds = 10;

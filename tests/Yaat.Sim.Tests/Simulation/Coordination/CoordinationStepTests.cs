@@ -238,13 +238,24 @@ public class CoordinationStepTests
         int afterAck = spine.CoordinationChangeCount;
         Assert.True(afterAck > 0, "the acknowledgement should have reached the host through the router's drain");
 
-        // The second that crosses the two-thirds mark is the one that warns: 180 - 120 = 60 s after the ack.
-        engine.Scenario!.ElapsedSeconds = SimScenarioState.CoordinationAckExpirySeconds - SimScenarioState.CoordinationExpiryWarningSeconds - 1;
+        // The window is pinned as a literal here rather than read back from CoordinationExpiryWarningSeconds, so
+        // that moving the constant moves this test. With 31 s of life left (t = ack + 149) the item is still
+        // plain Acknowledged: the caution is about to expire, not most of the ack's life.
+        engine.Scenario!.ElapsedSeconds = SimScenarioState.CoordinationAckExpirySeconds - 31 - 1;
+        engine.RunSecond(spine);
+
+        Assert.Equal(StarsCoordinationStatus.Acknowledged, Assert.Single(Channel(engine).Items).Status);
+        int beforeWarning = spine.CoordinationChangeCount;
+
+        // The second that drops the remaining life to 30 s (t = ack + 150) is the one that warns. 30 s because the
+        // warning is a short "about to expire" caution — the same judgement as PointoutNoActionSeconds above it:
+        // long enough for the RPO to act by hand, short enough that the state still means the item is nearly gone.
+        engine.Scenario!.ElapsedSeconds = SimScenarioState.CoordinationAckExpirySeconds - 30 - 1;
         engine.RunSecond(spine);
 
         var item = Assert.Single(Channel(engine).Items);
         Assert.Equal(StarsCoordinationStatus.DepartureExpirationWarning, item.Status);
-        Assert.True(spine.CoordinationChangeCount > afterAck, "the spine's drain step should have handed the timer transition over");
+        Assert.True(spine.CoordinationChangeCount > beforeWarning, "the spine's drain step should have handed the timer transition over");
 
         engine.Scenario!.ElapsedSeconds = SimScenarioState.CoordinationAckExpirySeconds - 1;
         engine.RunSecond(spine);
