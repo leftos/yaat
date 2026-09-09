@@ -510,6 +510,26 @@ public class PhraseologyVerbalizerTests
         Assert.Equal("climb via sid except maintain flight level one eight zero", result);
     }
 
+    // --- Helicopter ---
+
+    [Fact]
+    public void Verbalize_AirTaxiToRunway_ReadsBackTheRunway()
+    {
+        // An air taxi to a runway ends holding short of it (7110.65 3-11-1.c), so the runway is read back
+        // (4-4-7.b.4) — unlike an air taxi to a helipad, which needs only the acknowledgement.
+        Assert.Equal("air taxi to runway two eight left", PhraseologyVerbalizer.Verbalize(new AirTaxiCommand("28L")));
+        Assert.Equal("air taxi to runway 28L", PhraseologyVerbalizer.VerbalizeTerminal(new AirTaxiCommand("28L")));
+    }
+
+    [Fact]
+    public void Verbalize_AirTaxiToRunwayAtTaxiway_ReadsBackTheLocativeForm()
+    {
+        // The AT locative ground phraseology uses for an intersection, matching the located hold short
+        // ("hold short of charlie at juliett", issue #358).
+        Assert.Equal("air taxi to runway two eight left at juliett", PhraseologyVerbalizer.Verbalize(new AirTaxiCommand("28L@J")));
+        Assert.Equal("air taxi to runway 28L at J", PhraseologyVerbalizer.VerbalizeTerminal(new AirTaxiCommand("28L@J")));
+    }
+
     // --- SttOnly rules must NOT leak into pilot speech ---
 
     [Fact]

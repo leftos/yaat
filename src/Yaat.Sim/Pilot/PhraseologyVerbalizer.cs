@@ -136,7 +136,13 @@ public static class PhraseologyVerbalizer
         // TAXIAUTO is a TAXI with no route named; it reads back through the same rules.
         if (cmd is TaxiAutoCommand taxiAuto)
         {
-            cmd = new TaxiCommand([], [], taxiAuto.DestinationRunway, DestinationParking: taxiAuto.DestinationParking);
+            cmd = new TaxiCommand(
+                [],
+                [],
+                taxiAuto.DestinationRunway,
+                DestinationParking: taxiAuto.DestinationParking,
+                DestinationSpot: taxiAuto.DestinationSpot
+            );
         }
 
         if (cmd is ClimbMaintainCommand { Modifier: AltitudeAssignmentModifier.AtOrAbove } atOrAbove)
@@ -320,6 +326,9 @@ public static class PhraseologyVerbalizer
             MakeLeftTrafficCommand p when p.RunwayId is { } r => Map("rwy", fmt.Runway(r)),
             MakeRightTrafficCommand p when p.RunwayId is { } r => Map("rwy", fmt.Runway(r)),
 
+            // Helicopter
+            AirTaxiCommand atxi => AirTaxiArgs(atxi, fmt),
+
             // Ground
             // Multi-runway / HS-modified CROSS is direct-rendered in VerbalizeCore; only the
             // single-runway, no-HS form reaches the rule template here.
@@ -345,6 +354,36 @@ public static class PhraseologyVerbalizer
             // rule's literal "pushback" keyword with no path filled in.
             _ => Empty(),
         };
+
+    /// <summary>
+    /// Captures for an <c>ATXI</c> readback. Only a runway destination is voiced with its destination —
+    /// "air taxi to runway 28L", or "air taxi to runway 28L at J" for the located form — because an air taxi
+    /// to a runway ends holding short of it and the numbers have to be verified (7110.65 3-11-1.c, AIM 4-4-7.b.4).
+    /// A helipad, parking or spot destination yields no capture, so it keeps the bare acknowledgement.
+    /// </summary>
+    private static IReadOnlyDictionary<string, string> AirTaxiArgs(AirTaxiCommand atxi, CaptureFormatter fmt)
+    {
+        if (atxi.Destination is not { Length: > 0 } destination)
+        {
+            return Empty();
+        }
+
+        int at = destination.IndexOf('@');
+        string target = at < 0 ? destination : destination[..at];
+        string onTaxiway = at < 0 ? "" : destination[(at + 1)..];
+        if (!CommandParser.IsRunwayArg(target))
+        {
+            return Empty();
+        }
+
+        var dict = new Dictionary<string, string> { ["rwy"] = fmt.Runway(target) };
+        if (onTaxiway.Length > 0)
+        {
+            dict["taxiway"] = fmt.Taxiway(onTaxiway);
+        }
+
+        return dict;
+    }
 
     /// <summary>
     /// Extracts the spoken-readback captures for a TAXI clearance: the route path (with turn words),

@@ -184,6 +184,7 @@
       "rows": [
         { "verb": "PUSH", "aliases": [], "description": "Pushback [twy] [<C / >C / FACE C / TAIL C], C∈N/NE/E/SE/S/SW/W/NW. Mid-pushback: heading-only PUSH amends face until turn begins." },
         { "verb": "TAXI", "aliases": [], "description": "Taxi via route (see mods below)" },
+        { "verb": "TAXIAUTO", "aliases": [], "description": "Auto-route taxi to runway / `@parking` / `$spot`" },
         { "verb": "HOLD", "aliases": ["hp"], "description": "Hold position" },
         { "verb": "RES", "aliases": ["resume"], "description": "Resume taxi / release runway hold (not destination); CROSS rwy... pre-clears crossings, HS target... adds a taxiway hold-short or re-arms a runway's" },
         { "verb": "CROSS", "aliases": [], "description": "Cross next hold-short (bare), one or more named runways/taxiways (`CROSS 28R 28L`), optionally `HS target...`; chain `CROSS; HOLD` to halt past the far-side bars or `CROSS; DEL` to delete once clear" },
@@ -194,7 +195,7 @@
         { "verb": "GIVEWAY", "aliases": ["behind", "gw"], "description": "Give way to traffic" },
         { "verb": "EL / ER", "aliases": ["exitl", "exitr"], "description": "Exit runway L/R [twy] (NODEL/EXP); EXP = without delay, earliest exit" },
         { "verb": "EXIT", "aliases": [], "description": "Exit onto taxiway (NODEL/EXP)" },
-        { "verb": "TAXIALL", "aliases": [], "description": "Taxi all to destination", "global": true },
+        { "verb": "TAXIALL", "aliases": [], "description": "Taxi all parked aircraft to destination, each auto-routed", "global": true },
         { "verb": "BREAK", "aliases": [], "description": "Break conflict" }
       ],
       "notes": [
@@ -207,13 +208,13 @@
       "id": "helicopter",
       "name": "Helicopter",
       "rows": [
-        { "verb": "ATXI", "aliases": [], "description": "Air taxi [helipad/spot/runway]" },
+        { "verb": "ATXI", "aliases": [], "description": "Air taxi to helipad / `$spot` / runway holding position (`28L@J` = the bar on J)" },
         { "verb": "LAND", "aliases": [], "description": "Land at helipad (NODEL)" },
         { "verb": "CTOPP", "aliases": [], "description": "Cleared takeoff present position — bare/+0XX AGL hovers & holds; heading|OC|DCT fix departs" },
         { "verb": "HPP", "aliases": [], "description": "Hover present position (no orbit)" },
         { "verb": "HFIX", "aliases": [], "description": "Hover at fix (no orbit)" }
       ],
-      "notes": ["ATXI dest: bare or `@helipad`, bare or `$spot`, runway threshold", "Spawn: `ADD V S H @spot` (light civil R22/R44/B06) or `ADD V S H @spot H60` (explicit type)"]
+      "notes": ["ATXI dest: bare or `@helipad`, bare or `$spot` (holds there), runway holding position `28L` / `28L@J` (holds short as a departure)", "Spawn: `ADD V S H @spot` (light civil R22/R44/B06) or `ADD V S H @spot H60` (explicit type)"]
     },
     {
       "id": "track",

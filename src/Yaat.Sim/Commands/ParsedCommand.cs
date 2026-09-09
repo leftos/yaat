@@ -521,9 +521,10 @@ public record TaxiCommand(
 /// uses <c>TaxiPathfinder.FindRoute</c> to discover a taxiway sequence from the
 /// aircraft's current position to the destination, then delegates to the regular
 /// Taxi pipeline so hold-short annotation, auto-crossing, and phase handoff all
-/// work identically to a user-typed TAXI command.
+/// work identically to a user-typed TAXI command. Exactly one destination is set;
+/// all three are required arguments so every caller has to say which.
 /// </summary>
-public record TaxiAutoCommand(string? DestinationRunway = null, string? DestinationParking = null) : ParsedCommand;
+public record TaxiAutoCommand(string? DestinationRunway, string? DestinationParking, string? DestinationSpot) : ParsedCommand;
 
 public record HoldPositionCommand : ParsedCommand;
 

@@ -1889,9 +1889,13 @@ public static class CommandParser
     }
 
     /// <summary>
-    /// Normalize an ATXI destination argument: trim, uppercase, and strip a
-    /// leading '@' (parking/helipad sigil) or '$' (taxiway-spot sigil) so the
-    /// handler can do a single name lookup against helipad/parking/spot/runway.
+    /// The ATXI destination as stored: the leading <c>@</c>/<c>$</c> sigil dropped (the layout lookup tries
+    /// helipad, gate, spot and runway in turn, so the sigil carries no information the resolver needs) and
+    /// uppercased. A destination that can only be a runway — one carrying an <c>@taxiway</c> locative, or shaped
+    /// like a designator with an L/C/R side — is zero-padded so no unpadded designator enters sim state. A bare
+    /// one- or two-digit token is left alone: gates named "7" and "9" are real (KOAK), and padding would send
+    /// their air taxi to a runway or refuse it outright. A token that carried a sigil is never padded either:
+    /// the controller said "the gate/spot called 9L", not the runway.
     /// </summary>
     private static string? NormalizeAirTaxiDestination(string? arg)
     {
@@ -1901,12 +1905,22 @@ public static class CommandParser
         }
 
         var trimmed = arg.Trim();
-        if (trimmed.Length > 1 && (trimmed[0] == '@' || trimmed[0] == '$'))
+        bool sigilled = trimmed.Length > 1 && (trimmed[0] == '@' || trimmed[0] == '$');
+        if (sigilled)
         {
             trimmed = trimmed[1..];
         }
 
-        return trimmed.ToUpperInvariant();
+        trimmed = trimmed.ToUpperInvariant();
+        int at = trimmed.IndexOf('@');
+        string target = at < 0 ? trimmed : trimmed[..at];
+        if (sigilled || target.Length == 0 || (at < 0 && !IsRunwayArg(target)))
+        {
+            return trimmed;
+        }
+
+        string padded = RunwayIdentifier.NormalizeDesignator(target);
+        return at < 0 ? padded : padded + trimmed[at..];
     }
 
     private static PR ParseFollowAirborne(string? arg, bool force)

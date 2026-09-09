@@ -1662,9 +1662,11 @@ public static class CommandDispatcher
     /// <item>the aircraft was stopped at a runway hold-short (implicit
     /// <see cref="HoldShortReason.RunwayCrossing"/> or an explicit-but-runway-named
     /// <see cref="HoldShortReason.ExplicitHoldShort"/>) and the CROSS satisfied it. A
-    /// <see cref="HoldShortReason.DestinationRunway"/> hold counts only once the taxi route has
-    /// completed at it — that is exactly when CROSS undesignates the runway and taxis across to the far
-    /// side instead of rejecting in favour of LUAW/CTO (see <c>GroundCommandHandler.TryCrossSingleRunway</c>);</item>
+    /// <see cref="HoldShortReason.DestinationRunway"/> hold counts only once the aircraft has arrived at
+    /// the bar — the taxi route completed there, or there is no route at all because an <c>ATXI</c> put it
+    /// there. That is exactly when CROSS undesignates the runway and taxis across to the far side instead
+    /// of rejecting in favour of LUAW/CTO, so the same
+    /// <see cref="GroundCommandHandler.HasArrivedAtHoldShort"/> decides both;</item>
     /// <item>the aircraft was still taxiing and the CROSS pre-cleared a runway crossing further along
     /// the route — <see cref="TaxiingPhase"/> drives straight into a
     /// <see cref="Yaat.Sim.Phases.Ground.CrossingRunwayPhase"/> when it reaches an already-cleared
@@ -1687,7 +1689,7 @@ public static class CommandDispatcher
                 return false;
             }
 
-            return hp.HoldShort.Reason != HoldShortReason.DestinationRunway || aircraft.Ground.AssignedTaxiRoute is { IsComplete: true };
+            return (hp.HoldShort.Reason != HoldShortReason.DestinationRunway) || GroundCommandHandler.HasArrivedAtHoldShort(aircraft);
         }
 
         return !hadPendingCrossingBeforeDispatch && HasPendingRunwayCrossing(aircraft, ctx);

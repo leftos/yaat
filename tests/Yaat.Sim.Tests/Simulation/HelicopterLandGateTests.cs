@@ -176,6 +176,26 @@ public class HelicopterLandGateTests
     }
 
     /// <summary>
+    /// Over the field but above the air-taxi ceiling: the refusal is the same, but a rounded mileage would read
+    /// "0 miles out". The heli says where it is instead.
+    /// </summary>
+    [Fact]
+    public void AirTaxi_FromOverheadTooHigh_IsRefused_WithoutAZeroMileage()
+    {
+        var layout = new TestAirportGroundData().GetLayout("OAK");
+        var sig1 = layout!.FindSpotByName("SIG1");
+        Assert.NotNull(sig1);
+
+        var (engine, _, heli) = Setup(sig1.Position, altitude: OakFieldElevationFt + 600, onGround: false);
+
+        var result = engine.SendCommand(heli.Callsign, "ATXI SIG1");
+
+        Assert.False(result.Success);
+        Assert.Equal("Unable, we're overhead, request landing at SIG1", result.Message);
+        Assert.IsType<VfrHoldPhase>(heli.Phases!.CurrentPhase);
+    }
+
+    /// <summary>
     /// A clearance received inside top of descent (2 nm out at 2000 ft) must still capture the pattern
     /// altitude before the final gate and arrive over the spot at the air-taxi height — never hand a
     /// hover hundreds of feet up to the landing phase's vertical descent.

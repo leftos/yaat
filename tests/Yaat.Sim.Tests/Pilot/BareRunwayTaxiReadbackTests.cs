@@ -32,7 +32,7 @@ public class BareRunwayTaxiReadbackTests(ITestOutputHelper output)
     public void Verbalize_TaxiAuto_ReadsBackLikePathlessTaxi()
     {
         TestVnasData.EnsureInitialized();
-        var spoken = PhraseologyVerbalizer.Verbalize(new TaxiAutoCommand("28R"));
+        var spoken = PhraseologyVerbalizer.Verbalize(new TaxiAutoCommand("28R", null, null));
         output.WriteLine($"spoken: {spoken}");
 
         Assert.Equal("taxi to runway two eight right", spoken);

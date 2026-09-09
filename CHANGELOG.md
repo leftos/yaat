@@ -12,6 +12,10 @@
 - A strip moved with `STRIP`, `HSM` or `SEPM`, or copied with `SCAN`, reaches the receiving facility's vStrips as a strip and not as an empty slot.
 - A chain headed by a handoff, scratchpad or accept verb (`HO 3G; PAUSE`, `SP1 ABC; PAUSE`, `ACCEPT 3G; PAUSE`) is refused as a chain instead of stuffing the rest of the line into the position or scratchpad, and `THEN`/`AND` chains (`HO 3G THEN ACCEPT`) split into the same units as their `;`/`,` forms.
 - A takeoff clearance (`CTO`, `CTOPP`, `LUAW`, `CTOC`, `GO`) chained with another command no longer cancels a pre-armed departure turn or altitude (`AT 2000 TL 270`); it supersedes only the heading or altitude its own text assigns, never a speed. A queued block that survives a chained clearance now fires ahead of the chain's remaining commands instead of being stranded behind them.
+- `ATXI 28L` (or `ATXI 28L@J` for the bar on taxiway J) air-taxis a helicopter to the runway's holding position and holds it short as a departure, ready for `CTO`, `LUAW` or `CROSS`, instead of setting it down on the pavement; `ATXI $spot` holds at the spot instead of parking there.
+- A taxi or air-taxi clearance naming a runway other than the assigned departure runway warns that it is a runway change and that the departure clearance issued for the old runway no longer applies, instead of switching silently.
+- `TAXIALL` routes every parked aircraft to the destination from where it stands, instead of moving only the aircraft already at the runway; `TAXIAUTO $spot` auto-routes to a taxi spot.
+- The pilot reads back an air taxi to a runway with the runway ("air taxi to runway two eight left, at juliet"), and speech input accepts "air taxi to runway 28L at taxiway J".
 
 ## v0.12.27-beta [2026/09/08]
 

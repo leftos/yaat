@@ -335,9 +335,11 @@ internal static class HoldShortAnnotator
     /// <summary>
     /// True when the located constraint is satisfied: no location, or the node has an edge on the
     /// location taxiway. Without a layout the constraint cannot be checked and fails closed — a
-    /// located target must never silently bind the wrong crossing.
+    /// located target must never silently bind the wrong crossing. The one home for the incidence
+    /// test: <c>HS C@J</c> binding a route point and <c>ATXI 28L@J</c> picking a bar ask the same
+    /// question of a node.
     /// </summary>
-    private static bool NodeOnLocationTaxiway(AirportGroundLayout? layout, int nodeId, string? onTaxiway)
+    internal static bool NodeOnLocationTaxiway(AirportGroundLayout? layout, int nodeId, string? onTaxiway)
     {
         if (onTaxiway is null)
         {

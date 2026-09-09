@@ -647,6 +647,13 @@ public static class PhraseologyRules
         [
             new(["cleared", "for", "air", "taxi"], "ATXI", AirTaxi),
             new(["cleared", "air", "taxi"], "ATXI", AirTaxi),
+            // An air taxi to a runway ends holding short of it, so the readback names the runway (and, for the
+            // located form, the taxiway the bar is on — the AT locative ground phraseology uses for an
+            // intersection). 7110.65 3-11-1.c; AIM 4-3-18.a.5/6, 4-4-7.b.4.
+            new(["air", "taxi", "to", "runway", "{rwy}", "at", "{taxiway}"], "ATXI {rwy}@{taxiway}", AirTaxi),
+            new(["air", "taxi", "to", "runway", "{rwy}", "at", "taxiway", "{taxiway}"], "ATXI {rwy}@{taxiway}", AirTaxi, SttOnly: true),
+            new(["air", "taxi", "to", "runway", "{rwy}", "on", "{taxiway}"], "ATXI {rwy}@{taxiway}", AirTaxi, SttOnly: true),
+            new(["air", "taxi", "to", "runway", "{rwy}"], "ATXI {rwy}", AirTaxi),
             new(["air", "taxi", "to", "{helipad}"], "ATXI {helipad}", AirTaxi),
             new(["cleared", "takeoff", "present", "position"], "CTOPP", ClearedTakeoffPresent),
             new(["cleared", "for", "takeoff", "present", "position"], "CTOPP", ClearedTakeoffPresent),

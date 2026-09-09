@@ -368,6 +368,7 @@ The restriction covers only codes YAAT chooses on its own. `SQ {code}` still mak
 |---------|---------|---------|-------------|
 | Pushback | `PUSH` | — | — |
 | Taxi | `TAXI S T U` | — | `TAXI 28R` (only at the runway) |
+| Taxi auto-route | `TAXIAUTO 28R` | — | `TAXIAUTO @A12`, `TAXIAUTO $8` |
 | Hold position | `HOLD` | `HP` | — |
 | Resume taxi | `RES` | `RESUME` | `RES CROSS 28R 28L HS 20` |
 | Cross runway/HS | `CROSS 28R 28L` | `CROSS` (bare) | `CROSS 28R HS 20` |
@@ -715,9 +716,10 @@ These mutate ASDE-X display state only; they never change the underlying scenari
 | `PUSH $7A` | Push onto spot 7A — reverse past it then pull forward, ending lined up **nose-out** toward the parent taxiway with the nosewheel on the mark |
 | `PUSH $7A TAIL W` | Push onto spot 7A with tail pointing west (= face east), overriding the default nose-out facing |
 | `TAXI S T U W W1` | Taxi via taxiways S, T, U, W, W1. With no destination, the **final** taxiway gives no onward direction, so the aircraft taxis to where the route meets it and holds there — the response notes it (e.g. `[holding at the W/W1 intersection — route ends at W1, no destination given]`). Continue it with a follow-up `TAXI`, a destination (`RWY`/`@parking`), or a turn hint on the last taxiway (`TAXI C >D`), all of which commit a direction and taxi the full leg. |
-| `TAXI T U W 30` | Taxi via T, U, W to runway 30 |
+| `TAXI T U W 30` | Taxi via T, U, W to runway 30. The runway in a taxi clearance is normally a confirmation of the assigned departure runway (7110.65 §3-7-2), so naming a *different* one is honoured as a runway change rather than refused: the aircraft is re-assigned and the response warns. With a SID briefed, the warning says the departure clearance for the old runway no longer applies and the SID runway transition follows the new runway once you re-issue the amended clearance, before the aircraft enters the runway (§4-3-2.c.1 NOTE 1); with only a stored takeoff clearance (a mid-taxi `CTO`/`LUAW`), it says that clearance is void — a takeoff clearance is runway-specific (§3-9-10.a) and is cancelled explicitly (§3-9-11). An arrival taxiing across the field, or an aircraft with nothing briefed yet, gets no warning. |
 | `TAXI T U W RWY 30` | Same as above (explicit RWY keyword) |
 | `TAXI 28R` / `TAXI RWY 28R` | Runway only, no route: the aircraft must already be **at** runway 28R — standing at one of its hold-short bars, or a short (≤600 ft) straight run ahead on the taxiway it occupies to that bar. It holds short there (a following `LUAW`/`CTO` lines it up). Anywhere else the command is refused (`… is not at runway 28R — give a taxi route (TAXI <taxiways> 28R) or use TAXIAUTO 28R to auto-route`) so an under-specified clearance never sends an aircraft across the airport on a guessed route. Scenario presets use this form for departures spawned at their bar. |
+| `TAXIAUTO 28R` / `TAXIAUTO @A12` / `TAXIAUTO $8` | Auto-route (A* pathfinding) from wherever the aircraft stands to runway 28R, parking A12, or taxi spot 8, then behave exactly as the equivalent `TAXI` with that route — hold-short annotation, auto-crossing, readback. |
 | `RWY 30 TAXI T U W` | Same as above (RWY-first syntax) |
 | `TAXI S T U HS 28L` | Taxi via S, T, U with explicit hold-short at runway 28L |
 | `TAXI D C HS E RWY 28R` | Taxi via D, C, hold short of **taxiway** E, then continue to runway 28R. When the cleared taxiways already cross E on the way to the destination, the aircraft holds short there and carries on along them (SFO `TAXI T7A A A1 1R HS H` holds short of H on A, then A1 to 1R). Only when they don't — E is the way *to* the runway, as here — does the hold-short target also steer the route: it is taxied through (D→C→E), not detoured around, as if the command were `TAXI D C E HS E RWY 28R`. With no destination the target always steers (`TAXI A HS H` ends at the A/H junction). (Runway hold-short targets like `HS 28L` never add a routing waypoint.) |
@@ -751,7 +753,7 @@ These mutate ASDE-X display state only; they never change the underlying scenari
 | `RWY 30` | Assign runway 30 (override runway assignment without taxi) |
 | `FOLLOWG SWA123` | Follow another aircraft on the ground. Works from parking (the aircraft starts up and falls in behind — no `TAXI` needed first), mid-taxi (drops the current route and chases the leader), or from any holding state (in position, after pushback, after a runway exit). The leader must exist and be on the ground. Combine with a give-way condition (`BEHIND SWA123 FOLLOWG SWA123`) to wait until the leader passes before pulling out. |
 | `GIVEWAY SWA123` | Give way to (yield to) SWA123 on the current taxi route until it passes. As a condition prefix (`GIVEWAY SWA123 TAXI …`) it instead waits for SWA123 before running the command (see [Conditional Blocks](#conditional-blocks)). Can be appended to a taxi clearance: `TAXI A A1 1R GIVEWAY KLM605`. |
-| `TAXIALL 30` | Taxi all parked aircraft to runway 30 via A* pathfinding (global command, no callsign needed) |
+| `TAXIALL 30` | Taxi every aircraft at parking to runway 30 (or `@parking` / `$spot`), each auto-routed from where it stands as `TAXIAUTO` would; the response counts the aircraft that taxied and the ones that refused (global command, no callsign needed) |
 | `BREAK` | Ignore ground conflicts for 15 seconds |
 
 Pushback orientation accepts the eight compass points: `N`, `NE`, `E`, `SE`, `S`, `SW`, `W`, `NW`. Use `FACE C` (or shorthand `>C`) to specify the nose direction, or `TAIL C` (`<C`) to specify the tail direction. When pushed onto a taxiway, the cardinal acts as a hint — the aircraft aligns with whichever of the taxiway's two directions is closest. For parking/spot destinations, the cardinal is the absolute facing.
@@ -803,8 +805,8 @@ Helicopters are detected automatically from the ICAO type designator. They use t
 | `CTOPP OC [alt]` | CTOPP, depart direct to flight-plan destination after the vertical climb |
 | `CTOPP DCT FIX [alt]` / `CTOPP TLDCT FIX` / `CTOPP TRDCT FIX` | CTOPP, depart direct to fix after the vertical climb (optionally turning left/right) |
 | `ATXI H1` / `ATXI @H1` | Air-taxi to helipad/parking spot H1 — airborne at 100 ft AGL, ~40 KIAS, descends and lands at the spot. `@` prefix optional. On-airport only: a helicopter off the field or above 500 ft AGL answers "unable, we're N miles out, request landing at H1" (air taxi is a ground movement, AIM §4-3-17.b / 7110.65 §3-11-1.c) — use `LAND`. |
-| `ATXI $M1` / `ATXI M1` | Air-taxi to taxiway spot M1. `$` prefix optional. |
-| `ATXI 28L` | Air-taxi to the threshold of runway 28L. |
+| `ATXI $M1` / `ATXI M1` | Air-taxi to taxiway spot M1 and set down there, holding position — a spot is not a parking position. `$` prefix optional; when a gate and a spot share a name, the gate wins. |
+| `ATXI 28L` / `ATXI 28L@J` | Air-taxi to runway 28L's **holding position**, never onto the pavement — an air taxi is a ground movement (AIM §4-3-17.b) and a ground movement to a runway ends holding short of it (7110.65 §3-11-1.c, AIM §4-3-18). Bare `28L` picks the full-length bar nearest the threshold; `28L@J` picks the bar on taxiway J. The helicopter sets down with its nose at the marking as a departure holding short: `CTO`/`LUAW` line it up, `CROSS 28L` taxis it across, `RES` is refused. 28L becomes its departure runway, with the same runway-change warning a `TAXI` to a different runway gives. Readback names the runway ("air taxi to runway two eight left, at juliet"); a helicopter off the field answers "unable, we're N miles out, request landing runway 28L". |
 | `LAND H1` | Land at named spot H1 (helipad, parking, or ramp position). On the field this is an air taxi to the spot; from off the field it is flown as an approach — hold the present altitude, descend to 500 ft AGL ahead of the airport, then a 6° final onto the spot, slowing through 90 and 60 kt (7110.65 §3-11-6). |
 | `LAND H1 NODEL` | Land at H1, exempt from auto-delete |
 
@@ -1722,7 +1724,7 @@ These commands don't require an aircraft selection:
 | `RDPOS [listId] <line>` | Move a coordination release to a line |
 | `RDTXT [/listId] <text>` | Set a held release's message text |
 | `CON` / `CON+` / `DECON` | Consolidation commands (see [Consolidation](#consolidation)) |
-| `TAXIALL 30` | Taxi all parked aircraft to runway 30 |
+| `TAXIALL 30` | Taxi every parked aircraft to runway 30, each auto-routed |
 
 ### Live Traffic (ASSUME)
 

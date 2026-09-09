@@ -479,6 +479,10 @@ internal static class GroundCommandHandler
             detectedRunway = CommandDispatcher.ResolveRunway(aircraft, taxi.DestinationRunway);
         }
 
+        // Captured before the fresh PhaseList below drops the old clearance: both the arrival gate and the
+        // runway-change warning read state this reset erases.
+        var priorAssignment = CaptureDepartureRunwayAssignment(aircraft);
+
         // Clear current phases
         var ctx = CommandDispatcher.BuildMinimalContext(aircraft, groundLayout);
         if (aircraft.Phases is not null)
@@ -501,8 +505,7 @@ internal static class GroundCommandHandler
         aircraft.Phases = new PhaseList();
         if (detectedRunway is not null)
         {
-            aircraft.Phases.AssignedRunway = detectedRunway;
-            aircraft.Procedure.DepartureRunway = detectedRunway.Designator;
+            ApplyDepartureRunway(aircraft, detectedRunway, priorAssignment);
         }
 
         // Zero-segment route to parking: A* snapped the aircraft to the destination node.
@@ -603,6 +606,118 @@ internal static class GroundCommandHandler
         {
             EffectiveCommand = effectiveCommand,
         };
+    }
+
+    /// <summary>
+    /// The departure-runway state a taxi or air-taxi clearance has to read <em>before</em> it installs a fresh
+    /// <see cref="PhaseList"/>: the runway the aircraft was previously assigned, whether this is an arrival being
+    /// routed across the field rather than a departure, and what has been issued against the old runway — a SID
+    /// initial altitude (the departure clearance was read to the crew) and/or a takeoff clearance stored during
+    /// the taxi. The new list carries none of it, so it is captured up front and applied by
+    /// <see cref="ApplyDepartureRunway"/>; the two clearance flags also decide which warning the change draws.
+    /// </summary>
+    private readonly record struct DepartureRunwayAssignment(
+        string? PriorDepartureRunway,
+        bool IsArrival,
+        bool HasSidInitialAltitude,
+        bool HasStoredTakeoffClearance
+    );
+
+    /// <summary>
+    /// Snapshots <see cref="DepartureRunwayAssignment"/> from the aircraft as it stands. Arrival context is the
+    /// arrival half of <see cref="TryAssignRunway"/>'s test — on a STAR to a filed destination with no departure
+    /// clearance pending — without its airborne clause: a taxi clearance already requires the wheels on the
+    /// ground, and a helicopter hovering over the field on an air taxi is manoeuvring on the airport, not
+    /// arriving. The two clearance flags are what makes a runway change worth warning about: a SID initial
+    /// altitude means the departure clearance has been read to the crew, and
+    /// <see cref="PhaseList.DepartureClearance"/> is a takeoff clearance stored while the aircraft taxis. A VFR
+    /// or repositioning aircraft has neither.
+    /// </summary>
+    private static DepartureRunwayAssignment CaptureDepartureRunwayAssignment(AircraftState aircraft)
+    {
+        bool isArrival =
+            (aircraft.Procedure.ActiveStarId is not null)
+            && (!string.IsNullOrEmpty(aircraft.FlightPlan.Destination))
+            && (aircraft.Phases?.DepartureClearance is null);
+        return new DepartureRunwayAssignment(
+            aircraft.Procedure.DepartureRunway,
+            isArrival,
+            aircraft.Procedure.SidInitialAltitudeFt is not null,
+            aircraft.Phases?.DepartureClearance is not null
+        );
+    }
+
+    /// <summary>
+    /// Assigns the runway a taxi/air-taxi clearance resolved. <see cref="PhaseList.AssignedRunway"/> and
+    /// <see cref="AircraftProcedure.DepartureRunway"/> are written together — the SID runway transition is
+    /// re-derived from the first (<see cref="DepartureClearanceHandler.TryResolveSidFromCifp"/>) and the CVIA
+    /// rejoin from the second — except for an arrival, whose taxi across the field must not claim a departure
+    /// runway. That gate is only the arrival <em>test</em> <see cref="TryAssignRunway"/> uses; a taxi clearance
+    /// does not take its arrival branch's actions (the STAR-runway sync and the pending-approach clear), which
+    /// belong to an explicit runway assignment. The runway in a taxi clearance is normally a confirmation
+    /// (7110.65 3-7-2), so a clearance that names a different one is honoured and warned about, never refused;
+    /// see <see cref="WarnIfDepartureRunwayChanged"/>.
+    /// </summary>
+    private static void ApplyDepartureRunway(AircraftState aircraft, RunwayInfo runway, DepartureRunwayAssignment prior)
+    {
+        aircraft.Phases ??= new PhaseList();
+        aircraft.Phases.AssignedRunway = runway;
+        if (prior.IsArrival)
+        {
+            return;
+        }
+
+        WarnIfDepartureRunwayChanged(aircraft, runway, prior);
+        aircraft.Procedure.DepartureRunway = runway.Designator;
+    }
+
+    /// <summary>
+    /// Warns the controller when the runway named in a taxi clearance is a different one from the departure
+    /// runway the aircraft is already flying to. 7110.65 3-7-2 frames the runway in a taxi clearance as a
+    /// confirmation, so silently moving the aircraft to another one hides what the change costs — and what it
+    /// costs depends on what had been issued for the old runway, so the warning says only what applies:
+    ///
+    /// <list type="bullet">
+    /// <item>a departure clearance had been read to the crew (a SID initial altitude is held): it no longer
+    /// applies, and 4-3-2.c.1 NOTE 1 wants the amended one issued before the aircraft enters the runway;</item>
+    /// <item>only a takeoff clearance was stored during the taxi: a takeoff clearance is runway-specific
+    /// (3-9-10.a) and is cancelled explicitly (3-9-11), never by re-taxiing the aircraft.</item>
+    /// </list>
+    ///
+    /// Only a genuine change is warned: the first assignment and a re-statement of the same runway are silent,
+    /// and so is an aircraft with nothing issued against the old runway.
+    /// </summary>
+    private static void WarnIfDepartureRunwayChanged(AircraftState aircraft, RunwayInfo runway, DepartureRunwayAssignment prior)
+    {
+        if ((prior.PriorDepartureRunway is not { Length: > 0 } previous) || (!prior.HasSidInitialAltitude && !prior.HasStoredTakeoffClearance))
+        {
+            return;
+        }
+
+        if (
+            RunwayIdentifier
+                .NormalizeDesignator(previous)
+                .Equals(RunwayIdentifier.NormalizeDesignator(runway.Designator), StringComparison.OrdinalIgnoreCase)
+        )
+        {
+            return;
+        }
+
+        string assigned = RunwayIdentifier.ToDisplayDesignator(runway.Designator);
+        string briefed = RunwayIdentifier.ToDisplayDesignator(previous);
+        string head =
+            $"taxi clearance names runway {assigned} but the departure runway assigned is {briefed} — this is a runway change, "
+            + "not a confirmation (7110.65 3-7-2); ";
+        string warning = prior.HasSidInitialAltitude
+            ? head
+                + $"the departure clearance issued for {briefed} no longer applies and the SID runway transition will be "
+                + $"resolved for {assigned} when the amended clearance is issued, so issue it before the aircraft enters the "
+                + "runway (4-3-2.c.1 NOTE 1)"
+            : head
+                + $"the takeoff clearance issued for {briefed} is void — a takeoff clearance is runway-specific (3-9-10.a) "
+                + "and must be cancelled explicitly (3-9-11)";
+        aircraft.PendingWarnings.Add(warning);
+        Log.LogDebug("[TryTaxi] {Callsign}: {Warning}", aircraft.Callsign, warning);
     }
 
     /// <summary>
@@ -783,23 +898,25 @@ internal static class GroundCommandHandler
         bool autoCrossRunway = false
     )
     {
-        if (autoTaxi.DestinationRunway is null && autoTaxi.DestinationParking is null)
+        if (autoTaxi.DestinationRunway is null && autoTaxi.DestinationParking is null && autoTaxi.DestinationSpot is null)
         {
-            return new CommandResult(false, "TAXIAUTO requires a runway or @parking destination");
+            return new CommandResult(false, "TAXIAUTO requires a runway, @parking, or $spot destination");
         }
 
         Log.LogDebug(
-            "[TryTaxiAuto] {Callsign}: destRwy={Rwy} destParking={Parking}",
+            "[TryTaxiAuto] {Callsign}: destRwy={Rwy} destParking={Parking} destSpot={Spot}",
             aircraft.Callsign,
             autoTaxi.DestinationRunway ?? "(none)",
-            autoTaxi.DestinationParking ?? "(none)"
+            autoTaxi.DestinationParking ?? "(none)",
+            autoTaxi.DestinationSpot ?? "(none)"
         );
 
         var taxi = new TaxiCommand(
             Path: [],
             HoldShorts: [],
             DestinationRunway: autoTaxi.DestinationRunway,
-            DestinationParking: autoTaxi.DestinationParking
+            DestinationParking: autoTaxi.DestinationParking,
+            DestinationSpot: autoTaxi.DestinationSpot
         );
 
         return TryTaxiCore(aircraft, taxi, groundLayout, autoCrossRunway, allowRemoteRunwayAutoRoute: true);
@@ -2157,11 +2274,7 @@ internal static class GroundCommandHandler
         }
 
         // Can't cross a destination runway you're holding short of mid-route (use LUAW/CTO).
-        if (
-            currentHoldMatch is not null
-            && holdPhase!.HoldShort.Reason == HoldShortReason.DestinationRunway
-            && aircraft.Ground.AssignedTaxiRoute is not { IsComplete: true }
-        )
+        if (currentHoldMatch is not null && holdPhase!.HoldShort.Reason == HoldShortReason.DestinationRunway && !HasArrivedAtHoldShort(aircraft))
         {
             return new CommandResult(
                 false,
@@ -2205,7 +2318,7 @@ internal static class GroundCommandHandler
             // A DestinationRunway hold-short is a departure hold (use LUAW/CTO) only while the
             // taxi is still in progress. Once the route has completed at it, CROSS undesignates
             // the runway and taxis the aircraft across to the far-side hold-short instead.
-            if (holdPhase.HoldShort.Reason == HoldShortReason.DestinationRunway && aircraft.Ground.AssignedTaxiRoute is not { IsComplete: true })
+            if (holdPhase.HoldShort.Reason == HoldShortReason.DestinationRunway && !HasArrivedAtHoldShort(aircraft))
             {
                 return new CommandResult(
                     false,
@@ -2263,6 +2376,15 @@ internal static class GroundCommandHandler
 
         return CommandDispatcher.Ok($"Cross {target}");
     }
+
+    /// <summary>
+    /// True when the aircraft is standing AT its hold short rather than still taxiing to it: the route completed
+    /// there, or there is no route at all because the aircraft was put at the bar by something other than a taxi
+    /// clearance (an <c>ATXI</c> to a runway). A destination-runway hold is a departure hold — CROSS is refused
+    /// for LUAW/CTO — only while the taxi is still running; once the aircraft is at the bar, CROSS undesignates
+    /// the runway and taxis it across.
+    /// </summary>
+    internal static bool HasArrivedAtHoldShort(AircraftState aircraft) => aircraft.Ground.AssignedTaxiRoute is null or { IsComplete: true };
 
     private static CommandResult TryPrepareCompletedRouteCrossing(AircraftState aircraft, HoldingShortPhase holdPhase)
     {
@@ -2471,7 +2593,7 @@ internal static class GroundCommandHandler
     {
         if (aircraft.Phases?.CurrentPhase is HoldingShortPhase holdPhase)
         {
-            if (holdPhase.HoldShort.Reason == HoldShortReason.DestinationRunway && aircraft.Ground.AssignedTaxiRoute is not { IsComplete: true })
+            if (holdPhase.HoldShort.Reason == HoldShortReason.DestinationRunway && !HasArrivedAtHoldShort(aircraft))
             {
                 return new CommandResult(
                     false,
@@ -2661,7 +2783,7 @@ internal static class GroundCommandHandler
             return new CommandResult(false, "No airport ground layout available");
         }
 
-        if (!TryResolveAirTaxiDestination(groundLayout, destination, out double destLat, out double destLon))
+        if (!TryResolveAirTaxiDestination(groundLayout, destination, out var resolved))
         {
             return new CommandResult(
                 false,
@@ -2669,7 +2791,30 @@ internal static class GroundCommandHandler
             );
         }
 
-        string resolvedName = destination.ToUpperInvariant();
+        // The layout knows the pavement, but the hold and the runway assignment need the navdata record. Resolve
+        // it before anything is torn down: installing a DestinationRunway hold with no assigned runway would
+        // leave an aircraft that refuses RES and has nothing to clear it with.
+        RunwayInfo? terminusRunway = null;
+        if (resolved.Kind == AirTaxiDestinationKind.Runway)
+        {
+            terminusRunway = CommandDispatcher.ResolveRunway(aircraft, resolved.RunwayId!);
+            if (terminusRunway is null)
+            {
+                string unknown = RunwayIdentifier.ToDisplayDesignator(resolved.RunwayId!);
+                Log.LogWarning(
+                    "[TryAirTaxi] {Callsign}: runway {Rwy} is on the {Airport} layout but has no navdata record",
+                    aircraft.Callsign,
+                    unknown,
+                    groundLayout.AirportId
+                );
+                return new CommandResult(false, $"Unable, runway {unknown} has no navdata record");
+            }
+        }
+
+        // A runway terminus stops the heli with its nose AT the marking, so the point it flies to is the bar set
+        // back by half the fuselage — the nose-at-the-line setback every taxi hold-short gets from
+        // HoldShortAnnotator.ComputeHoldShortPositions, which never runs on this path.
+        resolved = WithHoldShortSetback(groundLayout, aircraft, resolved);
 
         var ctx = CommandDispatcher.BuildMinimalContext(aircraft, groundLayout);
         if (!IsOnFieldForAirTaxi(aircraft, groundLayout, ctx.FieldElevation))
@@ -2679,29 +2824,160 @@ internal static class GroundCommandHandler
             // fit (AIM §4-3-17.a.3) and asks for the landing clearance §3-11-6.a prefers instead. The
             // message is spoken by the pilot as the "unable" readback: short, about the aircraft, no
             // punctuation the verbalizer cannot voice.
-            double distNm = GeoMath.DistanceNm(aircraft.Position, new LatLon(destLat, destLon));
-            return new CommandResult(false, $"Unable, we're {distNm:F0} miles out, request landing at {resolvedName}");
+            double distNm = GeoMath.DistanceNm(aircraft.Position, resolved.Target);
+            // Over the field but too high for an air taxi reads "0 miles out" as a distance; say where it is.
+            string where = distNm < OverheadMaxNm ? "we're overhead" : $"we're {distNm:F0} miles out";
+            return new CommandResult(false, $"Unable, {where}, request landing {resolved.SpokenDestination}");
         }
 
-        // Clear current phases and chain air-taxi → land → at-parking so the heli
-        // lifts off, cruises to the destination, descends, and stops on the spot.
+        // Captured before the fresh PhaseList drops the old clearance — a runway destination assigns the
+        // departure runway exactly as a taxi clearance does, warning included.
+        var priorAssignment = CaptureDepartureRunwayAssignment(aircraft);
+
+        // Clear current phases and chain air-taxi → land → the terminus the destination class implies, so the
+        // heli lifts off, cruises to the destination, descends, and settles there.
         if (aircraft.Phases is not null)
         {
             aircraft.Phases.Clear(ctx);
         }
 
         aircraft.Ground.Hold = null;
+        // An air taxi supersedes the taxi clearance — the heli flies to the destination, it does not follow the
+        // route. Leaving the route behind would also corrupt a restore: AircraftState.FromSnapshot re-binds a
+        // restored HoldingShortPhase to Ground.AssignedTaxiRoute.GetHoldShortAt(NodeId), so a stale point at the
+        // same node (a cleared crossing, say) would silently replace the terminus hold this command created.
+        aircraft.Ground.AssignedTaxiRoute = null;
         aircraft.Phases = new PhaseList();
-        aircraft.Phases.Add(new AirTaxiPhase(destLat, destLon, resolvedName));
+
+        // Only a helipad/parking destination is a parking position; a spot or a runway holding position is not,
+        // and a stale name there would have the aircraft reported as parked on the taxiway or at the bar.
+        aircraft.Ground.ParkingSpot = resolved.Kind == AirTaxiDestinationKind.Parking ? resolved.Name : null;
+
+        aircraft.Phases.Add(new AirTaxiPhase(resolved.Target.Lat, resolved.Target.Lon, resolved.Name));
         aircraft.Phases.Add(new HelicopterLandingPhase());
-        aircraft.Phases.Add(new AtParkingPhase());
+        AddAirTaxiTerminus(aircraft, resolved, terminusRunway, priorAssignment);
         ctx = CommandDispatcher.BuildMinimalContext(aircraft, groundLayout);
         aircraft.Phases.Start(ctx);
 
-        aircraft.Ground.ParkingSpot = resolvedName;
-
-        return CommandDispatcher.Ok($"Air taxi to {resolvedName}");
+        return CommandDispatcher.Ok(BuildAirTaxiMessage(resolved)) with
+        {
+            // The readback names the destination as the layout resolved it, not as typed: a bare "9" that
+            // resolved to a runway reads back "air taxi to runway nine" instead of falling silent on the
+            // unpadded token. Parking and spot destinations read back exactly as issued.
+            EffectiveCommand = resolved.Kind == AirTaxiDestinationKind.Runway ? new AirTaxiCommand(resolved.CanonicalToken) : null,
+        };
     }
+
+    /// <summary>
+    /// The controller-facing result line. A runway terminus says where it ends, because an air taxi to a runway
+    /// stops at the holding position rather than on the pavement.
+    /// </summary>
+    private static string BuildAirTaxiMessage(AirTaxiDestination resolved) =>
+        resolved.Kind == AirTaxiDestinationKind.Runway ? $"Air taxi to {resolved.Name}, holding short" : $"Air taxi to {resolved.Name}";
+
+    /// <summary>
+    /// The destination point moved back off a runway holding-position node by half the aircraft length, along the
+    /// bar's taxiway away from the runway, so the aircraft centre (its position) settles with the nose at the
+    /// marking — <see cref="HoldShortAnnotator.ComputeHoldShortPositions"/>'s setback for a
+    /// <see cref="HoldShortReason.DestinationRunway"/> hold, which only runs on a taxi route. Non-runway
+    /// destinations, and a bar with no taxiway edge leading away from the runway, are returned unchanged.
+    /// </summary>
+    private static AirTaxiDestination WithHoldShortSetback(AirportGroundLayout layout, AircraftState aircraft, AirTaxiDestination resolved)
+    {
+        if ((resolved.Kind != AirTaxiDestinationKind.Runway) || (resolved.HoldShortNodeId is not { } nodeId))
+        {
+            return resolved;
+        }
+
+        if (!layout.Nodes.TryGetValue(nodeId, out var bar) || (layout.FindRunway(resolved.RunwayId!) is not { } runway))
+        {
+            return resolved;
+        }
+
+        var away = bar.Edges.Where(e => !e.IsRunwayCenterline).Select(e => e.OtherNode(bar)).MaxBy(n => DistanceToCenterlineFt(runway, n.Position));
+        if ((away is null) || (DistanceToCenterlineFt(runway, away.Position) <= DistanceToCenterlineFt(runway, bar.Position)))
+        {
+            return resolved;
+        }
+
+        double lengthFt = FaaAircraftDatabase.Get(aircraft.AircraftType)?.LengthFt ?? HoldShortAnnotator.CwtFallbackLengthFt(aircraft.AircraftType);
+        double setbackNm = Math.Min((lengthFt / 2.0) / GeoMath.FeetPerNm, GeoMath.DistanceNm(bar.Position, away.Position));
+        var heading = new TrueHeading(GeoMath.BearingTo(bar.Position, away.Position));
+        return resolved with { Target = GeoMath.ProjectPoint(bar.Position, heading, setbackNm) };
+    }
+
+    /// <summary>
+    /// Perpendicular distance in feet from a point to the runway's pavement centerline — measured to the
+    /// <em>segments</em> between its vertices, not to the vertices themselves. A vertex metric is dominated by
+    /// along-track distance on a runway drawn with a handful of far-apart points (KOAK 28L-10R has segments up
+    /// to 2,500 ft), which would let a node sitting on the pavement read as "farther from the runway" than the
+    /// bar and send the setback the wrong way.
+    /// </summary>
+    private static double DistanceToCenterlineFt(GroundRunway runway, LatLon position) =>
+        runway.Coordinates.Count < 2
+            ? double.MaxValue
+            : Enumerable
+                .Range(0, runway.Coordinates.Count - 1)
+                .Min(i =>
+                    GeoMath.DistanceToSegmentFt(
+                        position,
+                        new LatLon(runway.Coordinates[i].Lat, runway.Coordinates[i].Lon),
+                        new LatLon(runway.Coordinates[i + 1].Lat, runway.Coordinates[i + 1].Lon)
+                    )
+                );
+
+    /// <summary>
+    /// Adds the phase an air taxi ends in.
+    ///
+    /// <para>A helipad or parking position is a shutdown spot (<see cref="AtParkingPhase"/>). A taxiway spot is
+    /// not: the heli sets down and holds where it is (<see cref="HoldingInPositionPhase"/>). A runway is neither
+    /// — an air taxi is a ground movement (AIM 4-3-17.b), and a ground movement to a runway ends at its holding
+    /// position (AIM 4-3-18.a.5/6; 7110.65 3-11-1.c "HOLD FOR"), never on the pavement, so the heli holds short
+    /// with <see cref="HoldShortReason.DestinationRunway"/> — which refuses RES and takes CTO/LUAW, like any
+    /// departure at the bar — and the runway is assigned the same way a taxi clearance assigns it.</para>
+    /// </summary>
+    private static void AddAirTaxiTerminus(
+        AircraftState aircraft,
+        AirTaxiDestination resolved,
+        RunwayInfo? terminusRunway,
+        DepartureRunwayAssignment priorAssignment
+    )
+    {
+        if (resolved.Kind == AirTaxiDestinationKind.Parking)
+        {
+            aircraft.Phases!.Add(new AtParkingPhase());
+            return;
+        }
+
+        if (resolved.Kind == AirTaxiDestinationKind.Spot)
+        {
+            aircraft.Phases!.Add(new HoldingInPositionPhase());
+            return;
+        }
+
+        string runwayId = resolved.RunwayId!;
+        aircraft.Phases!.Add(
+            new HoldingShortPhase(
+                new HoldShortPoint
+                {
+                    NodeId = resolved.HoldShortNodeId!.Value,
+                    Reason = HoldShortReason.DestinationRunway,
+                    TargetName = runwayId,
+                    Latitude = resolved.Target.Lat,
+                    Longitude = resolved.Target.Lon,
+                }
+            )
+        );
+
+        // Non-null for a runway destination: TryAirTaxi refuses the command when the record cannot be resolved.
+        ApplyDepartureRunway(aircraft, terminusRunway!, priorAssignment);
+    }
+
+    /// <summary>
+    /// Distance (nm) to the destination inside which the refusal says "overhead" rather than a rounded mileage
+    /// that would read "0 miles out".
+    /// </summary>
+    private const double OverheadMaxNm = 0.5;
 
     /// <summary>
     /// Distance (nm) from the nearest ground-layout node within which a helicopter counts as over the airport
@@ -2739,39 +3015,123 @@ internal static class GroundCommandHandler
         return (GeoMath.DistanceNm(aircraft.Position, nearest.Position) <= OnFieldMarginNm) && (agl <= OnFieldMaxAgl);
     }
 
-    /// <summary>
-    /// Resolve an ATXI destination to a (lat, lon) by trying, in order:
-    ///   1. <see cref="AirportGroundLayout.FindSpotByName"/> (helipad, parking, spot node)
-    ///   2. <see cref="AirportGroundLayout.FindRunway"/> matched on either end designator,
-    ///      using the threshold of the requested end as the target point.
-    /// Returns false if neither lookup matches.
-    /// </summary>
-    internal static bool TryResolveAirTaxiDestination(AirportGroundLayout layout, string destination, out double lat, out double lon)
+    /// <summary>What an <c>ATXI</c> destination names — which decides where the air taxi ends.</summary>
+    internal enum AirTaxiDestinationKind
     {
-        var spot = layout.FindSpotByName(destination);
-        if (spot is not null)
+        /// <summary>A helipad or a parking position: the heli sets down and parks there.</summary>
+        Parking,
+
+        /// <summary>A named taxiway spot: the heli sets down and holds where it is — a spot is not a parking position.</summary>
+        Spot,
+
+        /// <summary>A runway: the heli ends at that runway's holding position, clear of the pavement.</summary>
+        Runway,
+    }
+
+    /// <summary>
+    /// A resolved <c>ATXI</c> destination: its class, the point to fly to, the name controller-facing text uses,
+    /// and — for the runway form only — the runway held short of and the graph node of that bar.
+    /// </summary>
+    internal sealed record AirTaxiDestination(AirTaxiDestinationKind Kind, LatLon Target, string Name, string? RunwayId, int? HoldShortNodeId)
+    {
+        /// <summary>The command token this destination resolved from, normalized: <c>09</c>, <c>28L@J</c>, <c>FDX1</c>.</summary>
+        public string CanonicalToken =>
+            Kind == AirTaxiDestinationKind.Runway ? new HoldShortTarget(RunwayId!, LocationTaxiway, false).ToCanonical() : Name;
+
+        /// <summary>The destination as a pilot says it: "runway 28L", "at FDX1" — the clause after "request landing".</summary>
+        public string SpokenDestination => Kind == AirTaxiDestinationKind.Runway ? Name : $"at {Name}";
+
+        /// <summary>The taxiway a located runway destination names, or null for the bare and non-runway forms.</summary>
+        public string? LocationTaxiway { get; init; }
+    }
+
+    /// <summary>
+    /// Resolve an ATXI destination by trying, in order: helipad/parking, taxiway spot, then runway. The token is
+    /// parsed by <see cref="HoldShortTarget"/> — the same <c>TARGET@TAXIWAY</c> grammar the located hold short
+    /// uses — and a runway resolves to its <em>holding position</em>, never the threshold, because an air taxi is
+    /// a ground movement (AIM 4-3-17.b) that ends clear of the pavement. Returns false when nothing matches, or
+    /// when a located runway form names a taxiway with no bar on that runway.
+    /// </summary>
+    internal static bool TryResolveAirTaxiDestination(
+        AirportGroundLayout layout,
+        string destination,
+        [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out AirTaxiDestination? resolved
+    )
+    {
+        resolved = null;
+        if (!HoldShortTarget.TryParse(destination, out var target, out _))
         {
-            lat = spot.Position.Lat;
-            lon = spot.Position.Lon;
-            return true;
+            return false;
         }
 
-        var runway = layout.FindRunway(destination);
-        if (runway is not null && runway.Coordinates.Count >= 2)
+        resolved = ResolveAirTaxiSpot(layout, target) ?? ResolveAirTaxiRunway(layout, target);
+        return resolved is not null;
+    }
+
+    /// <summary>
+    /// The helipad, gate, or taxiway spot <paramref name="target"/> names, or null when it names neither. A
+    /// located target (<c>28L@J</c>) is never a spot: the locative only qualifies a runway, since a gate or a
+    /// spot is a single node.
+    /// </summary>
+    private static AirTaxiDestination? ResolveAirTaxiSpot(AirportGroundLayout layout, HoldShortTarget target)
+    {
+        if (target.OnTaxiway is not null)
         {
-            // GroundRunway.Coordinates run from the first-named end to the second. Target the threshold
-            // of whichever end the controller named, matching on the normalized identity so a single-digit
-            // "09"/"9" resolves to the correct end instead of silently falling through to the far threshold.
-            bool isFirstEnd = runway.Id.End1.Equals(RunwayIdentifier.NormalizeDesignator(destination), StringComparison.OrdinalIgnoreCase);
-            var threshold = isFirstEnd ? runway.Coordinates[0] : runway.Coordinates[^1];
-            lat = threshold.Lat;
-            lon = threshold.Lon;
-            return true;
+            return null;
         }
 
-        lat = 0;
-        lon = 0;
-        return false;
+        if ((layout.FindHelipadByName(target.Target) ?? layout.FindParkingByName(target.Target)) is { } parking)
+        {
+            return new AirTaxiDestination(AirTaxiDestinationKind.Parking, parking.Position, target.Target, null, null);
+        }
+
+        return layout.FindSpotNodeByName(target.Target) is { } spot
+            ? new AirTaxiDestination(AirTaxiDestinationKind.Spot, spot.Position, target.Target, null, null)
+            : null;
+    }
+
+    /// <summary>
+    /// The runway holding position <paramref name="target"/> names, or null when the layout has no such runway or
+    /// no bar on the named taxiway.
+    /// </summary>
+    private static AirTaxiDestination? ResolveAirTaxiRunway(AirportGroundLayout layout, HoldShortTarget target)
+    {
+        if (layout.FindRunway(target.Target) is null || ResolveRunwayHoldShortNode(layout, target) is not { } bar)
+        {
+            return null;
+        }
+
+        string runwayId = RunwayIdentifier.NormalizeDesignator(target.Target);
+        string display = RunwayIdentifier.ToDisplayDesignator(runwayId);
+        string name = target.OnTaxiway is { } taxiway ? $"runway {display} at {taxiway}" : $"runway {display}";
+        return new AirTaxiDestination(AirTaxiDestinationKind.Runway, bar.Position, name, runwayId, bar.Id) { LocationTaxiway = target.OnTaxiway };
+    }
+
+    /// <summary>
+    /// The holding-position node an air taxi to a runway ends at: the bar nearest the named end's threshold — the
+    /// full-length entrance — narrowed for the located <c>28L@J</c> form to the bars incident to that taxiway, the
+    /// same node-incidence test a located hold short (<c>HS 28R@J</c>) binds with. Null when the runway has no
+    /// hold-short node at all, or none on the named taxiway.
+    /// </summary>
+    private static GroundNode? ResolveRunwayHoldShortNode(AirportGroundLayout layout, HoldShortTarget target)
+    {
+        var candidates = layout.GetRunwayHoldShortNodes(target.Target);
+        if (target.OnTaxiway is { } taxiway)
+        {
+            candidates = candidates.Where(node => HoldShortAnnotator.NodeOnLocationTaxiway(layout, node.Id, taxiway)).ToList();
+        }
+
+        if (candidates.Count == 0)
+        {
+            return null;
+        }
+
+        // The same threshold reference TAXIAUTO's runway routing measures from, so both pick the same bar even on
+        // a displaced threshold. Node id breaks a tie only when the airport has no resolvable threshold.
+        var threshold = RouteMaterialiser.ResolveRunwayThreshold(layout.AirportId, target.Target);
+        return threshold is { } reference
+            ? candidates.MinBy(node => GeoMath.DistanceNm(reference, node.Position))
+            : candidates.OrderBy(node => node.Id).First();
     }
 
     internal static CommandResult TryLand(AircraftState aircraft, LandCommand land, AirportGroundLayout? groundLayout)

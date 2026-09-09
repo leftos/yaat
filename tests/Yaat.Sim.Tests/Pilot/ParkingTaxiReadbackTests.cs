@@ -58,7 +58,10 @@ public class ParkingTaxiReadbackTests(ITestOutputHelper output)
     [Fact]
     public void TaxiAutoToParking_ReadsBackLikePathlessTaxi()
     {
-        Assert.Equal("taxi to parking bravo one two", Spoken(new TaxiAutoCommand(DestinationParking: "B12")));
+        Assert.Equal(
+            "taxi to parking bravo one two",
+            Spoken(new TaxiAutoCommand(DestinationRunway: null, DestinationParking: "B12", DestinationSpot: null))
+        );
     }
 
     [Fact]

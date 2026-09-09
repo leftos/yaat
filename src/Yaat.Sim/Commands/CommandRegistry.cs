@@ -730,7 +730,14 @@ public static class CommandRegistry
                 CommandDimension.Ground,
                 false,
                 ["ATXI"],
-                [O(null, [], "Air taxi to destination"), O("Helipad", [R("helipad", "helipad/gate ID")], "Air taxi to helipad")]
+                [
+                    O(null, [], "Air taxi to destination"),
+                    O(
+                        "Destination",
+                        [R("destination", "helipad/gate ID, $spot, or runway[@taxiway]")],
+                        "Air taxi to a helipad, gate, taxiway spot, or runway holding position"
+                    ),
+                ]
             ),
             Cmd(
                 Land,
@@ -902,7 +909,7 @@ public static class CommandRegistry
                 CommandDimension.Ground,
                 false,
                 ["TAXIAUTO"],
-                [O(null, [R("destination", "runway or @parking")], "Auto-route taxi to runway or parking (A* pathfinding)")]
+                [O(null, [R("destination", "runway, @parking, or $spot")], "Auto-route taxi to runway, parking, or spot (A* pathfinding)")]
             ),
             Bare(BreakConflict, "Break Conflict", "Ground", CommandDimension.Ground, false, ["BREAK"]),
             Bare(ClearRunway, "Clear Runway", "Ground", CommandDimension.Ground, false, ["CLRWY", "CLEARRWY"]),

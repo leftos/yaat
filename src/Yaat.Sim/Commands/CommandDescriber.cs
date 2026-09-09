@@ -1009,6 +1009,11 @@ public static class CommandDescriber
             return $"TAXIAUTO {cmd.DestinationRunway}";
         }
 
+        if (cmd.DestinationSpot is not null)
+        {
+            return $"TAXIAUTO ${cmd.DestinationSpot}";
+        }
+
         return cmd.DestinationParking is not null ? $"TAXIAUTO @{cmd.DestinationParking}" : "TAXIAUTO";
     }
 
@@ -1415,6 +1420,11 @@ public static class CommandDescriber
         if (cmd.DestinationRunway is not null)
         {
             return $"Taxi (auto) to runway {cmd.DestinationRunway}";
+        }
+
+        if (cmd.DestinationSpot is not null)
+        {
+            return $"Taxi (auto) to spot {cmd.DestinationSpot}";
         }
 
         return cmd.DestinationParking is not null ? $"Taxi (auto) to {cmd.DestinationParking}" : "Taxi (auto)";

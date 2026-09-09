@@ -469,29 +469,34 @@ internal static class GroundCommandParser
     }
 
     /// <summary>
-    /// Parses TAXIAUTO {runway|@parking}. The handler uses A* pathfinding to
-    /// discover a taxiway sequence from the aircraft's current position and
-    /// delegates to the regular Taxi pipeline.
+    /// Parses TAXIAUTO {runway|@parking|$spot} — the same destination sigils as TAXI. The handler uses A*
+    /// pathfinding to discover a taxiway sequence from the aircraft's current position and delegates to the
+    /// regular Taxi pipeline.
     /// </summary>
     internal static PR ParseTaxiAuto(string? arg)
     {
         if (arg is null)
         {
-            return PR.Fail("TAXIAUTO requires a destination (runway or @parking)");
+            return PR.Fail("TAXIAUTO requires a destination (runway, @parking, or $spot)");
         }
 
         var token = arg.Trim();
         if (token.Length == 0)
         {
-            return PR.Fail("TAXIAUTO requires a destination (runway or @parking)");
+            return PR.Fail("TAXIAUTO requires a destination (runway, @parking, or $spot)");
         }
 
         if (token.StartsWith('@') && token.Length > 1)
         {
-            return PR.Ok(new TaxiAutoCommand(DestinationParking: token[1..].ToUpperInvariant()));
+            return PR.Ok(new TaxiAutoCommand(DestinationRunway: null, DestinationParking: token[1..].ToUpperInvariant(), DestinationSpot: null));
         }
 
-        return PR.Ok(new TaxiAutoCommand(DestinationRunway: token.ToUpperInvariant()));
+        if (token.StartsWith('$') && token.Length > 1)
+        {
+            return PR.Ok(new TaxiAutoCommand(DestinationRunway: null, DestinationParking: null, DestinationSpot: token[1..].ToUpperInvariant()));
+        }
+
+        return PR.Ok(new TaxiAutoCommand(DestinationRunway: token.ToUpperInvariant(), DestinationParking: null, DestinationSpot: null));
     }
 
     /// <summary>

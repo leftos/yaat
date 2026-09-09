@@ -516,6 +516,17 @@ public class GroundCommandHandlerTests
             }
         );
         ac.Phases.Add(holdPhase);
+
+        // The refusal is about an aircraft still taxiing TO its departure runway, so it needs the in-progress
+        // route that says so. A bar reached with no route at all — an ATXI to the runway — takes CROSS instead
+        // (AirTaxiRunwayTerminusTests.HoldingShortAfterAnAirTaxi_TakesCross).
+        ac.Ground.AssignedTaxiRoute = new TaxiRoute
+        {
+            Segments = [MakeSegment(1, 2, "A", 0.1), MakeSegment(2, 3, "A", 0.1)],
+            HoldShortPoints = [holdPhase.HoldShort],
+            CurrentSegmentIndex = 0,
+        };
+
         var ctx = new PhaseContext
         {
             Aircraft = ac,
@@ -800,6 +811,15 @@ public class GroundCommandHandlerTests
             }
         );
         ac.Phases.Add(holdPhase);
+
+        // As above: mid-route to the departure runway is what makes bare CROSS a mistake.
+        ac.Ground.AssignedTaxiRoute = new TaxiRoute
+        {
+            Segments = [MakeSegment(1, 2, "A", 0.1), MakeSegment(2, 3, "A", 0.1)],
+            HoldShortPoints = [holdPhase.HoldShort],
+            CurrentSegmentIndex = 0,
+        };
+
         var ctx = new PhaseContext
         {
             Aircraft = ac,

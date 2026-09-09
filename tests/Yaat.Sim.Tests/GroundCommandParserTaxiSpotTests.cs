@@ -1,6 +1,9 @@
 using Xunit;
 using Yaat.Sim.Commands;
+using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Phases;
+using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests;
 
@@ -37,6 +40,69 @@ public class GroundCommandParserTaxiSpotTests
         Assert.Equal("A12", taxi.DestinationParking);
         Assert.Null(taxi.DestinationSpot);
         Assert.Equal(["01L"], taxi.HoldShorts.Select(h => h.ToCanonical()));
+    }
+
+    /// <summary>
+    /// TAXIAUTO takes the same destination sigils as TAXI. TAXIALL routes each parked aircraft through the
+    /// TAXIAUTO arm, so a <c>$spot</c> destination has to survive both the parse and the canonical round trip.
+    /// </summary>
+    [Fact]
+    public void ParseTaxiAuto_DollarSpot_Sets_DestinationSpot()
+    {
+        var result = GroundCommandParser.ParseTaxiAuto("$I8L");
+
+        Assert.True(result.IsSuccess, result.Reason);
+        var taxiAuto = Assert.IsType<TaxiAutoCommand>(result.Value);
+
+        Assert.Equal("I8L", taxiAuto.DestinationSpot);
+        Assert.Null(taxiAuto.DestinationParking);
+        Assert.Null(taxiAuto.DestinationRunway);
+    }
+
+    [Theory]
+    [InlineData("TAXIAUTO $I8L", "TAXIAUTO $I8L")]
+    [InlineData("TAXIAUTO @A12", "TAXIAUTO @A12")]
+    [InlineData("TAXIAUTO 28R", "TAXIAUTO 28R")]
+    public void TaxiAutoCanonical_RoundTripsEveryDestination(string input, string expected)
+    {
+        var parsed = CommandParser.Parse(input);
+        Assert.True(parsed.IsSuccess, parsed.Reason);
+        Assert.Equal(expected, CommandDescriber.DescribeCommand(parsed.Value!));
+    }
+
+    /// <summary>A TAXIAUTO to a spot routes there, the same as the equivalent TAXI destination.</summary>
+    [Fact]
+    public void TryTaxiAuto_DollarSpot_RoutesToTheSpot()
+    {
+        TestVnasData.EnsureInitialized();
+        var layout = new TestAirportGroundData().GetLayout("OAK");
+        if (layout is null)
+        {
+            return;
+        }
+
+        var spot = layout.Nodes.Values.OrderBy(n => n.Id).First(n => (n.Type == GroundNodeType.Spot) && (n.Name is { Length: > 0 }));
+        var parking = layout.Nodes.Values.First(n =>
+            (n.Type == GroundNodeType.Parking) && string.Equals(n.Name, "NEW7", StringComparison.OrdinalIgnoreCase)
+        );
+
+        var ac = new AircraftState
+        {
+            Callsign = "TEST1",
+            AircraftType = "B738",
+            Position = parking.Position,
+            TrueHeading = new TrueHeading(280),
+            Altitude = 6,
+            IsOnGround = true,
+            FlightPlan = new AircraftFlightPlan { Departure = "KOAK" },
+        };
+        ac.Ground.Layout = layout;
+        ac.Phases = new PhaseList();
+
+        var result = GroundCommandHandler.TryTaxiAuto(ac, new TaxiAutoCommand(null, null, spot.Name), layout);
+
+        Assert.True(result.Success, result.Message);
+        Assert.Equal(spot.Name, ac.Ground.AssignedTaxiRoute?.DestinationSpot);
     }
 
     [Fact]

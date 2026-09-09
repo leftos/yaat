@@ -93,9 +93,11 @@ public sealed partial class SimulationEngine
     }
 
     /// <summary>
-    /// <c>TAXIALL</c>: taxis every aircraft at parking to the destination, each through the dispatcher's TAXI arm with
-    /// an empty path so the pathfinder routes it. The result counts the aircraft that took the instruction and the ones
-    /// that refused it; the command itself succeeds whenever a destination was given.
+    /// <c>TAXIALL</c>: taxis every aircraft at parking to the destination, each through the dispatcher's TAXIAUTO arm
+    /// so the pathfinder discovers a route from where that aircraft stands. 7110.65 3-7-2 wants a specific route in a
+    /// taxi clearance; the route-less TAXI is honoured only for an aircraft already at the bar (issue #393), which as a
+    /// bulk instruction would move nothing. The result counts the aircraft that took the instruction and the ones that
+    /// refused it; the command itself succeeds whenever a destination was given.
     /// </summary>
     public CommandResult TaxiAll(TaxiAllCommand taxiAll)
     {
@@ -104,13 +106,7 @@ public sealed partial class SimulationEngine
             return new CommandResult(false, "TAXIALL requires a destination runway, @parking, or $spot");
         }
 
-        var taxi = new TaxiCommand(
-            [],
-            [],
-            taxiAll.DestinationRunway,
-            DestinationParking: taxiAll.DestinationParking,
-            DestinationSpot: taxiAll.DestinationSpot
-        );
+        var taxi = new TaxiAutoCommand(taxiAll.DestinationRunway, taxiAll.DestinationParking, taxiAll.DestinationSpot);
         int taxied = 0;
         int failed = 0;
         foreach (var aircraft in World.GetSnapshot())
