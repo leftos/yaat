@@ -109,12 +109,12 @@ log and the router ignores it from a record.
 | `TaxiAll` | `TAXIALL` | Global | Sim: `SimulationEngine.TaxiAll` | Text |
 | `Tdls` | `TDLSQ` / `TDLSS` / `TDLSW` / `TDLSDUMP` | Aircraft | Sim: `TdlsCommandHandler.Handle` | Text |
 | `TdlsOps` | `TDLSOPS` | Global | Sim: `SimulationEngine.ApplyTdlsOpConfig` | Text |
-| `AsdexEnableAllAlerts` | `ASDXALERTS` | Global | Host: `ApplyAsdexEnableAllAlerts` | Text |
+| `AsdexEnableAllAlerts` | `ASDXALERTS` | Global | Sim: `SimulationEngine.EnableAllAsdexAlerts` | Text |
 | `AddAircraft` | `ADD` | Global | Sim: `SimulationEngine.AddAircraft` (derives the spawn; a baked snapshot is the authority) | Text |
 | `Cfr` | `CFR` | Aircraft | Sim: `CfrDepartureService.Apply` | Text |
 | `SetActivePosition` | bare `AS` | Position | Sim: `SimulationEngine.SelectPosition` | Text |
-| `Bookmark` | `BM` | Global | Host: `ApplyBookmark` | Never |
-| `Transport` | `PAUSE` / `UNPAUSE` / `SIMRATE` | Global | Host: `ApplyTransport` | Never |
+| `Bookmark` | `BM` | Global | Sim: `BookmarkCommandHandler.Handle` | Never |
+| `Transport` | `PAUSE` / `UNPAUSE` / `SIMRATE` | Global | Sim: `TransportCommandHandler.Handle` (`SimulationEngine.Pause` / `Resume` / `SetSimRate`) | Never |
 
 Two kinds are matched before the family predicates that also contain them: a bare `AS` (a member of the track family, but
 it addresses the issuing connection's position, not an aircraft) and `RDAUTO` (a member of the coordination family,

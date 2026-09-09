@@ -91,6 +91,7 @@ The Task Index above tells you *which files*; these docs explain *how each subsy
   - **Tower lists**: `Simulation/TowerLists/TowerListStepTests.cs` (the P-list step on the bare engine over real ZOA data: an in-range aircraft enters with the tick's second, the coordination flag is raised by the spine step, a static second re-stamps nothing, a snapshot restore keeps the live dwell second), `Simulation/Snapshots/TowerListSnapshotMapperTests.cs` (round-trip incl. entry order, null → empty, ClearSession keeps the airports), `TowerListTrackerTests.cs` (the tracker's range geometry — moved from the server suite)
   - **Bookmarks**: `Simulation/Bookmarks/BookmarkStepTests.cs` (the bookmark bodies on the bare engine: `BM ADD`/`RENAME`/`DELETE`/`DEL ALL`, one `OnBookmarksChanged` per successful mutation and none for a refused one, a recorded `BM ADD` inert)
   - **Session clock**: `Simulation/TransportStepTests.cs` (`PAUSE`/`UNPAUSE`/`SIMRATE` on the bare engine: the clamp to 1..16, the live-traffic refusal, `(false, "No active scenario")`, one `OnSimStateChanged` per accepted verb, a recorded `PAUSE` inert)
+  - **ASDE-X / SAID mutations**: `Simulation/Asdex/AsdexMutationStepTests.cs` (a recorded tag / edit / suspend / inhibit / terminate on the bare engine and the SAID twins, the terminate consumer once, an edit carrying an empty field stored as written, `ASDXALERTS` clearing two inhibits, a `ReplayDriver` replay holding the tag)
   - **ERAM CRR groups**: `Simulation/Eram/EramCrrGroupStepTests.cs` (a recorded create / replace / recolor / null-latitude delete on the bare engine, one `OnEramCrrGroupsChanged` per applied record, an unknown colour, the snapshot round-trip, a `ReplayDriver` replay rebuilding the group, the Sim-vs-wire colour numbering)
   - **Coordination**: `Simulation/Coordination/CoordinationStepTests.cs` (the coordination bodies on the bare engine over the real ZOA `POAK` list: `RD`/`RDH`/`RDR`/`RDACK`/`RDDEL`/`RDPOS`/`RDTXT`/`RDAUTO`, the deterministic `{ListId}-{SequenceNumber}` id, the timers step reached through `RunSecond` and its dirty flag delivered by the `StateChanges` spine step, a `TRACK` voiding the items, a non-sender refused, and a `ReplayDriver` replay holding the same item id as live)
   - **TDLS**: `Simulation/Tdls/TdlsStepTests.cs` (the vTDLS bodies on the bare engine: the spawn hook's auto-queue, the four tick steps — auto-queue, auto-WILCO, TTL expiry, track removal — the `TDLSQ`/`TDLSS`/`TDLSW`/`TDLSDUMP`/`TDLSOPS` command handler, and the change tracker the router drains into the host — over real OAK navdata with no server in the process)
@@ -1207,6 +1208,11 @@ SimulationEngine.Transport.cs  # The session-clock bodies (crossed from yaat-ser
                                # SimRate (clamped 1..16; refused while LiveTrafficEnabled; (false, "No active scenario") without one), each marking the sim-state dirty flag
                                # (OnSimStateChanged → the host's BroadcastSimState). The unattended-pause and rewind paths still write IsPaused directly and broadcast
                                # themselves. PAUSE/UNPAUSE/SIMRATE stay RecordingPolicy.Never — a rewind must never pause itself
+SimulationEngine.Asdex.cs      # The recorded CRC ASDE-X / SAID display mutations (crossed from yaat-server 2026-09-08): ApplyAsdexMutation /
+                               # ApplySaidMutation (tag / terminate / suspend / inhibit / edit onto AircraftStarsState through TrackEngine.SetAsdexField +
+                               # the SetSaidField / HandleSaidVerb twins; a Terminate tells the host once — OnAsdexTrackTerminated / OnSaidTrackTerminated —
+                               # so the room's one-shot delete marker fires) and EnableAllAsdexAlerts (ASDXALERTS, a per-aircraft sweep, a Sim arm). A CRC
+                               # EditDbFields echo stores "" as written; only the typed ASDXSP1-family maps an empty argument to null (clear)
 SimulationEngine.Eram.cs       # The ERAM CRR-group definitions (crossed from yaat-server 2026-09-08): CrrGroups (label → EramCrrGroup, case-insensitive) and
                                # ApplyCrrGroup(RecordedEramCrrGroup) — create/replace/recolor, null latitude = delete — marking the dirty flag DrainStateChangesInto
                                # hands the host as OnEramCrrGroupsChanged (the room re-pushes the whole EramCrrGroups topic; a delete is still the CRC handler's
@@ -1299,7 +1305,7 @@ IStateChangeConsumer.cs        # Where a drained StripChangeSet / TdlsChangeSet 
 ISimulationHost.cs             # IHostSteps + IHostConsumers + Actions.IActionHost; four implementations (BareHost, ReplayHost, yaat-server LiveRoomHost / ReconstructionHost)
 StepTrace.cs                   # Per-second (StepId, subTick) sequence + FNV-1a digest + counts; on by default, allocation-free once warm
 BareHost.cs                    # The Test-run host: every spine slot empty, consumers fire the engine's events; as an IActionHost every slot is refused
-                               # (ActionRefusals.HostOnly), the recorded ASDE-X / SAID mutations are dropped, IsPositionAttended is false and every consumer discarded
+                               # (ActionRefusals.HostOnly), IsPositionAttended is false and every consumer discarded
 
 # Simulation/Actions/ — the action router: a controller action is routed once, in Yaat.Sim (ADR 0007; docs/command-pipeline.md § one routing table)
 ActionRouter.cs                # SimulationEngine.Actions. Issue(ActionInput, host) for a fresh command, Apply(RecordedCommand, host) for a recorded one,
@@ -1315,7 +1321,7 @@ ActionRouter.cs                # SimulationEngine.Actions. Issue(ActionInput, ho
                                # ArmTable row → record (fresh: through RecordAction, accepted or not) or compare verdicts (recorded: the replay-fidelity
                                # warning when Accepted disagrees) → drain what the strip/TDLS/coordination mutations touched into the host (DrainStateChangesInto,
                                # IStateChangeConsumer.OnStripsChanged/OnTdlsChanged/OnCoordinationChanged) before the result returns. LastTrace is the parity test's observable. Overloads without a host use the bare host.
-ArmTable.cs (in ActionArm.cs)  # ActionArm (kind, scope, IsHostSlot, RecordingPolicy, Run) + ArmTable.For(kind) — one row per
+ArmTable.cs (in ActionArm.cs)  # ActionArm (kind, scope, RecordingPolicy, Run) + ArmTable.For(kind) — one row per
                                # RecordedCommandKind, scope asserted equal to the classifier's at construction; RecordingPolicy.Never = ShowQueued + Bookmark + Transport;
                                # ArmContext is what a body sees (engine, host, input, remainder, parsed, resolved aircraft/identity) and writes its draws
                                # (ReactionDelaySeconds, SpawnJitterSeconds, SpawnedAircraft, IssuedAtUtc, StripId — the id a creating strip verb minted) into,
@@ -1330,16 +1336,15 @@ ActionArms.cs                  # The Sim bodies: Aviation (ParseCompound → Rea
                                # Unassume (UNASSUME: an AssumedFromLiveTraffic aircraft leaves as DEL does, minus OnLiveTrafficHidden and the removal record, so the
                                # next ShadowTrafficSync re-spawns the shadow), DeleteQueued, Note, SpawnNow/SpawnDelay, SetActivePosition (OnPositionSelected with the typed code), Track
                                # (TrackEngine.Dispatch; CAACK to TrackEngine.AcknowledgeConflictAlert; the tails on every run kind — TRACK applies the facility's
-                               # scratchpad rules + RemoveCoordinationOnRadarAcquisition, INHCA drops the aircraft's active conflicts, ASDE-X TERM → OnAsdexTrackTerminated, a ghost's
+                               # scratchpad rules + RemoveCoordinationOnRadarAcquisition, INHCA drops the aircraft's active conflicts, ASDE-X TERM and a recorded CRC terminate → OnAsdexTrackTerminated / OnSaidTrackTerminated, a ghost's
                                # DROP lifts the overlay (OnGhostOverlayRemoved) or removes the phantom (OnAircraftDeleted)), GlobalTrack (ACCEPTALL/HOALL via
                                # TrackEngine.DispatchGlobal), GhostTrack (a created phantom is handed to OnAircraftSpawned), Reposition, SquawkAll, HFR/HFROFF/REL (baked jitter else ReleaseJitterRng), Cfr (baked clock else now),
                                # Timer, TaxiAll, AddAircraft (SimulationEngine.AddAircraft; bakes the spawned aircraft onto a fresh record),
                                # Consolidate/Deconsolidate (SimulationEngine.Consolidate / Deconsolidate; OnConsolidationChanged),
                                # Coordination/GlobalCoordination (CoordinationCommandHandler.Handle / HandleGlobal over the engine — Sim arms since 2026-09-07)
-IActionHost.cs                 # The action-path view of a host, part of ISimulationHost and IStateChangeConsumer: slots for the bodies the server still owns
-                               # (ApplyAsdexEnableAllAlerts, ApplyRecordedAsdexMutation / ApplyRecordedSaidMutation / ApplyRecordedAsdexSafetyLogic
-                               # for the recorded CRC display mutations and the ASDE-X safety-logic configuration — bookmarks, the clock and the CRR groups
-                               # crossed 2026-09-08) and consumers a Sim arm or applier notifies (OnAircraftSpawned, OnAircraftDeleted(callsign, lastState), OnLiveTrafficHidden,
+IActionHost.cs                 # The action-path view of a host, part of ISimulationHost and IStateChangeConsumer: the one slot the server still owns
+                               # (ApplyRecordedAsdexSafetyLogic alone — the ASDE-X safety-logic configuration; bookmarks, the clock, the CRR groups,
+                               # ASDXALERTS and the recorded ASDE-X / SAID mutations all crossed 2026-09-08) and consumers a Sim arm or applier notifies (OnAircraftSpawned, OnAircraftDeleted(callsign, lastState), OnLiveTrafficHidden,
                                # OnPositionSelected(conn, owner, tcpCode), OnGhostOverlayRemoved, OnAsdexTrackTerminated, OnStripsChanged(StripChangeSet) /
                                # OnTdlsChanged(TdlsChangeSet) / OnCoordinationChanged() (IStateChangeConsumer, shared with IHostConsumers — the router drains all three after every routed
                                # action; strips, TDLS and coordination themselves crossed whole into Yaat.Sim, so this is only
@@ -1349,8 +1354,8 @@ IActionHost.cs                 # The action-path view of a host, part of ISimula
                                # broadcasts, display config, CRC broadcasts) that a replaying room skips
 ActionInput.cs                 # ActionInput (callsign, command, connection id, initials, Baked) + BakedDraws (reaction delay, spawn jitter, spawned aircraft,
                                # issued-at clock, strip id) — the values a live run drew, read back from the record so no other run draws them
-ActionOutcome.cs               # ActionOutcome (result, the record produced, trace) + ActionTrace (kind, scope, IsHostSlot)
-ActionRefusals.cs              # HostOnly / NoScenario / AircraftNotFound — the results for an action no body on this run can apply
+ActionOutcome.cs               # ActionOutcome (result, the record produced, trace) + ActionTrace (kind, scope)
+ActionRefusals.cs              # HostOnly (no arm in the track table for the verb) / NoScenario / AircraftNotFound — the results for an action no body on this run can apply
 ReactionDelayPolicy.cs         # Decide(scenario, world, aircraft, compound, baked): baked wins; else null when no range is active, the compound carries
                                # explicit leading timing (WAIT/WAITD/BEHIND) or is purely comm (CON/FCA/ACK); else sample ReactionDelayRng and clamp to
                                # the latest pending reaction deferral so issue order is preserved
