@@ -1,6 +1,12 @@
 # Changelog
 
-## Unreleased
+## v0.12.27-beta [2026/09/08]
+
+### Highlights
+- A command typed at a live-traffic aircraft assumes it automatically; `UNASSUME` hands it back to the feed.
+- vTDLS follows flight-plan amendments, applies a SID's defaults when you pick one, shows the aircraft type once, and lets you select and copy its text.
+- Rewinds, bug bundles and client-side replays now carry the session settings, CRR groups, ASDE-X/SAID edits, query flashes and lined-up departures the live room had.
+- A planned server restart keeps every room's timeline bookmarks.
 
 ### Added
 - A command issued to a live-traffic shadow assumes it first and then applies (`FH 070` to a shadow answers `UAL123 assumed — Fly heading 070`), so you no longer type `ASSUME` before the first instruction; a `SAY` query alone, a surface shadow, and anything a preset or AI controller sends still refuse, since a question or a script must not take control of a real aircraft. `UNASSUME <callsign>` undoes an accidental assume: the simulated aircraft is removed and the feed's shadow reappears on the next update while the feed still tracks it. Neither verb chains, and a chained `PAUSE ; FH 090` typed at a shadow is refused before it can take the aircraft.
@@ -12,11 +18,11 @@
 
 ### Fixed
 - Picking a SID or transition in the vTDLS editor applies that transition's Facility-Engineer defaults (expect, climbout, climb via, maintain, contact, departure frequency, local info) to the clearance the way the real vTDLS does; it used to fill only the fields still blank, so a SID change kept the previous SID's values.
-- An amendment that changes the filed route re-selects the SID and transition in an open vTDLS editor the way opening it fresh would, and the SID, transition and altitude boxes keep a minimum width instead of being squeezed by the wide climb-via box.
+- The vTDLS editor's SID, transition and altitude boxes keep a minimum width instead of being squeezed by the wide climb-via box.
 - The Flight Plan Editor's Amend button is fully visible again; the ICAO EQ field had pushed it off the end of the row at the window's saved width, and the window now refuses to shrink below the row.
 - A local dev server (`RequireVatsimAuth=false`) lets the dev user open a room for any ARTCC and load its scenarios; a dev session minted without an ARTCC was refused on every room create with "Your ARTCC couldn't be determined".
 - vTDLS shows the aircraft type once with its equipment suffix (`B77W/L`), not `B77W/L/L`, when the scenario filed the suffix inside the type.
-- A flight-plan amendment (the flight-plan editor, `FP`/`VP`/`DA`, `APT`, a cruise-altitude change or a CRC edit) refreshes the aircraft's vTDLS entry the way it already reprinted its strip, and an open vTDLS editor shows the amended plan in place instead of keeping the one it opened with; vTDLS kept showing the original route and altitude until the page reconnected. The PDC's ACARS `EQUIPMENT` line also shows the type once with its suffix.
+- A flight-plan amendment (the flight-plan editor, `FP`/`VP`/`DA`, `APT`, a cruise-altitude change or a CRC edit) refreshes the aircraft's vTDLS entry the way it already reprinted its strip, and an open vTDLS editor shows the amended plan in place (re-selecting the SID and transition when the route changed) instead of keeping the one it opened with; vTDLS kept showing the original route and altitude until the page reconnected. The PDC's ACARS `EQUIPMENT` line also shows the type once with its suffix.
 - vTDLS flight-plan text is selectable: the header block (callsign, beacon, route, type, remarks, CID, cruise level) and the footer status can be highlighted and copied, as on the real vTDLS web page. The DCL/PDC list rows stay click-to-select.
 - The vTDLS flight-plan editor resolves the SID transition from the filed route for every SID whose transition is named after its fix (`SNTNA2 ORRCA` now, not only `TRUKN2 ORRCA`); it used to depend on the facility config also filling the transition's optional first-route-point field.
 - Rewinding a live session to before a `DEL` on a live-traffic shadow no longer brings the shadow back: the replayed removal re-suppresses the callsign, so the feed does not re-add an aircraft the controller deleted.
