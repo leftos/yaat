@@ -93,13 +93,9 @@ status flips on the issuer's vTDLS tab
   on manual `TDLSW` or on Dump/expiry.
 - **`Changes`** — the broadcast seam (`TdlsChangeTracker`): every mutation records
   the ids it touched, the items it removed and whether a full state is owed. Not
-  snapshotted; the host drains it (below).
-- **`Changes`** — the broadcast seam (`TdlsChangeTracker`): every mutation records
-  the ids it touched, the items it removed and whether a full state is owed. Not
-  snapshotted; the host drains it (below).
-- **`Changes`** — the broadcast seam (`TdlsChangeTracker`): every mutation records
-  the ids it touched, the items it removed and whether a full state is owed. Not
-  snapshotted; the host drains it (below).
+  snapshotted; the host drains it (below). `SimulationEngine.AmendFlightPlan` marks the aircraft's items too
+  (2026-09-08): the item DTO carries no flight-plan copy — `DtoConverter.BuildTdlsFlightPlanInfo` reads the live
+  `AircraftState` at broadcast time — so an amendment only needed the dirty mark the strip reprint already had.
 
 `TdlsItemRecord` (mirrors `TdlsItemDto` on the wire):
 
@@ -332,6 +328,9 @@ exactly match real-world PDC structure:
 
 - **Expect** — "EXPECT 10 MIN AFTER DEPARTURE" / "EXPECT VECTORS AFTER
   DEPARTURE" wording
+- **Aircraft type** — `TdlsFlightPlanInfoDto.AircraftType` is the bare type (`AircraftFlightPlan.BaseAircraftType`);
+  the client appends `EquipmentSuffix` once (`TypeAndEquipment`), the same split vStrips uses — a scenario that files
+  `B77W/L` inside the type field showed `B77W/L/L` before 2026-09-08
 - **SID + Transition** — published procedure id (e.g. `OAKLAND4.ALTAM`)
 - **Climbout / Climb Via** — "ON COURSE" or "FLY RUNWAY HEADING" etc.;
   separate "CLIMB VIA SID" instruction when applicable

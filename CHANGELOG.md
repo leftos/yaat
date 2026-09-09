@@ -11,6 +11,8 @@
 - `PAUSE`, `UNPAUSE`, `SIMRATE` and the `BM` bookmark verbs are simulation bodies now (the server only relays the result), so a client-side replay or a headless room accepts them like any other command. With no scenario loaded they answer "No active scenario" instead of reporting success and doing nothing.
 
 ### Fixed
+- vTDLS shows the aircraft type once with its equipment suffix (`B77W/L`), not `B77W/L/L`, when the scenario filed the suffix inside the type.
+- A flight-plan amendment (the flight-plan editor, `FP`/`VP`/`DA`, `APT`, a cruise-altitude change or a CRC edit) refreshes the aircraft's vTDLS entry the way it already reprinted its strip, and an open vTDLS editor shows the amended plan in place instead of keeping the one it opened with; vTDLS kept showing the original route and altitude until the page reconnected. The PDC's ACARS `EQUIPMENT` line also shows the type once with its suffix.
 - vTDLS flight-plan text is selectable: the header block (callsign, beacon, route, type, remarks, CID, cruise level) and the footer status can be highlighted and copied, as on the real vTDLS web page. The DCL/PDC list rows stay click-to-select.
 - The vTDLS flight-plan editor resolves the SID transition from the filed route for every SID whose transition is named after its fix (`SNTNA2 ORRCA` now, not only `TRUKN2 ORRCA`); it used to depend on the facility config also filling the transition's optional first-route-point field.
 - Rewinding a live session to before a `DEL` on a live-traffic shadow no longer brings the shadow back: the replayed removal re-suppresses the callsign, so the feed does not re-add an aircraft the controller deleted.
