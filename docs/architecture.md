@@ -1249,7 +1249,7 @@ AutoScratchpadResolver.cs      # Pure: the STARS destination fallback shown in t
                                # Not truncated to the scratchpad limit — STARS clips only controller-entered text.
 SessionRecording.cs            # v1 (commands) + v2 (commands + snapshots) recording format; ArtccConfigJson optional bundle; StudentPositionState (from snapshot 0) for Sim-side replay restore; TerminalLog (broadcast terminal stream) for terminal-scrub repopulation
 RecordedAction.cs              # Polymorphic recorded actions: Command, Chat, AmendFlightPlan, RequestNewBeaconCode, WeatherChange, SettingChange, AircraftSpawn,
-                               # LiveTrafficSample (pre-tick, like AircraftSpawn — SimulationEngine.IsPreTickAction), LiveTrafficRemoval,
+                               # LiveTrafficSample (pre-tick, like AircraftSpawn — SimulationEngine.IsPreTickAction), LiveTrafficRemoval (a Deleted reason re-raises OnLiveTrafficHidden on replay),
                                # LiveTrafficStatus (feed health + wall clock per status broadcast; diagnostic only, replay ignores it),
                                # AttendanceChange (the full set of attended vNAS position ids — a recorded input the live host derives from its connections when it changes, not a controller action),
                                # the derived records a CRC handler writes for state it used to change without a trace (tick-path 3d-5b):

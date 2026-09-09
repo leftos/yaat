@@ -11,6 +11,7 @@
 - `PAUSE`, `UNPAUSE`, `SIMRATE` and the `BM` bookmark verbs are simulation bodies now (the server only relays the result), so a client-side replay or a headless room accepts them like any other command. With no scenario loaded they answer "No active scenario" instead of reporting success and doing nothing.
 
 ### Fixed
+- Rewinding a live session to before a `DEL` on a live-traffic shadow no longer brings the shadow back: the replayed removal re-suppresses the callsign, so the feed does not re-add an aircraft the controller deleted.
 - A client-side replay or bug bundle reproduces the ASDE-X and SAID datablock edits (tags, scratchpads, suspends, alert inhibits, terminates) and `ASDXALERTS` the way the live room applied them; before, only the live server rebuilt them.
 - A replayed or rewound session shows a STARS query flash for the seconds it had left at that point in the session, not one that expired with the original wall clock, and a military-route exit-fix estimate (`SAYEXIT`) reads the session clock instead of the real time of day.
 - A rewind or bug-bundle snapshot that lands while a departure is still lining up no longer leaves it parked on the runway at zero speed: the line-up rebuilds from where the aircraft is (rolling on, or holding in position for `LUAW`) instead of faulting every second.
