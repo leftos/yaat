@@ -331,12 +331,23 @@
                      Climb via dominates (6x) for "CLIMB VIA SID EXCEPT
                      MAINTAIN FLxxx". The star ratios alone squeeze the always
                      populated SID, transition and Maintain fields to their text
-                     width, so each carries a MinWidth holding its longest real
-                     value (SNTNA2, ORRCA, 3000FT) plus the chevron; the climb-via
-                     column absorbs what they take. No inline labels — controllers
-                     learn the field positions, like upstream. -->
-                <Grid ColumnDefinitions="1*,1*,2*,6*,1*" Margin="0,0,0,8">
-                    <ComboBox PlaceholderText="- - - -" Grid.Column="0" Margin="0,0,4,0" MinWidth="96"
+                     width, so those three columns carry a MinWidth fitting the
+                     longest real value (SNTNA2, ORRCA, 3000FT) with its chevron
+                     plus the 4px gutter, and the climb-via column gives up the
+                     space. The floor belongs on the column, never the ComboBox:
+                     a star-sized column does not widen for its child's minimum,
+                     so the control overflows and lies across the field beside it.
+                     No inline labels — controllers learn the field positions,
+                     like upstream. -->
+                <Grid Margin="0,0,0,8">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="1*" MinWidth="100"/>
+                        <ColumnDefinition Width="1*" MinWidth="100"/>
+                        <ColumnDefinition Width="2*"/>
+                        <ColumnDefinition Width="6*"/>
+                        <ColumnDefinition Width="1*" MinWidth="100"/>
+                    </Grid.ColumnDefinitions>
+                    <ComboBox PlaceholderText="- - - -" Grid.Column="0" Margin="0,0,4,0"
                               ItemsSource="{Binding Sids}"
                               SelectedItem="{Binding SelectedSid, Mode=TwoWay}"
                               DisplayMemberBinding="{Binding Name}"
@@ -344,7 +355,7 @@
                               HorizontalAlignment="Stretch"
                               FontFamily="{StaticResource MonoFont}" FontSize="11"
                               ToolTip.Tip="SID"/>
-                    <ComboBox PlaceholderText="- - - -" Grid.Column="1" Margin="0,0,4,0" MinWidth="96"
+                    <ComboBox PlaceholderText="- - - -" Grid.Column="1" Margin="0,0,4,0"
                               ItemsSource="{Binding Transitions}"
                               SelectedItem="{Binding SelectedTransition, Mode=TwoWay}"
                               DisplayMemberBinding="{Binding Name}"
@@ -368,7 +379,7 @@
                               HorizontalAlignment="Stretch"
                               FontFamily="{StaticResource MonoFont}" FontSize="11"
                               ToolTip.Tip="Climb via"/>
-                    <ComboBox PlaceholderText="- - - -" Grid.Column="4" MinWidth="100"
+                    <ComboBox PlaceholderText="- - - -" Grid.Column="4"
                               ItemsSource="{Binding InitialAlts}"
                               SelectedItem="{Binding SelectedInitialAlt}"
                               DisplayMemberBinding="{Binding Value}"

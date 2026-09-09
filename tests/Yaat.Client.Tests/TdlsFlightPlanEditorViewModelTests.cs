@@ -575,4 +575,129 @@ public class TdlsFlightPlanEditorViewModelTests
         Assert.Equal("OFFSH9", editor.SelectedSid?.Id);
         Assert.Equal("OFFSH9-ORRCA", editor.SelectedTransition?.Id);
     }
+
+    /// <summary>
+    /// Two SIDs whose single transitions define different values for the same fields — the shape that shows whether
+    /// changing the SID re-applies the new transition's defaults. Neither transition defines a local info, so the
+    /// field a transition says nothing about is visible here too. GAPP7's departure frequency is written in the short
+    /// numeric form the KIAD config uses ("125.05" against a "125.050" list entry).
+    /// </summary>
+    private static TdlsConfigDto BuildTwoSidConfig() =>
+        new(
+            FacilityId: "IAD",
+            FacilityName: "Washington Dulles ATCT",
+            MandatorySid: true,
+            MandatoryClimbout: false,
+            MandatoryClimbvia: false,
+            MandatoryInitialAlt: true,
+            MandatoryDepFreq: true,
+            MandatoryExpect: true,
+            MandatoryContactInfo: false,
+            MandatoryLocalInfo: false,
+            Sids:
+            [
+                new TdlsSidDto("GAPP7", "GAPP7", [SidTransition("GAPP7-BOOKE", "BOOKE", "10 MIN AFT DP", "3000FT", "125.05")]),
+                new TdlsSidDto("GUNNR7", "GUNNR7", [SidTransition("GUNNR7-SPACY", "SPACY", "20 MIN AFT DP", "5000FT", "126.650")]),
+            ],
+            Climbouts: [],
+            Climbvias: [],
+            InitialAlts: [new TdlsClearanceValueDto("3000FT", "3000FT"), new TdlsClearanceValueDto("5000FT", "5000FT")],
+            DepFreqs:
+            [
+                new TdlsClearanceValueDto("125050", "125.050"),
+                new TdlsClearanceValueDto("126650", "126.650"),
+                new TdlsClearanceValueDto("119200", "119.200"),
+            ],
+            Expects: [new TdlsClearanceValueDto("10MIN", "10 MIN AFT DP"), new TdlsClearanceValueDto("20MIN", "20 MIN AFT DP")],
+            ContactInfos: [],
+            LocalInfos: [new TdlsClearanceValueDto("rwy19", "EXP RWY 19L"), new TdlsClearanceValueDto("rwy30", "EXP RWY 30")],
+            DefaultSidId: "GAPP7",
+            DefaultTransitionId: "GAPP7-BOOKE"
+        );
+
+    private static TdlsSidTransitionDto SidTransition(string id, string fix, string expect, string initialAlt, string depFreq) =>
+        new(
+            id,
+            fix,
+            FirstRoutePoint: fix,
+            DefaultExpect: expect,
+            DefaultClimbout: null,
+            DefaultClimbvia: null,
+            DefaultInitialAlt: initialAlt,
+            DefaultDepFreq: depFreq,
+            DefaultContactInfo: null,
+            DefaultLocalInfo: null
+        );
+
+    [Fact]
+    public void ChangingTheSid_AppliesTheNewTransitionsDefaults_OverWhateverIsThere()
+    {
+        // Upstream contract: "Selecting a SID and transition pair also populates the remaining fields with default
+        // values defined by the Facility Engineer." Keeping the previous values sends a clearance that mixes two
+        // SIDs' defaults — the reported bug.
+        var editor = new TdlsFlightPlanEditorViewModel(
+            "UAL300",
+            BuildTwoSidConfig(),
+            seed: null,
+            flightPlan: null,
+            isReadOnly: false,
+            opConfigId: null
+        );
+        Assert.Equal("125.050", editor.DepFreq);
+
+        // A frequency the controller picked by hand — nobody's default.
+        editor.DepFreq = "119.200";
+
+        editor.SelectedSid = editor.Sids.Single(s => s.Id == "GUNNR7");
+
+        Assert.Equal("GUNNR7-SPACY", editor.SelectedTransition?.Id);
+        Assert.Equal("126.650", editor.DepFreq);
+        Assert.Equal("5000FT", editor.InitialAlt);
+        Assert.Equal("20 MIN AFT DP", editor.Expect);
+    }
+
+    [Fact]
+    public void ChangingTheSid_LeavesFieldsTheNewTransitionDefinesNoDefaultFor()
+    {
+        // Neither transition defines a local info, so the controller's pick is the only value there is — a SID
+        // change must not blank it.
+        var editor = new TdlsFlightPlanEditorViewModel(
+            "UAL300",
+            BuildTwoSidConfig(),
+            seed: null,
+            flightPlan: null,
+            isReadOnly: false,
+            opConfigId: null
+        );
+        editor.LocalInfo = "EXP RWY 19L";
+
+        editor.SelectedSid = editor.Sids.Single(s => s.Id == "GUNNR7");
+
+        Assert.Equal("EXP RWY 19L", editor.LocalInfo);
+    }
+
+    [Fact]
+    public void ReadOnly_SidChange_NeverAppliesTransitionDefaults()
+    {
+        // A sent PDC under review shows exactly what was issued, so no selection change may pull the facility's
+        // defaults into it.
+        var seed = new ClearanceDto(
+            Expect: "10 MIN AFT DP",
+            Sid: "GAPP7",
+            Transition: "GAPP7-BOOKE",
+            Climbout: null,
+            Climbvia: null,
+            InitialAlt: "3000FT",
+            ContactInfo: null,
+            LocalInfo: null,
+            DepFreq: "119.200"
+        );
+        var editor = new TdlsFlightPlanEditorViewModel("UAL300", BuildTwoSidConfig(), seed, flightPlan: null, isReadOnly: true, opConfigId: null);
+
+        editor.SelectedSid = editor.Sids.Single(s => s.Id == "GUNNR7");
+
+        Assert.Equal("119.200", editor.DepFreq);
+        Assert.Equal("3000FT", editor.InitialAlt);
+        Assert.Equal("10 MIN AFT DP", editor.Expect);
+    }
 }

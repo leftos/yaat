@@ -232,6 +232,10 @@ public class VTdlsViewInteractionTests
         Assert.Equal("GUNNR7 SPACY J80 BOS", editor.FlightPlan!.Route);
         Assert.Equal("GUNNR7", editor.SelectedSid?.Name);
         Assert.Equal("GUNNR7-SPACY", editor.SelectedTransition?.Id);
+
+        // The new pairing's defaults come with it, rather than leaving the old SID's frequency under the new route.
+        Assert.Equal("126.650", editor.DepFreq);
+        Assert.Equal("20 MIN AFT DP", editor.Expect);
     }
 
     /// <summary>
@@ -254,7 +258,7 @@ public class VTdlsViewInteractionTests
 
         // The controller overrides the route-derived SID and the transition's defaulted Expect.
         editor.SelectedSid = editor.Sids.Single(s => s.Name == "GUNNR7");
-        editor.Expect = "20 MIN AFT DP";
+        editor.Expect = "10 MIN AFT DP";
         Dispatcher.UIThread.RunJobs();
 
         transport.PushItem(Item("id1", "UAL300", filed with { Remarks = "CTC NORCAL" }, facilityId: "IAD"));
@@ -263,7 +267,62 @@ public class VTdlsViewInteractionTests
         Assert.Same(editor, vm.Editor);
         Assert.Equal("CTC NORCAL", editor.FlightPlan!.Remarks);
         Assert.Equal("GUNNR7", editor.SelectedSid?.Name);
-        Assert.Equal("20 MIN AFT DP", editor.Expect);
+        Assert.Equal("10 MIN AFT DP", editor.Expect);
+    }
+
+    /// <summary>
+    /// The editor's dropdown row is star-sized, so a narrow window squeezes the always-populated fields to their text
+    /// width — the reported screenshot had SID and the transition pressed to nothing beside the wide climb-via field.
+    /// The floor has to sit on the column definitions: a star-sized column does not widen for its child's MinWidth, so
+    /// a minimum on the ComboBox itself makes the control overflow its column and lie across the field beside it.
+    /// </summary>
+    [AvaloniaFact]
+    public void NarrowWindow_DropdownRowFieldsKeepTheirWidthWithoutOverlapping()
+    {
+        var (vm, transport) = MakeVm();
+        SeedFacility(vm, ConfigWithTwoSids());
+        transport.PushState(new TdlsStateDto([Item("id1", "UAL300", FlightPlanWithRoute("GAPP7 BOOKE J80 BOS"), facilityId: "IAD")], []));
+        Dispatcher.UIThread.RunJobs();
+        var view = BootViewAtWidth(vm, windowWidth: 700);
+
+        vm.SelectedItem = vm.DclItems.Single();
+        Dispatcher.UIThread.RunJobs();
+        view.UpdateLayout();
+        Dispatcher.UIThread.RunJobs();
+
+        var row = DropdownRowCombos(view);
+        AssertAtLeastWide(row, "SID", 96);
+        AssertAtLeastWide(row, "Transition", 96);
+        AssertAtLeastWide(row, "Maintain", 100);
+
+        // Same coordinate space (one Grid, five children), so a field running into the next one shows up as an
+        // arranged rect that reaches past its neighbour's left edge.
+        var ordered = row.OrderBy(f => f.Value.Bounds.Left).ToList();
+        for (var i = 0; (i + 1) < ordered.Count; i++)
+        {
+            var (name, box) = (ordered[i].Key, ordered[i].Value);
+            var (nextName, nextBox) = (ordered[i + 1].Key, ordered[i + 1].Value);
+            Assert.True(
+                box.Bounds.Right <= nextBox.Bounds.Left,
+                $"{name} ends at {box.Bounds.Right} and overlaps {nextName}, which starts at {nextBox.Bounds.Left}"
+            );
+        }
+    }
+
+    private static void AssertAtLeastWide(IReadOnlyDictionary<string, ComboBox> row, string field, double minWidth) =>
+        Assert.True(row[field].Bounds.Width >= minWidth, $"{field} rendered {row[field].Bounds.Width}px wide, below its {minWidth}px floor");
+
+    /// <summary>The five dropdowns of the editor's SID row, keyed by the tooltip naming each field.</summary>
+    private static Dictionary<string, ComboBox> DropdownRowCombos(VTdlsView view)
+    {
+        string[] fields = ["SID", "Transition", "Climb out", "Climb via", "Maintain"];
+        var found = view.GetVisualDescendants()
+            .OfType<ComboBox>()
+            .Select(c => (Field: ToolTip.GetTip(c) as string, Box: c))
+            .Where(c => (c.Field is not null) && fields.Contains(c.Field))
+            .ToDictionary(c => c.Field!, c => c.Box);
+        Assert.Equal(fields.Length, found.Count);
+        return found;
     }
 
     /// <summary>
@@ -530,31 +589,36 @@ public class VTdlsViewInteractionTests
             DefaultTransitionId: "OTTTO"
         );
 
-    /// <summary>Facility offering two SIDs with one transition each, so an amended route can name a different SID than the one filed.</summary>
+    /// <summary>
+    /// Facility offering two SIDs with one transition each, so an amended route can name a different SID than the one
+    /// filed. The two transitions define different Expect and departure-frequency defaults, which is what makes an
+    /// applied default visible after the switch.
+    /// </summary>
     private static TdlsConfigDto ConfigWithTwoSids() =>
         ConfigWithMandatoryDepFreq() with
         {
             Sids =
             [
-                new TdlsSidDto("GAPP7", "GAPP7", [TransitionAt("GAPP7-BOOKE", "BOOKE")]),
-                new TdlsSidDto("GUNNR7", "GUNNR7", [TransitionAt("GUNNR7-SPACY", "SPACY")]),
+                new TdlsSidDto("GAPP7", "GAPP7", [TransitionAt("GAPP7-BOOKE", "BOOKE", "10 MIN AFT DP", "125.050")]),
+                new TdlsSidDto("GUNNR7", "GUNNR7", [TransitionAt("GUNNR7-SPACY", "SPACY", "20 MIN AFT DP", "126.650")]),
             ],
             Expects = [new TdlsClearanceValueDto("10MIN", "10 MIN AFT DP"), new TdlsClearanceValueDto("20MIN", "20 MIN AFT DP")],
+            DepFreqs = [new TdlsClearanceValueDto("125050", "125.050"), new TdlsClearanceValueDto("126650", "126.650")],
             DefaultSidId = "GAPP7",
             DefaultTransitionId = "GAPP7-BOOKE",
         };
 
-    /// <summary>A transition entered at <paramref name="fix"/>, named after it, supplying the facility's default Expect.</summary>
-    private static TdlsSidTransitionDto TransitionAt(string id, string fix) =>
+    /// <summary>A transition entered at <paramref name="fix"/> and named after it, carrying the FE's defaults for that pairing.</summary>
+    private static TdlsSidTransitionDto TransitionAt(string id, string fix, string expect, string depFreq) =>
         new(
             id,
             fix,
             FirstRoutePoint: fix,
-            DefaultExpect: "10 MIN AFT DP",
+            DefaultExpect: expect,
             DefaultClimbout: null,
             DefaultClimbvia: null,
             DefaultInitialAlt: null,
-            DefaultDepFreq: null,
+            DefaultDepFreq: depFreq,
             DefaultContactInfo: null,
             DefaultLocalInfo: null
         );
@@ -610,12 +674,15 @@ public class VTdlsViewInteractionTests
         return Task.CompletedTask;
     }
 
-    private static VTdlsView BootView(VTdlsViewModel vm)
+    private static VTdlsView BootView(VTdlsViewModel vm) => BootViewAtWidth(vm, windowWidth: 900);
+
+    /// <summary>Boots the view in a window of a given width — a narrow one is where the editor's star-sized rows are under pressure.</summary>
+    private static VTdlsView BootViewAtWidth(VTdlsViewModel vm, double windowWidth)
     {
         var view = new VTdlsView { DataContext = vm };
         var window = new Window
         {
-            Width = 900,
+            Width = windowWidth,
             Height = 500,
             Content = view,
         };

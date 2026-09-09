@@ -242,15 +242,14 @@ public partial class TdlsFlightPlanEditorViewModel : ObservableObject
             _suppressDefaults = false;
         }
 
-        // Phase 2 — apply transition defaults using null-coalescing assignment.
-        // Pre-existing seed values are preserved; blank fields pick up the
-        // transition's FE-defined defaults. Mirrors upstream behavior where
-        // selecting a SID+transition pre-populates the empty editor fields.
-        // Skipped when read-only: a sent-PDC review must show exactly what was
-        // issued, never back-fill defaults into fields that were sent blank.
+        // Phase 2 — back-fill only. Values the seed brought are a clearance already
+        // composed and outrank the facility's defaults; the blank fields pick the
+        // transition's FE-defined values up. Skipped when read-only: a sent-PDC
+        // review must show exactly what was issued, never back-fill defaults into
+        // fields that were sent blank.
         if (!isReadOnly)
         {
-            ApplyTransitionDefaults(_selectedTransition);
+            BackFillTransitionDefaults(_selectedTransition);
         }
 
         RecomputeCanSend();
@@ -500,44 +499,65 @@ public partial class TdlsFlightPlanEditorViewModel : ObservableObject
         }
     }
 
+    /// <summary>
+    /// Applies a newly selected transition's defaults, overwriting what the fields hold. Upstream's contract is that
+    /// "selecting a SID and transition pair also populates the remaining fields with default values defined by the
+    /// Facility Engineer", so a controller who switches SID gets that SID's clearance rather than a mix of two.
+    /// A field the transition defines no default for keeps its value — the FE said nothing about it — and a read-only
+    /// editor is never touched, because a sent PDC under review has to keep showing what was issued.
+    /// </summary>
     private void ApplyTransitionDefaults(TdlsSidTransitionDto? transition)
+    {
+        if (IsReadOnly || (transition is null))
+        {
+            return;
+        }
+        foreach (var field in TransitionDefaultFields(transition))
+        {
+            if (!string.IsNullOrWhiteSpace(field.Default))
+            {
+                field.Assign(field.Default);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Fills only the fields that are still empty. This is construction's rule: what the seed brought is a clearance
+    /// already composed (or already sent), and it outranks the facility's defaults.
+    /// </summary>
+    private void BackFillTransitionDefaults(TdlsSidTransitionDto? transition)
     {
         if (transition is null)
         {
             return;
         }
-        // Only overwrite when the destination is currently empty — the
-        // controller may already have hand-edited a value, and a transition
-        // change shouldn't clobber that. Setters resolve string -> SelectedItem.
-        if (SelectedExpect is null)
+        foreach (var field in TransitionDefaultFields(transition))
         {
-            Expect = transition.DefaultExpect;
-        }
-        if (SelectedClimbout is null)
-        {
-            Climbout = transition.DefaultClimbout;
-        }
-        if (SelectedClimbvia is null)
-        {
-            Climbvia = transition.DefaultClimbvia;
-        }
-        if (SelectedInitialAlt is null)
-        {
-            InitialAlt = transition.DefaultInitialAlt;
-        }
-        if (SelectedDepFreq is null)
-        {
-            DepFreq = transition.DefaultDepFreq;
-        }
-        if (SelectedContactInfo is null)
-        {
-            ContactInfo = transition.DefaultContactInfo;
-        }
-        if (SelectedLocalInfo is null)
-        {
-            LocalInfo = transition.DefaultLocalInfo;
+            if (field.Current is null)
+            {
+                field.Assign(field.Default);
+            }
         }
     }
+
+    /// <summary>
+    /// The seven fields a transition can carry a default for — what it defines, what the editor holds now, and the
+    /// setter that resolves a value string to this field's dropdown entry through <see cref="ResolveItem"/>. The two
+    /// policies above share it so the field list exists once.
+    /// </summary>
+    private TransitionDefaultField[] TransitionDefaultFields(TdlsSidTransitionDto transition) =>
+        [
+            new(transition.DefaultExpect, SelectedExpect, value => Expect = value),
+            new(transition.DefaultClimbout, SelectedClimbout, value => Climbout = value),
+            new(transition.DefaultClimbvia, SelectedClimbvia, value => Climbvia = value),
+            new(transition.DefaultInitialAlt, SelectedInitialAlt, value => InitialAlt = value),
+            new(transition.DefaultDepFreq, SelectedDepFreq, value => DepFreq = value),
+            new(transition.DefaultContactInfo, SelectedContactInfo, value => ContactInfo = value),
+            new(transition.DefaultLocalInfo, SelectedLocalInfo, value => LocalInfo = value),
+        ];
+
+    /// <summary>One defaultable field: the transition's value for it, the editor's current entry, and the assignment that resolves a value.</summary>
+    private readonly record struct TransitionDefaultField(string? Default, TdlsClearanceValueDto? Current, Action<string?> Assign);
 
     private void RecomputeCanSend()
     {
