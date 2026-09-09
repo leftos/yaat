@@ -266,7 +266,7 @@ public class CoordinationStepTests
     }
 
     [Fact]
-    public void Rdh_HoldsThenSends_AndRdrRecallsUntilTheTimersRemoveIt()
+    public void Rdh_HoldsThenSends_AndRdrRecallsUntilTheTimersRevertItToUnsent()
     {
         if (Engine() is not { } engine)
         {
@@ -300,14 +300,93 @@ public class CoordinationStepTests
         Assert.Equal(StarsCoordinationStatus.Recalled, lingering.Status);
         Assert.Equal(engine.Scenario!.ElapsedSeconds + SimScenarioState.CoordinationRecallLingerSeconds, lingering.ExpireTime);
 
+        // What a receiver's auto-acknowledge would have set on the release. It describes the send the recall just took
+        // back, so the revert has to clear it: re-sending the reverted item and acknowledging it by hand reaches
+        // Acknowledged, and CRC plays the release chime only for an acknowledged release that was not automatic.
+        lingering.WasAutomaticRelease = true;
+
         int beforeLinger = spine.CoordinationChangeCount;
         for (int i = 0; i < (int)SimScenarioState.CoordinationRecallLingerSeconds; i++)
         {
             engine.RunSecond(spine);
         }
 
+        // The linger expiring takes the receiver's copy away and hands the sender its text back as an Unsent item:
+        // one shared item, drawn only at its origin TCP while Unsent, so reverting it is the whole of the split.
+        var reverted = Assert.Single(Channel(engine).Items);
+        Assert.Equal(StarsCoordinationStatus.Unsent, reverted.Status);
+        Assert.Null(reverted.ExpireTime);
+        Assert.Equal("EXPECT 28R", reverted.Message);
+        Assert.False(reverted.WasAutomaticRelease);
+        Assert.True(spine.CoordinationChangeCount > beforeLinger, "the timers step's revert should have reached the host");
+    }
+
+    /// <summary>
+    /// The reverted item is the sender's alone, and <c>RDR</c> on an Unsent item removes it outright — the path that
+    /// clears the sender's copy once the linger has already taken the receiver's.
+    /// </summary>
+    [Fact]
+    public void RdrOnTheRevertedUnsentItem_RemovesIt()
+    {
+        if (Engine() is not { } engine)
+        {
+            return;
+        }
+
+        var spine = new SpineCapturingHost(engine);
+        SelectPositions(engine, spine);
+
+        Assert.True(Send(engine, spine, CallsignA, "RDH POAK EXPECT 28R").Success);
+        Assert.True(Send(engine, spine, CallsignA, "RDH POAK").Success);
+        Assert.True(Send(engine, spine, CallsignA, "RDR").Success);
+
+        for (int i = 0; i < (int)SimScenarioState.CoordinationRecallLingerSeconds; i++)
+        {
+            engine.RunSecond(spine);
+        }
+
+        Assert.Equal(StarsCoordinationStatus.Unsent, Assert.Single(Channel(engine).Items).Status);
+        int beforeDelete = spine.CoordinationChangeCount;
+
+        var deleted = Send(engine, spine, CallsignA, "RDR");
+
+        Assert.True(deleted.Success, deleted.Message);
         Assert.Empty(Channel(engine).Items);
-        Assert.True(spine.CoordinationChangeCount > beforeLinger, "the timers step's removal should have reached the host");
+        Assert.True(spine.CoordinationChangeCount > beforeDelete, "the delete should have reached the host");
+    }
+
+    /// <summary>
+    /// The sender holds one item per aircraft per list, and the reverted item is still one: <c>RD</c> beside it
+    /// refuses rather than stacking a duplicate. Re-sending it is <c>RDH</c>'s held branch and clearing it is
+    /// <c>RDDEL</c>'s.
+    /// </summary>
+    [Fact]
+    public void Rd_AfterTheRevertedUnsentItem_Refuses()
+    {
+        if (Engine() is not { } engine)
+        {
+            return;
+        }
+
+        var spine = new SpineCapturingHost(engine);
+        SelectPositions(engine, spine);
+
+        Assert.True(Send(engine, spine, CallsignA, "RDH POAK EXPECT 28R").Success);
+        Assert.True(Send(engine, spine, CallsignA, "RDH POAK").Success);
+        Assert.True(Send(engine, spine, CallsignA, "RDR").Success);
+
+        for (int i = 0; i < (int)SimScenarioState.CoordinationRecallLingerSeconds; i++)
+        {
+            engine.RunSecond(spine);
+        }
+
+        Assert.Equal(StarsCoordinationStatus.Unsent, Assert.Single(Channel(engine).Items).Status);
+
+        var released = Send(engine, spine, CallsignA, "RD POAK");
+
+        Assert.False(released.Success);
+        Assert.Equal($"{CallsignA} already has a coordination item on list {ListId}", released.Message);
+        Assert.Equal(StarsCoordinationStatus.Unsent, Assert.Single(Channel(engine).Items).Status);
     }
 
     /// <summary>A recall of a message that was never sent has nothing to show the receiver, so it goes outright.</summary>

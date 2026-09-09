@@ -174,7 +174,7 @@ public class StripStepTests
 
     private static AircraftState Departure(SimulationEngine engine, string callsign) => engine.FindAircraft(callsign)!;
 
-    private static ActionOutcome Issue(SimulationEngine engine, AttendanceActionHost host, string callsign, string command) =>
+    private static ActionOutcome Issue(SimulationEngine engine, IActionHost host, string callsign, string command) =>
         engine.Actions.Issue(new ActionInput(callsign, command, "conn-1", "XX", Baked: null), host);
 
     /// <summary>A recording of everything <paramref name="engine"/> has run so far, carrying the ARTCC the replay re-initialises from.</summary>
@@ -395,6 +395,132 @@ public class StripStepTests
 
         var changes = Assert.Single(spine.StripChanges);
         Assert.Equal(stripId, Assert.Single(changes.ChangedItemIds));
+        Assert.True(changes.FullState);
+    }
+
+    /// <summary>
+    /// A <c>STRIP</c> move rewrites the record's slot in place rather than through a mutation, so nothing else marks
+    /// the id — and the move's own full-state push carries the rack layout, not the item. Without the mark the
+    /// receiving facility's client is handed an id it has no <see cref="StripItemRecord"/> for and the slot renders
+    /// empty. The spawn print is drained first, so what the assertions see is the move's alone.
+    /// </summary>
+    [Fact]
+    public void StripMove_MarksTheMovedItemChanged()
+    {
+        if (Engine(DepartureAtOak, "OAK_TWR", "TWR") is not { } engine)
+        {
+            return;
+        }
+
+        engine.AfterAircraftSpawned(Departure(engine, Callsign));
+        var stripId = Assert.Single(engine.Strips.Items.Values).Id;
+
+        var spine = new SpineCapturingHost(engine);
+        engine.RunSecond(spine);
+        Assert.Single(spine.StripChanges);
+
+        var moved = Issue(engine, spine, Callsign, "STRIP OAK/Local 1/1/1");
+
+        Assert.True(moved.Result.Success, moved.Result.Message);
+        Assert.Equal(Bay("OAK_TWR", "Local 1").Bay.Id, engine.Strips.Items[stripId].BayId);
+
+        engine.RunSecond(spine);
+
+        var changes = spine.StripChanges[^1];
+        Assert.Contains(stripId, changes.ChangedItemIds);
+        Assert.True(changes.FullState);
+    }
+
+    /// <summary>
+    /// The <c>SCAN</c> twin: the copy is written straight into the items, so it is the body that has to mark it. The
+    /// copy is the whole point of the verb — the receiving facility has never seen the record — so an unmarked one
+    /// leaves the pushed slot empty on the very client it was scanned to.
+    /// </summary>
+    [Fact]
+    public void Scan_MarksTheCopyChanged()
+    {
+        if (Engine(DepartureAtOak, "OAK_TWR", "TWR") is not { } engine)
+        {
+            return;
+        }
+
+        // OAK_TWR's STARS TCP lives in NCT's configuration, which is what makes NCT's bay an external destination.
+        engine.Scenario!.StudentPosition = TrackOwner.CreateStars("OAK_TWR", "NCT", 3, "O");
+        engine.AfterAircraftSpawned(Departure(engine, Callsign));
+        var sourceId = Assert.Single(engine.Strips.Items.Values).Id;
+
+        var spine = new SpineCapturingHost(engine);
+        engine.RunSecond(spine);
+        Assert.Single(spine.StripChanges);
+
+        var scanned = Issue(engine, spine, Callsign, "SCAN NCT/NCT");
+
+        Assert.True(scanned.Result.Success, scanned.Result.Message);
+        engine.RunSecond(spine);
+
+        var copyId = Assert.Single(engine.Strips.Items.Keys, id => !string.Equals(id, sourceId, StringComparison.Ordinal));
+        var changes = spine.StripChanges[^1];
+        Assert.Contains(copyId, changes.ChangedItemIds);
+        Assert.True(changes.FullState);
+    }
+
+    /// <summary>
+    /// <c>HSM</c> relocates through the same mutation the <c>STRIP</c> move uses and rewrites the record afterwards,
+    /// so the mark has to come from the mutation. The create's own change set is drained first, leaving the move's
+    /// alone for the assertions.
+    /// </summary>
+    [Fact]
+    public void HalfStripMove_MarksTheMovedItemChanged()
+    {
+        if (Engine(DepartureAtOak, "OAK_TWR", "TWR") is not { } engine)
+        {
+            return;
+        }
+
+        var spine = new SpineCapturingHost(engine);
+        var created = Issue(engine, spine, "", @"HSC OAK/Ground 1/1 a\b");
+
+        Assert.True(created.Result.Success, created.Result.Message);
+        var halfStripId = Assert.Single(engine.Strips.Items.Values, i => i.Id.StartsWith("HSTRIP_", StringComparison.Ordinal)).Id;
+        engine.RunSecond(spine);
+        int beforeMove = spine.StripChanges.Count;
+
+        var moved = Issue(engine, spine, "", $"HSM {halfStripId} OAK/Local 1/1/1");
+
+        Assert.True(moved.Result.Success, moved.Result.Message);
+        Assert.Equal(Bay("OAK_TWR", "Local 1").Bay.Id, engine.Strips.Items[halfStripId].BayId);
+        Assert.True(spine.StripChanges.Count > beforeMove, "the half-strip move should have reached the host");
+
+        var changes = spine.StripChanges[^1];
+        Assert.Contains(halfStripId, changes.ChangedItemIds);
+        Assert.True(changes.FullState);
+    }
+
+    /// <summary>The <c>SEPM</c> twin of <see cref="HalfStripMove_MarksTheMovedItemChanged"/>.</summary>
+    [Fact]
+    public void SeparatorMove_MarksTheMovedItemChanged()
+    {
+        if (Engine(DepartureAtOak, "OAK_TWR", "TWR") is not { } engine)
+        {
+            return;
+        }
+
+        var spine = new SpineCapturingHost(engine);
+        var created = Issue(engine, spine, "", "SEP W OAK/Ground 1/1/1 Foo");
+
+        Assert.True(created.Result.Success, created.Result.Message);
+        var separatorId = Assert.Single(engine.Strips.Items.Values, i => i.Id.StartsWith("SEP_", StringComparison.Ordinal)).Id;
+        engine.RunSecond(spine);
+        int beforeMove = spine.StripChanges.Count;
+
+        var moved = Issue(engine, spine, "", $"SEPM {separatorId} OAK/Local 1/1/1");
+
+        Assert.True(moved.Result.Success, moved.Result.Message);
+        Assert.Equal(Bay("OAK_TWR", "Local 1").Bay.Id, engine.Strips.Items[separatorId].BayId);
+        Assert.True(spine.StripChanges.Count > beforeMove, "the separator move should have reached the host");
+
+        var changes = spine.StripChanges[^1];
+        Assert.Contains(separatorId, changes.ChangedItemIds);
         Assert.True(changes.FullState);
     }
 

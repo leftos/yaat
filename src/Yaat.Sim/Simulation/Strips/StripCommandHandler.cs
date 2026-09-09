@@ -886,9 +886,6 @@ internal static class StripCommandHandler
         lock (strips.Gate)
         {
             strips.Items[stripId] = record;
-            // The item is written here rather than through a mutation, so it marks its own id; the move below marks
-            // the full state, keeping the items-then-full-state order the client's reconcile pass needs.
-            strips.Changes.MarkChanged(stripId);
         }
         StripMutations.MoveStripToBayRack(strips, stripId, bay.Id, rack, index);
 

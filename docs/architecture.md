@@ -1220,7 +1220,7 @@ SimulationEngine.Eram.cs       # The ERAM CRR-group definitions (crossed from ya
                                # snapshotted as ServerSnapshotDto.CrrGroups; cleared by ReplayDriver's t=0 block
 SimulationEngine.Coordination.cs # The coordination bodies (crossed from yaat-server 2026-09-07): TickCoordinationTimers (post-physics: an acknowledged release voids
                                # CoordinationAckExpirySeconds after the ack, flags DepartureExpirationWarning at CoordinationExpiryWarningSeconds remaining, a
-                               # recalled item is removed after CoordinationRecallLingerSeconds — SimScenarioState constants), RemoveCoordinationOnRadarAcquisition
+                               # recalled item reverts to Unsent after CoordinationRecallLingerSeconds — SimScenarioState constants), RemoveCoordinationOnRadarAcquisition
                                # (the Track arm's tail: a TRACK voids the aircraft's items), InitializeCoordinationChannelsFromArtcc (Scenario.CoordinationChannels
                                # from the ARTCC's STARS lists), and the CoordinationChanged dirty flag (MarkCoordinationChanged / DrainCoordinationChanged) every
                                # mutation sets — payload-less because the StarsCoordination topic is always pushed whole. Also the tower-list half of that topic:

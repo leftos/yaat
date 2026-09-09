@@ -82,7 +82,12 @@ public static class StripMutations
         }
     }
 
-    /// <summary>Relocates an existing strip to the specified bay/rack/index, shifting other rows.</summary>
+    /// <summary>
+    /// Relocates an existing strip to the specified bay/rack/index, shifting other rows. Marks the moved id and then
+    /// the full state, the same order <see cref="AppendStripToBay"/> uses: the id so every viewer that has not seen
+    /// the record — the receiving facility of a push or a scan — is sent it, and the full state for the rack layout no
+    /// per-item message describes. Every relocating verb goes through here, so no caller marks the move itself.
+    /// </summary>
     public static bool MoveStripToBayRack(FlightStripState state, string stripId, string destBayId, int destRack, int destIndex)
     {
         lock (state.Gate)
@@ -98,6 +103,7 @@ public static class StripMutations
             var row = EnsureRack(state, destBayId, destRack);
             var clamped = destIndex < 0 ? 0 : (destIndex > row.Count ? row.Count : destIndex);
             row.Insert(clamped, stripId);
+            state.Changes.MarkChanged(stripId);
             state.Changes.MarkFullState();
             return true;
         }

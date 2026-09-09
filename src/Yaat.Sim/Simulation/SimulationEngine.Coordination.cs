@@ -37,8 +37,9 @@ public sealed partial class SimulationEngine
     /// The release-rundown clocks, run once per second on every run kind. An acknowledged message shows the departure
     /// expiration warning once its remaining life falls to
     /// <see cref="SimScenarioState.CoordinationExpiryWarningSeconds"/> and voids when it runs out; a recalled one
-    /// leaves the list when its linger expires. Nothing here reads the wall clock, so a replay reaches each transition
-    /// at the same elapsed second the live room did.
+    /// reverts to Unsent when its linger expires, which takes it off every receiver's display and leaves it on the
+    /// sender's. Nothing here reads the wall clock, so a replay reaches each transition at the same elapsed second the
+    /// live room did.
     /// </summary>
     public void TickCoordinationTimers()
     {
@@ -59,7 +60,16 @@ public sealed partial class SimulationEngine
 
                 if ((item.Status == StarsCoordinationStatus.Recalled) && item.ExpireTime.HasValue && (item.ExpireTime.Value <= now))
                 {
-                    channel.Items.RemoveAt(i);
+                    // The recall linger expiring reverts the item to Unsent rather than deleting it: CRC draws one
+                    // shared item per viewer and hides an Unsent one everywhere but its origin TCP, so the receiver
+                    // loses its copy while the sender gets its text back, with no per-viewer split here. The sender
+                    // clears it with a second RDR, which the Unsent branch of the recall body removes outright.
+                    // The automatic-release flag goes with the send it described: re-sending the reverted item and
+                    // acknowledging it by hand reaches Acknowledged, and CRC chimes only for an acknowledged release
+                    // that was not automatic.
+                    item.Status = StarsCoordinationStatus.Unsent;
+                    item.ExpireTime = null;
+                    item.WasAutomaticRelease = false;
                     changed = true;
                 }
             }
@@ -74,8 +84,8 @@ public sealed partial class SimulationEngine
     /// <summary>
     /// One acknowledged release's clock: it shows the departure-expiration warning once its remaining life falls to
     /// <see cref="SimScenarioState.CoordinationExpiryWarningSeconds"/>, and voids when the life runs out. True when the
-    /// item's status changed. The recall linger is not here — that one removes the item, which only the loop that owns
-    /// the list can do.
+    /// item's status changed. The recall linger is not here — that one reverts the item to Unsent, which the loop that
+    /// owns the list does after this.
     /// </summary>
     private static bool TickAcknowledgedItem(CoordinationItem item, double now)
     {

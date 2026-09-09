@@ -85,6 +85,18 @@ public static class CoordinationCommandHandler
             return new CommandResult(false, $"TCP {tcp.Subset}{tcp.SectorId} is not a sender on list {channel.ListId}");
         }
 
+        // One item per aircraft per list. A recall's linger reverts the item to Unsent rather than removing it, so
+        // the sender still holds it — releasing again here would stack a duplicate beside it. Re-sending is RDH's
+        // held branch and clearing is RDDEL's; neither is this verb's to do.
+        var held = channel.Items.FirstOrDefault(i =>
+            i.AircraftId.Equals(callsign, StringComparison.OrdinalIgnoreCase) && (i.Status is not StarsCoordinationStatus.Recalled)
+        );
+
+        if (held is not null)
+        {
+            return new CommandResult(false, $"{callsign} already has a coordination item on list {channel.ListId}");
+        }
+
         var seq = channel.NextSequence++;
         var item = new CoordinationItem
         {

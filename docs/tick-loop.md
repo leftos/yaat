@@ -52,7 +52,7 @@ PostPhysics    SpineOrder.PostPhysics — the live server's 32-step order
                ├─ sim TickLiveTrafficRunwayUse, TickTransponders
                ├─ sim TickAutoAccept, TickPointoutTimeout                a pending handoff to an unattended position auto-accepts after AutoAcceptDelay; a pending point-out to one is withdrawn after PointoutNoActionSeconds (Attendance)
                ├─ sim TickFlightPlanCreatorAutoTrack, TickDeferredAutoTrack  an untracked aircraft squawking its assigned code → the FP creator; one crossing the display floor → the autoTrackAirportIds position
-               ├─ sim TickCoordinationTimers                           an acknowledged release warns at CoordinationExpiryWarningSeconds remaining and voids at CoordinationAckExpirySeconds; a recalled item is removed after CoordinationRecallLingerSeconds
+               ├─ sim TickCoordinationTimers                           an acknowledged release warns at CoordinationExpiryWarningSeconds remaining and voids at CoordinationAckExpirySeconds; a recalled item reverts to Unsent after CoordinationRecallLingerSeconds (the sender keeps it with its text; CRC hides an Unsent item from every receiver)
                ├─ sim TickTowerLists                                  the P-list dwell entries (snapshotted since 2026-09-07); a change marks the same coordination flag
                ├─ sim DrainTerminalEntries → host.OnTerminalEntries     the track-automation lines, the same second they were emitted
                ├─ sim TickVisualDetection, TickConflictAlerts → host, TickEramConflictAlerts → host
