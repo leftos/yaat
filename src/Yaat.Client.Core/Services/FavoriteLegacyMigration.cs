@@ -22,7 +22,6 @@ public sealed class LegacyFavoriteCommand
     public FavoriteCommandCategory Category { get; set; } = FavoriteCommandCategory.Air;
     public string BackgroundColor { get; set; } = FavoriteCommandDefaults.BackgroundColor;
     public string TextColor { get; set; } = FavoriteCommandDefaults.TextColor;
-    public double ButtonWidth { get; set; } = FavoriteCommandDefaults.ButtonWidth;
     public double ButtonHeight { get; set; } = FavoriteCommandDefaults.ButtonHeight;
 }
 
@@ -123,7 +122,6 @@ public static class FavoriteLegacyMigration
             Category = Enum.IsDefined(old.Category) ? old.Category : FavoriteCommandCategory.Air,
             BackgroundColor = old.BackgroundColor,
             TextColor = old.TextColor,
-            ButtonWidth = old.ButtonWidth,
             ButtonHeight = old.ButtonHeight,
         };
 }

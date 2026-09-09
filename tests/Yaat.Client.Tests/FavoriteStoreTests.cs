@@ -49,7 +49,6 @@ public class FavoriteStoreTests : IDisposable
             Category = FavoriteCommandCategory.Ground,
             BackgroundColor = "#112233",
             TextColor = "#445566",
-            ButtonWidth = 123,
             ButtonHeight = 45,
         };
 
@@ -66,7 +65,6 @@ public class FavoriteStoreTests : IDisposable
         Assert.Equal(FavoriteCommandCategory.Ground, restored.Category);
         Assert.Equal("#112233", restored.BackgroundColor);
         Assert.Equal("#445566", restored.TextColor);
-        Assert.Equal(123, restored.ButtonWidth);
         Assert.Equal(45, restored.ButtonHeight);
     }
 
@@ -298,5 +296,45 @@ public class FavoriteStoreTests : IDisposable
         store.GetOrCreateScenarioSet("SCN-2", "Bravo");
 
         Assert.Equal(["Global", "Airport (OAK)", "Airport (SFO)", "Scenario (Bravo)", "alpha", "Zulu"], store.OrderedSets.Select(s => s.DisplayName));
+    }
+
+    [Theory]
+    [InlineData("buttonWidth")]
+    [InlineData("ButtonWidth")]
+    public void RetiredButtonWidthField_IsIgnoredOnLoad_AndDroppedOnRewrite(string fieldName)
+    {
+        var commandsDir = Path.Combine(_root, "commands");
+        Directory.CreateDirectory(commandsDir);
+        var path = Path.Combine(commandsDir, "Legacy.0123abcd.json");
+        File.WriteAllText(
+            path,
+            $$"""
+            {
+              "id": "0123abcd",
+              "isSpacer": false,
+              "label": "Legacy",
+              "commandText": "FH 270",
+              "groundCommandText": "",
+              "category": "Ground",
+              "backgroundColor": "#112233",
+              "textColor": "#445566",
+              "{{fieldName}}": 150,
+              "buttonHeight": 45
+            }
+            """
+        );
+
+        var store = NewStore();
+        var favorite = store.GetFavorite("0123abcd");
+
+        Assert.NotNull(favorite);
+        Assert.Equal("Legacy", favorite.Label);
+        Assert.Equal("FH 270", favorite.CommandText);
+        Assert.Equal(FavoriteCommandCategory.Ground, favorite.Category);
+        Assert.Equal(45, favorite.ButtonHeight);
+
+        // The retired width field is unknown on read, so a rewrite of the entity drops it.
+        store.SaveFavorite(favorite);
+        Assert.DoesNotContain("buttonWidth", File.ReadAllText(path), StringComparison.OrdinalIgnoreCase);
     }
 }

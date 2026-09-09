@@ -796,10 +796,7 @@ public partial class FavoritesBarView : UserControl
             return;
         }
 
-        vm.AddFavorite(
-            CreateBlankFavorite(GetActiveAddCategory(), FavoriteCommandDefaults.ButtonWidth, FavoriteCommandDefaults.ButtonHeight),
-            [vm.FavoriteStore.GlobalSet.Id]
-        );
+        vm.AddFavorite(CreateBlankFavorite(GetActiveAddCategory(), FavoriteCommandDefaults.ButtonHeight), [vm.FavoriteStore.GlobalSet.Id]);
     }
 
     private void OnBatchClick(object? sender, RoutedEventArgs e)
@@ -987,7 +984,6 @@ public partial class FavoritesBarView : UserControl
         var categoryBox = CreateCategoryBox(category);
         var backgroundPicker = CreateColorPicker(FavoriteCommandDefaults.BackgroundColor);
         var textPicker = CreateColorPicker(FavoriteCommandDefaults.TextColor);
-        var widthBox = CreateDimensionBox(FavoriteCommandDefaults.ButtonWidth, 70, 240);
         var heightBox = CreateDimensionBox(FavoriteCommandDefaults.ButtonHeight, 24, 72);
         var containerPicker = new FavoriteContainerPicker(vm, checkedSetIds: [vm.FavoriteStore.GlobalSet.Id]);
 
@@ -1002,7 +998,6 @@ public partial class FavoritesBarView : UserControl
             categoryBox,
             backgroundPicker,
             textPicker,
-            widthBox,
             heightBox,
             containerPicker,
             saveBtn
@@ -1028,7 +1023,6 @@ public partial class FavoritesBarView : UserControl
                 Category = categoryBox.SelectedItem is FavoriteCommandCategory selected ? selected : category,
                 BackgroundColor = ToHex(backgroundPicker.Color),
                 TextColor = ToHex(textPicker.Color),
-                ButtonWidth = GetDimensionValue(widthBox, FavoriteCommandDefaults.ButtonWidth),
                 ButtonHeight = GetDimensionValue(heightBox, FavoriteCommandDefaults.ButtonHeight),
             };
 
@@ -1069,7 +1063,6 @@ public partial class FavoritesBarView : UserControl
         var categoryBox = CreateCategoryBox(NormalizeCategory(fav));
         var backgroundPicker = CreateColorPicker(GetFavoriteBackgroundColor(fav));
         var textPicker = CreateColorPicker(GetFavoriteTextColor(fav));
-        var widthBox = CreateDimensionBox(GetButtonWidth(fav), 70, 240);
         var heightBox = CreateDimensionBox(GetButtonHeight(fav), 24, 72);
         var containerPicker = new FavoriteContainerPicker(vm, vm.GetFavoriteMembership(fav.Id));
 
@@ -1090,7 +1083,6 @@ public partial class FavoritesBarView : UserControl
             categoryBox,
             backgroundPicker,
             textPicker,
-            widthBox,
             heightBox,
             containerPicker,
             footer
@@ -1116,7 +1108,6 @@ public partial class FavoritesBarView : UserControl
                 Category = categoryBox.SelectedItem is FavoriteCommandCategory selected ? selected : NormalizeCategory(fav),
                 BackgroundColor = ToHex(backgroundPicker.Color),
                 TextColor = ToHex(textPicker.Color),
-                ButtonWidth = GetDimensionValue(widthBox, GetButtonWidth(fav)),
                 ButtonHeight = GetDimensionValue(heightBox, GetButtonHeight(fav)),
             };
 
@@ -1132,13 +1123,13 @@ public partial class FavoritesBarView : UserControl
 
         insertBeforeBtn.Click += (_, _) =>
         {
-            vm.InsertBlankBefore(entry, CreateBlankFavorite(NormalizeCategory(fav), GetButtonWidth(fav), GetButtonHeight(fav)));
+            vm.InsertBlankBefore(entry, CreateBlankFavorite(NormalizeCategory(fav), GetButtonHeight(fav)));
             flyout.Hide();
         };
 
         insertAfterBtn.Click += (_, _) =>
         {
-            vm.InsertBlankAfter(entry, CreateBlankFavorite(NormalizeCategory(fav), GetButtonWidth(fav), GetButtonHeight(fav)));
+            vm.InsertBlankAfter(entry, CreateBlankFavorite(NormalizeCategory(fav), GetButtonHeight(fav)));
             flyout.Hide();
         };
 
@@ -1178,7 +1169,6 @@ public partial class FavoritesBarView : UserControl
         var categoryBox = CreateCategoryBox(NormalizeCategory(fav));
         var backgroundPicker = CreateColorPicker(FavoriteCommandDefaults.BackgroundColor);
         var textPicker = CreateColorPicker(FavoriteCommandDefaults.TextColor);
-        var widthBox = CreateDimensionBox(GetButtonWidth(fav), 70, 240);
         var heightBox = CreateDimensionBox(GetButtonHeight(fav), 24, 72);
         var containerPicker = new FavoriteContainerPicker(vm, vm.GetFavoriteMembership(fav.Id));
         var deleteBtn = CreateDeleteButton();
@@ -1198,7 +1188,6 @@ public partial class FavoritesBarView : UserControl
             categoryBox,
             backgroundPicker,
             textPicker,
-            widthBox,
             heightBox,
             containerPicker,
             footer
@@ -1221,7 +1210,6 @@ public partial class FavoritesBarView : UserControl
                 Category = categoryBox.SelectedItem is FavoriteCommandCategory selected ? selected : NormalizeCategory(fav),
                 BackgroundColor = isFavorite ? ToHex(backgroundPicker.Color) : FavoriteCommandDefaults.BackgroundColor,
                 TextColor = isFavorite ? ToHex(textPicker.Color) : FavoriteCommandDefaults.TextColor,
-                ButtonWidth = GetDimensionValue(widthBox, GetButtonWidth(fav)),
                 ButtonHeight = GetDimensionValue(heightBox, GetButtonHeight(fav)),
             };
 
@@ -1237,13 +1225,13 @@ public partial class FavoritesBarView : UserControl
 
         insertBeforeBtn.Click += (_, _) =>
         {
-            vm.InsertBlankBefore(entry, CreateBlankFavorite(NormalizeCategory(fav), GetButtonWidth(fav), GetButtonHeight(fav)));
+            vm.InsertBlankBefore(entry, CreateBlankFavorite(NormalizeCategory(fav), GetButtonHeight(fav)));
             flyout.Hide();
         };
 
         insertAfterBtn.Click += (_, _) =>
         {
-            vm.InsertBlankAfter(entry, CreateBlankFavorite(NormalizeCategory(fav), GetButtonWidth(fav), GetButtonHeight(fav)));
+            vm.InsertBlankAfter(entry, CreateBlankFavorite(NormalizeCategory(fav), GetButtonHeight(fav)));
             flyout.Hide();
         };
 
@@ -1264,7 +1252,6 @@ public partial class FavoritesBarView : UserControl
         var countBox = CreateDimensionBox(12, 1, 100);
         countBox.FormatString = "0";
         countBox.Increment = 1;
-        var widthBox = CreateDimensionBox(FavoriteCommandDefaults.ButtonWidth, 70, 240);
         var heightBox = CreateDimensionBox(FavoriteCommandDefaults.ButtonHeight, 24, 72);
         var containerPicker = new FavoriteContainerPicker(vm, checkedSetIds: [vm.FavoriteStore.GlobalSet.Id]);
         var saveBtn = new Button { Content = "Add Blanks", Margin = new Thickness(0, 4, 0, 0) };
@@ -1280,7 +1267,7 @@ public partial class FavoritesBarView : UserControl
             }
         );
         panel.Children.Add(CreateLabeledControl("Slots", countBox));
-        panel.Children.Add(CreateDimensionRow(widthBox, heightBox));
+        panel.Children.Add(CreateDimensionRow(heightBox));
         panel.Children.Add(CreateLabeledControl("In", containerPicker.Control));
         panel.Children.Add(saveBtn);
 
@@ -1288,9 +1275,8 @@ public partial class FavoritesBarView : UserControl
         saveBtn.Click += (_, _) =>
         {
             var count = Math.Clamp((int)Math.Round(GetDimensionValue(countBox, 12)), 1, 100);
-            var width = GetDimensionValue(widthBox, FavoriteCommandDefaults.ButtonWidth);
             var height = GetDimensionValue(heightBox, FavoriteCommandDefaults.ButtonHeight);
-            var blanks = Enumerable.Range(0, count).Select(_ => CreateBlankFavorite(category, width, height)).ToList();
+            var blanks = Enumerable.Range(0, count).Select(_ => CreateBlankFavorite(category, height)).ToList();
 
             vm.AddFavorites(blanks, containerPicker.ResolveSelectedSetIds(vm));
             flyout.Hide();
@@ -1317,7 +1303,6 @@ public partial class FavoritesBarView : UserControl
         ComboBox categoryBox,
         ColorPicker backgroundPicker,
         ColorPicker textPicker,
-        NumericUpDown widthBox,
         NumericUpDown heightBox,
         FavoriteContainerPicker containerPicker,
         Control footer
@@ -1338,7 +1323,7 @@ public partial class FavoritesBarView : UserControl
         panel.Children.Add(CreateLabeledControl("Category", categoryBox));
         panel.Children.Add(CreateLabeledControl("Button color", backgroundPicker));
         panel.Children.Add(CreateLabeledControl("Text color", textPicker));
-        panel.Children.Add(CreateDimensionRow(widthBox, heightBox));
+        panel.Children.Add(CreateDimensionRow(heightBox));
         panel.Children.Add(CreateLabeledControl("In", containerPicker.Control));
         panel.Children.Add(footer);
         return panel;
@@ -1457,13 +1442,12 @@ public partial class FavoritesBarView : UserControl
         return buttonRow;
     }
 
-    private static FavoriteCommand CreateBlankFavorite(FavoriteCommandCategory category, double width, double height)
+    private static FavoriteCommand CreateBlankFavorite(FavoriteCommandCategory category, double height)
     {
         return new FavoriteCommand
         {
             IsSpacer = true,
             Category = category,
-            ButtonWidth = width,
             ButtonHeight = height,
         };
     }
@@ -1471,11 +1455,6 @@ public partial class FavoritesBarView : UserControl
     private static FavoriteCommandCategory NormalizeCategory(FavoriteCommand favorite)
     {
         return MainViewModel.NormalizeFavoriteCategory(favorite.Category);
-    }
-
-    private static double GetButtonWidth(FavoriteCommand favorite)
-    {
-        return ClampDimension(favorite.ButtonWidth, FavoriteCommandDefaults.ButtonWidth, 70, 240);
     }
 
     private static double GetButtonHeight(FavoriteCommand favorite)
@@ -1574,11 +1553,10 @@ public partial class FavoritesBarView : UserControl
         return panel;
     }
 
-    private static Control CreateDimensionRow(NumericUpDown widthBox, NumericUpDown heightBox)
+    private static Control CreateDimensionRow(NumericUpDown heightBox)
     {
         var row = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 4, 0, 0) };
 
-        row.Children.Add(CreateInlineDimension("W", widthBox));
         row.Children.Add(CreateInlineDimension("H", heightBox));
         return row;
     }

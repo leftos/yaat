@@ -6,6 +6,7 @@
 - A command issued to a live-traffic shadow assumes it first and then applies (`FH 070` to a shadow answers `UAL123 assumed — Fly heading 070`), so you no longer type `ASSUME` before the first instruction; a `SAY` query alone, a surface shadow, and anything a preset or AI controller sends still refuse, since a question or a script must not take control of a real aircraft. `UNASSUME <callsign>` undoes an accidental assume: the simulated aircraft is removed and the feed's shadow reappears on the next update while the feed still tracks it. Neither verb chains, and a chained `PAUSE ; FH 090` typed at a shadow is refused before it can take the aircraft.
 
 ### Changed
+- The Favorites add / edit / batch flyouts no longer offer a per-favorite Width: the panel fills its grid cells and the inline bar never used it, so the spinner only changed exported JSON. Height stays (it sets the row height in the pop-out panel). Existing favorite files that carry a width still load.
 - A STARS coordination release that was acknowledged now shows its "about to expire" warning for the last 30 seconds of its 3-minute life instead of the last 2 minutes, matching the CRC manual's wording.
 - `PAUSE`, `UNPAUSE`, `SIMRATE` and the `BM` bookmark verbs are simulation bodies now (the server only relays the result), so a client-side replay or a headless room accepts them like any other command. With no scenario loaded they answer "No active scenario" instead of reporting success and doing nothing.
 
