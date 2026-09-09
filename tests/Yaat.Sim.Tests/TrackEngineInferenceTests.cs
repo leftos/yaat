@@ -90,7 +90,11 @@ public class TrackEngineInferenceTests
         ac.Track.Owner = Owner("OAK_DEP", 4, "R");
         var scenario = Scenario(Owner("OAK_TWR", 3, "O"), elapsedSeconds: 10);
 
-        var result = TrackEngine.Dispatch(new InitiateHandoffCommand(null), ac, identity: null, scenario, redirect: null);
+        var result = TrackEngine.Dispatch(
+            new InitiateHandoffCommand(null),
+            ac,
+            new TrackDispatchContext(Identity: null, scenario, Redirect: null, new ConflictAlertState())
+        );
 
         Assert.NotNull(result);
         Assert.True(result.Success, result.Message);
@@ -106,7 +110,11 @@ public class TrackEngineInferenceTests
         ac.Track.HandoffPeer = Owner("SFO_DEP", 4, "U");
         var scenario = Scenario(Owner("OAK_TWR", 3, "O"));
 
-        var result = TrackEngine.Dispatch(new AcceptHandoffCommand(), ac, identity: null, scenario, redirect: null);
+        var result = TrackEngine.Dispatch(
+            new AcceptHandoffCommand(),
+            ac,
+            new TrackDispatchContext(Identity: null, scenario, Redirect: null, new ConflictAlertState())
+        );
 
         Assert.NotNull(result);
         Assert.True(result.Success, result.Message);

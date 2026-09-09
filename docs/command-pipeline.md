@@ -221,9 +221,10 @@ rewind redirects exactly as live did. The arm
 also runs the tails a track verb has beyond the track itself, on every run kind: a `TRACK` applies the facility's
 scratchpad rules and voids the aircraft's coordination items (`SimulationEngine.RemoveCoordinationOnRadarAcquisition`), an `INHCA` drops the aircraft's active
 conflicts, a `DROP` of a ghost lifts the overlay (`OnGhostOverlayRemoved`) or deletes the phantom (`OnAircraftDeleted`).
-`ACCEPTALL` / `HOALL`, `GHOST`, `RPOSLOC` / `RPOSMOVE` and `CAACK` are the `GlobalTrack`, `GhostTrack`, `Reposition`
-and `Track` arms over `TrackEngine.DispatchGlobal` / `CreateGhostTrack` / `RepositionToLocation` / `RepositionMove` /
-`AcknowledgeConflictAlert`; `CON` / `CON+` / `DECON` are the `Consolidate` / `Deconsolidate` arms over
+`ACCEPTALL` / `HOALL`, `GHOST` and `RPOSLOC` / `RPOSMOVE` are the `GlobalTrack`, `GhostTrack` and `Reposition`
+arms over `TrackEngine.DispatchGlobal` / `CreateGhostTrack` / `RepositionToLocation` / `RepositionMove`; `CAACK` is a
+table arm like every other verb (`AcknowledgeConflictAlert`, over the conflict-alert set the `TrackDispatchContext`
+carries), so a preset, a triggered block and a deferred payload acknowledge exactly as the router's `Track` arm does; `CON` / `CON+` / `DECON` are the `Consolidate` / `Deconsolidate` arms over
 `SimulationEngine.Consolidate` / `Deconsolidate` (the canonical full form is `CON+ {receiving} {sending}` — `ConsolidationCanonicalRoundTripTests`; the CRC console's `C{receiving}{sending}[+]` and bare `C` are issued as that text through `RecordAndDispatch`, so a console consolidation is recorded and moves the sender's consolidated block exactly as the typed form does). yaat-server has no track handler of its own — a CRC click is issued as
 `AS {tcp} <verb>` text through the same router; its test harness's `TrackCommandSeam` wraps the leaves for tests that act
 on a resolved aircraft directly.

@@ -854,21 +854,16 @@ public static partial class TrackEngine
     /// command (see <see cref="IsTrackCommand"/>). Routes to the appropriate
     /// <c>HandleX</c> / <c>ApplyX</c> with the resolved identity.
     ///
-    /// Per-aircraft only: the position-scoped verbs (<see cref="DispatchGlobal"/>), the ghost and reposition
-    /// display objects (<c>TrackEngine.Ghost.cs</c>) and <c>CAACK</c> (<see cref="AcknowledgeConflictAlert"/>,
-    /// which needs the engine's conflict-alert set) have their own entry points. <paramref name="redirect"/> is
-    /// where a handoff or point-out to an unattended TCP lands (<see cref="ConsolidationRedirect"/>); null when no
-    /// host answers attendance, and then nothing redirects. Returns <see langword="null"/> when the parsed command
-    /// is not one this method dispatches, so callers can fall through to their own logic.
+    /// Per-aircraft only: the position-scoped verbs (<see cref="DispatchGlobal"/>) and the ghost and reposition
+    /// display objects (<c>TrackEngine.Ghost.cs</c>) have their own entry points. Everything the table needs beyond
+    /// the aircraft travels in <see cref="TrackDispatchContext"/>: the acting identity, the scenario, the
+    /// <see cref="ConsolidationRedirect"/> a handoff or point-out to an unattended TCP lands through, and the
+    /// engine's conflict-alert set <c>CAACK</c> acknowledges into. Returns <see langword="null"/> when the parsed
+    /// command is not one this method dispatches, so callers can fall through to their own logic.
     /// </summary>
-    public static CommandResult? Dispatch(
-        ParsedCommand parsed,
-        AircraftState ac,
-        TrackOwner? identity,
-        SimScenarioState scenario,
-        ConsolidationRedirect? redirect
-    )
+    public static CommandResult? Dispatch(ParsedCommand parsed, AircraftState ac, TrackDispatchContext ctx)
     {
+        var (identity, scenario, redirect, conflicts) = ctx;
         if (identity is null && RequiresIdentity(parsed))
         {
             return new CommandResult(false, "No active position — use AS to set one");
@@ -907,8 +902,7 @@ public static partial class TrackEngine
             InhibitConflictAlertCommand => HandleInhibitConflictAlert(ac),
             SuppressConflictAlertCommand sup => HandleSuppressConflictAlert(ac, sup.OtherCallsign),
             InhibitDuplicateBeaconCommand => HandleInhibitDuplicateBeacon(ac),
-            // AcknowledgeConflictAlertCommand mutates engine-level ConflictAlerts, which this per-aircraft method never
-            // sees: callers dispatch it to AcknowledgeConflictAlert before reaching here.
+            AcknowledgeConflictAlertCommand => AcknowledgeConflictAlert(ac, conflicts),
             _ => null,
         };
     }

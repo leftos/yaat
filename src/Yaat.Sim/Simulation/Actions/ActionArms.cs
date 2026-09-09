@@ -327,8 +327,8 @@ internal static class ActionArms
     }
 
     /// <summary>
-    /// A STARS track verb under the resolved identity — the one track table (<see cref="TrackEngine.Dispatch"/>), plus
-    /// <c>CAACK</c>, whose state is the engine's conflict-alert set rather than the aircraft's. A handoff or point-out
+    /// A STARS track verb under the resolved identity — the one track table (<see cref="TrackEngine.Dispatch"/>), which
+    /// is handed the engine's conflict-alert set for its <c>CAACK</c> arm. A handoff or point-out
     /// to an unattended TCP lands on its attended consolidation owner; attendance is the host's answer. The tails a
     /// track verb has beyond the track itself run here on every run kind: a <c>TRACK</c> applies the facility's
     /// scratchpad rules and voids the aircraft's coordination items; an <c>INHCA</c> drops its active conflicts; a
@@ -343,13 +343,9 @@ internal static class ActionArms
         }
 
         var aircraft = ctx.Aircraft!;
-        if (ctx.Parsed is AcknowledgeConflictAlertCommand)
-        {
-            return TrackEngine.AcknowledgeConflictAlert(aircraft, engine.ConflictAlerts);
-        }
-
         var redirect = new ConsolidationRedirect(scenario, engine.ConsolidationState, engine.Attendance.IsTcpAttended);
-        var result = TrackEngine.Dispatch(ctx.Parsed!, aircraft, ctx.Identity, scenario, redirect) ?? ActionRefusals.HostOnly(ctx.Parsed!);
+        var track = new TrackDispatchContext(ctx.Identity, scenario, redirect, engine.ConflictAlerts);
+        var result = TrackEngine.Dispatch(ctx.Parsed!, aircraft, track) ?? ActionRefusals.HostOnly(ctx.Parsed!);
         if (!result.Success)
         {
             return result;

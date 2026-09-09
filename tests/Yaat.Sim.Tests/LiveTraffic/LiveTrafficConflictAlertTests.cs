@@ -107,7 +107,11 @@ public class LiveTrafficConflictAlertTests
 
         var parsed = CommandParser.Parse("CASUP LIVE1");
         Assert.True(parsed.IsSuccess, parsed.Reason);
-        var result = TrackEngine.Dispatch(parsed.Value!, sim, identity: null, scenario, redirect: null);
+        var result = TrackEngine.Dispatch(
+            parsed.Value!,
+            sim,
+            new TrackDispatchContext(Identity: null, scenario, Redirect: null, new ConflictAlertState())
+        );
         Assert.True(result!.Success, result.Message);
         Assert.Empty(Detect(shadow, sim));
         Assert.Empty(EramConflictDetector.Detect([shadow, sim], new HashSet<string>()));
@@ -115,11 +119,15 @@ public class LiveTrafficConflictAlertTests
         var restored = AircraftState.FromSnapshot(sim.ToSnapshot(), null);
         Assert.Equal(["LIVE1"], restored.Stars.CaSuppressedWith);
 
-        TrackEngine.Dispatch(parsed.Value!, sim, identity: null, scenario, redirect: null);
+        TrackEngine.Dispatch(parsed.Value!, sim, new TrackDispatchContext(Identity: null, scenario, Redirect: null, new ConflictAlertState()));
         Assert.Empty(sim.Stars.CaSuppressedWith);
         Assert.Single(Detect(shadow, sim));
 
-        TrackEngine.Dispatch(new SuppressConflictAlertCommand("SIM1"), shadow, identity: null, scenario, redirect: null);
+        TrackEngine.Dispatch(
+            new SuppressConflictAlertCommand("SIM1"),
+            shadow,
+            new TrackDispatchContext(Identity: null, scenario, Redirect: null, new ConflictAlertState())
+        );
         Assert.Empty(Detect(shadow, sim));
     }
 
@@ -135,7 +143,11 @@ public class LiveTrafficConflictAlertTests
             OriginalScenarioJson = "{}",
         };
 
-        var result = TrackEngine.Dispatch(new SuppressConflictAlertCommand("SIM1"), sim, identity: null, scenario, redirect: null);
+        var result = TrackEngine.Dispatch(
+            new SuppressConflictAlertCommand("SIM1"),
+            sim,
+            new TrackDispatchContext(Identity: null, scenario, Redirect: null, new ConflictAlertState())
+        );
 
         Assert.False(result!.Success);
     }

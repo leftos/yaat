@@ -5,6 +5,7 @@ using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Scenarios;
 using Yaat.Sim.Simulation;
+using Yaat.Sim.Simulation.Actions;
 using Yaat.Sim.Simulation.Strips;
 using Yaat.Sim.Tests.Helpers;
 
@@ -347,5 +348,97 @@ public class DeferredPresetStripAndTrackDispatchTests
         Assert.True(warning is not null, "a preset TAXI naming a taxiway that does not exist must surface a terminal warning");
         Assert.Contains("[Preset] could not apply", warning.Message);
         Assert.Contains("ZZ9", warning.Message);
+    }
+
+    // --- CAACK reached through a preset, a chained block, or a deferred payload ---
+
+    /// <summary>
+    /// A real conflict alert for <paramref name="callsign"/>: two airborne Mode-C tracks a third of a mile apart at the
+    /// same altitude, far enough from SFO that no approach corridor suppresses them, run through the detector so what
+    /// the engine holds is the pair its per-tick pass keeps re-detecting. A hand-built pair no geometry supports is
+    /// cleared by the first tick's detection — before a chained or deferred CAACK ever fires.
+    /// </summary>
+    private static (AircraftState Aircraft, ActiveConflict Conflict) AddPairInConflict(SimulationEngine engine, string callsign)
+    {
+        var ac = AddAirborne(engine, callsign, new LatLon(37.0, -121.0));
+        AddAirborne(engine, "NKS404", new LatLon(37.005, -121.0));
+
+        engine.TickConflictAlerts();
+
+        var conflict = Assert.Single(engine.ConflictAlerts.Conflicts.Values);
+        Assert.False(conflict.IsAcknowledged);
+        return (ac, conflict);
+    }
+
+    private static AircraftState AddAirborne(SimulationEngine engine, string callsign, LatLon position)
+    {
+        var ac = new AircraftState
+        {
+            Callsign = callsign,
+            AircraftType = "A319",
+            Position = position,
+            TrueHeading = new TrueHeading(0),
+            Altitude = 5000,
+            IndicatedAirspeed = 250,
+            FlightPlan = new AircraftFlightPlan(),
+        };
+        engine.World.AddAircraft(ac);
+        return ac;
+    }
+
+    [Fact]
+    public void ImmediateCaackPreset_AcknowledgesActiveConflict()
+    {
+        var engine = BuildEngine();
+        var (ac, conflict) = AddPairInConflict(engine, "DAL2272");
+
+        var loaded = new LoadedAircraft { State = ac, PresetCommands = [new PresetCommand { Command = "CAACK", TimeOffset = 0 }] };
+        engine.DispatchPresetCommands(loaded);
+
+        Assert.True(conflict.IsAcknowledged, "a bare CAACK preset must acknowledge the aircraft's active conflict alert");
+        Assert.Empty(ac.PendingWarnings);
+    }
+
+    [Fact]
+    public void ChainedFhCaackPreset_AcknowledgesActiveConflict()
+    {
+        var engine = BuildEngine();
+        var (ac, conflict) = AddPairInConflict(engine, "DAL2272");
+        var warnings = new List<(string Callsign, string Warning)>();
+        engine.WarningEmitted += (cs, w) => warnings.Add((cs, w));
+
+        // Mixed track/flight compound: not an all-track preset, so it queues as a block and the track half reaches
+        // the track engine through ProcessTriggeredTrackBlocks on the next tick.
+        var loaded = new LoadedAircraft { State = ac, PresetCommands = [new PresetCommand { Command = "FH 090, CAACK", TimeOffset = 0 }] };
+        engine.DispatchPresetCommands(loaded);
+
+        engine.TickOneSecond();
+
+        Assert.Equal(90, ac.Targets.AssignedMagneticHeading?.Degrees);
+        Assert.True(conflict.IsAcknowledged, "a CAACK chained behind FH must acknowledge the aircraft's active conflict alert");
+        Assert.DoesNotContain(warnings, w => w.Warning.Contains("not available here", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void DeferredCaackPayload_AcknowledgesActiveConflict()
+    {
+        var engine = BuildEngine();
+        var (ac, conflict) = AddPairInConflict(engine, "DAL2272");
+        var warnings = new List<(string Callsign, string Warning)>();
+        engine.WarningEmitted += (cs, w) => warnings.Add((cs, w));
+
+        var issued = engine.Actions.Issue(new ActionInput("DAL2272", "WAIT 2 CAACK", "conn-1", "XX", Baked: null));
+
+        Assert.True(issued.Result.Success, issued.Result.Message);
+        Assert.Single(ac.DeferredDispatches);
+
+        for (int t = 0; t < 3; t++)
+        {
+            engine.TickOneSecond();
+        }
+
+        Assert.Empty(ac.DeferredDispatches);
+        Assert.True(conflict.IsAcknowledged, "a CAACK behind a WAIT must acknowledge the active conflict alert when it fires");
+        Assert.DoesNotContain(warnings, w => w.Warning.Contains("not available here", StringComparison.Ordinal));
     }
 }

@@ -49,7 +49,11 @@ public class Issue199TrackWithPositionTests
         var scenario = Scenario(student, Atc(dep, 4, "U"));
 
         // Acting identity is the student (3O); the command names 4U explicitly — 4U must win.
-        var result = TrackEngine.Dispatch(new TrackAircraftCommand("4U"), ac, identity: student, scenario, redirect: null);
+        var result = TrackEngine.Dispatch(
+            new TrackAircraftCommand("4U"),
+            ac,
+            new TrackDispatchContext(Identity: student, scenario, Redirect: null, new ConflictAlertState())
+        );
 
         Assert.NotNull(result);
         Assert.True(result.Success, result.Message);
@@ -65,7 +69,11 @@ public class Issue199TrackWithPositionTests
         var scenario = Scenario(Owner("OAK_TWR", 3, "O"), Atc(dep, 4, "U"));
 
         // The position argument supplies the owner, so a null identity must not block the track.
-        var result = TrackEngine.Dispatch(new TrackAircraftCommand("4U"), ac, identity: null, scenario, redirect: null);
+        var result = TrackEngine.Dispatch(
+            new TrackAircraftCommand("4U"),
+            ac,
+            new TrackDispatchContext(Identity: null, scenario, Redirect: null, new ConflictAlertState())
+        );
 
         Assert.NotNull(result);
         Assert.True(result.Success, result.Message);
@@ -79,7 +87,11 @@ public class Issue199TrackWithPositionTests
         var student = Owner("OAK_TWR", 3, "O");
         var scenario = Scenario(student);
 
-        var result = TrackEngine.Dispatch(new TrackAircraftCommand("ZZ"), ac, identity: student, scenario, redirect: null);
+        var result = TrackEngine.Dispatch(
+            new TrackAircraftCommand("ZZ"),
+            ac,
+            new TrackDispatchContext(Identity: student, scenario, Redirect: null, new ConflictAlertState())
+        );
 
         Assert.NotNull(result);
         Assert.False(result.Success);
@@ -94,7 +106,11 @@ public class Issue199TrackWithPositionTests
         var student = Owner("OAK_TWR", 3, "O");
         var scenario = Scenario(student);
 
-        var result = TrackEngine.Dispatch(new TrackAircraftCommand(null), ac, identity: student, scenario, redirect: null);
+        var result = TrackEngine.Dispatch(
+            new TrackAircraftCommand(null),
+            ac,
+            new TrackDispatchContext(Identity: student, scenario, Redirect: null, new ConflictAlertState())
+        );
 
         Assert.NotNull(result);
         Assert.True(result.Success, result.Message);

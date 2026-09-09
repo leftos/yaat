@@ -14,6 +14,7 @@ using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Pilot;
 using Yaat.Sim.Scenarios;
+using Yaat.Sim.Simulation.Actions;
 using Yaat.Sim.Simulation.Replay;
 using Yaat.Sim.Simulation.Snapshots;
 using Yaat.Sim.Training;
@@ -175,10 +176,13 @@ public sealed partial class SimulationEngine
         }
 
         var scenario = Scenario!;
+        var track = new TrackDispatchContext(Identity: null, scenario, Redirect: null, ConflictAlerts);
         foreach (var command in commands)
         {
-            var result = TrackEngine.Dispatch(command, aircraft, identity: null, scenario, redirect: null);
-            if (result is { Success: false })
+            // A verb the track table has no arm for returns null; treated as a refusal so it warns instead of
+            // silently applying nothing.
+            var result = TrackEngine.Dispatch(command, aircraft, track) ?? ActionRefusals.HostOnly(command);
+            if (!result.Success)
             {
                 aircraft.PendingWarnings.Add($"{aircraft.Callsign}: {result.Message}");
             }
@@ -205,6 +209,7 @@ public sealed partial class SimulationEngine
             return;
         }
 
+        var track = new TrackDispatchContext(Identity: null, scenario, Redirect: null, ConflictAlerts);
         foreach (var aircraft in World.GetSnapshot())
         {
             var blocks = aircraft.Queue.Blocks;
@@ -221,8 +226,9 @@ public sealed partial class SimulationEngine
 
                 foreach (var trackCommand in ResolveTrackCommandsForBlock(block, aircraft))
                 {
-                    var result = TrackEngine.Dispatch(trackCommand, aircraft, identity: null, scenario, redirect: null);
-                    if (result is { Success: false })
+                    // Null is "no arm in the track table" — a refusal like any other, never a silent success.
+                    var result = TrackEngine.Dispatch(trackCommand, aircraft, track) ?? ActionRefusals.HostOnly(trackCommand);
+                    if (!result.Success)
                     {
                         // Abort the chain remainder — the follow-on blocks were premised on this
                         // track command succeeding (e.g. "AT FIXIE HO 2B; FH 090" must not fly the
