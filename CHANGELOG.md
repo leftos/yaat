@@ -11,6 +11,7 @@
 - `PAUSE`, `UNPAUSE`, `SIMRATE` and the `BM` bookmark verbs are simulation bodies now (the server only relays the result), so a client-side replay or a headless room accepts them like any other command. With no scenario loaded they answer "No active scenario" instead of reporting success and doing nothing.
 
 ### Fixed
+- The vTDLS flight-plan editor resolves the SID transition from the filed route for every SID whose transition is named after its fix (`SNTNA2 ORRCA` now, not only `TRUKN2 ORRCA`); it used to depend on the facility config also filling the transition's optional first-route-point field.
 - Rewinding a live session to before a `DEL` on a live-traffic shadow no longer brings the shadow back: the replayed removal re-suppresses the callsign, so the feed does not re-add an aircraft the controller deleted.
 - A client-side replay or bug bundle reproduces the ASDE-X and SAID datablock edits (tags, scratchpads, suspends, alert inhibits, terminates) and `ASDXALERTS` the way the live room applied them; before, only the live server rebuilt them.
 - A replayed or rewound session shows a STARS query flash for the seconds it had left at that point in the session, not one that expired with the original wall clock, and a military-route exit-fix estimate (`SAYEXIT`) reads the session clock instead of the real time of day.

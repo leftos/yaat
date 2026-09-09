@@ -370,6 +370,12 @@ Read the SID list through `TdlsConfig.ResolveSids(opConfigId)` (Sim) or
 facilities controllers use most. `ResolveDefaultSidId` / `ResolveDefaultTransitionId` follow the
 same rule; whether a config sets them is per-facility (SFO both, BOS SID only, OAK neither).
 
+`TdlsFlightPlanEditorViewModel.MatchSidFromFiledRoute` pre-selects the SID and transition from the filed route's first
+two tokens. The transition matches on its `FirstRoutePoint` first and falls back to its `Name` (2026-09-08): both are
+FE-authored pass-throughs of `tdlsConfiguration.opConfigs[].sids[].transitions[]`, and ZOA's SFO config sets
+`firstRoutePoint` on TRUKN2's ORRCA transition but not SNTNA2's, though both are named `ORRCA`. The no-transition
+placeholder (`- - - -`) never matches. `TdlsFlightPlanEditorViewModelTests` pins the fallback.
+
 The active config is **shared room state**, not a per-controller preference: it decides what a
 PDC contains, so `TdlsState.ActiveOpConfigIds` holds it engine-side, `TdlsStateDto.ActiveOpConfigs`
 broadcasts it, and it is snapshotted so a replay from a snapshot rebuilds the clearance that was
