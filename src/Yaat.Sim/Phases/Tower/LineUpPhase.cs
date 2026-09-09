@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using Microsoft.Extensions.Logging;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
@@ -115,7 +116,7 @@ public sealed class LineUpPhase : Phase
     /// has already committed to the stop; forcing a re-acceleration would feel
     /// jerky and unrealistic. Let the stop complete naturally instead.
     /// </summary>
-    private const double RollingUpgradeMinSpeedKts = 5.0;
+    internal const double RollingUpgradeMinSpeedKts = 5.0;
 
     /// <summary>
     /// Fraction of the rollout length past which a mid-phase upgrade is
@@ -178,38 +179,82 @@ public sealed class LineUpPhase : Phase
     /// <summary>True once the Faulted state has logged its warning — prevents log spam.</summary>
     private bool _faultLogged;
 
+    /// <summary>
+    /// Set by <see cref="FromSnapshot"/> on an instance that came back mid-maneuver, cleared by the first
+    /// <see cref="OnTick"/> once <see cref="RebuildAfterRestore"/> has re-planned. The snapshot carries the
+    /// phase's mode and progress but not the maneuver itself — the plan, the graph route, the navigator and the
+    /// arc playback are live objects — and <see cref="PhaseRunner"/> only calls <see cref="OnStart"/> on a
+    /// Pending phase, so a restored Active phase has to rebuild itself on its own first tick, the way
+    /// <see cref="CrossingRunwayPhase"/> rebuilds its navigator from the restored taxi route.
+    /// </summary>
+    private bool _needsRestoreRebuild;
+
     public override string Name => "LiningUp";
     public override bool ManagesSpeed => true;
 
     public override void OnStart(PhaseContext ctx)
     {
-        ctx.Aircraft.IsOnGround = true;
-
         // Derive rolling-takeoff mode from the phase list shape. Next pending
         // phase is TakeoffPhase/HelicopterTakeoffPhase ⇒ rolling (CTO was
         // in hand at insertion time and the LUAW phase was omitted).
         RollingMode = DetectRollingModeFromPhaseList(ctx);
+        _needsRestoreRebuild = false;
+        ctx.Aircraft.IsOnGround = true;
 
-        // For cross-runway closed traffic the aircraft lines up on the DEPARTURE
-        // runway, not the pattern runway carried in AssignedRunway/ctx.Runway.
-        var rwy = ctx.Aircraft.Phases?.DepartureRunway ?? ctx.Runway;
+        if (TryResolveRunway(ctx, out var rwy))
+        {
+            PlanFromCurrentPose(ctx, rwy);
+        }
+    }
+
+    /// <summary>
+    /// The runway this phase lines up on, plus the layout its maneuver needs. For cross-runway closed traffic
+    /// that is the DEPARTURE runway, not the pattern runway carried in AssignedRunway/ctx.Runway. Faults with the
+    /// reason and returns false when either is missing — the only "null layout" case supported is an aircraft
+    /// spawned directly on a runway or in the air, which never reaches this phase through the ground pipeline.
+    /// </summary>
+    private bool TryResolveRunway(PhaseContext ctx, [NotNullWhen(true)] out RunwayInfo? rwy)
+    {
+        rwy = ctx.Aircraft.Phases?.DepartureRunway ?? ctx.Runway;
 
         if (rwy is null)
         {
             Fault(ctx, "ctx.Runway is null");
-            return;
+            return false;
         }
 
         if (ctx.GroundLayout is null)
         {
-            // Design decision (per user): LineUpPhase requires a ground
-            // layout. The only "null layout" case we support is aircraft
-            // spawned directly on a runway or in the air — those don't
-            // reach LineUpPhase via the normal ground pipeline.
             Fault(ctx, "ctx.GroundLayout is null (LineUpPhase requires an airport ground layout)");
-            return;
+            return false;
         }
 
+        return true;
+    }
+
+    /// <summary>
+    /// Build the maneuver for the aircraft's current pose and fault when the geometry declines it — what a phase
+    /// starting normally wants, since a pose with no flyable line-up is a bad pose.
+    /// </summary>
+    private void PlanFromCurrentPose(PhaseContext ctx, RunwayInfo rwy)
+    {
+        if (!TryPlanFromCurrentPose(ctx, rwy, out string declineReason))
+        {
+            Fault(ctx, declineReason);
+        }
+    }
+
+    /// <summary>
+    /// Build the maneuver for the aircraft's current pose: the taxiway-graph route when one resolves, else the
+    /// synthetic aligned/pivot plan from <see cref="LineUpGeometry.Compute"/>. Returns false with
+    /// <paramref name="declineReason"/> set when the geometry has no maneuver for the pose, leaving the caller to
+    /// decide what that means — a fault when the phase is starting, a rollout when it is resuming after a restore.
+    /// Deliberately leaves <see cref="RollingMode"/> alone: the two callers source it differently (phase list vs
+    /// snapshot).
+    /// </summary>
+    private bool TryPlanFromCurrentPose(PhaseContext ctx, RunwayInfo rwy, out string declineReason)
+    {
+        declineReason = "";
         _runwayHeadingDeg = rwy.TrueHeading.Degrees;
 
         // Preferred path: follow the real taxiway to the runway edge and curve onto
@@ -219,7 +264,7 @@ public sealed class LineUpPhase : Phase
         // junction arc).
         if (TryStartGraphTaxi(ctx, rwy))
         {
-            return;
+            return true;
         }
 
         var plan = LineUpGeometry.Compute(rwy, ctx.Aircraft.Position.Lat, ctx.Aircraft.Position.Lon, ctx.Aircraft.TrueHeading, ctx.Category);
@@ -227,8 +272,8 @@ public sealed class LineUpPhase : Phase
 
         if (plan.Kind == LineUpPathKind.Fault)
         {
-            Fault(ctx, plan.FaultReason ?? "unknown");
-            return;
+            declineReason = plan.FaultReason ?? "unknown";
+            return false;
         }
 
         // Seed initial targets. The per-state tick methods overwrite these
@@ -271,6 +316,8 @@ public sealed class LineUpPhase : Phase
                 plan.PivotStraightLengthFt
             );
         }
+
+        return true;
     }
 
     /// <summary>
@@ -378,6 +425,17 @@ public sealed class LineUpPhase : Phase
         {
             ctx.Targets.TargetSpeed = 0;
             return false;
+        }
+
+        // Restored mid-maneuver: rebuild before the state machine runs. Deliberately after the HoldPosition
+        // freeze, so a restored held aircraft re-plans from where it is released rather than from where it
+        // stopped.
+        if (_needsRestoreRebuild)
+        {
+            if (RebuildAfterRestore(ctx))
+            {
+                return true;
+            }
         }
 
         if (CurrentState == State.GraphTaxi)
@@ -585,13 +643,19 @@ public sealed class LineUpPhase : Phase
         double targetSpeed = Math.Min(ExpediteStraightSpeed(ctx, plan.ArcSpeedKts), brakeSpeedKts);
         ctx.Targets.TargetSpeed = targetSpeed;
 
-        if (distToStopFt < RolloutArrivalFt)
+        // Distance covered as well as distance remaining: a rollout resumed mid-swing (a restore inside the turn)
+        // curves onto the runway heading and can pass the stop point to one side without ever coming within
+        // RolloutArrivalFt of it, and the unsigned distance-to-stop grows again once past. The two tests fire on
+        // the same tick for the straight rollout every un-restored line-up flies.
+        double distCoveredFt = GeoMath.DistanceNm(ctx.Aircraft.Position, new LatLon(plan.RolloutFromLat, plan.RolloutFromLon)) * GeoMath.FeetPerNm;
+        if ((distToStopFt < RolloutArrivalFt) || (distCoveredFt >= plan.RolloutLengthFt - RolloutArrivalFt))
         {
             CurrentState = State.Stop;
             Log.LogDebug(
-                "[LineUp] {Callsign}: Rollout -> Stop (distToStop={D:F2}ft, gs={Gs:F2}kt)",
+                "[LineUp] {Callsign}: Rollout -> Stop (distToStop={D:F2}ft, distCovered={S:F2}ft, gs={Gs:F2}kt)",
                 ctx.Aircraft.Callsign,
                 distToStopFt,
+                distCoveredFt,
                 ctx.Aircraft.IndicatedAirspeed
             );
         }
@@ -708,7 +772,8 @@ public sealed class LineUpPhase : Phase
     /// mode to rolling mode. Called when CTO arrives while the phase is
     /// already active. Rejected when:
     /// <list type="bullet">
-    ///   <item>the phase has not yet been started (<see cref="State.Setup"/>),</item>
+    ///   <item>the phase has not yet been started (<see cref="State.Setup"/>) — except on a restored instance,
+    ///         whose state machine reads <see cref="State.Setup"/> only until its first tick rebuilds it,</item>
     ///   <item>the phase is in <see cref="State.Stop"/> or <see cref="State.Faulted"/>,</item>
     ///   <item>the aircraft's indicated airspeed is below <see cref="RollingUpgradeMinSpeedKts"/>,</item>
     ///   <item>the aircraft is in <see cref="State.Rollout"/> and has covered more
@@ -722,7 +787,7 @@ public sealed class LineUpPhase : Phase
         {
             return true;
         }
-        if (CurrentState is State.Setup or State.Stop or State.Faulted)
+        if ((CurrentState is State.Setup && !_needsRestoreRebuild) || CurrentState is State.Stop or State.Faulted)
         {
             return false;
         }
@@ -774,12 +839,109 @@ public sealed class LineUpPhase : Phase
         return true;
     }
 
+    /// <summary>
+    /// First tick after a snapshot restore: resume the maneuver from the aircraft's current pose, keeping the
+    /// <see cref="RollingMode"/> the snapshot carried (a mid-phase CTO upgrade or a CTOC revert may have moved it
+    /// away from what the phase list alone implies). Three poses, and none of them may fault — a fault parks the
+    /// aircraft on the runway indefinitely, which is what a restored line-up used to do:
+    ///
+    /// <list type="bullet">
+    ///   <item>inside a nose-wheel radius of the centerline and aligned within
+    ///         <see cref="LineUpGeometry.AlignedMaxTurnDeg"/>: the line-up is flown — complete, handing the
+    ///         aircraft to <see cref="TakeoffPhase"/> under a rolling clearance or to the
+    ///         <see cref="LinedUpAndWaitingPhase"/> that follows a LUAW;</item>
+    ///   <item>inside that radius but still swinging: the interrupted turn cannot be re-planned (the pivot
+    ///         geometry collapses within one radius of the centerline), so fly the already-aligned rollout
+    ///         instead — <see cref="TickRollout"/> steers the runway heading, so the nose comes round over the
+    ///         rollout and the phase completes normally;</item>
+    ///   <item>farther out: re-plan the whole maneuver as <see cref="OnStart"/> would, and if the geometry
+    ///         declines that pose too (a half-flown pivot overshoots its own turn-2 entry well outside one
+    ///         radius), fall back to the same rollout rather than faulting.</item>
+    /// </list>
+    /// </summary>
+    private bool RebuildAfterRestore(PhaseContext ctx)
+    {
+        _needsRestoreRebuild = false;
+        ctx.Aircraft.IsOnGround = true;
+
+        if (!TryResolveRunway(ctx, out var rwy))
+        {
+            return false;
+        }
+
+        double crossFt =
+            Math.Abs(
+                GeoMath.SignedCrossTrackDistanceNm(ctx.Aircraft.Position, new LatLon(rwy.ThresholdLatitude, rwy.ThresholdLongitude), rwy.TrueHeading)
+            ) * GeoMath.FeetPerNm;
+        double headingOffDeg = Math.Abs(rwy.TrueHeading.SignedAngleTo(ctx.Aircraft.TrueHeading));
+
+        if (crossFt <= CategoryPerformance.NoseWheelTurnRadiusFt(ctx.Category))
+        {
+            if (headingOffDeg < LineUpGeometry.AlignedMaxTurnDeg)
+            {
+                Log.LogDebug(
+                    "[LineUp] {Callsign}: restored already lined up on {Rwy} — completing (cross={Cross:F1}ft, rolling={Rolling})",
+                    ctx.Aircraft.Callsign,
+                    rwy.Designator,
+                    crossFt,
+                    RollingMode
+                );
+                return true;
+            }
+
+            ResumeOnAlignedRollout(ctx, rwy, crossFt, headingOffDeg, "inside the nose-wheel radius");
+            return false;
+        }
+
+        if (!TryPlanFromCurrentPose(ctx, rwy, out string declineReason))
+        {
+            ResumeOnAlignedRollout(ctx, rwy, crossFt, headingOffDeg, declineReason);
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Finish an interrupted line-up on the straight rollout: <see cref="TickRollout"/> steers the runway heading
+    /// the whole way, so the nose comes round over <see cref="LineUpGeometry.RolloutLengthFt"/> and the phase then
+    /// completes the way it always does — stopped on the centerline under LUAW, at taxi speed under a rolling
+    /// clearance. This is the restore-only answer to a pose the geometry will not plan a turn from; a phase
+    /// starting normally still faults there, because such a pose means something is wrong with the aircraft's
+    /// position rather than with the phase's memory of it.
+    /// </summary>
+    private void ResumeOnAlignedRollout(PhaseContext ctx, RunwayInfo rwy, double crossFt, double headingOffDeg, string reason)
+    {
+        PathPlan = LineUpGeometry.AlreadyAlignedRolloutPlan(
+            rwy,
+            ctx.Aircraft.Position.Lat,
+            ctx.Aircraft.Position.Lon,
+            ctx.Aircraft.TrueHeading,
+            ctx.Category
+        );
+        _runwayHeadingDeg = rwy.TrueHeading.Degrees;
+        CurrentState = State.Rollout;
+        _faultLogged = false;
+        ctx.Targets.TargetTrueHeading = new TrueHeading(PathPlan.RunwayHeadingDeg);
+        ctx.Targets.TargetSpeed = PathPlan.ArcSpeedKts;
+
+        Log.LogDebug(
+            "[LineUp] {Callsign}: restored mid-turn — rolling out to finish the swing "
+                + "(cross={Cross:F1}ft, hdgOff={Hdg:F1}°, rolling={Rolling}, reason={Reason})",
+            ctx.Aircraft.Callsign,
+            crossFt,
+            headingOffDeg,
+            RollingMode,
+            reason
+        );
+    }
+
     // ---- Snapshot ----
-    // Non-round-tripping: ToSnapshot writes only the fields needed for
-    // diagnostic continuity. FromSnapshot returns an instance that re-runs
-    // OnStart on its next activation. A mid-phase snapshot/restore resumes
-    // from the aircraft's current pose rather than from its saved state,
-    // which is acceptable because the phase completes in seconds.
+    // The snapshot carries the phase's mode and progress (RollingMode, HoldPosition, the runway heading, the
+    // clearance requirements), not the maneuver: the plan, the graph route, the navigator and the arc playback
+    // are live objects with no DTO. A restored Active instance therefore rebuilds itself on its first tick
+    // (RebuildAfterRestore) from the aircraft's current pose — PhaseRunner only calls OnStart on a Pending
+    // phase, so nothing else would ever re-plan it — and completes straight away when the pose says the
+    // line-up is already flown.
 
     public override PhaseDto ToSnapshot() =>
         new LineUpPhaseDto
@@ -788,11 +950,6 @@ public sealed class LineUpPhase : Phase
             ElapsedSeconds = ElapsedSeconds,
             Requirements = Requirements.Count > 0 ? Requirements.Select(r => r.ToSnapshot()).ToList() : null,
             RunwayHeadingDeg = PathPlan?.RunwayHeadingDeg ?? _runwayHeadingDeg,
-            Initialized = PathPlan is not null,
-            TimeSinceLastLog = 0,
-            PerpHeadingDeg = 0,
-            PerpAligned = false,
-            OnCenterline = false,
             RollingMode = RollingMode,
             HoldPosition = HoldPosition,
         };
@@ -804,6 +961,12 @@ public sealed class LineUpPhase : Phase
             Status = (PhaseStatus)dto.Status,
             ElapsedSeconds = dto.ElapsedSeconds,
             HoldPosition = dto.HoldPosition,
+            RollingMode = dto.RollingMode,
+            _runwayHeadingDeg = dto.RunwayHeadingDeg,
+
+            // Only a phase that was already running needs the rebuild; one snapshotted before it started
+            // still gets its OnStart from the phase runner.
+            _needsRestoreRebuild = (PhaseStatus)dto.Status == PhaseStatus.Active,
         };
         phase.RestoreRequirements(dto.Requirements);
         return phase;

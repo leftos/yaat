@@ -147,11 +147,6 @@ public class LineUpPhaseTests(ITestOutputHelper output)
             Status = (int)PhaseStatus.Pending,
             ElapsedSeconds = 0,
             RunwayHeadingDeg = 90,
-            Initialized = false,
-            TimeSinceLastLog = 0,
-            PerpHeadingDeg = 0,
-            PerpAligned = false,
-            OnCenterline = false,
         };
 
         var restored = LineUpPhase.FromSnapshot(dto);

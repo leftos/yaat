@@ -720,18 +720,18 @@ public sealed class InitialClimbPhaseDto : PhaseDto
 
 public sealed class LineUpPhaseDto : PhaseDto
 {
+    /// <summary>
+    /// Departure runway heading captured when the phase started. Restored by
+    /// <see cref="LineUpPhase.FromSnapshot"/> so it round-trips: a restore that is snapshotted again before its
+    /// rebuild has run still writes the real heading here rather than 0.
+    /// </summary>
     public required double RunwayHeadingDeg { get; init; }
-    public required bool Initialized { get; init; }
-    public required double TimeSinceLastLog { get; init; }
-    public required double PerpHeadingDeg { get; init; }
-    public required bool PerpAligned { get; init; }
-    public required bool OnCenterline { get; init; }
 
     /// <summary>
     /// Rolling takeoff mode at snapshot time. Non-required and defaults to
-    /// false so pre-rolling snapshots round-trip without alteration.
-    /// <see cref="LineUpPhase.FromSnapshot"/> does not restore this field —
-    /// the phase re-derives it from the phase list at the next OnStart.
+    /// false so pre-rolling snapshots round-trip without alteration. Restored by
+    /// <see cref="LineUpPhase.FromSnapshot"/>: the snapshot's value outranks the phase list, which cannot
+    /// show a mid-phase CTO upgrade or a CTOC revert.
     /// </summary>
     public bool RollingMode { get; init; }
 

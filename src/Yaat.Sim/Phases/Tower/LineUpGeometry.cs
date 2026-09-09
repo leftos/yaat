@@ -328,6 +328,27 @@ public static class LineUpGeometry
         return Math.Min(authoritySpeedKts, cornerCapKts);
     }
 
+    /// <summary>
+    /// The straight-rollout plan for a pose that is already on the runway: <see cref="RolloutLengthFt"/> feet
+    /// along the runway heading from where the aircraft stands, with no arc to fly. <see cref="Compute"/> reaches
+    /// the same plan through its already-aligned short-circuit; <see cref="LineUpPhase.RebuildAfterRestore"/> asks
+    /// for it directly, because a restore inside a nose-wheel radius of the centerline has a maneuver the geometry
+    /// can no longer plan (the pivot collapses) but a rollout it can still fly — the nose comes round while the
+    /// aircraft rolls, which is what the interrupted turn was doing.
+    /// </summary>
+    public static LineUpPathPlan AlreadyAlignedRolloutPlan(
+        RunwayInfo runway,
+        double acLat,
+        double acLon,
+        TrueHeading acHeading,
+        AircraftCategory category
+    )
+    {
+        double dthetaDeg = (((runway.TrueHeading.Degrees - acHeading.Degrees) + 540.0) % 360.0) - 180.0;
+        double arcSpeedKts = ComputeArcSpeedKts(category, CategoryPerformance.LineUpTurnRadiusFt(category));
+        return BuildAlignedAlreadyAlignedPlan(runway, acLat, acLon, acHeading, category, dthetaDeg, arcSpeedKts);
+    }
+
     // ---- Plan builders ----
 
     private static LineUpPathPlan BuildAlignedAlreadyAlignedPlan(
