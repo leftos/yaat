@@ -91,6 +91,7 @@ The Task Index above tells you *which files*; these docs explain *how each subsy
   - **Tower lists**: `Simulation/TowerLists/TowerListStepTests.cs` (the P-list step on the bare engine over real ZOA data: an in-range aircraft enters with the tick's second, the coordination flag is raised by the spine step, a static second re-stamps nothing, a snapshot restore keeps the live dwell second), `Simulation/Snapshots/TowerListSnapshotMapperTests.cs` (round-trip incl. entry order, null → empty, ClearSession keeps the airports), `TowerListTrackerTests.cs` (the tracker's range geometry — moved from the server suite)
   - **Bookmarks**: `Simulation/Bookmarks/BookmarkStepTests.cs` (the bookmark bodies on the bare engine: `BM ADD`/`RENAME`/`DELETE`/`DEL ALL`, one `OnBookmarksChanged` per successful mutation and none for a refused one, a recorded `BM ADD` inert)
   - **Session clock**: `Simulation/TransportStepTests.cs` (`PAUSE`/`UNPAUSE`/`SIMRATE` on the bare engine: the clamp to 1..16, the live-traffic refusal, `(false, "No active scenario")`, one `OnSimStateChanged` per accepted verb, a recorded `PAUSE` inert)
+  - **ERAM CRR groups**: `Simulation/Eram/EramCrrGroupStepTests.cs` (a recorded create / replace / recolor / null-latitude delete on the bare engine, one `OnEramCrrGroupsChanged` per applied record, an unknown colour, the snapshot round-trip, a `ReplayDriver` replay rebuilding the group, the Sim-vs-wire colour numbering)
   - **Coordination**: `Simulation/Coordination/CoordinationStepTests.cs` (the coordination bodies on the bare engine over the real ZOA `POAK` list: `RD`/`RDH`/`RDR`/`RDACK`/`RDDEL`/`RDPOS`/`RDTXT`/`RDAUTO`, the deterministic `{ListId}-{SequenceNumber}` id, the timers step reached through `RunSecond` and its dirty flag delivered by the `StateChanges` spine step, a `TRACK` voiding the items, a non-sender refused, and a `ReplayDriver` replay holding the same item id as live)
   - **TDLS**: `Simulation/Tdls/TdlsStepTests.cs` (the vTDLS bodies on the bare engine: the spawn hook's auto-queue, the four tick steps — auto-queue, auto-WILCO, TTL expiry, track removal — the `TDLSQ`/`TDLSS`/`TDLSW`/`TDLSDUMP`/`TDLSOPS` command handler, and the change tracker the router drains into the host — over real OAK navdata with no server in the process)
 - **Client tests**: `tests/Yaat.Client.Tests/` — view model logic, command input
@@ -1205,6 +1206,11 @@ SimulationEngine.Transport.cs  # The session-clock bodies (crossed from yaat-ser
                                # SimRate (clamped 1..16; refused while LiveTrafficEnabled; (false, "No active scenario") without one), each marking the sim-state dirty flag
                                # (OnSimStateChanged → the host's BroadcastSimState). The unattended-pause and rewind paths still write IsPaused directly and broadcast
                                # themselves. PAUSE/UNPAUSE/SIMRATE stay RecordingPolicy.Never — a rewind must never pause itself
+SimulationEngine.Eram.cs       # The ERAM CRR-group definitions (crossed from yaat-server 2026-09-08): CrrGroups (label → EramCrrGroup, case-insensitive) and
+                               # ApplyCrrGroup(RecordedEramCrrGroup) — create/replace/recolor, null latitude = delete — marking the dirty flag DrainStateChangesInto
+                               # hands the host as OnEramCrrGroupsChanged (the room re-pushes the whole EramCrrGroups topic; a delete is still the CRC handler's
+                               # own additive-topic removal). Applied from ActionRouter.ApplyStateRecordCore on every run kind, so a Sim replay has the groups;
+                               # snapshotted as ServerSnapshotDto.CrrGroups; cleared by ReplayDriver's t=0 block
 SimulationEngine.Coordination.cs # The coordination bodies (crossed from yaat-server 2026-09-07): TickCoordinationTimers (post-physics: an acknowledged release voids
                                # CoordinationAckExpirySeconds after the ack, flags DepartureExpirationWarning at CoordinationExpiryWarningSeconds remaining, a
                                # recalled item is removed after CoordinationRecallLingerSeconds — SimScenarioState constants), RemoveCoordinationOnRadarAcquisition
@@ -1330,9 +1336,9 @@ ActionArms.cs                  # The Sim bodies: Aviation (ParseCompound → Rea
                                # Consolidate/Deconsolidate (SimulationEngine.Consolidate / Deconsolidate; OnConsolidationChanged),
                                # Coordination/GlobalCoordination (CoordinationCommandHandler.Handle / HandleGlobal over the engine — Sim arms since 2026-09-07)
 IActionHost.cs                 # The action-path view of a host, part of ISimulationHost and IStateChangeConsumer: slots for the bodies the server still owns
-                               # (ApplyAsdexEnableAllAlerts, ApplyBookmark(command, initials),
-                               # ApplyTransport, ApplyRecordedAsdexMutation / ApplyRecordedSaidMutation / ApplyRecordedEramCrrGroup / ApplyRecordedAsdexSafetyLogic
-                               # for the recorded CRC display mutations, CRR groups and the ASDE-X safety-logic configuration) and consumers a Sim arm or applier notifies (OnAircraftSpawned, OnAircraftDeleted(callsign, lastState), OnLiveTrafficHidden,
+                               # (ApplyAsdexEnableAllAlerts, ApplyRecordedAsdexMutation / ApplyRecordedSaidMutation / ApplyRecordedAsdexSafetyLogic
+                               # for the recorded CRC display mutations and the ASDE-X safety-logic configuration — bookmarks, the clock and the CRR groups
+                               # crossed 2026-09-08) and consumers a Sim arm or applier notifies (OnAircraftSpawned, OnAircraftDeleted(callsign, lastState), OnLiveTrafficHidden,
                                # OnPositionSelected(conn, owner, tcpCode), OnGhostOverlayRemoved, OnAsdexTrackTerminated, OnStripsChanged(StripChangeSet) /
                                # OnTdlsChanged(TdlsChangeSet) / OnCoordinationChanged() (IStateChangeConsumer, shared with IHostConsumers — the router drains all three after every routed
                                # action; strips, TDLS and coordination themselves crossed whole into Yaat.Sim, so this is only
@@ -1427,6 +1433,10 @@ TdlsClearance.cs               # The clearance a PDC carries: the nine canonical
                                # The simulation's clearance model — held by TdlsItemRecord and round-tripped by the snapshot; the server projects
                                # it onto the CRC wire ClearanceDto on its way out
 
+# Simulation/Eram/ — ERAM CRR-group core types, engine-owned (SimulationEngine.Eram.cs owns the dictionary + dirty flag)
+EramCrrGroup.cs                # EramCrrGroup(Label, EramCrrColor Color, Latitude, Longitude) + the EramCrrColor enum mirroring the wire CrrColor (parity pinned on
+                               # both sides); the wire EramCrrGroupDto stays server-side behind DtoConverter.ToEramCrrGroupDto
+
 # Simulation/Coordination/ — STARS coordination-verb command logic, engine-owned (SimulationEngine.Coordination.cs owns the timer/init/dirty-flag half)
 CoordinationCommandHandler.cs  # Static dispatch for the aircraft-scoped verbs (RD/RDH/RDR/RDACK/RDDEL/RDPOS/RDTXT, via Handle) and the position-scoped
                                # RDAUTO (HandleGlobal) against SimScenarioState.CoordinationChannels. InferSenderListId resolves a list-less sender verb
@@ -1462,8 +1472,9 @@ PhaseSnapshotDto.cs            # Polymorphic PhaseDto with [JsonDerivedType] for
 ScenarioSnapshotDto.cs         # SimScenarioState DTO: queues, generators, settings, coordination channels; ControllerAi (ControllerAiConfigDto, null when off);
                                # AtcPositions (AtcPositionDto: the resolved ATC roster — scenario atc record + owner + TCP; null in a pre-feature snapshot leaves the loader's roster)
 ServerSnapshotDto.cs           # Server-side state: consolidation overrides, conflict alerts, beacon code pool, position selections, attended CRC
-                               # positions, the flight strips (Strips) + vTDLS session (Tdls), and the tower-list dwell entries (TowerLists, schema 23) — all
-                               # null-absent in a pre-feature snapshot, which restores empty
+                               # positions, the flight strips (Strips) + vTDLS session (Tdls), the tower-list dwell entries (TowerLists, schema 23) and the
+                               # ERAM CRR group definitions (CrrGroups, 2026-09-08; membership rides each aircraft's ERAM state) — all null-absent in a
+                               # pre-feature snapshot, which restores empty
 FlightStripSnapshotDto.cs      # Every strip, the bay/rack layout, both printer queues and the blank-id counter
 FlightStripSnapshotMapper.cs   # FlightStripState ⇄ FlightStripSnapshotDto. Restore replaces, never merges — the snapshot is the whole strip state
                                # at its second, so anything the target engine held is cleared first
