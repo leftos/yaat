@@ -11,6 +11,7 @@
 - `PAUSE`, `UNPAUSE`, `SIMRATE` and the `BM` bookmark verbs are simulation bodies now (the server only relays the result), so a client-side replay or a headless room accepts them like any other command. With no scenario loaded they answer "No active scenario" instead of reporting success and doing nothing.
 
 ### Fixed
+- A local dev server (`RequireVatsimAuth=false`) lets the dev user open a room for any ARTCC and load its scenarios; a dev session minted without an ARTCC was refused on every room create with "Your ARTCC couldn't be determined".
 - vTDLS shows the aircraft type once with its equipment suffix (`B77W/L`), not `B77W/L/L`, when the scenario filed the suffix inside the type.
 - A flight-plan amendment (the flight-plan editor, `FP`/`VP`/`DA`, `APT`, a cruise-altitude change or a CRC edit) refreshes the aircraft's vTDLS entry the way it already reprinted its strip, and an open vTDLS editor shows the amended plan in place instead of keeping the one it opened with; vTDLS kept showing the original route and altitude until the page reconnected. The PDC's ACARS `EQUIPMENT` line also shows the type once with its suffix.
 - vTDLS flight-plan text is selectable: the header block (callsign, beacon, route, type, remarks, CID, cruise level) and the footer status can be highlighted and copied, as on the real vTDLS web page. The DCL/PDC list rows stay click-to-select.

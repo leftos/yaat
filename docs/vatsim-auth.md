@@ -179,7 +179,7 @@ yaat repo's `deploy-to-droplet.ps1`, which builds the image in CI first.
 
 `dotnet run` is Development, and `appsettings.Development.json` sets `RequireVatsimAuth=false`. In that
 mode the server exposes `/auth/dev`, and the desktop `VatsimAuthClient` (and the GuideCapture in-process
-host) mint a dev session (rating `I1`) without any VATSIM round-trip. To test the real flow locally,
+host) mint a dev session (rating `I1`) without any VATSIM round-trip. **Under dev auth the ARTCC gate is off**: nobody logged in with VATSIM, so `CreateRoom` and `GetScenarioJsonById` accept any ARTCC (the hub checks `RequireVatsimAuth` before `ArtccAccessPolicy`, which itself stays fail-secure; 2026-09-08). Why the gate used to bite: `VatsimAuthClient` passes `?artcc=` to `/auth/dev` only when it mints a session, a stored dev session is refreshed rather than re-minted for the refresh token's lifetime, and VATUSA 404s for CID 0000001, so a dev token minted before the client sent the ARTCC stayed ARTCC-less forever. `GetMyPermittedArtccs` is untouched, so the Create Room ARTCC picker stays hidden for an ARTCC-less dev token and the client falls back to its preferred ARTCC (MAIN.md backlog). To test the real flow locally,
 register an `http://localhost:5000/auth/vatsim/callback` redirect on a dedicated dev VATSIM client and
 set `RequireVatsimAuth=true` + the `Vatsim:*` config.
 
