@@ -6,7 +6,6 @@ Entry point for `docs/plans/`. One line per item; the detail lives in the linked
 
 ## Bug reports and feature requests
 
-- [ ] **Changing the SID in the vTDLS editor does not apply that SID's defaults to the other fields** (user report 2026-09-08; vNAS vTDLS does): `ApplyTransitionDefaults` only back-fills blanks, so Expect / Climbout / Climb Via / Maintain / Contact / Dep Freq / Local Info keep the previous SID's values after a SID or transition change (manual or an amended-route re-seed)
 - [ ] Live-session assume UX (ZOA Discord 2026-08-31): bulk-assume modes, snapshot-then-assume-all, snapshot-as-scenario authoring — yaat-server [live-traffic-swim/09-live-sessions.md](../../../yaat-server/docs/plans/live-traffic-swim/09-live-sessions.md) §3. Auto-assume on first command + `UNASSUME` shipped 2026-09-08 (user pick); the right-click menus still offer only Assume control for a shadow and nothing for `UNASSUME` (the client cannot tell an assumed aircraft from a scenario one — the marker is not on the wire), and a command the seeded state then refuses leaves the aircraft assumed with no rollback — both noted in §3
 
 ## Current programme

@@ -377,8 +377,15 @@ FE-authored pass-throughs of `tdlsConfiguration.opConfigs[].sids[].transitions[]
 `firstRoutePoint` on TRUKN2's ORRCA transition but not SNTNA2's, though both are named `ORRCA`. The no-transition
 placeholder (`- - - -`) never matches. `TdlsFlightPlanEditorViewModelTests` pins the fallback. An amendment pushed into an
 open editor (`VTdlsViewModel.ApplyItem` → `TdlsFlightPlanEditorViewModel.ApplyAmendedFlightPlan`) re-runs the same match when
-the route changed and re-seeds SID + transition (the transition defaults follow through `OnSelectedSidChanged`); a push that
-leaves the route alone touches no selection, so what the controller composed survives.
+the route changed and re-seeds SID + transition; a push that leaves the route alone touches no selection.
+
+**A SID or transition change applies the transition's defaults** (upstream: "Selecting a SID and transition pair also
+populates the remaining fields with default values defined by the Facility Engineer", `docs/vtdls/vtdls.md`): every field
+the new transition defines a default for is overwritten (`ApplyTransitionDefaults`, run from the change hooks — a manual pick
+or the amended-route re-seed), and a field it defines none for keeps its value. Construction is the one back-fill site
+(`BackFillTransitionDefaults`): the seed there is a saved Pending clearance, which outranks the defaults, so only blanks are
+filled. Read-only editors apply nothing either way. Before 2026-09-08 the change hooks also back-filled only blanks, so a SID
+change kept the previous SID's departure frequency and altitude.
 
 The active config is **shared room state**, not a per-controller preference: it decides what a
 PDC contains, so `TdlsState.ActiveOpConfigIds` holds it engine-side, `TdlsStateDto.ActiveOpConfigs`

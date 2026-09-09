@@ -11,6 +11,7 @@
 - `PAUSE`, `UNPAUSE`, `SIMRATE` and the `BM` bookmark verbs are simulation bodies now (the server only relays the result), so a client-side replay or a headless room accepts them like any other command. With no scenario loaded they answer "No active scenario" instead of reporting success and doing nothing.
 
 ### Fixed
+- Picking a SID or transition in the vTDLS editor applies that transition's Facility-Engineer defaults (expect, climbout, climb via, maintain, contact, departure frequency, local info) to the clearance the way the real vTDLS does; it used to fill only the fields still blank, so a SID change kept the previous SID's values.
 - An amendment that changes the filed route re-selects the SID and transition in an open vTDLS editor the way opening it fresh would, and the SID, transition and altitude boxes keep a minimum width instead of being squeezed by the wide climb-via box.
 - The Flight Plan Editor's Amend button is fully visible again; the ICAO EQ field had pushed it off the end of the row at the window's saved width, and the window now refuses to shrink below the row.
 - A local dev server (`RequireVatsimAuth=false`) lets the dev user open a room for any ARTCC and load its scenarios; a dev session minted without an ARTCC was refused on every room create with "Your ARTCC couldn't be determined".
