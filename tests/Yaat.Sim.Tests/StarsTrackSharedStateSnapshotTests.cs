@@ -17,7 +17,7 @@ public class StarsTrackSharedStateSnapshotTests
             ForceFdb = true,
             IsHighlighted = true,
             LeaderDirection = 6,
-            IsQueriedUntil = new DateTime(2026, 6, 5, 12, 0, 0, DateTimeKind.Utc),
+            QueriedUntilElapsedSeconds = 412.5,
             WasPreviouslyOwned = true,
             TpaType = 2,
             TpaSize = 3.5,
@@ -29,7 +29,7 @@ public class StarsTrackSharedStateSnapshotTests
         Assert.Equal(original.ForceFdb, restored.ForceFdb);
         Assert.Equal(original.IsHighlighted, restored.IsHighlighted);
         Assert.Equal(original.LeaderDirection, restored.LeaderDirection);
-        Assert.Equal(original.IsQueriedUntil, restored.IsQueriedUntil);
+        Assert.Equal(original.QueriedUntilElapsedSeconds, restored.QueriedUntilElapsedSeconds);
         Assert.Equal(original.WasPreviouslyOwned, restored.WasPreviouslyOwned);
         Assert.Equal(original.TpaType, restored.TpaType);
         Assert.Equal(original.TpaSize, restored.TpaSize);

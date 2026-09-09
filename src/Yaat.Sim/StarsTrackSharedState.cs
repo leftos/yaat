@@ -7,7 +7,14 @@ public sealed class StarsTrackSharedState
     public bool ForceFdb { get; set; }
     public bool IsHighlighted { get; set; }
     public int LeaderDirection { get; set; } = 5; // LeaderDirection enum, 5=Default
-    public DateTime? IsQueriedUntil { get; set; }
+
+    /// <summary>
+    /// Session-elapsed second the STARS query flash stops: CRC computes the expiry on its own clock and sends
+    /// the absolute instant, which is normalised to session time at receipt and back to an absolute instant at
+    /// each broadcast — so a replay or a reconstruction flashes for what is left of it rather than re-sending a
+    /// long-past instant. Null when the track is not flashing.
+    /// </summary>
+    public double? QueriedUntilElapsedSeconds { get; set; }
     public bool WasPreviouslyOwned { get; set; }
     public int TpaType { get; set; } // StarsTpaType enum, 0=None
     public double TpaSize { get; set; }
@@ -19,7 +26,7 @@ public sealed class StarsTrackSharedState
             ForceFdb = ForceFdb,
             IsHighlighted = IsHighlighted,
             LeaderDirection = LeaderDirection,
-            IsQueriedUntil = IsQueriedUntil,
+            QueriedUntilElapsedSeconds = QueriedUntilElapsedSeconds,
             WasPreviouslyOwned = WasPreviouslyOwned,
             TpaType = TpaType,
             TpaSize = TpaSize,
@@ -32,7 +39,7 @@ public sealed class StarsTrackSharedState
             ForceFdb = dto.ForceFdb,
             IsHighlighted = dto.IsHighlighted,
             LeaderDirection = dto.LeaderDirection,
-            IsQueriedUntil = dto.IsQueriedUntil,
+            QueriedUntilElapsedSeconds = dto.QueriedUntilElapsedSeconds,
             WasPreviouslyOwned = dto.WasPreviouslyOwned,
             TpaType = dto.TpaType,
             TpaSize = dto.TpaSize,

@@ -27,6 +27,7 @@ internal static class TestDispatch
         Action<TerminalEntry>? terminalEmitter = null,
         ArtccConfigRoot? artccConfig = null,
         double scenarioElapsedSeconds = 0,
+        DateTime? sessionStartUtc = null,
         bool preserveConditionals = false,
         bool isScenarioScripted = false
     ) =>
@@ -43,6 +44,7 @@ internal static class TestDispatch
             terminalEmitter,
             artccConfig,
             scenarioElapsedSeconds,
+            sessionStartUtc ?? SimScenarioState.ProcessDayUtc,
             preserveConditionals,
             isScenarioScripted
         );

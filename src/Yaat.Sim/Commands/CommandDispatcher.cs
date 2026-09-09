@@ -952,7 +952,7 @@ public static class CommandDispatcher
                 return Ok("");
             case SayExitFixEstimateCommand:
                 ctx.TerminalEmitter?.Invoke(
-                    new TerminalEntry("SayExitFixEstimate", aircraft.Callsign, PilotSayBuilder.BuildExitFixEstimate(aircraft))
+                    new TerminalEntry("SayExitFixEstimate", aircraft.Callsign, PilotSayBuilder.BuildExitFixEstimate(aircraft, ctx.SessionNowUtc))
                 );
                 return Ok("");
             case SayExpectedApproachCommand:

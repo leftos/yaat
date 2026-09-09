@@ -29,7 +29,7 @@ public sealed class SnapshotSchemaException : Exception
 /// </summary>
 public static class SnapshotSchemaMigrator
 {
-    public const int CurrentSchemaVersion = 23;
+    public const int CurrentSchemaVersion = 24;
 
     /// <summary>
     /// Migrates a snapshot to <see cref="CurrentSchemaVersion"/> in place.
@@ -141,6 +141,12 @@ public static class SnapshotSchemaMigrator
         //   empty", which is what those snapshots carried. A restore of an older recording therefore starts with
         //   empty P-lists and the proximity step refills them on the next second, at that second — the entry order
         //   those lists sort on is only exact from a V23 snapshot onward.
+        // V23→V24: SharedStateDto.IsQueriedUntil (the absolute instant CRC sent for the STARS query flash) replaced by
+        //   QueriedUntilElapsedSeconds (session time). The legacy field has no meaningful mapping — it was minted on the
+        //   sending client's clock during a session that has since ended — so it is ignored on read and the new field
+        //   stays null: a restored older recording shows no query flash rather than one that expired long ago.
+        //   The action log carries the same DTO on RecordedStarsSharedStateChange and Migrate never walks it — there the
+        //   legacy property is simply an unmapped member the deserializer skips, which lands on the same no-flash outcome.
         if (snapshot.SchemaVersion < 4)
         {
             foreach (var ac in snapshot.Aircraft)

@@ -19,6 +19,9 @@ public sealed class MilitaryRouteCommandTests
         TestVnasData.EnsureInitialized();
     }
 
+    /// <summary>The session clock at the moment the pilot answers: 12:01:30 into a session started at noon.</summary>
+    private static readonly DateTime SessionInstant = new(2026, 8, 26, 12, 1, 30, DateTimeKind.Utc);
+
     /// <summary>An aircraft positioned just before IR-149's entry point A, heading down the route.</summary>
     private static AircraftState AircraftOnIr149()
     {
@@ -374,14 +377,46 @@ public sealed class MilitaryRouteCommandTests
     public void BuildExitFixEstimate_ReportsTheExitPointOrDeclines()
     {
         var aircraft = AircraftOnIr149();
-        Assert.Contains("not on a military", PilotSayBuilder.BuildExitFixEstimate(aircraft), StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("not on a military", PilotSayBuilder.BuildExitFixEstimate(aircraft, SessionInstant), StringComparison.OrdinalIgnoreCase);
 
         Apply(aircraft, "CMTR IR149");
         aircraft.MilitaryRoute.ExitPointId = "I";
-        var spoken = PilotSayBuilder.BuildExitFixEstimate(aircraft);
+        var spoken = PilotSayBuilder.BuildExitFixEstimate(aircraft, SessionInstant);
 
         Assert.Contains("IR149", spoken, StringComparison.Ordinal);
         Assert.Contains("I", spoken, StringComparison.Ordinal);
+    }
+
+    /// <summary>The four HHmm digits of the "at HHmm" estimate, as minutes past midnight.</summary>
+    private static int SpokenClockMinutes(string spoken)
+    {
+        var marker = spoken.IndexOf("at ", StringComparison.Ordinal);
+        Assert.True(marker >= 0, $"no clock time in: {spoken}");
+        var digits = spoken.Substring(marker + 3, 4);
+        return (int.Parse(digits[..2]) * 60) + int.Parse(digits[2..]);
+    }
+
+    [Fact]
+    public void BuildExitFixEstimate_ClocksTheEstimateOnTheSessionClock()
+    {
+        // §9-2-6.g runs the nonreceipt timer against this estimate, so a replayed SAYEXIT must answer the
+        // clock time the live session answered — the session clock, never the wall clock the replay runs at.
+        var aircraft = AircraftOnIr149();
+        Apply(aircraft, "CMTR IR149");
+        aircraft.MilitaryRoute.ExitPointId = "I";
+
+        // The exit point underfoot: a zero-minute estimate, so the spoken time is the session instant itself.
+        aircraft.Targets.NavigationRoute.Clear();
+        aircraft.Targets.NavigationRoute.Add(new NavigationTarget { Name = "I", Position = aircraft.Position });
+        Assert.Equal((12 * 60) + 1, SpokenClockMinutes(PilotSayBuilder.BuildExitFixEstimate(aircraft, SessionInstant)));
+
+        // And the whole estimate — the minutes to run included — rides that clock: an hour later in the
+        // session is an hour later in the answer, over the route the clearance actually installed.
+        Apply(aircraft, "CMTR IR149");
+        aircraft.MilitaryRoute.ExitPointId = "I";
+        var early = SpokenClockMinutes(PilotSayBuilder.BuildExitFixEstimate(aircraft, SessionInstant));
+        var late = SpokenClockMinutes(PilotSayBuilder.BuildExitFixEstimate(aircraft, SessionInstant.AddHours(1)));
+        Assert.Equal(60, late - early);
     }
 
     [Fact]

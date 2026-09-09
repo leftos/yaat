@@ -178,6 +178,7 @@ public class AiAnsweredCallupE2ETests
             engine.EmitTerminalEntry,
             engine.Scenario.ArtccConfig,
             engine.Scenario.ElapsedSeconds,
+            engine.Scenario.SessionStartUtc,
             PreserveConditionals: false,
             IsScenarioScripted: true
         );

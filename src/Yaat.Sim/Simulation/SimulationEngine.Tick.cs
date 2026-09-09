@@ -142,6 +142,7 @@ public sealed partial class SimulationEngine
                     AddTerminalEntry,
                     Scenario?.ArtccConfig,
                     Scenario?.ElapsedSeconds ?? 0,
+                    Scenario?.SessionStartUtc ?? SimScenarioState.ProcessDayUtc,
                     PreserveConditionals: true,
                     IsScenarioScripted: false
                 );

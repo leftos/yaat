@@ -1,3 +1,4 @@
+using System.Globalization;
 using Yaat.Sim.Data;
 
 namespace Yaat.Sim.Pilot;
@@ -87,8 +88,10 @@ public static class PilotSayBuilder
     /// <summary>
     /// Answers FAA JO 7110.65 §9-2-6.e "VERIFY YOUR EXIT FIX ESTIMATE AND REQUESTED ALTITUDE AFTER
     /// EXIT" — the exit fix, the estimate for it, and the altitude wanted after the route.
+    /// <paramref name="simTimeUtc"/> is the session clock the estimate counts from, so a replay answers
+    /// the clock time the live session answered.
     /// </summary>
-    public static string BuildExitFixEstimate(AircraftState aircraft)
+    public static string BuildExitFixEstimate(AircraftState aircraft, DateTime simTimeUtc)
     {
         var state = aircraft.MilitaryRoute;
         if (state.Designator is null || state.ExitPointId is null)
@@ -100,7 +103,9 @@ public static class PilotSayBuilder
         // of §6-1-2 against the pilot's exit estimate, and that timer keys off a UTC time.
         // §2-4-17.c.1 gives the format — the four separate digits of hour and minutes in UTC.
         var minutes = EstimateMinutesToExit(aircraft);
-        var estimate = minutes is null ? "unable to estimate" : $"at {DateTime.UtcNow.AddMinutes(minutes.Value):HHmm}";
+        var estimate = minutes is null
+            ? "unable to estimate"
+            : $"at {simTimeUtc.AddMinutes(minutes.Value).ToString("HHmm", CultureInfo.InvariantCulture)}";
         // The filed cruise altitude is what the pilot wants back after leaving the route.
         var afterExit = aircraft.FlightPlan.Altitude.CruiseFeet is { } cruise ? $", requesting {cruise:N0} after exit" : "";
         return $"Estimating {state.Designator} exit point {state.ExitPointId} {estimate}{afterExit}";

@@ -498,6 +498,50 @@ public class SnapshotRoundTripTests
     }
 
     [Fact]
+    public void SnapshotSchemaMigrator_V23QueryFlash_DropsTheAbsoluteInstant()
+    {
+        // Through v23 a track's STARS query flash was snapshotted as the absolute instant CRC computed on its
+        // own clock; v24 keys it to session time instead. The legacy instant has no mapping onto session time
+        // — it belongs to a session that has ended — so it is dropped and the restored track simply does not
+        // flash, rather than flashing at an instant long past.
+        const string json = """
+            {
+              "SchemaVersion": 23,
+              "ElapsedSeconds": 10,
+              "Rng": { "S0": 1, "S1": 2, "S2": 3, "S3": 4 },
+              "Aircraft": [
+                {
+                  "Callsign": "AAL1",
+                  "AircraftType": "B738",
+                  "Stars": {
+                    "SharedState": {
+                      "3O": {
+                        "ForceFdb": true,
+                        "IsHighlighted": false,
+                        "LeaderDirection": 6,
+                        "IsQueriedUntil": "2026-06-05T12:00:00Z",
+                        "WasPreviouslyOwned": true,
+                        "TpaType": 0,
+                        "TpaSize": 0
+                      }
+                    }
+                  }
+                }
+              ],
+              "Scenario": { "ScenarioId": "t", "ScenarioName": "T", "RngSeed": 1, "ElapsedSeconds": 10, "SimRate": 1 }
+            }
+            """;
+        var snapshot = JsonSerializer.Deserialize<StateSnapshotDto>(json, RecordingJsonOptions.Default)!;
+        var shared = Assert.Single(Assert.Single(snapshot.Aircraft).Stars.SharedState!).Value;
+        Assert.True(shared.ForceFdb); // precondition: the legacy entry itself deserialized
+
+        SnapshotSchemaMigrator.Migrate(snapshot);
+
+        Assert.Equal(SnapshotSchemaMigrator.CurrentSchemaVersion, snapshot.SchemaVersion);
+        Assert.Null(shared.QueriedUntilElapsedSeconds);
+    }
+
+    [Fact]
     public void ServerSnapshotDto_JsonRoundTrips()
     {
         var snapshot = new StateSnapshotDto

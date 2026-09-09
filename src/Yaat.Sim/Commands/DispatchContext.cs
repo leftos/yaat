@@ -48,6 +48,12 @@ namespace Yaat.Sim.Commands;
 /// <see cref="Pilot.PilotInitialContactEligibility.RegisterControllerContact"/>). A deferred
 /// payload inherits the value from the deferral that produced it (a preset WAIT/BEHIND stays
 /// scripted; a reaction-delay deferral carries its command's origin).</para>
+///
+/// <para><see cref="SessionStartUtc"/> is the instant t=0 of <see cref="ScenarioElapsedSeconds"/> is
+/// anchored to (<see cref="Simulation.SimScenarioState.SessionStartUtc"/>); the two together give the
+/// session clock a dispatch answers with, so a verb whose reply carries a time of day (SAYEXIT's exit-fix
+/// estimate) reads the same clock on a replay as it did live. Callers outside a scenario pass
+/// <see cref="Simulation.SimScenarioState.ProcessDayUtc"/>.</para>
 /// </summary>
 public sealed record DispatchContext(
     AirportGroundLayout? GroundLayout,
@@ -62,6 +68,14 @@ public sealed record DispatchContext(
     Action<TerminalEntry>? TerminalEmitter,
     ArtccConfigRoot? ArtccConfig,
     double ScenarioElapsedSeconds,
+    DateTime SessionStartUtc,
     bool PreserveConditionals,
     bool IsScenarioScripted
-);
+)
+{
+    /// <summary>
+    /// The session clock at this dispatch: the record's mirror of <see cref="Simulation.SimScenarioState.SimTimeUtc"/>,
+    /// for the verbs whose answer carries a time of day.
+    /// </summary>
+    public DateTime SessionNowUtc => SessionStartUtc.AddSeconds(ScenarioElapsedSeconds);
+}

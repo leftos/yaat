@@ -219,7 +219,10 @@ public sealed class SharedStateDto
     public required bool ForceFdb { get; init; }
     public required bool IsHighlighted { get; init; }
     public required int LeaderDirection { get; init; }
-    public DateTime? IsQueriedUntil { get; init; }
+
+    // Session-elapsed seconds (schema 24). Before it, the query-flash expiry was the absolute instant CRC sent;
+    // a legacy snapshot's value has no meaningful mapping onto session time and is dropped on read.
+    public double? QueriedUntilElapsedSeconds { get; init; }
     public required bool WasPreviouslyOwned { get; init; }
     public required int TpaType { get; init; }
     public required double TpaSize { get; init; }

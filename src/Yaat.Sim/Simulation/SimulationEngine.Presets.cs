@@ -146,6 +146,7 @@ public sealed partial class SimulationEngine
             AddTerminalEntry,
             Scenario!.ArtccConfig,
             Scenario!.ElapsedSeconds,
+            Scenario!.SessionStartUtc,
             PreserveConditionals: false,
             // The takeoff clearance is issued by the automated tower, not by the student (who only
             // lifted the hold-for-release). It is not the student establishing two-way comms, so it
@@ -222,6 +223,7 @@ public sealed partial class SimulationEngine
                 AddTerminalEntry,
                 scenario.ArtccConfig,
                 scenario.ElapsedSeconds,
+                scenario.SessionStartUtc,
                 PreserveConditionals: false,
                 IsScenarioScripted: true
             );
@@ -342,6 +344,7 @@ public sealed partial class SimulationEngine
             AddTerminalEntry,
             Scenario!.ArtccConfig,
             Scenario!.ElapsedSeconds,
+            Scenario!.SessionStartUtc,
             PreserveConditionals: false,
             IsScenarioScripted: true
         );
