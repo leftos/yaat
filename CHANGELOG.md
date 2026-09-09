@@ -11,6 +11,7 @@
 - `PAUSE`, `UNPAUSE`, `SIMRATE` and the `BM` bookmark verbs are simulation bodies now (the server only relays the result), so a client-side replay or a headless room accepts them like any other command. With no scenario loaded they answer "No active scenario" instead of reporting success and doing nothing.
 
 ### Fixed
+- A replayed or rewound session shows a STARS query flash for the seconds it had left at that point in the session, not one that expired with the original wall clock, and a military-route exit-fix estimate (`SAYEXIT`) reads the session clock instead of the real time of day.
 - A rewind or bug-bundle snapshot that lands while a departure is still lining up no longer leaves it parked on the runway at zero speed: the line-up rebuilds from where the aircraft is (rolling on, or holding in position for `LUAW`) instead of faulting every second.
 - A planned server restart keeps every room's timeline bookmarks (ids, names and times); the checkpoint never wrote them before.
 - `CAACK` behind a `WAIT`, inside a chained block (`FH 090, CAACK`) or in a scenario preset acknowledges the conflict alert; it silently did nothing there before. A track verb that has no body on that path now warns instead of being dropped.

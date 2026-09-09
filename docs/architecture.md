@@ -689,7 +689,8 @@ Commands/CommandDispatcher.cs       # Static: DispatchCompound (phase interactio
                                     # ApplyCommandCore passes ctx.GroundLayout to CTOPP/ATXI/LAND handlers
 Commands/ConditionalList.cs         # Unified conditional list: pending queue trigger blocks + DeferredDispatches (WAIT/WAITD/BEHIND)
                                     # Enumerate/ToLines/Delete — backs SHOWAT/SHOWCOND, Pending Cmds column, DELAT/DELCOND/DC; excludes reaction-delay deferrals
-Commands/DispatchContext.cs         # Record: GroundLayout, Rng, Weather, FindAircraft/ListAircraft, ValidateDctFixes, AutoCrossRunway, PreserveConditionals, IsScenarioScripted
+Commands/DispatchContext.cs         # Record: GroundLayout, Rng, Weather, FindAircraft/ListAircraft, ValidateDctFixes, AutoCrossRunway, PreserveConditionals, IsScenarioScripted,
+                                    # SessionStartUtc (the session clock for pilot speech that names a time of day — SAYEXIT's estimate; never DateTime.UtcNow)
 Commands/DispatchOrigin.cs          # DispatchOrigin (Human | ControllerAi) + AiConnectionId ("AI:{positionId}" synthetic connection id; origin derived from it live and on replay)
                                     # Bundled at SimulationEngine/RoomEngine call sites; threaded through all internal helpers
 Commands/FlightCommandHandler.cs    # Heading, altitude, speed, squawk, direct-to, warp, wait/say commands

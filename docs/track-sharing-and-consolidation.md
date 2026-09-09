@@ -207,7 +207,7 @@ Display state that one position sets and other positions can observe lives **per
 
 `AircraftStarsState.SharedState` (`AircraftStarsState.cs:37`) is `Dictionary<string tcpId, StarsTrackSharedState>`. Each
 `StarsTrackSharedState` (`StarsTrackSharedState.cs:5`) carries `ForceFdb`, `IsHighlighted`, `LeaderDirection` (default `5`),
-`IsQueriedUntil` (a `DateTime?` expiry), `WasPreviouslyOwned`, `TpaType`, and `TpaSize`. This is distinct from
+`QueriedUntilElapsedSeconds` (the query flash's expiry on the sim clock — CRC sends an absolute instant, `CrcClientState` converts it at receipt against the scenario's elapsed seconds, and `DtoConverter.MapSharedState` re-derives the wire `DateTime` at every broadcast, so a replay or rewind flashes for the seconds the record had left; snapshot schema 24), `WasPreviouslyOwned`, `TpaType`, and `TpaSize`. This is distinct from
 `AircraftStarsState.GlobalLeaderDirection` (`AircraftStarsState.cs:36`), the facility-wide default leader direction set via the
 `LeaderDirection` track command (`TrackEngine.HandleLeaderDirection`, where `5` resets to `null`).
 
