@@ -6,6 +6,7 @@ Entry point for `docs/plans/`. One line per item; the detail lives in the linked
 
 ## Bug reports and feature requests
 
+- [ ] **A local dev server refuses every `CreateRoom` for the dev user** (user report 2026-09-08, steer: dev servers don't log in with VATSIM, so the user may pick any ARTCC): `/auth/refresh` re-resolves the ARTCC from VATUSA (404 for CID 0000001), `MergeVatusa` yields a token with no `artcc`, and `ArtccAccessPolicy` permits nothing — a stored dev session breaks on its first refresh. Under `Auth.RequireVatsimAuth = false` the policy should permit every ARTCC
 - [ ] Live-session assume UX (ZOA Discord 2026-08-31): bulk-assume modes, snapshot-then-assume-all, snapshot-as-scenario authoring — yaat-server [live-traffic-swim/09-live-sessions.md](../../../yaat-server/docs/plans/live-traffic-swim/09-live-sessions.md) §3. Auto-assume on first command + `UNASSUME` shipped 2026-09-08 (user pick); the right-click menus still offer only Assume control for a shadow and nothing for `UNASSUME` (the client cannot tell an assumed aircraft from a scenario one — the marker is not on the wire), and a command the seeded state then refuses leaves the aircraft assumed with no rollback — both noted in §3
 
 ## Current programme
