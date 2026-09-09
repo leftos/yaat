@@ -1,6 +1,12 @@
 # Changelog
 
-## Unreleased
+## v0.12.28-beta [2026/09/09]
+
+### Highlights
+- A takeoff roll spools up from breakaway thrust instead of leaping to full acceleration, and turboprops and pistons roll at their own rates: a C172 now uses ~1,120 ft to rotate while a B738 still lifts off in ~3,560 ft.
+- Taxiing from a standstill accelerates at a realistic breakaway rate instead of 5 kt/s, and ground speed no longer jumps as it nears its target.
+- `ATXI 28L` / `ATXI 28L@J` air-taxis a helicopter to the runway holding position, ready for `CTO`, `LUAW` or `CROSS`; a taxi clearance naming a different runway warns that it is a runway change.
+- A takeoff clearance chained with another command keeps a pre-armed departure turn or altitude, and `THEN`/`AND` chains split into the same units as their `;`/`,` forms.
 
 ### Fixed
 - A takeoff roll no longer leaps to full acceleration on the first tick: thrust spools from a part-power (breakaway) rate to the type's steady rate over the first seconds (jet 1.0 → 5.0 kt/s over 5 s, turboprop 0.8 → 4.0 over 4 s, piston 0.5 → 2.7 over 3 s), so a B738 cleared for takeoff from line up and wait creeps for the first few seconds and still reaches 145 kt in ~31 s / ~3,560 ft. A rolling takeoff that arrives already moving picks up the spool where its speed implies. Turboprops and pistons no longer roll at the jet rate (every profile carried a placeholder 5 kt/s): a C172 now uses ~1,120 ft to rotate instead of 610. The same-runway separation, rejected-takeoff and preceding-departure predictors project on the same ramp.

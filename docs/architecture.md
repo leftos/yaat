@@ -793,6 +793,7 @@ Phases/TowerCabPhases.cs       # Phase families inside local control's jurisdict
 Phases/PhaseStatus.cs          # Enum: phase lifecycle status
 Phases/CommandAcceptance.cs    # Enum: Allowed, Rejected, ClearsPhase
 Phases/ClearanceRequirement.cs # Clearance requirement definitions
+Phases/IGroundRollClock.cs      # A phase flying a takeoff roll along the GroundRollProfile spool ramp reports how far into it the roll is (RollClockSeconds); predictors (same-runway separation, rejected takeoff, preceding departure) place the aircraft where the roll has it instead of inferring from speed
 Phases/ExitPreference.cs       # ExitSide enum, ExitPreference class, ResolvedExitInfo (branch point + path + turn-off speed), ExitRetargetVerdict
 Phases/RolloutBraking.cs       # Braking kinematics + firm-rate/turn-off-tolerance limits shared by LandingPhase and RunwayExitPhase
 Phases/ClearanceType.cs        # Enum: LineUpAndWait, ClearedForTakeoff/Land/Option/TouchAndGo/StopAndGo, RunwayCrossing
