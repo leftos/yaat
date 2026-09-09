@@ -21,6 +21,7 @@ Each `{roomId}.checkpoint.zip` contains:
 | `scenario.json.br` | Original scenario JSON |
 | `actions.json.br` | Full `ActionLog` (rewind/export) |
 | `terminal-log.json.br` | `TerminalLog` (omitted when empty) |
+| `bookmarks.json` | Shared timeline bookmarks, in the same `RecordingBookmarks` payload a recording export writes (omitted when the room has none). Ids are restored verbatim; the id counter is not archived, so the restore resumes it one past the highest restored id |
 | `snapshot-final.json.br` | Live `StateSnapshotDto` at save time — including the strips and the vTDLS session (`ServerSnapshotDto.Strips` / `.Tdls`, since 2026-09-07) |
 | `room-state.json.br` | ASDEX, SAID, ERAM prefs, line numbers, assignments by CID (`RoomStateSnapshotDto`; strips and TDLS left it for the Sim snapshot) |
 | `weather.json` / `artcc-config.json.br` | Optional bundled weather and ARTCC config |
