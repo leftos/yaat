@@ -205,6 +205,68 @@ public class VTdlsViewInteractionTests
     }
 
     /// <summary>
+    /// An amendment that changes the filed route re-derives the selections the route owns. The reported shape: UAL300
+    /// amended from GAPP7 to GUNNR7 showed the new route in the header while the SID dropdown still read GAPP7, so the
+    /// clearance about to be sent named a SID the aircraft is no longer filed on.
+    /// </summary>
+    [AvaloniaFact]
+    public void AmendedRoute_ReseedsTheSidAndTransition()
+    {
+        var (vm, transport) = MakeVm();
+        SeedFacility(vm, ConfigWithTwoSids());
+        transport.PushState(new TdlsStateDto([Item("id1", "UAL300", FlightPlanWithRoute("GAPP7 BOOKE J80 BOS"), facilityId: "IAD")], []));
+        Dispatcher.UIThread.RunJobs();
+        BootView(vm);
+
+        vm.SelectedItem = vm.DclItems.Single();
+        Dispatcher.UIThread.RunJobs();
+        var editor = vm.Editor!;
+        Assert.Equal("GAPP7", editor.SelectedSid?.Name);
+        Assert.Equal("GAPP7-BOOKE", editor.SelectedTransition?.Id);
+
+        transport.PushItem(Item("id1", "UAL300", FlightPlanWithRoute("GUNNR7 SPACY J80 BOS"), facilityId: "IAD"));
+        Dispatcher.UIThread.RunJobs();
+
+        // Same editor instance — the amendment must not close what the controller is composing.
+        Assert.Same(editor, vm.Editor);
+        Assert.Equal("GUNNR7 SPACY J80 BOS", editor.FlightPlan!.Route);
+        Assert.Equal("GUNNR7", editor.SelectedSid?.Name);
+        Assert.Equal("GUNNR7-SPACY", editor.SelectedTransition?.Id);
+    }
+
+    /// <summary>
+    /// The other half of the same push: an amendment that leaves the route alone (here a remarks edit) derives nothing,
+    /// so every selection stays exactly as the controller left it — including a SID they picked over the filed one.
+    /// </summary>
+    [AvaloniaFact]
+    public void AmendedRemarksWithoutRouteChange_LeaveTheSelectionsAlone()
+    {
+        var (vm, transport) = MakeVm();
+        SeedFacility(vm, ConfigWithTwoSids());
+        var filed = FlightPlanWithRoute("GAPP7 BOOKE J80 BOS");
+        transport.PushState(new TdlsStateDto([Item("id1", "UAL300", filed, facilityId: "IAD")], []));
+        Dispatcher.UIThread.RunJobs();
+        BootView(vm);
+
+        vm.SelectedItem = vm.DclItems.Single();
+        Dispatcher.UIThread.RunJobs();
+        var editor = vm.Editor!;
+
+        // The controller overrides the route-derived SID and the transition's defaulted Expect.
+        editor.SelectedSid = editor.Sids.Single(s => s.Name == "GUNNR7");
+        editor.Expect = "20 MIN AFT DP";
+        Dispatcher.UIThread.RunJobs();
+
+        transport.PushItem(Item("id1", "UAL300", filed with { Remarks = "CTC NORCAL" }, facilityId: "IAD"));
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Same(editor, vm.Editor);
+        Assert.Equal("CTC NORCAL", editor.FlightPlan!.Remarks);
+        Assert.Equal("GUNNR7", editor.SelectedSid?.Name);
+        Assert.Equal("20 MIN AFT DP", editor.Expect);
+    }
+
+    /// <summary>
     /// The load-time state push lands before any facility page has been fetched, so the items are created
     /// and listed against an empty member set. Switching to the facility clears the lists while keeping the
     /// identities, and the full-state re-push that follows the switch is what has to put them back: nothing
@@ -466,6 +528,35 @@ public class VTdlsViewInteractionTests
             LocalInfos: [],
             DefaultSidId: "RNLDI4",
             DefaultTransitionId: "OTTTO"
+        );
+
+    /// <summary>Facility offering two SIDs with one transition each, so an amended route can name a different SID than the one filed.</summary>
+    private static TdlsConfigDto ConfigWithTwoSids() =>
+        ConfigWithMandatoryDepFreq() with
+        {
+            Sids =
+            [
+                new TdlsSidDto("GAPP7", "GAPP7", [TransitionAt("GAPP7-BOOKE", "BOOKE")]),
+                new TdlsSidDto("GUNNR7", "GUNNR7", [TransitionAt("GUNNR7-SPACY", "SPACY")]),
+            ],
+            Expects = [new TdlsClearanceValueDto("10MIN", "10 MIN AFT DP"), new TdlsClearanceValueDto("20MIN", "20 MIN AFT DP")],
+            DefaultSidId = "GAPP7",
+            DefaultTransitionId = "GAPP7-BOOKE",
+        };
+
+    /// <summary>A transition entered at <paramref name="fix"/>, named after it, supplying the facility's default Expect.</summary>
+    private static TdlsSidTransitionDto TransitionAt(string id, string fix) =>
+        new(
+            id,
+            fix,
+            FirstRoutePoint: fix,
+            DefaultExpect: "10 MIN AFT DP",
+            DefaultClimbout: null,
+            DefaultClimbvia: null,
+            DefaultInitialAlt: null,
+            DefaultDepFreq: null,
+            DefaultContactInfo: null,
+            DefaultLocalInfo: null
         );
 
     private static TdlsFlightPlanInfoDto FlightPlanWithRoute(string route) =>

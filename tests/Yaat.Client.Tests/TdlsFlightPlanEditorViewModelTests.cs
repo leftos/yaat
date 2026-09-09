@@ -547,4 +547,32 @@ public class TdlsFlightPlanEditorViewModelTests
         Assert.Equal("SNTNA2", editor.SelectedSid?.Id);
         Assert.Equal("SNTNA2-ORRCA", editor.SelectedTransition?.Id);
     }
+
+    [Fact]
+    public void ApplyAmendedFlightPlan_ReseedsSidAndTransition_WhenTheRouteChanged()
+    {
+        // What an open editor gets when an amendment lands: the header follows the new route, and the SID and
+        // transition the route derives follow it rather than staying on what the aircraft was filed with.
+        var cfg = BuildSfoLikeConfig("- - - -");
+        var fp = new TdlsFlightPlanInfoDto(
+            AssignedBeaconCode: 501,
+            Departure: "KSFO",
+            Destination: "KSEA",
+            Route: "SNTNA2 ORRCA STOKD KEEDS",
+            AircraftType: "B738",
+            EquipmentSuffix: "L",
+            Remarks: "",
+            Cid: "1234567",
+            CruiseAltitude: 35000
+        );
+        var editor = new TdlsFlightPlanEditorViewModel("ASA1234", cfg, seed: null, flightPlan: fp, isReadOnly: false, opConfigId: null);
+        Assert.Equal("SNTNA2", editor.SelectedSid?.Id);
+        Assert.Equal("SNTNA2-ORRCA", editor.SelectedTransition?.Id);
+
+        editor.ApplyAmendedFlightPlan(fp with { Route = "OFFSH9 ORRCA KEEDS" });
+
+        Assert.Equal("OFFSH9 ORRCA KEEDS", editor.FlightPlan?.Route);
+        Assert.Equal("OFFSH9", editor.SelectedSid?.Id);
+        Assert.Equal("OFFSH9-ORRCA", editor.SelectedTransition?.Id);
+    }
 }

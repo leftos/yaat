@@ -329,10 +329,14 @@
                      Maintain. Width ratios measured from upstream screenshot:
                      SSOXS6 ≈ - - - - ≈ Maintain (1x) ; Climb out (2x) ;
                      Climb via dominates (6x) for "CLIMB VIA SID EXCEPT
-                     MAINTAIN FLxxx". No inline labels — controllers learn
-                     the field positions, like upstream. -->
+                     MAINTAIN FLxxx". The star ratios alone squeeze the always
+                     populated SID, transition and Maintain fields to their text
+                     width, so each carries a MinWidth holding its longest real
+                     value (SNTNA2, ORRCA, 3000FT) plus the chevron; the climb-via
+                     column absorbs what they take. No inline labels — controllers
+                     learn the field positions, like upstream. -->
                 <Grid ColumnDefinitions="1*,1*,2*,6*,1*" Margin="0,0,0,8">
-                    <ComboBox PlaceholderText="- - - -" Grid.Column="0" Margin="0,0,4,0"
+                    <ComboBox PlaceholderText="- - - -" Grid.Column="0" Margin="0,0,4,0" MinWidth="96"
                               ItemsSource="{Binding Sids}"
                               SelectedItem="{Binding SelectedSid, Mode=TwoWay}"
                               DisplayMemberBinding="{Binding Name}"
@@ -340,7 +344,7 @@
                               HorizontalAlignment="Stretch"
                               FontFamily="{StaticResource MonoFont}" FontSize="11"
                               ToolTip.Tip="SID"/>
-                    <ComboBox PlaceholderText="- - - -" Grid.Column="1" Margin="0,0,4,0"
+                    <ComboBox PlaceholderText="- - - -" Grid.Column="1" Margin="0,0,4,0" MinWidth="96"
                               ItemsSource="{Binding Transitions}"
                               SelectedItem="{Binding SelectedTransition, Mode=TwoWay}"
                               DisplayMemberBinding="{Binding Name}"
@@ -364,7 +368,7 @@
                               HorizontalAlignment="Stretch"
                               FontFamily="{StaticResource MonoFont}" FontSize="11"
                               ToolTip.Tip="Climb via"/>
-                    <ComboBox PlaceholderText="- - - -" Grid.Column="4"
+                    <ComboBox PlaceholderText="- - - -" Grid.Column="4" MinWidth="100"
                               ItemsSource="{Binding InitialAlts}"
                               SelectedItem="{Binding SelectedInitialAlt}"
                               DisplayMemberBinding="{Binding Value}"

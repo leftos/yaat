@@ -536,11 +536,12 @@ public partial class VTdlsViewModel : ObservableObject
             InsertIntoBucket(vm);
         }
 
-        // The open editor was built from the DTO the item carried at selection time. Its header is read-only, so
-        // pushing the fresh one in is all an amendment owes it — every dropdown already chosen survives.
+        // The open editor was built from the DTO the item carried at selection time. Pushing the fresh one in updates
+        // the header, and the SID and transition with it when the route changed — every other dropdown already chosen
+        // survives, which is why the editor is amended in place rather than rebuilt.
         if (ReferenceEquals(SelectedItem, vm) && (Editor is { } editor))
         {
-            editor.FlightPlan = vm.FlightPlan;
+            editor.ApplyAmendedFlightPlan(vm.FlightPlan);
         }
     }
 

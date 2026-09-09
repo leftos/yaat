@@ -38,8 +38,8 @@ public partial class TdlsFlightPlanEditorViewModel : ObservableObject
     /// <summary>
     /// Read-only filed flight-plan snapshot rendered above the dropdowns. Null when the aircraft has no filed plan yet
     /// (pre-filing window). Observable because an amendment can land while the controller is composing: the owner
-    /// pushes the fresh DTO in and the header re-renders, leaving the dropdowns as they were. The SID and transition
-    /// seed is deliberately not re-derived from the new route — that runs once, in the constructor.
+    /// pushes the fresh DTO in through <see cref="ApplyAmendedFlightPlan"/> and the header re-renders. That is the
+    /// only way in from outside — an amendment whose route changed also owes the dropdowns the route derives.
     /// </summary>
     [ObservableProperty]
     private TdlsFlightPlanInfoDto? _flightPlan;
@@ -254,6 +254,46 @@ public partial class TdlsFlightPlanEditorViewModel : ObservableObject
         }
 
         RecomputeCanSend();
+    }
+
+    /// <summary>
+    /// Pushes an amended flight plan into an open editor. The header always follows the amendment, and so do the SID
+    /// and transition whenever the route itself changed — re-derived the way construction derives them, so a composed
+    /// clearance can never name the SID of a route the aircraft no longer has. Assigning the selections runs the
+    /// ordinary change hooks, which back-fill the new transition's defaults into the fields still blank.
+    ///
+    /// <para>Fields the route does not derive keep whatever the controller composed. An amended route naming no
+    /// configured SID leaves every selection alone — there is nothing to re-derive from — and so does a read-only
+    /// editor, where the sent PDC under review must keep showing exactly what was issued.</para>
+    /// </summary>
+    public void ApplyAmendedFlightPlan(TdlsFlightPlanInfoDto? plan)
+    {
+        var previousRoute = FlightPlan?.Route;
+        FlightPlan = plan;
+
+        if (IsReadOnly || string.Equals(previousRoute, plan?.Route, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        var (filedSidId, filedTransitionId) = MatchSidFromFiledRoute(_config, plan?.Route, _opConfigId);
+        if (ResolveSid(filedSidId) is not { } sid)
+        {
+            Log.LogDebug(
+                "Amended route '{Route}' for {Callsign} names no configured SID — leaving the selections as composed",
+                plan?.Route,
+                Callsign
+            );
+            return;
+        }
+
+        // Assigning the SID rebuilds Transitions and selects the first of them; the resolved transition then replaces
+        // that pick whenever the route (or the facility default) names one this SID actually offers.
+        SelectedSid = sid;
+        if (ResolveTransition(sid, filedTransitionId ?? _config.ResolveDefaultTransitionId(_opConfigId)) is { } transition)
+        {
+            SelectedTransition = transition;
+        }
     }
 
     partial void OnSelectedSidChanged(TdlsSidDto? value)
