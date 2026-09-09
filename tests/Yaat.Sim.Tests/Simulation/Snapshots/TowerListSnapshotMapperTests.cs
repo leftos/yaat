@@ -15,7 +15,8 @@ namespace Yaat.Sim.Tests.Simulation.Snapshots;
 /// </summary>
 public class TowerListSnapshotMapperTests
 {
-    private const string OakList = "P8";
+    /// <summary>NCT's <c>P8</c> — the OAK list with the tightest range (50 nm). The facility is part of the key.</summary>
+    private static readonly TowerListKey OakList = new("NCT", "P8");
 
     private readonly ArtccConfigRoot? _zoa = TestArtccConfig.LoadZoa();
 
@@ -65,8 +66,8 @@ public class TowerListSnapshotMapperTests
         return tracker;
     }
 
-    private static List<(string ListId, string Callsign, double EnteredAtSeconds)> Flatten(TowerListTracker tracker) =>
-        [.. tracker.GetListIds().SelectMany(id => tracker.GetEntries(id).Select(e => (ListId: id, e.Callsign, e.EnteredAtSeconds)))];
+    private static List<(TowerListKey Key, string Callsign, double EnteredAtSeconds)> Flatten(TowerListTracker tracker) =>
+        [.. tracker.GetLists().SelectMany(key => tracker.GetEntries(key).Select(e => (Key: key, e.Callsign, e.EnteredAtSeconds)))];
 
     [Fact]
     public void ACapturedSnapshot_RestoresEveryCallsignWithItsDwellSecond()
@@ -77,9 +78,9 @@ public class TowerListSnapshotMapperTests
         }
 
         var live = Flatten(seeded);
-        Assert.Contains(live, e => (e.ListId == OakList) && (e.Callsign == "AAL100") && (e.EnteredAtSeconds == 10));
-        Assert.Contains(live, e => (e.ListId == OakList) && (e.Callsign == "SWA300") && (e.EnteredAtSeconds == 20));
-        Assert.Contains(live, e => (e.ListId == OakList) && (e.Callsign == "UAL200") && (e.EnteredAtSeconds == 35));
+        Assert.Contains(live, e => (e.Key == OakList) && (e.Callsign == "AAL100") && (e.EnteredAtSeconds == 10));
+        Assert.Contains(live, e => (e.Key == OakList) && (e.Callsign == "SWA300") && (e.EnteredAtSeconds == 20));
+        Assert.Contains(live, e => (e.Key == OakList) && (e.Callsign == "UAL200") && (e.EnteredAtSeconds == 35));
 
         var dto = TowerListSnapshotMapper.Capture(seeded);
         var serialized = JsonSerializer.Deserialize<TowerListSnapshotDto>(JsonSerializer.Serialize(dto))!;
@@ -109,7 +110,8 @@ public class TowerListSnapshotMapperTests
                 [
                     new TowerListEntriesDto
                     {
-                        ListId = OakList,
+                        FacilityId = OakList.FacilityId,
+                        ListId = OakList.ListId,
                         Entries =
                         [
                             new TowerListEntryDto { Callsign = "UAL200", EnteredAtSeconds = 35 },
@@ -150,12 +152,12 @@ public class TowerListSnapshotMapperTests
             return;
         }
 
-        var lists = tracker.GetListIds();
+        var lists = tracker.GetLists();
         Assert.NotEmpty(lists);
 
         tracker.ClearSession();
 
-        Assert.Equal(lists, tracker.GetListIds());
+        Assert.Equal(lists, tracker.GetLists());
         Assert.Empty(Flatten(tracker));
 
         Assert.True(tracker.Update([OverOak], 100));

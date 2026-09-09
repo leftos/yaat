@@ -88,7 +88,7 @@ The Task Index above tells you *which files*; these docs explain *how each subsy
   - **Attendance**: `Helpers/AttendanceTestSupport.cs` (test helpers for CRC attendance state), `Simulation/Actions/AttendanceRecordTests.cs` (a RecordedAttendanceChange replaces the engine's set, resolves ids through the room's config, keeps an unresolvable id by id only, round-trips the snapshot and the serializer; a fresh replay starts empty)
   - **Strip id baking**: `Simulation/Actions/StripIdBakedDrawTests.cs` (the strip id a creating verb — SEP/HSC/SCAN — draws is a baked draw like the reaction delay and the generated aircraft: `RecordedCommand.StripId` round-trips the archive serializer, `BakedDraws.Of` carries it, and the strip arm bakes the id the verb minted onto the record)
   - **Strip steps**: `Simulation/Strips/StripStepTests.cs` (the flight-strip bodies on the bare engine: the spawn hook's auto-print, the approach student's takeoff-roll print, the creating verbs behind `SEP`/`HSC`, the deferred strip dispatch the engine applies itself, and the change tracker the router and the post-physics drain step hand to the host — over real ZOA data with no server in the process)
-  - **Tower lists**: `Simulation/TowerLists/TowerListStepTests.cs` (the P-list step on the bare engine over real ZOA data: an in-range aircraft enters with the tick's second, the coordination flag is raised by the spine step, a static second re-stamps nothing, a snapshot restore keeps the live dwell second), `Simulation/Snapshots/TowerListSnapshotMapperTests.cs` (round-trip incl. entry order, null → empty, ClearSession keeps the airports), `TowerListTrackerTests.cs` (the tracker's range geometry — moved from the server suite)
+  - **Tower lists**: `Simulation/TowerLists/TowerListStepTests.cs` (the P-list step on the bare engine over real ZOA data: an in-range aircraft enters with the tick's second, the coordination flag is raised by the spine step, a static second re-stamps nothing and reports no change, a snapshot restore keeps the live dwell second), `Simulation/Snapshots/TowerListSnapshotMapperTests.cs` (round-trip incl. entry order, null → empty, ClearSession keeps the airports), `TowerListTrackerTests.cs` (the tracker's range geometry — moved from the server suite)
   - **Bookmarks**: `Simulation/Bookmarks/BookmarkStepTests.cs` (the bookmark bodies on the bare engine: `BM ADD`/`RENAME`/`DELETE`/`DEL ALL`, one `OnBookmarksChanged` per successful mutation and none for a refused one, a recorded `BM ADD` inert)
   - **Session clock**: `Simulation/TransportStepTests.cs` (`PAUSE`/`UNPAUSE`/`SIMRATE` on the bare engine: the clamp to 1..16, the live-traffic refusal, `(false, "No active scenario")`, one `OnSimStateChanged` per accepted verb, a recorded `PAUSE` inert)
   - **ASDE-X / SAID mutations**: `Simulation/Asdex/AsdexMutationStepTests.cs` (a recorded tag / edit / suspend / inhibit / terminate on the bare engine and the SAID twins, the terminate consumer once, an edit carrying an empty field stored as written, `ASDXALERTS` clearing two inhibits, a `ReplayDriver` replay holding the tag)
@@ -666,9 +666,9 @@ EramPointoutState.cs           # Per-aircraft ERAM pointout record (mirrors vats
 CoordinationChannel.cs         # Channel config: ListId, Title, SendingTcps, Receivers, Items
 CoordinationItem.cs            # Single coordination entry: status lifecycle, expiry, origin TCP
 StarsCoordinationStatus.cs     # Enum: Unsent→Unacknowledged→Acknowledged→Recalled→Expiry→Void
-TowerListTracker.cs            # The STARS tower P-lists: airports (listId, airport, range) from the ARTCC's TowerListConfigurations, and per-list dwell
+TowerListTracker.cs            # The STARS tower P-lists: airports keyed by TowerListKey(facility, listId) from the ARTCC's TowerListConfigurations (ZOA's FAT and NCT both define P1), and per-list dwell
                                # entries (callsign, EnteredAtSeconds) Update() maintains from the world snapshot each tick; ClearSession / RestoreEntries are the
-                               # snapshot seam (TowerListSnapshotMapper). Known defect: entries are keyed by list id alone, and ZOA's FAT and NCT both define P1
+                               # snapshot seam (TowerListSnapshotMapper); a duplicate key is rejected at collect time, same-second entries read back in callsign order
 
 # Commands/
 Commands/CanonicalCommandType.cs    # Enum of every command type
@@ -1486,8 +1486,8 @@ FlightStripSnapshotMapper.cs   # FlightStripState ⇄ FlightStripSnapshotDto. Re
                                # at its second, so anything the target engine held is cleared first
 TdlsSnapshotDto.cs             # The vTDLS items, the dumped lockout, the active ops configs, the pending auto-WILCOs and the id counter. The
                                # per-facility TdlsConfig map is deliberately out — a load re-derives it from the ARTCC before the restore runs
-TowerListSnapshotMapper.cs     # TowerListTracker ⇄ TowerListSnapshotDto (lists with entries only; Restore clears the session and re-adds; null → empty; the
-                               # list airports are the ARTCC's, never snapshotted)
+TowerListSnapshotMapper.cs     # TowerListTracker ⇄ TowerListSnapshotDto (lists with entries only, each with its FacilityId; Restore clears the session and re-adds; null → empty;
+                               # a list without a facility id or for a (facility, list) the room does not configure is dropped with one aggregated warning; the list airports are the ARTCC's, never snapshotted)
 TdlsSnapshotMapper.cs          # TdlsState ⇄ TdlsSnapshotDto. Restore replaces the session state and leaves TdlsState.Configs alone — the scenario
                                # load that runs before a restore has just re-derived it from the ARTCC, and the snapshot never carried it
 TaxiRouteDto.cs                # Taxi route segments + hold-short points (re-resolved from ground layout on restore)

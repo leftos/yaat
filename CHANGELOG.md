@@ -4,6 +4,7 @@
 
 ### Fixed
 - A command typed at a live-traffic aircraft that its seeded state refuses (a taxi to an airborne one, say) no longer leaves the aircraft assumed: the assume is undone and the refusal reads as it would for any aircraft.
+- Two STARS facilities that share a tower P-list id (ZOA's FAT and NCT both define `P1`) keep separate lists: the coordination lists no longer re-broadcast every second on every ZOA room, dwell order is stable, and snapshots no longer differ each second.
 - Rewinding to an exact snapshot ("test my fix" mode) re-pushes the flight strips, PDCs, coordination lists and CRR groups as the rewound engine holds them, instead of leaving the abandoned run's view on every client.
 - A server running without VATSIM login (`RequireVatsimAuth` off) lists every vNAS ARTCC in the Create Room picker, so a dev session can open a room for any ARTCC.
 - Rewinding or opening a bug bundle onto an aircraft mid-landing restores the landing it was flying — a piston no longer flares and rolls out on jet speeds, and the plan survives a snapshot taken before the aircraft's first tick.

@@ -1,7 +1,21 @@
+using Microsoft.Extensions.Logging;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Vnas;
 
 namespace Yaat.Sim;
+
+/// <summary>
+/// A tower list's identity: the STARS list id (<see cref="StarsListConfig.Id"/>) under the facility that declares it.
+/// A list id is unique only within its facility — ZOA's FAT and NCT both declare a <c>P1</c> — so the facility is
+/// part of the key. Keyed by the list id alone, two facilities' proximity passes evict each other's entries every
+/// tick, which re-stamps the P-list's <c>DropZoneEntryTime</c> order and re-broadcasts the coordination topic every
+/// second.
+/// <para>
+/// Both halves come verbatim from the ARTCC configuration and are compared as such — the record's equality is
+/// ordinal and case-sensitive, unlike the callsign comparisons in <see cref="TowerListTracker"/>.
+/// </para>
+/// </summary>
+public readonly record struct TowerListKey(string FacilityId, string ListId);
 
 /// <summary>
 /// Tracks aircraft proximity to tower list airports. Each STARS area defines
@@ -17,15 +31,17 @@ namespace Yaat.Sim;
 /// </summary>
 public sealed class TowerListTracker
 {
-    private readonly record struct TowerListAirport(string ListId, string AirportId, double Lat, double Lon, double RangeNm);
+    private static readonly ILogger Log = SimLog.CreateLogger("TowerListTracker");
+
+    private readonly record struct TowerListAirport(TowerListKey Key, string AirportId, double Lat, double Lon, double RangeNm);
 
     private readonly record struct TowerListEntry(string Callsign, double EnteredAtSeconds);
 
-    // All tower list airports resolved from ARTCC config, keyed by listId
+    // All tower list airports resolved from ARTCC config, keyed by (facility, listId)
     private readonly List<TowerListAirport> _airports = [];
 
-    // Key: listId, Value: entries sorted by entry time (ascending)
-    private readonly Dictionary<string, List<TowerListEntry>> _entries = [];
+    // Key: (facility, listId), Value: entries sorted by entry time (ascending)
+    private readonly Dictionary<TowerListKey, List<TowerListEntry>> _entries = [];
 
     /// <summary>
     /// Initialize from ARTCC config. Collects all tower list configurations
@@ -73,10 +89,10 @@ public sealed class TowerListTracker
         // Update proximity for each tower list airport
         foreach (var airport in _airports)
         {
-            if (!_entries.TryGetValue(airport.ListId, out var entries))
+            if (!_entries.TryGetValue(airport.Key, out var entries))
             {
                 entries = [];
-                _entries[airport.ListId] = entries;
+                _entries[airport.Key] = entries;
             }
 
             var inRangeCallsigns = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -90,8 +106,10 @@ public sealed class TowerListTracker
                 }
             }
 
-            // Add newly-in-range aircraft (preserving arrival order)
-            foreach (var callsign in inRangeCallsigns)
+            // Add newly-in-range aircraft. Ordered ordinally rather than in set order: two aircraft that come into
+            // range in the same second carry the same dwell second, so the order they are appended in is the order
+            // they render and snapshot in — and a hash set's is per-process, which a byte-identical replay cannot use.
+            foreach (var callsign in inRangeCallsigns.OrderBy(c => c, StringComparer.Ordinal))
             {
                 var alreadyPresent = false;
                 foreach (var e in entries)
@@ -122,21 +140,32 @@ public sealed class TowerListTracker
     }
 
     /// <summary>
-    /// Returns the current tower list entries for a specific list ID,
+    /// Returns the current tower list entries for one facility's list,
     /// sorted by entry time (oldest first — DropZoneEntryTime ordering).
     /// </summary>
-    public List<(string Callsign, double EnteredAtSeconds)> GetEntries(string listId)
+    public List<(string Callsign, double EnteredAtSeconds)> GetEntries(TowerListKey key)
     {
-        if (!_entries.TryGetValue(listId, out var entries))
+        if (!_entries.TryGetValue(key, out var entries))
         {
             return [];
         }
 
-        return entries.OrderBy(e => e.EnteredAtSeconds).Select(e => (e.Callsign, e.EnteredAtSeconds)).ToList();
+        // Callsign breaks a dwell-second tie, so a list two aircraft entered in the same second reads back in one
+        // fixed order on every run.
+        return entries
+            .OrderBy(e => e.EnteredAtSeconds)
+            .ThenBy(e => e.Callsign, StringComparer.Ordinal)
+            .Select(e => (e.Callsign, e.EnteredAtSeconds))
+            .ToList();
     }
 
-    /// <summary>Returns all configured tower list IDs (matching StarsListConfig.Id values).</summary>
-    public List<string> GetListIds() => _airports.Select(a => a.ListId).Distinct().ToList();
+    /// <summary>
+    /// Returns every configured tower list as its (facility, list id) key. Two facilities that declare the same list
+    /// id are two keys, and the CRC list id both are stamped with is <see cref="TowerListKey.ListId"/>. One key per
+    /// entry: <see cref="CollectTowerListAirports"/> rejects a duplicate at collect time, so there is nothing to
+    /// de-duplicate here.
+    /// </summary>
+    public List<TowerListKey> GetLists() => [.. _airports.Select(a => a.Key)];
 
     /// <summary>
     /// Drops every dwell entry and leaves the configured airports alone. This is what a snapshot restore replaces:
@@ -145,13 +174,25 @@ public sealed class TowerListTracker
     public void ClearSession() => _entries.Clear();
 
     /// <summary>
-    /// Puts one list's dwell entries back as a snapshot recorded them, replacing whatever that list held. The
-    /// restore path's writer (<see cref="Simulation.Snapshots.TowerListSnapshotMapper"/>); the entry second is the
-    /// captured run's, never the restore's.
+    /// Puts one list's dwell entries back as a snapshot recorded them, replacing whatever that list held, and returns
+    /// whether it took. The restore path's writer (<see cref="Simulation.Snapshots.TowerListSnapshotMapper"/>); the
+    /// entry second is the captured run's, never the restore's.
+    /// <para>
+    /// A key this tracker does not hold an airport for is refused rather than written: the restoring room resolved a
+    /// different ARTCC, or could not resolve the list airport's position, so nothing would ever read those entries —
+    /// <see cref="Update"/>, <see cref="GetLists"/> and the capture all work off the configured lists, and the
+    /// entries would sit in the dictionary until the next <see cref="ClearSession"/>.
+    /// </para>
     /// </summary>
-    public void RestoreEntries(string listId, IEnumerable<(string Callsign, double EnteredAtSeconds)> entries)
+    public bool RestoreEntries(TowerListKey key, IEnumerable<(string Callsign, double EnteredAtSeconds)> entries)
     {
-        _entries[listId] = [.. entries.Select(e => new TowerListEntry(e.Callsign, e.EnteredAtSeconds))];
+        if (!_airports.Any(a => a.Key == key))
+        {
+            return false;
+        }
+
+        _entries[key] = [.. entries.Select(e => new TowerListEntry(e.Callsign, e.EnteredAtSeconds))];
+        return true;
     }
 
     // --- Private ---
@@ -194,9 +235,21 @@ public sealed class TowerListTracker
                             continue;
                         }
 
-                        _airports.Add(
-                            new TowerListAirport(listConfig.Id, towerListConfig.AirportId, pos.Value.Lat, pos.Value.Lon, towerListConfig.Range)
-                        );
+                        var key = new TowerListKey(facility.Id, listConfig.Id);
+                        if (_airports.Any(a => a.Key == key))
+                        {
+                            // One facility declaring a list id twice: the second would share the first's dwell
+                            // entries and evict them every tick, which is the bug this key exists to prevent.
+                            Log.LogWarning(
+                                "Facility {FacilityId} declares tower list '{ListId}' more than once; the airport {AirportId} is ignored",
+                                facility.Id,
+                                listConfig.Id,
+                                towerListConfig.AirportId
+                            );
+                            continue;
+                        }
+
+                        _airports.Add(new TowerListAirport(key, towerListConfig.AirportId, pos.Value.Lat, pos.Value.Lon, towerListConfig.Range));
                     }
                 }
             }

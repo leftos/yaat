@@ -196,7 +196,7 @@ public sealed partial class SimulationEngine
 
         TowerListTracker.Initialize(config);
 
-        var listCount = TowerListTracker.GetListIds().Count;
+        var listCount = TowerListTracker.GetLists().Count;
         if (listCount > 0)
         {
             _logger.LogInformation("Initialized {Count} tower list(s) for scenario '{Name}'", listCount, scenario.ScenarioName);

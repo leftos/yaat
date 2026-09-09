@@ -140,7 +140,11 @@ public static class SnapshotSchemaMigrator
         //   No data transformation: it defaults to null and RestoreFromSnapshot reads a null section as "restore
         //   empty", which is what those snapshots carried. A restore of an older recording therefore starts with
         //   empty P-lists and the proximity step refills them on the next second, at that second — the entry order
-        //   those lists sort on is only exact from a V23 snapshot onward.
+        //   those lists sort on is only exact from a V23 snapshot onward. Since the lists were keyed by (facility,
+        //   list id), a section written before that carries no TowerListEntriesDto.FacilityId, and a list id alone
+        //   cannot be attributed to a facility (ZOA's FAT and NCT both declare "P1"): such a list is dropped whole
+        //   on restore, with one aggregated warning naming it. No bump — the field is optional with a clean default
+        //   and there is nothing to transform, since the facility a V23 list belonged to was never recorded.
         // V23→V24: SharedStateDto.IsQueriedUntil (the absolute instant CRC sent for the STARS query flash) replaced by
         //   QueriedUntilElapsedSeconds (session time). The legacy field has no meaningful mapping — it was minted on the
         //   sending client's clock during a session that has since ended — so it is ignored on read and the new field

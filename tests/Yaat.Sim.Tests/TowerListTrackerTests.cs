@@ -88,6 +88,150 @@ public class TowerListTrackerTests
         return (tracker, aptLat, aptLon);
     }
 
+    /// <summary>
+    /// Two facilities under one ARTCC that both name a list <c>P1</c> — the shape ZOA's FAT and NCT have — each with
+    /// its own tower list airport. The tracker has to hold the two apart; keyed by the bare list id they overwrite
+    /// each other.
+    /// </summary>
+    private static (TowerListTracker Tracker, double OakLat, double OakLon, double FatLat, double FatLon) BuildTwoFacilityTracker()
+    {
+        double oakLat = 37.7213,
+            oakLon = -122.2208;
+        double fatLat = 36.7762,
+            fatLon = -119.7181;
+
+        var config = new ArtccConfigRoot
+        {
+            Id = "ZOA",
+            LastUpdatedAt = "",
+            Facility = new FacilityConfig
+            {
+                Id = "ZOA",
+                Type = "Artcc",
+                Name = "Oakland ARTCC",
+                ChildFacilities =
+                [
+                    new FacilityConfig
+                    {
+                        Id = "NCT",
+                        Type = "AtctTracon",
+                        Name = "NorCal TRACON",
+                        StarsConfiguration = new StarsConfig
+                        {
+                            Lists =
+                            [
+                                new StarsListConfig
+                                {
+                                    Id = "P1",
+                                    Title = "OAK P-LIST",
+                                    CoordinationChannel = null,
+                                    SortField = "DropZoneEntryTime",
+                                },
+                            ],
+                            Areas =
+                            [
+                                new StarsAreaConfig
+                                {
+                                    Id = "nct-area-1",
+                                    TowerListConfigurations = [new TowerListConfig { AirportId = "OAK", Range = 30 }],
+                                },
+                            ],
+                        },
+                    },
+                    new FacilityConfig
+                    {
+                        Id = "FAT",
+                        Type = "AtctTracon",
+                        Name = "Fresno TRACON",
+                        StarsConfiguration = new StarsConfig
+                        {
+                            Lists =
+                            [
+                                new StarsListConfig
+                                {
+                                    Id = "P1",
+                                    Title = "FAT P-LIST",
+                                    CoordinationChannel = null,
+                                    SortField = "DropZoneEntryTime",
+                                },
+                            ],
+                            Areas =
+                            [
+                                new StarsAreaConfig
+                                {
+                                    Id = "fat-area-1",
+                                    TowerListConfigurations = [new TowerListConfig { AirportId = "FAT", Range = 30 }],
+                                },
+                            ],
+                        },
+                    },
+                ],
+            },
+        };
+
+        var tracker = new TowerListTracker();
+
+        using (
+            NavigationDatabase.ScopedOverride(
+                NavigationDatabase.ForTesting(
+                    fixes: new Dictionary<string, (double Lat, double Lon)> { ["OAK"] = (oakLat, oakLon), ["FAT"] = (fatLat, fatLon) }
+                )
+            )
+        )
+        {
+            tracker.Initialize(config);
+        }
+
+        return (tracker, oakLat, oakLon, fatLat, fatLon);
+    }
+
+    /// <summary>
+    /// ZOA's FAT and NCT both declare a list called <c>P1</c> over different airports. Each facility's list holds its
+    /// own traffic, and once both are populated a static second is no change at all — keyed by list id alone the two
+    /// airports' proximity passes evict each other and every tick reports a change.
+    /// </summary>
+    [Fact]
+    public void TwoFacilitiesSharingAListId_KeepSeparateEntries_AndSettle()
+    {
+        var (tracker, oakLat, oakLon, fatLat, fatLon) = BuildTwoFacilityTracker();
+
+        var overOak = MakeAircraft("AAL100", oakLat, oakLon);
+        var overFat = MakeAircraft("DAL200", fatLat, fatLon);
+
+        Assert.True(tracker.Update([overOak, overFat], 10.0));
+
+        // Nothing moved: both lists already hold their aircraft, so the next seconds report no change.
+        Assert.False(tracker.Update([overOak, overFat], 11.0));
+        Assert.False(tracker.Update([overOak, overFat], 12.0));
+
+        Assert.Equal([("AAL100", 10.0)], tracker.GetEntries(new TowerListKey("NCT", "P1")));
+        Assert.Equal([("DAL200", 10.0)], tracker.GetEntries(new TowerListKey("FAT", "P1")));
+    }
+
+    /// <summary>
+    /// Two aircraft that come into a list's range in the same second share a dwell second, so nothing but the
+    /// callsign can order them — and the order has to be the same on every run, since it is what the snapshot and
+    /// the P-list carry. The two trackers here see the same second in opposite snapshot orders and read back the
+    /// same list, ordinal by callsign.
+    /// </summary>
+    [Fact]
+    public void TwoAircraftEnteringInTheSameSecond_ReadBackInOneFixedOrder()
+    {
+        var (first, oakLat, oakLon, _, _) = BuildTwoFacilityTracker();
+        var (second, _, _, _, _) = BuildTwoFacilityTracker();
+
+        var a = MakeAircraft("AAL100", oakLat, oakLon);
+        var b = MakeAircraft("UAL200", oakLat + 0.01, oakLon);
+        var c = MakeAircraft("SWA300", oakLat, oakLon + 0.01);
+
+        first.Update([a, b, c], 10.0);
+        second.Update([c, b, a], 10.0);
+
+        var expected = new List<(string, double)> { ("AAL100", 10.0), ("SWA300", 10.0), ("UAL200", 10.0) };
+        Assert.Equal(expected, first.GetEntries(new TowerListKey("NCT", "P1")));
+        Assert.Equal(expected, second.GetEntries(new TowerListKey("NCT", "P1")));
+    }
+
     [Fact]
     public void Update_NoAircraft_ReturnsFalse()
     {
@@ -166,7 +310,7 @@ public class TowerListTrackerTests
         var ac2 = MakeAircraft("UAL200", aptLat + 0.10, aptLon);
         tracker.Update([ac1, ac2], 20.0);
 
-        var entries = tracker.GetEntries("P1");
+        var entries = tracker.GetEntries(new TowerListKey("NCT", "P1"));
         Assert.Equal(2, entries.Count);
         Assert.Equal("AAL100", entries[0].Callsign);
         Assert.Equal(10.0, entries[0].EnteredAtSeconds);
