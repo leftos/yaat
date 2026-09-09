@@ -315,8 +315,8 @@ public partial class TdlsFlightPlanEditorViewModel : ObservableObject
     /// Best-effort match of the filed route's leading SID token (e.g. "OAK6") against the
     /// facility config's SID names. Returns the matched SID id + optionally a transition id
     /// resolved by matching the route's second token against transition <c>FirstRoutePoint</c>
-    /// values. Returns (null, null) when no match is found — the caller falls through to the
-    /// facility's <c>DefaultSidId</c>.
+    /// values and then against transition names. Returns (null, null) when no match is found —
+    /// the caller falls through to the facility's <c>DefaultSidId</c>.
     /// </summary>
     internal static (string? SidId, string? TransitionId) MatchSidFromFiledRoute(TdlsConfigDto config, string? route) =>
         MatchSidFromFiledRoute(config, route, opConfigId: null);
@@ -349,12 +349,34 @@ public partial class TdlsFlightPlanEditorViewModel : ObservableObject
             return (null, null);
         }
 
-        var transition = transitionHint is null
-            ? null
-            : sid.Transitions.FirstOrDefault(t => string.Equals(t.FirstRoutePoint, transitionHint, StringComparison.OrdinalIgnoreCase));
+        var transition = transitionHint is null ? null : MatchTransitionToHint(sid, transitionHint);
 
         return (sid.Id, transition?.Id);
     }
+
+    /// <summary>
+    /// Resolves the filed route's transition token against one SID's transitions. A facility config
+    /// only sometimes carries <c>firstRoutePoint</c>: at KSFO the ZOA config fills it in for TRUKN2's
+    /// ORRCA transition and omits it for SNTNA2's, though both transitions are named ORRCA, and a
+    /// Facility Engineer may point it at the fix *after* the transition fix. So <c>FirstRoutePoint</c>
+    /// is matched across every transition first — keeping the FE's explicit entry-fix mapping
+    /// authoritative when one transition's name collides with another's first route point — and the
+    /// transition names are matched only when that pass finds nothing.
+    /// </summary>
+    private static TdlsSidTransitionDto? MatchTransitionToHint(TdlsSidDto sid, string transitionHint) =>
+        sid.Transitions.FirstOrDefault(t => CandidateMatchesHint(t.FirstRoutePoint, transitionHint))
+        ?? sid.Transitions.FirstOrDefault(t => CandidateMatchesHint(t.Name, transitionHint));
+
+    /// <summary>
+    /// True when a transition's fix candidate — its <c>FirstRoutePoint</c> or its <c>Name</c> — is the
+    /// route's transition token. The FE's "no transition" placeholder name (dashes and spaces, e.g.
+    /// "- - - -") names no fix, so it never satisfies a hint.
+    /// </summary>
+    private static bool CandidateMatchesHint(string? candidate, string transitionHint) =>
+        !IsPlaceholderName(candidate) && string.Equals(candidate, transitionHint, StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>Detects blank values and the FE's "no value" placeholder names, which are made of dashes and spaces only.</summary>
+    private static bool IsPlaceholderName(string? name) => string.IsNullOrWhiteSpace(name) || name.Replace(" ", "").Replace("-", "").Length == 0;
 
     private TdlsSidDto? ResolveSid(string? sidId) =>
         sidId is null ? null : _config.ResolveSids(_opConfigId).FirstOrDefault(s => string.Equals(s.Id, sidId, StringComparison.Ordinal));

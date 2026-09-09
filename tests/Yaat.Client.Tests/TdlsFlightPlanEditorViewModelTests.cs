@@ -399,4 +399,152 @@ public class TdlsFlightPlanEditorViewModelTests
         Assert.Equal("5000", clearance.InitialAlt);
         Assert.Equal("120.9", clearance.DepFreq);
     }
+
+    /// <summary>
+    /// Mirrors the KSFO shape in the committed ZOA config: transitions that share a name across SIDs
+    /// while <c>firstRoutePoint</c> is filled in for some and omitted for others. TRUKN2's ORRCA
+    /// transition carries <c>firstRoutePoint</c>, SNTNA2's identically-named one does not, OFFSH9's
+    /// points at the fix *after* the transition fix, and WESLA3 lists a name hit ahead of a
+    /// first-route-point hit so match precedence is observable. <paramref name="noTransitionName"/>
+    /// is the FE's "no transition" placeholder name on SNTNA2 (the real config writes "- - - -").
+    /// </summary>
+    private static TdlsConfigDto BuildSfoLikeConfig(string noTransitionName) =>
+        new(
+            FacilityId: "SFO",
+            FacilityName: "San Francisco ATCT",
+            MandatorySid: false,
+            MandatoryClimbout: false,
+            MandatoryClimbvia: false,
+            MandatoryInitialAlt: false,
+            MandatoryDepFreq: false,
+            MandatoryExpect: false,
+            MandatoryContactInfo: false,
+            MandatoryLocalInfo: false,
+            Sids:
+            [
+                new TdlsSidDto("TRUKN2", "TRUKN2", [Transition("TRUKN2-PORTE", "PORTE", "PORTE"), Transition("TRUKN2-ORRCA", "ORRCA", "ORRCA")]),
+                new TdlsSidDto(
+                    "SNTNA2",
+                    "SNTNA2",
+                    [
+                        Transition("SNTNA2-PORTE", "PORTE", firstRoutePoint: null),
+                        Transition("SNTNA2-ORRCA", "ORRCA", firstRoutePoint: null),
+                        Transition("SNTNA2-NONE", noTransitionName, firstRoutePoint: null),
+                    ]
+                ),
+                new TdlsSidDto("OFFSH9", "OFFSH9", [Transition("OFFSH9-PORTE", "PORTE", "PORTE"), Transition("OFFSH9-ORRCA", "ORRCA", "STOKD")]),
+                new TdlsSidDto("WESLA3", "WESLA3", [Transition("WESLA3-NAMEHIT", "ORRCA", "STOKD"), Transition("WESLA3-POINTHIT", "BRIXX", "ORRCA")]),
+            ],
+            Climbouts: [],
+            Climbvias: [],
+            InitialAlts: [],
+            DepFreqs: [],
+            Expects: [],
+            ContactInfos: [],
+            LocalInfos: [],
+            DefaultSidId: "TRUKN2",
+            DefaultTransitionId: "TRUKN2-PORTE"
+        );
+
+    private static TdlsSidTransitionDto Transition(string id, string name, string? firstRoutePoint) =>
+        new(
+            id,
+            name,
+            firstRoutePoint,
+            DefaultExpect: null,
+            DefaultClimbout: null,
+            DefaultClimbvia: null,
+            DefaultInitialAlt: null,
+            DefaultDepFreq: null,
+            DefaultContactInfo: null,
+            DefaultLocalInfo: null
+        );
+
+    [Fact]
+    public void FiledRoute_MatchesTransitionByName_WhenFirstRoutePointIsMissing()
+    {
+        // The reported bug: "TRUKN2 ORRCA" auto-filled the transition and "SNTNA2 ORRCA" did not,
+        // because the ZOA config sets firstRoutePoint on TRUKN2's ORRCA transition and omits it on
+        // SNTNA2's even though both transitions are named ORRCA.
+        var cfg = BuildSfoLikeConfig("- - - -");
+
+        var (sidId, transitionId) = TdlsFlightPlanEditorViewModel.MatchSidFromFiledRoute(cfg, "SNTNA2 ORRCA STOKD KEEDS");
+
+        Assert.Equal("SNTNA2", sidId);
+        Assert.Equal("SNTNA2-ORRCA", transitionId);
+    }
+
+    [Fact]
+    public void FiledRoute_MatchesTransitionByName_WhenFirstRoutePointNamesADifferentFix()
+    {
+        // OFFSH9's ORRCA transition has firstRoutePoint = "STOKD" (the FE pointed it at the fix
+        // after the transition fix). The route names the transition, so the name pass must catch it
+        // rather than leaving the dropdown on the SID's first transition.
+        var cfg = BuildSfoLikeConfig("- - - -");
+
+        var (sidId, transitionId) = TdlsFlightPlanEditorViewModel.MatchSidFromFiledRoute(cfg, "OFFSH9 ORRCA KEEDS");
+
+        Assert.Equal("OFFSH9", sidId);
+        Assert.Equal("OFFSH9-ORRCA", transitionId);
+    }
+
+    [Fact]
+    public void FiledRoute_FirstRoutePointMatchWinsOverNameMatch()
+    {
+        // WESLA3 lists a transition *named* ORRCA before one whose firstRoutePoint is ORRCA. The
+        // FE's explicit entry-fix mapping stays authoritative: firstRoutePoint is matched across
+        // every transition before any name comparison runs.
+        var cfg = BuildSfoLikeConfig("- - - -");
+
+        var (sidId, transitionId) = TdlsFlightPlanEditorViewModel.MatchSidFromFiledRoute(cfg, "WESLA3 ORRCA MOVDD");
+
+        Assert.Equal("WESLA3", sidId);
+        Assert.Equal("WESLA3-POINTHIT", transitionId);
+    }
+
+    [Theory]
+    [InlineData("- - - -")]
+    [InlineData("----")]
+    [InlineData("-")]
+    public void FiledRoute_NeverMatchesTheNoTransitionPlaceholderByName(string noTransitionName)
+    {
+        // The "no transition" entry's name is dashes, not a fix. A route token made of dashes must
+        // never select it — the SID still matches, the transition stays unresolved.
+        var cfg = BuildSfoLikeConfig(noTransitionName);
+
+        var (sidId, transitionId) = TdlsFlightPlanEditorViewModel.MatchSidFromFiledRoute(cfg, $"SNTNA2 {noTransitionName} OSI");
+
+        Assert.Equal("SNTNA2", sidId);
+        Assert.Null(transitionId);
+    }
+
+    [Fact]
+    public void Constructor_FiledRouteWithoutFirstRoutePoint_SelectsNamedTransition()
+    {
+        // End of the same path through the editor the vTDLS view binds: the filed SNTNA2 ORRCA
+        // route snaps both dropdowns without an explicit seed.
+        var fp = new TdlsFlightPlanInfoDto(
+            AssignedBeaconCode: 501,
+            Departure: "KSFO",
+            Destination: "KSEA",
+            Route: "SNTNA2 ORRCA STOKD KEEDS",
+            AircraftType: "B738",
+            EquipmentSuffix: "L",
+            Remarks: "",
+            Cid: "1234567",
+            CruiseAltitude: 35000
+        );
+
+        var editor = new TdlsFlightPlanEditorViewModel(
+            "ASA1234",
+            BuildSfoLikeConfig("- - - -"),
+            seed: null,
+            flightPlan: fp,
+            isReadOnly: false,
+            opConfigId: null
+        );
+
+        Assert.Equal("SNTNA2", editor.SelectedSid?.Id);
+        Assert.Equal("SNTNA2-ORRCA", editor.SelectedTransition?.Id);
+    }
 }
