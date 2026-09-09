@@ -6,6 +6,11 @@ Entry point for `docs/plans/`. One line per item; the detail lives in the linked
 
 ## Bug reports and feature requests
 
+- [ ] **vTDLS bugs** (user report 2026-09-08; repro: the ZOA `S1-SFO-1` training scenario from vNAS):
+  - [ ] A flight-plan amendment from the flight-plan editor is reflected in vStrips but not in vTDLS, which keeps listing the original flight plan
+  - [ ] vTDLS shows the aircraft type with the equipment suffix twice (`B77W/L/L`)
+  - [ ] vTDLS text is not selectable
+  - [ ] Some SFO SIDs auto-resolve the first fix (`TRUKN2 ORRCA`) and some do not (`SNTNA2 ORRCA`) with no visible reason
 - [ ] Live-session assume UX (ZOA Discord 2026-08-31): bulk-assume modes, snapshot-then-assume-all, snapshot-as-scenario authoring — yaat-server [live-traffic-swim/09-live-sessions.md](../../../yaat-server/docs/plans/live-traffic-swim/09-live-sessions.md) §3. Auto-assume on first command + `UNASSUME` shipped 2026-09-08 (user pick); the right-click menus still offer only Assume control for a shadow and nothing for `UNASSUME` (the client cannot tell an assumed aircraft from a scenario one — the marker is not on the wire), and a command the seeded state then refuses leaves the aircraft assumed with no rollback — both noted in §3
 
 ## Current programme
