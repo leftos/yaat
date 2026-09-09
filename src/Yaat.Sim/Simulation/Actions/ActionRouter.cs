@@ -59,9 +59,9 @@ public sealed class ActionRouter
     /// <summary>
     /// Applies one recorded action: a command through <see cref="Apply(RecordedCommand, IActionHost)"/>, a derived
     /// record (spawn, live-traffic sample or removal, flight-plan amendment, beacon recycle, weather, setting,
-    /// generators, STARS shared state, clearance, hold annotation, ERAM entry, CRC attendance, a <c>.AUTOTRACK</c>
-    /// roster change) through its Sim applier
-    /// with the host told what changed, and a record of host-owned state (an ASDE-X or SAID mutation, a CRR group, a
+    /// generators, STARS shared state, clearance, hold annotation, ERAM entry, ERAM CRR group, CRC attendance, a
+    /// <c>.AUTOTRACK</c> roster change) through its Sim applier
+    /// with the host told what changed, and a record of host-owned state (an ASDE-X or SAID mutation, a
     /// strip request, an ASDE-X safety-logic push) through the host's slot. A chat line and a diagnostic record apply
     /// nothing. A derived record the live room applied whose apply refuses here — its aircraft is gone, an ERAM entry's
     /// guard answers differently — logs a <c>replay-fidelity</c> warning like a command whose verdict changed.
@@ -177,7 +177,7 @@ public sealed class ActionRouter
             case RecordedEramEntry entry:
                 return ApplyEramEntry(entry);
             case RecordedEramCrrGroup group:
-                host.ApplyRecordedEramCrrGroup(group);
+                _engine.ApplyCrrGroup(group);
                 return Applied;
             case RecordedStripRequest request:
                 return StripRequests.PrintRequestedStrip(_engine, request);

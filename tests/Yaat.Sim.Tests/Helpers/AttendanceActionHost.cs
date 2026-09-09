@@ -38,10 +38,6 @@ public sealed class AttendanceActionHost : IActionHost
 
     public void ApplyRecordedSaidMutation(RecordedSaidMutation mutation) => SaidMutations.Add(mutation);
 
-    public List<RecordedEramCrrGroup> CrrGroups { get; } = [];
-
-    public void ApplyRecordedEramCrrGroup(RecordedEramCrrGroup group) => CrrGroups.Add(group);
-
     public List<RecordedAsdexSafetyLogicChange> AsdexSafetyLogicChanges { get; } = [];
 
     public void ApplyRecordedAsdexSafetyLogic(RecordedAsdexSafetyLogicChange change) => AsdexSafetyLogicChanges.Add(change);
@@ -87,6 +83,11 @@ public sealed class AttendanceActionHost : IActionHost
     public int SimStateChanges { get; private set; }
 
     public void OnSimStateChanged() => SimStateChanges++;
+
+    /// <summary>How many times a drain reported the ERAM CRR groups changed.</summary>
+    public int EramCrrGroupChanges { get; private set; }
+
+    public void OnEramCrrGroupsChanged() => EramCrrGroupChanges++;
 
     public void OnTimersChanged() { }
 

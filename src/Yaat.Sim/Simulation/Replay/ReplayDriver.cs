@@ -107,12 +107,14 @@ internal sealed class ReplayDriver(SimulationEngine engine)
             _engine.Strips.ClearSession();
             _engine.Tdls.ClearSession();
             _engine.TowerListTracker.ClearSession();
+            _engine.CrrGroups.Clear();
 
             // The coordination channels need no clear: Range runs InitializeFromArtcc first, which replaces every
             // channel whole — items, NextSequence and receivers — from the ARTCC, and a recording that carries no
             // ARTCC has no channels for a verb to have minted into. The tower lists above need the clear even though
             // that same init rebuilds their airports, because the dwell entries are session state the proximity step
-            // owns rather than anything the ARTCC decides.
+            // owns rather than anything the ARTCC decides. The CRR groups are the same shape: nothing but a recorded
+            // LF makes one, so a run replayed from zero has to start with none.
 
             // The scenario load put its immediate aircraft in the world without the spawn hooks, and the clear above
             // has just emptied what an earlier pass queued. Running them here — in the world's insertion order, at

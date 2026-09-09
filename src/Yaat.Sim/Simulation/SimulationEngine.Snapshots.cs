@@ -14,6 +14,7 @@ using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Pilot;
 using Yaat.Sim.Scenarios;
+using Yaat.Sim.Simulation.Eram;
 using Yaat.Sim.Simulation.Replay;
 using Yaat.Sim.Simulation.Snapshots;
 using Yaat.Sim.Training;
@@ -332,6 +333,14 @@ public sealed partial class SimulationEngine
         // from being re-stamped at the restore second.
         TowerListSnapshotMapper.Restore(TowerListTracker, snapshot.Server?.TowerLists);
 
+        // The CRR groups are wholly the snapshot's — nothing in the ARTCC or the load builds one — so a missing
+        // section restores none, which is what the engine held before they were snapshotted.
+        CrrGroups.Clear();
+        foreach (var group in snapshot.Server?.CrrGroups ?? [])
+        {
+            CrrGroups[group.Label] = new EramCrrGroup(group.Label, group.Color, group.Latitude, group.Longitude);
+        }
+
         if (snapshot.Server is not null)
         {
             RestoreServerSnapshot(snapshot.Server);
@@ -385,6 +394,22 @@ public sealed partial class SimulationEngine
             })
             .ToList();
 
+        // Ordered by label, never by the dictionary's own order, so two passes of the same run capture the same bytes;
+        // null when there are none, so a session that never made a group snapshots exactly as it did before.
+        var crrGroups =
+            CrrGroups.Count == 0
+                ? null
+                : CrrGroups
+                    .Values.OrderBy(g => g.Label, StringComparer.Ordinal)
+                    .Select(g => new EramCrrGroupSnapshotDto
+                    {
+                        Label = g.Label,
+                        Color = g.Color,
+                        Latitude = g.Latitude,
+                        Longitude = g.Longitude,
+                    })
+                    .ToList();
+
         return new ServerSnapshotDto
         {
             ConsolidationOverrides = consolidation,
@@ -401,6 +426,7 @@ public sealed partial class SimulationEngine
             Strips = FlightStripSnapshotMapper.Capture(Strips),
             Tdls = TdlsSnapshotMapper.Capture(Tdls),
             TowerLists = TowerListSnapshotMapper.Capture(TowerListTracker),
+            CrrGroups = crrGroups,
         };
     }
 

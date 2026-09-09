@@ -99,8 +99,6 @@ internal sealed class ReplayHost : ISimulationHost
 
     public void ApplyRecordedSaidMutation(RecordedSaidMutation mutation) => _bare.ApplyRecordedSaidMutation(mutation);
 
-    public void ApplyRecordedEramCrrGroup(RecordedEramCrrGroup group) => _bare.ApplyRecordedEramCrrGroup(group);
-
     public void ApplyRecordedAsdexSafetyLogic(RecordedAsdexSafetyLogicChange change) => _bare.ApplyRecordedAsdexSafetyLogic(change);
 
     public void OnAircraftSpawned(AircraftState aircraft) => _bare.OnAircraftSpawned(aircraft);
@@ -124,6 +122,8 @@ internal sealed class ReplayHost : ISimulationHost
     public void OnBookmarksChanged() => _bare.OnBookmarksChanged();
 
     public void OnSimStateChanged() => _bare.OnSimStateChanged();
+
+    public void OnEramCrrGroupsChanged() => _bare.OnEramCrrGroupsChanged();
 
     public void OnTimersChanged() => _bare.OnTimersChanged();
 

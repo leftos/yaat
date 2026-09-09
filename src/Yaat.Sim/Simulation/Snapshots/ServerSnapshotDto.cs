@@ -1,9 +1,11 @@
+using Yaat.Sim.Simulation.Eram;
+
 namespace Yaat.Sim.Simulation.Snapshots;
 
 /// <summary>
 /// Engine-level state outside the aircraft list and the scenario: consolidation overrides, conflict alerts, the
 /// beacon code pool, the per-connection position selections, the attended CRC positions, the flight strips
-/// and vTDLS session, and the tower lists' dwell entries.
+/// and vTDLS session, the tower lists' dwell entries and the ERAM CRR groups.
 /// </summary>
 public sealed class ServerSnapshotDto
 {
@@ -26,6 +28,21 @@ public sealed class ServerSnapshotDto
 
     /// <summary>Each STARS P-list's aircraft with the second they came into range at. Absent in pre-feature snapshots (restores empty).</summary>
     public TowerListSnapshotDto? TowerLists { get; init; }
+
+    /// <summary>
+    /// The ERAM Continuous Range Readout groups, in label order so two passes of the same run capture the same bytes.
+    /// Absent when the session holds none, which is also what a pre-feature snapshot looks like (restores empty).
+    /// </summary>
+    public List<EramCrrGroupSnapshotDto>? CrrGroups { get; init; }
+}
+
+/// <summary>One CRR group: its label, colour and location. Membership is the aircraft's, so none of it is here.</summary>
+public sealed class EramCrrGroupSnapshotDto
+{
+    public required string Label { get; init; }
+    public required EramCrrColor Color { get; init; }
+    public required double Latitude { get; init; }
+    public required double Longitude { get; init; }
 }
 
 public sealed class ConsolidationOverrideDto

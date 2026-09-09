@@ -109,8 +109,6 @@ internal sealed class BareHost(SimulationEngine engine) : ISimulationHost
 
     public void ApplyRecordedSaidMutation(RecordedSaidMutation mutation) { }
 
-    public void ApplyRecordedEramCrrGroup(RecordedEramCrrGroup group) { }
-
     public void ApplyRecordedAsdexSafetyLogic(RecordedAsdexSafetyLogicChange change) { }
 
     public void OnAircraftSpawned(AircraftState aircraft) { }
@@ -139,6 +137,9 @@ internal sealed class BareHost(SimulationEngine engine) : ISimulationHost
 
     /// <summary>Discarded: a bare engine has no room to re-send the sim state to. The clock is engine state.</summary>
     public void OnSimStateChanged() { }
+
+    /// <summary>Discarded: a bare engine has no CRC client to re-push the CRR topic to. The groups are engine state.</summary>
+    public void OnEramCrrGroupsChanged() { }
 
     public void OnTimersChanged() { }
 

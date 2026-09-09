@@ -5,7 +5,7 @@ namespace Yaat.Sim.Simulation.Spine;
 
 /// <summary>
 /// Where the drained state changes go — the strip and TDLS change sets, the coordination dirty flag the
-/// channels and the tower lists share, the bookmark one and the session clock's. Declared on
+/// channels and the tower lists share, the bookmark one, the session clock's and the ERAM CRR groups'. Declared on
 /// its own because both halves of a host reach it: the action router holds the action view (<c>IActionHost</c>) and
 /// the post-physics drain step the consumer view (<see cref="IHostConsumers"/>), and one implementation on a host
 /// answers both.
@@ -48,4 +48,13 @@ public interface IStateChangeConsumer
     /// these bodies and answers for the broadcast itself.
     /// </summary>
     void OnSimStateChanged();
+
+    /// <summary>
+    /// The ERAM Continuous Range Readout groups changed — one was created, replaced, recolored or deleted.
+    /// Payload-less: the host re-pushes the whole <c>EramCrrGroups</c> topic, which is what the wire carries anyway.
+    /// Same suppression rule as <see cref="OnStripsChanged"/>. A deletion is the exception the topic's additive shape
+    /// forces: re-pushing the remaining groups cannot unsay one, so the CRC handler that deletes it still sends the
+    /// explicit <c>DeleteEramCrrGroups</c> itself.
+    /// </summary>
+    void OnEramCrrGroupsChanged();
 }

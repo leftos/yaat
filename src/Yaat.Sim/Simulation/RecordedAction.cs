@@ -209,8 +209,9 @@ public sealed record RecordedEramEntry(double ElapsedSeconds, string Callsign, s
 
 /// <summary>
 /// A Continuous Range Readout group created, replaced or recolored (<c>LF</c> with a location, <c>SetEramCrrGroupColor</c>),
-/// or with a null <see cref="Lat"/> deleted (<c>ClearOrDeleteEramCrrGroup</c>). The group is room state — a host slot
-/// applies it — while membership rides each aircraft's <c>LF</c> entries.
+/// or with a null <see cref="Lat"/> deleted (<c>ClearOrDeleteEramCrrGroup</c>). The group is engine state —
+/// <c>SimulationEngine.ApplyCrrGroup</c> applies it on every run kind — while membership rides each aircraft's
+/// <c>LF</c> entries.
 /// </summary>
 public sealed record RecordedEramCrrGroup(double ElapsedSeconds, string Label, string? Color, double? Lat, double? Lon)
     : RecordedAction(ElapsedSeconds);

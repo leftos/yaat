@@ -60,6 +60,15 @@ public sealed class SpineCapturingHost : ISimulationHost
         _bare.OnSimStateChanged();
     }
 
+    /// <summary>How many times a drain — the router's or the spine's — reported the ERAM CRR groups changed.</summary>
+    public int EramCrrGroupChangeCount { get; private set; }
+
+    public void OnEramCrrGroupsChanged()
+    {
+        EramCrrGroupChangeCount++;
+        _bare.OnEramCrrGroupsChanged();
+    }
+
     public void OnTdlsChanged(TdlsChangeSet changes)
     {
         TdlsChanges.Add(changes);
@@ -127,8 +136,6 @@ public sealed class SpineCapturingHost : ISimulationHost
     public void ApplyRecordedAsdexMutation(RecordedAsdexMutation mutation) => _bare.ApplyRecordedAsdexMutation(mutation);
 
     public void ApplyRecordedSaidMutation(RecordedSaidMutation mutation) => _bare.ApplyRecordedSaidMutation(mutation);
-
-    public void ApplyRecordedEramCrrGroup(RecordedEramCrrGroup group) => _bare.ApplyRecordedEramCrrGroup(group);
 
     public void ApplyRecordedAsdexSafetyLogic(RecordedAsdexSafetyLogicChange change) => _bare.ApplyRecordedAsdexSafetyLogic(change);
 

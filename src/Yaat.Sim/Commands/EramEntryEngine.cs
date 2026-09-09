@@ -296,8 +296,8 @@ public static class EramEntryEngine
     }
 
     /// <summary>
-    /// CRR group membership rides the aircraft's <c>CrrGroupLabel</c>; the group itself is the host's (a
-    /// <see cref="Simulation.RecordedEramCrrGroup"/>).
+    /// CRR group membership rides the aircraft's <c>CrrGroupLabel</c>; the group itself is the engine's
+    /// (<see cref="Simulation.SimulationEngine.CrrGroups"/>, written by a <see cref="Simulation.RecordedEramCrrGroup"/>).
     /// </summary>
     private static CommandResult ApplyLf(AircraftState ac, List<string> args)
     {

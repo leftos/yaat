@@ -12,16 +12,18 @@ namespace Yaat.Sim.Simulation.Actions;
 ///
 /// <para>
 /// <b>Step-4 debt.</b> Every <c>Apply*</c> member here is a body whose state has not crossed into Yaat.Sim: the
-/// ASDE-X and SAID display state (the recorded mutations included) and the ERAM CRR groups. Strips, TDLS,
-/// coordination, bookmarks and the session clock have all crossed whole: their state is the engine's
+/// ASDE-X and SAID display state (the recorded mutations included). Strips, TDLS,
+/// coordination, bookmarks, the session clock and the ERAM CRR groups have all crossed whole: their state is the engine's
 /// (<see cref="SimulationEngine.Strips"/> / <see cref="SimulationEngine.Tdls"/> /
 /// <see cref="SimScenarioState.CoordinationChannels"/> / <see cref="SimScenarioState.Bookmarks"/> /
-/// <see cref="SimScenarioState.IsPaused"/> and <see cref="SimScenarioState.SimRate"/>, all but the
+/// <see cref="SimScenarioState.IsPaused"/> and <see cref="SimScenarioState.SimRate"/> /
+/// <see cref="SimulationEngine.CrrGroups"/>, all but the
 /// bookmarks snapshotted — the timeline metadata a rewind carries over verbatim instead — so every run
 /// kind carries them), their mutation bodies are the engine's, and what those bodies touched reaches the host through
 /// <see cref="IStateChangeConsumer.OnStripsChanged"/>, <see cref="IStateChangeConsumer.OnTdlsChanged"/>,
-/// <see cref="IStateChangeConsumer.OnCoordinationChanged"/>, <see cref="IStateChangeConsumer.OnBookmarksChanged"/> and
-/// <see cref="IStateChangeConsumer.OnSimStateChanged"/> —
+/// <see cref="IStateChangeConsumer.OnCoordinationChanged"/>, <see cref="IStateChangeConsumer.OnBookmarksChanged"/>,
+/// <see cref="IStateChangeConsumer.OnSimStateChanged"/> and
+/// <see cref="IStateChangeConsumer.OnEramCrrGroupsChanged"/> —
 /// the broadcast is all the host still owes. The host answers no
 /// questions, because CRC attendance, the last one it was asked, is now engine state every run kind carries
 /// (<see cref="SimulationEngine.Attendance"/>, fed by <see cref="RecordedAttendanceChange"/>). As each body crosses,
@@ -47,12 +49,6 @@ public interface IActionHost : IStateChangeConsumer
 
     /// <summary>A recorded CRC SAID mutation; SAID state is the room's.</summary>
     void ApplyRecordedSaidMutation(RecordedSaidMutation mutation);
-
-    /// <summary>
-    /// A recorded ERAM CRR group created, replaced, recolored or (null latitude) deleted; the groups are the room's,
-    /// while membership rides each aircraft's ERAM state through the Sim's <c>LF</c> entries.
-    /// </summary>
-    void ApplyRecordedEramCrrGroup(RecordedEramCrrGroup group);
 
     /// <summary>A recorded CRC ASDE-X safety-logic configuration push; the facility's runway configuration is the room's.</summary>
     void ApplyRecordedAsdexSafetyLogic(RecordedAsdexSafetyLogicChange change);

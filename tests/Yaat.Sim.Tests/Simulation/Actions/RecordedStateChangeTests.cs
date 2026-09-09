@@ -164,7 +164,7 @@ public class RecordedStateChangeTests
     }
 
     [Fact]
-    public void EramCrrGroup_ReachesTheHostSlot()
+    public void EramCrrGroup_AppliesToTheEngine_AndNotifiesTheHost()
     {
         if (Engine() is not { } engine)
         {
@@ -177,7 +177,8 @@ public class RecordedStateChangeTests
         var applied = engine.Actions.ApplyRecorded(group, host);
 
         Assert.True(applied.Success, applied.Message);
-        Assert.Same(group, Assert.Single(host.CrrGroups));
+        Assert.Equal("ABC", Assert.Single(engine.CrrGroups.Values).Label);
+        Assert.Equal(1, host.EramCrrGroupChanges);
     }
 
     [Fact]
