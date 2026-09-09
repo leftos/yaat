@@ -53,10 +53,8 @@ Findings and small items with no subplan and no report behind them:
 - [ ] Review the docs structure — user-facing vs internal dev docs (steer 2026-09-02): the root carries USER_GUIDE / COMMANDS / SOLO_TRAINING / GETTING_STARTED / INSTALL beside `docs/`; decide the boundary and where each audience starts
 - [ ] Regenerate `docs/scenario-validation-known-failures.md` (last full run 2026-03-12) with yaat-server's `python tools/validate-all-scenarios.py`
 - [ ] Hub tests for the non-mentor invite gate (RPO limited access shipped 2026-09-05, plan deleted): an uninvited non-mentor `JoinRoom` is rejected, and a `PullRpo` invite → auto-join round-trips; `TrainingHubAccessHandlerTests` and the kick/invite store tests already cover the rest
-- [ ] `RecordedAction` subtype coverage (finding 2026-09-06, 3d-5b-3): nothing round-trips the subtypes through the polymorphic serializer or asserts every subtype has a `[JsonDerivedType]`, so a missing registration surfaces only as a recording-load failure
 - [ ] `StripMutations.RequestDepartureStripForAircraft` / `BuildDepartureStripFields` still carry optional `displayDestinationAirportIds` parameters (pre-existing; the no-optional-parameters rule), and `PrintDepartureStripForAircraft` / `RequestArrivalStripForAircraft` take six positional parameters (the ≤5 limit; the arrival one crossed it when the session clock was threaded through, 2026-09-07) — one `StripPrintTarget` record for the print family fixes both
 - [ ] Bounded HOLDP (EFC model) — 7110.65 §4-6-1.c; `HoldingPatternPhase.MaxCircuits` already self-completes, only the HOLDP argument + release path are missing
-- [ ] FOLLOWG chain E2E — a two-aircraft test that `FOLLOWG X; CROSS <rwy>` fires the crossing at the hold-short (predicate-level pin exists in `IndefiniteHoldMarkerTests`)
 - [ ] Big-file hotspots to keep in mind when planning parallel work: `PatternCommandHandler.cs`, `MainViewModel.cs`, `CommandParser.cs`, `CommandDispatcher.cs`, `MainWindow.axaml.cs`, `GroundCommandHandler.cs` (3,000–4,000 lines each)
 
 Subplans without a schedule:
