@@ -1,4 +1,5 @@
 using Xunit;
+using Yaat.Sim.Data;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Scenarios;
 using Yaat.Sim.Tests.Helpers;
@@ -75,6 +76,52 @@ public class CoordinateGroundSpawnTests
           ]
         }
         """;
+
+    // Real scenarios author a Coordinates ground spawn by setting the aircraft's `airportId` and
+    // (usually) omitting the flight plan entirely — every shipped example in
+    // docs/atctrainer-scenario-examples/ does this. The airport under the aircraft is therefore
+    // identified by `airportId`, NOT by FlightPlan.Departure. KDEN field elevation is 5434 ft, so a
+    // ground departure is authored at ~5434 ft with no positive speed (the documented -1 sentinel).
+    private const string ColdCallCoordinatesAtHighFieldElevation = """
+        {
+          "id": "test",
+          "name": "Test",
+          "primaryAirportId": "DEN",
+          "aircraft": [
+            {
+              "id": "ac1",
+              "aircraftId": "N456HE",
+              "aircraftType": "C172",
+              "startingConditions": { "type": "Coordinates", "coordinates": { "lat": 39.8617, "lon": -104.6731 }, "altitude": 5434, "heading": 170 },
+              "airportId": "DEN"
+            }
+          ]
+        }
+        """;
+
+    [Fact]
+    public void ColdCallCoordinatesAtHighFieldElevation_IdentifiedByAirportId_SpawnsOnGround()
+    {
+        // Precondition: the high-elevation field resolves in the test navdata.
+        var denElevation = NavigationDatabase.Instance.GetAirportElevation("KDEN");
+        Assert.True(denElevation is > 5000, $"KDEN elevation must resolve in test navdata (got {denElevation})");
+
+        var result = ScenarioLoader.Load(
+            ColdCallCoordinatesAtHighFieldElevation,
+            new TestAirportGroundData(),
+            new Random(0),
+            MagneticDeclination.EvaluationDateUtc
+        );
+
+        var state = Assert.Single(result.ImmediateAircraft).State;
+        // Field elevation must be resolved from `airportId` (like LoadOnRunway/LoadOnFinal and
+        // FieldElevationResolver), not solely from the absent FlightPlan.Departure. Otherwise
+        // fieldElevation falls back to 0, agl = 5434 fails the <200 ft ground gate, and the intended
+        // ground departure spawns airborne — either frozen at 0 kt or flying off at a cruise default.
+        Assert.True(state.IsOnGround, "Coordinates ground spawn at a high-elevation field (via airportId) must be on the ground");
+        Assert.Equal(0, state.IndicatedAirspeed);
+        Assert.IsType<AtParkingPhase>(state.Phases?.CurrentPhase);
+    }
 
     [Fact]
     public void CoordinatesAtFieldElevation_OmittedSpeed_SpawnsOnGround()

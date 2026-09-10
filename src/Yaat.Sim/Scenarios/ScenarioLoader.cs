@@ -336,8 +336,14 @@ public static class ScenarioLoader
             speed;
 
         var navDb = NavigationDatabase.Instance;
-        var departureId = ac.FlightPlan?.Departure;
-        var fieldElevation = !string.IsNullOrEmpty(departureId) ? navDb.GetAirportElevation(departureId) ?? 0 : 0;
+        // Resolve the field under the aircraft the same way the OnRunway/OnFinal load paths and
+        // FieldElevationResolver do: airportId first, then the filed departure/destination. Real
+        // scenarios identify a Coordinates/FixOrFrd spawn's airport via `airportId` and often have no
+        // flight plan at all, so keying only off FlightPlan.Departure silently yields 0 — which makes a
+        // ground departure at a high-elevation field (agl >> 200) fail the ground gate and spawn
+        // airborne. GetAirportElevation accepts either FAA or ICAO form.
+        var groundAirportId = ac.AirportId ?? ac.FlightPlan?.Departure ?? ac.FlightPlan?.Destination;
+        var fieldElevation = !string.IsNullOrEmpty(groundAirportId) ? navDb.GetAirportElevation(groundAirportId) ?? 0 : 0;
 
         switch (cond.Type)
         {
@@ -415,10 +421,9 @@ public static class ScenarioLoader
             phases.Add(new AtParkingPhase());
             state.Phases = phases;
 
-            // Resolve ground layout from departure (on-ground aircraft) or destination, mirror the
-            // Parking path: exempt from Parked auto-delete and flag scripted-departure when a TAXI
-            // preset drives the ground sequence.
-            var groundAirportId = ac.FlightPlan?.Departure ?? ac.FlightPlan?.Destination;
+            // Resolve the ground layout from the same airport used for field elevation (airportId,
+            // then departure/destination), mirror the Parking path: exempt from Parked auto-delete
+            // and flag scripted-departure when a TAXI preset drives the ground sequence.
             state.Ground.Layout = !string.IsNullOrEmpty(groundAirportId) ? groundData?.GetLayout(groundAirportId) : null;
             state.Ground.AutoDeleteExempt = true;
             state.Ground.IsScriptedDeparture = HasTaxiPreset(ac.PresetCommands);
