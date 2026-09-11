@@ -63,6 +63,14 @@ public partial class CommandInputController : ObservableObject
     /// </summary>
     public Func<IReadOnlyCollection<string>>? ParkingNamesProvider { get; set; }
 
+    /// <summary>
+    /// Source of the loaded ground layout's parking and helipad names for the TAXI and PUSH <c>@</c>
+    /// sigil — exactly what the server's <c>@name</c> destination lookup resolves, and deliberately
+    /// distinct from <see cref="ParkingNamesProvider"/>, which is ADD's wider parking+spot set. Same
+    /// provider contract as <see cref="TaxiwayNamesProvider"/>.
+    /// </summary>
+    public Func<IReadOnlyCollection<string>>? StandNamesProvider { get; set; }
+
     public bool IsNavigatingHistory => _isNavigatingHistory;
 
     /// <summary>
@@ -247,6 +255,7 @@ public partial class CommandInputController : ObservableObject
                 PrimaryAirportId,
                 TaxiwayNamesProvider?.Invoke() ?? [],
                 SpotNamesProvider?.Invoke() ?? [],
+                StandNamesProvider?.Invoke() ?? [],
                 MaxSuggestions
             )
         )

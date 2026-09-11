@@ -3,6 +3,7 @@
 ## Unreleased
 
 ### Fixed
+- Typing `@` in a `TAXI` or `PUSH` clearance now autocompletes the airport's parking and helipad stands (`TAXI C D @NEW1`), and `$` its taxi spots; previously the popup offered nothing after the sigil.
 - The Aircraft List Info column names the stand for a scenario aircraft spawned at parking (`At parking A4` instead of a bare `At parking`), and a solo-training pilot at such a stand calls up with the stand name instead of "at the ramp".
 - A taxi clearance off a stand clears the aircraft's recorded parking spot, so a stale stand name no longer counts as occupied when an arrival picks its parking.
 - A `Coordinates`/`FixOrFrd` ground departure at a high-elevation field no longer spawns airborne: field elevation (and the ground layout) now resolve from the aircraft's `airportId` first — the same order `LoadOnRunway`/`LoadOnFinal` and `FieldElevationResolver` use — and fall back to the scenario's primary airport, instead of only the filed departure, which is absent for the cold-call spawns real scenarios author. (#427)

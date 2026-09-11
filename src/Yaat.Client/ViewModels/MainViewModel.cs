@@ -1529,8 +1529,9 @@ public partial class MainViewModel : ObservableObject
         Ground.SetMeasureState(Measure);
         Radar.SetMeasureState(Measure);
         _commandInput.TaxiwayNamesProvider = CollectLoadedTaxiwayNames;
-        _commandInput.SpotNamesProvider = CollectLoadedSpotNames;
-        _commandInput.ParkingNamesProvider = CollectLoadedParkingNames;
+        _commandInput.SpotNamesProvider = () => CollectLoadedNodeNames(SpotNodeTypes);
+        _commandInput.ParkingNamesProvider = () => CollectLoadedNodeNames(AddPositionNodeTypes);
+        _commandInput.StandNamesProvider = () => CollectLoadedNodeNames(StandNodeTypes);
         // Student entry is always the first strips entry. Additional
         // per-facility entries are appended via OpenStripsEntryForFacilityAsync.
         var studentVm = new VStripsViewModel(_connection, SendCommandForViewAsync, () => _preferences.UserInitials)
@@ -2027,6 +2028,48 @@ public partial class MainViewModel : ObservableObject
         return names;
     }
 
+    /// <summary>Node types the <c>$spot</c> sigil names: taxi spots only, as the server's spot lookup resolves.</summary>
+    private static readonly HashSet<GroundNodeType> SpotNodeTypes = [GroundNodeType.Spot];
+
+    /// <summary>
+    /// Node types the ADD command's <c>@{spot}</c> position accepts, mirroring the server's
+    /// spawn-at-parking lookup (<c>FindParkingByName</c> falling back to <c>FindSpotByName</c>).
+    /// </summary>
+    private static readonly HashSet<GroundNodeType> AddPositionNodeTypes = [GroundNodeType.Parking, GroundNodeType.Helipad, GroundNodeType.Spot];
+
+    /// <summary>
+    /// Node types the TAXI and PUSH <c>@{name}</c> destination accepts. Narrower than
+    /// <see cref="AddPositionNodeTypes"/> on purpose: that lookup resolves a helipad or a parking stand,
+    /// never a taxi spot (spots are what <c>$</c> names).
+    /// </summary>
+    private static readonly HashSet<GroundNodeType> StandNodeTypes = [GroundNodeType.Parking, GroundNodeType.Helipad];
+
+    /// <summary>
+    /// Names of the currently-loaded (primary-airport) ground layout's nodes of the given types,
+    /// uppercased, for the command-input autocomplete providers. The GroundViewModel owns the domain
+    /// layout because it's the view that reconstructs it from the server DTO; this borrows a reference so
+    /// the dropdown tracks the airport the user is currently looking at. Empty when none is loaded.
+    /// </summary>
+    private HashSet<string> CollectLoadedNodeNames(IReadOnlySet<GroundNodeType> types)
+    {
+        var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var layout = Ground.DomainLayout;
+        if (layout is null)
+        {
+            return names;
+        }
+
+        foreach (var node in layout.Nodes.Values)
+        {
+            if (types.Contains(node.Type) && !string.IsNullOrEmpty(node.Name))
+            {
+                names.Add(node.Name.ToUpperInvariant());
+            }
+        }
+
+        return names;
+    }
+
     /// <summary>
     /// Taxiway names of the currently-loaded ground layout, shared by the speech pipeline
     /// (NATO-collapse disambiguation) and command autocomplete (taxiway-typed arguments like
@@ -2034,53 +2077,6 @@ public partial class MainViewModel : ObservableObject
     /// reconstructs it from the server DTO; this borrows a reference so both consumers see the
     /// same airport the user is currently looking at. Empty when no ground layout is loaded.
     /// </summary>
-    /// <summary>Taxi-spot names of the currently-loaded ground layout, for <c>HS $spot</c> autocomplete.</summary>
-    private HashSet<string> CollectLoadedSpotNames()
-    {
-        var spotNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        var layout = Ground.DomainLayout;
-        if (layout is null)
-        {
-            return spotNames;
-        }
-
-        foreach (var node in layout.Nodes.Values)
-        {
-            if (node.Type == GroundNodeType.Spot && !string.IsNullOrEmpty(node.Name))
-            {
-                spotNames.Add(node.Name.ToUpperInvariant());
-            }
-        }
-
-        return spotNames;
-    }
-
-    /// <summary>
-    /// Parking, helipad, and taxi-spot names of the currently-loaded (primary-airport) ground
-    /// layout, for the ADD command's <c>@{spot}</c> position autocomplete. The type set mirrors
-    /// what the server's spawn-at-parking lookup (<c>FindParkingByName</c> falling back to
-    /// <c>FindSpotByName</c>) can resolve.
-    /// </summary>
-    private HashSet<string> CollectLoadedParkingNames()
-    {
-        var parkingNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        var layout = Ground.DomainLayout;
-        if (layout is null)
-        {
-            return parkingNames;
-        }
-
-        foreach (var node in layout.Nodes.Values)
-        {
-            if ((node.Type is GroundNodeType.Parking or GroundNodeType.Helipad or GroundNodeType.Spot) && !string.IsNullOrEmpty(node.Name))
-            {
-                parkingNames.Add(node.Name.ToUpperInvariant());
-            }
-        }
-
-        return parkingNames;
-    }
-
     private HashSet<string> CollectLoadedTaxiwayNames()
     {
         var taxiwayNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);

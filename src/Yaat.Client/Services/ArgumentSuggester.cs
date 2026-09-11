@@ -13,6 +13,33 @@ namespace Yaat.Client.Services;
 internal static class ArgumentSuggester
 {
     /// <summary>
+    /// The text region a suggestion replaces: the whole input, the active token's bounds, and the partial
+    /// the user has typed into it.
+    /// </summary>
+    private readonly record struct TokenSlot(string FullText, int Start, int End, string Partial);
+
+    /// <summary>
+    /// How one family of ground-layout names is offered: the sigil that prefixes the inserted token
+    /// (empty for taxiways, <c>@</c> for stands, <c>$</c> for spots) and the dropdown description.
+    /// </summary>
+    private readonly record struct NameFlavor(string Sigil, string Description);
+
+    /// <summary>
+    /// The ground-layout name sets the suggester draws on: taxiways for taxiway-typed parameters, stands
+    /// (parking + helipad) for the <c>@</c> sigil, taxi spots for the <c>$</c> sigil and spot-typed
+    /// parameters.
+    /// </summary>
+    private readonly record struct LayoutNames(
+        IReadOnlyCollection<string> Taxiways,
+        IReadOnlyCollection<string> Stands,
+        IReadOnlyCollection<string> Spots
+    );
+
+    private static readonly NameFlavor TaxiwayFlavor = new("", "Taxiway");
+    private static readonly NameFlavor StandFlavor = new("@", "Parking/helipad");
+    private static readonly NameFlavor SpotFlavor = new("$", "Spot");
+
+    /// <summary>
     /// Tries to add argument suggestions for the current command verb + partial argument.
     /// Returns true if this command type has argument suggestions (even if none matched the partial).
     /// </summary>
@@ -25,6 +52,7 @@ internal static class ArgumentSuggester
         string? primaryAirportId,
         IReadOnlyCollection<string> taxiwayNames,
         IReadOnlyCollection<string> spotNames,
+        IReadOnlyCollection<string> standNames,
         int maxSuggestions
     )
     {
@@ -50,8 +78,7 @@ internal static class ArgumentSuggester
             aircraft,
             suggestions,
             primaryAirportId,
-            taxiwayNames,
-            spotNames,
+            new LayoutNames(taxiwayNames, standNames, spotNames),
             maxSuggestions
         );
     }
@@ -63,8 +90,7 @@ internal static class ArgumentSuggester
         IReadOnlyCollection<AircraftModel> aircraft,
         ObservableCollection<SuggestionItem> suggestions,
         string? primaryAirportId,
-        IReadOnlyCollection<string> taxiwayNames,
-        IReadOnlyCollection<string> spotNames,
+        LayoutNames names,
         int maxSuggestions
     )
     {
@@ -88,6 +114,12 @@ internal static class ArgumentSuggester
                 AddCallsignSuggestions(fullText, parsed.ActiveTokenStart, parsed.ActiveTokenEnd, partial, aircraft, suggestions, maxSuggestions);
                 return true;
             }
+        }
+
+        var slot = new TokenSlot(fullText, parsed.ActiveTokenStart, parsed.ActiveTokenEnd, partial);
+        if (TryAddSigilSuggestions(parsed, slot, names, suggestions, maxSuggestions))
+        {
+            return true;
         }
 
         // Collect what kinds of suggestions exist at this parameter position
@@ -207,12 +239,12 @@ internal static class ArgumentSuggester
 
         if (hasTaxiway)
         {
-            AddTaxiwaySuggestions(fullText, parsed.ActiveTokenStart, parsed.ActiveTokenEnd, partial, suggestions, taxiwayNames, maxSuggestions);
+            AddLayoutNameSuggestions(slot, names.Taxiways, TaxiwayFlavor, suggestions, maxSuggestions);
         }
 
         if (hasSpot)
         {
-            AddSpotSuggestions(fullText, parsed.ActiveTokenStart, parsed.ActiveTokenEnd, partial, suggestions, spotNames, maxSuggestions);
+            AddLayoutNameSuggestions(slot, names.Spots, SpotFlavor, suggestions, maxSuggestions);
         }
 
         if (hasApproach)
@@ -397,12 +429,66 @@ internal static class ArgumentSuggester
     }
 
     /// <summary>
+    /// The self-contained sigil modifier (<c>@</c> parking, <c>$</c> spot) the command declares for the
+    /// character the partial starts with, or null when the partial is not a sigil token or the command
+    /// carries no such modifier. Metadata-driven, so TAXI and PUSH share one path with no per-verb code.
+    /// </summary>
+    private static CompoundModifier? FindSigilModifier(CommandDefinition def, string partial)
+    {
+        if ((partial.Length == 0) || ((partial[0] != '@') && (partial[0] != '$')))
+        {
+            return null;
+        }
+
+        if (def.CompoundModifiers is not { Length: > 0 } modifiers)
+        {
+            return null;
+        }
+
+        return modifiers.FirstOrDefault(m => (m.Keyword.Length == 1) && (m.Keyword[0] == partial[0]));
+    }
+
+    /// <summary>
+    /// Value suggestions for a self-contained sigil modifier (<c>@NEW1</c>, <c>$S7</c>): keyword and value
+    /// share one token, so the sigil the user just typed is the whole cue. True when this path owns the
+    /// slot — including when it has nothing to offer, because a bare <c>@</c> must not fall through to
+    /// taxiway or fix names. Two positions are not the sigil's: inside another modifier's argument region
+    /// (<c>TAXI A HS @</c> names a hold-short target, which the server rejects as a parking) and, for a
+    /// modifier the parser only reads off the leading token, any later argument (<c>PUSH TE @B27</c>
+    /// would parse <c>@B27</c> as a facing taxiway).
+    /// </summary>
+    private static bool TryAddSigilSuggestions(
+        CommandInputParseResult parsed,
+        TokenSlot slot,
+        LayoutNames names,
+        ObservableCollection<SuggestionItem> suggestions,
+        int maxSuggestions
+    )
+    {
+        var def = parsed.Definition!;
+        if (FindSigilModifier(def, slot.Partial) is not { } modifier)
+        {
+            return false;
+        }
+
+        if ((modifier.LeadingTokenOnly && (parsed.ParameterIndex != 0)) || (FindActiveModifier(def, parsed) is not null))
+        {
+            return false;
+        }
+
+        bool isStand = modifier.Keyword[0] == '@';
+        AddLayoutNameSuggestions(slot, isStand ? names.Stands : names.Spots, isStand ? StandFlavor : SpotFlavor, suggestions, maxSuggestions);
+        return true;
+    }
+
+    /// <summary>
     /// The compound modifier whose argument region the caret sits in, or null when the active token
     /// still belongs to the overload parameters. Mirrors the parser's mode semantics: a modifier
     /// keyword switches mode until the next keyword; a non-repeatable modifier's mode lasts one
     /// argument token (<c>RWY 28R</c>), a repeatable one until the next keyword (<c>HS C E</c>).
     /// Keyword-only modifiers (<c>NODEL</c>) and the <c>@</c>/<c>$</c> sigils (self-contained
-    /// tokens) never open an argument region.
+    /// tokens) never open an argument region; the sigils get their value flyouts from
+    /// <see cref="TryAddSigilSuggestions"/> instead, which skips a sigil that lands inside one.
     /// </summary>
     private static CompoundModifier? FindActiveModifier(CommandDefinition def, CommandInputParseResult parsed)
     {
@@ -653,82 +739,42 @@ internal static class ArgumentSuggester
     }
 
     /// <summary>
-    /// Taxiway names from the loaded ground layout for taxiway-typed parameters (HS targets, TAXI
-    /// routes, runway exits). Empty when no ground layout is loaded — the dropdown then degrades to
-    /// whatever else the parameter offers (runways for <c>taxiway/runway</c> hints).
+    /// Offers ground-layout names for the active token: taxiways bare, parking/helipad stands as
+    /// <c>@NAME</c>, taxi spots as <c>$NAME</c>. The flavour's sigil is part of the inserted text and a
+    /// partial typed with or without it matches. Names come out ordered and capped at
+    /// <paramref name="maxSuggestions"/>; an empty set (no ground layout loaded) adds nothing, so the
+    /// dropdown degrades to whatever else the parameter offers.
     /// </summary>
-    private static void AddTaxiwaySuggestions(
-        string fullText,
-        int activeTokenStart,
-        int activeTokenEnd,
-        string partial,
+    private static void AddLayoutNameSuggestions(
+        TokenSlot slot,
+        IReadOnlyCollection<string> names,
+        NameFlavor flavor,
         ObservableCollection<SuggestionItem> suggestions,
-        IReadOnlyCollection<string> taxiwayNames,
         int maxSuggestions
     )
     {
-        foreach (var name in taxiwayNames.OrderBy(n => n, StringComparer.OrdinalIgnoreCase))
+        bool hasSigil = (flavor.Sigil.Length > 0) && slot.Partial.StartsWith(flavor.Sigil, StringComparison.Ordinal);
+        string namePartial = hasSigil ? slot.Partial[flavor.Sigil.Length..] : slot.Partial;
+        foreach (var name in names.OrderBy(n => n, StringComparer.OrdinalIgnoreCase))
         {
             if (suggestions.Count >= maxSuggestions)
             {
                 return;
             }
 
-            if (partial.Length > 0 && !name.StartsWith(partial, StringComparison.OrdinalIgnoreCase))
+            if ((namePartial.Length > 0) && !name.StartsWith(namePartial, StringComparison.OrdinalIgnoreCase))
             {
                 continue;
             }
 
-            var (insertText, caret) = CommandInputController.BuildTokenReplacement(fullText, activeTokenStart, activeTokenEnd, name);
-            suggestions.Add(
-                new SuggestionItem
-                {
-                    Kind = SuggestionKind.Command,
-                    Text = name,
-                    Description = "Taxiway",
-                    InsertText = insertText,
-                    CaretAfterInsert = caret,
-                }
-            );
-        }
-    }
-
-    /// <summary>
-    /// Taxi-spot tokens (<c>$17</c>) from the loaded ground layout for spot-typed parameters — the
-    /// <c>HS</c> target list accepts a spot hold-short (issue #394). The <c>$</c> sigil is part of the
-    /// inserted text; a partial typed with or without it matches. Empty when no ground layout is loaded.
-    /// </summary>
-    private static void AddSpotSuggestions(
-        string fullText,
-        int activeTokenStart,
-        int activeTokenEnd,
-        string partial,
-        ObservableCollection<SuggestionItem> suggestions,
-        IReadOnlyCollection<string> spotNames,
-        int maxSuggestions
-    )
-    {
-        string namePartial = partial.StartsWith('$') ? partial[1..] : partial;
-        foreach (var name in spotNames.OrderBy(n => n, StringComparer.OrdinalIgnoreCase))
-        {
-            if (suggestions.Count >= maxSuggestions)
-            {
-                return;
-            }
-
-            if (namePartial.Length > 0 && !name.StartsWith(namePartial, StringComparison.OrdinalIgnoreCase))
-            {
-                continue;
-            }
-
-            string token = $"${name}";
-            var (insertText, caret) = CommandInputController.BuildTokenReplacement(fullText, activeTokenStart, activeTokenEnd, token);
+            string token = flavor.Sigil + name;
+            var (insertText, caret) = CommandInputController.BuildTokenReplacement(slot.FullText, slot.Start, slot.End, token);
             suggestions.Add(
                 new SuggestionItem
                 {
                     Kind = SuggestionKind.Command,
                     Text = token,
-                    Description = "Spot",
+                    Description = flavor.Description,
                     InsertText = insertText,
                     CaretAfterInsert = caret,
                 }

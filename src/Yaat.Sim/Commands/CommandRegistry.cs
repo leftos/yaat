@@ -786,7 +786,7 @@ public static class CommandRegistry
                     O("Onto+facing", [R("taxiway", "taxiway"), R("facing_taxiway", "taxiway")], "Onto taxiway facing toward another taxiway"),
                     O("Onto+cardinal", [R("taxiway", "taxiway"), R("orientation", "<C/>C or FACE C/TAIL C")], "Onto taxiway with cardinal hint"),
                 ],
-                [Mod("@", "parking", false), Mod("$", "spot", false)]
+                [Mod("@", "parking", false) with { LeadingTokenOnly = true }, Mod("$", "spot", false) with { LeadingTokenOnly = true }]
             ),
             Cmd(
                 Taxi,

@@ -63,4 +63,14 @@ public record CommandDefinition(
 
 public record CommandOverload(string? VariantLabel, CommandParameter[] Parameters, string? UsageHint);
 
-public record CompoundModifier(string Keyword, string? ArgHint, bool Repeatable);
+public record CompoundModifier(string Keyword, string? ArgHint, bool Repeatable)
+{
+    /// <summary>
+    /// True when the parser only reads this modifier off the command's first argument token — PUSH's
+    /// <c>@parking</c>/<c>$spot</c>, which <c>GroundCommandParser.ParsePushback</c> strips from
+    /// <c>tokens[0]</c> and nowhere else. Later in the argument list the same token means something else
+    /// (<c>PUSH TE @B27</c> reads <c>@B27</c> as a facing taxiway), so autocomplete must not offer it
+    /// past the first slot.
+    /// </summary>
+    public bool LeadingTokenOnly { get; init; }
+}
