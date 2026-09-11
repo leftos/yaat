@@ -54,6 +54,11 @@ You are frequently launched inside a **git worktree** whose absolute path *ends 
 - Don't add implementation details — just what the file/class is responsible for.
 - Use the same terminology as the rest of the doc.
 
+## Name only what the diff shows
+
+- Every identifier you write into an entry — a class, member, file, or namespace — must appear in the `git diff` you were given or in a file you read in this run. Never write a member name from the task summary or from what the change "would" be called; if the summary names something the diff does not, the diff wins.
+- A test file's entry lists the facts its methods assert, read from the file itself. Never summarise a test from its title or from the task summary.
+
 ## What NOT to Update
 
 - Don't restructure or reorganize the doc beyond what's needed for the change.

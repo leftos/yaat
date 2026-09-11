@@ -29,7 +29,9 @@ Establish, before invoking anything:
 cwd=$(pwd)
 git -C "$cwd" rev-parse --show-toplevel
 git -C "$cwd" status -sb | head -1
-git -C "X:/dev/yaat-server" status -sb | head -1
+server_dir="$(dirname "$cwd")/yaat-server"     # a wt-paired session has yaat-server beside the yaat worktree
+[ -e "$server_dir/.git" ] || server_dir="X:/dev/yaat-server"
+git -C "$server_dir" status -sb | head -1
 ```
 
 `status -sb`'s first line carries both the ref and the tracking state, which
@@ -46,7 +48,7 @@ holds, and require `## main...origin/main` before continuing.
 Record three facts that drive which phases are no-ops:
 
 - **In a worktree or in `X:/dev/yaat` itself?** If the toplevel is `X:/dev/yaat` and the branch is `main`, Phase 2 has nothing to land — the commits are already on `main`.
-- **Cross-repo?** Does `X:/dev/yaat-server` have uncommitted work or local-only commits vs its `main`?
+- **Cross-repo?** Does the yaat-server source (`$server_dir` — the paired sibling when one exists, else `X:/dev/yaat-server`) have uncommitted work or local-only commits vs `main`? The target for landing and pushing is always `X:/dev/yaat-server`.
 - **Anything uncommitted?** If both trees are clean, Phase 1 is a no-op.
 
 Then collect issue candidates *now*, while the branch name and pre-landing commit list are still easy to read — see Phase 5. Doing it after the cherry-pick means digging through rewritten SHAs.
@@ -67,13 +69,13 @@ If a pre-commit hook fails: surface the output, fix forward, new commit. Never `
 
 ## Phase 2: Land onto main
 
-Invoke the `merge-session-to-main` skill. It cherry-picks the session's commits from the worktree branch onto `main` in both checkouts and auto-resolves the usual `CHANGELOG.md` `## Unreleased` bullet conflicts.
+Invoke the `merge-session-to-main` skill. It cherry-picks the session's commits from the worktree branch onto `main` in both checkouts and auto-resolves purely additive conflicts in `CHANGELOG.md`, `docs/plans/*.md` and `docs/architecture.md`.
 
 **Tolerance rule:** if Phase 0 established the session is already on `main` in `X:/dev/yaat`, that skill halts by design. Say `Phase 2: skipped (session is on main already)` and continue to Phase 3.
 
 **Landing-order footgun (cross-repo signature changes).** When the session changed a `Yaat.Sim` signature that yaat-server calls, landing yaat first deadlocks: yaat's prek build hook compiles `yaat.slnx`, which includes the sibling yaat-server project *from disk*, and yaat-server's `main` still has the old call site. Land **yaat-server first** — `git merge --ff-only <branch>` creates no commit, so it runs no hooks at all — then resume the paused yaat cherry-pick, whose hook build now sees the updated call site. `/merge-session-to-main` documents yaat-first; that ordering is wrong for this case.
 
-Stop `/ship` if the cherry-pick pauses on a conflict outside the auto-resolvable CHANGELOG pattern. Report the conflicted files and leave the cherry-pick paused for the user.
+Stop `/ship` if the cherry-pick pauses on a conflict outside the auto-resolvable additive shape (`CHANGELOG.md`, `docs/plans/*.md`, `docs/architecture.md`, additions on both sides only). Report the conflicted files and leave the cherry-pick paused for the user.
 
 ## Phase 3: Verify main before pushing
 

@@ -118,6 +118,18 @@ branch:
 git -C X:/dev/yaat push --force-with-lease origin pr-<PR>:<head-branch>
 ```
 
+**Expect a `CHANGELOG.md` conflict when a release was cut since the pin.** A
+nightly-review PR already carries its own `## Unreleased` block in its single
+commit; once `main` has promoted its `## Unreleased` into a release heading, the
+rebase conflicts on that block every time. Resolve it by placing the bot's
+`## Unreleased` block above the newest release header, leaving `main`'s released
+sections untouched, then `git add CHANGELOG.md && git rebase --continue`. The
+same rule covers `docs/plans/*.md` and `docs/architecture.md` when both sides only
+added lines — keep `main`'s lines first, then the PR's; a block with a removal or
+a rewritten heading is resolved by hand. The rebase may run from the session
+worktree: `pr-<PR>` is checked out nowhere else, and only `checkout main` is the
+trap (Trap 6).
+
 ## Step 7: Gate it
 
 The bot's tests are its own claim, not your verification. Run the repo gate in
@@ -174,11 +186,12 @@ The read-only commands here (`gh issue view`, `gh pr list`, `gh pr view`,
 repo — #333 ↔ #334, whose pinned `base.sha` sits 273 commits behind `main`.
 
 The mutating ones (`gh pr ready`, `git fetch origin pull/N/head:…`,
-`git rebase`, `git push --force-with-lease`, `gh pr merge --merge`,
-`gh pr close`) have not been run from this file, because doing so needs a live
-draft bot PR. Their *shapes* come from sessions that landed #272 and #282. Read
-the flags before running one, and prefer the `--check`/`--dry-run` form first
-where the command has one.
+`git rebase`, `git push --force-with-lease`, `gh pr merge --merge
+--delete-branch`) ran from this file for the first time on #428 (2026-09-10,
+from a session worktree), all cleanly, including the CHANGELOG conflict
+resolution above. `gh pr close` has still not been run from here; its shape comes
+from the session that closed a superseded draft. Read the flags before running
+one, and prefer the `--check`/`--dry-run` form first where the command has one.
 
 ## Checklist before merging
 

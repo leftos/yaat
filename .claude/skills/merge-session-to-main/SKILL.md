@@ -1,6 +1,6 @@
 ---
 name: merge-session-to-main
-description: "Land the current Claude session's worktree commits onto `main` in both X:/dev/yaat and X:/dev/yaat-server. Cherry-picks divergent commits, auto-resolves the usual CHANGELOG.md `## Unreleased` bullet conflicts, runs each repo's pre-commit hooks, and stops (never pushes). Use when the user says 'merge to main', 'land this session', 'merge session', or invokes /merge-session-to-main after finishing work in a yaat worktree (typically `X:\\dev\\yaat.wt\\<branch>\\`)."
+description: "Land the current Claude session's worktree commits onto `main` in both X:/dev/yaat and X:/dev/yaat-server. Cherry-picks divergent commits, auto-resolves purely additive conflicts in CHANGELOG.md, docs/plans/*.md and docs/architecture.md, runs each repo's pre-commit hooks, and stops (never pushes). Use when the user says 'merge to main', 'land this session', 'merge session', or invokes /merge-session-to-main after finishing work in a yaat worktree (typically `X:\\dev\\yaat.wt\\<branch>\\`)."
 ---
 
 # Merge Session to Main
@@ -38,14 +38,20 @@ Halt if:
 - `source_yaat` resolves to `X:\dev\yaat` itself (no separate worktree — nothing to land)
 - `source_yaat_branch` is `main` (already on the target branch)
 
-The yaat-server side has no separate worktree convention — cross-repo sessions edit `X:\dev\yaat-server` in place on its own branch. Check whether it has divergent commits:
+The yaat-server **source** depends on how the session was set up. A `wt`-paired session has yaat-server checked out beside the yaat worktree on the same branch; an unpaired session edits `X:\dev\yaat-server` in place on its own branch. Derive it rather than assuming — followed literally, the in-place assumption reports a paired session's server tree clean and lands nothing there:
 
 ```bash
-server_dir="X:/dev/yaat-server"
+server_target="X:/dev/yaat-server"
+server_dir="$(dirname "$source_yaat")/yaat-server"
+if [ -e "$server_dir/.git" ] && [ "$(git -C "$server_dir" branch --show-current)" = "$source_yaat_branch" ]; then
+    :   # paired worktree — this is the source
+else
+    server_dir="$server_target"
+fi
 server_branch=$(git -C "$server_dir" branch --show-current)
 ```
 
-If `server_branch` is `main` and there are no local-only commits relative to a target main (see Step 1), the yaat-server side is a no-op for this skill.
+The **target** is always `X:/dev/yaat-server`. When `server_dir` resolves to the target itself and `server_branch` is `main` with no local-only commits relative to main (see Step 1), the yaat-server side is a no-op for this skill.
 
 ## Step 1: Pre-flight checks
 
@@ -53,7 +59,7 @@ For each potentially involved repo, in this order:
 
 1. **Source yaat working tree must be clean** (`git -C "$source_yaat" status --porcelain` empty). Halt and list dirty paths if not.
 2. **Target yaat (`X:/dev/yaat`) must exist, be on `main`, and not have an in-progress operation** (no `.git/CHERRY_PICK_HEAD`, `.git/MERGE_HEAD`, `.git/rebase-merge`, `.git/rebase-apply`). Halt with what's in progress if so.
-3. **yaat-server side** (`X:/dev/yaat-server`): if any local-only commits exist relative to its `main`, apply the same checks to its working tree and target. If working tree is dirty but the dirty files are the same files Claude already edited in this session (i.e. uncommitted session work), surface them — they need to be committed first via `/changelog-and-commit` or similar. Don't proceed past dirty trees.
+3. **yaat-server side** (source `$server_dir`, target `X:/dev/yaat-server`): if any local-only commits exist relative to `main`, apply the same checks to the source working tree and the target. If working tree is dirty but the dirty files are the same files Claude already edited in this session (i.e. uncommitted session work), surface them — they need to be committed first via `/changelog-and-commit` or similar. Don't proceed past dirty trees.
 
 Untracked files in the target (like the existing `.rustling-tulip/` in `X:\dev\yaat`) are fine — they're not in the working tree's modification set.
 
@@ -152,14 +158,16 @@ git -C "$target" cherry-pick "$base..$source_head"
 
 ### Conflict handling
 
-The cherry-pick stops with a conflict. The overwhelmingly common case in YAAT is `CHANGELOG.md` — both branches added bullets under `## Unreleased`. Auto-resolve **only** this exact pattern:
+The cherry-pick stops with a conflict. The common cases in YAAT are the files every session appends to — `CHANGELOG.md` (bullets under `## Unreleased`), `docs/plans/MAIN.md` (backlog items at the same anchor) and `docs/architecture.md` (annotations on different lines of one file-tree block). Auto-resolve **only** the purely additive shape, keyed on the conflict's shape rather than the file's name:
 
-1. Read the conflicted `CHANGELOG.md`.
+1. Read the conflicted file.
 2. Find each `<<<<<<<` / `=======` / `>>>>>>>` block.
-3. If both sides of every block consist solely of additions of bullet lines under the same `## Unreleased` (no removals, no heading changes) → produce a merged version that keeps every bullet from both sides, in this order:
-   - First the bullets already on the target (top of conflict)
-   - Then the bullets from the source (bottom of conflict)
-4. Save, `git add CHANGELOG.md`, `git cherry-pick --continue --no-edit`.
+3. If both sides of every block consist solely of added lines (no removals, no heading changes; for `CHANGELOG.md`, bullets under the same `## Unreleased`) → produce a merged version that keeps every line from both sides, in this order:
+   - First the lines already on the target (top of conflict)
+   - Then the lines from the source (bottom of conflict)
+4. Save, `git add <file>`, `git cherry-pick --continue --no-edit`.
+
+This covers `CHANGELOG.md`, `docs/plans/*.md` and `docs/architecture.md` only. Any other file, or a block in one of these that removes or rewrites a line, halts as below.
 
 After every pick — conflicted or not — verify the bullet's placement, not just `git status`. The dangerous case produces **no conflict**: if an intervening `release:` commit promoted the bullet's context (`### Added` plus the neighbouring bullet) out of `## Unreleased` into a released heading, git finds that context in the released section and lands the bullet *there*, exit 0.
 
@@ -170,7 +178,7 @@ git diff <main-before-pick> -- CHANGELOG.md             # must touch ONLY ## Unr
 
 Fix by moving the bullet into `## Unreleased` (adding `### Added` before `### Fixed` if absent) and `git commit --amend --no-edit` on the unpushed pick. After resolving any conflict, also grep every touched file (not only the conflicted ones) for duplicated field declarations — auto-merge can double-add.
 
-For any other conflicted file, or for a CHANGELOG.md conflict that doesn't fit the pattern above, **halt**:
+For any other conflicted file, or for a conflict in one of those three that doesn't fit the additive shape, **halt**:
 - Print the conflicted files.
 - Tell the user the cherry-pick is paused.
 - Suggest they resolve manually then re-invoke the skill (which will detect the in-progress state and pick up where it left off — see Step 1 in-progress check), or run `git -C "$target" cherry-pick --continue --no-edit` themselves.
@@ -244,7 +252,7 @@ Do **not** push as part of this skill, even if the user said "merge and push" in
 - **Don't squash.** The session may have multiple meaningful commits (`fix:`, `test:`, `docs:`); preserve them.
 - **Don't rebase the source.** Rewriting the bug branch's history hides what happened.
 - **Don't fall back to `git merge --no-ff`.** That produces a merge commit, which the project doesn't use.
-- **Don't auto-resolve non-CHANGELOG conflicts.** The CHANGELOG bullet pattern is predictable; everything else needs human judgment.
+- **Don't auto-resolve conflicts outside the additive-docs shape.** Additions on both sides of `CHANGELOG.md`, `docs/plans/*.md` and `docs/architecture.md` are mechanical; any removal, rewrite, or code file needs human judgment.
 - **Don't delete the worktree.** Even after a successful merge, the user may want to inspect or amend.
 - **Don't run `git -C` against a path you haven't verified exists.** (`feedback_git_C_walks_up_on_missing_path` — git silently walks up to the nearest `.git`.)
 - **Don't bypass hooks to hide a real failure.** If a hook fails because of the landed code, fix forward. The only sanctioned bypass is the cross-repo deadlock (Step 4), and it is always followed by the explicit end gate before any push.
@@ -259,7 +267,11 @@ source_branch=$(git -C "$source_yaat" branch --show-current)
 # Targets
 target_yaat="X:/dev/yaat"
 target_server="X:/dev/yaat-server"
-server_branch=$(git -C "$target_server" branch --show-current)
+
+# yaat-server source: the paired sibling of the worktree when it exists on the same branch, else the target itself
+server_dir="$(dirname "$source_yaat")/yaat-server"
+[ -e "$server_dir/.git" ] && [ "$(git -C "$server_dir" branch --show-current)" = "$source_branch" ] || server_dir="$target_server"
+server_branch=$(git -C "$server_dir" branch --show-current)
 
 # Compute & execute for yaat
 base=$(git -C "$target_yaat" merge-base main "$source_branch")

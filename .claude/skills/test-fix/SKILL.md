@@ -81,6 +81,12 @@ committing it:
   blind-spot list **in the test that generates the baseline**, not only in the
   commit message. A documented blind spot is a known limit; an undocumented one
   is a false claim of completeness.
+- For each behaviour the fixture exists to expose, name the concrete state field
+  it must change and put that field in a state the behaviour will alter before
+  the step runs — "the arm ran" is not the observable, "the field moved" is. A
+  step that runs against a fixture already in its target state produces no
+  entry, and an empty entry reads as agreement. When a predicted divergence is
+  missing, check first whether the step was a no-op on the live side too.
 
 ## Step 3: Confirm the test fails (RED)
 
@@ -104,6 +110,13 @@ tools/gate.sh .tmp/test-red.log dotnet test <test-project> -- --filter-method "*
 
 - Make the minimal code change that fixes the bug.
 - Do not refactor surrounding code. Do not add unrelated improvements.
+
+**When the diagnosis is "this branch was unreachable"**, the branch body is new
+code: it has never executed, so nothing has ever tested it, and making it
+reachable is a change to it. Read it line by line, add a test that pins its
+arithmetic directly (not only the end-to-end symptom), and tell the Step 9
+reviewer the branch is newly live so it is reviewed as an addition, not as
+untouched context.
 
 ## Step 5: Confirm the test passes (GREEN)
 
