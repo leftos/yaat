@@ -74,7 +74,17 @@ Read `Directory.Build.props` at the repo root to get the current `<Version>` val
 Run `git tag --sort=-v:refname | head -5` to find existing release tags.
 
 ## Step 3: Ask for new version
-Suggest the next version based on the current one (e.g., `0.1.0-alpha` → `0.2.0-alpha`). Ask the user what the new version should be.
+Suggest the next version based on the current one. Ask the user what the new version should be, unless the invocation already names the bump.
+
+**The user's bump vocabulary (steer 2026-09-11).** The words map to the three numbers of `major.minor.revision`:
+
+| The user says | Bump | Example from `0.12.29-beta` |
+|---|---|---|
+| "minor rev bump", "minor revision bump", "rev bump" | third number | `0.12.30-beta` |
+| "minor version bump" | second number, third resets to 0 | `0.13.0-beta` |
+| "major version bump" | first number, the rest reset to 0 | `1.0.0-beta` |
+
+"Minor rev" is *not* semver's "minor": a release of ordinary fixes is a revision bump. A 0.13 or 1.0 is only ever asked for by name.
 
 ## Step 3a: Decide every version-bearing file
 
