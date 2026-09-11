@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.12.29-beta [2026/09/10]
 
 ### Fixed
 - Instructor overrides (`FHN`, `CMN`, `SPDN`, `WARP`, `WARPG`, `TRATE`, `DEL`) act immediately under a command run delay, even when chained with a pilot instruction; a mistyped verb is refused at once instead of after a "Pilot complying" acknowledgement.
