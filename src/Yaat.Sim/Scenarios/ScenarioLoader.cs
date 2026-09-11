@@ -336,13 +336,12 @@ public static class ScenarioLoader
             speed;
 
         var navDb = NavigationDatabase.Instance;
-        // Resolve the field under the aircraft the same way the OnRunway/OnFinal load paths and
-        // FieldElevationResolver do: airportId first, then the filed departure/destination. Real
-        // scenarios identify a Coordinates/FixOrFrd spawn's airport via `airportId` and often have no
-        // flight plan at all, so keying only off FlightPlan.Departure silently yields 0 — which makes a
-        // ground departure at a high-elevation field (agl >> 200) fail the ground gate and spawn
-        // airborne. GetAirportElevation accepts either FAA or ICAO form.
-        var groundAirportId = ac.AirportId ?? ac.FlightPlan?.Departure ?? ac.FlightPlan?.Destination;
+        // The field under a Coordinates/FixOrFrd spawn: airportId first (the way the OnRunway/OnFinal
+        // paths and FieldElevationResolver resolve it), then the filed departure/destination, then the
+        // scenario's primary airport, which is what CreateBaseState assigns the aircraft anyway. A
+        // cold-call ground spawn usually has no flight plan, and an unresolved field (elevation 0)
+        // would fail the ground gate at any high-elevation airport and spawn it airborne.
+        var groundAirportId = ac.AirportId ?? ac.FlightPlan?.Departure ?? ac.FlightPlan?.Destination ?? primaryAirportId;
         var fieldElevation = !string.IsNullOrEmpty(groundAirportId) ? navDb.GetAirportElevation(groundAirportId) ?? 0 : 0;
 
         switch (cond.Type)

@@ -123,6 +123,46 @@ public class CoordinateGroundSpawnTests
         Assert.IsType<AtParkingPhase>(state.Phases?.CurrentPhase);
     }
 
+    // A cold call may omit `airportId` too: CreateBaseState then defaults the aircraft's airport to
+    // the scenario's primaryAirportId, so the field under it must resolve the same way.
+    private const string ColdCallCoordinatesAtHighFieldElevationNoAirportId = """
+        {
+          "id": "test",
+          "name": "Test",
+          "primaryAirportId": "DEN",
+          "aircraft": [
+            {
+              "id": "ac1",
+              "aircraftId": "N789HE",
+              "aircraftType": "C172",
+              "startingConditions": { "type": "Coordinates", "coordinates": { "lat": 39.8617, "lon": -104.6731 }, "altitude": 5434, "heading": 170 }
+            }
+          ]
+        }
+        """;
+
+    [Fact]
+    public void ColdCallCoordinatesAtHighFieldElevation_NoAirportIdNoFlightPlan_FallsBackToPrimaryAirport()
+    {
+        var denElevation = NavigationDatabase.Instance.GetAirportElevation("KDEN");
+        Assert.True(denElevation is > 5000, $"KDEN elevation must resolve in test navdata (got {denElevation})");
+
+        var result = ScenarioLoader.Load(
+            ColdCallCoordinatesAtHighFieldElevationNoAirportId,
+            new TestAirportGroundData(),
+            new Random(0),
+            MagneticDeclination.EvaluationDateUtc
+        );
+
+        var state = Assert.Single(result.ImmediateAircraft).State;
+        Assert.True(
+            state.IsOnGround,
+            "Coordinates ground spawn at a high-elevation primary airport (no airportId, no flight plan) must be on the ground"
+        );
+        Assert.Equal(0, state.IndicatedAirspeed);
+        Assert.IsType<AtParkingPhase>(state.Phases?.CurrentPhase);
+    }
+
     [Fact]
     public void CoordinatesAtFieldElevation_OmittedSpeed_SpawnsOnGround()
     {

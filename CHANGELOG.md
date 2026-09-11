@@ -3,7 +3,7 @@
 ## Unreleased
 
 ### Fixed
-- A `Coordinates`/`FixOrFrd` ground departure at a high-elevation field no longer spawns airborne: field elevation (and the ground layout) now resolve from the aircraft's `airportId` first — the same order `LoadOnRunway`/`LoadOnFinal` and `FieldElevationResolver` use — instead of only the filed departure, which is absent for the cold-call spawns real scenarios author. (#427)
+- A `Coordinates`/`FixOrFrd` ground departure at a high-elevation field no longer spawns airborne: field elevation (and the ground layout) now resolve from the aircraft's `airportId` first — the same order `LoadOnRunway`/`LoadOnFinal` and `FieldElevationResolver` use — and fall back to the scenario's primary airport, instead of only the filed departure, which is absent for the cold-call spawns real scenarios author. (#427)
 
 ## v0.12.29-beta [2026/09/10]
 
