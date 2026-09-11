@@ -32,14 +32,14 @@ Dispatch, in one message, one read-only agent per cluster that is not yet unders
 
 - The first bounded item starts immediately; the rest start as their exploration lands.
 - Items with disjoint file sets run concurrently. Items sharing a hotspot file, or a file another running implementer owns, wait.
-- Each concurrent implementer gets its own tree: `git worktree add X:/dev/yaat.wt/<slug> -b <slug> main`. Not `Agent({ isolation: "worktree" })` — its cwd is unreliable. The main checkout hosts at most one implementer, and none while a gate runs there.
+- Each concurrent implementer gets its own tree: `git worktree add ../yaat.wt/<slug> -b <slug> main` (from the main checkout). Not `Agent({ isolation: "worktree" })` — its cwd is unreliable. The main checkout hosts at most one implementer, and none while a gate runs there.
 - Three concurrent implementers is the practical ceiling: every `Yaat.Sim` ship runs the cross-repo gate on `main`, and those serialize there anyway.
 - While one item is in its build/test loop, the next explored item gets its brief written. An orchestrator waiting on a notification with an unbriefed, explored item in the table is behind.
 
 ## 4. Per item
 
 1. Brief → `implementer` (red test first, files, proving command).
-2. Parent-side gate: `git -C <wt> status --short` and `git -C X:/dev/yaat status --short` (no strays).
+2. Parent-side gate: `git -C <wt> status --short` and `git -C <main checkout> status --short` (no strays; the main checkout is `$(cd "$(git rev-parse --path-format=absolute --git-common-dir)/.." && pwd)`, also from a worktree).
 3. Review the diff; `csharp-reviewer` for anything beyond a one-file change, `aviation-sim-expert` for aviation behaviour. Corrections go back to the same implementer with `SendMessage`; the orchestrator does not fix source inline.
 4. Orchestrator writes the docs, `CHANGELOG.md` bullet, `COMMANDS.md`/`USER_GUIDE.md` and the MAIN.md line removal **in the worktree** (fast-forward the worktree onto `main` first when `main` moved).
 5. Commit in the worktree, then `ship` it: land, gate on `main` when it was a real cherry-pick, push, close the issue with an audit comment, `git worktree remove` + `git branch -d`.

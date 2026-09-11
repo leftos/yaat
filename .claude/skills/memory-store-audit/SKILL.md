@@ -11,8 +11,11 @@ past it, entries are silently dropped, and a truncated index looks exactly like
 a shorter one. So this workflow is built around two ideas: an audit produces
 *proposals*, never instructions; and the thing that writes the index measures it.
 
-Default store for this project:
-`C:\Users\Leftos\.claude\projects\X--dev-yaat\memory\`
+Default store for this project: the auto-memory directory the session prompt
+names (`~/.claude/projects/<project-slug>/memory/`, the slug being the main
+checkout path with its separators replaced by `-`). Every command below reads
+it from `$MEM`; Bash tool state does not persist between calls, so set it in
+each call: `MEM="$HOME/.claude/projects/<project-slug>/memory"`.
 
 ## Step 0: Snapshot — the store is not under version control
 
@@ -21,7 +24,7 @@ the first deletion, and keep the snapshot until the rebuilt index has been used
 in a real session:
 
 ```bash
-cp -r "C:/Users/Leftos/.claude/projects/X--dev-yaat/memory" "X:/dev/yaat/.tmp/memory-snapshot-$(date +%Y%m%d-%H%M)"
+cp -r "$MEM" ".tmp/memory-snapshot-$(date +%Y%m%d-%H%M)"
 ```
 
 ## Step 1: Partition into disjoint slices
@@ -31,7 +34,7 @@ read-only auditor per slice**. Disjoint ownership is what makes parallel
 auditing safe: no two agents propose edits to the same file.
 
 ```bash
-ls "C:/Users/Leftos/.claude/projects/X--dev-yaat/memory"/*.md | wc -l
+ls "$MEM"/*.md | wc -l
 ```
 
 Dispatch one `memory-auditor` agent per slice (`Agent` with
@@ -120,7 +123,7 @@ destructive verdict in one place and check each MERGE target against the DELETE
 list:
 
 ```bash
-grep -hE "\| (DELETE|MERGE) \|" X:/dev/yaat/.tmp/memaudit/verdicts-*.md | sort
+rg -hN "\| (DELETE|MERGE) \|" .tmp/memaudit/verdicts-*.md | sort
 ```
 
 Report each contradiction and its resolution rather than silently picking one.
@@ -139,8 +142,8 @@ in the order they first appear in the inventory), then:
 
 ```bash
 python .claude/skills/memory-store-audit/scripts/rebuild_index.py \
-  --memory-dir "C:/Users/Leftos/.claude/projects/X--dev-yaat/memory" \
-  --inventory X:/dev/yaat/.tmp/memaudit/inventory.md \
+  --memory-dir "$MEM" \
+  --inventory .tmp/memaudit/inventory.md \
   --dry-run
 ```
 
@@ -163,8 +166,8 @@ larger budget. The budget is the consuming platform's, not a style preference.
 
 ```bash
 python .claude/skills/memory-store-audit/scripts/rebuild_index.py \
-  --memory-dir "C:/Users/Leftos/.claude/projects/X--dev-yaat/memory" \
-  --inventory X:/dev/yaat/.tmp/memaudit/inventory.md --dry-run
+  --memory-dir "$MEM" \
+  --inventory .tmp/memaudit/inventory.md --dry-run
 ```
 
 A clean re-run against the written state is the proof: zero dangling, zero

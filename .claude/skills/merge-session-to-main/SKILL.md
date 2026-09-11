@@ -1,11 +1,11 @@
 ---
 name: merge-session-to-main
-description: "Land the current Claude session's worktree commits onto `main` in both X:/dev/yaat and X:/dev/yaat-server. Cherry-picks divergent commits, auto-resolves purely additive conflicts in CHANGELOG.md, docs/plans/*.md and docs/architecture.md, runs each repo's pre-commit hooks, and stops (never pushes). Use when the user says 'merge to main', 'land this session', 'merge session', or invokes /merge-session-to-main after finishing work in a yaat worktree (typically `X:\\dev\\yaat.wt\\<branch>\\`)."
+description: "Land the current Claude session's worktree commits onto `main` in both the main yaat checkout and its sibling yaat-server. Cherry-picks divergent commits, auto-resolves purely additive conflicts in CHANGELOG.md, docs/plans/*.md and docs/architecture.md, runs each repo's pre-commit hooks, and stops (never pushes). Use when the user says 'merge to main', 'land this session', 'merge session', or invokes /merge-session-to-main after finishing work in a yaat worktree (typically `../yaat.wt/<branch>/` beside the main checkout)."
 ---
 
 # Merge Session to Main
 
-Land the commits produced by the current Claude session into the main checkouts of yaat and yaat-server. The session typically runs in a yaat worktree (`X:\dev\yaat.wt\<branch>\`) — possibly with sibling commits in `X:\dev\yaat-server\` if the work was cross-repo. This skill brings them home as linear-history cherry-picks.
+Land the commits produced by the current Claude session into the main checkouts of yaat and yaat-server. The session typically runs in a yaat worktree (`../yaat.wt/<branch>/` beside the main checkout) — possibly with sibling commits in the sibling `../yaat-server/` if the work was cross-repo. This skill brings them home as linear-history cherry-picks.
 
 ## When to use
 
@@ -35,33 +35,34 @@ source_yaat_branch=$(git -C "$source_yaat" branch --show-current)
 
 Halt if:
 - `source_yaat` is NOT a git repo
-- `source_yaat` resolves to `X:\dev\yaat` itself (no separate worktree — nothing to land)
+- `source_yaat` resolves to the main checkout (`$target_yaat`) itself (no separate worktree — nothing to land)
 - `source_yaat_branch` is `main` (already on the target branch)
 
-The yaat-server **source** depends on how the session was set up. A `wt`-paired session has yaat-server checked out beside the yaat worktree on the same branch; an unpaired session edits `X:\dev\yaat-server` in place on its own branch. Derive it rather than assuming — followed literally, the in-place assumption reports a paired session's server tree clean and lands nothing there:
+The yaat-server **source** depends on how the session was set up. A `wt`-paired session has yaat-server checked out beside the yaat worktree on the same branch; an unpaired session edits the sibling `../yaat-server` in place on its own branch. Derive it rather than assuming — followed literally, the in-place assumption reports a paired session's server tree clean and lands nothing there:
 
 ```bash
-server_target="X:/dev/yaat-server"
+target_yaat="$(cd "$(git -C "$source_yaat" rev-parse --path-format=absolute --git-common-dir)/.." && pwd)"   # main checkout, also from a worktree
+target_server="$target_yaat/../yaat-server"   # sibling of the main checkout — never a hardcoded drive letter
 server_dir="$(dirname "$source_yaat")/yaat-server"
 if [ -e "$server_dir/.git" ] && [ "$(git -C "$server_dir" branch --show-current)" = "$source_yaat_branch" ]; then
     :   # paired worktree — this is the source
 else
-    server_dir="$server_target"
+    server_dir="$target_server"
 fi
 server_branch=$(git -C "$server_dir" branch --show-current)
 ```
 
-The **target** is always `X:/dev/yaat-server`. When `server_dir` resolves to the target itself and `server_branch` is `main` with no local-only commits relative to main (see Step 1), the yaat-server side is a no-op for this skill.
+The **target** is always `$target_server`. When `server_dir` resolves to the target itself and `server_branch` is `main` with no local-only commits relative to main (see Step 1), the yaat-server side is a no-op for this skill.
 
 ## Step 1: Pre-flight checks
 
 For each potentially involved repo, in this order:
 
 1. **Source yaat working tree must be clean** (`git -C "$source_yaat" status --porcelain` empty). Halt and list dirty paths if not.
-2. **Target yaat (`X:/dev/yaat`) must exist, be on `main`, and not have an in-progress operation** (no `.git/CHERRY_PICK_HEAD`, `.git/MERGE_HEAD`, `.git/rebase-merge`, `.git/rebase-apply`). Halt with what's in progress if so.
-3. **yaat-server side** (source `$server_dir`, target `X:/dev/yaat-server`): if any local-only commits exist relative to `main`, apply the same checks to the source working tree and the target. If working tree is dirty but the dirty files are the same files Claude already edited in this session (i.e. uncommitted session work), surface them — they need to be committed first via `/changelog-and-commit` or similar. Don't proceed past dirty trees.
+2. **Target yaat (`$target_yaat`) must exist, be on `main`, and not have an in-progress operation** (no `.git/CHERRY_PICK_HEAD`, `.git/MERGE_HEAD`, `.git/rebase-merge`, `.git/rebase-apply`). Halt with what's in progress if so.
+3. **yaat-server side** (source `$server_dir`, target `$target_server`): if any local-only commits exist relative to `main`, apply the same checks to the source working tree and the target. If working tree is dirty but the dirty files are the same files Claude already edited in this session (i.e. uncommitted session work), surface them — they need to be committed first via `/changelog-and-commit` or similar. Don't proceed past dirty trees.
 
-Untracked files in the target (like the existing `.rustling-tulip/` in `X:\dev\yaat`) are fine — they're not in the working tree's modification set.
+Untracked files in the target (like a stray `.rustling-tulip/` in the main checkout) are fine — they're not in the working tree's modification set.
 
 ## Step 1a: Check what main already has
 
@@ -122,10 +123,10 @@ report it and let the user decide.
 Print to the user (single message, no question):
 
 ```
-Landing N commit(s) onto X:/dev/yaat from <source-branch>:
+Landing N commit(s) onto yaat (<target_yaat>) from <source-branch>:
   <sha> <subject>
   ...
-Landing M commit(s) onto X:/dev/yaat-server from <server-branch>:
+Landing M commit(s) onto yaat-server (<target_server>) from <server-branch>:
   ...
 (Pushing not included — local cherry-pick only.)
 ```
@@ -191,7 +192,7 @@ When a hook does run (the `--continue` case) and modifies files (csharpier/forma
 
 ### Cross-repo API changes (the hook deadlock)
 
-When the session changed a `Yaat.Sim` **signature** that yaat-server calls, the two prek build hooks deadlock on each other: yaat's hook compiles `yaat.slnx`, which includes the sibling `X:/dev/yaat-server` project from disk (still on the old call site → `CS7036`, commit blocked), and yaat-server's hook builds against sibling `X:/dev/yaat` (main lacks the new API → also blocked). Landing yaat first, as the default order says, cannot succeed here.
+When the session changed a `Yaat.Sim` **signature** that yaat-server calls, the two prek build hooks deadlock on each other: yaat's hook compiles `yaat.slnx`, which includes the sibling `../yaat-server` project from disk (still on the old call site → `CS7036`, commit blocked), and yaat-server's hook builds against sibling `../yaat` (main lacks the new API → also blocked). Landing yaat first, as the default order says, cannot succeed here.
 
 Land **yaat-server first**:
 
@@ -199,14 +200,14 @@ Land **yaat-server first**:
 - If yaat-server needs a real cherry-pick: **start the yaat cherry-pick first and let it pause** (CHANGELOG conflict or hook failure — either way yaat's working tree now holds the new `Yaat.Sim` files on disk), **then cherry-pick yaat-server** (its hook builds against yaat's on-disk tree, which is already new), **then `git cherry-pick --continue --no-edit` in yaat** (its hook now sees yaat-server's landed call sites).
 - If a pick still cannot finish because the sibling has not landed, do not halt on the hook: finish that intermediate commit with hooks bypassed (`git -c core.hooksPath=<empty dir> cherry-pick --continue --no-edit`, or `git commit --no-verify` for a fix-forward). The intermediate commit is never pushed on its own.
 
-Whichever path was taken, once **both** repos are landed run the explicit end gate before anything is pushed, in the target checkouts (`X:/dev/yaat`, `X:/dev/yaat-server`), and report those results rather than "hooks passed":
+Whichever path was taken, once **both** repos are landed run the explicit end gate before anything is pushed, in the target checkouts (`$target_yaat`, `$target_server`), and report those results rather than "hooks passed":
 
 ```bash
 prek run                                                      # both repos
-bash X:/dev/yaat/tools/gate.sh .tmp/gate-build.log \
+bash "$target_yaat/tools/gate.sh" .tmp/gate-build.log \
      dotnet build -p:TreatWarningsAsErrors=true                # both repos
-bash X:/dev/yaat/tools/gate.sh .tmp/gate-test-all.log \
-     pwsh tools/test-all.ps1                                  # in X:/dev/yaat — builds and tests both
+bash "$target_yaat/tools/gate.sh" .tmp/gate-test-all.log \
+     pwsh tools/test-all.ps1                                  # in $target_yaat — builds and tests both
 ```
 
 This gate is also required after landing **any** signature-changing commit onto a diverged main, even without a hook bypass: `main` may have gained files since the branch diverged that still call the old signature (they do not exist on the worktree branch, so the worktree's green suite cannot see the break, and a clean cherry-pick runs no hook). Fix forward with a new commit on main; when the fix is a DTO/wire mapping, put it in one shared helper both call sites use rather than duplicating the switch.
@@ -218,16 +219,16 @@ If the large-file check fails on a recording bundle (`tests/Yaat.Sim.Tests/TestD
 For each repo touched, print one block:
 
 ```
-X:/dev/yaat: <new-HEAD-sha> — <commit-subject>
+yaat (<target_yaat>): <new-HEAD-sha> — <commit-subject>
   N commits ahead of origin/main (not pushed)
-X:/dev/yaat-server: <new-HEAD-sha> — <commit-subject>
+yaat-server (<target_server>): <new-HEAD-sha> — <commit-subject>
   M commits ahead of origin/main (not pushed)
 ```
 
 If a repo was skipped (no commits to land, or already at the target), say so explicitly:
 
 ```
-X:/dev/yaat-server: skipped (no session commits on <branch>)
+yaat-server: skipped (no session commits on <branch>)
 ```
 
 Final line: a reminder that the source worktree/branch is untouched and pruning is the user's call:
@@ -241,7 +242,7 @@ Source worktree at <source_yaat> still on <branch>. Use `wt rm <branch>` or
 
 The user typically:
 - Reviews the new main HEAD with `git log -3` in each repo.
-- Pushes when ready (`git -C X:/dev/yaat push`, etc.) — separate decision.
+- Pushes when ready (`git -C "$target_yaat" push`, etc.) — separate decision.
 - Prunes the worktree.
 
 Do **not** push as part of this skill, even if the user said "merge and push" in the same breath. Confirm separately — pushing to main is shared state.
@@ -264,9 +265,9 @@ Do **not** push as part of this skill, even if the user said "merge and push" in
 source_yaat=$(pwd)
 source_branch=$(git -C "$source_yaat" branch --show-current)
 
-# Targets
-target_yaat="X:/dev/yaat"
-target_server="X:/dev/yaat-server"
+# Targets — the main checkout (also from a worktree) and its sibling; Bash tool state does not persist between calls, so re-derive per call
+target_yaat="$(cd "$(git -C "$source_yaat" rev-parse --path-format=absolute --git-common-dir)/.." && pwd)"
+target_server="$target_yaat/../yaat-server"
 
 # yaat-server source: the paired sibling of the worktree when it exists on the same branch, else the target itself
 server_dir="$(dirname "$source_yaat")/yaat-server"

@@ -186,7 +186,7 @@ When invoking aviation-sim-expert, always include:
 - **Bug fixes and sim changes**: `test-fix` implements the mandatory TDD loop below.
 - **Review gates**: invoke the `aviation-sim-expert` and `csharp-reviewer` agents directly (via `Agent`); the `architecture-updater` agent covers the pre-commit `docs/architecture.md` obligation.
 - **Starting a session from the plan**: `nextup` ("next up", "what's next", "clear the bug list") — pipelines the queued MAIN.md items: explorations fan out first, independent items run in their own worktrees, each ships as it lands.
-- **Landing work**: `changelog-and-commit` → `merge-session-to-main` → `ship` (the last one composes all three, pushes, and closes issues — invoking it *is* the approval).
+- **Landing work**: `changelog-and-commit-yaat` → `merge-session-to-main` → `ship` (the last one composes all three, pushes, and closes issues — invoking it *is* the approval).
 - **Release**: `prepare-release`. Maintenance: `consolidate-recordings`, `crc-update-check` (any time CRC ships a new version — decides whether the server or client must follow), `triage-open-issues` (folding the open GitHub issues into `docs/plans/` — verdicts, placement, grouping; never closes an issue).
 
 ## Problem Solving
@@ -258,4 +258,4 @@ When invoking aviation-sim-expert, always include:
 
 - **Unreleased software**: No backwards-compat shims, migration paths, or deprecated aliases. Delete and replace freely.
 - **Window geometry**: Every window uses `WindowGeometryHelper(window, preferences, "Name", defaultW, defaultH).Restore()`.
-- **Memory Updates**: Distill findings into auto-memory at `C:\Users\Leftos\.claude\projects\X--dev-yaat\memory\`.
+- **Memory Updates**: Distill findings into the auto-memory directory the session prompt names (`~/.claude/projects/<project-slug>/memory/`).

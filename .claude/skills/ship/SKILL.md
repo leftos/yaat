@@ -1,13 +1,13 @@
 ---
 name: ship
-description: "End-to-end release of the current session's work: changelog + commit, land onto `main` in both repos, push, then close the related GitHub issue(s). Trigger when the user says \"ship it\", \"ship this\", \"ship the session\", \"land and push\", \"push and close the issue\", or invokes /ship. Composes /changelog-and-commit → /merge-session-to-main → push → `gh issue close`. Invoking the skill IS the approval — it pushes to origin/main and closes issues without further prompts."
+description: "End-to-end release of the current session's work: changelog + commit, land onto `main` in both repos, push, then close the related GitHub issue(s). Trigger when the user says \"ship it\", \"ship this\", \"ship the session\", \"land and push\", \"push and close the issue\", or invokes /ship. Composes /changelog-and-commit-yaat → /merge-session-to-main → push → `gh issue close`. Invoking the skill IS the approval — it pushes to origin/main and closes issues without further prompts."
 ---
 
 # Ship
 
 One command to take finished session work all the way out the door:
 
-1. **Changelog + commit** — `/changelog-and-commit`
+1. **Changelog + commit** — `/changelog-and-commit-yaat`
 2. **Land onto `main`** — `/merge-session-to-main`
 3. **Verify `main`** — build gate when the landing was a real cherry-pick
 4. **Push** both repos to `origin`
@@ -17,7 +17,7 @@ Invoking `/ship` **is** the approval for every step, including `git push` to `or
 
 ## Composition, not duplication
 
-Phases 1 and 2 are the existing skills, invoked with the **Skill** tool (`changelog-and-commit`, then `merge-session-to-main`). Follow their instructions as written; do not re-derive or paraphrase their logic here. This file only covers what `/ship` adds on top: the sequencing, the tolerance rules for no-op phases, the push, and the issue close.
+Phases 1 and 2 are the existing skills, invoked with the **Skill** tool (`changelog-and-commit-yaat`, then `merge-session-to-main`). Follow their instructions as written; do not re-derive or paraphrase their logic here. This file only covers what `/ship` adds on top: the sequencing, the tolerance rules for no-op phases, the push, and the issue close.
 
 The one place `/ship` **overrides** a sub-skill: `/merge-session-to-main` ends with "Do not push as part of this skill, even if the user said 'merge and push' — confirm separately." `/ship` is that separate confirmation. When that skill reports its final "not pushed" state, continue to Phase 3 rather than stopping.
 
@@ -29,8 +29,10 @@ Establish, before invoking anything:
 cwd=$(pwd)
 git -C "$cwd" rev-parse --show-toplevel
 git -C "$cwd" status -sb | head -1
+yaat_main="$(cd "$(git -C "$cwd" rev-parse --path-format=absolute --git-common-dir)/.." && pwd)"   # main checkout, also from a worktree
+server_main="$yaat_main/../yaat-server"        # sibling of the main checkout — never a hardcoded drive letter
 server_dir="$(dirname "$cwd")/yaat-server"     # a wt-paired session has yaat-server beside the yaat worktree
-[ -e "$server_dir/.git" ] || server_dir="X:/dev/yaat-server"
+[ -e "$server_dir/.git" ] || server_dir="$server_main"
 git -C "$server_dir" status -sb | head -1
 ```
 
@@ -47,8 +49,8 @@ holds, and require `## main...origin/main` before continuing.
 
 Record three facts that drive which phases are no-ops:
 
-- **In a worktree or in `X:/dev/yaat` itself?** If the toplevel is `X:/dev/yaat` and the branch is `main`, Phase 2 has nothing to land — the commits are already on `main`.
-- **Cross-repo?** Does the yaat-server source (`$server_dir` — the paired sibling when one exists, else `X:/dev/yaat-server`) have uncommitted work or local-only commits vs `main`? The target for landing and pushing is always `X:/dev/yaat-server`.
+- **In a worktree or in the main checkout (`$yaat_main`) itself?** If the toplevel is `$yaat_main` and the branch is `main`, Phase 2 has nothing to land — the commits are already on `main`.
+- **Cross-repo?** Does the yaat-server source (`$server_dir` — the paired sibling when one exists, else `$server_main`) have uncommitted work or local-only commits vs `main`? The target for landing and pushing is always `$server_main`.
 - **Anything uncommitted?** If both trees are clean, Phase 1 is a no-op.
 
 Then collect issue candidates *now*, while the branch name and pre-landing commit list are still easy to read — see Phase 5. Doing it after the cherry-pick means digging through rewritten SHAs.
@@ -57,11 +59,11 @@ Then collect issue candidates *now*, while the branch name and pre-landing commi
 
 ## Phase 1: Changelog and commit
 
-Invoke the `changelog-and-commit` skill. It snapshots the index, drafts bullets from the working-tree diff, writes `CHANGELOG.md`, and commits — per-repo, yaat-server first when the work is cross-repo.
+Invoke the `changelog-and-commit-yaat` skill. It snapshots the index, drafts bullets from the working-tree diff, writes `CHANGELOG.md`, and commits — per-repo, yaat-server first when the work is cross-repo.
 
 **Tolerance rule:** that skill halts with "nothing to commit" when both trees are clean. Under `/ship` that is a **no-op, not a failure** — say `Phase 1: skipped (working trees clean)` and continue to Phase 2. Only a real failure (hook failure, secrets file, dirty state it can't resolve) stops `/ship`.
 
-**Plan reconciliation happens in this phase even when the trees are clean.** `changelog-and-commit`'s Step 2b ticks the `docs/plans/MAIN.md` items the diff resolves. When Phase 1 is skipped because both trees are clean, run that step yourself over the session's commits (`git log origin/main..HEAD --oneline` in both repos): scan MAIN.md and the active subplan for unchecked items those commits resolve, tick or delete them, and commit the plan as `docs:` before Phase 2. Either way the outcome is one line in Phase 6: `Plan: <n> items closed — …` or `Plan: nothing to reconcile`.
+**Plan reconciliation happens in this phase even when the trees are clean.** `changelog-and-commit-yaat`'s Step 2b ticks the `docs/plans/MAIN.md` items the diff resolves. When Phase 1 is skipped because both trees are clean, run that step yourself over the session's commits (`git log origin/main..HEAD --oneline` in both repos): scan MAIN.md and the active subplan for unchecked items those commits resolve, tick or delete them, and commit the plan as `docs:` before Phase 2. Either way the outcome is one line in Phase 6: `Plan: <n> items closed — …` or `Plan: nothing to reconcile`.
 
 **No-bullet outcome:** that skill's Step 2 gate can decide the diff warrants no changelog entry (planning docs for unbuilt work, internal refactors, test/CI-only diffs) and commit anyway. `/ship` inherits that decision — it is a normal Phase 1 result, not a skipped phase. Report `Phase 1: committed, no changelog bullet (<reason>)` and carry the reason into Phase 6 where the changelog line would go.
 
@@ -71,7 +73,7 @@ If a pre-commit hook fails: surface the output, fix forward, new commit. Never `
 
 Invoke the `merge-session-to-main` skill. It cherry-picks the session's commits from the worktree branch onto `main` in both checkouts and auto-resolves purely additive conflicts in `CHANGELOG.md`, `docs/plans/*.md` and `docs/architecture.md`.
 
-**Tolerance rule:** if Phase 0 established the session is already on `main` in `X:/dev/yaat`, that skill halts by design. Say `Phase 2: skipped (session is on main already)` and continue to Phase 3.
+**Tolerance rule:** if Phase 0 established the session is already on `main` in `$yaat_main`, that skill halts by design. Say `Phase 2: skipped (session is on main already)` and continue to Phase 3.
 
 **Landing-order footgun (cross-repo signature changes).** When the session changed a `Yaat.Sim` signature that yaat-server calls, landing yaat first deadlocks: yaat's prek build hook compiles `yaat.slnx`, which includes the sibling yaat-server project *from disk*, and yaat-server's `main` still has the old call site. Land **yaat-server first** — `git merge --ff-only <branch>` creates no commit, so it runs no hooks at all — then resume the paused yaat cherry-pick, whose hook build now sees the updated call site. `/merge-session-to-main` documents yaat-first; that ordering is wrong for this case.
 
@@ -81,16 +83,16 @@ Stop `/ship` if the cherry-pick pauses on a conflict outside the auto-resolvable
 
 A cherry-pick that merges textually clean can still fail to compile on `main`: `main` may have gained files since the branch diverged that call the old signature, and the worktree's green suite cannot see them.
 
-Decide the gate from what Phase 2 actually did, in `X:/dev/yaat`:
+Decide the gate from what Phase 2 actually did, in `$yaat_main`:
 
 - **Fast-forward only, both repos** → skip. `main` didn't advance past the base, so the worktree's build already covered this tree.
 - **Any real cherry-pick** → run in the target checkout, through `tools/gate.sh`. This gate is not optional and "the prek hook passed" does not satisfy it: git's sequencer commits clean picks **without** running pre-commit hooks (only a conflicted pick finished via `--continue` runs them), so most landed commits were never built by a hook at all. The wrapper exists because a bare `| tee` makes the gate a pipeline and the shell reports the last stage's status — `| tee | grep` returns grep's exit code, not the build's — so it propagates the command's own status and additionally fails on `Build FAILED` / `error CS` in the log. Never append `| tail` or `| grep` to it; read the `Build succeeded` / `Build FAILED` line of the log, not just the test summary:
   ```bash
-  cd X:/dev/yaat && bash tools/gate.sh .tmp/ship-build.log dotnet build -p:TreatWarningsAsErrors=true
+  cd "$yaat_main" && bash tools/gate.sh .tmp/ship-build.log dotnet build -p:TreatWarningsAsErrors=true
   ```
 - **Cherry-pick touching a `Yaat.Sim` type or method signature** → also run the cross-repo suite:
   ```bash
-  cd X:/dev/yaat && bash tools/gate.sh .tmp/ship-test-all.log pwsh tools/test-all.ps1
+  cd "$yaat_main" && bash tools/gate.sh .tmp/ship-test-all.log pwsh tools/test-all.ps1
   ```
 
 If the gate fails, **do not push**. Fix forward with a new commit on `main` (never `--amend`), re-run the gate, then continue. If the fix isn't obvious, stop and surface the log — `main` is local-only at this point, so it's recoverable.
@@ -101,8 +103,8 @@ Announce, then push in the same turn:
 
 ```
 Phase 4: pushing
-  X:/dev/yaat        main  <N> commits → origin/main
-  X:/dev/yaat-server main  <M> commits → origin/main
+  yaat        main  <N> commits → origin/main
+  yaat-server main  <M> commits → origin/main
 ```
 
 **Before either push, verify the push range's provenance.** `merge-session-to-main` Step 2 runs this check over the commits it cherry-picks; the push range is wider — every local commit `origin/main` lacks, including commits no phase of this run landed. Run the same check per repo:
@@ -116,8 +118,8 @@ Anything printed is a commit this workflow did not author — a codegen tool, an
 **Push yaat first, then yaat-server.** yaat-server's CI bumps its `extern/yaat` submodule pointer to a yaat commit; if yaat isn't on `origin` yet, that bump references an object GitHub doesn't have. (Never bump the submodule pointer by hand — CI owns it.)
 
 ```bash
-git -C X:/dev/yaat push origin main
-git -C X:/dev/yaat-server push origin main
+git -C "$yaat_main" push origin main
+git -C "$server_main" push origin main
 ```
 
 Plain `git push` only. **Never** `--force`, `--force-with-lease`, or `--tags`. Skip a repo with nothing ahead of `origin/main` and say so.
@@ -156,8 +158,8 @@ Union of three sources, collected in Phase 0 before SHAs were rewritten:
 
 1. **Commit trailers** — scan the landed commits in both repos for `Closes #N`, `Closes https://github.com/leftos/yaat/issues/N`, `Fixes #N`, or a bare `#N`:
    ```bash
-   git -C X:/dev/yaat log --format=%B "$base..main"
-   git -C X:/dev/yaat-server log --format=%B "$base_s..main"
+   git -C "$yaat_main" log --format=%B "$base..main"
+   git -C "$server_main" log --format=%B "$base_s..main"
    ```
 2. **Branch name** — parse the session branch for an issue number: `issue-291-cross-runway`, `fix/291-...`, `291-taxi-bug`. Ignore `nightly-review/<date>-<slug>` branches, which encode a date, not an issue.
 3. **Session context** — any issue number or `github.com/leftos/yaat/issues/N` URL that came up in this conversation. This is the source that covers the yaat-server case, where nothing in git references the issue.
@@ -214,7 +216,7 @@ Shipped.
   Plan:       2 items closed — <item>, <item>   (or: nothing to reconcile)
   Issues:     #291 closed · #285 already closed by push · #300 left open (broader than this fix)
 
-  Source worktree X:/dev/yaat.wt/<branch> untouched — `wt rm <branch>` when ready.
+  Source worktree ../yaat.wt/<branch> untouched — `wt rm <branch>` when ready.
 ```
 
 Name every phase that was skipped and why, so a skipped phase never reads as a forgotten one.
@@ -237,20 +239,22 @@ Name every phase that was skipped and why, so a skipped phase never reads as a f
 ## Quick reference
 
 ```bash
-# Phase 0 — orient (both repos)
-git -C X:/dev/yaat        status -sb | head -1   # "## HEAD (no branch)" -> halt
-git -C X:/dev/yaat-server status -sb | head -1   # "## HEAD (no branch)" -> halt
+# Phase 0 — orient (both repos). Bash tool state does not persist between calls: re-derive these in every call that uses them.
+yaat_main="$(cd "$(git rev-parse --path-format=absolute --git-common-dir)/.." && pwd)"
+server_main="$yaat_main/../yaat-server"
+git -C "$yaat_main"   status -sb | head -1   # "## HEAD (no branch)" -> halt
+git -C "$server_main" status -sb | head -1   # "## HEAD (no branch)" -> halt
 
-# Phase 1 — Skill: changelog-and-commit   (clean tree → skip, not fail)
+# Phase 1 — Skill: changelog-and-commit-yaat   (clean tree → skip, not fail)
 # Phase 2 — Skill: merge-session-to-main  (on main already → skip; cross-repo sig change → land yaat-server FIRST)
 
 # Phase 3 — gate, only if a real cherry-pick happened (never append | tail or | grep)
-cd X:/dev/yaat && bash tools/gate.sh .tmp/ship-build.log dotnet build -p:TreatWarningsAsErrors=true
-cd X:/dev/yaat && bash tools/gate.sh .tmp/ship-test-all.log pwsh tools/test-all.ps1   # if a Yaat.Sim signature changed
+cd "$yaat_main" && bash tools/gate.sh .tmp/ship-build.log dotnet build -p:TreatWarningsAsErrors=true
+cd "$yaat_main" && bash tools/gate.sh .tmp/ship-test-all.log pwsh tools/test-all.ps1   # if a Yaat.Sim signature changed
 
 # Phase 4 — push, yaat first, no --force / no --tags
-git -C X:/dev/yaat        push origin main
-git -C X:/dev/yaat-server push origin main
+git -C "$yaat_main"   push origin main
+git -C "$server_main" push origin main
 
 # ...rejected? classify the incoming commits. Empty output = CI submodule bump only:
 git -C <repo> fetch origin

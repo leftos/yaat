@@ -32,7 +32,7 @@ the parent of the release commit.
 Every later step addresses yaat-server. **`git -C <path>` does not fail when
 `<path>` is not a repository — it walks up from the current working directory to
 the nearest `.git` and operates there.** From a worktree session
-(`X:/dev/yaat.wt/<branch>/`) `../yaat-server` does not exist, so a relative
+(`../yaat.wt/<branch>/` beside the main checkout) `../yaat-server` does not exist, so a relative
 `git -C ../yaat-server diff` silently computes its verdict from *yaat*, and a
 relative `git -C ../yaat-server push origin main` pushes yaat a second time while
 reporting yaat-server pushed. The Bash tool's cwd also persists across calls, so
@@ -41,7 +41,8 @@ an earlier stray `cd` changes what `..` means with no visible error.
 Resolve it once and assert, then use `$SERVER` in every later command:
 
 ```bash
-SERVER=X:/dev/yaat-server          # or the real worktree path
+YAAT="$(cd "$(git rev-parse --path-format=absolute --git-common-dir)/.." && pwd)"   # main checkout, also from a worktree
+SERVER="$YAAT/../yaat-server"      # sibling of the main checkout, or the paired worktree sibling when one exists
 [ -d "$SERVER/.git" ] || [ -f "$SERVER/.git" ] || { echo "no repo at $SERVER"; exit 1; }
 git -C "$SERVER" status -sb | head -1
 ```
@@ -389,7 +390,7 @@ Once the user approves:
     longer be amended.
 
     If the release commit is a partial commit of a dirty tree, follow the
-    partial-commit protocol in the `changelog-and-commit` skill — stash the
+    partial-commit protocol in the `changelog-and-commit-yaat` skill — stash the
     remainder including untracked files, commit with explicit paths, pop, then
     `git show --stat HEAD` to confirm nothing extra landed.
 

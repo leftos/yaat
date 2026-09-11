@@ -37,8 +37,9 @@ lists every commit between the *old* base and head, including commits already on
 `main`. Measure the staleness rather than reading the list:
 
 ```bash
-git -C X:/dev/yaat rev-list --count <base.sha>..main      # how far main has moved since
-git -C X:/dev/yaat merge-base --is-ancestor <base.sha> main && echo "base is on main"
+YAAT="$(cd "$(git rev-parse --path-format=absolute --git-common-dir)/.." && pwd)"   # primary checkout; Bash tool state does not persist, re-derive per call
+git -C "$YAAT" rev-list --count <base.sha>..main      # how far main has moved since
+git -C "$YAAT" merge-base --is-ancestor <base.sha> main && echo "base is on main"
 ```
 
 (On #334 that count was 273. The alarming diff is cosmetic.)
@@ -60,9 +61,9 @@ would have wiped `3b771ca8`'s `FindPhaseGateDriverIndex`/`ApplyParallelSibling`.
 Diff and 3-way apply instead — check first, then apply:
 
 ```bash
-git -C X:/dev/yaat fetch origin pull/<PR>/head:pr-<PR>
-git -C X:/dev/yaat diff <base.sha> pr-<PR> -- <file> | git apply --3way --check -
-git -C X:/dev/yaat diff <base.sha> pr-<PR> -- <file> | git apply --3way -
+git -C "$YAAT" fetch origin pull/<PR>/head:pr-<PR>
+git -C "$YAAT" diff <base.sha> pr-<PR> -- <file> | git apply --3way --check -
+git -C "$YAAT" diff <base.sha> pr-<PR> -- <file> | git apply --3way -
 ```
 
 The `--check` run is a dry run: it reports whether the patch lands cleanly and
@@ -78,20 +79,20 @@ Rebasing the PR onto a local `main` that is ahead of origin drags your unpushed
 commits into the PR, and GitHub will show — and merge — them.
 
 ```bash
-git -C X:/dev/yaat rev-list --left-right --count origin/main...main   # left=origin-only, right=local-only
+git -C "$YAAT" rev-list --left-right --count origin/main...main   # left=origin-only, right=local-only
 ```
 
 If the right-hand number is non-zero, push before rebasing:
 
 ```bash
-git -C X:/dev/yaat push origin main
+git -C "$YAAT" push origin main
 ```
 
 **Trap 6 — inside a worktree, `git checkout main` fails**
-(`already used by worktree at X:/dev/yaat`), and a following
+(`already used by worktree at <primary checkout>`), and a following
 `git merge --ff-only origin/main` then silently fast-forwards *the current
 branch* instead. Never rely on `checkout main` from a worktree; address the
-primary checkout explicitly with `git -C X:/dev/yaat …`, as every command in
+primary checkout explicitly with `git -C "$YAAT" …`, as every command in
 this skill does.
 
 ## Step 6: Rebase the PR onto main, THEN add the changelog
@@ -105,8 +106,8 @@ under `# Changelog`.
 Order matters: **rebase first, add the bullet second.**
 
 ```bash
-git -C X:/dev/yaat fetch origin
-git -C X:/dev/yaat rebase main pr-<PR>
+git -C "$YAAT" fetch origin
+git -C "$YAAT" rebase main pr-<PR>
 ```
 
 Code hunks usually rebase clean; verify rather than assume (Step 4's
@@ -115,7 +116,7 @@ changelog commit with the `changelog-and-commit` skill, and push the rebased
 branch:
 
 ```bash
-git -C X:/dev/yaat push --force-with-lease origin pr-<PR>:<head-branch>
+git -C "$YAAT" push --force-with-lease origin pr-<PR>:<head-branch>
 ```
 
 **Expect a `CHANGELOG.md` conflict when a release was cut since the pin.** A
@@ -137,7 +138,7 @@ the primary checkout — and use `tools/gate.sh`, because a teed pipeline report
 the status of its last stage and would read a failed build as green:
 
 ```bash
-cd X:/dev/yaat
+YAAT="$(cd "$(git rev-parse --path-format=absolute --git-common-dir)/.." && pwd)" && cd "$YAAT"
 tools/gate.sh .tmp/build.log dotnet build -p:TreatWarningsAsErrors=true
 tools/gate.sh .tmp/test-all.log pwsh tools/test-all.ps1
 ```
@@ -163,7 +164,7 @@ more is not out of place despite the mostly-linear history.
 ## Step 9: Close the loop
 
 ```bash
-git -C X:/dev/yaat fetch origin && git -C X:/dev/yaat merge --ff-only origin/main
+git -C "$YAAT" fetch origin && git -C "$YAAT" merge --ff-only origin/main
 gh issue view <N> --repo leftos/yaat --json state --jq .state
 ```
 

@@ -16,10 +16,10 @@ path fails with `An error occurred trying to start process … The system cannot
 find the file specified` and exits 3.
 
 ```bash
-cd X:/dev/yaat
+cd "$(git rev-parse --show-toplevel)"
 mkdir -p .tmp/prof
 dotnet-trace collect --format Speedscope -o .tmp/prof/suite.nettrace \
-  -- X:/dev/yaat/tests/Yaat.Sim.Tests/bin/Release/net10.0/Yaat.Sim.Tests.exe \
+  -- "$(git rev-parse --show-toplevel)/tests/Yaat.Sim.Tests/bin/Release/net10.0/Yaat.Sim.Tests.exe" \
      --filter-class "*.<ClassName>"
 ```
 
@@ -73,7 +73,7 @@ method, so charging the leaf tells you nothing actionable. Collect with the
 
 ```bash
 dotnet-trace collect --profile gc-verbose -o .tmp/prof/gc.nettrace \
-  -- X:/dev/yaat/tests/Yaat.Sim.Tests/bin/Release/net10.0/Yaat.Sim.Tests.exe \
+  -- "$(git rev-parse --show-toplevel)/tests/Yaat.Sim.Tests/bin/Release/net10.0/Yaat.Sim.Tests.exe" \
      --filter-class "*.<ClassName>"
 
 tools/gate.sh .tmp/prof/alloc.log dotnet run .claude/skills/dotnet-test-suite-profiling/scripts/alloc_ticks.cs \

@@ -41,7 +41,7 @@ whether the change was the issue's or unrelated churn. A bot issue (`nightly-rev
 its confidence and carries a red-first repro; that is the evidence, and re-deriving the root cause
 from source is the implementer's work. Rule 1 in Step 3 needs the plan files that name the
 issue's classes; `plan-refs.txt` lists those too, under its second heading, so the subplan check is
-a read. Any `rg` you run yourself takes an absolute path (`rg -n pat X:/dev/yaat/docs/plans`): a
+a read. Any `rg` you run yourself takes an absolute path (`rg -n pat "$(git rev-parse --show-toplevel)/docs/plans"`): a
 `cd … && rg` is rejected by the permission guard and costs a retry.
 
 ## Step 3: Place each `open` issue
