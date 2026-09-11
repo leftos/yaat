@@ -1,6 +1,12 @@
 # Changelog
 
-## Unreleased
+## v0.12.30-beta [2026/09/11]
+
+### Highlights
+- A taxi clearance to an aircraft off the taxiway network, after a plain `PUSH` or short of a junction, drives it onto the route instead of pivoting and jumping onto the first fillet.
+- `FH` then `CAPP` joins the localizer instead of busting through, and a pilot who cannot intercept says so on frequency.
+- Typing `@` or `$` in a `TAXI` or `PUSH` clearance autocompletes the airport's stands and taxi spots, and the Aircraft List names the stand an aircraft is parked at.
+- At an airport with no ground layout a landed aircraft stops on the runway and *On landing* auto-delete removes it.
 
 ### Fixed
 - Typing `@` in a `TAXI` or `PUSH` clearance now autocompletes the airport's parking and helipad stands (`TAXI C D @NEW1`), and `$` its taxi spots; previously the popup offered nothing after the sigil.
