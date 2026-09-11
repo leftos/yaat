@@ -1375,6 +1375,21 @@
     "Solo": false
   },
   {
+    "File": "oak-push-then-taxi-approach-recording.zip",
+    "Commands": 79,
+    "ByKind": {
+      "Compound": 15,
+      "Delete": 1,
+      "FlightPlan": 1,
+      "SetActivePosition": 1,
+      "Strip": 61
+    },
+    "Unparsed": [],
+    "ReactionDelayed": 0,
+    "AsPrefixed": 1,
+    "Solo": false
+  },
+  {
     "File": "oak-taxi-current-taxiway-recording.zip",
     "Commands": 276,
     "ByKind": {

@@ -97,6 +97,121 @@ public static class PathPrimitiveBuilder
     }
 
     /// <summary>
+    /// Build a <see cref="PathPrimitiveSlowTurn"/> whose exit tangent runs <em>through</em> the point
+    /// (<paramref name="targetLat"/>, <paramref name="targetLon"/>): the Dubins arc-then-tangent-line
+    /// solution, an arc of <paramref name="radiusFt"/> off the entry pose that rolls out on the line to the
+    /// point. Aiming at a bearing instead leaves the roll-out laterally offset from that line by as much as
+    /// the arc diameter — fine when the segment has a painted centerline for pure pursuit to re-acquire, wrong
+    /// for a free-space leg whose "line" is defined only by its two endpoints.
+    ///
+    /// <para>
+    /// Both turn directions are solved; the one with the smaller sweep wins, and the arc is built with that
+    /// direction and sweep explicitly — not through <see cref="SlowTurn"/>'s short-way rotation, which cannot
+    /// express the over-half turn a point behind the aircraft needs. Returns null when the point lies inside a
+    /// turning circle (no tangent through it exists) and when both solutions sweep past
+    /// <see cref="MaxAimSweepDeg"/> — the caller falls back to aiming at the segment's bearing.
+    /// </para>
+    /// </summary>
+    /// <param name="fromLat">Entry-point latitude (degrees).</param>
+    /// <param name="fromLon">Entry-point longitude (degrees).</param>
+    /// <param name="fromHdgDeg">Tangent heading at entry (degrees true, 0–360).</param>
+    /// <param name="radiusFt">Turn radius in feet. Typically <see cref="CategoryPerformance.NoseWheelTurnRadiusFt"/>.</param>
+    /// <param name="targetLat">Latitude of the point the exit tangent must run through.</param>
+    /// <param name="targetLon">Longitude of the point the exit tangent must run through.</param>
+    /// <param name="maxSpeedKts">Target-speed cap in knots.</param>
+    /// <param name="toNodeId">Synthetic end-of-primitive node id for arrival detection.</param>
+    public static PathPrimitiveSlowTurn? SlowTurnToPoint(
+        double fromLat,
+        double fromLon,
+        double fromHdgDeg,
+        double radiusFt,
+        double targetLat,
+        double targetLon,
+        double maxSpeedKts,
+        int toNodeId
+    )
+    {
+        var right = TangentExit(fromLat, fromLon, fromHdgDeg, radiusFt, targetLat, targetLon, rightTurn: true);
+        var left = TangentExit(fromLat, fromLon, fromHdgDeg, radiusFt, targetLat, targetLon, rightTurn: false);
+
+        bool? bestRightTurn = null;
+        double bestSweepDeg = double.MaxValue;
+        double bestExitHdgDeg = 0.0;
+
+        if ((right is { } r) && (r.SweepDeg <= MaxAimSweepDeg))
+        {
+            bestRightTurn = true;
+            bestSweepDeg = r.SweepDeg;
+            bestExitHdgDeg = r.ExitHeadingDeg;
+        }
+
+        if ((left is { } l) && (l.SweepDeg <= MaxAimSweepDeg) && (l.SweepDeg < bestSweepDeg))
+        {
+            bestRightTurn = false;
+            bestSweepDeg = l.SweepDeg;
+            bestExitHdgDeg = l.ExitHeadingDeg;
+        }
+
+        if (bestRightTurn is not { } rightTurn)
+        {
+            Log.LogDebug(
+                "[PathPrimitive] SlowTurnToPoint: no tangent to ({TargetLat:F6},{TargetLon:F6}) at r={R:F0}ft from hdg {Hdg:F0}",
+                targetLat,
+                targetLon,
+                radiusFt,
+                fromHdgDeg
+            );
+            return null;
+        }
+
+        return BuildSlowTurn(fromLat, fromLon, fromHdgDeg, radiusFt, rightTurn, bestSweepDeg, bestExitHdgDeg, maxSpeedKts, toNodeId);
+    }
+
+    /// <summary>
+    /// The most a point-aimed alignment arc (<see cref="SlowTurnToPoint"/>) may sweep. A reversal on open apron
+    /// legitimately over-rotates past a half turn to line up on the point — the tangent to a node 100 ft behind
+    /// the tail wants ~196° at a jet's nose-wheel radius — so the cap is not 180°; it keeps headroom under the
+    /// navigator's 360° orbit invariant, which would otherwise see a legitimate aim as a pure-pursuit orbit.
+    /// </summary>
+    public const double MaxAimSweepDeg = 270.0;
+
+    /// <summary>
+    /// The tangent solution for one turn direction: the arc of <paramref name="radiusFt"/> on that side of the
+    /// entry pose, swept until its tangent points at the target. Null when the target lies inside the circle.
+    /// </summary>
+    private static (double SweepDeg, double ExitHeadingDeg)? TangentExit(
+        double fromLat,
+        double fromLon,
+        double fromHdgDeg,
+        double radiusFt,
+        double targetLat,
+        double targetLon,
+        bool rightTurn
+    )
+    {
+        double perpHdgDeg = fromHdgDeg + (rightTurn ? 90.0 : -90.0);
+        var (centerLat, centerLon) = GeoMath.ProjectPoint(fromLat, fromLon, new TrueHeading(perpHdgDeg), radiusFt / GeoMath.FeetPerNm);
+
+        double centerToTargetFt = GeoMath.DistanceNm(centerLat, centerLon, targetLat, targetLon) * GeoMath.FeetPerNm;
+        if (centerToTargetFt <= radiusFt)
+        {
+            return null;
+        }
+
+        // Tangent-point radial: the centre-to-target bearing rotated back by the half-angle of the tangent
+        // triangle, on the side the turn runs toward. The exit tangent is perpendicular to that radial.
+        double halfAngleDeg = Math.Acos(radiusFt / centerToTargetFt) * 180.0 / Math.PI;
+        double centerToTargetDeg = GeoMath.BearingTo(centerLat, centerLon, targetLat, targetLon);
+        double tangentRadialDeg = rightTurn ? centerToTargetDeg - halfAngleDeg : centerToTargetDeg + halfAngleDeg;
+        double exitHeadingDeg = Normalise360(tangentRadialDeg + (rightTurn ? 90.0 : -90.0));
+        double sweepDeg = rightTurn ? Normalise360(exitHeadingDeg - fromHdgDeg) : Normalise360(fromHdgDeg - exitHeadingDeg);
+
+        return (sweepDeg, exitHeadingDeg);
+    }
+
+    private static double Normalise360(double degrees) => ((degrees % 360.0) + 360.0) % 360.0;
+
+    /// <summary>
     /// Build a <see cref="PathPrimitiveSlowTurn"/> from entry pose + desired exit
     /// heading. The turn direction is the short-way rotation from
     /// <paramref name="fromHdgDeg"/> to <paramref name="toHdgDeg"/>; the arc
@@ -127,17 +242,33 @@ public static class PathPrimitiveBuilder
     {
         // Short-way signed turn angle, normalised to (-180, 180].
         double dthetaDeg = (((toHdgDeg - fromHdgDeg) + 540.0) % 360.0) - 180.0;
-        double sweepDeg = Math.Abs(dthetaDeg);
-        bool rightTurn = dthetaDeg > 0;
+        return BuildSlowTurn(fromLat, fromLon, fromHdgDeg, radiusFt, dthetaDeg > 0, Math.Abs(dthetaDeg), toHdgDeg, maxSpeedKts, toNodeId);
+    }
 
-        // Centre is perpendicular-inward from entry at radius distance.
-        // Right turn: centre 90° clockwise of entry tangent; left: 90° CCW.
-        double perpHdgDeg = ((fromHdgDeg + (rightTurn ? 90.0 : -90.0)) + 360.0) % 360.0;
+    /// <summary>
+    /// The circle geometry every slow-turn shares: the centre is perpendicular-inward from the entry point at
+    /// <paramref name="radiusFt"/> (90° clockwise of the entry tangent on a right turn, counter-clockwise on a left),
+    /// the entry point sits on the opposite radial, and the arc length is the sweep along that radius. Direction
+    /// and sweep are the caller's: <see cref="SlowTurn"/> derives them from the short way between two headings,
+    /// <see cref="SlowTurnToPoint"/> from the tangent to a point, which may be the long way round.
+    /// </summary>
+    private static PathPrimitiveSlowTurn BuildSlowTurn(
+        double fromLat,
+        double fromLon,
+        double fromHdgDeg,
+        double radiusFt,
+        bool rightTurn,
+        double sweepDeg,
+        double exitHdgDeg,
+        double maxSpeedKts,
+        int toNodeId
+    )
+    {
+        double perpHdgDeg = Normalise360(fromHdgDeg + (rightTurn ? 90.0 : -90.0));
         double radiusNm = radiusFt / GeoMath.FeetPerNm;
         var (centerLat, centerLon) = GeoMath.ProjectPoint(fromLat, fromLon, new TrueHeading(perpHdgDeg), radiusNm);
 
-        // Entry point relative to centre sits on the radial opposite perpHdg.
-        double startBearingFromCenterDeg = ((perpHdgDeg + 180.0) % 360.0 + 360.0) % 360.0;
+        double startBearingFromCenterDeg = Normalise360(perpHdgDeg + 180.0);
         double lengthFt = sweepDeg * radiusFt * Math.PI / 180.0;
 
         return new PathPrimitiveSlowTurn
@@ -151,8 +282,8 @@ public static class PathPrimitiveBuilder
             StartBearingFromCenterDeg = startBearingFromCenterDeg,
             SweepDeg = sweepDeg,
             RightTurn = rightTurn,
-            EntryTangentBearingDeg = ((fromHdgDeg % 360.0) + 360.0) % 360.0,
-            ExitTangentBearingDeg = ((toHdgDeg % 360.0) + 360.0) % 360.0,
+            EntryTangentBearingDeg = Normalise360(fromHdgDeg),
+            ExitTangentBearingDeg = Normalise360(exitHdgDeg),
             MaxSpeedKts = maxSpeedKts,
         };
     }

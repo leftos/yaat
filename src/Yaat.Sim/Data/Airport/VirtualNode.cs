@@ -5,26 +5,75 @@ namespace Yaat.Sim.Data.Airport;
 /// <summary>
 /// Factory for creating virtual ground nodes — navigation targets that exist along graph edges
 /// but aren't part of the airport layout. Virtual nodes are first-class <see cref="GroundNode"/>
-/// instances with unique negative IDs and virtual edges connecting them to real nodes.
+/// instances with negative ids derived from the position, so the same point yields the same id in
+/// every process and after a snapshot restore, and virtual edges connecting them to real nodes.
 /// </summary>
 public static class VirtualNode
 {
     private static readonly ILogger Log = SimLog.CreateLogger("VirtualNode");
 
-    private static int _nextId = -100;
+    /// <summary>The least negative id a position can hash to — below every layout node id and the small negative sentinels.</summary>
+    private const int FirstId = -101;
+
+    /// <summary>Positions are quantised to this many degrees before hashing: two points inside one cell are ~1 cm apart.</summary>
+    private const double PositionQuantumDeg = 1e-7;
+
+    private const ulong FnvOffsetBasis = 14695981039346656037UL;
+
+    private const ulong FnvPrime = 1099511628211UL;
 
     /// <summary>
-    /// Create a <see cref="GroundNode"/> at the given position with a unique negative ID.
+    /// Create a <see cref="GroundNode"/> at the given position with a negative id derived from that position.
     /// </summary>
     public static GroundNode Create(double latitude, double longitude)
     {
         return new GroundNode
         {
-            Id = Interlocked.Decrement(ref _nextId),
+            Id = IdFor(latitude, longitude),
             Position = new LatLon(latitude, longitude),
             Type = GroundNodeType.TaxiwayIntersection,
             Origin = "VirtualNode:created",
         };
+    }
+
+    /// <summary>
+    /// The id for a position: FNV-1a 64 over the latitude and longitude quantised to
+    /// <see cref="PositionQuantumDeg"/>, folded into <c>[0, int.MaxValue - 101)</c> and reflected below
+    /// <see cref="FirstId"/>. A pure function of the position, and of nothing else: a free-space leg's
+    /// negative from-node id is serialised into every snapshot, so an id minted from a process-global
+    /// counter makes two same-seed runs disagree byte-for-byte and makes a restore rebuild the same point
+    /// under a different id. <c>string.GetHashCode</c> and <c>HashCode.Combine</c> are randomised per
+    /// process and cannot be used here.
+    ///
+    /// <para>
+    /// Unique per POSITION, not per node: two virtual nodes created at the same point share one id, which is
+    /// the design — the same point is the same navigation target however many times it is minted. Stability
+    /// across a snapshot therefore rests on the latitude and longitude round-tripping exactly as doubles,
+    /// which the JSON and MessagePack serialisers in use do; a serialiser that rounded them would re-mint the
+    /// point under a different id.
+    /// </para>
+    /// </summary>
+    private static int IdFor(double latitude, double longitude)
+    {
+        ulong hash = HashInt64(FnvOffsetBasis, (long)Math.Round(latitude / PositionQuantumDeg));
+        hash = HashInt64(hash, (long)Math.Round(longitude / PositionQuantumDeg));
+
+        uint folded = (uint)(hash ^ (hash >> 32));
+        int index = (int)(folded % (uint)(int.MaxValue + FirstId));
+        return FirstId - index;
+    }
+
+    /// <summary>Fold the eight bytes of <paramref name="value"/> into <paramref name="hash"/> (FNV-1a 64).</summary>
+    private static ulong HashInt64(ulong hash, long value)
+    {
+        ulong bits = (ulong)value;
+        for (int i = 0; i < 8; i++)
+        {
+            hash ^= (bits >> (i * 8)) & 0xFF;
+            hash *= FnvPrime;
+        }
+
+        return hash;
     }
 
     private const string EdgeOrigin = "VirtualNode:edge";

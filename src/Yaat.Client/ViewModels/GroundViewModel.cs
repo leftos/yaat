@@ -1382,7 +1382,7 @@ public partial class GroundViewModel : ObservableObject
         var route = TaxiPathfinder.ResolveExplicitPathDetailed(_domainLayout, nodeId.Value, routeTaxiways, out var failure, options, category);
         if ((route is not null) && !StartsWithReversal(route, ac.Heading))
         {
-            return route;
+            return WithApproachLeg(route, ac.Position, ac.Heading);
         }
 
         // While the pilot cuts across a ramp onto a parallel lane the map does not connect (SFO M3 → M4),
@@ -1412,12 +1412,23 @@ public partial class GroundViewModel : ObservableObject
         // taxis — so a rebuilt route that starts with a reversal is replaced by the cut when one exists.
         if (destination is null)
         {
-            return route;
+            return WithApproachLeg(route, ac.Position, ac.Heading);
         }
 
         var cut = RampLaneReposition.TryPlanDestinationCut(_domainLayout, nodeId.Value, routeTaxiways, destination, options, category);
-        return cut?.Route ?? route;
+        return cut is not null ? cut.Route : WithApproachLeg(route, ac.Position, ac.Heading);
     }
+
+    /// <summary>
+    /// The route with the free-space leg from <paramref name="position"/> to the graph node it was resolved
+    /// from prepended — the same leg <see cref="TaxiApproachLeg"/> gave the server's route, so the overlay
+    /// starts at the aircraft instead of at the ramp node ahead of it (the leg's own guards refuse and hand
+    /// the route back unchanged when the aircraft is standing on that node, or when the drive to it is not
+    /// one the pilot would make). <see cref="RampLaneReposition"/> plans already start at the aircraft and
+    /// never come through here.
+    /// </summary>
+    private TaxiRoute? WithApproachLeg(TaxiRoute? route, LatLon position, TrueHeading heading) =>
+        ((_domainLayout is null) || (route is null)) ? route : TaxiApproachLeg.Prepend(_domainLayout, position, heading, route);
 
     /// <summary>A rebuilt route whose first leg leaves more than <see cref="ReversalDeg"/> off the aircraft's nose doubles back on itself.</summary>
     private static bool StartsWithReversal(TaxiRoute route, TrueHeading heading) =>

@@ -600,6 +600,15 @@ public sealed class TaxiingPhase : Phase
     /// Phases to run once <paramref name="holdShort"/> is released. <paramref name="advancePastCurrentSegment"/>
     /// is true when the aircraft reached the bar by arriving at the current segment's far end (that segment
     /// is spent), false when the bar is the route's start node and no segment has been traversed yet.
+    ///
+    /// <para>
+    /// That one-segment advance is the whole of this method's cursor bookkeeping. A runway crossing does
+    /// <i>not</i> walk <see cref="TaxiRoute.CurrentSegmentIndex"/> across its slice here — how far past the
+    /// exit bar the aircraft ends up depends on the tail-clearance extension, so
+    /// <see cref="CrossingRunwayPhase"/> writes the cursor itself when it completes and this method only
+    /// asks <see cref="CrossingRunwayPhase.RouteIndexAfterCrossing"/> whether anything is left to taxi.
+    /// Walking it here left the cursor on a segment the crossing had already driven past (issue #172).
+    /// </para>
     /// </summary>
     private static List<Phase> BuildResumePhases(PhaseContext ctx, TaxiRoute route, HoldShortPoint holdShort, bool advancePastCurrentSegment)
     {
@@ -621,31 +630,18 @@ public sealed class TaxiingPhase : Phase
         }
 
         int? crossingExitNodeId = null;
+        bool routeContinues = !route.IsComplete;
         if (NeedsRunwayCrossing(holdShort, ctx.GroundLayout))
         {
             crossingExitNodeId = FindRunwayCrossingExitNode(route, holdShort, ctx.GroundLayout, requireSameRunwayExit: false);
             if (crossingExitNodeId is { } exitNodeId)
             {
                 phases.Add(new CrossingRunwayPhase(holdShort.NodeId, exitNodeId, holdShort.TargetName));
-
-                while (!route.IsComplete)
-                {
-                    var seg = route.CurrentSegment;
-                    if (seg is null)
-                    {
-                        break;
-                    }
-
-                    route.CurrentSegmentIndex++;
-                    if (seg.ToNodeId == exitNodeId)
-                    {
-                        break;
-                    }
-                }
+                routeContinues = CrossingRunwayPhase.RouteIndexAfterCrossing(ctx, route, holdShort.NodeId, exitNodeId) < route.Segments.Count;
             }
         }
 
-        if (!route.IsComplete)
+        if (routeContinues)
         {
             phases.Add(new TaxiingPhase());
         }
@@ -712,33 +708,19 @@ public sealed class TaxiingPhase : Phase
     /// before arrival (so no <see cref="HoldingShortPhase"/> stop): the
     /// <see cref="CrossingRunwayPhase"/> across the painted line, then the onward
     /// <see cref="TaxiingPhase"/> (or <see cref="BuildTerminalPhasesAtCrossingExit"/>
-    /// if the route ends at the far side). Advances <see cref="TaxiRoute.CurrentSegmentIndex"/> past the crossing
-    /// slice — identical to the resume flow in <see cref="BuildResumePhases"/>, but
-    /// entered straight from a moving <see cref="TaxiingPhase"/>.
+    /// if the route ends at the far side). Advances <see cref="TaxiRoute.CurrentSegmentIndex"/> past the
+    /// arrived-at hold-short segment only — the crossing slice itself is the crossing phase's to walk, as
+    /// in <see cref="BuildResumePhases"/>, but entered straight from a moving <see cref="TaxiingPhase"/>.
     /// </summary>
     private static List<Phase> BuildPreClearedCrossingPhases(PhaseContext ctx, TaxiRoute route, HoldShortPoint holdShort, int exitNodeId)
     {
         var phases = new List<Phase> { new CrossingRunwayPhase(holdShort.NodeId, exitNodeId, holdShort.TargetName) };
 
-        // Skip past the arrived-at hold-short segment, then consume the crossing slice
-        // up to and including the segment that reaches the far-side hold-short.
+        // Skip past the arrived-at hold-short segment. The crossing slice ahead of it is consumed by the
+        // CrossingRunwayPhase, which writes the cursor to wherever its tail-clearance extension ends.
         route.CurrentSegmentIndex++;
-        while (!route.IsComplete)
-        {
-            var seg = route.CurrentSegment;
-            if (seg is null)
-            {
-                break;
-            }
 
-            route.CurrentSegmentIndex++;
-            if (seg.ToNodeId == exitNodeId)
-            {
-                break;
-            }
-        }
-
-        if (!route.IsComplete)
+        if (CrossingRunwayPhase.RouteIndexAfterCrossing(ctx, route, holdShort.NodeId, exitNodeId) < route.Segments.Count)
         {
             phases.Add(new TaxiingPhase());
         }

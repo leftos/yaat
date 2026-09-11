@@ -327,4 +327,123 @@ public class PathPrimitiveBuilderTests
         // unrealistic regime.
         Assert.InRange(CategoryPerformance.SlowTurnSpeedKts, 1.0, 5.0);
     }
+
+    // ---- SlowTurnToPoint: the Dubins arc-then-tangent-line aim at a point ----
+
+    /// <summary>The OAK gate-15 pose after a plain PUSH.</summary>
+    private const double PushedLat = 37.710217680439534;
+
+    private const double PushedLon = -122.21728593336832;
+
+    private const double PushedHeadingDeg = 53.0;
+
+    /// <summary>Node 763 — the node the TAXI route starts at, ~105 ft behind the pushed aircraft.</summary>
+    private const int StartNodeId = 763;
+
+    private const double StartNodeLat = 37.70999962916134;
+
+    private const double StartNodeLon = -122.21752272724868;
+
+    /// <summary>Comfortable jet nose-wheel radius — the radius the navigator aims a free-space leg with.</summary>
+    private static readonly double JetNoseWheelRadiusFt = CategoryPerformance.NoseWheelTurnRadiusFt(AircraftCategory.Jet);
+
+    /// <summary>The point the arc rolls out at: the centre projected at the final centre-bearing by the radius.</summary>
+    private static LatLon ExitPoint(PathPrimitiveSlowTurn turn)
+    {
+        double finalCenterBearingDeg = turn.StartBearingFromCenterDeg + (turn.RightTurn ? turn.SweepDeg : -turn.SweepDeg);
+        return GeoMath.ProjectPoint(
+            new LatLon(turn.CenterLat, turn.CenterLon),
+            new TrueHeading(finalCenterBearingDeg),
+            turn.RadiusFt / GeoMath.FeetPerNm
+        );
+    }
+
+    /// <summary>Where <paramref name="target"/> sits relative to the line: feet abeam it, and feet along it (negative = behind).</summary>
+    private static (double AbeamFt, double AlongFt) OffsetFromLine(LatLon lineFrom, double lineBearingDeg, LatLon target)
+    {
+        double distFt = GeoMath.DistanceNm(lineFrom, target) * GeoMath.FeetPerNm;
+        double deltaRad = GeoMath.SignedBearingDifference(lineBearingDeg, GeoMath.BearingTo(lineFrom, target)) * Math.PI / 180.0;
+        return (distFt * Math.Sin(deltaRad), distFt * Math.Cos(deltaRad));
+    }
+
+    [Fact]
+    public void SlowTurnToPoint_ExitTangentLineRunsThroughTheTarget()
+    {
+        var turn = PathPrimitiveBuilder.SlowTurnToPoint(
+            fromLat: PushedLat,
+            fromLon: PushedLon,
+            fromHdgDeg: PushedHeadingDeg,
+            radiusFt: JetNoseWheelRadiusFt,
+            targetLat: StartNodeLat,
+            targetLon: StartNodeLon,
+            maxSpeedKts: CategoryPerformance.SlowTurnSpeedKts,
+            toNodeId: StartNodeId
+        );
+
+        Assert.NotNull(turn);
+
+        var exit = ExitPoint(turn);
+        var (abeamFt, alongFt) = OffsetFromLine(exit, turn.ExitTangentBearingDeg, new LatLon(StartNodeLat, StartNodeLon));
+
+        // Node 763 lies 105 ft behind the tail: lining up on it takes an over-half turn, which is why the aim is
+        // built with an explicit direction and sweep rather than through SlowTurn's short-way rotation.
+        Assert.True(turn.RightTurn, $"the shorter way onto node {StartNodeId} is a right turn, not a {turn.SweepDeg:F1}° left");
+        Assert.InRange(turn.SweepDeg, 190.0, 200.0);
+        Assert.True(
+            Math.Abs(abeamFt) <= 0.5,
+            $"the exit tangent misses node {StartNodeId} by {abeamFt:F2} ft abeam (sweep {turn.SweepDeg:F1}°, right={turn.RightTurn})"
+        );
+        Assert.True(alongFt > 0, $"node {StartNodeId} is {alongFt:F1} ft along the exit tangent — it must lie ahead of the roll-out point");
+    }
+
+    [Fact]
+    public void SlowTurnToPoint_TargetInsideTheTurningCircle_ReturnsNull()
+    {
+        var inside = GeoMath.ProjectPoint(new LatLon(PushedLat, PushedLon), new TrueHeading(PushedHeadingDeg + 90.0), 10.0 / GeoMath.FeetPerNm);
+
+        var turn = PathPrimitiveBuilder.SlowTurnToPoint(
+            fromLat: PushedLat,
+            fromLon: PushedLon,
+            fromHdgDeg: PushedHeadingDeg,
+            radiusFt: JetNoseWheelRadiusFt,
+            targetLat: inside.Lat,
+            targetLon: inside.Lon,
+            maxSpeedKts: CategoryPerformance.SlowTurnSpeedKts,
+            toNodeId: StartNodeId
+        );
+
+        Assert.Null(turn);
+    }
+
+    [Theory]
+    [InlineData(30.0, true)]
+    [InlineData(-30.0, false)]
+    public void SlowTurnToPoint_PicksTheDirectionWithTheSmallerSweep(double targetOffsetDeg, bool expectRightTurn)
+    {
+        var target = GeoMath.ProjectPoint(
+            new LatLon(PushedLat, PushedLon),
+            new TrueHeading(PushedHeadingDeg + targetOffsetDeg),
+            100.0 / GeoMath.FeetPerNm
+        );
+
+        var turn = PathPrimitiveBuilder.SlowTurnToPoint(
+            fromLat: PushedLat,
+            fromLon: PushedLon,
+            fromHdgDeg: PushedHeadingDeg,
+            radiusFt: JetNoseWheelRadiusFt,
+            targetLat: target.Lat,
+            targetLon: target.Lon,
+            maxSpeedKts: CategoryPerformance.SlowTurnSpeedKts,
+            toNodeId: StartNodeId
+        );
+
+        Assert.NotNull(turn);
+        Assert.Equal(expectRightTurn, turn.RightTurn);
+        Assert.True(turn.SweepDeg < 90.0, $"a target {targetOffsetDeg:F0}° off the nose should sweep well under 90°, not {turn.SweepDeg:F1}°");
+
+        var exit = ExitPoint(turn);
+        var (abeamFt, alongFt) = OffsetFromLine(exit, turn.ExitTangentBearingDeg, target);
+        Assert.True(Math.Abs(abeamFt) <= 0.1, $"the exit tangent misses the target by {abeamFt:F2} ft abeam");
+        Assert.True(alongFt > 0, $"the target is {alongFt:F1} ft along the exit tangent — it must lie ahead");
+    }
 }

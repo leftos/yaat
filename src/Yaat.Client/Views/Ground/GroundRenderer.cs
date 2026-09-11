@@ -1313,10 +1313,8 @@ public sealed class GroundRenderer : IDisposable
 
         foreach (var seg in route.Segments)
         {
-            if (!nodeScreenPos.TryGetValue(seg.FromNodeId, out var from) || !nodeScreenPos.TryGetValue(seg.ToNodeId, out var to))
-            {
-                continue;
-            }
+            var from = RouteSegmentEndpoint(vp, nodeScreenPos, seg.FromNodeId, seg.Edge.FromNode);
+            var to = RouteSegmentEndpoint(vp, nodeScreenPos, seg.ToNodeId, seg.Edge.ToNode);
 
             if (seg.Edge.Edge is GroundArc arc)
             {
@@ -1340,6 +1338,23 @@ public sealed class GroundRenderer : IDisposable
                 canvas.DrawLine(from.X, from.Y, to.X, to.Y, paint);
             }
         }
+    }
+
+    /// <summary>
+    /// Screen position of one route-segment endpoint. An id the layout holds is projected from its node
+    /// table; a <see cref="VirtualNode"/> endpoint — the approach leg from the aircraft to its route's
+    /// first node, or a ramp-lane cut — is not in that table, so the segment's own node reference supplies
+    /// the position. Resolving from the table alone drops those legs and the overlay skips the free-space
+    /// drive the aircraft is actually making.
+    /// </summary>
+    internal static (float X, float Y) RouteSegmentEndpoint(
+        MapViewport vp,
+        IReadOnlyDictionary<int, (float X, float Y)> nodeScreenPos,
+        int nodeId,
+        GroundNode node
+    )
+    {
+        return nodeScreenPos.TryGetValue(nodeId, out var pos) ? pos : vp.LatLonToScreen(node.Position.Lat, node.Position.Lon);
     }
 
     private void DrawNodes(

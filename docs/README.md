@@ -31,7 +31,7 @@
 | Ground view rendering | [`ground-rendering.md`](./ground-rendering.md) |
 | Speech (STT) / pilot speech (TTS) | [`speech-recognition-pipeline.md`](./speech-recognition-pipeline.md), [`solo-training-pilot-speech.md`](./solo-training-pilot-speech.md) |
 | Pilot phraseology (wording / AIM) | [`pilot-phraseology.md`](./pilot-phraseology.md) |
-| Tests | [`test-harness.md`](./test-harness.md), [`e2e-tdd-issue-debugging.md`](./e2e-tdd-issue-debugging.md), [`test-suite-speed.md`](./test-suite-speed.md) |
+| Tests | [`test-map.md`](./test-map.md) (which class of test pins what, and where a new one goes), [`test-harness.md`](./test-harness.md), [`e2e-tdd-issue-debugging.md`](./e2e-tdd-issue-debugging.md), [`test-suite-speed.md`](./test-suite-speed.md) |
 
 The table above is a quick index, not the full list — **[`../CLAUDE.md`](../CLAUDE.md) holds the complete, authoritative subsystem-references table.** When in doubt, consult it.
 

@@ -44,9 +44,18 @@ public record NavTickDiag(
 /// one scalar, so they cannot drift apart). Straight segments use pure-pursuit steering; fillet arcs play the
 /// actual cubic Bézier by arc-length (<see cref="PathPrimitiveBezier"/>, ending exactly on the corner node);
 /// synthesised slow-turns advance a closed-form circular integrator. Curve playback writes lat/lon/heading
-/// directly from playback state. Speed comes from corner-speed limits — angle-based plus a turn-rate-feasibility cap that slows
-/// the aircraft into bends too tight to track at the angle-only speed (see <see cref="CornerSpeed"/>) —
-/// backward-propagated by kinematic braking, and capped by the lateral-accel arc speed model.
+/// directly from playback state. An aircraft that begins a curve <em>off</em> it — a residual cross-track at
+/// a fillet entry, a snapshot restored mid-curve — keeps that displacement as one constant captured when the
+/// primitive becomes current, added to every position the playback writes and faded out over a blend
+/// distance sized from that offset (<see cref="ArcEntryBlendFt"/>, <see cref="MaxBlendTrackDeg"/>), so the
+/// aircraft is driven back onto the painted line at a taxi-plausible sideways rate instead of being written
+/// onto it in a single sub-tick; an offset past <see cref="MaxArcEntryOffsetFt"/> is refused outright. I2
+/// still holds: position remains a pure function of the one progress scalar plus that constant. Any write
+/// further than the integrator advanced is a teleport (<see cref="CheckNoTeleport"/>) — a throw in tests, a
+/// logged error in the app. Speed comes from corner-speed limits — angle-based plus a turn-rate-feasibility
+/// cap that slows the aircraft into bends too tight to track at the angle-only speed (see
+/// <see cref="CornerSpeed"/>) — backward-propagated by kinematic braking, and capped by the lateral-accel
+/// arc speed model.
 ///
 /// <para>
 /// The fillet generator emits a single arc per real taxiway corner, so the navigator follows clean arcs
@@ -92,6 +101,55 @@ public sealed class GroundNavigator
 
     /// <summary>Speed floor below which the arc integrator refuses to advance (I7: no pivot-in-place).</summary>
     private const double ArcSpeedFloorKts = 0.1;
+
+    /// <summary>
+    /// Floor (ft) on the distance of travel over which an arc-entry offset is bled off — about twice a jet's
+    /// nose-wheel turn radius, short enough that a small residual cross-track is gone well before a fillet's
+    /// tight part. A larger offset stretches the blend past this floor instead of bleeding off faster, so the
+    /// sideways rate stays taxi-plausible whatever the offset is (see <see cref="MaxBlendTrackDeg"/>).
+    /// </summary>
+    private const double ArcEntryBlendFt = 50.0;
+
+    /// <summary>
+    /// Largest angle (degrees) between the track the entry blend actually flies and the heading the playback
+    /// writes. The blend moves the aircraft offset/blend sideways per foot driven, a track divergence of
+    /// atan(offset/blend); a flat blend therefore implies 11° of sideslip at a 10 ft offset, which no ground
+    /// vehicle flies, and trips <see cref="CheckNoTeleport"/> at an offset that depends on speed rather than
+    /// on anything the geometry says. Stretching the blend to offset/tan(5°) holds the divergence at 5°, so
+    /// the lateral step is at most tan 5°·ds ≈ 0.09·ds — always inside <see cref="TeleportToleranceFt"/>.
+    ///
+    /// <para>
+    /// On an arc with less travel left than that, the cap yields: the blend is clamped to the distance
+    /// remaining on the primitive so the offset is gone when playback reaches the to-node, which is the
+    /// guarantee the Bézier playback exists for — the next segment starts on its centerline (a 12 ft offset
+    /// over the 87.5 ft OAK 763→762 fillet implies 7.8°, not 5°). An offset large enough for that to matter
+    /// is refused upstream by <see cref="MaxArcEntryOffsetFt"/>.
+    /// </para>
+    /// </summary>
+    private const double MaxBlendTrackDeg = 5.0;
+
+    /// <summary>
+    /// Largest arc-entry offset (ft) the playback will blend off. Beyond it the aircraft is not merely off
+    /// the painted line: the route started a curve it is not on (a primitive built from the wrong pose, a
+    /// route picked up at the wrong segment), and no blend rate makes that drive legitimate. The capture
+    /// refuses it — a throw under <see cref="ThrowOnTeleport"/>, an error log otherwise — and then blends
+    /// anyway, because a live training session is never worth crashing.
+    /// </summary>
+    public const double MaxArcEntryOffsetFt = 100.0;
+
+    /// <summary>
+    /// Slack (ft) on the per-sub-tick displacement check: how much further than the arc integrator advanced
+    /// the aircraft may be written before <see cref="CheckNoTeleport"/> calls it a teleport. Covers the
+    /// entry-offset blend's own lateral contribution at normal taxi speeds and the great-circle-vs-curve
+    /// rounding, without hiding a jump.
+    /// </summary>
+    private const double TeleportToleranceFt = 2.0;
+
+    /// <summary>Refinement iterations for resolving a resumed Bézier's parameter from the live position.</summary>
+    private const int BezierResumeIterations = 24;
+
+    /// <summary>Polyline steps used to measure a resumed Bézier's travelled arc length.</summary>
+    private const int BezierResumeArcLengthSteps = 32;
 
     /// <summary>
     /// Pure-pursuit look-ahead distance floor in feet on straight segments: the category's nose-wheel
@@ -223,7 +281,59 @@ public sealed class GroundNavigator
     /// <summary>Arc-length (ft) covered along the current Bézier so far, for the braking-curve remaining-distance estimate.</summary>
     private double _bezierTraveledFt;
 
-    /// <summary>Starting lat/lon of the current segment, for diagnostic & cross-track logging.</summary>
+    /// <summary>
+    /// The aircraft's position minus the curve point the current arc primitive starts playing from, in
+    /// degrees of latitude/longitude, captured once when that primitive becomes current
+    /// (<see cref="BeginPrimitive"/>). Arc playback adds it to every position it writes, faded out linearly
+    /// over <see cref="ArcEntryBlendFt"/> of travel, so an aircraft that enters an arc off the painted line
+    /// — a residual cross-track at a fillet entry, a snapshot restored mid-curve — is steered back onto the
+    /// curve as it drives rather than being written onto it in one sub-tick. Zero on straights and on a
+    /// slow-turn built from the aircraft's own pose.
+    /// </summary>
+    private double _arcEntryOffsetLatDeg;
+    private double _arcEntryOffsetLonDeg;
+
+    /// <summary>
+    /// Distance (ft) the aircraft has travelled on the current arc primitive since
+    /// <see cref="_arcEntryOffsetLatDeg"/> was captured — lead-in and curve alike. The blend fades over
+    /// <see cref="ArcEntryBlendFt"/> of it. Kept separate from <see cref="_bezierTraveledFt"/>, which measures
+    /// curve arc-length from the from-node and keys the arc's speed profile (<see cref="ArcProfileLimitKts"/>).
+    /// </summary>
+    private double _arcEntryTravelledFt;
+
+    /// <summary>
+    /// Distance (ft) of travel over which the current arc primitive's entry offset is faded out, computed
+    /// once from that offset when it is captured: <see cref="ArcEntryBlendFt"/> for a small one, stretched to
+    /// offset/tan(<see cref="MaxBlendTrackDeg"/>) for a larger one so the implied track stays within
+    /// <see cref="MaxBlendTrackDeg"/> of the heading the playback writes, then clamped to the travel the
+    /// primitive has left so the offset is always gone by its to-node.
+    /// </summary>
+    private double _arcEntryBlendFt = ArcEntryBlendFt;
+
+    /// <summary>
+    /// Distance (ft) still to be driven up the current Bézier's entry tangent before its curve starts. A
+    /// segment can become current while the aircraft is still short of the curve's start point along that
+    /// tangent (a straight that handed off early, a route picked up behind its first node); that shortfall is
+    /// distance the aircraft has not driven yet, so playback drives it — rolling straight up the tangent at
+    /// the sub-tick's own <c>v·dt</c> — instead of blending it away, which would hand the aircraft ground
+    /// speed it never had. Zero whenever the playback is on the curve itself.
+    /// </summary>
+    private double _bezierLeadInRemainingFt;
+
+    /// <summary>
+    /// True from the moment an arc primitive becomes current until its first tick, which is where the entry
+    /// state is actually captured. Phases run <em>before</em> physics, so the position at that first tick
+    /// already carries the previous sub-tick's physics step along the old heading; capturing at install time
+    /// instead would freeze the pre-step position into the offset and the first write would undo that step —
+    /// an apparent jump of up to 2·v·dt at every straight→arc transition.
+    /// </summary>
+    private bool _arcEntryPending;
+
+    /// <summary>
+    /// Anchor of the current segment's line: pure-pursuit steering, along-track advance and cross-track all
+    /// project onto it. Re-anchored on the aircraft for a free-space leg (see
+    /// <see cref="ReanchorFreeSpaceLine"/>).
+    /// </summary>
     private double _segmentFromLat;
     private double _segmentFromLon;
 
@@ -327,6 +437,15 @@ public sealed class GroundNavigator
     public static bool ThrowOnOrbit { get; set; }
 
     /// <summary>
+    /// When true, an arc primitive writing the aircraft further than it drove in one sub-tick
+    /// (<see cref="CheckNoTeleport"/>) throws so the failure is impossible to miss. The test assembly's
+    /// module initializer sets this so every test that snaps an aircraft across the ground fails hard with
+    /// an actionable message. In the shipping app it stays false: the jump is logged as an error and the
+    /// aircraft carries on, never crashing a live training session.
+    /// </summary>
+    public static bool ThrowOnTeleport { get; set; }
+
+    /// <summary>
     /// Rounding radius (ft) for the corner at the END of the current segment — adaptive: tightened from the
     /// comfortable nose-wheel radius toward the tight-turn floor when the approach/departure legs are shorter
     /// than the comfortable tangent length (two close junctions), so the corner-rounding arc still exits on
@@ -344,7 +463,7 @@ public sealed class GroundNavigator
     /// propagation, mirroring V1's approach but populated directly from
     /// <see cref="TaxiRouteSegment"/> iteration.
     /// </summary>
-    private List<(double PathDistNm, double RequiredSpeedKts, int NodeId)> _speedConstraints = [];
+    private readonly List<(double PathDistNm, double RequiredSpeedKts, int NodeId)> _speedConstraints = [];
 
     /// <summary>
     /// Heading-misalignment threshold (deg) above which a new segment gets a
@@ -417,6 +536,14 @@ public sealed class GroundNavigator
     /// </summary>
     private PathPrimitive? _pendingSegmentPrimitive;
 
+    /// <summary>
+    /// True while the current segment starts at a virtual node — a free-space leg (the approach leg
+    /// <see cref="Data.Airport.TaxiApproachLeg"/> prepends, a ramp-lane cut) rather than a painted edge. Such a
+    /// leg's line is anchored at the aircraft itself, not at a node the layout holds, so it is re-anchored on
+    /// the live position when the straight takes over.
+    /// </summary>
+    private bool _segmentFromIsVirtual;
+
     public void SetupSegment(TaxiRoute route, PhaseContext ctx, Func<int, bool> isHoldShortCleared)
     {
         var seg = route.CurrentSegment;
@@ -434,6 +561,7 @@ public sealed class GroundNavigator
         TargetLon = to.Position.Lon;
         _segmentFromLat = from.Position.Lat;
         _segmentFromLon = from.Position.Lon;
+        _segmentFromIsVirtual = (seg.FromNodeId < 0) && VirtualNode.IsVirtualEdge(seg.Edge.Edge);
         PrevDistToTarget = double.MaxValue;
         _cumulativeTurnSinceAdvanceDeg = 0.0;
 
@@ -469,68 +597,57 @@ public sealed class GroundNavigator
 
         if (headingDelta > entryAlignmentThreshold)
         {
-            // Adaptive rounding radius: tighten toward the tight-turn floor when the incoming leg (the
-            // segment the aircraft is turning off) or the outgoing leg (this segment) is shorter than the
-            // comfortable nose-wheel tangent length, so the arc still exits on this segment's centerline
-            // rather than finishing wide and forcing a pure-pursuit re-acquisition (the SfoM2 M2→A spin:
-            // B and A crossings only ~22 ft apart). Computed from the route here (restore-safe).
-            double incomingRunFt =
-                route.CurrentSegmentIndex > 0 ? route.Segments[route.CurrentSegmentIndex - 1].Edge.DistanceNm * GeoMath.FeetPerNm : double.MaxValue;
-            double outgoingRunFt = seg.Edge.DistanceNm * GeoMath.FeetPerNm;
-            double roundingRadiusFt = AdaptiveCornerRadiusFt(ctx.Category, headingDelta, incomingRunFt, outgoingRunFt);
-            var alignmentArc = PathPrimitiveBuilder.SlowTurn(
-                fromLat: ctx.Aircraft.Position.Lat,
-                fromLon: ctx.Aircraft.Position.Lon,
-                fromHdgDeg: ctx.Aircraft.TrueHeading.Degrees,
-                toHdgDeg: segDepartureBearing,
-                radiusFt: roundingRadiusFt,
-                // Round at the fastest speed the gear-limited turn rate can track this radius (v = ω·r),
-                // not a flat 3 kt creep — a jet rounds a sharp corner at its 25 ft nose-wheel radius near
-                // ~5 kt (aviation-reviewed). Floored at SlowTurnSpeedKts for degenerate radii.
-                maxSpeedKts: CategoryPerformance.TurnRateLimitedSpeedKts(ctx.Category, roundingRadiusFt),
-                toNodeId: seg.FromNodeId
-            );
+            var (alignmentArc, aim) = BuildEntryAlignmentArc(route, seg, ctx, headingDelta);
             _pendingSegmentPrimitive = segmentPrimitive;
             _currentPrimitive = alignmentArc;
-            _arcBearingFromCenterDeg = alignmentArc.StartBearingFromCenterDeg;
-            _arcRemainingSweepDeg = alignmentArc.SweepDeg;
-
-            Log.LogDebug(
-                "[Nav] SetupSegment seg={SegIdx}/{Total}: entry-align slow-turn "
-                    + "(hdgFrom={From:F0} -> hdgTo={To:F0}, delta={Delta:F0}, r={R:F0}ft, sweep={Sweep:F0})",
-                route.CurrentSegmentIndex,
-                route.Segments.Count,
-                ctx.Aircraft.TrueHeading.Degrees,
-                segDepartureBearing,
-                headingDelta,
-                alignmentArc.RadiusFt,
-                alignmentArc.SweepDeg
-            );
+            BeginPrimitive(alignmentArc);
+            LogEntryAlignment(route, seg, ctx, alignmentArc, aim);
         }
         else
         {
             _pendingSegmentPrimitive = null;
             _currentPrimitive = segmentPrimitive;
             ReleaseHeadingHold(ctx, segmentPrimitive);
-
-            if (_currentPrimitive is PathPrimitiveSlowTurn slowPrim)
-            {
-                _arcBearingFromCenterDeg = slowPrim.StartBearingFromCenterDeg;
-                _arcRemainingSweepDeg = slowPrim.SweepDeg;
-            }
-            else if (_currentPrimitive is PathPrimitiveBezier)
-            {
-                _bezierT = 0;
-                _bezierTraveledFt = 0;
-            }
-            else
-            {
-                _arcRemainingSweepDeg = 0;
-            }
+            ReanchorFreeSpaceLine(ctx);
+            BeginPrimitive(segmentPrimitive);
         }
 
         BuildSpeedConstraints(route, ctx, isHoldShortCleared);
+        LogSegmentSetup(route, seg, ctx);
+    }
 
+    /// <summary>
+    /// Trace the entry-alignment slow-turn just installed for <paramref name="seg"/>: the heading it starts
+    /// from, the tangent it aligns to, and the arc solved to get there. Recomputes the heading delta from the
+    /// same two headings the caller gated on, so the line reports what was actually installed.
+    /// </summary>
+    private static void LogEntryAlignment(TaxiRoute route, TaxiRouteSegment seg, PhaseContext ctx, PathPrimitiveSlowTurn alignmentArc, string aim)
+    {
+        double segDepartureBearing = seg.Edge.DepartureBearing;
+        Log.LogDebug(
+            "[Nav] SetupSegment seg={SegIdx}/{Total}: entry-align slow-turn "
+                + "(hdgFrom={From:F0} -> hdgTo={To:F0}, delta={Delta:F0}, r={R:F0}ft, sweep={Sweep:F0}, aim={Aim})",
+            route.CurrentSegmentIndex,
+            route.Segments.Count,
+            ctx.Aircraft.TrueHeading.Degrees,
+            segDepartureBearing,
+            new TrueHeading(segDepartureBearing).AbsAngleTo(ctx.Aircraft.TrueHeading),
+            alignmentArc.RadiusFt,
+            alignmentArc.SweepDeg,
+            aim
+        );
+    }
+
+    /// <summary>
+    /// Trace the segment now current: its endpoints, the primitive playing it, and whether an entry-alignment
+    /// arc is holding the real primitive back. The one line a taxi trace is read from, so it carries both
+    /// node positions verbatim.
+    /// </summary>
+    private void LogSegmentSetup(TaxiRoute route, TaxiRouteSegment seg, PhaseContext ctx)
+    {
+        var from = seg.Edge.FromNode;
+        var to = seg.Edge.ToNode;
+        double segDepartureBearing = seg.Edge.DepartureBearing;
         Log.LogDebug(
             "[Nav] SetupSegment seg={SegIdx}/{Total} target={NodeId} kind={Kind} dist={Dist:F4}nm "
                 + "fromNode={FromId}@({FromLat:F6},{FromLon:F6}) toNode={ToId}@({ToLat:F6},{ToLon:F6}) "
@@ -549,10 +666,97 @@ public sealed class GroundNavigator
             seg.TaxiwayName,
             segDepartureBearing,
             ctx.Aircraft.TrueHeading.Degrees,
-            headingDelta,
+            new TrueHeading(segDepartureBearing).AbsAngleTo(ctx.Aircraft.TrueHeading),
             _pendingSegmentPrimitive is not null,
             _pendingSegmentPrimitive?.Kind.ToString() ?? "none"
         );
+    }
+
+    /// <summary>
+    /// The entry-alignment slow-turn for a segment the aircraft begins <paramref name="headingDelta"/>° off its
+    /// first tangent, and which aim built it ("node" or "bearing").
+    ///
+    /// <para>
+    /// A segment starting at a virtual node is a free-space leg: no painted centerline runs out of its
+    /// from-node, so an arc that merely ends on the leg's BEARING rolls out up to a diameter abeam the line to
+    /// the leg's node and leaves pure pursuit to re-acquire from there. That arc is solved instead to exit on
+    /// the line through the node (<see cref="PathPrimitiveBuilder.SlowTurnToPoint"/>) at the comfortable
+    /// nose-wheel radius — there is no shorter outgoing leg for the adaptive fit to protect. When no such
+    /// tangent exists (the point sits inside the turning circle, or reaching it needs more than
+    /// <see cref="PathPrimitiveBuilder.MaxAimSweepDeg"/>),
+    /// the bearing aim below is the fallback.
+    /// </para>
+    /// </summary>
+    private (PathPrimitiveSlowTurn Arc, string Aim) BuildEntryAlignmentArc(
+        TaxiRoute route,
+        TaxiRouteSegment seg,
+        PhaseContext ctx,
+        double headingDelta
+    )
+    {
+        if (_segmentFromIsVirtual)
+        {
+            double freeSpaceRadiusFt = CategoryPerformance.NoseWheelTurnRadiusFt(ctx.Category);
+            var aimed = PathPrimitiveBuilder.SlowTurnToPoint(
+                fromLat: ctx.Aircraft.Position.Lat,
+                fromLon: ctx.Aircraft.Position.Lon,
+                fromHdgDeg: ctx.Aircraft.TrueHeading.Degrees,
+                radiusFt: freeSpaceRadiusFt,
+                targetLat: TargetLat,
+                targetLon: TargetLon,
+                maxSpeedKts: CategoryPerformance.TurnRateLimitedSpeedKts(ctx.Category, freeSpaceRadiusFt),
+                toNodeId: seg.FromNodeId
+            );
+
+            if (aimed is not null)
+            {
+                return (aimed, "node");
+            }
+        }
+
+        // Adaptive rounding radius: tighten toward the tight-turn floor when the incoming leg (the
+        // segment the aircraft is turning off) or the outgoing leg (this segment) is shorter than the
+        // comfortable nose-wheel tangent length, so the arc still exits on this segment's centerline
+        // rather than finishing wide and forcing a pure-pursuit re-acquisition (the SfoM2 M2→A spin:
+        // B and A crossings only ~22 ft apart). Computed from the route here (restore-safe).
+        double incomingRunFt =
+            route.CurrentSegmentIndex > 0 ? route.Segments[route.CurrentSegmentIndex - 1].Edge.DistanceNm * GeoMath.FeetPerNm : double.MaxValue;
+        double outgoingRunFt = seg.Edge.DistanceNm * GeoMath.FeetPerNm;
+        double roundingRadiusFt = AdaptiveCornerRadiusFt(ctx.Category, headingDelta, incomingRunFt, outgoingRunFt);
+
+        var arc = PathPrimitiveBuilder.SlowTurn(
+            fromLat: ctx.Aircraft.Position.Lat,
+            fromLon: ctx.Aircraft.Position.Lon,
+            fromHdgDeg: ctx.Aircraft.TrueHeading.Degrees,
+            toHdgDeg: seg.Edge.DepartureBearing,
+            radiusFt: roundingRadiusFt,
+            // Round at the fastest speed the gear-limited turn rate can track this radius (v = ω·r),
+            // not a flat 3 kt creep — a jet rounds a sharp corner at its 25 ft nose-wheel radius near
+            // ~5 kt (aviation-reviewed). Floored at SlowTurnSpeedKts for degenerate radii.
+            maxSpeedKts: CategoryPerformance.TurnRateLimitedSpeedKts(ctx.Category, roundingRadiusFt),
+            toNodeId: seg.FromNodeId
+        );
+
+        return (arc, "bearing");
+    }
+
+    /// <summary>
+    /// Anchor a free-space leg's line on the aircraft's own position. The leg runs from a virtual node fixed
+    /// where the aircraft stood when the route was built, not from a painted node the layout holds: by the time
+    /// the straight takes over the aircraft is at the alignment arc's exit, and after a snapshot restore it is
+    /// wherever it now stands while <see cref="TaxiRoute.FromSnapshot"/> has rebuilt the virtual node at its
+    /// ORIGINAL position. Steering to the line through that stale origin chases a line the aircraft left;
+    /// anchored here, the line runs from the aircraft straight onto the leg's node.
+    /// </summary>
+    private void ReanchorFreeSpaceLine(PhaseContext ctx)
+    {
+        if (!_segmentFromIsVirtual)
+        {
+            return;
+        }
+
+        _segmentFromLat = ctx.Aircraft.Position.Lat;
+        _segmentFromLon = ctx.Aircraft.Position.Lon;
     }
 
     /// <summary>
@@ -572,6 +776,199 @@ public sealed class GroundNavigator
         }
     }
 
+    /// <summary>
+    /// Start playing <paramref name="primitive"/>: reset the playback state it advances and arm the
+    /// entry capture, which happens on the primitive's first tick (<see cref="_arcEntryPending"/>) rather
+    /// than here. Called wherever a primitive becomes current — both <see cref="SetupSegment"/> branches and
+    /// the entry-alignment swap in <see cref="Tick"/>.
+    /// </summary>
+    private void BeginPrimitive(PathPrimitive primitive)
+    {
+        _arcEntryTravelledFt = 0.0;
+        _arcEntryOffsetLatDeg = 0.0;
+        _arcEntryOffsetLonDeg = 0.0;
+        _arcEntryBlendFt = ArcEntryBlendFt;
+        _bezierLeadInRemainingFt = 0.0;
+
+        switch (primitive)
+        {
+            case PathPrimitiveSlowTurn slowTurn:
+                _arcBearingFromCenterDeg = slowTurn.StartBearingFromCenterDeg;
+                _arcRemainingSweepDeg = slowTurn.SweepDeg;
+                _arcEntryPending = true;
+                break;
+
+            case PathPrimitiveBezier:
+                _bezierT = 0.0;
+                _bezierTraveledFt = 0.0;
+                _arcEntryPending = true;
+                break;
+
+            default:
+                _arcRemainingSweepDeg = 0.0;
+                _arcEntryPending = false;
+                break;
+        }
+    }
+
+    /// <summary>
+    /// Capture a slow-turn's entry offset on its first tick: the arc was solved from the aircraft's pose, so
+    /// its progress needs no re-projection — only the displacement accumulated since the solve (the physics
+    /// step between the install and this tick) is carried, and bled off over the entry blend.
+    /// </summary>
+    private void CaptureSlowTurnEntry(PhaseContext ctx, PathPrimitiveSlowTurn prim)
+    {
+        var entry = GeoMath.ProjectPoint(new LatLon(prim.CenterLat, prim.CenterLon), new TrueHeading(_arcBearingFromCenterDeg), prim.RadiusNm);
+        _arcEntryTravelledFt = 0.0;
+        CaptureArcEntryOffset(ctx, entry.Lat, entry.Lon, prim.Kind, prim.LengthFt);
+    }
+
+    /// <summary>
+    /// Set a Bézier primitive's playback progress from where the aircraft actually stands, on the primitive's
+    /// first tick. A curve whose playback restarted at <c>t = 0</c> wrote the aircraft back onto its start
+    /// point on that tick — a rewind of the whole distance already covered whenever the primitive is rebuilt
+    /// mid-curve (a snapshot restore: <c>ToSnapshot</c> does not persist curve progress, so
+    /// <c>TaxiingPhase</c> rebuilds the primitive from the route's segment index). Standing within
+    /// <see cref="AirportGroundLayout.AtNodeToleranceFt"/> of the curve's start point is the normal entry,
+    /// which starts at <c>t = 0</c> with the residual cross-track as the entry offset.
+    ///
+    /// <para>
+    /// An aircraft still <em>short of</em> the start point along the entry tangent is the third case: the
+    /// projection lands on (or beside) <c>t = 0</c> and the shortfall is distance it has yet to drive, not a
+    /// displacement to bleed off. That part becomes the lead-in (<see cref="_bezierLeadInRemainingFt"/>) and
+    /// only the cross-track remainder is captured as the entry offset.
+    /// </para>
+    /// </summary>
+    private void ResumeBezierFromPosition(PhaseContext ctx, PathPrimitiveBezier bezier)
+    {
+        var curveStart = new LatLon(bezier.Curve.P0Lat, bezier.Curve.P0Lon);
+        double fromStartFt = GeoMath.DistanceNm(ctx.Aircraft.Position, curveStart) * GeoMath.FeetPerNm;
+
+        if (fromStartFt > AirportGroundLayout.AtNodeToleranceFt)
+        {
+            _bezierT = bezier.Curve.ClosestT(ctx.Aircraft.Position, BezierResumeIterations);
+            _bezierTraveledFt = bezier.Curve.ArcLengthToNm(_bezierT, BezierResumeArcLengthSteps) * GeoMath.FeetPerNm;
+        }
+        else
+        {
+            _bezierT = 0.0;
+            _bezierTraveledFt = 0.0;
+        }
+
+        _arcEntryTravelledFt = 0.0;
+        _bezierLeadInRemainingFt = LeadInShortfallFt(ctx.Aircraft.Position, bezier);
+        var (lat, lon, _) = BezierPlaybackPose(bezier);
+        double remainingArcLengthFt = _bezierLeadInRemainingFt + Math.Max(0.0, bezier.LengthFt - _bezierTraveledFt);
+        CaptureArcEntryOffset(ctx, lat, lon, bezier.Kind, remainingArcLengthFt);
+
+        if ((fromStartFt > AirportGroundLayout.AtNodeToleranceFt) || (_bezierLeadInRemainingFt > 0.0))
+        {
+            Log.LogDebug(
+                "[Nav] Bezier entry: cs={Callsign} t={T:F3} traveled={Trav:F1}ft leadIn={LeadIn:F1}ft "
+                    + "(aircraft {Dist:F1}ft from the curve start)",
+                ctx.Aircraft.Callsign,
+                _bezierT,
+                _bezierTraveledFt,
+                _bezierLeadInRemainingFt,
+                fromStartFt
+            );
+        }
+    }
+
+    /// <summary>
+    /// How far short of the curve's start point the aircraft is along the entry tangent, in feet — 0 unless
+    /// the playback is starting at (or beside) that start point and the aircraft is still measurably behind
+    /// it. Anything at or below <see cref="TeleportToleranceFt"/> is rounding, not a drive.
+    /// </summary>
+    private double LeadInShortfallFt(LatLon position, PathPrimitiveBezier bezier)
+    {
+        var playbackStart = bezier.Curve.Evaluate(_bezierT);
+        var curveStart = new LatLon(bezier.Curve.P0Lat, bezier.Curve.P0Lon);
+        double fromPlaybackStartFt = GeoMath.DistanceNm(new LatLon(playbackStart.Lat, playbackStart.Lon), curveStart) * GeoMath.FeetPerNm;
+        if (fromPlaybackStartFt > AirportGroundLayout.AtNodeToleranceFt)
+        {
+            return 0.0;
+        }
+
+        double entryTangentDeg = bezier.Curve.TangentBearing(0.0);
+        double distFt = GeoMath.DistanceNm(position, curveStart) * GeoMath.FeetPerNm;
+        double deltaDeg = GeoMath.SignedBearingDifference(GeoMath.BearingTo(position, curveStart), entryTangentDeg);
+        double alongFt = distFt * Math.Cos(deltaDeg * (Math.PI / 180.0));
+
+        return alongFt > TeleportToleranceFt ? alongFt : 0.0;
+    }
+
+    /// <summary>
+    /// Record how far the aircraft stands from the point an arc primitive is about to play from, as a
+    /// constant lat/lon offset the playback adds to every position it writes until the blend distance
+    /// (<see cref="_arcEntryBlendFt"/>, sized here from the offset) has bled it off. The blend never outlasts
+    /// <paramref name="remainingArcLengthFt"/>, the travel the primitive has left, so playback still reaches
+    /// the to-node on the painted line. An offset past <see cref="MaxArcEntryOffsetFt"/> is refused with its
+    /// own message before the blend is set up: at that distance the route handed the playback a curve the
+    /// aircraft is not on, which no blend rate repairs.
+    /// </summary>
+    private void CaptureArcEntryOffset(PhaseContext ctx, double curveLat, double curveLon, PathPrimitiveKind kind, double remainingArcLengthFt)
+    {
+        _arcEntryOffsetLatDeg = ctx.Aircraft.Position.Lat - curveLat;
+        _arcEntryOffsetLonDeg = ctx.Aircraft.Position.Lon - curveLon;
+
+        double offsetFt = GeoMath.DistanceNm(ctx.Aircraft.Position, new LatLon(curveLat, curveLon)) * GeoMath.FeetPerNm;
+        double rateCappedFt = Math.Max(ArcEntryBlendFt, offsetFt / Math.Tan(MaxBlendTrackDeg * (Math.PI / 180.0)));
+        _arcEntryBlendFt = remainingArcLengthFt > 0.0 ? Math.Min(rateCappedFt, remainingArcLengthFt) : rateCappedFt;
+
+        if (offsetFt <= MaxArcEntryOffsetFt)
+        {
+            return;
+        }
+
+        string message =
+            $"[Nav] arc entry: {ctx.Aircraft.Callsign} is {offsetFt:F1} ft from the {kind} it was told to play — "
+            + "the route started a curve the aircraft is not on";
+
+        if (ThrowOnTeleport)
+        {
+            throw new InvalidOperationException(message);
+        }
+
+        Log.LogError("{ArcEntryMessage}", message);
+    }
+
+    /// <summary>
+    /// The fraction of the captured arc-entry offset still applied after <paramref name="traveledSinceEntryFt"/>
+    /// of travel along the primitive: 1 at the entry, falling linearly to 0 over the blend distance sized at
+    /// the entry (<see cref="_arcEntryBlendFt"/>). Position stays a pure function of playback progress plus
+    /// one constant captured at the entry, so invariant I2 (position and heading cannot drift apart) holds.
+    /// </summary>
+    private double ArcEntryBlendFactor(double traveledSinceEntryFt) => Math.Max(0.0, 1.0 - (traveledSinceEntryFt / _arcEntryBlendFt));
+
+    /// <summary>
+    /// Assert that closed-form arc playback wrote the aircraft no further than it drove this sub-tick.
+    /// <paramref name="dsFt"/> is the arc-length the integrator advanced; anything materially beyond it is a
+    /// position the aircraft did not taxi to — an offset applied whole rather than bled off, a restore
+    /// resuming at the wrong progress, or a primitive built from the wrong pose. Throws under
+    /// <see cref="ThrowOnTeleport"/> (tests), logs an error otherwise (the shipping app).
+    /// </summary>
+    internal static void CheckNoTeleport(string callsign, LatLon before, LatLon after, double dsFt, PathPrimitiveKind kind)
+    {
+        double movedFt = GeoMath.DistanceNm(before, after) * GeoMath.FeetPerNm;
+        if (movedFt <= dsFt + TeleportToleranceFt)
+        {
+            return;
+        }
+
+        string message =
+            $"[Nav] teleport: {callsign} moved {movedFt:F1} ft in one sub-tick on a {kind} that advanced {dsFt:F1} ft — "
+            + $"closed-form playback wrote the aircraft somewhere it did not drive to. "
+            + $"from=({before.Lat:F6},{before.Lon:F6}) to=({after.Lat:F6},{after.Lon:F6}).";
+
+        if (ThrowOnTeleport)
+        {
+            throw new InvalidOperationException(message);
+        }
+
+        Log.LogError("{TeleportMessage}", message);
+    }
+
     public NavigatorResult Tick(PhaseContext ctx, bool isLastSegment, Func<int, bool> isHoldShortCleared)
     {
         double headingBeforeDeg = ctx.Aircraft.TrueHeading.Degrees;
@@ -586,7 +983,8 @@ public sealed class GroundNavigator
 
         // Orbit invariant: accumulate net signed heading change within the current primitive and hard-fail
         // if it reaches a full circle without advancing. No legitimate single-segment maneuver nets 360°
-        // (an arc sweeps <180° by admissibility, a slow-turn <180°, a straight ~0°), so crossing it means
+        // (an arc sweeps <180° by admissibility, a straight ~0°, and a slow-turn <180° except a point-aimed
+        // alignment arc, which may sweep up to PathPrimitiveBuilder.MaxAimSweepDeg), so crossing it means
         // the navigator is circling a node it cannot converge on — a pure-pursuit orbit that would otherwise
         // crawl indefinitely at the slow-turn floor. Surfacing it as a throw makes every such case a hard
         // test failure with an actionable message instead of a silent slow taxi.
@@ -621,20 +1019,8 @@ public sealed class GroundNavigator
             _pendingSegmentPrimitive = null;
             _currentPrimitive = seg;
             ReleaseHeadingHold(ctx, seg);
-            if (seg is PathPrimitiveSlowTurn slowPrim)
-            {
-                _arcBearingFromCenterDeg = slowPrim.StartBearingFromCenterDeg;
-                _arcRemainingSweepDeg = slowPrim.SweepDeg;
-            }
-            else if (seg is PathPrimitiveBezier)
-            {
-                _bezierT = 0;
-                _bezierTraveledFt = 0;
-            }
-            else
-            {
-                _arcRemainingSweepDeg = 0;
-            }
+            ReanchorFreeSpaceLine(ctx);
+            BeginPrimitive(seg);
             PrevDistToTarget = double.MaxValue;
             // A new primitive begins — give it its own full-circle budget so a legitimate
             // entry-alignment turn plus the segment's own turn don't sum across the swap.
@@ -952,6 +1338,16 @@ public sealed class GroundNavigator
     /// </summary>
     private NavigatorResult TickBezier(PhaseContext ctx, PathPrimitiveBezier prim, Func<int, bool> isHoldShortCleared)
     {
+        var positionBefore = ctx.Aircraft.Position;
+
+        // First tick of this primitive: resolve where along the curve the aircraft stands and capture the
+        // entry offset from its live position — after the physics step the install could not see.
+        if (_arcEntryPending)
+        {
+            ResumeBezierFromPosition(ctx, prim);
+            _arcEntryPending = false;
+        }
+
         // Speed floor (I7: no pivot-in-place). If effectively stopped, hold the current tangent
         // and target speed and bail — physics re-accelerates before the curve can advance.
         double vKts = ctx.Aircraft.IndicatedAirspeed;
@@ -963,18 +1359,21 @@ public sealed class GroundNavigator
             return NavigatorResult.Navigating;
         }
 
-        // Advance arc-length ds = v·dt, stepping the parameter by ds / |B'(t)|.
+        // Advance arc-length ds = v·dt: down the lead-in first (a shortfall the aircraft has still to drive),
+        // then along the curve, stepping the parameter by ds / |B'(t)|.
         double vFtPerSec = vKts * GeoMath.FeetPerNm / 3600.0;
         double dsFt = vFtPerSec * ctx.DeltaSeconds;
-        double paramSpeedFt = prim.Curve.DerivativeMagnitudeFt(_bezierT);
-        _bezierT = paramSpeedFt > 1e-6 ? Math.Min(1.0, _bezierT + (dsFt / paramSpeedFt)) : 1.0;
-        _bezierTraveledFt += dsFt;
+        AdvanceBezier(prim, dsFt);
+        _arcEntryTravelledFt += dsFt;
 
-        // Write position + heading directly from the playback state (invariant I2).
-        var (lat, lon) = prim.Curve.Evaluate(_bezierT);
-        double tangentDeg = prim.Curve.TangentBearing(_bezierT);
-        ctx.Aircraft.Position = new LatLon(lat, lon);
+        // Write position + heading directly from the playback state (invariant I2), plus what is left of the
+        // entry offset — the aircraft converges onto the painted curve over ArcEntryBlendFt of travel
+        // instead of being written onto it in one sub-tick.
+        var (lat, lon, tangentDeg) = BezierPlaybackPose(prim);
+        double entryBlend = ArcEntryBlendFactor(_arcEntryTravelledFt);
+        ctx.Aircraft.Position = new LatLon(lat + (_arcEntryOffsetLatDeg * entryBlend), lon + (_arcEntryOffsetLonDeg * entryBlend));
         ctx.Aircraft.TrueHeading = new TrueHeading(tangentDeg);
+        CheckNoTeleport(ctx.Aircraft.Callsign, positionBefore, ctx.Aircraft.Position, dsFt, prim.Kind);
 
         // Mirror into targets so physics does not fight the closed-form state.
         ctx.Targets.TargetTrueHeading = new TrueHeading(tangentDeg);
@@ -1014,8 +1413,59 @@ public sealed class GroundNavigator
         return NavigatorResult.Navigating;
     }
 
-    /// <summary>Remaining arc length (nm) along the current Bézier, for the braking-curve distance-to-endpoint.</summary>
-    private double BezierRemainingNm(PathPrimitiveBezier prim) => Math.Max(0.0, prim.LengthFt - _bezierTraveledFt) / GeoMath.FeetPerNm;
+    /// <summary>
+    /// Spend one sub-tick's <paramref name="dsFt"/> of travel on the primitive: the lead-in comes first (the
+    /// aircraft is still rolling up to the curve's start point), and whatever is left of the step advances the
+    /// curve parameter, so no distance is created or lost at the hand-over.
+    /// </summary>
+    private void AdvanceBezier(PathPrimitiveBezier prim, double dsFt)
+    {
+        double remainingFt = dsFt;
+        if (_bezierLeadInRemainingFt > 0.0)
+        {
+            double consumedFt = Math.Min(remainingFt, _bezierLeadInRemainingFt);
+            _bezierLeadInRemainingFt -= consumedFt;
+            remainingFt -= consumedFt;
+            if (_bezierLeadInRemainingFt > 0.0)
+            {
+                return;
+            }
+
+            _bezierLeadInRemainingFt = 0.0;
+        }
+
+        double paramSpeedFt = prim.Curve.DerivativeMagnitudeFt(_bezierT);
+        _bezierT = paramSpeedFt > 1e-6 ? Math.Min(1.0, _bezierT + (remainingFt / paramSpeedFt)) : 1.0;
+        _bezierTraveledFt += remainingFt;
+    }
+
+    /// <summary>
+    /// Where the Bézier playback currently sits, before the entry offset is added: on the lead-in, back along
+    /// the entry tangent from the curve's start point; otherwise on the curve itself.
+    /// </summary>
+    private (double Lat, double Lon, double TangentDeg) BezierPlaybackPose(PathPrimitiveBezier prim)
+    {
+        if (_bezierLeadInRemainingFt <= 0.0)
+        {
+            var (curveLat, curveLon) = prim.Curve.Evaluate(_bezierT);
+            return (curveLat, curveLon, prim.Curve.TangentBearing(_bezierT));
+        }
+
+        double entryTangentDeg = prim.Curve.TangentBearing(0.0);
+        var lead = GeoMath.ProjectPoint(
+            new LatLon(prim.Curve.P0Lat, prim.Curve.P0Lon),
+            new TrueHeading((entryTangentDeg + 180.0) % 360.0),
+            _bezierLeadInRemainingFt / GeoMath.FeetPerNm
+        );
+        return (lead.Lat, lead.Lon, entryTangentDeg);
+    }
+
+    /// <summary>
+    /// Remaining distance (nm) to the end of the current Bézier, for the braking-curve distance-to-endpoint:
+    /// the lead-in still to be driven plus the arc length still to be played.
+    /// </summary>
+    private double BezierRemainingNm(PathPrimitiveBezier prim) =>
+        (Math.Max(0.0, prim.LengthFt - _bezierTraveledFt) + _bezierLeadInRemainingFt) / GeoMath.FeetPerNm;
 
     private double CurrentSlowTurnTangentDeg(PathPrimitiveSlowTurn prim)
     {
@@ -1025,6 +1475,15 @@ public sealed class GroundNavigator
 
     private NavigatorResult TickSlowTurn(PhaseContext ctx, PathPrimitiveSlowTurn prim)
     {
+        var positionBefore = ctx.Aircraft.Position;
+
+        // First tick of this primitive: capture the entry offset from the live position (see TickBezier).
+        if (_arcEntryPending)
+        {
+            CaptureSlowTurnEntry(ctx, prim);
+            _arcEntryPending = false;
+        }
+
         // I7 speed floor — aircraft must be moving forward before the arc can advance.
         // Target speed is held at the primitive's cap so physics re-accelerates us.
         double vKts = ctx.Aircraft.IndicatedAirspeed;
@@ -1048,11 +1507,15 @@ public sealed class GroundNavigator
         _arcBearingFromCenterDeg = (((_arcBearingFromCenterDeg + signed) % 360.0) + 360.0) % 360.0;
         _arcRemainingSweepDeg = Math.Max(0.0, _arcRemainingSweepDeg - dAngleDeg);
 
-        // Write position + heading directly from playback state (invariant I2).
+        // Write position + heading directly from playback state (invariant I2), plus what is left of the
+        // entry offset (zero for an arc built from the aircraft's own pose, which is the common case).
         var (lat, lon) = GeoMath.ProjectPoint(new LatLon(prim.CenterLat, prim.CenterLon), new TrueHeading(_arcBearingFromCenterDeg), prim.RadiusNm);
+        _arcEntryTravelledFt += dAngleDeg * (Math.PI / 180.0) * prim.RadiusFt;
+        double entryBlend = ArcEntryBlendFactor(_arcEntryTravelledFt);
         double tangentDeg = CurrentSlowTurnTangentDeg(prim);
-        ctx.Aircraft.Position = new LatLon(lat, lon);
+        ctx.Aircraft.Position = new LatLon(lat + (_arcEntryOffsetLatDeg * entryBlend), lon + (_arcEntryOffsetLonDeg * entryBlend));
         ctx.Aircraft.TrueHeading = new TrueHeading(tangentDeg);
+        CheckNoTeleport(ctx.Aircraft.Callsign, positionBefore, ctx.Aircraft.Position, dsFt, prim.Kind);
 
         // Speed policy: cap to the primitive's own MaxSpeedKts — no
         // ComputeTargetSpeed braking-curve logic because SlowTurn primitives
@@ -1417,11 +1880,33 @@ public sealed class GroundNavigator
     /// Apply the <see cref="MinSpeedKts"/> floor then clamp by the conflict/airport
     /// <see cref="AircraftState.GroundSpeedLimit"/> ceiling. The ceiling always wins (a conflict-imposed
     /// stop overrides the crossing floor); the floor only lifts the requested speed when no ceiling binds.
+    ///
+    /// <para>The floor is itself capped by <see cref="CurrentCurveCapKts"/>: a runway crossing's 15 kt no-stop
+    /// floor is not licence to corner, and the tail-clearance extension past the exit bar routinely takes a whole
+    /// fillet. Driving a 22-72 ft corner at 15 kt is several times the lateral-acceleration budget
+    /// <see cref="GroundArc.SafeSpeedForRadiusKts"/> allows, so on a curve the floor never exceeds what the curve
+    /// itself permits.</para>
     /// </summary>
     private double ClampBySpeedLimit(PhaseContext ctx, double requested)
     {
-        double floored = Math.Max(requested, MinSpeedKts);
+        double floored = Math.Max(requested, Math.Min(MinSpeedKts, CurrentCurveCapKts(ctx)));
         return ctx.Aircraft.Ground.SpeedLimit is { } limit ? Math.Min(floored, limit) : floored;
+    }
+
+    /// <summary>
+    /// The cornering cap (kts) of the primitive being played right now: the active Bézier's arc-speed profile
+    /// limit at the distance travelled along it (the same limit <see cref="ComputeTargetSpeed"/> applies), a
+    /// slow turn's own <see cref="PathPrimitiveSlowTurn.MaxSpeedKts"/>, and <see cref="double.MaxValue"/> on a
+    /// straight, which has no curvature to cap anything.
+    /// </summary>
+    private double CurrentCurveCapKts(PhaseContext ctx)
+    {
+        if ((_currentPrimitive is PathPrimitiveBezier) && (_currentArcProfile is { } arcProfile))
+        {
+            return ArcProfileLimitKts(arcProfile, _bezierTraveledFt, DecelRateKts ?? CategoryPerformance.TaxiDecelRate(ctx.Category));
+        }
+
+        return _currentPrimitive is PathPrimitiveSlowTurn slowTurn ? slowTurn.MaxSpeedKts : double.MaxValue;
     }
 
     /// <summary>

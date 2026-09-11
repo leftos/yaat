@@ -365,6 +365,10 @@ internal static class GroundCommandHandler
             return new CommandResult(false, $"Cannot resolve taxi route: {pathStr}");
         }
 
+        // The resolver starts from the nearest graph node, which after a pushback onto open apron can be a
+        // hundred feet from the aircraft. Drive it there rather than letting the navigator snap onto segment 0.
+        route = TaxiApproachLeg.Prepend(groundLayout, aircraft.Position, aircraft.TrueHeading, route);
+
         // Compute dynamic hold-short positions based on aircraft fuselage length
         double aircraftLengthFt =
             FaaAircraftDatabase.Get(aircraft.AircraftType)?.LengthFt ?? HoldShortAnnotator.CwtFallbackLengthFt(aircraft.AircraftType);
@@ -550,7 +554,7 @@ internal static class GroundCommandHandler
                     );
                     if (reroute is not null && reroute.Segments.Count > 0)
                     {
-                        route = SetDestination(reroute, taxi);
+                        route = TaxiApproachLeg.Prepend(groundLayout, aircraft.Position, aircraft.TrueHeading, SetDestination(reroute, taxi));
                         aircraft.Ground.AssignedTaxiRoute = route;
                         aircraft.Ground.AwaitingTaxiInCall = false;
                         HoldShortAnnotator.ComputeHoldShortPositions(groundLayout, route, aircraftLengthFt);
@@ -1022,7 +1026,9 @@ internal static class GroundCommandHandler
     /// several times longer did not follow the drawn line but found some other way there, and issuing
     /// it sends the aircraft on a tour of the airport (544 segments for 48 drawn nodes, in the case
     /// this guard was written for). Sparse or hand-typed node paths carry no such size expectation —
-    /// two far-apart nodes legitimately resolve to a long route — so they always pass.
+    /// two far-apart nodes legitimately resolve to a long route — so they always pass. Segments that start
+    /// at a virtual node are not part of the drawn line and are not counted: the free-space approach leg
+    /// (<see cref="Data.Airport.TaxiApproachLeg"/>) and the ramp-lane cut legs alike.
     /// </summary>
     internal static bool IsPlausibleNodeRefResolution(AirportGroundLayout groundLayout, TaxiCommand taxi, TaxiRoute route)
     {
@@ -1039,7 +1045,7 @@ internal static class GroundCommandHandler
             }
         }
 
-        return route.Segments.Count <= (taxi.Path.Count * NodeRefSegmentFactor) + NodeRefSegmentSlack;
+        return route.Segments.Count(s => s.FromNodeId >= 0) <= (taxi.Path.Count * NodeRefSegmentFactor) + NodeRefSegmentSlack;
     }
 
     /// <summary>True when a single graph edge joins the two nodes.</summary>
@@ -2415,6 +2421,9 @@ internal static class GroundCommandHandler
             return new CommandResult(false, $"No crossing route found for {holdPhase.HoldShort.TargetName ?? "runway"}");
         }
 
+        // Mark the synthetic crossing route complete up front: CrossingRunwayPhase.HandRouteBack re-asserts
+        // this same index when the crossing finishes, and this early write is what the overlay and the
+        // IsComplete readers see for the whole crossing.
         crossing.Route.CurrentSegmentIndex = crossing.Route.Segments.Count;
         aircraft.Ground.AssignedTaxiRoute = crossing.Route;
         phases.ReplaceUpcoming([

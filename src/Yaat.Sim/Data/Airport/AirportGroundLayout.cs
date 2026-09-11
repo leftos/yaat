@@ -1085,6 +1085,12 @@ public sealed class AirportGroundLayout
     }
 
     /// <summary>
+    /// The distance inside which an aircraft counts as standing AT a node: bearing-to-node is undefined this
+    /// close, and an aircraft this near the node its route starts at has nothing left to taxi to.
+    /// </summary>
+    public const double AtNodeToleranceFt = 15.0;
+
+    /// <summary>
     /// Pick the start node for a taxi command, biased by heading. Unlike
     /// <see cref="FindNearestNode(LatLon)"/> — which returns the absolute
     /// nearest node and can land on the wrong branch when an aircraft rests
@@ -1117,7 +1123,7 @@ public sealed class AirportGroundLayout
         // effectively co-located — bearing-to-node is undefined and the
         // existing HoldingShortPhase / AtParkingPhase behaviour (start at the
         // node the aircraft is sitting at) must be preserved.
-        double atNodeNm = 15.0 / GeoMath.FeetPerNm;
+        double atNodeNm = AtNodeToleranceFt / GeoMath.FeetPerNm;
 
         GroundNode? best = null;
         double bestDistNm = double.MaxValue;

@@ -178,6 +178,30 @@ public readonly struct CubicBezier(double p0Lat, double p0Lon, double p1Lat, dou
     }
 
     /// <summary>
+    /// Arc length from <c>t = 0</c> up to <paramref name="t"/>, as a polyline over <paramref name="segments"/>
+    /// even steps of <em>that</em> interval: the whole <c>[0, t]</c> range is re-discretised, so this agrees
+    /// with <see cref="ArcLengthNm"/> exactly only at <c>t = 1</c> — for a shorter span the same step count
+    /// spreads over less curve and cuts its corners differently. Needed to resume playback part-way along a
+    /// curve: the playback's travelled-distance state must agree with the parameter it starts from.
+    /// </summary>
+    public double ArcLengthToNm(double t, int segments)
+    {
+        double end = Math.Clamp(t, 0.0, 1.0);
+        double totalNm = 0;
+        var (prevLat, prevLon) = Evaluate(0);
+
+        for (int i = 1; i <= segments; i++)
+        {
+            var (lat, lon) = Evaluate(end * i / segments);
+            totalNm += GeoMath.DistanceNm(prevLat, prevLon, lat, lon);
+            prevLat = lat;
+            prevLon = lon;
+        }
+
+        return totalNm;
+    }
+
+    /// <summary>
     /// Find the parameter t ∈ [0,1] where the curve is closest to the given point.
     /// Uses coarse scan followed by iterative refinement.
     /// </summary>

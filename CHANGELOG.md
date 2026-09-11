@@ -11,6 +11,17 @@
 - A crossing restriction's computed descent rate is dropped once a vector (`FH`, `DCT`, `CAPP`) removes the fix, so `DM` and `EXP` set the normal rate again.
 - At an airport with no ground layout a landed aircraft stops on the runway and *On landing* auto-delete removes it instead of leaving it in the exit phase forever.
 - A landed aircraft stopped on a layout-less runway no longer reports "clear of runway".
+- A taxi clearance to an aircraft off any taxiway node (after a plain `PUSH`, or stopped short of a junction) drives it onto the route instead of pivoting and jumping onto the first fillet.
+- Virtual route nodes take their id from their position, so two same-seed runs and a restored snapshot serialise the same taxi route.
+- The ground overlay draws free-space route legs (the drive from the aircraft onto its route, the ramp-lane cuts) that it previously skipped.
+- An aircraft entering a taxiway fillet off the painted centerline converges onto it over the next few dozen feet instead of stepping sideways in one tick.
+- An aircraft that reaches a fillet short of its start rolls up to it at its own speed instead of being slid onto the curve.
+- The navigator never writes a position farther than the aircraft drove in a tick; the test suite fails on any such jump (`GroundNavigator.ThrowOnTeleport`).
+- A session restored from a snapshot taken mid-fillet resumes from where the aircraft stands instead of jumping back to the corner's entry node.
+- A runway crossing's tail-clearance follows the taxi route past the far side, so a route that turns right after the crossing no longer skips the fillet.
+- A landing aircraft cleared to taxi while rolling out gets a route that starts where it is and rolls to the exit, instead of being placed on the exit fillet.
+- The runway-crossing speed floor no longer overrides the fillet speed cap; a jet slows to the curve's safe speed through a tight crossing fillet.
+- A crossing that reaches an uncleared runway holding position within a fuselage length past the far side stops at the far-side bar instead of rolling through it.
 
 ## v0.12.29-beta [2026/09/10]
 

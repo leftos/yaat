@@ -20,6 +20,9 @@ internal static class ModuleInit
         // hard test failure. The shipping app leaves this false and recovers gracefully instead.
         GroundNavigator.ThrowOnOrbit = true;
 
+        // Same for an arc primitive writing an aircraft further than it drove in one sub-tick — a teleport.
+        GroundNavigator.ThrowOnTeleport = true;
+
         var testDataDir = Path.Combine(AppContext.BaseDirectory, "TestData");
         Yaat.Sim.Testing.TestVnasData.SetTestDataDir(testDataDir);
 

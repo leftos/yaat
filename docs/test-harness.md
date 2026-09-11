@@ -4,6 +4,8 @@
 > suite." The harness is its own subsystem: ~420 Sim test files share a dozen reusable `Helpers/`, three test projects, real (never
 > synthetic) vNAS/FAA data behind static singletons, and a set of correctness conventions that live nowhere in code comments. Getting
 > them wrong does not fail the build — it produces intermittent, hard-to-trace flakes. This is the single reference for those conventions.
+>
+> Not sure whether a behaviour is already pinned, or which folder and shape a new test takes? That is [`test-map.md`](./test-map.md), the almanac of test classes by subsystem; this doc is the harness underneath them.
 
 ## Scope and the iron rules
 

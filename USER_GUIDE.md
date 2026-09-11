@@ -416,6 +416,8 @@ An interactive airport surface map showing taxiways, runways, and aircraft posit
 
 Right-click an aircraft and open the **Taxi route** submenu to override the default for that one aircraft: **Always show** (pin it on), **Always hide** (pin it off), or **Follow "Show all" setting** (the default — tracks the global toggle). An explicit Always show / Always hide sticks even when you flip the global setting; pick Follow to return the aircraft to tracking it. Hovering always reveals a route, even one set to Always hide.
 
+A drawn route starts at the aircraft. When the aircraft is not yet on a painted taxiway line — just pushed back onto the apron, cutting across a ramp between parallel lanes, or rolling out on a runway toward its exit — the first leg is the straight free-space drive it will make to reach the route, drawn in the same color as the rest.
+
 **Preset taxi routes:** Right-click an aircraft on the ground and select "Preset taxi route" to issue an SOP-aligned taxi command in one click. Routes are loaded from per-airport JSON files bundled with YAAT under `Data/TaxiRoutes/{ARTCC}/{airport}-routes.json` — for example, FLL's "DEP 10R via T-T3-B" lives at `Data/TaxiRoutes/ZMA/kfll-routes.json`. Each route has a display name, a whitespace-separated path of taxiway names (whatever you'd type after `TAXI` in the command bar), and an optional destination (runway hold-short, parking, or spot):
 
 ```jsonc

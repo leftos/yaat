@@ -97,11 +97,13 @@ public class Issue161PushFaceThenTaxiStartNodeTests(ITestOutputHelper output)
             output.WriteLine($"  [{i}] {seg.FromNodeId} -> {seg.ToNodeId} on {seg.TaxiwayName}");
         }
 
-        var firstSeg = route.Segments[0];
-        Assert.True(layout.Nodes.TryGetValue(firstSeg.FromNodeId, out var fromNode), $"FromNode {firstSeg.FromNodeId} missing");
-        Assert.True(layout.Nodes.TryGetValue(firstSeg.ToNodeId, out var toNode), $"ToNode {firstSeg.ToNodeId} missing");
+        // A free-space approach leg (TaxiApproachLeg) may lead the route in from the aircraft's own position;
+        // it carries a virtual from-node and is aimed at the aircraft by construction. The bearing that decides
+        // whether the navigator pivots is the first GRAPH segment's.
+        var firstSeg = route.Segments.Find(s => s.FromNodeId >= 0);
+        Assert.NotNull(firstSeg);
 
-        double segBearing = GeoMath.BearingTo(fromNode.Position, toNode.Position);
+        double segBearing = GeoMath.BearingTo(firstSeg.Edge.FromNode.Position, firstSeg.Edge.ToNode.Position);
         double headingDelta = GeoMath.AbsBearingDifference(segBearing, aircraft.TrueHeading.Degrees);
 
         output.WriteLine(
