@@ -224,6 +224,162 @@ public class CommandRunDelayTests
     }
 
     [Fact]
+    public void ForceHeading_IsNotReactionDelayed()
+    {
+        var engine = BuildEngine(minDelay: 5, maxDelay: 5);
+        var ac = AddAirborne(engine);
+
+        // FHN is an instructor verb: it sets the state directly, with no pilot in the loop to react.
+        var result = engine.SendCommand("UAL123", "FHN 270");
+
+        Assert.True(result.Success);
+        Assert.DoesNotContain("complying", result.Message, System.StringComparison.OrdinalIgnoreCase);
+        Assert.Empty(ac.DeferredDispatches);
+        Assert.NotNull(ac.Targets.AssignedMagneticHeading);
+        Assert.Equal(270, ac.Targets.AssignedMagneticHeading!.Value.Degrees, precision: 0);
+    }
+
+    [Theory]
+    [InlineData("CMN 30")]
+    [InlineData("SPDN 210")]
+    [InlineData("TRATE 3")]
+    [InlineData("FH 270; DEL")]
+    public void InstructorVerbs_AreNotReactionDelayed(string text)
+    {
+        var engine = BuildEngine(minDelay: 5, maxDelay: 5);
+        var ac = AddAirborne(engine);
+
+        // Every "Sim Control" verb is exempt, and one riding in a chain exempts the whole compound.
+        var parsed = CommandParser.ParseCompound(text);
+        Assert.True(parsed.Value is not null, $"'{text}' failed to parse: {parsed.Reason}");
+
+        var delay = Defer(engine, ac, parsed.Value!);
+
+        Assert.Null(delay);
+        Assert.Empty(ac.DeferredDispatches);
+    }
+
+    [Fact]
+    public void Warp_IsNotReactionDelayed()
+    {
+        var engine = BuildEngine(minDelay: 5, maxDelay: 5);
+        var ac = AddAirborne(engine);
+
+        // A teleport has no pilot action to delay. Hand-built so this timing test stays off FRD/navdata resolution.
+        var warp = new CompoundCommand([new ParsedBlock(null, [new WarpCommand("OAK090010", 37.7, -122.0, null, null, null)])]);
+        var delay = Defer(engine, ac, warp);
+
+        Assert.Null(delay);
+        Assert.Empty(ac.DeferredDispatches);
+    }
+
+    [Fact]
+    public void WarpGround_IsNotReactionDelayed()
+    {
+        var engine = BuildEngine(minDelay: 5, maxDelay: 5);
+        var ac = AddAirborne(engine);
+
+        // The ground teleport is exempt for the same reason. Hand-built so this timing test stays off ground-layout
+        // resolution.
+        var warp = new CompoundCommand([new ParsedBlock(null, [new WarpGroundCommand("B", "C", null, null, null)])]);
+        var delay = Defer(engine, ac, warp);
+
+        Assert.Null(delay);
+        Assert.Empty(ac.DeferredDispatches);
+    }
+
+    [Fact]
+    public void SimControlCategory_MembershipIsPinned()
+    {
+        // Every verb in this category is exempt from the reaction delay (ReactionDelayPolicy.ContainsInstructorAction),
+        // so adding one here is a sim-timing decision, not a menu-grouping one — update this list deliberately.
+        CanonicalCommandType[] expected =
+        [
+            CanonicalCommandType.Add,
+            CanonicalCommandType.Assume,
+            CanonicalCommandType.Bookmark,
+            CanonicalCommandType.CancelAutoDelete,
+            CanonicalCommandType.Cfr,
+            CanonicalCommandType.Delete,
+            CanonicalCommandType.DisarmHoldForRelease,
+            CanonicalCommandType.ForceAltitude,
+            CanonicalCommandType.ForceHeading,
+            CanonicalCommandType.ForceSpeed,
+            CanonicalCommandType.HoldForRelease,
+            CanonicalCommandType.Pause,
+            CanonicalCommandType.ReleaseDeparture,
+            CanonicalCommandType.SetTurnRate,
+            CanonicalCommandType.SimRate,
+            CanonicalCommandType.SpawnDelay,
+            CanonicalCommandType.SpawnNow,
+            CanonicalCommandType.Timer,
+            CanonicalCommandType.Unassume,
+            CanonicalCommandType.Unpause,
+            CanonicalCommandType.Wait,
+            CanonicalCommandType.WaitDistance,
+            CanonicalCommandType.Warp,
+            CanonicalCommandType.WarpGround,
+        ];
+
+        var actual = CommandRegistry.ByCategory("Sim Control").Select(d => d.Type).OrderBy(t => t.ToString(), StringComparer.Ordinal).ToArray();
+
+        Assert.Equal(expected, actual);
+    }
+
+    [Fact]
+    public void MixedInstructorAndFlight_IsImmediate()
+    {
+        var engine = BuildEngine(minDelay: 5, maxDelay: 5);
+        var ac = AddAirborne(engine);
+
+        // Unlike the comm exemption (pure-comm only), one instructor verb makes the whole compound immediate.
+        var mixed = new CompoundCommand([
+            new ParsedBlock(null, [new ForceHeadingCommand(new MagneticHeading(270)), new FlyHeadingCommand(new MagneticHeading(090))]),
+        ]);
+        var delay = Defer(engine, ac, mixed);
+
+        Assert.Null(delay);
+        Assert.Empty(ac.DeferredDispatches);
+    }
+
+    [Fact]
+    public void UnsupportedCommand_DoesNotThrow_UnderReactionDelay()
+    {
+        var engine = BuildEngine(minDelay: 5, maxDelay: 5);
+        var ac = AddAirborne(engine);
+
+        // "MLS 99" parses (the count is out of range) into an UnsupportedCommand, which has no canonical type —
+        // deciding the delay must not ask the describer for one. The refusal lands at once, not after the delay.
+        var result = engine.SendCommand("UAL123", "MLS 99");
+
+        Assert.False(result.Success);
+        Assert.Contains("not yet supported", result.Message, System.StringComparison.OrdinalIgnoreCase);
+        Assert.Empty(ac.DeferredDispatches);
+    }
+
+    [Fact]
+    public void ConditionedMidChainWait_IsStillReactionDelayed()
+    {
+        var engine = BuildEngine(minDelay: 5, maxDelay: 5);
+        var ac = AddAirborne(engine);
+
+        // This WAIT is not leading timing, and it shares the "Sim Control" category with the instructor verbs —
+        // the WaitCommand/WaitDistanceCommand skip in ContainsInstructorAction is what keeps this compound delayed.
+        var parsed = CommandParser.ParseCompound("FH 090; AT 4000 WAIT 10 FH 270");
+        Assert.True(parsed.Value is not null, $"parse failed: {parsed.Reason}");
+        var compound = parsed.Value!;
+        Assert.True(compound.Blocks.Count >= 2);
+        Assert.Null(compound.Blocks[0].Condition);
+        Assert.NotNull(compound.Blocks[1].Condition);
+        Assert.Contains(compound.Blocks[1].Commands, cmd => cmd is WaitCommand);
+
+        var delay = Defer(engine, ac, compound);
+
+        Assert.Equal(5.0, delay);
+        Assert.Single(ac.DeferredDispatches);
+    }
+
+    [Fact]
     public void IssueOrder_IsPreserved_UnderRandomRange()
     {
         var engine = BuildEngine(minDelay: 2, maxDelay: 12);

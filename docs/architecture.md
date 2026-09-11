@@ -1368,8 +1368,10 @@ ActionInput.cs                 # ActionInput (callsign, command, connection id, 
 ActionOutcome.cs               # ActionOutcome (result, the record produced, trace) + ActionTrace (kind, scope)
 ActionRefusals.cs              # HostOnly (no arm in the track table for the verb) / NoScenario / AircraftNotFound — the results for an action no body on this run can apply
 ReactionDelayPolicy.cs         # Decide(scenario, world, aircraft, compound, baked): baked wins; else null when no range is active, the compound carries
-                               # explicit leading timing (WAIT/WAITD/BEHIND) or is purely comm (CON/FCA/ACK); else sample ReactionDelayRng and clamp to
-                               # the latest pending reaction deferral so issue order is preserved
+                               # an unsupported verb (refused at once by DispatchCompound rather than delayed), explicit leading timing
+                               # (WAIT/WAITD/BEHIND), is purely comm (CON/FCA/ACK), or contains any "Sim Control" instructor verb
+                               # (FHN/CMN/SPDN/WARP/WARPG/TRATE/DEL — WAIT/WAITD skipped); else sample ReactionDelayRng and clamp to the latest
+                               # pending reaction deferral so issue order is preserved
 ActionScope.cs                 # Global / Callsign / Aircraft / Position — what the action router resolves before an arm runs (a property of the RecordedCommandKind)
 PositionSelections.cs          # connection id → the TrackOwner a bare AS selected; one lock-guarded map per engine (the server room owns one instance for
                                # its lifetime and hands it to every engine it creates); Snapshot()/Restore() back ServerSnapshotDto.PositionSelections
