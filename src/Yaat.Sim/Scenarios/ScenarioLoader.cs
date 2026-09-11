@@ -646,6 +646,9 @@ public static class ScenarioLoader
         state.Phases = init.Phases;
         state.Ground.AutoDeleteExempt = true;
         state.Ground.Layout = layout;
+        // The stand the aircraft occupies, canonical-cased from the graph node — the same datum the
+        // PUSH/TAXI/LAND writers store, so the Info column names the stand from the first broadcast.
+        state.Ground.ParkingSpot = node.Name;
         state.Ground.IsScriptedDeparture = HasTaxiPreset(ac.PresetCommands);
 
         return new LoadedAircraft

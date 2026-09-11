@@ -500,6 +500,9 @@ internal static class GroundCommandHandler
         aircraft.Ground.Hold = null;
         // A fresh taxi clearance resets the commanded taxi speed to the category default.
         aircraft.Ground.CommandedTaxiSpeedKts = null;
+        // The aircraft is leaving whatever stand it was on. A taxi to parking re-sets this when it
+        // arrives (the zero-segment fallback below, or TaxiingPhase on route completion).
+        aircraft.Ground.ParkingSpot = null;
 
         if (taxi.NoDelete)
         {
