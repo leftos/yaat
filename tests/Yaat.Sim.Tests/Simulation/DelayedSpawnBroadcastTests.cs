@@ -1,8 +1,8 @@
 ﻿using Xunit;
 using Yaat.Sim.Data;
-using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Scenarios;
 using Yaat.Sim.Simulation;
+using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests.Simulation;
 
@@ -77,12 +77,5 @@ public class DelayedSpawnBroadcastTests
         engine.TickPrePhysics();
         var entries = engine.DrainTerminalEntries();
         Assert.DoesNotContain(entries, e => e.Message.Contains("No delayed spawns left"));
-    }
-
-    private sealed class NullGroundData : IAirportGroundData
-    {
-        public AirportGroundLayout? GetLayout(string airportId) => null;
-
-        public string? GetSourceGeoJson(string airportId) => null;
     }
 }

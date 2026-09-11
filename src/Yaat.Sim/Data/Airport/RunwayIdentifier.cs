@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using System.Text.RegularExpressions;
 
 namespace Yaat.Sim.Data.Airport;
 
@@ -7,7 +8,7 @@ namespace Yaat.Sim.Data.Airport;
 /// Provides matching semantics: strict equality (order-independent), single-end
 /// containment, and overlap detection.
 /// </summary>
-public readonly struct RunwayIdentifier : IEquatable<RunwayIdentifier>
+public readonly partial struct RunwayIdentifier : IEquatable<RunwayIdentifier>
 {
     public string End1 { get; }
     public string End2 { get; }
@@ -158,6 +159,27 @@ public readonly struct RunwayIdentifier : IEquatable<RunwayIdentifier>
     {
         return !left.Equals(right);
     }
+
+    /// <summary>
+    /// Extracts the runway designator from a procedure identifier.
+    /// </summary>
+    /// <param name="approachId">
+    /// Approach or procedure id as published by vNAS/CIFP: a type prefix ("I", "L", "R", "H", "VIS", …)
+    /// followed by the runway designator, optionally followed by a multiple-approach letter
+    /// ("I29RY" = ILS Y runway 29R) or a circling suffix ("VDM-A").
+    /// </param>
+    /// <returns>
+    /// The runway designator ("I29RY" → "29R", "H09" → "09"), or null when the id carries no runway
+    /// (circling approaches such as "VDM-A", or an empty/unprefixed id).
+    /// </returns>
+    public static string? FromApproachId(string approachId)
+    {
+        var match = ApproachIdRunwayRegex().Match(approachId);
+        return match.Success ? match.Groups[1].Value : null;
+    }
+
+    [GeneratedRegex(@"^[A-Z]+(\d{1,2}[LRC]?)")]
+    private static partial Regex ApproachIdRunwayRegex();
 
     /// <summary>
     /// Pads a single-digit runway number to two digits (e.g., "1R" → "01R", "9" → "09").

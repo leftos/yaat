@@ -89,6 +89,7 @@ public static class FlightPhysics
 
         double windPhaseSeconds = WindVariation.PhaseSecondsFor(aircraft.Callsign);
         UpdateNavigation(aircraft, weather, simTimeSeconds, windPhaseSeconds);
+        aircraft.Targets.PlannedVerticalRate = null;
         UpdateDescentPlanning(aircraft, cat);
         UpdateClimbPlanning(aircraft, cat);
         UpdateSpeedPlanning(aircraft, cat);
@@ -311,7 +312,10 @@ public static class FlightPhysics
     /// Step-descent planning for STAR via mode. Finds the next altitude constraint
     /// in the route and computes the descent rate required to meet it at the fix.
     /// Adjusts the descent rate (steeper or shallower) rather than using a fixed rate
-    /// with a distance-based trigger.
+    /// with a distance-based trigger. The rate is published in
+    /// <see cref="ControlTargets.PlannedVerticalRate"/>, which <see cref="Update"/> clears before every
+    /// run of this method: it therefore lives only as long as a constrained fix is in the route, and a
+    /// vector that clears the route returns the aircraft to its profile descent rate on the next tick.
     /// </summary>
     private static void UpdateDescentPlanning(AircraftState aircraft, AircraftCategory cat)
     {
@@ -402,12 +406,12 @@ public static class FlightPhysics
                 // Cap at 2× standard rate; no minimum — use a gentle rate if there's plenty of distance
                 double maxRate = standardRate * 2.0;
                 double rate = Math.Min(requiredFpm, maxRate);
-                aircraft.Targets.DesiredVerticalRate = -rate;
+                aircraft.Targets.PlannedVerticalRate = -rate;
             }
             else
             {
                 // Almost at the fix — descend at max rate
-                aircraft.Targets.DesiredVerticalRate = -(standardRate * 2.0);
+                aircraft.Targets.PlannedVerticalRate = -(standardRate * 2.0);
             }
 
             break; // Step descent: only target the next constraint
@@ -417,7 +421,10 @@ public static class FlightPhysics
     /// <summary>
     /// Step-climb planning for SID via mode. Symmetric to descent planning:
     /// finds the next altitude constraint and computes the climb rate required
-    /// to meet it at the fix.
+    /// to meet it at the fix. The rate is published in
+    /// <see cref="ControlTargets.PlannedVerticalRate"/>, which <see cref="Update"/> clears before every
+    /// run of this method: it therefore lives only as long as a constrained fix is in the route, and a
+    /// vector that clears the route returns the aircraft to its profile climb rate on the next tick.
     /// </summary>
     private static void UpdateClimbPlanning(AircraftState aircraft, AircraftCategory cat)
     {
@@ -507,12 +514,12 @@ public static class FlightPhysics
                 // Cap at 2× standard rate; no minimum — use a gentle rate if there's plenty of distance
                 double maxRate = standardRate * 2.0;
                 double rate = Math.Min(requiredFpm, maxRate);
-                aircraft.Targets.DesiredVerticalRate = rate;
+                aircraft.Targets.PlannedVerticalRate = rate;
             }
             else
             {
                 // Almost at the fix — climb at max rate
-                aircraft.Targets.DesiredVerticalRate = standardRate * 2.0;
+                aircraft.Targets.PlannedVerticalRate = standardRate * 2.0;
             }
 
             break; // Step climb: only target the next constraint
@@ -864,7 +871,7 @@ public static class FlightPhysics
     /// <see cref="ControlTargets.TargetTrueHeading"/> values to drift a parked
     /// aircraft's heading.
     /// </summary>
-    private const double StationaryGroundSpeedKts = 0.1;
+    public const double StationaryGroundSpeedKts = 0.1;
 
     private static void UpdateHeading(AircraftState aircraft, AircraftCategory cat, double deltaSeconds)
     {
@@ -950,13 +957,17 @@ public static class FlightPhysics
         bool climbing = diff > 0;
 
         double rate;
-        bool profileRate = aircraft.Targets.DesiredVerticalRate is null;
-        if (aircraft.Targets.DesiredVerticalRate is { } desired)
+        // A phase (or the instructor) owns DesiredVerticalRate; the step climb/descent planners own
+        // PlannedVerticalRate, which is recomputed every tick and only exists while a constrained fix
+        // is still in the route. A phase's rate wins when both are set.
+        double? commanded = aircraft.Targets.DesiredVerticalRate ?? aircraft.Targets.PlannedVerticalRate;
+        bool profileRate = commanded is null;
+        if (commanded is { } desired)
         {
             // 7110.65 §4-5-7 NOTE 4: "'Expedite' is not to be used in lieu of appropriate
-            // restrictions." A phase/planner-commanded rate IS the appropriate restriction —
-            // a glidepath or a computed crossing-restriction rate — so it is flown verbatim
-            // and expedite never scales it.
+            // restrictions." A phase-commanded rate (a glidepath) and a planner-commanded rate (a
+            // computed crossing-restriction rate) ARE the appropriate restriction — both are flown
+            // verbatim and expedite never scales either.
             rate = Math.Abs(desired);
         }
         else

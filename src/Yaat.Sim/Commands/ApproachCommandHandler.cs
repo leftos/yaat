@@ -90,7 +90,12 @@ public static class ApproachCommandHandler
 
         // Check conditions for deferred vs immediate approach activation
         bool hasDctFix = cmd.DctFix is not null;
-        bool isOnAssignedHeading = aircraft.Targets.AssignedMagneticHeading is not null;
+
+        // The vector the aircraft is on is the angle an implied-PTAC intercept is judged against, so
+        // it is captured here — with the flag derived from the same read — and not after
+        // ClearExistingPhases, which can drop the assigned heading before the clearance does.
+        var interceptHeading = aircraft.Targets.AssignedMagneticHeading;
+        bool isOnAssignedHeading = interceptHeading is not null;
 
         // A transition that ends with HF/HM/HA carries a hold-in-lieu of procedure turn at
         // the IAF. The deferred path stores fixes in NavigationRoute as a plain sequence,
@@ -201,6 +206,7 @@ public static class ApproachCommandHandler
                     ThresholdLat = interceptThreshold.Lat,
                     ThresholdLon = interceptThreshold.Lon,
                     ApproachId = immClearance.ApproachId,
+                    AssignedInterceptHeading = interceptHeading,
                     ForcedIntercept = cmd.Force,
                 }
             );
@@ -467,6 +473,7 @@ public static class ApproachCommandHandler
                 ThresholdLat = interceptThreshold.Lat,
                 ThresholdLon = interceptThreshold.Lon,
                 ApproachId = clearance.ApproachId,
+                AssignedInterceptHeading = new MagneticHeading(heading),
                 ForcedIntercept = cmd.Forced,
             }
         );

@@ -344,6 +344,29 @@ public class ApproachCommandHandlerTests
         Assert.StartsWith("Force:", result.Message);
     }
 
+    /// <summary>
+    /// Issue #429: CAPP clears the assigned heading as the approach takes over steering, so the intercept
+    /// phase can no longer read the controller's vector off <c>Targets</c>. The implied-PTAC branch captures
+    /// it first and hands it to the phase, which judges the intercept angle against it.
+    /// </summary>
+    [Fact]
+    public void Capp_ImpliedPtac_CarriesAssignedHeadingIntoInterceptPhase()
+    {
+        var aircraft = MakeAircraft();
+        aircraft.Targets.AssignedMagneticHeading = new MagneticHeading(340);
+        var navDb = MakeNavDb();
+        using var _ = NavigationDatabase.ScopedOverride(navDb);
+
+        var cmd = new ClearedApproachCommand("ILS28R", null, false, null, null, null, null, null, null, null, null);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
+
+        Assert.True(result.Success);
+        var intercept = aircraft.Phases!.Phases.OfType<InterceptCoursePhase>().SingleOrDefault();
+        Assert.NotNull(intercept);
+        Assert.Equal(340, intercept.AssignedInterceptHeading!.Value.Degrees);
+        Assert.Null(aircraft.Targets.AssignedMagneticHeading);
+    }
+
     [Fact]
     public void Cappf_ImpliedPtac_PropagatesForceTo_InterceptCoursePhase()
     {
@@ -801,6 +824,7 @@ public class ApproachCommandHandlerTests
             FinalApproachCourse = new TrueHeading(280),
             ThresholdLat = 37.72,
             ThresholdLon = -122.22,
+            AssignedInterceptHeading = null,
         };
         Assert.Equal(CommandAcceptance.Allowed, phase.CanAcceptCommand(CanonicalCommandType.Speed));
     }
@@ -813,6 +837,7 @@ public class ApproachCommandHandlerTests
             FinalApproachCourse = new TrueHeading(280),
             ThresholdLat = 37.72,
             ThresholdLon = -122.22,
+            AssignedInterceptHeading = null,
         };
         Assert.Equal(CommandAcceptance.ClearsPhase, phase.CanAcceptCommand(CanonicalCommandType.FlyHeading));
     }

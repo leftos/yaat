@@ -498,6 +498,13 @@ verify the cross-repo build with `pwsh tools/test-all.ps1`.
   strictly more complete than production. Any oracle-vs-production diff is exactly where production's node-id-only pruning loses. Keep it
   in lock-step with `AutoRouter.cs`.
 - **Making `internal` members `public` for tests is fine.** No reflection, no `InternalsVisibleTo` hacks.
+- **Pilot transmissions land in different lists depending on the `PhaseContext` flags, and the engine drains them every second.**
+  `PilotResponder.RouteSoloOrRpoTransmission` writes `PendingPilotTransmissions` (solo, student on frequency), `PendingPilotSpeech` (RPO
+  with pilot speech shown) or `PendingWarnings` (RPO default — what a hand-built `PhaseContext` with the flags at their defaults gets).
+  A bare phase-tick test therefore asserts on `PendingWarnings`, never `PendingNotifications`. At engine level the spine drains
+  `PendingWarnings`/`PendingNotifications` inside `TickOneSecond`/`ReplayOneSecond`, so a per-second scan of the aircraft's lists sees
+  nothing — subscribe to `engine.WarningEmitted` (and `TerminalEntryEmitted`) before the first tick instead. `Issue429FatApproachesTests`
+  and `Issue186ZhuAusStarApproachTests.RunJoinTest` show the shape; the latter had a dead per-tick scan for months.
 - **A phase-only tick loop never moves the aircraft.** Phases steer (heading, `TargetSpeed`, IAS); `FlightPhysics.Update` integrates
   position. Tick both per iteration or the aircraft freezes at spawn with IAS pinned. Ground-roll integrations use `DeltaSeconds = 0.25`
   — 1 s ticks plus the `TasToIas`/headwind float epsilon flip the rotation gate by a whole tick and fake a headwind-sign bug. See

@@ -1,9 +1,9 @@
 using Xunit;
 using Yaat.Sim.Commands;
-using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Simulation.Actions;
 using Yaat.Sim.Testing;
+using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests.Simulation;
 
@@ -511,12 +511,5 @@ public class CommandRunDelayTests
         Assert.Equal(90, ac.Targets.AssignedMagneticHeading!.Value.Degrees, precision: 0);
         // ...and the conditional is still queued, waiting on 6000 ft.
         Assert.Contains(ac.Queue.Blocks, b => (b.Trigger is { Type: BlockTriggerType.ReachAltitude }) && !b.IsApplied);
-    }
-
-    private sealed class NullGroundData : IAirportGroundData
-    {
-        public AirportGroundLayout? GetLayout(string airportId) => null;
-
-        public string? GetSourceGeoJson(string airportId) => null;
     }
 }

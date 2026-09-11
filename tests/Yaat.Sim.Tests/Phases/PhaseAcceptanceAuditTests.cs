@@ -235,6 +235,7 @@ public class PhaseAcceptanceAuditTests
             FinalApproachCourse = new TrueHeading(280),
             ThresholdLat = 0,
             ThresholdLon = 0,
+            AssignedInterceptHeading = null,
         };
 
     private static ApproachNavigationPhase NewApproachNav() => new() { Fixes = [] };

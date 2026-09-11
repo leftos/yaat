@@ -1099,6 +1099,23 @@
     "Solo": false
   },
   {
+    "File": "issue429-fat-approaches-recording.zip",
+    "Commands": 186,
+    "ByKind": {
+      "Compound": 142,
+      "Delete": 1,
+      "Say": 3,
+      "SetActivePosition": 1,
+      "TrackOwnership": 39
+    },
+    "Unparsed": [
+      "DEPART NTELL"
+    ],
+    "ReactionDelayed": 0,
+    "AsPrefixed": 39,
+    "Solo": false
+  },
+  {
     "File": "issue7-mlt-cross-runway-wrong-side-recording.yaat-bug-report-bundle.zip",
     "Commands": 191,
     "ByKind": {

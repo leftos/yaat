@@ -42,6 +42,7 @@ public class PhaseListEstablishedOnApproachTests
             FinalApproachCourse = new TrueHeading(280),
             ThresholdLat = 37.72,
             ThresholdLon = -122.22,
+            AssignedInterceptHeading = null,
         };
 
     [Fact]

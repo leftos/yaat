@@ -152,6 +152,17 @@ Two contracts of the handoff to the navigator (`StartExitNavigation`):
 - **The exit route's speed ceiling is `min(coastSpeed, TaxiSpeed × expedite multiplier)`**, not coast speed. The turn itself is governed by the junction arc's `MaxSafeSpeedKts` and back-propagated braking; the taxi-speed ceiling is what prevents the old slow-turn-then-surge profile (accelerate back toward 40 kt coast on the exit straight, then brake hard for the hold-short). Once off the runway the aircraft is taxiing — it only ever decelerates from the turn-off speed to the hold-short.
 - **The analog-rolling heading hold is cleared** (`Targets.TargetTrueHeading` / `TurnRateOverride` → null). `TickRolling` steers via the persistent `ControlTargets`; the navigator steers by writing `TrueHeading` directly. Leaving the hold in place makes FlightPhysics turn the aircraft back toward the runway heading every substep, fighting the navigator's exit turn to a standstill (a false pure-pursuit "orbit").
 
+### No ground layout: stop on the runway and complete
+
+Airports without a vNAS ground map (KFAT in the #429 bundle) have nothing to search: `TryFindExitAhead` returns immediately. `OnTick` takes
+a dedicated branch when `ctx.GroundLayout is null` — hold the runway heading, command zero speed at the taxi braking rate, and **return
+`true` once the aircraft is stationary** so the `HoldingAfterExitPhase` that `PhaseRunner` queued behind the exit actually starts. That
+handoff is what `SimulationEngine.TickAutoDelete` keys on: its `stuckAfterLanding` arm (any non-disabled mode) and its `OnLanding` arm both
+require `HoldingAfterExitPhase`, so before this branch existed a layout-less arrival coasted to the runway-end backstop, braked to 0 kt and
+sat in `RunwayExitPhase` for the rest of the session — never deleted under *On landing*. `HoldingAfterExitPhase.OnStart` skips its
+"clear of runway … at …" transmission on this path (no exit taxiway, no layout): the aircraft is stopped *on* the runway, and under mode
+`Never` it stays there awaiting an instruction rather than claiming to be clear.
+
 ### Changing the exit after the route is committed
 
 Handing a route to the navigator is **not** the same thing as turning off. Segment 0 of that route is the virtual approach leg — a straight down the runway centerline to the branch node — so a committed aircraft can still have most of the runway to run. A late `EL`/`ER`/`EXIT <twy>` is honored throughout that window and refused after it.

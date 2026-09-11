@@ -1,5 +1,4 @@
 using System.Globalization;
-using System.Text.RegularExpressions;
 using Microsoft.Extensions.Logging;
 using Yaat.Sim.Data.Airport;
 
@@ -17,7 +16,7 @@ namespace Yaat.Sim.Data.Vnas;
 ///
 /// Use tools/Yaat.CifpInspector to inspect parsed procedures from the CLI when debugging.
 /// </summary>
-public static partial class CifpParser
+public static class CifpParser
 {
     private static readonly ILogger Log = SimLog.CreateLogger("CifpParser");
 
@@ -648,7 +647,7 @@ public static partial class CifpParser
 
         char typeCode = approachId[0];
         string typeName = ApproachTypeNames.GetValueOrDefault(typeCode, "UNKNOWN");
-        string? runway = ParseRunwayFromApproachId(approachId);
+        string? runway = RunwayIdentifier.FromApproachId(approachId);
 
         // Separate transition legs, common legs, and missed approach legs
         var transitionLegs = new Dictionary<string, List<CifpLeg>>(StringComparer.Ordinal);
@@ -999,7 +998,7 @@ public static partial class CifpParser
         }
 
         // Extract runway from approach ID
-        string? runway = ParseRunwayFromApproachId(approachId);
+        string? runway = RunwayIdentifier.FromApproachId(approachId);
         if (runway is null)
         {
             return;
@@ -1323,23 +1322,6 @@ public static partial class CifpParser
         double result = deg + min / 60.0 + (sec + hundredths / 100.0) / 3600.0;
         return hemisphere == 'W' ? -result : result;
     }
-
-    private static string? ParseRunwayFromApproachId(string approachId)
-    {
-        if (approachId.Length < 2)
-        {
-            return null;
-        }
-
-        // Skip first character (approach type code)
-        string rest = approachId[1..];
-
-        var match = RunwayPattern().Match(rest);
-        return match.Success ? match.Groups[1].Value : null;
-    }
-
-    [GeneratedRegex(@"^(\d{1,2}[LRC]?)")]
-    private static partial Regex RunwayPattern();
 
     private sealed record FafCandidate(string Airport, string Runway, string FafFix, int Priority);
 }

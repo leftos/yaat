@@ -54,19 +54,28 @@ public sealed class HoldingAfterExitPhase : Phase
         ctx.Aircraft.IndicatedAirspeed = 0;
         ctx.Aircraft.IsOnGround = true;
 
-        // Broadcast "clear of runway" — solo TWR students need the TTS so they can hand off
-        // to ground; solo GND students aren't on tower frequency at this point.
-        string rwy = _runwayId ?? ctx.Aircraft.Phases?.AssignedRunway?.Designator ?? "unknown";
-        string twy = _exitTaxiway ?? ctx.Aircraft.Ground.CurrentTaxiway ?? "taxiway";
-        var text = Pilot.PilotResponder.BuildClearOfRunwayText(ctx.Aircraft, rwy, twy);
-        Pilot.PilotResponder.RouteSoloOrRpoTransmission(
-            ctx.Aircraft,
-            ctx.SoloTrainingMode,
-            ctx.RpoShowPilotSpeech,
-            ctx.StudentPositionType,
-            text,
-            Pilot.PilotResponder.SoloPositionsTower
-        );
+        // With no layout there was no exit to take: RunwayExitPhase rolled the aircraft to a stop on the
+        // runway itself, so the pilot has nothing to report clear of.
+        if ((_exitTaxiway is null) && (ctx.GroundLayout is null))
+        {
+            Log.LogDebug("[Exit] {Callsign}: no ground layout, holding on the runway — no clear-of-runway call", ctx.Aircraft.Callsign);
+        }
+        else
+        {
+            // Broadcast "clear of runway" — solo TWR students need the TTS so they can hand off
+            // to ground; solo GND students aren't on tower frequency at this point.
+            string rwy = _runwayId ?? ctx.Aircraft.Phases?.AssignedRunway?.Designator ?? "unknown";
+            string twy = _exitTaxiway ?? ctx.Aircraft.Ground.CurrentTaxiway ?? "taxiway";
+            var text = Pilot.PilotResponder.BuildClearOfRunwayText(ctx.Aircraft, rwy, twy);
+            Pilot.PilotResponder.RouteSoloOrRpoTransmission(
+                ctx.Aircraft,
+                ctx.SoloTrainingMode,
+                ctx.RpoShowPilotSpeech,
+                ctx.StudentPositionType,
+                text,
+                Pilot.PilotResponder.SoloPositionsTower
+            );
+        }
 
         Log.LogDebug(
             "[Exit] {Callsign}: holding after exit at ({Lat:F6},{Lon:F6}), hdg={Hdg:F0}",

@@ -488,6 +488,10 @@ AircraftState.cs               # Mutable aircraft entity. Identity + kinematics 
                                # the marker UNASSUME requires (a scenario aircraft with the same callsign is not restorable)
                                # FOOTGUN: changes here must be mirrored in AircraftSnapshotDto + SnapshotSchemaMigrator
 ControlTargets.cs              # Autopilot targets: heading, altitude, speed (IAS), NavigationRoute
+                               # DesiredVerticalRate (phase/instructor) vs PlannedVerticalRate (FlightPhysics step-climb/descent
+                               # planners, recomputed and cleared every tick): DesiredVerticalRate wins when both are set.
+                               # PlannedVerticalRate is deliberately absent from ControlTargetsDto — re-derived on the first
+                               # tick after a restore, so it's an exception to the "mirror in ControlTargetsDto" footgun below.
 AircraftPattern.cs             # Aircraft pattern state; PendingLandingClearance carries PatternRunwayId / PatternAltitudeFt for runway-change clearance routing
 NavRouteFixDto.cs              # Wire record (Name/Lat/Lon/RestrictionLines) for the client "Show nav route" overlay; carries server positions + pre-formatted crossing-restriction labels. Empty Name = synthetic arc vertex. Referenced by both AircraftStateDto (server) and AircraftDto (client)
 NavRouteShapeDto.cs           # Wire record (Kind/Points/Labels) for active-procedure geometry on the "Show nav route" overlay: hold racetracks, procedure turns, and open-ended SID coded-leg vectors — paths the flat NavRouteFixDto route can't express. NavRouteShapeKind styles the shape
@@ -839,7 +843,8 @@ AirspaceBoundaryHoldPhase.cs   # Solo-training VFR boundary hold outside Class B
 
 # Phases/Approach/
 ApproachNavigationPhase.cs     # Navigate through CIFP fix sequence (IAF→IF→FAF) with alt/speed restrictions + next-fix speed look-ahead
-InterceptCoursePhase.cs        # Fly current heading until intercepting final approach course; detects bust-through (sign flip or 180s timeout) and notifies RPO. ForcedIntercept (PTACF, CAPPF implied-PTAC) bypasses the 30° capture gate — forces capture on steep cuts, overshoots expected
+InterceptCoursePhase.cs        # Fly current heading until intercepting final approach course; detects bust-through (sign flip → "unable, passing through the localizer"; 180s timeout → "unable to intercept the localizer, request vectors") and routes the pilot transmission (solo TTS or RPO amber line) via PilotResponder. ForcedIntercept (PTACF, CAPPF implied-PTAC) bypasses the 30° capture gate — forces capture on steep cuts, overshoots expected
+                               # AssignedInterceptHeading: the controller's vector captured by the installer (ApproachCommandHandler/NavigationCommandHandler) before the clearance/join nulls ctx.Targets.AssignedMagneticHeading — legality is judged against this, not the live (already-cleared) target
 HoldingPatternPhase.cs         # AIM 5-3-8 holding with entry determination; MaxCircuits for hold-in-lieu
 ProcedureTurnPhase.cs          # AIM 5-4-9 procedure turn (PI leg): outbound on FAC reciprocal → 45° offset → 180° turn back → intercept inbound. Engaged by CAPP when DCT matches PT anchor or intercept angle > 90°
 ApproachClearance.cs           # Record on PhaseList storing active approach state + pre-built MAP fixes
@@ -858,8 +863,8 @@ AirborneFollowHelper.cs        # Shared spacing math. GetAdjustedSpeed for patte
 AtParkingPhase / PushbackPhase (simple + heading + targeted-position + spot pull-forward; `PUSH @parking` reverses directly to the gate, `PUSH $spot` reverses past the mark then pulls forward nose-out — see docs/ground/pushback.md) / PushbackToSpotPhase (retained for snapshot restore of pre-#233 recordings only; never created by the command path) / TaxiingPhase / HoldingShortPhase
 CrossingRunwayPhase / HoldingAfterExitPhase / FollowingPhase
 GroundNavigator.cs           # Core ground nav: closed-form arc playback (plays the real cubic Bezier), pure-pursuit tracking (look-ahead floored at the category nose-wheel radius), turn-rate-feasibility corner-speed cap (arc speed profile limits target by local fillet curvature), entry-alignment rounding, orbit invariant, ReleaseHeadingHold when a straight primitive takes over from an arc
-RunwayExitPhase.cs             # Rolls on centerline until exit found; builds TaxiRoute from exit path and hands off to TaxiingPhase
-HoldingAfterExitPhase.cs       # Post-exit hold: broadcasts "clear of runway", faces away from runway, awaits taxi command
+RunwayExitPhase.cs             # Rolls on centerline until exit found; builds TaxiRoute from exit path and hands off to TaxiingPhase. No ground layout (TickStopWithoutLayout): no exit graph to search, so it just rolls to a stop on the runway (FlightPhysics.StationaryGroundSpeedKts) and completes, starting the queued HoldingAfterExitPhase
+HoldingAfterExitPhase.cs       # Post-exit hold: broadcasts "clear of runway", faces away from runway, awaits taxi command. Skips the broadcast when there was no ground layout and no exit taken — the aircraft is still on the runway, with nothing to report clear of
 ClearRunwayPhase.cs            # CLRWY: pulls a tail-over-runway aircraft (hold-short of a taxiway sitting closer than its own length past a crossed runway) forward until just clear (½ length past the bars), then holds
 
 # ControllerAi/ — the controller AI (docs/plans/controller-ai/): CA0 = identity, resolver, staffing, jurisdiction, anomaly ledger, service, sinks; CA1 = ground brain + taxi/crossing rules, pacing, runway-in-use resolver
@@ -1027,6 +1032,7 @@ Fillet/                        # Plan-then-execute fillet pipeline (edge-split c
   FilletPlanCutRedirect.cs     # Union-find survivor map for tangent merges + stable-anchor binding
   (also FilletPlan/JunctionPlan/CornerSpec/ResolvedArmCut plan model + TaxiwayArm(Terminus), JunctionKind, FilletEligibility, ManualArcDetector, SharedArmTangentPass, PlanWarning, FilletConstants, FilletPlanConsistency)
 RunwayIdentifier.cs            # Struct: runway designator parsing/matching; NormalizeDesignator (zero-pad canonical) + ToDisplayDesignator/ToDisplayString (FAA no-leading-zero display form)
+                               # FromApproachId: extracts the runway designator from a procedure id ("I29RY" → "29R", "VDM-A" → null for circling); shared by CifpParser and InterceptCoursePhase.GetRunwayHeading
 TaxiRoute.cs                   # Resolved path: TaxiRouteSegment (DirectionalEdge wrapping IGroundEdge) + HoldShortPoints (with dynamic lat/lon offset) + DestinationParking/DestinationSpot + completion
 TaxiRouteAutoCross.cs          # Applies AutoCrossRunway toggle to a route's RunwayCrossing hold-shorts; reused at TAXI-resolution and on mid-session toggle (SimulationWorld.ApplyAutoCrossToActiveTaxiRoutes)
 TaxiRouteFormatter.cs          # SINGLE owner of route -> taxiway-name extraction: TaxiwayLegs (decomposes junction composite labels "W - W6"=GroundArc.TaxiwayNames, stays on the name being followed, drops RAMP, flags runway legs) + CleanTaxiwaySequence (legs minus runways, readable TAXI form) + BuildReadableTaxiPath (clean names + terminal #node pin for a mid-taxiway stop). TaxiRoute.ToSummary/FormatTaxiwaySequence call TaxiwayLegs so the readback, Aircraft List column, and draw-route Copy cannot drift apart
@@ -1107,6 +1113,7 @@ BeaconCodePool.cs              # Discrete-code allocator. AssignNextCode(isVfr) 
 CifpDataService.cs             # FAA CIFP zip download/extract per AIRAC cycle
 CifpAirportIndex.cs            # Once-per-file byte-range index of each airport's SUSAP records (list of ranges — some airports are split); the airport-scoped CifpParser entry points read through it instead of streaming the whole file
 CifpParser.cs                  # ARINC 424 parser: approaches (subsection F), SIDs (D), STARs (E), airport magnetic variation (A), airport runways (G: ParseRunwayThresholdElevations -> per-END landing threshold elevation, the glidepath datum NavData has no per-end value for); FAF fixes, terminal waypoints
+                               # Approach runway extracted via RunwayIdentifier.FromApproachId (shared with InterceptCoursePhase.GetRunwayHeading)
                                # ParseTerminalWaypoints: per-airport section-C waypoints for RF center fix + leg fix resolution
 CifpModels.cs                  # CIFP data models: CifpApproachProcedure, CifpSidProcedure, CifpStarProcedure, CifpLeg, CifpTransition
                                # CifpLeg: ArcRadiusNm, ArcCenterLat/Lon (RF), RecommendedNavaidId, Theta, Rho (AF), FixLat/FixLon (CIFP terminal-waypoint coords)

@@ -1076,8 +1076,11 @@ public sealed class InterceptCoursePhaseDto : PhaseDto
     public required double ThresholdLat { get; init; }
     public required double ThresholdLon { get; init; }
     public string? ApproachId { get; init; }
+
+    /// <summary>Controller-assigned magnetic heading captured when the intercept was installed.
+    /// Optional (defaults null) so recordings made before the field deserialize cleanly.</summary>
+    public double? AssignedInterceptHeadingDeg { get; init; }
     public double? PreviousSignedCrossTrack { get; init; }
-    public double? RunwayHeadingCacheDeg { get; init; }
     public required bool ApproachSpeedSet { get; init; }
     public required bool ForcedIntercept { get; init; }
 

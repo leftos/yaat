@@ -34,6 +34,7 @@ public class InterceptDetectionTests
             ThresholdLat = TestRunway.ThresholdLatitude,
             ThresholdLon = TestRunway.ThresholdLongitude,
             ApproachId = "I28L",
+            AssignedInterceptHeading = null,
         };
         phaseList.Add(phase);
         phaseList.Add(new FinalApproachPhase());
@@ -61,6 +62,7 @@ public class InterceptDetectionTests
             ThresholdLat = TestRunway.ThresholdLatitude,
             ThresholdLon = TestRunway.ThresholdLongitude,
             ApproachId = "I28L",
+            AssignedInterceptHeading = null,
         };
         phaseList.Add(phase);
         phaseList.Add(new FinalApproachPhase());
@@ -87,6 +89,7 @@ public class InterceptDetectionTests
             ThresholdLat = TestRunway.ThresholdLatitude,
             ThresholdLon = TestRunway.ThresholdLongitude,
             ApproachId = "I28L",
+            AssignedInterceptHeading = null,
         };
         phaseList.Add(phase);
         phaseList.Add(new FinalApproachPhase());
@@ -112,6 +115,7 @@ public class InterceptDetectionTests
             ThresholdLat = TestRunway.ThresholdLatitude,
             ThresholdLon = TestRunway.ThresholdLongitude,
             ApproachId = "I28L",
+            AssignedInterceptHeading = null,
         };
         phaseList.Add(phase);
         phaseList.Add(new FinalApproachPhase());
@@ -140,6 +144,7 @@ public class InterceptDetectionTests
             ThresholdLat = TestRunway.ThresholdLatitude,
             ThresholdLon = TestRunway.ThresholdLongitude,
             ApproachId = "I28L",
+            AssignedInterceptHeading = null,
         };
         phaseList.Add(phase);
         phaseList.Add(new FinalApproachPhase());

@@ -401,6 +401,7 @@ public class PhaseTransparentCommandTests
             ThresholdLat = rwy.ThresholdLatitude,
             ThresholdLon = rwy.ThresholdLongitude,
             ApproachId = "I28R",
+            AssignedInterceptHeading = null,
         };
         var phases = new PhaseList
         {

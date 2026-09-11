@@ -242,4 +242,24 @@ public class RunwayIdentifierTests
     {
         Assert.Equal(expected, RunwayIdentifier.ComputeOpposite(input));
     }
+
+    /// <summary>
+    /// vNAS/CIFP procedure ids carry a type prefix of one or more letters and, when an airport
+    /// publishes several approaches of the same type to one runway, a trailing multiple-approach
+    /// letter ("I29RY" = ILS Y runway 29R). Everything after the designator is ignored; an id with
+    /// no runway at all (circling "VDM-A") yields null rather than a bogus designator.
+    /// </summary>
+    [Theory]
+    [InlineData("I29RY", "29R")]
+    [InlineData("I28R", "28R")]
+    [InlineData("L04L", "04L")]
+    [InlineData("VIS28R", "28R")]
+    [InlineData("H09", "09")]
+    [InlineData("R16RZ", "16R")]
+    [InlineData("VDM-A", null)]
+    [InlineData("", null)]
+    public void FromApproachId_ExtractsDesignator(string approachId, string? expected)
+    {
+        Assert.Equal(expected, RunwayIdentifier.FromApproachId(approachId));
+    }
 }

@@ -1339,6 +1339,19 @@ public static class PilotResponder
     }
 
     /// <summary>
+    /// The assigned vector never delivered the aircraft to the final approach course — it flew
+    /// parallel or diverging until the intercept gave up. The pilot advises and asks for a new
+    /// vector, following the AIM §5-5-16.a.1 reason → unable → request structure. Distinct from the
+    /// passing-through-the-localizer report, which states a position this aircraft never reached.
+    /// </summary>
+    public static PilotSpeechText BuildUnableToInterceptRequestVectors(AircraftState aircraft)
+    {
+        var spoken = SpokenOwnCallsign(aircraft);
+        const string terminal = "unable to intercept the localizer, request vectors.";
+        return new PilotSpeechText(terminal, $"{spoken}, {terminal}");
+    }
+
+    /// <summary>
     /// Visual approach no longer legal on short final (committed): the pilot goes around and —
     /// unlike the sim-internal go-around reasons, which stay in the terminal parenthetical —
     /// SPEAKS the reason, per AIM §5-5-5.a.2 ("include the reason" when the pilot initiates

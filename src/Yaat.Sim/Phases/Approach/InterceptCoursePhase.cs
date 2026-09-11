@@ -1,4 +1,3 @@
-using System.Text.RegularExpressions;
 using Microsoft.Extensions.Logging;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
@@ -21,8 +20,19 @@ namespace Yaat.Sim.Phases.Approach;
 /// not yet legal), the phase keeps checking each tick until either the angle
 /// becomes legal or the aircraft crosses the centerline.
 ///
+/// Legality is judged against the vector the controller assigned
+/// (<see cref="AssignedInterceptHeading"/>, captured at install), not against the live
+/// assigned heading: the clearance that installs this phase clears that heading.
+///
+/// The cut is measured against the final approach course and — only on a straight-in whose
+/// course lies within <see cref="AlignedFinalToleranceDeg"/> of the runway number — against the
+/// runway number as well, magnetic against magnetic, which forgives the magnetic variation baked
+/// into the controller's vector. An offset final (LDA/SDF/localizer back-course) or an id with no
+/// runway number is judged on the final approach course alone.
+///
 /// Bust-through: if the aircraft crosses the centerline with heading beyond that
-/// category gate, the approach is cleared and the RPO is notified.
+/// category gate, the approach is cleared and the pilot reports passing through the
+/// localizer on the frequency (solo) or to the instructor (RPO).
 ///
 /// When <see cref="ForcedIntercept"/> is true (PTACF / CAPPF implied-PTAC), the
 /// capture-angle gate is bypassed: the aircraft will capture the FAC at any
@@ -37,10 +47,12 @@ namespace Yaat.Sim.Phases.Approach;
 /// not this join, so a steeper cut is flown rather than refused. It is kept distinct from
 /// <see cref="ForcedIntercept"/> so the glideslope-established gate stays scoped to PTACF.
 ///
-/// Times out after <see cref="MaxElapsedSeconds"/> if the aircraft never
-/// reaches the centerline (e.g., flying parallel).
+/// Times out after <see cref="MaxElapsedSeconds"/> if the aircraft never reaches the centerline
+/// (e.g., flying parallel). The approach is cleared the same way, but the pilot reports being
+/// unable to intercept and asks for vectors — it never reached the course, so it cannot report
+/// having passed through it.
 /// </summary>
-public sealed partial class InterceptCoursePhase : Phase
+public sealed class InterceptCoursePhase : Phase
 {
     private static readonly ILogger Log = SimLog.CreateLogger("InterceptCoursePhase");
 
@@ -49,8 +61,15 @@ public sealed partial class InterceptCoursePhase : Phase
     private const double InterceptSpeedFasMultiplier = 1.3;
     private const double MaxElapsedSeconds = 180.0;
 
+    /// <summary>
+    /// How far the published final approach course may sit from the runway number before the runway
+    /// number stops standing in for it. Within this, the approach is an aligned straight-in and a
+    /// vector judged against the runway number is judged against the course; beyond it the final is
+    /// offset (LDA/SDF/back-course) and only the course counts.
+    /// </summary>
+    private const double AlignedFinalToleranceDeg = 10.0;
+
     private double? _previousSignedCrossTrack;
-    private TrueHeading? _runwayHeadingCache;
     private bool _approachSpeedSet;
 
     /// <summary>Final approach course heading (true).</summary>
@@ -64,6 +83,15 @@ public sealed partial class InterceptCoursePhase : Phase
 
     /// <summary>Approach procedure ID for notification messages.</summary>
     public string? ApproachId { get; init; }
+
+    /// <summary>
+    /// The controller's assigned magnetic heading at the moment the intercept was installed, or null
+    /// when the aircraft was not on a vector. The install site captures it because an approach clearance
+    /// nulls the aircraft's assigned heading when the approach takes over steering — the vector is gone
+    /// from <c>Targets</c> by the first tick, and the runway-number leniency needs the angle the
+    /// controller actually assigned.
+    /// </summary>
+    public required MagneticHeading? AssignedInterceptHeading { get; init; }
 
     /// <summary>
     /// When true, bypass the capture-angle gate: the aircraft captures the FAC at
@@ -156,7 +184,7 @@ public sealed partial class InterceptCoursePhase : Phase
         }
 
         // Already on the centerline with heading roughly aligned — complete immediately.
-        if ((crossTrack < AlreadyOnCourseThresholdNm) && (ComputeEffectiveHeadingDiff(ctx, aircraftHeading) <= maxAlignmentDeg))
+        if ((crossTrack < AlreadyOnCourseThresholdNm) && (ComputeEffectiveHeadingDiff(ctx) <= maxAlignmentDeg))
         {
             return Capture(ctx, aircraftHeading, crossTrack, "already on course");
         }
@@ -165,34 +193,29 @@ public sealed partial class InterceptCoursePhase : Phase
         // centerline. This prevents overshoot and lets FinalApproachPhase start GS descent
         // immediately. Turn radius = GS / (turnRate × 20π) in nm.
         // Check current heading diff first. If that's > 30° (can happen due to magnetic
-        // variation), also check the assigned heading vs runway heading — but only once the
-        // aircraft has settled onto its assigned heading (within 5°). This handles cases like
-        // 150° mag for rwy 12: true heading ~163° vs FAC 130° = 33° (fails), but assigned
-        // 150° vs rwy 120° = 30° (passes, and the aircraft is on the heading the controller gave).
+        // variation), also check the assigned heading vs the runway number — but only once the
+        // aircraft has settled onto its assigned heading (within 5°), and only on an aligned final.
+        // This handles cases like 150° mag for rwy 12: true heading ~163° vs FAC 130° = 33° (fails),
+        // but assigned 150° vs rwy 120° = 30° (passes, and the aircraft is on the heading the
+        // controller gave).
         double turnRate = ctx.Aircraft.Targets.TurnRateOverride ?? AircraftPerformance.TurnRate(ctx.AircraftType, ctx.Category);
         double turnRadiusNm = ctx.Aircraft.GroundSpeed / (turnRate * 62.832);
         double leadDistNm = turnRadiusNm;
 
         if (crossTrack <= leadDistNm)
         {
-            double currentDiff = ComputeCurrentHeadingDiff(aircraftHeading);
+            double currentDiff = ComputeCurrentHeadingDiff(ctx);
             bool legalIntercept = currentDiff <= maxAlignmentDeg;
 
-            // If current true heading diff fails, check assigned magnetic heading —
-            // but only when the aircraft has actually reached it (not mid-turn).
-            if (!legalIntercept && (ctx.Targets.AssignedMagneticHeading is { } assignedHdg))
+            // If current true heading diff fails, check assigned magnetic heading against the
+            // runway number — but only when the aircraft has actually reached it (not mid-turn).
+            if (!legalIntercept && (AssignedInterceptHeading is { } assignedHdg) && (AlignedRunwayNumberHeading(ctx) is { } rwyMag))
             {
                 TrueHeading assignedTrue = assignedHdg.ToTrue(ctx.Aircraft.Declination);
                 bool onAssignedHeading = aircraftHeading.AbsAngleTo(assignedTrue) < 5.0;
                 if (onAssignedHeading)
                 {
-                    double assignedDiff = Math.Abs(assignedHdg.Degrees - GetRunwayHeading().Degrees);
-                    if (assignedDiff > 180)
-                    {
-                        assignedDiff = 360 - assignedDiff;
-                    }
-
-                    legalIntercept = assignedDiff <= maxAlignmentDeg;
+                    legalIntercept = assignedHdg.AbsAngleTo(rwyMag) <= maxAlignmentDeg;
                 }
             }
 
@@ -208,22 +231,23 @@ public sealed partial class InterceptCoursePhase : Phase
             bool signFlipped = ((prev > 0) && (signedCrossTrack <= 0)) || ((prev < 0) && (signedCrossTrack >= 0));
             if (signFlipped)
             {
-                double effectiveDiff = ComputeEffectiveHeadingDiff(ctx, aircraftHeading);
+                double effectiveDiff = ComputeEffectiveHeadingDiff(ctx);
                 if (effectiveDiff <= maxAlignmentDeg)
                 {
                     return Capture(ctx, aircraftHeading, crossTrack, "centerline crossing");
                 }
 
                 // Bust-through: heading too far off to capture
-                TrueHeading rwyHdg = GetRunwayHeading();
                 double headingDiff = aircraftHeading.AbsAngleTo(FinalApproachCourse);
-                double runwayHeadingDiff = aircraftHeading.AbsAngleTo(rwyHdg);
+                string runwayDiffText = AlignedRunwayNumberHeading(ctx) is { } rwyMag
+                    ? $"{ctx.Aircraft.MagneticHeading.AbsAngleTo(rwyMag):F1}°"
+                    : "n/a";
                 Log.LogInformation(
-                    "[InterceptCourse] {Callsign}: bust-through detected — hdgDiff={HD:F1}° (fac={FacDiff:F1}°, rwy={RwyDiff:F1}°), crossTrack flipped {Prev:F3}→{Now:F3}",
+                    "[InterceptCourse] {Callsign}: bust-through detected — hdgDiff={HD:F1}° (fac={FacDiff:F1}°, rwy={RwyDiff}), crossTrack flipped {Prev:F3}→{Now:F3}",
                     ctx.Aircraft.Callsign,
                     effectiveDiff,
                     headingDiff,
-                    runwayHeadingDiff,
+                    runwayDiffText,
                     prev,
                     signedCrossTrack
                 );
@@ -242,7 +266,7 @@ public sealed partial class InterceptCoursePhase : Phase
                 ctx.Aircraft.Callsign,
                 ElapsedSeconds
             );
-            HandleBustThrough(ctx);
+            HandleInterceptTimeout(ctx);
             return true;
         }
 
@@ -251,38 +275,43 @@ public sealed partial class InterceptCoursePhase : Phase
 
     /// <summary>
     /// Heading diff using current aircraft heading only — for anticipation decisions
-    /// where the aircraft must actually be on a legal intercept heading.
+    /// where the aircraft must actually be on a legal intercept heading. The true heading
+    /// is measured against the final approach course; the magnetic heading against the
+    /// runway number, when that is an aligned straight-in.
     /// </summary>
-    private double ComputeCurrentHeadingDiff(TrueHeading aircraftHeading)
+    private double ComputeCurrentHeadingDiff(PhaseContext ctx)
     {
-        double headingDiff = aircraftHeading.AbsAngleTo(FinalApproachCourse);
-        double runwayHeadingDiff = aircraftHeading.AbsAngleTo(GetRunwayHeading());
-        return Math.Min(headingDiff, runwayHeadingDiff);
+        double headingDiff = ctx.Aircraft.TrueHeading.AbsAngleTo(FinalApproachCourse);
+        if (AlignedRunwayNumberHeading(ctx) is not { } rwyMag)
+        {
+            return headingDiff;
+        }
+
+        return Math.Min(headingDiff, ctx.Aircraft.MagneticHeading.AbsAngleTo(rwyMag));
     }
 
     /// <summary>
     /// Computes the effective heading diff for capture/bust-through decisions at crossing.
-    /// Takes the minimum of: diff from FAC, diff from runway-number heading,
-    /// and the controller's assigned magnetic heading vs runway-number heading.
+    /// Takes the minimum of: true heading vs the final approach course, magnetic heading vs the
+    /// runway number, and the controller's assigned magnetic heading vs the runway number. The two
+    /// runway-number terms apply only on an aligned straight-in (see
+    /// <see cref="AlignedRunwayNumberHeading"/>); on an offset final the course is the only measure.
     /// </summary>
-    private double ComputeEffectiveHeadingDiff(PhaseContext ctx, TrueHeading aircraftHeading)
+    private double ComputeEffectiveHeadingDiff(PhaseContext ctx)
     {
-        double headingDiff = aircraftHeading.AbsAngleTo(FinalApproachCourse);
-        TrueHeading rwyHdg = GetRunwayHeading();
-        double runwayHeadingDiff = aircraftHeading.AbsAngleTo(rwyHdg);
-        double effectiveDiff = Math.Min(headingDiff, runwayHeadingDiff);
+        double effectiveDiff = ctx.Aircraft.TrueHeading.AbsAngleTo(FinalApproachCourse);
+        if (AlignedRunwayNumberHeading(ctx) is not { } rwyMag)
+        {
+            return effectiveDiff;
+        }
+
+        effectiveDiff = Math.Min(effectiveDiff, ctx.Aircraft.MagneticHeading.AbsAngleTo(rwyMag));
 
         // Also check controller's intended intercept angle: assigned magnetic heading
         // vs runway-number heading (both magnetic). Accounts for magnetic variation.
-        if (ctx.Targets.AssignedMagneticHeading is { } assignedHdg)
+        if (AssignedInterceptHeading is { } assignedHdg)
         {
-            double assignedDiff = Math.Abs(assignedHdg.Degrees - rwyHdg.Degrees);
-            if (assignedDiff > 180)
-            {
-                assignedDiff = 360 - assignedDiff;
-            }
-
-            effectiveDiff = Math.Min(effectiveDiff, assignedDiff);
+            effectiveDiff = Math.Min(effectiveDiff, assignedHdg.AbsAngleTo(rwyMag));
         }
 
         return effectiveDiff;
@@ -376,39 +405,88 @@ public sealed partial class InterceptCoursePhase : Phase
     }
 
     /// <summary>
-    /// Derives the runway-number heading from the <see cref="ApproachId"/>.
-    /// E.g. "I12" → 120°, "ILS28R" → 280°, "L04L" → 40°.
-    /// Falls back to <see cref="FinalApproachCourse"/> if the designator can't be parsed.
+    /// Derives the runway-number heading from the <see cref="ApproachId"/>. Runway numbers are
+    /// magnetic by definition: "I12" → 120° magnetic, "ILS28R" → 280°, "L04L" → 40°, "I29RY" → 290°.
+    /// Null when the id carries no parseable runway number (a circling approach such as "VDM-A", or
+    /// an unprefixed id).
     /// </summary>
-    private TrueHeading GetRunwayHeading()
+    private MagneticHeading? RunwayNumberHeading()
     {
-        if (_runwayHeadingCache is { } cached)
+        if (ApproachId is null || RunwayIdentifier.FromApproachId(ApproachId) is not { } designator)
         {
-            return cached;
+            return null;
         }
 
-        TrueHeading result = FinalApproachCourse;
-
-        if (ApproachId is not null)
+        string digits = designator.TrimEnd('L', 'R', 'C');
+        if (int.TryParse(digits, out int rwyNum) && (rwyNum >= 1) && (rwyNum <= 36))
         {
-            var match = RunwayDesignatorRegex().Match(ApproachId);
-            if (match.Success && int.TryParse(match.Groups[1].Value, out int rwyNum) && (rwyNum >= 1) && (rwyNum <= 36))
-            {
-                result = new TrueHeading(rwyNum * 10.0);
-            }
+            return new MagneticHeading(rwyNum * 10.0);
         }
 
-        _runwayHeadingCache = result;
-        return _runwayHeadingCache.Value;
+        return null;
     }
 
-    [GeneratedRegex(@"(\d{1,2})[LRC]?$")]
-    private static partial Regex RunwayDesignatorRegex();
+    /// <summary>
+    /// The runway-number heading when it stands in for the final approach course — i.e. the course is
+    /// within <see cref="AlignedFinalToleranceDeg"/> of it, so the approach is an aligned straight-in.
+    /// Null on an offset final (LDA/SDF/localizer back-course), where the runway number says nothing
+    /// about the course the aircraft must intercept, and null when the id carries no runway number.
+    /// </summary>
+    private MagneticHeading? AlignedRunwayNumberHeading(PhaseContext ctx)
+    {
+        if (RunwayNumberHeading() is not { } rwyMag)
+        {
+            return null;
+        }
+
+        MagneticHeading facMag = FinalApproachCourse.ToMagnetic(ctx.Aircraft.Declination);
+        return facMag.AbsAngleTo(rwyMag) <= AlignedFinalToleranceDeg ? rwyMag : null;
+    }
 
     private void HandleBustThrough(PhaseContext ctx)
     {
         string label = ApproachId ?? "approach";
-        ctx.Aircraft.PendingNotifications.Add($"Unable, passing through localizer — {label}");
+        var text = Pilot.PilotResponder.BuildUnable(ctx.Aircraft, "passing through the localizer") with
+        {
+            RpoTerminal = $"unable, passing through the localizer — {label}.",
+        };
+        RefuseIntercept(ctx, text);
+    }
+
+    /// <summary>
+    /// The assigned vector never brought the aircraft to the course (it flew parallel or diverging),
+    /// so the pilot asks for a new one instead of reporting a position it never reached.
+    /// </summary>
+    private void HandleInterceptTimeout(PhaseContext ctx)
+    {
+        string label = ApproachId ?? "approach";
+        var text = Pilot.PilotResponder.BuildUnableToInterceptRequestVectors(ctx.Aircraft) with
+        {
+            RpoTerminal = $"unable to intercept the localizer, request vectors — {label}.",
+        };
+        RefuseIntercept(ctx, text);
+    }
+
+    /// <summary>
+    /// Transmits the pilot's refusal of the intercept and ends the approach: the remaining approach
+    /// phases and the clearance are dropped, so the aircraft holds its last heading and altitude
+    /// until the controller vectors it again.
+    /// </summary>
+    private static void RefuseIntercept(PhaseContext ctx, Pilot.PilotSpeechText text)
+    {
+        // A refusal to fly the intercept is a pilot transmission like any other: the student hears it
+        // in solo mode, and in RPO the instructor sees the green pilot-speech line (callsign, no
+        // procedure id) when RpoShowPilotSpeech is on, or the amber line when it is off — that one
+        // carries the procedure id as an RPO-only diagnostic (a real crew would not read the procedure
+        // id back on an unable call).
+        Pilot.PilotResponder.RouteSoloOrRpoTransmission(
+            ctx.Aircraft,
+            ctx.SoloTrainingMode,
+            ctx.RpoShowPilotSpeech,
+            ctx.StudentPositionType,
+            text,
+            Pilot.PilotResponder.SoloPositionsTowerApproach
+        );
 
         // Clear remaining approach phases and approach clearance
         ctx.Aircraft.Phases?.Clear(ctx);
@@ -452,8 +530,8 @@ public sealed partial class InterceptCoursePhase : Phase
             ThresholdLat = ThresholdLat,
             ThresholdLon = ThresholdLon,
             ApproachId = ApproachId,
+            AssignedInterceptHeadingDeg = AssignedInterceptHeading?.Degrees,
             PreviousSignedCrossTrack = _previousSignedCrossTrack,
-            RunwayHeadingCacheDeg = _runwayHeadingCache?.Degrees,
             ApproachSpeedSet = _approachSpeedSet,
             ForcedIntercept = ForcedIntercept,
             RelaxedJoin = RelaxedJoin,
@@ -467,13 +545,13 @@ public sealed partial class InterceptCoursePhase : Phase
             ThresholdLat = dto.ThresholdLat,
             ThresholdLon = dto.ThresholdLon,
             ApproachId = dto.ApproachId,
+            AssignedInterceptHeading = dto.AssignedInterceptHeadingDeg is { } hdg ? new MagneticHeading(hdg) : null,
             ForcedIntercept = dto.ForcedIntercept,
             RelaxedJoin = dto.RelaxedJoin,
         };
         phase.Status = (PhaseStatus)dto.Status;
         phase.ElapsedSeconds = dto.ElapsedSeconds;
         phase._previousSignedCrossTrack = dto.PreviousSignedCrossTrack;
-        phase._runwayHeadingCache = dto.RunwayHeadingCacheDeg is { } deg ? new TrueHeading(deg) : null;
         phase._approachSpeedSet = dto.ApproachSpeedSet;
         return phase;
     }

@@ -1,8 +1,8 @@
 using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
-using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Simulation;
+using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests.Simulation;
 
@@ -193,13 +193,6 @@ public class TimerCommandTests
         Assert.Equal("CALL GROUND", t.Message);
         Assert.Equal(240, t.FireAtSeconds);
         Assert.Equal(300, t.TotalSeconds);
-    }
-
-    private sealed class NullGroundData : IAirportGroundData
-    {
-        public AirportGroundLayout? GetLayout(string airportId) => null;
-
-        public string? GetSourceGeoJson(string airportId) => null;
     }
 }
 

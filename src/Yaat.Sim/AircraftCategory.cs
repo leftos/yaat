@@ -175,9 +175,10 @@ public static class CategoryPerformance
     /// use. Direction-split: climb is thrust-limited (×<see cref="ExpediteClimbMultiplier"/> up to
     /// the category cap); descent is drag-limited (×<see cref="ExpediteDescentMultiplier"/> within
     /// the category floor/cap band). Never returns less than <paramref name="baseRateFpm"/> —
-    /// hastening an aircraft cannot slow it. Callers with a phase/planner-commanded
-    /// <see cref="ControlTargets.DesiredVerticalRate"/> must not call this at all: per 7110.65
-    /// §4-5-7 NOTE 4, an explicitly commanded rate is the restriction and expedite never scales it.
+    /// hastening an aircraft cannot slow it. Callers with a commanded rate already in hand must not call this
+    /// at all — neither a phase/instructor <see cref="ControlTargets.DesiredVerticalRate"/> nor a planner
+    /// <see cref="ControlTargets.PlannedVerticalRate"/>: per 7110.65 §4-5-7 NOTE 4, an explicitly commanded
+    /// rate is the restriction and expedite never scales it.
     /// </summary>
     public static double ExpediteVerticalRate(AircraftCategory cat, double baseRateFpm, bool climbing)
     {

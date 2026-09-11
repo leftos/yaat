@@ -63,7 +63,8 @@ The numbered "8/10-step" list in [tick-loop.md](tick-loop.md) is the canonical o
 | `TurnRateOverride` | `double?` deg/s | pattern phases, `TRATE` | `UpdateHeading`, `UpdateNavigation` anticipation | Persists; null = category default |
 | `TargetAltitude` | `double?` ft MSL | `CM`/`DM`/`EXP <alt>` handlers, climb/descent planners, phases | `UpdateAltitude` (via `ResolveAltitudeGoal`) | **Self-nulls** on snap (±10 ft) — so a command that needs to know "is a climb/descent running" must ask `ResolveAltitudeGoal`, not this field |
 | `AltitudeFloor` / `AltitudeCeiling` | `double?` ft MSL | "maintain VFR at/above" / "at/below" handlers | `ResolveAltitudeGoal` | Persist until cleared |
-| `DesiredVerticalRate` | `double?` fpm (+ = climb) | climb/descent planners | `UpdateAltitude` | Nulled on altitude snap and on fix revert; null = category rate. A set value is flown verbatim — expedite never scales a commanded rate (7110.65 §4-5-7 NOTE 4). (`EXPEDITE` does not write a value here — it sets `Procedure.IsExpediting`, which scales only the profile-rate branch via `CategoryPerformance.ExpediteVerticalRate`. `NORM`/CM/DM/snap clear it) |
+| `DesiredVerticalRate` | `double?` fpm (+ = climb) | phases (glidepath, flare, initial climb), generators and live-traffic seeding, the instructor | `UpdateAltitude` | Nulled on altitude snap and on fix revert; null = category rate. A set value is flown verbatim — expedite never scales a commanded rate (7110.65 §4-5-7 NOTE 4). (`EXPEDITE` does not write a value here — it sets `Procedure.IsExpediting`, which scales only the profile-rate branch via `CategoryPerformance.ExpediteVerticalRate`. `NORM`/CM/DM/snap clear it) |
+| `PlannedVerticalRate` | `double?` fpm (+ = climb) | climb/descent planners only | `UpdateAltitude` (behind `DesiredVerticalRate`) | **Transient**: `Update` nulls it before the planners run every tick, so it exists only while a constrained fix is in the route — a vector that clears the route releases it on the next tick (issue #429: a `CFIX` rate outlived `FH` and held an A319 at 730 fpm through `DM`/`EXP`). Flown verbatim like a phase rate; not in `ControlTargetsDto` (re-derived after restore) |
 | `TargetSpeed` | `double?` KIAS | `SPD`/`SLOW` handlers, speed planner, Mach hold, phases | `UpdateSpeed` | **Self-nulls** on snap (±2 kt) |
 | `DesiredDecelRate` | `double?` kt/s (+ = decel) | `LandingPhase` / `RunwayExitPhase` | `UpdateSpeed` **decel branch only** | Must be cleared on phase transition; null = category default |
 | `SpeedFloor` / `SpeedCeiling` | `double?` KIAS | floor/ceiling handlers, AIM 5-4-1 procedural memory | `UpdateSpeed`, `UpdateSpeedPlanning`, `ApplyFixConstraints` | Persist; enforced continuously |
@@ -172,12 +173,12 @@ direction bias (`TRDCT`/`TLDCT`) survives until the initial turn completes.
 - `goal = ResolveAltitudeGoal(aircraft)` (`:865`) clamps `TargetAltitude` between `AltitudeFloor` and `AltitudeCeiling`; if there is no
   `TargetAltitude` it synthesizes one only when the aircraft is below a floor or above a ceiling (with the snap deadband).
 - `|diff| < AltitudeSnapFt` (10 ft, `:13`) → snap `Altitude`, zero VS, **null `TargetAltitude` and `DesiredVerticalRate`, clear `IsExpediting`**.
-- Rate = `|DesiredVerticalRate|` if set — flown **verbatim**: per 7110.65 §4-5-7 NOTE 4 a phase/planner-commanded rate is the
+- Rate = `|DesiredVerticalRate ?? PlannedVerticalRate|` if either is set (a phase's rate wins) — flown **verbatim**: per 7110.65 §4-5-7 NOTE 4 a phase/planner-commanded rate is the
   restriction and expedite never scales it. Else `AircraftPerformance.ClimbRate`/`DescentRate(...)`, where `IsExpediting` applies
   `CategoryPerformance.ExpediteVerticalRate`: climb **×1.15**, descent **×2.0**, clamped to per-category caps (jet 4,000 / TP 2,500 /
   piston climb 900, descent 1,500 / helo 1,500/1,200 fpm) with a descent floor (jet 2,500 / TP 1,500 / piston+helo 1,000), never
   reducing the base rate.
-- **Level-off taper** (AIM 4-4-10.4): in free flight (no active phase, no `DesiredVerticalRate`), the rate tapers inside the last
+- **Level-off taper** (AIM 4-4-10.4): in free flight (no active phase, no `DesiredVerticalRate`/`PlannedVerticalRate`), the rate tapers inside the last
   1,000 ft of the goal — `min(rate, max(500, 1.5 × |diff|))` fpm — so Mode C winds down instead of cutting from full rate to level in
   one tick. Phases are exempt end-to-end: approach/landing fly profile-rate segments below 1,000 ft AGL that must not be flattened.
   `change = min(|diff|, rate/60 × delta)`; `VerticalSpeed` is signed by climb/descend.
@@ -188,7 +189,7 @@ direction bias (`TRDCT`/`TLDCT`) survives until the initial turn completes.
 
 **Step climb/descent planners** run *before* the integrators (`UpdateClimbPlanning` `:352`, `UpdateDescentPlanning` `:246`). Each scans the route
 for the next altitude-constrained fix, resolves the constraint via `ResolveAltitudeRestriction` (`:691`), writes `TargetAltitude`, and computes
-the `DesiredVerticalRate` needed to hit it at the fix: `requiredFpm = altDelta / timeMinutes`, capped at **2× the standard category rate**
+the `PlannedVerticalRate` needed to hit it at the fix: `requiredFpm = altDelta / timeMinutes`, capped at **2× the standard category rate**
 (`:333`). Descent planning is suppressed under `SidViaMode`; climb planning under `StarViaMode` — the SID-via / STAR-via split decides which
 planner owns the route. Both also activate (outside via mode) whenever the route carries any explicit altitude restriction.
 

@@ -170,6 +170,32 @@ public class AutoDeleteTickTests
         Assert.Equal("Parked", staticEngine.Scenario.EffectiveAutoDeleteMode);
     }
 
+    /// <summary>
+    /// Issue #429: at an airport with no ground layout the arrival stops on the runway and holds there —
+    /// it cannot taxi anywhere. Under <c>OnLanding</c> that holding arrival is the mode's own delete case,
+    /// and it is what <see cref="Yaat.Sim.Phases.Ground.RunwayExitPhase"/> now hands the engine when it
+    /// completes without a layout.
+    /// </summary>
+    [Fact]
+    public void TickAutoDelete_OnLanding_LayoutlessArrivalHoldingAfterExit_IsRemoved()
+    {
+        TestVnasData.EnsureInitialized();
+        var engine = EngineWithMode("OnLanding");
+        engine.Scenario!.PrimaryAirportId = "KFAT";
+        var arrival = Aircraft("N200WM");
+        arrival.IsOnGround = true;
+        arrival.FlightPlan.Departure = "KSFO";
+        arrival.FlightPlan.Destination = "KFAT";
+        arrival.Phases = new Yaat.Sim.Phases.PhaseList();
+        arrival.Phases.Add(new Yaat.Sim.Phases.Ground.HoldingAfterExitPhase());
+        engine.World.AddAircraft(arrival);
+
+        Assert.Null(engine.World.GroundLayout);
+
+        Assert.Same(arrival, Assert.Single(engine.TickAutoDelete()));
+        Assert.Null(engine.World.FindAircraft("N200WM"));
+    }
+
     private static AircraftState Aircraft(string callsign) =>
         new()
         {

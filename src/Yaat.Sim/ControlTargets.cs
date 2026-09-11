@@ -42,6 +42,18 @@ public class ControlTargets
     public double? DesiredVerticalRate { get; set; }
 
     /// <summary>
+    /// The fpm the step-descent/step-climb planners computed this tick to meet the next route
+    /// altitude constraint at its fix (positive = climb, negative = descent). Owned by
+    /// <see cref="FlightPhysics"/>: reset to null at the top of every <c>Update</c> before the
+    /// planners run, so it only holds a value while a constrained fix is still in the route — a
+    /// vector that drops the route releases the rate on the very next tick.
+    /// <see cref="DesiredVerticalRate"/> (a phase or the instructor) wins when both are set.
+    /// Deliberately absent from <c>ControlTargetsDto</c>: it is re-derived on the first tick
+    /// after a restore.
+    /// </summary>
+    public double? PlannedVerticalRate { get; set; }
+
+    /// <summary>
     /// Target indicated airspeed in knots.
     /// Null means maintain current speed.
     /// </summary>

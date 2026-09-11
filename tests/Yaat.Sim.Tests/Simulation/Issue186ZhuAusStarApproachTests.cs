@@ -18,7 +18,7 @@ namespace Yaat.Sim.Tests.Simulation;
 ///   #3     SWA387 told JFAC/JLOC (not CAPP) "descends on their own"; a later CAPP printed
 ///          "pattern to RWY 18L cancelled by CAPP".
 ///   #4     SWA8623 given a fine intercept heading (140 to join the 180-ish I18R final) then JLOC,
-///          "blew through" and reported "Unable, passing through localizer — I18R".
+///          "blew through" and reported "unable, passing through the localizer — I18R".
 ///
 /// Design ruling (issue author): JLOC/JFAC means the pilot turns to join the loc/FAC of their own
 /// accord — they should capture even from a steep/late vector. Only a PTAC asks the controller to
@@ -432,7 +432,7 @@ public class Issue186ZhuAusStarApproachTests
             if (ac.Phases?.ActiveApproach is null)
             {
                 busted = true;
-                _output.WriteLine($"t+{t}: approach cleared (bust) phases={FormatPhases(ac)} notifs={FormatNotifications(ac)}");
+                _output.WriteLine($"t+{t}: approach cleared (bust) phases={FormatPhases(ac)} warnings=[{string.Join(" | ", warnings)}]");
                 break;
             }
             if (ac.Altitude < altAfterCapp - 300)
@@ -452,8 +452,8 @@ public class Issue186ZhuAusStarApproachTests
     // ---------------------------------------------------------------------------------------------
     // Shared hybrid "JFAC should turn to join the localizer" driver.
     // Restores the snapshot just before the JFAC, replays the JFAC window, then ticks forward
-    // watching for capture (FinalApproach active) vs bust-through (approach cleared / "passing
-    // through localizer").
+    // watching for capture (FinalApproach active) vs bust-through (approach cleared / the pilot's
+    // "unable, passing through the localizer").
     // ---------------------------------------------------------------------------------------------
 
     private void RunJoinTest(string callsign, int snapshotBeforeJfac, int jfacWindowEnd, int watchSeconds)
@@ -465,6 +465,18 @@ public class Issue186ZhuAusStarApproachTests
             _output.WriteLine("Recording or NavData not available, skipping");
             return;
         }
+
+        string? bustNotif = null;
+        engine.WarningEmitted += (warnedCallsign, warning) =>
+        {
+            if (
+                warnedCallsign.Equals(callsign, StringComparison.OrdinalIgnoreCase)
+                && warning.Contains("passing through the localizer", StringComparison.OrdinalIgnoreCase)
+            )
+            {
+                bustNotif = warning;
+            }
+        };
 
         var recording = archive.ToBaseSessionRecording();
         engine.Replay(recording, 0);
@@ -490,7 +502,6 @@ public class Issue186ZhuAusStarApproachTests
 
         bool captured = false;
         bool busted = false;
-        string? bustNotif = null;
         for (int t = 1; t <= watchSeconds; t++)
         {
             engine.TickOneSecond();
@@ -498,14 +509,6 @@ public class Issue186ZhuAusStarApproachTests
             if (ac is null)
             {
                 break;
-            }
-
-            foreach (var n in ac.PendingNotifications)
-            {
-                if (n.Contains("passing through localizer", StringComparison.OrdinalIgnoreCase))
-                {
-                    bustNotif = n;
-                }
             }
 
             if (t % 20 == 0)
@@ -525,7 +528,7 @@ public class Issue186ZhuAusStarApproachTests
             if (ac.Phases?.ActiveApproach is null)
             {
                 busted = true;
-                _output.WriteLine($"  >>> {callsign} approach cleared (bust-through) at t+{t}: notif={bustNotif ?? FormatNotifications(ac)} <<<");
+                _output.WriteLine($"  >>> {callsign} approach cleared (bust-through) at t+{t}: warning={bustNotif ?? FormatWarnings(ac)} <<<");
                 break;
             }
         }
@@ -573,6 +576,5 @@ public class Issue186ZhuAusStarApproachTests
     private static string FormatPhases(AircraftState ac) =>
         ac.Phases is null ? "null" : string.Join(", ", ac.Phases.Phases.Select(p => $"{p.Name}({p.Status})"));
 
-    private static string FormatNotifications(AircraftState ac) =>
-        ac.PendingNotifications.Count == 0 ? "none" : string.Join("; ", ac.PendingNotifications);
+    private static string FormatWarnings(AircraftState ac) => ac.PendingWarnings.Count == 0 ? "none" : string.Join("; ", ac.PendingWarnings);
 }

@@ -122,6 +122,7 @@ public class ApproachClearanceTests
             FinalApproachCourse = new TrueHeading(360),
             ThresholdLat = 37.72,
             ThresholdLon = -122.22,
+            AssignedInterceptHeading = null,
         };
 
         // Aircraft directly south of threshold on centerline, heading north
@@ -143,6 +144,7 @@ public class ApproachClearanceTests
             FinalApproachCourse = new TrueHeading(360),
             ThresholdLat = 37.72,
             ThresholdLon = -122.22,
+            AssignedInterceptHeading = null,
         };
 
         // Aircraft is 0.1° east of the course line (~5nm cross-track)
@@ -163,6 +165,7 @@ public class ApproachClearanceTests
             FinalApproachCourse = new TrueHeading(360),
             ThresholdLat = 37.72,
             ThresholdLon = -122.22,
+            AssignedInterceptHeading = null,
         };
 
         // Aircraft is on the course line but heading 45° off
@@ -183,6 +186,7 @@ public class ApproachClearanceTests
             FinalApproachCourse = new TrueHeading(280),
             ThresholdLat = 37.72,
             ThresholdLon = -122.22,
+            AssignedInterceptHeading = null,
         };
 
         Assert.Equal(CommandAcceptance.ClearsPhase, phase.CanAcceptCommand(CanonicalCommandType.FlyHeading));
@@ -197,6 +201,7 @@ public class ApproachClearanceTests
             FinalApproachCourse = new TrueHeading(280),
             ThresholdLat = 37.72,
             ThresholdLon = -122.22,
+            AssignedInterceptHeading = null,
         };
 
         Assert.Equal(CommandAcceptance.Allowed, phase.CanAcceptCommand(CanonicalCommandType.ClearedToLand));

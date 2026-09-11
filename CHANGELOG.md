@@ -4,6 +4,13 @@
 
 ### Fixed
 - A `Coordinates`/`FixOrFrd` ground departure at a high-elevation field no longer spawns airborne: field elevation (and the ground layout) now resolve from the aircraft's `airportId` first — the same order `LoadOnRunway`/`LoadOnFinal` and `FieldElevationResolver` use — and fall back to the scenario's primary airport, instead of only the filed departure, which is absent for the cold-call spawns real scenarios author. (#427)
+- `FH 260` then `CAPP` for runway 29 joins the localizer instead of busting through, including on vNAS approach ids such as `I29RY`.
+- The runway-number intercept leniency compares magnetic with magnetic and applies only on aligned straight-in finals, not offset LDA/SDF/back-course approaches.
+- "Unable, passing through the localizer" is a pilot transmission (amber, green with pilot speech shown, spoken in solo mode) instead of a grey response line.
+- An aircraft that flies parallel to the final and never reaches it says "unable to intercept the localizer, request vectors".
+- A crossing restriction's computed descent rate is dropped once a vector (`FH`, `DCT`, `CAPP`) removes the fix, so `DM` and `EXP` set the normal rate again.
+- At an airport with no ground layout a landed aircraft stops on the runway and *On landing* auto-delete removes it instead of leaving it in the exit phase forever.
+- A landed aircraft stopped on a layout-less runway no longer reports "clear of runway".
 
 ## v0.12.29-beta [2026/09/10]
 

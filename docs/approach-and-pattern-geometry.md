@@ -560,11 +560,22 @@ comparison reintroduces a false bust-through bug, so the effective diff
 (`ComputeEffectiveHeadingDiff`, `InterceptCoursePhase.cs:231`) takes the **minimum** of:
 
 1. **Aircraft true heading vs FAC** — `aircraftHeading.AbsAngleTo(FinalApproachCourse)`.
-2. **Aircraft true heading vs runway-number heading** — derived by regex from `ApproachId` (`I12 → 120°`,
-   `ILS28R → 280°`, `L04L → 40°`, `GetRunwayHeading`/`RunwayDesignatorRegex` at `InterceptCoursePhase.cs:338`/360),
-   falling back to FAC if unparseable.
+2. **Aircraft *magnetic* heading vs runway-number heading** — both magnetic. The runway is parsed from `ApproachId` by
+   `RunwayIdentifier.FromApproachId` (`I12 → 120°`, `ILS28R → 280°`, `L04L → 40°`, `I29RY → 290°` — the vNAS
+   multiple-approach letter after the designator is ignored; `RunwayNumberHeading()` re-derives it per call, nothing
+   is cached or snapshotted). A runway number is a magnetic figure: comparing it with the *true* heading (the
+   pre-#429 code) was 13° too lenient at KFAT and too strict under west variation. Absent when the id carries no
+   runway (`VDM-A`).
 3. **Assigned magnetic heading vs runway-number heading** — both magnetic, so mag variation cancels (e.g. rwy 12
-   at 150° mag: true heading ~163° vs FAC 130° = 33° fails, but assigned 150° vs rwy 120° = 30° passes).
+   at 150° mag: true heading ~163° vs FAC 130° = 33° fails, but assigned 150° vs rwy 120° = 30° passes). The
+   heading is the phase's own `AssignedInterceptHeading`, captured by the install site (CAPP implied-PTAC, PTAC,
+   JFAC/JLOC) *before* the clearance nulls `Targets.AssignedMagneticHeading` — reading the live target here is a
+   dead check, because the approach clears it before the first tick (issue #429: `FH 260` onto `I29RY` busted at
+   32.9° with both leniencies silently inert).
+
+Checks #2 and #3 are proxies for the FAC and apply **only on an aligned straight-in**: when the magnetic FAC is more than
+`AlignedFinalToleranceDeg` (10°) from the runway-number heading — an LDA/SDF/LOC-BC offset final — the effective diff is
+check #1 alone, otherwise `Math.Min` would authorise a cut far outside TBL 5-9-1 against the course actually flown.
 
 In the anticipation branch, check #3 is gated on the aircraft having actually *reached* the assigned heading
 (within 5° via `onAssignedHeading`) so a mid-turn aircraft isn't waved through prematurely
@@ -573,8 +584,12 @@ In the anticipation branch, check #3 is gated on the aircraft having actually *r
 **The bust-through gate is per-category.** `InterceptAngleLimits.BeyondGateAngleForCategory` returns 30°, or
 45° for `AircraftCategory.Helicopter` — TBL 5-9-1's "2 miles or more" row reads "30 degrees (45 degrees for
 helicopters)". If the aircraft crosses the centerline with the effective diff beyond its category gate,
-`HandleBustThrough` clears the approach phases and `ActiveApproach` and notifies "Unable, passing through
-localizer". The same fires on the `MaxElapsedSeconds = 180` safety timeout (flying parallel and never crossing).
+`HandleBustThrough` clears the approach phases and `ActiveApproach` and the pilot reports it like any other
+refusal (`PilotResponder.BuildUnable` → `RouteSoloOrRpoTransmission`: TTS "unable, passing through the localizer"
+in solo mode, an amber warning "unable, passing through the localizer — I29RY." for an RPO, green when pilot
+speech is shown) — never the grey Response channel. The `MaxElapsedSeconds = 180` safety timeout (flying parallel and
+never crossing) drops the clearance the same way but says **"unable to intercept the localizer, request vectors"** — an
+aircraft that never reached the course must not report passing through it.
 Helicopters do reach this phase — PTAC/CAPP/JAPP (`ApproachCommandHandler`) and JFAC (`NavigationCommandHandler`)
 all build `InterceptCoursePhase → HelicopterLandingPhase` for rotorcraft — so a hard-coded 30° here refuses a
 legal 30–45° helicopter cut.

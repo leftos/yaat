@@ -1017,6 +1017,10 @@ internal static class NavigationCommandHandler
         // clearance, resume-normal, or descend-via). Keep the assigned speed and any STAR
         // crossing-speed ceiling — the aircraft holds them through the intercept until CAPP.
 
+        // The vector the join was appended to ("FH 220, JLOC") is the angle the intercept is judged
+        // against, so it is read before the join drops it.
+        var interceptHeading = aircraft.Targets.AssignedMagneticHeading;
+
         // Clear assigned heading — approach takes over steering
         aircraft.Targets.AssignedMagneticHeading = null;
         aircraft.Targets.NavigationRoute.Clear();
@@ -1046,6 +1050,7 @@ internal static class NavigationCommandHandler
             ThresholdLat = interceptThreshold.Lat,
             ThresholdLon = interceptThreshold.Lon,
             ApproachId = resolvedId,
+            AssignedInterceptHeading = interceptHeading,
             RelaxedJoin = true,
         };
 

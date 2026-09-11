@@ -169,7 +169,7 @@ public sealed class RunwayExitPhase : Phase
 
         if (ctx.GroundLayout is null)
         {
-            Log.LogDebug("[Exit] {Callsign}: no ground layout, will stop immediately", ctx.Aircraft.Callsign);
+            Log.LogDebug("[Exit] {Callsign}: no ground layout, rolling out to a stop on the runway", ctx.Aircraft.Callsign);
             return;
         }
 
@@ -233,6 +233,11 @@ public sealed class RunwayExitPhase : Phase
             return false;
         }
 
+        if (ctx.GroundLayout is null)
+        {
+            return TickStopWithoutLayout(ctx);
+        }
+
         if (_state == ExitState.FollowingExitPath)
         {
             // A snapshot restore brings back the state, the waypoint nodes and the navigator, but the exit route is
@@ -290,6 +295,24 @@ public sealed class RunwayExitPhase : Phase
         }
 
         return TickRolling(ctx);
+    }
+
+    /// <summary>
+    /// Rollout at an airport with no ground layout. There is no exit graph to search, so there is no exit to
+    /// find and nowhere to taxi: the aircraft rolls out to a stop on the runway, holding the rollout heading,
+    /// and the phase completes there. Completing is the point — it starts the queued
+    /// <see cref="HoldingAfterExitPhase"/>, which is what the engine's layout-less auto-delete keys on to
+    /// remove an aircraft that can never leave the pavement. Writes the same control targets as
+    /// <see cref="TickRolling"/> except for the speed, and lets FlightPhysics brake the aircraft.
+    /// </summary>
+    private bool TickStopWithoutLayout(PhaseContext ctx)
+    {
+        ctx.Targets.TargetTrueHeading = _runwayHeading;
+        ctx.Targets.TargetSpeed = 0;
+        ctx.Targets.DesiredDecelRate = CategoryPerformance.TaxiDecelRate(ctx.Category);
+        ctx.Targets.TurnRateOverride = CategoryPerformance.GroundTurnRate(ctx.Category);
+
+        return ctx.Aircraft.GroundSpeed < FlightPhysics.StationaryGroundSpeedKts;
     }
 
     /// <summary>

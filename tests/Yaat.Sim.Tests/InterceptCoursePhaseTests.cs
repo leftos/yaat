@@ -1,4 +1,4 @@
-﻿using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Phases;
@@ -40,7 +40,7 @@ public class InterceptCoursePhaseTests
         };
     }
 
-    private static InterceptCoursePhase MakePhase(string approachId = "I28R", bool forced = false)
+    private static InterceptCoursePhase MakePhase(string approachId = "I28R", bool forced = false, double? assignedHeading = null)
     {
         return new InterceptCoursePhase
         {
@@ -48,6 +48,7 @@ public class InterceptCoursePhaseTests
             ThresholdLat = ThresholdLat,
             ThresholdLon = ThresholdLon,
             ApproachId = approachId,
+            AssignedInterceptHeading = assignedHeading is { } hdg ? new MagneticHeading(hdg) : null,
             ForcedIntercept = forced,
         };
     }
@@ -95,10 +96,10 @@ public class InterceptCoursePhaseTests
         complete = phase.OnTick(ctx);
         Assert.True(complete);
 
-        // Should have notification
-        Assert.Single(aircraft.PendingNotifications);
-        Assert.Contains("localizer", aircraft.PendingNotifications[0], StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("I28R", aircraft.PendingNotifications[0]);
+        // Should have the pilot's refusal
+        Assert.Single(aircraft.PendingWarnings);
+        Assert.Contains("localizer", aircraft.PendingWarnings[0], StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("I28R", aircraft.PendingWarnings[0]);
 
         // ActiveApproach should be cleared
         Assert.Null(aircraft.Phases.ActiveApproach);
@@ -127,12 +128,12 @@ public class InterceptCoursePhaseTests
         bool complete = phase.OnTick(ctx);
         // May or may not be complete depending on exact geometry,
         // but should never produce a notification
-        Assert.Empty(aircraft.PendingNotifications);
+        Assert.Empty(aircraft.PendingWarnings);
     }
 
     /// <summary>
-    /// Aircraft flying parallel to the course, never crossing. After 180s the
-    /// timeout should trigger and notify.
+    /// Aircraft flying parallel to the course, never crossing. After 180s the timeout triggers — and the
+    /// pilot asks for vectors rather than reporting a localizer it never reached.
     /// </summary>
     [Fact]
     public void Timeout_NeverCrosses_DetectsAfter180Seconds()
@@ -172,8 +173,9 @@ public class InterceptCoursePhaseTests
         bool complete = phase.OnTick(ctx);
         Assert.True(complete);
 
-        Assert.Single(aircraft.PendingNotifications);
-        Assert.Contains("localizer", aircraft.PendingNotifications[0], StringComparison.OrdinalIgnoreCase);
+        Assert.Single(aircraft.PendingWarnings);
+        Assert.Contains("unable to intercept the localizer, request vectors", aircraft.PendingWarnings[0], StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("passing through", aircraft.PendingWarnings[0], StringComparison.OrdinalIgnoreCase);
         Assert.Null(aircraft.Phases.ActiveApproach);
     }
 
@@ -216,7 +218,7 @@ public class InterceptCoursePhaseTests
         // Second tick — cross-track sign flips, 20° ≤ 30° → capture
         complete = phase.OnTick(ctx);
         Assert.True(complete);
-        Assert.Empty(aircraft.PendingNotifications);
+        Assert.Empty(aircraft.PendingWarnings);
         Assert.NotNull(aircraft.Phases.ActiveApproach);
         Assert.Equal(RunwayHeading, ctx.Targets.TargetTrueHeading!.Value.Degrees);
     }
@@ -255,7 +257,7 @@ public class InterceptCoursePhaseTests
 
         bool complete = phase.OnTick(ctx);
         Assert.True(complete);
-        Assert.Empty(aircraft.PendingNotifications);
+        Assert.Empty(aircraft.PendingWarnings);
         Assert.NotNull(aircraft.Phases.ActiveApproach);
     }
 
@@ -292,8 +294,8 @@ public class InterceptCoursePhaseTests
 
         bool complete = phase.OnTick(ctx);
         Assert.True(complete);
-        Assert.Single(aircraft.PendingNotifications);
-        Assert.Contains("localizer", aircraft.PendingNotifications[0], StringComparison.OrdinalIgnoreCase);
+        Assert.Single(aircraft.PendingWarnings);
+        Assert.Contains("localizer", aircraft.PendingWarnings[0], StringComparison.OrdinalIgnoreCase);
         Assert.Null(aircraft.Phases.ActiveApproach);
     }
 
@@ -332,7 +334,7 @@ public class InterceptCoursePhaseTests
 
         bool complete = phase.OnTick(ctx);
         Assert.True(complete);
-        Assert.Empty(aircraft.PendingNotifications);
+        Assert.Empty(aircraft.PendingWarnings);
         Assert.NotNull(aircraft.Phases.ActiveApproach);
         Assert.Equal(RunwayHeading, ctx.Targets.TargetTrueHeading!.Value.Degrees);
     }
@@ -371,8 +373,8 @@ public class InterceptCoursePhaseTests
 
         bool complete = phase.OnTick(ctx);
         Assert.True(complete);
-        Assert.Single(aircraft.PendingNotifications);
-        Assert.Contains("localizer", aircraft.PendingNotifications[0], StringComparison.OrdinalIgnoreCase);
+        Assert.Single(aircraft.PendingWarnings);
+        Assert.Contains("localizer", aircraft.PendingWarnings[0], StringComparison.OrdinalIgnoreCase);
         Assert.Null(aircraft.Phases.ActiveApproach);
     }
 
@@ -409,7 +411,7 @@ public class InterceptCoursePhaseTests
 
         bool complete = phase.OnTick(ctx);
         Assert.True(complete);
-        Assert.Empty(aircraft.PendingNotifications);
+        Assert.Empty(aircraft.PendingWarnings);
         Assert.NotNull(aircraft.Phases.ActiveApproach);
     }
 
@@ -491,8 +493,8 @@ public class InterceptCoursePhaseTests
 
         phase.OnTick(ctx);
 
-        Assert.Single(aircraft.PendingNotifications);
-        Assert.Contains("ILS10R", aircraft.PendingNotifications[0]);
+        Assert.Single(aircraft.PendingWarnings);
+        Assert.Contains("ILS10R", aircraft.PendingWarnings[0]);
     }
 
     /// <summary>
@@ -534,7 +536,7 @@ public class InterceptCoursePhaseTests
 
         bool complete = phase.OnTick(ctx);
         Assert.True(complete);
-        Assert.Empty(aircraft.PendingNotifications);
+        Assert.Empty(aircraft.PendingWarnings);
         Assert.NotNull(aircraft.Phases.ActiveApproach);
         Assert.Equal(RunwayHeading, ctx.Targets.TargetTrueHeading!.Value.Degrees);
     }
@@ -574,8 +576,8 @@ public class InterceptCoursePhaseTests
 
         bool complete = phase.OnTick(ctx);
         Assert.True(complete);
-        Assert.Single(aircraft.PendingNotifications);
-        Assert.Contains("localizer", aircraft.PendingNotifications[0], StringComparison.OrdinalIgnoreCase);
+        Assert.Single(aircraft.PendingWarnings);
+        Assert.Contains("localizer", aircraft.PendingWarnings[0], StringComparison.OrdinalIgnoreCase);
         Assert.Null(aircraft.Phases.ActiveApproach);
     }
 
@@ -593,5 +595,238 @@ public class InterceptCoursePhaseTests
 
         var restored = InterceptCoursePhase.FromSnapshot(dto);
         Assert.True(restored.ForcedIntercept);
+    }
+
+    // --- vNAS approach ids and the assigned-vector leniency (issue #429) ---
+
+    // KFAT ILS Y runway 29R: published FAC 293° magnetic / ≈306° true (≈13°E variation).
+    private const double FatFinalApproachCourseTrue = 306.0;
+    private const double FatDeclination = 13.0;
+    private const string FatApproachId = "I29RY";
+
+    /// <summary>
+    /// Builds the crossing geometry for the KFAT case: the aircraft sits 1.5nm off the final approach
+    /// course 8nm from the threshold, and the caller teleports it to <paramref name="crossed"/> for the
+    /// second tick so the cross-track sign flips.
+    /// </summary>
+    private static (LatLon Before, LatLon Crossed) FatCrossingPositions()
+    {
+        var reciprocal = new TrueHeading(FatFinalApproachCourseTrue).ToReciprocal();
+        var onCourse = GeoMath.ProjectPoint(ThresholdLat, ThresholdLon, reciprocal, 8.0);
+        var before = GeoMath.ProjectPoint(onCourse.Lat, onCourse.Lon, new TrueHeading(36.0), 1.5);
+        var crossed = GeoMath.ProjectPoint(onCourse.Lat, onCourse.Lon, new TrueHeading(216.0), 1.5);
+        return (new LatLon(before.Lat, before.Lon), new LatLon(crossed.Lat, crossed.Lon));
+    }
+
+    /// <summary>
+    /// Crossing geometry for an arbitrary final approach course: the aircraft starts 1.5nm to one side of
+    /// the course 8nm out and the caller teleports it 1.5nm to the other side for the second tick, so the
+    /// cross-track sign flips.
+    /// </summary>
+    private static (LatLon Before, LatLon Crossed) CrossingPositions(TrueHeading course)
+    {
+        var onCourse = GeoMath.ProjectPoint(ThresholdLat, ThresholdLon, course.ToReciprocal(), 8.0);
+        var before = GeoMath.ProjectPoint(onCourse.Lat, onCourse.Lon, new TrueHeading(course.Degrees + 90.0), 1.5);
+        var crossed = GeoMath.ProjectPoint(onCourse.Lat, onCourse.Lon, new TrueHeading(course.Degrees - 90.0), 1.5);
+        return (new LatLon(before.Lat, before.Lon), new LatLon(crossed.Lat, crossed.Lon));
+    }
+
+    private static PhaseList MakeCrossingPhaseList(InterceptCoursePhase phase, string approachId, string runwayId, TrueHeading course)
+    {
+        var phases = new PhaseList
+        {
+            ActiveApproach = new ApproachClearance
+            {
+                ApproachId = approachId,
+                AirportCode = "OAK",
+                RunwayId = runwayId,
+                FinalApproachCourse = course,
+            },
+        };
+        phases.Add(phase);
+        phases.Add(new FinalApproachPhase());
+        phases.Add(new LandingPhase());
+        return phases;
+    }
+
+    private static InterceptCoursePhase MakeFatPhase(double assignedHeading)
+    {
+        return new InterceptCoursePhase
+        {
+            FinalApproachCourse = new TrueHeading(FatFinalApproachCourseTrue),
+            ThresholdLat = ThresholdLat,
+            ThresholdLon = ThresholdLon,
+            ApproachId = FatApproachId,
+            AssignedInterceptHeading = new MagneticHeading(assignedHeading),
+        };
+    }
+
+    private static PhaseList MakeFatPhaseList(InterceptCoursePhase phase)
+    {
+        var phases = new PhaseList
+        {
+            ActiveApproach = new ApproachClearance
+            {
+                ApproachId = FatApproachId,
+                AirportCode = "FAT",
+                RunwayId = "29R",
+                FinalApproachCourse = new TrueHeading(FatFinalApproachCourseTrue),
+            },
+        };
+        phases.Add(phase);
+        phases.Add(new FinalApproachPhase());
+        phases.Add(new LandingPhase());
+        return phases;
+    }
+
+    /// <summary>
+    /// Issue #429. A vNAS/CIFP approach id carries a multiple-approach letter ("I29RY" = ILS Y runway
+    /// 29R), which the old designator regex refused — the runway-number heading fell back to the FAC and
+    /// the 33° true-heading-vs-FAC diff (13°E variation on a 20° cut) busted the aircraft through. With
+    /// the designator parsed, runway 29R gives 290° and the cut is legal. The controller's vector lives on
+    /// the phase (<c>AssignedInterceptHeading</c>) because CAPP clears the assigned heading as it installs
+    /// the approach, so <c>Targets.AssignedMagneticHeading</c> is null by the first tick.
+    /// </summary>
+    [Fact]
+    public void Capture_VnasApproachIdSuffix_UsesRunwayNumberLeniency()
+    {
+        var (before, crossed) = FatCrossingPositions();
+        var aircraft = MakeAircraft(heading: 273, lat: before.Lat, lon: before.Lon);
+        aircraft.Declination = FatDeclination;
+        var phase = MakeFatPhase(assignedHeading: 260);
+        aircraft.Phases = MakeFatPhaseList(phase);
+        Assert.Null(aircraft.Targets.AssignedMagneticHeading);
+
+        var ctx = MakeContext(aircraft);
+        phase.Status = PhaseStatus.Active;
+        phase.OnStart(ctx);
+
+        Assert.False(phase.OnTick(ctx));
+
+        aircraft.Position = crossed;
+
+        Assert.True(phase.OnTick(ctx));
+        Assert.Empty(aircraft.PendingWarnings);
+        Assert.NotNull(aircraft.Phases.ActiveApproach);
+    }
+
+    /// <summary>
+    /// Issue #429 guard: the ≤30° gate is unchanged. Same KFAT geometry, but the aircraft is flying a cut
+    /// that fails against both the FAC and the runway-number heading and the controller's vector is 31° off
+    /// the runway number — every leniency misses and the aircraft still reports passing through.
+    /// </summary>
+    [Fact]
+    public void BustThrough_AssignedHeading31Deg_StillBusts()
+    {
+        var (before, crossed) = FatCrossingPositions();
+        var aircraft = MakeAircraft(heading: 245, lat: before.Lat, lon: before.Lon);
+        aircraft.Declination = FatDeclination;
+        var phase = MakeFatPhase(assignedHeading: 259);
+        aircraft.Phases = MakeFatPhaseList(phase);
+
+        var ctx = MakeContext(aircraft);
+        phase.Status = PhaseStatus.Active;
+        phase.OnStart(ctx);
+
+        Assert.False(phase.OnTick(ctx));
+
+        aircraft.Position = crossed;
+
+        Assert.True(phase.OnTick(ctx));
+        Assert.Single(aircraft.PendingWarnings);
+        Assert.Contains("passing through the localizer", aircraft.PendingWarnings[0], StringComparison.OrdinalIgnoreCase);
+        Assert.Contains(FatApproachId, aircraft.PendingWarnings[0], StringComparison.Ordinal);
+        Assert.Null(aircraft.Phases.ActiveApproach);
+    }
+
+    /// <summary>
+    /// The runway number stands in for the final approach course only on an aligned straight-in. On an LDA
+    /// to runway 28R whose course is 255° — 25° off the runway — the aircraft is 35° off the course it was
+    /// told to intercept, and neither the runway-number term (10°) nor the controller's vector measured
+    /// against the runway number (10°) may rescue it. Zero variation, so magnetic equals true throughout:
+    /// only the offset gate decides.
+    /// </summary>
+    [Fact]
+    public void BustThrough_OffsetFinal_RunwayNumberLeniencyDoesNotApply()
+    {
+        var course = new TrueHeading(255.0);
+        var (before, crossed) = CrossingPositions(course);
+        var aircraft = MakeAircraft(heading: 290, lat: before.Lat, lon: before.Lon);
+        var phase = new InterceptCoursePhase
+        {
+            FinalApproachCourse = course,
+            ThresholdLat = ThresholdLat,
+            ThresholdLon = ThresholdLon,
+            ApproachId = "L28R",
+            AssignedInterceptHeading = new MagneticHeading(290),
+        };
+        aircraft.Phases = MakeCrossingPhaseList(phase, "L28R", "28R", course);
+
+        var ctx = MakeContext(aircraft);
+        phase.Status = PhaseStatus.Active;
+        phase.OnStart(ctx);
+
+        Assert.False(phase.OnTick(ctx));
+
+        aircraft.Position = crossed;
+
+        Assert.True(phase.OnTick(ctx));
+        Assert.Single(aircraft.PendingWarnings);
+        Assert.Contains("passing through the localizer", aircraft.PendingWarnings[0], StringComparison.OrdinalIgnoreCase);
+        Assert.Null(aircraft.Phases.ActiveApproach);
+    }
+
+    /// <summary>
+    /// A runway number is magnetic, so it must be compared with the aircraft's magnetic heading. Runway 28
+    /// at a 10°W-variation field, course 271° true (281° magnetic — aligned), aircraft on 240° true: 31°
+    /// off the course, but 250° magnetic, exactly the 30° cut the runway number allows. Measuring the
+    /// runway number against the true heading reads 40° and busts the aircraft through.
+    /// </summary>
+    [Fact]
+    public void Capture_WestVariation_RunwayNumberTermUsesMagneticHeading()
+    {
+        var course = new TrueHeading(271.0);
+        var (before, crossed) = CrossingPositions(course);
+        var aircraft = MakeAircraft(heading: 240, lat: before.Lat, lon: before.Lon);
+        aircraft.Declination = -10.0;
+        var phase = new InterceptCoursePhase
+        {
+            FinalApproachCourse = course,
+            ThresholdLat = ThresholdLat,
+            ThresholdLon = ThresholdLon,
+            ApproachId = "I28R",
+            AssignedInterceptHeading = null,
+        };
+        aircraft.Phases = MakeCrossingPhaseList(phase, "I28R", "28", course);
+
+        var ctx = MakeContext(aircraft);
+        phase.Status = PhaseStatus.Active;
+        phase.OnStart(ctx);
+
+        Assert.False(phase.OnTick(ctx));
+
+        aircraft.Position = crossed;
+
+        Assert.True(phase.OnTick(ctx));
+        Assert.Empty(aircraft.PendingWarnings);
+        Assert.NotNull(aircraft.Phases.ActiveApproach);
+        Assert.Equal(course.Degrees, ctx.Targets.TargetTrueHeading!.Value.Degrees);
+    }
+
+    /// <summary>
+    /// Snapshot round-trip preserves the assigned intercept vector — a restored session must judge the
+    /// intercept against the same angle the controller gave.
+    /// </summary>
+    [Fact]
+    public void Snapshot_RoundTrip_PreservesAssignedInterceptHeading()
+    {
+        var phase = MakePhase(assignedHeading: 260);
+        phase.Status = PhaseStatus.Active;
+
+        var dto = (InterceptCoursePhaseDto)phase.ToSnapshot();
+        Assert.Equal(260, dto.AssignedInterceptHeadingDeg);
+
+        var restored = InterceptCoursePhase.FromSnapshot(dto);
+        Assert.Equal(260, restored.AssignedInterceptHeading!.Value.Degrees);
     }
 }

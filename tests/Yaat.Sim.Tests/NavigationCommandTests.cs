@@ -1314,9 +1314,9 @@ public class NavigationCommandTests : IDisposable
         // One physics tick should trigger descent planning
         FlightPhysics.Update(aircraft, 1.0);
 
-        // The planner should have set a DesiredVerticalRate (negative for descent)
-        Assert.NotNull(aircraft.Targets.DesiredVerticalRate);
-        Assert.True(aircraft.Targets.DesiredVerticalRate < 0, "DesiredVerticalRate should be negative for descent");
+        // The planner should have set a PlannedVerticalRate (negative for descent)
+        Assert.NotNull(aircraft.Targets.PlannedVerticalRate);
+        Assert.True(aircraft.Targets.PlannedVerticalRate < 0, "PlannedVerticalRate should be negative for descent");
     }
 
     [Fact]
@@ -1339,8 +1339,8 @@ public class NavigationCommandTests : IDisposable
         FlightPhysics.Update(aircraft, 1.0);
 
         // Planning should activate without via mode, just from the route constraint
-        Assert.NotNull(aircraft.Targets.DesiredVerticalRate);
-        Assert.True(aircraft.Targets.DesiredVerticalRate < 0);
+        Assert.NotNull(aircraft.Targets.PlannedVerticalRate);
+        Assert.True(aircraft.Targets.PlannedVerticalRate < 0);
         Assert.Equal(8000, aircraft.Targets.TargetAltitude);
     }
 
@@ -1362,8 +1362,8 @@ public class NavigationCommandTests : IDisposable
 
         FlightPhysics.Update(aircraft, 1.0);
 
-        Assert.NotNull(aircraft.Targets.DesiredVerticalRate);
-        Assert.True(aircraft.Targets.DesiredVerticalRate > 0, "DesiredVerticalRate should be positive for climb");
+        Assert.NotNull(aircraft.Targets.PlannedVerticalRate);
+        Assert.True(aircraft.Targets.PlannedVerticalRate > 0, "PlannedVerticalRate should be positive for climb");
         Assert.Equal(10000, aircraft.Targets.TargetAltitude);
     }
 
@@ -1545,7 +1545,7 @@ public class NavigationCommandTests : IDisposable
         FlightPhysics.Update(aircraft, 1.0);
 
         Assert.Equal(10000, aircraft.Targets.TargetAltitude);
-        Assert.NotNull(aircraft.Targets.DesiredVerticalRate);
-        Assert.True(aircraft.Targets.DesiredVerticalRate < 0);
+        Assert.NotNull(aircraft.Targets.PlannedVerticalRate);
+        Assert.True(aircraft.Targets.PlannedVerticalRate < 0);
     }
 }

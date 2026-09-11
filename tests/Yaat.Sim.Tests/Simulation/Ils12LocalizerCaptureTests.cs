@@ -89,7 +89,7 @@ public class Ils12LocalizerCaptureTests(ITestOutputHelper output)
             if (t % 30 == 0 || aircraft.Phases?.Phases.OfType<FinalApproachPhase>().Any(p => p.Status == PhaseStatus.Active) == true)
             {
                 output.WriteLine(
-                    $"  t+{t}: hdg={aircraft.TrueHeading.Degrees:F1}, phases={FormatPhases(aircraft)}, notifs={FormatNotifications(aircraft)}"
+                    $"  t+{t}: hdg={aircraft.TrueHeading.Degrees:F1}, phases={FormatPhases(aircraft)}, warnings={FormatWarnings(aircraft)}"
                 );
             }
 
@@ -103,7 +103,7 @@ public class Ils12LocalizerCaptureTests(ITestOutputHelper output)
 
             if (aircraft.Phases?.ActiveApproach is null)
             {
-                Assert.Fail($"Approach cleared at t+{t} — bust-through instead of capture. Notifications: {FormatNotifications(aircraft)}");
+                Assert.Fail($"Approach cleared at t+{t} — bust-through instead of capture. Warnings: {FormatWarnings(aircraft)}");
             }
         }
 
@@ -120,13 +120,13 @@ public class Ils12LocalizerCaptureTests(ITestOutputHelper output)
         return string.Join(", ", aircraft.Phases.Phases.Select(p => $"{p.Name}({p.Status})"));
     }
 
-    private static string FormatNotifications(AircraftState aircraft)
+    private static string FormatWarnings(AircraftState aircraft)
     {
-        if (aircraft.PendingNotifications.Count == 0)
+        if (aircraft.PendingWarnings.Count == 0)
         {
             return "none";
         }
 
-        return string.Join("; ", aircraft.PendingNotifications);
+        return string.Join("; ", aircraft.PendingWarnings);
     }
 }
