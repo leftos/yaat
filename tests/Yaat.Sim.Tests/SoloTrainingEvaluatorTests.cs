@@ -1979,6 +1979,46 @@ public sealed class SoloTrainingEvaluatorTests
     }
 
     [Fact]
+    public void Evaluate_ApproachWakeDirectiveAdvisory_DedupesAcrossRepeatedTicks()
+    {
+        // Spacing is satisfied (8 NM >= the 7 NM §5-5-4(h) requirement), so there is no runway/wake
+        // violation. A facility directive requires the wake advisory anyway, so the only finding is the
+        // directive-required "Wake turbulence advisory missing" note. That note must be one stable finding
+        // for the encounter, not a fresh one every tick.
+        var runway = CreateRunway();
+        var lead = CreateAircraft("UAE1", "A388", flightRules: "IFR", PositionOnRunway(runway, -100), altitude: 100, isOnGround: false);
+        SetPhase(lead, runway, new FinalApproachPhase());
+        var follower = CreateAircraft(
+            "SWA2",
+            "B738",
+            flightRules: "IFR",
+            PositionOnRunway(runway, -8.0 * GeoMath.FeetPerNm),
+            altitude: 700,
+            isOnGround: false
+        );
+        SetPhase(follower, runway, new FinalApproachPhase());
+
+        var serviceContext = new SoloTrainingServiceContext(
+            new InitialContactEligibilityContext(null, null, "ZOA", "KOAK", InitialContactTransferCatalog.Empty),
+            new WakeDirectiveCatalog([ApproachWakeRequireAdvisoryRule()])
+        );
+
+        var evaluator = new SoloTrainingEvaluator();
+        evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 300, AirspaceDatabase.Default, serviceContext);
+
+        lead.Position = PositionOnRunway(runway, 0);
+        SetPhase(lead, runway, new LandingPhase());
+
+        var first = evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 301, AirspaceDatabase.Default, serviceContext);
+        var second = evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 302, AirspaceDatabase.Default, serviceContext);
+        var report = evaluator.BuildReport(true, 302, new ApproachReportData([], [], 302, "N/A"), AircraftDebriefContext.Empty);
+
+        Assert.Contains(first, e => e.Category == SoloTrainingEventCategory.AdvisoryVisual && e.Title == "Wake turbulence advisory missing");
+        Assert.DoesNotContain(second, e => e.Category == SoloTrainingEventCategory.AdvisoryVisual && e.Title == "Wake turbulence advisory missing");
+        Assert.Single(report.Timeline, e => e.Category == SoloTrainingEventCategory.AdvisoryVisual && e.Title == "Wake turbulence advisory missing");
+    }
+
+    [Fact]
     public void Evaluate_WakeIntervalViolation_DedupesAcrossRepeatedTicks()
     {
         var runway = CreateRunway();
@@ -2082,6 +2122,17 @@ public sealed class SoloTrainingEvaluatorTests
 
     private static WakeDirectiveRule SuppressWakeAdvisoryRule() =>
         WakeDirectiveRule("test-suppress-wake-advisory", WakeDirectiveEffect.SuppressWakeAdvisory);
+
+    private static WakeDirectiveRule ApproachWakeRequireAdvisoryRule() =>
+        new()
+        {
+            Id = "test-approach-wake-require-advisory",
+            Operation = WakeDirectiveOperation.ApproachBehindArrival,
+            Relation = WakeDirectiveRelation.SameRunway,
+            Effects = [WakeDirectiveEffect.RequireWakeAdvisory],
+            RuleReference = "7110.65 §2-1-20; facility directive",
+            Notes = "Unit test directive",
+        };
 
     private static WakeDirectiveRule NonMatchingCwtRule() =>
         new()
