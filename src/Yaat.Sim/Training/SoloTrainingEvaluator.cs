@@ -2583,7 +2583,12 @@ public sealed class SoloTrainingEvaluator
 
                     var succeeding = RunwayOperation.FromState(OperationKind.Landing, succeedingState, scenarioElapsedSeconds);
                     string ruleReference = "7110.65 §5-5-4(h)";
-                    string id = MakeRunwayEventId(preceding, succeeding, ruleReference, RunwayRelation.SameActive(), scenarioElapsedSeconds);
+                    // Anchor the Id on the preceding landing's stable trigger time, not the current tick.
+                    // succeeding is fabricated fresh each tick from a live approach state, so its
+                    // TriggeredAtSeconds is scenarioElapsedSeconds; using it (as the sibling departure/
+                    // arrival-crossing blocks use their detected succeeding op's trigger time) would churn the
+                    // Id every whole second, flickering the wake-advisory finding and defeating proof clearing.
+                    string id = MakeRunwayEventId(preceding, succeeding, ruleReference, RunwayRelation.SameActive(), preceding.TriggeredAtSeconds);
                     contexts[id] = BuildWakeDirectiveContext(id, preceding, succeeding, ruleReference, RunwayRelation.SameActive());
                 }
             }
