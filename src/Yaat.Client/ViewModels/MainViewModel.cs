@@ -85,21 +85,32 @@ public partial class MainViewModel : ObservableObject
     /// aircraft's airport isn't already shown on the ground view (issue #169).
     /// </summary>
     public string? GroundShownAirportId =>
-        ResolveGroundShownAirportId(IsGroundViewPoppedOut, SelectedTabIndex, GroundViewTabIndex, Ground.DomainLayout?.AirportId);
+        ResolveGroundShownAirportId(
+            IsGroundViewPoppedOut,
+            SelectedTabIndex,
+            GroundViewTabIndex,
+            // The extra Ground View windows mirror the primary's layout, so the primary's airport is
+            // the airport every ground view is showing.
+            Ground.DomainLayout?.AirportId,
+            ExtraGroundViews.Count > 0
+        );
 
     /// <summary>
     /// The airport a ground view is currently presenting to the user: the loaded ground-layout
-    /// airport when the ground view is visible (popped out, or the selected docked tab), else null.
-    /// Returning null is what surfaces that airport's ground-aircraft speech bubbles on the radar —
-    /// including the case where the ground view is docked but a different tab (Aircraft List, Strips,
-    /// Radar, …) is in focus. Pure and static so the focus rule can be unit-tested.
+    /// airport when the ground view is visible (popped out, the selected docked tab, or shown in an
+    /// extra Ground View window), else null. Returning null is what surfaces that airport's
+    /// ground-aircraft speech bubbles on the radar — including the case where the ground view is docked
+    /// but a different tab (Aircraft List, Strips, Radar, …) is in focus. An extra Ground View window is
+    /// always visible, so one being open shows the airport regardless of the tab and pop-out state.
+    /// Pure and static so the focus rule can be unit-tested.
     /// </summary>
     internal static string? ResolveGroundShownAirportId(
         bool groundViewPoppedOut,
         int selectedTabIndex,
         int groundTabIndex,
-        string? groundLayoutAirportId
-    ) => (groundViewPoppedOut || selectedTabIndex == groundTabIndex) ? groundLayoutAirportId : null;
+        string? groundLayoutAirportId,
+        bool anyExtraGroundViewOpen
+    ) => (anyExtraGroundViewOpen || groundViewPoppedOut || (selectedTabIndex == groundTabIndex)) ? groundLayoutAirportId : null;
 
     /// <summary>
     /// Short-hand for the student-facility strips VM (the first entry in
@@ -1532,14 +1543,10 @@ public partial class MainViewModel : ObservableObject
         _showTdlsEntries = !hidden.Contains(TerminalEntryKind.Tdls);
         _showStripEntries = !hidden.Contains(TerminalEntryKind.Strip);
         _terminalTimestampMode = _preferences.TerminalTimestampMode;
-        Ground = new GroundViewModel(_connection, SendCommandForViewAsync, OnChildSelectionChanged, _preferences);
-        Ground.ShownAirportChanged += () => OnPropertyChanged(nameof(GroundShownAirportId));
-        Ground.SetAircraftLookup(cs => Aircraft.FirstOrDefault(a => a.Callsign == cs));
-        Ground.SetAircraftProvider(() => Aircraft);
-        Ground.SetTowerCabServices(_vnasConfigService, _towerCabImageService, _airportResolver);
-        Radar = new RadarViewModel(_connection, _videoMapService, SendCommandForViewAsync, OnChildSelectionChanged);
-        Radar.SetPreferences(_preferences);
-        Radar.SetAircraftLookup(cs => Aircraft.FirstOrDefault(a => a.Callsign == cs));
+        // The docked views are instance #1 and go through the same factories as the extra Radar/Ground
+        // windows (MainViewModel.ViewInstances.cs), so a window opened later is wired identically.
+        Ground = CreateGroundViewModel(isPrimary: true, settingsKeySuffix: "");
+        Radar = CreateRadarViewModel(isPrimary: true, settingsKeySuffix: "");
         Measure = new RangeBearingViewState(_rangeBearingStore);
         Measure.StatusReported += status => StatusText = status;
         Ground.SetMeasureState(Measure);
@@ -1583,6 +1590,10 @@ public partial class MainViewModel : ObservableObject
         IsDataGridPoppedOut = _preferences.IsDataGridPoppedOut;
         IsGroundViewPoppedOut = _preferences.IsGroundViewPoppedOut;
         IsRadarViewPoppedOut = _preferences.IsRadarViewPoppedOut;
+        // Extra Radar/Ground View windows that were open at shutdown. With no scenario active this just
+        // constructs and seeds the view-models; the window layer materializes a window per instance.
+        ExtraGroundViews.CollectionChanged += OnExtraGroundViewsChanged;
+        ReconcileExtraViews(_preferences.ExtraRadarViewOrdinals, _preferences.ExtraGroundViewOrdinals);
         IsControllersPoppedOut = _preferences.IsControllersPoppedOut;
         IsMetarPoppedOut = _preferences.IsMetarPoppedOut;
         IsTerminalPoppedOut = _preferences.IsTerminalPoppedOut;
@@ -1678,9 +1689,18 @@ public partial class MainViewModel : ObservableObject
             var navDb = NavigationDatabase.Instance;
 
             MarkNavDbReady();
-            Radar.SetElevationLookup(navDb.GetAirportElevation);
-            Ground.SetElevationLookup(navDb.GetAirportElevation);
-            Radar.SetNavDbReady();
+            // Stashed so a Radar/Ground window opened after this point gets the same lookup (SeedExtraRadar).
+            _airportElevationLookup = navDb.GetAirportElevation;
+            foreach (var radar in AllRadarViews)
+            {
+                radar.SetElevationLookup(navDb.GetAirportElevation);
+                radar.SetNavDbReady();
+            }
+
+            foreach (var ground in AllGroundViews)
+            {
+                ground.SetElevationLookup(navDb.GetAirportElevation);
+            }
             _log.LogInformation("Navdata loaded: {Count} fixes, CIFP initialized", navDb.Count);
             StatusText = "Navigation data loaded";
         }
@@ -1854,9 +1874,19 @@ public partial class MainViewModel : ObservableObject
 
     partial void OnSelectedAircraftChanged(AircraftModel? value)
     {
+        // One app-wide selection: every Radar/Ground instance mirrors it, and each writes back through
+        // OnChildSelectionChanged, which this guard keeps from echoing.
         _isSyncingSelection = true;
-        Ground.SelectedAircraft = value;
-        Radar.SelectedAircraft = value;
+        foreach (var ground in AllGroundViews)
+        {
+            ground.SelectedAircraft = value;
+        }
+
+        foreach (var radar in AllRadarViews)
+        {
+            radar.SelectedAircraft = value;
+        }
+
         _isSyncingSelection = false;
 
         // Recall is filtered by the selected aircraft, so the candidate list changes when the
@@ -1966,6 +1996,8 @@ public partial class MainViewModel : ObservableObject
             // Destination/Departure on their AircraftModel yet (the server pushes those
             // asynchronously after FP load), so the scenario's primary airport — which the user
             // is staring at — is the obvious anchor for {rwy} validation and LLM runway recovery.
+            // Primary-only by design: an extra Ground View window mirrors this layout, so there is no
+            // second airport to consider.
             var layoutAirportId = Ground.DomainLayout?.AirportId;
             if (!string.IsNullOrEmpty(layoutAirportId))
             {
@@ -2029,6 +2061,7 @@ public partial class MainViewModel : ObservableObject
     private HashSet<string> CollectLoadedDestinationNames()
     {
         var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        // Primary-only by design: the extra Ground View windows mirror this same layout.
         var layout = Ground.DomainLayout;
         if (layout is null)
         {
@@ -2071,6 +2104,7 @@ public partial class MainViewModel : ObservableObject
     private HashSet<string> CollectLoadedNodeNames(IReadOnlySet<GroundNodeType> types)
     {
         var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        // Primary-only by design: the extra Ground View windows mirror this same layout.
         var layout = Ground.DomainLayout;
         if (layout is null)
         {
@@ -2098,6 +2132,7 @@ public partial class MainViewModel : ObservableObject
     private HashSet<string> CollectLoadedTaxiwayNames()
     {
         var taxiwayNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        // Primary-only by design: the extra Ground View windows mirror this same layout.
         var layout = Ground.DomainLayout;
         if (layout is null)
         {
@@ -2212,6 +2247,8 @@ public partial class MainViewModel : ObservableObject
         var parts = text.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
         var verb = parts[0].ToUpperInvariant();
 
+        // Scope markers are deliberately primary-only: they belong to the docked radar the commands are
+        // typed against, not to every extra Radar View window.
         switch (verb)
         {
             case ".NOMARKERS":
@@ -2302,6 +2339,8 @@ public partial class MainViewModel : ObservableObject
             return;
         }
 
+        // The primary radar's track lookup is deliberate: Measure is one shared store, so the line renders
+        // in every Radar View window without the extra instances needing their own lookup.
         Measure.Place(from, to, RadarViewModel.MeasureView, Radar.MeasureTrackLookup, RadarViewModel.MeasureUnits);
     }
 
@@ -3130,7 +3169,11 @@ public partial class MainViewModel : ObservableObject
         var pos = _commandInput.NavDbReady ? NavigationDatabase.Instance.GetFixPosition(airportId) : null;
         if (pos.HasValue)
         {
-            Radar.SetPrimaryAirportPosition(pos.Value.Lat, pos.Value.Lon);
+            _lastRadarAirportPosition = (pos.Value.Lat, pos.Value.Lon);
+            foreach (var radar in AllRadarViews)
+            {
+                radar.SetPrimaryAirportPosition(pos.Value.Lat, pos.Value.Lon);
+            }
         }
     }
 

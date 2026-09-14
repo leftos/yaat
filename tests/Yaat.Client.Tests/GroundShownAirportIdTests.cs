@@ -21,7 +21,8 @@ public class GroundShownAirportIdTests
             groundViewPoppedOut: false,
             selectedTabIndex: GroundTab,
             groundTabIndex: GroundTab,
-            "OAK"
+            "OAK",
+            anyExtraGroundViewOpen: false
         );
         Assert.Equal("OAK", result);
     }
@@ -33,14 +34,41 @@ public class GroundShownAirportIdTests
     public void DockedGroundViewNotInFocus_ReturnsNull(int selectedTabIndex)
     {
         // Ground view docked but another tab is in focus → not shown → bubbles surface on radar.
-        var result = MainViewModel.ResolveGroundShownAirportId(groundViewPoppedOut: false, selectedTabIndex, groundTabIndex: GroundTab, "OAK");
+        var result = MainViewModel.ResolveGroundShownAirportId(
+            groundViewPoppedOut: false,
+            selectedTabIndex,
+            groundTabIndex: GroundTab,
+            "OAK",
+            anyExtraGroundViewOpen: false
+        );
         Assert.Null(result);
     }
 
     [Fact]
     public void PoppedOutGroundView_ReturnsAirport_RegardlessOfSelectedTab()
     {
-        var result = MainViewModel.ResolveGroundShownAirportId(groundViewPoppedOut: true, selectedTabIndex: 0, groundTabIndex: GroundTab, "OAK");
+        var result = MainViewModel.ResolveGroundShownAirportId(
+            groundViewPoppedOut: true,
+            selectedTabIndex: 0,
+            groundTabIndex: GroundTab,
+            "OAK",
+            anyExtraGroundViewOpen: false
+        );
+        Assert.Equal("OAK", result);
+    }
+
+    [Fact]
+    public void ExtraGroundViewOpen_ReturnsAirport_EvenWhenDockedTabIsNotSelected()
+    {
+        // An extra Ground View window is always visible, so the airport is on screen regardless of which
+        // tab the main window shows.
+        var result = MainViewModel.ResolveGroundShownAirportId(
+            groundViewPoppedOut: false,
+            selectedTabIndex: 0,
+            groundTabIndex: GroundTab,
+            "OAK",
+            anyExtraGroundViewOpen: true
+        );
         Assert.Equal("OAK", result);
     }
 
@@ -51,7 +79,8 @@ public class GroundShownAirportIdTests
             groundViewPoppedOut: false,
             selectedTabIndex: GroundTab,
             groundTabIndex: GroundTab,
-            null
+            null,
+            anyExtraGroundViewOpen: false
         );
         Assert.Null(result);
     }

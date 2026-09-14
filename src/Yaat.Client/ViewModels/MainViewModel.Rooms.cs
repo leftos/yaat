@@ -825,7 +825,10 @@ public partial class MainViewModel
             // MVA tint is a user-local display default (unlike room-shared auto-cleared-to-land, which
             // arrives as its own field): a joining RPO seeds it from their own per-position-type default.
             _studentPositionType = state.StudentPositionType;
-            Radar.ShowMvaHints = _preferences.GetMvaHintDefault(state.StudentPositionType);
+            foreach (var radar in AllRadarViews)
+            {
+                radar.ShowMvaHints = _preferences.GetMvaHintDefault(state.StudentPositionType);
+            }
         }
         else
         {
@@ -1001,7 +1004,13 @@ public partial class MainViewModel
             // Fires only on a standalone AS [TCP] (not a one-shot AS [TCP] [command]), so the
             // active-position indicator follows persistent position changes but not per-command ones.
             SetActiveTcpFromServer(config.TcpCode);
-            Radar.ApplyPositionDisplayConfig(config);
+            // Stashed so a Radar View window opened later starts on the same position's display config.
+            _lastPositionDisplayConfig = config;
+            foreach (var radar in AllRadarViews)
+            {
+                radar.ApplyPositionDisplayConfig(config);
+            }
+
             if (HasActiveWeather)
             {
                 UpdateRadarWeatherDisplay();

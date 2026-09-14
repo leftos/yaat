@@ -268,8 +268,15 @@ public partial class MainViewModel
             () =>
             {
                 _shownRouteRefreshScheduled = false;
-                Radar.RefreshShownPaths();
-                Ground.RefreshShownTaxiRoutes();
+                foreach (var radar in AllRadarViews)
+                {
+                    radar.RefreshShownPaths();
+                }
+
+                foreach (var ground in AllGroundViews)
+                {
+                    ground.RefreshShownTaxiRoutes();
+                }
             },
             Avalonia.Threading.DispatcherPriority.Background
         );
@@ -379,10 +386,18 @@ public partial class MainViewModel
         }
 
         FlightPlanEditorManager.Close();
-        Radar.ClearShownPaths();
-        Ground.ClearShownTaxiRoutes();
-        Radar.DataBlockState.Clear();
-        Ground.DataBlockState.Clear();
+        foreach (var radar in AllRadarViews)
+        {
+            radar.ClearShownPaths();
+            radar.DataBlockState.Clear();
+        }
+
+        foreach (var ground in AllGroundViews)
+        {
+            ground.ClearShownTaxiRoutes();
+            ground.DataBlockState.Clear();
+        }
+
         Aircraft.Clear();
 
         int delayed = 0;
@@ -407,8 +422,16 @@ public partial class MainViewModel
         {
             _cfrMonitor.Remove(callsign);
             FlightPlanEditorManager.Close();
-            Radar.RemoveShownPath(callsign);
-            Ground.RemoveShownTaxiRoute(callsign);
+            foreach (var radar in AllRadarViews)
+            {
+                radar.RemoveShownPath(callsign);
+            }
+
+            foreach (var ground in AllGroundViews)
+            {
+                ground.RemoveShownTaxiRoute(callsign);
+            }
+
             var ac = FindAircraft(callsign);
             if (ac is not null)
             {

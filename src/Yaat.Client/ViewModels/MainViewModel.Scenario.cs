@@ -453,7 +453,10 @@ public partial class MainViewModel
     {
         _studentPositionType = result.StudentPositionType;
         _isAutoClearedToLand = _preferences.GetAutoClearedToLand(_studentPositionType);
-        Radar.ShowMvaHints = _preferences.GetMvaHintDefault(_studentPositionType);
+        foreach (var radar in AllRadarViews)
+        {
+            radar.ShowMvaHints = _preferences.GetMvaHintDefault(_studentPositionType);
+        }
 
         ApplyScenarioBootstrap(
             new ScenarioBootstrap(
@@ -491,7 +494,10 @@ public partial class MainViewModel
 
             _studentPositionType = dto.StudentPositionType;
             _isAutoClearedToLand = _preferences.GetAutoClearedToLand(_studentPositionType);
-            Radar.ShowMvaHints = _preferences.GetMvaHintDefault(_studentPositionType);
+            foreach (var radar in AllRadarViews)
+            {
+                radar.ShowMvaHints = _preferences.GetMvaHintDefault(_studentPositionType);
+            }
 
             ApplyScenarioBootstrap(
                 new ScenarioBootstrap(
@@ -559,8 +565,24 @@ public partial class MainViewModel
         PendingDelayedSpawnCount = delayed;
 
         var artccId = _preferences.ArtccId;
-        Radar.ApplyScenarioBootstrap(bootstrap, artccId);
+        // Stashed so a Radar/Ground window opened later in this scenario bootstraps from the same data.
+        _lastScenarioBootstrap = bootstrap;
+        _lastScenarioArtccId = artccId;
+        _lastRadarPrimaryAirportId = bootstrap.PrimaryAirportId;
+        _lastGroundScenarioId = bootstrap.ScenarioId;
+        foreach (var radar in AllRadarViews)
+        {
+            radar.ApplyScenarioBootstrap(bootstrap, artccId);
+        }
+
         Ground.ApplyScenarioBootstrap(bootstrap, artccId);
+        foreach (var instance in ExtraGroundViews)
+        {
+            // The mirror supplies the layout and the tower-cab image; an extra window only needs the new
+            // scenario id so its own per-scenario view settings key off it.
+            instance.Vm.SetScenarioId(bootstrap.ScenarioId);
+        }
+
         VStrips.ApplyBayConfig(bootstrap.FlightStripsConfig);
         // Populate the student VM's accessible-facility list so the View →
         // Strips → New Strips Tab… picker has entries. The ScenarioLoaded
@@ -657,12 +679,32 @@ public partial class MainViewModel
         IsLiveSession = false;
         _studentPositionType = null;
         _isAutoClearedToLand = false;
-        Radar.ShowMvaHints = false;
+        foreach (var radar in AllRadarViews)
+        {
+            radar.ShowMvaHints = false;
+        }
+
         _commandInput.PrimaryAirportId = null;
-        Radar.SetPrimaryAirportId(null);
-        Radar.ClearShownPaths();
-        Ground.ClearShownTaxiRoutes();
-        Radar.DataBlockState.Clear();
+        foreach (var radar in AllRadarViews)
+        {
+            radar.SetPrimaryAirportId(null);
+            radar.ClearShownPaths();
+            radar.DataBlockState.Clear();
+        }
+
+        foreach (var ground in AllGroundViews)
+        {
+            ground.ClearShownTaxiRoutes();
+            ground.DataBlockState.Clear();
+        }
+
+        // Nothing a window opened after the unload should inherit from the scenario that just went away.
+        _lastScenarioBootstrap = null;
+        _lastScenarioArtccId = null;
+        _lastGroundScenarioId = null;
+        _lastRadarPrimaryAirportId = null;
+        _lastRadarAirportPosition = null;
+        _lastPositionDisplayConfig = null;
         Aircraft.Clear();
         // The server drops its ATPA/conflict caches on unload without broadcasting an empty set, so the
         // client's mirrors have to be dropped here too: an aircraft added incrementally in the next
@@ -673,8 +715,12 @@ public partial class MainViewModel
         ClearBookmarks();
         InitialDelayedSpawnCount = 0;
         PendingDelayedSpawnCount = 0;
+        // Primary only: the extra Ground View windows mirror the cleared layout through PropertyChanged.
         Ground.ClearLayout();
-        Radar.ClearVideoMaps();
+        foreach (var radar in AllRadarViews)
+        {
+            radar.ClearVideoMaps();
+        }
 
         // Strips and PDCs are pushed state that nothing retracts once the session they belong to is gone, so
         // every open view drops its content here — the docked tabs, the split panes and the popped-out windows

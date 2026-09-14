@@ -57,4 +57,32 @@ public class ShownRouteRefreshCoalesceTests
         // Per-update rebuilds would be +20; coalesced is exactly +1.
         Assert.Equal(baseline + 1, vm.Ground.RefreshShownTaxiRoutesCallCount);
     }
+
+    [AvaloniaFact]
+    public void UpdateBurst_CoalescesTaxiRouteRefresh_ForExtraGroundViewsToo()
+    {
+        var vm = new MainViewModel(new FakeFilePickerService());
+        try
+        {
+            Dispatcher.UIThread.RunJobs();
+            vm.OpenExtraGroundViewCommand.Execute(null);
+            var extra = vm.ExtraGroundViews.Single();
+            Dispatcher.UIThread.RunJobs();
+            int baseline = extra.Vm.RefreshShownTaxiRoutesCallCount;
+
+            for (int i = 0; i < 20; i++)
+            {
+                vm.OnAircraftUpdated(MakeAircraft($"AAL{i:000}"));
+            }
+            Dispatcher.UIThread.RunJobs();
+
+            // The extra window's routes are rebuilt inside the same single coalesced post, not per update.
+            Assert.Equal(baseline + 1, extra.Vm.RefreshShownTaxiRoutesCallCount);
+        }
+        finally
+        {
+            vm.Preferences.SetExtraRadarViewOrdinals([]);
+            vm.Preferences.SetExtraGroundViewOrdinals([]);
+        }
+    }
 }

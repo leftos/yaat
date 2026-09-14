@@ -668,7 +668,12 @@ public partial class MainViewModel
         ActiveScenarioName = result.ScenarioName;
         ActiveScenarioPrimaryAirportId = NormalizeFavoriteAirportId(result.PrimaryAirportId);
         _commandInput.PrimaryAirportId = result.PrimaryAirportId;
-        Radar.SetPrimaryAirportId(result.PrimaryAirportId);
+        _lastRadarPrimaryAirportId = result.PrimaryAirportId;
+        foreach (var radar in AllRadarViews)
+        {
+            radar.SetPrimaryAirportId(result.PrimaryAirportId);
+        }
+
         SetRadarAirportPosition(result.PrimaryAirportId);
         ApplySimState(result.IsPaused, result.SimRate, result.ElapsedSeconds, result.IsPlayback, result.TapeEnd);
 
@@ -679,7 +684,10 @@ public partial class MainViewModel
 
         _studentPositionType = result.StudentPositionType;
         _isAutoClearedToLand = _preferences.GetAutoClearedToLand(_studentPositionType);
-        Radar.ShowMvaHints = _preferences.GetMvaHintDefault(_studentPositionType);
+        foreach (var radar in AllRadarViews)
+        {
+            radar.ShowMvaHints = _preferences.GetMvaHintDefault(_studentPositionType);
+        }
 
         Aircraft.Clear();
         if (result.Aircraft is not null)
@@ -694,15 +702,22 @@ public partial class MainViewModel
 
         if (!string.IsNullOrEmpty(result.PrimaryAirportId))
         {
+            // Primary only: the extra Ground View windows mirror this layout instead of fetching their own.
             _ = Ground.LoadLayoutAsync(result.PrimaryAirportId);
         }
 
         var artccId = result.ArtccId ?? _preferences.ArtccId;
         if (!string.IsNullOrEmpty(artccId))
         {
-            _ = Radar.LoadVideoMapsForArtccAsync(artccId, result.PrimaryAirportId, result.ScenarioId);
+            // Each Radar View keeps its own video-map selection, so each loads (and restores) its own.
+            foreach (var radar in AllRadarViews)
+            {
+                _ = radar.LoadVideoMapsForArtccAsync(artccId, result.PrimaryAirportId, result.ScenarioId);
+            }
+
             if (!string.IsNullOrEmpty(result.PrimaryAirportId))
             {
+                // Primary only: the tower-cab image is mirrored, never decoded twice.
                 _ = Ground.LoadTowerCabLayersAsync(artccId, result.PrimaryAirportId);
             }
         }

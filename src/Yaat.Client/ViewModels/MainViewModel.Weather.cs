@@ -287,8 +287,7 @@ public partial class MainViewModel
 
                 var allInfo = ExtractAllWeatherDisplay(dto.Metars);
                 _allWeatherInfo = allInfo;
-                Radar.WeatherInfo = FilterWeatherForPosition(allInfo, Radar.WeatherAirports);
-                Ground.WeatherInfo = PickGroundWeather(allInfo, Ground.Layout?.AirportId);
+                ApplyWeatherToAllViews(allInfo);
                 PopulateMetars(dto.Metars);
             }
         });
@@ -458,7 +457,28 @@ public partial class MainViewModel
     /// </summary>
     private void UpdateRadarWeatherDisplay()
     {
-        Radar.WeatherInfo = FilterWeatherForPosition(_allWeatherInfo, Radar.WeatherAirports);
+        foreach (var radar in AllRadarViews)
+        {
+            radar.WeatherInfo = FilterWeatherForPosition(_allWeatherInfo, radar.WeatherAirports);
+        }
+    }
+
+    /// <summary>
+    /// Pushes a freshly-extracted weather set to every Radar and Ground View instance. Each radar filters
+    /// by its own position's underlying airports and each ground view picks the report for the airport it
+    /// is showing, so the instances can legitimately end up displaying different stations.
+    /// </summary>
+    private void ApplyWeatherToAllViews(IReadOnlyList<WeatherDisplayInfo>? allInfo)
+    {
+        foreach (var radar in AllRadarViews)
+        {
+            radar.WeatherInfo = FilterWeatherForPosition(allInfo, radar.WeatherAirports);
+        }
+
+        foreach (var ground in AllGroundViews)
+        {
+            ground.WeatherInfo = PickGroundWeather(allInfo, ground.Layout?.AirportId);
+        }
     }
 
     /// <summary>
@@ -485,8 +505,7 @@ public partial class MainViewModel
 
         var allInfo = ExtractAllWeatherDisplay(defaults);
         _allWeatherInfo = allInfo;
-        Radar.WeatherInfo = FilterWeatherForPosition(allInfo, Radar.WeatherAirports);
-        Ground.WeatherInfo = PickGroundWeather(allInfo, Ground.Layout?.AirportId);
+        ApplyWeatherToAllViews(allInfo);
     }
 
     private List<string> CollectScenarioAirportIcaos()
