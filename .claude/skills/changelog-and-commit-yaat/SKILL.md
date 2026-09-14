@@ -153,7 +153,7 @@ precedent and the prior commits to those paths — in the Step 5 announcement.
 If the repo has a main plan file — `docs/plans/MAIN.md`, or the file the project's CLAUDE.md names as its plan index — this step is REQUIRED. Skip it only when no such file exists.
 
 1. List the unchecked items: `rg -n "^\s*- \[ \]" docs/plans/MAIN.md`, plus the subplan MAIN.md links for the work in the diff scope.
-2. For every item the work resolves — the fix, feature or cleanup it describes is in this diff, **or a prior commit of this session already landed it and the item outlived its fix** — tick it with a one-clause `shipped <date>` note, or delete the line when the plan's convention is that finished items are removed.
+2. For every item the work resolves — the fix, feature or cleanup it describes is in this diff, **or a prior commit of this session already landed it and the item outlived its fix** — **delete the line** (never tick it: MAIN.md keeps no `[x]` items, steer 2026-09-14; git history is the record). For a multi-part item, trim the shipped part out of its text and delete the line when the last part lands.
 3. Add the plan file(s) to the commit scope, and name the outcome in the Step 5 announcement: `Plan: 2 items closed — <item>, <item>` or `Plan: nothing to reconcile`. A silent pass reads as a skipped step.
 
 An item broader than the diff (a tracking item with several parts) stays open; record the part that landed in its text instead.
