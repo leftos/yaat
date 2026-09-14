@@ -54,6 +54,8 @@ public class UserPreferencesWindowProfileTests
                 HiddenColumns = ["squawk"],
             },
             LoadedFavoriteSetIds = ["bbbb2222", "aaaa1111"],
+            ShowFavoritesBar = false,
+            IsFavoritesPanelOpen = true,
         };
 
         var writer = new UserPreferences();
@@ -92,7 +94,26 @@ public class UserPreferencesWindowProfileTests
         // Loaded favorite set ids round-trip in load order (not sorted).
         Assert.Equal(["bbbb2222", "aaaa1111"], reloaded.LoadedFavoriteSetIds);
 
+        Assert.False(reloaded.ShowFavoritesBar);
+        Assert.True(reloaded.IsFavoritesPanelOpen);
+
         new UserPreferences().DeleteWindowProfile("WPT-Roundtrip");
+    }
+
+    [Fact]
+    public void SaveWindowProfile_NullFavoritesFlags_RoundTripAsNull()
+    {
+        var writer = new UserPreferences();
+        writer.SaveWindowProfile(new SavedWindowProfile { Name = "WPT-NullFavFlags", IsTerminalPoppedOut = true });
+
+        var reloaded = new UserPreferences().GetWindowProfile("WPT-NullFavFlags");
+
+        Assert.NotNull(reloaded);
+        // Null = captured before the feature; applying leaves the current bar / panel state untouched.
+        Assert.Null(reloaded.ShowFavoritesBar);
+        Assert.Null(reloaded.IsFavoritesPanelOpen);
+
+        new UserPreferences().DeleteWindowProfile("WPT-NullFavFlags");
     }
 
     [Fact]

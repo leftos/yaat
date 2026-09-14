@@ -534,6 +534,21 @@ public partial class MainViewModel : ObservableObject
     private bool _isTerminalPoppedOut;
 
     [ObservableProperty]
+    private bool _showFavoritesBar;
+
+    /// <summary>
+    /// The favorites bar shows in the main window only when it is enabled and the Terminal is docked —
+    /// when the Terminal is popped out the bar moves into the Terminal window.
+    /// </summary>
+    public bool IsFavoritesBarDocked => (ShowFavoritesBar) && (!IsTerminalPoppedOut);
+
+    partial void OnShowFavoritesBarChanged(bool value)
+    {
+        _preferences.SetShowFavoritesBar(value);
+        OnPropertyChanged(nameof(IsFavoritesBarDocked));
+    }
+
+    [ObservableProperty]
     private bool _isDataGridPoppedOut;
 
     [ObservableProperty]
@@ -553,6 +568,7 @@ public partial class MainViewModel : ObservableObject
         _preferences.SetPoppedOut("Terminal", value);
         OnPropertyChanged(nameof(IsContentGridVisible));
         OnPropertyChanged(nameof(IsTabSplitterVisible));
+        OnPropertyChanged(nameof(IsFavoritesBarDocked));
     }
 
     partial void OnIsDataGridPoppedOutChanged(bool value)
@@ -1570,6 +1586,7 @@ public partial class MainViewModel : ObservableObject
         IsControllersPoppedOut = _preferences.IsControllersPoppedOut;
         IsMetarPoppedOut = _preferences.IsMetarPoppedOut;
         IsTerminalPoppedOut = _preferences.IsTerminalPoppedOut;
+        ShowFavoritesBar = _preferences.ShowFavoritesBar;
         // Student Strips entry pop-out state persists across restarts. Non-student
         // per-facility entries are session-scoped and always start docked.
         StripsEntries[0].IsPoppedOut = _preferences.IsVStripsPoppedOut;

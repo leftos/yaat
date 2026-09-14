@@ -294,6 +294,11 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
             _terminalWindow.Show();
         }
 
+        if (vm.Preferences.IsFavoritesPanelOpen)
+        {
+            FavoritesPanelWindow.ShowOrActivate(vm);
+        }
+
         WireStripsEntryWindows(vm);
         WireTdlsEntryWindows(vm);
 
@@ -2083,6 +2088,32 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
         }
     }
 
+    /// <summary>
+    /// Applies a profile's favorites-bar visibility and Favorites Panel open state. Null on either
+    /// field means the profile predates that state being captured, so the current state is kept.
+    /// </summary>
+    private static void ApplyFavoritesProfileState(MainViewModel vm, SavedWindowProfile profile)
+    {
+        if (profile.ShowFavoritesBar is { } showBar)
+        {
+            vm.ShowFavoritesBar = showBar;
+        }
+
+        if (profile.IsFavoritesPanelOpen is not { } panelOpen)
+        {
+            return;
+        }
+
+        if (panelOpen)
+        {
+            FavoritesPanelWindow.ShowOrActivate(vm);
+        }
+        else
+        {
+            FavoritesPanelWindow.Close(vm);
+        }
+    }
+
     private async System.Threading.Tasks.Task ApplyWindowProfileByNameAsync(MainViewModel vm, string name)
     {
         var profile = vm.Preferences.GetWindowProfile(name);
@@ -2124,6 +2155,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
             vm.IsRadarViewPoppedOut = profile.IsRadarViewPoppedOut;
             vm.IsControllersPoppedOut = profile.IsControllersPoppedOut;
             vm.IsMetarPoppedOut = profile.IsMetarPoppedOut;
+            ApplyFavoritesProfileState(vm, profile);
 
             // Defer geometry push and grid-layout apply so any windows that were
             // just opened by the toggle flips above have actually entered the
@@ -2342,6 +2374,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
                 vm.IsDataGridPoppedOut = profile.IsDataGridPoppedOut;
                 vm.IsGroundViewPoppedOut = profile.IsGroundViewPoppedOut;
                 vm.IsRadarViewPoppedOut = profile.IsRadarViewPoppedOut;
+                ApplyFavoritesProfileState(vm, profile);
             }
 
             await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() =>

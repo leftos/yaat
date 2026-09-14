@@ -67,6 +67,9 @@
                 <MenuItem Header="Pop Out T_erminal"
                           ToggleType="CheckBox"
                           IsChecked="{Binding IsTerminalPoppedOut, Mode=TwoWay}" />
+                <MenuItem Header="Show Fa_vorites Bar"
+                          ToggleType="CheckBox"
+                          IsChecked="{Binding ShowFavoritesBar, Mode=TwoWay}" />
                 <MenuItem Header="Open _Favorites Panel..."
                           x:Name="FavoritesPanelMenuItem" />
                 <!-- Strips submenu is populated from code-behind to mirror
@@ -475,7 +478,7 @@
         <!-- Bottom: Favorites bar (visible when docked) -->
         <views:FavoritesBarView x:Name="FavoritesBar"
             DockPanel.Dock="Bottom"
-            IsVisible="{Binding !IsTerminalPoppedOut}" />
+            IsVisible="{Binding IsFavoritesBarDocked}" />
 
         <!-- Bottom: Command input (visible when docked) -->
         <views:CommandInputView x:Name="CommandInputView"

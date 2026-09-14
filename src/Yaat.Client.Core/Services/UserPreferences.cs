@@ -356,6 +356,12 @@ public sealed class UserPreferences
 
     /// <summary>When true, activating any YAAT window raises all YAAT windows above other apps (CRC-style group raise).</summary>
     public bool RaiseWindowsTogether => _data.RaiseWindowsTogether;
+
+    /// <summary>When true, the favorites bar is shown (in the main window when the Terminal is docked, in the Terminal window when it is popped out).</summary>
+    public bool ShowFavoritesBar => _data.ShowFavoritesBar;
+
+    /// <summary>When true, the pop-out Favorites Panel window was open at last shutdown and is reopened on the next launch.</summary>
+    public bool IsFavoritesPanelOpen => _data.IsFavoritesPanelOpen;
     public bool SpeechEnabled => _data.SpeechEnabled;
     public string WhisperModelSize => _data.WhisperModelSize;
     public string LlmModelPath => _data.LlmModelPath;
@@ -943,6 +949,28 @@ public sealed class UserPreferences
         }
 
         _data.RaiseWindowsTogether = enabled;
+        Save();
+    }
+
+    public void SetShowFavoritesBar(bool shown)
+    {
+        if (_data.ShowFavoritesBar == shown)
+        {
+            return;
+        }
+
+        _data.ShowFavoritesBar = shown;
+        Save();
+    }
+
+    public void SetFavoritesPanelOpen(bool isOpen)
+    {
+        if (_data.IsFavoritesPanelOpen == isOpen)
+        {
+            return;
+        }
+
+        _data.IsFavoritesPanelOpen = isOpen;
         Save();
     }
 
@@ -1698,6 +1726,8 @@ public sealed class UserPreferences
             AlwaysOnTopKey = GetFieldOr(obj, "alwaysOnTopKey", "Ctrl+Shift+T"),
             QuickBookmarkKey = GetFieldOr(obj, "quickBookmarkKey", "Ctrl+B"),
             RaiseWindowsTogether = GetFieldOr(obj, "raiseWindowsTogether", true),
+            ShowFavoritesBar = GetFieldOr(obj, "showFavoritesBar", true),
+            IsFavoritesPanelOpen = GetFieldOr(obj, "isFavoritesPanelOpen", false),
             HiddenTerminalKinds = GetFieldOr<List<string>>(obj, "hiddenTerminalKinds", []),
             GroundShowRunwayLabels = GetFieldOr(obj, "groundShowRunwayLabels", true),
             GroundShowTaxiwayLabels = GetFieldOr(obj, "groundShowTaxiwayLabels", true),
@@ -2005,6 +2035,8 @@ public sealed class UserPreferences
         public string AlwaysOnTopKey { get; set; } = "Ctrl+Shift+T";
         public string QuickBookmarkKey { get; set; } = "Ctrl+B";
         public bool RaiseWindowsTogether { get; set; } = true;
+        public bool ShowFavoritesBar { get; set; } = true;
+        public bool IsFavoritesPanelOpen { get; set; }
         public List<string> HiddenTerminalKinds { get; set; } = [];
         public bool GroundShowRunwayLabels { get; set; } = true;
         public bool GroundShowTaxiwayLabels { get; set; } = true;
@@ -2197,6 +2229,20 @@ public sealed class SavedWindowProfile
     /// before favorite sets existed — applying such a profile leaves the loaded sets untouched.
     /// </summary>
     public List<string>? LoadedFavoriteSetIds { get; set; }
+
+    /// <summary>
+    /// Whether the favorites bar was shown at capture time. Null on profiles captured before the
+    /// bar became independently toggleable — applying such a profile leaves the current state
+    /// untouched (same convention as <see cref="LoadedFavoriteSetIds"/>).
+    /// </summary>
+    public bool? ShowFavoritesBar { get; set; }
+
+    /// <summary>
+    /// Whether the pop-out Favorites Panel window was open at capture time. Null on profiles
+    /// captured before the panel's open state was captured — applying such a profile leaves the
+    /// panel as it is (same convention as <see cref="LoadedFavoriteSetIds"/>).
+    /// </summary>
+    public bool? IsFavoritesPanelOpen { get; set; }
 
     /// <summary>Pre-identity-model loaded-set names; converted to ids and nulled by the one-time migration.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]

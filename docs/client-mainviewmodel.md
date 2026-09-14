@@ -289,6 +289,14 @@ by `MainWindow` once the dynamic Strips/TDLS `TabItem`s are materialized — bec
 `SelectedIndex` binding doesn't propagate VM→TabControl when the VM value was set before the dynamic tabs existed
 (`MainWindow.axaml.cs:267`-`284`).
 
+**The favorites bar is not a tab.** `ShowFavoritesBar` (pref-backed, default on) and the derived
+`IsFavoritesBarDocked => ShowFavoritesBar && !IsTerminalPoppedOut` drive the bar in `MainWindow.axaml`; the copy
+inside `TerminalWindow.axaml` binds `ShowFavoritesBar` alone, since the bar follows the Terminal when it pops out.
+The pop-out Favorites Panel is a `FavoritesPanelWindow` singleton per `MainViewModel` (`ShowOrActivate` /
+`IsOpen` / `Close`); its open state persists as `UserPreferences.IsFavoritesPanelOpen` (restored at startup beside
+the other pop-outs, not written during shutdown) and both flags ride window profiles as nullable fields — null
+means "captured before the feature; leave as is", the same convention as `LoadedFavoriteSetIds`.
+
 **Pop-out persistence is asymmetric.** The three fixed views and the **student** Strips/TDLS entry (index 0) persist
 their popped-out flag to `UserPreferences` (`OnStripsEntryPropertyChanged` only calls `SetPoppedOut("VStrips", …)`
 when `entry.IsStudentEntry`, `MainViewModel.Strips.cs:107`). Extra per-facility tabs are session-scoped and always
