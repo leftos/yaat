@@ -49,7 +49,9 @@ per room. Each wall-clock tick (`RunTickLoop`, `:92`):
      carries `IsPaused = true`. (Issue #209: previously elapsed only reached clients on pause/unpause/rewind/end.)
 3. After the loop budget check (`TickBudgetMs = 800`, logs a warning if exceeded, `:181`).
 4. **After the all-rooms loop**: `DetectChanges(allRooms)` (`:190`) then `await BroadcastUpdates(allRooms)` (`:191`),
-   which fans out to training clients, admins, and CRC (`:224`).
+   which fans out to training clients, admins, and CRC (`:224`). `DetectChanges` also runs `AtpaEvaluator.EvaluateRoom`
+   per un-suppressed room — one `AtpaProcessor.Process` per wall-tick cached on `TrainingRoom.AtpaResults` for both the
+   CRC pass and the signature-guarded `AtpaResultsChanged` training push (`TrainingRoom.LastBroadcastAtpaSignature`).
 5. Every minute (`PausedRetirementSweepInterval`, `:34`) runs `ScenarioLifecycleService.RetirePausedRoomsAsync` (`:196`)
    to evict rooms left paused past the threshold.
 

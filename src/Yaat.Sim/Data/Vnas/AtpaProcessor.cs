@@ -25,7 +25,18 @@ public record AtpaResult(
     AtpaConeState ConeState,
     List<string> AtpaMonitorTcps,
     List<string> AtpaAlertTcps
-);
+)
+{
+    /// <summary>
+    /// CRC's STARS track-id prefix: <see cref="TargetTrackId"/> is the lead aircraft's callsign behind
+    /// this marker (the same <c>CALLSIGN{callsign}</c> form the StarsTracks topic and its deletes use).
+    /// </summary>
+    public const string TrackIdPrefix = "CALLSIGN";
+
+    /// <summary>The lead aircraft's bare callsign — <see cref="TargetTrackId"/> with the CRC track-id prefix removed.</summary>
+    public string LeadCallsign =>
+        TargetTrackId.StartsWith(TrackIdPrefix, StringComparison.Ordinal) ? TargetTrackId[TrackIdPrefix.Length..] : TargetTrackId;
+}
 
 /// <summary>
 /// Computes ATPA in-trail sequencing for all volumes and produces per-aircraft results
@@ -178,7 +189,7 @@ public sealed partial class AtpaProcessor
             // The monitor/alert TCP code lists are static volume adaptation (who is allowed to see the
             // cone); the live cone state above is what drives Monitor vs Warning vs Alert rendering.
             results[follower.Callsign] = new AtpaResult(
-                TargetTrackId: $"CALLSIGN{lead.Callsign}",
+                TargetTrackId: $"{AtpaResult.TrackIdPrefix}{lead.Callsign}",
                 AllowedSeparation: required,
                 ActualSeparation: actual,
                 ConeState: coneState,

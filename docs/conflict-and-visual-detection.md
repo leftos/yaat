@@ -40,9 +40,13 @@ These four hook in at four different points:
   (`FOLLOWF`/`RTISF`) with no typed callsign consumes that still-pending `TrafficAcquisitionObservation` as its target
   and clears it — the force declares the traffic acquired, so the "still looking" state is superseded rather than
   waiting for a later acquisition.
-- **ATPA** — **not in the tick at all**. It is computed during the CRC broadcast pass:
-  `CrcBroadcastService.ComputeAtpaResults` (`CrcBroadcastService.cs:1255`) calls `AtpaProcessor.Process` against the
-  current snapshot each broadcast. It is display-cadence work, not physics.
+- **ATPA** — **not in the tick spine at all**. It is computed once per room per wall-clock tick in the server's
+  post-loop phase: `AtpaEvaluator.EvaluateRoom` (yaat-server `Simulation/AtpaEvaluator.cs`), called from
+  `RoomTickLoopService.DetectChanges` for every room that is not broadcast-suppressed, runs `AtpaProcessor.Process`
+  against the current snapshot and caches the result on `TrainingRoom.AtpaResults`. Both consumers read that cache —
+  the CRC `StarsTracks` pass and the training-hub `AtpaResultsChanged` broadcast (signature-guarded on pair, allowed
+  separation and cone state). It is display-cadence work, not physics, and it is stateless across ticks, so replay and
+  reconstruction need nothing from it.
 
 ---
 
@@ -220,7 +224,11 @@ trail). The annotation drives the client's "→{target} (auto)" ground datablock
 
 ATPA (Automated Terminal Proximity Alert) advises the controller when an arrival is closer than the required wake/radar
 separation behind the aircraft ahead in the same approach volume. `AtpaProcessor.Process` (`AtpaProcessor.cs:25`)
-returns a `Dictionary<callsign, AtpaResult>` consumed by `CrcBroadcastService` and surfaced in the STARS datablock.
+returns a `Dictionary<callsign, AtpaResult>` cached per wall-tick on `TrainingRoom.AtpaResults` by the server's
+`AtpaEvaluator`, consumed by `CrcBroadcastService` (STARS datablock cone, `StarsTrackDto` keys 30–34) and by the
+training hub's `AtpaResultsChanged` broadcast (YAAT's own Radar view cone + in-trail line, see
+[radar-rendering.md](radar-rendering.md#atpa-cones)). `AtpaResult.LeadCallsign` strips the CRC `CALLSIGN` prefix
+(`AtpaProcessor.TrackIdPrefix`) from `TargetTrackId` for the training-hub side.
 
 ### Exclusive single-volume association
 
