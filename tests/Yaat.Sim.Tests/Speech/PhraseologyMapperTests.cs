@@ -1493,4 +1493,19 @@ public class PhraseologyMapperTests
             PhraseologyMapper.TryMatchPatternForTests(["taxi", "via", "{path...}", "{rwy}"], ["taxi", "via", "b", "28R"])
         );
     }
+
+    // --- Military route (CMTR) ---
+
+    [Fact]
+    public void ClearedIntoRoute_MaintainRouteAltitudes_KeepsRouteDesignator()
+    {
+        // "cleared into IR149, maintain route altitudes" is the published-altitudes CMTR form
+        // (7110.65 §9-2-6.a). The route ID must survive into the canonical — CMTR IR149, not the
+        // literal word "route". Regression guard for the doubled {route} capture in the rule
+        // ["cleared","into","{route}","maintain","{route}","altitudes"], where the second capture
+        // overwrote the designator with the token "route".
+        var result = PhraseologyMapper.Map("cleared into IR149 maintain route altitudes", NoContext);
+        Assert.NotNull(result);
+        Assert.Equal("CMTR IR149", result!.CanonicalCommand.ToUpperInvariant());
+    }
 }

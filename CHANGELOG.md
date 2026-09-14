@@ -10,6 +10,7 @@
 
 ### Fixed
 - Solo scoring: a facility-directive "Wake turbulence advisory missing" finding for an arrival behind a landing is one finding per encounter, clears on a correct CWT call, and no longer re-fires every second.
+- Speech: "cleared into IR149, maintain route altitudes" now maps to `CMTR IR149` instead of dropping the route designator.
 
 ## v0.12.30-beta [2026/09/11]
 
