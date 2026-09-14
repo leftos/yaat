@@ -190,7 +190,7 @@ public static class PhraseologyRules
             // and an assigned altitude is silently read back as "maintain route altitudes".
             // Punctuation: RenderPattern joins tokens with spaces, and these clauses need the comma
             // that separates the clearance from its altitude.
-            new(["cleared", "into", "{route}", "maintain", "{route}", "altitudes"], "CMTR {route}", ClearedIntoMilitaryRoute, SttOnly: true),
+            new(["cleared", "into", "{route}", "maintain", "route", "altitudes"], "CMTR {route}", ClearedIntoMilitaryRoute, SttOnly: true),
             new(["cleared", "into", "{route}"], "CMTR {route}", ClearedIntoMilitaryRoute, SttOnly: true),
             new(["cleared", "into", "{route}", "maintain", "{alt}"], "CMTR {route} {alt}", ClearedIntoMilitaryRoute, SttOnly: true),
             new(
