@@ -153,6 +153,42 @@ public sealed class UserPreferences
     public bool IsRadarViewPoppedOut => _data.IsRadarViewPoppedOut;
     public bool IsControllersPoppedOut => _data.IsControllersPoppedOut;
     public bool IsMetarPoppedOut => _data.IsMetarPoppedOut;
+
+    /// <summary>
+    /// Ordinals of the extra Radar View windows that were open at shutdown (always ≥ 2 — the docked view
+    /// is the implicit #1). Each ordinal keys its own window geometry ("RadarView#2") and its own
+    /// per-scenario view settings ("{scenarioId}#2").
+    /// </summary>
+    public IReadOnlyList<int> ExtraRadarViewOrdinals => _data.ExtraRadarViewOrdinals;
+
+    /// <summary>Ordinals of the extra Ground View windows open at shutdown; same convention as
+    /// <see cref="ExtraRadarViewOrdinals"/>.</summary>
+    public IReadOnlyList<int> ExtraGroundViewOrdinals => _data.ExtraGroundViewOrdinals;
+
+    /// <summary>Persists which extra Radar View windows are open; a no-op when the set is unchanged.</summary>
+    public void SetExtraRadarViewOrdinals(IReadOnlyList<int> ordinals)
+    {
+        if (_data.ExtraRadarViewOrdinals.SequenceEqual(ordinals))
+        {
+            return;
+        }
+
+        _data.ExtraRadarViewOrdinals = [.. ordinals];
+        Save();
+    }
+
+    /// <summary>Persists which extra Ground View windows are open; a no-op when the set is unchanged.</summary>
+    public void SetExtraGroundViewOrdinals(IReadOnlyList<int> ordinals)
+    {
+        if (_data.ExtraGroundViewOrdinals.SequenceEqual(ordinals))
+        {
+            return;
+        }
+
+        _data.ExtraGroundViewOrdinals = [.. ordinals];
+        Save();
+    }
+
     public bool IsVStripsPoppedOut => _data.IsVStripsPoppedOut;
     public bool IsVTdlsPoppedOut => _data.IsVTdlsPoppedOut;
     public bool IsVTdlsDarkMode => _data.IsVTdlsDarkMode;
@@ -1665,6 +1701,8 @@ public sealed class UserPreferences
             IsDataGridPoppedOut = GetFieldOr(obj, "isDataGridPoppedOut", false),
             IsGroundViewPoppedOut = GetFieldOr(obj, "isGroundViewPoppedOut", false),
             IsRadarViewPoppedOut = GetFieldOr(obj, "isRadarViewPoppedOut", false),
+            ExtraRadarViewOrdinals = GetFieldOr<List<int>>(obj, "extraRadarViewOrdinals", []),
+            ExtraGroundViewOrdinals = GetFieldOr<List<int>>(obj, "extraGroundViewOrdinals", []),
             IsControllersPoppedOut = GetFieldOr(obj, "isControllersPoppedOut", false),
             IsMetarPoppedOut = GetFieldOr(obj, "isMetarPoppedOut", false),
             IsVStripsPoppedOut = GetFieldOr(obj, "isVStripsPoppedOut", false),
@@ -1947,6 +1985,8 @@ public sealed class UserPreferences
         public bool IsRadarViewPoppedOut { get; set; }
         public bool IsControllersPoppedOut { get; set; }
         public bool IsMetarPoppedOut { get; set; }
+        public List<int> ExtraRadarViewOrdinals { get; set; } = [];
+        public List<int> ExtraGroundViewOrdinals { get; set; } = [];
         public bool IsVStripsPoppedOut { get; set; }
         public bool IsVTdlsPoppedOut { get; set; }
         public bool IsVTdlsDarkMode { get; set; }
@@ -2228,6 +2268,18 @@ public sealed class SavedWindowProfile
     public bool IsRadarViewPoppedOut { get; set; }
     public bool IsControllersPoppedOut { get; set; }
     public bool IsMetarPoppedOut { get; set; }
+
+    /// <summary>
+    /// Ordinals of the extra Radar View windows open at capture time (≥ 2; the docked view is #1); their
+    /// geometries ride in <see cref="WindowGeometries"/> under the matching "RadarView#n" keys. A profile
+    /// captured before extra windows existed deserializes as empty, and applying it closes any extras —
+    /// a profile is the whole arrangement, not a partial overlay.
+    /// </summary>
+    public List<int> ExtraRadarViewOrdinals { get; set; } = [];
+
+    /// <summary>Ordinals of the extra Ground View windows open at capture time; same convention as
+    /// <see cref="ExtraRadarViewOrdinals"/>.</summary>
+    public List<int> ExtraGroundViewOrdinals { get; set; } = [];
 
     /// <summary>DataGrid column order / widths / sort / hidden columns at capture time.</summary>
     public SavedGridLayout? DataGridLayout { get; set; }

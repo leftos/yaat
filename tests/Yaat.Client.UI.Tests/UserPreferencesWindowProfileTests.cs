@@ -101,6 +101,67 @@ public class UserPreferencesWindowProfileTests
     }
 
     [Fact]
+    public void SaveWindowProfile_RoundTripsExtraViewOrdinals()
+    {
+        var profile = new SavedWindowProfile
+        {
+            Name = "WPT-ExtraOrdinals",
+            ExtraRadarViewOrdinals = [2, 3],
+            ExtraGroundViewOrdinals = [2],
+            WindowGeometries = new()
+            {
+                ["RadarView#2"] = new SavedWindowGeometry
+                {
+                    X = 300,
+                    Y = 400,
+                    Width = 900,
+                    Height = 500,
+                    ScreenIndex = 1,
+                },
+            },
+        };
+
+        try
+        {
+            new UserPreferences().SaveWindowProfile(profile);
+
+            var reloaded = new UserPreferences().GetWindowProfile("WPT-ExtraOrdinals");
+
+            Assert.NotNull(reloaded);
+            Assert.Equal([2, 3], reloaded.ExtraRadarViewOrdinals);
+            Assert.Equal([2], reloaded.ExtraGroundViewOrdinals);
+            // The extra window's geometry rides in the same dictionary as any other non-fixed window name.
+            Assert.Equal(900, reloaded.WindowGeometries["RadarView#2"].Width);
+            Assert.Equal(1, reloaded.WindowGeometries["RadarView#2"].ScreenIndex);
+        }
+        finally
+        {
+            new UserPreferences().DeleteWindowProfile("WPT-ExtraOrdinals");
+        }
+    }
+
+    [Fact]
+    public void SaveWindowProfile_CapturedBeforeExtraViews_ReadsBackAsNoExtras()
+    {
+        try
+        {
+            new UserPreferences().SaveWindowProfile(new SavedWindowProfile { Name = "WPT-NoExtras" });
+
+            var reloaded = new UserPreferences().GetWindowProfile("WPT-NoExtras");
+
+            // Empty (not null): applying such a profile closes any extra windows, since a profile is the
+            // whole arrangement rather than a partial overlay.
+            Assert.NotNull(reloaded);
+            Assert.Empty(reloaded.ExtraRadarViewOrdinals);
+            Assert.Empty(reloaded.ExtraGroundViewOrdinals);
+        }
+        finally
+        {
+            new UserPreferences().DeleteWindowProfile("WPT-NoExtras");
+        }
+    }
+
+    [Fact]
     public void SaveWindowProfile_NullFavoritesFlags_RoundTripAsNull()
     {
         var writer = new UserPreferences();

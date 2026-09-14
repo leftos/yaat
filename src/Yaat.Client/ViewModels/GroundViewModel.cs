@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Microsoft.Extensions.Logging;
 using SkiaSharp;
@@ -55,6 +56,23 @@ public partial class GroundViewModel : ObservableObject
     private ArtccAirportResolver? _artccResolver;
 
     public UserPreferences? Preferences { get; }
+
+    /// <summary>
+    /// Suffix appended to the active scenario id when this view reads or writes its per-scenario settings,
+    /// so an extra Ground View window ("#2") keeps its own center, zoom, rotation and label filters. Empty
+    /// for the docked primary view, whose key stays the bare scenario id.
+    /// </summary>
+    public string SettingsKeySuffix { get; init; } = "";
+
+    /// <summary>
+    /// False for an extra Ground View window. Every global (non-per-scenario) preference write is gated on
+    /// this so an extra window's toggles never rewrite the primary view's app-wide defaults; an extra
+    /// window also mirrors the primary's layout instead of loading its own.
+    /// </summary>
+    public bool IsPrimary { get; init; } = true;
+
+    /// <summary>Per-scenario settings key for this view: the active scenario id plus its instance suffix.</summary>
+    private string? SettingsKey => _activeScenarioId is null ? null : _activeScenarioId + SettingsKeySuffix;
 
     [ObservableProperty]
     private GroundLayoutDto? _layout;
@@ -228,6 +246,7 @@ public partial class GroundViewModel : ObservableObject
     private string? _activeScenarioId;
     private string? _activeAirportId;
     private bool _isRestoring;
+    private GroundViewModel? _mirrorSource;
 
     private AircraftModel? _drawAircraft;
     private List<int> _drawWaypointIds = [];
@@ -287,6 +306,13 @@ public partial class GroundViewModel : ObservableObject
 
     public async Task LoadTowerCabLayersAsync(string artccId, string airportId)
     {
+        if (!IsPrimary)
+        {
+            // An extra Ground View window mirrors the primary's image and video map (MirrorLayoutFrom)
+            // rather than downloading and decoding a second copy of the ~100 MB tower-cab image.
+            return;
+        }
+
         if (_vnasConfigService is null || _towerCabImageService is null)
         {
             _log.LogDebug("Tower cab services not initialized; skipping layer load");
@@ -367,6 +393,12 @@ public partial class GroundViewModel : ObservableObject
 
     public void SaveLayerSettings()
     {
+        if (!IsPrimary)
+        {
+            // App-wide layer defaults: an extra Ground View window's toggles stay local to that window.
+            return;
+        }
+
         Preferences?.SetGroundLayerSettings(
             ShowSatelliteImage,
             SatelliteImageBrightness,
@@ -396,7 +428,9 @@ public partial class GroundViewModel : ObservableObject
     partial void OnViewRotationChanged(double value)
     {
         SaveSettings();
-        if (!_isRestoring && _activeAirportId is not null)
+
+        // Per-airport rotation default: an extra Ground View window rotates its own view only.
+        if (IsPrimary && !_isRestoring && (_activeAirportId is not null))
         {
             Preferences?.SetGroundRotation(_activeAirportId, value);
         }
@@ -405,6 +439,13 @@ public partial class GroundViewModel : ObservableObject
     public void SaveLabelAndLockSettings()
     {
         SaveSettings();
+
+        if (!IsPrimary)
+        {
+            // App-wide label/lock defaults: an extra Ground View window's toggles stay local to that window.
+            return;
+        }
+
         Preferences?.SetGroundLabelFilters(ShowRunwayLabels, ShowTaxiwayLabels, ShowHoldShort, ShowParking, ShowSpot, ShowAdwMarkings);
         Preferences?.SetGroundPanZoomLocked(IsPanZoomLocked);
     }
@@ -418,7 +459,12 @@ public partial class GroundViewModel : ObservableObject
             DatablockDeconflictMode.CompassSnap => DatablockDeconflictMode.FreeForm,
             _ => DatablockDeconflictMode.Off,
         };
-        Preferences?.SetGroundDeconflictMode(DeconflictMode);
+
+        if (IsPrimary)
+        {
+            // App-wide default: only the primary view writes it, so an extra window's mode stays its own.
+            Preferences?.SetGroundDeconflictMode(DeconflictMode);
+        }
     }
 
     /// <summary>
@@ -429,8 +475,8 @@ public partial class GroundViewModel : ObservableObject
     internal void SetLayoutForTesting(GroundLayoutDto dto)
     {
         DataBlockState.Clear();
-        Layout = dto;
         _domainLayout = ReconstructLayout(dto);
+        Layout = dto;
         ShownAirportChanged?.Invoke();
     }
 
@@ -447,6 +493,13 @@ public partial class GroundViewModel : ObservableObject
 
     public async Task LoadLayoutAsync(string airportId)
     {
+        if (!IsPrimary)
+        {
+            // An extra Ground View window mirrors the primary's layout (MirrorLayoutFrom) rather than
+            // fetching and reconstructing its own copy.
+            return;
+        }
+
         try
         {
             var dto = await _connection.GetAirportGroundLayoutAsync(airportId);
@@ -454,15 +507,17 @@ public partial class GroundViewModel : ObservableObject
             {
                 _log.LogWarning("No ground layout for airport {Id}", airportId);
                 DataBlockState.Clear();
-                Layout = null;
                 _domainLayout = null;
+                Layout = null;
                 ShownAirportChanged?.Invoke();
                 return;
             }
 
             DataBlockState.Clear();
-            Layout = dto;
+            // _domainLayout is assigned before Layout so any observer of the Layout change (a mirroring
+            // extra window) sees a consistent DTO/domain pair.
             _domainLayout = ReconstructLayout(dto);
+            Layout = dto;
 
             // Compute airport center from node centroid
             if (dto.Nodes.Count > 0)
@@ -533,8 +588,8 @@ public partial class GroundViewModel : ObservableObject
     {
         _activeScenarioId = null;
         _activeAirportId = null;
-        Layout = null;
         _domainLayout = null;
+        Layout = null;
         HoverTaxiRoute = null;
         PreviewRoute = null;
         AirportCenterLat = 0;
@@ -551,6 +606,77 @@ public partial class GroundViewModel : ObservableObject
         ClearShownTaxiRoutes();
         DataBlockState.Clear();
         ShownAirportChanged?.Invoke();
+    }
+
+    /// <summary>
+    /// Shows the airport <paramref name="source"/> has loaded, and keeps showing whatever it loads next.
+    /// An extra Ground View window mirrors the primary view this way instead of fetching its own layout and
+    /// decoding its own copy of the tower-cab image; view state (center, zoom, rotation, datablocks) stays
+    /// per-window. Copies the current state immediately, then tracks changes until <see cref="StopMirroring"/>.
+    /// </summary>
+    public void MirrorLayoutFrom(GroundViewModel source)
+    {
+        StopMirroring();
+        _mirrorSource = source;
+        source.PropertyChanged += OnMirrorSourcePropertyChanged;
+        CopyLayoutFrom(source);
+    }
+
+    /// <summary>Stops tracking the mirrored source. The layout copied so far stays on screen.</summary>
+    public void StopMirroring()
+    {
+        if (_mirrorSource is null)
+        {
+            return;
+        }
+
+        _mirrorSource.PropertyChanged -= OnMirrorSourcePropertyChanged;
+        _mirrorSource = null;
+    }
+
+    private void OnMirrorSourcePropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (_mirrorSource is null)
+        {
+            return;
+        }
+
+        switch (e.PropertyName)
+        {
+            case nameof(Layout):
+            case nameof(BackgroundImage):
+            case nameof(TowerCabMap):
+            case nameof(AirportCenterLat):
+            case nameof(AirportCenterLon):
+            case nameof(AirportElevation):
+                CopyLayoutFrom(_mirrorSource);
+                break;
+        }
+    }
+
+    private void CopyLayoutFrom(GroundViewModel source)
+    {
+        var layoutChanged = !ReferenceEquals(Layout, source.Layout);
+
+        _domainLayout = source._domainLayout;
+        _activeAirportId = source._activeAirportId;
+        Layout = source.Layout;
+        // Reference copies only. The mirrored SKImage behind BackgroundImage belongs to the source and may
+        // be held by a render snapshot on either window, so this view-model must never Dispose it.
+        BackgroundImage = source.BackgroundImage;
+        TowerCabMap = source.TowerCabMap;
+        AirportCenterLat = source.AirportCenterLat;
+        AirportCenterLon = source.AirportCenterLon;
+        AirportElevation = source.AirportElevation;
+
+        if (layoutChanged)
+        {
+            // Same bookkeeping a fresh load does: per-callsign datablock state and route overlays belong to
+            // the airport that was showing, and the airport just changed.
+            DataBlockState.Clear();
+            ClearShownTaxiRoutes();
+            ShownAirportChanged?.Invoke();
+        }
     }
 
     public void ApplyCopiedSettings(SavedGroundSettings merged)
@@ -597,23 +723,23 @@ public partial class GroundViewModel : ObservableObject
 
     private void SaveSettings()
     {
-        if (Preferences is null || _activeScenarioId is null || _isRestoring)
+        if (Preferences is null || SettingsKey is not { } key || _isRestoring)
         {
             return;
         }
 
         HasSavedView = true;
-        Preferences.SetGroundSettings(_activeScenarioId, CaptureSettings());
+        Preferences.SetGroundSettings(key, CaptureSettings());
     }
 
     private void RestoreSettings()
     {
-        if (Preferences is null || _activeScenarioId is null)
+        if (Preferences is null || SettingsKey is not { } key)
         {
             return;
         }
 
-        var saved = Preferences.GetGroundSettings(_activeScenarioId);
+        var saved = Preferences.GetGroundSettings(key);
         if (saved is null)
         {
             return;
@@ -1611,6 +1737,18 @@ public partial class GroundViewModel : ObservableObject
     public void RefreshShownTaxiRoutes()
     {
         RefreshShownTaxiRoutesCallCount++;
+
+        // Nothing can be drawn: no aircraft is forced-shown, "show all" is off and nothing is hovered. The
+        // full path below would project the whole aircraft list only to produce an empty overlay, and this
+        // runs once per update burst, so short-circuit to the same end state.
+        if ((_shownTaxiRouteCallsigns.Count == 0) && !ShowAllTaxiRoutes && (_hoveredCallsign is null))
+        {
+            _taxiColorIndices.Clear();
+            ShownTaxiRoutes = null;
+            HoverTaxiRoute = null;
+            return;
+        }
+
         var all = _aircraftProvider?.Invoke() ?? [];
         var effective = ComputeVisibleTaxiRouteCallsigns(
             _shownTaxiRouteCallsigns,

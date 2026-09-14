@@ -61,6 +61,22 @@ public partial class RadarViewModel : ObservableObject
     private Func<string, AircraftModel?>? _findAircraft;
     private bool _navDbReady;
 
+    /// <summary>
+    /// Suffix appended to the active scenario id when this view reads or writes its per-scenario settings,
+    /// so an extra Radar View window ("#2") keeps its own center, range, maps and filters. Empty for the
+    /// docked primary view, whose key stays the bare scenario id.
+    /// </summary>
+    public string SettingsKeySuffix { get; init; } = "";
+
+    /// <summary>
+    /// False for an extra Radar View window. Every global (non-per-scenario) preference write is gated on
+    /// this so an extra window's toggles never rewrite the primary view's app-wide defaults.
+    /// </summary>
+    public bool IsPrimary { get; init; } = true;
+
+    /// <summary>Per-scenario settings key for this view: the active scenario id plus its instance suffix.</summary>
+    private string? SettingsKey => _activeScenarioId is null ? null : _activeScenarioId + SettingsKeySuffix;
+
     public string? PrimaryAirportId { get; private set; }
 
     /// <summary>
@@ -304,6 +320,16 @@ public partial class RadarViewModel : ObservableObject
     // a toggle before LoadMapsAsync finishes leaves UpdateActiveMaps with a
     // null cache hit and the map silently fails to draw.
     internal bool IsMapDataCached(string mapId) => _videoMapService.GetCached(mapId) is not null;
+
+    /// <summary>
+    /// Test-only hook: binds the view-model to a scenario id, the slice of
+    /// <see cref="LoadVideoMapsForArtccAsync"/> that per-scenario settings key off, without the
+    /// server round-trip that method needs.
+    /// </summary>
+    internal void SetScenarioIdForTesting(string? scenarioId)
+    {
+        _activeScenarioId = scenarioId;
+    }
 
     public RadarViewModel(
         ServerConnection connection,
@@ -947,7 +973,12 @@ public partial class RadarViewModel : ObservableObject
             DatablockDeconflictMode.CompassSnap => DatablockDeconflictMode.FreeForm,
             _ => DatablockDeconflictMode.Off,
         };
-        _preferences?.SetRadarDeconflictMode(DeconflictMode);
+
+        if (IsPrimary)
+        {
+            // App-wide default: only the primary view writes it, so an extra window's mode stays its own.
+            _preferences?.SetRadarDeconflictMode(DeconflictMode);
+        }
     }
 
     [RelayCommand]
@@ -1027,7 +1058,11 @@ public partial class RadarViewModel : ObservableObject
             DcbMode = DcbMenuMode.Main;
         }
 
-        _preferences?.SetRadarDcbVisible(IsDcbVisible);
+        if (IsPrimary)
+        {
+            // App-wide default: only the primary view writes it, so an extra window's DCB stays its own.
+            _preferences?.SetRadarDcbVisible(IsDcbVisible);
+        }
     }
 
     [RelayCommand]
@@ -1157,12 +1192,12 @@ public partial class RadarViewModel : ObservableObject
 
     private void SaveSettings()
     {
-        if (_preferences is null || _activeScenarioId is null || _isRestoring)
+        if (_preferences is null || SettingsKey is not { } key || _isRestoring)
         {
             return;
         }
 
-        _preferences.SetRadarSettings(_activeScenarioId, CaptureSettings());
+        _preferences.SetRadarSettings(key, CaptureSettings());
     }
 
     public void ApplyCopiedSettings(SavedRadarSettings merged)
@@ -1190,12 +1225,12 @@ public partial class RadarViewModel : ObservableObject
 
     private void RestoreSettings()
     {
-        if (_preferences is null || _activeScenarioId is null)
+        if (_preferences is null || SettingsKey is not { } key)
         {
             return;
         }
 
-        var saved = _preferences.GetRadarSettings(_activeScenarioId);
+        var saved = _preferences.GetRadarSettings(key);
         if (saved is null)
         {
             return;

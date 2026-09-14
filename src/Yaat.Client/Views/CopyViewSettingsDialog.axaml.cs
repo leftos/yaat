@@ -1,8 +1,10 @@
+using System.Globalization;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Yaat.Client.Services;
+using Yaat.Client.ViewModels;
 
 namespace Yaat.Client.Views;
 
@@ -504,6 +506,16 @@ public partial class CopyViewSettingsDialog : Window
             return $"vTDLS ({key["VTdlsView:".Length..]})";
         }
 
+        if (TryInstanceOrdinal(key, ViewInstanceOrdinals.RadarPrefix, out var radarOrdinal))
+        {
+            return $"Radar View window #{radarOrdinal}";
+        }
+
+        if (TryInstanceOrdinal(key, ViewInstanceOrdinals.GroundPrefix, out var groundOrdinal))
+        {
+            return $"Ground View window #{groundOrdinal}";
+        }
+
         return key switch
         {
             "Main" => "Main window",
@@ -519,6 +531,21 @@ public partial class CopyViewSettingsDialog : Window
             "VTdlsView" => "vTDLS",
             _ => key,
         };
+    }
+
+    /// <summary>
+    /// Reads the instance number out of an extra Radar/Ground view key ("RadarView#2"). A key that carries
+    /// the prefix but no parseable ordinal is left to the caller's verbatim fallback.
+    /// </summary>
+    private static bool TryInstanceOrdinal(string key, string prefix, out int ordinal)
+    {
+        ordinal = 0;
+        if (!key.StartsWith(prefix, StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        return int.TryParse(key[prefix.Length..], NumberStyles.Integer, CultureInfo.InvariantCulture, out ordinal);
     }
 
     private static string FormatGeo(SavedWindowGeometry? geo)
