@@ -1748,7 +1748,7 @@ Favorites are shared with the **Import** and **Export** buttons in the pop-out *
 
 - **Export → Set: …** — save one set as a `.yaat-favset.zip`: the set plus one JSON per favorite it references, side by side.
 - **Export → Everything (library)** — save every set and every favorite (including ones not in any set) as a `.yaat-favlibrary.zip`.
-- **Import** — load either zip, or a single favorite/set `.json` taken from one. Everything merges by the favorite's id: a favorite you already have is updated in place, new ones are added, and a named set that matches one of yours by id is updated while a same-named set from someone else imports alongside yours with a "(2)" suffix. Airport/Scenario/Global sets merge into your matching containers. A lone favorite json lands in Global so it shows up immediately.
+- **Import** — load either zip, or a single favorite/set `.json` taken from one. After picking the file you choose **Add to existing**, **Save Current As…, then Replace All** (export your current favorites as a library zip first; cancelling that save cancels the import), **Replace All**, or **Cancel**; the prompt names how many favorites and sets a replace deletes. Replace deletes every favorite and set you have and then imports, loading exactly the sets the library had loaded (or the imported set, for a set export). With Add to existing, everything merges by the favorite's id: a favorite you already have is updated in place, new ones are added, and a named set that matches one of yours by id is updated while a same-named set from someone else imports alongside yours with a "(2)" suffix. Airport/Scenario/Global sets merge into your matching containers. A lone favorite json lands in Global so it shows up immediately.
 
 ### Command History
 

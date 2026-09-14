@@ -6,6 +6,7 @@
 - **View > Show Favorites Bar** hides the favorites bar (in the main window, or the Terminal window when popped out); window profiles save the setting.
 - Window profiles record whether the pop-out Favorites Panel is open, and a panel left open reopens on the next launch.
 - **Settings > Commands** gains **Import…** / **Export…** to share your command verbs as a `.yaat-verbs.json` file; an import replaces only the commands the file lists.
+- Importing favorites asks whether to add them to your current ones or replace everything, with a **Save Current As…, then Replace All** option that exports a library zip first.
 
 ## v0.12.30-beta [2026/09/11]
 

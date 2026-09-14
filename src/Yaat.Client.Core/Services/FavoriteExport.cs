@@ -7,6 +7,16 @@ using Yaat.Client.Logging;
 
 namespace Yaat.Client.Services;
 
+/// <summary>How an import lands on the existing favorites.</summary>
+public enum FavoriteImportMode
+{
+    /// <summary>Keep everything already in the store and merge the file into it by id.</summary>
+    Merge,
+
+    /// <summary>Delete every favorite and set first, so the store ends up holding only the imported file.</summary>
+    Replace,
+}
+
 /// <summary>What an import changed, for the status line the UI shows afterwards.</summary>
 public sealed record FavoriteImportResult(
     int FavoritesAdded,
@@ -78,14 +88,16 @@ public static class FavoriteExport
     /// Imports a shared file into the store: a set/library zip or a single favorite/set json.
     /// Favorites merge by id (same id overwrites the entity); Global/Airport/Scenario sets merge
     /// into the matching local container; named sets merge by id or are added. A lone new favorite
-    /// json lands in Global so it is immediately visible. Returns null when nothing usable was found.
+    /// json lands in Global so it is immediately visible. <see cref="FavoriteImportMode.Replace"/>
+    /// wipes the store first, but only once the file has parsed into something usable — an
+    /// unrecognized file returns null and leaves the store untouched either way.
     /// </summary>
-    public static FavoriteImportResult? ImportFile(FavoriteStore store, string fileName, Stream input)
+    public static FavoriteImportResult? ImportFile(FavoriteStore store, string fileName, Stream input, FavoriteImportMode mode)
     {
-        return fileName.EndsWith(".zip", StringComparison.OrdinalIgnoreCase) ? ImportZip(store, input) : ImportSingleJson(store, input);
+        return fileName.EndsWith(".zip", StringComparison.OrdinalIgnoreCase) ? ImportZip(store, input, mode) : ImportSingleJson(store, input, mode);
     }
 
-    private static FavoriteImportResult? ImportZip(FavoriteStore store, Stream input)
+    private static FavoriteImportResult? ImportZip(FavoriteStore store, Stream input, FavoriteImportMode mode)
     {
         List<(string Name, JsonObject Root)> entries = [];
         try
@@ -133,10 +145,12 @@ public static class FavoriteExport
             return null;
         }
 
-        return Merge(store, favorites, sets, manifest?.LoadedSetIds ?? [], addLoneFavoritesToGlobal: sets.Count == 0);
+        var loadedSetIds = manifest?.LoadedSetIds ?? SetIdsToLoadWithoutManifest(sets, mode);
+        ClearWhenReplacing(store, mode);
+        return Merge(store, favorites, sets, loadedSetIds, addLoneFavoritesToGlobal: sets.Count == 0);
     }
 
-    private static FavoriteImportResult? ImportSingleJson(FavoriteStore store, Stream input)
+    private static FavoriteImportResult? ImportSingleJson(FavoriteStore store, Stream input, FavoriteImportMode mode)
     {
         using var reader = new StreamReader(input);
         if (TryParseObject(reader.ReadToEnd()) is not { } root)
@@ -146,10 +160,41 @@ public static class FavoriteExport
 
         if (root.ContainsKey("favoriteIds") || root.ContainsKey("kind"))
         {
-            return Deserialize<FavoriteSet>(root) is { } set ? Merge(store, [], [set], [], addLoneFavoritesToGlobal: false) : null;
+            if (Deserialize<FavoriteSet>(root) is not { } set)
+            {
+                return null;
+            }
+
+            var loadedSetIds = SetIdsToLoadWithoutManifest([set], mode);
+            ClearWhenReplacing(store, mode);
+            return Merge(store, [], [set], loadedSetIds, addLoneFavoritesToGlobal: false);
         }
 
-        return Deserialize<FavoriteCommand>(root) is { } favorite ? Merge(store, [favorite], [], [], addLoneFavoritesToGlobal: true) : null;
+        if (Deserialize<FavoriteCommand>(root) is not { } favorite)
+        {
+            return null;
+        }
+
+        ClearWhenReplacing(store, mode);
+        return Merge(store, [favorite], [], [], addLoneFavoritesToGlobal: true);
+    }
+
+    /// <summary>
+    /// A replace has nothing left loaded afterwards, so a file that carries no library manifest
+    /// (a set zip, a lone set json) has to name its own sets as loaded or the import is invisible.
+    /// A merge keeps today's behaviour: only a manifest can ask for a set to be loaded.
+    /// </summary>
+    private static List<string> SetIdsToLoadWithoutManifest(List<FavoriteSet> sets, FavoriteImportMode mode)
+    {
+        return mode == FavoriteImportMode.Replace ? sets.Select(s => s.Id).ToList() : [];
+    }
+
+    private static void ClearWhenReplacing(FavoriteStore store, FavoriteImportMode mode)
+    {
+        if (mode == FavoriteImportMode.Replace)
+        {
+            store.Clear();
+        }
     }
 
     private static FavoriteImportResult Merge(

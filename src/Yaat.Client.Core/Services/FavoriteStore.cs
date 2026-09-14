@@ -277,6 +277,28 @@ public sealed class FavoriteStore
         return true;
     }
 
+    /// <summary>
+    /// Wipes the store: every favorite and every set, in memory and on disk, leaving exactly one
+    /// empty Global set behind. Raises <see cref="Changed"/> once for the whole wipe, not per entity.
+    /// </summary>
+    public void Clear()
+    {
+        foreach (var favoriteId in _favoriteFiles.Keys.ToList())
+        {
+            DeleteFile(_favoriteFiles, favoriteId);
+        }
+
+        foreach (var setId in _setFiles.Keys.ToList())
+        {
+            DeleteFile(_setFiles, setId);
+        }
+
+        _favorites.Clear();
+        _sets.Clear();
+        EnsureGlobalSet();
+        RaiseChanged();
+    }
+
     /// <summary>Adds a new favorite or updates the entity with the same id, renaming its file when the label changed.</summary>
     public void SaveFavorite(FavoriteCommand favorite)
     {

@@ -66,7 +66,7 @@ public class FavoriteExportTests : IDisposable
         buffer.Position = 0;
 
         var target = NewStore("target");
-        var result = FavoriteExport.ImportFile(target, $"Shared{FavoriteExport.SetExportExtension}", buffer);
+        var result = FavoriteExport.ImportFile(target, $"Shared{FavoriteExport.SetExportExtension}", buffer, FavoriteImportMode.Merge);
 
         Assert.NotNull(result);
         Assert.Equal(2, result.FavoritesAdded);
@@ -95,9 +95,9 @@ public class FavoriteExportTests : IDisposable
 
         var target = NewStore("target");
         buffer.Position = 0;
-        FavoriteExport.ImportFile(target, "Twice.yaat-favset.zip", buffer);
+        FavoriteExport.ImportFile(target, "Twice.yaat-favset.zip", buffer, FavoriteImportMode.Merge);
         buffer.Position = 0;
-        var second = FavoriteExport.ImportFile(target, "Twice.yaat-favset.zip", buffer);
+        var second = FavoriteExport.ImportFile(target, "Twice.yaat-favset.zip", buffer, FavoriteImportMode.Merge);
 
         Assert.NotNull(second);
         Assert.Equal(0, second.FavoritesAdded);
@@ -122,7 +122,7 @@ public class FavoriteExportTests : IDisposable
 
         var target = NewStore("target");
         target.CreateNamedSet("Clash");
-        FavoriteExport.ImportFile(target, "Clash.yaat-favset.zip", buffer);
+        FavoriteExport.ImportFile(target, "Clash.yaat-favset.zip", buffer, FavoriteImportMode.Merge);
 
         Assert.NotNull(target.FindNamedSet("Clash"));
         var suffixed = target.FindNamedSet("Clash (2)");
@@ -151,7 +151,7 @@ public class FavoriteExportTests : IDisposable
         buffer.Position = 0;
 
         var target = NewStore("target");
-        var result = FavoriteExport.ImportFile(target, $"favorites{FavoriteExport.LibraryExportExtension}", buffer);
+        var result = FavoriteExport.ImportFile(target, $"favorites{FavoriteExport.LibraryExportExtension}", buffer, FavoriteImportMode.Merge);
 
         Assert.NotNull(result);
         Assert.Equal(3, result.FavoritesAdded);
@@ -180,7 +180,7 @@ public class FavoriteExportTests : IDisposable
         target.SaveFavorite(mine);
         target.AddToSet(localAirport.Id, mine.Id);
 
-        FavoriteExport.ImportFile(target, "favorites.yaat-favlibrary.zip", buffer);
+        FavoriteExport.ImportFile(target, "favorites.yaat-favlibrary.zip", buffer, FavoriteImportMode.Merge);
 
         // One OAK container, existing membership first, imported appended.
         var oakSets = target.OrderedSets.Where(s => s.Kind == FavoriteSetKind.Airport).ToList();
@@ -202,7 +202,7 @@ public class FavoriteExportTests : IDisposable
 
         using (var first = new MemoryStream(System.Text.Encoding.UTF8.GetBytes(json)))
         {
-            var result = FavoriteExport.ImportFile(store, "Solo.json", first);
+            var result = FavoriteExport.ImportFile(store, "Solo.json", first, FavoriteImportMode.Merge);
             Assert.NotNull(result);
             Assert.Equal(1, result.FavoritesAdded);
         }
@@ -211,7 +211,7 @@ public class FavoriteExportTests : IDisposable
         var edited = json.Replace("Solo", "Renamed");
         using (var second = new MemoryStream(System.Text.Encoding.UTF8.GetBytes(edited)))
         {
-            var result = FavoriteExport.ImportFile(store, "Renamed.json", second);
+            var result = FavoriteExport.ImportFile(store, "Renamed.json", second, FavoriteImportMode.Merge);
             Assert.NotNull(result);
             Assert.Equal(1, result.FavoritesUpdated);
         }
@@ -239,7 +239,7 @@ public class FavoriteExportTests : IDisposable
 
         var target = NewStore("target");
         using var stream = new MemoryStream(System.Text.Encoding.UTF8.GetBytes(json));
-        var result = FavoriteExport.ImportFile(target, "Refs.json", stream);
+        var result = FavoriteExport.ImportFile(target, "Refs.json", stream, FavoriteImportMode.Merge);
 
         Assert.NotNull(result);
         Assert.Equal(1, result.SetsAdded);
@@ -253,10 +253,130 @@ public class FavoriteExportTests : IDisposable
         var store = NewStore("store");
 
         using var garbageJson = new MemoryStream("not json"u8.ToArray());
-        Assert.Null(FavoriteExport.ImportFile(store, "garbage.json", garbageJson));
+        Assert.Null(FavoriteExport.ImportFile(store, "garbage.json", garbageJson, FavoriteImportMode.Merge));
 
         using var garbageZip = new MemoryStream([1, 2, 3, 4]);
-        Assert.Null(FavoriteExport.ImportFile(store, "garbage.zip", garbageZip));
+        Assert.Null(FavoriteExport.ImportFile(store, "garbage.zip", garbageZip, FavoriteImportMode.Merge));
+    }
+
+    [Fact]
+    public void LibraryZip_Replace_DropsPreexistingFavoritesAndSets_LoadsManifestSets()
+    {
+        var source = NewStore("source");
+        var pack = source.CreateNamedSet("Pack")!;
+        var inSet = Fav("InSet");
+        var inGlobal = Fav("Everywhere");
+        source.SaveFavorite(inSet);
+        source.SaveFavorite(inGlobal);
+        source.AddToSet(pack.Id, inSet.Id);
+        source.AddToSet(source.GlobalSet.Id, inGlobal.Id);
+
+        using var buffer = new MemoryStream();
+        FavoriteExport.ExportLibrary(source, [pack.Id], buffer);
+        buffer.Position = 0;
+
+        var target = NewStore("target");
+        var old = target.CreateNamedSet("Old")!;
+        var mine = Fav("Mine");
+        var stale = Fav("Stale");
+        target.SaveFavorite(mine);
+        target.SaveFavorite(stale);
+        target.AddToSet(target.GlobalSet.Id, mine.Id);
+        target.AddToSet(old.Id, stale.Id);
+
+        var result = FavoriteExport.ImportFile(target, $"favorites{FavoriteExport.LibraryExportExtension}", buffer, FavoriteImportMode.Replace);
+
+        Assert.NotNull(result);
+        Assert.Equal(["Everywhere", "InSet"], target.AllFavorites.Select(f => f.Label).OrderBy(l => l, StringComparer.Ordinal));
+        Assert.Null(target.FindNamedSet("Old"));
+        Assert.Equal(["Global", "Pack"], target.OrderedSets.Select(s => s.DisplayName));
+        Assert.Equal(["Everywhere"], target.GetSetFavorites(target.GlobalSet.Id).Select(f => f.Label));
+        Assert.Equal(["InSet"], target.GetSetFavorites(target.FindNamedSet("Pack")!.Id).Select(f => f.Label));
+        Assert.Equal([pack.Id], result.NewSetIdsToLoad);
+
+        // Nothing of the old library survives a reload either.
+        var reloaded = NewStore("target");
+        Assert.Equal(["Everywhere", "InSet"], reloaded.AllFavorites.Select(f => f.Label).OrderBy(l => l, StringComparer.Ordinal));
+        Assert.Equal(["Global", "Pack"], reloaded.OrderedSets.Select(s => s.DisplayName));
+    }
+
+    [Fact]
+    public void SetZip_Replace_LoadsTheImportedSet()
+    {
+        var source = NewStore("source");
+        var set = source.CreateNamedSet("Shared")!;
+        var a = Fav("First");
+        source.SaveFavorite(a);
+        source.AddToSet(set.Id, a.Id);
+
+        using var buffer = new MemoryStream();
+        FavoriteExport.ExportSet(source, set.Id, buffer);
+        buffer.Position = 0;
+
+        var target = NewStore("target");
+        var mine = Fav("Mine");
+        target.SaveFavorite(mine);
+        target.AddToSet(target.GlobalSet.Id, mine.Id);
+
+        var result = FavoriteExport.ImportFile(target, $"Shared{FavoriteExport.SetExportExtension}", buffer, FavoriteImportMode.Replace);
+
+        Assert.NotNull(result);
+        // A set zip carries no library manifest, so the replace has to load the set it brought in.
+        Assert.Contains(target.FindNamedSet("Shared")!.Id, result.NewSetIdsToLoad);
+        Assert.Equal(["First"], target.AllFavorites.Select(f => f.Label));
+        Assert.Empty(target.GlobalSet.FavoriteIds);
+    }
+
+    [Fact]
+    public void Replace_UnrecognizedFile_LeavesStoreIntact()
+    {
+        var target = NewStore("target");
+        var keep = Fav("Keep");
+        target.SaveFavorite(keep);
+        target.AddToSet(target.GlobalSet.Id, keep.Id);
+
+        using var buffer = new MemoryStream();
+        using (var zip = new ZipArchive(buffer, ZipArchiveMode.Create, leaveOpen: true))
+        {
+            using var writer = new StreamWriter(zip.CreateEntry("notes.txt").Open());
+            writer.Write("nothing importable here");
+        }
+        buffer.Position = 0;
+
+        Assert.Null(FavoriteExport.ImportFile(target, "notes.zip", buffer, FavoriteImportMode.Replace));
+
+        Assert.Equal(["Keep"], target.AllFavorites.Select(f => f.Label));
+        Assert.Equal(["Keep"], target.GetSetFavorites(target.GlobalSet.Id).Select(f => f.Label));
+    }
+
+    [Fact]
+    public void LibraryZip_Merge_KeepsPreexisting()
+    {
+        var source = NewStore("source");
+        var pack = source.CreateNamedSet("Pack")!;
+        var inSet = Fav("InSet");
+        source.SaveFavorite(inSet);
+        source.AddToSet(pack.Id, inSet.Id);
+
+        using var buffer = new MemoryStream();
+        FavoriteExport.ExportLibrary(source, [pack.Id], buffer);
+        buffer.Position = 0;
+
+        var target = NewStore("target");
+        var old = target.CreateNamedSet("Old")!;
+        var mine = Fav("Mine");
+        target.SaveFavorite(mine);
+        target.AddToSet(target.GlobalSet.Id, mine.Id);
+        target.AddToSet(old.Id, mine.Id);
+
+        var result = FavoriteExport.ImportFile(target, $"favorites{FavoriteExport.LibraryExportExtension}", buffer, FavoriteImportMode.Merge);
+
+        Assert.NotNull(result);
+        Assert.Equal(["InSet", "Mine"], target.AllFavorites.Select(f => f.Label).OrderBy(l => l, StringComparer.Ordinal));
+        Assert.Equal(["Global", "Old", "Pack"], target.OrderedSets.Select(s => s.DisplayName));
+        Assert.Equal(["Mine"], target.GetSetFavorites(target.GlobalSet.Id).Select(f => f.Label));
+        Assert.Equal(["Mine"], target.GetSetFavorites(old.Id).Select(f => f.Label));
+        Assert.Equal(["InSet"], target.GetSetFavorites(target.FindNamedSet("Pack")!.Id).Select(f => f.Label));
     }
 
     [Fact]

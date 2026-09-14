@@ -139,6 +139,41 @@ public class FavoriteStoreTests : IDisposable
     }
 
     [Fact]
+    public void Clear_RemovesEverything_LeavesEmptyGlobal()
+    {
+        var store = NewStore();
+        var named = store.CreateNamedSet("Doomed")!;
+        var airport = store.GetOrCreateAirportSet("OAK");
+        var a = Fav("A");
+        var b = Fav("B");
+        store.SaveFavorite(a);
+        store.SaveFavorite(b);
+        store.AddToSet(store.GlobalSet.Id, a.Id);
+        store.AddToSet(named.Id, a.Id);
+        store.AddToSet(airport.Id, b.Id);
+
+        var changes = 0;
+        store.Changed += () => changes++;
+        store.Clear();
+
+        Assert.Equal(1, changes);
+        Assert.Empty(store.AllFavorites);
+        var global = Assert.Single(store.OrderedSets);
+        Assert.Equal(FavoriteSetKind.Global, global.Kind);
+        Assert.Empty(global.FavoriteIds);
+
+        // Nothing but the Global set file is left behind, so a fresh store loads the same state.
+        Assert.Empty(Directory.EnumerateFiles(Path.Combine(_root, "commands"), "*.json"));
+        Assert.Single(Directory.EnumerateFiles(Path.Combine(_root, "sets"), "*.json"));
+
+        var reloaded = NewStore();
+        Assert.Empty(reloaded.AllFavorites);
+        var reloadedGlobal = Assert.Single(reloaded.OrderedSets);
+        Assert.Equal(global.Id, reloadedGlobal.Id);
+        Assert.Empty(reloadedGlobal.FavoriteIds);
+    }
+
+    [Fact]
     public void Membership_AddInsertRemove_KeepOrderAndDedupe()
     {
         var store = NewStore();

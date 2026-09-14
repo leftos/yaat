@@ -9,6 +9,8 @@ using Avalonia.Media;
 using Avalonia.VisualTree;
 using Microsoft.Extensions.Logging;
 using MsBox.Avalonia;
+using MsBox.Avalonia.Dto;
+using MsBox.Avalonia.Models;
 using Yaat.Client.Logging;
 using Yaat.Client.Services;
 using Yaat.Client.ViewModels;
@@ -630,11 +632,12 @@ public partial class FavoritesBarView : UserControl
         }
     }
 
-    private async Task ExportLibraryAsync(MainViewModel vm)
+    /// <summary>Runs the library save picker and writes the zip. Returns false when the picker was cancelled or the write failed.</summary>
+    private async Task<bool> ExportLibraryAsync(MainViewModel vm)
     {
         if (TopLevel.GetTopLevel(this) is not Window owner)
         {
-            return;
+            return false;
         }
 
         var picker = new AvaloniaFilePickerService(owner);
@@ -649,7 +652,7 @@ public partial class FavoritesBarView : UserControl
 
         if (path is null)
         {
-            return;
+            return false;
         }
 
         try
@@ -660,7 +663,10 @@ public partial class FavoritesBarView : UserControl
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
             Log.LogWarning(ex, "Favorites library export failed to write {Path}", path);
+            return false;
         }
+
+        return true;
     }
 
     private async void OnImportFavoritesClick(object? sender, RoutedEventArgs e)
@@ -677,11 +683,16 @@ public partial class FavoritesBarView : UserControl
             return;
         }
 
+        if (await AskImportModeAsync(vm, owner) is not { } mode)
+        {
+            return;
+        }
+
         FavoriteImportResult? result;
         try
         {
             await using var stream = File.OpenRead(path);
-            result = vm.ImportFavoritesFile(Path.GetFileName(path), stream);
+            result = vm.ImportFavoritesFile(Path.GetFileName(path), stream, mode);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
@@ -699,13 +710,65 @@ public partial class FavoritesBarView : UserControl
         }
 
         var summary =
-            $"Imported {result.FavoritesAdded} new favorite(s), updated {result.FavoritesUpdated}; "
+            (mode == FavoriteImportMode.Replace ? "Replaced your favorites. " : "")
+            + $"Imported {result.FavoritesAdded} new favorite(s), updated {result.FavoritesUpdated}; "
             + $"added {result.SetsAdded} set(s), merged into {result.SetsUpdated}.";
         if (result.MissingReferences > 0)
         {
             summary += $" {result.MissingReferences} referenced favorite(s) were missing from the file and were skipped.";
         }
         await MessageBoxManager.GetMessageBoxStandard("Import Favorites", summary).ShowWindowDialogAsync(owner);
+    }
+
+    private const string AddToExistingChoice = "Add to existing";
+    private const string SaveThenReplaceChoice = "Save Current As..., then Replace All";
+    private const string ReplaceAllChoice = "Replace All";
+
+    /// <summary>
+    /// Asks how the import should land: merged into the current favorites, or replacing them —
+    /// optionally saving the current library to a zip first. Returns null when the user cancels,
+    /// closes the box, or backs out of the save picker, in which case nothing is imported.
+    /// </summary>
+    private async Task<FavoriteImportMode?> AskImportModeAsync(MainViewModel vm, Window owner)
+    {
+        var message =
+            "Add the imported favorites alongside your current ones, or replace everything? "
+            + $"Replace all deletes all {vm.FavoriteStore.AllFavorites.Count} favorite(s) and {vm.FavoriteStore.OrderedSets.Count} set(s) first.";
+        var box = MessageBoxManager.GetMessageBoxCustom(
+            new MessageBoxCustomParams
+            {
+                ButtonDefinitions =
+                [
+                    new ButtonDefinition { Name = AddToExistingChoice },
+                    new ButtonDefinition { Name = SaveThenReplaceChoice },
+                    new ButtonDefinition { Name = ReplaceAllChoice },
+                    new ButtonDefinition { Name = "Cancel", IsCancel = true },
+                ],
+                ContentTitle = "Import Favorites",
+                ContentMessage = message,
+                WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            }
+        );
+
+        var choice = await box.ShowWindowDialogAsync(owner);
+        if (string.Equals(choice, AddToExistingChoice, StringComparison.Ordinal))
+        {
+            return FavoriteImportMode.Merge;
+        }
+
+        if (string.Equals(choice, ReplaceAllChoice, StringComparison.Ordinal))
+        {
+            return FavoriteImportMode.Replace;
+        }
+
+        if (!string.Equals(choice, SaveThenReplaceChoice, StringComparison.Ordinal))
+        {
+            return null;
+        }
+
+        // The backup is the whole point of this branch: a cancelled picker or a failed write
+        // must leave the existing favorites in place, so the import is abandoned with them.
+        return await ExportLibraryAsync(vm) ? FavoriteImportMode.Replace : null;
     }
 
     private void OnFavoritePointerPressed(object? sender, PointerPressedEventArgs e)
