@@ -8,6 +8,9 @@
 - **Settings > Commands** gains **Import…** / **Export…** to share your command verbs as a `.yaat-verbs.json` file; an import replaces only the commands the file lists.
 - Importing favorites asks whether to add them to your current ones or replace everything, with a **Save Current As…, then Replace All** option that exports a library zip first.
 
+### Fixed
+- Solo scoring: a facility-directive "Wake turbulence advisory missing" finding for an arrival behind a landing is one finding per encounter, clears on a correct CWT call, and no longer re-fires every second.
+
 ## v0.12.30-beta [2026/09/11]
 
 ### Highlights
