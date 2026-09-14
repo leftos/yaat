@@ -4,6 +4,7 @@ using Yaat.Client.Models;
 using Yaat.Client.Views.Map;
 using Yaat.Client.Views.Radar;
 using Yaat.Sim;
+using Yaat.Sim.Data.Vnas;
 
 namespace Yaat.Client.Tests.Views;
 
@@ -48,6 +49,8 @@ public class RadarDatablockLayoutTests
             showNoLandingClearance: false,
             showConflictAlerts: false,
             conflictPeer: null,
+            showAtpa: false,
+            atpaLead: null,
             callsignMarker: ""
         );
 
@@ -69,6 +72,8 @@ public class RadarDatablockLayoutTests
             showNoLandingClearance: false,
             showConflictAlerts: false,
             conflictPeer: null,
+            showAtpa: false,
+            atpaLead: null,
             callsignMarker: ""
         );
 
@@ -90,6 +95,8 @@ public class RadarDatablockLayoutTests
             showNoLandingClearance: false,
             showConflictAlerts: false,
             conflictPeer: null,
+            showAtpa: false,
+            atpaLead: null,
             callsignMarker: ""
         );
 
@@ -102,6 +109,8 @@ public class RadarDatablockLayoutTests
             showNoLandingClearance: false,
             showConflictAlerts: false,
             conflictPeer: null,
+            showAtpa: false,
+            atpaLead: null,
             callsignMarker: ""
         );
 
@@ -125,6 +134,8 @@ public class RadarDatablockLayoutTests
             showNoLandingClearance: false,
             showConflictAlerts: false,
             conflictPeer: null,
+            showAtpa: false,
+            atpaLead: null,
             callsignMarker: ""
         );
 
@@ -137,6 +148,8 @@ public class RadarDatablockLayoutTests
             showNoLandingClearance: false,
             showConflictAlerts: false,
             conflictPeer: null,
+            showAtpa: false,
+            atpaLead: null,
             callsignMarker: ""
         );
 
@@ -171,6 +184,8 @@ public class RadarDatablockLayoutTests
             showNoLandingClearance: false,
             showConflictAlerts: false,
             conflictPeer: null,
+            showAtpa: false,
+            atpaLead: null,
             callsignMarker: ""
         );
 
@@ -194,6 +209,8 @@ public class RadarDatablockLayoutTests
             showNoLandingClearance: false,
             showConflictAlerts: false,
             conflictPeer: null,
+            showAtpa: false,
+            atpaLead: null,
             callsignMarker: ""
         );
 
@@ -216,6 +233,8 @@ public class RadarDatablockLayoutTests
             showNoLandingClearance: true,
             showConflictAlerts: false,
             conflictPeer: null,
+            showAtpa: false,
+            atpaLead: null,
             callsignMarker: ""
         );
 
@@ -237,6 +256,8 @@ public class RadarDatablockLayoutTests
             showNoLandingClearance: false,
             showConflictAlerts: false,
             conflictPeer: null,
+            showAtpa: false,
+            atpaLead: null,
             callsignMarker: ""
         );
 
@@ -263,6 +284,8 @@ public class RadarDatablockLayoutTests
                 showNoLandingClearance: true,
                 showConflictAlerts: false,
                 conflictPeer: null,
+                showAtpa: false,
+                atpaLead: null,
                 callsignMarker: ""
             );
             Assert.Equal("", layout.Line5);
@@ -293,6 +316,8 @@ public class RadarDatablockLayoutTests
                 showNoLandingClearance: true,
                 showConflictAlerts: false,
                 conflictPeer: null,
+                showAtpa: false,
+                atpaLead: null,
                 callsignMarker: ""
             );
             if (layout.Line5 == "NoLndgClnc")
@@ -325,6 +350,8 @@ public class RadarDatablockLayoutTests
             showNoLandingClearance: true,
             showConflictAlerts: false,
             conflictPeer: null,
+            showAtpa: false,
+            atpaLead: null,
             callsignMarker: ""
         );
 
@@ -340,6 +367,8 @@ public class RadarDatablockLayoutTests
                 showNoLandingClearance: true,
                 showConflictAlerts: false,
                 conflictPeer: null,
+                showAtpa: false,
+                atpaLead: null,
                 callsignMarker: ""
             );
             warningHeights.Add(layout.Rect.Height);
@@ -392,6 +421,8 @@ public class RadarDatablockLayoutTests
                 showNoLandingClearance: false,
                 showConflictAlerts: true,
                 conflictPeer: peer,
+                showAtpa: false,
+                atpaLead: null,
                 callsignMarker: ""
             );
             if (layout.ConflictLine.Length > 0)
@@ -516,6 +547,8 @@ public class RadarDatablockLayoutTests
             showNoLandingClearance: false,
             showConflictAlerts: true,
             conflictPeer: peer,
+            showAtpa: false,
+            atpaLead: null,
             callsignMarker: ""
         );
 
@@ -532,6 +565,8 @@ public class RadarDatablockLayoutTests
                 showNoLandingClearance: false,
                 showConflictAlerts: true,
                 conflictPeer: peer,
+                showAtpa: false,
+                atpaLead: null,
                 callsignMarker: ""
             );
             conflictHeights.Add(layout.Rect.Height);
@@ -563,6 +598,8 @@ public class RadarDatablockLayoutTests
             showNoLandingClearance: false,
             showConflictAlerts: false,
             conflictPeer: CreateConflictPeer(),
+            showAtpa: false,
+            atpaLead: null,
             callsignMarker: ""
         );
 
@@ -641,6 +678,8 @@ public class RadarDatablockLayoutTests
             showNoLandingClearance: false,
             showConflictAlerts: false,
             conflictPeer: null,
+            showAtpa: false,
+            atpaLead: null,
             callsignMarker: ""
         );
 
@@ -664,6 +703,8 @@ public class RadarDatablockLayoutTests
             showNoLandingClearance: false,
             showConflictAlerts: false,
             conflictPeer: null,
+            showAtpa: false,
+            atpaLead: null,
             callsignMarker: ""
         );
 
@@ -684,6 +725,8 @@ public class RadarDatablockLayoutTests
             showNoLandingClearance: false,
             showConflictAlerts: false,
             conflictPeer: null,
+            showAtpa: false,
+            atpaLead: null,
             callsignMarker: ""
         );
 
@@ -738,6 +781,8 @@ public class RadarDatablockLayoutTests
             showNoLandingClearance: false,
             showConflictAlerts: false,
             conflictPeer: null,
+            showAtpa: false,
+            atpaLead: null,
             callsignMarker: ""
         );
 
@@ -759,6 +804,8 @@ public class RadarDatablockLayoutTests
             showNoLandingClearance: false,
             showConflictAlerts: false,
             conflictPeer: null,
+            showAtpa: false,
+            atpaLead: null,
             callsignMarker: ""
         );
 
@@ -779,6 +826,8 @@ public class RadarDatablockLayoutTests
             showNoLandingClearance: false,
             showConflictAlerts: false,
             conflictPeer: null,
+            showAtpa: false,
+            atpaLead: null,
             callsignMarker: ""
         );
 
@@ -799,6 +848,8 @@ public class RadarDatablockLayoutTests
             showNoLandingClearance: false,
             showConflictAlerts: false,
             conflictPeer: null,
+            showAtpa: false,
+            atpaLead: null,
             callsignMarker: ""
         );
 
@@ -811,6 +862,8 @@ public class RadarDatablockLayoutTests
             showNoLandingClearance: false,
             showConflictAlerts: false,
             conflictPeer: null,
+            showAtpa: false,
+            atpaLead: null,
             callsignMarker: ""
         );
 
@@ -828,7 +881,18 @@ public class RadarDatablockLayoutTests
         var ac = CreateModel();
         var style = CreateStyle();
         var rectAtOrigin = RadarDatablockLayout
-            .Compute(ac, 0, 0, style, showNoLandingClearance: false, showConflictAlerts: false, conflictPeer: null, callsignMarker: "")
+            .Compute(
+                ac,
+                0,
+                0,
+                style,
+                showNoLandingClearance: false,
+                showConflictAlerts: false,
+                conflictPeer: null,
+                showAtpa: false,
+                atpaLead: null,
+                callsignMarker: ""
+            )
             .Rect;
         var manual = new SKPoint(5, 5);
 
@@ -851,7 +915,18 @@ public class RadarDatablockLayoutTests
         ac.StudentLeaderDirection = 8; // North, non-default
         var style = CreateStyle();
         var rectAtOrigin = RadarDatablockLayout
-            .Compute(ac, 0, 0, style, showNoLandingClearance: false, showConflictAlerts: false, conflictPeer: null, callsignMarker: "")
+            .Compute(
+                ac,
+                0,
+                0,
+                style,
+                showNoLandingClearance: false,
+                showConflictAlerts: false,
+                conflictPeer: null,
+                showAtpa: false,
+                atpaLead: null,
+                callsignMarker: ""
+            )
             .Rect;
         var deconflict = new SKPoint(99, 99);
 
@@ -866,7 +941,18 @@ public class RadarDatablockLayoutTests
         var ac = CreateModel();
         var style = CreateStyle();
         var rectAtOrigin = RadarDatablockLayout
-            .Compute(ac, 0, 0, style, showNoLandingClearance: false, showConflictAlerts: false, conflictPeer: null, callsignMarker: "")
+            .Compute(
+                ac,
+                0,
+                0,
+                style,
+                showNoLandingClearance: false,
+                showConflictAlerts: false,
+                conflictPeer: null,
+                showAtpa: false,
+                atpaLead: null,
+                callsignMarker: ""
+            )
             .Rect;
         var deconflict = new SKPoint(99, 99);
 
@@ -882,7 +968,18 @@ public class RadarDatablockLayoutTests
         ac.StudentLeaderDirection = 8; // North
         var style = CreateStyle();
         var rectAtOrigin = RadarDatablockLayout
-            .Compute(ac, 0, 0, style, showNoLandingClearance: false, showConflictAlerts: false, conflictPeer: null, callsignMarker: "")
+            .Compute(
+                ac,
+                0,
+                0,
+                style,
+                showNoLandingClearance: false,
+                showConflictAlerts: false,
+                conflictPeer: null,
+                showAtpa: false,
+                atpaLead: null,
+                callsignMarker: ""
+            )
             .Rect;
 
         var leaderResult = RadarDatablockLayout.ResolveBlockOffset(
@@ -903,7 +1000,18 @@ public class RadarDatablockLayoutTests
         var ac = CreateModel();
         var style = CreateStyle();
         var rectAtOrigin = RadarDatablockLayout
-            .Compute(ac, 0, 0, style, showNoLandingClearance: false, showConflictAlerts: false, conflictPeer: null, callsignMarker: "")
+            .Compute(
+                ac,
+                0,
+                0,
+                style,
+                showNoLandingClearance: false,
+                showConflictAlerts: false,
+                conflictPeer: null,
+                showAtpa: false,
+                atpaLead: null,
+                callsignMarker: ""
+            )
             .Rect;
 
         var result = RadarDatablockLayout.ResolveBlockOffset(ac, syncLeader: false, hasManual: false, default, rectAtOrigin, deconflictOffset: null);
@@ -923,10 +1031,32 @@ public class RadarDatablockLayoutTests
         var style = CreateStyle();
 
         var atOrigin = RadarDatablockLayout
-            .Compute(ac, 0, 0, style, showNoLandingClearance: false, showConflictAlerts: false, conflictPeer: null, callsignMarker: "")
+            .Compute(
+                ac,
+                0,
+                0,
+                style,
+                showNoLandingClearance: false,
+                showConflictAlerts: false,
+                conflictPeer: null,
+                showAtpa: false,
+                atpaLead: null,
+                callsignMarker: ""
+            )
             .Rect;
         var atOffset = RadarDatablockLayout
-            .Compute(ac, 137, -52, style, showNoLandingClearance: false, showConflictAlerts: false, conflictPeer: null, callsignMarker: "")
+            .Compute(
+                ac,
+                137,
+                -52,
+                style,
+                showNoLandingClearance: false,
+                showConflictAlerts: false,
+                conflictPeer: null,
+                showAtpa: false,
+                atpaLead: null,
+                callsignMarker: ""
+            )
             .Rect;
 
         Assert.Equal(atOrigin.Left + 137, atOffset.Left, precision: 3);
@@ -953,6 +1083,8 @@ public class RadarDatablockLayoutTests
             showNoLandingClearance: false,
             showConflictAlerts: false,
             conflictPeer: null,
+            showAtpa: false,
+            atpaLead: null,
             callsignMarker: ""
         );
 
@@ -977,6 +1109,8 @@ public class RadarDatablockLayoutTests
             showNoLandingClearance: false,
             showConflictAlerts: false,
             conflictPeer: null,
+            showAtpa: false,
+            atpaLead: null,
             callsignMarker: ""
         );
         // Sample across at least one full 500 ms flash cycle — the reserved slot keeps width + count constant.
@@ -991,6 +1125,8 @@ public class RadarDatablockLayoutTests
                 showNoLandingClearance: false,
                 showConflictAlerts: false,
                 conflictPeer: null,
+                showAtpa: false,
+                atpaLead: null,
                 callsignMarker: ""
             );
             Assert.Equal(first.Rect.Width, sample.Rect.Width, precision: 3);
@@ -1017,6 +1153,8 @@ public class RadarDatablockLayoutTests
             showNoLandingClearance: false,
             showConflictAlerts: false,
             conflictPeer: null,
+            showAtpa: false,
+            atpaLead: null,
             callsignMarker: ""
         );
 
@@ -1040,6 +1178,8 @@ public class RadarDatablockLayoutTests
             showNoLandingClearance: false,
             showConflictAlerts: false,
             conflictPeer: null,
+            showAtpa: false,
+            atpaLead: null,
             callsignMarker: ""
         );
 
@@ -1063,6 +1203,8 @@ public class RadarDatablockLayoutTests
             showNoLandingClearance: false,
             showConflictAlerts: false,
             conflictPeer: null,
+            showAtpa: false,
+            atpaLead: null,
             callsignMarker: ""
         );
 
@@ -1088,6 +1230,8 @@ public class RadarDatablockLayoutTests
             showNoLandingClearance: false,
             showConflictAlerts: false,
             conflictPeer: null,
+            showAtpa: false,
+            atpaLead: null,
             callsignMarker: ""
         );
 
@@ -1114,6 +1258,8 @@ public class RadarDatablockLayoutTests
             showNoLandingClearance: false,
             showConflictAlerts: false,
             conflictPeer: null,
+            showAtpa: false,
+            atpaLead: null,
             callsignMarker: ""
         );
 
@@ -1138,6 +1284,8 @@ public class RadarDatablockLayoutTests
             showNoLandingClearance: false,
             showConflictAlerts: false,
             conflictPeer: null,
+            showAtpa: false,
+            atpaLead: null,
             callsignMarker: ""
         );
 
@@ -1164,6 +1312,8 @@ public class RadarDatablockLayoutTests
             showNoLandingClearance: false,
             showConflictAlerts: false,
             conflictPeer: null,
+            showAtpa: false,
+            atpaLead: null,
             callsignMarker: ""
         );
 
@@ -1190,6 +1340,8 @@ public class RadarDatablockLayoutTests
             showNoLandingClearance: false,
             showConflictAlerts: false,
             conflictPeer: null,
+            showAtpa: false,
+            atpaLead: null,
             callsignMarker: ""
         );
 
@@ -1212,6 +1364,8 @@ public class RadarDatablockLayoutTests
             showNoLandingClearance: false,
             showConflictAlerts: false,
             conflictPeer: null,
+            showAtpa: false,
+            atpaLead: null,
             callsignMarker: ""
         );
 
@@ -1224,6 +1378,8 @@ public class RadarDatablockLayoutTests
             showNoLandingClearance: false,
             showConflictAlerts: false,
             conflictPeer: null,
+            showAtpa: false,
+            atpaLead: null,
             callsignMarker: ""
         );
 
@@ -1241,10 +1397,32 @@ public class RadarDatablockLayoutTests
         var style = CreateStyle();
 
         var atOrigin = RadarDatablockLayout
-            .Compute(ac, 0, 0, style, showNoLandingClearance: false, showConflictAlerts: false, conflictPeer: null, callsignMarker: "")
+            .Compute(
+                ac,
+                0,
+                0,
+                style,
+                showNoLandingClearance: false,
+                showConflictAlerts: false,
+                conflictPeer: null,
+                showAtpa: false,
+                atpaLead: null,
+                callsignMarker: ""
+            )
             .Rect;
         var atOffset = RadarDatablockLayout
-            .Compute(ac, 137, -52, style, showNoLandingClearance: false, showConflictAlerts: false, conflictPeer: null, callsignMarker: "")
+            .Compute(
+                ac,
+                137,
+                -52,
+                style,
+                showNoLandingClearance: false,
+                showConflictAlerts: false,
+                conflictPeer: null,
+                showAtpa: false,
+                atpaLead: null,
+                callsignMarker: ""
+            )
             .Rect;
 
         Assert.Equal(atOrigin.Left + 137, atOffset.Left, precision: 3);
@@ -1271,6 +1449,8 @@ public class RadarDatablockLayoutTests
             showNoLandingClearance: false,
             showConflictAlerts: false,
             conflictPeer: null,
+            showAtpa: false,
+            atpaLead: null,
             callsignMarker: ""
         );
         for (int i = 0; i < 10; i++)
@@ -1284,6 +1464,8 @@ public class RadarDatablockLayoutTests
                 showNoLandingClearance: false,
                 showConflictAlerts: false,
                 conflictPeer: null,
+                showAtpa: false,
+                atpaLead: null,
                 callsignMarker: ""
             );
             Assert.Equal(first.Rect.Width, sample.Rect.Width, precision: 3);
@@ -1306,6 +1488,8 @@ public class RadarDatablockLayoutTests
             showNoLandingClearance: false,
             showConflictAlerts: false,
             conflictPeer: null,
+            showAtpa: false,
+            atpaLead: null,
             callsignMarker: ""
         );
 
@@ -1329,6 +1513,8 @@ public class RadarDatablockLayoutTests
             showNoLandingClearance: false,
             showConflictAlerts: false,
             conflictPeer: null,
+            showAtpa: false,
+            atpaLead: null,
             callsignMarker: ""
         );
 
@@ -1353,6 +1539,8 @@ public class RadarDatablockLayoutTests
             showNoLandingClearance: false,
             showConflictAlerts: false,
             conflictPeer: null,
+            showAtpa: false,
+            atpaLead: null,
             callsignMarker: ""
         );
         for (int i = 0; i < 10; i++)
@@ -1366,6 +1554,8 @@ public class RadarDatablockLayoutTests
                 showNoLandingClearance: false,
                 showConflictAlerts: false,
                 conflictPeer: null,
+                showAtpa: false,
+                atpaLead: null,
                 callsignMarker: ""
             );
             Assert.Equal("230 25 D/B738 ID", sample.Line2);
@@ -1382,12 +1572,34 @@ public class RadarDatablockLayoutTests
         var style = CreateStyle();
 
         float idle = RadarDatablockLayout
-            .Compute(ac, 0, 0, style, showNoLandingClearance: false, showConflictAlerts: false, conflictPeer: null, callsignMarker: "")
+            .Compute(
+                ac,
+                0,
+                0,
+                style,
+                showNoLandingClearance: false,
+                showConflictAlerts: false,
+                conflictPeer: null,
+                showAtpa: false,
+                atpaLead: null,
+                callsignMarker: ""
+            )
             .Rect.Width;
 
         ac.IsIdenting = true;
         float identing = RadarDatablockLayout
-            .Compute(ac, 0, 0, style, showNoLandingClearance: false, showConflictAlerts: false, conflictPeer: null, callsignMarker: "")
+            .Compute(
+                ac,
+                0,
+                0,
+                style,
+                showNoLandingClearance: false,
+                showConflictAlerts: false,
+                conflictPeer: null,
+                showAtpa: false,
+                atpaLead: null,
+                callsignMarker: ""
+            )
             .Rect.Width;
 
         Assert.True(identing > idle, "the reserved ident token must widen the block");
@@ -1413,6 +1625,8 @@ public class RadarDatablockLayoutTests
             showNoLandingClearance: false,
             showConflictAlerts: false,
             conflictPeer: null,
+            showAtpa: false,
+            atpaLead: null,
             callsignMarker: ""
         );
 
@@ -1477,5 +1691,222 @@ public class RadarDatablockLayoutTests
         ac.IsIdenting = true;
 
         Assert.Equal("230 ID", RadarDatablockLayout.BuildMinifiedLine(ac));
+    }
+
+    /// <summary>
+    /// ATPA lead 3.2 nm due east of <see cref="CreateModel"/>'s position — the same easting the conflict
+    /// peer uses (2.5044' ≈ 2.0 nm at 37N), scaled by 1.6.
+    /// </summary>
+    private static AircraftModel CreateAtpaLead()
+    {
+        return new AircraftModel
+        {
+            Callsign = "SWA1234",
+            AircraftType = "B737",
+            FiledAircraftType = "B737",
+            FlightRules = "IFR",
+            Position = new LatLon(37.0, -122.0 + (4.00704 / 60.0)),
+            Altitude = 23000,
+            GroundSpeed = 250,
+        };
+    }
+
+    /// <summary>The trailing member of an ATPA pairing: lead callsign, required separation, cone state.</summary>
+    private static AircraftModel CreateAtpaTrailer()
+    {
+        var ac = CreateModel();
+        ac.AtpaLeadCallsign = "SWA1234";
+        ac.AtpaAllowedSeparationNm = 3.0;
+        ac.AtpaConeState = AtpaConeState.Warning;
+        return ac;
+    }
+
+    [Fact]
+    public void Atpa_LineShowsInTrailTenths()
+    {
+        var ac = CreateAtpaTrailer();
+        var style = CreateStyle();
+
+        var layout = RadarDatablockLayout.Compute(
+            ac,
+            blockX: 100,
+            blockY: 100,
+            style,
+            showNoLandingClearance: false,
+            showConflictAlerts: false,
+            conflictPeer: null,
+            showAtpa: true,
+            atpaLead: CreateAtpaLead(),
+            callsignMarker: ""
+        );
+
+        // Live in-trail distance, not the required 3.0 nm separation the broadcast carries.
+        Assert.Equal("3.2", layout.AtpaLine);
+    }
+
+    [Fact]
+    public void Atpa_LineAbsent_WhenToggleOff()
+    {
+        var ac = CreateAtpaTrailer();
+        var style = CreateStyle();
+
+        var layout = RadarDatablockLayout.Compute(
+            ac,
+            blockX: 100,
+            blockY: 100,
+            style,
+            showNoLandingClearance: false,
+            showConflictAlerts: false,
+            conflictPeer: null,
+            showAtpa: false,
+            atpaLead: CreateAtpaLead(),
+            callsignMarker: ""
+        );
+
+        Assert.Equal("", layout.AtpaLine);
+    }
+
+    [Fact]
+    public void Atpa_LineAbsent_WhenLeadUnresolved()
+    {
+        // The lead left the scope (or its first position update hasn't landed): the distance is the
+        // field's entire content, so there is nothing to draw.
+        var ac = CreateAtpaTrailer();
+        var style = CreateStyle();
+
+        var layout = RadarDatablockLayout.Compute(
+            ac,
+            blockX: 100,
+            blockY: 100,
+            style,
+            showNoLandingClearance: false,
+            showConflictAlerts: false,
+            conflictPeer: null,
+            showAtpa: true,
+            atpaLead: null,
+            callsignMarker: ""
+        );
+
+        Assert.Equal("", layout.AtpaLine);
+    }
+
+    [Fact]
+    public void Atpa_RectGrowsByExactlyLineHeight()
+    {
+        var ac = CreateAtpaTrailer();
+        var style = CreateStyle();
+
+        var without = RadarDatablockLayout.Compute(
+            ac,
+            blockX: 100,
+            blockY: 100,
+            style,
+            showNoLandingClearance: false,
+            showConflictAlerts: false,
+            conflictPeer: null,
+            showAtpa: false,
+            atpaLead: null,
+            callsignMarker: ""
+        );
+        var with = RadarDatablockLayout.Compute(
+            ac,
+            blockX: 100,
+            blockY: 100,
+            style,
+            showNoLandingClearance: false,
+            showConflictAlerts: false,
+            conflictPeer: null,
+            showAtpa: true,
+            atpaLead: CreateAtpaLead(),
+            callsignMarker: ""
+        );
+
+        Assert.Equal(without.LineCount + 1, with.LineCount);
+        float delta = with.Rect.Bottom - without.Rect.Bottom;
+        Assert.Equal(without.LineHeight, delta, precision: 3);
+    }
+
+    [Fact]
+    public void Atpa_RectStableAcrossFlashCycle()
+    {
+        // The in-trail line is steady, so — unlike the conflict field — both its width and its line slot
+        // must hold across a full 500 ms cycle without any reservation flag.
+        var ac = CreateAtpaTrailer();
+        var lead = CreateAtpaLead();
+        var style = CreateStyle();
+
+        var first = RadarDatablockLayout.Compute(
+            ac,
+            0,
+            0,
+            style,
+            showNoLandingClearance: false,
+            showConflictAlerts: false,
+            conflictPeer: null,
+            showAtpa: true,
+            atpaLead: lead,
+            callsignMarker: ""
+        );
+        for (int i = 0; i < 10; i++)
+        {
+            Thread.Sleep(120);
+            var sample = RadarDatablockLayout.Compute(
+                ac,
+                0,
+                0,
+                style,
+                showNoLandingClearance: false,
+                showConflictAlerts: false,
+                conflictPeer: null,
+                showAtpa: true,
+                atpaLead: lead,
+                callsignMarker: ""
+            );
+            Assert.Equal(first.Rect.Width, sample.Rect.Width, precision: 3);
+            Assert.Equal(first.LineCount, sample.LineCount);
+            Assert.Equal("3.2", sample.AtpaLine);
+        }
+    }
+
+    [Fact]
+    public void Atpa_RectIsTranslationInvariant()
+    {
+        var ac = CreateAtpaTrailer();
+        var lead = CreateAtpaLead();
+        var style = CreateStyle();
+
+        var atOrigin = RadarDatablockLayout
+            .Compute(
+                ac,
+                0,
+                0,
+                style,
+                showNoLandingClearance: false,
+                showConflictAlerts: false,
+                conflictPeer: null,
+                showAtpa: true,
+                atpaLead: lead,
+                callsignMarker: ""
+            )
+            .Rect;
+        var atOffset = RadarDatablockLayout
+            .Compute(
+                ac,
+                137,
+                -52,
+                style,
+                showNoLandingClearance: false,
+                showConflictAlerts: false,
+                conflictPeer: null,
+                showAtpa: true,
+                atpaLead: lead,
+                callsignMarker: ""
+            )
+            .Rect;
+
+        Assert.Equal(atOrigin.Left + 137, atOffset.Left, precision: 3);
+        Assert.Equal(atOrigin.Top - 52, atOffset.Top, precision: 3);
+        Assert.Equal(atOrigin.Right + 137, atOffset.Right, precision: 3);
+        Assert.Equal(atOrigin.Bottom - 52, atOffset.Bottom, precision: 3);
     }
 }

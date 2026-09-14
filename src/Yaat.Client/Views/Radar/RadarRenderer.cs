@@ -268,6 +268,12 @@ public sealed class RadarRenderer : IDisposable
         set => _targetRenderer.ShowConflictAlerts = value;
     }
 
+    public bool ShowAtpa
+    {
+        get => _targetRenderer.ShowAtpa;
+        set => _targetRenderer.ShowAtpa = value;
+    }
+
     public bool ShowSpeechBubbles
     {
         get => _targetRenderer.ShowSpeechBubbles;

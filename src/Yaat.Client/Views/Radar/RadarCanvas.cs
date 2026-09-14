@@ -165,8 +165,8 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
     // Per-frame deconfliction result (callsign -> effective text-origin offset). Written on the UI
     // thread at snapshot build; read by the snapshot copy (draw) and by hit-testing. Persists across
     // frames to seed the next pass for stability.
-    private readonly Dictionary<string, SKPoint> _resolvedDeconflictOffsets = new();
-    private readonly Dictionary<string, SKPoint> _deconflictScratch = new();
+    private readonly Dictionary<string, SKPoint> _resolvedDeconflictOffsets = [];
+    private readonly Dictionary<string, SKPoint> _deconflictScratch = [];
     private readonly SKPaint _hitTestPaint = new();
     private readonly SKFont _hitTestFont = Services.PlatformHelper.MonospaceFontBold(12);
 
@@ -471,6 +471,16 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
         set
         {
             _renderer.ShowConflictAlerts = value;
+            MarkDirty();
+        }
+    }
+
+    public bool ShowAtpa
+    {
+        get => _renderer.ShowAtpa;
+        set
+        {
+            _renderer.ShowAtpa = value;
             MarkDirty();
         }
     }
@@ -1065,10 +1075,10 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
 
             if (measureAnchor is not null)
             {
-                var cursor = Viewport.ScreenToLatLon((float)_lastPointerPos.X, (float)_lastPointerPos.Y);
+                var (Lat, Lon) = Viewport.ScreenToLatLon((float)_lastPointerPos.X, (float)_lastPointerPos.Y);
                 pendingMeasurement = RangeBearingLineResolver.ResolvePending(
                     measureAnchor,
-                    new LatLon(cursor.Lat, cursor.Lon),
+                    new LatLon(Lat, Lon),
                     lookup,
                     RadarViewModel.MeasureUnits
                 );
@@ -1076,7 +1086,7 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
         }
 
         return new RenderSnapshot(
-            VideoMaps ?? Array.Empty<VideoMapData>(),
+            VideoMaps ?? [],
             // Copied, not shared: SetBrightnessLookup hands us the view-model's live dictionary, which it
             // rebuilds in place (Clear + N inserts) whenever video maps load. The render thread reads the
             // previous snapshot's lookup per video map, so sharing it means reading a Dictionary while the
@@ -1668,8 +1678,7 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
     /// </summary>
     private (SKPoint Offset, SKRect Rect) ComputeDataBlockPlacement(AircraftModel ac)
     {
-        SKPoint manualOffset = default;
-        bool hasManual = State.ManualOffsets.TryGetValue(ac.Callsign, out manualOffset);
+        bool hasManual = State.ManualOffsets.TryGetValue(ac.Callsign, out SKPoint manualOffset);
 
         // EuroScope path uses the bounds the renderer cached during the last frame so
         // hit testing always matches what's actually on screen.
@@ -1721,7 +1730,18 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
         // matches the drawn block — no hand-mirrored line-string re-derivation.
         string marker = MarkStudentLimitedDatablocks ? RadarDatablockLayout.StudentLevelMarker(ac.StudentDatablockLevel) : "";
         return RadarDatablockLayout
-            .Compute(ac, 0, 0, HitTestStyle, FlashNoLandingClearance, ShowConflictAlerts, ResolveConflictPeer(ac), marker)
+            .Compute(
+                ac,
+                0,
+                0,
+                HitTestStyle,
+                FlashNoLandingClearance,
+                ShowConflictAlerts,
+                ResolveConflictPeer(ac),
+                ShowAtpa,
+                ResolveAtpaLead(ac),
+                marker
+            )
             .Rect;
     }
 
@@ -1729,16 +1749,29 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
     /// Resolves the other member of an aircraft's conflict pair from the bound aircraft collection, so
     /// the hit-test rect includes the same separation-bearing CA field width the draw path measures.
     /// </summary>
-    private AircraftModel? ResolveConflictPeer(AircraftModel ac)
+    private AircraftModel? ResolveConflictPeer(AircraftModel ac) => ShowConflictAlerts ? ResolveByCallsign(ac.ConflictPeerCallsign) : null;
+
+    /// <summary>
+    /// Resolves the aircraft ahead of this one in its ATPA pairing from the bound aircraft collection,
+    /// so the hit-test rect includes the same in-trail distance line width the draw path measures.
+    /// </summary>
+    private AircraftModel? ResolveAtpaLead(AircraftModel ac) => ShowAtpa ? ResolveByCallsign(ac.AtpaLeadCallsign) : null;
+
+    /// <summary>
+    /// Scans the bound aircraft collection for a callsign, or null when the callsign is unset or the
+    /// aircraft isn't bound. The hit-test path has no per-frame callsign index (that lives on the
+    /// renderer), so this is a linear scan over the small bound list.
+    /// </summary>
+    private AircraftModel? ResolveByCallsign(string? callsign)
     {
-        if (!ShowConflictAlerts || string.IsNullOrEmpty(ac.ConflictPeerCallsign) || Aircraft is null)
+        if (string.IsNullOrEmpty(callsign) || Aircraft is null)
         {
             return null;
         }
 
         foreach (var candidate in Aircraft)
         {
-            if (string.Equals(candidate.Callsign, ac.ConflictPeerCallsign, StringComparison.Ordinal))
+            if (string.Equals(candidate.Callsign, callsign, StringComparison.Ordinal))
             {
                 return candidate;
             }
@@ -2103,7 +2136,7 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
     {
         if (aircraft is null || aircraft.Count == 0)
         {
-            return Array.Empty<AircraftModel>();
+            return [];
         }
 
         var result = new List<AircraftModel>(aircraft.Count);

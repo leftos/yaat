@@ -50,6 +50,14 @@ internal readonly struct RadarDatablockLayout
     /// </summary>
     public readonly string SquawkLine;
 
+    /// <summary>
+    /// ATPA in-trail distance to the aircraft ahead, in nautical miles to one decimal (e.g. <c>"3.2"</c>),
+    /// drawn steady (never flashing) right below the owner/scratchpad line and coloured by the pairing's
+    /// cone state. Empty when this aircraft is not the trailing member of an ATPA pairing, when the lead
+    /// isn't resolvable, or when the <c>ShowAtpa</c> preference is off.
+    /// </summary>
+    public readonly string AtpaLine;
+
     /// <summary>Instructor note line (amber), drawn at the bottom of the block. Empty when no note.</summary>
     public readonly string Line6;
 
@@ -101,6 +109,7 @@ internal readonly struct RadarDatablockLayout
         string line4,
         string line5,
         string squawkLine,
+        string atpaLine,
         string line6,
         string conflictLine,
         bool identActive,
@@ -120,6 +129,7 @@ internal readonly struct RadarDatablockLayout
         Line4 = line4;
         Line5 = line5;
         SquawkLine = squawkLine;
+        AtpaLine = atpaLine;
         Line6 = line6;
         ConflictLine = conflictLine;
         IdentActive = identActive;
@@ -137,6 +147,8 @@ internal readonly struct RadarDatablockLayout
         bool showNoLandingClearance,
         bool showConflictAlerts,
         AircraftModel? conflictPeer,
+        bool showAtpa,
+        AircraftModel? atpaLead,
         string callsignMarker
     )
     {
@@ -180,6 +192,11 @@ internal readonly struct RadarDatablockLayout
         bool noLndgClncFlashOn = noLndgClncActive && (Environment.TickCount64 / 500 % 2 == 0);
         string line5 = noLndgClncFlashOn ? NoLandingClearanceText : "";
 
+        // ATPA in-trail distance, drawn steady below the owner/scratchpad line. Only the trailing member
+        // of a pairing carries a lead callsign, and the line is dropped when the lead isn't on the scope —
+        // the distance is the whole content, so there is nothing to show without both positions.
+        string atpaLine = (showAtpa && !string.IsNullOrEmpty(ac.AtpaLeadCallsign)) ? BuildAtpaLine(ac, atpaLead) : "";
+
         // Instructor note — always-on amber line at the bottom of the block when set.
         string line6 = ac.HasNote ? ac.Note : "";
 
@@ -201,7 +218,10 @@ internal readonly struct RadarDatablockLayout
         float w6 = line6.Length > 0 ? style.Measure(line6) : 0f;
         // Reserve width for the conflict field whenever it's active so the rect doesn't pulse.
         float wConflict = conflictActive ? style.Measure(conflictStable) : 0f;
+        // The ATPA line never flashes, so its drawn text is also its reserved width.
+        float wAtpa = atpaLine.Length > 0 ? style.Measure(atpaLine) : 0f;
         float textW = MathF.Max(MathF.Max(MathF.Max(w1, w2), MathF.Max(w3, w4)), MathF.Max(MathF.Max(w5, w6), MathF.Max(wSquawk, wConflict)));
+        textW = MathF.Max(textW, wAtpa);
 
         int lineCount = 2;
         if (squawkLine.Length > 0)
@@ -209,6 +229,11 @@ internal readonly struct RadarDatablockLayout
             lineCount++;
         }
         if (reserveOwnerSlot)
+        {
+            lineCount++;
+        }
+        // The ATPA line sits directly below the owner/scratchpad slot; it is steady, so no reservation.
+        if (atpaLine.Length > 0)
         {
             lineCount++;
         }
@@ -245,6 +270,7 @@ internal readonly struct RadarDatablockLayout
             line4,
             line5,
             squawkLine,
+            atpaLine,
             line6,
             conflictLine,
             ac.IsIdenting,
@@ -290,6 +316,21 @@ internal readonly struct RadarDatablockLayout
         int verticalFt = Math.Abs(((int)ac.Altitude / 100) - ((int)peer.Altitude / 100)) * 100;
         return $"{label} {horizontalNm:F1}/{verticalFt:D3}";
     }
+
+    /// <summary>
+    /// Builds the ATPA in-trail distance field: the live distance to the aircraft ahead in nautical
+    /// miles to one decimal (e.g. <c>"3.2"</c>).
+    /// <para>
+    /// Like the conflict field, the distance is derived from the pair's live positions on every layout
+    /// pass rather than carried on the <c>AtpaResultsChanged</c> broadcast, which is signature-guarded on
+    /// the pairing / allowed separation / cone state and would freeze a wire-carried value between fires.
+    /// </para>
+    /// Returns an empty string when the lead isn't resolvable (it left the scope, or the broadcast
+    /// arrived before the lead's first position update) — unlike a conflict alert there is no bare token
+    /// worth showing, since the distance is the field's entire content.
+    /// </summary>
+    internal static string BuildAtpaLine(AircraftModel ac, AircraftModel? lead) =>
+        lead is null ? "" : $"{GeoMath.DistanceNm(ac.Position, lead.Position):F1}";
 
     /// <summary>
     /// True when an aircraft is an untracked, uncorrelated Mode C target — nobody owns the track and

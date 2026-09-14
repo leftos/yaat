@@ -303,6 +303,43 @@ public partial class AircraftModel : ObservableObject
     private string? _conflictPeerCallsign;
 
     /// <summary>
+    /// Callsign of the aircraft immediately ahead of this one in its ATPA in-trail pairing, or
+    /// <c>null</c> when this aircraft is not the trailing member of a pairing. Only the trailing
+    /// aircraft carries the pairing; the leader's own fields stay null / 0 / <c>Monitor</c>.
+    /// <para>
+    /// Like <see cref="ConflictPeerCallsign"/> this is room-level pair state from the separate
+    /// <c>AtpaResultsChanged</c> broadcast, projected by <c>MainViewModel.ApplyAtpaResults</c>, and
+    /// must never be assigned in <see cref="FromDto"/> or <see cref="UpdateFromDto"/> — the next
+    /// per-aircraft update would clobber it between broadcasts.
+    /// </para>
+    /// <para>
+    /// This is the automatic ATPA cone and is never to be conflated with <see cref="TpaType"/> /
+    /// <see cref="TpaSize"/>, which are the instructor's manual J-Ring / Cone overlay (issue #189).
+    /// </para>
+    /// </summary>
+    [ObservableProperty]
+    private string? _atpaLeadCallsign;
+
+    /// <summary>
+    /// Required in-trail separation (nm) for this aircraft's ATPA pairing — the cone's length.
+    /// Zero when <see cref="AtpaLeadCallsign"/> is null. Room-level pair state from the
+    /// <c>AtpaResultsChanged</c> broadcast; never assigned in <see cref="FromDto"/> or
+    /// <see cref="UpdateFromDto"/>. The <b>actual</b> separation is not carried — the radar
+    /// recomputes it per frame from the two aircraft's live positions.
+    /// </summary>
+    [ObservableProperty]
+    private double _atpaAllowedSeparationNm;
+
+    /// <summary>
+    /// Live advisory level of this aircraft's ATPA pairing (Monitor / Warning / Alert), driving the
+    /// cone and in-trail distance colours. <c>Monitor</c> when <see cref="AtpaLeadCallsign"/> is null.
+    /// Room-level pair state from the <c>AtpaResultsChanged</c> broadcast; never assigned in
+    /// <see cref="FromDto"/> or <see cref="UpdateFromDto"/>.
+    /// </summary>
+    [ObservableProperty]
+    private Yaat.Sim.Data.Vnas.AtpaConeState _atpaConeState;
+
+    /// <summary>
     /// True when a queued <c>ONHS DEL</c> block is armed on this aircraft (or the
     /// per-aircraft <c>PendingAutoDelete</c> flag has been raised). Drives a small
     /// marker in the radar / tower-cab datablock so controllers can see at a glance
@@ -843,7 +880,12 @@ public partial class AircraftModel : ObservableObject
     [ObservableProperty]
     private int? _studentLeaderDirection;
 
-    /// <summary>Instructor TPA overlay on YAAT's radar (emulates STARS *J/*P): 0=None, 1=J-Ring, 2=Cone.</summary>
+    /// <summary>
+    /// Instructor TPA overlay on YAAT's radar (emulates STARS *J/*P): 0=None, 1=J-Ring, 2=Cone.
+    /// This is the manual overlay only — the automatic ATPA cone lives on
+    /// <see cref="AtpaLeadCallsign"/> / <see cref="AtpaAllowedSeparationNm"/> / <see cref="AtpaConeState"/>
+    /// and the two must never be conflated (issue #189).
+    /// </summary>
     [ObservableProperty]
     private int _tpaType;
 

@@ -183,6 +183,8 @@ Two layout families, selected by the `EuroScopeMode` preference:
 7. Conflict alert (`ConflictLine`, red, flashing) — `CA 2.4/800` / `MCI 2.4/800`. See **Conflict alerts** below.
 8. Instructor note (`Line6`, amber) at the bottom of the block.
 
+An ATPA in-trail distance line (`AtpaLine`, steady, state-coloured) sits after the owner/scratchpad line when the aircraft is the trailing member of an ATPA pair and `ShowAtpa` is on. See **ATPA cones** below.
+
 **EuroScope — `EuroScopeTagLayout.Layout`** (`EuroScopeTagLayout.cs:52`). Four lines plus optional squawk-mismatch / ModeC / NoLndgClnc:
 1. Owner initials (or `--`) + callsign.
 2. Type/CWT + destination + a flashing `ID` (`TagFieldId.Ident`) while identing.
@@ -596,6 +598,15 @@ DME-arc legs with no charted turn direction take the minor (≤180°) arc via `G
 Instructor `JRING`/`CONE` are TPA proximity overlays drawn on **YAAT's own radar only**, never projected to the student's CRC. State lives on `ac.Stars.TpaType` (1 = J-Ring, 2 = Cone) + `ac.Stars.TpaSize` (nm, 1–30, parser-validated), flows client-ward via `AircraftStateDto.TpaType`/`TpaSize` → `AircraftModel` → `TargetRenderer.DrawTpaGraphic`, and is snapshotted on `AircraftStarsStateDto` so it replays. Geometry (from the decompiled CRC `DrawTpaCone`/`DrawTpaJRing`): a J-Ring is a geo circle of radius `TpaSize`; a Cone is a ±`UserPreferences.TpaConeHalfAngleDegrees` (default 2°) needle of length `TpaSize`, drawn along `ac.Heading` (YAAT's leader-line axis — not ground track, unlike CRC, for visual consistency with the YAAT leader). STARS TCW TPA color = `(90, 180, 255)`.
 
 This is distinct from the **automatic ATPA cone**: `StarsTrackDto.TpaType` (Key 30, CRC `RemoteTpaType`) is reserved for the server-computed ATPA cone (`DtoConverter.MapAtpaTpaType` from `AtpaResult`) and is *never* fed from `ac.Stars.TpaType` — doing so leaked one instructor's manual cone onto every student CRC scope (fixed with #189). CRC controllers draw their own `*J`/`*P` locally and sync via shared track state, so the CRC implied-slew `*J`/`*P` dispatch in `CrcClientState.Stars.cs` is a deliberate no-op — don't convert it into a YAAT overlay. See [crc-display-state.md](crc-display-state.md) for the Key-30 server side.
+
+## ATPA cones
+
+The server's `AtpaResultsChanged` broadcast (see [training-hub-contract.md](training-hub-contract.md)) is projected the same way conflict alerts are: `MainViewModel.ApplyAtpaResults` visits every aircraft and sets `AircraftModel.AtpaLeadCallsign` / `AtpaAllowedSeparationNm` / `AtpaConeState` on the **trailing** aircraft only (absent → null / 0 / `Monitor`); `SeedAtpaResult` covers an aircraft added after the broadcast. These fields are never assigned in `FromDto`/`UpdateFromDto` and are distinct from the instructor's manual `TpaType`/`TpaSize` (the #189 footgun). Rendering is gated by the `ShowAtpa` preference (Settings → Radar, default off), plumbed like `ShowConflictAlerts`: `RadarView.SyncAssignmentTint` → `RadarCanvas` → `RadarRenderer` → `TargetRenderer.ShowAtpa`, no `RenderSnapshot` field.
+
+- **Actual separation is computed per frame**, not carried on the wire — the broadcast is signature-guarded on pair / allowed separation / cone state, so a wire value would freeze. `RadarDatablockLayout.BuildAtpaLine` reads `GeoMath.DistanceNm` between the two models; `Compute` takes the resolved lead model (`TargetRenderer.ResolvePeer` on the draw path, `RadarCanvas` on the hit-test path) exactly as `BuildConflictLine` takes the conflict peer. The line is drawn only when the lead resolves; it carries the in-trail distance in tenths (`3.2`) after the owner/scratchpad line, steady (not flashing), coloured Monitor = block colour, Warning = yellow, Alert = `(255, 55, 0)` — CRC's `DisplayElementTracks` FDB line-3 rule.
+- **Cone geometry follows CRC's `DrawAtpaCone`**: vertex at the trailing aircraft, axis = true bearing to the lead (`GeoMath.BearingTo`; `ProjectPoint` takes true headings and the viewport applies rotation), length = `AtpaAllowedSeparationNm`, half-angle = the `TpaConeHalfAngleDegrees` preference (CRC uses ±2° for both), the allowed separation labelled at the midpoint in the state colour (Monitor = `TpaColor`).
+- **Supersession**: an ATPA cone in any state replaces a manual `CONE` on that track; a manual `JRING` still draws (CRC draws the J-ring unconditionally and the manual cone only when `RemoteTpaType == None`).
+- Every pair the server computes is shown; the volume's Monitor/Alert TCP adaptation (who may see which cone in STARS) is not applied on YAAT's radar.
 
 ## Pitfalls
 

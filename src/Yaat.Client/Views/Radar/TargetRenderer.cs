@@ -3,6 +3,7 @@ using Yaat.Client.Models;
 using Yaat.Client.Views.Map;
 using Yaat.Sim;
 using Yaat.Sim.Data.Mva;
+using Yaat.Sim.Data.Vnas;
 
 namespace Yaat.Client.Views.Radar;
 
@@ -41,6 +42,11 @@ public sealed class TargetRenderer : IDisposable
 
     private const int TpaJRing = 1;
     private const int TpaCone = 2;
+
+    // Automatic ATPA cone / in-trail line, escalating off the TPA blue: yellow once the pair is inside
+    // the warning band, red-orange once it is in alert — CRC's STARS ATPA cone palette.
+    private static readonly SKColor AtpaWarningColor = SKColors.Yellow;
+    private static readonly SKColor AtpaAlertColor = new(255, 55, 0);
 
     // Conflict alert: red, matching the NoLndgClnc warning line, and deliberately distinct from the
     // blue TPA overlay so an automatic alert never reads as an instructor-placed graphic.
@@ -226,25 +232,46 @@ public sealed class TargetRenderer : IDisposable
     public bool ShowConflictAlerts { get; set; }
 
     /// <summary>
+    /// When true, render the automatic ATPA cone and the in-trail distance datablock line for each
+    /// aircraft trailing another in an ATPA pairing (see <see cref="AircraftModel.AtpaLeadCallsign"/>).
+    /// Default false (opt-in); driven by the <c>ShowAtpa</c> user preference. Distinct from the
+    /// instructor's manual <c>JRING</c>/<c>CONE</c> overlay.
+    /// </summary>
+    public bool ShowAtpa { get; set; }
+
+    /// <summary>
     /// Callsign → model index for the aircraft in the current render pass, used to resolve a
-    /// conflicting aircraft's peer for the separation readout. Populated only while
-    /// <see cref="ShowConflictAlerts"/> is on.
+    /// conflicting aircraft's peer for the separation readout and a trailing aircraft's ATPA lead for
+    /// the in-trail readout. Populated only while <see cref="ShowConflictAlerts"/> or
+    /// <see cref="ShowAtpa"/> is on.
     /// </summary>
     private readonly Dictionary<string, AircraftModel> _callsignIndex = [];
 
     /// <summary>
-    /// Resolves the other member of <paramref name="ac"/>'s conflict pair from the current render
-    /// pass, or null when it isn't on the scope.
+    /// Resolves a paired aircraft by callsign from the current render pass, or null when the callsign
+    /// is unset or the aircraft isn't on the scope.
     /// </summary>
-    private AircraftModel? ResolveConflictPeer(AircraftModel ac)
+    private AircraftModel? ResolvePeer(string? callsign)
     {
-        if (!ShowConflictAlerts || string.IsNullOrEmpty(ac.ConflictPeerCallsign))
+        if (string.IsNullOrEmpty(callsign))
         {
             return null;
         }
 
-        return _callsignIndex.GetValueOrDefault(ac.ConflictPeerCallsign);
+        return _callsignIndex.GetValueOrDefault(callsign);
     }
+
+    /// <summary>
+    /// Resolves the other member of <paramref name="ac"/>'s conflict pair, or null when conflict alerts
+    /// are off or the peer isn't on the scope.
+    /// </summary>
+    private AircraftModel? ResolveConflictPeer(AircraftModel ac) => ShowConflictAlerts ? ResolvePeer(ac.ConflictPeerCallsign) : null;
+
+    /// <summary>
+    /// Resolves the aircraft ahead of <paramref name="ac"/> in its ATPA pairing, or null when the ATPA
+    /// overlay is off, this aircraft isn't the trailing member, or the lead isn't on the scope.
+    /// </summary>
+    private AircraftModel? ResolveAtpaLead(AircraftModel ac) => ShowAtpa ? ResolvePeer(ac.AtpaLeadCallsign) : null;
 
     /// <summary>Datablock text size in pixels. Updated from UserPreferences via RadarView.SyncAssignmentTint.</summary>
     public float DatablockTextSize
@@ -364,10 +391,11 @@ public sealed class TargetRenderer : IDisposable
         _lastEuroScopeTags.Clear();
         _lastBubbleRects.Clear();
 
-        // Index this pass's aircraft by callsign so a conflicting aircraft can resolve its peer for
-        // the live separation readout. Rebuilt per pass — the list is a fresh snapshot each frame.
+        // Index this pass's aircraft by callsign so a conflicting aircraft can resolve its peer — and a
+        // trailing aircraft its ATPA lead — for the live separation readouts. Rebuilt per pass, since
+        // the list is a fresh snapshot each frame.
         _callsignIndex.Clear();
-        if (ShowConflictAlerts)
+        if (ShowConflictAlerts || ShowAtpa)
         {
             foreach (var ac in aircraft)
             {
@@ -387,7 +415,7 @@ public sealed class TargetRenderer : IDisposable
         {
             if (ShowSpeechBubbles && IsBubbleActive(ac.SpeechBubble, now))
             {
-                deferred ??= new List<AircraftModel>();
+                deferred ??= [];
                 deferred.Add(ac);
                 continue;
             }
@@ -489,9 +517,16 @@ public sealed class TargetRenderer : IDisposable
             DrawPtlLine(canvas, vp, sx, sy, ac, ptlLengthMinutes);
         }
 
+        var atpaLead = ResolveAtpaLead(ac);
+
         if (ac.TpaType != 0 && ac.TpaSize > 0)
         {
-            DrawTpaGraphic(canvas, vp, sx, sy, ac);
+            DrawTpaGraphic(canvas, vp, sx, sy, ac, suppressManualCone: atpaLead is not null);
+        }
+
+        if (atpaLead is not null)
+        {
+            DrawAtpaCone(canvas, vp, sx, sy, ac, atpaLead);
         }
 
         if (ShowConflictAlerts && !string.IsNullOrEmpty(ac.ConflictPeerCallsign))
@@ -610,17 +645,75 @@ public sealed class TargetRenderer : IDisposable
     /// wedge projecting from the target along its track for <see cref="AircraftModel.TpaSize"/> nm. Both
     /// are geo-anchored (ring/wedge vertices are projected, not pixel-scaled) so they stay accurate at
     /// any zoom, and carry a numeric size label like CRC's optional TPA size display.
+    /// <para>
+    /// <paramref name="suppressManualCone"/> is set while an automatic ATPA cone is drawn on the same
+    /// track: CRC draws the manual cone only while no ATPA cone is present, but draws the J-Ring
+    /// unconditionally, so a J-Ring survives the supersession and a manual cone does not.
+    /// </para>
     /// </summary>
-    private void DrawTpaGraphic(SKCanvas canvas, MapViewport vp, float sx, float sy, AircraftModel ac)
+    private void DrawTpaGraphic(SKCanvas canvas, MapViewport vp, float sx, float sy, AircraftModel ac, bool suppressManualCone)
     {
         if (ac.TpaType == TpaJRing)
         {
             DrawTpaJRing(canvas, vp, ac);
         }
-        else if (ac.TpaType == TpaCone)
+        else if ((ac.TpaType == TpaCone) && !suppressManualCone)
         {
             DrawTpaCone(canvas, vp, sx, sy, ac);
         }
+    }
+
+    /// <summary>
+    /// The colour of an ATPA cone and its in-trail distance line for a pairing's advisory state:
+    /// Monitor keeps the STARS TPA blue, Warning goes yellow, Alert goes red-orange (CRC's STARS ATPA
+    /// palette). A Monitor datablock line uses the block's own colour instead — see
+    /// <c>DrawLeaderAndDataBlock</c>.
+    /// </summary>
+    internal static SKColor AtpaConeColorFor(AtpaConeState state) =>
+        state switch
+        {
+            AtpaConeState.Warning => AtpaWarningColor,
+            AtpaConeState.Alert => AtpaAlertColor,
+            _ => TpaColor,
+        };
+
+    /// <summary>
+    /// Draws the automatic ATPA cone: a wedge from the trailing aircraft along the true bearing to the
+    /// aircraft ahead, as long as the pairing's required in-trail separation and as wide as the manual
+    /// TPA cone (±<see cref="TpaConeHalfAngleDegrees"/>), labelled with that required separation at its
+    /// midpoint. Geo-anchored like the manual overlay, and coloured by the pairing's cone state so a
+    /// warning/alert reads at a glance. Distinct from the instructor's manual <c>CONE</c> (issue #189).
+    /// </summary>
+    private void DrawAtpaCone(SKCanvas canvas, MapViewport vp, float sx, float sy, AircraftModel ac, AircraftModel lead)
+    {
+        double lengthNm = ac.AtpaAllowedSeparationNm;
+        if (lengthNm <= 0)
+        {
+            return;
+        }
+
+        // GeoMath.ProjectPoint takes true headings; the viewport applies the display rotation.
+        double axis = GeoMath.BearingTo(ac.Position, lead.Position);
+        var (leftLat, leftLon) = GeoMath.ProjectPoint(ac.Position, new TrueHeading(axis + TpaConeHalfAngleDegrees), lengthNm);
+        var (rightLat, rightLon) = GeoMath.ProjectPoint(ac.Position, new TrueHeading(axis - TpaConeHalfAngleDegrees), lengthNm);
+        var (lx, ly) = vp.LatLonToScreen(leftLat, leftLon);
+        var (rx, ry) = vp.LatLonToScreen(rightLat, rightLon);
+
+        var coneColor = AtpaConeColorFor(ac.AtpaConeState);
+        using var path = new SKPath();
+        path.MoveTo(sx, sy);
+        path.LineTo(lx, ly);
+        path.LineTo(rx, ry);
+        path.Close();
+        _tpaPaint.Color = coneColor;
+        canvas.DrawPath(path, _tpaPaint);
+        _tpaPaint.Color = TpaColor;
+
+        var (midLat, midLon) = GeoMath.ProjectPoint(ac.Position, new TrueHeading(axis), lengthNm / 2.0);
+        var (mx, my) = vp.LatLonToScreen(midLat, midLon);
+        _tpaTextPaint.Color = coneColor;
+        DrawTpaSizeLabel(canvas, mx, my, lengthNm);
+        _tpaTextPaint.Color = TpaColor;
     }
 
     private void DrawTpaJRing(SKCanvas canvas, MapViewport vp, AircraftModel ac)
@@ -844,8 +937,10 @@ public sealed class TargetRenderer : IDisposable
 
         // Full STARS block, optionally annotated with the student's (LDB)/(PDB) marker.
         string marker = MarkStudentLimitedDatablocks ? RadarDatablockLayout.StudentLevelMarker(ac.StudentDatablockLevel) : "";
+        var conflictPeer = ResolveConflictPeer(ac);
+        var atpaLead = ResolveAtpaLead(ac);
         var rectAtOrigin = RadarDatablockLayout
-            .Compute(ac, 0, 0, DataBlockStyle, FlashNoLandingClearance, ShowConflictAlerts, ResolveConflictPeer(ac), marker)
+            .Compute(ac, 0, 0, DataBlockStyle, FlashNoLandingClearance, ShowConflictAlerts, conflictPeer, ShowAtpa, atpaLead, marker)
             .Rect;
         var offset = RadarDatablockLayout.ResolveBlockOffset(
             ac,
@@ -865,7 +960,9 @@ public sealed class TargetRenderer : IDisposable
             DataBlockStyle,
             FlashNoLandingClearance,
             ShowConflictAlerts,
-            ResolveConflictPeer(ac),
+            conflictPeer,
+            ShowAtpa,
+            atpaLead,
             marker
         );
 
@@ -903,6 +1000,20 @@ public sealed class TargetRenderer : IDisposable
                     _dataBlockPaint
                 );
             }
+            row++;
+        }
+
+        if (layout.AtpaLine.Length > 0)
+        {
+            // Steady (never flashed): the in-trail distance is a continuous readout, and a Monitor-state
+            // pairing is routine enough to stay in the block's own colour.
+            var prev = _dataBlockPaint.Color;
+            if (ac.AtpaConeState != AtpaConeState.Monitor)
+            {
+                _dataBlockPaint.Color = AtpaConeColorFor(ac.AtpaConeState);
+            }
+            canvas.DrawText(layout.AtpaLine, layout.TextX, layout.TextY + row * layout.LineHeight, SKTextAlign.Left, _dataBlockFont, _dataBlockPaint);
+            _dataBlockPaint.Color = prev;
             row++;
         }
 

@@ -64,6 +64,7 @@ public sealed class ServerConnection : IStripsTransport, ITdlsTransport, IAsyncD
     public event Action<TimersChangedDto>? TimersChanged;
     public event Action<BookmarksChangedDto>? BookmarksChanged;
     public event Action<ConflictAlertsChangedDto>? ConflictAlertsChanged;
+    public event Action<AtpaResultsChangedDto>? AtpaResultsChanged;
     public event Action<PositionDisplayConfigDto>? PositionDisplayChanged;
     public event Action<ScenarioLoadedDto>? ScenarioLoaded;
     public event Action? ScenarioUnloaded;
@@ -196,6 +197,7 @@ public sealed class ServerConnection : IStripsTransport, ITdlsTransport, IAsyncD
         _connection.On<TimersChangedDto>("TimersChanged", dto => TimersChanged?.Invoke(dto));
         _connection.On<BookmarksChangedDto>("BookmarksChanged", dto => BookmarksChanged?.Invoke(dto));
         _connection.On<ConflictAlertsChangedDto>("ConflictAlertsChanged", dto => ConflictAlertsChanged?.Invoke(dto));
+        _connection.On<AtpaResultsChangedDto>("AtpaResultsChanged", dto => AtpaResultsChanged?.Invoke(dto));
 
         _connection.On<PositionDisplayConfigDto>("PositionDisplayChanged", dto => PositionDisplayChanged?.Invoke(dto));
 
@@ -1266,6 +1268,9 @@ public record RoomStateDto(
     List<TimerDto>? Timers = null,
     List<TimelineBookmarkDto>? Bookmarks = null,
     List<ConflictAlertDto>? ConflictAlerts = null,
+    // Active ATPA in-trail pairings so a client joining mid-sequence shows the cones immediately rather
+    // than waiting for the pair set to next change.
+    List<AtpaPairDto>? AtpaResults = null,
     int CommandRunDelayMinSeconds = 0,
     int CommandRunDelayMaxSeconds = 0,
     // Student position type (APP/CTR/GND/TWR) for seeding user-local position-based defaults on join.
@@ -1405,6 +1410,23 @@ public record ConflictAlertDto(string Id, string CallsignA, string CallsignB);
 
 /// <summary>The full set of active conflict alerts, pushed whenever a pair opens or clears.</summary>
 public record ConflictAlertsChangedDto(List<ConflictAlertDto> Conflicts);
+
+/// <summary>
+/// One ATPA in-trail pairing: <see cref="Callsign"/> is the trailing (subject) aircraft and
+/// <see cref="LeadCallsign"/> the aircraft immediately ahead of it on the same final.
+/// <see cref="AllowedSeparationNm"/> is the required in-trail separation and <see cref="ConeState"/>
+/// the live advisory level.
+/// <para>
+/// The actual separation is deliberately not carried. This push is signature-guarded — it fires only
+/// when the pair set or a cone state changes — so a wire separation value would freeze between pushes
+/// and render a stale number. The radar recomputes it per frame from the pair's live positions, exactly
+/// as it does for conflict alerts.
+/// </para>
+/// </summary>
+public record AtpaPairDto(string Callsign, string LeadCallsign, double AllowedSeparationNm, Yaat.Sim.Data.Vnas.AtpaConeState ConeState);
+
+/// <summary>The full set of ATPA in-trail pairings, pushed whenever a pairing forms, clears, or changes cone state.</summary>
+public record AtpaResultsChangedDto(List<AtpaPairDto> Pairs);
 
 public record SessionSettingsDto(
     string? AutoDeleteOverride,

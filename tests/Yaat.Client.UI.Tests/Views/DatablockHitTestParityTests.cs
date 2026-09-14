@@ -45,9 +45,20 @@ public class DatablockHitTestParityTests
     /// </summary>
     private static TextStyle DrawStyleAt(float size) => new(PlatformHelper.MonospaceFontBold(size), new SKPaint());
 
-    private static SKRect DrawRectAtOrigin(AircraftModel ac, RadarCanvas canvas, float size) =>
+    private static SKRect DrawRectAtOrigin(AircraftModel ac, RadarCanvas canvas, float size, AircraftModel? atpaLead) =>
         RadarDatablockLayout
-            .Compute(ac, 0, 0, DrawStyleAt(size), canvas.FlashNoLandingClearance, canvas.ShowConflictAlerts, conflictPeer: null, callsignMarker: "")
+            .Compute(
+                ac,
+                0,
+                0,
+                DrawStyleAt(size),
+                canvas.FlashNoLandingClearance,
+                canvas.ShowConflictAlerts,
+                conflictPeer: null,
+                canvas.ShowAtpa,
+                atpaLead,
+                callsignMarker: ""
+            )
             .Rect;
 
     [AvaloniaFact]
@@ -56,7 +67,7 @@ public class DatablockHitTestParityTests
         var ac = CreateModel();
         var canvas = new RadarCanvas();
 
-        Assert.Equal(DrawRectAtOrigin(ac, canvas, canvas.DatablockTextSize), canvas.ComputeStableRectAtOrigin(ac));
+        Assert.Equal(DrawRectAtOrigin(ac, canvas, canvas.DatablockTextSize, atpaLead: null), canvas.ComputeStableRectAtOrigin(ac));
     }
 
     /// <summary>
@@ -73,7 +84,7 @@ public class DatablockHitTestParityTests
         var ac = CreateModel();
         var canvas = new RadarCanvas { DatablockTextSize = size };
 
-        Assert.Equal(DrawRectAtOrigin(ac, canvas, size), canvas.ComputeStableRectAtOrigin(ac));
+        Assert.Equal(DrawRectAtOrigin(ac, canvas, size, atpaLead: null), canvas.ComputeStableRectAtOrigin(ac));
     }
 
     [AvaloniaFact]
@@ -85,7 +96,7 @@ public class DatablockHitTestParityTests
         ac.IsIdenting = true;
         var canvas = new RadarCanvas();
 
-        Assert.Equal(DrawRectAtOrigin(ac, canvas, canvas.DatablockTextSize), canvas.ComputeStableRectAtOrigin(ac));
+        Assert.Equal(DrawRectAtOrigin(ac, canvas, canvas.DatablockTextSize, atpaLead: null), canvas.ComputeStableRectAtOrigin(ac));
     }
 
     [AvaloniaFact]
@@ -103,6 +114,27 @@ public class DatablockHitTestParityTests
             Thread.Sleep(120);
             Assert.Equal(first, canvas.ComputeStableRectAtOrigin(ac));
         }
+    }
+
+    [AvaloniaFact]
+    public void HitTestRect_MatchesDrawRect_WithAtpaLead()
+    {
+        // The ATPA in-trail line adds a row to the block. The draw path resolves the lead from the
+        // renderer's per-frame callsign index and the hit-test path scans the bound collection — both
+        // have to end up measuring the same line, or clicks miss the bottom of a visibly taller block.
+        var ac = CreateModel();
+        ac.AtpaLeadCallsign = "SWA1234";
+        ac.AtpaAllowedSeparationNm = 3.0;
+        var lead = CreateModel();
+        lead.Callsign = "SWA1234";
+        lead.Position = new LatLon(37.0, -122.0 + (4.00704 / 60.0));
+        var canvas = new RadarCanvas { ShowAtpa = true, Aircraft = [ac, lead] };
+
+        var hitRect = canvas.ComputeStableRectAtOrigin(ac);
+        Assert.Equal(DrawRectAtOrigin(ac, canvas, canvas.DatablockTextSize, lead), hitRect);
+
+        var withoutAtpa = new RadarCanvas { Aircraft = [ac, lead] }.ComputeStableRectAtOrigin(ac);
+        Assert.True(hitRect.Height > withoutAtpa.Height, "the ATPA in-trail line must add a row to the hit rect");
     }
 
     [AvaloniaFact]

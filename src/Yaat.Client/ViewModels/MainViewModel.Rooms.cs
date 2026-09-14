@@ -856,6 +856,7 @@ public partial class MainViewModel
         // Seed shared timeline bookmarks so a joining/reconnecting client shows the existing bookmarks.
         ApplyBookmarks(state.Bookmarks);
         ApplyConflictAlerts(state.ConflictAlerts);
+        ApplyAtpaResults(state.AtpaResults);
 
         _ = RefreshCrcLobbyAsync();
         _ = RefreshRpoLobbyAsync();

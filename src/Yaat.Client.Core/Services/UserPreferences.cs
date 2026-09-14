@@ -187,6 +187,7 @@ public sealed class UserPreferences
     public bool EuroScopeMode => _data.EuroScopeMode;
     public bool FlashNoLandingClearance => _data.FlashNoLandingClearance;
     public bool ShowConflictAlerts => _data.ShowConflictAlerts;
+    public bool ShowAtpa => _data.ShowAtpa;
     public bool ShowSpeechBubbles => _data.ShowSpeechBubbles;
     public double SpeechBubbleDurationMultiplier => Math.Clamp(_data.SpeechBubbleDurationMultiplier, 0.25, 4.0);
     public bool ShowWarningSpeechBubbles => _data.ShowWarningSpeechBubbles;
@@ -728,6 +729,12 @@ public sealed class UserPreferences
     public void SetShowConflictAlerts(bool enabled)
     {
         _data.ShowConflictAlerts = enabled;
+        Save();
+    }
+
+    public void SetShowAtpa(bool enabled)
+    {
+        _data.ShowAtpa = enabled;
         Save();
     }
 
@@ -1687,6 +1694,7 @@ public sealed class UserPreferences
             EuroScopeMode = GetFieldOr(obj, "euroScopeMode", false),
             FlashNoLandingClearance = GetFieldOr(obj, "flashNoLandingClearance", true),
             ShowConflictAlerts = GetFieldOr(obj, "showConflictAlerts", false),
+            ShowAtpa = GetFieldOr(obj, "showAtpa", false),
             SyncStudentDatablockColors = GetFieldOr(obj, "syncStudentDatablockColors", true),
             MarkStudentLimitedDatablocks = GetFieldOr(obj, "markStudentLimitedDatablocks", true),
             CollapseStudentDatablocks = GetFieldOr(obj, "collapseStudentDatablocks", false),
@@ -1965,6 +1973,7 @@ public sealed class UserPreferences
         public bool EuroScopeMode { get; set; }
         public bool FlashNoLandingClearance { get; set; } = true;
         public bool ShowConflictAlerts { get; set; }
+        public bool ShowAtpa { get; set; }
         public bool ShowSpeechBubbles { get; set; }
         public double SpeechBubbleDurationMultiplier { get; set; } = 1.0;
         public bool ShowWarningSpeechBubbles { get; set; }

@@ -611,6 +611,10 @@ Set or edit a note any of these ways:
 - **Ground right-click** → **Note…**, or **Aircraft List right-click** → **Note…**.
 - **EuroScope tag**: click the amber note line (when one is already set).
 
+##### ATPA cones and in-trail distance
+
+STARS ATPA (Automated Terminal Proximity Alert) watches arrivals established on the same final and compares each one's in-trail distance to the wake/radar separation it needs behind the aircraft ahead. Turn it on with **Settings > Display > Radar Display > "Show ATPA cones and in-trail distance"** (off by default) and the Radar View draws, for each trailing aircraft, a cone from its target toward its leader whose length is the required separation, with that distance labelled at the cone's midpoint, and adds the current in-trail distance (tenths of a mile, e.g. `3.2`) to its datablock. Colours follow STARS: **blue** while separation is healthy (Monitor), **yellow** when a loss is predicted within 45 seconds (Warning), **orange** when separation is lost or predicted within 24 seconds (Alert). The in-trail distance updates every frame. The volumes and separation rules come from the ARTCC's STARS adaptation for the student's facility; a scenario with no student position, or a facility with no ATPA volumes, shows nothing. YAAT shows every pair the server computes — unlike a CRC scope, it does not filter by which positions the volume lets see each cone. An ATPA cone replaces a manual **Cone** on that track (a **J-ring** still draws) and shares the **Instructor TPA cone half-angle** setting.
+
 #### TPA J-Rings and Cones
 
 The radar right-click **Display** menu offers **J-ring** and **Cone** submenus — instructor-only proximity tools that emulate the STARS TPA J-Ring (`*J`) and Cone (`*P`) on **your** radar without touching the student's CRC scope. Pick a preset distance (or type `JRING 3` / `CONE 5`, 1–30 NM) to draw a blue ring of that radius, or a blue cone of that length projecting along the target's track, with the size labelled beside it; **Clear** (or a bare `JRING` / `CONE`) removes it. A track shows one or the other at a time, just like STARS. The Cone matches CRC's razor-thin 2° wedge by default — widen it for legibility under **Settings > Display > Overlays > "Instructor TPA cone half-angle"**.
@@ -1841,6 +1845,7 @@ These are your **default** preferences, applied when *you* load a scenario. To c
 | **EuroScope-style interactive tags** | Replaces the STARS/ERAM datablock with a EuroScope pseudopilot-style tag whose fields are clickable. See [EuroScope-Style Interactive Tags](#euroscope-style-interactive-tags). | Off |
 | **Flash 'NoLndgClnc' on datablock when approaching final without landing clearance** | Flashes a red `NoLndgClnc` line on the radar datablock once the aircraft reaches the no-landing-clearance warning point, until clearance is granted. | On |
 | **Show conflict alerts (CA) on the radar** | Flashes a red `CA` / `MCI` field carrying live separation on both datablocks of a conflicting pair, and rings each target at 3 nm. See [Conflict alerts](#conflict-alerts). | Off |
+| **Show ATPA cones and in-trail distance on the radar** | For arrivals in trail on the same final, draws the STARS ATPA cone (blue / yellow / orange by Monitor / Warning / Alert) from the trailing aircraft toward its leader and adds the in-trail distance to its datablock. See [ATPA cones and in-trail distance](#atpa-cones-and-in-trail-distance). | Off |
 
 **Student Scope Sync** — mirror how the student sees each track in STARS. See [Mirroring the Student's STARS Scope](#mirroring-the-students-stars-scope).
 
@@ -1869,7 +1874,7 @@ These are your **default** preferences, applied when *you* load a scenario. To c
 | **Duration multiplier** *(when not stay-until-clicked)* | Scales how long a bubble stays up (0.25–4.00); base length is derived from the message length. | 1.00 |
 | **Also show WARN messages as speech bubbles (amber)** | Warning-channel messages overlay the aircraft as an amber bubble, distinct from green pilot/SAY bubbles. | Off |
 | **Always show ground aircraft bubbles on the Radar view** | Show ground aircraft bubbles on the Radar view even when a Ground view for that airport is open and focused. | Off |
-| **Instructor TPA cone half-angle (°)** | Width of the instructor J-Ring/Cone overlay's cone (1–30°); raise it to make the wedge easier to read. Never shown on the student's CRC. | 2° |
+| **Instructor TPA cone half-angle (°)** | Width of the instructor Cone overlay and of ATPA cones (1–30°); raise it to make the wedge easier to read. Never shown on the student's CRC. | 2° |
 | **Scroll / zoom sensitivity** | Scales mouse-wheel / trackpad scroll speed when zooming the Radar and Ground views and stepping the STARS DCB spinners (10–100%). Lower it to tame a too-fast Mac trackpad. | 100% |
 
 **Windows — Bring all windows to front together**: clicking any YAAT window raises all YAAT windows above other apps, like CRC — no more clicking each window individually after Discord or a browser covered them. Minimized windows stay minimized, and the window you clicked keeps focus. **On** by default.
