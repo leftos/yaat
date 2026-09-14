@@ -53,10 +53,7 @@ public class DatablockHitTestParityTests
                 0,
                 DrawStyleAt(size),
                 canvas.FlashNoLandingClearance,
-                canvas.ShowConflictAlerts,
-                conflictPeer: null,
-                canvas.ShowAtpa,
-                atpaLead,
+                new DatablockOverlays(canvas.ShowConflictAlerts, ConflictPeer: null, canvas.ShowAtpa, atpaLead),
                 callsignMarker: ""
             )
             .Rect;

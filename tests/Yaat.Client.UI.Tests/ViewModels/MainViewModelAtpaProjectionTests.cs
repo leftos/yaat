@@ -102,4 +102,44 @@ public class MainViewModelAtpaProjectionTests
         Assert.Equal(6.0, trail.AtpaAllowedSeparationNm);
         Assert.Equal(AtpaConeState.Monitor, trail.AtpaConeState);
     }
+
+    /// <summary>
+    /// The server drops its ATPA cache on unload without broadcasting an empty set, so the client's
+    /// mirror must be dropped with the rest of the scenario state — otherwise the next scenario's first
+    /// incremental aircraft update seeds the previous scenario's pairing onto it.
+    /// </summary>
+    [AvaloniaFact]
+    public void ClearScenarioState_DropsPairs_SoLateAddedAircraftIsNotSeeded()
+    {
+        var vm = VmWith("LEAD1", "TRAIL1");
+        vm.ApplyAtpaResults([new AtpaPairDto("TRAIL1", "LEAD1", 5.0, AtpaConeState.Warning)]);
+
+        vm.ClearScenarioState();
+
+        vm.OnAircraftUpdated(MakeAircraft("TRAIL1"));
+        Dispatcher.UIThread.RunJobs();
+
+        var trail = Find(vm, "TRAIL1");
+        Assert.Null(trail.AtpaLeadCallsign);
+        Assert.Equal(0, trail.AtpaAllowedSeparationNm);
+        Assert.Equal(AtpaConeState.Monitor, trail.AtpaConeState);
+    }
+
+    /// <summary>
+    /// Conflict-alert twin of <see cref="ClearScenarioState_DropsPairs_SoLateAddedAircraftIsNotSeeded"/>:
+    /// the mirrored conflict set is server-authoritative and must not outlive the scenario it came from.
+    /// </summary>
+    [AvaloniaFact]
+    public void ClearScenarioState_DropsConflictPairs()
+    {
+        var vm = VmWith("ALPHA1", "BRAVO1");
+        vm.ApplyConflictAlerts([new ConflictAlertDto("conflict-1", "ALPHA1", "BRAVO1")]);
+
+        vm.ClearScenarioState();
+
+        vm.OnAircraftUpdated(MakeAircraft("ALPHA1"));
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Null(Find(vm, "ALPHA1").ConflictPeerCallsign);
+    }
 }

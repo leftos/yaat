@@ -664,6 +664,12 @@ public partial class MainViewModel
         Ground.ClearShownTaxiRoutes();
         Radar.DataBlockState.Clear();
         Aircraft.Clear();
+        // The server drops its ATPA/conflict caches on unload without broadcasting an empty set, so the
+        // client's mirrors have to be dropped here too: an aircraft added incrementally in the next
+        // scenario is seeded from them (SeedAtpaResult / SeedConflictPeer) and would otherwise inherit a
+        // pairing from the scenario that just went away.
+        _atpaResults = [];
+        _conflictAlerts = [];
         ClearBookmarks();
         InitialDelayedSpawnCount = 0;
         PendingDelayedSpawnCount = 0;

@@ -6,6 +6,18 @@ using Yaat.Sim;
 namespace Yaat.Client.Views.Radar;
 
 /// <summary>
+/// The alert overlays a full datablock may carry, bundled so the draw and hit-test paths pass them as one
+/// unit. Each preference travels with the peer aircraft it needs: the conflict and ATPA fields print live
+/// separation/in-trail values derived from the other member's position, so a set flag with a null peer
+/// still reserves the field but has nothing to measure against.
+/// </summary>
+/// <param name="ShowConflictAlerts">Conflict-alert (CA/MCI) display preference.</param>
+/// <param name="ConflictPeer">Other member of this aircraft's conflict pair, or null when it isn't on the scope.</param>
+/// <param name="ShowAtpa">ATPA in-trail display preference.</param>
+/// <param name="AtpaLead">Aircraft immediately ahead in the ATPA pairing, or null when it isn't on the scope.</param>
+internal readonly record struct DatablockOverlays(bool ShowConflictAlerts, AircraftModel? ConflictPeer, bool ShowAtpa, AircraftModel? AtpaLead);
+
+/// <summary>
 /// Layout result for the radar full datablock. Pure: shared by renderer (draw) and
 /// hit-test paths so geometry can be computed once.
 /// </summary>
@@ -145,10 +157,7 @@ internal readonly struct RadarDatablockLayout
         float blockY,
         TextStyle style,
         bool showNoLandingClearance,
-        bool showConflictAlerts,
-        AircraftModel? conflictPeer,
-        bool showAtpa,
-        AircraftModel? atpaLead,
+        DatablockOverlays overlays,
         string callsignMarker
     )
     {
@@ -195,7 +204,7 @@ internal readonly struct RadarDatablockLayout
         // ATPA in-trail distance, drawn steady below the owner/scratchpad line. Only the trailing member
         // of a pairing carries a lead callsign, and the line is dropped when the lead isn't on the scope —
         // the distance is the whole content, so there is nothing to show without both positions.
-        string atpaLine = (showAtpa && !string.IsNullOrEmpty(ac.AtpaLeadCallsign)) ? BuildAtpaLine(ac, atpaLead) : "";
+        string atpaLine = (overlays.ShowAtpa && !string.IsNullOrEmpty(ac.AtpaLeadCallsign)) ? BuildAtpaLine(ac, overlays.AtpaLead) : "";
 
         // Instructor note — always-on amber line at the bottom of the block when set.
         string line6 = ac.HasNote ? ac.Note : "";
@@ -203,8 +212,8 @@ internal readonly struct RadarDatablockLayout
         // Conflict alert flashes in sync with the handoff / no-landing-clearance indicators. The text
         // is built unconditionally while active and measured below, so the reserved width tracks the
         // live separation values without pulsing between flash phases.
-        bool conflictActive = showConflictAlerts && !string.IsNullOrEmpty(ac.ConflictPeerCallsign);
-        string conflictStable = conflictActive ? BuildConflictLine(ac, conflictPeer) : "";
+        bool conflictActive = overlays.ShowConflictAlerts && !string.IsNullOrEmpty(ac.ConflictPeerCallsign);
+        string conflictStable = conflictActive ? BuildConflictLine(ac, overlays.ConflictPeer) : "";
         bool conflictFlashOn = conflictActive && (Environment.TickCount64 / 500 % 2 == 0);
         string conflictLine = conflictFlashOn ? conflictStable : "";
 

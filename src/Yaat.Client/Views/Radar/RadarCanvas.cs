@@ -1075,10 +1075,10 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
 
             if (measureAnchor is not null)
             {
-                var (Lat, Lon) = Viewport.ScreenToLatLon((float)_lastPointerPos.X, (float)_lastPointerPos.Y);
+                var (lat, lon) = Viewport.ScreenToLatLon((float)_lastPointerPos.X, (float)_lastPointerPos.Y);
                 pendingMeasurement = RangeBearingLineResolver.ResolvePending(
                     measureAnchor,
-                    new LatLon(Lat, Lon),
+                    new LatLon(lat, lon),
                     lookup,
                     RadarViewModel.MeasureUnits
                 );
@@ -1729,20 +1729,8 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
         // slot/width stably (and includes the assigned-to + pointout tokens), so the hit-test rect always
         // matches the drawn block — no hand-mirrored line-string re-derivation.
         string marker = MarkStudentLimitedDatablocks ? RadarDatablockLayout.StudentLevelMarker(ac.StudentDatablockLevel) : "";
-        return RadarDatablockLayout
-            .Compute(
-                ac,
-                0,
-                0,
-                HitTestStyle,
-                FlashNoLandingClearance,
-                ShowConflictAlerts,
-                ResolveConflictPeer(ac),
-                ShowAtpa,
-                ResolveAtpaLead(ac),
-                marker
-            )
-            .Rect;
+        var overlays = new DatablockOverlays(ShowConflictAlerts, ResolveConflictPeer(ac), ShowAtpa, ResolveAtpaLead(ac));
+        return RadarDatablockLayout.Compute(ac, 0, 0, HitTestStyle, FlashNoLandingClearance, overlays, marker).Rect;
     }
 
     /// <summary>

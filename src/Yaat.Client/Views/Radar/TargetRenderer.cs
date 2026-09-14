@@ -937,11 +937,8 @@ public sealed class TargetRenderer : IDisposable
 
         // Full STARS block, optionally annotated with the student's (LDB)/(PDB) marker.
         string marker = MarkStudentLimitedDatablocks ? RadarDatablockLayout.StudentLevelMarker(ac.StudentDatablockLevel) : "";
-        var conflictPeer = ResolveConflictPeer(ac);
-        var atpaLead = ResolveAtpaLead(ac);
-        var rectAtOrigin = RadarDatablockLayout
-            .Compute(ac, 0, 0, DataBlockStyle, FlashNoLandingClearance, ShowConflictAlerts, conflictPeer, ShowAtpa, atpaLead, marker)
-            .Rect;
+        var overlays = new DatablockOverlays(ShowConflictAlerts, ResolveConflictPeer(ac), ShowAtpa, ResolveAtpaLead(ac));
+        var rectAtOrigin = RadarDatablockLayout.Compute(ac, 0, 0, DataBlockStyle, FlashNoLandingClearance, overlays, marker).Rect;
         var offset = RadarDatablockLayout.ResolveBlockOffset(
             ac,
             SyncStudentLeaderDirection,
@@ -953,18 +950,7 @@ public sealed class TargetRenderer : IDisposable
         float blockX = cx + offset.X;
         float blockY = cy + offset.Y;
 
-        var layout = RadarDatablockLayout.Compute(
-            ac,
-            blockX,
-            blockY,
-            DataBlockStyle,
-            FlashNoLandingClearance,
-            ShowConflictAlerts,
-            conflictPeer,
-            ShowAtpa,
-            atpaLead,
-            marker
-        );
+        var layout = RadarDatablockLayout.Compute(ac, blockX, blockY, DataBlockStyle, FlashNoLandingClearance, overlays, marker);
 
         if (isSelected)
         {
