@@ -743,6 +743,30 @@
                         </TextBlock>
                     </StackPanel>
 
+                    <!-- Import/export of the verb scheme (docked after "Try it out", so it renders above it) -->
+                    <StackPanel DockPanel.Dock="Bottom"
+                                Orientation="Horizontal"
+                                Spacing="8"
+                                Margin="0,8,0,0">
+                        <Button Content="Import..."
+                                x:Name="ImportVerbsButton" />
+                        <Button Content="Export..."
+                                x:Name="ExportVerbsButton" />
+                        <TextBlock Text="{Binding VerbImportNote}"
+                                   VerticalAlignment="Center"
+                                   IsVisible="{Binding VerbImportNote, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+                                   Classes.error="{Binding VerbImportIsError}">
+                            <TextBlock.Styles>
+                                <Style Selector="TextBlock">
+                                    <Setter Property="Foreground" Value="#4EC9B0" />
+                                </Style>
+                                <Style Selector="TextBlock.error">
+                                    <Setter Property="Foreground" Value="#F44747" />
+                                </Style>
+                            </TextBlock.Styles>
+                        </TextBlock>
+                    </StackPanel>
+
                     <!-- Verb mapping table -->
                     <DataGrid ItemsSource="{Binding GroupedVerbMappings}"
                               AutoGenerateColumns="False"

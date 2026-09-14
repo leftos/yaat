@@ -1923,7 +1923,7 @@ Every color is a picker; **Reset All Colors to Defaults** (bottom of the tab) re
 
 #### Commands tab (verb aliases)
 
-An editable grid mapping each command to the verb(s) you type for it, so you can rename or add aliases. Columns: **Command** (read-only), **Verb(s)** (editable, comma-separated aliases), and **Example** (read-only). A **Try it out** box below the grid runs whatever you type through macro expansion and the command parser live, showing the canonical result in green or an error in red. **Reset to Defaults** (bottom-left) restores the built-in aliases.
+An editable grid mapping each command to the verb(s) you type for it, so you can rename or add aliases. Columns: **Command** (read-only), **Verb(s)** (editable, comma-separated aliases), and **Example** (read-only). A **Try it out** box below the grid runs whatever you type through macro expansion and the command parser live, showing the canonical result in green or an error in red. **Reset to Defaults** (bottom-left) restores the built-in aliases. **Export…** saves every command's verbs as a `.yaat-verbs.json` you can share; **Import…** loads one, replacing the verbs of each command the file lists and leaving the rest untouched (a note under the grid says how many were applied and names any command the file mentions that this version doesn't know). Neither takes effect until you click **Save**.
 
 #### Macros tab
 

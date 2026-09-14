@@ -123,6 +123,12 @@ public partial class SettingsViewModel : ObservableObject
     private bool _testCommandIsError;
 
     [ObservableProperty]
+    private string _verbImportNote = "";
+
+    [ObservableProperty]
+    private bool _verbImportIsError;
+
+    [ObservableProperty]
     private bool _isAdminMode;
 
     [ObservableProperty]
@@ -964,6 +970,46 @@ public partial class SettingsViewModel : ObservableObject
         // Re-run the test input against the reset scheme
         OnTestCommandInputChanged(TestCommandInput);
     }
+
+    /// <summary>
+    /// Applies an imported command-verb file to the verb grid.
+    ///
+    /// Only the commands the file listed are touched; every other row keeps the verbs the user has now. Nothing
+    /// is written to preferences here — the edit lives in the grid until the user saves, exactly like a macro import.
+    /// </summary>
+    /// <param name="import">The parsed file, including any command names this build does not know.</param>
+    public void ImportVerbs(CommandSchemeImport import)
+    {
+        var applied = 0;
+
+        foreach (var (type, aliases) in import.Verbs)
+        {
+            var row = VerbMappings.FirstOrDefault(r => r.CommandType == type);
+            if (row is null)
+            {
+                continue;
+            }
+
+            row.Aliases = string.Join(", ", aliases);
+            applied++;
+        }
+
+        // Re-run the test input against the imported scheme
+        OnTestCommandInputChanged(TestCommandInput);
+
+        var note = $"Imported {applied} verb mapping(s).";
+        if (import.UnknownCommands.Count > 0)
+        {
+            note += $" Skipped unknown command(s): {string.Join(", ", import.UnknownCommands)}.";
+        }
+
+        VerbImportNote = note;
+        VerbImportIsError = false;
+    }
+
+    /// <summary>Builds the full command scheme currently shown in the verb grid, for export to a shareable file.</summary>
+    /// <returns>A scheme carrying every command, with the grid's edits applied over the built-in defaults.</returns>
+    public CommandScheme ExportVerbs() => BuildSchemeFromRows();
 
     private void LoadFromScheme(CommandScheme scheme)
     {

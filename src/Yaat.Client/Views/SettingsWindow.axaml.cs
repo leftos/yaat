@@ -1,6 +1,8 @@
 using System.Text.Json;
 using Avalonia.Controls;
 using Avalonia.Input;
+using Microsoft.Extensions.Logging;
+using Yaat.Client.Logging;
 using Yaat.Client.Services;
 using Yaat.Client.ViewModels;
 
@@ -10,7 +12,11 @@ public partial class SettingsWindow : Window
 {
     private static readonly FilePickerFilter MacroFileType = new("YAAT Macros", ["*.yaat-macros.json"]);
 
+    private static readonly FilePickerFilter VerbsFileType = new("YAAT Command Verbs", ["*" + CommandSchemeFile.Extension]);
+
     private static readonly FilePickerFilter JsonFileType = new("JSON Files", ["*.json"]);
+
+    private static readonly ILogger Log = AppLog.CreateLogger<SettingsWindow>();
 
     private readonly IFilePickerService _filePicker;
 
@@ -66,6 +72,18 @@ public partial class SettingsWindow : Window
         if (exportAllBtn is not null)
         {
             exportAllBtn.Click += OnExportAllClick;
+        }
+
+        var importVerbsBtn = this.FindControl<Button>("ImportVerbsButton");
+        if (importVerbsBtn is not null)
+        {
+            importVerbsBtn.Click += OnImportVerbsClick;
+        }
+
+        var exportVerbsBtn = this.FindControl<Button>("ExportVerbsButton");
+        if (exportVerbsBtn is not null)
+        {
+            exportVerbsBtn.Click += OnExportVerbsClick;
         }
 
         var browseAliasesBtn = this.FindControl<Button>("BrowseCrcAliasDirectoryButton");
@@ -206,6 +224,67 @@ public partial class SettingsWindow : Window
         catch (JsonException)
         {
             // Invalid file format — silently ignore
+        }
+    }
+
+    private async void OnImportVerbsClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        if (DataContext is not SettingsViewModel vm)
+        {
+            return;
+        }
+
+        var path = await _filePicker.OpenFileAsync(new OpenFileOptions("Import Command Verbs", [VerbsFileType, JsonFileType]));
+        if (path is null)
+        {
+            return;
+        }
+
+        try
+        {
+            var json = await File.ReadAllTextAsync(path);
+            vm.ImportVerbs(CommandSchemeFile.Deserialize(json));
+        }
+        catch (Exception ex) when ((ex is JsonException) || (ex is IOException))
+        {
+            Log.LogWarning(ex, "Could not import command verbs from {Path}", path);
+            vm.VerbImportNote = "Could not read that file as a command verb file.";
+            vm.VerbImportIsError = true;
+        }
+    }
+
+    private async void OnExportVerbsClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        if (DataContext is not SettingsViewModel vm)
+        {
+            return;
+        }
+
+        var path = await _filePicker.SaveFileAsync(
+            new SaveFileOptions(
+                Title: "Export Command Verbs",
+                SuggestedFileName: "yaat-command-verbs" + CommandSchemeFile.Extension,
+                Filters: [VerbsFileType],
+                DefaultExtension: CommandSchemeFile.Extension.TrimStart('.')
+            )
+        );
+
+        if (path is null)
+        {
+            return;
+        }
+
+        try
+        {
+            await File.WriteAllTextAsync(path, CommandSchemeFile.Serialize(vm.ExportVerbs()));
+            vm.VerbImportNote = $"Exported to {Path.GetFileName(path)}.";
+            vm.VerbImportIsError = false;
+        }
+        catch (IOException ex)
+        {
+            Log.LogWarning(ex, "Could not export command verbs to {Path}", path);
+            vm.VerbImportNote = "Could not write that file.";
+            vm.VerbImportIsError = true;
         }
     }
 
