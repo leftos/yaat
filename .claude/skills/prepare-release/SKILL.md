@@ -349,7 +349,7 @@ Once the user approves:
    release stays invisible to users and to auto-update.
 
    **If Step 7 was CLIENT_ONLY** — lead with skipping the deploy:
-   - **Push only — skip server deploy (Recommended)** — no shared-library, server, or web-UI (vStrips/vTDLS) changes this cycle, so the running server already matches the release. Pushing ships the new client via `release.yml`; step 9a below publishes the draft when the workflow finishes.
+   - **Push only — skip server deploy (Recommended)** — no shared-library, server, or web-UI (vStrips/vTDLS) changes this cycle, so the running server already matches the release. Pushing ships the new client via `release.yml`; step 9a watches the release runs and step 9b publishes the draft when they are green.
    - **Push, then build image + decide deploy after** — force a redeploy anyway (e.g. to pull a new AIRAC cycle); continues through steps 10-12.
    - **Abort** — stop here; the user resumes manually.
 
@@ -428,10 +428,44 @@ Once the user approves:
 
     Order matters: yaat-server first means yaat-server's own work is live before yaat's release CI fires. Pushing yaat second triggers yaat-server's `submodule-updated` CI dispatch (which bumps `extern/yaat` on yaat-server), so yaat-server's main already has the cycle's work when the bump arrives.
 
-    **9a. CLIENT_ONLY publish (skip on SERVER_AFFECTING — the deploy publishes there).** The draft
-    release stays invisible until published, and on the client-only path no deploy will do it. Wait
-    for `release.yml` to finish (`gh run watch` on the run the tag push started, **in the
-    background**), confirm it succeeded, then publish:
+    **9a. Watch every client release run — both paths, always.** The tag push starts three
+    workflows on the tagged commit: `Release` (Windows installer + the draft GitHub Release),
+    `Release (macOS)` (signed/notarized `.pkg` + `.app`, appended to that draft with
+    `gh release upload`), and `CI`. Confirming they *started* is not the step; a run that fails
+    after that goes unnoticed until a user reports it, and publishing the draft (step 9b or the
+    deploy) before `Release (macOS)` has uploaded ships a release with no macOS installer. This step
+    is complete only when every run on the tagged SHA reports `success`.
+
+    Right after the tag push, list the runs and watch each one **in the background** (they take
+    15-30 minutes; the image build in step 10 runs alongside):
+
+    ```bash
+    SHA=$(git rev-parse v{version}^{commit})
+    gh api "repos/leftos/yaat/actions/runs?head_sha=$SHA" --jq '.workflow_runs[] | "\(.id)\t\(.name)\t\(.status)\t\(.conclusion)"'
+    gh run watch <run-id> --repo leftos/yaat --exit-status   # one background call per run
+    ```
+
+    If the list is missing `Release` or `Release (macOS)`, the tag push was coalesced — re-push the
+    tag in isolation as described above. When a watch exits non-zero:
+
+    1. `gh run view <run-id> --repo leftos/yaat --json conclusion,jobs` to find the failed job and
+       step, then `gh run view <run-id> --repo leftos/yaat --log-failed > .tmp/<name>-failed.log`
+       and read the error lines.
+    2. **Transient signing infrastructure** — Apple's timestamp service (`CMS signature encoding
+       failed: The timestamp service is not available. (-67885)`), a notarization upload/poll
+       timeout, a runner lost mid-job — re-run the failed jobs: `gh run rerun <run-id> --repo
+       leftos/yaat --failed`, then watch the re-run the same way. The `build` jobs stay green and
+       are not repeated.
+    3. **Anything else** (compile error, packaging error, a missing secret) is a release defect:
+       report it with the error lines and stop. Do not publish the draft and do not deploy until
+       the user decides how to fix forward; a hidden draft is recoverable, a published release
+       with a broken or missing installer is not.
+
+    Report each run's final conclusion to the user in the message that moves on to the next step.
+
+    **9b. CLIENT_ONLY publish (skip on SERVER_AFFECTING — the deploy publishes there).** The draft
+    release stays invisible until published, and on the client-only path no deploy will do it. Once
+    step 9a has every run green, publish:
     `gh release edit v{version} --repo leftos/yaat --draft=false`
     Publishing with the user token raises `release: published`, which fires the Discord
     announcement on its own — do **not** also dispatch `discord-release.yml`. Skip the remaining
@@ -447,7 +481,7 @@ Once the user approves:
     - **Deploy now** — ~2 minutes of downtime; active sessions are checkpointed and restored.
     - **Wait for rooms to clear, then deploy** — run `pwsh deploy-to-droplet.ps1 -WaitForEmptyRooms` **in the background** (it polls `GET /admin/status` every 60s and blocks until the server reports zero rooms, printing the active rooms each check; backgrounding keeps the agent responsive — you're re-invoked when it exits). When it exits cleanly, continue to step 12. *(The deploy still calls `prepare-restart` as a safety net for any room that appears between "cleared" and "deployed".)*
     - **Skip the deploy** — leave the live server on the previous build. **Warn explicitly** (SERVER_AFFECTING): the GitHub Release stays a hidden draft until a deploy publishes it or it's published manually.
-12. **Deploy:** run it through the gate wrapper, for the same reason as step 10 — a bare `tee` would report tee's status and a failed deploy would read as done:
+12. **Deploy — only once step 9a reports every client release run green.** The deploy publishes the draft release, so a still-running or failed `Release (macOS)` at this point ships a release without a macOS installer; if a watch is still pending, wait for it (rooms cleared in step 11 stay cleared for the extra minutes, and the deploy's `prepare-restart` covers any that appear). Run it through the gate wrapper, for the same reason as step 10 — a bare `tee` would report tee's status and a failed deploy would read as done:
 
     ```bash
     bash tools/gate.sh .tmp/deploy-droplet.log pwsh deploy-to-droplet.ps1 -SkipCiBuild -NoLogs
