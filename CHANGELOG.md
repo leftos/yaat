@@ -5,8 +5,10 @@
 ### Added
 - **Settings > Display > Radar Display > Highlight filed-vs-actual aircraft type mismatches** (on by default) tints the datablock type token amber when the aircraft flying is not the type its flight plan files. (GitHub #438)
 - The Aircraft List gains a **Filed** column showing the flight plan's aircraft type, in amber, only when it differs from the actual type.
+- Scenario validation lists aircraft whose actual type differs from the flight plan's (an `A388` filed as `B744`) in the CLI report and the Discord scenario-validation posts.
 
 ### Fixed
+- CRC's ERAM Ground Target shows the aircraft's actual type and heavy symbol, as the real Ground Target does, instead of the filed type.
 - `LUAW` from a hold-short a few feet past a taxiway node lines up directly instead of first pivoting a full circle in place at 3 kt. (GitHub #438)
 - A line-up that follows the taxiway onto the runway no longer tugs the nose toward the runway heading during its first roll forward.
 - A formation count filed ahead of the type (`2/C130/G`) no longer hides the aircraft type from the performance, weight-class and strip lookups.

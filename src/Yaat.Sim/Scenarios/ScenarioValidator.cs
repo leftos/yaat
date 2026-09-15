@@ -47,7 +47,8 @@ public static class ScenarioValidator
             parsedOk,
             failures,
             procedureIssues,
-            transitionFixSubs
+            transitionFixSubs,
+            ValidateAircraftTypes(scenario)
         );
     }
 
@@ -69,6 +70,33 @@ public static class ScenarioValidator
         }
 
         return Validate(scenario);
+    }
+
+    /// <summary>
+    /// Flags aircraft whose physical type (the scenario's top-level <c>aircraftType</c>) names a different airframe
+    /// than the filed one (<c>flightplan.aircraftType</c>) — typically an editor changing the aircraft without
+    /// updating the flight plan (#438). Wake prefixes and equipment suffixes are ignored, so "H/B763/L" matches
+    /// "B763". Advisory only: a mismatch is never a validation failure.
+    /// </summary>
+    private static List<AircraftTypeMismatch> ValidateAircraftTypes(Scenario scenario)
+    {
+        var mismatches = new List<AircraftTypeMismatch>();
+
+        foreach (var ac in scenario.Aircraft)
+        {
+            var filed = ac.FlightPlan?.AircraftType;
+            if (string.IsNullOrWhiteSpace(filed) || string.IsNullOrWhiteSpace(ac.AircraftType))
+            {
+                continue;
+            }
+
+            if (!AircraftState.IsSameBaseType(ac.AircraftType, filed))
+            {
+                mismatches.Add(new AircraftTypeMismatch(ac.AircraftId, ac.AircraftType, filed));
+            }
+        }
+
+        return mismatches;
     }
 
     private static (List<ProcedureIssue>, List<TransitionFixSubstitution>) ValidateProcedures(Scenario scenario)
@@ -277,7 +305,8 @@ public record ScenarioValidationResult(
     int ParsedOk,
     List<PresetParseFailure> Failures,
     List<ProcedureIssue> ProcedureIssues,
-    List<TransitionFixSubstitution> TransitionFixSubstitutions
+    List<TransitionFixSubstitution> TransitionFixSubstitutions,
+    List<AircraftTypeMismatch> AircraftTypeMismatches
 );
 
 public record PresetParseFailure(string AircraftId, string Command, string? Reason);
@@ -295,3 +324,10 @@ public record ProcedureIssue(string AircraftId, string ProcedureId, ProcedureIss
 /// OldFix is the fix from the scenario; NewFix is the closest valid transition on the new procedure (null if none found).
 /// </summary>
 public record TransitionFixSubstitution(string AircraftId, string ProcedureId, string OldFix, string? NewFix);
+
+/// <summary>
+/// Records a scenario aircraft whose physical type (top-level <c>aircraftType</c>) names a different
+/// airframe than the filed one (<c>flightplan.aircraftType</c>). ActualType and FiledType are the raw,
+/// unstripped strings as authored.
+/// </summary>
+public record AircraftTypeMismatch(string AircraftId, string ActualType, string FiledType);

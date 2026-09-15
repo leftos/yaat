@@ -367,7 +367,7 @@ ViewModels/
   GeneratorRowViewModel.cs      # Per-row VM for the IFR-arrival tab: runway/type/rate/AutoTrack/Active fields
   VfrArrivalGeneratorRowViewModel.cs # Per-row VM for the VFR-arrival tab: bearing arc/alt band/direct-to/initial V-S/Active
   OverflightGeneratorRowViewModel.cs # Per-row VM for the overflight tab: from/to arcs, exit distance, hemispheric snap, Active
-  *Converter.cs                 # IValueConverters for UI bindings (Dock, Pause, SuggestionKindColor, SignatureHelp, RunwayDisplay)
+  *Converter.cs                 # IValueConverters for UI bindings (Dock, Pause, SuggestionKindColor, SignatureHelp, RunwayDisplay, TypeMismatchBrush for the Aircraft List's Filed column)
 
 Views/
   MainWindow.axaml.cs           # Tab layout (DataGrid/Ground/Radar); room bar; pop-out management
@@ -401,7 +401,6 @@ Views/
   AboutWindow.axaml.cs          # Help → About dialog: version, build kind, .NET runtime, log path, GitHub link, optional Ko-fi support link
   WeatherTimelineEditorWindow.axaml.cs  # Timeline editor: period list (left) + WeatherEditorControl (right); v1/v2 auto-format on save
   ArrivalGeneratorsEditorWindow.axaml.cs # Live arrival-generator editor: row grid + Apply (push to sim) / Save As (new scenario JSON)
-  ScenarioValidationWindow.axaml.cs  # Batch scenario validation report (DataGrid of failures, copy report)
   SessionReportWindow.axaml.cs  # Live solo-training session report: score, coaching notes, separation timeline, approach/runway grids, per-aircraft debrief tab with "Show on Timeline" cross-link
   TimelineMarkerCanvas.cs       # SkiaSharp canvas overlaying TimelineMarkerVm ticks above the rewind scrub slider; finding markers above, command markers slightly lower; supports hit-testing and hover tooltips.
   ManageWindowProfilesDialog.axaml(.cs)  # View → Window Profiles dialog: list saved profiles, switch, rename, delete
@@ -1140,7 +1139,7 @@ ScenarioModels.cs              # Scenario JSON DTOs: Scenario, ScenarioAircraft,
                                # IGeneratorConfig + the three generator configs (IFR arrival / VFR arrival / overflight), GeneratorsPayload
                                # ScenarioGeneratorConfig (renamed to avoid collision with AircraftGenerator static class)
 ScenarioIdentity.cs            # Shared scenario ID fallback hashing/normalization for server load and sim replay
-ScenarioValidator.cs           # Validates preset commands via CommandParser.ParseCompound; shared by client + yaat-server CLI
+ScenarioValidator.cs           # Offline scenario checks (preset parse, SID/STAR versions, transition fixes, physical-vs-filed aircraft type); driven by the yaat-server CLI + Discord workflow, see docs/scenario-validation.md
                                # ScenarioValidationResult, PresetParseFailure, ProcedureIssue, ProcedureIssueKind records
                                # Detects outdated procedure versions (VersionChanged) and missing procedures (NotFound)
 AircraftInitializer.cs         # InitializeOnRunway/AtParking/OnFinal → PhaseInitResult
