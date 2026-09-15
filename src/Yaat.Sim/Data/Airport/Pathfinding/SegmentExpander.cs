@@ -1,3 +1,5 @@
+using Microsoft.Extensions.Logging;
+
 namespace Yaat.Sim.Data.Airport.Pathfinding;
 
 /// <summary>
@@ -8,6 +10,8 @@ namespace Yaat.Sim.Data.Airport.Pathfinding;
 /// </summary>
 public static class SegmentExpander
 {
+    private static readonly ILogger Log = SimLog.CreateLogger("SegmentExpander");
+
     /// <summary>
     /// Maximum nodes expanded in a single per-segment local search.
     /// Taxiways have fewer than 200 nodes at any real airport; this is a safety ceiling.
@@ -39,6 +43,13 @@ public static class SegmentExpander
     private const int MaxBridgeHopsDeep = 6;
 
     /// <summary>
+    /// Longest stub between a runway hold-short bar and the cleared taxiway it hangs off for that bar to
+    /// count as the cleared taxiway's own access to the runway. Shares issue #393's rule that a short run
+    /// to the bar counts as being at the runway (<see cref="TaxiPathfinder.AdjacentRunwayHoldShortMaxFt"/>).
+    /// </summary>
+    private const double RunwayConnectorStubMaxFt = TaxiPathfinder.AdjacentRunwayHoldShortMaxFt;
+
+    /// <summary>
     /// Run the segment expander on the given <paramref name="ctx"/>.
     /// Returns either a materialised <see cref="TaxiRoute"/> or a structured
     /// <see cref="PathfindingFailure"/>. Exactly one of the two return values is non-null.
@@ -56,7 +67,8 @@ public static class SegmentExpander
         var variants = BuildConnectorVariants(ctx);
         if (variants.Count == 0)
         {
-            return ResolveExplicit(ctx);
+            var only = ResolveExplicit(ctx);
+            return only.Route is not null ? only : TryRunwayConnectorFallback(ctx, only);
         }
 
         var primary = ResolveExplicit(ctx);
@@ -70,7 +82,101 @@ public static class SegmentExpander
             }
         }
 
-        return best is not null ? (best, null) : primary;
+        return best is not null ? (best, null) : TryRunwayConnectorFallback(ctx, primary);
+    }
+
+    /// <summary>
+    /// Last chance for a runway destination the cleared taxiways reach but carry no hold-short bar for: the
+    /// bar sits on a short numbered stub off the final taxiway (SFO taxiway B runs past 01L/19R's south end,
+    /// and the bars are on the M1 and A2 stubs). Controllers clear "…Bravo, runway 1L" and pilots take the
+    /// stub, so the clearance is re-resolved with the connector appended as a final waypoint rather than
+    /// rejected. Only a numbered connector within <see cref="RunwayConnectorStubMaxFt"/> of the taxiway
+    /// qualifies (see <see cref="FindRunwayConnectorsOffTaxiway"/>, issue #393's rule that a short run to the
+    /// bar counts as being at the runway); with no candidate the original failure is returned unchanged, so a
+    /// runway the taxiway genuinely does not serve reports exactly what it reports today.
+    /// </summary>
+    private static (TaxiRoute? Route, PathfindingFailure? Failure) TryRunwayConnectorFallback(
+        SearchContext ctx,
+        (TaxiRoute? Route, PathfindingFailure? Failure) primary
+    )
+    {
+        if (!IsRunwayConnectorFallbackApplicable(ctx, primary.Failure))
+        {
+            return primary;
+        }
+
+        string lastTaxiway = ctx.WaypointSequence[^1];
+        string runwayId = ctx.Destination.RunwayId!;
+        foreach (var candidate in FindRunwayConnectorsOffTaxiway(ctx.Layout, lastTaxiway, runwayId, ctx.WaypointSequence))
+        {
+            if (ResolveThroughConnector(ctx, candidate, lastTaxiway, runwayId) is { } route)
+            {
+                return (route, null);
+            }
+        }
+
+        return primary;
+    }
+
+    /// <summary>
+    /// True when the failed resolution is the one this fallback owns: a runway destination the final named
+    /// taxiway could not reach, that taxiway being a plain name (not a node-ref or a runway taxied along).
+    /// </summary>
+    private static bool IsRunwayConnectorFallbackApplicable(SearchContext ctx, PathfindingFailure? failure)
+    {
+        if ((ctx.Destination.Kind != DestinationKind.Runway) || (ctx.Destination.RunwayId is null) || (ctx.WaypointSequence.Count == 0))
+        {
+            return false;
+        }
+
+        if (failure is not { Kind: FailureKind.DestinationUnreachable })
+        {
+            return false;
+        }
+
+        string lastTaxiway = ctx.WaypointSequence[^1];
+        return string.Equals(failure.InfeasibleTaxiway, lastTaxiway, StringComparison.OrdinalIgnoreCase)
+            && IsPlainTaxiwayToken(ctx.Layout, lastTaxiway);
+    }
+
+    /// <summary>True when a waypoint token names a taxiway outright — not a <c>#id</c> node-ref, not a runway.</summary>
+    private static bool IsPlainTaxiwayToken(AirportGroundLayout layout, string token) =>
+        !token.StartsWith('#') && !IsRunwayWaypoint(token) && !layout.TryGetRunwayCenterlineName(token, out _);
+
+    /// <summary>
+    /// Re-resolve the clearance with <paramref name="candidate"/> appended as the final waypoint, accepting
+    /// the route only when it now stops at the very bar the stub led to — appending a taxiway authorises the
+    /// whole taxiway, and a long one (SFO M1 runs the length of the A ramp) could otherwise carry the route the
+    /// long way to a different bar for the same runway. The notification goes on the route's own warnings, and
+    /// the advisory list is copied — a <c>with</c> copy shares it, so a candidate that fails to resolve would
+    /// otherwise leak its advisories onto the next one.
+    /// </summary>
+    private static TaxiRoute? ResolveThroughConnector(SearchContext ctx, RunwayConnectorCandidate candidate, string lastTaxiway, string runwayId)
+    {
+        var (route, _) = ResolveExplicit(
+            ctx with
+            {
+                WaypointSequence = [.. ctx.WaypointSequence, candidate.Connector],
+                ResolutionAdvisories = [.. ctx.ResolutionAdvisories],
+            }
+        );
+        if (route is null || !route.HoldShortPoints.Any(hs => IsDestinationHoldFor(hs, runwayId) && (hs.NodeId == candidate.BarNodeId)))
+        {
+            return null;
+        }
+
+        string runwayDisplay = RunwayIdentifier.ToDisplayDesignator(runwayId);
+        route.Warnings.Insert(0, $"via {candidate.Connector} — {lastTaxiway} reaches {runwayDisplay} through {candidate.Connector}");
+        string trace = $"[connector] {lastTaxiway} has no {runwayDisplay} bar; threading {candidate.Connector} (stub {candidate.StubFt:F0} ft)";
+        ctx.DiagnosticLog?.Invoke(trace);
+        Log.LogDebug(
+            "{Taxiway} has no runway {Runway} bar; threading {Connector} (stub {StubFt:F0} ft)",
+            lastTaxiway,
+            runwayDisplay,
+            candidate.Connector,
+            candidate.StubFt
+        );
+        return route;
     }
 
     /// <summary>
@@ -1741,8 +1847,9 @@ public static class SegmentExpander
     /// (there is no next named taxiway). Steers junction selection toward the junction whose
     /// taxiway side leads to the runway's own hold-short, so the following terminus walk heads the
     /// right way along the taxiway instead of committing to the opposite end and detouring back.
-    /// Null when no hold-short for the runway sits on the taxiway (the runway is reached via a
-    /// numbered variant or connector, which <see cref="TryVariantExtension"/> handles later) — in
+    /// Null when no hold-short for the runway sits on the taxiway (the runway is reached via a numbered
+    /// variant, which <see cref="TryVariantExtension"/> handles later, or via a connector stub off the
+    /// taxiway, which <see cref="TryRunwayConnectorFallback"/> handles once the whole walk has failed) — in
     /// which case junction selection keeps its prior cost-only behaviour.
     /// </summary>
     private static (double Lat, double Lon)? ResolveRunwayHoldShortAnchorOnTaxiway(string taxiway, string runwayId, SearchContext ctx)
@@ -2673,11 +2780,12 @@ public static class SegmentExpander
                 return ExtendToNearestHoldShort(head, sameNameHs, ctx);
             }
 
-            // No numbered variant and no same-name hold-short reaches the destination runway from
-            // this taxiway. TryVariantExtension is only entered when the walk itself did NOT reach a
-            // hold-short for the runway, so the runway is genuinely unreachable from the cleared
-            // route — fail rather than returning a route that stops at the taxiway terminus short of
-            // the runway (which would let the command succeed against a route that never gets there).
+            // No numbered variant and no same-name hold-short reaches the destination runway from this
+            // taxiway. TryVariantExtension is only entered when the walk itself did NOT reach a hold-short
+            // for the runway, so fail rather than returning a route that stops at the taxiway terminus short
+            // of the runway (which would let the command succeed against a route that never gets there).
+            // Run treats this failure as its cue to try a connector stub off the taxiway
+            // (TryRunwayConnectorFallback) before the failure reaches the controller.
             return (
                 null,
                 new PathfindingFailure(
@@ -2803,6 +2911,209 @@ public static class SegmentExpander
         }
 
         return result;
+    }
+
+    /// <summary>
+    /// True when <paramref name="hs"/> is the destination-runway hold-short for <paramref name="runwayId"/>
+    /// itself — the reason alone is not enough, because the hold-short node set is a substring match on the
+    /// runway id (`1L` also matches `11L`), so the accepted route must be checked against the designator.
+    /// </summary>
+    private static bool IsDestinationHoldFor(HoldShortPoint hs, string runwayId) =>
+        (hs.Reason == HoldShortReason.DestinationRunway)
+        && (hs.TargetName is { Length: > 0 } target)
+        && RunwayIdentifier.Parse(target).Contains(RunwayIdentifier.NormalizeDesignator(runwayId));
+
+    /// <summary>
+    /// Numbered connectors that carry <paramref name="lastTaxiway"/> to a hold-short bar for
+    /// <paramref name="runwayId"/> when the taxiway itself has no bar for that runway — SFO's B, which runs
+    /// past 01L/19R's south end while the bars sit on the M1 and A2 stubs. A candidate is a straight,
+    /// non-runway edge at a bar whose name is neither <paramref name="lastTaxiway"/> nor already in
+    /// <paramref name="alreadyNamed"/>, and never a letter-only name (an unnamed letter taxiway is a
+    /// deviation the controller has to name; numbered stubs are free, see
+    /// <see cref="SearchContext.IsLetterOnlyTaxiway"/>). The connector must then reach a node on
+    /// <paramref name="lastTaxiway"/> within <see cref="RunwayConnectorStubMaxFt"/> without crossing another
+    /// bar, a runway surface, or a junction onto a third taxiway — issue #393's rule that a short run to the
+    /// bar counts as being at the runway. Ordered shortest stub first, name breaking ties.
+    /// </summary>
+    public static List<RunwayConnectorCandidate> FindRunwayConnectorsOffTaxiway(
+        AirportGroundLayout layout,
+        string lastTaxiway,
+        string runwayId,
+        IReadOnlyCollection<string> alreadyNamed
+    )
+    {
+        var shortest = new Dictionary<string, RunwayConnectorCandidate>(StringComparer.OrdinalIgnoreCase);
+        foreach (var bar in layout.GetRunwayHoldShortNodes(runwayId).OrderBy(n => n.Id))
+        {
+            foreach (string connector in ConnectorNamesAtBar(bar, lastTaxiway, alreadyNamed))
+            {
+                if (WalkConnectorStub(bar, connector, lastTaxiway) is not { } reach)
+                {
+                    continue;
+                }
+
+                if (!shortest.TryGetValue(connector, out var incumbent) || (reach.StubFt < incumbent.StubFt))
+                {
+                    shortest[connector] = new RunwayConnectorCandidate(connector, reach.NodeId, bar.Id, reach.StubFt);
+                }
+            }
+        }
+
+        return [.. shortest.Values.OrderBy(c => c.StubFt).ThenBy(c => c.Connector, StringComparer.Ordinal)];
+    }
+
+    /// <summary>
+    /// A numbered stub that carries the last cleared taxiway to a hold-short bar for the destination runway.
+    /// </summary>
+    /// <param name="Connector">The stub's taxiway name (SFO <c>M1</c>).</param>
+    /// <param name="JunctionNodeId">The node where the stub meets the cleared taxiway.</param>
+    /// <param name="BarNodeId">The hold-short bar the stub leads to — the node the re-resolved route must end at.</param>
+    /// <param name="StubFt">Walked length from the bar to the junction.</param>
+    public readonly record struct RunwayConnectorCandidate(string Connector, int JunctionNodeId, int BarNodeId, double StubFt);
+
+    /// <summary>Distinct connector names named by the straight, non-runway edges meeting a hold-short bar.</summary>
+    private static List<string> ConnectorNamesAtBar(GroundNode bar, string lastTaxiway, IReadOnlyCollection<string> alreadyNamed)
+    {
+        var names = new List<string>();
+        foreach (var edge in bar.Edges)
+        {
+            if ((edge is not GroundEdge straight) || straight.IsRunwayCenterline || straight.IsRunwayCrossingLink)
+            {
+                continue;
+            }
+
+            string name = straight.TaxiwayName;
+            if (IsUsableConnectorName(name, lastTaxiway, alreadyNamed) && !names.Contains(name, StringComparer.OrdinalIgnoreCase))
+            {
+                names.Add(name);
+            }
+        }
+
+        return names;
+    }
+
+    /// <summary>
+    /// True when <paramref name="name"/> is a numbered connector the clearance has not already named. The digit
+    /// requirement is structural: it excludes letter-only taxiways (a deviation the controller must name) and
+    /// <c>RAMP</c> (nonmovement area, 7110.65 §3-7-2 NOTE 2) even on a layout that wires a ramp edge to a bar.
+    /// </summary>
+    private static bool IsUsableConnectorName(string name, string lastTaxiway, IReadOnlyCollection<string> alreadyNamed)
+    {
+        if (name.Equals(lastTaxiway, StringComparison.OrdinalIgnoreCase) || !name.Any(char.IsDigit))
+        {
+            return false;
+        }
+
+        foreach (string named in alreadyNamed)
+        {
+            if (named.Equals(name, StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    /// Dijkstra along <paramref name="connector"/> from <paramref name="bar"/> to the first node on
+    /// <paramref name="lastTaxiway"/> (a fillet corner arc counts — the B/M1 tangent-cut node is where
+    /// the taxiway and the stub meet). Null when no such node lies within
+    /// <see cref="RunwayConnectorStubMaxFt"/> of the bar along the connector.
+    /// </summary>
+    private static (int NodeId, double StubFt)? WalkConnectorStub(GroundNode bar, string connector, string lastTaxiway)
+    {
+        var queue = new PriorityQueue<GroundNode, (double Ft, int NodeId)>();
+        queue.Enqueue(bar, (0.0, bar.Id));
+        var settled = new HashSet<int>();
+
+        while (queue.TryDequeue(out var node, out var key))
+        {
+            if (!settled.Add(node.Id))
+            {
+                continue;
+            }
+
+            if ((node.Id != bar.Id) && NodeIncidentToTaxiway(node, lastTaxiway))
+            {
+                return (node.Id, key.Ft);
+            }
+
+            if (CanExpandConnectorNode(node, bar, connector, lastTaxiway))
+            {
+                RelaxConnectorEdges(node, key.Ft, connector, settled, queue);
+            }
+        }
+
+        return null;
+    }
+
+    private static void RelaxConnectorEdges(
+        GroundNode node,
+        double reachedFt,
+        string connector,
+        HashSet<int> settled,
+        PriorityQueue<GroundNode, (double Ft, int NodeId)> queue
+    )
+    {
+        foreach (var edge in node.Edges)
+        {
+            if (edge.IsRunwayCenterline || IsRunwayCrossingLinkEdge(edge) || !edge.MatchesTaxiway(connector))
+            {
+                continue;
+            }
+
+            var next = edge.OtherNode(node);
+            double ft = reachedFt + (edge.DistanceNm * GeoMath.FeetPerNm);
+            if ((ft <= RunwayConnectorStubMaxFt) && !settled.Contains(next.Id))
+            {
+                queue.Enqueue(next, (ft, next.Id));
+            }
+        }
+    }
+
+    /// <summary>
+    /// A stub walk never continues through a second hold-short bar or a node where a third taxiway joins —
+    /// both mean the connector has left its short lead-in and is a route of its own. Fillet arcs are ignored
+    /// for the third-taxiway test: a corner arc carries the joined names of the taxiways it bridges.
+    /// </summary>
+    private static bool CanExpandConnectorNode(GroundNode node, GroundNode bar, string connector, string lastTaxiway)
+    {
+        if ((node.Id != bar.Id) && (node.Type == GroundNodeType.RunwayHoldShort))
+        {
+            return false;
+        }
+
+        foreach (var edge in node.Edges)
+        {
+            if (IsThirdTaxiwayStraight(edge, connector, lastTaxiway))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    /// True for any edge — straight or fillet arc — whose name carries a runway-crossing <c>:link</c>, the
+    /// runway-surface edges the stub walk must never step onto (a junction arc joining a connector to a link
+    /// still matches the connector's name, so <see cref="IGroundEdge.MatchesTaxiway"/> alone does not exclude it).
+    /// </summary>
+    private static bool IsRunwayCrossingLinkEdge(IGroundEdge edge) => edge.TaxiwayName.Contains(":link", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// True when <paramref name="edge"/> is a straight edge of a taxiway that is neither the connector nor the
+    /// cleared taxiway — the junction onto a third taxiway that ends a stub walk.
+    /// </summary>
+    private static bool IsThirdTaxiwayStraight(IGroundEdge edge, string connector, string lastTaxiway)
+    {
+        if ((edge is not GroundEdge straight) || straight.IsRunwayCenterline || straight.IsRunwayCrossingLink)
+        {
+            return false;
+        }
+
+        return !straight.MatchesTaxiway(connector) && !straight.MatchesTaxiway(lastTaxiway);
     }
 
     /// <summary>

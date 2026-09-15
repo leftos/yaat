@@ -31,6 +31,7 @@ public class SfoVideoRoutePinTests
     [Theory]
     [InlineData("spot", "2", "TAXI A A1 1R", "1R:Destination")]
     [InlineData("spot", "2", "TAXI A L F 28L HS A1", "A1:Explicit;28L:Destination")]
+    [InlineData("spot", "2", "TAXI A F1 B 1L", "1L:Destination")]
     [InlineData("spot", "2", "TAXI A A1 1R F1 F RWY 28L HS F1", "F1:Explicit;28L:Destination")]
     [InlineData("spot", "2", "TAXI A F1 F RWY 28L CROSS 1L HS 1R", "1L:Crossing:cleared;1R:Explicit;28L:Destination")]
     [InlineData("parking", "G3", "TAXI A Q B F 28L HS 1L", "1L:Explicit;1R:Crossing;28L:Destination")]

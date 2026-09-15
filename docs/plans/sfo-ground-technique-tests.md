@@ -15,10 +15,10 @@ Companion inventory (2026-09-15): KSFO ground coverage lives entirely in `tests/
 | Video route | Probe | Result |
 |---|---|---|
 | Spot 2 `A A1` → 1R (12:28) | p1 | resolves; 1 hold (1R destination) |
-| Spot 2 `A F1 B` → 1L (13:02) | p2 | **no route: "Taxiway B does not reach runway 1L"** |
+| Spot 2 `A F1 B` → 1L (13:02) | p2 | was "Taxiway B does not reach runway 1L" — **fixed 2026-09-15** (connector fold threads the M1 stub; pinned in `SfoVideoRoutePinTests` and `SfoBravoToOneLeftConnectorTests`) |
 | Spot 2 `A L F` → 28L HS A1 (16:57) | p3 | resolves; HS A1 explicit + 28L; **no runway crossing** (L passes behind the 1R threshold, F joins 28L south of the 1s) |
 | SIG1 `<C` → 28R HS E (18:05) | p4 | resolves; HS E, then 01L/19R + 01R/19L crossings, 28R |
-| Cargo 50-1 `C Z B` → 1L HS B1 (20:20) | p5 | **no route: same "B does not reach 1L"** (the #394 form `C Z B M1 1L` resolves) |
+| Cargo 50-1 `C Z B` → 1L HS B1 (20:20) | p5 | was the same "B does not reach 1L" — **fixed 2026-09-15** with p2 |
 | G3 super `A Q B F` → 28L HS 1L (24:47) | p6 | resolves; HS 1L explicit, 1R crossing, 28L |
 | Spot 2 `A E B Z S` → 10R (47:32) | p8 | resolves; no crossings |
 | SIG1 `C C3` → 10L (51:26) | p9 | resolves; `[LI] TIGHT-ARC` 25.7 ft / 3.2 kt at nodes 2317→2314 on C (see findings) |
@@ -126,13 +126,13 @@ Legend: **have** = command surface exists (test is a new pin at SFO); **probe** 
 
 ## Findings from the probes (verify before writing the tests)
 
-- **F-1 `A F1 B 1L` and `C Z B 1L` do not resolve** ("Taxiway B does not reach runway 1L"; probes p2, p5) while `C Z B M1 1L` (#394) does. Either the vNAS map places the 1L full-length bar only on M1 (then the pilot readback should steer the controller) or B's bar is missed by the hold-short matcher. Check `--runway 1L` node #… against the FAA diagram before B2/B4 are written.
+- **F-1 (fixed 2026-09-15)** `A F1 B 1L` and `C Z B 1L` failed because the 1L bars sit on the M1 and A2 stubs, not on B, and the variant matcher only accepted same-letter connectors. `SegmentExpander.TryRunwayConnectorFallback` now threads a numbered stub ≤ 600 ft off the last taxiway and the echo notes `[via M1 — B reaches 1L through M1]` (`docs/ground/pathfinder.md`).
 - **F-2 Tight arc on C at Signature**: `[LI] TIGHT-ARC` radius 25.7 ft / 3.2 kt at nodes 2317→2314 on every route out of SIG1 (p4, p9). Related to the MAIN.md backlog item on C's near-collinear kinks.
 - **F-3 No L/M2 junction** in the layout (p12), so the video's Lima flow-time hold cannot be expressed as `HS M2`. Confirm the taxiway naming on the current FAA diagram before treating this as a layout gap.
 
 ## Tasks
 
-- [ ] Resolve F-1 (layout vs matcher) — then write B2 and B4
+- [ ] B4: extend `Issue394HoldShortSpotTests` with the `RES HS B1` follow-on after the west-end crossing (F-1 and B2 shipped 2026-09-15)
 - [ ] `SfoDepartureFunnelTests` (C1, C2) — the flagship multi-aircraft sequencing test
 - [ ] `SfoSixAlleyChoreographyTests` (A4, A5) and `SfoSimultaneousAlleyPushTests` (A3)
 - [ ] `SfoYankeePushTests` (A1, A2)
