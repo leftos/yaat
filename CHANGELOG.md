@@ -4,6 +4,7 @@
 
 ### Fixed
 - A taxi clearance whose last taxiway reaches the runway only through a short numbered stub (SFO `TAXI A F1 B 1L` via M1) resolves, and the response notes the stub.
+- Two aircraft pushing back into adjacent ramp alley lanes (SFO spots 5A/5B) no longer stop each other; a pusher still stops for traffic it cannot clear laterally.
 
 ## v0.12.33-beta [2026/09/15]
 

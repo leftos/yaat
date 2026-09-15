@@ -671,6 +671,19 @@ public static class GroundConflictDetector
         }
     }
 
+    /// <summary>
+    /// One aircraft's side of a pushback pair: the aircraft, the movement classification
+    /// <see cref="Classify"/> gave it, and its direction of travel (null when it has none —
+    /// a pusher's is the reciprocal of its nose heading). Bundled so the resolution helpers carry
+    /// one argument per party instead of three.
+    /// </summary>
+    private readonly record struct PushbackParty(AircraftState Aircraft, MovementState State, double? Direction);
+
+    /// <summary>
+    /// Resolves a pair in which at least one aircraft is pushing back, within
+    /// <see cref="PushbackBufferFt"/>. Each side is resolved independently and the two orders are
+    /// equivalent (neither reads the other's cap), so the pair runs as two symmetric calls.
+    /// </summary>
     private static void ResolvePushbackYield(
         AircraftState a,
         MovementState stateA,
@@ -687,59 +700,85 @@ public static class GroundConflictDetector
             return;
         }
 
-        if (stateA == MovementState.Pushing && dirA is not null)
+        var partyA = new PushbackParty(a, stateA, dirA);
+        var partyB = new PushbackParty(b, stateB, dirB);
+        ResolvePushbackSide(partyA, partyB, distFt, diagnosticLog);
+        ResolvePushbackSide(partyB, partyA, distFt, diagnosticLog);
+    }
+
+    /// <summary>
+    /// One aircraft's obligation within a pushback pair: a pusher yields to
+    /// <paramref name="other"/> (<see cref="PushbackYieldForTraffic"/>), any other mover trails it,
+    /// and a stationary aircraft owes nothing.
+    /// </summary>
+    private static void ResolvePushbackSide(PushbackParty subject, PushbackParty other, double distFt, Action<string>? diagnosticLog)
+    {
+        if (subject.Direction is not { } dir)
         {
-            // A genuinely parked/held neighbor at a gate is a passable obstacle, not a
-            // hard stop — a gate pushback clears an aircraft parked at the adjacent gate
-            // as a matter of course. Use the graduated closing logic (stop only within
-            // actual collision distance, otherwise creep past) instead of pinning the
-            // pusher to 0, which otherwise forced the controller to issue repeated BREAKs.
-            if (IsParkedOrHeld(b))
-            {
-                ApplyClosingLimit(a, dirA.Value, b, stateB, distFt, diagnosticLog);
-            }
-            else
-            {
-                double bearing = GeoMath.BearingTo(a.Position, b.Position);
-                if (HeadingDifference(dirA.Value, bearing) < 90)
-                {
-                    ApplyMinLimit(a, 0, "pushback yield", b, distFt);
-                }
-            }
+            return;
         }
 
-        if (stateB == MovementState.Pushing && dirB is not null)
+        if (subject.State == MovementState.Pushing)
         {
-            if (IsParkedOrHeld(a))
-            {
-                ApplyClosingLimit(b, dirB.Value, a, stateA, distFt, diagnosticLog);
-            }
-            else
-            {
-                double bearing = GeoMath.BearingTo(b.Position, a.Position);
-                if (HeadingDifference(dirB.Value, bearing) < 90)
-                {
-                    ApplyMinLimit(b, 0, "pushback yield", a, distFt);
-                }
-            }
+            PushbackYieldForTraffic(subject.Aircraft, dir, other, distFt, diagnosticLog);
+            return;
         }
 
-        if (stateA != MovementState.Pushing && stateA != MovementState.Stationary && dirA is not null)
+        if (subject.State == MovementState.Stationary)
         {
-            double bearing = GeoMath.BearingTo(a.Position, b.Position);
-            if (HeadingDifference(dirA.Value, bearing) < 90)
-            {
-                ApplyTrailLimit(a, b, distFt);
-            }
+            return;
         }
 
-        if (stateB != MovementState.Pushing && stateB != MovementState.Stationary && dirB is not null)
+        if (HeadingDifference(dir, GeoMath.BearingTo(subject.Aircraft.Position, other.Aircraft.Position)) < 90)
         {
-            double bearing = GeoMath.BearingTo(b.Position, a.Position);
-            if (HeadingDifference(dirB.Value, bearing) < 90)
-            {
-                ApplyTrailLimit(b, a, distFt);
-            }
+            ApplyTrailLimit(subject.Aircraft, other.Aircraft, distFt);
+        }
+    }
+
+    /// <summary>
+    /// The yield a pushing aircraft owes another aircraft inside the pushback buffer.
+    ///
+    /// <para>A genuinely parked/held neighbor at a gate is a passable obstacle, not a hard stop — a
+    /// gate pushback clears an aircraft parked at the adjacent gate as a matter of course. Use the
+    /// graduated closing logic (stop only within actual collision distance, otherwise creep past)
+    /// instead of pinning the pusher to 0, which otherwise forced the controller to issue repeated
+    /// BREAKs.</para>
+    ///
+    /// <para>Against a mover, the pusher stops only for traffic ahead of its push direction that it
+    /// cannot clear laterally: two tugs in adjacent alley lanes pass wingtip-to-wingtip and must not
+    /// freeze each other (SFO ATCT SOP 3-5.c.i uses spots 5A/5B — and 6A/6B — simultaneously for
+    /// aircraft smaller than a B757). A pusher aimed at the other's fuselage still stops. The lateral
+    /// room is measured along <paramref name="pushDir"/>, not the nose: a pusher moves tail-first, so
+    /// its heading points the opposite way.</para>
+    ///
+    /// <para>The lateral test is re-evaluated on every detector pass rather than latched, so a mover
+    /// converging into the push corridor re-pins the pusher the instant the clearance is lost. The
+    /// Pushback pair kind is exclusive — no closing or head-on check runs on top of it — so this is
+    /// the pair's only guard, which is why it has to be instantaneous rather than one-shot.</para>
+    ///
+    /// <para>The <see cref="WingspanLateralCheckEnabled"/> / <see cref="WingspanLateralCheckRequireStationary"/>
+    /// toggles that gate the same geometry inside <see cref="ComputeClosingLimit"/> deliberately do not
+    /// gate this path. The pushback yield exists only against movers, so a stationary-only gate would
+    /// disable it outright; the toggles are A/B capture instrumentation for the taxi closing check
+    /// (<c>Skw3078FixComparisonCapture</c>), not a switch for pushback geometry.</para>
+    /// </summary>
+    private static void PushbackYieldForTraffic(
+        AircraftState pusher,
+        double pushDir,
+        PushbackParty other,
+        double distFt,
+        Action<string>? diagnosticLog
+    )
+    {
+        if (IsParkedOrHeld(other.Aircraft))
+        {
+            ApplyClosingLimit(pusher, pushDir, other.Aircraft, other.State, distFt, diagnosticLog);
+            return;
+        }
+
+        if (!HasWingspanLateralClearance(pusher, pushDir, other.Aircraft))
+        {
+            ApplyMinLimit(pusher, 0, "pushback yield", other.Aircraft, distFt);
         }
     }
 
@@ -1203,10 +1242,25 @@ public static class GroundConflictDetector
     /// (an obstacle abeam or behind the heading is never blocking). Used by
     /// <see cref="FlightPhysics.UpdateGiveWayResume"/>'s stalemate-bypass fallback.
     /// </summary>
-    internal static bool HasWingspanLateralClearance(AircraftState mover, AircraftState obstacle)
+    internal static bool HasWingspanLateralClearance(AircraftState mover, AircraftState obstacle) =>
+        HasWingspanLateralClearance(mover, mover.TrueHeading.Degrees, obstacle);
+
+    /// <summary>
+    /// True when <paramref name="mover"/> could pass <paramref name="obstacle"/> with at least
+    /// half-wingspans plus <see cref="WingtipBufferFt"/> of lateral room while travelling along
+    /// <paramref name="moverDirectionDeg"/> (an obstacle abeam or behind that direction is never
+    /// blocking). The direction is explicit because a pusher moves tail-first: its motion runs along
+    /// <c>Ground.PushbackTrueHeading</c>, the reciprocal of the nose heading.
+    ///
+    /// <para>The obstacle contributes half its wingspan whatever its orientation: a neighbour sitting
+    /// perpendicular to the mover's track actually presents half its length instead (a B738's 64.8 ft
+    /// half-length against the 58.8 ft half-span used here), a 6–15 ft understatement for common types
+    /// that the 25 ft <see cref="WingtipBufferFt"/> absorbs.</para>
+    /// </summary>
+    internal static bool HasWingspanLateralClearance(AircraftState mover, double moverDirectionDeg, AircraftState obstacle)
     {
         double bearing = GeoMath.BearingTo(mover.Position, obstacle.Position);
-        double angleDiff = HeadingDifference(mover.TrueHeading.Degrees, bearing);
+        double angleDiff = HeadingDifference(moverDirectionDeg, bearing);
         if (angleDiff >= 90)
         {
             return true;
