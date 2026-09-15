@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.12.32-beta [2026/09/14]
 
 ### Fixed
 - Every message box in the client failed silently since v0.10.0-beta — the favorites import prompt and summary, the delete confirmations in the favorites editor and window profiles, the CRC-configure and check-for-updates notices — because the MessageBox.Avalonia package had been pinned back to an Avalonia 11 build that cannot load under Avalonia 12. Importing favorites now shows the add/replace prompt and the summary again. (GitHub #437)
