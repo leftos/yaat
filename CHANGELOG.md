@@ -1,6 +1,12 @@
 # Changelog
 
-## Unreleased
+## v0.12.31-beta [2026/09/14]
+
+### Highlights
+- **View > New Radar Window** / **New Ground Window** open extra, independent copies of the view centred on an airport you choose, restored on launch and saved in window profiles.
+- The Radar View draws STARS ATPA cones and in-trail distances for arrivals on the same final (**Settings > Radar > Show ATPA cones and in-trail distance**).
+- **Settings > Commands** can import and export your command verbs as a `.yaat-verbs.json` file.
+- Importing favorites asks whether to add to your current ones or replace everything, and **View > Show Favorites Bar** hides the bar.
 
 ### Added
 - **View > Show Favorites Bar** hides the favorites bar (in the main window, or the Terminal window when popped out); window profiles save the setting.
@@ -13,7 +19,7 @@
 ### Fixed
 - Solo scoring: a facility-directive "Wake turbulence advisory missing" finding for an arrival behind a landing is one finding per encounter, clears on a correct CWT call, and no longer re-fires every second.
 - Speech: "cleared into IR149, maintain route altitudes" now maps to `CMTR IR149` instead of dropping the route designator.
-- Radar View: an aircraft appearing in a newly loaded scenario no longer inherits a conflict-alert field or ATPA line left over from the previous scenario.
+- Radar View: an aircraft appearing in a newly loaded scenario no longer inherits a conflict-alert field left over from the previous scenario.
 - Ground View: loading a recording restores the saved center and zoom for that scenario, as loading the scenario itself does.
 
 ## v0.12.30-beta [2026/09/11]
