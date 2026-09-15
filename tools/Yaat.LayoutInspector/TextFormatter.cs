@@ -287,6 +287,19 @@ public sealed class TextFormatter(TextWriter w) : IFormatter
                 w.WriteLine($"  #{hs.NodeId} {hs.TargetName ?? "(none)"} ({hs.Reason}){cleared}");
             }
         }
+
+        // The route's own warnings — the connector notifications, unauthorized-taxiway warnings and
+        // turn-hint advisories the controller's TAXI echo carries. Printed last so the segment list
+        // and the warning that explains it stay together.
+        if (r.Warnings is not null)
+        {
+            w.WriteLine();
+            w.WriteLine($"WARNINGS: {r.Warnings.Count}");
+            foreach (string warning in r.Warnings)
+            {
+                w.WriteLine($"  {warning}");
+            }
+        }
     }
 
     private void WriteNodeCompact(NodeInfo n, string indent = "  ")

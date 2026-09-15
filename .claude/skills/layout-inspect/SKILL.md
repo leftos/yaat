@@ -95,6 +95,7 @@ Most list-valued flags are **repeatable AND accept comma-separated values** — 
 | `--pathfinder N T1 T2 ...` | no (greedy) | Resolve explicit taxi route through taxiway sequence; prints the resolved segments **and** the route's hold-short points (node, target, reason, cleared) |
 | `--pf-dest-rwy R` | no | Destination runway hint for `--pathfinder` |
 | `--pf-hold-shorts HS` | yes / yes | Explicit hold-short targets for `--pathfinder` |
+| `--pf-start-heading D` | no | Aircraft true heading at the start node (runtime `StartHeadingTrue`); pass it for any probe of a stopped/pushed-back aircraft — it drives the first-hop bias and the connector-detour pick, and `--pathfinder` prints the route's `WARNINGS:` block so a `taxi via AY2` insertion is visible |
 | `--pf-dest-parking P`, `--pf-dest-spot S`, `--pf-dest-node N` | no | Pathfinder destinations |
 | `--exit-query RWY TWY [SIDE]` | yes | Repeated targeted exit-query diagnostic |
 | `--intersection T1 T2` | no | Find taxiway intersection node |
@@ -126,6 +127,7 @@ Two ways a `--pathfinder` probe lies about a runtime `[TryTaxi] … route resolu
 - **Node ids in a bundle's `layouts/<apt>` belong to the server's build, not the current parser.** A layout parsed by a different revision can mint a different node count from the same GeoJSON, so a server node id may point at a different node here. Map by coordinates (`python tools/bug_bundle.py layouts <bundle> --airport <apt>`, then compare `Position`), and re-derive the start node the way `TryTaxi` does: for a gate-parked aircraft `FindNearestNodeForTaxi` returns the **parking node itself**, so probe `--pathfinder <parkingNodeId> …`, not the nearby junction. Bridge-hop-cap failures from a parking node only reproduce from that node.
 
 For a gate TAXI, always run the parking-node form with `--pf-dest-rwy` + `--pf-hold-shorts` first; only then read the `[bridge]`/`[segment]` lines.
+- **Always pass `--airport-code <ICAO>` with a positional GeoJSON path.** Without it the parser has no runway widths (defaults to 150 ft) and builds a *different* graph — node ids and edges then differ from `TestAirportGroundData`'s and a probe can leave a node through an edge the harness graph does not have.
 
 ### Tips
 

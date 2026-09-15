@@ -1,3 +1,4 @@
+using System.Globalization;
 using Yaat.Sim.Data.Airport;
 
 namespace Yaat.LayoutInspector;
@@ -61,6 +62,14 @@ public sealed record CliOptions
     /// without it, LI can pick a different route than runtime. Set via <c>--pf-dest-rwy</c>.
     /// </summary>
     public string? PathfinderDestinationRunway { get; init; }
+
+    /// <summary>
+    /// Aircraft true heading passed to <c>ExplicitPathOptions.StartHeadingTrue</c>, the way
+    /// <c>GroundCommandHandler.TryTaxi</c> passes the aircraft's own heading. It is the reference for a
+    /// turn hint on the first taxiway and for the first-hop heading bias, so without it LI can resolve a
+    /// route that leaves in a direction the aircraft would not. Set via <c>--pf-start-heading</c>.
+    /// </summary>
+    public double? PathfinderStartHeadingTrue { get; init; }
 
     /// <summary>
     /// Explicit hold-short targets passed to <c>ExplicitPathOptions.ExplicitHoldShorts</c>.
@@ -190,6 +199,7 @@ public sealed record CliOptions
         int? pfNodeId = null;
         var pfTaxiways = new List<string>();
         string? pfDestRwy = null;
+        double? pfStartHeading = null;
         var pfHoldShorts = new List<string>();
         string? pfDestParking = null;
         string? pfDestSpot = null;
@@ -405,6 +415,15 @@ public sealed record CliOptions
                 case "--pf-dest-rwy" when i + 1 < args.Length:
                     pfDestRwy = args[++i].ToUpperInvariant();
                     break;
+                case "--pf-start-heading" when i + 1 < args.Length:
+                    if (!double.TryParse(args[++i], NumberStyles.Float, CultureInfo.InvariantCulture, out double pfHeading))
+                    {
+                        error = "--pf-start-heading expects a true heading in degrees";
+                        return false;
+                    }
+
+                    pfStartHeading = pfHeading;
+                    break;
                 case "--pf-hold-shorts" when i + 1 < args.Length:
                     foreach (string hs in SplitCsv(args[++i]))
                     {
@@ -505,6 +524,7 @@ public sealed record CliOptions
             PathfinderNodeId = pfNodeId,
             PathfinderTaxiways = pfTaxiways,
             PathfinderDestinationRunway = pfDestRwy,
+            PathfinderStartHeadingTrue = pfStartHeading,
             PathfinderHoldShorts = pfHoldShorts,
             PathfinderDestParking = pfDestParking,
             PathfinderDestSpot = pfDestSpot,

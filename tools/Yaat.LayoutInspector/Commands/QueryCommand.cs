@@ -180,6 +180,7 @@ public sealed class QueryCommand : ICommand
                         options.PathfinderHoldShorts.Count > 0 ? options.PathfinderHoldShorts.Select(HoldShortTarget.Parse).ToList() : null,
 
                     DestinationHintNode = destHintNode,
+                    StartHeadingTrue = options.PathfinderStartHeadingTrue,
                     DiagnosticLog = msg => diagLog.Add(msg),
                 },
                 AircraftCategory.Jet
@@ -225,6 +226,7 @@ public sealed class QueryCommand : ICommand
                 diagLog,
                 combinedSegments,
                 pfHoldShorts,
+                pfRoute?.Warnings.ToList(),
                 pfFailReason
             );
             formatter.WritePathfinder(pfResult);

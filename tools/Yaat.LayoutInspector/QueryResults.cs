@@ -210,5 +210,6 @@ public sealed record PathfinderResult(
     List<string> DiagnosticLog,
     List<PathfinderSegment>? Segments,
     List<PathfinderHoldShort>? HoldShorts,
+    List<string>? Warnings,
     string? FailReason
 );

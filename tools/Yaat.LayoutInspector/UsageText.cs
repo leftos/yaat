@@ -26,6 +26,9 @@ public static class UsageText
         Console.WriteLine("  --pf-dest-rwy <runway>   Destination runway for pathfinder (matches runtime ExplicitPathOptions.DestinationRunway)");
         Console.WriteLine("  --pf-hold-shorts <list>  Comma-separated hold-short targets (e.g. 1L,B) for pathfinder");
         Console.WriteLine(
+            "  --pf-start-heading <deg> Aircraft true heading at the start node (matches runtime ExplicitPathOptions.StartHeadingTrue)"
+        );
+        Console.WriteLine(
             "  --pf-dest-parking <name> Destination parking/helipad name for pathfinder (e.g. NEW1); reproduces TAXI <tw...> @<parking>"
         );
         Console.WriteLine("  --pf-dest-spot <name>    Destination spot name for pathfinder; reproduces TAXI <tw...> $<spot>");
