@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Simulation;
 using Yaat.Sim.Simulation.Snapshots;
 
 namespace Yaat.Sim.Phases.Ground;
@@ -159,8 +160,8 @@ public sealed class FollowingPhase : Phase
     }
 
     /// <summary>
-    /// Check if the aircraft is approaching a runway hold-short node.
-    /// If so, insert HoldingShortPhase + new FollowingPhase and stop.
+    /// Check if the aircraft is approaching a runway hold-short node it must stop at. If so, insert
+    /// HoldingShortPhase + new FollowingPhase and stop.
     /// Returns true if a hold-short was triggered (phase should complete).
     /// </summary>
     private bool CheckRunwayHoldShort(PhaseContext ctx)
@@ -172,34 +173,26 @@ public sealed class FollowingPhase : Phase
 
         foreach (var node in ctx.GroundLayout.Nodes.Values)
         {
-            if (node.Type != GroundNodeType.RunwayHoldShort)
+            if (!IsBarImmediatelyAhead(ctx, node) || IsAlreadyOnThatRunway(ctx, node))
             {
                 continue;
             }
 
-            double dist = GeoMath.DistanceNm(ctx.Aircraft.Position, node.Position);
-            if (dist > HoldShortDetectionNm)
-            {
-                continue;
-            }
-
-            // Check approach angle: aircraft heading should point toward the node
-            double bearing = GeoMath.BearingTo(ctx.Aircraft.Position, node.Position);
-            double angleDiff = Math.Abs(GeoMath.SignedBearingDifference(ctx.Aircraft.TrueHeading.Degrees, bearing));
-            if (angleDiff > HoldShortAngleThreshold)
-            {
-                continue;
-            }
-
-            // Approaching a runway hold-short — stop and insert phases
-            Log.LogDebug("[Follow] {Callsign}: hold short triggered at runway node {NodeId}", ctx.Aircraft.Callsign, node.Id);
+            var reason = BarIsOwnDestination(ctx, node) ? HoldShortReason.DestinationRunway : HoldShortReason.RunwayCrossing;
+            Log.LogDebug(
+                "[Follow] {Callsign}: hold short triggered at runway node {NodeId} ({Runway}), reason={Reason}",
+                ctx.Aircraft.Callsign,
+                node.Id,
+                node.RunwayId?.ToString() ?? "unknown",
+                reason
+            );
             ctx.Aircraft.IndicatedAirspeed = 0;
             ctx.Targets.TargetSpeed = 0;
 
             var holdShort = new HoldShortPoint
             {
                 NodeId = node.Id,
-                Reason = HoldShortReason.RunwayCrossing,
+                Reason = reason,
                 TargetName = node.RunwayId?.ToString(),
             };
 
@@ -210,5 +203,64 @@ public sealed class FollowingPhase : Phase
         }
 
         return false;
+    }
+
+    /// <summary>A runway hold-short bar within <see cref="HoldShortDetectionNm"/> and roughly off the nose.</summary>
+    private static bool IsBarImmediatelyAhead(PhaseContext ctx, GroundNode node)
+    {
+        if (node.Type != GroundNodeType.RunwayHoldShort)
+        {
+            return false;
+        }
+
+        if (GeoMath.DistanceNm(ctx.Aircraft.Position, node.Position) > HoldShortDetectionNm)
+        {
+            return false;
+        }
+
+        double bearing = GeoMath.BearingTo(ctx.Aircraft.Position, node.Position);
+        return Math.Abs(GeoMath.SignedBearingDifference(ctx.Aircraft.TrueHeading.Degrees, bearing)) <= HoldShortAngleThreshold;
+    }
+
+    /// <summary>
+    /// Whether the aircraft is already on the pavement of the runway this bar protects. A follower being led
+    /// off a runway it was staged on — down 1R and out via the F1 intersection — passes that runway's far-side
+    /// bar on the way out, and stopping there would leave it holding short of the runway it is standing on.
+    /// Leaving a runway is not crossing it; only a bar for a runway the aircraft is not yet on is a crossing.
+    /// </summary>
+    private static bool IsAlreadyOnThatRunway(PhaseContext ctx, GroundNode node)
+    {
+        if ((node.RunwayId is not { } barRunway) || ctx.GroundLayout is null)
+        {
+            return false;
+        }
+
+        foreach (var runway in RunwayOccupancy.AirportRunways(ctx.GroundLayout.AirportId))
+        {
+            if (runway.Id.Overlaps(barRunway) && RunwayOccupancy.IsOnPavement(ctx.Aircraft, runway))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Whether this bar is the one the follower's own taxi clearance ends at. FOLLOWG does not erase the route
+    /// the aircraft was cleared on, so a bar matching that route's destination runway is its departure bar, not
+    /// a crossing. The distinction is load-bearing twice over: <see cref="HoldShortReason.DestinationRunway"/>
+    /// makes <c>RES</c> refuse to release it onto the runway without a takeoff clearance, and it puts the
+    /// aircraft at tier 0 in <see cref="RunwayDepartureQueue"/> — at the front of the line, where it is.
+    /// </summary>
+    private static bool BarIsOwnDestination(PhaseContext ctx, GroundNode node)
+    {
+        if (node.RunwayId is not { } barRunway)
+        {
+            return false;
+        }
+
+        var destination = ctx.Aircraft.Ground.AssignedTaxiRoute?.HoldShortPoints.FirstOrDefault(h => h.Reason == HoldShortReason.DestinationRunway);
+        return (destination?.TargetName is { } name) && barRunway.Overlaps(RunwayIdentifier.Parse(name));
     }
 }

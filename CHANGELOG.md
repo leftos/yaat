@@ -5,6 +5,10 @@
 ### Fixed
 - A taxi clearance whose last taxiway reaches the runway only through a short numbered stub (SFO `TAXI A F1 B 1L` via M1) resolves, and the response notes the stub.
 - Two aircraft pushing back into adjacent ramp alley lanes (SFO spots 5A/5B) no longer stop each other; a pusher still stops for traffic it cannot clear laterally.
+- `FOLLOWG` applies to an aircraft holding short at a taxiway or spot bar; at a runway bar the refusal names the working `CROSS <rwy>; FOLLOWG <leader>` form.
+- The ground datablock departure-queue number ranks an aircraft told to follow another directly behind its leader when it is bound for the same bar and within 600 ft of it, and keeps its number when the leader lines up.
+- A followed aircraft reaching its own departure runway holds as a departure, so `RES` no longer releases it onto the runway; it no longer stops at the far-side bar of a runway it is leaving.
+- The Aircraft List status of a following aircraft shows its departure-queue number.
 
 ## v0.12.33-beta [2026/09/15]
 

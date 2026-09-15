@@ -488,7 +488,9 @@ public static class AircraftStatusDescriber
 
         if (i.CurrentPhase.StartsWith("Following ", StringComparison.Ordinal))
         {
-            return "following " + i.CurrentPhase[10..];
+            // A follower holds its place in the departure line, so it carries the ordinal like every other
+            // ground state that shows one — without it the aircraft behind would read as next up.
+            return AppendQueuePosition("following " + i.CurrentPhase[10..], i.RunwayQueuePosition);
         }
 
         if (i.CurrentPhase.StartsWith("Turn", StringComparison.Ordinal))

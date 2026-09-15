@@ -153,6 +153,70 @@ public sealed class HoldingShortPhase : Phase
         return false;
     }
 
+    /// <summary>
+    /// Whether this bar protects a runway. A <see cref="HoldShortReason.RunwayCrossing"/> or
+    /// <see cref="HoldShortReason.DestinationRunway"/> hold always does. An explicit <c>HS</c> bar usually
+    /// names a taxiway (<c>F1</c>) or a spot (<c>$17</c>), but a controller can also spell a runway
+    /// (<c>HS 1R</c>), so that case is decided on the target name.
+    /// </summary>
+    private bool ProtectsARunway => (_holdShort.Reason != HoldShortReason.ExplicitHoldShort) || IsRunwayTargetName(_holdShort.TargetName);
+
+    /// <summary>
+    /// Whether a <see cref="HoldShortPoint.TargetName"/> reads as a runway. The route carries either a single
+    /// designator (<c>1R</c>) or the <see cref="RunwayIdentifier"/> pair form (<c>01R/19L</c>), so every
+    /// slash-separated end has to be a runway number — 01 to 36, with an optional L/C/R.
+    ///
+    /// <para>The shape is checked rather than round-tripped through <see cref="RunwayIdentifier.Parse"/>,
+    /// which is permissive: it infers an opposite end for any string, so it answers "what runway would this
+    /// be" and never "is this a runway at all". Taxiway names start with a letter, which is what keeps
+    /// taxiways <c>C</c>, <c>L</c> and <c>R</c> out — note that <see cref="Commands.CommandParser"/>'s
+    /// same-named helper would call all three runways, because it disambiguates runways from altitudes,
+    /// where a bare trailing L/R/C can only be a runway.</para>
+    ///
+    /// <para>Two things keep this from over-matching, and both are load-bearing. The <c>$</c> spot guard comes
+    /// first because spot names are numeric — <c>HS 17</c> is spot 17, which reads as runway 17 without it.
+    /// And a parking stand such as OAK's <c>1C</c> would read as a runway too; it is unreachable only because
+    /// <see cref="HoldShortTarget.TryParse"/> refuses parking tokens as hold-short targets. The layout's
+    /// <see cref="GroundNodeType.RunwayHoldShort"/> node is the real ground truth, but
+    /// <see cref="CanAcceptCommand"/> is handed no context to reach the layout through.</para>
+    /// </summary>
+    private static bool IsRunwayTargetName(string? targetName)
+    {
+        if (string.IsNullOrWhiteSpace(targetName) || HoldShortTarget.IsSpotTargetName(targetName))
+        {
+            return false;
+        }
+
+        var ends = targetName.Split('/', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        return (ends.Length > 0) && ends.All(IsRunwayEnd);
+    }
+
+    /// <summary>
+    /// Whether one designator is a runway end: 1 or 2 leading digits numbering 01-36, then at most a single
+    /// L, C or R. Rejects a bare letter (taxiway <c>C</c>), a letter-then-digit (taxiway <c>F1</c>), a number
+    /// outside the compass range, and anything with trailing characters.
+    /// </summary>
+    private static bool IsRunwayEnd(string end)
+    {
+        int digits = 0;
+        while ((digits < end.Length) && char.IsAsciiDigit(end[digits]))
+        {
+            digits++;
+        }
+
+        if ((digits == 0) || (digits > 2) || (end.Length > digits + 1))
+        {
+            return false;
+        }
+
+        if (int.Parse(end[..digits]) is < 1 or > 36)
+        {
+            return false;
+        }
+
+        return (end.Length == digits) || (char.ToUpperInvariant(end[digits]) is 'L' or 'C' or 'R');
+    }
+
     public override CommandAcceptance CanAcceptCommand(CanonicalCommandType cmd)
     {
         return cmd switch
@@ -176,11 +240,28 @@ public sealed class HoldingShortPhase : Phase
                     $"holding short of destination runway {RunwayIdentifier.ToDisplayDesignator(_holdShort.TargetName ?? "runway")} — RES does not apply (issue CTO or LUAW)"
                 )
                 : CommandAcceptance.ClearsPhase,
+            // FOLLOWG from a bar that protects no runway — the "holding short at a taxiway or spot bar" case
+            // COMMANDS.md lists. GroundCommandHandler.TryFollow does the replacing: it clears Ground.Hold and
+            // swaps the phase list for a FollowingPhase. A bar that DOES protect a runway falls through to the
+            // rejection below, because following a leader is not a crossing clearance — CROSS (or LUAW/CTO at
+            // the departure bar) is.
+            CanonicalCommandType.FollowGround when !ProtectsARunway => CommandAcceptance.ClearsPhase,
             CanonicalCommandType.Delete => CommandAcceptance.ClearsPhase,
-            _ => CommandAcceptance.Rejected(
-                $"aircraft is holding short of {HoldShortTarget.Describe(_holdShort.TargetName ?? "the runway")}; only CROSS/LUAW/CTO/HSC, a new TAXI, or DEL apply"
-            ),
+            _ => CommandAcceptance.Rejected(RejectionMessage()),
         };
+    }
+
+    /// <summary>
+    /// What is still available from this bar. The two bars offer different sets, so naming the wrong one sends
+    /// the controller looking for a command that cannot apply: a runway bar has no RES and no FOLLOWG (it takes
+    /// a crossing or a takeoff clearance to leave), while a taxiway or spot bar has both.
+    /// </summary>
+    private string RejectionMessage()
+    {
+        string target = HoldShortTarget.Describe(_holdShort.TargetName ?? "the runway");
+        return ProtectsARunway
+            ? $"aircraft is holding short of {target}; only CROSS/LUAW/CTO/HSC, a new TAXI, or DEL apply — to follow traffic across, issue CROSS <rwy>; FOLLOWG <leader>"
+            : $"aircraft is holding short of {target}; only RES/FOLLOWG/CROSS/HSC, a new TAXI, or DEL apply";
     }
 
     protected override List<ClearanceRequirement> CreateRequirements()

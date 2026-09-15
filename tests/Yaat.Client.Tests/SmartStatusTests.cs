@@ -168,6 +168,25 @@ public class SmartStatusTests
         Assert.Equal("Holding short 28R (#1)", Text(v));
     }
 
+    /// <summary>
+    /// A follower holds its place in the departure line, so its status carries the ordinal like every other
+    /// ground state that shows one. Without it the aircraft behind the follower reads as next up.
+    /// </summary>
+    [Fact]
+    public void Following_WithQueuePosition_AppendsOrdinal()
+    {
+        var v = new AircraftStatusView { CurrentPhase = "Following UAL123", RunwayQueuePosition = 2 };
+        Assert.Equal("Following UAL123 (#2)", Text(v));
+    }
+
+    /// <summary>A follower that is not in any line — an arrival trailing a departure — shows no ordinal.</summary>
+    [Fact]
+    public void Following_WithoutQueuePosition_OmitsTheOrdinal()
+    {
+        var v = new AircraftStatusView { CurrentPhase = "Following UAL123", RunwayQueuePosition = 0 };
+        Assert.Equal("Following UAL123", Text(v));
+    }
+
     [Fact]
     public void HoldingShortToCross_KeepsItsCurrentTaxiway()
     {

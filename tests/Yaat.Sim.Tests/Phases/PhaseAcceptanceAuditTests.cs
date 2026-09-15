@@ -1,8 +1,10 @@
 using Xunit;
 using Yaat.Sim;
 using Yaat.Sim.Commands;
+using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Approach;
+using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Phases.Pattern;
 using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Simulation.Snapshots;
@@ -401,5 +403,57 @@ public class PhaseAcceptanceAuditTests
     {
         Assert.Equal(CommandAcceptance.ClearsPhase, phase.CanAcceptCommand(CanonicalCommandType.ClimbMaintain));
         Assert.Equal(CommandAcceptance.ClearsPhase, phase.CanAcceptCommand(CanonicalCommandType.DescendMaintain));
+    }
+
+    private static HoldingShortPhase HoldingShortAt(string targetName, HoldShortReason reason) =>
+        new(
+            new HoldShortPoint
+            {
+                NodeId = 1,
+                Reason = reason,
+                TargetName = targetName,
+            }
+        );
+
+    /// <summary>
+    /// FOLLOWG applies at a bar that protects no runway. An aircraft staged at an explicit taxiway or spot
+    /// hold-short is the normal starting point for handing it to the aircraft ahead when merging two taxi
+    /// flows onto one runway, and COMMANDS.md documents FOLLOWG as working from any holding state.
+    /// </summary>
+    [Theory]
+    [InlineData("F1", "a taxiway bar")]
+    [InlineData("$17", "a spot bar")]
+    public void HoldingShortPhase_NonRunwayBar_AcceptsFollowGround(string targetName, string because)
+    {
+        var phase = HoldingShortAt(targetName, HoldShortReason.ExplicitHoldShort);
+
+        Assert.Equal(CommandAcceptance.ClearsPhase, phase.CanAcceptCommand(CanonicalCommandType.FollowGround));
+        Assert.False(phase.CanAcceptCommand(CanonicalCommandType.FollowGround).IsRejected, $"FOLLOWG must apply at {because}");
+
+        // The catch-all names what a taxiway/spot bar actually offers — RES and FOLLOWG both apply here.
+        var refusal = phase.CanAcceptCommand(CanonicalCommandType.ClimbMaintain);
+        Assert.Contains("RES/FOLLOWG/CROSS/HSC", refusal.Reason);
+    }
+
+    /// <summary>
+    /// FOLLOWG is refused at any bar protecting a runway — an explicit <c>HS 1R</c>, a crossing, or the
+    /// departure bar. Following a leader is not a crossing clearance: the aircraft would trail its leader
+    /// onto the runway with nothing having authorised it.
+    /// </summary>
+    [Theory]
+    [InlineData("1R", HoldShortReason.ExplicitHoldShort)]
+    [InlineData("01R/19L", HoldShortReason.RunwayCrossing)]
+    [InlineData("28L", HoldShortReason.DestinationRunway)]
+    public void HoldingShortPhase_RunwayBar_RejectsFollowGround(string targetName, HoldShortReason reason)
+    {
+        var phase = HoldingShortAt(targetName, reason);
+
+        var acceptance = phase.CanAcceptCommand(CanonicalCommandType.FollowGround);
+
+        Assert.True(acceptance.IsRejected, $"FOLLOWG must not apply while holding short of runway {targetName}");
+        Assert.Contains("CROSS", acceptance.Reason);
+
+        // The refusal points at the way across that does exist, rather than leaving the controller guessing.
+        Assert.Contains("issue CROSS <rwy>; FOLLOWG <leader>", acceptance.Reason);
     }
 }
