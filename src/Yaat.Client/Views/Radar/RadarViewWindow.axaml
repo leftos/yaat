@@ -10,7 +10,7 @@
 
     <DockPanel>
         <views:RestartNotificationView DockPanel.Dock="Top" />
-        <radar:RadarView DataContext="{Binding Radar}" />
+        <radar:RadarView x:Name="Host" />
     </DockPanel>
 
 </Window>

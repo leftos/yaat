@@ -12,7 +12,7 @@
 
     <DockPanel>
         <views:RestartNotificationView DockPanel.Dock="Top" />
-        <ground:GroundView DataContext="{Binding Ground}" />
+        <ground:GroundView x:Name="Host" />
     </DockPanel>
 
 </Window>

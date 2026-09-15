@@ -4,6 +4,7 @@ using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Yaat.Client.ViewModels;
+using Yaat.Client.Views.Radar;
 using Yaat.Client.Views.VStrips;
 using Yaat.Client.Views.VTdls;
 
@@ -83,7 +84,9 @@ internal static class WindowHotkeys
         // Fixed (non-configurable) binding; the focus-input scope guard keeps it off modal dialogs.
         if (IsFocusInputScope(window) && (e.Key == Key.F8) && (e.KeyModifiers == KeyModifiers.Control))
         {
-            vm.Radar.ToggleDcbVisibleCommand.Execute(null);
+            // An extra Radar window toggles its own DCB; everywhere else the hotkey means the docked view.
+            var radar = window is RadarViewWindow { RadarVm: { } instanceVm } ? instanceVm : vm.Radar;
+            radar.ToggleDcbVisibleCommand.Execute(null);
             e.Handled = true;
             return;
         }

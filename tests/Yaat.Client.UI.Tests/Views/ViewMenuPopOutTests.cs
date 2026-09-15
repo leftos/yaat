@@ -51,6 +51,27 @@ public class ViewMenuPopOutTests
     }
 
     [AvaloniaFact]
+    public void ViewMenu_NewRadarWindow_AddsInstance()
+    {
+        var (window, vm) = BootMainWindow();
+        var item = ViewMenuItem(window, "New Radar _Window");
+        try
+        {
+            item.Command!.Execute(item.CommandParameter);
+            Dispatcher.UIThread.RunJobs();
+
+            var instance = Assert.Single(vm.ExtraRadarViews);
+            Assert.Equal(2, instance.Ordinal);
+        }
+        finally
+        {
+            // Shared per-process preferences.json: leave no extra windows for the next test's boot.
+            vm.ReconcileExtraViews([], []);
+            Dispatcher.UIThread.RunJobs();
+        }
+    }
+
+    [AvaloniaFact]
     public void ViewMenu_TerminalItem_TracksAndDrivesThePoppedOutState()
     {
         var (window, vm) = BootMainWindow();

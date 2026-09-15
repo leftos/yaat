@@ -1,5 +1,6 @@
 using System.Collections;
 using System.Collections.Generic;
+using System.Collections.Specialized;
 using System.ComponentModel;
 using System.Linq;
 using Avalonia;
@@ -301,6 +302,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
 
         WireStripsEntryWindows(vm);
         WireTdlsEntryWindows(vm);
+        WireViewInstanceWindows(vm);
 
         // Sync the content grid's row heights to the initial pop-out state
         // since the partial methods fired before we subscribed above. Without
@@ -1787,7 +1789,8 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
 
     private void OpenGroundViewWindow(MainViewModel vm)
     {
-        _groundViewWindow = new GroundViewWindow(vm.Preferences) { DataContext = vm };
+        _groundViewWindow = new GroundViewWindow(vm.Preferences, "GroundView", "Ground View") { DataContext = vm };
+        _groundViewWindow.SetViewModel(vm.Ground);
         _groundViewWindow.Closing += OnGroundViewWindowClosing;
         _groundViewWindow.Show();
     }
@@ -1804,7 +1807,8 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
 
     private void OpenRadarViewWindow(MainViewModel vm)
     {
-        _radarViewWindow = new RadarViewWindow(vm.Preferences) { DataContext = vm };
+        _radarViewWindow = new RadarViewWindow(vm.Preferences, "RadarView", "Radar View") { DataContext = vm };
+        _radarViewWindow.SetViewModel(vm.Radar);
         _radarViewWindow.Closing += OnRadarViewWindowClosing;
         _radarViewWindow.Show();
     }
@@ -1817,6 +1821,184 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
             _radarViewWindow.Close();
             _radarViewWindow = null;
         }
+    }
+
+    // One window per extra Radar/Ground View instance (#2, #3, …). The docked view and its pop-out are
+    // instance #1 and stay in _radarViewWindow / _groundViewWindow. Keyed by the instance record so the
+    // collection-changed handler can find the window a removed instance owned.
+    private readonly Dictionary<RadarViewInstance, RadarViewWindow> _extraRadarWindows = [];
+    private readonly Dictionary<GroundViewInstance, GroundViewWindow> _extraGroundWindows = [];
+
+    // Each window's Closing handler, kept so the programmatic close path can unsubscribe before calling
+    // Close() — the handler would otherwise report a close the view-model itself just ordered.
+    private readonly Dictionary<RadarViewInstance, EventHandler<WindowClosingEventArgs>> _extraRadarClosingHandlers = [];
+    private readonly Dictionary<GroundViewInstance, EventHandler<WindowClosingEventArgs>> _extraGroundClosingHandlers = [];
+
+    // Test hooks — same rationale as StripsWindows above.
+    internal IReadOnlyDictionary<RadarViewInstance, RadarViewWindow> ExtraRadarWindows => _extraRadarWindows;
+    internal IReadOnlyDictionary<GroundViewInstance, GroundViewWindow> ExtraGroundWindows => _extraGroundWindows;
+
+    /// <summary>
+    /// Materializes a window for every extra view instance the view-model already holds (the startup
+    /// restore from preferences runs in the MainViewModel constructor, before this window exists) and
+    /// keeps window set and instance collection in step from then on.
+    /// </summary>
+    private void WireViewInstanceWindows(MainViewModel vm)
+    {
+        foreach (var instance in vm.ExtraRadarViews)
+        {
+            OpenExtraRadarWindow(vm, instance);
+        }
+
+        foreach (var instance in vm.ExtraGroundViews)
+        {
+            OpenExtraGroundWindow(vm, instance);
+        }
+
+        vm.ExtraRadarViews.CollectionChanged += (_, e) => OnExtraRadarViewsChanged(vm, e);
+        vm.ExtraGroundViews.CollectionChanged += (_, e) => OnExtraGroundViewsChanged(vm, e);
+    }
+
+    private void OnExtraRadarViewsChanged(MainViewModel vm, NotifyCollectionChangedEventArgs e)
+    {
+        if (e.Action == NotifyCollectionChangedAction.Reset)
+        {
+            foreach (var instance in _extraRadarWindows.Keys.ToList())
+            {
+                CloseExtraRadarWindow(instance);
+            }
+
+            return;
+        }
+
+        if (e.OldItems is not null)
+        {
+            foreach (RadarViewInstance removed in e.OldItems)
+            {
+                CloseExtraRadarWindow(removed);
+            }
+        }
+
+        if (e.NewItems is not null)
+        {
+            foreach (RadarViewInstance added in e.NewItems)
+            {
+                OpenExtraRadarWindow(vm, added);
+            }
+        }
+    }
+
+    private void OnExtraGroundViewsChanged(MainViewModel vm, NotifyCollectionChangedEventArgs e)
+    {
+        if (e.Action == NotifyCollectionChangedAction.Reset)
+        {
+            foreach (var instance in _extraGroundWindows.Keys.ToList())
+            {
+                CloseExtraGroundWindow(instance);
+            }
+
+            return;
+        }
+
+        if (e.OldItems is not null)
+        {
+            foreach (GroundViewInstance removed in e.OldItems)
+            {
+                CloseExtraGroundWindow(removed);
+            }
+        }
+
+        if (e.NewItems is not null)
+        {
+            foreach (GroundViewInstance added in e.NewItems)
+            {
+                OpenExtraGroundWindow(vm, added);
+            }
+        }
+    }
+
+    private void OpenExtraRadarWindow(MainViewModel vm, RadarViewInstance instance)
+    {
+        if (_extraRadarWindows.ContainsKey(instance))
+        {
+            return;
+        }
+
+        var window = new RadarViewWindow(vm.Preferences, instance.GeometryKey, instance.Title) { DataContext = vm };
+        window.SetViewModel(instance.Vm);
+        EventHandler<WindowClosingEventArgs> onClosing = (_, _) =>
+        {
+            // Drop the bookkeeping BEFORE telling the view-model: CloseExtraRadarView removes the
+            // instance, and that CollectionChanged fan-out re-enters CloseExtraRadarWindow on this same
+            // call stack — it must miss the dictionary instead of re-Closing a window that is already
+            // inside its own Closing event. Under shutdown the instance stays in the collection so its
+            // ordinal persists and the window comes back next launch.
+            _extraRadarWindows.Remove(instance);
+            _extraRadarClosingHandlers.Remove(instance);
+            if (!IsClosingFromShutdown(_isMainWindowClosing))
+            {
+                vm.CloseExtraRadarView(instance);
+            }
+        };
+        _extraRadarWindows[instance] = window;
+        _extraRadarClosingHandlers[instance] = onClosing;
+        window.Closing += onClosing;
+        window.Show();
+    }
+
+    private void CloseExtraRadarWindow(RadarViewInstance instance)
+    {
+        if (!_extraRadarWindows.Remove(instance, out var window))
+        {
+            return;
+        }
+
+        if (_extraRadarClosingHandlers.Remove(instance, out var handler))
+        {
+            window.Closing -= handler;
+        }
+
+        window.Close();
+    }
+
+    private void OpenExtraGroundWindow(MainViewModel vm, GroundViewInstance instance)
+    {
+        if (_extraGroundWindows.ContainsKey(instance))
+        {
+            return;
+        }
+
+        var window = new GroundViewWindow(vm.Preferences, instance.GeometryKey, instance.Title) { DataContext = vm };
+        window.SetViewModel(instance.Vm);
+        EventHandler<WindowClosingEventArgs> onClosing = (_, _) =>
+        {
+            // Same remove-then-notify ordering as the Radar twin above.
+            _extraGroundWindows.Remove(instance);
+            _extraGroundClosingHandlers.Remove(instance);
+            if (!IsClosingFromShutdown(_isMainWindowClosing))
+            {
+                vm.CloseExtraGroundView(instance);
+            }
+        };
+        _extraGroundWindows[instance] = window;
+        _extraGroundClosingHandlers[instance] = onClosing;
+        window.Closing += onClosing;
+        window.Show();
+    }
+
+    private void CloseExtraGroundWindow(GroundViewInstance instance)
+    {
+        if (!_extraGroundWindows.Remove(instance, out var window))
+        {
+            return;
+        }
+
+        if (_extraGroundClosingHandlers.Remove(instance, out var handler))
+        {
+            window.Closing -= handler;
+        }
+
+        window.Close();
     }
 
     private void OpenControllersWindow(MainViewModel vm)
@@ -2156,6 +2338,9 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
             vm.IsControllersPoppedOut = profile.IsControllersPoppedOut;
             vm.IsMetarPoppedOut = profile.IsMetarPoppedOut;
             ApplyFavoritesProfileState(vm, profile);
+            // Open/close the extra Radar/Ground windows the profile captured before the geometry push
+            // below, so each new window's helper is already in the ActiveHelpers registry by then.
+            vm.ReconcileExtraViews(profile.ExtraRadarViewOrdinals, profile.ExtraGroundViewOrdinals);
 
             // Defer geometry push and grid-layout apply so any windows that were
             // just opened by the toggle flips above have actually entered the
@@ -2375,6 +2560,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
                 vm.IsGroundViewPoppedOut = profile.IsGroundViewPoppedOut;
                 vm.IsRadarViewPoppedOut = profile.IsRadarViewPoppedOut;
                 ApplyFavoritesProfileState(vm, profile);
+                vm.ReconcileExtraViews(profile.ExtraRadarViewOrdinals, profile.ExtraGroundViewOrdinals);
             }
 
             await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() =>
@@ -2896,20 +3082,27 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
             // Visual settings already applied via preview — just ensure final state is consistent
             SyncAllRadarViewTint();
             SyncAllGroundViewSpeechBubbles();
-            vm.Ground.ColorScheme = vm.Preferences.GroundColors;
-            vm.Ground.SatelliteImageBrightness = vm.Preferences.GroundSatelliteImageBrightness;
-            vm.Ground.VideoMapOverlayBrightness = vm.Preferences.GroundVideoMapOverlayBrightness;
-            vm.Ground.YaatLayoutBrightness = vm.Preferences.GroundYaatLayoutBrightness;
-            vm.Ground.ShowTaxiRouteOnHover = vm.Preferences.GroundShowTaxiRouteOnHover;
-            vm.Ground.ShowAllTaxiRoutes = vm.Preferences.GroundShowAllTaxiRoutes;
+            foreach (var ground in vm.AllGroundViews)
+            {
+                ground.ColorScheme = vm.Preferences.GroundColors;
+                ground.SatelliteImageBrightness = vm.Preferences.GroundSatelliteImageBrightness;
+                ground.VideoMapOverlayBrightness = vm.Preferences.GroundVideoMapOverlayBrightness;
+                ground.YaatLayoutBrightness = vm.Preferences.GroundYaatLayoutBrightness;
+                ground.ShowTaxiRouteOnHover = vm.Preferences.GroundShowTaxiRouteOnHover;
+                ground.ShowAllTaxiRoutes = vm.Preferences.GroundShowAllTaxiRoutes;
+            }
         }
         else
         {
             // Cancel — rollback to snapshot
-            vm.Ground.ColorScheme = snapshotGroundColors;
-            vm.Ground.SatelliteImageBrightness = snapshotSatBrightness;
-            vm.Ground.VideoMapOverlayBrightness = snapshotMapBrightness;
-            vm.Ground.YaatLayoutBrightness = snapshotGndBrightness;
+            foreach (var ground in vm.AllGroundViews)
+            {
+                ground.ColorScheme = snapshotGroundColors;
+                ground.SatelliteImageBrightness = snapshotSatBrightness;
+                ground.VideoMapOverlayBrightness = snapshotMapBrightness;
+                ground.YaatLayoutBrightness = snapshotGndBrightness;
+            }
+
             vm.DataGridScale = snapshotDataGridScale;
             vm.TerminalFontSize = snapshotTerminalFontSize;
             App.ApplyInterfaceFontSize(snapshotInterfaceFontSize);
@@ -2935,10 +3128,14 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
 
             Avalonia.Threading.Dispatcher.UIThread.Post(() =>
             {
-                vm.Ground.ColorScheme = settingsVm.GetCurrentGroundColors();
-                vm.Ground.SatelliteImageBrightness = settingsVm.GroundSatelliteImageBrightness;
-                vm.Ground.VideoMapOverlayBrightness = settingsVm.GroundVideoMapOverlayBrightness;
-                vm.Ground.YaatLayoutBrightness = settingsVm.GroundYaatLayoutBrightness;
+                foreach (var ground in vm.AllGroundViews)
+                {
+                    ground.ColorScheme = settingsVm.GetCurrentGroundColors();
+                    ground.SatelliteImageBrightness = settingsVm.GroundSatelliteImageBrightness;
+                    ground.VideoMapOverlayBrightness = settingsVm.GroundVideoMapOverlayBrightness;
+                    ground.YaatLayoutBrightness = settingsVm.GroundYaatLayoutBrightness;
+                }
+
                 vm.DataGridScale = settingsVm.DataGridFontSize / 12.0;
                 vm.TerminalFontSize = settingsVm.TerminalFontSize;
                 App.ApplyInterfaceFontSize(settingsVm.InterfaceFontSize);
@@ -3064,6 +3261,13 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
             var poppedRadar = _radarViewWindow.GetVisualDescendants().OfType<RadarView>().FirstOrDefault();
             poppedRadar?.SyncAssignmentTint();
         }
+
+        // Extra Radar View windows (#2, #3, …) — same preferences, own canvases.
+        foreach (var extra in _extraRadarWindows.Values)
+        {
+            var extraRadar = extra.GetVisualDescendants().OfType<RadarView>().FirstOrDefault();
+            extraRadar?.SyncAssignmentTint();
+        }
     }
 
     private void SyncAllGroundViewSpeechBubbles()
@@ -3079,6 +3283,13 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
         {
             var poppedGround = _groundViewWindow.GetVisualDescendants().OfType<GroundView>().FirstOrDefault();
             poppedGround?.SyncSpeechBubblePreferences();
+        }
+
+        // Extra Ground View windows (#2, #3, …) — same preferences, own canvases.
+        foreach (var extra in _extraGroundWindows.Values)
+        {
+            var extraGround = extra.GetVisualDescendants().OfType<GroundView>().FirstOrDefault();
+            extraGround?.SyncSpeechBubblePreferences();
         }
     }
 

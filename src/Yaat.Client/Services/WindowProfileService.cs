@@ -55,6 +55,10 @@ public sealed class WindowProfileService
             LoadedFavoriteSetIds = _preferences.LoadedFavoriteSetIds.ToList(),
             ShowFavoritesBar = vm.ShowFavoritesBar,
             IsFavoritesPanelOpen = FavoritesPanelWindow.IsOpen(vm),
+            // Which extra Radar/Ground windows are open; their geometry rides the live-helper walk
+            // below under the RadarView#n / GroundView#n keys.
+            ExtraRadarViewOrdinals = vm.ExtraRadarViews.Select(i => i.Ordinal).Order().ToList(),
+            ExtraGroundViewOrdinals = vm.ExtraGroundViews.Select(i => i.Ordinal).Order().ToList(),
         };
 
         // Flush every open window's helper first so the snapshot we read back

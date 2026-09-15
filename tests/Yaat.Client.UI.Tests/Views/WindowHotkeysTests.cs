@@ -22,7 +22,7 @@ public class WindowHotkeysTests
         WindowHotkeys.EnsureRegistered();
         var vm = new MainViewModel(new FakeFilePickerService());
         // A main-view-model-backed pop-out (Radar) — the default focus key is OemTilde.
-        var window = new RadarViewWindow(vm.Preferences) { DataContext = vm };
+        var window = new RadarViewWindow(vm.Preferences, "RadarView", "Radar View") { DataContext = vm };
         window.ShowAndRunLayout();
 
         bool raised = false;
@@ -61,7 +61,7 @@ public class WindowHotkeysTests
         WindowHotkeys.EnsureRegistered();
         var vm = new MainViewModel(new FakeFilePickerService());
         // Default always-on-top keybind is Ctrl+Shift+T.
-        var window = new RadarViewWindow(vm.Preferences) { DataContext = vm };
+        var window = new RadarViewWindow(vm.Preferences, "RadarView", "Radar View") { DataContext = vm };
         window.ShowAndRunLayout();
 
         Assert.False(window.Topmost);
@@ -69,6 +69,34 @@ public class WindowHotkeysTests
         window.DispatchKey(Key.T, RawInputModifiers.Control | RawInputModifiers.Shift);
 
         Assert.True(window.Topmost);
+    }
+
+    [AvaloniaFact]
+    public void CtrlF8_InExtraRadarWindow_TogglesThatWindowsDcb()
+    {
+        WindowHotkeys.EnsureRegistered();
+        var vm = new MainViewModel(new FakeFilePickerService());
+        try
+        {
+            vm.OpenExtraRadarViewCommand.Execute(null);
+            var instance = vm.ExtraRadarViews.Single();
+            var window = new RadarViewWindow(vm.Preferences, instance.GeometryKey, instance.Title) { DataContext = vm };
+            window.SetViewModel(instance.Vm);
+            window.ShowAndRunLayout();
+
+            var dockedBefore = vm.Radar.IsDcbVisible;
+            var extraBefore = instance.Vm.IsDcbVisible;
+
+            window.DispatchKey(Key.F8, RawInputModifiers.Control);
+
+            // The hotkey acts on the focused window's own view-model, never on the docked view.
+            Assert.Equal(!extraBefore, instance.Vm.IsDcbVisible);
+            Assert.Equal(dockedBefore, vm.Radar.IsDcbVisible);
+        }
+        finally
+        {
+            vm.ReconcileExtraViews([], []);
+        }
     }
 
     [AvaloniaFact]

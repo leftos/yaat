@@ -1,6 +1,7 @@
 using Avalonia.Headless.XUnit;
 using Avalonia.Threading;
 using Xunit;
+using Yaat.Client.Services;
 using Yaat.Client.ViewModels;
 using Yaat.Client.Views;
 
@@ -190,6 +191,150 @@ public class MainWindowLifecycleTests
         Assert.Empty(main.StripsWindows);
     }
 
+    [AvaloniaFact]
+    public void ExtraRadarWindow_OpensWithInstanceVmAndMainViewModelContext()
+    {
+        var (main, vm) = BootMainWindow();
+        try
+        {
+            vm.OpenExtraRadarViewCommand.Execute(null);
+            Dispatcher.UIThread.RunJobs();
+
+            var instance = Assert.Single(vm.ExtraRadarViews);
+            var entry = Assert.Single(main.ExtraRadarWindows);
+            Assert.Same(instance, entry.Key);
+
+            // The window DataContext stays the MainViewModel (the inner view binds Aircraft through
+            // $parent[Window]); only the hosted RadarView gets the per-instance view-model.
+            Assert.IsType<MainViewModel>(entry.Value.DataContext);
+            Assert.Same(instance.Vm, entry.Value.RadarVm);
+            Assert.NotSame(vm.Radar, entry.Value.RadarVm);
+            Assert.Equal("Radar View #2", entry.Value.Title);
+        }
+        finally
+        {
+            CloseAllExtraViews(vm);
+        }
+    }
+
+    [AvaloniaFact]
+    public void ExtraGroundWindow_OpensWithInstanceVmAndMainViewModelContext()
+    {
+        var (main, vm) = BootMainWindow();
+        try
+        {
+            vm.OpenExtraGroundViewCommand.Execute(null);
+            Dispatcher.UIThread.RunJobs();
+
+            var instance = Assert.Single(vm.ExtraGroundViews);
+            var entry = Assert.Single(main.ExtraGroundWindows);
+            Assert.Same(instance, entry.Key);
+
+            Assert.IsType<MainViewModel>(entry.Value.DataContext);
+            Assert.Same(instance.Vm, entry.Value.GroundVm);
+            Assert.NotSame(vm.Ground, entry.Value.GroundVm);
+            Assert.Equal("Ground View #2", entry.Value.Title);
+        }
+        finally
+        {
+            CloseAllExtraViews(vm);
+        }
+    }
+
+    [AvaloniaFact]
+    public void ExtraRadarWindow_ClosedViaChrome_RemovesInstanceWithoutReenteringClose()
+    {
+        var (main, vm) = BootMainWindow();
+        try
+        {
+            vm.OpenExtraRadarViewCommand.Execute(null);
+            Dispatcher.UIThread.RunJobs();
+            var window = main.ExtraRadarWindows.Values.Single();
+
+            // Title-bar X: the Closing handler drops the window BEFORE removing the instance, whose
+            // CollectionChanged fan-out re-enters the close path on this same call stack.
+            window.Close();
+            Dispatcher.UIThread.RunJobs();
+
+            Assert.Empty(vm.ExtraRadarViews);
+            Assert.Empty(main.ExtraRadarWindows);
+        }
+        finally
+        {
+            CloseAllExtraViews(vm);
+        }
+    }
+
+    [AvaloniaFact]
+    public void ExtraGroundWindow_ClosedViaChrome_RemovesInstanceWithoutReenteringClose()
+    {
+        var (main, vm) = BootMainWindow();
+        try
+        {
+            vm.OpenExtraGroundViewCommand.Execute(null);
+            Dispatcher.UIThread.RunJobs();
+            var window = main.ExtraGroundWindows.Values.Single();
+
+            window.Close();
+            Dispatcher.UIThread.RunJobs();
+
+            Assert.Empty(vm.ExtraGroundViews);
+            Assert.Empty(main.ExtraGroundWindows);
+        }
+        finally
+        {
+            CloseAllExtraViews(vm);
+        }
+    }
+
+    [AvaloniaFact]
+    public void ExtraViews_RestoreFromPreferencesOnBoot()
+    {
+        // The ordinals live in the shared per-process preferences.json, which the MainViewModel
+        // constructor reads — so writing them here is what a previous session's shutdown looks like.
+        var seed = new UserPreferences();
+        seed.SetExtraRadarViewOrdinals([2]);
+        seed.SetExtraGroundViewOrdinals([3]);
+        try
+        {
+            var (main, vm) = BootMainWindow();
+
+            Assert.Equal([2], vm.ExtraRadarViews.Select(i => i.Ordinal).ToList());
+            Assert.Equal([3], vm.ExtraGroundViews.Select(i => i.Ordinal).ToList());
+            Assert.Equal("Radar View #2", main.ExtraRadarWindows.Values.Single().Title);
+            Assert.Equal("Ground View #3", main.ExtraGroundWindows.Values.Single().Title);
+
+            CloseAllExtraViews(vm);
+        }
+        finally
+        {
+            seed.SetExtraRadarViewOrdinals([]);
+            seed.SetExtraGroundViewOrdinals([]);
+        }
+    }
+
+    [AvaloniaFact]
+    public void CaptureCurrent_RecordsExtraViewOrdinals()
+    {
+        var (_, vm) = BootMainWindow();
+        try
+        {
+            vm.OpenExtraRadarViewCommand.Execute(null);
+            vm.OpenExtraGroundViewCommand.Execute(null);
+            vm.OpenExtraGroundViewCommand.Execute(null);
+            Dispatcher.UIThread.RunJobs();
+
+            var profile = new WindowProfileService(vm.Preferences).CaptureCurrent("extra-views", vm);
+
+            Assert.Equal([2], profile.ExtraRadarViewOrdinals);
+            Assert.Equal([2, 3], profile.ExtraGroundViewOrdinals);
+        }
+        finally
+        {
+            CloseAllExtraViews(vm);
+        }
+    }
+
     private static (MainWindow main, MainViewModel vm) BootMainWindow()
     {
         var main = new MainWindow();
@@ -198,5 +343,13 @@ public class MainWindowLifecycleTests
         main.UpdateLayout();
         Dispatcher.UIThread.RunJobs();
         return (main, (MainViewModel)main.DataContext!);
+    }
+
+    // The open extra-view set persists to the shared per-process preferences.json, so every test that
+    // opens one must leave the set empty — a later test's MainWindow would otherwise boot with windows.
+    private static void CloseAllExtraViews(MainViewModel vm)
+    {
+        vm.ReconcileExtraViews([], []);
+        Dispatcher.UIThread.RunJobs();
     }
 }

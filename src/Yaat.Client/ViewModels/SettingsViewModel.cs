@@ -894,6 +894,18 @@ public partial class SettingsViewModel : ObservableObject
         _preferences.SetWindowTopmost("Main", MainWindowTopmost);
         _preferences.SetWindowTopmost("GroundView", GroundViewTopmost);
         _preferences.SetWindowTopmost("RadarView", RadarViewTopmost);
+        // Extra Radar/Ground windows (RadarView#2, GroundView#3, …) follow their view's single
+        // always-on-top setting, the same way the per-facility Strips windows do below.
+        var extraRadarKeys = new List<string>(_preferences.GetWindowGeometryKeysStartingWith(ViewInstanceOrdinals.RadarPrefix));
+        foreach (var key in extraRadarKeys)
+        {
+            _preferences.SetWindowTopmost(key, RadarViewTopmost);
+        }
+        var extraGroundKeys = new List<string>(_preferences.GetWindowGeometryKeysStartingWith(ViewInstanceOrdinals.GroundPrefix));
+        foreach (var key in extraGroundKeys)
+        {
+            _preferences.SetWindowTopmost(key, GroundViewTopmost);
+        }
         _preferences.SetWindowTopmost("DataGrid", DataGridTopmost);
         _preferences.SetWindowTopmost("Terminal", TerminalTopmost);
         _preferences.SetWindowTopmost("VStripsView", VStripsTopmost);

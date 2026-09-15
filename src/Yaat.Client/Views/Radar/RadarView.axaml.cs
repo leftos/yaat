@@ -141,7 +141,9 @@ public partial class RadarView : UserControl
     private void OnEuroScopeFieldClicked(AircraftModel ac, TagFieldId field, Point pos)
     {
         var mainVm = FindMainViewModel();
-        if (mainVm is null)
+        // Every flyout acts on the view-model of the window it was opened from — this view's own
+        // DataContext — not on the docked view: an extra Radar window must not drive #1's state.
+        if (mainVm is null || DataContext is not RadarViewModel radarVm)
         {
             return;
         }
@@ -154,34 +156,33 @@ public partial class RadarView : UserControl
                 break;
             case TagFieldId.AssignedAltitude:
             case TagFieldId.CurrentAltitude:
-                ShowContextMenu(AltitudeFlyout.Build(ac, mainVm.Radar, initials));
+                ShowContextMenu(AltitudeFlyout.Build(ac, radarVm, initials));
                 break;
             case TagFieldId.AssignedHeading:
                 _canvas?.EnterHeadingMode(ac.Callsign, pos);
                 break;
             case TagFieldId.AssignedSpeed:
             case TagFieldId.CurrentSpeed:
-                ShowContextMenu(SpeedFlyout.Build(ac, mainVm.Radar, initials));
+                ShowContextMenu(SpeedFlyout.Build(ac, radarVm, initials));
                 break;
             case TagFieldId.Destination:
-                mainVm.Radar.EnterDrawRoute(ac.Callsign);
+                radarVm.EnterDrawRoute(ac.Callsign);
                 break;
             case TagFieldId.Scratchpad1:
                 if (_canvas is not null)
                 {
-                    OpenFieldPopup(ScratchpadFlyout.Build(_canvas, ac, mainVm.Radar, initials, slot: 1));
+                    OpenFieldPopup(ScratchpadFlyout.Build(_canvas, ac, radarVm, initials, slot: 1));
                 }
                 break;
             case TagFieldId.Scratchpad2:
                 if (_canvas is not null)
                 {
-                    OpenFieldPopup(ScratchpadFlyout.Build(_canvas, ac, mainVm.Radar, initials, slot: 2));
+                    OpenFieldPopup(ScratchpadFlyout.Build(_canvas, ac, radarVm, initials, slot: 2));
                 }
                 break;
             case TagFieldId.Note:
                 if (_canvas is not null)
                 {
-                    var radarVm = mainVm.Radar;
                     OpenFieldPopup(NoteFlyout.Build(_canvas, ac.Callsign, ac.Note, cmd => radarVm.SendRawCommandAsync(ac.Callsign, initials, cmd)));
                 }
                 break;
@@ -189,15 +190,15 @@ public partial class RadarView : UserControl
             // menu as the beacon code — that menu already carries Ident among its actions.
             case TagFieldId.Squawk:
             case TagFieldId.Ident:
-                ShowContextMenu(SquawkFlyout.Build(ac, mainVm.Radar, initials));
+                ShowContextMenu(SquawkFlyout.Build(ac, radarVm, initials));
                 break;
             case TagFieldId.AssignedRunway:
-                ShowContextMenu(RunwayFlyout.Build(ac, mainVm.Radar, initials));
+                ShowContextMenu(RunwayFlyout.Build(ac, radarVm, initials));
                 break;
             case TagFieldId.Handoff:
                 if (_canvas is not null)
                 {
-                    OpenFieldPopup(HandoffFlyout.Build(_canvas, ac, mainVm.Radar, initials));
+                    OpenFieldPopup(HandoffFlyout.Build(_canvas, ac, radarVm, initials));
                 }
                 break;
         }
@@ -244,11 +245,11 @@ public partial class RadarView : UserControl
     private async void OnHeadingModeConfirmed(string callsign, int magneticHeading)
     {
         var mainVm = FindMainViewModel();
-        if (mainVm is null)
+        if (mainVm is null || DataContext is not RadarViewModel radarVm)
         {
             return;
         }
-        await mainVm.Radar.FlyHeadingAsync(callsign, mainVm.Preferences.UserInitials, magneticHeading);
+        await radarVm.FlyHeadingAsync(callsign, mainVm.Preferences.UserInitials, magneticHeading);
     }
 
     // --- DCB button handlers ---
