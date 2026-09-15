@@ -1,5 +1,8 @@
 ﻿using Xunit;
+using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Data.Faa;
+using Yaat.Sim.LiveTraffic;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Phases.Tower;
@@ -9,12 +12,25 @@ namespace Yaat.Sim.Tests;
 
 public class GroundConflictDetectorTests
 {
+    /// <summary>
+    /// Pins the shared aircraft-performance singletons before any test body runs: the detector reads
+    /// wingspans and lengths out of them, and a class racing another one's initialization reads the
+    /// default-fallback dimensions for one call and the loaded ones for the next.
+    /// </summary>
+    public GroundConflictDetectorTests()
+    {
+        TestVnasData.EnsureInitialized();
+    }
+
     private const double FtPerNm = 6076.12;
 
     // Two points ~150 ft apart along a north-south line at KSFO
     private const double BaseLat = 37.620;
     private const double BaseLon = -122.380;
     private const double OffsetLatPer100Ft = 100.0 / FtPerNm / 60.0; // ~100ft in lat degrees
+
+    /// <summary>~100 ft in longitude degrees at <see cref="BaseLat"/> — the latitude offset stretched by 1/cos(lat).</summary>
+    private static readonly double OffsetLonPer100Ft = OffsetLatPer100Ft / Math.Cos(BaseLat * Math.PI / 180.0);
 
     private static AircraftState MakeAircraft(
         string callsign,
@@ -159,6 +175,208 @@ public class GroundConflictDetectorTests
         return (layout, n0, n1, n2);
     }
 
+    /// <summary>The mover of the parked-neighbour pair; the parked aircraft is the B738 <see cref="MakeAircraft"/> builds.</summary>
+    private const string ParkedNeighborMoverType = "E75L";
+
+    /// <summary>Bearing in degrees from the parked aircraft to the mover stopped beside it.</summary>
+    private const double ParkedNeighborBearingDeg = 60.0;
+
+    /// <summary>Nose heading of that mover: 40° off the 240° bearing back to the parked aircraft, as if it braked mid-turn.</summary>
+    private const double ParkedNeighborMoverHeadingDeg = 200.0;
+
+    /// <summary>How far inside the pair's stop ring the mover is placed, so the detector must actively release it.</summary>
+    private const double InsideStopRingMarginFt = 5.0;
+
+    /// <summary>
+    /// The separation at which the detector pins this pair to a stop: the two half-lengths plus
+    /// <see cref="GroundConflictDetector.StopBufferFt"/>, floored at
+    /// <see cref="GroundConflictDetector.DefaultStopDistanceFt"/> — the same arithmetic the detector's
+    /// <c>GetSeparation</c> does, over the same FAA dimensions, rather than a copied number that drifts.
+    /// </summary>
+    private static double ParkedNeighborStopRingFt =>
+        Math.Max(
+            GroundConflictDetector.DefaultStopDistanceFt,
+            ((LengthFt("B738") + LengthFt(ParkedNeighborMoverType)) / 2) + GroundConflictDetector.StopBufferFt
+        );
+
+    /// <summary>The FAA fuselage length of an aircraft type, in feet.</summary>
+    /// <param name="type">ICAO type designator.</param>
+    /// <returns>Length in feet.</returns>
+    /// <exception cref="InvalidOperationException">The FAA database carries no dimensions for that type.</exception>
+    private static double LengthFt(string type) =>
+        FaaAircraftDatabase.Get(type)?.LengthFt ?? throw new InvalidOperationException($"the FAA database has no dimensions for '{type}'");
+
+    /// <summary>
+    /// A parked B738 at the base point with an E75L stopped <see cref="InsideStopRingMarginFt"/> inside the
+    /// pair's stop ring (<see cref="ParkedNeighborStopRingFt"/>, 142.75 ft for this pair) on a bearing of
+    /// 060° from it, nose 40° off the bearing back to it — the geometry an arrival that braked mid-turn in a
+    /// ramp alley ends up in. When <paramref name="routeLateralFt"/> is given the E75L carries a straight
+    /// taxi route passing the parked aircraft at that lateral distance; otherwise it has no route at all and
+    /// must be rolling to count as a mover.
+    /// </summary>
+    private static (AircraftState Parked, AircraftState Mover) BuildParkedNeighborPair(double? routeLateralFt, double moverGs)
+    {
+        var parked = MakeAircraft("PRK", new LatLon(BaseLat, BaseLon), heading: 0, gs: 0, phase: new AtParkingPhase());
+
+        double separationFt = ParkedNeighborStopRingFt - InsideStopRingMarginFt;
+        double bearingRad = ParkedNeighborBearingDeg * Math.PI / 180.0;
+        double northFt = separationFt * Math.Cos(bearingRad);
+        double eastFt = separationFt * Math.Sin(bearingRad);
+        var mover = new AircraftState
+        {
+            Callsign = "MOV",
+            AircraftType = ParkedNeighborMoverType,
+            Position = new LatLon(BaseLat + ((northFt / 100.0) * OffsetLatPer100Ft), BaseLon + ((eastFt / 100.0) * OffsetLonPer100Ft)),
+            TrueHeading = new TrueHeading(ParkedNeighborMoverHeadingDeg),
+            IsOnGround = true,
+            IndicatedAirspeed = moverGs,
+            Ground = new AircraftGroundOps { AssignedTaxiRoute = routeLateralFt is { } lateralFt ? MakeStraightRoute(lateralFt) : null },
+        };
+
+        return (parked, mover);
+    }
+
+    /// <summary>
+    /// One 400 ft taxi segment running north past the base point at <paramref name="lateralFt"/> to its east,
+    /// closest approach abeam it. Carries real node positions, unlike <see cref="MakeSeg"/>.
+    /// </summary>
+    private static TaxiRoute MakeStraightRoute(double lateralFt)
+    {
+        double lonOffset = (lateralFt / 100.0) * OffsetLonPer100Ft;
+        var from = new GroundNode
+        {
+            Id = 10,
+            Position = new LatLon(BaseLat - (2 * OffsetLatPer100Ft), BaseLon + lonOffset),
+            Type = GroundNodeType.TaxiwayIntersection,
+        };
+        var to = new GroundNode
+        {
+            Id = 11,
+            Position = new LatLon(BaseLat + (2 * OffsetLatPer100Ft), BaseLon + lonOffset),
+            Type = GroundNodeType.TaxiwayIntersection,
+        };
+        return MakeRoute(MakeGeoSeg(from, to));
+    }
+
+    /// <summary>A straight route segment between two real nodes, its length taken from their positions.</summary>
+    private static TaxiRouteSegment MakeGeoSeg(GroundNode from, GroundNode to)
+    {
+        var edge = new GroundEdge
+        {
+            Nodes = [from, to],
+            TaxiwayName = "T6A",
+            DistanceNm = GeoMath.DistanceNm(from.Position, to.Position),
+        };
+        return new TaxiRouteSegment { TaxiwayName = "T6A", Edge = edge.Directed(from, to) };
+    }
+
+    [Fact]
+    public void ParkedNeighbor_RouteClearsIt_MoverNotStopped()
+    {
+        // The lane the mover will actually drive passes the parked B738 at 140 ft — more than the
+        // 50.85 + 58.7 + 25 = 134.55 ft the wingspan bypass needs — so nothing may cap it, even though its
+        // nose (40° off the bearing) points between the lanes and reads as a closing conflict.
+        var (parked, mover) = BuildParkedNeighborPair(routeLateralFt: 140.0, moverGs: 0);
+
+        var aircraft = new List<AircraftState> { parked, mover };
+        GroundConflictDetector.ApplySpeedLimits(aircraft, null);
+
+        Assert.True(
+            mover.Ground.SpeedLimit is null,
+            $"the route clears the parked aircraft by 140ft, but the mover was capped at {mover.Ground.SpeedLimit}"
+        );
+    }
+
+    [Fact]
+    public void ParkedNeighbor_RoutePassesTooClose_MoverStops()
+    {
+        // Same geometry, but the route runs 60 ft from the parked aircraft — inside the wingspan
+        // clearance — so the mover still stops.
+        var (parked, mover) = BuildParkedNeighborPair(routeLateralFt: 60.0, moverGs: 0);
+
+        var aircraft = new List<AircraftState> { parked, mover };
+        GroundConflictDetector.ApplySpeedLimits(aircraft, null);
+
+        Assert.NotNull(mover.Ground.SpeedLimit);
+        Assert.Equal(0.0, mover.Ground.SpeedLimit!.Value);
+    }
+
+    [Fact]
+    public void ParkedNeighbor_NextSegmentPassesClose_StillStops()
+    {
+        // The route budget is what is left to drive, not the whole current segment: the mover is 20 ft from
+        // the end of a segment that clears the parked aircraft, and the next one passes 40 ft from it.
+        // Charging the full current segment spent the whole budget on the clearing leg and let the mover go.
+        var (parked, mover) = BuildParkedNeighborPair(routeLateralFt: 140.0, moverGs: 0);
+        double closeLonOffset = (40.0 / 100.0) * OffsetLonPer100Ft;
+        var elbow = new GroundNode
+        {
+            Id = 12,
+            Position = new LatLon(BaseLat + (0.9 * OffsetLatPer100Ft), BaseLon + ((140.0 / 100.0) * OffsetLonPer100Ft)),
+            Type = GroundNodeType.TaxiwayIntersection,
+        };
+        var closePass = new GroundNode
+        {
+            Id = 13,
+            Position = new LatLon(BaseLat + (0.9 * OffsetLatPer100Ft), BaseLon + closeLonOffset),
+            Type = GroundNodeType.TaxiwayIntersection,
+        };
+
+        // Segment 0 ends 20 ft ahead of the mover at the elbow; segment 1 turns in to within 40 ft.
+        var first = mover.Ground.AssignedTaxiRoute!.Segments[0];
+        mover.Ground.AssignedTaxiRoute = new TaxiRoute
+        {
+            Segments = [MakeGeoSeg(first.Edge.FromNode, elbow), MakeGeoSeg(elbow, closePass)],
+            HoldShortPoints = [],
+            CurrentSegmentIndex = 0,
+        };
+        mover.Position = new LatLon(BaseLat + (0.7 * OffsetLatPer100Ft), BaseLon + ((140.0 / 100.0) * OffsetLonPer100Ft));
+
+        var aircraft = new List<AircraftState> { parked, mover };
+        GroundConflictDetector.ApplySpeedLimits(aircraft, null);
+
+        // Capped down to a crawl, not waved through: charging the whole current segment spent the budget on
+        // the clearing leg, never saw the 40 ft turn-in, and left the limit null.
+        Assert.NotNull(mover.Ground.SpeedLimit);
+        Assert.True(
+            mover.Ground.SpeedLimit <= 5.0,
+            $"the next segment passes 40ft from the parked aircraft, but the mover kept {mover.Ground.SpeedLimit}kt"
+        );
+    }
+
+    [Fact]
+    public void ParkedShadow_RouteClearsIt_MoverNotStopped()
+    {
+        // A live-traffic shadow standing still is as fixed as a parked aircraft — external, so nothing we do
+        // moves it — and the route-aware bypass has to treat it the same way or a stopped shadow gates every
+        // aircraft whose lane merely points at it.
+        var (parked, mover) = BuildParkedNeighborPair(routeLateralFt: 140.0, moverGs: 0);
+        parked.Phases = null;
+        parked.LiveTraffic = new AircraftLiveTraffic();
+
+        var aircraft = new List<AircraftState> { parked, mover };
+        GroundConflictDetector.ApplySpeedLimits(aircraft, null);
+
+        Assert.True(
+            mover.Ground.SpeedLimit is null,
+            $"the route clears the stopped shadow by 140ft, but the mover was capped at {mover.Ground.SpeedLimit}"
+        );
+    }
+
+    [Fact]
+    public void ParkedNeighbor_MoverWithoutRoute_KeepsHeadingOnlyStop()
+    {
+        // With no route there is nothing but the nose to go on, so the heading-based test still rules: the
+        // mover sits inside the stop ring and the lateral room along its heading is only ~89 ft.
+        var (parked, mover) = BuildParkedNeighborPair(routeLateralFt: null, moverGs: 8);
+
+        var aircraft = new List<AircraftState> { parked, mover };
+        GroundConflictDetector.ApplySpeedLimits(aircraft, null);
+
+        Assert.NotNull(mover.Ground.SpeedLimit);
+        Assert.Equal(0.0, mover.Ground.SpeedLimit!.Value);
+    }
+
     private static TaxiRoute MakeRoute(params TaxiRouteSegment[] segments)
     {
         return new TaxiRoute
@@ -169,22 +387,32 @@ public class GroundConflictDetectorTests
         };
     }
 
+    /// <summary>
+    /// A route segment traversing <paramref name="edge"/> from one of its nodes to the other. An id that
+    /// names a node of <see cref="GroundEdge.Nodes"/> resolves to that node, so the segment carries the
+    /// layout's real geometry.
+    ///
+    /// <para>An id that names neither — the synthetic ids a few pairs use — gets a placeholder node at
+    /// (0, 0) instead, which is all a test reading only the segment's taxiway name and node ids needs. Any
+    /// test whose assertion depends on where the route runs (a parked obstacle measured against it, a
+    /// lateral clearance, a distance) must therefore pass ids of the edge, or build its nodes outright the
+    /// way <see cref="MakeGeoSeg"/> does: a placeholder at the origin puts the route in the Gulf of Guinea,
+    /// thousands of miles from the obstacle, and every clearance test against it passes vacuously.</para>
+    /// </summary>
     private static TaxiRouteSegment MakeSeg(int from, int to, string taxiway, GroundEdge edge)
     {
-        var fromNode = new GroundNode
-        {
-            Id = from,
-            Position = new LatLon(0, 0),
-            Type = GroundNodeType.TaxiwayIntersection,
-        };
-        var toNode = new GroundNode
-        {
-            Id = to,
-            Position = new LatLon(0, 0),
-            Type = GroundNodeType.TaxiwayIntersection,
-        };
+        var fromNode = edge.Nodes.FirstOrDefault(n => n.Id == from) ?? PlaceholderNode(from);
+        var toNode = edge.Nodes.FirstOrDefault(n => n.Id == to) ?? PlaceholderNode(to);
         return new TaxiRouteSegment { TaxiwayName = taxiway, Edge = edge.Directed(fromNode, toNode) };
     }
+
+    private static GroundNode PlaceholderNode(int id) =>
+        new()
+        {
+            Id = id,
+            Position = new LatLon(0, 0),
+            Type = GroundNodeType.TaxiwayIntersection,
+        };
 
     [Fact]
     public void TwoTaxiing_SameEdgeSameDirection_TrailerGetsSpeedLimit()
@@ -576,6 +804,229 @@ public class GroundConflictDetectorTests
 
         Assert.NotNull(a.Ground.SpeedLimit);
         Assert.Equal(0.0, a.Ground.SpeedLimit!.Value);
+    }
+
+    /// <summary>
+    /// A B738 mid-push, tail-first to the south. The phase is started while the aircraft is at
+    /// <paramref name="standPosition"/> — what <see cref="PushbackPhase.HasLeftTheStand"/> measures from — and
+    /// the aircraft is then placed where the push has got to, so passing the same point for both leaves it
+    /// still on its stand.
+    /// </summary>
+    private static AircraftState MakePusherFromStand(LatLon standPosition, LatLon position)
+    {
+        var pusher = MakeAircraft("PSH", standPosition, heading: 0, gs: 3, pushbackHeading: 180);
+        pusher.Phases = new PhaseList();
+        pusher.Phases.Add(new PushbackPhase());
+        pusher.Phases.Start(CommandDispatcher.BuildMinimalContext(pusher));
+        pusher.Position = position;
+        return pusher;
+    }
+
+    /// <summary>
+    /// A B738 mid-push whose remaining leg ends at <paramref name="target"/>, placed at
+    /// <paramref name="position"/> with the tail currently tracking <paramref name="pushHeading"/> — the two
+    /// differ while the tug is steering the pursuit arc. The phase is started at
+    /// <paramref name="standPosition"/> (what <see cref="PushbackPhase.HasLeftTheStand"/> measures from) with
+    /// the nose pointed away from the target, so it is aligned and reversing from the first tick.
+    /// </summary>
+    private static AircraftState MakePusherToTarget(LatLon standPosition, LatLon position, LatLon target, double pushHeading)
+    {
+        double noseAtStand = new TrueHeading(GeoMath.BearingTo(standPosition, target)).ToReciprocal().Degrees;
+        var pusher = MakeAircraft("PSH", standPosition, heading: noseAtStand, gs: 3, pushbackHeading: pushHeading);
+        pusher.Phases = new PhaseList();
+        pusher.Phases.Add(new PushbackPhase { TargetLatitude = target.Lat, TargetLongitude = target.Lon });
+        pusher.Phases.Start(CommandDispatcher.BuildMinimalContext(pusher));
+        pusher.Position = position;
+        pusher.Ground.PushbackTrueHeading = new TrueHeading(pushHeading);
+        return pusher;
+    }
+
+    /// <summary>An E75L taxiing at 8 kt on <paramref name="heading"/>, with no route and no phase.</summary>
+    private static AircraftState MakeTaxiingE75L(LatLon position, double heading) =>
+        new()
+        {
+            Callsign = "ARR",
+            AircraftType = "E75L",
+            Position = position,
+            TrueHeading = new TrueHeading(heading),
+            IsOnGround = true,
+            IndicatedAirspeed = 8,
+        };
+
+    /// <summary>The stand 200 ft north of the alley position a pusher is measured at — well past half a B738.</summary>
+    private static LatLon StandNorthOf(double alleyNorthFt) => new(BaseLat + ((alleyNorthFt + 200.0) / 100.0 * OffsetLatPer100Ft), BaseLon);
+
+    [Fact]
+    public void MoverVsPusher_MutualStop_MoverGivesWay_PusherContinues()
+    {
+        // A pushback whose tail is already out in the alley owns it: the taxiing aircraft gives way and the
+        // pusher completes into its spot. Resolving the two sides independently stopped both forever — the
+        // pusher pinned for the mover ahead of its push direction, and the mover trailed the stopped pusher.
+        var pusher = MakePusherFromStand(StandNorthOf(190), new LatLon(BaseLat + (1.9 * OffsetLatPer100Ft), BaseLon));
+
+        // Head-on along the push axis ~190 ft out: no lateral room for either to pass.
+        var mover = MakeTaxiingE75L(new LatLon(BaseLat, BaseLon), heading: 0);
+
+        var aircraft = new List<AircraftState> { pusher, mover };
+        GroundConflictDetector.ApplySpeedLimits(aircraft, null);
+
+        Assert.NotNull(mover.Ground.SpeedLimit);
+        Assert.Equal(0.0, mover.Ground.SpeedLimit!.Value);
+
+        // The operator sees who it is waiting for, and DeadlockGuard sees an intentional yield.
+        Assert.Equal("PSH", mover.Ground.AutoYieldTarget);
+        Assert.False(mover.Ground.AutoYieldIsFollowing);
+
+        // The pusher keeps its priority: it may carry a graduated closing limit but is never
+        // pinned to zero at this range, so it clears the alley instead of deadlocking.
+        Assert.True(
+            (pusher.Ground.SpeedLimit is null) || (pusher.Ground.SpeedLimit > 0),
+            $"Pushback in progress must keep going, but SpeedLimit={pusher.Ground.SpeedLimit}"
+        );
+        Assert.Null(pusher.Ground.AutoYieldTarget);
+    }
+
+    [Fact]
+    public void MoverVsPusher_MoverNotInPushPath_PusherUnaffected_MoverTrails()
+    {
+        // The mover sits behind the push direction (the tail is swinging away from it), so the
+        // pusher owes it nothing and the give-way rule does not engage — the mover just trails.
+        var pusher = MakePusherFromStand(StandNorthOf(0), new LatLon(BaseLat, BaseLon));
+        var mover = MakeTaxiingE75L(new LatLon(BaseLat + (1.9 * OffsetLatPer100Ft), BaseLon), heading: 180);
+
+        var aircraft = new List<AircraftState> { pusher, mover };
+        GroundConflictDetector.ApplySpeedLimits(aircraft, null);
+
+        Assert.Null(pusher.Ground.SpeedLimit);
+        Assert.NotNull(mover.Ground.SpeedLimit);
+        Assert.Equal(pusher.GroundSpeed, mover.Ground.SpeedLimit!.Value);
+        Assert.Null(mover.Ground.AutoYieldTarget);
+    }
+
+    [Fact]
+    public void MoverCrossingRunway_NotHeldForPushback_PusherYieldsAndShowsWhy()
+    {
+        // An aircraft crossing a runway is never held for a ramp push — it has to get the whole aircraft
+        // past the hold line first (AIM 4-3-21.b) — so the pusher takes the stop, annotated with who it is
+        // waiting for so a stalled PUSH is readable.
+        var pusher = MakePusherFromStand(StandNorthOf(190), new LatLon(BaseLat + (1.9 * OffsetLatPer100Ft), BaseLon));
+        var mover = MakeTaxiingE75L(new LatLon(BaseLat, BaseLon), heading: 0);
+        mover.Phases = new PhaseList();
+        mover.Phases.Add(new CrossingRunwayPhase(approachNodeId: 0, targetNodeId: 1, runwayId: "28L"));
+        mover.Phases.CurrentPhase!.Status = PhaseStatus.Active;
+
+        var aircraft = new List<AircraftState> { pusher, mover };
+        GroundConflictDetector.ApplySpeedLimits(aircraft, null);
+
+        Assert.Null(mover.Ground.AutoYieldTarget);
+        Assert.NotNull(pusher.Ground.SpeedLimit);
+        Assert.Equal(0.0, pusher.Ground.SpeedLimit!.Value);
+        Assert.Equal("ARR", pusher.Ground.AutoYieldTarget);
+    }
+
+    [Fact]
+    public void ShadowMover_NotHeldForPushback_PusherKeepsHardStop()
+    {
+        // A live-traffic shadow is not ours to hold: nothing we write to it moves it, so the give-way rule
+        // must not pick it as the holder. The pusher keeps its hard stop and the shadow is left untouched.
+        var pusher = MakePusherFromStand(StandNorthOf(190), new LatLon(BaseLat + (1.9 * OffsetLatPer100Ft), BaseLon));
+        var shadow = MakeTaxiingE75L(new LatLon(BaseLat, BaseLon), heading: 0);
+        shadow.LiveTraffic = new AircraftLiveTraffic();
+
+        var aircraft = new List<AircraftState> { pusher, shadow };
+        GroundConflictDetector.ApplySpeedLimits(aircraft, null);
+
+        Assert.Null(shadow.Ground.SpeedLimit);
+        Assert.Null(shadow.Ground.AutoYieldTarget);
+        Assert.NotNull(pusher.Ground.SpeedLimit);
+        Assert.Equal(0.0, pusher.Ground.SpeedLimit!.Value);
+    }
+
+    [Fact]
+    public void PusherStillOnStand_NoPriority_PusherYieldsAndMoverTrails()
+    {
+        // Priority belongs to a push whose tail is already in the lane. One that has not moved off its stand
+        // can wait for the traffic to go by — "hold your push, traffic in the alley" — so today's yield
+        // applies unchanged.
+        var stand = new LatLon(BaseLat + (1.9 * OffsetLatPer100Ft), BaseLon);
+        var pusher = MakePusherFromStand(stand, stand);
+        var mover = MakeTaxiingE75L(new LatLon(BaseLat, BaseLon), heading: 0);
+
+        var aircraft = new List<AircraftState> { pusher, mover };
+        GroundConflictDetector.ApplySpeedLimits(aircraft, null);
+
+        Assert.NotNull(pusher.Ground.SpeedLimit);
+        Assert.Equal(0.0, pusher.Ground.SpeedLimit!.Value);
+        Assert.Null(mover.Ground.AutoYieldTarget);
+        Assert.NotEqual(0.0, mover.Ground.SpeedLimit!.Value);
+    }
+
+    [Fact]
+    public void GiveWayHolder_HeadOnInsideStopDistance_BothStop_TheDocumentedWedge()
+    {
+        // The residual the graduated closing logic leaves: 120 ft apart, dead ahead of the push with no
+        // lateral room, the holder is pinned by the give-way and the pusher by its own proximity stop. Both
+        // sit at zero until the controller BREAKs one of them — documented on PushbackYieldForTraffic rather
+        // than papered over, because no automatic resolution is safe this close.
+        var pusher = MakePusherFromStand(StandNorthOf(120), new LatLon(BaseLat + (1.2 * OffsetLatPer100Ft), BaseLon));
+        var mover = MakeTaxiingE75L(new LatLon(BaseLat, BaseLon), heading: 0);
+
+        var aircraft = new List<AircraftState> { pusher, mover };
+        GroundConflictDetector.ApplySpeedLimits(aircraft, null);
+
+        Assert.Equal(0.0, mover.Ground.SpeedLimit!.Value);
+        Assert.Equal("PSH", mover.Ground.AutoYieldTarget);
+        Assert.Equal(0.0, pusher.Ground.SpeedLimit!.Value);
+    }
+
+    [Fact]
+    public void GiveWayHolder_PushPathDiverges_PusherContinues()
+    {
+        // The holder sits 142 ft dead ahead of the tail's current track — inside the pusher's ~143 ft stop
+        // ring — so the give-way pins it. The rest of the push runs east across the alley, though, and never
+        // comes closer to the holder than it already is. Stopping the pusher there would wedge it against the
+        // very aircraft holding for it, with neither moving again until the controller BREAKs one.
+        var pusher = MakePusherToTarget(
+            StandNorthOf(142),
+            new LatLon(BaseLat + (1.42 * OffsetLatPer100Ft), BaseLon),
+            new LatLon(BaseLat + (1.42 * OffsetLatPer100Ft), BaseLon + (2.0 * OffsetLonPer100Ft)),
+            pushHeading: 180
+        );
+        var mover = MakeTaxiingE75L(new LatLon(BaseLat, BaseLon), heading: 0);
+
+        var aircraft = new List<AircraftState> { pusher, mover };
+        GroundConflictDetector.ApplySpeedLimits(aircraft, null);
+
+        Assert.Equal(0.0, mover.Ground.SpeedLimit!.Value);
+        Assert.Equal("PSH", mover.Ground.AutoYieldTarget);
+        Assert.False(mover.Ground.AutoYieldIsFollowing);
+        Assert.True(
+            (pusher.Ground.SpeedLimit is null) || (pusher.Ground.SpeedLimit > 0),
+            $"the remaining push leg clears the holder by more than two half-spans, but SpeedLimit={pusher.Ground.SpeedLimit}"
+        );
+    }
+
+    [Fact]
+    public void GiveWayHolder_PushPathTowardMover_PusherStops()
+    {
+        // The same pair, with the push leg ending on the holder instead of alongside it: the remaining track
+        // drives into the aircraft that is waiting for it, so the pusher keeps its proximity stop. Both sit at
+        // zero until the controller BREAKs one of them — the wedge documented on PushbackYieldForTraffic,
+        // because no automatic resolution is safe when the push is aimed at the other aircraft.
+        var pusher = MakePusherToTarget(
+            StandNorthOf(142),
+            new LatLon(BaseLat + (1.42 * OffsetLatPer100Ft), BaseLon),
+            new LatLon(BaseLat, BaseLon),
+            pushHeading: 180
+        );
+        var mover = MakeTaxiingE75L(new LatLon(BaseLat, BaseLon), heading: 0);
+
+        var aircraft = new List<AircraftState> { pusher, mover };
+        GroundConflictDetector.ApplySpeedLimits(aircraft, null);
+
+        Assert.Equal(0.0, mover.Ground.SpeedLimit!.Value);
+        Assert.Equal("PSH", mover.Ground.AutoYieldTarget);
+        Assert.Equal(0.0, pusher.Ground.SpeedLimit!.Value);
     }
 
     [Fact]

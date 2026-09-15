@@ -48,6 +48,7 @@
 using Microsoft.Extensions.Logging;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Faa;
+using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Simulation;
 
 namespace Yaat.Sim;
@@ -57,13 +58,26 @@ public static class GroundConflictDetector
     private static readonly ILogger Log = SimLog.CreateLogger("GroundConflictDetector");
 
     private const double DefaultTrailDistanceFt = 200.0;
-    private const double DefaultStopDistanceFt = 100.0;
+
+    /// <summary>Floor on the stop distance <see cref="GetSeparation"/> returns, for pairs too short to earn a larger one.</summary>
+    public const double DefaultStopDistanceFt = 100.0;
+
     private const double DefaultAircraftLengthFt = 60.0;
-    private const double StopBufferFt = 25.0;
-    private const double WingtipBufferFt = 25.0;
+
+    /// <summary>Gap left between the two fuselage ends at a stop, on top of the pair's half-lengths (<see cref="GetSeparation"/>).</summary>
+    public const double StopBufferFt = 25.0;
+
+    /// <summary>Wingtip room left between two aircraft passing abeam, on top of the pair's half-wingspans (<see cref="RequiredLateralClearanceFt"/>).</summary>
+    public const double WingtipBufferFt = 25.0;
     private const double OppositeStopDistanceFt = 300.0;
     private const double PushbackBufferFt = 200.0;
     private const double SlowTaxiSpeedKts = 5.0;
+
+    /// <summary>How far past the current separation <see cref="RouteLateralClearanceFt"/> looks along the route.</summary>
+    private const double RouteClearanceBoundFactor = 1.5;
+
+    /// <summary>Chords per fillet arc when measuring route clearance; 8 keeps the sampling error well under a foot.</summary>
+    private const int ArcClearanceSamples = 8;
     private const double HeldStationarySpeedKts = 3.0;
     private const double FtPerNm = 6076.12;
     private const double ConvergenceLookaheadFt = 1500.0;
@@ -681,8 +695,11 @@ public static class GroundConflictDetector
 
     /// <summary>
     /// Resolves a pair in which at least one aircraft is pushing back, within
-    /// <see cref="PushbackBufferFt"/>. Each side is resolved independently and the two orders are
-    /// equivalent (neither reads the other's cap), so the pair runs as two symmetric calls.
+    /// <see cref="PushbackBufferFt"/>. Each side is resolved independently — the two orders are
+    /// equivalent (neither reads the other's cap) — except for the pusher-versus-mover case the
+    /// independent sides cannot resolve, where <see cref="TryResolveGiveWayToPushback"/> takes the
+    /// whole pair (both orderings are offered, and a pair with two pushers or two movers falls
+    /// through to the symmetric calls unchanged).
     /// </summary>
     private static void ResolvePushbackYield(
         AircraftState a,
@@ -702,8 +719,149 @@ public static class GroundConflictDetector
 
         var partyA = new PushbackParty(a, stateA, dirA);
         var partyB = new PushbackParty(b, stateB, dirB);
+        if (TryResolveGiveWayToPushback(partyA, partyB, distFt, diagnosticLog) || TryResolveGiveWayToPushback(partyB, partyA, distFt, diagnosticLog))
+        {
+            return;
+        }
+
         ResolvePushbackSide(partyA, partyB, distFt, diagnosticLog);
         ResolvePushbackSide(partyB, partyA, distFt, diagnosticLog);
+    }
+
+    /// <summary>
+    /// True when <paramref name="pusher"/> and <paramref name="mover"/> would hold each other up: the mover
+    /// lies ahead of the push direction with no lateral room (so the pusher yields for it) while the pusher
+    /// lies within 90° of the mover's own direction (so the mover trails it). The mover's side is a trail
+    /// limit rather than an outright stop — it pins to zero only inside <see cref="GetSeparation"/>'s stop
+    /// distance and otherwise matches the pusher's speed — but against a pusher held at zero, matching its
+    /// speed is a stop, so the pair still wedges.
+    ///
+    /// <para>Three carve-outs, each a case where the mover must not be the one to give way:</para>
+    /// <list type="bullet">
+    /// <item>An aircraft on the runway surface or in <see cref="CrossingRunwayPhase"/> is never held for a
+    /// ramp push — it has to clear the runway it is on, into the ramp if that is where it is going
+    /// (AIM 4-3-21.b).</item>
+    /// <item>A live-traffic shadow cannot be held at all (nothing of ours drives it), so the pusher keeps its
+    /// hard stop — the same rule <see cref="ChooseMutualStopHolder"/> follows.</item>
+    /// <item>A push still on its stand has no priority (<see cref="PushbackPhase.HasLeftTheStand"/>): it can
+    /// wait for the traffic to pass, and the tug has not committed the lane yet.</item>
+    /// </list>
+    /// </summary>
+    private static bool WouldDeadlock(PushbackParty pusher, PushbackParty mover)
+    {
+        if ((pusher.State != MovementState.Pushing) || (pusher.Direction is not { } pushDir))
+        {
+            return false;
+        }
+
+        if (
+            (mover.Direction is not { } moveDir)
+            || (mover.State is MovementState.Pushing or MovementState.Stationary or MovementState.External)
+            || IsParkedOrHeld(mover.Aircraft)
+        )
+        {
+            return false;
+        }
+
+        if (IsOnRunway(mover.Aircraft) || (mover.Aircraft.Phases?.CurrentPhase is CrossingRunwayPhase))
+        {
+            return false;
+        }
+
+        if ((pusher.Aircraft.Phases?.CurrentPhase as PushbackPhase)?.HasLeftTheStand(pusher.Aircraft) != true)
+        {
+            return false;
+        }
+
+        if (HasWingspanLateralClearance(pusher.Aircraft, pushDir, mover.Aircraft))
+        {
+            return false;
+        }
+
+        return HeadingDifference(moveDir, GeoMath.BearingTo(mover.Aircraft.Position, pusher.Aircraft.Position)) < 90;
+    }
+
+    /// <summary>
+    /// Breaks the pusher-versus-mover wedge (<see cref="WouldDeadlock"/>) in favour of the pushback: the
+    /// taxiing aircraft gives way and holds — annotated with <see cref="AircraftGroundOps.AutoYieldTarget"/>
+    /// so the operator sees who it is waiting for — and the pusher runs through the graduated closing logic
+    /// instead. The holder is handed to that logic as <see cref="MovementState.Stationary"/>, which it is:
+    /// that re-opens the wingspan bypass, so the pusher clears an aircraft holding a lane away and stops only
+    /// for one it would actually hit. Returns false (leaving the pair to the independent sides) when the two
+    /// would not wedge.
+    ///
+    /// <para>Priority goes to the push because of what each aircraft occupies: a pusher mid-lane blocks it
+    /// whether it is moving or stopped, so holding it frees nothing and keeps the lane blocked longer, while
+    /// the taxiing aircraft can wait where it is. The tug crew also faces the aircraft and cannot see traffic
+    /// behind the tail, so it is the worse party to ask for a judgement. 7110.65 §3-7-2 NOTE 2 leaves
+    /// separation in the nonmovement area to the pilots and the ramp operator, so this models the ramp
+    /// convention rather than an ATC instruction.</para>
+    ///
+    /// <para>The closing logic is skipped outright when the rest of the push clears the holder laterally, and
+    /// this is the mirror of <see cref="RouteLateralClearanceFt"/>: a mover's remaining route says where it
+    /// will drive, and a pusher's remaining push leg (<see cref="PushbackPhase.TryGetPushLegEnd"/>) says where
+    /// its tail will go. Without it a pusher whose tail is already swinging away down the alley still stops
+    /// inside its own stop ring against the aircraft holding for it — the instantaneous geometry says "dead
+    /// ahead" while the leg says "past and gone" — and neither moves again before the tick budget runs out.
+    /// The holder is stationary by then, so the wingspan bypass cannot release the pusher either: at that
+    /// range the two are closer than two half-spans however the push is aimed.</para>
+    /// </summary>
+    private static bool TryResolveGiveWayToPushback(PushbackParty pusher, PushbackParty mover, double distFt, Action<string>? diagnosticLog)
+    {
+        if ((pusher.Direction is not { } pushDir) || !WouldDeadlock(pusher, mover))
+        {
+            return false;
+        }
+
+        diagnosticLog?.Invoke($"    [Pushback] {mover.Aircraft.Callsign} gives way to pushback {pusher.Aircraft.Callsign}: dist={distFt:F0}ft");
+        ApplyMinLimit(mover.Aircraft, 0, "give way to pushback", pusher.Aircraft, distFt);
+        mover.Aircraft.Ground.AutoYieldTarget = pusher.Aircraft.Callsign;
+        mover.Aircraft.Ground.AutoYieldIsFollowing = false;
+
+        if (
+            (PushLegClearanceFt(pusher.Aircraft, mover.Aircraft) is { } pushPathClearanceFt)
+            && (RequiredLateralClearanceFt(pusher.Aircraft, mover.Aircraft) is { } requiredLateralFt)
+        )
+        {
+            if (pushPathClearanceFt > requiredLateralFt)
+            {
+                diagnosticLog?.Invoke(
+                    $"    [Pushback] {pusher.Aircraft.Callsign} push path clears {mover.Aircraft.Callsign} by {pushPathClearanceFt:F0}ft, continues"
+                );
+                return true;
+            }
+
+            diagnosticLog?.Invoke(
+                $"    [Pushback] {pusher.Aircraft.Callsign} push path passes {mover.Aircraft.Callsign} at "
+                    + $"{pushPathClearanceFt:F0}ft < clear({requiredLateralFt:F0}ft)"
+            );
+        }
+
+        ApplyClosingLimit(pusher.Aircraft, pushDir, mover.Aircraft, MovementState.Stationary, distFt, diagnosticLog);
+        return true;
+    }
+
+    /// <summary>
+    /// How close the rest of <paramref name="pusher"/>'s push leg comes to <paramref name="mover"/>, in feet,
+    /// or null when the pusher is not in a pushback whose leg end is known. The track measured is the straight
+    /// segment from where the pusher is now to where the leg ends
+    /// (<see cref="PushbackPhase.TryGetPushLegEnd"/>); a targeted push arcs onto that point rather than sliding
+    /// along the chord, and the chord is the pessimistic side of that arc (it cuts the corner the tail swings
+    /// around).
+    /// </summary>
+    private static double? PushLegClearanceFt(AircraftState pusher, AircraftState mover)
+    {
+        if (pusher.Phases?.CurrentPhase is not PushbackPhase pushbackPhase)
+        {
+            return null;
+        }
+
+        if (!pushbackPhase.TryGetPushLegEnd(pusher, out var legEnd))
+        {
+            return null;
+        }
+
+        return GeoMath.DistanceToSegmentFt(mover.Position, pusher.Position, legEnd);
     }
 
     /// <summary>
@@ -740,9 +898,11 @@ public static class GroundConflictDetector
     ///
     /// <para>A genuinely parked/held neighbor at a gate is a passable obstacle, not a hard stop — a
     /// gate pushback clears an aircraft parked at the adjacent gate as a matter of course. Use the
-    /// graduated closing logic (stop only within actual collision distance, otherwise creep past)
+    /// graduated closing logic (creep past where there is lateral room, slow down where there is not)
     /// instead of pinning the pusher to 0, which otherwise forced the controller to issue repeated
-    /// BREAKs.</para>
+    /// BREAKs. That logic still leaves one wedge the controller has to break by hand: an obstacle dead
+    /// ahead inside the stop distance with no lateral room stops the pusher, and if that obstacle is
+    /// itself stopped facing the pusher, neither moves again without a BREAK.</para>
     ///
     /// <para>Against a mover, the pusher stops only for traffic ahead of its push direction that it
     /// cannot clear laterally: two tugs in adjacent alley lanes pass wingtip-to-wingtip and must not
@@ -755,6 +915,13 @@ public static class GroundConflictDetector
     /// converging into the push corridor re-pins the pusher the instant the clearance is lost. The
     /// Pushback pair kind is exclusive — no closing or head-on check runs on top of it — so this is
     /// the pair's only guard, which is why it has to be instantaneous rather than one-shot.</para>
+    ///
+    /// <para>The yield does not run when it would hold both aircraft: a mover that owes the pusher a trail
+    /// limit gives way instead (<see cref="TryResolveGiveWayToPushback"/>), because a push already out in the
+    /// lane has priority. This path therefore stops a pusher only for an aircraft that is itself free to keep
+    /// moving, or for one of that method's carve-outs (a runway crosser, a live-traffic shadow, a push still
+    /// on its stand). A pusher pinned here carries <see cref="AircraftGroundOps.AutoYieldTarget"/> so the
+    /// operator can see what a stalled PUSH is waiting for.</para>
     ///
     /// <para>The <see cref="WingspanLateralCheckEnabled"/> / <see cref="WingspanLateralCheckRequireStationary"/>
     /// toggles that gate the same geometry inside <see cref="ComputeClosingLimit"/> deliberately do not
@@ -779,6 +946,8 @@ public static class GroundConflictDetector
         if (!HasWingspanLateralClearance(pusher, pushDir, other.Aircraft))
         {
             ApplyMinLimit(pusher, 0, "pushback yield", other.Aircraft, distFt);
+            pusher.Ground.AutoYieldTarget = other.Aircraft.Callsign;
+            pusher.Ground.AutoYieldIsFollowing = false;
         }
     }
 
@@ -819,6 +988,16 @@ public static class GroundConflictDetector
     /// closing, can pass laterally, or the on-runway exemption). Pure — does not
     /// mutate state — so a caller can arbitrate between the two directions before
     /// committing a limit (see <see cref="ResolveCrossing"/>).
+    ///
+    /// <para>There are two lateral tests, and either one passing clears the obstacle. The first measures
+    /// the room along the mover's current direction. The second — only against a genuinely parked or held
+    /// obstacle, which will still be there when the mover arrives — measures it along the mover's remaining
+    /// route (<see cref="RouteLateralClearanceFt"/>). A mover that has braked mid-turn points somewhere
+    /// between the two lanes, so its nose says nothing about the lane it is going to follow; the route does,
+    /// and the route is what it will actually drive. Without this, an aircraft stopped inside a parked
+    /// neighbour's stop ring can never leave: the geometry that would release it only appears once it moves
+    /// (SFO's ramp alley lanes are ~140 ft apart and a B738 beside an E75L needs ~131 ft, so the pass is
+    /// legitimate, but the nose-based test never sees it).</para>
     /// </summary>
     private static (double Limit, string Reason)? ComputeClosingLimit(
         AircraftState mover,
@@ -837,18 +1016,26 @@ public static class GroundConflictDetector
             return null;
         }
 
-        double? moverWing = FaaAircraftDatabase.Get(mover.AircraftType)?.WingspanFt;
-        double? obstacleWing = FaaAircraftDatabase.Get(obstacle.AircraftType)?.WingspanFt;
         bool isStationary = obstacleState == MovementState.Stationary;
         bool stationaryGate = !WingspanLateralCheckRequireStationary || isStationary;
-        if (WingspanLateralCheckEnabled && stationaryGate && moverWing.HasValue && obstacleWing.HasValue)
+        if (WingspanLateralCheckEnabled && stationaryGate && (RequiredLateralClearanceFt(mover, obstacle) is { } requiredLateralFt))
         {
             double lateralFt = distFt * Math.Sin(angleDiff * Math.PI / 180.0);
-            double requiredLateralFt = (moverWing.Value / 2) + (obstacleWing.Value / 2) + WingtipBufferFt;
             if (lateralFt > requiredLateralFt)
             {
                 diagnosticLog?.Invoke(
                     $"    [Closing] {mover.Callsign}→{obstacle.Callsign}: lateral={lateralFt:F0}ft > clearance({requiredLateralFt:F0}ft), can pass"
+                );
+                return null;
+            }
+
+            // A live-traffic shadow standing still is as fixed as a parked aircraft — it is external, so
+            // nothing we do moves it — and so is just as safe to route past.
+            bool staysPut = IsParkedOrHeld(obstacle) || (obstacle.IsShadow && (obstacleState == MovementState.Stationary));
+            if (staysPut && (RouteLateralClearanceFt(mover, obstacle, distFt) is { } routeLateralFt) && (routeLateralFt > requiredLateralFt))
+            {
+                diagnosticLog?.Invoke(
+                    $"    [Closing] {mover.Callsign}→{obstacle.Callsign}: route lateral={routeLateralFt:F0}ft ≥ clear({requiredLateralFt:F0}ft), can pass"
                 );
                 return null;
             }
@@ -879,6 +1066,89 @@ public static class GroundConflictDetector
         return null;
     }
 
+    /// <summary>
+    /// The closest <paramref name="mover"/>'s remaining taxi route passes <paramref name="obstacle"/>, in
+    /// feet, or null when it has no route left to drive. Each segment is measured against the pavement it
+    /// actually follows (<see cref="EdgeClearanceFt"/>), not the chord between its nodes.
+    ///
+    /// <para>The walk is charged only what is left to drive — the remainder of the current segment, then
+    /// whole segments — and stops at <c>1.5 × <paramref name="distFt"/></c> plus the obstacle's length. A
+    /// closing limit only ever applies inside the trail distance (~356 ft for the largest pair), so a pass
+    /// point further along the route than that cannot matter this tick, and the 1.5 factor covers the route
+    /// reaching the obstacle around an L rather than straight at it. The uncovered case is a route that
+    /// doubles back past the same obstacle a second time, beyond the bound: the first pass governs, and the
+    /// second is re-measured on its own approach.</para>
+    ///
+    /// <para>The segment measured is always the whole current segment, including the part already behind the
+    /// mover — that costs nothing and can only lower the answer, which is the safe direction.</para>
+    /// </summary>
+    private static double? RouteLateralClearanceFt(AircraftState mover, AircraftState obstacle, double distFt)
+    {
+        if (mover.Ground.AssignedTaxiRoute is not { } route)
+        {
+            return null;
+        }
+
+        int start = Math.Max(route.CurrentSegmentIndex, 0);
+        double boundFt = (distFt * RouteClearanceBoundFactor) + (FaaAircraftDatabase.Get(obstacle.AircraftType)?.LengthFt ?? DefaultAircraftLengthFt);
+        double? closestFt = null;
+        double walkedFt = 0;
+        for (int i = start; (i < route.Segments.Count) && (walkedFt < boundFt); i++)
+        {
+            var edge = route.Segments[i].Edge;
+            double segmentFt = EdgeClearanceFt(edge, obstacle.Position);
+            closestFt = closestFt is { } best ? Math.Min(best, segmentFt) : segmentFt;
+            walkedFt += i == start ? GeoMath.DistanceNm(mover.Position, edge.ToNode.Position) * FtPerNm : edge.DistanceNm * FtPerNm;
+        }
+
+        return closestFt;
+    }
+
+    /// <summary>
+    /// Closest approach of one route edge to <paramref name="point"/>, in feet, following the pavement: a
+    /// fillet arc is sampled off its Bézier and a straight edge is walked through its
+    /// <see cref="GroundEdge.IntermediatePoints"/>. The chord would be optimistic by the segment's sagitta —
+    /// 22 ft on a 75 ft / 90° gate fillet and 46 ft on a 600 ft / 45° high-speed turnoff, both past the 25 ft
+    /// <see cref="WingtipBufferFt"/> the caller adds, so a mover could be cleared to pass a wingtip it would
+    /// actually swing into.
+    /// </summary>
+    private static double EdgeClearanceFt(DirectionalEdge edge, LatLon point)
+    {
+        if (edge.Edge is GroundArc arc)
+        {
+            var curve = arc.ToBezier();
+            var previous = curve.Evaluate(0.0);
+            double best = double.MaxValue;
+            for (int i = 1; i <= ArcClearanceSamples; i++)
+            {
+                var next = curve.Evaluate((double)i / ArcClearanceSamples);
+                best = Math.Min(best, GeoMath.DistanceToSegmentFt(point.Lat, point.Lon, previous.Lat, previous.Lon, next.Lat, next.Lon));
+                previous = next;
+            }
+
+            return best;
+        }
+
+        if (edge.Edge is not GroundEdge { IntermediatePoints.Count: > 0 } straight)
+        {
+            return GeoMath.DistanceToSegmentFt(point, edge.FromNode.Position, edge.ToNode.Position);
+        }
+
+        // Walked in the edge's own node order, not the traversal's: a closest approach does not care which
+        // way the aircraft drives it, and the intermediate points are stored against Nodes[0] → Nodes[1].
+        var from = straight.Nodes[0].Position;
+        var to = straight.Nodes[1].Position;
+        double closest = double.MaxValue;
+        var previousPoint = (from.Lat, from.Lon);
+        foreach (var (lat, lon) in straight.IntermediatePoints)
+        {
+            closest = Math.Min(closest, GeoMath.DistanceToSegmentFt(point.Lat, point.Lon, previousPoint.Lat, previousPoint.Lon, lat, lon));
+            previousPoint = (lat, lon);
+        }
+
+        return Math.Min(closest, GeoMath.DistanceToSegmentFt(point.Lat, point.Lon, previousPoint.Lat, previousPoint.Lon, to.Lat, to.Lon));
+    }
+
     private static void ApplyClosingLimit(
         AircraftState mover,
         double moveDir,
@@ -902,7 +1172,8 @@ public static class GroundConflictDetector
     /// crawl). Three rules:
     /// <list type="number">
     /// <item>An aircraft on the runway surface has priority — a plain ground crosser
-    /// yields. Never strand an aircraft clearing the runway (AIM 4-3-21.a).</item>
+    /// yields. Never strand an aircraft clearing the runway — it continues until the whole aircraft is past
+    /// the hold line, into a ramp area if that is where it is going (AIM 4-3-21.b).</item>
     /// <item>Closing direction uses the aircraft's heading even when it is momentarily
     /// stopped (a taxiing/exiting aircraft that has braked for the conflict), so its
     /// hold stays latched instead of clearing and re-pinning each tick. Genuinely
@@ -1266,16 +1537,30 @@ public static class GroundConflictDetector
             return true;
         }
 
-        double? moverWing = FaaAircraftDatabase.Get(mover.AircraftType)?.WingspanFt;
-        double? obstacleWing = FaaAircraftDatabase.Get(obstacle.AircraftType)?.WingspanFt;
-        if (!moverWing.HasValue || !obstacleWing.HasValue)
+        if (RequiredLateralClearanceFt(mover, obstacle) is not { } requiredLateralFt)
         {
             return false;
         }
 
         double distFt = GeoMath.DistanceNm(mover.Position, obstacle.Position) * FtPerNm;
         double lateralFt = distFt * Math.Sin(angleDiff * Math.PI / 180.0);
-        double requiredLateralFt = (moverWing.Value / 2) + (obstacleWing.Value / 2) + WingtipBufferFt;
         return lateralFt > requiredLateralFt;
+    }
+
+    /// <summary>
+    /// The side-by-side room two aircraft need to pass each other: half of each wingspan plus
+    /// <see cref="WingtipBufferFt"/>. Null when the FAA database carries no wingspan for either type, which
+    /// every caller treats as "cannot show the pass is safe" rather than as a clearance.
+    /// </summary>
+    private static double? RequiredLateralClearanceFt(AircraftState mover, AircraftState obstacle)
+    {
+        double? moverWing = FaaAircraftDatabase.Get(mover.AircraftType)?.WingspanFt;
+        double? obstacleWing = FaaAircraftDatabase.Get(obstacle.AircraftType)?.WingspanFt;
+        if ((moverWing is not { } moverSpanFt) || (obstacleWing is not { } obstacleSpanFt))
+        {
+            return null;
+        }
+
+        return (moverSpanFt / 2) + (obstacleSpanFt / 2) + WingtipBufferFt;
     }
 }

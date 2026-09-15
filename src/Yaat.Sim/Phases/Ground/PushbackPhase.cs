@@ -27,6 +27,9 @@ public sealed class PushbackPhase : Phase
     private const double NoseRotationProgressThreshold = 0.6;
     private const double AlignmentThresholdDeg = 20.0;
 
+    /// <summary>Fuselage length assumed by <see cref="HasLeftTheStand"/> for a type the FAA database does not carry.</summary>
+    private const double DefaultFuselageLengthFt = 110.0;
+
     private double _startLat;
     private double _startLon;
     private double _totalDistToTarget;
@@ -93,6 +96,91 @@ public sealed class PushbackPhase : Phase
     }
 
     public override string Name => "Pushback";
+
+    /// <summary>
+    /// True once the aircraft has moved more than half its fuselage length from where the push began — the
+    /// point at which its tail is out in the lane rather than still on the stand. Recomputed from the recorded
+    /// start each time rather than latched, so a snapshot restore reproduces it exactly; it is monotone in
+    /// practice because every mode only moves away from the stand (the spot mode's pull-forward leg stops at
+    /// the marking, still well clear of it).
+    ///
+    /// <para><see cref="GroundConflictDetector"/> uses this to decide whether a pushback outranks taxiing
+    /// traffic. A push whose tail already occupies the lane is not worth holding — stopping it frees nothing
+    /// and blocks the lane for longer — while one still on the stand can wait for the traffic to go by, which
+    /// is what a ramp controller means by "hold your push, traffic in the alley".</para>
+    /// </summary>
+    public bool HasLeftTheStand(AircraftState aircraft)
+    {
+        // A push that has reached its target, or is pulling forward onto a spot, is out in the lane whatever
+        // the distance reads: both legs re-base the start point, so measuring from it would say "still on the
+        // stand" for an aircraft most of the way across the alley. Both flags ride the snapshot.
+        if (_reachedTarget || _pullingForward)
+        {
+            return true;
+        }
+
+        if ((_startLat == 0.0) && (_startLon == 0.0))
+        {
+            return false;
+        }
+
+        double halfFuselageFt = (Data.Faa.FaaAircraftDatabase.Get(aircraft.AircraftType)?.LengthFt ?? DefaultFuselageLengthFt) / 2.0;
+        return GeoMath.DistanceNm(new LatLon(_startLat, _startLon), aircraft.Position) * GeoMath.FeetPerNm > halfFuselageFt;
+    }
+
+    /// <summary>
+    /// Where the leg the tug is currently running ends — the point the tail is being taken to. Returns false
+    /// when there is no leg to report: the push has not started reversing yet (still rotating on the stand),
+    /// or it has reached its target and only the nose is still turning. Recomputed from the persisted state
+    /// each call, like <see cref="HasLeftTheStand"/>, so a snapshot restore reproduces it exactly.
+    ///
+    /// <para>A targeted push ends on its target; a spot push ends on the staging point while reversing and on
+    /// the marking once it is pulling forward. A simple or heading-only push has no target, so its leg ends
+    /// <see cref="CategoryPerformance.SimplePushbackDistanceNm"/> along the current push direction from where
+    /// the push began — the arc curves as the nose rotates, so the end is where the push is committed to, not
+    /// a promise about the intervening track.</para>
+    ///
+    /// <para><see cref="GroundConflictDetector"/> measures traffic against the segment from the aircraft to
+    /// this point, which is how a push whose remaining track stays clear of an aircraft holding for it is
+    /// allowed to finish instead of stopping nose-to-nose with it.</para>
+    /// </summary>
+    /// <param name="aircraft">The aircraft this phase is driving.</param>
+    /// <param name="end">The leg's end point when one exists.</param>
+    /// <returns>True when <paramref name="end"/> was set.</returns>
+    public bool TryGetPushLegEnd(AircraftState aircraft, out LatLon end)
+    {
+        end = default;
+        if (!_isAligned || _reachedTarget)
+        {
+            return false;
+        }
+
+        if (_pullingForward)
+        {
+            if ((PullForwardLatitude is not { } restLat) || (PullForwardLongitude is not { } restLon))
+            {
+                return false;
+            }
+
+            end = new LatLon(restLat, restLon);
+            return true;
+        }
+
+        if ((TargetLatitude is { } targetLat) && (TargetLongitude is { } targetLon))
+        {
+            end = new LatLon(targetLat, targetLon);
+            return true;
+        }
+
+        if (aircraft.Ground.PushbackTrueHeading is not { } pushHeading)
+        {
+            return false;
+        }
+
+        double clearanceNm = CategoryPerformance.SimplePushbackDistanceNm(aircraft.AircraftType);
+        end = GeoMath.ProjectPoint(new LatLon(_startLat, _startLon), pushHeading, clearanceNm);
+        return true;
+    }
 
     public override void OnStart(PhaseContext ctx)
     {

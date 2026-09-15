@@ -9,6 +9,9 @@
 - The ground datablock departure-queue number ranks an aircraft told to follow another directly behind its leader when it is bound for the same bar and within 600 ft of it, and keeps its number when the leader lines up.
 - A followed aircraft reaching its own departure runway holds as a departure, so `RES` no longer releases it onto the runway; it no longer stops at the far-side bar of a runway it is leaving.
 - The Aircraft List status of a following aircraft shows its departure-queue number.
+- A taxiing aircraft that meets a pushback whose tail is already in its lane gives way and holds while the push completes, instead of both freezing until `BREAK`; a push still on its stand waits for traffic already rolling past, and an aircraft clearing or crossing a runway is never held for a ramp push.
+- A held pushback, and an aircraft holding for one, show the aircraft they are waiting for on the ground datablock (`→CS (auto)`) like taxi yields do.
+- An aircraft stopped beside a parked aircraft is released when the lane it will drive clears that aircraft by wingtip room, even though its nose still points at it.
 
 ## v0.12.33-beta [2026/09/15]
 
