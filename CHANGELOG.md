@@ -1,6 +1,12 @@
 # Changelog
 
-## Unreleased
+## v0.12.33-beta [2026/09/15]
+
+### Highlights
+- `LUAW` from a hold-short just past a taxiway node lines up directly instead of pivoting a full circle first. (GitHub #438)
+- The radar datablock and the Aircraft List flag aircraft whose actual type differs from the type filed in the flight plan. (GitHub #438)
+- Scenario validation reports actual-vs-filed aircraft type mismatches.
+- CRC's ERAM Ground Target shows the aircraft's actual type and heavy symbol, as the real one does.
 
 ### Added
 - **Settings > Display > Radar Display > Highlight filed-vs-actual aircraft type mismatches** (on by default) tints the datablock type token amber when the aircraft flying is not the type its flight plan files. (GitHub #438)
