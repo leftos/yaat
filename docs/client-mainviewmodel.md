@@ -37,6 +37,7 @@ The class is split across partial files by concern. The split is purely organiza
 | `MainViewModel.Weather.cs` | Weather load / clear; `OnWeatherChanged`. |
 | `MainViewModel.LiveSession.cs` | Live-traffic sessions (no authored scenario): `IsLiveSession` (server-computed, mirrored from the three activation DTOs), the `LIVE` / `PAUSED` / `PLAYBACK` badge (`LiveSessionBadgeText` / `DescribeLiveSession`), `ShowGoLive` + `GoLiveCommand`, `StartLiveSessionAsync` (applies the result through `ApplyScenarioResult`, then live weather), `CanStartLiveSession`. See [live-traffic.md](live-traffic.md) "Live sessions". |
 | `MainViewModel.Strips.cs` / `MainViewModel.Tdls.cs` | Multi-facility strips / vTDLS tabs: open/close per-facility entries, the `Subscribe*Entry` / `Unsubscribe*Entry` collection-changed plumbing, per-entry pop-out persistence. |
+| `MainViewModel.ViewInstances.cs` | Extra Radar/Ground windows (#434): `ExtraRadarViews` / `ExtraGroundViews` (`RadarViewInstance` / `GroundViewInstance`, ordinals ≥ 2), the `CreateRadarViewModel` / `CreateGroundViewModel` factories the primaries also use, `OpenExtra*View` / `CloseExtra*View` / `ReconcileExtraViews` (profiles), late seeding from the stashed scenario bootstrap / position config / airport position, and the `AllRadarViews` / `AllGroundViews` enumerators every fan-out site loops over. See **Extra view instances** below. |
 | `MainViewModel.CrcAliases.cs` | CRC alias support: the `CrcAliasStore` instance, `BuiltInDotCommands` (the reserved names YAAT's own dot commands own), `LoadCrcAliasesAsync` (startup + ARTCC change + Settings save), `TryHandleCrcAlias` / `RunCrcAlias`, and `BuildCrcAliasContext` (flight-plan fields for `$dep`/`$arr`/`$route`/`$fullroute`, read off `SelectedAircraft`). Client-only — nothing here reaches the server. |
 | `MainViewModel.Favorites.cs` | Quick-command favorites bar/panel. `DisplayFavorites` = scope-filtered base pool + every favorite of each loaded named set in load order (`ComposeDisplayFavorites`); mutators are container-aware (`FindFavoriteContainer` routes an edit to the base pool or the owning set); set load/unload + all-sets bundle import. The ctor subscribes `UserPreferences.FavoriteSetsChanged` → `Dispatcher.UIThread.Post(RefreshDisplayFavorites)` so Favorites Editor mutations reach the live bar. |
 | `MainViewModel.ArrivalGenerators.cs` | Live arrival-generator editing. |
@@ -118,7 +119,9 @@ cache, `RefreshShownTaxiRoutes` reconstructs every route on each call, so the gr
 5. **Strips/TDLS student entries** — `StripsEntries[0]` and `TdlsEntries[0]` are created (always element 0), then
    `Subscribe*Entry` + the `CollectionChanged` hooks are attached.
 6. **Pop-out flag restore** — the three fixed views (`IsDataGridPoppedOut`/`IsGroundViewPoppedOut`/
-   `IsRadarViewPoppedOut`/`IsTerminalDocked`) and the **student** strips/TDLS entries restore from preferences.
+   `IsRadarViewPoppedOut`/`IsTerminalDocked`) and the **student** strips/TDLS entries restore from preferences, and
+   `ReconcileExtraViews` recreates the extra Radar/Ground instances from `ExtraRadarViewOrdinals` /
+   `ExtraGroundViewOrdinals`.
 7. **~25 `ServerConnection` event subscriptions** (`MainViewModel.cs:1180`-`1204`).
 8. **Fire-and-forget init** — `InitializeNavDataAsync()`, `_vnasConfigService.InitializeAsync()`,
    `CheckForUpdateAsync()`.
@@ -296,6 +299,46 @@ The pop-out Favorites Panel is a `FavoritesPanelWindow` singleton per `MainViewM
 `IsOpen` / `Close`); its open state persists as `UserPreferences.IsFavoritesPanelOpen` (restored at startup beside
 the other pop-outs, not written during shutdown) and both flags ride window profiles as nullable fields — null
 means "captured before the feature; leave as is", the same convention as `LoadedFavoriteSetIds`.
+
+### Extra view instances (`New Radar Window` / `New Ground Window`)
+
+The docked Radar/Ground views and their pop-outs are the implicit instance #1 and keep today's `IsRadarViewPoppedOut` /
+`IsGroundViewPoppedOut` semantics. **View → New Radar Window / New Ground Window** adds an instance ≥ #2 with its **own**
+`RadarViewModel` / `GroundViewModel` (center, range, zoom, rotation, filters, DCB state, `DataBlockState`, shown routes),
+based on an airport the user picks first (`ExtraViewAirportDialog`: the ARTCC's airports from `ArtccAirportResolver` with the
+scenario primary preselected, or any nav-db airport by text — a second view has no scenario-inferred target), hosted by a
+`RadarViewWindow` / `GroundViewWindow` whose *window* DataContext stays `MainViewModel` (the inner view binds
+`Aircraft` / `GroundShownAirportId` through `$parent[Window]`) while the inner `RadarView` / `GroundView` gets the
+instance VM via `SetViewModel`. Geometry key `RadarView#n` / `GroundView#n` rides the ordinary `WindowGeometries` store,
+so window profiles capture it through the live-helper walk; the ordinal lists (`ExtraRadarViewOrdinals`, on prefs and on
+`SavedWindowProfile`) say which instances exist, and `ReconcileExtraViews` opens/closes to match without resetting
+survivors. Closing the window removes the instance (not under shutdown, so it restores next launch).
+
+Invariants:
+
+- **One selected aircraft app-wide.** `MainViewModel.SelectedAircraft` fans out to every instance under
+  `_isSyncingSelection`; every instance is constructed with the same `OnChildSelectionChanged` callback, so a click in any
+  window selects everywhere, datagrid included. An instance's `SelectedAircraft` is a mirror, never its own selection.
+- **Per-instance persistence.** `SettingsKeySuffix` (`"#2"`) keys the per-scenario `RadarSettings` / `GroundSettings`
+  slot, and `IsPrimary=false` gates every app-wide preference writer (DCB, deconflict mode, ground layers/labels/lock,
+  ground rotation) so an extra window's toggles never rewrite the primary's defaults.
+- **The base airport decides the instance's data.** A radar extra gets `SetPrimaryAirportId(airport)`, the airport's
+  position from the nav db, and `LoadVideoMapsForArtccAsync(artcc, airport, scenarioId)` (`SeedRadarAirport`) — the
+  primary's airport is pushed to the primary only, and every scenario bootstrap / recording load re-seeds each extra
+  with its own airport. A ground extra whose airport equals the primary's **mirrors** (`GroundViewModel.MirrorLayoutFrom`
+  copies `Layout` / `BackgroundImage` / `TowerCabMap` / centre / elevation by reference and follows the primary's
+  `PropertyChanged`; the loaders are no-ops while `IsMirroring`); a different airport loads its own layout and tower-cab
+  image (`SeedGroundAirport`, re-evaluated on every bootstrap). Never `Dispose()` a mirrored image. The
+  `SavedExtraView(Ordinal, AirportId)` records on prefs and profiles carry the airport; `ReconcileExtraViews` matches on
+  both and reopens an instance whose airport changed.
+- **Fan-out sites loop `AllRadarViews` / `AllGroundViews`**: nav-db push, selection, weather, MVA hints, primary airport
+  id/position, position display config, scenario bootstrap (ground extras get only `SetScenarioId`), recording load,
+  `ClearScenarioState`, the coalesced shown-route refresh (one Background post for all instances), manifest replacement,
+  aircraft deletion. **Primary-only by design**: the `.ff` / `.markers` / `.nomarkers` scope markers, `.rbl`
+  (the `Measure` store is shared, so the line still renders everywhere), every `Ground.DomainLayout` reader (speech
+  context, taxiway/spot/parking name providers), Copy View Settings.
+- Per-tick cost: nothing per-aircraft touches an instance; N instances add N coalesced refreshes per update burst and N
+  canvases on the 10 Hz timer. `RefreshShownTaxiRoutes` short-circuits when nothing is shown.
 
 **Pop-out persistence is asymmetric.** The three fixed views and the **student** Strips/TDLS entry (index 0) persist
 their popped-out flag to `UserPreferences` (`OnStripsEntryPropertyChanged` only calls `SetPoppedOut("VStrips", …)`

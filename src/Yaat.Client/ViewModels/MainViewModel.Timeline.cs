@@ -669,11 +669,8 @@ public partial class MainViewModel
         ActiveScenarioPrimaryAirportId = NormalizeFavoriteAirportId(result.PrimaryAirportId);
         _commandInput.PrimaryAirportId = result.PrimaryAirportId;
         _lastRadarPrimaryAirportId = result.PrimaryAirportId;
-        foreach (var radar in AllRadarViews)
-        {
-            radar.SetPrimaryAirportId(result.PrimaryAirportId);
-        }
-
+        // Primary only: an extra Radar View keeps the airport it was opened with (re-seeded below).
+        Radar.SetPrimaryAirportId(result.PrimaryAirportId);
         SetRadarAirportPosition(result.PrimaryAirportId);
         ApplySimState(result.IsPaused, result.SimRate, result.ElapsedSeconds, result.IsPlayback, result.TapeEnd);
 
@@ -702,24 +699,36 @@ public partial class MainViewModel
 
         if (!string.IsNullOrEmpty(result.PrimaryAirportId))
         {
-            // Primary only: the extra Ground View windows mirror this layout instead of fetching their own.
             _ = Ground.LoadLayoutAsync(result.PrimaryAirportId);
         }
 
         var artccId = result.ArtccId ?? _preferences.ArtccId;
         if (!string.IsNullOrEmpty(artccId))
         {
-            // Each Radar View keeps its own video-map selection, so each loads (and restores) its own.
-            foreach (var radar in AllRadarViews)
-            {
-                _ = radar.LoadVideoMapsForArtccAsync(artccId, result.PrimaryAirportId, result.ScenarioId);
-            }
+            _ = Radar.LoadVideoMapsForArtccAsync(artccId, result.PrimaryAirportId, result.ScenarioId);
 
             if (!string.IsNullOrEmpty(result.PrimaryAirportId))
             {
-                // Primary only: the tower-cab image is mirrored, never decoded twice.
                 _ = Ground.LoadTowerCabLayersAsync(artccId, result.PrimaryAirportId);
             }
+        }
+
+        // Stashed so an extra window opened later keys its saved view on this recording's scenario and
+        // loads the recording's ARTCC, exactly as the docked views just did.
+        _lastScenarioArtccId = artccId;
+        _lastScenarioId = result.ScenarioId;
+
+        // Extra windows follow their own airport, not the recording's: each reloads its own video maps
+        // (Radar) and re-evaluates whether it mirrors the primary's layout (Ground).
+        foreach (var instance in ExtraRadarViews)
+        {
+            SeedRadarAirport(instance);
+        }
+
+        foreach (var instance in ExtraGroundViews)
+        {
+            instance.Vm.SetScenarioId(result.ScenarioId);
+            SeedGroundAirport(instance);
         }
 
         ShowTimelineBar = true;

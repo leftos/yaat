@@ -78,7 +78,7 @@ public class WindowHotkeysTests
         var vm = new MainViewModel(new FakeFilePickerService());
         try
         {
-            vm.OpenExtraRadarViewCommand.Execute(null);
+            vm.OpenExtraRadarView("KOAK");
             var instance = vm.ExtraRadarViews.Single();
             var window = new RadarViewWindow(vm.Preferences, instance.GeometryKey, instance.Title) { DataContext = vm };
             window.SetViewModel(instance.Vm);

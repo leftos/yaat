@@ -306,10 +306,11 @@ public partial class GroundViewModel : ObservableObject
 
     public async Task LoadTowerCabLayersAsync(string artccId, string airportId)
     {
-        if (!IsPrimary)
+        if (IsMirroring)
         {
-            // An extra Ground View window mirrors the primary's image and video map (MirrorLayoutFrom)
-            // rather than downloading and decoding a second copy of the ~100 MB tower-cab image.
+            // An extra Ground View window on the primary's airport mirrors its image and video map
+            // (MirrorLayoutFrom) rather than downloading and decoding a second copy of the ~100 MB
+            // tower-cab image. One on another airport loads its own.
             return;
         }
 
@@ -493,10 +494,10 @@ public partial class GroundViewModel : ObservableObject
 
     public async Task LoadLayoutAsync(string airportId)
     {
-        if (!IsPrimary)
+        if (IsMirroring)
         {
-            // An extra Ground View window mirrors the primary's layout (MirrorLayoutFrom) rather than
-            // fetching and reconstructing its own copy.
+            // An extra Ground View window on the primary's airport mirrors its layout (MirrorLayoutFrom)
+            // rather than fetching and reconstructing its own copy. One on another airport loads its own.
             return;
         }
 
@@ -621,6 +622,12 @@ public partial class GroundViewModel : ObservableObject
         source.PropertyChanged += OnMirrorSourcePropertyChanged;
         CopyLayoutFrom(source);
     }
+
+    /// <summary>
+    /// True while this view follows another view's layout (<see cref="MirrorLayoutFrom"/>). The layout
+    /// loaders are no-ops in that state: the mirror supplies the layout, the image and the video map.
+    /// </summary>
+    public bool IsMirroring => _mirrorSource is not null;
 
     /// <summary>Stops tracking the mirrored source. The layout copied so far stays on screen.</summary>
     public void StopMirroring()

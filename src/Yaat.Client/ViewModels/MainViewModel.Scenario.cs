@@ -566,21 +566,24 @@ public partial class MainViewModel
 
         var artccId = _preferences.ArtccId;
         // Stashed so a Radar/Ground window opened later in this scenario bootstraps from the same data.
-        _lastScenarioBootstrap = bootstrap;
         _lastScenarioArtccId = artccId;
         _lastRadarPrimaryAirportId = bootstrap.PrimaryAirportId;
-        _lastGroundScenarioId = bootstrap.ScenarioId;
-        foreach (var radar in AllRadarViews)
+        _lastScenarioId = bootstrap.ScenarioId;
+        Radar.ApplyScenarioBootstrap(bootstrap, artccId);
+        foreach (var instance in ExtraRadarViews)
         {
-            radar.ApplyScenarioBootstrap(bootstrap, artccId);
+            // An extra window stays on the airport it was opened with — the scenario's airport is the
+            // docked view's. Re-seeding reloads this instance's own video maps and per-scenario settings.
+            SeedRadarAirport(instance);
         }
 
         Ground.ApplyScenarioBootstrap(bootstrap, artccId);
         foreach (var instance in ExtraGroundViews)
         {
-            // The mirror supplies the layout and the tower-cab image; an extra window only needs the new
-            // scenario id so its own per-scenario view settings key off it.
+            // The new scenario id keys this window's own per-scenario view settings; re-seeding the
+            // airport re-evaluates whether it mirrors the primary, whose airport may have just changed.
             instance.Vm.SetScenarioId(bootstrap.ScenarioId);
+            SeedGroundAirport(instance);
         }
 
         VStrips.ApplyBayConfig(bootstrap.FlightStripsConfig);
@@ -699,11 +702,9 @@ public partial class MainViewModel
         }
 
         // Nothing a window opened after the unload should inherit from the scenario that just went away.
-        _lastScenarioBootstrap = null;
         _lastScenarioArtccId = null;
-        _lastGroundScenarioId = null;
+        _lastScenarioId = null;
         _lastRadarPrimaryAirportId = null;
-        _lastRadarAirportPosition = null;
         _lastPositionDisplayConfig = null;
         Aircraft.Clear();
         // The server drops its ATPA/conflict caches on unload without broadcasting an empty set, so the
@@ -715,8 +716,17 @@ public partial class MainViewModel
         ClearBookmarks();
         InitialDelayedSpawnCount = 0;
         PendingDelayedSpawnCount = 0;
-        // Primary only: the extra Ground View windows mirror the cleared layout through PropertyChanged.
+        // A mirroring extra Ground View follows the cleared layout through PropertyChanged; one on its own
+        // airport holds a layout nothing else retracts, so it clears itself.
         Ground.ClearLayout();
+        foreach (var instance in ExtraGroundViews)
+        {
+            if (!instance.Vm.IsMirroring)
+            {
+                instance.Vm.ClearLayout();
+            }
+        }
+
         foreach (var radar in AllRadarViews)
         {
             radar.ClearVideoMaps();

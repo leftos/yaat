@@ -65,7 +65,7 @@ public class ShownRouteRefreshCoalesceTests
         try
         {
             Dispatcher.UIThread.RunJobs();
-            vm.OpenExtraGroundViewCommand.Execute(null);
+            vm.OpenExtraGroundView("KOAK");
             var extra = vm.ExtraGroundViews.Single();
             Dispatcher.UIThread.RunJobs();
             int baseline = extra.Vm.RefreshShownTaxiRoutesCallCount;
@@ -81,8 +81,8 @@ public class ShownRouteRefreshCoalesceTests
         }
         finally
         {
-            vm.Preferences.SetExtraRadarViewOrdinals([]);
-            vm.Preferences.SetExtraGroundViewOrdinals([]);
+            vm.Preferences.SetExtraRadarViews([]);
+            vm.Preferences.SetExtraGroundViews([]);
         }
     }
 }

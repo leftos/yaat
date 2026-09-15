@@ -344,6 +344,8 @@ ViewModels/
   MainViewModel.CrcAliases.cs   # Partial: CRC alias support — CrcAliasStore instance + BuiltInDotCommands (names YAAT's own dot commands reserve: scope markers, .rbl/.norbl, .reloadaliases), LoadCrcAliasesAsync (startup, ARTCC change, Settings save, .reloadaliases), TryHandleCrcAlias/RunCrcAlias, BuildCrcAliasContext (SelectedAircraft flight plan for $dep/$arr/$route/$fullroute). Client-only; never reaches the server.
   MainViewModel.ConflictAlerts.cs # Partial: terminal conflict-alert pairs (ApplyConflictAlerts from ConflictAlertsChanged broadcast/RoomStateDto seed, projected onto AircraftModel.ConflictPeerCallsign for both members; SeedConflictPeer covers an aircraft appearing after the broadcast). Not carried on AircraftDto — see docs/radar-rendering.md § Conflict alerts.
   MainViewModel.AtpaResults.cs  # Partial: ATPA in-trail pairs (ApplyAtpaResults from the AtpaResultsChanged broadcast/RoomStateDto seed, projected onto the trailing aircraft's AtpaLeadCallsign/AtpaAllowedSeparationNm/AtpaConeState; SeedAtpaResult for late-added aircraft). Same never-on-AircraftDto rule — see docs/radar-rendering.md § ATPA cones.
+  MainViewModel.ViewInstances.cs # Partial: extra Radar/Ground windows (#434) — ExtraRadarViews/ExtraGroundViews, the CreateRadarViewModel/CreateGroundViewModel factories, OpenExtra*/CloseExtra*/ReconcileExtraViews, late seeding from the stashed bootstrap/position config, AllRadarViews/AllGroundViews fan-out enumerators. One app-wide SelectedAircraft. See docs/client-mainviewmodel.md § Extra view instances
+  MapViewInstance.cs            # RadarViewInstance / GroundViewInstance (ordinal ≥ 2 + its own view-model) and ViewInstanceOrdinals (RadarView#n / GroundView#n geometry keys, lowest free ordinal)
   MainViewModel.Strips.cs       # Partial: multi-facility strips tabs (StripsEntries) — open/close per-facility entries (same facility may be opened twice; duplicate tabs disambiguated via DuplicateOrdinal " #n" title suffix), split/unsplit (SplitStripsEntryAsync creates the entry's SecondaryVm; split mode + ratio persist for the student entry), strips zoom fan-out + persistence
   VStripsDockEntryViewModel.cs  # One strips tab/window entry: facility-scoped VStripsViewModel + pop-out flag + TabTitle (facility name + duplicate suffix) + split state (SplitMode / SplitRatio / SecondaryVm)
   StripsSplitMode.cs            # Split layout of a strips entry: None / SideBySide / Stacked — named by pane arrangement because "split horizontally" is ambiguous
@@ -373,6 +375,7 @@ Views/
   FavoritesPanelWindow.axaml.cs # Pop-out favorite commands panel with saved geometry
   FavoritesEditorWindow.axaml.cs # Favorites Editor (Sets → Manage sets…): container pane (Global + airports + scenarios + named sets with Loaded checkboxes + "Not in any set" orphans; named-set create/rename/delete) + multi-select favorites pane (move up/down, add-to/move-to another set, remove-from-set, delete everywhere)
   FavoriteSetNameDialog.axaml.cs # Name-entry dialog for creating/renaming a favorite set; Save disabled on case-insensitive collision (sets never overwrite)
+  ExtraViewAirportDialog.axaml.cs # Base-airport prompt for View > New Radar/Ground Window: the ARTCC's airports (scenario primary preselected) or any nav-db airport by id; OK gated on the caller's isKnownAirport
   ControllersView.axaml.cs      # Controllers tab content: CRC-style facility-grouped list (handoff id / position name / freq) over MainViewModel.ControllerGroups
   ControllersWindow.axaml.cs    # Pop-out host for ControllersView (View > Pop Out Controllers)
   MetarView.axaml.cs            # METAR tab content: per-airport METAR list over MainViewModel.Metars with a per-scenario favorite-station star toggle
@@ -421,7 +424,7 @@ Views/Map/
 
 Views/Ground/
   GroundView.axaml.cs           # Ground view control with context menus + docked toolbar (layer/label toggles, hidden-scrollbar horizontal ScrollViewer); OnToolbarPointerWheelChanged wheel-scrolls when toolbar is narrower than content
-  GroundViewWindow.axaml.cs     # Pop-out ground window with enforced minimum dimensions
+  GroundViewWindow.axaml.cs     # Pop-out ground window with enforced minimum dimensions; takes a geometry key + title and hosts a GroundViewModel via SetViewModel (the primary pop-out uses "GroundView"/vm.Ground, an extra instance GroundView#n/its own VM); window DataContext stays MainViewModel
   GroundCanvas.cs               # SkiaSharp canvas with StyledProperties + hit-testing
   GroundRenderer.cs             # Stateless SkiaSharp ground renderer (3 layers: satellite, video map, YAAT layout); skips never-driven >155° hairpin fillet arcs; DrawAdwMarks strokes the server-resolved ADW reference ticks (ADW toolbar toggle)
 
@@ -429,7 +432,7 @@ Views/Radar/
   RadarView.axaml.cs            # Radar view control with DCB (range, map shortcuts, FIX, LOCK)
   RadarView.ContextMenus.cs     # Partial: context menu handlers
   RadarView.Popups.cs           # Partial: popup menu handlers (MAP, RR)
-  RadarViewWindow.axaml.cs      # Pop-out radar window
+  RadarViewWindow.axaml.cs      # Pop-out radar window; takes a geometry key + title and hosts a RadarViewModel via SetViewModel (primary: "RadarView"/vm.Radar; extra instance: RadarView#n/its own VM, exposed as RadarVm for the Ctrl+F8 hotkey); window DataContext stays MainViewModel
   RadarCanvas.cs                # SkiaSharp canvas with pan/zoom lock
   RadarRenderer.cs              # Stateless SkiaSharp radar renderer
   RadarDatablockLayout.cs       # Datablock line/field layout (EuroScope tag + standard datablock geometry shared with renderer + click hit-testing)

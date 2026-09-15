@@ -101,13 +101,13 @@ public class UserPreferencesWindowProfileTests
     }
 
     [Fact]
-    public void SaveWindowProfile_RoundTripsExtraViewOrdinals()
+    public void SaveWindowProfile_RoundTripsExtraViews()
     {
         var profile = new SavedWindowProfile
         {
             Name = "WPT-ExtraOrdinals",
-            ExtraRadarViewOrdinals = [2, 3],
-            ExtraGroundViewOrdinals = [2],
+            ExtraRadarViews = [new SavedExtraView(2, "KOAK"), new SavedExtraView(3, "KSFO")],
+            ExtraGroundViews = [new SavedExtraView(2, "KOAK")],
             WindowGeometries = new()
             {
                 ["RadarView#2"] = new SavedWindowGeometry
@@ -128,8 +128,9 @@ public class UserPreferencesWindowProfileTests
             var reloaded = new UserPreferences().GetWindowProfile("WPT-ExtraOrdinals");
 
             Assert.NotNull(reloaded);
-            Assert.Equal([2, 3], reloaded.ExtraRadarViewOrdinals);
-            Assert.Equal([2], reloaded.ExtraGroundViewOrdinals);
+            // Ordinal and airport both ride the profile, so applying it reopens the same windows.
+            Assert.Equal([new SavedExtraView(2, "KOAK"), new SavedExtraView(3, "KSFO")], reloaded.ExtraRadarViews);
+            Assert.Equal([new SavedExtraView(2, "KOAK")], reloaded.ExtraGroundViews);
             // The extra window's geometry rides in the same dictionary as any other non-fixed window name.
             Assert.Equal(900, reloaded.WindowGeometries["RadarView#2"].Width);
             Assert.Equal(1, reloaded.WindowGeometries["RadarView#2"].ScreenIndex);
@@ -152,8 +153,8 @@ public class UserPreferencesWindowProfileTests
             // Empty (not null): applying such a profile closes any extra windows, since a profile is the
             // whole arrangement rather than a partial overlay.
             Assert.NotNull(reloaded);
-            Assert.Empty(reloaded.ExtraRadarViewOrdinals);
-            Assert.Empty(reloaded.ExtraGroundViewOrdinals);
+            Assert.Empty(reloaded.ExtraRadarViews);
+            Assert.Empty(reloaded.ExtraGroundViews);
         }
         finally
         {

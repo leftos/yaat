@@ -56,12 +56,12 @@
                           ToggleType="CheckBox"
                           IsChecked="{Binding IsGroundViewPoppedOut, Mode=TwoWay}" />
                 <MenuItem Header="New Gr_ound Window"
-                          Command="{Binding OpenExtraGroundViewCommand}" />
+                          x:Name="NewGroundWindowMenuItem" />
                 <MenuItem Header="Pop Out _Radar View"
                           ToggleType="CheckBox"
                           IsChecked="{Binding IsRadarViewPoppedOut, Mode=TwoWay}" />
                 <MenuItem Header="New Radar _Window"
-                          Command="{Binding OpenExtraRadarViewCommand}" />
+                          x:Name="NewRadarWindowMenuItem" />
                 <MenuItem Header="Pop Out _Controllers"
                           ToggleType="CheckBox"
                           IsChecked="{Binding IsControllersPoppedOut, Mode=TwoWay}" />

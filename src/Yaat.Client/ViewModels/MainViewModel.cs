@@ -1593,7 +1593,7 @@ public partial class MainViewModel : ObservableObject
         // Extra Radar/Ground View windows that were open at shutdown. With no scenario active this just
         // constructs and seeds the view-models; the window layer materializes a window per instance.
         ExtraGroundViews.CollectionChanged += OnExtraGroundViewsChanged;
-        ReconcileExtraViews(_preferences.ExtraRadarViewOrdinals, _preferences.ExtraGroundViewOrdinals);
+        ReconcileExtraViews(_preferences.ExtraRadarViews, _preferences.ExtraGroundViews);
         IsControllersPoppedOut = _preferences.IsControllersPoppedOut;
         IsMetarPoppedOut = _preferences.IsMetarPoppedOut;
         IsTerminalPoppedOut = _preferences.IsTerminalPoppedOut;
@@ -1700,6 +1700,16 @@ public partial class MainViewModel : ObservableObject
             foreach (var ground in AllGroundViews)
             {
                 ground.SetElevationLookup(navDb.GetAirportElevation);
+            }
+
+            // An extra Radar View opened before the nav db was ready has no centre yet: its airport could
+            // not be resolved then. Each one resolves its own airport, never the scenario's.
+            foreach (var instance in ExtraRadarViews)
+            {
+                if (ResolveAirportPosition(instance.AirportId) is { } position)
+                {
+                    instance.Vm.SetPrimaryAirportPosition(position.Lat, position.Lon);
+                }
             }
             _log.LogInformation("Navdata loaded: {Count} fixes, CIFP initialized", navDb.Count);
             StatusText = "Navigation data loaded";
@@ -3169,11 +3179,9 @@ public partial class MainViewModel : ObservableObject
         var pos = _commandInput.NavDbReady ? NavigationDatabase.Instance.GetFixPosition(airportId) : null;
         if (pos.HasValue)
         {
-            _lastRadarAirportPosition = (pos.Value.Lat, pos.Value.Lon);
-            foreach (var radar in AllRadarViews)
-            {
-                radar.SetPrimaryAirportPosition(pos.Value.Lat, pos.Value.Lon);
-            }
+            // Primary only: an extra Radar View is centred on the airport it was opened with, not on the
+            // scenario's — SeedRadarAirport pushes each extra its own.
+            Radar.SetPrimaryAirportPosition(pos.Value.Lat, pos.Value.Lon);
         }
     }
 

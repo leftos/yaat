@@ -155,37 +155,37 @@ public sealed class UserPreferences
     public bool IsMetarPoppedOut => _data.IsMetarPoppedOut;
 
     /// <summary>
-    /// Ordinals of the extra Radar View windows that were open at shutdown (always ≥ 2 — the docked view
-    /// is the implicit #1). Each ordinal keys its own window geometry ("RadarView#2") and its own
-    /// per-scenario view settings ("{scenarioId}#2").
+    /// The extra Radar View windows that were open at shutdown (ordinals always ≥ 2 — the docked view is
+    /// the implicit #1). Each ordinal keys its own window geometry ("RadarView#2") and its own
+    /// per-scenario view settings ("{scenarioId}#2"); the airport is the base the window was opened on.
     /// </summary>
-    public IReadOnlyList<int> ExtraRadarViewOrdinals => _data.ExtraRadarViewOrdinals;
+    public IReadOnlyList<SavedExtraView> ExtraRadarViews => _data.ExtraRadarViews;
 
-    /// <summary>Ordinals of the extra Ground View windows open at shutdown; same convention as
-    /// <see cref="ExtraRadarViewOrdinals"/>.</summary>
-    public IReadOnlyList<int> ExtraGroundViewOrdinals => _data.ExtraGroundViewOrdinals;
+    /// <summary>The extra Ground View windows open at shutdown; same convention as
+    /// <see cref="ExtraRadarViews"/>.</summary>
+    public IReadOnlyList<SavedExtraView> ExtraGroundViews => _data.ExtraGroundViews;
 
     /// <summary>Persists which extra Radar View windows are open; a no-op when the set is unchanged.</summary>
-    public void SetExtraRadarViewOrdinals(IReadOnlyList<int> ordinals)
+    public void SetExtraRadarViews(IReadOnlyList<SavedExtraView> views)
     {
-        if (_data.ExtraRadarViewOrdinals.SequenceEqual(ordinals))
+        if (_data.ExtraRadarViews.SequenceEqual(views))
         {
             return;
         }
 
-        _data.ExtraRadarViewOrdinals = [.. ordinals];
+        _data.ExtraRadarViews = [.. views];
         Save();
     }
 
     /// <summary>Persists which extra Ground View windows are open; a no-op when the set is unchanged.</summary>
-    public void SetExtraGroundViewOrdinals(IReadOnlyList<int> ordinals)
+    public void SetExtraGroundViews(IReadOnlyList<SavedExtraView> views)
     {
-        if (_data.ExtraGroundViewOrdinals.SequenceEqual(ordinals))
+        if (_data.ExtraGroundViews.SequenceEqual(views))
         {
             return;
         }
 
-        _data.ExtraGroundViewOrdinals = [.. ordinals];
+        _data.ExtraGroundViews = [.. views];
         Save();
     }
 
@@ -1701,8 +1701,8 @@ public sealed class UserPreferences
             IsDataGridPoppedOut = GetFieldOr(obj, "isDataGridPoppedOut", false),
             IsGroundViewPoppedOut = GetFieldOr(obj, "isGroundViewPoppedOut", false),
             IsRadarViewPoppedOut = GetFieldOr(obj, "isRadarViewPoppedOut", false),
-            ExtraRadarViewOrdinals = GetFieldOr<List<int>>(obj, "extraRadarViewOrdinals", []),
-            ExtraGroundViewOrdinals = GetFieldOr<List<int>>(obj, "extraGroundViewOrdinals", []),
+            ExtraRadarViews = GetFieldOr<List<SavedExtraView>>(obj, "extraRadarViews", []),
+            ExtraGroundViews = GetFieldOr<List<SavedExtraView>>(obj, "extraGroundViews", []),
             IsControllersPoppedOut = GetFieldOr(obj, "isControllersPoppedOut", false),
             IsMetarPoppedOut = GetFieldOr(obj, "isMetarPoppedOut", false),
             IsVStripsPoppedOut = GetFieldOr(obj, "isVStripsPoppedOut", false),
@@ -1985,8 +1985,8 @@ public sealed class UserPreferences
         public bool IsRadarViewPoppedOut { get; set; }
         public bool IsControllersPoppedOut { get; set; }
         public bool IsMetarPoppedOut { get; set; }
-        public List<int> ExtraRadarViewOrdinals { get; set; } = [];
-        public List<int> ExtraGroundViewOrdinals { get; set; } = [];
+        public List<SavedExtraView> ExtraRadarViews { get; set; } = [];
+        public List<SavedExtraView> ExtraGroundViews { get; set; } = [];
         public bool IsVStripsPoppedOut { get; set; }
         public bool IsVTdlsPoppedOut { get; set; }
         public bool IsVTdlsDarkMode { get; set; }
@@ -2242,6 +2242,14 @@ public sealed class SavedGridLayout
 }
 
 /// <summary>
+/// One extra Radar or Ground View window: its instance number (always ≥ 2 — the docked view is the
+/// implicit #1) and the base airport it was opened on. The ordinal keys the window geometry
+/// ("RadarView#2") and the per-scenario view settings ("{scenarioId}#2"); the airport decides what the
+/// window shows — the centre and video maps of a Radar View, the layout of a Ground View.
+/// </summary>
+public sealed record SavedExtraView(int Ordinal, string AirportId);
+
+/// <summary>
 /// A named snapshot of the entire window arrangement (positions, sizes,
 /// pop-out / dock state, and DataGrid columns). Restored on demand from the
 /// View → Window Profiles menu so the user can switch quickly between layouts
@@ -2270,16 +2278,16 @@ public sealed class SavedWindowProfile
     public bool IsMetarPoppedOut { get; set; }
 
     /// <summary>
-    /// Ordinals of the extra Radar View windows open at capture time (≥ 2; the docked view is #1); their
-    /// geometries ride in <see cref="WindowGeometries"/> under the matching "RadarView#n" keys. A profile
-    /// captured before extra windows existed deserializes as empty, and applying it closes any extras —
-    /// a profile is the whole arrangement, not a partial overlay.
+    /// The extra Radar View windows open at capture time (ordinals ≥ 2; the docked view is #1), each with
+    /// the airport it was opened on; their geometries ride in <see cref="WindowGeometries"/> under the
+    /// matching "RadarView#n" keys. A profile captured before extra windows existed deserializes as empty,
+    /// and applying it closes any extras — a profile is the whole arrangement, not a partial overlay.
     /// </summary>
-    public List<int> ExtraRadarViewOrdinals { get; set; } = [];
+    public List<SavedExtraView> ExtraRadarViews { get; set; } = [];
 
-    /// <summary>Ordinals of the extra Ground View windows open at capture time; same convention as
-    /// <see cref="ExtraRadarViewOrdinals"/>.</summary>
-    public List<int> ExtraGroundViewOrdinals { get; set; } = [];
+    /// <summary>The extra Ground View windows open at capture time; same convention as
+    /// <see cref="ExtraRadarViews"/>.</summary>
+    public List<SavedExtraView> ExtraGroundViews { get; set; } = [];
 
     /// <summary>DataGrid column order / widths / sort / hidden columns at capture time.</summary>
     public SavedGridLayout? DataGridLayout { get; set; }

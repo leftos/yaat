@@ -51,24 +51,17 @@ public class ViewMenuPopOutTests
     }
 
     [AvaloniaFact]
-    public void ViewMenu_NewRadarWindow_AddsInstance()
+    public void ViewMenu_HasNewRadarAndGroundWindowItems()
     {
-        var (window, vm) = BootMainWindow();
-        var item = ViewMenuItem(window, "New Radar _Window");
-        try
-        {
-            item.Command!.Execute(item.CommandParameter);
-            Dispatcher.UIThread.RunJobs();
+        var (window, _) = BootMainWindow();
 
-            var instance = Assert.Single(vm.ExtraRadarViews);
-            Assert.Equal(2, instance.Ordinal);
-        }
-        finally
-        {
-            // Shared per-process preferences.json: leave no extra windows for the next test's boot.
-            vm.ReconcileExtraViews([], []);
-            Dispatcher.UIThread.RunJobs();
-        }
+        // Both items open a modal airport picker from code-behind rather than binding a command, so the
+        // menu-level contract is only that they are there and clickable.
+        var radarItem = ViewMenuItem(window, "New Radar _Window");
+        var groundItem = ViewMenuItem(window, "New Gr_ound Window");
+
+        Assert.True(radarItem.IsEnabled);
+        Assert.True(groundItem.IsEnabled);
     }
 
     [AvaloniaFact]

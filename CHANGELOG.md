@@ -7,6 +7,7 @@
 - Window profiles record whether the pop-out Favorites Panel is open, and a panel left open reopens on the next launch.
 - **Settings > Commands** gains **Import…** / **Export…** to share your command verbs as a `.yaat-verbs.json` file; an import replaces only the commands the file lists.
 - Importing favorites asks whether to add them to your current ones or replace everything, with a **Save Current As…, then Replace All** option that exports a library zip first.
+- **View > New Radar Window** / **New Ground Window** ask which airport to base the window on, then open an extra, independent copy of the view centred there (own centre, range, zoom, filters and datablock positions; one shared selected aircraft), restored on launch and saved in window profiles.
 - The Radar View shows STARS ATPA: with **Settings > Radar > Show ATPA cones and in-trail distance** on, an arrival in trail on a final gets a cone toward its leader (blue / yellow / orange for Monitor / Warning / Alert) and its in-trail distance in the datablock.
 
 ### Fixed

@@ -15,7 +15,7 @@ For taxi-route *resolution and following* (the pathfinder and navigator), see [`
 | `Views/Ground/GroundCanvas.cs` | `MapCanvasBase` subclass: `StyledProperty` inputs, pointer input, hit-testing, per-frame `RenderSnapshot` assembly, per-callsign canvas-local display state |
 | `Views/Ground/GroundRenderer.cs` | Stateless SkiaSharp drawing: 3 background layers + route overlays + nodes + aircraft + datablocks. Owns the `SKPaint`s. `Render(...)` is the whole frame |
 | `Views/Ground/GroundView.axaml` + `.axaml.cs` | The user control: binds VM → canvas styled properties, wires canvas events, builds the right-click context menus, hosts the layer/label toolbar (docked above the canvas in a hidden-scrollbar horizontal `ScrollViewer`, wheel-scrolled when narrower than its content) |
-| `Views/Ground/GroundViewWindow.axaml.cs` | Pop-out window host — shares the same `MainViewModel.Ground` view-model instance |
+| `Views/Ground/GroundViewWindow.axaml.cs` | Pop-out window host — the primary pop-out shares `MainViewModel.Ground`; an extra window (`GroundViewInstance`, **View → New Ground Window**) hosts its own `GroundViewModel` via `SetViewModel`, which mirrors the primary's layout |
 | `ViewModels/GroundViewModel.cs` | Ground-view state: layout load, per-scenario view settings, taxi-route overlays, draw-route mode, display prefs |
 
 ## Render order (one frame)
@@ -228,7 +228,7 @@ The two display prefs are **global** client preferences, distinct from the **per
 - Seeded into the live `GroundViewModel` in its constructor, and re-applied to `vm.Ground.*` in the Settings dialog's post-save block (`MainWindow.axaml.cs`). `ShowAllTaxiRoutes`'s change handler calls `RefreshShownTaxiRoutes()` so toggling redraws immediately; `ShowTaxiRouteOnHover`'s clears the hover route when turned off.
 - From `GroundViewModel` the flags reach the renderer only where they matter: `ShowAllTaxiRoutes` gates the shown-route set; `ShowTaxiRouteOnHover` gates `SetHoveredAircraft`. Neither is a `GroundCanvas` styled property — the effect is entirely in the VM's route resolution.
 
-The pop-out Ground View window shares the same `MainViewModel.Ground` instance, so all of the above applies to it automatically.
+The primary pop-out Ground View window shares the same `MainViewModel.Ground` instance, so all of the above applies to it automatically. An **extra** Ground window has its own `GroundViewModel` (`IsPrimary=false`, `SettingsKeySuffix="#n"`): it mirrors the primary's `Layout`/`BackgroundImage`/`TowerCabMap` by reference (`MirrorLayoutFrom`) instead of loading, keeps its own view state and datablock offsets, and never writes the app-wide layer/label/lock/rotation defaults — see [client-mainviewmodel.md](client-mainviewmodel.md#extra-view-instances-new-radar-window--new-ground-window).
 
 ## Pitfalls
 

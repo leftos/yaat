@@ -197,7 +197,7 @@ public class MainWindowLifecycleTests
         var (main, vm) = BootMainWindow();
         try
         {
-            vm.OpenExtraRadarViewCommand.Execute(null);
+            vm.OpenExtraRadarView("KOAK");
             Dispatcher.UIThread.RunJobs();
 
             var instance = Assert.Single(vm.ExtraRadarViews);
@@ -209,7 +209,7 @@ public class MainWindowLifecycleTests
             Assert.IsType<MainViewModel>(entry.Value.DataContext);
             Assert.Same(instance.Vm, entry.Value.RadarVm);
             Assert.NotSame(vm.Radar, entry.Value.RadarVm);
-            Assert.Equal("Radar View #2", entry.Value.Title);
+            Assert.Equal("Radar View #2 — KOAK", entry.Value.Title);
         }
         finally
         {
@@ -223,7 +223,7 @@ public class MainWindowLifecycleTests
         var (main, vm) = BootMainWindow();
         try
         {
-            vm.OpenExtraGroundViewCommand.Execute(null);
+            vm.OpenExtraGroundView("KOAK");
             Dispatcher.UIThread.RunJobs();
 
             var instance = Assert.Single(vm.ExtraGroundViews);
@@ -233,7 +233,7 @@ public class MainWindowLifecycleTests
             Assert.IsType<MainViewModel>(entry.Value.DataContext);
             Assert.Same(instance.Vm, entry.Value.GroundVm);
             Assert.NotSame(vm.Ground, entry.Value.GroundVm);
-            Assert.Equal("Ground View #2", entry.Value.Title);
+            Assert.Equal("Ground View #2 — KOAK", entry.Value.Title);
         }
         finally
         {
@@ -247,7 +247,7 @@ public class MainWindowLifecycleTests
         var (main, vm) = BootMainWindow();
         try
         {
-            vm.OpenExtraRadarViewCommand.Execute(null);
+            vm.OpenExtraRadarView("KOAK");
             Dispatcher.UIThread.RunJobs();
             var window = main.ExtraRadarWindows.Values.Single();
 
@@ -271,7 +271,7 @@ public class MainWindowLifecycleTests
         var (main, vm) = BootMainWindow();
         try
         {
-            vm.OpenExtraGroundViewCommand.Execute(null);
+            vm.OpenExtraGroundView("KOAK");
             Dispatcher.UIThread.RunJobs();
             var window = main.ExtraGroundWindows.Values.Single();
 
@@ -293,41 +293,42 @@ public class MainWindowLifecycleTests
         // The ordinals live in the shared per-process preferences.json, which the MainViewModel
         // constructor reads — so writing them here is what a previous session's shutdown looks like.
         var seed = new UserPreferences();
-        seed.SetExtraRadarViewOrdinals([2]);
-        seed.SetExtraGroundViewOrdinals([3]);
+        seed.SetExtraRadarViews([new SavedExtraView(2, "KOAK")]);
+        seed.SetExtraGroundViews([new SavedExtraView(3, "KSFO")]);
         try
         {
             var (main, vm) = BootMainWindow();
 
             Assert.Equal([2], vm.ExtraRadarViews.Select(i => i.Ordinal).ToList());
             Assert.Equal([3], vm.ExtraGroundViews.Select(i => i.Ordinal).ToList());
-            Assert.Equal("Radar View #2", main.ExtraRadarWindows.Values.Single().Title);
-            Assert.Equal("Ground View #3", main.ExtraGroundWindows.Values.Single().Title);
+            Assert.Equal("Radar View #2 — KOAK", main.ExtraRadarWindows.Values.Single().Title);
+            Assert.Equal("Ground View #3 — KSFO", main.ExtraGroundWindows.Values.Single().Title);
 
             CloseAllExtraViews(vm);
         }
         finally
         {
-            seed.SetExtraRadarViewOrdinals([]);
-            seed.SetExtraGroundViewOrdinals([]);
+            seed.SetExtraRadarViews([]);
+            seed.SetExtraGroundViews([]);
         }
     }
 
     [AvaloniaFact]
-    public void CaptureCurrent_RecordsExtraViewOrdinals()
+    public void CaptureCurrent_RecordsExtraViews()
     {
         var (_, vm) = BootMainWindow();
         try
         {
-            vm.OpenExtraRadarViewCommand.Execute(null);
-            vm.OpenExtraGroundViewCommand.Execute(null);
-            vm.OpenExtraGroundViewCommand.Execute(null);
+            vm.OpenExtraRadarView("KOAK");
+            vm.OpenExtraGroundView("KOAK");
+            vm.OpenExtraGroundView("KOAK");
             Dispatcher.UIThread.RunJobs();
 
             var profile = new WindowProfileService(vm.Preferences).CaptureCurrent("extra-views", vm);
 
-            Assert.Equal([2], profile.ExtraRadarViewOrdinals);
-            Assert.Equal([2, 3], profile.ExtraGroundViewOrdinals);
+            // Ordinal and base airport, so applying the profile reopens each window where it was.
+            Assert.Equal([new SavedExtraView(2, "KOAK")], profile.ExtraRadarViews);
+            Assert.Equal([new SavedExtraView(2, "KOAK"), new SavedExtraView(3, "KOAK")], profile.ExtraGroundViews);
         }
         finally
         {

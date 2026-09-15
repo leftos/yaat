@@ -68,7 +68,9 @@ a private local instance backs bare-canvas tests and detached windows. Two rules
   churns to null and back when the docked tab detaches/reattaches its content.
 - Lifecycle clears belong to the view-model layer: scenario restart/rewind (`MainViewModel.ReplaceAircraftFromManifest`)
   and scenario unload (`ClearScenarioState`) call `DataBlockState.Clear()`. Because the state is shared by every
-  `RadarCanvas` bound to the view-model, the embedded tab and the pop-out window see the same offsets.
+  `RadarCanvas` bound to the view-model, the embedded tab and the pop-out window see the same offsets. An extra
+  Radar window (**View → New Radar Window**, `RadarViewInstance`) has its own `RadarViewModel` and therefore its own
+  `DataBlockState`, center and range — see [client-mainviewmodel.md](client-mainviewmodel.md#extra-view-instances-new-radar-window--new-ground-window).
 
 ### The 100 ms force-repaint timer
 

@@ -45,13 +45,24 @@ public class ViewInstanceOrdinalsTests
     [Fact]
     public void Instances_ExposeKeyAndTitleForTheirOrdinal()
     {
-        var radar = new RadarViewInstance { Ordinal = 2, Vm = TestRadarVm() };
-        var ground = new GroundViewInstance { Ordinal = 3, Vm = TestGroundVm() };
+        var radar = new RadarViewInstance
+        {
+            Ordinal = 2,
+            AirportId = "KOAK",
+            Vm = TestRadarVm(),
+        };
+        var ground = new GroundViewInstance
+        {
+            Ordinal = 3,
+            AirportId = "KSFO",
+            Vm = TestGroundVm(),
+        };
 
         Assert.Equal("RadarView#2", radar.GeometryKey);
-        Assert.Equal("Radar View #2", radar.Title);
+        // The title carries the base airport: several windows can share a scenario but not a target.
+        Assert.Equal("Radar View #2 — KOAK", radar.Title);
         Assert.Equal("GroundView#3", ground.GeometryKey);
-        Assert.Equal("Ground View #3", ground.Title);
+        Assert.Equal("Ground View #3 — KSFO", ground.Title);
     }
 
     private static RadarViewModel TestRadarVm() => new(new ServerConnection(), new VideoMapService(), (_, _, _) => Task.CompletedTask);

@@ -6,7 +6,6 @@ Entry point for `docs/plans/`. One line per item; the detail lives in the linked
 
 ## Bug reports and feature requests
 
-- [ ] **#434 favorites bar / profiles / multiple view windows** (2026-09-14; in flight — the bar toggle, the panel-in-profiles and the verb-alias import/export parts shipped): (d) extra Radar/Ground windows (`RadarView#n`) with their own `RadarViewModel`/`GroundViewModel` — own center/range/filters/datablock offsets/geometry, one app-wide selected aircraft, ground extras mirror the primary's layout, persisted in prefs + profiles. Favorites set/library export and macros JSON already existed — reply on the issue
 - [ ] Live-session assume UX (ZOA Discord 2026-08-31): bulk-assume modes, snapshot-then-assume-all, snapshot-as-scenario authoring — yaat-server [live-traffic-swim/09-live-sessions.md](../../../yaat-server/docs/plans/live-traffic-swim/09-live-sessions.md) §3. Auto-assume on first command + `UNASSUME` shipped 2026-09-08 (user pick); the right-click menus still offer only Assume control for a shadow and nothing for `UNASSUME` (the client cannot tell an assumed aircraft from a scenario one — the marker is not on the wire), — noted in §3 (the rollback of an auto-assume the seeded state refuses shipped 2026-09-09)
 
 ## Current programme

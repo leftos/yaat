@@ -202,6 +202,18 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
             copyViewItem.Click += OnCopyViewSettingsClick;
         }
 
+        var newRadarWindowItem = this.FindControl<MenuItem>("NewRadarWindowMenuItem");
+        if (newRadarWindowItem is not null)
+        {
+            newRadarWindowItem.Click += OnNewRadarWindowClick;
+        }
+
+        var newGroundWindowItem = this.FindControl<MenuItem>("NewGroundWindowMenuItem");
+        if (newGroundWindowItem is not null)
+        {
+            newGroundWindowItem.Click += OnNewGroundWindowClick;
+        }
+
         var windowProfilesItem = this.FindControl<MenuItem>("WindowProfilesMenuItem");
         if (windowProfilesItem is not null)
         {
@@ -2340,7 +2352,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
             ApplyFavoritesProfileState(vm, profile);
             // Open/close the extra Radar/Ground windows the profile captured before the geometry push
             // below, so each new window's helper is already in the ActiveHelpers registry by then.
-            vm.ReconcileExtraViews(profile.ExtraRadarViewOrdinals, profile.ExtraGroundViewOrdinals);
+            vm.ReconcileExtraViews(profile.ExtraRadarViews, profile.ExtraGroundViews);
 
             // Defer geometry push and grid-layout apply so any windows that were
             // just opened by the toggle flips above have actually entered the
@@ -2446,6 +2458,45 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
             item.Click += OnRecentScenarioClick;
             ToolTip.SetTip(item, entry.IsApi ? $"API: {entry.ApiId}" : entry.FilePath);
             menu.Items.Add(item);
+        }
+    }
+
+    private async void OnNewRadarWindowClick(object? sender, RoutedEventArgs e)
+    {
+        await OpenExtraViewAsync("New Radar Window", (vm, airportId) => vm.OpenExtraRadarView(airportId));
+    }
+
+    private async void OnNewGroundWindowClick(object? sender, RoutedEventArgs e)
+    {
+        await OpenExtraViewAsync("New Ground Window", (vm, airportId) => vm.OpenExtraGroundView(airportId));
+    }
+
+    /// <summary>
+    /// Asks which airport the new Radar/Ground window is based on, then opens it. A second view has no
+    /// scenario-inferred target, so the picker offers the ARTCC's airports with the scenario's primary
+    /// preselected and accepts any airport the navigation database knows.
+    /// </summary>
+    private async System.Threading.Tasks.Task OpenExtraViewAsync(string title, Action<MainViewModel, string> open)
+    {
+        if (DataContext is not MainViewModel vm)
+        {
+            return;
+        }
+
+        try
+        {
+            var airports = await vm.GetArtccAirportIdsAsync();
+            var dialog = new ExtraViewAirportDialog(title, airports, vm.DefaultExtraViewAirportId, vm.IsKnownAirport);
+            await dialog.ShowDialog(this);
+            if (dialog.AirportId is { } airportId)
+            {
+                open(vm, airportId);
+            }
+        }
+        catch (Exception ex)
+        {
+            Log.LogError(ex, "{Title} failed", title);
+            vm.StatusText = $"{title} failed: {ex.Message}";
         }
     }
 
@@ -2560,7 +2611,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
                 vm.IsGroundViewPoppedOut = profile.IsGroundViewPoppedOut;
                 vm.IsRadarViewPoppedOut = profile.IsRadarViewPoppedOut;
                 ApplyFavoritesProfileState(vm, profile);
-                vm.ReconcileExtraViews(profile.ExtraRadarViewOrdinals, profile.ExtraGroundViewOrdinals);
+                vm.ReconcileExtraViews(profile.ExtraRadarViews, profile.ExtraGroundViews);
             }
 
             await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() =>

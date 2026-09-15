@@ -12,11 +12,17 @@ public sealed class RadarViewInstance
     /// <summary>Instance number, always ≥ 2 — the docked primary view is #1.</summary>
     public required int Ordinal { get; init; }
 
+    /// <summary>
+    /// The base airport this window was opened on (the user picks it before the window appears). It
+    /// decides the instance's data: the centre, the video maps loaded for it, and its elevation.
+    /// </summary>
+    public required string AirportId { get; init; }
+
     /// <summary>Window-geometry and preference key for this instance, e.g. <c>RadarView#2</c>.</summary>
     public string GeometryKey => ViewInstanceOrdinals.RadarKey(Ordinal);
 
     /// <summary>Window title shown to the user.</summary>
-    public string Title => $"Radar View #{Ordinal}";
+    public string Title => $"Radar View #{Ordinal} — {AirportId}";
 
     /// <summary>The view-model driving this window. Not shared with any other view.</summary>
     public required RadarViewModel Vm { get; init; }
@@ -24,20 +30,27 @@ public sealed class RadarViewInstance
 
 /// <summary>
 /// One extra Ground View window (instance #2, #3, …) and the <see cref="GroundViewModel"/> it owns. Each
-/// instance keeps its own center, zoom, rotation, filters and datablock offsets; the airport layout itself
-/// is mirrored from the primary view (<see cref="GroundViewModel.MirrorLayoutFrom"/>) rather than reloaded.
-/// The docked Ground View is the implicit #1 and has no instance record.
+/// instance keeps its own center, zoom, rotation, filters and datablock offsets. An instance whose airport
+/// is the primary view's mirrors its layout (<see cref="GroundViewModel.MirrorLayoutFrom"/>) rather than
+/// reloading it; any other airport loads its own. The docked Ground View is the implicit #1 and has no
+/// instance record.
 /// </summary>
 public sealed class GroundViewInstance
 {
     /// <summary>Instance number, always ≥ 2 — the docked primary view is #1.</summary>
     public required int Ordinal { get; init; }
 
+    /// <summary>
+    /// The base airport this window was opened on (the user picks it before the window appears). Equal to
+    /// the primary view's airport means mirror it; anything else means load that airport's own layout.
+    /// </summary>
+    public required string AirportId { get; init; }
+
     /// <summary>Window-geometry and preference key for this instance, e.g. <c>GroundView#2</c>.</summary>
     public string GeometryKey => ViewInstanceOrdinals.GroundKey(Ordinal);
 
     /// <summary>Window title shown to the user.</summary>
-    public string Title => $"Ground View #{Ordinal}";
+    public string Title => $"Ground View #{Ordinal} — {AirportId}";
 
     /// <summary>The view-model driving this window. Not shared with any other view.</summary>
     public required GroundViewModel Vm { get; init; }
