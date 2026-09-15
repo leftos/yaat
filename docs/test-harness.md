@@ -294,6 +294,20 @@ drop it in `TestData/<lowercase-short-id>.geojson`. See `AirportLayoutDownloader
 (`TestData/artcc-zoa-snapshot.json`, refreshed via `tools/refresh-artcc-snapshot.py`) for tests exercising replay-time TCP/ERAM
 resolution. It returns `null` when the snapshot is absent — same silent-skip convention.
 
+`SfoGroundHarness` (`Helpers/SfoGroundHarness.cs`) is the multi-aircraft KSFO fixture behind the SFO ground-technique tests
+(`SfoVideoRoutePinTests`, `SfoDepartureFunnelTests`, `SfoSixAlleyChoreographyTests`, `SfoSimultaneousAlleyPushTests`,
+`SfoYankeePushTests`). `Build(output, autoCross)` returns an `SfoGround(Engine, Layout)` record (null ⇒ skip) with `RngSeed = 42`;
+spawns resolve everything **by name** — `SpawnParked(gate)`, `SpawnAtSpot(spot)`, `SpawnAtHoldShort(rwy, twy, toward)`,
+`SpawnAtJunction(twyA, twyB)` — and go through one `SpawnAt(node, heading, phase)` that starts the phase and adds the aircraft to the
+world. `TickUntil(engine, predicate, maxSeconds, each)` drives `TickOneSecond` and returns the second the predicate first held or -1;
+callers treat -1 as failure, never as "still waiting". `AssertHoldShorts(route, (target, reason, cleared)…)` is order-preserving and
+dumps the route on mismatch; `HoldShortMatches` accepts the `01R/19L` pair form. `DeadlockGuard(aircraft…)` fails a run on a mutual
+yield (both `AutoYieldTarget`/`Hold.YieldTarget` at each other, both under 1 kt, ≥ 30 s) or a global stall (everyone under 1 kt for 60 s
+with nobody in a legitimate stop phase) — it keys on `AutoYieldTarget`, so a detector branch that holds without annotating escapes the
+mutual-yield check and is only caught by the stall net. Flake rules the harness bakes in: names not ids; state or latch gates rather than
+"saw the phase once"; `GroundSpeed < 5` for "slowed to the bar" and `< 1` only after two stationary seconds; budgets are failure
+timeouts, never trimmed.
+
 **Raw `GeoJsonParser.Parse` needs the nav DB only for runway crossings.** `GeoJsonParser.Parse(airportId, geoJson, runwayAirportCode)`
 runs `RunwayCrossingDetector.DetectRunwayCrossings`, which reads `NavigationDatabase.Instance` — so a non-null `runwayAirportCode` (e.g.
 `"OAK"`) throws `NavigationDatabase not initialized` in a test that hasn't loaded nav data. A test that only needs the graph or fillet
