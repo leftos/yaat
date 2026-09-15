@@ -334,7 +334,7 @@ public sealed class LineUpPhase : Phase
             return false;
         }
 
-        var plan = LineUpGraphRoute.TryPlan(ctx.GroundLayout, ctx.Aircraft.Position, rwy, ctx.Category);
+        var plan = LineUpGraphRoute.TryPlan(ctx.GroundLayout, ctx.Aircraft.Position, ctx.Aircraft.TrueHeading, rwy, ctx.Category);
         if (plan is null)
         {
             return false;
@@ -360,7 +360,6 @@ public sealed class LineUpPhase : Phase
         _navigator.SetupSegment(_lineUpRoute, ctx, _ => true);
 
         CurrentState = State.GraphTaxi;
-        ctx.Targets.TargetTrueHeading = new TrueHeading(plan.RunwayHeadingDeg);
         ctx.Targets.TargetSpeed = maxSpeed;
 
         Log.LogDebug(

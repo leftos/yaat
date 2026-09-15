@@ -12,7 +12,10 @@ namespace Yaat.Sim.Phases.Tower;
 /// </summary>
 public sealed record LineUpArcFollowPlan
 {
-    /// <summary>Taxi route: virtual [aircraft pose → nearest node] → taxiway edges → junction fillet arc → centerline node.</summary>
+    /// <summary>
+    /// Taxi route: virtual [aircraft pose → nearest node ahead] → taxiway edges → junction fillet arc → centerline node.
+    /// The leading virtual segment is omitted when the aircraft is already standing on that node.
+    /// </summary>
     public required TaxiRoute Route { get; init; }
 
     /// <summary>Runway heading the fillet arc ends tangent to (departure direction).</summary>
@@ -33,10 +36,11 @@ public sealed record LineUpArcFollowPlan
 /// oblique hold-short across to the centerline (issue #239).
 ///
 /// <para>
-/// The route walks taxiway edges from the node nearest the aircraft toward the
-/// runway (decreasing cross-track) until a node carrying a runway fillet arc
-/// whose exit tangent aligns with the departure heading is reached, then appends
-/// that arc. Returns null when no such departure-aligned onto-runway arc route
+/// The route walks taxiway edges from the node nearest the aircraft that is not
+/// behind its nose, toward the runway (decreasing cross-track), until a node
+/// carrying a runway fillet arc whose exit tangent aligns with the departure
+/// heading is reached, then appends that arc. Returns null when no such
+/// departure-aligned onto-runway arc route
 /// exists (aircraft not at a graph hold-short, no junction arc, wrong-direction
 /// prong) — the caller falls back to the synthetic <see cref="LineUpGeometry"/>
 /// pivot, preserving its handling of parallel-taxiway / shallow-angle poses.
@@ -49,11 +53,19 @@ public static class LineUpGraphRoute
     /// <summary>Maximum taxiway hops from the nearest node to the junction fillet arc before giving up.</summary>
     private const int MaxHops = 8;
 
+    /// <summary>Degrees-to-radians factor for the along-nose projection of a candidate start node.</summary>
+    private const double DegToRad = Math.PI / 180.0;
+
     /// <summary>
-    /// Cross-track margin (ft) by which the start node may sit behind the aircraft. An aircraft that
-    /// crept a few feet past its hold-short node is closest to a node fractionally farther from the
-    /// runway than it is; starting there would send the virtual approach segment backward and spin
-    /// the navigator. The start node must be within this margin of, or ahead of, the aircraft.
+    /// Distance (ft) within which the aircraft counts as standing on a node. Such a node starts the route
+    /// directly, with no virtual approach segment leading to it: a segment a few feet long has no usable
+    /// bearing, so the navigator would align to noise rather than to the taxiway.
+    /// </summary>
+    private const double StartNodeCoincidentFt = 5.0;
+
+    /// <summary>
+    /// Cross-track margin (ft) by which the start node may sit farther from the runway than the aircraft, so
+    /// positional noise at the hold-short does not disqualify the node the aircraft is standing on.
     /// </summary>
     private const double StartNodeBackMarginFt = 5.0;
 
@@ -70,11 +82,17 @@ public static class LineUpGraphRoute
     /// from the aircraft's current pose. Returns null when no departure-aligned
     /// onto-runway fillet arc route can be resolved.
     /// </summary>
-    public static LineUpArcFollowPlan? TryPlan(AirportGroundLayout layout, LatLon acPos, RunwayInfo runway, AircraftCategory category)
+    public static LineUpArcFollowPlan? TryPlan(
+        AirportGroundLayout layout,
+        LatLon acPos,
+        TrueHeading acHeading,
+        RunwayInfo runway,
+        AircraftCategory category
+    )
     {
         double rwyHdgDeg = runway.TrueHeading.Degrees;
 
-        var start = NearestForwardNode(layout, acPos, runway);
+        var start = NearestForwardNode(layout, acPos, acHeading, runway);
         if (start is null)
         {
             return null;
@@ -121,10 +139,12 @@ public static class LineUpGraphRoute
         }
 
         double maxSpeed = CategoryPerformance.TaxiCornerSpeed(category);
+        double startAlongFt = AlongNoseFt(acPos, acHeading, start, GeoMath.DistanceNm(acPos, start.Position) * GeoMath.FeetPerNm);
         Log.LogDebug(
-            "[LineUpGraphRoute] onto {Rwy}: start node {Start}, junction {Junction}, centerline {Center}, {Segs} segments",
+            "[LineUpGraphRoute] onto {Rwy}: start node {Start} ({Along:F1}ft ahead), junction {Junction}, centerline {Center}, {Segs} segments",
             runway.Designator,
             start.Id,
+            startAlongFt,
             junction.Id,
             centerlineNode.Id,
             route.Segments.Count
@@ -140,15 +160,19 @@ public static class LineUpGraphRoute
     }
 
     /// <summary>
-    /// The node nearest the aircraft that is not behind it relative to the runway (its cross-track is
-    /// at most <see cref="StartNodeBackMarginFt"/> greater than the aircraft's). Starting the route at a
-    /// node farther from the runway than the aircraft would drive the virtual approach segment backward.
+    /// The node nearest the aircraft that is neither behind its nose nor behind it relative to the runway
+    /// (its cross-track is at most <see cref="StartNodeBackMarginFt"/> greater than the aircraft's).
+    /// Starting the route at a node farther from the runway than the aircraft would drive the virtual
+    /// approach segment backward; so would a node the aircraft has already rolled past, even one still
+    /// closer to the runway than the aircraft is — the taxiway meets the runway obliquely, so a node a
+    /// couple of feet behind the nose sits well inside the cross-track margin (issue #438). A node the
+    /// aircraft is standing on stays eligible: it starts the route with no approach segment at all.
     /// </summary>
-    private static GroundNode? NearestForwardNode(AirportGroundLayout layout, LatLon pos, RunwayInfo runway)
+    private static GroundNode? NearestForwardNode(AirportGroundLayout layout, LatLon pos, TrueHeading heading, RunwayInfo runway)
     {
         double acCross = CrossFt(pos, runway);
         GroundNode? best = null;
-        double bestDist = double.MaxValue;
+        double bestDistFt = double.MaxValue;
         foreach (var n in layout.Nodes.Values)
         {
             if (CrossFt(n.Position, runway) > acCross + StartNodeBackMarginFt)
@@ -156,16 +180,32 @@ public static class LineUpGraphRoute
                 continue;
             }
 
-            double d = GeoMath.DistanceNm(pos, n.Position);
-            if (d < bestDist)
+            double distFt = GeoMath.DistanceNm(pos, n.Position) * GeoMath.FeetPerNm;
+
+            // Behind the nose: the virtual approach segment to such a node points backward, and the
+            // navigator answers that with a near-180° entry-alignment turn at the tight-turn speed floor,
+            // spinning the aircraft through a full circle before it ever rolls forward (issue #438).
+            if ((distFt > StartNodeCoincidentFt) && (AlongNoseFt(pos, heading, n, distFt) < 0))
             {
-                bestDist = d;
+                continue;
+            }
+
+            if (distFt < bestDistFt)
+            {
+                bestDistFt = distFt;
                 best = n;
             }
         }
 
         return best;
     }
+
+    /// <summary>
+    /// Signed projection (ft) of <paramref name="node"/>, <paramref name="distFt"/> from the aircraft, onto the aircraft's nose:
+    /// negative when the node is behind it.
+    /// </summary>
+    private static double AlongNoseFt(LatLon pos, TrueHeading heading, GroundNode node, double distFt) =>
+        distFt * Math.Cos(GeoMath.SignedBearingDifference(heading.Degrees, GeoMath.BearingTo(pos, node.Position)) * DegToRad);
 
     private static double CrossFt(LatLon p, RunwayInfo runway) =>
         Math.Abs(GeoMath.SignedCrossTrackDistanceNm(p.Lat, p.Lon, runway.ThresholdLatitude, runway.ThresholdLongitude, runway.TrueHeading))
@@ -284,7 +324,10 @@ public static class LineUpGraphRoute
 
     /// <summary>
     /// Build the taxi route: a virtual segment from the aircraft pose to the nearest
-    /// node, the taxiway edges along <paramref name="path"/> to the junction, the
+    /// node — omitted when the aircraft is already standing on that node, within
+    /// <see cref="StartNodeCoincidentFt"/>, because a segment a few feet long carries
+    /// no usable bearing for the navigator to align to — the taxiway edges along
+    /// <paramref name="path"/> to the junction, the
     /// fillet arc onto the centerline node, then a virtual straight rollout segment
     /// down the runway heading past the arc exit. The rollout straight is what the
     /// navigator brakes to a stop on (LUAW) or flows through (rolling) — braking to
@@ -308,15 +351,18 @@ public static class LineUpGraphRoute
         var segments = new List<TaxiRouteSegment>();
 
         var start = path[0];
-        string leadTaxiway = start.Edges.FirstOrDefault(e => !e.IsRunwayCenterline)?.TaxiwayName ?? filletArc.TaxiwayName;
-        var virtualStart = VirtualNode.Create(acPos.Lat, acPos.Lon);
-        var approachEdge = new GroundEdge
+        if (GeoMath.DistanceNm(acPos, start.Position) * GeoMath.FeetPerNm > StartNodeCoincidentFt)
         {
-            Nodes = [virtualStart, start],
-            TaxiwayName = leadTaxiway,
-            DistanceNm = Math.Max(GeoMath.DistanceNm(acPos, start.Position), 0.0001),
-        };
-        segments.Add(new TaxiRouteSegment { TaxiwayName = leadTaxiway, Edge = approachEdge.Directed(virtualStart, start) });
+            string leadTaxiway = start.Edges.FirstOrDefault(e => !e.IsRunwayCenterline)?.TaxiwayName ?? filletArc.TaxiwayName;
+            var virtualStart = VirtualNode.Create(acPos.Lat, acPos.Lon);
+            var approachEdge = new GroundEdge
+            {
+                Nodes = [virtualStart, start],
+                TaxiwayName = leadTaxiway,
+                DistanceNm = Math.Max(GeoMath.DistanceNm(acPos, start.Position), 0.0001),
+            };
+            segments.Add(new TaxiRouteSegment { TaxiwayName = leadTaxiway, Edge = approachEdge.Directed(virtualStart, start) });
+        }
 
         for (int i = 0; i < path.Count - 1; i++)
         {

@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+- `LUAW` from a hold-short a few feet past a taxiway node lines up directly instead of first pivoting a full circle in place at 3 kt. (GitHub #438)
+- A line-up that follows the taxiway onto the runway no longer tugs the nose toward the runway heading during its first roll forward.
+
 ## v0.12.32-beta [2026/09/14]
 
 ### Fixed
