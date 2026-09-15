@@ -379,6 +379,30 @@ public class FavoriteExportTests : IDisposable
         Assert.Equal(["InSet"], target.GetSetFavorites(target.FindNamedSet("Pack")!.Id).Select(f => f.Label));
     }
 
+    /// <summary>
+    /// The library a user attached to GitHub #437 ("import does nothing"): 452 favorites, all in
+    /// Global. The store-level import was never the failing part (the view's prompt was), so this
+    /// pins the merge of a real, large, spacer-heavy library against a fresh store.
+    /// </summary>
+    [Fact]
+    public void Issue437_UserLibraryZip_ImportsEveryFavoriteIntoGlobal()
+    {
+        var path = Path.Combine(AppContext.BaseDirectory, "TestData", "favorites", "issue-437.yaat-favlibrary.zip");
+        Assert.True(File.Exists(path), $"Fixture missing: {path}");
+
+        var target = NewStore("target");
+        using var stream = File.OpenRead(path);
+        var result = FavoriteExport.ImportFile(target, Path.GetFileName(path), stream, FavoriteImportMode.Merge);
+
+        Assert.NotNull(result);
+        Assert.Equal(452, result.FavoritesAdded);
+        Assert.Equal(0, result.MissingReferences);
+        Assert.Equal(1, result.SetsUpdated);
+        Assert.Equal(452, target.AllFavorites.Count);
+        Assert.Equal(452, target.GetSetFavorites(target.GlobalSet.Id).Count);
+        Assert.Contains(target.GetSetFavorites(target.GlobalSet.Id), f => f.Label == "Rwy 28R" && f.CommandText == "taxi 28R; HS 1L; HS 1R");
+    }
+
     [Fact]
     public void NormalizeFavoriteCategory_MapsUndefinedToAir()
     {

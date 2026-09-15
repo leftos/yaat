@@ -45,5 +45,7 @@
          the underlying airports live weather is fetched for; a synthetic stub would not have
          caught the facility-tree nesting that broke it. -->
     <None Include="..\..\docs\vnas-artcc-config-examples\zoa.json" Link="TestData\zoa.json" CopyToOutputDirectory="PreserveNewest" />
+    <!-- A user's real favorites-library export attached to GitHub issue #437 (import "does nothing"). -->
+    <None Include="TestData\favorites\*.zip" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>
