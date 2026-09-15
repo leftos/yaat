@@ -35,7 +35,7 @@ Legend: **have** = command surface exists (test is a new pin at SFO); **probe** 
 
 | # | Technique | YAAT form | Status | Test to add |
 |---|---|---|---|---|
-| A1 | Yankee-area gates (B23…C8) push onto taxilane Y instead of A when smaller than a B757 (05:11; SOP 3-5.c) | `PUSH Y` from B12 (E75L), then `TAXI Y A A1 1R` | probe (p13 for the taxi) | `SfoYankeePushTests`: push ends on Y with the nose aligned to Y and never touches A; the taxi leaves via an AY connector without a reversal |
+| A1 | Yankee-area gates (B23…C8) push onto taxilane Y instead of A when smaller than a B757 (05:11; SOP 3-5.c) | `PUSH Y A1` from B12 (E75L), then `TAXI Y A A1 1R` | probe (p13 for the taxi) | `SfoYankeePushTests`: push ends on Y aligned toward A1 and never touches A; the taxi leaves via an AY connector without a reversal. A plain `PUSH Y` is a straight-back push that leaves the nose on the stand heading by design (user decision 2026-09-15) — the RPO names the facing (`PUSH Y A1`, `PUSH Y FACE S`) |
 | A2 | B757-or-larger from the same gates pushes onto A (05:43) | `PUSH A` from B12 (B752) | have (`PUSH <twy>`) | same class: ends on A's centreline; `TAXI A A1 1R` starts without a turn-around |
 | A3 | Simultaneous tail-to-tail pushes to 5A and 5B (06:52; SOP 3-5.c.i: both usable at once below B757) | C-gate `PUSH $5A` + D-gate `PUSH $5B` issued the same second | have (`Issue233SfoPushToSpotTests` covers one) | `SfoSimultaneousAlleyPushTests`: both complete, no overlap, neither is held by `GroundConflictDetector` |
 | A4 | "Push long across the alley" so the arrival gets the near lane (28:44) | D15 `PUSH $6A`; arrival `TAXI T A T6B @D16` | have | `SfoSixAlleyChoreographyTests.PushLong`: both complete; the arrival is never slowed by the pusher |

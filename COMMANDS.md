@@ -703,10 +703,10 @@ These mutate ASDE-X display state only; they never change the underlying scenari
 
 | Command | Effect |
 |---------|--------|
-| `PUSH` | Push back from parking (reverse at ~5 kts) |
+| `PUSH` | Push **straight back** from parking (reverse at ~5 kts) — the nose keeps the stand heading. For a push that ends aligned for the taxi out, use one of the facing forms below (`PUSH Y A1`, `PUSH Y FACE S`, `PUSH $spot`). |
 | `PUSH FACE E` / `PUSH >E` | Push back facing east (cardinal direction) |
 | `PUSH TAIL W` / `PUSH <W` | Push back with the tail pointing west (equivalent to `FACE E`) |
-| `PUSH A` | Push back onto taxiway A |
+| `PUSH A` | Push **straight back** onto taxiway A — the aircraft stops on A with the nose still on the stand heading, so a taxi the other way starts with a turn-around. Name the facing when it matters: `PUSH A A1` (face toward A1) or `PUSH A FACE E`. |
 | `PUSH TE FACE E` | Push back onto TE, aligning with whichever direction of TE is closest to east |
 | `PUSH TE TAIL W` | Same — `TAIL W` and `FACE E` resolve to the same alignment |
 | `PUSH TE T` | Push back onto taxiway TE, facing toward taxiway T |
@@ -757,7 +757,7 @@ These mutate ASDE-X display state only; they never change the underlying scenari
 | `TAXIALL 30` | Taxi every aircraft at parking to runway 30 (or `@parking` / `$spot`), each auto-routed from where it stands as `TAXIAUTO` would; the response counts the aircraft that taxied and the ones that refused (global command, no callsign needed) |
 | `BREAK` | Ignore ground conflicts for 15 seconds |
 
-Pushback orientation accepts the eight compass points: `N`, `NE`, `E`, `SE`, `S`, `SW`, `W`, `NW`. Use `FACE C` (or shorthand `>C`) to specify the nose direction, or `TAIL C` (`<C`) to specify the tail direction. When pushed onto a taxiway, the cardinal acts as a hint — the aircraft aligns with whichever of the taxiway's two directions is closest. For parking/spot destinations, the cardinal is the absolute facing.
+A bare `PUSH` and a single-argument `PUSH <taxiway>` are **straight-back pushes**: the tug reverses the aircraft onto the pavement behind it and the nose keeps the stand heading. That is deliberate — the alignment is part of the instruction, and it is the RPO's to give. Use `PUSH <taxiway> <toward-taxiway>` (`PUSH Y A1`: onto Y, aligned along whichever direction of Y leads toward A1), `PUSH <taxiway> FACE <dir>` / `TAIL <dir>`, or `PUSH $spot` (nose-out by default) when the aircraft should end up pointed for its taxi. Pushback orientation accepts the eight compass points: `N`, `NE`, `E`, `SE`, `S`, `SW`, `W`, `NW`. Use `FACE C` (or shorthand `>C`) to specify the nose direction, or `TAIL C` (`<C`) to specify the tail direction. When pushed onto a taxiway, the cardinal acts as a hint — the aircraft aligns with whichever of the taxiway's two directions is closest. For parking/spot destinations, the cardinal is the absolute facing.
 
 A `PUSH @parking` reverses **directly** to the gate node (a straight or gently curved tug reverse), like the tug pushing along the ramp lead line — it does not taxi there along the taxiway graph and never routes through a movement-area taxiway to reach the gate.
 
