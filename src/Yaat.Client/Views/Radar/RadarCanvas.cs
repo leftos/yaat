@@ -475,6 +475,16 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
         }
     }
 
+    public bool ShowTypeMismatchHints
+    {
+        get => _renderer.ShowTypeMismatchHints;
+        set
+        {
+            _renderer.ShowTypeMismatchHints = value;
+            MarkDirty();
+        }
+    }
+
     public bool ShowAtpa
     {
         get => _renderer.ShowAtpa;

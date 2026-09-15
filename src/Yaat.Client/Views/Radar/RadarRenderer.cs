@@ -268,6 +268,12 @@ public sealed class RadarRenderer : IDisposable
         set => _targetRenderer.ShowConflictAlerts = value;
     }
 
+    public bool ShowTypeMismatchHints
+    {
+        get => _targetRenderer.ShowTypeMismatchHints;
+        set => _targetRenderer.ShowTypeMismatchHints = value;
+    }
+
     public bool ShowAtpa
     {
         get => _targetRenderer.ShowAtpa;

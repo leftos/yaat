@@ -162,6 +162,9 @@ public partial class SettingsViewModel : ObservableObject
     private bool _showConflictAlerts;
 
     [ObservableProperty]
+    private bool _showTypeMismatchHints;
+
+    [ObservableProperty]
     private bool _showAtpa;
 
     [ObservableProperty]
@@ -672,6 +675,7 @@ public partial class SettingsViewModel : ObservableObject
         _euroScopeMode = _preferences.EuroScopeMode;
         _flashNoLandingClearance = _preferences.FlashNoLandingClearance;
         _showConflictAlerts = _preferences.ShowConflictAlerts;
+        _showTypeMismatchHints = _preferences.ShowTypeMismatchHints;
         _showAtpa = _preferences.ShowAtpa;
         _showSpeechBubbles = _preferences.ShowSpeechBubbles;
         _mvaHintDefaultApp = _preferences.MvaHintDefaultApp;
@@ -858,6 +862,7 @@ public partial class SettingsViewModel : ObservableObject
         _preferences.SetEuroScopeMode(EuroScopeMode);
         _preferences.SetFlashNoLandingClearance(FlashNoLandingClearance);
         _preferences.SetShowConflictAlerts(ShowConflictAlerts);
+        _preferences.SetShowTypeMismatchHints(ShowTypeMismatchHints);
         _preferences.SetShowAtpa(ShowAtpa);
         _preferences.SetShowSpeechBubbles(ShowSpeechBubbles);
         _preferences.SetMvaHintDefaults(MvaHintDefaultApp, MvaHintDefaultCtr, MvaHintDefaultGnd, MvaHintDefaultTwr);
@@ -1746,6 +1751,8 @@ public partial class SettingsViewModel : ObservableObject
     partial void OnFlashNoLandingClearanceChanged(bool value) => VisualSettingsChanged?.Invoke();
 
     partial void OnShowConflictAlertsChanged(bool value) => VisualSettingsChanged?.Invoke();
+
+    partial void OnShowTypeMismatchHintsChanged(bool value) => VisualSettingsChanged?.Invoke();
 
     partial void OnShowAtpaChanged(bool value) => VisualSettingsChanged?.Invoke();
 

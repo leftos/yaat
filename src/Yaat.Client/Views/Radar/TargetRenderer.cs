@@ -36,6 +36,10 @@ public sealed class TargetRenderer : IDisposable
     private static readonly SKColor MvaAtColor = new(255, 200, 60);
     private const int MvaAtBandFt = 100;
 
+    // Filed-vs-actual aircraft type hint: a deeper amber than the MVA "at" tint, which sits on the
+    // altitude token at the other end of the same line.
+    private static readonly SKColor TypeMismatchColor = new(0xFF, 0xB0, 0x30);
+
     // STARS TPA graphics color (CRC's TCW value, DisplayElementTracks: Color.FromArgb(90, 180, 255)) —
     // used for the instructor J-Ring / Cone overlay so it reads like the TPA graphics a controller sees.
     private static readonly SKColor TpaColor = new(90, 180, 255);
@@ -230,6 +234,14 @@ public sealed class TargetRenderer : IDisposable
     /// false (opt-in); driven by the <c>ShowConflictAlerts</c> user preference.
     /// </summary>
     public bool ShowConflictAlerts { get; set; }
+
+    /// <summary>
+    /// When true, tint the datablock's type token amber for an aircraft whose physical type differs from
+    /// its filed flight-plan type (see <see cref="AircraftModel.HasFiledTypeMismatch"/>). Instructor-only
+    /// hint — the datablock itself shows the filed type, as the student's STARS does. Default false here;
+    /// driven by the <c>ShowTypeMismatchHints</c> user preference, which defaults on.
+    /// </summary>
+    public bool ShowTypeMismatchHints { get; set; }
 
     /// <summary>
     /// When true, render the automatic ATPA cone and the in-trail distance datablock line for each
@@ -820,12 +832,29 @@ public sealed class TargetRenderer : IDisposable
     }
 
     /// <summary>
-    /// Draws a datablock line, tinting the leading altitude token (everything before the first space)
-    /// when <paramref name="altTint"/> is set. When <paramref name="identing"/>, the line's trailing IDENT
-    /// token flashes on the 500 ms cycle: it is skipped entirely on the off-phase, which shifts nothing
-    /// because it is the last token and its width is already reserved in the measured line.
+    /// Amber tint for the datablock type token when the aircraft is physically a different type than its
+    /// flight plan files, or null when the hint is off or the types agree.
     /// </summary>
-    private void DrawDatablockLine(SKCanvas canvas, string line, float x, float baseline, SKColor? altTint, bool identing)
+    private SKColor? ResolveTypeMismatchTint(AircraftModel ac) => (ShowTypeMismatchHints && ac.HasFiledTypeMismatch) ? TypeMismatchColor : null;
+
+    /// <summary>
+    /// Draws a datablock line, tinting the leading altitude token (everything before the first space)
+    /// when <paramref name="altTint"/> is set, and the <paramref name="typeSpan"/> token in the middle of
+    /// the line when <paramref name="typeTint"/> is set (the filed-vs-actual type hint). When
+    /// <paramref name="identing"/>, the line's trailing IDENT token flashes on the 500 ms cycle: it is
+    /// skipped entirely on the off-phase, which shifts nothing because it is the last token and its width
+    /// is already reserved in the measured line.
+    /// </summary>
+    private void DrawDatablockLine(
+        SKCanvas canvas,
+        string line,
+        float x,
+        float baseline,
+        SKColor? altTint,
+        (int Start, int Length) typeSpan,
+        SKColor? typeTint,
+        bool identing
+    )
     {
         if (line.Length == 0)
         {
@@ -842,8 +871,24 @@ public sealed class TargetRenderer : IDisposable
             tailStart = line.Length;
         }
 
+        // The type token sits between the altitude head and the IDENT tail, so tinting it splits the
+        // body into three spans; without a tint the body stays one span and the drawing is unchanged.
+        int typeStart = typeSpan.Start;
+        int typeEnd = typeSpan.Start + typeSpan.Length;
+        bool tintType = (typeTint is not null) && (typeSpan.Length > 0) && (typeStart >= headLength) && (typeEnd <= tailStart);
+
         float cursor = DrawSpan(canvas, line[..headLength], x, baseline, altTint ?? blockColor);
-        cursor = DrawSpan(canvas, line[headLength..tailStart], cursor, baseline, blockColor);
+        if (tintType)
+        {
+            cursor = DrawSpan(canvas, line[headLength..typeStart], cursor, baseline, blockColor);
+            cursor = DrawSpan(canvas, line[typeStart..typeEnd], cursor, baseline, typeTint!.Value);
+            cursor = DrawSpan(canvas, line[typeEnd..tailStart], cursor, baseline, blockColor);
+        }
+        else
+        {
+            cursor = DrawSpan(canvas, line[headLength..tailStart], cursor, baseline, blockColor);
+        }
+
         bool blinkOff = Environment.TickCount64 / 500 % 2 != 0;
         if (!blinkOff)
         {
@@ -962,7 +1007,16 @@ public sealed class TargetRenderer : IDisposable
         canvas.DrawLine(cx, cy, leaderEndStars.X, leaderEndStars.Y, _leaderPaint);
 
         canvas.DrawText(layout.Line1, layout.TextX, layout.TextY, SKTextAlign.Left, _dataBlockFont, _dataBlockPaint);
-        DrawDatablockLine(canvas, layout.Line2, layout.TextX, layout.TextY + layout.LineHeight, ResolveMvaAltitudeTint(ac), layout.IdentActive);
+        DrawDatablockLine(
+            canvas,
+            layout.Line2,
+            layout.TextX,
+            layout.TextY + layout.LineHeight,
+            ResolveMvaAltitudeTint(ac),
+            (layout.TypeTokenStart, layout.TypeTokenLength),
+            ResolveTypeMismatchTint(ac),
+            layout.IdentActive
+        );
 
         int row = 2;
         if (layout.SquawkLine.Length > 0)
@@ -1106,7 +1160,16 @@ public sealed class TargetRenderer : IDisposable
         for (int i = 0; i < lines.Count; i++)
         {
             // Every reduced format carries the ident on its first line; flash that token only.
-            DrawDatablockLine(canvas, lines[i], blockX, blockY + (i * lineH), altTint: null, identing: identOnFirstLine && i == 0);
+            DrawDatablockLine(
+                canvas,
+                lines[i],
+                blockX,
+                blockY + (i * lineH),
+                altTint: null,
+                typeSpan: (-1, 0),
+                typeTint: null,
+                identing: identOnFirstLine && i == 0
+            );
         }
 
         return rect;

@@ -223,6 +223,14 @@ public sealed class UserPreferences
     public bool EuroScopeMode => _data.EuroScopeMode;
     public bool FlashNoLandingClearance => _data.FlashNoLandingClearance;
     public bool ShowConflictAlerts => _data.ShowConflictAlerts;
+
+    /// <summary>
+    /// Instructor-only hint marking aircraft whose physical type differs from the filed flight-plan
+    /// type: the radar datablock tints the type token amber. Default on — the student's scope shows the
+    /// filed type either way, so nothing else reveals it. The Aircraft List's Filed column is independent
+    /// of this flag; hide it through the column chooser like any other column.
+    /// </summary>
+    public bool ShowTypeMismatchHints => _data.ShowTypeMismatchHints;
     public bool ShowAtpa => _data.ShowAtpa;
     public bool ShowSpeechBubbles => _data.ShowSpeechBubbles;
     public double SpeechBubbleDurationMultiplier => Math.Clamp(_data.SpeechBubbleDurationMultiplier, 0.25, 4.0);
@@ -765,6 +773,12 @@ public sealed class UserPreferences
     public void SetShowConflictAlerts(bool enabled)
     {
         _data.ShowConflictAlerts = enabled;
+        Save();
+    }
+
+    public void SetShowTypeMismatchHints(bool enabled)
+    {
+        _data.ShowTypeMismatchHints = enabled;
         Save();
     }
 
@@ -1732,6 +1746,7 @@ public sealed class UserPreferences
             EuroScopeMode = GetFieldOr(obj, "euroScopeMode", false),
             FlashNoLandingClearance = GetFieldOr(obj, "flashNoLandingClearance", true),
             ShowConflictAlerts = GetFieldOr(obj, "showConflictAlerts", false),
+            ShowTypeMismatchHints = GetFieldOr(obj, "showTypeMismatchHints", true),
             ShowAtpa = GetFieldOr(obj, "showAtpa", false),
             SyncStudentDatablockColors = GetFieldOr(obj, "syncStudentDatablockColors", true),
             MarkStudentLimitedDatablocks = GetFieldOr(obj, "markStudentLimitedDatablocks", true),
@@ -2013,6 +2028,7 @@ public sealed class UserPreferences
         public bool EuroScopeMode { get; set; }
         public bool FlashNoLandingClearance { get; set; } = true;
         public bool ShowConflictAlerts { get; set; }
+        public bool ShowTypeMismatchHints { get; set; } = true;
         public bool ShowAtpa { get; set; }
         public bool ShowSpeechBubbles { get; set; }
         public double SpeechBubbleDurationMultiplier { get; set; } = 1.0;

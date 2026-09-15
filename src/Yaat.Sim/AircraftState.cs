@@ -18,17 +18,36 @@ public class AircraftState
 
     /// <summary>
     /// Extract ICAO type designator from FAA flight plan format.
-    /// "B738" → "B738", "H/B763/L" → "B763", "B738/L" → "B738".
+    /// "B738" → "B738", "H/B763/L" → "B763", "B738/L" → "B738", "2/C130/G" → "C130" (a formation count
+    /// filed as the prefix, FAA 7233-4 block 9).
     /// </summary>
     public static string StripTypePrefix(string aircraftType)
     {
         var parts = aircraftType.Split('/');
-        if (parts.Length >= 2 && parts[0] is "H" or "J" or "S")
+        if (parts.Length >= 2 && IsTypePrefix(parts[0]))
         {
             return parts[1];
         }
 
         return parts[0];
+    }
+
+    private static bool IsTypePrefix(string segment) =>
+        (segment is "H" or "J" or "S") || ((segment.Length is 1 or 2) && segment.All(char.IsAsciiDigit));
+
+    /// <summary>
+    /// True when two type strings name the same ICAO designator once wake prefixes and equipment suffixes are stripped
+    /// ("H/B763/L" and "b763"). Blank on either side is "no type", never the same type. The one comparison behind the
+    /// filed-vs-actual type checks: the radar hint on the client and the scenario validator.
+    /// </summary>
+    public static bool IsSameBaseType(string a, string b)
+    {
+        if (string.IsNullOrWhiteSpace(a) || string.IsNullOrWhiteSpace(b))
+        {
+            return false;
+        }
+
+        return string.Equals(StripTypePrefix(a).Trim(), StripTypePrefix(b).Trim(), StringComparison.OrdinalIgnoreCase);
     }
 
     public string? ScenarioId { get; set; }

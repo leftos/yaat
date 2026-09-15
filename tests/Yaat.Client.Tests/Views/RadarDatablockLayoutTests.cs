@@ -198,6 +198,54 @@ public class RadarDatablockLayoutTests
     }
 
     [Fact]
+    public void TypeTokenSpan_CoversTheCwtTypeToken_OnLine2()
+    {
+        // The renderer tints this span amber when the filed type differs from the physical type, so the
+        // span must land exactly on the "cwt/type" token the line carries — text unchanged either way.
+        var ac = CreateModel();
+        ac.AircraftType = "A388";
+        ac.FiledAircraftType = "B744";
+        ac.CwtCode = "L";
+        var style = CreateStyle();
+
+        var layout = RadarDatablockLayout.Compute(
+            ac,
+            blockX: 100,
+            blockY: 100,
+            style,
+            showNoLandingClearance: false,
+            overlays: None,
+            callsignMarker: ""
+        );
+
+        Assert.NotEqual(-1, layout.TypeTokenStart);
+        Assert.Equal("L/B744", layout.Line2.Substring(layout.TypeTokenStart, layout.TypeTokenLength));
+    }
+
+    [Fact]
+    public void TypeTokenSpan_IsAbsent_WhenNoTypeOrCwt()
+    {
+        var ac = CreateModel();
+        ac.AircraftType = "";
+        ac.FiledAircraftType = "";
+        ac.CwtCode = "";
+        var style = CreateStyle();
+
+        var layout = RadarDatablockLayout.Compute(
+            ac,
+            blockX: 100,
+            blockY: 100,
+            style,
+            showNoLandingClearance: false,
+            overlays: None,
+            callsignMarker: ""
+        );
+
+        Assert.Equal(-1, layout.TypeTokenStart);
+        Assert.Equal(0, layout.TypeTokenLength);
+    }
+
+    [Fact]
     public void NoLndgClnc_HiddenWhenWarningInactive()
     {
         var ac = CreateModel();

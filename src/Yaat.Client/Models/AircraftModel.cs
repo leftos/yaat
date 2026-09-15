@@ -27,6 +27,8 @@ public partial class AircraftModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(BaseAircraftType))]
     [NotifyPropertyChangedFor(nameof(AircraftTypeName))]
     [NotifyPropertyChangedFor(nameof(DisplayAircraftType))]
+    [NotifyPropertyChangedFor(nameof(HasFiledTypeMismatch))]
+    [NotifyPropertyChangedFor(nameof(FiledTypeMismatchTooltip))]
     private string _aircraftType = "";
 
     /// <summary>
@@ -70,7 +72,30 @@ public partial class AircraftModel : ObservableObject
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(FlightPlanDisplay))]
     [NotifyPropertyChangedFor(nameof(DisplayAircraftType))]
+    [NotifyPropertyChangedFor(nameof(HasFiledTypeMismatch))]
+    [NotifyPropertyChangedFor(nameof(FiledTypeMismatchTooltip))]
     private string _filedAircraftType = "";
+
+    /// <summary>
+    /// Instructor-only hint: the aircraft physically flying is not the type the flight plan files
+    /// (e.g. an A388 filed as a B744). The student's STARS surfaces show the filed type, so nothing on
+    /// the scope reveals the difference; the radar datablock and the Aircraft List mark it for the
+    /// instructor instead. Both sides are compared through
+    /// <see cref="Yaat.Sim.AircraftState.IsSameBaseType"/>, so a wake prefix or equipment suffix on one
+    /// side only ("H/B763/L" vs "B763") is not a mismatch, and the comparison is case-insensitive. A
+    /// blank <see cref="FiledAircraftType"/> means "no filed type" — never a mismatch; a blank
+    /// <see cref="AircraftType"/> is a model still being populated, not a mismatch either.
+    /// </summary>
+    public bool HasFiledTypeMismatch =>
+        !string.IsNullOrWhiteSpace(FiledAircraftType)
+        && !string.IsNullOrWhiteSpace(AircraftType)
+        && !AircraftState.IsSameBaseType(AircraftType, FiledAircraftType);
+
+    /// <summary>
+    /// Tooltip for the Aircraft List's filed-type marker, naming the type the flight plan carries
+    /// (e.g. "Filed as B744"). Null when there is no <see cref="HasFiledTypeMismatch"/> to explain.
+    /// </summary>
+    public string? FiledTypeMismatchTooltip => HasFiledTypeMismatch ? $"Filed as {FiledAircraftType}" : null;
 
     /// <summary>
     /// Aircraft type as the radar surfaces (STARS-style datablock, EuroScope tag, radar

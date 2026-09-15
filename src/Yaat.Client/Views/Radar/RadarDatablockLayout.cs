@@ -87,6 +87,17 @@ internal readonly struct RadarDatablockLayout
     /// </summary>
     public readonly bool IdentActive;
 
+    /// <summary>
+    /// Start index of the <c>cwt/type</c> token within <see cref="Line2"/>, or −1 when the line carries
+    /// no type token. The renderer tints that span when the physical type differs from the filed one; the
+    /// span is recorded here rather than re-derived at draw time so the line's text stays the single
+    /// source of truth for both the draw and hit-test paths.
+    /// </summary>
+    public readonly int TypeTokenStart;
+
+    /// <summary>Length of the <see cref="TypeTokenStart"/> span, 0 when there is no type token.</summary>
+    public readonly int TypeTokenLength;
+
     /// <summary>Total drawn lines, including any reserved warning slot and the note line.</summary>
     public readonly int LineCount;
 
@@ -125,6 +136,8 @@ internal readonly struct RadarDatablockLayout
         string line6,
         string conflictLine,
         bool identActive,
+        int typeTokenStart,
+        int typeTokenLength,
         int lineCount,
         bool reserveOwnerSlot,
         bool reserveWarningSlot,
@@ -145,6 +158,8 @@ internal readonly struct RadarDatablockLayout
         Line6 = line6;
         ConflictLine = conflictLine;
         IdentActive = identActive;
+        TypeTokenStart = typeTokenStart;
+        TypeTokenLength = typeTokenLength;
         LineCount = lineCount;
         ReserveOwnerSlot = reserveOwnerSlot;
         ReserveWarningSlot = reserveWarningSlot;
@@ -169,8 +184,13 @@ internal readonly struct RadarDatablockLayout
         string spdTens = ((int)ac.GroundSpeed / 10).ToString("D2");
         string cwtType = FormatCwtType(cwt, ac.DisplayAircraftType);
         string line2 = $"{altHundreds} {spdTens}";
+        // Record where the type token lands so the renderer can tint it without re-parsing the line.
+        int typeTokenStart = -1;
+        int typeTokenLength = 0;
         if (cwtType.Length > 0)
         {
+            typeTokenStart = line2.Length + 1;
+            typeTokenLength = cwtType.Length;
             line2 += $" {cwtType}";
         }
         // The ident flashes on the tail of this line, after the type — the width stays reserved here so
@@ -283,6 +303,8 @@ internal readonly struct RadarDatablockLayout
             line6,
             conflictLine,
             ac.IsIdenting,
+            typeTokenStart,
+            typeTokenLength,
             lineCount,
             reserveOwnerSlot,
             noLndgClncActive,

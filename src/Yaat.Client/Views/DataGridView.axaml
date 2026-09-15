@@ -141,6 +141,18 @@
             <DataGridTextColumn x:DataType="models:AircraftModel" Header="Apch" Binding="{Binding ActiveApproachId}" Width="Auto" />
             <DataGridTextColumn x:DataType="models:AircraftModel" Header="EApch" Binding="{Binding ExpectedApproachDisplay}" Width="Auto" />
             <DataGridTextColumn x:DataType="models:AircraftModel" Header="Type" Binding="{Binding AircraftType}" Width="Auto" />
+            <!-- Instructor-only hint: the filed FP type, shown only when it differs from the physical type in the Type column. -->
+            <DataGridTemplateColumn x:DataType="models:AircraftModel" Header="Filed" Width="Auto" SortMemberPath="FiledAircraftType">
+                <DataGridTemplateColumn.CellTemplate>
+                    <DataTemplate x:DataType="models:AircraftModel">
+                        <TextBlock Text="{Binding FiledAircraftType}"
+                                   IsVisible="{Binding HasFiledTypeMismatch}"
+                                   Foreground="{Binding HasFiledTypeMismatch, Converter={x:Static vm:TypeMismatchBrushConverter.Instance}}"
+                                   ToolTip.Tip="{Binding FiledTypeMismatchTooltip}"
+                                   VerticalAlignment="Center" />
+                    </DataTemplate>
+                </DataGridTemplateColumn.CellTemplate>
+            </DataGridTemplateColumn>
             <DataGridTextColumn x:DataType="models:AircraftModel" Header="Name" Binding="{Binding AircraftTypeName}" Width="Auto" />
             <DataGridTextColumn x:DataType="models:AircraftModel" Header="Rules" Binding="{Binding FlightRules}" Width="Auto" />
             <DataGridTextColumn x:DataType="models:AircraftModel" Header="Dep" Binding="{Binding Departure}" Width="Auto" />

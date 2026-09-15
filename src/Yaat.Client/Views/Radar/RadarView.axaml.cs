@@ -633,6 +633,7 @@ public partial class RadarView : UserControl
         _canvas.EuroScopeMode = prefs.EuroScopeMode;
         _canvas.FlashNoLandingClearance = prefs.FlashNoLandingClearance;
         _canvas.ShowConflictAlerts = prefs.ShowConflictAlerts;
+        _canvas.ShowTypeMismatchHints = prefs.ShowTypeMismatchHints;
         _canvas.ShowAtpa = prefs.ShowAtpa;
         _canvas.ShowSpeechBubbles = prefs.ShowSpeechBubbles;
         _canvas.AlwaysShowGroundBubblesOnRadar = prefs.AlwaysShowGroundBubblesOnRadar;

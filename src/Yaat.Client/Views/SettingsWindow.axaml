@@ -380,6 +380,15 @@
                                        Margin="28,0,0,0" />
                         </StackPanel>
                         <StackPanel Spacing="4">
+                            <CheckBox Content="Highlight filed-vs-actual aircraft type mismatches"
+                                      IsChecked="{Binding ShowTypeMismatchHints}" />
+                            <TextBlock Text="When an aircraft is physically a different type than its flight plan files (e.g. an A388 filed as a B744), the radar datablock draws the type token amber. Instructor-only — the student's scope shows the filed type either way. The Aircraft List's 'Filed' column shows the same mismatches regardless; hide it via the column chooser."
+                                       TextWrapping="Wrap"
+                                       Foreground="{DynamicResource SubtleTextBrush}"
+                                       FontSize="11"
+                                       Margin="28,0,0,0" />
+                        </StackPanel>
+                        <StackPanel Spacing="4">
                             <CheckBox Content="Show ATPA cones and in-trail distance on the radar"
                                       IsChecked="{Binding ShowAtpa}" />
                             <TextBlock Text="For an arrival established behind another on the same final, draws the STARS ATPA cone from the trailing aircraft toward its leader, as long as the required in-trail separation, and adds the current in-trail distance to its datablock. Blue while separation is healthy (Monitor), yellow when a loss is predicted (Warning), orange when separation is lost (Alert). An ATPA cone replaces a manual Cone on that track; J-Rings still draw. Default off."
