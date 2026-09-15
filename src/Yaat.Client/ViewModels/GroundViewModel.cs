@@ -555,6 +555,9 @@ public partial class GroundViewModel : ObservableObject
         }
     }
 
+    /// <summary>The scenario this view keys its saved center/zoom on; null while no scenario is active.</summary>
+    public string? ActiveScenarioId => _activeScenarioId;
+
     public void SetScenarioId(string? scenarioId)
     {
         _activeScenarioId = scenarioId;

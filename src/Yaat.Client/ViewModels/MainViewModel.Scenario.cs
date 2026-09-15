@@ -716,15 +716,11 @@ public partial class MainViewModel
         ClearBookmarks();
         InitialDelayedSpawnCount = 0;
         PendingDelayedSpawnCount = 0;
-        // A mirroring extra Ground View follows the cleared layout through PropertyChanged; one on its own
-        // airport holds a layout nothing else retracts, so it clears itself.
-        Ground.ClearLayout();
-        foreach (var instance in ExtraGroundViews)
+        // Every Ground View clears itself: a mirroring extra follows the cleared layout through
+        // PropertyChanged, but its scenario id, ground aircraft and shown routes are its own.
+        foreach (var ground in AllGroundViews)
         {
-            if (!instance.Vm.IsMirroring)
-            {
-                instance.Vm.ClearLayout();
-            }
+            ground.ClearLayout();
         }
 
         foreach (var radar in AllRadarViews)

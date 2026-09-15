@@ -341,6 +341,34 @@ public class MainViewModelViewInstancesTests
     }
 
     [AvaloniaFact]
+    public void ClearScenarioState_DropsEveryExtraGroundViewsScenarioId()
+    {
+        SeedNavDb();
+        var vm = new MainViewModel(new FakeFilePickerService());
+        try
+        {
+            vm.MarkNavDbReady();
+            vm.ApplyScenarioBootstrap(new ScenarioBootstrap("scenario-oak", "OAK scenario", "KOAK", null, null, []));
+            var mirroring = vm.OpenExtraGroundView("OAK");
+            var own = vm.OpenExtraGroundView("SFO");
+            Assert.True(mirroring.Vm.IsMirroring);
+            Assert.Equal("scenario-oak", mirroring.Vm.ActiveScenarioId);
+            Assert.Equal("scenario-oak", own.Vm.ActiveScenarioId);
+
+            vm.ClearScenarioState();
+
+            // A pan in either window after the unload must not write a saved view under the old scenario.
+            Assert.Null(vm.Ground.ActiveScenarioId);
+            Assert.Null(mirroring.Vm.ActiveScenarioId);
+            Assert.Null(own.Vm.ActiveScenarioId);
+        }
+        finally
+        {
+            ClearPersistedViews(vm.Preferences);
+        }
+    }
+
+    [AvaloniaFact]
     public void ReconcileExtraViews_ReopensInstanceWhoseAirportChanged()
     {
         var vm = new MainViewModel(new FakeFilePickerService());

@@ -697,6 +697,8 @@ public partial class MainViewModel
             }
         }
 
+        // The scenario id keys the Ground View's saved center/zoom, as on the bootstrap path.
+        Ground.SetScenarioId(result.ScenarioId);
         if (!string.IsNullOrEmpty(result.PrimaryAirportId))
         {
             _ = Ground.LoadLayoutAsync(result.PrimaryAirportId);

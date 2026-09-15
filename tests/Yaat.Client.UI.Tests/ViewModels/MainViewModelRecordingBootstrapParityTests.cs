@@ -89,4 +89,24 @@ public class MainViewModelRecordingBootstrapParityTests
         Assert.Equal(viaBootstrap.Aircraft.Count, viaRecording.Aircraft.Count);
         Assert.Equal(viaBootstrap.Aircraft.Select(a => a.Callsign), viaRecording.Aircraft.Select(a => a.Callsign));
     }
+
+    [AvaloniaFact]
+    public void ApplyRecordingResult_KeysTheGroundViewsSavedViewOnTheRecordingsScenario()
+    {
+        var vm = NewVm();
+        vm.ApplyRecordingResult(
+            new RewindResultDto(
+                Success: true,
+                Error: null,
+                Aircraft: [],
+                ScenarioId: ScenarioId,
+                ScenarioName: ScenarioName,
+                PrimaryAirportId: AirportId
+            )
+        );
+
+        // The Ground View restores and saves its center/zoom per scenario, so a recording load has to
+        // tell it which scenario it is on, exactly as the bootstrap router does.
+        Assert.Equal(ScenarioId, vm.Ground.ActiveScenarioId);
+    }
 }

@@ -14,6 +14,7 @@
 - Solo scoring: a facility-directive "Wake turbulence advisory missing" finding for an arrival behind a landing is one finding per encounter, clears on a correct CWT call, and no longer re-fires every second.
 - Speech: "cleared into IR149, maintain route altitudes" now maps to `CMTR IR149` instead of dropping the route designator.
 - Radar View: an aircraft appearing in a newly loaded scenario no longer inherits a conflict-alert field or ATPA line left over from the previous scenario.
+- Ground View: loading a recording restores the saved center and zoom for that scenario, as loading the scenario itself does.
 
 ## v0.12.30-beta [2026/09/11]
 
