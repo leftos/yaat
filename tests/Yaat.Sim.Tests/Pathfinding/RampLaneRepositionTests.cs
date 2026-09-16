@@ -337,6 +337,84 @@ public class RampLaneRepositionTests
     }
 
     /// <summary>
+    /// The pressure test on the detour ratio a resolved route must beat before it is re-cut. The mini airport is a U:
+    /// the only graph route from M3's north end to stand H on M9 runs the length of M3, across the K connector at the
+    /// southern end and back up M9, so the lane length alone decides the ratio. Measured, not derived — the K
+    /// connector lengthens the graph route and the straight drive is not a flat 400 ft, so read the two numbers as
+    /// harness measurements: at a 100 ft lane the graph is 1.31× the drive and the pilot stays on the painted line;
+    /// at 300 ft it is 2.29× and he crosses. The production cases sit at 1.10 and 3.75, so nothing else in the
+    /// suite exercises the boundary itself.
+    /// </summary>
+    [Theory]
+    [InlineData(100.0, false)]
+    [InlineData(300.0, true)]
+    public void ResolvedRouteCut_TurnsOnTheDetourRatio(double laneLengthFt, bool expectCut)
+    {
+        var layout = GeoJsonParser.Parse("TST", MiniLoopRampGeoJson(laneLengthFt), "TST");
+        var stand = layout.FindParkingByName("H")!;
+        var start = layout.GetNodesOnTaxiway("M3").OrderByDescending(n => n.Position.Lat).First();
+        var route = TaxiPathfinder.FindRoute(layout, start.Id, stand.Id, AircraftCategory.Jet);
+        Assert.NotNull(route);
+
+        double straightFt = GeoMath.DistanceNm(start.Position, stand.Position) * GeoMath.FeetPerNm;
+        _output.WriteLine(
+            $"graph route {route.TotalDistanceFt:F0} ft, straight drive {straightFt:F0} ft, ratio {route.TotalDistanceFt / straightFt:F2}"
+        );
+        _output.WriteLine("route: " + string.Join(" ", route.Segments.Select(s => $"{s.FromNodeId}-{s.ToNodeId}({s.TaxiwayName})")));
+
+        var cut = RampLaneReposition.TryPlanResolvedRouteCut(layout, route, stand);
+        if (!expectCut)
+        {
+            Assert.Null(cut);
+            return;
+        }
+
+        Assert.NotNull(cut);
+        _output.WriteLine($"cut from #{cut.FromNode.Id} across {cut.CrossingFt:F0} ft onto {cut.DestinationLane}: {cut.Route.TotalDistanceFt:F0} ft");
+        Assert.Equal(start.Id, cut.FromNode.Id);
+        Assert.Equal(stand.Id, cut.ToNode.Id);
+        Assert.Equal("M9", cut.DestinationLane);
+        Assert.True(cut.CrossingFt <= RampLaneReposition.MaxCrossingFt, $"crossing {cut.CrossingFt:F0} ft exceeds the cap");
+        Assert.True(
+            cut.Route.TotalDistanceFt < (route.TotalDistanceFt / 2.0),
+            $"the cut route is {cut.Route.TotalDistanceFt:F0} ft against the graph's {route.TotalDistanceFt:F0} ft"
+        );
+    }
+
+    /// <summary>
+    /// Two parallel north–south lanes 150 ft apart (M3 at lon 0, M9 at lon +150 ft) that meet only at taxiway K
+    /// across their southern ends, with stand H 250 ft east of M9 and abreast of the lanes' northern ends (the same
+    /// 250 ft lead-out the sibling layout uses, long enough that its fillet stays clear of the gate). The lanes run
+    /// 50 ft past K so the connector crosses them rather than touching their endpoints.
+    /// </summary>
+    private static string MiniLoopRampGeoJson(double laneLengthFt)
+    {
+        const double lat0 = 37.60;
+        const double lon0 = -122.38;
+        const double degPerFtLat = 1.0 / 364000.0;
+        double degPerFtLon = degPerFtLat / Math.Cos(lat0 * Math.PI / 180.0);
+        string Lon(double ft) => (lon0 + (ft * degPerFtLon)).ToString("F7", System.Globalization.CultureInfo.InvariantCulture);
+        string Lat(double ft) => (lat0 + (ft * degPerFtLat)).ToString("F7", System.Globalization.CultureInfo.InvariantCulture);
+        string Lane(string name, double lonFt) =>
+            $$"""
+                { "type": "Feature", "properties": { "type": "taxiway", "name": "{{name}}" },
+                  "geometry": { "type": "LineString",
+                    "coordinates": [[{{Lon(lonFt)}}, {{Lat(0)}}], [{{Lon(lonFt)}}, {{Lat(-(laneLengthFt + 50))}}]] } }
+                """;
+        return $$"""
+            { "type": "FeatureCollection", "features": [
+              { "type": "Feature", "properties": { "type": "parking", "name": "H", "heading": 90 },
+                "geometry": { "type": "Point", "coordinates": [{{Lon(400)}}, {{Lat(0)}}] } },
+              {{Lane("M3", 0)}},
+              {{Lane("M9", 150)}},
+              { "type": "Feature", "properties": { "type": "taxiway", "name": "K" },
+                "geometry": { "type": "LineString",
+                  "coordinates": [[{{Lon(-50)}}, {{Lat(-laneLengthFt)}}], [{{Lon(200)}}, {{Lat(-laneLengthFt)}}]] } }
+            ] }
+            """;
+    }
+
+    /// <summary>
     /// Two parallel north–south lanes 150 ft apart (M3 at lon 0, M9 at lon +150 ft), a gate 250 ft west of M3 with
     /// a lead-out onto it (an SFO-like alley, long enough that the lead-out's fillet stays clear of the gate), a gate
     /// H 250 ft east of M9 so both lanes are ramp-attached, and optionally a lettered taxiway K running between the lanes.

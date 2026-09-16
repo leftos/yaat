@@ -47,6 +47,7 @@
 - A takeoff clearance cancelled during line-up and then replaced by `LUAW` brakes onto the centerline instead of running to the end of the line-up at takeoff-flow speed.
 - **Push back, face \<taxiway\>** on the ground view's right-click menu pushes the aircraft to that facing instead of failing.
 - Taxi clearances onto SFO's ramp spot sub-lanes (`T5A`, `T6B`) get the same across-the-apron routing recovery as other ramp lanes.
+- A taxi clearance to a ramp stand the map connects only via the taxiway cuts across the apron from the nearest stand.
 
 ## v0.12.34-beta [2026/09/15]
 

@@ -325,6 +325,19 @@ internal static class GroundCommandHandler
             }
         }
 
+        // A route that resolved but only reaches the stand the long way round (SFO "TAXI $5A" from gate D2: 998 ft
+        // down T5, out to Alpha and back up T5A for a 529 ft move) is flown as the apron cut instead. The two
+        // blocks above only fire when the graph fails; this one improves a success, and only when the crossing is
+        // drivable and materially shorter.
+        if ((route is not null) && (FindTaxiDestinationNode(groundLayout, taxi) is { } resolvedDestination))
+        {
+            var improved = RampLaneReposition.TryPlanResolvedRouteCut(groundLayout, route, resolvedDestination);
+            if (improved is not null)
+            {
+                route = improved.Route;
+            }
+        }
+
         // Two recoveries for a clearance that names pavement the aircraft cannot use as issued. Each drops
         // exactly one cleared taxiway, re-resolves, and records the as-applied command for the readback.
         if (route is null && startNode.Type == GroundNodeType.Parking)

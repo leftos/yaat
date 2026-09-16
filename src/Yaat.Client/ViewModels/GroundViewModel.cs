@@ -1532,6 +1532,14 @@ public partial class GroundViewModel : ObservableObject
         var route = TaxiPathfinder.ResolveExplicitPathDetailed(_domainLayout, nodeId.Value, routeTaxiways, out var failure, options, category);
         if ((route is not null) && !StartsWithReversal(route, ac.Heading))
         {
+            // The server replaces a route that reaches the stand only the long way round (SFO $5A: down T5, out to
+            // Alpha, back up T5A) with a straight drive across the apron, so the overlay has to make the same
+            // substitution or it draws a detour the aircraft is not flying.
+            if ((destination is not null) && (RampLaneReposition.TryPlanResolvedRouteCut(_domainLayout, route, destination) is { } improved))
+            {
+                return WithApproachLeg(improved.Route, ac.Position, ac.Heading);
+            }
+
             return WithApproachLeg(route, ac.Position, ac.Heading);
         }
 

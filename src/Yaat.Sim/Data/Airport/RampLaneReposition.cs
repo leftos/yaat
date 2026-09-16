@@ -67,6 +67,21 @@ public static class RampLaneReposition
     /// <summary>An aircraft this close to a parking node is treated as parked there for lane inference.</summary>
     private const double ParkedToleranceFt = 30.0;
 
+    /// <summary>
+    /// How many times longer than the straight drive the remaining graph route must be before a resolved route is
+    /// re-cut. Measured, not published: nothing in 7110.65 or the AIM says when a pilot leaves the painted line for
+    /// the apron, so the bound comes from the cases either side of it — SFO D2 → $5A cuts at 5.36, B20S → M4 at
+    /// 3.75 and mid-M3 → M4 at 11.62, while OAK <c>V T TE @23</c> (1.10) and <c>V T TC @22</c> (≈1.0) must not.
+    /// </summary>
+    private const double MinDetourRatio = 2.0;
+
+    /// <summary>
+    /// How much shorter the cut must make the route, on top of <see cref="MinDetourRatio"/>. Also measured: it is
+    /// what separates OAK <c>V T TE @23</c>'s 19 ft from SFO D2 → $5A's 310 ft, and keeps a short lane whose ratio
+    /// happens to look good from being replaced by a crossing that saves the pilot nothing.
+    /// </summary>
+    private const double MinDetourSavingFt = 100.0;
+
     /// <summary>How far from the aircraft the lane it currently occupies may be when inferred from geometry.</summary>
     private const double CurrentLaneMaxFt = 150.0;
 
@@ -246,6 +261,121 @@ public static class RampLaneReposition
 
         Log.LogDebug("[Reposition] no {DestLane} node within {Max:F0} ft of {Lane} across open apron", destinationLane, MaxCrossingFt, lane);
         return null;
+    }
+
+    /// <summary>
+    /// Improve a parking / spot route that already resolved but only reaches the stand the long way round: SFO
+    /// <c>TAXI $5A</c> from gate D2 runs 998 ft down alley lane T5, out to the T5 / Alpha junction and back up T5A
+    /// for a move whose straight line is 529 ft, because the two sub-lanes of the five alley meet nowhere on the
+    /// ramp. Every node the route passes that carries a lane of the stand's own family is tried as the point where
+    /// the pilot leaves the painted line and drives straight across the apron to the stand; the shortest
+    /// <em>crossing</em> wins — ties to the earlier point on the route — because the crossing is unmodelled pavement
+    /// with no graph guidance, so the aircraft stays on the painted line as far as it goes and then steps the
+    /// shortest distance across, the way a ramp is actually driven. The crossing keeps the existing bounds —
+    /// <see cref="MaxCrossingFt"/>, no runway centerline, no pavement outside "family ∪ RAMP" (see
+    /// <see cref="CrossesForeignPavement"/>) — so which cuts are drivable at all is decided exactly as it already
+    /// was; only <em>when</em> one is worth making is new, and
+    /// <see cref="MinDetourRatio"/> / <see cref="MinDetourSavingFt"/> are measured thresholds, not published values.
+    /// Null when the destination is not a stand on a ramp taxilane, or no candidate clears both bars — the caller
+    /// then keeps the route the graph gave it.
+    /// </summary>
+    public static RampLaneDestinationCutPlan? TryPlanResolvedRouteCut(AirportGroundLayout layout, TaxiRoute resolvedRoute, GroundNode destination)
+    {
+        if (
+            (resolvedRoute.Segments.Count == 0) || (destination.Type is not (GroundNodeType.Parking or GroundNodeType.Spot or GroundNodeType.Helipad))
+        )
+        {
+            return null;
+        }
+
+        var (destinationLane, _) = LeadOut(destination);
+        if ((destinationLane is null) || !IsRampTaxilane(layout, destinationLane))
+        {
+            return null;
+        }
+
+        var family = LaneFamily(layout, destinationLane);
+        double totalFt = resolvedRoute.TotalDistanceFt;
+        (GroundNode Node, int HeadSegments, double CutFt, double ResultFt)? best = null;
+        for (int i = 0; i <= resolvedRoute.Segments.Count; i++)
+        {
+            var node = i == 0 ? resolvedRoute.Segments[0].Edge.FromNode : resolvedRoute.Segments[i - 1].Edge.ToNode;
+            double prefixFt = resolvedRoute.PrefixDistanceFt(i);
+            double cutFt = DistanceFt(node.Position, destination.Position);
+            if (!IsWorthCutting(totalFt - prefixFt, cutFt) || !IsCuttableFrom(layout, node, destination, family))
+            {
+                continue;
+            }
+
+            if ((best is null) || (cutFt < best.Value.CutFt))
+            {
+                best = (node, i, cutFt, prefixFt + cutFt);
+            }
+        }
+
+        if (best is null)
+        {
+            Log.LogDebug("[Reposition] no node on the route to {Dest} is worth cutting to the stand from", destination.Name);
+            return null;
+        }
+
+        return BuildResolvedRouteCutPlan(resolvedRoute, destination, destinationLane, family, best.Value);
+    }
+
+    /// <summary>
+    /// The graph is enough longer than the drive to justify leaving the painted line: at least
+    /// <see cref="MinDetourRatio"/> times as long and <see cref="MinDetourSavingFt"/> longer, with the drive itself
+    /// inside <see cref="MaxCrossingFt"/>. A ratio alone would re-cut a route that is barely longer than the
+    /// straight line; a saving alone would re-cut a long taxi to save a rounding error at the end.
+    /// </summary>
+    private static bool IsWorthCutting(double remainingGraphFt, double cutFt) =>
+        (cutFt <= MaxCrossingFt) && (remainingGraphFt >= (cutFt * MinDetourRatio)) && ((remainingGraphFt - cutFt) >= MinDetourSavingFt);
+
+    /// <summary>
+    /// <paramref name="node"/> is a point the pilot can leave the route at: it carries a straight edge of the
+    /// stand's lane family (so the aircraft is on that ramp's pavement, not passing it on a taxiway), and the
+    /// straight line from it to the stand crosses only apron and family lanes.
+    /// </summary>
+    private static bool IsCuttableFrom(AirportGroundLayout layout, GroundNode node, GroundNode destination, HashSet<string> family) =>
+        (node.Id != destination.Id)
+        && family.Any(lane => HasStraightEdgeOf(node, lane))
+        && !layout.RunwayCenterlineBetween(node.Position, destination.Position)
+        && !CrossesForeignPavement(layout, node.Position, destination, family);
+
+    private static RampLaneDestinationCutPlan BuildResolvedRouteCutPlan(
+        TaxiRoute resolvedRoute,
+        GroundNode destination,
+        string destinationLane,
+        HashSet<string> family,
+        (GroundNode Node, int HeadSegments, double CutFt, double ResultFt) cut
+    )
+    {
+        var head = resolvedRoute.Segments.Take(cut.HeadSegments).ToList();
+        // The crossing is apron, not the lane: named RAMP so the broadcast taxiway sequence stays the pavement the
+        // aircraft actually follows, and the client rebuilds the same cut from the destination.
+        var crossing = VirtualNode.CreateSegment(cut.Node, destination, "RAMP");
+        var route = new TaxiRoute
+        {
+            Segments = [.. head, crossing],
+            HoldShortPoints = resolvedRoute.HoldShortPoints.Where(hs => head.Any(s => s.ToNodeId == hs.NodeId)).ToList(),
+            Warnings = resolvedRoute.Warnings,
+            MandatoryConnectorCount = resolvedRoute.MandatoryConnectorCount,
+            DestinationParking = destination.Type == GroundNodeType.Spot ? null : destination.Name,
+            DestinationSpot = destination.Type == GroundNodeType.Spot ? destination.Name : null,
+        };
+        string lane = family.Order(StringComparer.Ordinal).FirstOrDefault(l => HasStraightEdgeOf(cut.Node, l)) ?? destinationLane;
+        Log.LogInformation(
+            "[Reposition] leaving {Lane} at node {Node} and driving {Ft:F0} ft across the ramp to {Dest} on {DestLane}: "
+                + "{ResultFt:F0} ft instead of the {GraphFt:F0} ft the graph resolved",
+            lane,
+            cut.Node.Id,
+            cut.CutFt,
+            destination.Name,
+            destinationLane,
+            cut.ResultFt,
+            resolvedRoute.TotalDistanceFt
+        );
+        return new RampLaneDestinationCutPlan(cut.Node, destination, lane, destinationLane, cut.CutFt, route);
     }
 
     /// <summary>The clearance resolved so that it ends exactly at <paramref name="origin"/>, or null.</summary>

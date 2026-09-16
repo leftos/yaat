@@ -28,6 +28,15 @@ public sealed class TaxiRoute
 
     public double TotalDistanceNm => Segments.Sum(s => s.Edge.DistanceNm);
 
+    /// <summary>The whole route's length in feet — the unit every ground-distance rule in the taxi stack is written in.</summary>
+    public double TotalDistanceFt => TotalDistanceNm * GeoMath.FeetPerNm;
+
+    /// <summary>
+    /// Length in feet of the first <paramref name="segmentCount"/> segments — how far along the route the node
+    /// that segment count ends at lies. <c>0</c> is the route's start node, <see cref="Segments"/>.Count its end.
+    /// </summary>
+    public double PrefixDistanceFt(int segmentCount) => Segments.Take(segmentCount).Sum(s => s.Edge.DistanceNm) * GeoMath.FeetPerNm;
+
     /// <summary>
     /// The cleared taxiways in order for operator-facing display. Junction/membership arcs
     /// (<c>"D - RAMP"</c>) are transitions between taxiways, not a leg of one, so they never appear as
