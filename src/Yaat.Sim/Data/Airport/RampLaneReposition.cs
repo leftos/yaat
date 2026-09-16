@@ -344,8 +344,9 @@ public static class RampLaneReposition
     }
 
     /// <summary>
-    /// A ramp taxilane: its name is either several letters (<c>TE</c>, <c>TC</c>) or one letter followed by digits
-    /// (<c>M3</c>, <c>M4</c>), it is not a runway, it carries no runway holding position (a lane with a hold-short
+    /// A ramp taxilane: its name is either several letters (<c>TE</c>, <c>TC</c>) or a letter followed by digits and
+    /// an optional trailing letter group (<c>M3</c>, <c>M4</c>, and SFO's alley sub-lanes <c>T5A</c>, <c>T6B</c>), it
+    /// is not a runway, it carries no runway holding position (a lane with a hold-short
     /// bar is a movement-area runway connector — OAK <c>W3</c>, SFO <c>A1</c>, <c>GL</c> — whatever its name), and it
     /// or a sibling lane touches RAMP pavement. The family test matters: SFO's M4 has no gate drawn on it, so it
     /// touches RAMP only through M3 / M5. Never a bare-letter taxiway or a node reference.
@@ -366,28 +367,43 @@ public static class RampLaneReposition
     private static bool SameLaneFamily(string a, string b) =>
         HasTaxilaneNameForm(a) && HasTaxilaneNameForm(b) && (char.ToUpperInvariant(a[0]) == char.ToUpperInvariant(b[0]));
 
+    /// <summary>
+    /// Leading letters, then at most one digit run, then an optional trailing letter group, and nothing else:
+    /// <c>TE</c>, <c>M3</c>, <c>T5A</c>, <c>T41E</c>. A bare single letter (<c>A</c>) is a taxiway, not a lane;
+    /// a second digit run (<c>T5A6</c>) or any non-alphanumeric character disqualifies the name.
+    /// </summary>
     private static bool HasTaxilaneNameForm(string name)
     {
-        int letters = 0;
-        while ((letters < name.Length) && char.IsAsciiLetter(name[letters]))
+        int i = 0;
+        while ((i < name.Length) && char.IsAsciiLetter(name[i]))
         {
-            letters++;
+            i++;
         }
 
+        int letters = i;
         if (letters == 0)
         {
             return false;
         }
 
-        for (int j = letters; j < name.Length; j++)
+        while ((i < name.Length) && char.IsAsciiDigit(name[i]))
         {
-            if (!char.IsAsciiDigit(name[j]))
-            {
-                return false;
-            }
+            i++;
         }
 
-        return (letters >= 2) || (letters < name.Length);
+        int digits = i - letters;
+
+        while ((i < name.Length) && char.IsAsciiLetter(name[i]))
+        {
+            i++;
+        }
+
+        if (i != name.Length)
+        {
+            return false;
+        }
+
+        return (letters >= 2) || (digits > 0);
     }
 
     private static bool TouchesRamp(AirportGroundLayout layout, string name) =>

@@ -46,6 +46,7 @@
 - A held aircraft no longer takes a hold-short, stops at its parking spot, or finishes its taxi route while it is held; those happen on the tick the hold lifts.
 - A takeoff clearance cancelled during line-up and then replaced by `LUAW` brakes onto the centerline instead of running to the end of the line-up at takeoff-flow speed.
 - **Push back, face \<taxiway\>** on the ground view's right-click menu pushes the aircraft to that facing instead of failing.
+- Taxi clearances onto SFO's ramp spot sub-lanes (`T5A`, `T6B`) get the same across-the-apron routing recovery as other ramp lanes.
 
 ## v0.12.34-beta [2026/09/15]
 

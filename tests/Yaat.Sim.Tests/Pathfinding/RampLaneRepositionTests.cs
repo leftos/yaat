@@ -52,11 +52,28 @@ public class RampLaneRepositionTests
                 .Any(tok => string.Equals(tok, twy, StringComparison.OrdinalIgnoreCase))
         );
 
+    /// <summary>
+    /// SFO's five/six/seven alleys carry sub-lanes named letter-digit-letter (<c>T5A</c>, <c>T6B</c>). They are ramp
+    /// taxilanes just like their parent alley, so the name form has to accept a trailing letter group. Bare letters
+    /// (<c>A</c>, <c>B</c>, <c>F</c>), runway connectors carrying a hold-short bar (<c>A1</c>, <c>GL</c>), runway
+    /// centerlines and node references stay out.
+    /// </summary>
     [Theory]
     [InlineData("M3", true)]
     [InlineData("M4", true)]
     [InlineData("M5", true)]
+    [InlineData("T5", true)]
+    [InlineData("T6", true)]
+    [InlineData("T7", true)]
+    [InlineData("T5A", true)]
+    [InlineData("T5B", true)]
+    [InlineData("T6A", true)]
+    [InlineData("T6B", true)]
+    [InlineData("T7A", true)]
+    [InlineData("T7B", true)]
     [InlineData("A", false)]
+    [InlineData("B", false)]
+    [InlineData("F", false)]
     [InlineData("A1", false)]
     [InlineData("GL", false)]
     [InlineData("28L", false)]
@@ -81,7 +98,13 @@ public class RampLaneRepositionTests
     [InlineData("TC", true)]
     [InlineData("T", false)]
     [InlineData("V", false)]
+    [InlineData("W1", false)]
+    [InlineData("W2", false)]
     [InlineData("W3", false)]
+    [InlineData("W4", false)]
+    [InlineData("W5", false)]
+    [InlineData("W6", false)]
+    [InlineData("W7", false)]
     [InlineData("B1", true)]
     public void IsRampTaxilane_Oak(string name, bool expected)
     {
