@@ -2,7 +2,14 @@
 
 ## Unreleased
 
+### Changed
+- The ERAM `VP` keyboard amends an existing VFR flight plan instead of rejecting every plan with `DUP NEW ID`.
+- ERAM `VP` refuses another sector's track with `NOT YOUR TRACK`, like the other flight-data edits.
+- Filing from the CRC flight-plan editor on an aircraft that already has a plan amends it, keeping the dialog's speed, remarks and beacon.
+- The flight-plan editor refuses that amendment with `ILL TRK` when another position owns the track.
+
 ### Fixed
+- `VP` refuses an existing IFR or VFR-on-top flight plan with `DUP NEW ID` instead of converting it to VFR.
 - Selecting a climb-via in the vTDLS editor clears and greys out the Maintain box, including when an amendment brings a climb-via SID.
 - A SID transition defining both a climb-via and an initial altitude fills only the climb-via, leaving Maintain blank.
 - A climb-via satisfies a facility that marks Maintain mandatory, so Send unlocks without an interim altitude.

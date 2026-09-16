@@ -1365,7 +1365,8 @@ ActionArms.cs                  # The Sim bodies: Aviation (ParseCompound → Rea
                                # id onto the record), ShowQueued (ConditionalList lines to
                                # OnQueuedCommandsShown, never recorded), FlightPlan (FP/VP/DA/RMK: FlightPlanNormalization → SimulationEngine.AmendFlightPlan →
                                # ReprintDepartureStripAfterAmendment (its id baked onto RecordedAmendFlightPlan.StripId, so a replay reprints under it instead
-                               # of minting a second copy) + the filing identity as FlightPlan.CreatedByOwner; DA is create-only (DUP NEW ID); from a record only
+                               # of minting a second copy) + the filing identity as FlightPlan.CreatedByOwner; DA is create-only (DUP NEW ID) and a VFR filing (VP)
+                               # over an existing IFR/OTP plan is DUP NEW ID, never converted — FP, the IFR/OTP spelling, amends anything; from a record only
                                # the creator tag is applied — the amendment recorded beside it carries the plan), Delete (a shadow → OnLiveTrafficHidden),
                                # Unassume (UNASSUME: an AssumedFromLiveTraffic aircraft leaves as DEL does, minus OnLiveTrafficHidden and the removal record, so the
                                # next ShadowTrafficSync re-spawns the shadow), DeleteQueued, Note, SpawnNow/SpawnDelay, SetActivePosition (OnPositionSelected with the typed code), Track

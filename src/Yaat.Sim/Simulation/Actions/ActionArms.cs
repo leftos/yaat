@@ -109,10 +109,16 @@ internal static class ActionArms
     /// <c>FP</c> / <c>VP</c> / <c>DA</c> / <c>REMARKS</c>. A fresh action normalises the typed fields into a flight-plan
     /// amendment (the same normalization the CRC editor uses), applies it through the engine and records the
     /// <see cref="RecordedAmendFlightPlan"/> the state travels in; <c>DA</c> is create-only (<c>DUP NEW ID</c> on an
-    /// aircraft that already has a plan) while <c>FP</c> / <c>VP</c> create or amend. The filing position becomes the
-    /// plan's creator, which the STARS auto-track acquires when the aircraft squawks its assigned code. An action from
-    /// a recording applies nothing but the creator tag — the amendment recorded beside it carries the plan, and a
-    /// re-derivation would put a flight-plan edit through today's normalization rather than the one live used.
+    /// aircraft that already has a plan). <c>FP</c> and <c>VP</c> are the same
+    /// <see cref="CreateFlightPlanCommand"/> under two spellings, told apart by the rules they file, and the
+    /// duplicate check keys on those rules: a <em>VFR</em> filing (<c>VP</c>) creates a plan or amends a VFR one but
+    /// answers <c>DUP NEW ID</c> over an IFR plan, so a filed IFR clearance is not overwritten by a VFR refile
+    /// (VFR-on-top files as IFR rules, so an OTP plan rejects too), while an IFR or OTP filing (<c>FP</c>) creates a
+    /// plan or amends whatever is on file — it is the only typed way to edit an IFR plan wholesale. The filing
+    /// position becomes the plan's creator, which the STARS auto-track acquires when the aircraft squawks its
+    /// assigned code. An action from a recording applies nothing but the creator tag — the amendment recorded
+    /// beside it carries the plan, and a re-derivation would put a flight-plan edit through today's
+    /// normalization rather than the one live used.
     /// </summary>
     public static CommandResult FlightPlan(ArmContext ctx)
     {
@@ -150,6 +156,15 @@ internal static class ActionArms
                 amendment = FlightPlanNormalization.FromCreateAbbreviatedCommand(abbreviated);
                 break;
             case CreateFlightPlanCommand create:
+                if (
+                    string.Equals(create.FlightRules, "VFR", StringComparison.OrdinalIgnoreCase)
+                    && aircraft.FlightPlan.HasFlightPlan
+                    && !aircraft.FlightPlan.IsVfr
+                )
+                {
+                    return new CommandResult(false, "DUP NEW ID");
+                }
+
                 amendment = FlightPlanNormalization.FromCreateCommand(create);
                 break;
             default:
