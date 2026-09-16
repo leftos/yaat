@@ -26,6 +26,16 @@ public enum TaxiRouteDisplayMode
     AlwaysHide,
 }
 
+/// <summary>Which interactive route the ground view's draw mode is building.</summary>
+public enum DrawRouteKind
+{
+    /// <summary>A taxi route: consecutive clicks are joined by a pathfinder leg along the ground graph.</summary>
+    Taxi,
+
+    /// <summary>A tug move (PUSHM): each click is one target, joined by a free-space straight leg.</summary>
+    Push,
+}
+
 public partial class GroundViewModel : ObservableObject
 {
     private readonly ILogger _log = AppLog.CreateLogger<GroundViewModel>();
@@ -100,6 +110,28 @@ public partial class GroundViewModel : ObservableObject
 
     [ObservableProperty]
     private TaxiRoute? _drawHoverPreview;
+
+    /// <summary>
+    /// The legs <see cref="PushbackLegPlanner"/> plans for the tug move being drawn, or null when no push
+    /// route is being drawn or the current one is refused. Drawn by the ground renderer, one straight line
+    /// per leg, coloured by whether the tug pushes or pulls.
+    /// </summary>
+    [ObservableProperty]
+    private IReadOnlyList<PushbackLeg>? _pushRoutePreview;
+
+    /// <summary>
+    /// Why the tug move being drawn cannot be planned, or null when it can. The waypoint stays on the list
+    /// so the controller sees which leg is illegal and why instead of a silently missing line.
+    /// </summary>
+    [ObservableProperty]
+    private string? _pushRouteRefusal;
+
+    /// <summary>
+    /// Where <see cref="PushRoutePreview"/>'s first leg starts: the aircraft's position when the preview was
+    /// planned. Held rather than read live at draw time so the lines on screen are exactly the planned legs.
+    /// </summary>
+    [ObservableProperty]
+    private LatLon? _pushRouteStart;
 
     [ObservableProperty]
     private double _airportCenterLat;
@@ -249,8 +281,15 @@ public partial class GroundViewModel : ObservableObject
     private GroundViewModel? _mirrorSource;
 
     private AircraftModel? _drawAircraft;
+    private DrawRouteKind _drawKind = DrawRouteKind.Taxi;
     private List<int> _drawWaypointIds = [];
     private List<TaxiRoute> _drawSubRoutes = [];
+
+    /// <summary>Which route the active draw mode is building; <see cref="DrawRouteKind.Taxi"/> when idle.</summary>
+    public DrawRouteKind DrawKind => _drawKind;
+
+    /// <summary>The aircraft a push route is being drawn for, or null when no push route is being drawn.</summary>
+    public string? PushRouteCallsign => _drawKind == DrawRouteKind.Push ? _drawAircraft?.Callsign : null;
 
     public ObservableCollection<AircraftModel> GroundAircraft { get; } = [];
 
@@ -1908,6 +1947,7 @@ public partial class GroundViewModel : ObservableObject
         }
 
         _drawAircraft = aircraft;
+        _drawKind = DrawRouteKind.Taxi;
         _drawWaypointIds = [startNode.Value];
         _drawSubRoutes = [];
         DrawnRoutePreview = null;
@@ -1917,7 +1957,7 @@ public partial class GroundViewModel : ObservableObject
 
     public bool AddDrawWaypoint(int nodeId)
     {
-        if (_drawWaypointIds.Count == 0 || nodeId == _drawWaypointIds[^1])
+        if (_drawKind != DrawRouteKind.Taxi || _drawWaypointIds.Count == 0 || nodeId == _drawWaypointIds[^1])
         {
             return false;
         }
@@ -1938,6 +1978,12 @@ public partial class GroundViewModel : ObservableObject
 
     public void UndoDrawWaypoint()
     {
+        if (_drawKind == DrawRouteKind.Push)
+        {
+            UndoPushWaypoint();
+            return;
+        }
+
         if (_drawWaypointIds.Count <= 1)
         {
             return;
@@ -2011,6 +2057,13 @@ public partial class GroundViewModel : ObservableObject
 
     public void UpdateDrawHoverPreview(int? nodeId)
     {
+        // A tug leg is free space, not a graph route, so there is nothing to path-find a hover preview for.
+        if (_drawKind == DrawRouteKind.Push)
+        {
+            DrawHoverPreview = null;
+            return;
+        }
+
         if (!IsDrawingRoute || _drawWaypointIds.Count == 0 || nodeId is null || nodeId == _drawWaypointIds[^1])
         {
             DrawHoverPreview = null;
@@ -2028,12 +2081,16 @@ public partial class GroundViewModel : ObservableObject
     private void ClearDrawState()
     {
         _drawAircraft = null;
+        _drawKind = DrawRouteKind.Taxi;
         _drawWaypointIds = [];
         _drawSubRoutes = [];
         IsDrawingRoute = false;
         DrawnRoutePreview = null;
         DrawHoverPreview = null;
         DrawWaypoints = null;
+        PushRoutePreview = null;
+        PushRouteRefusal = null;
+        PushRouteStart = null;
     }
 
     private TaxiRoute MergeSubRoutes()
@@ -2056,6 +2113,164 @@ public partial class GroundViewModel : ObservableObject
 
         return new TaxiRoute { Segments = segments, HoldShortPoints = holdShorts };
     }
+
+    // --- Push route mode (PUSHM) ---
+
+    /// <summary>
+    /// Enters draw mode to build a tug move for <paramref name="aircraft"/>, anchored at its nearest ground
+    /// node. Every later click is one PUSHM target; unlike a taxi route the points are never graph-routed,
+    /// because a tug move is free space (see docs/ground/pushback.md).
+    /// </summary>
+    public void StartPushRoute(AircraftModel aircraft)
+    {
+        var startNode = GetAircraftNearestNodeId(aircraft);
+        if (startNode is null)
+        {
+            return;
+        }
+
+        _drawAircraft = aircraft;
+        _drawKind = DrawRouteKind.Push;
+        _drawWaypointIds = [startNode.Value];
+        _drawSubRoutes = [];
+        DrawnRoutePreview = null;
+        DrawHoverPreview = null;
+        DrawWaypoints = [startNode.Value];
+        PushRoutePreview = null;
+        PushRouteRefusal = null;
+        PushRouteStart = null;
+        IsDrawingRoute = true;
+    }
+
+    /// <summary>Adds one PUSHM target and re-plans the preview. False when the node cannot be a target.</summary>
+    public bool AddPushWaypoint(int nodeId)
+    {
+        if (_drawKind != DrawRouteKind.Push || _drawWaypointIds.Count == 0 || nodeId == _drawWaypointIds[^1])
+        {
+            return false;
+        }
+
+        if (_domainLayout is null || !_domainLayout.Nodes.ContainsKey(nodeId))
+        {
+            return false;
+        }
+
+        _drawWaypointIds.Add(nodeId);
+        DrawWaypoints = [.. _drawWaypointIds];
+        RefreshPushRoutePreview();
+        return true;
+    }
+
+    /// <summary>Drops the last PUSHM target and re-plans the preview.</summary>
+    public void UndoPushWaypoint()
+    {
+        if (_drawKind != DrawRouteKind.Push || _drawWaypointIds.Count <= 1)
+        {
+            return;
+        }
+
+        _drawWaypointIds.RemoveAt(_drawWaypointIds.Count - 1);
+        DrawWaypoints = [.. _drawWaypointIds];
+        RefreshPushRoutePreview();
+    }
+
+    /// <summary>
+    /// Ends push-draw mode and returns the PUSHM command for the targets clicked, or null when there is
+    /// nothing to send. A refused move returns null and <em>keeps</em> draw mode, so the controller can undo
+    /// the illegal leg (or press Esc) while the refusal is still on screen.
+    /// </summary>
+    public string? FinishPushRoute()
+    {
+        if (_drawKind != DrawRouteKind.Push)
+        {
+            return null;
+        }
+
+        var targets = CurrentPushTargets();
+        if (targets.Count == 0)
+        {
+            CancelDrawRoute();
+            return null;
+        }
+
+        // Sendability is its own gate, not a reading of the banner. A half-built route shows no refusal
+        // (one point is not an error) but is still not a command — without this, committing after a single
+        // click would send `PUSHM $A`, which the sim then refuses for needing two targets.
+        if (targets.Count < 2 || PushRouteRefusal is not null)
+        {
+            return null;
+        }
+
+        // The command carries exactly the clicked targets: the sim plans the legs from them, and the
+        // sigil is the only thing telling a spot apart from a gate of the same name.
+        var command = $"PUSHM {string.Join(" ", targets.Select(t => PushTargetToken(t.Node)))}";
+        ClearDrawState();
+        return command;
+    }
+
+    /// <summary>
+    /// Re-plans the drawn tug move through <see cref="PushbackLegPlanner"/> — the same body the simulation
+    /// runs, so the preview and the executed move cannot disagree about which legs push and which pull.
+    /// </summary>
+    private void RefreshPushRoutePreview()
+    {
+        var targets = CurrentPushTargets();
+
+        // A move needs two points, so one target standing is a half-built route, not an error. Picking
+        // "Push route…" seeds exactly one, and surfacing the planner's "needs at least two points" there
+        // would greet every controller with a red banner before they had done anything wrong.
+        if (_domainLayout is null || _drawAircraft is null || targets.Count < 2)
+        {
+            PushRoutePreview = null;
+            PushRouteRefusal = null;
+            PushRouteStart = null;
+            return;
+        }
+
+        var legs = PushbackLegPlanner.Plan(
+            _domainLayout,
+            _drawAircraft.Position,
+            _drawAircraft.Heading.Degrees,
+            startsAtStand: _drawAircraft.CurrentPhase == "At Parking",
+            targets,
+            explicitFinalFacingTrueDeg: null,
+            CategoryFor(_drawAircraft),
+            out string refusal
+        );
+
+        PushRoutePreview = legs;
+        PushRouteRefusal = legs is null ? refusal : null;
+        PushRouteStart = legs is null ? null : _drawAircraft.Position;
+    }
+
+    /// <summary>The clicked targets, in order. Index 0 of the waypoint list is the aircraft's own node.</summary>
+    private List<PushbackTarget> CurrentPushTargets()
+    {
+        var targets = new List<PushbackTarget>();
+        if (_domainLayout is null)
+        {
+            return targets;
+        }
+
+        for (int i = 1; i < _drawWaypointIds.Count; i++)
+        {
+            if (_domainLayout.Nodes.TryGetValue(_drawWaypointIds[i], out var node))
+            {
+                targets.Add(new PushbackTarget(node, node.Type == GroundNodeType.Spot));
+            }
+        }
+
+        return targets;
+    }
+
+    /// <summary>How one clicked node is named in a PUSHM command: <c>$spot</c>, <c>@stand</c> or <c>#id</c>.</summary>
+    private static string PushTargetToken(GroundNode node) =>
+        node switch
+        {
+            { Type: GroundNodeType.Spot, Name: { Length: > 0 } spot } => $"${spot}",
+            { Type: GroundNodeType.Parking or GroundNodeType.Helipad, Name: { Length: > 0 } stand } => $"@{stand}",
+            _ => $"#{node.Id}",
+        };
 
     private static AirportGroundLayout ReconstructLayout(GroundLayoutDto dto)
     {

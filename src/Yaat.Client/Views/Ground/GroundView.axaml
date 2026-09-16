@@ -85,6 +85,8 @@
                                  PreviewRoute="{Binding PreviewRoute}"
                                  DrawnRoutePreview="{Binding DrawnRoutePreview}"
                                  DrawHoverPreview="{Binding DrawHoverPreview}"
+                                 PushRoutePreview="{Binding PushRoutePreview}"
+                                 PushRouteStart="{Binding PushRouteStart}"
                                  IsDrawingRoute="{Binding IsDrawingRoute}"
                                  IsMeasuring="{Binding Measure.IsMeasuring}"
                                  RangeBearingLines="{Binding Measure.Lines}"
@@ -132,6 +134,14 @@
                     HorizontalAlignment="Center" VerticalAlignment="Top"
                     CornerRadius="4" Margin="0,8">
                 <TextBlock Text="Click nodes to add waypoints. Right-click node to finish. Backspace to undo. Esc to cancel." Foreground="White" FontSize="12"/>
+            </Border>
+
+            <!-- Why the drawn tug move cannot be planned; nothing is sent while this is up -->
+            <Border IsVisible="{Binding PushRouteRefusal, Converter={x:Static ObjectConverters.IsNotNull}}"
+                    Background="#CC3A0D0D" Padding="8,4"
+                    HorizontalAlignment="Center" VerticalAlignment="Top"
+                    CornerRadius="4" Margin="0,36">
+                <TextBlock Text="{Binding PushRouteRefusal}" Foreground="#FFB4B4" FontSize="12"/>
             </Border>
 
             <!-- Custom taxi route input overlay -->

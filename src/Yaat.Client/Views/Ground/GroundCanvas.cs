@@ -74,6 +74,13 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
         nameof(DrawHoverPreview)
     );
 
+    public static readonly StyledProperty<IReadOnlyList<PushbackLeg>?> PushRoutePreviewProperty = AvaloniaProperty.Register<
+        GroundCanvas,
+        IReadOnlyList<PushbackLeg>?
+    >(nameof(PushRoutePreview));
+
+    public static readonly StyledProperty<LatLon?> PushRouteStartProperty = AvaloniaProperty.Register<GroundCanvas, LatLon?>(nameof(PushRouteStart));
+
     public static readonly StyledProperty<IReadOnlyList<ShownTaxiRouteEntry>?> ShownTaxiRoutesProperty = AvaloniaProperty.Register<
         GroundCanvas,
         IReadOnlyList<ShownTaxiRouteEntry>?
@@ -552,6 +559,20 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
         set => SetValue(DrawHoverPreviewProperty, value);
     }
 
+    /// <summary>The planned legs of the tug move being drawn, or null when none is.</summary>
+    public IReadOnlyList<PushbackLeg>? PushRoutePreview
+    {
+        get => GetValue(PushRoutePreviewProperty);
+        set => SetValue(PushRoutePreviewProperty, value);
+    }
+
+    /// <summary>Where the drawn tug move's first leg starts — the aircraft's position when it was planned.</summary>
+    public LatLon? PushRouteStart
+    {
+        get => GetValue(PushRouteStartProperty);
+        set => SetValue(PushRouteStartProperty, value);
+    }
+
     public IReadOnlyList<ShownTaxiRouteEntry>? ShownTaxiRoutes
     {
         get => GetValue(ShownTaxiRoutesProperty);
@@ -658,6 +679,8 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
             || change.Property == DrawnRoutePreviewProperty
             || change.Property == DrawHoverPreviewProperty
             || change.Property == DrawWaypointsProperty
+            || change.Property == PushRoutePreviewProperty
+            || change.Property == PushRouteStartProperty
             || change.Property == ShownTaxiRoutesProperty
             || change.Property == ShowDebugInfoProperty
             || change.Property == ShowRunwayLabelsProperty
@@ -719,6 +742,8 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
         TaxiRoute? DrawnRoutePreview,
         TaxiRoute? DrawHoverPreview,
         IReadOnlyList<int>? DrawWaypoints,
+        IReadOnlyList<PushbackLeg>? PushRoutePreview,
+        LatLon? PushRouteStart,
         bool IsDrawingRoute,
         IReadOnlyDictionary<string, SKPoint> DataBlockOffsets,
         IReadOnlyDictionary<string, SKPoint> DeconflictOffsets,
@@ -811,6 +836,8 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
             DrawnRoutePreview,
             DrawHoverPreview,
             DrawWaypoints,
+            PushRoutePreview,
+            PushRouteStart,
             IsDrawingRoute,
             new Dictionary<string, SKPoint>(state.ManualOffsets),
             deconflictOffsets,
@@ -858,6 +885,8 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
             s.DrawnRoutePreview,
             s.DrawHoverPreview,
             s.DrawWaypoints,
+            s.PushRouteStart,
+            s.PushRoutePreview,
             s.DataBlockOffsets,
             s.DeconflictOffsets,
             s.ShowDebugInfo,

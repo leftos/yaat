@@ -429,7 +429,8 @@ public partial class GroundView : UserControl
 
             // Same gate as the aircraft context menu's pushback items: PUSH to a spot is accepted from a
             // stand and from a completed pushback, so an aircraft resting on a ramp spot can be pushed on.
-            if (node.Type is "Parking" or "Spot" && node.Name is not null && AircraftCommandApplicability.CanPushBack(vm.SelectedAircraft))
+            bool canPush = AircraftCommandApplicability.CanPushBack(vm.SelectedAircraft);
+            if (node.Type is "Parking" or "Spot" && node.Name is not null && canPush)
             {
                 var spotName = node.Name;
                 var pushPrefix = node.Type == "Spot" ? '$' : '@';
@@ -450,6 +451,21 @@ public partial class GroundView : UserControl
                     }
                 )
             );
+
+            if (canPush)
+            {
+                menu.Items.Add(
+                    CreateMenuItem(
+                        "Push route...",
+                        () =>
+                        {
+                            vm.StartPushRoute(vm.SelectedAircraft!);
+                            vm.AddPushWaypoint(nid);
+                            return Task.CompletedTask;
+                        }
+                    )
+                );
+            }
 
             var (prefill, caretPos) = BuildCustomTaxiPrefill(vm, node, nodeId);
             menu.Items.Add(
@@ -683,8 +699,8 @@ public partial class GroundView : UserControl
     }
 
     /// <summary>
-    /// At Parking / Holding After Pushback (push back variants) plus At Parking's follow submenus, hold position
-    /// for every phase the sim accepts HOLD from, and Taxiing's hold short, follow, break and deferred CTO.
+    /// At Parking / Holding After Pushback (push back variants and push route) plus At Parking's follow submenus,
+    /// hold position for every phase the sim accepts HOLD from, and Taxiing's hold short, follow, break and deferred CTO.
     /// </summary>
     private void AddParkingAndTaxiItems(ContextMenu menu, GroundViewModel vm, GroundMenuTarget target, string phase, bool isRelative)
     {
@@ -707,6 +723,17 @@ public partial class GroundView : UserControl
                 {
                     menu.Items.Add(pushSubmenu);
                 }
+
+                menu.Items.Add(
+                    CreateMenuItem(
+                        "Push route...",
+                        () =>
+                        {
+                            vm.StartPushRoute(ac);
+                            return Task.CompletedTask;
+                        }
+                    )
+                );
 
                 // A parked aircraft can start up and trail another ground aircraft, but
                 // give-way needs an assigned taxi route, which a parked aircraft never has.
@@ -1148,18 +1175,49 @@ public partial class GroundView : UserControl
         }
     }
 
+    /// <summary>
+    /// Commits the drawn tug move: the right-clicked node is the last target, and the PUSHM command goes
+    /// straight out. A refused move sends nothing and stays in draw mode with its refusal on screen.
+    /// </summary>
+    private void FinishPushRoute(GroundViewModel vm, int nodeId)
+    {
+        var callsign = vm.PushRouteCallsign;
+        vm.AddPushWaypoint(nodeId);
+        var command = vm.FinishPushRoute();
+        if (command is null || callsign is null)
+        {
+            return;
+        }
+
+        _ = vm.SendRawCommandAsync(callsign, GetInitials(), command);
+    }
+
     private void OnDrawNodeClicked(int nodeId)
     {
-        if (DataContext is GroundViewModel vm)
+        if (DataContext is not GroundViewModel vm)
         {
-            vm.AddDrawWaypoint(nodeId);
+            return;
         }
+
+        if (vm.DrawKind == DrawRouteKind.Push)
+        {
+            vm.AddPushWaypoint(nodeId);
+            return;
+        }
+
+        vm.AddDrawWaypoint(nodeId);
     }
 
     private void OnDrawNodeFinished(int nodeId, Point screenPos)
     {
         if (DataContext is not GroundViewModel vm)
         {
+            return;
+        }
+
+        if (vm.DrawKind == DrawRouteKind.Push)
+        {
+            FinishPushRoute(vm, nodeId);
             return;
         }
 

@@ -177,6 +177,12 @@ public sealed class GroundRenderer : IDisposable
     private static readonly SKColor DrawnRouteColor = new(0, 200, 255);
     private static readonly SKColor DrawHoverPreviewColor = new(255, 180, 50);
     private static readonly SKColor WaypointMarkerColor = new(255, 200, 0);
+
+    // Tug-move legs. Magenta and spring green are the two strong hues the ground overlay palette does not
+    // already use (white hover, blue command preview, cyan drawn route, amber draw-hover and waypoints), so
+    // a push reads as a push against every layer underneath it.
+    private static readonly SKColor PushLegColor = new(255, 80, 210);
+    private static readonly SKColor PullLegColor = new(110, 255, 130);
     private static readonly SKColor HoverRingColor = new(255, 255, 255, 160);
 
     // Instructor-note line color — amber/gold, matches the radar note line and stays distinct
@@ -453,6 +459,24 @@ public sealed class GroundRenderer : IDisposable
         StrokeCap = SKStrokeCap.Round,
     };
 
+    private readonly SKPaint _pushLegPaint = new()
+    {
+        Color = PushLegColor,
+        StrokeWidth = 4,
+        Style = SKPaintStyle.Stroke,
+        IsAntialias = true,
+        StrokeCap = SKStrokeCap.Round,
+    };
+
+    private readonly SKPaint _pullLegPaint = new()
+    {
+        Color = PullLegColor,
+        StrokeWidth = 4,
+        Style = SKPaintStyle.Stroke,
+        IsAntialias = true,
+        StrokeCap = SKStrokeCap.Round,
+    };
+
     private readonly SKPaint _waypointMarkerPaint = new()
     {
         Color = WaypointMarkerColor,
@@ -588,6 +612,8 @@ public sealed class GroundRenderer : IDisposable
         TaxiRoute? drawnRoutePreview,
         TaxiRoute? drawHoverPreview,
         IReadOnlyList<int>? drawWaypoints,
+        LatLon? pushRouteStart,
+        IReadOnlyList<PushbackLeg>? pushLegs,
         IReadOnlyDictionary<string, SKPoint>? dataBlockOffsets,
         IReadOnlyDictionary<string, SKPoint>? deconflictOffsets,
         bool showDebugInfo,
@@ -664,6 +690,7 @@ public sealed class GroundRenderer : IDisposable
             DrawHoverRoute(canvas, vp, layout, hoverRoute);
             DrawDrawnRoute(canvas, vp, layout, drawnRoutePreview, drawWaypoints);
             DrawDrawHoverPreview(canvas, vp, layout, drawHoverPreview);
+            DrawPushLegs(canvas, vp, pushRouteStart, pushLegs, _pushLegPaint, _pullLegPaint);
             DrawNodes(canvas, vp, layout, hoveredNodeId, showDebugInfo, showHoldShort, showParking, showSpot);
             DrawLabels(canvas, hoveredOnly: false);
 
@@ -1295,6 +1322,58 @@ public sealed class GroundRenderer : IDisposable
 
             canvas.DrawCircle(pos.X, pos.Y, 8f, _waypointMarkerPaint);
             canvas.DrawText($"{i + 1}", pos.X, pos.Y + _waypointTextFont.Size / 3f, SKTextAlign.Center, _waypointTextFont, _waypointTextPaint);
+        }
+    }
+
+    /// <summary>
+    /// Draws a planned tug move: one straight line per leg, from the aircraft through each target in order.
+    /// These are free-space legs (docs/ground/pushback.md), so they never touch the ground graph the taxi
+    /// overlays walk. The arrowhead always points at the target — the colour is what says whether the tug
+    /// reverses the aircraft tail-first (push) or tows it nose-first (pull).
+    /// </summary>
+    private static void DrawPushLegs(
+        SKCanvas canvas,
+        MapViewport vp,
+        LatLon? start,
+        IReadOnlyList<PushbackLeg>? legs,
+        SKPaint pushPaint,
+        SKPaint pullPaint
+    )
+    {
+        if (start is not { } from || legs is null || legs.Count == 0)
+        {
+            return;
+        }
+
+        var fromScreen = vp.LatLonToScreen(from.Lat, from.Lon);
+        foreach (var leg in legs)
+        {
+            var toScreen = vp.LatLonToScreen(leg.Target.Lat, leg.Target.Lon);
+            var paint = leg.Kind == PushbackLegKind.Push ? pushPaint : pullPaint;
+            canvas.DrawLine(fromScreen.X, fromScreen.Y, toScreen.X, toScreen.Y, paint);
+            DrawLegArrowHead(canvas, fromScreen, toScreen, paint);
+            fromScreen = toScreen;
+        }
+    }
+
+    /// <summary>Two strokes back off the target end of a leg, forming an arrowhead in the leg's direction.</summary>
+    private static void DrawLegArrowHead(SKCanvas canvas, (float X, float Y) from, (float X, float Y) to, SKPaint paint)
+    {
+        const float headLengthPx = 12f;
+        const float headHalfAngleRad = 0.45f;
+
+        float dx = to.X - from.X;
+        float dy = to.Y - from.Y;
+        if (((dx * dx) + (dy * dy)) < (headLengthPx * headLengthPx))
+        {
+            return;
+        }
+
+        float back = MathF.Atan2(dy, dx) + MathF.PI;
+        for (int side = -1; side <= 1; side += 2)
+        {
+            float angle = back + (side * headHalfAngleRad);
+            canvas.DrawLine(to.X, to.Y, to.X + (headLengthPx * MathF.Cos(angle)), to.Y + (headLengthPx * MathF.Sin(angle)), paint);
         }
     }
 
@@ -2437,6 +2516,8 @@ public sealed class GroundRenderer : IDisposable
         _previewRoutePaint.Dispose();
         _drawnRoutePaint.Dispose();
         _drawHoverPreviewPaint.Dispose();
+        _pushLegPaint.Dispose();
+        _pullLegPaint.Dispose();
         _waypointMarkerPaint.Dispose();
         _waypointTextPaint.Dispose();
         _waypointTextFont.Dispose();

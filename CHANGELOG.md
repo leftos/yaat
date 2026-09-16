@@ -7,6 +7,7 @@
 - An automatic go-around for traffic names the blocking aircraft, and why it blocked, in the terminal log.
 - The terminal log shows the simulated approach controller's in-trail speed reductions.
 - **Tug moves.** `PUSHM $6A $6B` walks an aircraft through two or more ramp points, working out per leg whether the tug pushes it back or pulls it forward.
+- **Push route.** Right-click the ground view, pick **Push route…**, then click each ramp point; every leg draws coloured by whether the tug pushes or pulls.
 
 ### Changed
 - The ERAM `VP` keyboard amends an existing VFR flight plan instead of rejecting every plan with `DUP NEW ID`.
@@ -33,7 +34,7 @@
 - `TAXI $<spot>` to an aircraft already on that spot leaves it holding in position, matching a `TAXI $<spot>` it has to drive.
 - A `TAXI` ending where the aircraft already stands names a taxi spot with its own token — `Taxi via $5A`.
 - A completed `PUSH $<spot>` leaves the aircraft holding after pushback, so it can be pushed again from the spot; `PUSH @<gate>` still parks.
-- Right-clicking a parking or spot node offers "Push to {spot}" for an aircraft resting after a pushback, not only one at a stand.
+- The ground view's push items, on the aircraft and on a parking or spot node, are offered for an aircraft resting after a pushback, not only one at a stand.
 - "Resume taxi" appears in the ground-map and Aircraft List menus only while the aircraft is actually held.
 - The held-departures rundown reads "Pushing back (held)" mid-push and "Pushed back (held)" on a ramp spot, instead of "At gate (held)".
 - Scenario arrivals are spaced by the simulated approach controller when the aircraft ahead will not clear the runway in time.
