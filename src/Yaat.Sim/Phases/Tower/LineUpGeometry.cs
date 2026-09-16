@@ -47,10 +47,12 @@ public sealed record LineUpPathPlan
     public required double TurnAngleDeg { get; init; }
 
     /// <summary>
-    /// Target speed for the straight/arc segments of the Aligned path. The
-    /// Pivot path uses <see cref="PathPrimitiveSlowTurn.MaxSpeedKts"/> for
-    /// its turns and <see cref="CategoryPerformance.TaxiCornerSpeed"/> for
-    /// its perpendicular straight.
+    /// Target speed through the arc of the Aligned path, and nothing else: it is the turn-rate-limited
+    /// speed the closed-form arc integrator needs (see <see cref="LineUpGeometry.ComputeArcSpeedKts"/>),
+    /// far below taxi pace. The nose-out straight ahead of it cruises at
+    /// <see cref="CategoryPerformance.TaxiSpeed"/> and brakes onto this speed by the arc entry. The Pivot
+    /// path uses <see cref="PathPrimitiveSlowTurn.MaxSpeedKts"/> for its turns and
+    /// <see cref="CategoryPerformance.TaxiCornerSpeed"/> for its perpendicular straight.
     /// </summary>
     public required double ArcSpeedKts { get; init; }
 
@@ -315,10 +317,12 @@ public static class LineUpGeometry
     public static double ComputeWastePivotFt(double noseWheelRadiusFt) => 2.0 * noseWheelRadiusFt;
 
     /// <summary>
-    /// Target cruise speed through the aligned-path arc, chosen so that the
+    /// Target speed through the aligned-path arc — the arc alone — chosen so that the
     /// tangent rotation rate <c>v/r</c> stays at <see cref="HeadroomSafetyFactor"/>
     /// of the category's <see cref="CategoryPerformance.GroundTurnRate"/>. Capped
-    /// at <see cref="CategoryPerformance.TaxiCornerSpeed"/>.
+    /// at <see cref="CategoryPerformance.TaxiCornerSpeed"/>. The straights either side of the arc are
+    /// not turn-rate limited and are flown at taxi speed; applying this speed to them taxied a piston
+    /// at 4.4 kt down a 282 ft nose-out.
     /// </summary>
     public static double ComputeArcSpeedKts(AircraftCategory cat, double radiusFt)
     {

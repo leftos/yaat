@@ -21,8 +21,26 @@ public sealed record LineUpArcFollowPlan
     /// <summary>Runway heading the fillet arc ends tangent to (departure direction).</summary>
     public required double RunwayHeadingDeg { get; init; }
 
-    /// <summary>Forward-speed cap for the graph-taxi playback.</summary>
+    /// <summary>
+    /// Forward-speed CAP for the graph-taxi playback: the straight-segment taxi speed
+    /// (<see cref="CategoryPerformance.TaxiSpeed"/>). The fillet arc is not governed by this — the navigator
+    /// derives each arc's own speed from its local radius of curvature
+    /// (<see cref="GroundArc.SafeSpeedForRadiusKts"/>) and brakes into it through the backward-propagated
+    /// speed constraints, so capping the whole route at a corner speed would only slow the straight taxiway
+    /// run leading up to it. On a short connector the physics binds long before this cap does (230 ft entered
+    /// at 10 kt reaches ~15 kt for a piston at 0.6 kt/s), so it binds only on a long approach — which is when
+    /// it should.
+    /// </summary>
     public required double MaxSpeedKts { get; init; }
+
+    /// <summary>
+    /// Rolling-takeoff speed FLOOR for the graph-taxi playback
+    /// (<see cref="CategoryPerformance.TaxiCornerSpeed"/>): the speed a line-up flown under a takeoff
+    /// clearance keeps flowing at rather than braking toward a stop, and the speed
+    /// <see cref="TaxiingPhase"/> hands the aircraft over at, so the hand-off carries no speed step.
+    /// Unused under LUAW, which brakes to a stop on the centerline.
+    /// </summary>
+    public required double FlowSpeedKts { get; init; }
 
     /// <summary>The runway-centerline node the fillet arc ends on, aligned with the departure heading.</summary>
     public required GroundNode CenterlineNode { get; init; }
@@ -138,7 +156,11 @@ public static class LineUpGraphRoute
             return null;
         }
 
-        double maxSpeed = CategoryPerformance.TaxiCornerSpeed(category);
+        // The cap governs the straight taxiway run only; the fillet arc governs itself through the
+        // navigator's per-sample arc profile (a 70° SFO fillet yields ~12 kt for a piston, where the
+        // 90°-and-over TaxiCornerSpeed constant would have flattened the whole route to 10 kt).
+        double maxSpeed = CategoryPerformance.TaxiSpeed(category);
+        double flowSpeed = CategoryPerformance.TaxiCornerSpeed(category);
         double startAlongFt = AlongNoseFt(acPos, acHeading, start, GeoMath.DistanceNm(acPos, start.Position) * GeoMath.FeetPerNm);
         Log.LogDebug(
             "[LineUpGraphRoute] onto {Rwy}: start node {Start} ({Along:F1}ft ahead), junction {Junction}, centerline {Center}, {Segs} segments",
@@ -155,6 +177,7 @@ public static class LineUpGraphRoute
             Route = route,
             RunwayHeadingDeg = rwyHdgDeg,
             MaxSpeedKts = maxSpeed,
+            FlowSpeedKts = flowSpeed,
             CenterlineNode = centerlineNode,
         };
     }
@@ -213,9 +236,20 @@ public static class LineUpGraphRoute
 
     /// <summary>
     /// The unvisited neighbor of <paramref name="cur"/> with the smallest cross-track
-    /// from the runway centerline (i.e. closest toward the runway), excluding runway
-    /// centerline edges so the walk never leaves the taxiway onto the runway before
-    /// the junction arc.
+    /// from the runway centerline (i.e. closest toward the runway), excluding both
+    /// runway centerline edges and nodes that sit on the runway centerline, so the
+    /// walk never leaves the taxiway onto the runway before the junction arc.
+    ///
+    /// <para>
+    /// The node test is needed as well as the edge test because a junction fillet
+    /// <see cref="GroundArc"/> is not flagged <see cref="IGroundEdge.IsRunwayCenterline"/>:
+    /// it is a taxiway-to-runway curve. Stepping along one puts the walk on a centerline
+    /// node whose every remaining edge is a centerline edge, and it dead-ends there. At a
+    /// runway-CROSSING taxiway that is not hypothetical — the approach side carries a
+    /// tangent-cut node for each prong, and the walk meets the reciprocal-end one (whose
+    /// arc <see cref="TangentAlignToleranceDeg"/> correctly rejects) before the
+    /// departure-end one that carries the arc the route needs.
+    /// </para>
     /// </summary>
     private static GroundNode? NextTowardRunway(GroundNode cur, RunwayInfo runway, HashSet<int> visited)
     {
@@ -230,7 +264,7 @@ public static class LineUpGraphRoute
             }
 
             var o = e.OtherNode(cur);
-            if (visited.Contains(o.Id))
+            if (visited.Contains(o.Id) || IsOnRunwayCenterline(o, runway))
             {
                 continue;
             }

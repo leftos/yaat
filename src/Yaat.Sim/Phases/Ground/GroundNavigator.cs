@@ -232,6 +232,18 @@ public sealed class GroundNavigator
     public double MinSpeedKts { get; set; }
 
     /// <summary>
+    /// Speed (kts) the navigator plans to arrive at the route's FINAL node with, instead of a stop. Default 0 —
+    /// brake to a stop — which is what every caller but a cleared-for-takeoff taxi wants: <c>RunwayExitPhase</c>,
+    /// <see cref="CrossingRunwayPhase"/>, <see cref="PushbackPhase"/> and a taxi to a gate or spot all end at
+    /// rest. <see cref="TaxiingPhase"/> raises it to the category taxi-corner speed when a stored takeoff
+    /// clearance has already cleared the destination-runway bar the route ends at, so the aircraft flows into
+    /// the line-up at the speed that phase takes over at rather than braking to the bar and re-accelerating.
+    /// Unlike <see cref="MinSpeedKts"/> this is not a floor: it only replaces the route-end stop in the speed
+    /// plan, and every uncleared hold-short on the way still plans a stop.
+    /// </summary>
+    public double RouteEndSpeedKts { get; set; }
+
+    /// <summary>
     /// Deceleration rate (kts/s) used by the braking curve and backward-propagated
     /// speed constraints. Null = the category taxi decel rate (normal taxi/exit).
     /// <see cref="RunwayExitPhase"/> raises it to
@@ -1977,6 +1989,15 @@ public sealed class GroundNavigator
         }
     }
 
+    /// <summary>
+    /// Re-plan the speed profile for the segment already in progress, after the owning phase changed an input to
+    /// it — a takeoff clearance that arrives mid-segment clears the bar the route ends at, and the stop planned
+    /// for it has to go now rather than at the next node. Deliberately narrower than <see cref="SetupSegment"/>,
+    /// which would rebuild the path primitive and rewind arc playback to the segment start.
+    /// </summary>
+    internal void RefreshSpeedConstraints(TaxiRoute route, PhaseContext ctx, Func<int, bool> isHoldShortCleared) =>
+        BuildSpeedConstraints(route, ctx, isHoldShortCleared);
+
     private void BuildSpeedConstraints(TaxiRoute route, PhaseContext ctx, Func<int, bool> isHoldShortCleared)
     {
         _speedConstraints.Clear();
@@ -2030,7 +2051,7 @@ public sealed class GroundNavigator
         }
         else
         {
-            _currentNodeRequiredSpeed = 0;
+            _currentNodeRequiredSpeed = RouteEndSpeedKts;
             _nextSegmentBearing = null;
             _nextSegmentIsArc = false;
             _nextSegmentIsShort = false;
@@ -2072,7 +2093,7 @@ public sealed class GroundNavigator
             }
             else
             {
-                reqSpeed = 0;
+                reqSpeed = RouteEndSpeedKts;
             }
 
             if (reqSpeed < MaxSpeedKts)

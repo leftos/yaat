@@ -154,6 +154,76 @@ public class LineUpPhaseRestoreTests(ITestOutputHelper output)
         );
     }
 
+    /// <summary>
+    /// Tick sub-tick by sub-tick until the phase the line-up hands off to has settled, and report that phase.
+    ///
+    /// <para>
+    /// A <c>CTO</c> pre-satisfies <see cref="LinedUpAndWaitingPhase"/>'s only requirement, and a mid-phase rolling
+    /// upgrade leaves the LUAW in the phase list, so a rolling line-up whose list still carries one hands off
+    /// <em>through</em> it: <see cref="PhaseRunner"/> advances one phase per tick, so the LUAW is the current
+    /// phase for exactly one physics sub-tick and completes on the next. Sampling once a second catches that
+    /// hand-off only when the line-up happens to end on the last sub-tick of a second — a sampling artifact of
+    /// the taxi/rollout speed profile, not a state the aircraft dwells in. This steps over that single tick and
+    /// nothing more: a LUAW still current a tick later is a real hold and is reported as the end phase.
+    /// </para>
+    /// </summary>
+    private static RunResult RunUntilLineUpSettles(SimulationEngine engine, int budgetSeconds)
+    {
+        const int handOffTickAllowance = 1;
+        double subDelta = 1.0 / SimulationEngine.PhysicsSubTickRate;
+        int handOffTicks = 0;
+
+        for (int second = 1; second <= budgetSeconds; second++)
+        {
+            RunResult? settled = null;
+
+            engine.BeginSecond();
+            engine.OpenSecond(engine.BareHost);
+            engine.RunPrePhysics(engine.BareHost);
+            for (int sub = 0; sub < SimulationEngine.PhysicsSubTickRate; sub++)
+            {
+                engine.RunPhysicsSubTick(subDelta, sub);
+
+                var ac = engine.FindAircraft(Callsign);
+                if (ac is null)
+                {
+                    break;
+                }
+
+                var phase = ac.Phases?.CurrentPhase;
+                if (phase is LineUpPhase)
+                {
+                    continue;
+                }
+
+                if (phase is LinedUpAndWaitingPhase && handOffTicks < handOffTickAllowance)
+                {
+                    handOffTicks++;
+                    continue;
+                }
+
+                settled ??= new RunResult(true, second, ac.Position, ac.GroundSpeed, phase?.GetType().Name ?? "(none)");
+            }
+
+            engine.RunPostPhysics(engine.BareHost);
+            engine.RunEndOfSecond(engine.BareHost);
+
+            if (settled is { } result)
+            {
+                return result;
+            }
+        }
+
+        var last = engine.FindAircraft(Callsign);
+        return new RunResult(
+            false,
+            budgetSeconds,
+            last?.Position ?? new LatLon(0, 0),
+            last?.GroundSpeed ?? 0,
+            last?.Phases?.CurrentPhase?.GetType().Name ?? "(none)"
+        );
+    }
+
     private static RunwayInfo Runway28R()
     {
         var runway = TestVnasData.NavigationDb!.GetRunway("KOAK", "28R");
@@ -406,6 +476,13 @@ public class LineUpPhaseRestoreTests(ITestOutputHelper output)
     /// A <c>CTO</c> that lands on a restored line-up before its first tick must upgrade it to rolling. The phase
     /// has not rebuilt yet, so its state machine still reads <c>Setup</c> — the upgrade gate must not mistake that
     /// for a phase that never started.
+    ///
+    /// <para>
+    /// The restored list still carries the <see cref="LinedUpAndWaitingPhase"/> the snapshot was taken under, and
+    /// the <c>CTO</c> pre-satisfies it, so the hand-off runs through it for one sub-tick. Judged by
+    /// <see cref="RunUntilLineUpSettles"/> rather than at second boundaries, where catching that tick is down to
+    /// where in the second the rollout happens to end.
+    /// </para>
     /// </summary>
     [Fact]
     public void RestoredLuaw_CtoBeforeTheFirstTick_UpgradesToRollingAndTakesOff()
@@ -432,7 +509,7 @@ public class LineUpPhaseRestoreTests(ITestOutputHelper output)
         Assert.True(result.Success, $"CTO refused: {result.Message}");
         Assert.True(phase.RollingMode, "CTO on a restored, not-yet-rebuilt line-up must upgrade it to rolling");
 
-        var run = RunUntilLineUpEnds(engine, BudgetSeconds);
+        var run = RunUntilLineUpSettles(engine, BudgetSeconds);
         output.WriteLine($"restored LUAW + CTO: -> {run.EndPhase} at +{run.Seconds}s gs={run.GroundSpeedKts:F1}kt");
         Assert.Equal("TakeoffPhase", run.EndPhase);
     }

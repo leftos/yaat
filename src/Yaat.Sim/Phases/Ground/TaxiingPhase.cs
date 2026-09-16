@@ -84,6 +84,7 @@ public sealed class TaxiingPhase : Phase
 
         ctx.Aircraft.IsOnGround = true;
         _nav.MaxSpeedKts = ctx.Aircraft.Ground.CommandedTaxiSpeedKts ?? CategoryPerformance.TaxiSpeed(ctx.Category);
+        _nav.RouteEndSpeedKts = RouteEndSpeedKts(ctx, route);
         SetupCurrentSegment(ctx, route);
 
         Log.LogDebug(
@@ -118,6 +119,7 @@ public sealed class TaxiingPhase : Phase
                 ctx.GroundLayout is not null ? "present" : "NULL"
             );
             _nav.MaxSpeedKts = ctx.Aircraft.Ground.CommandedTaxiSpeedKts ?? CategoryPerformance.TaxiSpeed(ctx.Category);
+            _nav.RouteEndSpeedKts = RouteEndSpeedKts(ctx, route);
             SetupCurrentSegment(ctx, route);
         }
 
@@ -128,6 +130,18 @@ public sealed class TaxiingPhase : Phase
         _nav.MaxSpeedKts =
             ctx.Aircraft.Ground.CommandedTaxiSpeedKts
             ?? (ctx.Aircraft.Ground.IsExpeditingTaxi ? baseTaxiSpeed * CategoryPerformance.TaxiExpediteMultiplier : baseTaxiSpeed);
+
+        // A takeoff clearance can arrive mid-segment, after the speed profile for the segment in progress was
+        // built with a stop at the bar. Re-plan the profile then and there, or the aircraft brakes for a bar it
+        // is already cleared through and the line-up has to re-accelerate from the crawl (issue: SFO 28R at E).
+        // Re-planned even while held, so the release rolls out on the profile the clearance implies.
+        double routeEndSpeed = RouteEndSpeedKts(ctx, route);
+        if (Math.Abs(routeEndSpeed - _nav.RouteEndSpeedKts) > 1e-9)
+        {
+            _nav.RouteEndSpeedKts = routeEndSpeed;
+            _nav.RefreshSpeedConstraints(route, ctx, nodeId => IsHoldShortCleared(route, nodeId));
+            Log.LogDebug("[Taxi] {Callsign}: route-end speed re-planned to {Speed:F1}kt", ctx.Aircraft.Callsign, routeEndSpeed);
+        }
 
         // HOLD / GIVEWAY: the aircraft stops where it is, but the steering tick below still runs — see the
         // held branch after it. Nothing that ends the phase or inserts another one may fire while it is held.
@@ -212,9 +226,22 @@ public sealed class TaxiingPhase : Phase
         // an airborne descent, an approach speed reduction — would otherwise brake at ground rates.
         ctx.Targets.DesiredDecelRate = null;
 
-        // Completing into a moving runway crossing: keep rolling — the CrossingRunwayPhase
-        // owns the speed and must not re-accelerate from a dead stop on the runway approach.
-        if (endStatus == PhaseStatus.Completed && !_completingIntoMovingCrossing)
+        // Two completions keep their speed instead of snapping to a standstill:
+        //
+        //  - into a moving runway crossing — the CrossingRunwayPhase owns the speed and must not
+        //    re-accelerate from a dead stop on the runway approach;
+        //  - at a route end the navigator planned to arrive at rolling (RouteEndSpeedKts > 0, set only
+        //    when a stored takeoff/line-up clearance has already cleared the destination-runway bar the
+        //    route ends at). Zeroing the speed at the phase boundary would contradict the plan the
+        //    navigator just flew, and there was no stop to make: runway holding position markings mark
+        //    where an aircraft must stop "when a clearance has not been issued to proceed onto the
+        //    runway" (AIM 2-3-5.a.1) — the stop is conditional on the absence of a clearance, not a
+        //    property of the paint. Braking at a bar the aircraft is cleared through and re-accelerating
+        //    also defeats the anticipated-separation technique of 7110.65 3-9-5, which lets a takeoff
+        //    clearance be issued before separation exists provided it exists "when the aircraft starts
+        //    takeoff roll"; and 7110.65 3-9-6.c bans rolling takeoffs by super/heavy only, which is what
+        //    makes them normal for everything else.
+        if (endStatus == PhaseStatus.Completed && !_completingIntoMovingCrossing && !(_nav.RouteEndSpeedKts > 0))
         {
             ctx.Aircraft.IndicatedAirspeed = 0;
             ctx.Targets.TargetSpeed = 0;
@@ -312,6 +339,34 @@ public sealed class TaxiingPhase : Phase
         }
 
         _initialized = true;
+    }
+
+    /// <summary>
+    /// The speed to plan the end of <paramref name="route"/> at. A taxi ends in a stop — 0 — unless the route
+    /// terminates at its destination-runway bar AND a takeoff or line-up clearance is already stored: the
+    /// aircraft is going through that bar, so braking to it and re-accelerating is time the departure loses for
+    /// nothing. The flow-through speed is <see cref="CategoryPerformance.TaxiCornerSpeed"/>, which is what
+    /// <see cref="LineUpGraphRoute.TryPlan"/> caps the line-up at, so the hand-off carries no speed step.
+    /// </summary>
+    private static double RouteEndSpeedKts(PhaseContext ctx, TaxiRoute route)
+    {
+        if (ctx.Aircraft.Phases?.DepartureClearance is not { Type: ClearanceType.ClearedForTakeoff or ClearanceType.LineUpAndWait })
+        {
+            return 0;
+        }
+
+        if (route.Segments.Count == 0 || route.HoldShortPoints.Count == 0)
+        {
+            return 0;
+        }
+
+        var lastHoldShort = route.HoldShortPoints[^1];
+        if ((lastHoldShort.Reason != HoldShortReason.DestinationRunway) || (lastHoldShort.NodeId != route.Segments[^1].ToNodeId))
+        {
+            return 0;
+        }
+
+        return CategoryPerformance.TaxiCornerSpeed(ctx.Category);
     }
 
     private static bool IsHoldShortCleared(TaxiRoute route, int nodeId)

@@ -1640,6 +1640,22 @@
     "Solo": false
   },
   {
+    "File": "sfo-cto-intersection-departure-recording.yaat-bug-report-bundle.zip",
+    "Commands": 163,
+    "ByKind": {
+      "AddAircraft": 1,
+      "Compound": 97,
+      "Delete": 4,
+      "SetActivePosition": 5,
+      "Strip": 55,
+      "Tdls": 1
+    },
+    "Unparsed": [],
+    "ReactionDelayed": 0,
+    "AsPrefixed": 0,
+    "Solo": false
+  },
+  {
     "File": "sfo-cto-taxiway-holdshort-recording.yaat-bug-report-bundle.zip",
     "Commands": 5,
     "ByKind": {

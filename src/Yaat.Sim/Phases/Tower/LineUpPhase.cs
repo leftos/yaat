@@ -177,6 +177,13 @@ public sealed class LineUpPhase : Phase
     private TaxiRoute? _lineUpRoute;
     private GroundNavigator? _navigator;
 
+    /// <summary>
+    /// The graph route's rolling speed floor (<see cref="LineUpArcFollowPlan.FlowSpeedKts"/>), kept so a
+    /// mid-phase upgrade to rolling raises the navigator's floor to the same speed the plan would have
+    /// started it at. 0 until a graph route is planned.
+    /// </summary>
+    private double _graphFlowSpeedKts;
+
     /// <summary>Departure runway heading captured at <see cref="OnStart"/> for the graph-taxi completion.</summary>
     private double _runwayHeadingDeg;
 
@@ -353,15 +360,19 @@ public sealed class LineUpPhase : Phase
         double maxSpeed = ctx.Aircraft.Ground.IsExpeditingLineup ? plan.MaxSpeedKts * CategoryPerformance.TaxiExpediteMultiplier : plan.MaxSpeedKts;
 
         _navigator = new GroundNavigator { MaxSpeedKts = maxSpeed };
+        _graphFlowSpeedKts = plan.FlowSpeedKts;
 
         // Rolling takeoff (CTO in hand): keep a speed floor so the aircraft flows
         // through the lineup onto the centerline without braking to a stop, then
         // hands off to TakeoffPhase at taxi speed — matching the synthetic rolling
-        // rollout. LUAW leaves the floor at 0 so the navigator brakes to a stop on
-        // the centerline rollout straight.
+        // rollout. The floor is the plan's flow speed, not its cap: the cap governs
+        // the straight taxiway run, while the floor is the speed the taxi handed the
+        // aircraft over at and the fillet arc is comfortably flown at. LUAW leaves
+        // the floor at 0 so the navigator brakes to a stop on the centerline rollout
+        // straight.
         if (RollingMode)
         {
-            _navigator.MinSpeedKts = plan.MaxSpeedKts;
+            _navigator.MinSpeedKts = plan.FlowSpeedKts;
         }
 
         _navigator.SetupSegment(_lineUpRoute, ctx, _ => true);
@@ -409,6 +420,26 @@ public sealed class LineUpPhase : Phase
             }
 
             _lineUpRoute.CurrentSegmentIndex += 1;
+
+            // Rolling clearance: hand off at the fillet exit, where the aircraft has just arrived on the
+            // centerline node aligned with the runway and still rolling. In a real rolling takeoff the
+            // throttle comes up as the aircraft straightens out of the turn, so the virtual rollout
+            // straight past the arc exit IS the first stretch of the takeoff roll, not taxi to be flown
+            // before it. The route still carries that segment, and always will: a CTOC arriving mid-phase
+            // reverts RollingMode, and the brake-to-stop it then owes needs a straight to make it on —
+            // braking to a stop on the fillet arc itself would deadlock the closed-form arc playback,
+            // which cannot advance below the arc speed floor.
+            if (RollingMode && (_lineUpRoute.CurrentSegmentIndex == _lineUpRoute.Segments.Count - 1))
+            {
+                ctx.Targets.TargetTrueHeading = new TrueHeading(_runwayHeadingDeg);
+                Log.LogDebug(
+                    "[LineUp] {Callsign}: graph-taxi lineup complete at the fillet exit (rolling, gs={Gs:F1}kt)",
+                    ctx.Aircraft.Callsign,
+                    ctx.Aircraft.GroundSpeed
+                );
+                return true;
+            }
+
             if (_lineUpRoute.IsComplete)
             {
                 // On the centerline, aligned with the runway heading. LUAW arrives
@@ -495,7 +526,8 @@ public sealed class LineUpPhase : Phase
                 PathPlan.NoseOutBearingDeg,
                 PathPlan.NoseOutToLat,
                 PathPlan.NoseOutToLon,
-                PathPlan.ArcSpeedKts,
+                CategoryPerformance.TaxiSpeed(PathPlan.Category),
+                brakeToSpeedKts: PathPlan.ArcSpeedKts,
                 onArrive: PathPlan.InitialArcState is null ? State.Rollout : State.Arc
             ),
             State.Arc => TickArcPlayback(ctx, PathPlan, onComplete: State.Rollout),
@@ -507,6 +539,7 @@ public sealed class LineUpPhase : Phase
                 PathPlan.PivotStraightToLat,
                 PathPlan.PivotStraightToLon,
                 CategoryPerformance.TaxiCornerSpeed(PathPlan.Category),
+                brakeToSpeedKts: null,
                 onArrive: State.PivotTurn2
             ),
             State.PivotTurn2 => TickArcPlayback(ctx, PathPlan, onComplete: State.Rollout),
@@ -555,6 +588,12 @@ public sealed class LineUpPhase : Phase
             RightTurn = turn.RightTurn,
         };
 
+    /// <summary>
+    /// Fly one straight segment of the synthetic plan at <paramref name="targetSpeedKts"/>. When
+    /// <paramref name="brakeToSpeedKts"/> is given, the straight is also held under the kinematic brake curve
+    /// that arrives at that speed at the far end, so the segment cruises at taxi pace and only slows for what
+    /// follows it; pass null for a segment whose target speed is already the speed its end must be flown at.
+    /// </summary>
     private bool TickStraight(
         PhaseContext ctx,
         LineUpPathPlan plan,
@@ -562,11 +601,11 @@ public sealed class LineUpPhase : Phase
         double toLat,
         double toLon,
         double targetSpeedKts,
+        double? brakeToSpeedKts,
         State onArrive
     )
     {
         ctx.Targets.TargetTrueHeading = new TrueHeading(bearingDeg);
-        ctx.Targets.TargetSpeed = ExpediteStraightSpeed(ctx, targetSpeedKts);
 
         // Along-track distance remaining to the target, measured along the segment
         // bearing. Positive = target still ahead; negative = aircraft has driven
@@ -579,6 +618,20 @@ public sealed class LineUpPhase : Phase
         double alongRemainingFt =
             GeoMath.AlongTrackDistanceNm(toLat, toLon, ctx.Aircraft.Position.Lat, ctx.Aircraft.Position.Lon, new TrueHeading(bearingDeg))
             * GeoMath.FeetPerNm;
+
+        // Kinematic brake curve v = sqrt(v_end² + 2·a·d), the same one the LUAW rollout uses: the fastest
+        // profile that still crosses the far end of the segment at the speed the next segment needs. Evaluated
+        // before the arrival test so the tick that arrives still publishes the hand-off speed rather than the
+        // cruise target.
+        double requestedKts = targetSpeedKts;
+        if (brakeToSpeedKts is { } endSpeedKts)
+        {
+            double decelKtPerSec = CategoryPerformance.TaxiDecelRate(plan.Category);
+            double remainingKtSeconds = Math.Max(alongRemainingFt, 0.0) * 3600.0 / GeoMath.FeetPerNm;
+            requestedKts = Math.Min(requestedKts, Math.Sqrt((endSpeedKts * endSpeedKts) + (2.0 * decelKtPerSec * remainingKtSeconds)));
+        }
+
+        ctx.Targets.TargetSpeed = ExpediteStraightSpeed(ctx, requestedKts);
 
         if (alongRemainingFt <= StraightArrivalFt)
         {
@@ -675,7 +728,9 @@ public sealed class LineUpPhase : Phase
             // Hold cruise speed through the rollout; hand off to TakeoffPhase
             // at the stop point. Completion uses distance-from-start because
             // distance-to-stop increases past the stop point under rolling.
-            ctx.Targets.TargetSpeed = ExpediteStraightSpeed(ctx, plan.ArcSpeedKts);
+            // The aircraft is straight on the centerline with the takeoff roll next, so the hand-off speed is
+            // the corner speed the graph route hands off at, not the arc's turn-rate limit.
+            ctx.Targets.TargetSpeed = ExpediteStraightSpeed(ctx, CategoryPerformance.TaxiCornerSpeed(plan.Category));
             double distFromStartFt =
                 GeoMath.DistanceNm(ctx.Aircraft.Position, new LatLon(plan.RolloutFromLat, plan.RolloutFromLon)) * GeoMath.FeetPerNm;
             if (distFromStartFt >= plan.RolloutLengthFt - RolloutArrivalFt)
@@ -880,9 +935,12 @@ public sealed class LineUpPhase : Phase
         // Graph-taxi: raise the navigator's speed floor so it flows through the
         // rest of the lineup onto the centerline instead of braking to a stop — the
         // aircraft was cleared for takeoff while still taxiing in and never stopped.
+        // The floor is the plan's flow speed, the same one a lineup that started
+        // rolling uses; the navigator's cap is the straight-segment taxi speed and
+        // would be a floor no fillet arc could carry.
         if (CurrentState == State.GraphTaxi && _navigator is not null)
         {
-            _navigator.MinSpeedKts = _navigator.MaxSpeedKts;
+            _navigator.MinSpeedKts = _graphFlowSpeedKts;
         }
 
         Log.LogDebug(

@@ -41,6 +41,12 @@ public class N152spIfrCtoDeferralTests(ITestOutputHelper output)
     /// <summary>True heading of OAK 28R, the departure runway in the recording.</summary>
     private const double RunwayTrueHeading = 292.0;
 
+    /// <summary>
+    /// Recording second the deferral is judged at: airborne, still climbing below <see cref="IfrTurnAglFloor"/>.
+    /// Measured liftoff is t=832 and the 400 ft AGL crossing t=865, so this sits mid-way between them.
+    /// </summary>
+    private const int SampleSecond = 848;
+
     private static SessionRecording? LoadRecording() => RecordingLoader.Load(RecordingPath);
 
     private SimulationEngine? BuildEngine()
@@ -367,9 +373,9 @@ public class N152spIfrCtoDeferralTests(ITestOutputHelper output)
     /// <summary>
     /// Full replay through the recorded bug moment. The recorded <c>CTO MRC 020</c> is applied —
     /// the dispatcher no longer refuses it on flight rules (issue #317) — so this pins the actual
-    /// N152SP defect: at t=820 the aircraft is climbing through well under the 400 ft AGL floor and
-    /// must still be tracking runway heading. Pre-fix it was at ~114 ft on heading 318, already
-    /// three quarters of the way into its 90° right turn.
+    /// N152SP defect: at the sampled second the aircraft is climbing through well under the 400 ft AGL
+    /// floor and must still be tracking runway heading. Pre-fix it was at ~114 ft on heading 318,
+    /// already three quarters of the way into its 90° right turn.
     /// </summary>
     [Fact]
     public void N152sp_FullReplayThroughBugMoment_DefersTheRecordedCtoMrcTurn()
@@ -381,20 +387,26 @@ public class N152spIfrCtoDeferralTests(ITestOutputHelper output)
             return;
         }
 
-        // Replay past the recorded CTO MRC 020 action (t=768). With physics-owned taxi and takeoff-roll
-        // acceleration N152SP lifts off at t=869 and passes the 400 ft AGL turn floor at t=901 (measured),
-        // so t=880 (141 ft AGL) is the below-the-floor climb sample the old t=820 used to be.
-        engine.Replay(recording, 880);
+        // Replay past the recorded CTO MRC 020 action (t=768). The sampled second is re-picked whenever a
+        // timing change moves the departure along the recording, because it has to sit between liftoff and
+        // the 400 ft AGL floor: t=820 when takeoff-roll acceleration moved to physics, then t=880, and now
+        // t=848. With the faster piston breakaway taxi rate N152SP lifts off at t=832 and passes the floor
+        // at t=865 (measured), so t=848 (196 ft AGL) sits mid-way between the two.
+        engine.Replay(recording, SampleSecond);
 
         var n152sp = engine.FindAircraft("N152SP");
         Assert.NotNull(n152sp);
 
         double aglFt = n152sp.Altitude - FieldElevation;
         output.WriteLine(
-            $"t=880: phase={n152sp.Phases?.CurrentPhase?.Name ?? "(none)"} alt={n152sp.Altitude:F0} agl={aglFt:F0} hdg={n152sp.TrueHeading.Degrees:F1} onGround={n152sp.IsOnGround}"
+            $"t={SampleSecond}: phase={n152sp.Phases?.CurrentPhase?.Name ?? "(none)"} alt={n152sp.Altitude:F0} agl={aglFt:F0} hdg={n152sp.TrueHeading.Degrees:F1} onGround={n152sp.IsOnGround}"
         );
 
-        Assert.True(aglFt < IfrTurnAglFloor, $"Fixture invariant: t=880 must be below the {IfrTurnAglFloor:F0} ft AGL turn floor (agl={aglFt:F0}).");
+        Assert.False(n152sp.IsOnGround, $"Fixture invariant: t={SampleSecond} must be after liftoff (agl={aglFt:F0}).");
+        Assert.True(
+            aglFt < IfrTurnAglFloor,
+            $"Fixture invariant: t={SampleSecond} must be below the {IfrTurnAglFloor:F0} ft AGL turn floor (agl={aglFt:F0})."
+        );
 
         double offRunwayHeading = Math.Abs(NormalizeAngleDiff(n152sp.TrueHeading.Degrees - RunwayTrueHeading));
         Assert.True(

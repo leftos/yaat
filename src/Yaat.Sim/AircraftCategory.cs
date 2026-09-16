@@ -1065,10 +1065,15 @@ public static class CategoryPerformance
 
     /// <summary>
     /// Taxi acceleration rate (kts/sec) — the breakaway-thrust rate an aircraft actually accelerates at on
-    /// the ground. A transport jet breaks away from a standstill on ~30-40% N1 and then taxies at idle
-    /// (AC 120-74B taxi technique, Boeing FCTM "roll straight, then add thrust"), which is about 1 kt/s;
-    /// sustaining 3 kt/s would need roughly 70% N1 and a jet-blast hazard behind it. Pistons are lighter but
-    /// power-limited at taxi power, so they gain speed more slowly still.
+    /// the ground, not a sustained-idle rate. A transport jet breaks away from a standstill on ~30-40% N1 and
+    /// then taxies at idle (AC 120-74B taxi technique, Boeing FCTM "roll straight, then add thrust"): 30-40% N1
+    /// on a ~140,000 lb 737 is about 0.05 g ≈ 1 kt/s, and sustaining 3 kt/s would need roughly 70% N1 and a
+    /// jet-blast hazard behind it. A light single blips to ~1,500-1,700 RPM out of ~2,500 static to break away;
+    /// propeller thrust goes roughly as RPM², so that is ~0.4 of static thrust — a BE36 (3,650 lb, IO-550,
+    /// ~800 lbf static) gets ~320 lbf → 2.8 ft/s², less rolling friction (μ ≈ 0.02 → 0.64 ft/s²) → ~2.2 ft/s²
+    /// ≈ 1.3 kt/s. A light single has better ground thrust-to-weight at breakaway than a loaded transport and no
+    /// jet-blast constraint, so it cannot break away slower than the jet; 1.0 kt/s is conservative against the
+    /// 1.3 estimate. Aviation-reviewed 2026-09-15.
     /// </summary>
     public static double TaxiAccelRate(AircraftCategory cat)
     {
@@ -1076,8 +1081,8 @@ public static class CategoryPerformance
         {
             AircraftCategory.Jet => 1.0,
             AircraftCategory.Turboprop => 1.0,
-            AircraftCategory.Piston => 0.6,
-            AircraftCategory.Helicopter => 0.6,
+            AircraftCategory.Piston => 1.0,
+            AircraftCategory.Helicopter => 1.0,
             _ => 1.0,
         };
     }

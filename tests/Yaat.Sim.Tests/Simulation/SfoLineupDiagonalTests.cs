@@ -94,15 +94,16 @@ public class SfoLineupDiagonalTests(ITestOutputHelper output)
         double finalGsKts = double.NaN;
         string finalPhase = "(none)";
         bool wasRolling = false;
-        double arcSpeedKts = 0;
+        double maneuverSpeedKts = 0;
 
         // 60 seconds budget at 0.25-s sub-ticks (240 iterations). Poll at
         // sub-tick granularity so we catch the exact tick LineUpPhase exits
         // — polling at whole-second granularity lets TakeoffPhase accelerate
         // the aircraft before we observe it, invalidating the "stopped at
         // exit" assertion.
-        // The line-up completes at sub=262 (65.5 s, measured): the 279 ft nose-out is flown at 4.4 kt and
-        // the 0 -> 4.4 kt ramp alone is 7.3 s at the piston 0.6 kt/s accel. 100 s keeps ~50% headroom.
+        // The line-up resolves a taxiway-graph route (LineUpGraphRoute) from this pose and flies it under the
+        // rolling clearance: taxiway E to the 28R junction, the fillet arc onto the centerline, hand-off there.
+        // 100 s is several times what that takes.
         const int budgetSubTicks = 100 * 4;
         for (int sub = 0; sub < budgetSubTicks; sub++)
         {
@@ -119,13 +120,15 @@ public class SfoLineupDiagonalTests(ITestOutputHelper output)
                 output.WriteLine($"[sub={sub}] entered LineUpPhase");
             }
 
-            // Snapshot rolling mode + arc speed while the phase is live.
+            // Snapshot rolling mode + the maneuver's speed cap while the phase is live. ManeuverSpeedKts, not
+            // PathPlan.ArcSpeedKts: a graph-taxi line-up has no synthetic plan (PathPlan stays null), and it is
+            // the maneuver cap that bounds the rolling hand-off speed either way.
             if (enteredLineUp && phase is LineUpPhase livePhase)
             {
                 wasRolling = wasRolling || livePhase.RollingMode;
-                if (livePhase.PathPlan is { } plan && arcSpeedKts == 0)
+                if (maneuverSpeedKts == 0)
                 {
-                    arcSpeedKts = plan.ArcSpeedKts;
+                    maneuverSpeedKts = livePhase.ManeuverSpeedKts;
                 }
             }
 
@@ -143,7 +146,7 @@ public class SfoLineupDiagonalTests(ITestOutputHelper output)
                 output.WriteLine(
                     $"[sub={sub}] exited LineUpPhase -> {finalPhase} | "
                         + $"cross={finalCrossFt:F2}ft hdgDiff={finalHdgDiffDeg:F2}° gs={finalGsKts:F2}kt "
-                        + $"rolling={wasRolling} arcSpeed={arcSpeedKts:F2}kt"
+                        + $"rolling={wasRolling} maneuverSpeed={maneuverSpeedKts:F2}kt"
                 );
                 break;
             }
@@ -167,8 +170,8 @@ public class SfoLineupDiagonalTests(ITestOutputHelper output)
         );
 
         // Ground speed bound is mode-dependent. LUAW mode brakes to 0;
-        // rolling mode hands off at ~arc speed.
-        double gsBoundKts = wasRolling ? arcSpeedKts + 1.0 : 1.0;
+        // rolling mode hands off at up to the maneuver's speed cap.
+        double gsBoundKts = wasRolling ? maneuverSpeedKts + 1.0 : 1.0;
         Assert.True(
             finalGsKts < gsBoundKts,
             $"gs {finalGsKts:F2}kt exceeds {gsBoundKts:F2} kt bound at LineUpPhase exit (t={exitTick}, phase={finalPhase}, rolling={wasRolling})"

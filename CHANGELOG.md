@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+### Highlights
+- An aircraft cleared for takeoff reaches the takeoff roll in about 38 seconds where it used to take 84 — measured on an SFO intersection departure off taxiway E.
+
 ### Added
 - Issuing a command during playback asks for confirmation before it ends the replay and discards the rest of the timeline.
 - An automatic go-around for traffic names the blocking aircraft, and why it blocked, in the terminal log.
@@ -37,6 +40,11 @@
 - The held-departures rundown reads "Pushing back (held)" mid-push and "Pushed back (held)" on a ramp spot, instead of "At gate (held)".
 - Scenario arrivals are spaced by the simulated approach controller when the aircraft ahead will not clear the runway in time.
 - An arrival no longer goes around when the aircraft ahead will have taxied clear of the runway before it crosses the threshold.
+- An intersection departure lining up from a taxiway that crosses its runway follows the painted pavement onto the centerline instead of creeping across the junction on a synthetic diagonal.
+- An aircraft that is already cleared for takeoff no longer brakes to a stop at the runway holding position and re-accelerates; it crosses the holding position rolling and flows into the line-up.
+- A line-up runs its straight sections at taxi speed and takes the turn onto the runway at the speed that turn's own geometry allows, instead of holding one slow speed throughout.
+- A takeoff clearance starts the roll as the aircraft straightens onto the centerline, rather than after a further 80 ft of taxi.
+- Piston and helicopter aircraft accelerate from a standstill on the ground at the same rate as jets and turboprops, which is what their breakaway thrust allows.
 - An aircraft held part-way through a turn — by `HOLD`, `GIVEWAY`, a cancelled takeoff clearance, or a session restored into a hold — no longer jumps backwards when the hold lifts.
 - A held aircraft no longer takes a hold-short, stops at its parking spot, or finishes its taxi route while it is held; those happen on the tick the hold lifts.
 - A takeoff clearance cancelled during line-up and then replaced by `LUAW` brakes onto the centerline instead of running to the end of the line-up at takeoff-flow speed.
