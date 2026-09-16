@@ -101,6 +101,7 @@ public static class CommandDescriber
             LandCommand => CanonicalCommandType.Land,
             ClearedTakeoffPresentCommand => CanonicalCommandType.ClearedTakeoffPresent,
             PushbackCommand => CanonicalCommandType.Pushback,
+            PushbackMultiCommand => CanonicalCommandType.PushbackMulti,
             TaxiCommand => CanonicalCommandType.Taxi,
             TaxiAutoCommand => CanonicalCommandType.TaxiAuto,
             HoldPositionCommand => CanonicalCommandType.HoldPosition,
@@ -764,6 +765,7 @@ public static class CommandDescriber
             LandCommand land => land.IsTaxiway ? $"LAND {land.SpotName}" : $"LAND @{land.SpotName}",
             ClearedTakeoffPresentCommand ctopp => FormatCtoppCanonical(ctopp),
             PushbackCommand push => FormatPushCanonical(push),
+            PushbackMultiCommand push => FormatPushMultiCanonical(push),
             TaxiCommand taxi => FormatTaxiCanonical(taxi),
             HoldPositionCommand => "HOLD",
             ResumeCommand resume => FormatResumeCanonical(resume),
@@ -1226,6 +1228,7 @@ public static class CommandDescriber
             LandCommand land => land.IsTaxiway ? $"Land on taxiway {land.SpotName}" : $"Land at {land.SpotName}",
             ClearedTakeoffPresentCommand ctopp => DescribeCtoppNatural(ctopp),
             PushbackCommand push => FormatPushNatural(push),
+            PushbackMultiCommand push => FormatPushMultiNatural(push),
             TaxiCommand taxi => FormatTaxiNatural(taxi),
             HoldPositionCommand => "Hold position",
             ResumeCommand resume => FormatResumeNatural(resume),
@@ -1591,6 +1594,7 @@ public static class CommandDescriber
     {
         return command
             is PushbackCommand
+                or PushbackMultiCommand
                 or TaxiCommand
                 or TaxiAutoCommand
                 or TaxiAllCommand
@@ -1755,41 +1759,80 @@ public static class CommandDescriber
         };
     }
 
+    /// <summary>
+    /// The canonical <c>PUSH</c> text: the destination in the form it was given — <c>$spot</c>, <c>@parking</c>
+    /// or a taxiway — then the facing. Every accepted form re-parses from this, which is what the replay action
+    /// router needs to re-derive the command's state from its text.
+    /// </summary>
     private static string FormatPushCanonical(PushbackCommand push)
     {
+        var facing = FormatPushFacing(push);
         if (push.DestinationParking is not null || push.DestinationSpot is not null)
         {
             var prefix = push.DestinationSpot is not null ? "$" : "@";
             var name = push.DestinationSpot ?? push.DestinationParking;
-            var result = $"PUSH {prefix}{name}";
-            if (push.FacingTaxiway is not null)
-            {
-                result += $" {push.FacingTaxiway}";
-            }
-            else if (push.MagneticHeading is not null)
-            {
-                result += $" {push.MagneticHeading.Value.Degrees:000}";
-            }
-
-            return result;
+            return $"PUSH {prefix}{name}{facing}";
         }
 
-        if (push.Taxiway is not null && push.MagneticHeading is not null)
+        return push.Taxiway is not null ? $"PUSH {push.Taxiway}{facing}" : $"PUSH{facing}";
+    }
+
+    /// <summary>
+    /// The facing half of a canonical <c>PUSH</c>, with its leading space, or empty when the push has none. A
+    /// heading renders as <c>FACE &lt;cardinal&gt;</c>: <c>PUSH</c> has refused a numeric heading since the
+    /// cardinal rewrite, so degrees would not parse back. A facing taxiway is emitted as it stands — dropping it
+    /// silently turned <c>PUSH TE T</c> into <c>PUSH TE</c>, losing the facing the controller asked for.
+    /// </summary>
+    private static string FormatPushFacing(PushbackCommand push)
+    {
+        if (push.FacingTaxiway is not null)
         {
-            return $"PUSH {push.Taxiway} {push.MagneticHeading.Value.Degrees:000}";
+            return $" {push.FacingTaxiway}";
         }
 
-        if (push.Taxiway is not null)
+        return push.MagneticHeading is { } heading ? $" FACE {GroundCommandParser.CardinalToken(heading)}" : string.Empty;
+    }
+
+    /// <summary>
+    /// The canonical <c>PUSHM</c> text: every target in order with its sigil intact, then the facing as the
+    /// cardinal token the grammar accepts. Degrees would not parse back — <c>PUSHM</c> takes no numeric
+    /// facing — and the action router re-derives a replayed command from this text, so the cardinal form is
+    /// what keeps <c>Describe → parse → Describe</c> stable.
+    /// </summary>
+    private static string FormatPushMultiCanonical(PushbackMultiCommand push)
+    {
+        var body = string.Join(' ', push.Targets);
+        var facing = push.FinalFacing is { } heading ? $" FACE {GroundCommandParser.CardinalToken(heading)}" : "";
+        return push.Targets.Count == 0 ? $"PUSHM{facing}" : $"PUSHM {body}{facing}";
+    }
+
+    /// <summary>
+    /// What the pilot reads back for a tug move: the points in the order the tug will reach them, and the
+    /// facing it is left in. Nothing here is a mandatory-readback item — the set for a surface movement is
+    /// closed (AIM 4-3-18.a.9) and a tug move contains none of it, because a leg onto a runway is refused.
+    /// </summary>
+    private static string FormatPushMultiNatural(PushbackMultiCommand push)
+    {
+        var legs = string.Join(", then ", push.Targets.Select(NaturalTargetName));
+        var facing = push.FinalFacing is { } heading ? $", facing {GroundCommandParser.CardinalToken(heading)}" : "";
+        return push.Targets.Count == 0 ? $"Tug move{facing}" : $"Tug move to {legs}{facing}";
+    }
+
+    /// <summary>A tug-move target token in words: <c>$6A</c> → spot 6A, <c>@D15</c> → parking D15, <c>#1926</c> → node 1926.</summary>
+    private static string NaturalTargetName(string target)
+    {
+        if (target.Length < 2)
         {
-            return $"PUSH {push.Taxiway}";
+            return target;
         }
 
-        if (push.MagneticHeading is not null)
+        return target[0] switch
         {
-            return $"PUSH {push.MagneticHeading.Value.Degrees:000}";
-        }
-
-        return "PUSH";
+            '$' => $"spot {target[1..]}",
+            '@' => $"parking {target[1..]}",
+            '#' => $"node {target[1..]}",
+            _ => target,
+        };
     }
 
     private static string FormatPushNatural(PushbackCommand push)

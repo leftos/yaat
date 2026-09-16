@@ -789,6 +789,25 @@ public static class CommandRegistry
                 [Mod("@", "parking", false) with { LeadingTokenOnly = true }, Mod("$", "spot", false) with { LeadingTokenOnly = true }]
             ),
             Cmd(
+                PushbackMulti,
+                "Tug Move",
+                "Ground",
+                CommandDimension.Ground,
+                false,
+                ["PUSHM"],
+                [
+                    O(null, [Rep("target", "$spot/@parking/#node")], "Tug move through two or more ramp points"),
+                    O(
+                        "Facing",
+                        [Rep("target", "$spot/@parking/#node"), R("orientation", "<C/>C or FACE C/TAIL C, C∈N/NE/E/SE/S/SW/W/NW")],
+                        "Tug move, left facing a cardinal at the last point"
+                    ),
+                ],
+                // Every slot takes a sigil, so — unlike PUSH — none of these is LeadingTokenOnly: autocomplete
+                // must offer $/@/# on the second and later targets too.
+                [Mod("@", "parking", false), Mod("$", "spot", false), Mod("#", "node", false)]
+            ),
+            Cmd(
                 Taxi,
                 "Taxi",
                 "Ground",

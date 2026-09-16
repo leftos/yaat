@@ -499,6 +499,17 @@ public record PushbackCommand(
 ) : ParsedCommand;
 
 /// <summary>
+/// PUSHM: a tug move through two or more ramp points, with an optional final rest facing.
+/// <para><see cref="Targets"/> keeps each token exactly as the controller typed it, sigil included
+/// (<c>$6A</c>, <c>@D15</c>, <c>#1926</c>) — the sigil is the only thing that separates a spot from a gate of
+/// the same name, so stripping it here would resolve <c>$7</c> to gate 7. Names are upper-cased; a
+/// <c>#id</c> is kept verbatim.</para>
+/// </summary>
+/// <param name="Targets">The points to reach, in order, sigils included. Two or more.</param>
+/// <param name="FinalFacing">The facing to leave the aircraft in at the last target, or null to derive one.</param>
+public record PushbackMultiCommand(IReadOnlyList<string> Targets, MagneticHeading? FinalFacing) : ParsedCommand;
+
+/// <summary>
 /// A taxi clearance via named taxiways. <see cref="PathTurnHints"/> carries an optional per-taxiway
 /// turn-direction hint (from the <c>&gt;</c>/<c>&lt;</c> glyph the controller may prefix on a token,
 /// e.g. <c>TAXI &gt;A B &lt;C</c>): when non-null it has the same length as <see cref="Path"/> and

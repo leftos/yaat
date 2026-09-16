@@ -622,8 +622,12 @@ public static class RampLaneReposition
         return (null, rampNodes);
     }
 
-    /// <summary>The first non-RAMP, non-runway name an edge carries (a membership arc <c>M3 - RAMP</c> yields <c>M3</c>).</summary>
-    private static string? FirstNamedTaxiway(IGroundEdge edge)
+    /// <summary>
+    /// The first non-RAMP, non-runway name an edge carries (a membership arc <c>M3 - RAMP</c> yields <c>M3</c>).
+    /// Only the first: a caller that has to see every name an edge carries — SFO's <c>M1</c> arc is also
+    /// taxiway <c>Y</c> — reads <see cref="EdgeNames"/> instead.
+    /// </summary>
+    internal static string? FirstNamedTaxiway(IGroundEdge edge)
     {
         if (edge.IsRunwayCenterline)
         {
@@ -641,7 +645,8 @@ public static class RampLaneReposition
         return null;
     }
 
-    private static string[] EdgeNames(IGroundEdge edge) => edge is GroundArc arc ? arc.TaxiwayNames : [edge.TaxiwayName];
+    /// <summary>Every taxiway name an edge carries — an arc may be shared pavement and carry several.</summary>
+    internal static string[] EdgeNames(IGroundEdge edge) => edge is GroundArc arc ? arc.TaxiwayNames : [edge.TaxiwayName];
 
     /// <summary>
     /// Lane nodes to try re-acquiring, best first: every node carrying a straight edge of <paramref name="lane"/>

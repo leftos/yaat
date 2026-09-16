@@ -48,6 +48,8 @@
 - **Push back, face \<taxiway\>** on the ground view's right-click menu pushes the aircraft to that facing instead of failing.
 - Taxi clearances onto SFO's ramp spot sub-lanes (`T5A`, `T6B`) get the same across-the-apron routing recovery as other ramp lanes.
 - A taxi clearance to a ramp stand the map connects only via the taxiway cuts across the apron from the nearest stand.
+- A `PUSH` with a facing echoes it as a cardinal (`PUSH $7A FACE E`) instead of a heading the command bar will not accept.
+- `PUSH TE T` and `PUSH A A1` keep the facing taxiway in the echo instead of dropping it.
 
 ## v0.12.34-beta [2026/09/15]
 

@@ -361,6 +361,7 @@ public static class RecordedCommandClassifier
                 or Plan270Command
                 or PositionTurnAltitudeClearanceCommand
                 or PushbackCommand
+                or PushbackMultiCommand
                 or RandomSquawkCommand
                 or ReduceToFinalApproachSpeedCommand
                 or ReportCommand

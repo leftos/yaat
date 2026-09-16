@@ -54,65 +54,6 @@ internal static class GroundCommandParser
         static PushbackCommand Build(MagneticHeading? hdg, string? taxiway, string? facingTwy, string? parking, string? spot) =>
             new(hdg, taxiway, facingTwy, parking, spot);
 
-        // Try to consume an orientation prefix (<X, >X, FACE X, TAIL X) starting at `start`.
-        // Returns the resolved magnetic facing heading, or null if no orientation match.
-        // `consumed` reports how many tokens were used.
-        static (MagneticHeading? Hdg, int Consumed, string? Error) TryOrientation(string[] tokens, int start)
-        {
-            if (start >= tokens.Length)
-            {
-                return (null, 0, null);
-            }
-
-            var t = tokens[start];
-
-            // <C / >C — single token, arrow + cardinal (no whitespace).
-            if (t.Length >= 2 && (t[0] == '<' || t[0] == '>'))
-            {
-                bool tail = t[0] == '<';
-                var card = ParseCardinal(t[1..]);
-                if (card is null)
-                {
-                    return (null, 0, $"invalid cardinal '{t[1..]}' after '{t[0]}'");
-                }
-
-                int facing = tail ? (card.Value + 180) % 360 : card.Value;
-                if (facing == 0)
-                {
-                    facing = 360;
-                }
-
-                return (new MagneticHeading(facing), 1, null);
-            }
-
-            // FACE C / TAIL C — two tokens.
-            bool isFace = t.Equals("FACE", StringComparison.OrdinalIgnoreCase);
-            bool isTail = t.Equals("TAIL", StringComparison.OrdinalIgnoreCase);
-            if (isFace || isTail)
-            {
-                if (start + 1 >= tokens.Length)
-                {
-                    return (null, 0, $"{t.ToUpperInvariant()} requires a cardinal direction (N/NE/E/SE/S/SW/W/NW)");
-                }
-
-                var card = ParseCardinal(tokens[start + 1]);
-                if (card is null)
-                {
-                    return (null, 0, $"invalid cardinal '{tokens[start + 1]}' after {t.ToUpperInvariant()}");
-                }
-
-                int facing = isTail ? (card.Value + 180) % 360 : card.Value;
-                if (facing == 0)
-                {
-                    facing = 360;
-                }
-
-                return (new MagneticHeading(facing), 2, null);
-            }
-
-            return (null, 0, null);
-        }
-
         // First, try to read an orientation directly (no taxiway): PUSH <E, PUSH FACE E, PUSH @A10 <E, PUSH $7A TAIL W.
         var orient = TryOrientation(rest, 0);
         if (orient.Error is not null)
@@ -173,6 +114,143 @@ internal static class GroundCommandParser
         }
 
         return PR.Fail("unrecognized PUSH arguments");
+    }
+
+    /// <summary>
+    /// Parses PUSHM &lt;target&gt; &lt;target&gt; [&lt;target&gt; …] [orientation] — a tug move through two or more
+    /// ramp points. A target is a spot (<c>$6A</c>), a parking stand or helipad (<c>@D15</c>) or a graph node
+    /// (<c>#1926</c>), and the sigil is mandatory on every one of them: without it a name is ambiguous between a
+    /// spot, a gate and a taxiway. The optional trailing orientation is the final rest facing, in the same
+    /// 8-point cardinal grammar <c>PUSH</c> uses (<c>FACE C</c>, <c>TAIL C</c>, <c>&gt;C</c>, <c>&lt;C</c>).
+    /// Examples: PUSHM $6A $6B, PUSHM #1926 $5A, PUSHM @D15 $6A FACE E.
+    /// </summary>
+    internal static PR ParsePushbackMulti(string? arg)
+    {
+        var tokens = arg?.Split(' ', StringSplitOptions.RemoveEmptyEntries) ?? [];
+        var targets = new List<string>();
+        MagneticHeading? finalFacing = null;
+
+        for (int i = 0; i < tokens.Length; i++)
+        {
+            var orient = TryOrientation(tokens, i);
+            if (orient.Error is not null)
+            {
+                return PR.Fail(orient.Error);
+            }
+
+            if (orient.Hdg is not null)
+            {
+                if (i + orient.Consumed != tokens.Length)
+                {
+                    return PR.Fail("takes the facing last — put FACE/TAIL or </> with a cardinal after the final target");
+                }
+
+                finalFacing = orient.Hdg;
+                break;
+            }
+
+            if (!IsTargetToken(tokens[i]))
+            {
+                return PR.Fail(
+                    $"target '{tokens[i]}' needs a sigil — $ for a spot ($6A), @ for a gate or helipad (@D15), # for a graph node (#1926)"
+                );
+            }
+
+            targets.Add(NormalizeTargetToken(tokens[i]));
+        }
+
+        if (targets.Count < 2)
+        {
+            return PR.Fail("needs at least two targets — use PUSH to move to a single one");
+        }
+
+        return PR.Ok(new PushbackMultiCommand(targets, finalFacing));
+    }
+
+    /// <summary>Whether the token names a tug-move target: <c>$spot</c>, <c>@parking</c> or <c>#nodeId</c>.</summary>
+    private static bool IsTargetToken(string token) =>
+        token[0] == '#' ? NodeRefToken.IsNodeReference(token) : (((token[0] == '$') || (token[0] == '@')) && (token.Length > 1));
+
+    /// <summary>
+    /// A target token in canonical shape: the sigil kept (it is the only thing that separates spot <c>$7</c>
+    /// from gate <c>@7</c>) and the name upper-cased. A <c>#id</c> is already canonical.
+    /// </summary>
+    private static string NormalizeTargetToken(string token) => token[0] == '#' ? token : string.Concat(token[..1], token[1..].ToUpperInvariant());
+
+    /// <summary>
+    /// Reads an orientation (<c>&lt;C</c>, <c>&gt;C</c>, <c>FACE C</c>, <c>TAIL C</c>) starting at
+    /// <paramref name="start"/>. Returns the resolved magnetic facing, how many tokens it used, and a message
+    /// when the tokens looked like an orientation but did not parse as one.
+    /// </summary>
+    private static (MagneticHeading? Hdg, int Consumed, string? Error) TryOrientation(string[] tokens, int start)
+    {
+        if (start >= tokens.Length)
+        {
+            return (null, 0, null);
+        }
+
+        var t = tokens[start];
+
+        // <C / >C — single token, arrow + cardinal (no whitespace).
+        if (t.Length >= 2 && ((t[0] == '<') || (t[0] == '>')))
+        {
+            bool tail = t[0] == '<';
+            var card = ParseCardinal(t[1..]);
+            if (card is null)
+            {
+                return (null, 0, $"invalid cardinal '{t[1..]}' after '{t[0]}'");
+            }
+
+            int facing = tail ? (card.Value + 180) % 360 : card.Value;
+            if (facing == 0)
+            {
+                facing = 360;
+            }
+
+            return (new MagneticHeading(facing), 1, null);
+        }
+
+        // FACE C / TAIL C — two tokens.
+        bool isFace = t.Equals("FACE", StringComparison.OrdinalIgnoreCase);
+        bool isTail = t.Equals("TAIL", StringComparison.OrdinalIgnoreCase);
+        if (isFace || isTail)
+        {
+            if (start + 1 >= tokens.Length)
+            {
+                return (null, 0, $"{t.ToUpperInvariant()} requires a cardinal direction (N/NE/E/SE/S/SW/W/NW)");
+            }
+
+            var card = ParseCardinal(tokens[start + 1]);
+            if (card is null)
+            {
+                return (null, 0, $"invalid cardinal '{tokens[start + 1]}' after {t.ToUpperInvariant()}");
+            }
+
+            int facing = isTail ? (card.Value + 180) % 360 : card.Value;
+            if (facing == 0)
+            {
+                facing = 360;
+            }
+
+            return (new MagneticHeading(facing), 2, null);
+        }
+
+        return (null, 0, null);
+    }
+
+    /// <summary>The eight cardinal tokens the pushback grammar accepts, in 45° order from north.</summary>
+    private static readonly string[] Cardinals = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"];
+
+    /// <summary>
+    /// The cardinal token that renders a facing back into the command grammar (90 → <c>E</c>) — the inverse of
+    /// <see cref="ParseCardinal"/> over the eight headings it produces, so a canonical form round-trips. A
+    /// facing that is not one of the eight snaps to the nearest, the rule the ground view's own facing menu
+    /// already applies when it composes a <c>PUSH FACE &lt;cardinal&gt;</c>.
+    /// </summary>
+    internal static string CardinalToken(MagneticHeading heading)
+    {
+        int bucket = (int)Math.Round((((heading.Degrees % 360.0) + 360.0) % 360.0) / 45.0) % 8;
+        return Cardinals[bucket];
     }
 
     /// <summary>

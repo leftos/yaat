@@ -833,6 +833,7 @@ public static class CommandParser
             ClearedTakeoffPresent => DepartureCommandParser.ParseCtoppArg(arg),
             // Ground — HOLD is overloaded: bare = HoldPosition, with args = HoldingPattern
             Pushback => GroundCommandParser.ParsePushback(arg),
+            PushbackMulti => GroundCommandParser.ParsePushbackMulti(arg),
             Taxi => GroundCommandParser.ParseTaxi(arg),
             AssignRunway => GroundCommandParser.ParseRwyTaxi(arg),
             HoldPosition when arg is null => PR.Ok(new HoldPositionCommand()),

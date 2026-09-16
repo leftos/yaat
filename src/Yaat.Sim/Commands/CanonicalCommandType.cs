@@ -85,6 +85,7 @@ public enum CanonicalCommandType
 
     // Ground commands
     Pushback,
+    PushbackMulti,
     Taxi,
     TaxiAuto,
     HoldPosition,
