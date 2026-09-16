@@ -2,9 +2,6 @@
 
 ## Unreleased
 
-### Highlights
-- An aircraft cleared for takeoff reaches the takeoff roll in about 38 seconds where it used to take 84 — measured on an SFO intersection departure off taxiway E.
-
 ### Added
 - Issuing a command during playback asks for confirmation before it ends the replay and discards the rest of the timeline.
 - An automatic go-around for traffic names the blocking aircraft, and why it blocked, in the terminal log.
