@@ -276,6 +276,62 @@ public static class AircraftCommandApplicability
         return phase is "Landing" or "Runway Exit";
     }
 
+    // --- Ground movement ---
+
+    /// <summary>
+    /// Push back (<c>PUSH</c>, including the heading and spot-destination variants). GroundCommandHandler.TryPushback
+    /// accepts an aircraft at a stand and one resting on a ramp spot after a completed pushback ("Holding After
+    /// Pushback"), so a pushed aircraft can be repositioned without a TAXI first. It refuses the other two holds
+    /// ("Holding After Exit", "Holding In Position"), which therefore get no item — offering one that can only
+    /// produce a refusal is worse than offering nothing. The <see cref="IsControllable"/> guard is for consistency
+    /// with the rest of this class and for future callers: both menu surfaces already route live-traffic shadows
+    /// to their own item set before reaching here.
+    /// </summary>
+    public static bool CanPushBack(AircraftModel? ac)
+    {
+        if (!IsControllable(ac))
+        {
+            return false;
+        }
+
+        return (ac.CurrentPhase ?? "") is "At Parking" or "Holding After Pushback";
+    }
+
+    /// <summary>
+    /// Hold position (<c>HOLD</c>) — an aircraft that is moving under its own or a tug's power: a pushback (plain
+    /// or to a spot), a taxi, or a taxi-follow. FollowingPhase is named "Following &lt;callsign&gt;", so the prefix
+    /// test matches the ground follow; the airborne pattern-follow phase is named "VFR Follow" and is not matched.
+    /// The <see cref="IsControllable"/> guard is for consistency and future callers, as in <see cref="CanPushBack"/>.
+    /// </summary>
+    public static bool CanHoldPosition(AircraftModel? ac)
+    {
+        if (!IsControllable(ac))
+        {
+            return false;
+        }
+
+        var phase = ac.CurrentPhase ?? "";
+        return phase is "Pushback" or "Pushback to Spot" or "Taxiing" || phase.StartsWith("Following", StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Resume taxi (<c>RES</c>) out of a stationary hold. GroundCommandHandler.TryResumeTaxi only clears an active
+    /// hold directive and refuses ("Aircraft is not held") without one, and each of these three phases is also
+    /// reachable unheld — Holding In Position after a WARPG, a completed taxi to a spot, or a rejected/cancelled
+    /// takeoff — so the phase alone cannot gate the item. The hold-short holds are a different RES path (satisfying
+    /// a crossing clearance, no hold directive needed) and are deliberately not covered here. The
+    /// <see cref="IsControllable"/> guard is for consistency and future callers, as in <see cref="CanPushBack"/>.
+    /// </summary>
+    public static bool CanResumeTaxi(AircraftModel? ac)
+    {
+        if (!IsControllable(ac))
+        {
+            return false;
+        }
+
+        return ((ac.CurrentPhase ?? "") is "Holding After Exit" or "Holding After Pushback" or "Holding In Position") && ac.IsHeld;
+    }
+
     // --- Ground routing ---
 
     /// <summary>

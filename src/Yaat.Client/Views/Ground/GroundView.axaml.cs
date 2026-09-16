@@ -427,7 +427,9 @@ public partial class GroundView : UserControl
                 AddTaxiRouteItems(menu, vm, callsign, initials, fromNodeId.Value, nodeId, spotDest, destRunway);
             }
 
-            if (node.Type is "Parking" or "Spot" && node.Name is not null && vm.SelectedAircraft.CurrentPhase == "At Parking")
+            // Same gate as the aircraft context menu's pushback items: PUSH to a spot is accepted from a
+            // stand and from a completed pushback, so an aircraft resting on a ramp spot can be pushed on.
+            if (node.Type is "Parking" or "Spot" && node.Name is not null && AircraftCommandApplicability.CanPushBack(vm.SelectedAircraft))
             {
                 var spotName = node.Name;
                 var pushPrefix = node.Type == "Spot" ? '$' : '@';
@@ -637,7 +639,7 @@ public partial class GroundView : UserControl
     /// The phase-aware command items for a simulated (non-shadow) aircraft: release checks, pushback, taxi holds,
     /// hold-short / crossing, takeoff and landing clearances, runway exits and taxi-route drawing.
     /// </summary>
-    private void AddSimulatedAircraftItems(ContextMenu menu, GroundViewModel vm, GroundMenuTarget target)
+    internal void AddSimulatedAircraftItems(ContextMenu menu, GroundViewModel vm, GroundMenuTarget target)
     {
         var (ac, prevSelected, callsign, initials) = target;
         var phase = ac?.CurrentPhase ?? "";
@@ -680,11 +682,15 @@ public partial class GroundView : UserControl
         }
     }
 
-    /// <summary>At Parking (push back variants, follow) and Pushback / Taxiing (hold position, hold short, follow, break, deferred CTO).</summary>
+    /// <summary>
+    /// At Parking / Holding After Pushback (push back variants) plus At Parking's follow submenus, hold position
+    /// for every phase the sim accepts HOLD from, and Taxiing's hold short, follow, break and deferred CTO.
+    /// </summary>
     private void AddParkingAndTaxiItems(ContextMenu menu, GroundViewModel vm, GroundMenuTarget target, string phase, bool isRelative)
     {
         var (ac, _, callsign, initials) = target;
-        if (phase == "At Parking")
+
+        if (AircraftCommandApplicability.CanPushBack(ac))
         {
             menu.Items.Add(CreateMenuItem("Push back", () => vm.PushbackAsync(callsign, initials)));
 
@@ -704,14 +710,18 @@ public partial class GroundView : UserControl
 
                 // A parked aircraft can start up and trail another ground aircraft, but
                 // give-way needs an assigned taxi route, which a parked aircraft never has.
-                if (!isRelative)
+                // Holding After Pushback gets its follow submenus from AddHoldingItems, which
+                // decides give-way from the route it may have; adding them here would duplicate.
+                if (phase == "At Parking" && !isRelative)
                 {
                     AddFollowBehindSubmenus(menu, ac, callsign, initials, includeGiveWay: false);
                 }
             }
         }
 
-        if (phase is "Pushback" or "Pushback to Spot" or "Taxiing")
+        // The single emission for the whole HOLD window, taxi-follow phases included — those emit
+        // nothing of their own before this item, so it stays the first item they show.
+        if (AircraftCommandApplicability.CanHoldPosition(ac))
         {
             menu.Items.Add(CreateMenuItem("Hold position", () => vm.HoldPositionAsync(callsign, initials)));
         }
@@ -739,26 +749,25 @@ public partial class GroundView : UserControl
         }
     }
 
-    /// <summary>Following, Holding Short, Holding In Position and the after-exit / after-pushback holds.</summary>
+    /// <summary>Holding Short, Holding In Position and the after-exit / after-pushback holds.</summary>
     private void AddHoldingItems(ContextMenu menu, GroundViewModel vm, GroundMenuTarget target, string phase, bool isRelative)
     {
         var (ac, _, callsign, initials) = target;
-        if (phase.StartsWith("Following", StringComparison.Ordinal))
-        {
-            menu.Items.Add(CreateMenuItem("Hold position", () => vm.HoldPositionAsync(callsign, initials)));
-        }
 
         if (phase.StartsWith("Holding Short", StringComparison.Ordinal))
         {
             AddHoldShortCrossingItems(menu, vm, ac, phase, callsign, initials, VfrCommandsForIfrMode());
         }
 
+        // The three stationary holds are mutually exclusive, and in each the item belongs immediately
+        // ahead of that hold's Follow… submenus — so they share one emission here.
+        if (AircraftCommandApplicability.CanResumeTaxi(ac))
+        {
+            menu.Items.Add(CreateMenuItem("Resume taxi", () => vm.ResumeAsync(callsign, initials)));
+        }
+
         if (phase == "Holding In Position")
         {
-            // Holding In Position always has a paused route (the aircraft was
-            // mid-taxi when HOLDPOSITION was issued).
-            menu.Items.Add(CreateMenuItem("Resume taxi", () => vm.ResumeAsync(callsign, initials)));
-
             if (ac is not null && !isRelative)
             {
                 AddFollowBehindSubmenus(menu, ac, callsign, initials, includeGiveWay: true);
@@ -767,15 +776,8 @@ public partial class GroundView : UserControl
 
         if (phase is "Holding After Exit" or "Holding After Pushback")
         {
-            // After-pushback / after-exit only have a route to resume if the
-            // controller had already issued a TAXI command before something
-            // halted the aircraft. Hide the menu item otherwise — RES wouldn't
-            // do anything useful, the controller needs to issue TAXI.
-            if (ac is { HasActiveTaxiRoute: true })
-            {
-                menu.Items.Add(CreateMenuItem("Resume taxi", () => vm.ResumeAsync(callsign, initials)));
-            }
-
+            // An aircraft resting after a push or a runway exit may or may not have a taxi route,
+            // and give-way needs one — so unlike the Holding In Position branch this keys off the route.
             if (ac is not null && !isRelative)
             {
                 AddFollowBehindSubmenus(menu, ac, callsign, initials, includeGiveWay: ac.HasActiveTaxiRoute);

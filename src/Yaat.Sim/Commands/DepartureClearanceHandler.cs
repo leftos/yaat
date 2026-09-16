@@ -217,7 +217,8 @@ internal static class DepartureClearanceHandler
             return BuildDepartureMessage(clearanceType, aircraft.Phases?.AssignedRunway?.Designator ?? "unknown", departure, assignedAltitude);
         }
 
-        // Aircraft holding in position (e.g. after WARPG) — allow LUAW/CTO with assigned runway
+        // Aircraft holding in position (e.g. after a WARPG onto the pavement) — allow LUAW/CTO with assigned runway.
+        // A WARPG onto a gate or helipad parks the aircraft instead, and AtParkingPhase refuses both.
         if (currentPhase is HoldingInPositionPhase)
         {
             return LineUpFromPosition(aircraft, clearanceType, departure, assignedAltitude, groundLayout, logger);

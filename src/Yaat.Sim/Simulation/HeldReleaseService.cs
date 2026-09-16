@@ -321,7 +321,9 @@ public static class HeldReleaseService
         {
             HoldingShortPhase => "Holding short",
             TaxiingPhase => "Taxiing (held)",
-            AtParkingPhase or PushbackPhase or HoldingAfterPushbackPhase => "At gate (held)",
+            AtParkingPhase => "At gate (held)",
+            PushbackPhase => "Pushing back (held)",
+            HoldingAfterPushbackPhase => "Pushed back (held)",
             _ => "Held",
         };
 

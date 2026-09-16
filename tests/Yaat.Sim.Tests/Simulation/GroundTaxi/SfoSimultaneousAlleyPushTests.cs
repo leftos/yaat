@@ -109,7 +109,7 @@ public class SfoSimultaneousAlleyPushTests
         var watch = new Watch([], new PinTracker(NorthCallsign), new PinTracker(SouthCallsign));
         int completedSecond = SfoGroundHarness.TickUntil(
             ground.Engine,
-            () => IsParked(ground, NorthCallsign) && IsParked(ground, SouthCallsign),
+            () => HasFinishedPush(ground, NorthCallsign) && HasFinishedPush(ground, SouthCallsign),
             PushBudgetSeconds,
             second => Observe(ground, second, new Alley(spotNorth, spotSouth, minCentroidSeparationFt), watch)
         );
@@ -139,8 +139,8 @@ public class SfoSimultaneousAlleyPushTests
                 + $"{NorthCallsign} is {PhaseName(ground, NorthCallsign)} and {SouthCallsign} is {PhaseName(ground, SouthCallsign)}"
         );
 
-        AssertParkedAtSpot(ground, NorthCallsign, spotNorth);
-        AssertParkedAtSpot(ground, SouthCallsign, spotSouth);
+        AssertRestingAtSpot(ground, NorthCallsign, spotNorth);
+        AssertRestingAtSpot(ground, SouthCallsign, spotSouth);
     }
 
     /// <summary>
@@ -345,7 +345,7 @@ public class SfoSimultaneousAlleyPushTests
         return $"(push={pushHdg.Degrees:F0}° brg={bearingDeg:F0}° off-axis={offAxisDeg:F0}° lateral={lateralFt:F0}ft)";
     }
 
-    private void AssertParkedAtSpot(SfoGround ground, string callsign, GroundNode spot)
+    private void AssertRestingAtSpot(SfoGround ground, string callsign, GroundNode spot)
     {
         var ac = ground.Engine.FindAircraft(callsign);
         Assert.NotNull(ac);
@@ -390,7 +390,12 @@ public class SfoSimultaneousAlleyPushTests
         };
     }
 
-    private static bool IsParked(SfoGround ground, string callsign) => ground.Engine.FindAircraft(callsign)?.Phases?.CurrentPhase is AtParkingPhase;
+    /// <summary>
+    /// The push has finished: a <c>PUSH $spot</c> hands over to <see cref="HoldingAfterPushbackPhase"/>, since
+    /// a ramp spot is a marking the aircraft waits on rather than a stand it parks on.
+    /// </summary>
+    private static bool HasFinishedPush(SfoGround ground, string callsign) =>
+        ground.Engine.FindAircraft(callsign)?.Phases?.CurrentPhase is HoldingAfterPushbackPhase;
 
     private static string PhaseName(SfoGround ground, string callsign) => ground.Engine.FindAircraft(callsign)?.Phases?.CurrentPhase?.Name ?? "null";
 

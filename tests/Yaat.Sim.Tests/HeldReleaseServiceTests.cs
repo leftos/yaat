@@ -20,10 +20,17 @@ public class HeldReleaseServiceTests
             ElapsedSeconds = elapsed,
         };
 
-    private static AircraftState ParkedDeparture(string callsign, string departure, bool vfr = false, double spawnedAt = 0)
+    private static AircraftState ParkedDeparture(string callsign, string departure, bool vfr = false, double spawnedAt = 0) =>
+        GroundDeparture(callsign, departure, new AtParkingPhase(), vfr, spawnedAt);
+
+    /// <summary>
+    /// Builds a departure sitting on the ground in <paramref name="phase"/>. The rundown reads the
+    /// current ground phase for its status label, so each label needs its own phase here.
+    /// </summary>
+    private static AircraftState GroundDeparture(string callsign, string departure, Phase phase, bool vfr, double spawnedAt)
     {
         var phases = new PhaseList();
-        phases.Add(new AtParkingPhase());
+        phases.Add(phase);
         return new AircraftState
         {
             Callsign = callsign,
@@ -220,6 +227,37 @@ public class HeldReleaseServiceTests
         Assert.Equal(3, scenario.ReleaseQueue.Count);
         var fireTimes = scenario.ReleaseQueue.OrderBy(r => r.FireAtSeconds).Select(r => r.FireAtSeconds).ToList();
         Assert.Equal([0.0, 120.0, 240.0], fireTimes);
+    }
+
+    /// <summary>Arms SJC over a single held ground departure in <paramref name="phase"/> and returns its rundown status.</summary>
+    private static string RundownStatusFor(Phase phase)
+    {
+        var scenario = NewScenario();
+        var world = new SimulationWorld();
+        world.AddAircraft(GroundDeparture("N7", "KSJC", phase, vfr: false, spawnedAt: 0));
+        HeldReleaseService.Arm(scenario, world, "SJC");
+
+        return HeldReleaseService.BuildRundown(scenario, world).Single().Status;
+    }
+
+    [Fact]
+    public void Rundown_AtParking_ReadsAtGate()
+    {
+        Assert.Equal("At gate (held)", RundownStatusFor(new AtParkingPhase()));
+    }
+
+    // A pushing aircraft has left the stand; calling it "At gate" hides the state the
+    // controller is sequencing around.
+    [Fact]
+    public void Rundown_Pushback_ReadsPushingBack()
+    {
+        Assert.Equal("Pushing back (held)", RundownStatusFor(new PushbackPhase()));
+    }
+
+    [Fact]
+    public void Rundown_HoldingAfterPushback_ReadsPushedBack()
+    {
+        Assert.Equal("Pushed back (held)", RundownStatusFor(new HoldingAfterPushbackPhase()));
     }
 
     [Fact]

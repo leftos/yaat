@@ -522,6 +522,14 @@ internal static class GroundCommandHandler
         var parkingName = route.DestinationParking ?? route.DestinationSpot;
         if (route.Segments.Count == 0 && parkingName is not null)
         {
+            // A gate or helipad is a stand the aircraft parks on; a taxi spot is an intermediate waypoint
+            // it waits on for further instructions. Same rule — and the same discriminator, the route's
+            // parking destination — as TaxiingPhase.CompleteRoute, the moving-route counterpart to this
+            // standing-on-the-destination shortcut. The sigil is the token that names the destination in a
+            // command, so it has to follow the same split.
+            bool atStand = route.DestinationParking is not null;
+            string destinationSigil = atStand ? "@" : "$";
+
             GroundNode? destNode = taxi.DestinationSpot is not null
                 ? groundLayout.FindSpotNodeByName(taxi.DestinationSpot)
                 : (groundLayout.FindHelipadByName(taxi.DestinationParking!) ?? groundLayout.FindParkingByName(taxi.DestinationParking!));
@@ -564,9 +572,10 @@ internal static class GroundCommandHandler
                         rerouted = true;
 
                         Log.LogInformation(
-                            "[TryTaxi] {Callsign}: zero-segment re-route via neighbor {NeighborId} to @{Parking} ({SegCount} segments)",
+                            "[TryTaxi] {Callsign}: zero-segment re-route via neighbor {NeighborId} to {Sigil}{Destination} ({SegCount} segments)",
                             aircraft.Callsign,
                             bestNeighbor.Id,
+                            destinationSigil,
                             parkingName,
                             route.Segments.Count
                         );
@@ -576,11 +585,15 @@ internal static class GroundCommandHandler
 
             if (!rerouted)
             {
-                aircraft.Ground.ParkingSpot = parkingName;
-                aircraft.Phases.Add(new AtParkingPhase());
+                if (atStand)
+                {
+                    aircraft.Ground.ParkingSpot = route.DestinationParking;
+                }
+
+                aircraft.Phases.Add(atStand ? new AtParkingPhase() : new HoldingInPositionPhase());
                 ctx = CommandDispatcher.BuildMinimalContext(aircraft, groundLayout);
                 aircraft.Phases.Start(ctx);
-                return CommandDispatcher.Ok($"Taxi via @{parkingName}") with { EffectiveCommand = effectiveCommand };
+                return CommandDispatcher.Ok($"Taxi via {destinationSigil}{parkingName}") with { EffectiveCommand = effectiveCommand };
             }
         }
 
@@ -1883,10 +1896,15 @@ internal static class GroundCommandHandler
         };
         aircraft.Phases = new PhaseList();
         aircraft.Phases.Add(phase);
-        aircraft.Phases.Add(new AtParkingPhase());
+
+        // A gate or helipad is a stand the aircraft parks on; a ramp spot is a marking it is positioned onto
+        // and waits on, so a spot push holds after the push and carries no parking spot — the stand it was
+        // pushed off is behind it. Mirrors the stand-vs-spot split TaxiingPhase.CompleteRoute applies to a taxi.
+        bool toSpot = push.DestinationSpot is not null;
+        aircraft.Phases.Add(toSpot ? new HoldingAfterPushbackPhase() : new AtParkingPhase());
         aircraft.Phases.Start(ctx);
 
-        aircraft.Ground.ParkingSpot = destLabel.ToUpperInvariant();
+        aircraft.Ground.ParkingSpot = toSpot ? null : destLabel.ToUpperInvariant();
 
         var msg = $"Pushing back to {destLabel}";
         if (push.FacingTaxiway is not null)

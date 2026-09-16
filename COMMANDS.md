@@ -763,6 +763,8 @@ A `PUSH @parking` reverses **directly** to the gate node (a straight or gently c
 
 A `PUSH $spot` lines the aircraft up straight on the marking the way a tug positions it onto a stand: it reverses *past* the spot to a staging point behind it, then pulls **forward** onto the mark so the **nosewheel** sits on it (the fuselage doesn't jut a half-length past the mark toward the adjacent taxiway). With no facing given it ends **nose-out**, facing the parent taxiway ready to taxi — add `FACE <dir>` / `TAIL <dir>` to override. Like `@parking` it never routes onto a movement-area taxiway to get there.
 
+A spot is not a stand, so a completed `PUSH $spot` leaves the aircraft **holding after pushback** rather than at parking: the Aircraft List reads "holding position", the aircraft no longer names the gate it was pushed off, and a further `PUSH` is accepted from there without a `TAXI` in between. `PUSH @<gate>` parks it, as a push onto a stand should.
+
 While a pushback is already in progress, a **heading-only** `PUSH FACE C` / `PUSH TAIL C` / `PUSH >C` / `PUSH <C` amends the target facing in place — no new phase, no restart. Accepted until the aircraft has begun rotating the nose to the prior target (simple-mode: until alignment completes; taxiway-, spot-, and parking-target: until 60% of the push distance is covered). After the turn begins, the amendment is rejected with `Unable, pushback turn in progress`. Non-heading-only PUSH commands (`PUSH A`, `PUSH @SPOT`, etc.) issued during active pushback are rejected — only the facing can be amended.
 
 Aircraft automatically hold short at all runway crossings along the taxi route. Use `CROSS` to clear a hold-short — either while already holding short, or in advance to pre-clear it before the aircraft arrives. `CROSS` works for both runway and taxiway hold-shorts. It also crosses a runway the aircraft taxied **to** (its taxi destination): the runway is undesignated as a departure hold and the aircraft taxis across to the far side and holds in position. To depart from that runway instead, use `CTO` or `LUAW`.
@@ -1830,6 +1832,8 @@ Teleport an aircraft to a specific position:
 Trailing tokens are matched left-to-right against `heading → altitude → speed`. A token fills `heading` only if it is an integer in 1–360; otherwise it skips heading and is tried against altitude (`AltitudeResolver`: shorthand hundreds, full feet, or AGL form), then speed. So `WARP SJC 5000` sets altitude 5,000 ft (the value can't be a heading), and `WARP SJC 270` sets heading 270 (any value 1–360 is taken as a heading first). To set altitude alone in heading-overlap range, use full feet (e.g., `WARP SJC 5000`) rather than shorthand (`50`).
 
 **WARPG** accepts two taxiway names (finds their intersection), a node reference (`#nodeId`), a parking (`@parking`), or a taxi spot (`$spot`) — matching the `@`/`$` prefixes used by `TAXI`/`PUSH`. Use the Ground View debug overlay (Ctrl+D) to find node IDs.
+
+A warp onto a **gate or helipad** parks the aircraft at that stand: it comes to rest on the stand's nose-in heading, the Aircraft List names the stand, and `PUSH` is accepted straight away — the same state a scenario spawn or a taxi-in produces. `LUAW` and `CTO` are refused there, as at any stand. Every other target — a taxi spot, a taxiway intersection, a node on the pavement — leaves the aircraft holding in position with no stand, so a warp off a gate also clears the stand it was on.
 
 ### Say Commands
 

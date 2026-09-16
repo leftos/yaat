@@ -11,6 +11,15 @@
 - An aircraft cleared onto a taxiway behind it turns around the way the route's next turn unwinds, instead of circling 270° at SFO spot 9.
 - A turnaround rolls out pointing at the junction it is heading for, rather than a turning circle's width to one side of the taxiway.
 - An aircraft leaving a gate no longer turns back toward a short ramp leg its turn out of the stand already carried it past.
+- `WARPG` onto a gate or helipad parks the aircraft at that stand, so `PUSH` works without an intervening `TAXI`.
+- An aircraft warped onto a gate rests on the stand's nose-in heading, so a following pushback starts with its tail down the alley.
+- `WARPG` off a gate clears the recorded stand, so the Aircraft List and pilot phraseology stop naming a gate the aircraft has left.
+- `TAXI $<spot>` to an aircraft already on that spot leaves it holding in position, matching a `TAXI $<spot>` it has to drive.
+- A `TAXI` ending where the aircraft already stands names a taxi spot with its own token — `Taxi via $5A`.
+- A completed `PUSH $<spot>` leaves the aircraft holding after pushback, so it can be pushed again from the spot; `PUSH @<gate>` still parks.
+- Right-clicking a parking or spot node offers "Push to {spot}" for an aircraft resting after a pushback, not only one at a stand.
+- "Resume taxi" appears in the ground-map and Aircraft List menus only while the aircraft is actually held.
+- The held-departures rundown reads "Pushing back (held)" mid-push and "Pushed back (held)" on a ramp spot, instead of "At gate (held)".
 
 ## v0.12.34-beta [2026/09/15]
 

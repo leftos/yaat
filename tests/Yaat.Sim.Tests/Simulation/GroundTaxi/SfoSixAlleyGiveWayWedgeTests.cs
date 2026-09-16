@@ -11,7 +11,7 @@ namespace Yaat.Sim.Tests.Simulation.GroundTaxi;
 /// Giving way in the SFO six alley has to leave the push somewhere to go. An arrival rolling up T6A toward
 /// an E gate meets an E-pier pusher reversing across that same lane on its way to spot 6B on the far side:
 /// the arrival stops at the alley entrance and waits, the push crosses T6A and finishes on T6B, and the
-/// arrival — now with a clear lane — carries on to its gate at E9, passing the parked pusher a lane away.
+/// arrival — now with a clear lane — carries on to its gate at E9, passing the stopped pusher a lane away.
 ///
 /// <para>That is what a ground controller watching the alley expects to see, and it is what this class pins:
 /// the give-way is only correct if the aircraft that gave way does not become the obstacle that strands the
@@ -36,9 +36,9 @@ public class SfoSixAlleyGiveWayWedgeTests
 
     /// <summary>
     /// The arrival's gate: an E-pier stand whose lead-in hangs off T6A, a little past spot 6A, so a clearance
-    /// up T6A never enters the T6B lane that spot 6B sits on. Its resolved route clears the pusher parked on
+    /// up T6A never enters the T6B lane that spot 6B sits on. Its resolved route clears the pusher stopped on
     /// 6B by 194 ft — against the 134.55 ft two half-spans plus the wingtip buffer ask for — where a D gate
-    /// would have routed the arrival straight over the parked aircraft.
+    /// would have routed the arrival straight over the stopped aircraft.
     /// </summary>
     private const string AlleyGate = "E9";
     private const double SpotToleranceMarginFt = 25.0;
@@ -60,8 +60,8 @@ public class SfoSixAlleyGiveWayWedgeTests
     /// arrival is cleared up — and on to the D-side lane's spot 6B, while the arrival taxis up T6A to its gate
     /// on the E pier. The arrival is inside the pushback buffer by the time the tail is in its lane, so it
     /// gives way and holds; the tail then leaves T6A and the push finishes on T6B instead of stopping against
-    /// the aircraft holding for it. The pusher parks first and the arrival then reaches its gate, passing the
-    /// pusher parked on 6B a lane away (140 ft, against the 134.55 ft two half-spans plus the wingtip buffer
+    /// the aircraft holding for it. The push finishes first and the arrival then reaches its gate, passing the
+    /// pusher stopped on 6B a lane away (140 ft, against the 134.55 ft two half-spans plus the wingtip buffer
     /// ask for), and the two never come inside 90 ft — the whole point of the lane split, so the arrival's
     /// gate has to be one T6A actually serves.
     /// </summary>
@@ -91,12 +91,12 @@ public class SfoSixAlleyGiveWayWedgeTests
 
         var run = RunChoreography(alley, guard);
         _output.WriteLine(
-            $"pusher parked t={run.PusherParkedSecond}s, arrival parked t={run.ArrivalParkedSecond}s, "
+            $"push finished t={run.PusherDoneSecond}s, arrival parked t={run.ArrivalParkedSecond}s, "
                 + $"yielded={run.Yielded}, min separation {run.MinSeparationFt:F0}ft"
         );
 
         Assert.True(
-            run.PusherParkedSecond > 0,
+            run.PusherDoneSecond > 0,
             $"the pusher never completed {pushCommand} within {ChoreographyBudgetSeconds}s (phase={PhaseName(alley.Pusher)})"
         );
         Assert.True(
@@ -104,8 +104,8 @@ public class SfoSixAlleyGiveWayWedgeTests
             $"the arrival never reached {AlleyGate} within {ChoreographyBudgetSeconds}s (phase={PhaseName(alley.Arrival)})"
         );
         Assert.True(
-            run.PusherParkedSecond <= run.ArrivalParkedSecond,
-            $"the arrival parked at t={run.ArrivalParkedSecond}s, before the pusher finished its push at t={run.PusherParkedSecond}s"
+            run.PusherDoneSecond <= run.ArrivalParkedSecond,
+            $"the arrival parked at t={run.ArrivalParkedSecond}s, before the pusher finished its push at t={run.PusherDoneSecond}s"
         );
         Assert.True(
             run.Yielded,
@@ -129,7 +129,7 @@ public class SfoSixAlleyGiveWayWedgeTests
     private readonly record struct Alley(SfoGround Ground, AircraftState Pusher, AircraftState Arrival, GroundNode Spot, GroundNode Parking);
 
     /// <summary>What the concurrent push/taxi run produced: when each stopped, whether the arrival gave way, and the closest approach.</summary>
-    private readonly record struct ChoreographyRun(int PusherParkedSecond, int ArrivalParkedSecond, bool Yielded, double MinSeparationFt);
+    private readonly record struct ChoreographyRun(int PusherDoneSecond, int ArrivalParkedSecond, bool Yielded, double MinSeparationFt);
 
     /// <summary>
     /// Builds the SFO world with the pusher parked at <paramref name="pusherGate"/> and the arrival at the
@@ -168,12 +168,12 @@ public class SfoSixAlleyGiveWayWedgeTests
         bool everPushed = false;
         bool yielded = false;
         double minSeparationFt = double.PositiveInfinity;
-        int pusherParked = -1;
+        int pusherDone = -1;
         int arrivalParked = -1;
 
         SfoGroundHarness.TickUntil(
             alley.Ground.Engine,
-            () => (pusherParked > 0) && (arrivalParked > 0),
+            () => (pusherDone > 0) && (arrivalParked > 0),
             ChoreographyBudgetSeconds,
             second =>
             {
@@ -182,9 +182,9 @@ public class SfoSixAlleyGiveWayWedgeTests
                 minSeparationFt = Math.Min(minSeparationFt, separationFt);
                 everPushed |= alley.Pusher.Phases?.CurrentPhase is PushbackPhase;
                 yielded |= IsGivingWay(alley);
-                if ((pusherParked < 0) && everPushed && (alley.Pusher.Phases?.CurrentPhase is AtParkingPhase))
+                if ((pusherDone < 0) && everPushed && (alley.Pusher.Phases?.CurrentPhase is HoldingAfterPushbackPhase))
                 {
-                    pusherParked = second;
+                    pusherDone = second;
                 }
 
                 if ((arrivalParked < 0) && (alley.Arrival.Phases?.CurrentPhase is AtParkingPhase))
@@ -199,7 +199,7 @@ public class SfoSixAlleyGiveWayWedgeTests
             }
         );
 
-        return new ChoreographyRun(pusherParked, arrivalParked, yielded, minSeparationFt);
+        return new ChoreographyRun(pusherDone, arrivalParked, yielded, minSeparationFt);
     }
 
     /// <summary>

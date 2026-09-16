@@ -24,7 +24,7 @@ namespace Yaat.Sim.Tests.Simulation.GroundTaxi;
 /// margin the trail limit briefly reaches zero, so the arrival waits a few seconds for the tail to settle.
 /// What the arrival may not be given is a hold that outlasts the push — it is trailing a neighbour, not
 /// giving way to it, so the wait is short, it is never annotated as yielding to the pusher, and it is never
-/// stopped again once the push has parked.</para>
+/// stopped again once the push has finished.</para>
 ///
 /// <para>The give-way case — a push whose tail does cross the arrival's lane — lives in
 /// <see cref="SfoSixAlleyGiveWayWedgeTests"/>.</para>
@@ -83,8 +83,8 @@ public class SfoSixAlleyChoreographyTests
     }
 
     /// <summary>
-    /// The D-pier pusher goes long — across the alley onto the far lane's spot 6A — and parks nose-out on
-    /// the marking. The arrival then taxis in on the near lane T6B to its D gate and is never slowed by it:
+    /// The D-pier pusher goes long — across the alley onto the far lane's spot 6A — and comes to rest nose-out
+    /// on the marking. The arrival then taxis in on the near lane T6B to its D gate and is never slowed by it:
     /// no <c>SpeedLimit</c> on any tick, and never annotated as yielding to the pusher.
     /// </summary>
     [Fact]
@@ -99,8 +99,8 @@ public class SfoSixAlleyChoreographyTests
         var alley = setup.Value;
         var guard = new DeadlockGuard(alley.Pusher, alley.Arrival);
         string pushCommand = $"PUSH ${PushLongSpot}";
-        int parkedSec = PushToSpot(alley, guard, pushCommand, PushLongPusherGate);
-        _output.WriteLine($"{pushCommand} parked at t={parkedSec}s");
+        int pushDoneSec = PushToSpot(alley, guard, pushCommand, PushLongPusherGate);
+        _output.WriteLine($"{pushCommand} finished at t={pushDoneSec}s");
         AssertRestingOnSpot(alley.Pusher, alley.Spot, alley.Ground.Layout);
 
         string clearance = $"TAXI T A T6B @{PushLongArrivalGate}";
@@ -121,7 +121,7 @@ public class SfoSixAlleyChoreographyTests
 
         Assert.True(
             slowdowns.Count == 0,
-            $"the arrival on T6B was slowed by the pusher parked across the alley on {PushLongSpot}:{Environment.NewLine}"
+            $"the arrival on T6B was slowed by the pusher stopped across the alley on {PushLongSpot}:{Environment.NewLine}"
                 + string.Join(Environment.NewLine, slowdowns)
         );
         Assert.True(
@@ -145,8 +145,8 @@ public class SfoSixAlleyChoreographyTests
     /// arrival's lane, so what the push costs it is the trail limit — capped while the B738 is rolling
     /// abreast at ~140 ft, which on that 5.6 ft of lateral margin briefly means a stop, measured at 4 s. That
     /// wait is bounded (<see cref="MaxHoldWhilePushRollsSeconds"/>) and it belongs to the rolling push: once
-    /// the pusher has parked, the arrival is never capped to a stop by it again — a parked neighbour a lane
-    /// away costs nothing at all, which is <see cref="PushLong_ArrivalNeverSlowed"/>. It is never annotated
+    /// the pusher has come to rest, the arrival is never capped to a stop by it again — a stopped neighbour a
+    /// lane away costs nothing at all, which is <see cref="PushLong_ArrivalNeverSlowed"/>. It is never annotated
     /// as auto-yielding either: this is trailing, not giving way. Both then reach their marks, and the pair
     /// never comes inside the two half-spans plus the detector's wingtip buffer.
     /// </summary>
@@ -173,7 +173,7 @@ public class SfoSixAlleyChoreographyTests
         var run = RunTrail(alley, guard);
         double requiredFt = RequiredLateralFt(ArrivalType, PusherType);
         _output.WriteLine(
-            $"pusher parked t={run.PusherParkedSecond}s, arrival parked t={run.ArrivalParkedSecond}s, trail-limited={run.TrailLimited}, "
+            $"push finished t={run.PusherDoneSecond}s, arrival parked t={run.ArrivalParkedSecond}s, trail-limited={run.TrailLimited}, "
                 + $"longest hold while the push rolled {run.LongestHoldSeconds}s, min separation {run.MinSeparationFt:F0}ft (floor {requiredFt:F2}ft)"
         );
 
@@ -189,9 +189,10 @@ public class SfoSixAlleyChoreographyTests
                 + string.Join(Environment.NewLine, run.ZeroCaps)
         );
         Assert.True(
-            run.ZeroCapsAfterPark.Count == 0,
-            $"the arrival was capped to a stop after the pusher had parked on {AlleySpot} at t={run.PusherParkedSecond}s — a parked "
-                + $"aircraft a lane away has to cost it nothing:{Environment.NewLine}{string.Join(Environment.NewLine, run.ZeroCapsAfterPark)}"
+            run.ZeroCapsAfterPushDone.Count == 0,
+            $"the arrival was capped to a stop after the pusher had come to rest on {AlleySpot} at t={run.PusherDoneSecond}s — a "
+                + $"stopped aircraft a lane away has to cost it nothing:{Environment.NewLine}"
+                + string.Join(Environment.NewLine, run.ZeroCapsAfterPushDone)
         );
         Assert.True(
             run.YieldAnnotations.Count == 0,
@@ -200,8 +201,8 @@ public class SfoSixAlleyChoreographyTests
         );
 
         Assert.True(
-            (run.PusherParkedSecond > 0) && (run.PusherParkedSecond <= PushBudgetSeconds),
-            $"the pusher never completed {pushCommand} within {PushBudgetSeconds}s (parked t={run.PusherParkedSecond}s, phase={PhaseName(alley.Pusher)})"
+            (run.PusherDoneSecond > 0) && (run.PusherDoneSecond <= PushBudgetSeconds),
+            $"the pusher never completed {pushCommand} within {PushBudgetSeconds}s (finished t={run.PusherDoneSecond}s, phase={PhaseName(alley.Pusher)})"
         );
         Assert.True(
             run.ArrivalParkedSecond > 0,
@@ -232,8 +233,8 @@ public class SfoSixAlleyChoreographyTests
     /// </summary>
     private sealed class TrailRun
     {
-        /// <summary>The second the push finished and handed over to <see cref="AtParkingPhase"/>, or -1.</summary>
-        public int PusherParkedSecond { get; set; } = -1;
+        /// <summary>The second the push finished and handed over to <see cref="HoldingAfterPushbackPhase"/>, or -1.</summary>
+        public int PusherDoneSecond { get; set; } = -1;
 
         /// <summary>The second the arrival reached its gate, or -1.</summary>
         public int ArrivalParkedSecond { get; set; } = -1;
@@ -253,8 +254,8 @@ public class SfoSixAlleyChoreographyTests
         /// <summary>Every second the arrival's cap was at or below zero while the pusher was reversing.</summary>
         public List<string> ZeroCaps { get; } = [];
 
-        /// <summary>Every second the arrival's cap was at or below zero after the pusher had parked, until the arrival parked.</summary>
-        public List<string> ZeroCapsAfterPark { get; } = [];
+        /// <summary>Every second the arrival's cap was at or below zero after the push had finished, until the arrival parked.</summary>
+        public List<string> ZeroCapsAfterPushDone { get; } = [];
 
         /// <summary>Every second the arrival was annotated as auto-yielding to the pusher.</summary>
         public List<string> YieldAnnotations { get; } = [];
@@ -290,22 +291,23 @@ public class SfoSixAlleyChoreographyTests
 
     /// <summary>
     /// Issues the spot pushback and ticks until it has finished and handed over to
-    /// <see cref="AtParkingPhase"/>, returning the second that happened.
+    /// <see cref="HoldingAfterPushbackPhase"/> — a ramp spot is a marking the aircraft waits on, not a stand
+    /// it parks on — returning the second that happened.
     /// </summary>
     /// <param name="alley">The built alley.</param>
     /// <param name="guard">Deadlock watchdog ticked every second.</param>
     /// <param name="command">The <c>PUSH $spot</c> clearance to issue.</param>
     /// <param name="pusherGate">Stand the pusher is on, for the failure message.</param>
-    /// <returns>The second the push finished and parked.</returns>
+    /// <returns>The second the push finished and came to rest on the spot.</returns>
     private int PushToSpot(Alley alley, DeadlockGuard guard, string command, string pusherGate)
     {
         var push = alley.Ground.Engine.SendCommand(Pusher, command);
         Assert.True(push.Success, $"'{command}' from {pusherGate} failed: {push.Message}");
 
         bool everPushed = false;
-        int parkedSec = SfoGroundHarness.TickUntil(
+        int pushDoneSec = SfoGroundHarness.TickUntil(
             alley.Ground.Engine,
-            () => everPushed && (alley.Pusher.Phases?.CurrentPhase is AtParkingPhase),
+            () => everPushed && (alley.Pusher.Phases?.CurrentPhase is HoldingAfterPushbackPhase),
             PushBudgetSeconds,
             second =>
             {
@@ -315,10 +317,10 @@ public class SfoSixAlleyChoreographyTests
         );
 
         Assert.True(
-            parkedSec > 0,
-            $"'{command}' never parked within {PushBudgetSeconds}s (phase={PhaseName(alley.Pusher)}, ever in PushbackPhase={everPushed})"
+            pushDoneSec > 0,
+            $"'{command}' never finished within {PushBudgetSeconds}s (phase={PhaseName(alley.Pusher)}, ever in PushbackPhase={everPushed})"
         );
-        return parkedSec;
+        return pushDoneSec;
     }
 
     /// <summary>
@@ -333,7 +335,7 @@ public class SfoSixAlleyChoreographyTests
 
         SfoGroundHarness.TickUntil(
             alley.Ground.Engine,
-            () => (run.PusherParkedSecond > 0) && (run.ArrivalParkedSecond > 0),
+            () => (run.PusherDoneSecond > 0) && (run.ArrivalParkedSecond > 0),
             ChoreographyBudgetSeconds,
             second =>
             {
@@ -341,9 +343,9 @@ public class SfoSixAlleyChoreographyTests
                 double separationFt = DistanceFt(alley.Pusher.Position, alley.Arrival.Position);
                 run.MinSeparationFt = Math.Min(run.MinSeparationFt, separationFt);
                 everPushed |= alley.Pusher.Phases?.CurrentPhase is PushbackPhase;
-                if ((run.PusherParkedSecond < 0) && everPushed && (alley.Pusher.Phases?.CurrentPhase is AtParkingPhase))
+                if ((run.PusherDoneSecond < 0) && everPushed && (alley.Pusher.Phases?.CurrentPhase is HoldingAfterPushbackPhase))
                 {
-                    run.PusherParkedSecond = second;
+                    run.PusherDoneSecond = second;
                 }
 
                 if ((run.ArrivalParkedSecond < 0) && (alley.Arrival.Phases?.CurrentPhase is AtParkingPhase))
@@ -367,7 +369,7 @@ public class SfoSixAlleyChoreographyTests
     /// <summary>
     /// Records the cap the arrival carried on one tick: a positive one while the pusher reverses is the trail
     /// limit this case is about, a zero one extends the hold the push is costing it, and a zero one once the
-    /// pusher has parked is the thing a parked neighbour must never do. The hold is tracked as a streak, so a
+    /// push has finished is the thing a stopped neighbour must never do. The hold is tracked as a streak, so a
     /// pause while the tail settles and a hold that never lifts are told apart by length.
     /// </summary>
     private static void RecordCaps(TrailRun run, int second, Alley alley)
@@ -392,9 +394,9 @@ public class SfoSixAlleyChoreographyTests
             run.CurrentHoldSeconds = 0;
         }
 
-        if (held && (run.PusherParkedSecond > 0) && (run.ArrivalParkedSecond < 0))
+        if (held && (run.PusherDoneSecond > 0) && (run.ArrivalParkedSecond < 0))
         {
-            run.ZeroCapsAfterPark.Add(CapLine(second, alley, capKts));
+            run.ZeroCapsAfterPushDone.Add(CapLine(second, alley, capKts));
         }
     }
 

@@ -393,7 +393,7 @@ public class Issue284EnterFinalFromBaseTests(ITestOutputHelper output)
 
             // Nudge N346G past the 28R centerline so the runway it is asked to join is behind
             // it — the overshoot guardrail rejects rather than looping it outbound. Set the
-            // position directly: WarpAircraft is a ground warp and would clear the phase chain.
+            // position directly: a ground warp would clear the phase chain this test relies on.
             var (lat, lon) = PositionFromThreshold(rwy28R, alongTrackOutboundNm: 0.9, crossTrackRightNm: -0.4);
             aircraft.Position = new LatLon(lat, lon);
             aircraft.TrueHeading = new TrueHeading((rwy28R.TrueHeading.Degrees - 90 + 360) % 360);

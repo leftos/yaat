@@ -92,7 +92,7 @@ public class PushToSpotLineupTests(ITestOutputHelper output)
             double distFt = GeoMath.DistanceNm(a.Position, spot.Position) * GeoMath.FeetPerNm;
             maxDepthIntoRampFt = Math.Max(maxDepthIntoRampFt, DepthIntoRamp(a.Position, spot.Position, hdgIntoRamp));
 
-            bool done = a.Phases?.CurrentPhase is AtParkingPhase && a.GroundSpeed < 0.5;
+            bool done = a.Phases?.CurrentPhase is HoldingAfterPushbackPhase && a.GroundSpeed < 0.5;
             if (done && t > 3)
             {
                 finalDistFt = distFt;
@@ -193,6 +193,170 @@ public class PushToSpotLineupTests(ITestOutputHelper output)
         Assert.Equal(midDto.TargetLongitude, reDto.TargetLongitude);
         Assert.Equal(midDto.TargetHeading, reDto.TargetHeading);
         Assert.Equal(midDto.ReachedTarget, reDto.ReachedTarget);
+    }
+
+    /// <summary>
+    /// A ramp spot is a marking the tug positions the aircraft onto and it waits there for instructions —
+    /// not a stand it parks on. <c>PUSH $spot</c> must therefore hand over to
+    /// <see cref="HoldingAfterPushbackPhase"/>, not <see cref="AtParkingPhase"/> (which is what
+    /// <c>PUSH @gate</c> still ends in).
+    /// </summary>
+    [Fact]
+    public void PushToSpot_CompletesInHoldingAfterPushback_NotAtParking()
+    {
+        var world = BuildSpotPushWorld();
+        if (world is null)
+        {
+            return;
+        }
+
+        Assert.True(world.Value.Engine.SendCommand(Pushed, "PUSH $7A").Success);
+
+        var terminal = TickPushToRest(world.Value.Engine);
+        Assert.True(terminal is not null, "the push never came to rest within 240s");
+        Assert.IsType<HoldingAfterPushbackPhase>(terminal);
+    }
+
+    /// <summary>
+    /// The aircraft was standing at a gate when the push was issued, so <c>Ground.ParkingSpot</c> names that
+    /// gate. Once it has been pushed onto a ramp spot it has left the stand and is not on another one, so the
+    /// field must be cleared — leaving the origin gate there reports a stand the aircraft no longer occupies.
+    /// </summary>
+    [Fact]
+    public void PushToSpot_ClearsOriginGateFromParkingSpot()
+    {
+        var world = BuildSpotPushWorld();
+        if (world is null)
+        {
+            return;
+        }
+
+        var (engine, ac, layout, _) = world.Value;
+
+        // The stand the aircraft is pushing off: the nearest real parking node to where it starts.
+        var originGate = layout
+            .Nodes.Values.Where(n => (n.Type == GroundNodeType.Parking) && !string.IsNullOrWhiteSpace(n.Name))
+            .OrderBy(n => GeoMath.DistanceNm(ac.Position, n.Position))
+            .FirstOrDefault();
+        Assert.True(originGate is not null, "the SFO layout has no named parking node to start the push from");
+        ac.Ground.ParkingSpot = originGate!.Name;
+        output.WriteLine($"origin gate {originGate.Name} set as ParkingSpot before PUSH $7A");
+
+        Assert.True(engine.SendCommand(Pushed, "PUSH $7A").Success);
+        var terminal = TickPushToRest(engine);
+        Assert.True(terminal is not null, "the push never came to rest within 240s");
+
+        Assert.True(
+            ac.Ground.ParkingSpot is null,
+            $"after being pushed onto spot 7A the aircraft still reports ParkingSpot='{ac.Ground.ParkingSpot}' — "
+                + "it has left that stand, and a ramp spot is not a stand"
+        );
+    }
+
+    /// <summary>
+    /// Holding on a spot, the aircraft can be pushed again: the terminal phase of a spot push accepts a fresh
+    /// <c>PUSH</c> (see <see cref="HoldingAfterPushbackPhase.CanAcceptCommand"/>), so an RPO can reposition an
+    /// aircraft that is waiting on a marking.
+    /// </summary>
+    [Fact]
+    public void PushToSpot_ThenPushAgainIsAccepted()
+    {
+        var world = BuildSpotPushWorld();
+        if (world is null)
+        {
+            return;
+        }
+
+        var (engine, ac, layout, spot) = world.Value;
+        Assert.True(engine.SendCommand(Pushed, "PUSH $7A").Success);
+        Assert.True(TickPushToRest(engine) is not null, "the push never came to rest within 240s");
+
+        // Any other named spot on the layout: the second push only has to be accepted, not to be short.
+        var nextSpot = layout
+            .Nodes.Values.Where(n =>
+                (n.Type == GroundNodeType.Spot)
+                && !string.IsNullOrWhiteSpace(n.Name)
+                && !string.Equals(n.Name, spot.Name, StringComparison.OrdinalIgnoreCase)
+            )
+            .OrderBy(n => GeoMath.DistanceNm(ac.Position, n.Position))
+            .FirstOrDefault();
+        Assert.True(nextSpot is not null, "the SFO layout has only one named spot node");
+
+        var again = engine.SendCommand(Pushed, $"PUSH ${nextSpot!.Name}");
+        output.WriteLine($"second push 'PUSH ${nextSpot.Name}' from {ac.Phases?.CurrentPhase?.Name}: {again.Message}");
+        Assert.True(again.Success, $"a second PUSH after a spot push was refused: {again.Message}");
+    }
+
+    /// <summary>The SFO world a spot push runs in: the engine, the pusher, the layout, and spot 7A.</summary>
+    private readonly record struct SpotPushWorld(SimulationEngine Engine, AircraftState Aircraft, AirportGroundLayout Layout, GroundNode Spot);
+
+    /// <summary>
+    /// Builds the world of <see cref="PushToSpot7A_EndsNoseOutNosewheelOnSpot_ViaReversePastThenForward"/>: a
+    /// CRJ2 at parking 150 ft off to one side of SFO spot 7A, nose out toward taxiway A, ready to be pushed
+    /// onto the spot. Null when navdata or the SFO layout is unavailable (the silent-skip convention).
+    /// </summary>
+    /// <returns>The built world, or null to skip.</returns>
+    private SpotPushWorld? BuildSpotPushWorld()
+    {
+        TestVnasData.EnsureInitialized();
+        if (TestVnasData.NavigationDb is null)
+        {
+            return null;
+        }
+
+        var groundData = new TestAirportGroundData();
+        var layout = groundData.GetLayout("SFO");
+        if (layout is null)
+        {
+            return null;
+        }
+
+        SimLogBuilder.CreateForTest(output).InitializeSimLog();
+
+        var spot = layout.FindSpotNodeByName("7A");
+        var aJunction = layout.FindIntersectionNode("A", "T7A");
+        if (spot is null || aJunction is null)
+        {
+            return null;
+        }
+
+        double hdgOut = GeoMath.BearingTo(spot.Position, aJunction.Position);
+        double startBearing = new TrueHeading(hdgOut - 45.0).Degrees;
+        var startPos = GeoMath.ProjectPoint(spot.Position, new TrueHeading(startBearing), 150.0 / GeoMath.FeetPerNm);
+
+        var engine = new SimulationEngine(groundData);
+        engine.Scenario = MakeScenario();
+        var ac = MakeGroundAircraft(Pushed, "CRJ2", startPos, new TrueHeading(hdgOut), layout, new AtParkingPhase());
+        engine.World.AddAircraft(ac);
+        return new SpotPushWorld(engine, ac, layout, spot);
+    }
+
+    /// <summary>
+    /// Ticks until the pushback has run and the aircraft has come to rest, and returns the phase it handed
+    /// over to — deliberately phase-agnostic, so it reports whichever terminal the handler produced.
+    /// </summary>
+    /// <param name="engine">Engine carrying the pusher.</param>
+    /// <returns>The terminal phase, or null if the push never settled within 240s.</returns>
+    private static Phase? TickPushToRest(SimulationEngine engine)
+    {
+        bool everPushed = false;
+        for (int t = 1; t <= 240; t++)
+        {
+            engine.TickOneSecond();
+            var ac = engine.FindAircraft(Pushed);
+            if (ac is null)
+            {
+                break;
+            }
+
+            everPushed |= ac.Phases?.CurrentPhase is PushbackPhase;
+            if (everPushed && ac.Phases?.CurrentPhase is not PushbackPhase && ac.GroundSpeed < 0.5)
+            {
+                return ac.Phases?.CurrentPhase;
+            }
+        }
+
+        return null;
     }
 
     /// <summary>

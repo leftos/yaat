@@ -1045,6 +1045,55 @@ public class AirportE2ETests
         Assert.IsType<TaxiingPhase>(ac.Phases.CurrentPhase);
     }
 
+    [Fact]
+    public void SFO_TaxiToSpot_AlreadyOnSpot_HoldsInPositionInsteadOfParking()
+    {
+        // A taxi spot is an intermediate waypoint the aircraft waits on, not a stand. TAXI $7A issued
+        // while the aircraft already stands on 7A takes the zero-segment shortcut, which must reach the
+        // same terminal phase TaxiingPhase.CompleteRoute picks when the aircraft has to drive there.
+        var layout = LoadLayout("SFO", "sfo");
+        if (layout is null)
+        {
+            return;
+        }
+
+        var spot7A = layout.FindSpotNodeByName("7A");
+        Assert.NotNull(spot7A);
+
+        var ac = MakeGroundAircraft("SFO", spot7A.Position);
+
+        var result = GroundCommandHandler.TryTaxi(ac, new TaxiCommand([], [], DestinationSpot: "7A"), layout);
+        Assert.True(result.Success, $"TAXI $7A should succeed: {result.Message}");
+
+        Assert.Empty(ac.Ground.AssignedTaxiRoute!.Segments);
+        Assert.IsType<HoldingInPositionPhase>(ac.Phases!.CurrentPhase);
+        Assert.Null(ac.Ground.ParkingSpot);
+    }
+
+    [Fact]
+    public void SFO_TaxiToGate_AlreadyAtGate_StillParks()
+    {
+        // The counter-case to the spot shortcut: a gate is a stand, so the zero-segment TAXI @D3 still
+        // parks the aircraft and records the stand it occupies.
+        var layout = LoadLayout("SFO", "sfo");
+        if (layout is null)
+        {
+            return;
+        }
+
+        var gateD3 = layout.FindParkingByName("D3");
+        Assert.NotNull(gateD3);
+
+        var ac = MakeGroundAircraft("SFO", gateD3.Position);
+
+        var result = GroundCommandHandler.TryTaxi(ac, new TaxiCommand([], [], DestinationParking: "D3"), layout);
+        Assert.True(result.Success, $"TAXI @D3 should succeed: {result.Message}");
+
+        Assert.Empty(ac.Ground.AssignedTaxiRoute!.Segments);
+        Assert.IsType<AtParkingPhase>(ac.Phases!.CurrentPhase);
+        Assert.Equal("D3", ac.Ground.ParkingSpot);
+    }
+
     // -------------------------------------------------------------------------
     // SFO E2E: Issue #39 — taxiways not detected as connecting to runway 28R
     //

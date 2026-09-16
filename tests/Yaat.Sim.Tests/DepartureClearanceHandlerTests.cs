@@ -580,7 +580,8 @@ public class DepartureClearanceHandlerTests
         // Issue #315: LineUpFromPosition started the rebuilt phase list itself with a
         // layout-less PhaseContext, so LineUpPhase.OnStart faulted on ctx.GroundLayout
         // while the command still reported success — the aircraft accepted "line up and
-        // wait" and never moved. Reachable from any HoldingInPosition, including WARPG.
+        // wait" and never moved. Reachable from any HoldingInPosition, including a WARPG
+        // onto the pavement (a WARPG onto a gate parks the aircraft instead).
         var layout = new TestAirportGroundData().GetLayout("OAK");
         var rwy = NavigationDatabase.Instance?.GetRunway("OAK", "30");
         if (layout is null || rwy is null)

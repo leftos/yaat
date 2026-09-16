@@ -968,13 +968,28 @@ internal static class FlightCommandHandler
         aircraft.IsOnGround = true;
         aircraft.Targets.TargetSpeed = 0;
 
-        TrueHeading bestHeading = PickBestEdgeHeading(layout, node, aircraft.TrueHeading);
-        aircraft.TrueHeading = bestHeading;
-        aircraft.TrueTrack = bestHeading;
+        // A gate or helipad is a stand: the aircraft rests on the stand's nose-in heading, occupies it,
+        // and is not a fresh spawn, so it neither auto-deletes as a parked arrival nor makes a
+        // ready-to-taxi call. Anything else is a surface position the aircraft merely idles on, leaving
+        // no stand behind. The branch is on the node's type, not on which argument named it: '@' falls
+        // back to a spot node and '#' can name a parking node.
+        bool atStand = node.Type is GroundNodeType.Parking or GroundNodeType.Helipad;
 
-        // Install ground-idle phase so subsequent commands (TAXI, LUAW, etc.) have phase context
+        TrueHeading heading =
+            atStand && node.TrueHeading is { } standHeading ? standHeading : PickBestEdgeHeading(layout, node, aircraft.TrueHeading);
+        aircraft.TrueHeading = heading;
+        aircraft.TrueTrack = heading;
+
+        aircraft.Ground.ParkingSpot = atStand ? node.Name : null;
+        if (atStand)
+        {
+            aircraft.Ground.AutoDeleteExempt = true;
+            aircraft.Ground.InitialCallupDecisionProcessed = true;
+        }
+
+        // Install ground-idle phase so subsequent commands (TAXI, LUAW, PUSH, etc.) have phase context
         aircraft.Phases = new PhaseList();
-        aircraft.Phases.Add(new HoldingInPositionPhase());
+        aircraft.Phases.Add(atStand ? new AtParkingPhase() : new HoldingInPositionPhase());
         aircraft.Phases.Start(CommandDispatcher.BuildMinimalContext(aircraft));
 
         return CommandDispatcher.Ok($"Warped to {description}");

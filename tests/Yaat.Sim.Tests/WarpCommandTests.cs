@@ -11,6 +11,15 @@ namespace Yaat.Sim.Tests;
 
 public class WarpCommandTests
 {
+    /// <summary>
+    /// Pins the shared navdata singletons before any test body runs; the real-layout section below
+    /// reads them while other classes may be mid-initialization.
+    /// </summary>
+    public WarpCommandTests()
+    {
+        TestVnasData.EnsureInitialized();
+    }
+
     private const double FixLat = 37.5;
     private const double FixLon = -121.8;
 
@@ -327,6 +336,39 @@ public class WarpCommandTests
         return layout;
     }
 
+    /// <summary>
+    /// No committed airport GeoJSON carries a helipad feature, so the helipad half of the stand
+    /// predicate is pinned against a hand-built node. Nothing here stands in for real navdata — the
+    /// gate half is covered against the real SFO layout below.
+    /// </summary>
+    /// <returns>The simple layout plus a named helipad with its own landing heading.</returns>
+    private static AirportGroundLayout BuildLayoutWithHelipad()
+    {
+        var layout = BuildSimpleLayout();
+        var helipad = new GroundNode
+        {
+            Id = 2,
+            Position = new LatLon(37.623, -122.379),
+            Type = GroundNodeType.Helipad,
+            Name = "H1",
+            // Far from the ~218 deg bearing of the pad's only edge, so the assertion below cannot pass
+            // on the PickBestEdgeHeading fallback.
+            TrueHeading = new TrueHeading(45),
+        };
+        var edge12 = new GroundEdge
+        {
+            Nodes = [layout.Nodes[1], helipad],
+            TaxiwayName = "RAMP",
+            DistanceNm = 0.05,
+        };
+        layout.Nodes[1].Edges.Add(edge12);
+        helipad.Edges.Add(edge12);
+        layout.Nodes[2] = helipad;
+        layout.Edges.Add(edge12);
+        layout.RebuildAdjacencyLists();
+        return layout;
+    }
+
     private static AircraftState MakeGroundAircraft(AirportGroundLayout layout)
     {
         var ac = new AircraftState
@@ -438,5 +480,235 @@ public class WarpCommandTests
         Assert.Equal(250, ac.IndicatedAirspeed);
         Assert.False(ac.IsOnGround);
         Assert.Null(ac.Phases);
+    }
+
+    // ----- ApplyWarpGround on the real SFO layout: stands vs surface positions -----
+    //
+    // Node ids renumber whenever the layout is regenerated, so every node here is resolved by name.
+    // Fixture facts (tests/Yaat.Sim.Tests/TestData/sfo.geojson): D3 is a parking node with heading 360,
+    // D2 is a parking node with heading 325, 5A is a spot node with no heading.
+
+    private const string PushbackRefusal = "Pushback requires aircraft to be at parking";
+
+    private static AirportGroundLayout? SfoLayout() => new TestAirportGroundData().GetLayout("SFO");
+
+    /// <summary>
+    /// A jet sitting on the SFO surface, heading well away from any gate's nose-in heading so a
+    /// heading assertion after the warp is meaningful.
+    /// </summary>
+    /// <param name="layout">The SFO ground layout the aircraft warps around on.</param>
+    /// <returns>An on-ground aircraft carrying the layout.</returns>
+    private static AircraftState MakeSfoAircraft(AirportGroundLayout layout)
+    {
+        var ac = new AircraftState
+        {
+            Callsign = "UAL1234",
+            AircraftType = "B738",
+            Position = new LatLon(37.6160, -122.3830),
+            TrueHeading = new TrueHeading(90),
+            TrueTrack = new TrueHeading(90),
+            Altitude = 13,
+            IndicatedAirspeed = 0,
+            IsOnGround = true,
+        };
+        ac.Ground.Layout = layout;
+        return ac;
+    }
+
+    private static CommandResult DispatchText(AircraftState ac, string text, AirportGroundLayout layout)
+    {
+        var parsed = CommandParser.Parse(text);
+        Assert.True(parsed.IsSuccess, $"parse failed for '{text}': {parsed.Reason}");
+        return DispatchWarp(ac, parsed.Value!, layout);
+    }
+
+    /// <summary>
+    /// A gate is a stand: WARPG onto one must leave the aircraft parked on it, nose-in on the gate's
+    /// own heading, so the ground verbs that require a stand (PUSH) are accepted afterwards.
+    /// </summary>
+    /// <param name="gate">Name of the SFO parking node to warp onto.</param>
+    [Theory]
+    [InlineData("D3")]
+    [InlineData("D2")]
+    public void WarpGround_ToGate_LeavesAircraftAtParking(string gate)
+    {
+        var layout = SfoLayout();
+        if (layout is null)
+        {
+            return;
+        }
+
+        var node = layout.FindParkingByName(gate);
+        Assert.NotNull(node);
+        Assert.NotNull(node.TrueHeading);
+        var ac = MakeSfoAircraft(layout);
+
+        var result = DispatchWarp(ac, new WarpGroundCommand("", "", ParkingName: gate), layout);
+
+        Assert.True(result.Success, $"Expected success, got: {result.Message}");
+        Assert.NotNull(ac.Phases);
+        Assert.IsType<AtParkingPhase>(ac.Phases.CurrentPhase);
+        Assert.Equal(gate, ac.Ground.ParkingSpot);
+        Assert.Equal(node.TrueHeading.Value.Degrees, ac.TrueHeading.Degrees, 1e-6);
+    }
+
+    [Fact]
+    public void WarpGround_ToGate_ThenPushbackIsAccepted()
+    {
+        var layout = SfoLayout();
+        if (layout is null)
+        {
+            return;
+        }
+
+        var ac = MakeSfoAircraft(layout);
+        var warp = DispatchWarp(ac, new WarpGroundCommand("", "", ParkingName: "D3"), layout);
+        Assert.True(warp.Success, $"Expected WARPG success, got: {warp.Message}");
+
+        var push = DispatchText(ac, "PUSH $5A", layout);
+
+        Assert.True(push.Success, $"Expected PUSH success, got: {push.Message}");
+    }
+
+    [Fact]
+    public void WarpGround_ByNodeId_ToGate_LeavesAircraftAtParking()
+    {
+        var layout = SfoLayout();
+        if (layout is null)
+        {
+            return;
+        }
+
+        var node = layout.FindParkingByName("D3");
+        Assert.NotNull(node);
+        Assert.NotNull(node.TrueHeading);
+        var ac = MakeSfoAircraft(layout);
+
+        var result = DispatchWarp(ac, new WarpGroundCommand("", "", NodeId: node.Id), layout);
+
+        Assert.True(result.Success, $"Expected success, got: {result.Message}");
+        Assert.NotNull(ac.Phases);
+        Assert.IsType<AtParkingPhase>(ac.Phases.CurrentPhase);
+        Assert.Equal("D3", ac.Ground.ParkingSpot);
+        Assert.Equal(node.TrueHeading.Value.Degrees, ac.TrueHeading.Degrees, 1e-6);
+    }
+
+    /// <summary>
+    /// An aircraft warped onto a gate is occupying it, not spawning at it: it must not auto-delete as a
+    /// parked arrival, and it must not make the solo-training ready-to-taxi call.
+    /// </summary>
+    [Fact]
+    public void WarpGround_ToGate_SetsAutoDeleteExemptAndSuppressesCallup()
+    {
+        var layout = SfoLayout();
+        if (layout is null)
+        {
+            return;
+        }
+
+        var ac = MakeSfoAircraft(layout);
+
+        var result = DispatchWarp(ac, new WarpGroundCommand("", "", ParkingName: "D3"), layout);
+
+        Assert.True(result.Success, $"Expected success, got: {result.Message}");
+        Assert.True(ac.Ground.AutoDeleteExempt, "a warped-in aircraft must not auto-delete at the gate");
+        Assert.True(ac.Ground.InitialCallupDecisionProcessed, "a warped-in aircraft must not call ready-to-taxi");
+    }
+
+    /// <summary>
+    /// A spot is a surface position, not a stand: the aircraft idles on it, leaves no parking behind,
+    /// and PUSH still refuses.
+    /// </summary>
+    [Fact]
+    public void WarpGround_ToSpot_StillHoldsInPosition()
+    {
+        var layout = SfoLayout();
+        if (layout is null)
+        {
+            return;
+        }
+
+        var ac = MakeSfoAircraft(layout);
+
+        var result = DispatchWarp(ac, new WarpGroundCommand("", "", SpotName: "5A"), layout);
+
+        Assert.True(result.Success, $"Expected success, got: {result.Message}");
+        Assert.NotNull(ac.Phases);
+        Assert.IsType<HoldingInPositionPhase>(ac.Phases.CurrentPhase);
+        Assert.Null(ac.Ground.ParkingSpot);
+
+        var push = DispatchText(ac, "PUSH $5A", layout);
+
+        Assert.False(push.Success);
+        Assert.Contains(PushbackRefusal, push.Message);
+    }
+
+    /// <summary>
+    /// A helipad is a stand too, on the same predicate arm as a gate. No committed layout has one, so
+    /// this is the only guard against the enum arm being dropped in a later refactor.
+    /// </summary>
+    [Fact]
+    public void WarpGround_ToHelipad_LeavesAircraftAtParking()
+    {
+        var layout = BuildLayoutWithHelipad();
+        var ac = MakeGroundAircraft(layout);
+
+        var result = DispatchWarp(ac, new WarpGroundCommand("", "", ParkingName: "H1"), layout);
+
+        Assert.True(result.Success, $"Expected success, got: {result.Message}");
+        Assert.NotNull(ac.Phases);
+        Assert.IsType<AtParkingPhase>(ac.Phases.CurrentPhase);
+        Assert.Equal("H1", ac.Ground.ParkingSpot);
+        Assert.Equal(45, ac.TrueHeading.Degrees, 1e-6);
+    }
+
+    /// <summary>
+    /// The taxiway-pair form is the other way onto a surface position, and the one an instructor uses to
+    /// pull an aircraft off a stand. It must clear the stand the aircraft left, or the Aircraft List and
+    /// the pilot's own phraseology keep naming a gate the aircraft is no longer on.
+    /// </summary>
+    [Fact]
+    public void WarpGround_FromGateToTaxiwayIntersection_ClearsParkingSpot()
+    {
+        var layout = SfoLayout();
+        if (layout is null)
+        {
+            return;
+        }
+
+        var ac = MakeSfoAircraft(layout);
+        var toGate = DispatchWarp(ac, new WarpGroundCommand("", "", ParkingName: "D3"), layout);
+        Assert.True(toGate.Success, $"Expected success, got: {toGate.Message}");
+        Assert.Equal("D3", ac.Ground.ParkingSpot);
+
+        // Alpha crosses Echo on the real SFO layout.
+        var offGate = DispatchWarp(ac, new WarpGroundCommand("A", "E"), layout);
+
+        Assert.True(offGate.Success, $"Expected success, got: {offGate.Message}");
+        Assert.Null(ac.Ground.ParkingSpot);
+        Assert.NotNull(ac.Phases);
+        Assert.IsType<HoldingInPositionPhase>(ac.Phases.CurrentPhase);
+    }
+
+    [Fact]
+    public void WarpGround_AwayFromGate_ClearsParkingSpot()
+    {
+        var layout = SfoLayout();
+        if (layout is null)
+        {
+            return;
+        }
+
+        var ac = MakeSfoAircraft(layout);
+        var toGate = DispatchWarp(ac, new WarpGroundCommand("", "", ParkingName: "D3"), layout);
+        Assert.True(toGate.Success, $"Expected success, got: {toGate.Message}");
+        Assert.Equal("D3", ac.Ground.ParkingSpot);
+
+        var offGate = DispatchWarp(ac, new WarpGroundCommand("", "", SpotName: "5A"), layout);
+
+        Assert.True(offGate.Success, $"Expected success, got: {offGate.Message}");
+        Assert.Null(ac.Ground.ParkingSpot);
+        Assert.NotNull(ac.Phases);
+        Assert.IsType<HoldingInPositionPhase>(ac.Phases.CurrentPhase);
     }
 }

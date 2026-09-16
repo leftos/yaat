@@ -228,40 +228,6 @@ public sealed partial class SimulationEngine
         PilotResponder.QueueSoloPilotTransmission(aircraft, transmission, PilotTransmissionKind.Readback, PilotResponder.SourceResponse);
     }
 
-    public void WarpAircraft(string callsign, double latitude, double longitude, TrueHeading trueHeading)
-    {
-        var aircraft = FindAircraft(callsign);
-        if (aircraft is null)
-        {
-            return;
-        }
-
-        // Clear stale state
-        if (aircraft.Phases is not null)
-        {
-            var ctx = CommandDispatcher.BuildMinimalContext(aircraft);
-            aircraft.Phases.Clear(ctx);
-        }
-        aircraft.Ground.AssignedTaxiRoute = null;
-        aircraft.Ground.Hold = null;
-        aircraft.Queue.Blocks.Clear();
-
-        // Place on ground
-        aircraft.Position = new LatLon(latitude, longitude);
-        aircraft.TrueHeading = trueHeading;
-        aircraft.TrueTrack = trueHeading;
-        aircraft.IndicatedAirspeed = 0;
-        aircraft.IsOnGround = true;
-        aircraft.Targets.TargetSpeed = 0;
-
-        // Install ground-idle phase so subsequent commands have phase context
-        aircraft.Phases = new PhaseList();
-        aircraft.Phases.Add(new HoldingInPositionPhase());
-        aircraft.Phases.Start(CommandDispatcher.BuildMinimalContext(aircraft));
-
-        aircraft.Ground.Layout = ResolveGroundLayout(aircraft);
-    }
-
     public void AmendFlightPlan(string callsign, FlightPlanAmendment amendment)
     {
         if (!Callsign.IsValid(callsign))

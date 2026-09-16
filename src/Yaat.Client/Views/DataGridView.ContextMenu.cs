@@ -30,19 +30,21 @@ public partial class DataGridView
 
         var phase = ac.CurrentPhase ?? "";
 
-        // Ground movement (taxi/push/hold) — not covered by the tower applicability predicates
+        // Ground movement (taxi/push/hold)
         if (ac.IsOnGround)
         {
-            if (phase == "At Parking")
+            if (AircraftCommandApplicability.CanPushBack(ac))
             {
                 menu.Items.Add(MakeItem("Push back", () => Cmd("PUSH")));
             }
 
-            if (phase is "Pushback" or "Pushback to Spot" or "Taxiing" || phase.StartsWith("Following", StringComparison.Ordinal))
+            if (AircraftCommandApplicability.CanHoldPosition(ac))
             {
                 menu.Items.Add(MakeItem("Hold position", () => Cmd("HOLD")));
             }
 
+            // A separate RES path: this one satisfies a hold-short clearance rather than clearing a
+            // hold directive, so it needs no hold and stays out of CanResumeTaxi.
             if (phase.StartsWith("Holding Short", StringComparison.Ordinal))
             {
                 menu.Items.Add(MakeItem("Resume taxi", () => Cmd("RES")));
@@ -53,7 +55,7 @@ public partial class DataGridView
                 }
             }
 
-            if (phase is "Holding After Exit" or "Holding After Pushback" or "Holding In Position")
+            if (AircraftCommandApplicability.CanResumeTaxi(ac))
             {
                 menu.Items.Add(MakeItem("Resume taxi", () => Cmd("RES")));
             }

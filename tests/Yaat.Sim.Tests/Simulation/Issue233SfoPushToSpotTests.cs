@@ -112,7 +112,7 @@ public class Issue233SfoPushToSpotTests(ITestOutputHelper output)
         double maxDistFromStartFt = 0;
         double minDistToJunctionFt = double.MaxValue;
         double maxGroundSpeed = 0;
-        bool reachedParking = false;
+        bool reachedSpot = false;
 
         output.WriteLine($"{"t", 4} {"gs", 6} {"distStart", 9} {"distJunc", 9} {"distSpot", 9} {"push", 5} {"nose", 5} {"phase", -16}");
         for (int tick = 1; tick <= 180; tick++)
@@ -130,7 +130,7 @@ public class Issue233SfoPushToSpotTests(ITestOutputHelper output)
             minDistToJunctionFt = Math.Min(minDistToJunctionFt, distJunc);
             maxGroundSpeed = Math.Max(maxGroundSpeed, ac.GroundSpeed);
 
-            if (tick % 5 == 0 || ac.Phases?.CurrentPhase is AtParkingPhase)
+            if (tick % 5 == 0 || ac.Phases?.CurrentPhase is HoldingAfterPushbackPhase)
             {
                 output.WriteLine(
                     $"{tick, 4} {ac.GroundSpeed, 6:F2} {distStart, 9:F0} {distJunc, 9:F0} {distSpot, 9:F0} "
@@ -138,9 +138,9 @@ public class Issue233SfoPushToSpotTests(ITestOutputHelper output)
                 );
             }
 
-            if (ac.Phases?.CurrentPhase is AtParkingPhase)
+            if (ac.Phases?.CurrentPhase is HoldingAfterPushbackPhase)
             {
-                reachedParking = true;
+                reachedSpot = true;
                 break;
             }
         }
@@ -148,7 +148,7 @@ public class Issue233SfoPushToSpotTests(ITestOutputHelper output)
         double finalDistToSpotFt = GeoMath.DistanceNm(spot5A.Position.Lat, spot5A.Position.Lon, ac.Position.Lat, ac.Position.Lon) * GeoMath.FeetPerNm;
         output.WriteLine(
             $"maxDistFromStart={maxDistFromStartFt:F0}ft minDistToJunction={minDistToJunctionFt:F0}ft "
-                + $"maxGs={maxGroundSpeed:F1}kt finalDistToSpot={finalDistToSpotFt:F0}ft reachedParking={reachedParking}"
+                + $"maxGs={maxGroundSpeed:F1}kt finalDistToSpot={finalDistToSpotFt:F0}ft reachedSpot={reachedSpot}"
         );
 
         // 1. Never detour past the spot: the direct reverse stays within a small margin of the
@@ -171,8 +171,9 @@ public class Issue233SfoPushToSpotTests(ITestOutputHelper output)
         // 4. Ends lined up nose-at-spot 5A: the tug pulls the aircraft forward onto the mark so the
         //    nosewheel sits on it, leaving the centroid a half-fuselage back (see PushToSpotLineupTests /
         //    issue #234). The precise nose-out lineup is covered there; here we just confirm the reverse
-        //    still finishes at spot 5A (not centered on it, not short of it).
-        Assert.True(reachedParking, $"Pushback should complete to AtParkingPhase, got: {ac.Phases?.CurrentPhase?.Name ?? "null"}");
+        //    still finishes at spot 5A (not centered on it, not short of it). A spot is a marking the
+        //    aircraft waits on, not a stand, so the push hands over to HoldingAfterPushbackPhase.
+        Assert.True(reachedSpot, $"Pushback should complete to HoldingAfterPushbackPhase, got: {ac.Phases?.CurrentPhase?.Name ?? "null"}");
         double halfLenFt = (FaaAircraftDatabase.Get(ac.AircraftType)?.LengthFt ?? 110.0) / 2.0;
         Assert.True(
             finalDistToSpotFt <= halfLenFt + 25.0,
