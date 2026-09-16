@@ -201,6 +201,53 @@ public class ActionRouterTests
         Assert.Empty(ac.DeferredDispatches);
     }
 
+    /// <summary>
+    /// <see cref="ActionRouter.WouldRecord"/> answers what the log does. Each text is issued into a bare engine and the
+    /// answer is compared with whether that call grew the action log — the mirror has to agree with the thing it mirrors,
+    /// because the server gates its take-control on it: a false positive cuts a tape the session clock never touched, a
+    /// false negative lets a real write replay over the instructor.
+    /// </summary>
+    [Fact]
+    public void WouldRecord_AgreesWithTheLog()
+    {
+        (string Callsign, string Command, bool Records)[] cases =
+        [
+            // RecordingPolicy.Never: the session clock, bookmarks, the queued-conditionals query.
+            ("", "UNPAUSE", false),
+            ("", "PAUSE", false),
+            ("", "SIMRATE 4", false),
+            ("", "BM Test", false),
+            ("UAL123", "SHOWAT", false),
+            // Everything a controller writes, including through an AS prefix and a chain.
+            ("UAL123", "H270", true),
+            ("UAL123", "TRACK", true),
+            ("UAL123", "AS 2B TRACK", true),
+            ("UAL123", "AN 1 RV", true),
+            ("UAL123", "RDH", true),
+            ("UAL123", "FH 270; TRACK", true),
+            // The two branches where each side hardcodes its answer instead of reading the arm table: Route passes a
+            // literal RecordingPolicy.Text to Finish for a chain refusal, WouldRecord returns a literal true. Nothing
+            // but these cases can catch the two drifting apart. "HO 3G; PAUSE" is the non-compoundable chain (PAUSE is
+            // in the rejection set); "CTO, R270" is the takeoff-paired-with-immediate-turn refusal.
+            ("UAL123", "HO 3G; PAUSE", true),
+            ("UAL123", "CTO, R270", true),
+        ];
+
+        foreach (var (callsign, command, records) in cases)
+        {
+            var engine = BuildEngine(soloTrainingMode: false, reactionDelaySeconds: 0);
+            AddAirborne(engine, "UAL123", 1234);
+            var log = engine.Scenario!.ActionLog;
+            var before = log.Count;
+
+            engine.Actions.Issue(new ActionInput(callsign, command, "conn-1", "XX", Baked: null));
+
+            var grew = log.Count > before;
+            Assert.Equal(records, grew);
+            Assert.Equal(grew, ActionRouter.WouldRecord(command));
+        }
+    }
+
     [Fact]
     public void SpecialCompound_RoutesEachUnit_AndRecordsEach()
     {

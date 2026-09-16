@@ -225,7 +225,10 @@ Logging/
   FileLoggerProvider.cs         # Writes to YaatPaths.AppDataRoot/<logFileName> (yaat-client.log); rotates the previous 3 sessions to .log.1/.2/.3 on launch so a relaunch can't destroy a crash/freeze log
 
 Services/
-  ServerConnection.cs           # SignalR client to /hubs/training (JSON). Implements IStripsTransport from Strips. Inline DTOs for everything outside the strip surface (rooms, aircraft, weather, CRC, recordings). Includes PilotTransmissionBroadcastDto + PilotTransmissionReceived for solo-training audio. ConnectAsync takes an access-token provider (the YAAT session token). GetMyPermittedArtccsAsync = the ARTCCs the caller may create rooms for (home + operator grants).
+  ServerConnection.cs           # SignalR client to /hubs/training (JSON). TakeControlConfirmation is asked before SendCommandAsync sends a command
+                                # ActionRouter.WouldRecord says would cut short a tape the room is playing back (null = send, the WASM front-ends);
+                                # the playback flag it reads is seeded from the sim-state push, a join, a rewind, a loaded recording and a timeline read,
+                                # because a rewound room is paused and never ticks. Implements IStripsTransport from Strips. Inline DTOs for everything outside the strip surface (rooms, aircraft, weather, CRC, recordings). Includes PilotTransmissionBroadcastDto + PilotTransmissionReceived for solo-training audio. ConnectAsync takes an access-token provider (the YAAT session token). GetMyPermittedArtccsAsync = the ARTCCs the caller may create rooms for (home + operator grants).
   VatsimAuthClient.cs           # Client side of server-mediated VATSIM Connect: system-browser + loopback handoff (or /auth/dev when a server is in dev-bypass — passes the stored ARTCC so the dev token carries an artcc claim), token refresh, per-server session persistence to auth-sessions.json. Supplies the SignalR access token.
   YaatReconnectPolicy.cs        # IRetryPolicy for the SignalR HubConnection: keeps retrying through a full server restart/deploy (up to ~15 min) instead of giving up after ~40s, so a session resumes automatically once the server is back.
   UserPreferences.cs            # JSON to YaatPaths.AppDataRoot/preferences.json (%LOCALAPPDATA%/yaat/). Stores PilotVoiceEnabled/Volume/RadioFxEnabled, default off.
@@ -1355,6 +1358,11 @@ ActionRouter.cs                # SimulationEngine.Actions. Issue(ActionInput, ho
                                # ArmTable row → record (fresh: through RecordAction, accepted or not) or compare verdicts (recorded: the replay-fidelity
                                # warning when Accepted disagrees) → drain what the strip/TDLS/coordination mutations touched into the host (DrainStateChangesInto,
                                # IStateChangeConsumer.OnStripsChanged/OnTdlsChanged/OnCoordinationChanged) before the result returns. LastTrace is the parity test's observable. Overloads without a host use the bare host.
+                               # WouldRecord(command) answers the policy question — whether the arm routing that text fresh would record it — without running
+                               # it: the mirror of the stages above (AS prefix, the two chain refusals, the scoped-special split, the ArmTable row's
+                               # RecordingPolicy), changed with them. Policy, not outcome: a replay-profile engine appends nothing whatever it answers.
+                               # It is what the server gates its implicit take-control on, so pressing play on a rewound timeline replays the tape instead of
+                               # truncating it (RoomEngine.TakeControlIfCommandDiverges); the client asks it before prompting.
 ArmTable.cs (in ActionArm.cs)  # ActionArm (kind, scope, RecordingPolicy, Run) + ArmTable.For(kind) — one row per
                                # RecordedCommandKind, scope asserted equal to the classifier's at construction; RecordingPolicy.Never = ShowQueued + Bookmark + Transport;
                                # ArmContext is what a body sees (engine, host, input, remainder, parsed, resolved aircraft/identity) and writes its draws

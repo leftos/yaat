@@ -1423,8 +1423,10 @@ After rewinding, the simulation enters **Playback Mode**. The timeline bar shows
 
 - The simulation replays all previously recorded commands at their original timestamps
 - Terminal entries broadcast normally — you can watch commands execute as they happened
+- Press **play** to watch the tape run forward from where you scrubbed to, and **pause** to stop again. Playing the tape never shortens it — you can scrub back and forth as often as you like
 - The simulation auto-pauses when it reaches the end of the recorded tape
-- Press **Take Control** — you'll be asked to confirm, since this ends the replay and discards the playback timeline — or issue any command to exit playback and resume live operation
+- Pausing, placing or jumping to a bookmark, and asking `SHOWAT` / `SHOWCOND` all leave the recording alone, so they're safe to use mid-playback
+- Press **Take Control**, or issue any other command, to exit playback and resume live operation. Either way you're asked to confirm first, since it discards everything on the tape after the point you scrubbed to and can't be undone
 
 ### Bookmarks
 

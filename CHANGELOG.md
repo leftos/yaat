@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+### Added
+- Issuing a command during playback asks for confirmation before it ends the replay and discards the rest of the timeline.
+
 ### Changed
 - The ERAM `VP` keyboard amends an existing VFR flight plan instead of rejecting every plan with `DUP NEW ID`.
 - ERAM `VP` refuses another sector's track with `NOT YOUR TRACK`, like the other flight-data edits.
@@ -10,6 +13,9 @@
 
 ### Fixed
 - `VP` refuses an existing IFR or VFR-on-top flight plan with `DUP NEW ID` instead of converting it to VFR.
+- Pressing play after rewinding the timeline replays the recording instead of discarding everything past that point; pausing, bookmarking and `SHOWAT` are equally safe.
+- A CRC client connecting, starting a session or changing position while the timeline is in playback leaves the recording intact.
+- Taking control clears the PLAYBACK badge on every connected client's timeline.
 - Selecting a climb-via in the vTDLS editor clears and greys out the Maintain box, including when an amendment brings a climb-via SID.
 - A SID transition defining both a climb-via and an initial altitude fills only the climb-via, leaving Maintain blank.
 - A climb-via satisfies a facility that marks Maintain mandatory, so Send unlocks without an interim altitude.

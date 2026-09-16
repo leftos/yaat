@@ -245,6 +245,48 @@ public sealed class ActionRouter
     /// <summary>One pass through the router: the action, the host applying it, and the record it came from (null when fresh).</summary>
     private readonly record struct Routing(ActionInput Input, IActionHost Host, RecordedCommand? Record);
 
+    /// <summary>
+    /// The server's test for "this diverges a tape being played back": true when the arm that routing
+    /// <paramref name="command"/> as a fresh action reaches carries <see cref="RecordingPolicy.Text"/>. That is the policy
+    /// question, not a prediction that the log grows — <see cref="Finish"/> appends only when the engine also has a
+    /// <see cref="SimulationEngine.Scenario"/>, and <see cref="SimulationEngine.RecordAction"/> only when its
+    /// <see cref="RunProfile.RecordsActions"/> is set, so on a replay-profile engine no command appends anything and the
+    /// policy is still the answer the server wants. It decomposes the text exactly as <see cref="Route"/> does —
+    /// the <c>AS</c> prefix stripped first, the two chain refusals answering true because the refusal is itself recorded,
+    /// a compound of scoped specials answering for its units — and reads the verdict off the same <see cref="ArmTable"/>
+    /// row <see cref="Route"/> runs, so the two cannot disagree about a verb. A body that parses to nothing classifies to
+    /// <see cref="RecordedCommandKind.Compound"/> and records, exactly as it does live. <c>WouldRecord_AgreesWithTheLog</c>
+    /// checks the mirror against a log that actually grows, which is why it issues into a recording engine: on a
+    /// replay-profile one the log stays empty for every verb and the comparison would prove nothing.
+    /// </summary>
+    public static bool WouldRecord(string command)
+    {
+        // Mirrors Route's decomposition below, in the same order: the two must be changed together, and
+        // ActionRouterTests.WouldRecord_AgreesWithTheLog is the behavioural check that they still agree.
+        var (remainder, _) = TrackResolver.ExtractAsPrefix(command);
+
+        if (CompoundPolicy.FindNonCompoundableInChain(remainder) is not null)
+        {
+            return true;
+        }
+
+        if (CompoundPolicy.FindTakeoffPairedWithImmediateTurn(remainder) is not null)
+        {
+            return true;
+        }
+
+        if (CompoundPolicy.TrySplitSpecialCompound(remainder, out var units))
+        {
+            return units.Any(unit => WouldRecord(unit.Text));
+        }
+
+        return ArmTable.For(RecordedCommandClassifier.Classify(remainder).Kind).Recording == RecordingPolicy.Text;
+    }
+
+    /// <summary>
+    /// The one routing pass. <see cref="WouldRecord"/> mirrors this decomposition to answer whether a command records
+    /// without running it; a change to the stages below belongs in both.
+    /// </summary>
     private ActionOutcome Route(ActionInput input, IActionHost host, RecordedCommand? record)
     {
         var routing = new Routing(input, host, record);

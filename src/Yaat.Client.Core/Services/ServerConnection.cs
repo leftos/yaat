@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.SignalR.Client;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Yaat.Client.Logging;
+using Yaat.Sim.Simulation.Actions;
 
 namespace Yaat.Client.Services;
 
@@ -12,6 +13,20 @@ public sealed class ServerConnection : IStripsTransport, ITdlsTransport, IAsyncD
     private HubConnection? _connection;
     private PeriodicTimer? _heartbeatTimer;
     private CancellationTokenSource? _heartbeatCts;
+
+    /// <summary>
+    /// One take-control prompt at a time. Every window over this connection — the radar children, vStrips, vTDLS — sends
+    /// through <see cref="SendCommandAsync"/>, so a command issued while the modal is up would stack a second dialog on
+    /// top of it.
+    /// </summary>
+    private readonly SemaphoreSlim _takeControlGate = new(1, 1);
+
+    /// <summary>
+    /// Whether the room is playing a tape back, as of the last word the server sent: the per-tick
+    /// <c>SimulationStateChanged</c> push, a rewind or recording-load result, a join, or a timeline read. Drives
+    /// <see cref="WouldTakeControl"/>.
+    /// </summary>
+    internal bool IsPlaybackMode { get; set; }
 
     public event Action<AircraftDto>? AircraftUpdated;
     public event Action<string>? AircraftDeleted;
@@ -164,11 +179,22 @@ public sealed class ServerConnection : IStripsTransport, ITdlsTransport, IAsyncD
 
         _connection.On<List<AircraftDto>>("ScenarioRewound", manifest => ScenarioRewound?.Invoke(manifest));
 
-        _connection.On<RewindResultDto>("RecordingLoaded", dto => RecordingLoaded?.Invoke(dto));
+        _connection.On<RewindResultDto>(
+            "RecordingLoaded",
+            dto =>
+            {
+                NotePlaybackMode(dto);
+                RecordingLoaded?.Invoke(dto);
+            }
+        );
 
         _connection.On<bool, int, double, bool, double>(
             "SimulationStateChanged",
-            (paused, rate, elapsed, isPlayback, tapeEnd) => SimulationStateChanged?.Invoke(paused, rate, elapsed, isPlayback, tapeEnd)
+            (paused, rate, elapsed, isPlayback, tapeEnd) =>
+            {
+                IsPlaybackMode = isPlayback;
+                SimulationStateChanged?.Invoke(paused, rate, elapsed, isPlayback, tapeEnd);
+            }
         );
 
         _connection.On<TerminalBroadcastDto>("TerminalBroadcast", dto => TerminalEntryReceived?.Invoke(dto));
@@ -292,7 +318,13 @@ public sealed class ServerConnection : IStripsTransport, ITdlsTransport, IAsyncD
     public async Task<RoomStateDto?> JoinRoomAsync(string roomId, string initials, string artccId, string kind)
     {
         EnsureConnected();
-        return await _connection!.InvokeAsync<RoomStateDto?>("JoinRoom", roomId, initials, artccId, kind);
+        var state = await _connection!.InvokeAsync<RoomStateDto?>("JoinRoom", roomId, initials, artccId, kind);
+        if (state is not null)
+        {
+            IsPlaybackMode = state.IsPlayback;
+        }
+
+        return state;
     }
 
     public async Task LeaveRoomAsync()
@@ -460,9 +492,54 @@ public sealed class ServerConnection : IStripsTransport, ITdlsTransport, IAsyncD
 
     // --- Aircraft commands ---
 
+    /// <summary>
+    /// Asked before a command that would cut short a tape the room is playing back — the command takes control, so the
+    /// rest of the recording is discarded. Returns false to drop the command unsent. Null (a front-end with no dialog of
+    /// its own, e.g. the WASM vStrips/vTDLS apps) sends it as before.
+    /// </summary>
+    public Func<Task<bool>>? TakeControlConfirmation { get; set; }
+
+    /// <summary>
+    /// Whether <paramref name="command"/> would take control of a tape the room is playing back — the question the
+    /// confirmation prompt exists for. False off playback whatever the command, and false in playback for a command the
+    /// action router never records (the session clock, bookmarks, the queued-conditionals query), which cannot diverge
+    /// the tape and so does not truncate it. The leading <c>"** "</c> assignment override comes off first because
+    /// <c>RoomEngine.SendCommandAsync</c> strips it before the router ever sees it, and the two sides must decompose the
+    /// same text — left attached, the single-command parse fails, the text classifies as a compound, and the client
+    /// prompts for a command the server would not take control for.
+    /// </summary>
+    internal bool WouldTakeControl(string command)
+    {
+        if (!IsPlaybackMode)
+        {
+            return false;
+        }
+
+        var routed = command.StartsWith("** ", StringComparison.Ordinal) ? command[3..] : command;
+        return ActionRouter.WouldRecord(routed);
+    }
+
     public async Task<CommandResultDto> SendCommandAsync(string callsign, string command, string initials)
     {
         EnsureConnected();
+        if (WouldTakeControl(command) && TakeControlConfirmation is { } confirm)
+        {
+            await _takeControlGate.WaitAsync();
+            try
+            {
+                // Re-asked inside the gate: if the command that held it was confirmed, the room has left playback and
+                // this one takes no tape with it, so it goes through without a second prompt.
+                if (WouldTakeControl(command) && !await confirm())
+                {
+                    return new CommandResultDto(false, "Cancelled — the room is still playing back the tape");
+                }
+            }
+            finally
+            {
+                _takeControlGate.Release();
+            }
+        }
+
         return await _connection!.InvokeAsync<CommandResultDto>("SendCommand", callsign, command, initials);
     }
 
@@ -646,19 +723,20 @@ public sealed class ServerConnection : IStripsTransport, ITdlsTransport, IAsyncD
     public async Task<RewindResultDto?> RewindToAsync(double elapsedSeconds)
     {
         EnsureConnected();
-        return await _connection!.InvokeAsync<RewindResultDto?>("RewindTo", elapsedSeconds);
+        return NotePlaybackMode(await _connection!.InvokeAsync<RewindResultDto?>("RewindTo", elapsedSeconds));
     }
 
     public async Task<RewindResultDto?> RewindFromSnapshotAsync(double snapshotSeconds, double replayToSeconds)
     {
         EnsureConnected();
-        return await _connection!.InvokeAsync<RewindResultDto?>("RewindFromSnapshot", snapshotSeconds, replayToSeconds);
+        return NotePlaybackMode(await _connection!.InvokeAsync<RewindResultDto?>("RewindFromSnapshot", snapshotSeconds, replayToSeconds));
     }
 
     public async Task TakeControlAsync()
     {
         EnsureConnected();
         await _connection!.InvokeAsync("TakeControl");
+        IsPlaybackMode = false;
     }
 
     /// <summary>Live session only: take control of the tape and resume, rejoining real time.</summary>
@@ -702,7 +780,13 @@ public sealed class ServerConnection : IStripsTransport, ITdlsTransport, IAsyncD
     public async Task<TimelineInfoDto?> GetTimelineInfoAsync()
     {
         EnsureConnected();
-        return await _connection!.InvokeAsync<TimelineInfoDto?>("GetTimelineInfo");
+        var info = await _connection!.InvokeAsync<TimelineInfoDto?>("GetTimelineInfo");
+        if (info is not null)
+        {
+            IsPlaybackMode = info.IsPlayback;
+        }
+
+        return info;
     }
 
     /// <summary>
@@ -766,7 +850,25 @@ public sealed class ServerConnection : IStripsTransport, ITdlsTransport, IAsyncD
     public async Task<RewindResultDto?> LoadRecordingAsync(byte[] recordingBytes, CancellationToken cancellationToken = default)
     {
         EnsureConnected();
-        return await _connection!.InvokeAsync<RewindResultDto?>("LoadRecording", ChunkBytes(recordingBytes, cancellationToken), cancellationToken);
+        return NotePlaybackMode(
+            await _connection!.InvokeAsync<RewindResultDto?>("LoadRecording", ChunkBytes(recordingBytes, cancellationToken), cancellationToken)
+        );
+    }
+
+    /// <summary>
+    /// Records whether the room came back in tape playback, so <see cref="SendCommandAsync"/> knows to ask before a
+    /// command cuts the tape short. The per-tick <c>SimulationStateChanged</c> push carries the same flag, but a rewound
+    /// room is paused and does not tick — so a rewind, a loaded recording, a join or a timeline read is the only word the
+    /// client gets until someone presses play.
+    /// </summary>
+    private RewindResultDto? NotePlaybackMode(RewindResultDto? result)
+    {
+        if (result is { Success: true })
+        {
+            IsPlaybackMode = result.IsPlayback;
+        }
+
+        return result;
     }
 
     private static async IAsyncEnumerable<byte[]> ChunkBytes(
@@ -901,6 +1003,7 @@ public sealed class ServerConnection : IStripsTransport, ITdlsTransport, IAsyncD
     public async ValueTask DisposeAsync()
     {
         StopHeartbeat();
+        _takeControlGate.Dispose();
         if (_connection is not null)
         {
             await _connection.DisposeAsync();

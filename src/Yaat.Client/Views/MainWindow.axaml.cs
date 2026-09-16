@@ -98,7 +98,14 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
         }
 
         vm.BookmarkNamePromptRequested += OnBookmarkNamePromptRequested;
-        vm.TakeControlConfirmation = ConfirmTakeControlAsync;
+        vm.TakeControlConfirmation = () =>
+            ConfirmTakeControlAsync(
+                "Taking control stops the replay and discards the playback timeline, switching to live control. This can't be undone."
+            );
+        vm.Connection.TakeControlConfirmation = () =>
+            ConfirmTakeControlAsync(
+                "Issuing a command stops the replay and discards the rest of the playback timeline, switching to live control. This can't be undone."
+            );
 
         _windowProfileService = new WindowProfileService(vm.Preferences);
 
@@ -3392,11 +3399,12 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
     }
 
     /// <summary>
-    /// Confirms the destructive, playback-ending Take Control. Wired into
-    /// <see cref="MainViewModel.TakeControlConfirmation"/> so the command gates on it. Returns
-    /// true when the user clicks "Take Control", false on Cancel/Esc.
+    /// Confirms the destructive, playback-ending Take Control, with <paramref name="message"/> as the body text — the
+    /// Take Control button and a typed command reach it for different reasons and say so. Wired into
+    /// <see cref="MainViewModel.TakeControlConfirmation"/> and <see cref="ServerConnection.TakeControlConfirmation"/> so
+    /// both gate on it. Returns true when the user clicks "Take Control", false on Cancel/Esc.
     /// </summary>
-    private async Task<bool> ConfirmTakeControlAsync()
+    private async Task<bool> ConfirmTakeControlAsync(string message)
     {
         var dialog = new Window
         {
@@ -3436,11 +3444,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
             Spacing = 16,
             Children =
             {
-                new TextBlock
-                {
-                    Text = "Taking control stops the replay and discards the playback timeline, switching to live control. This can't be undone.",
-                    TextWrapping = Avalonia.Media.TextWrapping.Wrap,
-                },
+                new TextBlock { Text = message, TextWrapping = Avalonia.Media.TextWrapping.Wrap },
                 new StackPanel
                 {
                     Orientation = Avalonia.Layout.Orientation.Horizontal,
