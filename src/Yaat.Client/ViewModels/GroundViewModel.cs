@@ -966,9 +966,10 @@ public partial class GroundViewModel : ObservableObject
         await _sendCommand(callsign, "ER", initials);
     }
 
-    public async Task PushbackHeadingAsync(string callsign, string initials, int heading)
+    /// <summary>Pushes back to an absolute magnetic facing given as an 8-point compass cardinal (N, NE, E, SE, S, SW, W, NW).</summary>
+    public async Task PushbackFacingAsync(string callsign, string initials, string cardinal)
     {
-        await _sendCommand(callsign, $"PUSH {heading}", initials);
+        await _sendCommand(callsign, $"PUSH FACE {cardinal}", initials);
     }
 
     public async Task SendRawCommandAsync(string callsign, string initials, string command)
@@ -1191,7 +1192,14 @@ public partial class GroundViewModel : ObservableObject
         return names.Count > 0 ? $"via {string.Join(" ", names)}" : "direct";
     }
 
-    public List<(string Label, int Heading)> GetPushbackDirections(AircraftModel ac)
+    /// <summary>
+    /// Lists the pushback facings available at the aircraft's node, one per non-RAMP edge.
+    /// </summary>
+    /// <remarks>
+    /// <c>PUSH FACE &lt;cardinal&gt;</c> takes an absolute <em>magnetic</em> facing, so each edge's true bearing is
+    /// converted true→magnetic first and then snapped to the nearest of the eight compass points (45° buckets).
+    /// </remarks>
+    public List<(string Label, string Cardinal)> GetPushbackDirections(AircraftModel ac)
     {
         if (_domainLayout is null)
         {
@@ -1204,7 +1212,7 @@ public partial class GroundViewModel : ObservableObject
             return [];
         }
 
-        var directions = new List<(string Label, int Heading)>();
+        var directions = new List<(string Label, string Cardinal)>();
         foreach (var edge in node.Edges)
         {
             int otherId = edge.OtherNodeId(nodeId.Value);
@@ -1214,21 +1222,27 @@ public partial class GroundViewModel : ObservableObject
                 continue;
             }
 
-            var bearing = GeoMath.BearingTo(node.Position, otherNode.Position);
-            var heading = (int)Math.Round(bearing);
-            if (heading <= 0)
-            {
-                heading += 360;
-            }
+            var trueBearing = GeoMath.BearingTo(node.Position, otherNode.Position);
+            var magnetic = MagneticDeclination.TrueToMagnetic(trueBearing, node.Position);
 
             var label = edge.TaxiwayName;
             if (!string.Equals(label, "RAMP", StringComparison.OrdinalIgnoreCase))
             {
-                directions.Add(($"face {label}", heading));
+                directions.Add(($"face {label}", SnapToCardinal(magnetic)));
             }
         }
 
         return directions;
+    }
+
+    private static readonly string[] Cardinals = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"];
+
+    /// <summary>Snaps a magnetic bearing in degrees to the nearest 8-point compass cardinal.</summary>
+    private static string SnapToCardinal(double magneticDeg)
+    {
+        var normalized = ((magneticDeg % 360.0) + 360.0) % 360.0;
+        int bucket = (int)Math.Round(normalized / 45.0) % 8;
+        return Cardinals[bucket];
     }
 
     public List<(string DisplayName, string Target)> GetHoldShortTargets(AircraftModel ac)

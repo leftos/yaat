@@ -696,10 +696,10 @@ public partial class GroundView : UserControl
 
             if (ac is not null)
             {
-                foreach (var (label, heading) in vm.GetPushbackDirections(ac))
+                foreach (var (label, cardinal) in vm.GetPushbackDirections(ac))
                 {
-                    var h = heading;
-                    menu.Items.Add(CreateMenuItem($"Push back, {label}", () => vm.PushbackHeadingAsync(callsign, initials, h)));
+                    var c = cardinal;
+                    menu.Items.Add(CreateMenuItem($"Push back, {label}", () => vm.PushbackFacingAsync(callsign, initials, c)));
                 }
 
                 var pushSubmenu = BuildPushbackToSpotSubmenu(vm, ac, callsign, initials);
