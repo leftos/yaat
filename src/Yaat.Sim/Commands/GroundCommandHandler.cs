@@ -1902,6 +1902,8 @@ internal static class GroundCommandHandler
     /// <summary>
     /// Clears whatever the aircraft was doing and installs the planned legs, each as its own
     /// <see cref="PushbackPhase"/>, with the terminus's resting phase behind them.
+    /// A move ending on a gate or helipad parks the aircraft there; one ending on a ramp spot or a graph node
+    /// leaves it holding after the pushback, as <c>PUSH $spot</c> and a bare <c>PUSH</c> do.
     /// </summary>
     /// <param name="aircraft">The aircraft to move.</param>
     /// <param name="groundLayout">The airport's ground layout.</param>
@@ -1915,8 +1917,12 @@ internal static class GroundCommandHandler
         IReadOnlyList<PushbackLeg> legs
     )
     {
+        // A gate or helipad is a stand the aircraft parks on; a ramp spot is a marking it is positioned onto
+        // and waits on, so a move ending on a spot holds after the push and carries no parking spot — the stand
+        // it left is behind it. A move ending on a graph node holds too, and leaves the parking spot as it was,
+        // the same as a bare PUSH. Mirrors the stand-vs-spot split TryPushbackToSpot applies.
         var last = targets[^1];
-        bool endsOnAStand = last.IsSpot || (last.Node.Type is GroundNodeType.Parking or GroundNodeType.Helipad);
+        bool endsOnAStand = !last.IsSpot && (last.Node.Type is GroundNodeType.Parking or GroundNodeType.Helipad);
 
         var ctx = CommandDispatcher.BuildMinimalContext(aircraft, groundLayout);
         aircraft.Phases!.Clear(ctx);
@@ -1934,14 +1940,19 @@ internal static class GroundCommandHandler
         {
             aircraft.Ground.ParkingSpot = destination.ToUpperInvariant();
         }
+        else if (last.IsSpot)
+        {
+            aircraft.Ground.ParkingSpot = null;
+        }
 
         Log.LogDebug(
-            "[TugMove] {Callsign}: {LegCount} legs to {Destination} ({Kinds}), endsOnAStand={EndsOnAStand}",
+            "[TugMove] {Callsign}: {LegCount} legs to {Destination} ({Kinds}), endsOnAStand={EndsOnAStand}, endsOnASpot={EndsOnASpot}",
             aircraft.Callsign,
             legs.Count,
             destination,
             string.Join(" then ", legs.Select(l => l.Kind)),
-            endsOnAStand
+            endsOnAStand,
+            last.IsSpot
         );
 
         return CommandDispatcher.Ok($"Tug move to {destination}, {legs.Count} legs");

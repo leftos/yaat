@@ -32,6 +32,12 @@ public class SfoPushRouteE2ETests(ITestOutputHelper output)
     private const string MoveCommand = "PUSHM $6A $6B";
     private const string TaxiOutCommand = "TAXI A";
 
+    /// <summary>The gate a stand-terminus move ends on — D15's neighbour across the six alley's near side.</summary>
+    private const string EndGate = "D16";
+
+    /// <summary>A move that ends on a stand rather than a spot: across the alley to 6A, then onto gate D16.</summary>
+    private const string StandMoveCommand = $"PUSHM $6A @{EndGate}";
+
     /// <summary>The spot the redirect ends on — the third marking in the same alley, between 6A and 6B.</summary>
     private const string RedirectEndSpot = "6";
 
@@ -78,7 +84,8 @@ public class SfoPushRouteE2ETests(ITestOutputHelper output)
     /// <summary>
     /// The documented case. <c>PUSHM $6A $6B</c> off gate D15 is accepted, runs to completion, and leaves the
     /// aircraft stopped on spot 6B nose-out — the nosewheel on the marking, which puts the centroid a
-    /// half-fuselage behind it, the same geometry <c>PUSH $spot</c> ends in.
+    /// half-fuselage behind it, the same geometry <c>PUSH $spot</c> ends in. A spot is not a stand, so the
+    /// aircraft holds after the pushback with no parking spot, as <c>PUSH $spot</c> leaves it.
     /// </summary>
     [Fact]
     public void PushmFromD15_ComesToRestNoseOutOnTheSecondSpot()
@@ -118,7 +125,37 @@ public class SfoPushRouteE2ETests(ITestOutputHelper output)
                 + $"{NoseOutToleranceDeg:F0}° tolerance — a spot pushback leaves the aircraft pointed out to taxi"
         );
         Assert.True(ac.GroundSpeed <= AtRestSpeedKts, $"the aircraft was still moving at {ac.GroundSpeed:F2} kt when the move ended");
+        Assert.IsType<HoldingAfterPushbackPhase>(ac.Phases?.CurrentPhase);
+        Assert.Null(ac.Ground.ParkingSpot);
+    }
+
+    /// <summary>
+    /// A move whose last target is a stand parks the aircraft there, the same as <c>PUSH @gate</c>:
+    /// <c>PUSHM $6A @D16</c> off D15 pushes across the alley and tows the aircraft onto the neighbouring gate,
+    /// where it ends at parking with that gate as its parking spot.
+    /// </summary>
+    [Fact]
+    public void PushmFromD15_EndingOnAGate_ParksTheAircraftThere()
+    {
+        if (SfoGroundHarness.Build(output, autoCross: false) is not { } ground)
+        {
+            return;
+        }
+
+        var ac = SfoGroundHarness.SpawnParked(ground, "PSM8", AircraftType, Gate);
+        var result = ground.Engine.SendCommand(ac.Callsign, StandMoveCommand);
+        output.WriteLine($"'{StandMoveCommand}' off {Gate} → success={result.Success} \"{result.Message}\"");
+        Assert.True(result.Success, $"'{StandMoveCommand}' off {Gate} was refused: {result.Message}");
+
+        var run = TickMove(ground, ac, MoveBudgetSeconds);
+        output.WriteLine($"legs: {Describe(run.Legs)}, finished t={run.CompletedSecond}s, phase={PhaseName(ac)}");
+
+        Assert.True(
+            run.CompletedSecond > 0,
+            $"the move never finished within {MoveBudgetSeconds}s (phase={PhaseName(ac)}, legs={Describe(run.Legs)})"
+        );
         Assert.IsType<AtParkingPhase>(ac.Phases?.CurrentPhase);
+        Assert.Equal(EndGate, ac.Ground.ParkingSpot);
     }
 
     /// <summary>
