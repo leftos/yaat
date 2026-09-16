@@ -4,6 +4,8 @@
 
 ### Added
 - Issuing a command during playback asks for confirmation before it ends the replay and discards the rest of the timeline.
+- An automatic go-around for traffic names the blocking aircraft, and why it blocked, in the terminal log.
+- The terminal log shows the simulated approach controller's in-trail speed reductions.
 
 ### Changed
 - The ERAM `VP` keyboard amends an existing VFR flight plan instead of rejecting every plan with `DUP NEW ID`.
@@ -33,6 +35,8 @@
 - Right-clicking a parking or spot node offers "Push to {spot}" for an aircraft resting after a pushback, not only one at a stand.
 - "Resume taxi" appears in the ground-map and Aircraft List menus only while the aircraft is actually held.
 - The held-departures rundown reads "Pushing back (held)" mid-push and "Pushed back (held)" on a ramp spot, instead of "At gate (held)".
+- Scenario arrivals are spaced by the simulated approach controller when the aircraft ahead will not clear the runway in time.
+- An arrival no longer goes around when the aircraft ahead will have taxied clear of the runway before it crosses the threshold.
 
 ## v0.12.34-beta [2026/09/15]
 

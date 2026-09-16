@@ -869,11 +869,11 @@ public static class CommandDispatcher
 
             // --- Speed ---
             case SpeedCommand cmd:
-                return FlightCommandHandler.ApplySpeed(cmd, aircraft);
+                return FlightCommandHandler.ApplySpeed(cmd, aircraft, ctx);
             case ResumeNormalSpeedCommand:
                 return FlightCommandHandler.ApplyResumeNormalSpeed(aircraft);
             case ReduceToFinalApproachSpeedCommand:
-                return FlightCommandHandler.ApplyReduceToFinalApproachSpeed(aircraft);
+                return FlightCommandHandler.ApplyReduceToFinalApproachSpeed(aircraft, ctx);
             case DeleteSpeedRestrictionsCommand:
                 return FlightCommandHandler.ApplyDeleteSpeedRestrictions(aircraft);
             case ExpediteCommand cmd:
@@ -881,9 +881,9 @@ public static class CommandDispatcher
             case NormalRateCommand:
                 return FlightCommandHandler.ApplyNormalRate(aircraft);
             case MachCommand cmd:
-                return FlightCommandHandler.ApplyMach(cmd, aircraft);
+                return FlightCommandHandler.ApplyMach(cmd, aircraft, ctx);
             case ForceSpeedCommand cmd:
-                return FlightCommandHandler.ApplyForceSpeed(cmd, aircraft);
+                return FlightCommandHandler.ApplyForceSpeed(cmd, aircraft, ctx);
 
             // --- Squawk ---
             case SquawkCommand cmd:

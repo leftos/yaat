@@ -58,6 +58,30 @@ public class AircraftApproachState
     public bool AutoSpacingReleased { get; set; }
 
     /// <summary>
+    /// The <see cref="ControlTargets.SpeedCeiling"/> the same-runway arrival-protection pass stamped on this
+    /// aircraft, or null when the pass is not engaged — non-null means the simulated TRACON is holding the aircraft
+    /// back so the arrival ahead can clear the runway before it crosses the threshold. Recording the stamped value
+    /// rather than a bare "engaged" flag is what makes the release exact: when the conflict clears or the aircraft
+    /// leaves the §5-7-1.b.4 adjustment window the pass puts
+    /// <see cref="SameRunwayProtectionDisplacedCeilingKts"/> back, and only while the live ceiling is still this
+    /// value — a ceiling something else has lowered since is left alone. Unlike <see cref="AutoSpacingReleased"/>
+    /// this is not a latch — it toggles with the conflict. Snapshot-serialized so a restore mid-engagement still
+    /// knows whose ceiling it is.
+    /// </summary>
+    public double? SameRunwayProtectionCeilingKts { get; set; }
+
+    /// <summary>
+    /// The ceiling <see cref="SameRunwayProtectionCeilingKts"/> was stamped over, or null when the aircraft carried
+    /// none. A scenario-scripted arrival flies a STAR and can be carrying a published crossing-speed restriction,
+    /// which it is required to comply with (§5-7-1.b NOTE) and which a controller may remove only with DELETE SPEED
+    /// RESTRICTIONS (§5-7-2.e); <see cref="FlightPhysics"/> publishes one just once, on the tick the fix is
+    /// sequenced, and never re-stamps it. Releasing the protection by nulling the ceiling outright would therefore
+    /// delete that restriction permanently, so the displaced value is stashed here and restored instead. Only
+    /// meaningful while <see cref="SameRunwayProtectionCeilingKts"/> is non-null. Snapshot-serialized.
+    /// </summary>
+    public double? SameRunwayProtectionDisplacedCeilingKts { get; set; }
+
+    /// <summary>
     /// Deferred pattern-leg reports armed by the controller's <c>REPORT</c> command. When set,
     /// the corresponding pattern phase voices a "turning crosswind/downwind/base/final" pilot
     /// report on each circuit. These flags persist across laps (the phase instances are rebuilt
@@ -114,6 +138,8 @@ public class AircraftApproachState
             FollowingCallsign = FollowingCallsign,
             FinalApproachFasReachGateNm = FinalApproachFasReachGateNm,
             AutoSpacingReleased = AutoSpacingReleased,
+            SameRunwayProtectionCeilingKts = SameRunwayProtectionCeilingKts,
+            SameRunwayProtectionDisplacedCeilingKts = SameRunwayProtectionDisplacedCeilingKts,
             ReportArmedCrosswind = ReportArmedCrosswind,
             ReportArmedDownwind = ReportArmedDownwind,
             ReportArmedBase = ReportArmedBase,
@@ -135,6 +161,8 @@ public class AircraftApproachState
             FollowingCallsign = dto.FollowingCallsign,
             FinalApproachFasReachGateNm = dto.FinalApproachFasReachGateNm,
             AutoSpacingReleased = dto.AutoSpacingReleased,
+            SameRunwayProtectionCeilingKts = dto.SameRunwayProtectionCeilingKts,
+            SameRunwayProtectionDisplacedCeilingKts = dto.SameRunwayProtectionDisplacedCeilingKts,
             ReportArmedCrosswind = dto.ReportArmedCrosswind,
             ReportArmedDownwind = dto.ReportArmedDownwind,
             ReportArmedBase = dto.ReportArmedBase,

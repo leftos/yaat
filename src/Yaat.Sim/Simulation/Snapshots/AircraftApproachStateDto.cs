@@ -22,6 +22,14 @@ public sealed class AircraftApproachStateDto
     public bool AutoSpacingReleased { get; init; }
 
     /// <summary>
+    /// Same-runway arrival-protection ceiling ownership: the ceiling the pass stamped, and the one it displaced.
+    /// Both nullable / non-required so older snapshots default to <see langword="null"/> — no ceiling is attributed
+    /// to the pass, and it re-engages on the next tick if the conflict is still predicted.
+    /// </summary>
+    public double? SameRunwayProtectionCeilingKts { get; init; }
+    public double? SameRunwayProtectionDisplacedCeilingKts { get; init; }
+
+    /// <summary>
     /// Deferred REPORT command armed state. All non-required so older snapshots default to
     /// unarmed (<see langword="false"/> / <see langword="null"/>).
     /// </summary>

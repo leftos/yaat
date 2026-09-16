@@ -1,9 +1,11 @@
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
+using Yaat.Sim.Data.Airport;
 using Yaat.Sim.LiveTraffic;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Phases.Tower;
+using Yaat.Sim.Simulation.Snapshots;
 
 namespace Yaat.Sim.Tests;
 
@@ -230,6 +232,138 @@ public class OccupiedRunwayGoAroundTests
         var occupant = Occupant("B738", OnRunway(5000), 60, new LandingPhase(), onGround: true);
 
         Assert.True(GoesAround(arrival, occupant, setting: true));
+    }
+
+    [Fact]
+    public void LandedCategoryIIIWithNoResolvedExit_FailsClosedAndGoesAround()
+    {
+        // §3-10-3.a.1 is judged at the threshold crossing, so the occupant is asked whether it will be CLEAR of the
+        // runway by then — but a rollout with no exit resolved (no ground layout, or the planner has not committed)
+        // is an unknown, and an unknown must read as "not clear". Category III either side means no landmark
+        // exception, so the arrival still goes around.
+        var arrival = Arrival("B738", 0.6, 150);
+        var occupant = Occupant("B738", OnRunway(5000), 90, new LandingPhase(), onGround: true);
+
+        Assert.True(GoesAround(arrival, occupant, setting: true));
+    }
+
+    /// <summary>
+    /// A <see cref="LandingPhase"/> carrying a resolved candidate exit — the only shape
+    /// <c>SameRunwayArrivalProtection.TryBuildRollout</c> can predict a vacate from, and the one every other test here
+    /// lacks because none of them builds a ground layout. Restored through the phase's own snapshot path rather than
+    /// reaching into its state: a two-node layout (branch point on the centerline, hold-short node
+    /// <paramref name="holdShortOffsetFt"/> off to the side) and those node ids in the DTO.
+    /// </summary>
+    private static LandingPhase RollingOutToExit(double branchAlongFt, double holdShortOffsetFt, double turnOffSpeedKts)
+    {
+        var layout = new AirportGroundLayout { AirportId = "TEST" };
+        var branch = new GroundNode
+        {
+            Id = 1,
+            Position = OnRunway(branchAlongFt),
+            Type = GroundNodeType.TaxiwayIntersection,
+        };
+        var holdShort = new GroundNode
+        {
+            Id = 2,
+            Position = GeoMath.ProjectPoint(branch.Position, Runway.TrueHeading + 90, holdShortOffsetFt / GeoMath.FeetPerNm),
+            Type = GroundNodeType.RunwayHoldShort,
+        };
+        layout.Nodes[branch.Id] = branch;
+        layout.Nodes[holdShort.Id] = holdShort;
+
+        var dto = new LandingPhaseDto
+        {
+            Status = (int)PhaseStatus.Active,
+            ElapsedSeconds = 20.0,
+            FieldElevation = ElevationFt,
+            RunwayHeadingDeg = Runway.TrueHeading.Degrees,
+            ThresholdLat = Threshold.Lat,
+            ThresholdLon = Threshold.Lon,
+            TouchedDown = true,
+            CanGoAround = false,
+            LahsoHoldShortDistNm = 0,
+            HasLahso = false,
+            StoppedForLahso = false,
+            CurrentStateValue = (int)LandingPhase.State.Rollout,
+            CandidateExitBranchPointId = branch.Id,
+            CandidateExitHoldShortId = holdShort.Id,
+            CandidateExitTaxiway = "A",
+            CandidateExitTurnOffSpeed = turnOffSpeedKts,
+            CandidateExitPathNodeIds = [],
+        };
+
+        return LandingPhase.FromSnapshot(dto, layout);
+    }
+
+    [Fact]
+    public void LandedCategoryIIIProjectedClearOfTheRunwayInTime_NoGoAround()
+    {
+        // §3-10-6.a: separation may be anticipated when the positions say it will exist at the threshold crossing.
+        // The arrival is 16.5 s out. The occupant is 74 kt at 5,000 ft with its exit 300 ft ahead: braking to the
+        // 20 kt turn-off it covers that at the 47 kt mean (3.8 s), then 200 ft of exit plus its tail across the bar
+        // at 20 kt (7.8 s) — clear in ~12 s, inside the crossing. Category III either side, so nothing but the
+        // vacate prediction can save it.
+        var arrival = Arrival("B738", 0.6, 150);
+        var occupant = Occupant(
+            "B738",
+            OnRunway(5000),
+            74,
+            RollingOutToExit(branchAlongFt: 5300, holdShortOffsetFt: 200, turnOffSpeedKts: 20),
+            onGround: true
+        );
+
+        Assert.False(GoesAround(arrival, occupant, setting: true));
+    }
+
+    [Fact]
+    public void LandedCategoryIIIStillOnTheRunwayAtTheCrossing_GoesAround()
+    {
+        // Same occupant with its exit 1,000 ft ahead instead of 300: 12.6 s of rollout at the 47 kt braking mean plus
+        // 7.8 s of exit and tail clearance is ~20 s, past the arrival's 16.5 s crossing. Flying that rollout at the
+        // leader's present 74 kt (8.0 s) or stopping "clear" at the hold-short bar instead of a fuselage past it
+        // (5.9 s) both report it clear in time — this arm is what catches either regressing.
+        var arrival = Arrival("B738", 0.6, 150);
+        var occupant = Occupant(
+            "B738",
+            OnRunway(5000),
+            74,
+            RollingOutToExit(branchAlongFt: 6000, holdShortOffsetFt: 200, turnOffSpeedKts: 20),
+            onGround: true
+        );
+
+        Assert.True(GoesAround(arrival, occupant, setting: true));
+    }
+
+    [Fact]
+    public void GoAround_TerminalEntryNamesTheBlockerAndWhy()
+    {
+        // The pilot's transmission stays generic (a pilot does not read out the blocker's callsign); the instructor
+        // gets a separate terminal line saying which aircraft it was and what it was doing.
+        var arrival = Arrival("B738", 0.6, 150);
+        var occupant = Occupant("B738", OnRunway(5000), 60, new LandingPhase(), onGround: true);
+
+        Assert.True(GoesAround(arrival, occupant, setting: true));
+        Assert.Contains(
+            arrival.PendingWarnings,
+            w => w.Contains("ARR1 go-around: OCC1 on 28 (landing rollout, 5,000 ft down", StringComparison.Ordinal)
+        );
+        Assert.DoesNotContain(
+            arrival.PendingWarnings,
+            w => w.Contains("OCC1", StringComparison.Ordinal) && w.Contains("going around, traffic", StringComparison.Ordinal)
+        );
+    }
+
+    [Fact]
+    public void CrossingOccupant_TerminalEntrySaysCrossing()
+    {
+        var arrival = Arrival("B738", 0.6, 150);
+        var occupant = Occupant("B738", OnRunway(6000), 15, new TaxiingPhase(), onGround: true);
+        occupant.TrueHeading = new TrueHeading(10);
+        occupant.TrueTrack = new TrueHeading(10);
+
+        Assert.True(GoesAround(arrival, occupant, setting: true));
+        Assert.Contains(arrival.PendingWarnings, w => w.Contains("crossing the runway", StringComparison.Ordinal));
     }
 
     [Fact]

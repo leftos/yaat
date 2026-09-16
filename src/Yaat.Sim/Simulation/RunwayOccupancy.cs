@@ -356,6 +356,38 @@ public static class RunwayOccupancy
         return DistanceToLandingThresholdNm(ac, runway, layout) / groundSpeed * 3600.0;
     }
 
+    /// <summary>
+    /// Distance (nm) from the aircraft to <paramref name="runway"/>'s landing threshold measured along
+    /// <em>that runway's</em> final approach course — for a caller that already knows which runway the aircraft is
+    /// landing on and must not have the datum move. Negative once past the threshold.
+    ///
+    /// <para>The difference from <see cref="DistanceToLandingThresholdNm"/> is which end is measured to.
+    /// That helper derives the end from the aircraft's own track, which is what its short-final callers want (they
+    /// ask which end an aircraft is <em>using</em>); here the end comes from the assignment. An arrival still on
+    /// downwind or base for 28R tracks ~117° and aligns to the 10L end, so the track-derived figure measures to the
+    /// reciprocal threshold and reports a negative distance; at 90° off axis it flips between the two ends on a 1°
+    /// track wobble. An arrival-sequencing caller ordering a stream by it would put that aircraft at the front and
+    /// flap the order tick to tick.</para>
+    /// </summary>
+    public static double DistanceToAssignedThresholdNm(AircraftState ac, RunwayInfo runway, AirportGroundLayout? layout) =>
+        -GeoMath.AlongTrackDistanceNm(ac.Position, LandingThreshold.Resolve(runway, layout), runway.TrueHeading);
+
+    /// <summary>
+    /// Seconds until the aircraft reaches <paramref name="runway"/>'s landing threshold at its present ground speed,
+    /// measured along that runway's own course (<see cref="DistanceToAssignedThresholdNm"/>) rather than the
+    /// aircraft's track. Positive infinity when stopped, negative once past the threshold.
+    /// </summary>
+    public static double SecondsToAssignedThreshold(AircraftState ac, RunwayInfo runway, AirportGroundLayout? layout)
+    {
+        double groundSpeed = ac.GroundSpeed;
+        if (groundSpeed <= 0)
+        {
+            return double.PositiveInfinity;
+        }
+
+        return DistanceToAssignedThresholdNm(ac, runway, layout) / groundSpeed * 3600.0;
+    }
+
     /// <summary>A position within the runway half-width plus <see cref="LateralSlackFt"/> of the centerline segment.</summary>
     public static bool IsWithinPavement(LatLon position, RunwayInfo runway)
     {

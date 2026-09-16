@@ -452,6 +452,25 @@ All four drain in `TickPrePhysics` (`SimulationEngine.cs:465`) once per sim-seco
   stay deterministic; it runs during replay too — old recordings have `IsGeneratorArrival` false (the marker is set at
   `SpawnGeneratedArrival`, snapshot-serialized) and are therefore unaffected. Aviation-reviewed against 7110.65 §5-5-4 (radar
   floor), §5-7-1.c.3.1 ("reduce the trailing aircraft first"), and §5-9-5.a (approach control owns final separation until handoff).
+- **`ApplySameRunwayArrivalProtection`** (runs each tick immediately after `ApplyArrivalSpacing`) — the same simulated-TRACON idea
+  for the arrivals `ApplyArrivalSpacing` cannot see. That pass is scoped to `IsGeneratorArrival` inside a generator corridor, so a
+  **scenario-scripted** arrival got no in-trail management at all and could be delivered inside the leading arrival's runway
+  occupancy time, which no amount of student skill can fix (found via the S1-SFO-2 Ground Control bundle: arrivals delivered ~55–70 s
+  in trail against a measured 59–77 s occupancy, producing automatic go-arounds a Ground student could not influence). This pass is
+  **conflict-triggered**: it engages only when the arrival ahead on the same runway is projected not to be clear in time, so traffic
+  with no conflict keeps its exact trajectory. Required interval = `max(per-category constant, 3 NM terminal radar floor, wake)`
+  converted at the follower's Vref, refined from the leader's live rollout once it has touched down;
+  `SameRunwayArrivalProtection` owns that arithmetic and shares it with `OccupiedRunwayGoAround` so the two cannot disagree about
+  when an aircraft is clear. Like the generator pass it stamps only `SpeedCeiling` — never `TargetSpeed`, never
+  `HasExplicitSpeedCommand` — but unlike it, a scripted arrival **does** carry published crossing-speed ceilings, so the release
+  restores the displaced value instead of nulling the field (nulling it would silently delete a restriction the aircraft is required
+  to comply with, §5-7-1.b NOTE / §5-7-2.e). **Override:** the student owning the track, or a *human*-issued speed command —
+  `ControlTargets.SpeedCommandIsControllerIssued`, distinguished from a scenario preset via `DispatchContext.IsScenarioScripted`,
+  because a preset `AT <fix> SPD <n>` is scenario scripting rather than a controller taking authority. Floors at the §5-7-3.c
+  figures (turbojet 210/170, recip+turboprop 200/150, helicopter 60), **not** at Vref — Vref asserts a configuration the aircraft
+  does not have that far out and is unreachable anyway, since §5-7-1.b.4 stops the pass at 5 NM on final. Speed is its only actuator,
+  so a delivery far tighter than the requirement still ends in a go-around; a real TRACON would vector first (§5-7-1.a.1).
+  Aviation-reviewed 2026-09-16 against §3-10-3, §3-10-6, §5-5-4, §5-7-1, §5-7-3.
 - **`ProcessTriggers`** (`:1994`) — fires `ScheduledTrigger`s whose `FireAtSeconds` elapsed via `ExecuteGlobalCommand`, which
   only handles the global squawk commands (`SQALL`/`SNALL`/`SSALL`).
 - **`ProcessTimedPresets`** (`:1931`) — fires `ScheduledPreset`s whose `FireAtSeconds` elapsed: parses the command with

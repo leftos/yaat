@@ -124,6 +124,7 @@ internal static class FlightCommandHandler
         aircraft.Targets.AltitudeCeiling = null;
         aircraft.Targets.AssignedAltitude = cmd.Altitude;
         aircraft.Targets.HasExplicitSpeedCommand = false;
+        aircraft.Targets.SpeedCommandIsControllerIssued = false;
 
         if (aircraft.Phases?.TrafficDirection is not null)
         {
@@ -140,6 +141,7 @@ internal static class FlightCommandHandler
         aircraft.Procedure.IsExpediting = false;
         aircraft.Targets.AssignedAltitude = cmd.Altitude;
         aircraft.Targets.HasExplicitSpeedCommand = false;
+        aircraft.Targets.SpeedCommandIsControllerIssued = false;
 
         switch (cmd.Modifier)
         {
@@ -169,6 +171,7 @@ internal static class FlightCommandHandler
         aircraft.Targets.AltitudeCeiling = null;
         aircraft.Targets.AssignedAltitude = cmd.Altitude;
         aircraft.Targets.HasExplicitSpeedCommand = false;
+        aircraft.Targets.SpeedCommandIsControllerIssued = false;
 
         if (aircraft.Phases?.TrafficDirection is not null)
         {
@@ -193,7 +196,7 @@ internal static class FlightCommandHandler
         return CommandDispatcher.Ok($"Force altitude {cmd.Altitude:N0}");
     }
 
-    internal static CommandResult ApplySpeed(SpeedCommand cmd, AircraftState aircraft)
+    internal static CommandResult ApplySpeed(SpeedCommand cmd, AircraftState aircraft, DispatchContext ctx)
     {
         // A taxiing aircraft: SPD sets the taxi-speed cap, not an airborne target. Reaches here
         // from both direct dispatch and a fired conditional block (AT <taxiway> SPD <n>).
@@ -221,6 +224,7 @@ internal static class FlightCommandHandler
         aircraft.Targets.TargetMach = null;
 
         aircraft.Targets.HasExplicitSpeedCommand = true;
+        aircraft.Targets.SpeedCommandIsControllerIssued = !ctx.IsScenarioScripted;
 
         // A forced assignment (SPEEDF) persists past the §5-7-1.b.4 auto-cancel gate;
         // a plain SPD clears the override so the gate resumes governing.
@@ -314,12 +318,13 @@ internal static class FlightCommandHandler
         aircraft.Targets.SpeedCeiling = null;
         aircraft.Targets.TargetMach = null;
         aircraft.Targets.HasExplicitSpeedCommand = false;
+        aircraft.Targets.SpeedCommandIsControllerIssued = false;
         aircraft.Targets.SpeedOverridesFinalGate = false;
         aircraft.Procedure.LastProcedureSpeedKts = null;
         return CommandDispatcher.Ok("Resume normal speed");
     }
 
-    internal static CommandResult ApplyReduceToFinalApproachSpeed(AircraftState aircraft)
+    internal static CommandResult ApplyReduceToFinalApproachSpeed(AircraftState aircraft, DispatchContext ctx)
     {
         var rfasCat = AircraftCategorization.Categorize(aircraft.AircraftType);
         double approachSpeed = AircraftPerformance.ApproachSpeed(aircraft.AircraftType, rfasCat);
@@ -329,6 +334,7 @@ internal static class FlightCommandHandler
         aircraft.Targets.SpeedCeiling = null;
         aircraft.Targets.TargetMach = null;
         aircraft.Targets.HasExplicitSpeedCommand = true;
+        aircraft.Targets.SpeedCommandIsControllerIssued = !ctx.IsScenarioScripted;
         aircraft.Targets.SpeedOverridesFinalGate = false;
         aircraft.Procedure.LastProcedureSpeedKts = null;
         return CommandDispatcher.Ok($"Reduce to final approach speed ({approachSpeed:F0} kts)");
@@ -448,7 +454,7 @@ internal static class FlightCommandHandler
         return CommandDispatcher.Ok("Resume normal rate");
     }
 
-    internal static CommandResult ApplyMach(MachCommand cmd, AircraftState aircraft)
+    internal static CommandResult ApplyMach(MachCommand cmd, AircraftState aircraft, DispatchContext ctx)
     {
         aircraft.Targets.TargetMach = cmd.MachNumber;
         aircraft.Targets.TargetSpeed = null;
@@ -456,12 +462,13 @@ internal static class FlightCommandHandler
         aircraft.Targets.SpeedFloor = null;
         aircraft.Targets.SpeedCeiling = null;
         aircraft.Targets.HasExplicitSpeedCommand = true;
+        aircraft.Targets.SpeedCommandIsControllerIssued = !ctx.IsScenarioScripted;
         aircraft.Targets.SpeedOverridesFinalGate = false;
         aircraft.Procedure.LastProcedureSpeedKts = null;
         return CommandDispatcher.Ok($"Maintain Mach {cmd.MachNumber:F2}");
     }
 
-    internal static CommandResult ApplyForceSpeed(ForceSpeedCommand cmd, AircraftState aircraft)
+    internal static CommandResult ApplyForceSpeed(ForceSpeedCommand cmd, AircraftState aircraft, DispatchContext ctx)
     {
         // Force-speed is an immediate override and intentionally exempt from the helicopter
         // radar-speed floor in ApplySpeed — it may command any speed.
@@ -471,6 +478,7 @@ internal static class FlightCommandHandler
         aircraft.Targets.SpeedFloor = null;
         aircraft.Targets.SpeedCeiling = null;
         aircraft.Targets.HasExplicitSpeedCommand = true;
+        aircraft.Targets.SpeedCommandIsControllerIssued = !ctx.IsScenarioScripted;
         // A forced speed survives the §5-7-1.b.4 auto-cancel gate, same as SPEEDF.
         aircraft.Targets.SpeedOverridesFinalGate = true;
         aircraft.Procedure.SpeedRestrictionsDeleted = false;

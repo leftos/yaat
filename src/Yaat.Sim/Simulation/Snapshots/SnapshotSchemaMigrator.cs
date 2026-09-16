@@ -29,7 +29,7 @@ public sealed class SnapshotSchemaException : Exception
 /// </summary>
 public static class SnapshotSchemaMigrator
 {
-    public const int CurrentSchemaVersion = 24;
+    public const int CurrentSchemaVersion = 25;
 
     /// <summary>
     /// Migrates a snapshot to <see cref="CurrentSchemaVersion"/> in place.
@@ -151,6 +151,17 @@ public static class SnapshotSchemaMigrator
         //   stays null: a restored older recording shows no query flash rather than one that expired long ago.
         //   The action log carries the same DTO on RecordedStarsSharedStateChange and Migrate never walks it — there the
         //   legacy property is simply an unmapped member the deserializer skips, which lands on the same no-flash outcome.
+        // V24→V25: Added ControlTargetsDto.SpeedCommandIsControllerIssued, which separates a speed a human controller
+        //   assigned from one a scenario preset or an AI position assigned (both set HasExplicitSpeedCommand alike).
+        //   No data transformation — the field is optional and older snapshots default to false, i.e. "no controller owns
+        //   this speed". That is the safe default: it never claims controller ownership for an assignment whose origin the
+        //   snapshot never recorded, and the first controller speed command after the restore sets it.
+        //   The same bump also added AircraftApproachStateDto.SameRunwayProtectionCeilingKts and
+        //   SameRunwayProtectionDisplacedCeilingKts, which record the speed ceiling the same-runway arrival-protection pass
+        //   stamped and the one it stamped over (so the release puts a published crossing-speed restriction back rather than
+        //   deleting it). Equally optional and equally undemanding on read: an older snapshot restores with no ceiling
+        //   attributed to the pass, which then re-engages on the next tick if the conflict it protects against is still
+        //   predicted.
         if (snapshot.SchemaVersion < 4)
         {
             foreach (var ac in snapshot.Aircraft)

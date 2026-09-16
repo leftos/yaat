@@ -93,6 +93,22 @@ public class ControlTargets
     public bool HasExplicitSpeedCommand { get; set; }
 
     /// <summary>
+    /// True when a human controller — not a scenario preset and not an AI position — owns this
+    /// aircraft's speed. Set alongside <see cref="HasExplicitSpeedCommand"/> only for a dispatch
+    /// whose <see cref="Commands.DispatchContext.IsScenarioScripted"/> is false.
+    ///
+    /// <para>Cleared wherever a <em>command</em> clears <see cref="HasExplicitSpeedCommand"/> — resume-normal-speed,
+    /// a bare altitude assignment, and <see cref="FlightPhysics"/>'s §5-7-1.b.4 auto-cancel at the final gate — but
+    /// deliberately <em>not</em> where a phase does. <see cref="Phases.Tower.ManeuverSpeedController"/> borrows speed
+    /// authority for the length of a 360/270/S-turn and hands it back, which neither grants nor revokes a
+    /// controller's ownership: the controller's assignment outlives the borrow (§5-7-4 retains an assignment until it
+    /// is deleted). A new clearing site added on the phase side must leave this alone for the same reason; one added
+    /// on the command side must clear it, or the stale <see langword="true"/> disables every consumer that reads it —
+    /// the same-runway arrival protection among them — for the rest of that aircraft's life.</para>
+    /// </summary>
+    public bool SpeedCommandIsControllerIssued { get; set; }
+
+    /// <summary>
     /// True when a forced speed assignment (SPEEDF, or the SPDN teleport) has
     /// deliberately overridden the §5-7-1.b.4 "no speed inside 5nm final" rule.
     /// Exempts the assignment from <see cref="FlightPhysics"/>'s auto-cancel at the
@@ -139,6 +155,7 @@ public class ControlTargets
             AssignedAltitude = AssignedAltitude,
             AssignedSpeed = AssignedSpeed,
             HasExplicitSpeedCommand = HasExplicitSpeedCommand,
+            SpeedCommandIsControllerIssued = SpeedCommandIsControllerIssued,
             SpeedOverridesFinalGate = SpeedOverridesFinalGate,
             HasExplicitTurnRate = HasExplicitTurnRate,
             TargetMach = TargetMach,
@@ -162,6 +179,7 @@ public class ControlTargets
         targets.AssignedAltitude = dto.AssignedAltitude;
         targets.AssignedSpeed = dto.AssignedSpeed;
         targets.HasExplicitSpeedCommand = dto.HasExplicitSpeedCommand;
+        targets.SpeedCommandIsControllerIssued = dto.SpeedCommandIsControllerIssued;
         targets.SpeedOverridesFinalGate = dto.SpeedOverridesFinalGate;
         targets.HasExplicitTurnRate = dto.HasExplicitTurnRate;
         targets.TargetMach = dto.TargetMach;

@@ -10,6 +10,7 @@ using Yaat.Sim.Data.Airspace;
 using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.LiveTraffic;
 using Yaat.Sim.Phases;
+using Yaat.Sim.Phases.Approach;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Pilot;
@@ -425,6 +426,331 @@ public sealed partial class SimulationEngine
         {
             aircraft.Targets.SpeedCeiling = null;
         }
+    }
+
+    /// <summary>
+    /// Distance to the landing threshold (nm) inside which §5-7-1.b.4 forbids a speed adjustment — "within 5 flying
+    /// miles of the runway", the outer of the two cutoffs there and the same figure
+    /// <see cref="FlightPhysics"/>'s auto-cancel uses.
+    /// </summary>
+    private const double FinalSpeedAdjustmentCutoffNm = 5.0;
+
+    /// <summary>
+    /// Same-runway arrival protection — the simulated TRACON for arrivals the arrival generator never touches.
+    /// <see cref="ApplyArrivalSpacing"/> only manages generator arrivals inside a generator's own corridor, so a
+    /// scenario-scripted arrival stream is delivered with no in-trail management at all and the trailing arrival
+    /// can reach the threshold before the leading one has cleared the runway — an illegal delivery under §3-10-3.a.1
+    /// that the occupied-runway go-around then has to catch. Each tick this pass walks every runway's arrivals
+    /// front-to-back, predicts the interval between consecutive threshold crossings, and where the leader will still
+    /// be on the pavement stamps a <see cref="ControlTargets.SpeedCeiling"/> on the follower — §5-7-1.a.3.a, reduce
+    /// the trailing aircraft — until the interval opens. The ceiling only ever lowers the phase's speed target and
+    /// floors at the follower's Vref (§5-7-3.f authorises going below the §5-7-3.c floors for spacing). It is
+    /// released — restoring whatever ceiling it displaced, which on a scripted STAR arrival may be a published
+    /// crossing-speed restriction — once the interval has opened past the required one by
+    /// <see cref="SameRunwayArrivalProtection.ReleaseHysteresisSeconds"/>, or as soon as the follower reaches the
+    /// §5-7-1.b.4 window or stops being eligible. It is not a command:
+    /// <see cref="ControlTargets.TargetSpeed"/> and <see cref="ControlTargets.HasExplicitSpeedCommand"/> are never
+    /// touched, matching the precedent <see cref="ApplyArrivalSpacing"/> set. No RNG, so replay and rewind stay
+    /// deterministic. When the reduction cannot open the interval in time the go-around still fires — the safety
+    /// net is unchanged.
+    /// </summary>
+    private void ApplySameRunwayArrivalProtection()
+    {
+        var scenario = Scenario;
+        if (scenario is null)
+        {
+            return;
+        }
+
+        var protectedThisTick = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var stream in BuildRunwayArrivalStreams())
+        {
+            // Index 0 is the aircraft at the front of the stream — nobody ahead of it to be protected from.
+            for (int i = 1; i < stream.Count; i++)
+            {
+                var (followerDistance, follower, runway) = stream[i];
+                if (
+                    IsProtectionEligible(follower, runway, scenario) && TryProtectFollower(follower, followerDistance, stream[i - 1].Aircraft, runway)
+                )
+                {
+                    protectedThisTick.Add(follower.Callsign);
+                }
+            }
+        }
+
+        // Anything the pass owned but did not re-stamp this tick has either cleared its conflict, entered the
+        // §5-7-1.b.4 window, or stopped being eligible: hand its speed back.
+        foreach (var aircraft in World.GetSnapshot())
+        {
+            if (aircraft.Approach.SameRunwayProtectionCeilingKts is not null && !protectedThisTick.Contains(aircraft.Callsign))
+            {
+                ReleaseSameRunwayProtection(aircraft);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Hands back a <see cref="ControlTargets.SpeedCeiling"/> the same-runway protection pass owns, putting the
+    /// ceiling it displaced back rather than clearing the field. Unlike a generator arrival — which spawns on final
+    /// with its route cleared and so carries no other ceiling, the invariant
+    /// <see cref="ReleaseManagedSpeedCeiling"/> relies on — a scenario-scripted arrival flies a STAR and may be
+    /// carrying a published crossing-speed restriction it is required to comply with (§5-7-1.b NOTE; a controller
+    /// removes one only with DELETE SPEED RESTRICTIONS, §5-7-2.e). <see cref="FlightPhysics"/> publishes that
+    /// restriction on the single tick the fix is sequenced and never re-stamps it, so clearing the field outright
+    /// would delete it for the rest of the flight. Restores only while the ceiling is still the exact value this
+    /// pass stamped — anything that has lowered it since owns it now and is left alone, the compare-before-clear
+    /// shape <see cref="Phases.Approach.ProcedureTurnPhase"/> uses. No-op when the pass is not engaged.
+    /// </summary>
+    private static void ReleaseSameRunwayProtection(AircraftState aircraft)
+    {
+        var approach = aircraft.Approach;
+        if (approach.SameRunwayProtectionCeilingKts is not { } stamped)
+        {
+            return;
+        }
+
+        if (aircraft.Targets.SpeedCeiling is { } current && current == stamped)
+        {
+            aircraft.Targets.SpeedCeiling = approach.SameRunwayProtectionDisplacedCeilingKts;
+        }
+
+        approach.SameRunwayProtectionCeilingKts = null;
+        approach.SameRunwayProtectionDisplacedCeilingKts = null;
+    }
+
+    /// <summary>
+    /// Every landing runway's arrival stream, grouped by airport and runway designator and ordered front-to-back by
+    /// distance to the landing threshold, so a reduction cascades back through the aircraft behind. Membership is
+    /// an aircraft that has landed and is still on the pavement, or one airborne and inbound to land — a departure
+    /// carries an <c>AssignedRunway</c> too and is not part of the arrival stream. The distance is measured along
+    /// the assigned runway's own course (<see cref="RunwayOccupancy.DistanceToAssignedThresholdNm"/>), never the
+    /// aircraft's track: an arrival still on downwind or base is 90°-plus off the final course, and a track-derived
+    /// datum would measure it to the reciprocal threshold and sort it to the front of the stream.
+    /// </summary>
+    private List<List<(double DistanceNm, AircraftState Aircraft, RunwayInfo Runway)>> BuildRunwayArrivalStreams()
+    {
+        var groups = new Dictionary<(string Airport, string Designator), List<(double DistanceNm, AircraftState Aircraft, RunwayInfo Runway)>>();
+        foreach (var aircraft in World.GetSnapshot())
+        {
+            if (aircraft.Phases?.AssignedRunway is not { } runway || !IsRunwayArrival(aircraft))
+            {
+                continue;
+            }
+
+            double distance = RunwayOccupancy.DistanceToAssignedThresholdNm(aircraft, runway, World.GroundLayout);
+
+            // An airborne aircraft whose along-course position puts it behind the landing threshold is not part of
+            // this runway's arrival stream — it is overflying, going around, or set up for the reciprocal end — and
+            // admitting it on a negative distance would make it the leader everyone behind is spaced against. One
+            // that has touched down keeps its place: its rollout is the occupancy this pass exists to protect.
+            if (!double.IsFinite(distance) || ((!aircraft.IsOnGround) && (distance < 0.0)))
+            {
+                continue;
+            }
+
+            var key = (runway.AirportId, runway.Designator);
+            if (!groups.TryGetValue(key, out var stream))
+            {
+                stream = [];
+                groups[key] = stream;
+            }
+            stream.Add((distance, aircraft, runway));
+        }
+
+        // Callsign breaks a distance tie so the ordering — and therefore who follows whom — is reproducible.
+        return
+        [
+            .. groups
+                .OrderBy(g => g.Key.Airport, StringComparer.Ordinal)
+                .ThenBy(g => g.Key.Designator, StringComparer.Ordinal)
+                .Select(g => g.Value.OrderBy(e => e.DistanceNm).ThenBy(e => e.Aircraft.Callsign, StringComparer.Ordinal).ToList()),
+        ];
+    }
+
+    /// <summary>
+    /// Part of a runway's arrival stream: down and still on the pavement (rolling out or turning off), or airborne
+    /// with a landing or approach clearance.
+    /// </summary>
+    private static bool IsRunwayArrival(AircraftState aircraft) =>
+        aircraft.Phases?.CurrentPhase is LandingPhase or RunwayExitPhase
+        || (!aircraft.IsOnGround && ApproachCommandHandler.IsInboundToLand(aircraft));
+
+    /// <summary>
+    /// True when the simulated TRACON may still slow this follower: it is a simulated aircraft, it is being vectored
+    /// or flown down an approach, it is inbound to land, it has not reached the §5-7-1.b.4 no-adjustment window, and
+    /// nobody else owns its speed.
+    /// </summary>
+    private static bool IsProtectionEligible(AircraftState follower, RunwayInfo runway, SimScenarioState scenario)
+    {
+        // Followers only — deliberately asymmetric. A live-traffic shadow flies its feed and skips the sim's speed
+        // integrator entirely, so a ceiling stamped on it would change nothing while the instructor still read a
+        // "reduce speed" line for an instruction no one issued. A shadow ahead is a different matter: it really is
+        // on the runway, so it stays in the stream as a leader.
+        if (follower.IsShadow)
+        {
+            return false;
+        }
+
+        if (follower.Phases?.CurrentPhase is not (ApproachNavigationPhase or FinalApproachPhase))
+        {
+            return false;
+        }
+
+        if (!ApproachCommandHandler.IsInboundToLand(follower))
+        {
+            return false;
+        }
+
+        // §5-7-1.b.4: no speed adjustment inside the FAF or 5 nm from the runway, whichever is closer. The same
+        // pair of tests FlightPhysics.AutoCancelSpeedAtFinal uses, so the two agree on where the window starts and
+        // pattern traffic — which flies its whole circuit inside 5 nm — is not caught by distance alone.
+        double thresholdDistance = GeoMath.DistanceNm(follower.Position, new LatLon(runway.ThresholdLatitude, runway.ThresholdLongitude));
+        if (thresholdDistance <= FinalSpeedAdjustmentCutoffNm && ApproachCommandHandler.IsOnFinal(follower, runway))
+        {
+            return false;
+        }
+
+        return !HasOtherSpeedAuthority(follower, scenario);
+    }
+
+    /// <summary>
+    /// True when someone other than the simulated TRACON owns this aircraft's speed: a human controller assigned it
+    /// (a scenario preset or an AI position does not), its speed restrictions were deleted, or the student
+    /// controller holds the track — the simulated TRACON only spaces an arrival while it owns it.
+    /// </summary>
+    private static bool HasOtherSpeedAuthority(AircraftState aircraft, SimScenarioState scenario)
+    {
+        if (aircraft.Targets.SpeedCommandIsControllerIssued || aircraft.Procedure.SpeedRestrictionsDeleted)
+        {
+            return true;
+        }
+
+        return aircraft.Track.Owner is { } owner && scenario.StudentPosition is { } student && owner.MatchesPosition(student);
+    }
+
+    /// <summary>
+    /// Predicts the two threshold crossings and, when the follower's would fall inside the interval the leader needs
+    /// to clear the runway, stamps the speed ceiling that opens it. Returns true when the pass now owns a ceiling on
+    /// the follower.
+    /// </summary>
+    private bool TryProtectFollower(AircraftState follower, double followerDistanceNm, AircraftState leader, RunwayInfo runway)
+    {
+        var layout = World.GroundLayout;
+        double followerEta = RunwayOccupancy.SecondsToAssignedThreshold(follower, runway, layout);
+        double leaderEta = LeaderThresholdEtaSeconds(leader, runway, layout);
+        if (!double.IsFinite(followerEta) || !double.IsFinite(leaderEta))
+        {
+            return false;
+        }
+
+        var followerCategory = AircraftCategorization.Categorize(follower.AircraftType);
+        var leaderCategory = AircraftCategorization.Categorize(leader.AircraftType);
+        double vref = AircraftPerformance.ApproachSpeed(follower.AircraftType, followerCategory);
+        double wakeNm = WakeTurbulenceData.OnApproachWakeSeparationNm(leader.AircraftType, leaderCategory, follower.AircraftType, followerCategory);
+        double required = SameRunwayArrivalProtection.RequiredThresholdIntervalSeconds(
+            leaderCategory,
+            SameRunwayArrivalProtection.TryBuildRollout(leader, -leaderEta),
+            wakeNm,
+            vref
+        );
+
+        // Engage on the required interval; once engaged, hold until the interval has opened past it by the
+        // hysteresis deadband. Without the separation the boundary limit-cycles: release, the follower accelerates,
+        // the interval closes, re-engage — with a fresh terminal line every lap.
+        bool engaged = follower.Approach.SameRunwayProtectionCeilingKts is not null;
+        double conflictInterval = engaged ? required + SameRunwayArrivalProtection.ReleaseHysteresisSeconds : required;
+        if (!SameRunwayArrivalProtection.IsConflictPredicted(leaderEta, followerEta, conflictInterval))
+        {
+            return false;
+        }
+
+        double scheduled = ArrivalSpacingManager.ScheduledFinalSpeedKts(
+            follower.AircraftType,
+            followerCategory,
+            vref,
+            follower.Callsign,
+            followerDistanceNm
+        );
+        double ceiling = SameRunwayArrivalProtection.ProtectionCeilingKts(
+            leader.IndicatedAirspeed,
+            leaderEta + required - followerEta,
+            new SameRunwayArrivalProtection.FollowerProfile(followerCategory, follower.GroundSpeed, followerDistanceNm, vref, scheduled)
+        );
+
+        // The ceiling that would be in force with this pass out of the picture: its own stamp is not a constraint to
+        // defer to, so while engaged that is the value it displaced — unless something has overwritten the stamp
+        // since, in which case whatever is there now belongs to that writer.
+        double? displaced =
+            engaged && follower.Targets.SpeedCeiling is { } live && live == follower.Approach.SameRunwayProtectionCeilingKts
+                ? follower.Approach.SameRunwayProtectionDisplacedCeilingKts
+                : follower.Targets.SpeedCeiling;
+
+        // Lowering only: a ceiling already at or below what this pass would ask for (a published crossing
+        // restriction, the generator spacing manager) is already doing the work, so there is nothing to stamp — and
+        // therefore nothing to restore later. An engagement overtaken that way hands its ceiling back now.
+        if (displaced is { } binding && binding <= ceiling)
+        {
+            ReleaseSameRunwayProtection(follower);
+            return false;
+        }
+
+        AnnounceProtectionEngaged(follower, runway, ceiling);
+        follower.Approach.SameRunwayProtectionDisplacedCeilingKts = displaced;
+        follower.Approach.SameRunwayProtectionCeilingKts = ceiling;
+        follower.Targets.SpeedCeiling = ceiling;
+        _logger.LogDebug(
+            "[SameRunwayProtection] {Follower} ({Dist:F1}nm) behind {Leader}: followerEta={FollowerEta:F0}s leaderEta={LeaderEta:F0}s required={Required:F0}s → ceiling {Ceiling:F0}kt (vref {Vref:F0}, scheduled {Scheduled:F0})",
+            follower.Callsign,
+            followerDistanceNm,
+            leader.Callsign,
+            followerEta,
+            leaderEta,
+            required,
+            follower.Targets.SpeedCeiling,
+            vref,
+            scheduled
+        );
+        return true;
+    }
+
+    /// <summary>
+    /// Terminal line for a fresh engagement of the protection, attributed to the position that owns the track — the
+    /// simulated TRACON speaks on its own frequency, so this is a notification about what that controller did and
+    /// never a pilot transmission on the student's. A non-null
+    /// <see cref="AircraftApproachState.SameRunwayProtectionCeilingKts"/> is what makes it one line per engagement
+    /// rather than one per tick; a follower whose conflict clears and returns gets a second line, which is the truth
+    /// of what the controller had to do. The spoken figure is rounded to the nearest 5 kt per §5-7-1.a.7 ("express
+    /// speed adjustments … in 5-knot increments") while <paramref name="ceilingKts"/> itself stays continuous — the
+    /// physics is not a controller's radio and has no reason to quantise.
+    /// </summary>
+    private static void AnnounceProtectionEngaged(AircraftState follower, RunwayInfo runway, double ceilingKts)
+    {
+        if (follower.Approach.SameRunwayProtectionCeilingKts is not null)
+        {
+            return;
+        }
+
+        string position = follower.Track.Owner?.Callsign ?? "TRACON";
+        double spoken = Math.Round(ceilingKts / 5.0, MidpointRounding.AwayFromZero) * 5.0;
+        follower.PendingNotifications.Add($"{position} → {follower.Callsign}: reduce speed to {spoken:F0} (in-trail spacing, {runway.Designator})");
+    }
+
+    /// <summary>
+    /// Seconds until the leader crosses the landing threshold, negative once it is past. Measured along the assigned
+    /// runway's own course, not the leader's track, for the reason on
+    /// <see cref="RunwayOccupancy.DistanceToAssignedThresholdNm"/>. An aircraft already on the ground crossed the
+    /// threshold to get there, so its ETA is clamped to zero-or-negative however slowly it is now rolling (the raw
+    /// helper reports positive infinity for a stopped aircraft).
+    /// </summary>
+    private static double LeaderThresholdEtaSeconds(AircraftState leader, RunwayInfo runway, AirportGroundLayout? layout)
+    {
+        double eta = RunwayOccupancy.SecondsToAssignedThreshold(leader, runway, layout);
+        if (!leader.IsOnGround)
+        {
+            return eta;
+        }
+
+        return double.IsFinite(eta) ? Math.Min(0.0, eta) : 0.0;
     }
 
     /// <summary>

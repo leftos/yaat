@@ -111,6 +111,13 @@ public sealed class RunwayExitPhase : Phase
     private ExitPreference? _committedPreference;
 
     /// <summary>
+    /// The hold-short node this aircraft is taxiing to (or null if still searching). Reaching it is what "clear of
+    /// the runway" means for <see cref="Simulation.SameRunwayArrivalProtection.TryBuildRollout"/>, which measures the remaining
+    /// vacate from here.
+    /// </summary>
+    public GroundNode? TargetHoldShortNode => _holdShortNode;
+
+    /// <summary>
     /// The hold-short node ID this aircraft is targeting (or null if still searching).
     /// Used by <see cref="SimulationEngine"/> to mark the exit as occupied so other
     /// aircraft don't select the same exit.

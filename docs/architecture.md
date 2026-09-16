@@ -1276,6 +1276,7 @@ SimScenarioState.cs            # Per-scenario runtime state: queues, settings, A
                                # AiStaffedPositions (published by the AI host; never snapshotted) + PilotContacts (memoized PilotContactRoster) + IsAiStaffed
 ScenarioPacing.cs              # Shared solo-training pacing helpers for parking call-up intervals and arrival generator rates
 ArrivalSpacingManager.cs       # Pure in-trail spacing math (SpeedCeiling) for the generator stream — simulated approach-controller speed equalization; SimulationEngine.ApplyArrivalSpacing drives it
+SameRunwayArrivalProtection.cs # Same-runway arrival protection: required threshold interval (category constant / live leader rollout, floored by 3 NM radar + wake), §5-7-3.c distance-keyed speed floor, and the shared vacate arithmetic OccupiedRunwayGoAround projects against; SimulationEngine.ApplySameRunwayArrivalProtection drives it
 ScratchpadRuleEngine.cs        # Applies the facility's vNAS scratchpad rules (airport/route/altitude match → Template) to SP1/SP2
                                # at track-acquisition events. Only fills an empty field that was not explicitly cleared.
                                # Also owns MaxScratchpadLength (3, or 4 with Allow4CharacterScratchpad).

@@ -7,6 +7,7 @@ using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Phases.Pattern;
 using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Simulation;
+using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests;
 
@@ -82,7 +83,7 @@ public class PhaseTransparentCommandTests
             Commands = [new TrackedCommand { Type = TrackedCommandType.Speed }],
             Description = "Speed 120",
             NaturalDescription = "Speed 120",
-            ApplyAction = (a) => FlightCommandHandler.ApplySpeed(speedCmd, a),
+            ApplyAction = (a) => FlightCommandHandler.ApplySpeed(speedCmd, a, TestDispatch.Context(Random.Shared)),
         };
         ac.Queue.Blocks.Add(block);
         Assert.Single(ac.Queue.Blocks);

@@ -59,6 +59,25 @@ stopped stop-and-go beyond the landmark is legal); **departed here** (`TakeoffPh
 a.2: crossed the runway end, or airborne/rolling and projected past 3,000 / 4,500 / 6,000 ft; **neither** (lined up, holding in
 position, crossing, parked) blocks at any distance. A helicopter arrival never triggers it (§3-10-3.a.3). The pilot line is spoken with its reason
 (`PilotResponder.BuildGoingAroundTrafficOnRunway`, AIM 5-2-5.9 / 5-5-5.a.2) and the go-around itself goes through `GoAroundHelper.Trigger`.
+A separate terminal entry names the blocking aircraft and the branch that blocked, so an instructor can tell a sequencing
+go-around from one their own crossing caused without replaying the session.
+
+**A landed occupant is projected off the runway, not assumed to still be on it.** The authority is **§3-10-6.a** (anticipating
+separation: a landing clearance "need not be withheld if you observe the positions of the aircraft and determine that prescribed
+runway separation *will exist when the aircraft crosses the landing threshold*"); §3-10-3.a.1 states the condition, §3-10-6.a
+authorises anticipating it. `WillBeClearOfRunway` asks whether the occupant will be clear **by the arrival's threshold crossing**,
+using the exit the occupant is already committed to (`LandingPhase.CandidateExit` / `RunwayExitPhase`): the braking leg to the exit's
+branch point at the constant-deceleration mean of present ground speed and the exit's turn-off speed, then the exit path, then the
+tail-clearance term — AIM 2-3-4.a.1 / 4-3-20.b, an aircraft is not clear until **all parts** are past the holding position marking, so
+the target is the same `VirtualNode.OffsetPast` point `RunwayExitPhase` taxis to. `SameRunwayArrivalProtection` owns that arithmetic so
+the go-around and the spacing pass cannot disagree about when an aircraft is clear.
+
+Fail-closed everywhere the answer is unknown: a stopped occupant, an unresolved exit, or a missing ground layout all read as "not
+clear". **§3-10-6.b forbids anticipating separation for LUAW** — satisfied structurally rather than by a check, because a lined-up
+occupant classifies `OnSurface`, which is neither the landed nor the departed branch and so never reaches the projection. Before this
+existed the code passed `landerClearOfRunway: false` unconditionally, which for a Cat III pair (no a.1 landmark exception) demanded the
+runway clear a full `DecisionWindowSeconds` — 30 s — *before* the threshold crossing, stricter than both the controller rule and the
+pilot model.
 
 Measured end-to-end through the production tick loop (`TouchdownPointTests`), touchdown lands at **B738 1,367 ft / DH8D 798 ft / C172 401 ft** past the threshold — all inside the AIM 2-1-5.b touchdown zone (100–3,000 ft), with the transports on or just past the AIM 2-3-3.b.4 aiming point markings and the light single near the numbers.
 

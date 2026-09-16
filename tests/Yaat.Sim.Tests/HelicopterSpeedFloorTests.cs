@@ -1,5 +1,6 @@
 using Xunit;
 using Yaat.Sim.Commands;
+using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests;
 
@@ -26,7 +27,7 @@ public class HelicopterSpeedFloorTests
         TestVnasData.EnsureInitialized();
         var heli = Heli();
 
-        var result = FlightCommandHandler.ApplySpeed(new SpeedCommand(30), heli);
+        var result = FlightCommandHandler.ApplySpeed(new SpeedCommand(30), heli, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success, result.Message);
         Assert.Equal(60, heli.Targets.TargetSpeed);
@@ -40,7 +41,7 @@ public class HelicopterSpeedFloorTests
         TestVnasData.EnsureInitialized();
         var heli = Heli();
 
-        var result = FlightCommandHandler.ApplySpeed(new SpeedCommand(80), heli);
+        var result = FlightCommandHandler.ApplySpeed(new SpeedCommand(80), heli, TestDispatch.Context(Random.Shared));
 
         Assert.Equal(80, heli.Targets.TargetSpeed);
         Assert.Contains("Speed 80", result.Message!);
@@ -52,7 +53,7 @@ public class HelicopterSpeedFloorTests
         TestVnasData.EnsureInitialized();
         var heli = Heli();
 
-        var result = FlightCommandHandler.ApplyForceSpeed(new ForceSpeedCommand(30), heli);
+        var result = FlightCommandHandler.ApplyForceSpeed(new ForceSpeedCommand(30), heli, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success, result.Message);
         Assert.Equal(30, heli.Targets.TargetSpeed);
@@ -71,7 +72,7 @@ public class HelicopterSpeedFloorTests
             Altitude = 3000,
         };
 
-        var result = FlightCommandHandler.ApplySpeed(new SpeedCommand(30), jet);
+        var result = FlightCommandHandler.ApplySpeed(new SpeedCommand(30), jet, TestDispatch.Context(Random.Shared));
 
         Assert.Equal(30, jet.Targets.TargetSpeed);
     }

@@ -34,6 +34,22 @@ internal static class OccupiedRunwayGoAround
     public const double MinimumAglFt = RunwayOccupancy.LandingAglCeilingFt;
 
     /// <summary>
+    /// Ground speed (kts) at or below which an occupant counts as stopped and can never be projected clear of the
+    /// runway, whatever its exit plan says. The vacate arithmetic already returns "never" for an aircraft with
+    /// distance left and no speed; this closes the one case it cannot — an aircraft standing still past its exit's
+    /// branch point, where only the exit leg is left and that leg is flown at the exit's planned turn-off speed.
+    /// </summary>
+    private const double StoppedGroundSpeedKts = 1.0;
+
+    /// <summary>
+    /// The occupant that refuses the arrival its threshold crossing, with the §3-10-3 branch that refused it —
+    /// "landing rollout, 4,700 ft down, not clear in 30 s" — for the terminal line. The pilot's transmission stays
+    /// the generic "going around, traffic on the runway" (a pilot does not read out the blocker's callsign), so this
+    /// is the only place the instructor is told which aircraft it was.
+    /// </summary>
+    public sealed record BlockingOccupant(AircraftState Aircraft, string Reason);
+
+    /// <summary>
     /// Goes around when the session setting is on, the arrival is fixed-wing (§3-10-3.a.3 lets visual separation
     /// replace the distance minima for a helicopter), not under a forced landing, inside the decision window, above
     /// <see cref="MinimumAglFt"/>, and a blocking occupant is on its runway. Returns true when a go-around was installed.
@@ -60,21 +76,23 @@ internal static class OccupiedRunwayGoAround
             return false;
         }
 
-        var occupant = FindBlockingOccupant(ctx.ListAircraft(), arrival, runway, ctx.GroundLayout, seconds);
-        if (occupant is null)
+        var blocker = FindBlockingOccupant(ctx.ListAircraft(), arrival, runway, ctx.GroundLayout, seconds);
+        if (blocker is null)
         {
             return false;
         }
 
         Log.LogDebug(
-            "[OccupiedRunwayGoAround] {Callsign}: going around, {Occupant} on runway {Runway} ({Seconds:F0}s from threshold, {Agl:F0} ft AGL)",
+            "[OccupiedRunwayGoAround] {Callsign}: going around, {Occupant} on runway {Runway} — {Reason} ({Seconds:F0}s from threshold, {Agl:F0} ft AGL)",
             arrival.Callsign,
-            occupant.Callsign,
+            blocker.Aircraft.Callsign,
             runway.Designator,
+            blocker.Reason,
             seconds,
             agl
         );
         GoAroundHelper.Trigger(ctx, Pilot.PilotResponder.BuildGoingAroundTrafficOnRunway(arrival));
+        arrival.PendingWarnings.Add($"{arrival.Callsign} go-around: {blocker.Aircraft.Callsign} on {runway.Designator} ({blocker.Reason})");
         return true;
     }
 
@@ -82,7 +100,7 @@ internal static class OccupiedRunwayGoAround
     /// The first aircraft on <paramref name="runway"/> the arrival may not cross the landing threshold behind,
     /// judged <paramref name="secondsToThreshold"/> from now with the occupant's present ground speed held.
     /// </summary>
-    public static AircraftState? FindBlockingOccupant(
+    public static BlockingOccupant? FindBlockingOccupant(
         IReadOnlyList<AircraftState> aircraft,
         AircraftState arrival,
         RunwayInfo runway,
@@ -107,16 +125,20 @@ internal static class OccupiedRunwayGoAround
                 continue;
             }
 
-            if (IsBlocking(other, use.Kind, runway, landingThreshold, runwayEndFt, arrivalCategory, secondsToThreshold))
+            if (BlockingReason(other, use.Kind, runway, landingThreshold, runwayEndFt, arrivalCategory, secondsToThreshold) is { } reason)
             {
-                return other;
+                return new BlockingOccupant(other, reason);
             }
         }
 
         return null;
     }
 
-    private static bool IsBlocking(
+    /// <summary>
+    /// Why <paramref name="occupant"/> refuses the arrival its threshold crossing, or null when §3-10-3 is satisfied
+    /// and it may land behind it.
+    /// </summary>
+    private static string? BlockingReason(
         AircraftState occupant,
         RunwayUseKind kind,
         RunwayInfo runway,
@@ -131,7 +153,7 @@ internal static class OccupiedRunwayGoAround
         // codified exception at any distance: the runway must be clear.
         if (RunwayOccupancy.IsRotorcraft(occupant))
         {
-            return true;
+            return "rotorcraft on the runway";
         }
 
         var occupantCategory = SameRunwaySeparation.ResolveSrsCategory(occupant);
@@ -142,28 +164,70 @@ internal static class OccupiedRunwayGoAround
         // (the classifier already said so now) and, for a departure, flying by then if it is airborne or rolling now.
         if (LandedHere(occupant, kind, runway))
         {
-            return !SameRunwaySeparation.ArrivalBehindLandingSatisfied(
-                landerClearOfRunway: false,
+            bool satisfied = SameRunwaySeparation.ArrivalBehindLandingSatisfied(
+                WillBeClearOfRunway(occupant, secondsToThreshold),
                 landerOnGround: true,
                 projectedFt,
                 occupantCategory,
                 arrivalCategory
             );
+            return satisfied ? null : $"landing rollout, {RoundedFeet(downfieldNowFt)} ft down, not clear in {secondsToThreshold:F0} s";
         }
 
         if (DepartedHere(occupant, kind, runway))
         {
-            return !SameRunwaySeparation.ArrivalBehindDepartureSatisfied(
+            bool satisfied = SameRunwaySeparation.ArrivalBehindDepartureSatisfied(
                 departureCrossedRunwayEnd: projectedFt >= runwayEndFt,
                 SameRunwaySeparation.WillBeFlying(occupant, secondsToThreshold),
                 projectedFt,
                 occupantCategory,
                 arrivalCategory
             );
+            return satisfied ? null : $"departing, {RoundedFeet(downfieldNowFt)} ft down";
         }
 
-        return true;
+        // Everything else on the pavement — lined up, holding in position, crossing, parked — has no §3-10-3
+        // exception at any distance, and is refused without projecting where it will be. That is also what keeps the
+        // §3-10-6.b carve-out satisfied: anticipating separation must not be applied to LUAW operations, and a
+        // lined-up occupant classifies OnSurface and reaches this branch instead of WillBeClearOfRunway. Extending
+        // the projection here would break that.
+        return $"{DescribeUse(kind)}, {RoundedFeet(downfieldNowFt)} ft down";
     }
+
+    /// <summary>
+    /// Will the occupant be clear of the runway by the time the arrival crosses the threshold? §3-10-3.a.1 is a
+    /// threshold-crossing rule — "the arriving aircraft does not cross the landing threshold until … the other
+    /// aircraft has landed and is clear of the runway" — so the question is asked about the moment of the crossing,
+    /// not about now, <see cref="DecisionWindowSeconds"/> earlier. §3-10-6.a is what authorises <em>anticipating</em>
+    /// that separation rather than waiting to observe it: "landing clearance to succeeding aircraft in a landing
+    /// sequence need not be withheld if you observe the positions of the aircraft and determine that prescribed
+    /// runway separation will exist when the aircraft crosses the landing threshold". Requiring the leader to be
+    /// physically clear at the decision point is stricter than both and than tower practice, where the arrival is
+    /// told to continue and the landing clearance comes late.
+    ///
+    /// <para>The estimate comes from <see cref="SameRunwayArrivalProtection.TryBuildRollout"/> — the same arithmetic
+    /// the simulated-TRACON spacing pass uses to decide when a leader is off the runway, so the two cannot disagree.
+    /// Fail closed: an occupant with no resolved exit, no ground layout to resolve one from, or no ground speed to
+    /// cover the distance is <em>not</em> clear, and the go-around fires exactly as it did before.</para>
+    /// </summary>
+    private static bool WillBeClearOfRunway(AircraftState occupant, double secondsToThreshold) =>
+        (occupant.GroundSpeed > StoppedGroundSpeedKts)
+        && (SameRunwayArrivalProtection.TryBuildRollout(occupant, elapsedSinceThresholdSeconds: 0.0) is { } rollout)
+        && (SameRunwayArrivalProtection.SecondsToRunwayClear(rollout) <= secondsToThreshold);
+
+    /// <summary>The occupant's runway use in the instructor's words, for an occupant with no §3-10-3 exception at all.</summary>
+    private static string DescribeUse(RunwayUseKind kind) =>
+        kind switch
+        {
+            RunwayUseKind.Departing => "departure roll",
+            RunwayUseKind.Landing => "over the runway",
+            RunwayUseKind.Crossing => "crossing the runway",
+            _ => "on the runway",
+        };
+
+    /// <summary>Distance down the runway to the nearest 100 ft — the terminal line carries no false precision.</summary>
+    private static string RoundedFeet(double feet) =>
+        (Math.Round(feet / 100.0) * 100.0).ToString("N0", System.Globalization.CultureInfo.InvariantCulture);
 
     /// <summary>§3-10-3.a.1 applies: the occupant landed on this runway and is rolling out, exiting, or stopped after landing.</summary>
     private static bool LandedHere(AircraftState occupant, RunwayUseKind kind, RunwayInfo runway) =>

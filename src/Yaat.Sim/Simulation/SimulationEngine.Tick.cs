@@ -53,6 +53,7 @@ public sealed partial class SimulationEngine
         }
 
         ApplyArrivalSpacing();
+        ApplySameRunwayArrivalProtection();
         ProcessTriggers();
         ProcessTimedPresets();
         ProcessReleaseQueue();

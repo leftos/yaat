@@ -258,7 +258,11 @@ public static class FlightPhysics
                 // wins — leave the procedural memory aside in that case.
                 if (!aircraft.Targets.HasExplicitSpeedCommand && aircraft.Procedure.LastProcedureSpeedKts is { } lastProcSpeed)
                 {
-                    aircraft.Targets.SpeedCeiling = lastProcSpeed;
+                    // Lowering only, like the crossed-restriction stamp above: a ceiling another source already set
+                    // lower is a constraint in its own right and the procedural memory must not raise it.
+                    aircraft.Targets.SpeedCeiling = aircraft.Targets.SpeedCeiling is { } existingProcCeiling
+                        ? Math.Min(existingProcCeiling, lastProcSpeed)
+                        : lastProcSpeed;
                 }
 
                 // FM terminator (most US STARs): fly the published outbound course and await
@@ -2130,6 +2134,7 @@ public static class FlightPhysics
         // Release the explicit ATC restriction so the pilot owns the approach speed.
         aircraft.Targets.TargetSpeed = null;
         aircraft.Targets.HasExplicitSpeedCommand = false;
+        aircraft.Targets.SpeedCommandIsControllerIssued = false;
         aircraft.Targets.SpeedFloor = null;
 
         // A phase that owns speed (pattern legs, an active instrument approach, final) keeps

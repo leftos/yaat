@@ -152,8 +152,17 @@ public class ArrivalGeneratorInTrailSpacingTests(ITestOutputHelper output)
         Assert.Null(follower.Targets.SpeedCeiling);
     }
 
+    /// <summary>
+    /// The generator in-trail manager's own scope: it manages generator arrivals and nothing else. The stream is laid
+    /// out with every pair far enough apart in time that the same-runway arrival protection — which does manage a
+    /// non-generator follower, see
+    /// <c>SameRunwayProtection_ManagesANonGeneratorFollower_WhenTheArrivalAheadWillNotClearInTime</c> — predicts no
+    /// conflict anywhere, so a null ceiling on the manual aircraft genuinely means the generator manager kept its
+    /// hands off rather than that some other pass happened not to fire. The surviving half of the original intent is
+    /// still here: a non-generator aircraft serves as a leader for a generator follower.
+    /// </summary>
     [Fact]
-    public void NonGeneratorArrival_IsNotManaged_ButServesAsLeader()
+    public void GeneratorManager_ManagesOnlyGeneratorArrivals_BehindANonGeneratorLeader()
     {
         var engine = LoadOakEngine();
         if (engine is null)
@@ -162,11 +171,9 @@ public class ArrivalGeneratorInTrailSpacingTests(ITestOutputHelper output)
         }
         var rwy30 = engine.Scenario!.Generators.Single(g => g.Config.Runway == "30").Runway;
 
-        // A manual (non-generator) leader and a generator follower: the follower IS managed
-        // (a leader can be any origin), but a non-generator aircraft is never managed itself.
-        InjectArrival(engine, rwy30, "MANUAL1", "DH8D", 10.0, isGeneratorArrival: false);
-        InjectArrival(engine, rwy30, "GEN2", "B739", 15.0, isGeneratorArrival: true);
-        InjectArrival(engine, rwy30, "MANUAL3", "B739", 20.0, isGeneratorArrival: false);
+        InjectArrival(engine, rwy30, "MANUAL1", "DH8D", 6.0, isGeneratorArrival: false);
+        InjectArrival(engine, rwy30, "GEN2", "B739", 35.0, isGeneratorArrival: true);
+        InjectArrival(engine, rwy30, "MANUAL3", "B739", 48.0, isGeneratorArrival: false);
 
         for (int t = 1; t <= 5; t++)
         {
@@ -180,9 +187,65 @@ public class ArrivalGeneratorInTrailSpacingTests(ITestOutputHelper output)
         Assert.NotNull(genFollower);
         Assert.NotNull(manualFollower);
 
+        foreach (var ac in new[] { manualLeader, genFollower, manualFollower })
+        {
+            output.WriteLine(
+                $"{ac.Callsign}: {RunwayOccupancy.DistanceToAssignedThresholdNm(ac, rwy30, engine.World.GroundLayout):F1} nm, "
+                    + $"eta {RunwayOccupancy.SecondsToAssignedThreshold(ac, rwy30, engine.World.GroundLayout):F0}s, "
+                    + $"ceiling {ac.Targets.SpeedCeiling?.ToString("F0") ?? "(none)"}, "
+                    + $"protection {ac.Approach.SameRunwayProtectionCeilingKts?.ToString("F0") ?? "(off)"}"
+            );
+        }
+
+        // The layout is conflict-free by construction; if this trips, the spacing below has drifted and the null
+        // assertions underneath it no longer prove anything about the generator manager.
+        Assert.Null(genFollower.Approach.SameRunwayProtectionCeilingKts);
+        Assert.Null(manualFollower.Approach.SameRunwayProtectionCeilingKts);
+
         Assert.NotNull(genFollower.Targets.SpeedCeiling); // generator follower managed behind a manual leader
-        Assert.Null(manualLeader.Targets.SpeedCeiling); // manual aircraft never managed
-        Assert.Null(manualFollower.Targets.SpeedCeiling); // manual aircraft never managed
+        Assert.Null(manualLeader.Targets.SpeedCeiling); // front of the stream, and not a generator arrival
+        Assert.Null(manualFollower.Targets.SpeedCeiling); // the generator manager never manages a non-generator arrival
+    }
+
+    /// <summary>
+    /// The other half of the contract the generator manager's scope leaves open: a non-generator follower delivered
+    /// inside the leader's runway occupancy time <em>is</em> managed — by the same-runway arrival protection, which
+    /// exists precisely because <see cref="SimulationEngine"/>'s generator spacing never touches a scenario-scripted
+    /// arrival (§3-10-3.a.1, the interval that must exist between the two threshold crossings). Two manual arrivals
+    /// 3 nm apart with the faster one behind: nothing in the generator path would touch either of them.
+    /// </summary>
+    [Fact]
+    public void SameRunwayProtection_ManagesANonGeneratorFollower_WhenTheArrivalAheadWillNotClearInTime()
+    {
+        var engine = LoadOakEngine();
+        if (engine is null)
+        {
+            return;
+        }
+        var rwy30 = engine.Scenario!.Generators.Single(g => g.Config.Runway == "30").Runway;
+
+        InjectArrival(engine, rwy30, "MANUAL1", "DH8D", 8.0, isGeneratorArrival: false);
+        InjectArrival(engine, rwy30, "MANUAL3", "B739", 11.0, isGeneratorArrival: false);
+
+        for (int t = 1; t <= 5; t++)
+        {
+            engine.TickOneSecond();
+        }
+
+        var manualLeader = engine.FindAircraft("MANUAL1");
+        var manualFollower = engine.FindAircraft("MANUAL3");
+        Assert.NotNull(manualLeader);
+        Assert.NotNull(manualFollower);
+
+        output.WriteLine(
+            $"leader eta {RunwayOccupancy.SecondsToAssignedThreshold(manualLeader, rwy30, engine.World.GroundLayout):F0}s, "
+                + $"follower eta {RunwayOccupancy.SecondsToAssignedThreshold(manualFollower, rwy30, engine.World.GroundLayout):F0}s, "
+                + $"follower ceiling {manualFollower.Targets.SpeedCeiling?.ToString("F0") ?? "(none)"}"
+        );
+
+        Assert.NotNull(manualFollower.Approach.SameRunwayProtectionCeilingKts);
+        Assert.Equal(manualFollower.Approach.SameRunwayProtectionCeilingKts, manualFollower.Targets.SpeedCeiling);
+        Assert.Null(manualLeader.Targets.SpeedCeiling); // front of the stream — nobody ahead of it to be spaced from
     }
 
     [Fact]
