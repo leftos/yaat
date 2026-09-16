@@ -29,7 +29,7 @@ public sealed class SnapshotSchemaException : Exception
 /// </summary>
 public static class SnapshotSchemaMigrator
 {
-    public const int CurrentSchemaVersion = 25;
+    public const int CurrentSchemaVersion = 26;
 
     /// <summary>
     /// Migrates a snapshot to <see cref="CurrentSchemaVersion"/> in place.
@@ -162,6 +162,9 @@ public static class SnapshotSchemaMigrator
         //   deleting it). Equally optional and equally undemanding on read: an older snapshot restores with no ceiling
         //   attributed to the pass, which then re-engages on the next tick if the conflict it protects against is still
         //   predicted.
+        // V25→V26: Added PushbackPhaseDto.Kind, which end the tug leads with (PushbackLegKind.Push or Pull).
+        //   No data transformation — the field is optional and older snapshots restore with the default Push, which is
+        //   what every pushback written before tug moves was.
         if (snapshot.SchemaVersion < 4)
         {
             foreach (var ac in snapshot.Aircraft)
