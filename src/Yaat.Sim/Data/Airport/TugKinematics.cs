@@ -3,6 +3,16 @@ using Yaat.Sim.Data.Faa;
 
 namespace Yaat.Sim.Data.Airport;
 
+/// <summary>Which way the tug moves the aircraft over one leg of a ramp reposition.</summary>
+public enum PushbackLegKind
+{
+    /// <summary>Tail-first: the tug reverses the aircraft.</summary>
+    Push,
+
+    /// <summary>Nose-first: the tug tows the aircraft forward.</summary>
+    Pull,
+}
+
 /// <summary>
 /// Where a tug-moved aircraft is: the reference point that travels along the aircraft's own axis, and the way the
 /// nose points. The heading is normalised to [0, 360) on construction and on every <c>with</c>.
@@ -34,7 +44,7 @@ public enum TugMoveShape
     /// <summary>Along the direction of travel the move started with, for <see cref="TugMove.StraightDistanceFt"/>.</summary>
     Straight,
 
-    /// <summary>Pursues <see cref="TugMove.Point"/> and ends within 3 ft of it.</summary>
+    /// <summary>Pursues <see cref="TugMove.Point"/> and ends within 1 ft of it.</summary>
     ToPoint,
 
     /// <summary>
@@ -82,7 +92,7 @@ public sealed record TugMove
     /// <summary>Steer on the type's tight radius instead of its routine one.</summary>
     public bool Tight { get; init; }
 
-    /// <summary>Move at creep speed.</summary>
+    /// <summary>The tug slows to walking-alignment speed for this move.</summary>
     public bool Creep { get; init; }
 
     /// <summary>The move reverses the previous one, so the aircraft dwells stopped before it starts.</summary>
@@ -185,6 +195,12 @@ public sealed record TugMoveTrace
 
     /// <summary><see cref="TugMoveShape.ViaLine"/> only: the end's |direction of travel − line direction|, degrees.</summary>
     public required double? EndLineTravelErrorDeg { get; init; }
+
+    /// <summary>
+    /// <see cref="TugMoveShape.ViaLine"/> with a <see cref="TugMove.StopAt"/> only: how far along the line the end is
+    /// past the stop, feet (positive = past it, negative = short of it). Null for every other move.
+    /// </summary>
+    public required double? EndOvershootFt { get; init; }
 }
 
 /// <summary>A sequence of moves as <see cref="TugKinematics.Simulate"/> flew it.</summary>
@@ -221,16 +237,17 @@ public static class TugKinematics
 
     private const double MinRadiusFt = 1.0;
 
-    /// <summary>The largest angle a line capture approaches its line at.</summary>
-    private const double MaxApproachDeg = 90.0;
-
     /// <summary>
-    /// The line-capture gain as a multiple of the turn radius: the cross-track at which the capture approaches at
-    /// 45° is this many radii. A judgement call, sized so a capture never overshoots its line by more than 3 ft.
+    /// The roll-out radius of a line capture as a multiple of the turn radius. A capture turns in at up to 90°,
+    /// flies straight, and rolls out onto its line on an arc this many turn radii wide. The margin over 1 is a
+    /// judgement call, sized so the discrete, curvature-limited roll-out never overshoots the line.
     /// </summary>
-    private const double CaptureGainRadii = 1.0;
+    public const double RolloutMarginRadii = 1.15;
 
-    private const double StopToleranceFt = 3.0;
+    /// <summary>The largest angle a line capture intercepts its line at.</summary>
+    private const double MaxInterceptDeg = 90.0;
+
+    private const double StopToleranceFt = 1.0;
     private const double CaptureCrossTrackFt = 1.0;
     private const double CaptureTravelErrorDeg = 1.0;
     private const double FacingToleranceDeg = 0.5;
@@ -262,8 +279,10 @@ public static class TugKinematics
     /// <summary>
     /// The direction of travel after a step: the current travel turned toward the move's commanded travel by at
     /// most <c>stepFt / radiusFt</c> radians, the shorter way. Commanded travel: the start travel (straight), the
-    /// bearing to the point (to-point), the vector-field guidance <c>χL − 90°·(2/π)·atan(e/R)</c> (line; <c>e</c> is
-    /// the cross-track, positive right), or the travel that puts the nose on the facing (turn).
+    /// bearing to the point (to-point), the roll-out law <c>χL − sign(e)·θ(e)</c> (line; <c>e</c> is the cross-track,
+    /// positive right; <c>θ</c> is 90° when <c>|e| ≥ R_c</c>, else <c>acos(1 − |e|/R_c)</c>, with
+    /// <c>R_c = <see cref="RolloutMarginRadii"/> × R</c>), or the travel that puts the nose on the facing (turn). A line
+    /// capture therefore turns in at up to 90°, flies straight, and rolls out on an arc.
     /// </summary>
     /// <param name="pose">The current pose.</param>
     /// <param name="move">The move being flown.</param>
@@ -319,9 +338,10 @@ public static class TugKinematics
     }
 
     /// <summary>
-    /// Whether a move has finished: a straight has covered its distance; a to-point is within 3 ft of its point; a
-    /// floating line move has captured; a line move with a stop has reached the stop's along-line position less
-    /// 3 ft, captured or not; a turn has the nose within 0.5° of its facing.
+    /// Whether a move has finished: a straight has covered its distance; a to-point is within 1 ft of its point; a
+    /// floating line move has captured; a line move with a stop has captured <em>and</em> reached the stop's
+    /// along-line position less 1 ft — one that reaches the stop first carries on until it captures, one that
+    /// captures first carries on along the line to the stop; a turn has the nose within 0.5° of its facing.
     /// </summary>
     /// <param name="pose">The current pose.</param>
     /// <param name="move">The move being flown.</param>
@@ -332,7 +352,8 @@ public static class TugKinematics
         {
             TugMoveShape.Straight => progress.DistanceFt >= move.StraightDistanceFt,
             TugMoveShape.ToPoint => FeetBetween(pose.Position, move.Point) <= StopToleranceFt,
-            TugMoveShape.ViaLine => move.StopAt is { } stop ? AlongLineFt(pose.Position, stop, move) >= -StopToleranceFt : progress.Captured,
+            TugMoveShape.ViaLine => progress.Captured
+                && ((move.StopAt is not { } stop) || (AlongLineFt(pose.Position, stop, move) >= -StopToleranceFt)),
             TugMoveShape.TurnTo => AbsDiffDeg(pose.NoseTrueDeg, move.FacingTrueDeg) <= FacingToleranceDeg,
             _ => throw new ArgumentOutOfRangeException(nameof(move), move.Shape, "Unknown tug move shape"),
         };
@@ -419,6 +440,7 @@ public static class TugKinematics
             End = pose,
             EndCrossTrackFt = isLine ? CrossTrackFt(pose.Position, move) : null,
             EndLineTravelErrorDeg = isLine ? AbsDiffDeg(pose.TravelTrueDeg(move.Kind), move.LineTravelTrueDeg) : null,
+            EndOvershootFt = (isLine && (move.StopAt is { } stop)) ? AlongLineFt(pose.Position, stop, move) : null,
         };
     }
 
@@ -433,6 +455,7 @@ public static class TugKinematics
             End = pose,
             EndCrossTrackFt = null,
             EndLineTravelErrorDeg = null,
+            EndOvershootFt = null,
         };
 
     private static double TravelBudgetFt(TugPose start, TugMove move, double radiusFt) =>
@@ -459,12 +482,22 @@ public static class TugKinematics
             _ => throw new ArgumentOutOfRangeException(nameof(move), move.Shape, "Unknown tug move shape"),
         };
 
+    /// <summary>
+    /// The roll-out law: the line direction turned toward the line by the intercept angle for the cross-track.
+    /// </summary>
     private static double LineGuidanceDeg(TugPose pose, TugMove move, double radiusFt)
     {
         double crossFt = CrossTrackFt(pose.Position, move);
-        double approachDeg = MaxApproachDeg * (2.0 / Math.PI) * Math.Atan(crossFt / (radiusFt * CaptureGainRadii));
-        return new TrueHeading(move.LineTravelTrueDeg - approachDeg).Degrees;
+        double interceptDeg = InterceptDeg(Math.Abs(crossFt), RolloutMarginRadii * radiusFt);
+        return new TrueHeading(move.LineTravelTrueDeg - (Math.Sign(crossFt) * interceptDeg)).Degrees;
     }
+
+    /// <summary>
+    /// The largest intercept angle from which one arc of radius <paramref name="rolloutFt"/> still rolls out onto the
+    /// line: 90° at or beyond one roll-out radius off it, else <c>acos(1 − offLine / rolloutFt)</c>.
+    /// </summary>
+    private static double InterceptDeg(double offLineFt, double rolloutFt) =>
+        offLineFt >= rolloutFt ? MaxInterceptDeg : Math.Acos(1.0 - (offLineFt / rolloutFt)) * RadToDeg;
 
     private static bool IsOnLine(TugPose pose, TugMove move) =>
         (Math.Abs(CrossTrackFt(pose.Position, move)) <= CaptureCrossTrackFt)

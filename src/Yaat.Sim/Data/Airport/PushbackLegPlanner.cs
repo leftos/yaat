@@ -2,16 +2,6 @@ using Microsoft.Extensions.Logging;
 
 namespace Yaat.Sim.Data.Airport;
 
-/// <summary>Which way the tug moves the aircraft over one leg of a ramp reposition.</summary>
-public enum PushbackLegKind
-{
-    /// <summary>Tail-first: the tug reverses the aircraft.</summary>
-    Push,
-
-    /// <summary>Nose-first: the tug tows the aircraft forward.</summary>
-    Pull,
-}
-
 /// <summary>One point a tug move is asked to reach.</summary>
 /// <param name="Node">The ground node the leg ends on.</param>
 /// <param name="IsSpot">True when the node is a painted ramp spot, whose facing comes from its sub-lane rather than a stored heading.</param>
@@ -61,15 +51,6 @@ public static class PushbackLegPlanner
     /// </summary>
     public const double MaxLegFt = 2000.0;
 
-    /// <summary>
-    /// How close to either end of a leg movement-area pavement may be touched. A leg is allowed to reach a
-    /// taxiway — that is what <c>PUSH &lt;taxiway&gt;</c> already does — and equally to leave one it is already
-    /// standing on: an aircraft that has made a <c>PUSH A</c> is sitting on taxiway A, whose own edges cut its
-    /// next leg at ~0 ft from that leg's start. What stays refused is an intersection in between, which is the
-    /// leg crossing pavement it was not cleared onto and carrying on.
-    /// </summary>
-    private const double MovementAreaEndWindowFt = 25.0;
-
     /// <summary>A target this far off the nose or less is ahead of the aircraft; beyond it, behind.</summary>
     private const double AheadOfNoseDeg = 90.0;
 
@@ -103,7 +84,7 @@ public static class PushbackLegPlanner
             return null;
         }
 
-        var pavement = new PavementClassifier(layout);
+        var pavement = new TugPavementClassifier(layout);
         double turnPerFootDeg = TurnPerFootDeg(category);
         var legs = new List<PushbackLeg>(targets.Count);
         var from = start;
@@ -150,7 +131,7 @@ public static class PushbackLegPlanner
     /// Whether the leg may be flown at all, and why not. Length is tested first so a mis-click on the far side
     /// of the field reads as a mis-click even when the line it draws also crosses something.
     /// </summary>
-    private static bool IsLegObstructed(PavementClassifier pavement, LegProbe leg, out string refusal)
+    private static bool IsLegObstructed(TugPavementClassifier pavement, LegProbe leg, out string refusal)
     {
         // The 2,000 ft bound is a UI sanity guard against a mis-click on the ground view, not an aviation
         // rule — no published limit caps how far a tug may move an aircraft.
@@ -252,129 +233,4 @@ public static class PushbackLegPlanner
 
     /// <summary>One leg's inputs, bundled so the obstruction tests read as one question.</summary>
     private readonly record struct LegProbe(LatLon From, PushbackTarget Target, double LengthFt, string Label);
-
-    /// <summary>
-    /// Classifies the pavement a leg would cross, memoizing the movement-area verdict per taxiway name —
-    /// <see cref="RampLaneReposition.IsRampTaxilane"/> walks the graph, and a leg tests every edge on the field.
-    /// </summary>
-    private sealed class PavementClassifier
-    {
-        private readonly AirportGroundLayout _layout;
-        private readonly Dictionary<string, bool> _movementAreaByName = new(StringComparer.OrdinalIgnoreCase);
-
-        internal PavementClassifier(AirportGroundLayout layout)
-        {
-            _layout = layout;
-        }
-
-        /// <summary>The name of the runway the leg crosses, or null when it crosses none.</summary>
-        internal string? CrossedRunwayName(LatLon from, LatLon to)
-        {
-            if (!_layout.RunwayCenterlineBetween(from, to))
-            {
-                return null;
-            }
-
-            foreach (var runway in _layout.Runways)
-            {
-                for (int i = 1; i < runway.Coordinates.Count; i++)
-                {
-                    var a = new LatLon(runway.Coordinates[i - 1].Lat, runway.Coordinates[i - 1].Lon);
-                    var b = new LatLon(runway.Coordinates[i].Lat, runway.Coordinates[i].Lon);
-                    if (GeoMath.SegmentsIntersect(from, to, a, b) is not null)
-                    {
-                        return runway.Name;
-                    }
-                }
-            }
-
-            return null;
-        }
-
-        /// <summary>True when the leg touches any edge hanging off a runway holding-position node.</summary>
-        internal bool ReachesHoldShort(LatLon from, LatLon to)
-        {
-            foreach (var edge in _layout.AllEdges)
-            {
-                bool touchesHoldShort =
-                    (edge.Nodes[0].Type == GroundNodeType.RunwayHoldShort) || (edge.Nodes[1].Type == GroundNodeType.RunwayHoldShort);
-                if (touchesHoldShort && (GeoMath.SegmentsIntersect(from, to, edge.Nodes[0].Position, edge.Nodes[1].Position) is not null))
-                {
-                    return true;
-                }
-            }
-
-            return false;
-        }
-
-        /// <summary>
-        /// The name of the movement-area pavement the leg transits, or null. An intersection within
-        /// <see cref="MovementAreaEndWindowFt"/> of <em>either</em> end point is the leg arriving at that
-        /// pavement or leaving pavement it already stands on, both of which are allowed; an intersection
-        /// anywhere between the two is the leg cutting across it, which is not.
-        /// </summary>
-        internal string? TransitedMovementAreaName(LatLon from, LatLon to)
-        {
-            foreach (var edge in _layout.AllEdges)
-            {
-                if (MovementAreaName(edge) is not { } name)
-                {
-                    continue;
-                }
-
-                if (GeoMath.SegmentsIntersect(from, to, edge.Nodes[0].Position, edge.Nodes[1].Position) is not { } hit)
-                {
-                    continue;
-                }
-
-                double toEndFt = Math.Min(GeoMath.DistanceNm(hit.Point, from), GeoMath.DistanceNm(hit.Point, to)) * GeoMath.FeetPerNm;
-                if (toEndFt > MovementAreaEndWindowFt)
-                {
-                    return name;
-                }
-            }
-
-            return null;
-        }
-
-        /// <summary>
-        /// The movement-area name the edge carries, or null when the edge is ramp. An edge counts as movement
-        /// area only when <em>none</em> of its names is apron or a ramp taxilane: shared pavement at a ramp
-        /// entrance is the boundary, and a leg is allowed to reach movement-area pavement. SFO's six-alley
-        /// entrance arc carries both taxiway <c>A</c> and ramp lane <c>T6A</c>, and reading it as taxiway A cut
-        /// a legitimate tug move from A into the alley 75 ft in.
-        ///
-        /// <para>This is a decision, not an oversight: it also lets a leg clip taxiway <c>Y</c> where SFO's M1
-        /// arc shares pavement with it. Shared pavement is where the ramp ends, so a leg that touches it is a
-        /// leg reaching the movement area rather than cutting across it, and the refusals that carry safety
-        /// weight — runway pavement, a runway holding position — are separate rules that still fire.</para>
-        /// </summary>
-        private string? MovementAreaName(IGroundEdge edge)
-        {
-            string? movementArea = null;
-            foreach (string name in RampLaneReposition.EdgeNames(edge))
-            {
-                if (!IsMovementArea(name))
-                {
-                    return null;
-                }
-
-                movementArea ??= name;
-            }
-
-            return movementArea;
-        }
-
-        private bool IsMovementArea(string name)
-        {
-            if (_movementAreaByName.TryGetValue(name, out bool cached))
-            {
-                return cached;
-            }
-
-            bool movementArea = !name.Equals("RAMP", StringComparison.OrdinalIgnoreCase) && !RampLaneReposition.IsRampTaxilane(_layout, name);
-            _movementAreaByName[name] = movementArea;
-            return movementArea;
-        }
-    }
 }

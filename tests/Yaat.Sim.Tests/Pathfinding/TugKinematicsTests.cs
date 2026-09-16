@@ -17,6 +17,8 @@ public class TugKinematicsTests
     private const string Widebody = "B77W";
     private const double StepFt = 1.0;
     private const double LaneRunUpFt = 150.0;
+    private const double CaptureFirstStopFt = 250.0;
+    private const double SixAAbeamFt = 140.5;
 
     private readonly ITestOutputHelper _output;
 
@@ -142,8 +144,75 @@ public class TugKinematicsTests
         Assert.True(overshootFt <= 3.0, $"overshot the lane by {overshootFt:F2} ft");
     }
 
+    /// <summary>
+    /// The roll-out law's path economy: pushing down the 6B lane from 6A (140.5 ft abeam, parallel to it), a
+    /// floating capture turns in, crosses and rolls out within 2.5 roll-out radii of path beyond the 140.5 ft it
+    /// has to cross.
+    /// </summary>
     [Fact]
-    public void ViaLineWithStopAt_EndsAtTheStagingPoint()
+    public void ViaLineFloatingFromSixA_CapturesWithinTwoAndAHalfRolloutRadiiOfTheCrossing()
+    {
+        if (LoadLane() is not { } lane)
+        {
+            return;
+        }
+
+        var (start, move) = AbeamPushStart(lane, lane.SixA.Position, 0.0);
+        double rolloutFt = TugKinematics.RolloutMarginRadii * TugKinematics.TurnRadiusFt(Narrowbody, tight: false);
+        double boundFt = (2.5 * rolloutFt) + SixAAbeamFt;
+
+        var trace = Assert.Single(TugKinematics.Simulate(start, [move], Narrowbody, StepFt).Moves);
+
+        double startCrossFt = Math.Abs(CrossTrackFt(start.Position, move));
+        _output.WriteLine(
+            $"R_c={rolloutFt:F2} ft, start {startCrossFt:F2} ft abeam, path {trace.PathLengthFt:F0} ft vs bound {boundFt:F1} ft, "
+                + $"end cross {trace.EndCrossTrackFt:F2} ft, end Δχ {trace.EndLineTravelErrorDeg:F2}°"
+        );
+        Assert.InRange(startCrossFt, SixAAbeamFt - 1.0, SixAAbeamFt + 1.0);
+        Assert.True(trace.Completed, "the capture never completed");
+        Assert.True(trace.PathLengthFt <= boundFt, $"the capture flew {trace.PathLengthFt:F0} ft, over the {boundFt:F1} ft bound");
+    }
+
+    /// <summary>
+    /// Pushing down the 6B lane from 70 ft abeam, parallel to it, with the stop far enough back that the capture
+    /// comes first: the move carries on along the lane and ends at the stop.
+    /// </summary>
+    [Fact]
+    public void ViaLineWithStopAt_CaptureBeforeTheStop_EndsAtTheStop()
+    {
+        if (LoadLane() is not { } lane)
+        {
+            return;
+        }
+
+        double pushLineDeg = lane.TravelDeg + 180.0;
+        var stop = GeoMath.ProjectPoint(lane.SixB.Position, new TrueHeading(pushLineDeg), CaptureFirstStopFt / GeoMath.FeetPerNm);
+        var start = new TugPose(TowardSixA(lane, 70.0), lane.TravelDeg);
+        var move = TugMove.ViaLine(PushbackLegKind.Push, lane.SixB.Position, pushLineDeg, stop);
+
+        var trace = Assert.Single(TugKinematics.Simulate(start, [move], Narrowbody, StepFt).Moves);
+
+        double alongFt = AlongFt(trace.End.Position, stop, pushLineDeg);
+        bool capturedShortOfStop = trace.Samples.Any(s =>
+            (Math.Abs(CrossTrackFt(s.Position, move)) <= 1.0) && (AlongFt(s.Position, stop, pushLineDeg) < -3.0)
+        );
+        _output.WriteLine(
+            $"path {trace.PathLengthFt:F0} ft, along-line from the stop {alongFt:F2} ft, overshoot {trace.EndOvershootFt:F2} ft, "
+                + $"end cross {trace.EndCrossTrackFt:F2} ft, on the lane short of the stop: {capturedShortOfStop}"
+        );
+        Assert.True(capturedShortOfStop, "the lane was not captured short of the stop, so the case does not pin capture-then-stop");
+        Assert.True(trace.Completed, "the stop was never reached");
+        Assert.True(Math.Abs(alongFt) <= 3.0, $"stopped {alongFt:F2} ft along the lane from the stop");
+        Assert.Equal(alongFt, Assert.NotNull(trace.EndOvershootFt), 6);
+        Assert.True(Math.Abs(Assert.NotNull(trace.EndCrossTrackFt)) <= 1.0, $"ended {trace.EndCrossTrackFt:F2} ft off the lane");
+    }
+
+    /// <summary>
+    /// The 6A → 6B push with the stop 100 ft behind 6B: the stop comes before the capture, so the move carries on
+    /// until it has captured the lane and reports how far past the stop that left it.
+    /// </summary>
+    [Fact]
+    public void ViaLineWithStopAt_StopBeforeCapture_CarriesOnUntilCaptured()
     {
         if (LoadLane() is not { } lane)
         {
@@ -157,10 +226,14 @@ public class TugKinematicsTests
 
         var trace = Assert.Single(TugKinematics.Simulate(start, [move], Narrowbody, StepFt).Moves);
 
-        double alongFt = GeoMath.AlongTrackDistanceNm(trace.End.Position, staging, new TrueHeading(pushLineDeg)) * GeoMath.FeetPerNm;
-        _output.WriteLine($"path {trace.PathLengthFt:F0} ft, along-line from the stop {alongFt:F2} ft, end cross {trace.EndCrossTrackFt:F2} ft");
-        Assert.True(trace.Completed, "the stop was never reached");
-        Assert.True(Math.Abs(alongFt) <= 3.0, $"stopped {alongFt:F2} ft along the lane from the staging point");
+        double endCrossFt = Assert.NotNull(trace.EndCrossTrackFt);
+        double endErrorDeg = Assert.NotNull(trace.EndLineTravelErrorDeg);
+        double overshootFt = Assert.NotNull(trace.EndOvershootFt);
+        _output.WriteLine($"path {trace.PathLengthFt:F0} ft, overshoot {overshootFt:F2} ft, end cross {endCrossFt:F2} ft, end Δχ {endErrorDeg:F2}°");
+        Assert.True(trace.Completed, "the move never completed");
+        Assert.True(Math.Abs(endCrossFt) <= 1.0, $"ended {endCrossFt:F2} ft off the lane — the move stopped before capturing it");
+        Assert.True(endErrorDeg <= 1.0, $"ended {endErrorDeg:F2}° off the lane direction");
+        Assert.True(overshootFt > 0.0, $"ended {overshootFt:F2} ft along from the stop, but the stop comes before the capture");
     }
 
     [Theory]
@@ -355,6 +428,9 @@ public class TugKinematicsTests
 
         return overshootFt;
     }
+
+    private static double AlongFt(LatLon point, LatLon reference, double lineDeg) =>
+        GeoMath.AlongTrackDistanceNm(point, reference, new TrueHeading(lineDeg)) * GeoMath.FeetPerNm;
 
     private static double CrossTrackFt(LatLon point, TugMove move) =>
         GeoMath.SignedCrossTrackDistanceNm(point, move.Point, new TrueHeading(move.LineTravelTrueDeg)) * GeoMath.FeetPerNm;
