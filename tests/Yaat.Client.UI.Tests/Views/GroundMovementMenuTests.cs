@@ -190,7 +190,7 @@ public class GroundMovementMenuTests
     [AvaloniaFact]
     public void GroundMenu_AtParking_PinsHeaderSequence()
     {
-        AssertHeaderSequence(BuildGroundMenu("At Parking", held: false), "Push back", "Follow...", "Draw taxi route...");
+        AssertHeaderSequence(BuildGroundMenu("At Parking", held: false), "Push back", "Push route...", "Follow...", "Draw taxi route...");
     }
 
     [AvaloniaFact]
@@ -228,13 +228,20 @@ public class GroundMovementMenuTests
     [AvaloniaFact]
     public void GroundMenu_HoldingAfterPushback_PinsHeaderSequence()
     {
-        AssertHeaderSequence(BuildGroundMenu("Holding After Pushback", held: true), "Push back", "Resume taxi", "Follow...", "Draw taxi route...");
+        AssertHeaderSequence(
+            BuildGroundMenu("Holding After Pushback", held: true),
+            "Push back",
+            "Push route...",
+            "Resume taxi",
+            "Follow...",
+            "Draw taxi route..."
+        );
     }
 
     [AvaloniaFact]
     public void GroundMenu_HoldingAfterPushbackUnheld_PinsHeaderSequence()
     {
-        AssertHeaderSequence(BuildGroundMenu("Holding After Pushback", held: false), "Push back", "Follow...", "Draw taxi route...");
+        AssertHeaderSequence(BuildGroundMenu("Holding After Pushback", held: false), "Push back", "Push route...", "Follow...", "Draw taxi route...");
     }
 
     [AvaloniaFact]
