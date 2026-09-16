@@ -1840,6 +1840,194 @@ internal static class GroundCommandHandler
         return CommandDispatcher.Ok(msg);
     }
 
+    /// <summary>
+    /// A multi-point tug move (<c>PUSHM</c>): resolves each target, plans the legs, and installs one
+    /// <see cref="PushbackPhase"/> per leg followed by the phase the terminus leaves the aircraft in.
+    /// Nothing is touched until the plan succeeds, so a refused move leaves the aircraft exactly as it was.
+    /// </summary>
+    /// <param name="aircraft">The aircraft to move.</param>
+    /// <param name="move">The parsed command: the targets in order and an optional final facing.</param>
+    /// <param name="groundLayout">The airport's ground layout.</param>
+    /// <returns>The move's acceptance, or the planner's refusal verbatim.</returns>
+    internal static CommandResult TryPushbackMulti(AircraftState aircraft, PushbackMultiCommand move, AirportGroundLayout? groundLayout)
+    {
+        if (groundLayout is null)
+        {
+            return new CommandResult(false, "No airport ground layout available");
+        }
+
+        // A move already under way is a legal starting point: the tug is attached, and an RPO redirecting it is
+        // ordinary. The plan is made from where the aircraft is now, and InstallTugMove drops the running leg
+        // along with every leg still queued behind it, so the new move replaces the old one whole.
+        if (aircraft.Phases?.CurrentPhase is not (AtParkingPhase or HoldingAfterPushbackPhase or PushbackPhase))
+        {
+            return new CommandResult(false, "A tug move requires the aircraft to be at parking, holding after a pushback, or already under tow");
+        }
+
+        var targets = new List<PushbackTarget>(move.Targets.Count);
+        foreach (string token in move.Targets)
+        {
+            if (ResolveTugTarget(groundLayout, token) is not { } target)
+            {
+                return new CommandResult(false, $"Cannot find {DescribeTugTarget(token)}");
+            }
+
+            targets.Add(target);
+        }
+
+        // The planner works in degrees true; the controller names a magnetic facing.
+        int? finalFacingTrue = move.FinalFacing is { } facing
+            ? new TrueHeading(MagneticDeclination.MagneticToTrue(facing.Degrees, aircraft.Position)).ToDisplayInt()
+            : null;
+
+        var legs = PushbackLegPlanner.Plan(
+            groundLayout,
+            aircraft.Position,
+            aircraft.TrueHeading.Degrees,
+            aircraft.Phases.CurrentPhase is AtParkingPhase,
+            targets,
+            finalFacingTrue,
+            AircraftCategorization.Categorize(aircraft.AircraftType),
+            out string refusal
+        );
+
+        if (legs is null)
+        {
+            return new CommandResult(false, refusal);
+        }
+
+        return InstallTugMove(aircraft, groundLayout, targets, legs);
+    }
+
+    /// <summary>
+    /// Clears whatever the aircraft was doing and installs the planned legs, each as its own
+    /// <see cref="PushbackPhase"/>, with the terminus's resting phase behind them.
+    /// </summary>
+    /// <param name="aircraft">The aircraft to move.</param>
+    /// <param name="groundLayout">The airport's ground layout.</param>
+    /// <param name="targets">The resolved targets, one per leg, in order.</param>
+    /// <param name="legs">The planned legs.</param>
+    /// <returns>The acceptance message naming where the move ends.</returns>
+    private static CommandResult InstallTugMove(
+        AircraftState aircraft,
+        AirportGroundLayout groundLayout,
+        IReadOnlyList<PushbackTarget> targets,
+        IReadOnlyList<PushbackLeg> legs
+    )
+    {
+        var last = targets[^1];
+        bool endsOnAStand = last.IsSpot || (last.Node.Type is GroundNodeType.Parking or GroundNodeType.Helipad);
+
+        var ctx = CommandDispatcher.BuildMinimalContext(aircraft, groundLayout);
+        aircraft.Phases!.Clear(ctx);
+        aircraft.Phases = new PhaseList();
+        for (int i = 0; i < legs.Count; i++)
+        {
+            aircraft.Phases.Add(BuildTugLegPhase(legs[i], targets[i], i == (legs.Count - 1), aircraft.AircraftType));
+        }
+
+        aircraft.Phases.Add(endsOnAStand ? new AtParkingPhase() : new HoldingAfterPushbackPhase());
+        aircraft.Phases.Start(ctx);
+
+        string destination = TugTargetName(last);
+        if (endsOnAStand)
+        {
+            aircraft.Ground.ParkingSpot = destination.ToUpperInvariant();
+        }
+
+        Log.LogDebug(
+            "[TugMove] {Callsign}: {LegCount} legs to {Destination} ({Kinds}), endsOnAStand={EndsOnAStand}",
+            aircraft.Callsign,
+            legs.Count,
+            destination,
+            string.Join(" then ", legs.Select(l => l.Kind)),
+            endsOnAStand
+        );
+
+        return CommandDispatcher.Ok($"Tug move to {destination}, {legs.Count} legs");
+    }
+
+    /// <summary>
+    /// The phase running one planned leg. Every leg reverses or tows the aircraft to the planned point, except
+    /// a final leg onto a ramp spot, which ends in the nosewheel-on-the-mark geometry <c>PUSH $spot</c> uses:
+    /// a push reverses past the mark to the staging point and pulls forward onto it, while a pull is already
+    /// coming forward and stops on the rest point directly.
+    /// </summary>
+    /// <param name="leg">The planned leg.</param>
+    /// <param name="target">The target the leg ends on.</param>
+    /// <param name="isFinal">True when this is the move's last leg.</param>
+    /// <param name="aircraftType">ICAO type, which sets the fuselage-length setback.</param>
+    /// <returns>The phase to queue for the leg.</returns>
+    private static PushbackPhase BuildTugLegPhase(PushbackLeg leg, PushbackTarget target, bool isFinal, string aircraftType)
+    {
+        if (!isFinal || !target.IsSpot)
+        {
+            return new PushbackPhase
+            {
+                Kind = leg.Kind,
+                TargetHeading = leg.EndTrueHeadingDeg,
+                TargetLatitude = leg.Target.Lat,
+                TargetLongitude = leg.Target.Lon,
+            };
+        }
+
+        var geometry = SpotStopGeometry(target.Node, leg.EndTrueHeadingDeg, aircraftType);
+        if (leg.Kind == PushbackLegKind.Pull)
+        {
+            return new PushbackPhase
+            {
+                Kind = leg.Kind,
+                TargetHeading = leg.EndTrueHeadingDeg,
+                TargetLatitude = geometry.StopPoint.Lat,
+                TargetLongitude = geometry.StopPoint.Lon,
+            };
+        }
+
+        return new PushbackPhase
+        {
+            Kind = leg.Kind,
+            TargetHeading = leg.EndTrueHeadingDeg,
+            TargetLatitude = geometry.Staging.Lat,
+            TargetLongitude = geometry.Staging.Lon,
+            PullForwardLatitude = geometry.StopPoint.Lat,
+            PullForwardLongitude = geometry.StopPoint.Lon,
+        };
+    }
+
+    /// <summary>
+    /// Resolves one tug-move target token by its sigil: <c>$</c> is a ramp spot, <c>@</c> a helipad or parking
+    /// stand, <c>#</c> a graph node id. A token never falls back across sigils — a spot and a gate can carry the
+    /// same name, and resolving <c>$7</c> to gate 7 moves the aircraft to the wrong side of the ramp.
+    /// </summary>
+    /// <param name="groundLayout">The airport's ground layout.</param>
+    /// <param name="token">The target token, sigil included.</param>
+    /// <returns>The resolved target, or null when the layout carries no such point.</returns>
+    private static PushbackTarget? ResolveTugTarget(AirportGroundLayout groundLayout, string token)
+    {
+        string name = token[1..];
+        GroundNode? node = token[0] switch
+        {
+            '$' => groundLayout.FindSpotNodeByName(name),
+            '@' => groundLayout.FindHelipadByName(name) ?? groundLayout.FindParkingByName(name),
+            '#' => NodeRefToken.IsNodeReference(token) ? groundLayout.Nodes.GetValueOrDefault(NodeRefToken.ParseNodeId(token)) : null,
+            _ => null,
+        };
+
+        return node is null ? null : new PushbackTarget(node, node.Type == GroundNodeType.Spot);
+    }
+
+    /// <summary>How an unresolvable target token is named back to the controller.</summary>
+    private static string DescribeTugTarget(string token) =>
+        token[0] switch
+        {
+            '$' => $"spot '{token[1..]}'",
+            '@' => $"parking '{token[1..]}'",
+            _ => $"node '{token}'",
+        };
+
+    /// <summary>How a resolved target is named in a readback: its own name, else its node id.</summary>
+    private static string TugTargetName(PushbackTarget target) => target.Node.Name ?? $"#{target.Node.Id}";
+
     private static CommandResult TryPushbackToSpot(AircraftState aircraft, PushbackCommand push, AirportGroundLayout? groundLayout)
     {
         if (groundLayout is null)
@@ -1979,15 +2167,25 @@ internal static class GroundCommandHandler
             return (spot.Position.Lat, spot.Position.Lon, null, null, resolvedHeading);
         }
 
+        var geometry = SpotStopGeometry(spot, outHdg, aircraftType);
+        return (geometry.Staging.Lat, geometry.Staging.Lon, geometry.StopPoint.Lat, geometry.StopPoint.Lon, resolvedHeading);
+    }
+
+    /// <summary>
+    /// The two points a spot stop is built from, measured back along <paramref name="outHeadingDeg"/> from the
+    /// marking: the <c>StopPoint</c>, where the centroid stops so the nosewheel — a half-fuselage ahead of it —
+    /// sits on the mark (the taxi-to-spot setback, issue #234), and the <c>Staging</c> point a further
+    /// <c>D_fwd</c> behind it that a reverse overshoots to before pulling forward onto the stop point.
+    /// A tug towing the aircraft in nose-first has nothing to stage past and stops on the stop point.
+    /// </summary>
+    private static (LatLon StopPoint, LatLon Staging) SpotStopGeometry(GroundNode spot, int outHeadingDeg, string aircraftType)
+    {
         double lengthFt = FaaAircraftDatabase.Get(aircraftType)?.LengthFt ?? HoldShortAnnotator.CwtFallbackLengthFt(aircraftType);
         double halfLenNm = (lengthFt / 2.0) / GeoMath.FeetPerNm;
         double pullFwdNm = Math.Clamp(SpotPullForwardFactor * lengthFt, SpotPullForwardMinFt, SpotPullForwardMaxFt) / GeoMath.FeetPerNm;
 
-        var intoRamp = new TrueHeading(outHdg).ToReciprocal();
-        var rest = GeoMath.ProjectPoint(spot.Position, intoRamp, halfLenNm);
-        var staging = GeoMath.ProjectPoint(spot.Position, intoRamp, halfLenNm + pullFwdNm);
-
-        return (staging.Lat, staging.Lon, rest.Lat, rest.Lon, resolvedHeading);
+        var intoRamp = new TrueHeading(outHeadingDeg).ToReciprocal();
+        return (GeoMath.ProjectPoint(spot.Position, intoRamp, halfLenNm), GeoMath.ProjectPoint(spot.Position, intoRamp, halfLenNm + pullFwdNm));
     }
 
     internal static CommandResult TryAssignRunway(AircraftState aircraft, string runwayId)

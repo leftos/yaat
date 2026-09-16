@@ -427,6 +427,12 @@ public sealed class FollowingPhaseDto : PhaseDto
 
 public sealed class PushbackPhaseDto : PhaseDto
 {
+    /// <summary>
+    /// Which end the tug leads with over the leg. Defaults to <see cref="PushbackLegKind.Push"/>, which is
+    /// what a snapshot written before tug moves existed meant — an ordinary tail-first reverse.
+    /// </summary>
+    public PushbackLegKind Kind { get; init; }
+
     public int? TargetHeading { get; init; }
     public double? TargetLatitude { get; init; }
     public double? TargetLongitude { get; init; }

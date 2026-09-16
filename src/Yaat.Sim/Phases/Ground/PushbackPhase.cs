@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Yaat.Sim.Commands;
+using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Simulation.Snapshots;
 
 namespace Yaat.Sim.Phases.Ground;
@@ -16,6 +17,10 @@ namespace Yaat.Sim.Phases.Ground;
 /// A spot pushback (<see cref="PullForwardLatitude"/> set) adds a second leg: the reverse target is a
 /// staging point behind the marking, and once reached the tug pulls the aircraft FORWARD onto the spot so
 /// the nosewheel lines up on the mark, nose out.
+///
+/// <para><see cref="Kind"/> picks which end of the aircraft the tug leads with over the leg: a
+/// <see cref="PushbackLegKind.Push"/> reverses it tail-first, a <see cref="PushbackLegKind.Pull"/> tows it
+/// nose-first. Every single-target PUSH is a push, which is the default.</para>
 /// </summary>
 public sealed class PushbackPhase : Phase
 {
@@ -40,6 +45,14 @@ public sealed class PushbackPhase : Phase
     public int? TargetHeading { get; set; }
     public double? TargetLatitude { get; init; }
     public double? TargetLongitude { get; init; }
+
+    /// <summary>
+    /// Which end the tug leads with over this leg. A <see cref="PushbackLegKind.Push"/> reverses the aircraft
+    /// tail-first along <see cref="AircraftGroundOps.PushbackTrueHeading"/>; a <see cref="PushbackLegKind.Pull"/>
+    /// tows it nose-first, leaving that field null so <see cref="FlightPhysics"/> displaces it the ordinary way.
+    /// Defaults to a push, which is what every PUSH command builds.
+    /// </summary>
+    public PushbackLegKind Kind { get; init; }
 
     /// <summary>
     /// Optional second-leg target for a spot pushback: after reversing to the staging point
@@ -184,6 +197,15 @@ public sealed class PushbackPhase : Phase
 
     public override void OnStart(PhaseContext ctx)
     {
+        // A pull has to know where it is being towed to: the targetless modes (TickSimplePushback and the
+        // no-target fallback) both reverse the aircraft, so a pull with no target would silently run as a push.
+        if ((Kind == PushbackLegKind.Pull) && ((TargetLatitude is null) || (TargetLongitude is null)))
+        {
+            throw new InvalidOperationException(
+                $"{ctx.Aircraft.Callsign}: a pull leg needs a target position — a targetless pushback reverses the aircraft"
+            );
+        }
+
         _startLat = ctx.Aircraft.Position.Lat;
         _startLon = ctx.Aircraft.Position.Lon;
 
@@ -200,8 +222,7 @@ public sealed class PushbackPhase : Phase
         {
             // Simple pushback with no heading — no alignment needed
             _isAligned = true;
-            ctx.Aircraft.Ground.PushbackTrueHeading = ctx.Aircraft.TrueHeading.ToReciprocal();
-            ctx.Targets.TargetSpeed = CategoryPerformance.PushbackSpeed(ctx.Category);
+            BeginLeg(ctx);
         }
         else
         {
@@ -209,8 +230,7 @@ public sealed class PushbackPhase : Phase
             if (diff <= AlignmentThresholdDeg)
             {
                 _isAligned = true;
-                ctx.Aircraft.Ground.PushbackTrueHeading = ctx.Aircraft.TrueHeading.ToReciprocal();
-                ctx.Targets.TargetSpeed = CategoryPerformance.PushbackSpeed(ctx.Category);
+                BeginLeg(ctx);
             }
             else
             {
@@ -266,8 +286,7 @@ public sealed class PushbackPhase : Phase
                 if (diff <= AlignmentThresholdDeg)
                 {
                     _isAligned = true;
-                    ctx.Aircraft.Ground.PushbackTrueHeading = ctx.Aircraft.TrueHeading.ToReciprocal();
-                    ctx.Targets.TargetSpeed = CategoryPerformance.PushbackSpeed(ctx.Category);
+                    BeginLeg(ctx);
                     _startLat = ctx.Aircraft.Position.Lat;
                     _startLon = ctx.Aircraft.Position.Lon;
                     Log.LogDebug("[Push] {Callsign}: alignment complete, starting push", ctx.Aircraft.Callsign);
@@ -291,7 +310,7 @@ public sealed class PushbackPhase : Phase
         }
         else
         {
-            ctx.Targets.TargetSpeed = CategoryPerformance.PushbackSpeed(ctx.Category);
+            ctx.Targets.TargetSpeed = LegSpeed(ctx.Category);
         }
 
         bool result;
@@ -353,26 +372,16 @@ public sealed class PushbackPhase : Phase
             }
             else
             {
-                // Gradually steer PushbackHeading toward the target in an arc
-                // (tug curving the tail toward the taxiway, not a straight-line slide).
                 double bearingToTarget = GeoMath.BearingTo(ctx.Aircraft.Position, new LatLon(TargetLatitude!.Value, TargetLongitude!.Value));
-                double maxArcTurn = turnRate * ctx.DeltaSeconds;
-                ctx.Aircraft.Ground.PushbackTrueHeading = GeoMath.TurnHeadingToward(
-                    ctx.Aircraft.Ground.PushbackTrueHeading ?? ctx.Aircraft.TrueHeading.ToReciprocal(),
-                    bearingToTarget,
-                    maxArcTurn
-                );
+                SteerLeadingEndToward(ctx, bearingToTarget, turnRate);
             }
 
-            // Delay nose rotation until most of the push is complete
-            if (TargetHeading is { } tgt && !_reachedTarget)
+            // Delay nose rotation until most of the push is complete — a push only, because it steers the tail
+            // through a separate field and the nose is free to rotate under way. A pull leads with the nose, so
+            // the pursuit above owns it right up to the capture and the final facing takes over at arrival.
+            if ((Kind != PushbackLegKind.Pull) && TargetHeading is { } tgt && !_reachedTarget && PastNoseRotationThreshold(ctx))
             {
-                double distFromStart = GeoMath.DistanceNm(new LatLon(_startLat, _startLon), ctx.Aircraft.Position);
-                double progress = _totalDistToTarget > 0.001 ? distFromStart / _totalDistToTarget : 1.0;
-                if (progress >= NoseRotationProgressThreshold)
-                {
-                    TurnNoseToward(ctx, new TrueHeading(tgt), turnRate);
-                }
+                TurnNoseToward(ctx, new TrueHeading(tgt), turnRate);
             }
         }
 
@@ -388,6 +397,63 @@ public sealed class PushbackPhase : Phase
 
         return TurnNoseToward(ctx, new TrueHeading(finalHdg), turnRate);
     }
+
+    /// <summary>
+    /// True once <see cref="NoseRotationProgressThreshold"/> of a push leg is covered — the point the nose
+    /// starts rotating onto the final facing, so the turn finishes while the aircraft is still moving. A pull
+    /// leg does not use it: it leads with the nose, so the pursuit arc and the final-facing rotation would both
+    /// write <see cref="AircraftState.TrueHeading"/> on the same tick, turning the nose at up to twice
+    /// <see cref="CategoryPerformance.PushbackTurnRate"/> and pulling against each other for the rest of the
+    /// leg — the pull hands the nose over at arrival instead, and rotates onto the facing stopped on the target.
+    /// </summary>
+    private bool PastNoseRotationThreshold(PhaseContext ctx)
+    {
+        double distFromStart = GeoMath.DistanceNm(new LatLon(_startLat, _startLon), ctx.Aircraft.Position);
+        double progress = _totalDistToTarget > 0.001 ? distFromStart / _totalDistToTarget : 1.0;
+        return progress >= NoseRotationProgressThreshold;
+    }
+
+    /// <summary>
+    /// Gradually curves the end of the aircraft the tug leads with onto the bearing to the leg's target — the
+    /// pursuit arc (the tug swinging that end around), not a straight-line slide. A push leads with the tail,
+    /// so it steers <see cref="AircraftGroundOps.PushbackTrueHeading"/>, the heading
+    /// <see cref="FlightPhysics"/> displaces along, and leaves the nose where it is; a pull leads with the
+    /// nose, so it steers the nose and leaves the pushback heading null, which is what makes the aircraft
+    /// travel forward.
+    /// </summary>
+    private void SteerLeadingEndToward(PhaseContext ctx, double bearingToTarget, double turnRate)
+    {
+        if (Kind == PushbackLegKind.Pull)
+        {
+            TurnNoseToward(ctx, new TrueHeading(bearingToTarget), turnRate);
+            return;
+        }
+
+        double maxArcTurn = turnRate * ctx.DeltaSeconds;
+        ctx.Aircraft.Ground.PushbackTrueHeading = GeoMath.TurnHeadingToward(
+            ctx.Aircraft.Ground.PushbackTrueHeading ?? ctx.Aircraft.TrueHeading.ToReciprocal(),
+            bearingToTarget,
+            maxArcTurn
+        );
+    }
+
+    /// <summary>
+    /// Puts the aircraft under way on its leg: a push is displaced tail-first along
+    /// <see cref="AircraftGroundOps.PushbackTrueHeading"/>, so that is set to the reciprocal of the nose; a
+    /// pull leaves it null and is displaced nose-first.
+    /// </summary>
+    private void BeginLeg(PhaseContext ctx)
+    {
+        ctx.Aircraft.Ground.PushbackTrueHeading = Kind == PushbackLegKind.Pull ? null : ctx.Aircraft.TrueHeading.ToReciprocal();
+        ctx.Targets.TargetSpeed = LegSpeed(ctx.Category);
+    }
+
+    /// <summary>
+    /// The tug's speed over this leg: the reverse speed for a push, and for a pull the slower speed the final
+    /// forward alignment creep already runs at.
+    /// </summary>
+    private double LegSpeed(AircraftCategory category) =>
+        Kind == PushbackLegKind.Pull ? CategoryPerformance.PushbackAlignSpeed(category) : CategoryPerformance.PushbackSpeed(category);
 
     /// <summary>
     /// Second leg of a spot pushback: creep FORWARD from the staging point onto the marking. Displacement
@@ -446,16 +512,17 @@ public sealed class PushbackPhase : Phase
     }
 
     /// <summary>
-    /// Returns the heading the nose should face so the tail points at the target.
+    /// Returns the heading the nose should face for the end the tug leads with to point at the target: away
+    /// from it on a push (tail pointing at it), at it on a pull.
     /// Null means no alignment needed (simple pushback with no heading).
     /// </summary>
     private TrueHeading? ComputeAlignmentHeading(PhaseContext ctx)
     {
         if (TargetLatitude is not null && TargetLongitude is not null)
         {
-            // Nose faces away from target so tail points at it
             double bearingToTarget = GeoMath.BearingTo(ctx.Aircraft.Position, new LatLon(TargetLatitude.Value, TargetLongitude.Value));
-            return new TrueHeading(bearingToTarget).ToReciprocal();
+            var towardTarget = new TrueHeading(bearingToTarget);
+            return Kind == PushbackLegKind.Pull ? towardTarget : towardTarget.ToReciprocal();
         }
 
         if (TargetHeading is { } hdg)
@@ -493,6 +560,9 @@ public sealed class PushbackPhase : Phase
             CanonicalCommandType.HoldPosition => CommandAcceptance.Allowed,
             CanonicalCommandType.Resume => CommandAcceptance.Allowed,
             CanonicalCommandType.Pushback => CommandAcceptance.Allowed,
+            // Redirecting an attached tug is ordinary: the new move replaces this leg and every leg still queued
+            // behind it, the same way a taxi clearance mid-move takes the whole move with it.
+            CanonicalCommandType.PushbackMulti => CommandAcceptance.ClearsPhase,
             CanonicalCommandType.Delete => CommandAcceptance.ClearsPhase,
             _ => CommandAcceptance.Rejected("aircraft is being pushed back; only HOLD/RES are accepted until pushback completes"),
         };
@@ -504,6 +574,7 @@ public sealed class PushbackPhase : Phase
             Status = (int)Status,
             ElapsedSeconds = ElapsedSeconds,
             Requirements = SnapshotRequirements(),
+            Kind = Kind,
             TargetHeading = TargetHeading,
             TargetLatitude = TargetLatitude,
             TargetLongitude = TargetLongitude,
@@ -522,6 +593,7 @@ public sealed class PushbackPhase : Phase
     {
         var phase = new PushbackPhase
         {
+            Kind = dto.Kind,
             TargetHeading = dto.TargetHeading,
             TargetLatitude = dto.TargetLatitude,
             TargetLongitude = dto.TargetLongitude,

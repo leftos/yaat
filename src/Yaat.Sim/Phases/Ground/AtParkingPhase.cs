@@ -96,13 +96,16 @@ public sealed class AtParkingPhase : Phase
         return cmd switch
         {
             CanonicalCommandType.Pushback => CommandAcceptance.ClearsPhase,
+            // A tug move plans its legs off the pose the aircraft is in and clears this phase itself once the
+            // plan holds, so clearing it here would cost the handler the "is it on a stand" its first leg turns on.
+            CanonicalCommandType.PushbackMulti => CommandAcceptance.Allowed,
             CanonicalCommandType.Taxi or CanonicalCommandType.TaxiAuto => CommandAcceptance.ClearsPhase,
             CanonicalCommandType.AirTaxi => CommandAcceptance.ClearsPhase,
             CanonicalCommandType.Land => CommandAcceptance.ClearsPhase,
             CanonicalCommandType.ClearedTakeoffPresent => CommandAcceptance.ClearsPhase,
             CanonicalCommandType.FollowGround => CommandAcceptance.ClearsPhase,
             CanonicalCommandType.Delete => CommandAcceptance.ClearsPhase,
-            _ => CommandAcceptance.Rejected("aircraft is parked with engines off; only PUSH/TAXI/ATXI/LAND/CTOPP/FOLLOWG/DEL apply"),
+            _ => CommandAcceptance.Rejected("aircraft is parked with engines off; only PUSH/PUSHM/TAXI/ATXI/LAND/CTOPP/FOLLOWG/DEL apply"),
         };
     }
 

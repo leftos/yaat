@@ -405,6 +405,26 @@ public class PhaseAcceptanceAuditTests
         Assert.Equal(CommandAcceptance.ClearsPhase, phase.CanAcceptCommand(CanonicalCommandType.DescendMaintain));
     }
 
+    /// <summary>
+    /// A tug move (<c>PUSHM</c>) is offered from both stopped ground states — parked on a stand and holding in
+    /// the alley after a pushback — because both are poses a ramp controller repositions an aircraft from.
+    /// It is <see cref="CommandAcceptance.Allowed"/> rather than <c>ClearsPhase</c> on purpose: the handler
+    /// reads which of the two phases is running to decide whether the first leg comes off a stand (push only)
+    /// or may tow the aircraft forward, and it clears the phase itself once the plan holds — so a refused move
+    /// leaves the aircraft where it was.
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(TugMoveStartPhases))]
+    public void GroundStopPhases_AcceptPushbackMultiWithoutClearing(Phase phase)
+    {
+        var acceptance = phase.CanAcceptCommand(CanonicalCommandType.PushbackMulti);
+
+        Assert.Equal(CommandAcceptance.Allowed, acceptance);
+        Assert.False(acceptance.ClearsThePhase, $"{phase.Name} must not be cleared before the tug move is planned");
+    }
+
+    public static TheoryData<Phase> TugMoveStartPhases => new() { new AtParkingPhase(), new HoldingAfterPushbackPhase() };
+
     private static HoldingShortPhase HoldingShortAt(string targetName, HoldShortReason reason) =>
         new(
             new HoldShortPoint

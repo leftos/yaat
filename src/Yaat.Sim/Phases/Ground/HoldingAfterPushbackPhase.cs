@@ -45,13 +45,17 @@ public sealed class HoldingAfterPushbackPhase : Phase
         return cmd switch
         {
             CanonicalCommandType.Pushback => CommandAcceptance.ClearsPhase,
+            // A tug move is offered from the alley as well as from the stand: an aircraft that has already been
+            // pushed out is the one a ramp controller repositions. It clears this phase itself once its plan
+            // holds, and its first leg turns on the aircraft not being on a stand, which clearing here would cost.
+            CanonicalCommandType.PushbackMulti => CommandAcceptance.Allowed,
             CanonicalCommandType.Taxi or CanonicalCommandType.TaxiAuto => CommandAcceptance.ClearsPhase,
             CanonicalCommandType.AirTaxi => CommandAcceptance.ClearsPhase,
             CanonicalCommandType.Land => CommandAcceptance.ClearsPhase,
             CanonicalCommandType.HoldPosition => CommandAcceptance.Allowed,
             CanonicalCommandType.FollowGround => CommandAcceptance.ClearsPhase,
             CanonicalCommandType.Delete => CommandAcceptance.ClearsPhase,
-            _ => CommandAcceptance.Rejected("aircraft is holding after pushback; only HOLD, FOLLOWG, or a new PUSH/TAXI/ATXI/LAND apply"),
+            _ => CommandAcceptance.Rejected("aircraft is holding after pushback; only HOLD, FOLLOWG, or a new PUSH/PUSHM/TAXI/ATXI/LAND apply"),
         };
     }
 

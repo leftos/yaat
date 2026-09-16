@@ -6,6 +6,7 @@
 - Issuing a command during playback asks for confirmation before it ends the replay and discards the rest of the timeline.
 - An automatic go-around for traffic names the blocking aircraft, and why it blocked, in the terminal log.
 - The terminal log shows the simulated approach controller's in-trail speed reductions.
+- **Tug moves.** `PUSHM $6A $6B` walks an aircraft through two or more ramp points, working out per leg whether the tug pushes it back or pulls it forward.
 
 ### Changed
 - The ERAM `VP` keyboard amends an existing VFR flight plan instead of rejecting every plan with `DUP NEW ID`.
