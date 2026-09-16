@@ -1793,6 +1793,7 @@ internal static class DepartureClearanceHandler
                 // line-up out of rolling mode and insert a fresh unsatisfied
                 // LUAW so the aircraft holds when the line-up brake completes.
                 lineup.RollingMode = false;
+                lineup.ClearRollingSpeedFloor();
                 phases.Insert(i, new LinedUpAndWaitingPhase());
                 aircraft.Targets.AssignedAltitude = null;
                 // Hold position immediately — stop where we are rather than

@@ -195,6 +195,88 @@ public class HoldDuringLineUpTests(ITestOutputHelper output)
         }
     }
 
+    /// <summary>
+    /// The hold must pin the speed without skipping the steering tick. A graph line-up plays the junction
+    /// fillet through a <see cref="GroundNavigator"/>, whose pose during a curve is a pure function of one
+    /// progress scalar; freezing that scalar while physics still brakes the aircraft down the curve leaves the
+    /// playback pose behind the aircraft, and the first tick after the release writes it back there — a
+    /// backwards jump <see cref="GroundNavigator.CheckNoTeleport"/> throws on in tests and logs in the app.
+    /// </summary>
+    [Fact]
+    public void Hold_OnTheLineUpFillet_ThenLuaw_KeepsTheAircraftOnTheCurve()
+    {
+        var archive = RecordingLoader.OpenArchive(RecordingPath);
+        if (archive is null)
+        {
+            return;
+        }
+
+        using (archive)
+        {
+            var engine = BuildEngine();
+            if (engine is null || !TryRestoreHoldingShort(archive, engine))
+            {
+                return;
+            }
+
+            Assert.True(DriveIntoLineUp(engine));
+
+            // Roll on until the graph line-up is playing its fillet arc with real speed.
+            LineUpPhase? onArc = null;
+            AircraftState? ac = null;
+            for (int t = 1; t <= 30 && onArc is null; t++)
+            {
+                engine.TickOneSecond();
+                ac = engine.FindAircraft(Callsign);
+                if (
+                    ac?.Phases?.CurrentPhase is LineUpPhase lineup
+                    && lineup.CurrentState == LineUpPhase.State.GraphTaxi
+                    && lineup.IsNavigatorOnCurve
+                    && (ac.IndicatedAirspeed >= 3.0)
+                )
+                {
+                    onArc = lineup;
+                }
+            }
+
+            Assert.True(onArc is not null, $"{Callsign} never reached the graph line-up fillet with speed");
+            Assert.NotNull(ac);
+            output.WriteLine($"on the fillet: ias={ac.IndicatedAirspeed:F1}kt pos=({ac.Position.Lat:F6},{ac.Position.Lon:F6})");
+
+            Assert.True(engine.SendCommand(Callsign, "HOLD").Success);
+            for (int t = 1; t <= 6; t++)
+            {
+                engine.TickOneSecond();
+            }
+
+            var held = engine.FindAircraft(Callsign);
+            Assert.NotNull(held);
+            Assert.IsType<LineUpPhase>(held.Phases?.CurrentPhase);
+            Assert.True(held.IndicatedAirspeed < 1.0, $"{Callsign} should be stopped by HOLD but IAS={held.IndicatedAirspeed:F1}kt");
+
+            var releasePos = held.Position;
+            var releaseHdg = held.TrueHeading;
+
+            Assert.True(engine.SendCommand(Callsign, "LUAW").Success);
+
+            // The tick that used to write the frozen playback pose.
+            engine.TickOneSecond();
+            var resumed = engine.FindAircraft(Callsign);
+            Assert.NotNull(resumed);
+            double forwardFt = GeoMath.AlongTrackDistanceNm(resumed.Position, releasePos, releaseHdg) * GeoMath.FeetPerNm;
+            output.WriteLine($"first tick after LUAW: forward={forwardFt:F1}ft ias={resumed.IndicatedAirspeed:F1}kt");
+            Assert.True(forwardFt > -1.0, $"{Callsign} was written {-forwardFt:F1}ft backwards on the tick after the hold lifted");
+
+            bool linedUp = false;
+            for (int t = 1; t <= 60 && !linedUp; t++)
+            {
+                engine.TickOneSecond();
+                linedUp = engine.FindAircraft(Callsign)?.Phases?.CurrentPhase is LinedUpAndWaitingPhase;
+            }
+            Assert.True(linedUp, $"{Callsign} did not finish the line-up after the hold lifted");
+        }
+    }
+
     [Fact]
     public void Hold_ThenCto_ResumesAndDeparts()
     {

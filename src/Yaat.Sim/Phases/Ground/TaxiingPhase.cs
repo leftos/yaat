@@ -59,6 +59,13 @@ public sealed class TaxiingPhase : Phase
 
     internal double NavMaxSpeedKts => _nav.MaxSpeedKts;
 
+    /// <summary>
+    /// True when the navigator's last tick played a curve primitive (a fillet arc or a synthesised slow turn)
+    /// rather than a straight. Read from <see cref="GroundNavigator.LastTickDiag"/>, the same per-tick
+    /// diagnostic the tick recorder traces.
+    /// </summary>
+    internal bool IsNavigatorOnCurve => _nav.LastTickDiag?.OnArc == true;
+
     public override void OnStart(PhaseContext ctx)
     {
         var route = ctx.Aircraft.Ground.AssignedTaxiRoute;
@@ -122,21 +129,15 @@ public sealed class TaxiingPhase : Phase
             ctx.Aircraft.Ground.CommandedTaxiSpeedKts
             ?? (ctx.Aircraft.Ground.IsExpeditingTaxi ? baseTaxiSpeed * CategoryPerformance.TaxiExpediteMultiplier : baseTaxiSpeed);
 
-        if (ctx.Aircraft.Ground.IsImmobile)
-        {
-            // Pin the target: the navigator is skipped while held, so whatever TargetSpeed it last wrote
-            // would otherwise stay live and physics would keep accelerating toward it every sub-tick
-            // (issue #407 — two "held" aircraft kept taxiing into a head-on). Physics brakes toward the
-            // pinned target at the ground decel rate.
-            ctx.Targets.TargetSpeed = 0;
-            return false;
-        }
+        // HOLD / GIVEWAY: the aircraft stops where it is, but the steering tick below still runs — see the
+        // held branch after it. Nothing that ends the phase or inserts another one may fire while it is held.
+        bool held = ctx.Aircraft.Ground.IsImmobile;
 
         // A hold-short on the route's own start node: the aircraft was re-routed at or while
         // approaching the bar, so it must not enter the crossing until cleared. ArriveAtNode never
         // fires for that node — it is no segment's ToNodeId — so the stop has to be taken here,
         // before the first segment, re-checked each tick until the hold binds or stops applying.
-        if (!_startNodeHoldDone && TryHoldAtRouteStartNode(ctx, route))
+        if (!held && !_startNodeHoldDone && TryHoldAtRouteStartNode(ctx, route))
         {
             return true;
         }
@@ -148,13 +149,36 @@ public sealed class TaxiingPhase : Phase
         // adjacent taxiway. This stops the aircraft once its nose reaches the spot, at whatever heading
         // the approach left it (a tight ramp lead-in may still be mid-turn — realistic for a taxi-in;
         // aircraft are normally pushed onto spots). Spots are non-movement areas (AIM 4-3-14/4-3-17).
-        if (TryStopNoseAtSpot(ctx, route))
+        if (!held && TryStopNoseAtSpot(ctx, route))
         {
             return true;
         }
 
         bool isLastSegment = route.CurrentSegmentIndex + 1 >= route.Segments.Count;
         var result = _nav.Tick(ctx, isLastSegment, nodeId => IsHoldShortCleared(route, nodeId));
+
+        if (held)
+        {
+            // A hold pins the published speed; it never skips the steering tick. The navigator's closed-form
+            // curve playback writes the pose from one progress scalar, so a tick skipped while physics keeps
+            // rolling the aircraft leaves that scalar behind it and the first un-held tick writes the aircraft
+            // backwards onto the stale pose. Pinning the target after the navigator has ticked is equally what
+            // keeps the speed it just published from staying live and physics accelerating toward it every
+            // sub-tick (issue #407 — two "held" aircraft kept taxiing into a head-on); physics brakes toward
+            // the pinned target at the ground decel rate.
+            ctx.Targets.TargetSpeed = 0;
+
+            if (result == NavigatorResult.ArrivedAtNode)
+            {
+                // At the node and already braking: clean up the residual and leave the arrival itself to the
+                // first un-held tick. A hold must not be able to insert a HoldingShortPhase or complete the
+                // route — and so start a stored takeoff clearance's line-up — while the controller has said
+                // hold.
+                ctx.Aircraft.IndicatedAirspeed = 0;
+            }
+
+            return false;
+        }
 
         if (result == NavigatorResult.ArrivedAtNode)
         {

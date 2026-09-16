@@ -37,6 +37,9 @@
 - The held-departures rundown reads "Pushing back (held)" mid-push and "Pushed back (held)" on a ramp spot, instead of "At gate (held)".
 - Scenario arrivals are spaced by the simulated approach controller when the aircraft ahead will not clear the runway in time.
 - An arrival no longer goes around when the aircraft ahead will have taxied clear of the runway before it crosses the threshold.
+- An aircraft held part-way through a turn — by `HOLD`, `GIVEWAY`, a cancelled takeoff clearance, or a session restored into a hold — no longer jumps backwards when the hold lifts.
+- A held aircraft no longer takes a hold-short, stops at its parking spot, or finishes its taxi route while it is held; those happen on the tick the hold lifts.
+- A takeoff clearance cancelled during line-up and then replaced by `LUAW` brakes onto the centerline instead of running to the end of the line-up at takeoff-flow speed.
 
 ## v0.12.34-beta [2026/09/15]
 

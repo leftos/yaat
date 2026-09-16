@@ -142,6 +142,13 @@ public sealed class LineUpPhase : Phase
     public double ManeuverSpeedKts => _navigator?.MaxSpeedKts ?? PathPlan?.ArcSpeedKts ?? 0.0;
 
     /// <summary>
+    /// True when the graph-taxi navigator's last tick played a curve primitive (the junction fillet arc onto the
+    /// centerline) rather than a straight. Read from <see cref="GroundNavigator.LastTickDiag"/>; false in the
+    /// synthetic aligned/pivot states, which have no navigator.
+    /// </summary>
+    internal bool IsNavigatorOnCurve => _navigator?.LastTickDiag?.OnArc == true;
+
+    /// <summary>
     /// Rolling takeoff mode. When true, <see cref="State.Rollout"/> holds
     /// speed at the plan's cruise speed instead of braking to zero, and the
     /// phase completes at the stop point for handoff to <see cref="TakeoffPhase"/>.
@@ -390,6 +397,17 @@ public sealed class LineUpPhase : Phase
 
         if (result == NavigatorResult.ArrivedAtNode)
         {
+            if (HoldPosition)
+            {
+                // Held at the node: leave the segment index alone. Advancing it would set up the next
+                // primitive and the next held tick would re-tick this one at t = 1 and advance again. The
+                // aircraft is at the node and already braking, so clean up the residual and leave the
+                // arrival to the first un-held tick, where the primitive reports it again and the normal
+                // advance runs. A held line-up can never complete into TakeoffPhase this way.
+                ctx.Aircraft.IndicatedAirspeed = 0;
+                return false;
+            }
+
             _lineUpRoute.CurrentSegmentIndex += 1;
             if (_lineUpRoute.IsComplete)
             {
@@ -418,25 +436,47 @@ public sealed class LineUpPhase : Phase
 
     public override bool OnTick(PhaseContext ctx)
     {
-        // CTOC mid-line-up: hold position where we are. Stop and stay in the
-        // phase until a fresh takeoff clearance clears HoldPosition.
-        if (HoldPosition)
-        {
-            ctx.Targets.TargetSpeed = 0;
-            return false;
-        }
-
-        // Restored mid-maneuver: rebuild before the state machine runs. Deliberately after the HoldPosition
-        // freeze, so a restored held aircraft re-plans from where it is released rather than from where it
-        // stopped.
+        // Restored mid-maneuver: rebuild before the state machine runs. Deliberately skipped while held, so a
+        // restored held aircraft re-plans from where it is released rather than from where it stopped — and
+        // until it does there is no maneuver to steer, so holding is all this tick has to do.
         if (_needsRestoreRebuild)
         {
+            if (HoldPosition)
+            {
+                ctx.Targets.TargetSpeed = 0;
+                return false;
+            }
+
             if (RebuildAfterRestore(ctx))
             {
                 return true;
             }
         }
 
+        bool complete = TickCurrentState(ctx);
+
+        // CTOC/HOLD mid-line-up: hold position where we are, and stay in the phase until a fresh takeoff
+        // clearance or a re-issued LUAW clears HoldPosition. The state machine still ran: closed-form playback
+        // (the graph navigator's fillet, the synthetic arc integrator) writes the pose from a progress scalar,
+        // so a steering tick skipped while physics keeps rolling the aircraft leaves that scalar behind the
+        // aircraft and the first un-held tick writes it backwards. Pinning the published speed is what stops
+        // the aircraft; suppressing the completion is what keeps it in the phase — the terminal states are
+        // re-entrant, so the completion they report here fires again on the first un-held tick.
+        if (HoldPosition)
+        {
+            ctx.Targets.TargetSpeed = 0;
+            return false;
+        }
+
+        return complete;
+    }
+
+    /// <summary>
+    /// Run the state machine for the state the phase is in. Speed pinning and completion suppression while
+    /// <see cref="HoldPosition"/> is set belong to <see cref="OnTick"/>, which wraps this.
+    /// </summary>
+    private bool TickCurrentState(PhaseContext ctx)
+    {
         if (CurrentState == State.GraphTaxi)
         {
             return TickGraphTaxi(ctx);
@@ -852,6 +892,21 @@ public sealed class LineUpPhase : Phase
             ctx.Aircraft.IndicatedAirspeed
         );
         return true;
+    }
+
+    /// <summary>
+    /// Drop the graph-taxi navigator's speed floor back to zero: the mirror of the raise in
+    /// <see cref="TryUpgradeToRolling"/> and <see cref="TryStartGraphTaxi"/>. Called when a takeoff clearance is
+    /// cancelled mid-line-up (CTOC) and <see cref="RollingMode"/> goes false. Left raised, a line-up then
+    /// released by LUAW rather than a fresh CTO would flow the graph route at the rolling floor all the way to
+    /// the end of the rollout and hard-snap to zero there, instead of braking onto the centerline.
+    /// </summary>
+    internal void ClearRollingSpeedFloor()
+    {
+        if (_navigator is not null)
+        {
+            _navigator.MinSpeedKts = 0;
+        }
     }
 
     /// <summary>
