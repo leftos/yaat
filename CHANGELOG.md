@@ -8,6 +8,9 @@
 - A climb-via satisfies a facility that marks Maintain mandatory, so Send unlocks without an interim altitude.
 - A PDC drops any field holding the `- - - -` placeholder, so no clearance goes out reading `MAINT - - - -`.
 - A mandatory vTDLS field holding the `- - - -` placeholder counts as unset and keeps Send locked.
+- An aircraft cleared onto a taxiway behind it turns around the way the route's next turn unwinds, instead of circling 270° at SFO spot 9.
+- A turnaround rolls out pointing at the junction it is heading for, rather than a turning circle's width to one side of the taxiway.
+- An aircraft leaving a gate no longer turns back toward a short ramp leg its turn out of the stand already carried it past.
 
 ## v0.12.34-beta [2026/09/15]
 

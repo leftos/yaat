@@ -105,11 +105,12 @@ public static class PathPrimitiveBuilder
     /// for a free-space leg whose "line" is defined only by its two endpoints.
     ///
     /// <para>
-    /// Both turn directions are solved; the one with the smaller sweep wins, and the arc is built with that
-    /// direction and sweep explicitly — not through <see cref="SlowTurn"/>'s short-way rotation, which cannot
-    /// express the over-half turn a point behind the aircraft needs. Returns null when the point lies inside a
-    /// turning circle (no tangent through it exists) and when both solutions sweep past
-    /// <see cref="MaxAimSweepDeg"/> — the caller falls back to aiming at the segment's bearing.
+    /// Both turn directions are solved (<see cref="SlowTurnToPointDirected"/>); the one with the smaller sweep
+    /// wins, and the arc is built with that direction and sweep explicitly — not through
+    /// <see cref="SlowTurn"/>'s short-way rotation, which cannot express the over-half turn a point behind the
+    /// aircraft needs. Returns null when the point lies inside a turning circle (no tangent through it exists)
+    /// and when both solutions sweep past <see cref="MaxAimSweepDeg"/> — the caller falls back to aiming at the
+    /// segment's bearing.
     /// </para>
     /// </summary>
     /// <param name="fromLat">Entry-point latitude (degrees).</param>
@@ -131,31 +132,56 @@ public static class PathPrimitiveBuilder
         int toNodeId
     )
     {
-        var right = TangentExit(fromLat, fromLon, fromHdgDeg, radiusFt, targetLat, targetLon, rightTurn: true);
-        var left = TangentExit(fromLat, fromLon, fromHdgDeg, radiusFt, targetLat, targetLon, rightTurn: false);
+        var right = SlowTurnToPointDirected(fromLat, fromLon, fromHdgDeg, radiusFt, targetLat, targetLon, maxSpeedKts, toNodeId, rightTurn: true);
+        var left = SlowTurnToPointDirected(fromLat, fromLon, fromHdgDeg, radiusFt, targetLat, targetLon, maxSpeedKts, toNodeId, rightTurn: false);
 
-        bool? bestRightTurn = null;
-        double bestSweepDeg = double.MaxValue;
-        double bestExitHdgDeg = 0.0;
-
-        if ((right is { } r) && (r.SweepDeg <= MaxAimSweepDeg))
+        if (right is null)
         {
-            bestRightTurn = true;
-            bestSweepDeg = r.SweepDeg;
-            bestExitHdgDeg = r.ExitHeadingDeg;
+            return left;
         }
 
-        if ((left is { } l) && (l.SweepDeg <= MaxAimSweepDeg) && (l.SweepDeg < bestSweepDeg))
-        {
-            bestRightTurn = false;
-            bestSweepDeg = l.SweepDeg;
-            bestExitHdgDeg = l.ExitHeadingDeg;
-        }
+        return ((left is { } l) && (l.SweepDeg < right.SweepDeg)) ? l : right;
+    }
 
-        if (bestRightTurn is not { } rightTurn)
+    /// <summary>
+    /// The one-sided <see cref="SlowTurnToPoint"/>: the arc-then-tangent-line solution restricted to the turn
+    /// direction <paramref name="rightTurn"/> names, however far round that side has to sweep. Null when that
+    /// side has no tangent at all (the point lies inside its turning circle) or reaching it would sweep past
+    /// <see cref="MaxAimSweepDeg"/> — the caller falls back to aiming at a bearing.
+    ///
+    /// <para>
+    /// The direction is the caller's to choose when something outside the geometry has already settled it: a
+    /// reversal turned against its short way so the route's next turn unwinds it rather than compounding with
+    /// it still has to roll out on the line to its node, and the smaller-sweep side <see cref="SlowTurnToPoint"/>
+    /// would pick is exactly the side that was ruled out.
+    /// </para>
+    /// </summary>
+    /// <param name="fromLat">Entry-point latitude (degrees).</param>
+    /// <param name="fromLon">Entry-point longitude (degrees).</param>
+    /// <param name="fromHdgDeg">Tangent heading at entry (degrees true, 0–360).</param>
+    /// <param name="radiusFt">Turn radius in feet. Typically <see cref="CategoryPerformance.NoseWheelTurnRadiusFt"/>.</param>
+    /// <param name="targetLat">Latitude of the point the exit tangent must run through.</param>
+    /// <param name="targetLon">Longitude of the point the exit tangent must run through.</param>
+    /// <param name="maxSpeedKts">Target-speed cap in knots.</param>
+    /// <param name="toNodeId">Synthetic end-of-primitive node id for arrival detection.</param>
+    /// <param name="rightTurn">True to sweep clockwise from the entry tangent onto the line, false counter-clockwise.</param>
+    public static PathPrimitiveSlowTurn? SlowTurnToPointDirected(
+        double fromLat,
+        double fromLon,
+        double fromHdgDeg,
+        double radiusFt,
+        double targetLat,
+        double targetLon,
+        double maxSpeedKts,
+        int toNodeId,
+        bool rightTurn
+    )
+    {
+        if (TangentExit(fromLat, fromLon, fromHdgDeg, radiusFt, targetLat, targetLon, rightTurn) is not { } exit || (exit.SweepDeg > MaxAimSweepDeg))
         {
             Log.LogDebug(
-                "[PathPrimitive] SlowTurnToPoint: no tangent to ({TargetLat:F6},{TargetLon:F6}) at r={R:F0}ft from hdg {Hdg:F0}",
+                "[PathPrimitive] SlowTurnToPointDirected: no {Sense} tangent to ({TargetLat:F6},{TargetLon:F6}) at r={R:F0}ft from hdg {Hdg:F0}",
+                rightTurn ? "right" : "left",
                 targetLat,
                 targetLon,
                 radiusFt,
@@ -164,7 +190,7 @@ public static class PathPrimitiveBuilder
             return null;
         }
 
-        return BuildSlowTurn(fromLat, fromLon, fromHdgDeg, radiusFt, rightTurn, bestSweepDeg, bestExitHdgDeg, maxSpeedKts, toNodeId);
+        return BuildSlowTurn(fromLat, fromLon, fromHdgDeg, radiusFt, rightTurn, exit.SweepDeg, exit.ExitHeadingDeg, maxSpeedKts, toNodeId);
     }
 
     /// <summary>
@@ -242,7 +268,41 @@ public static class PathPrimitiveBuilder
     {
         // Short-way signed turn angle, normalised to (-180, 180].
         double dthetaDeg = (((toHdgDeg - fromHdgDeg) + 540.0) % 360.0) - 180.0;
-        return BuildSlowTurn(fromLat, fromLon, fromHdgDeg, radiusFt, dthetaDeg > 0, Math.Abs(dthetaDeg), toHdgDeg, maxSpeedKts, toNodeId);
+        return SlowTurnDirected(fromLat, fromLon, fromHdgDeg, toHdgDeg, radiusFt, maxSpeedKts, toNodeId, dthetaDeg > 0);
+    }
+
+    /// <summary>
+    /// Build a <see cref="PathPrimitiveSlowTurn"/> from entry pose to exit heading turning the way the caller
+    /// names, however far round that is: the sweep is the whole rotation on that side, so a caller that names
+    /// the long way round gets an arc of more than a half turn rather than the short-way arc in the opposite
+    /// sense. <see cref="SlowTurn"/> is this with the short way chosen for it.
+    ///
+    /// <para>
+    /// The direction is the caller's to choose when the two sides are equivalent — a reversal, where the short
+    /// way is a coin flip — or when the route's next turn makes one side cheaper than the other.
+    /// </para>
+    /// </summary>
+    /// <param name="fromLat">Entry-point latitude (degrees).</param>
+    /// <param name="fromLon">Entry-point longitude (degrees).</param>
+    /// <param name="fromHdgDeg">Tangent heading at entry (degrees true, 0–360).</param>
+    /// <param name="toHdgDeg">Tangent heading at exit (degrees true, 0–360).</param>
+    /// <param name="radiusFt">Turn radius in feet. Typically <see cref="CategoryPerformance.NoseWheelTurnRadiusFt"/>.</param>
+    /// <param name="maxSpeedKts">Target-speed cap in knots. Typically <see cref="CategoryPerformance.SlowTurnSpeedKts"/>.</param>
+    /// <param name="toNodeId">Synthetic end-of-primitive node id for arrival detection.</param>
+    /// <param name="rightTurn">True to sweep clockwise from entry to exit heading, false to sweep counter-clockwise.</param>
+    public static PathPrimitiveSlowTurn SlowTurnDirected(
+        double fromLat,
+        double fromLon,
+        double fromHdgDeg,
+        double toHdgDeg,
+        double radiusFt,
+        double maxSpeedKts,
+        int toNodeId,
+        bool rightTurn
+    )
+    {
+        double sweepDeg = rightTurn ? Normalise360(toHdgDeg - fromHdgDeg) : Normalise360(fromHdgDeg - toHdgDeg);
+        return BuildSlowTurn(fromLat, fromLon, fromHdgDeg, radiusFt, rightTurn, sweepDeg, toHdgDeg, maxSpeedKts, toNodeId);
     }
 
     /// <summary>
@@ -250,7 +310,8 @@ public static class PathPrimitiveBuilder
     /// <paramref name="radiusFt"/> (90° clockwise of the entry tangent on a right turn, counter-clockwise on a left),
     /// the entry point sits on the opposite radial, and the arc length is the sweep along that radius. Direction
     /// and sweep are the caller's: <see cref="SlowTurn"/> derives them from the short way between two headings,
-    /// <see cref="SlowTurnToPoint"/> from the tangent to a point, which may be the long way round.
+    /// <see cref="SlowTurnDirected"/> takes the direction as given, and <see cref="SlowTurnToPoint"/> derives it
+    /// from the tangent to a point — the last two may sweep the long way round.
     /// </summary>
     private static PathPrimitiveSlowTurn BuildSlowTurn(
         double fromLat,

@@ -501,6 +501,16 @@ public sealed class GroundNavigator
     public const double EntryAlignmentThresholdDeg = 45.0;
 
     /// <summary>
+    /// An entry sharper than this (deg) is a reversal, not a corner. The pathfinder refuses any junction whose
+    /// heading change exceeds <see cref="Data.Airport.Pathfinding.CategoryLimits.MaxHeadingChangeDeg"/> (135° for
+    /// a jet), so no routed corner can start this far off the segment's tangent — only the first-edge exemption,
+    /// which lets a route leave from wherever the aircraft happens to stand, produces one. The aircraft is turning
+    /// around rather than rounding a corner, and which way round it turns is free to choose: both sides reach the
+    /// same tangent, and at exactly 180° the short way is a coin flip.
+    /// </summary>
+    private const double ReversalEntryThresholdDeg = 135.0;
+
+    /// <summary>
     /// A straight→straight corner sharper than this (deg) is treated as an UNFILLETED kink: the fillet
     /// generator leaves GeoJSON shape-point doglegs and non-arcable junctions unsmoothed, so they arrive
     /// as two consecutive straight segments meeting at a sharp angle with no Bézier between them. At the
@@ -544,6 +554,30 @@ public sealed class GroundNavigator
     /// </summary>
     private bool _segmentFromIsVirtual;
 
+    /// <summary>
+    /// The route the active entry-alignment arc was built from, held so the legs the arc is aimed past can be
+    /// retired when it completes. Null when no entry alignment is in progress.
+    /// </summary>
+    private TaxiRoute? _alignmentRoute;
+
+    /// <summary>
+    /// The segment whose to-node the active node-aimed alignment arc — free-space or reversal — is aimed at,
+    /// when that lies BEYOND the segment being aligned onto. The legs in between are shorter than the arc, so
+    /// the aircraft rolls out past them: they retire when the arc completes rather than being steered back to.
+    /// -1 when the arc is aimed at the current segment's own to-node or at a bearing.
+    /// </summary>
+    private int _aimedPastThroughSegmentIndex = -1;
+
+    /// <summary>
+    /// True while the active entry-alignment arc is a REVERSAL aimed at a route node off a painted leg. The arc
+    /// rolls out on the line from where it ends to that node, which is not the leg's own line — the aircraft has
+    /// swept a turning diameter clear of the from-node it started at — so the straight that follows is anchored
+    /// on the live position like a free-space leg (<see cref="ReanchorFreeSpaceLine"/>). Steering onto the leg's
+    /// own line instead sends pure pursuit back toward a from-node the aircraft has already turned its back on,
+    /// adding rotation the reversal had just finished paying for.
+    /// </summary>
+    private bool _entryArcAimedAtNodeOffRealLeg;
+
     public void SetupSegment(TaxiRoute route, PhaseContext ctx, Func<int, bool> isHoldShortCleared)
     {
         var seg = route.CurrentSegment;
@@ -564,6 +598,9 @@ public sealed class GroundNavigator
         _segmentFromIsVirtual = (seg.FromNodeId < 0) && VirtualNode.IsVirtualEdge(seg.Edge.Edge);
         PrevDistToTarget = double.MaxValue;
         _cumulativeTurnSinceAdvanceDeg = 0.0;
+        _alignmentRoute = null;
+        _aimedPastThroughSegmentIndex = -1;
+        _entryArcAimedAtNodeOffRealLeg = false;
 
         // Corner rounding: when the aircraft heading is significantly off the segment's first tangent,
         // build a slow-turn from its current pose to the segment's start direction and stash the real
@@ -597,11 +634,11 @@ public sealed class GroundNavigator
 
         if (headingDelta > entryAlignmentThreshold)
         {
-            var (alignmentArc, aim) = BuildEntryAlignmentArc(route, seg, ctx, headingDelta);
+            var (alignmentArc, aim, reversalFlip) = BuildEntryAlignmentArc(route, seg, ctx, headingDelta);
             _pendingSegmentPrimitive = segmentPrimitive;
             _currentPrimitive = alignmentArc;
             BeginPrimitive(alignmentArc);
-            LogEntryAlignment(route, seg, ctx, alignmentArc, aim);
+            LogEntryAlignment(route, seg, ctx, alignmentArc, aim, reversalFlip);
         }
         else
         {
@@ -618,15 +655,25 @@ public sealed class GroundNavigator
 
     /// <summary>
     /// Trace the entry-alignment slow-turn just installed for <paramref name="seg"/>: the heading it starts
-    /// from, the tangent it aligns to, and the arc solved to get there. Recomputes the heading delta from the
-    /// same two headings the caller gated on, so the line reports what was actually installed.
+    /// from, the tangent it aligns to, the arc solved to get there, the sense it sweeps, and whether the
+    /// reversal tie-break (<see cref="ShouldReverseAgainstShortWay"/>) turned it against its short way.
+    /// Recomputes the heading delta from the same two headings the caller gated on, so the line reports what
+    /// was actually installed.
     /// </summary>
-    private static void LogEntryAlignment(TaxiRoute route, TaxiRouteSegment seg, PhaseContext ctx, PathPrimitiveSlowTurn alignmentArc, string aim)
+    private static void LogEntryAlignment(
+        TaxiRoute route,
+        TaxiRouteSegment seg,
+        PhaseContext ctx,
+        PathPrimitiveSlowTurn alignmentArc,
+        string aim,
+        bool reversalFlip
+    )
     {
         double segDepartureBearing = seg.Edge.DepartureBearing;
         Log.LogDebug(
             "[Nav] SetupSegment seg={SegIdx}/{Total}: entry-align slow-turn "
-                + "(hdgFrom={From:F0} -> hdgTo={To:F0}, delta={Delta:F0}, r={R:F0}ft, sweep={Sweep:F0}, aim={Aim})",
+                + "(hdgFrom={From:F0} -> hdgTo={To:F0}, delta={Delta:F0}, r={R:F0}ft, sweep={Sweep:F0}, "
+                + "sense={Sense}, reversalFlip={Flip}, aim={Aim})",
             route.CurrentSegmentIndex,
             route.Segments.Count,
             ctx.Aircraft.TrueHeading.Degrees,
@@ -634,6 +681,8 @@ public sealed class GroundNavigator
             new TrueHeading(segDepartureBearing).AbsAngleTo(ctx.Aircraft.TrueHeading),
             alignmentArc.RadiusFt,
             alignmentArc.SweepDeg,
+            alignmentArc.RightTurn ? "right" : "left",
+            reversalFlip,
             aim
         );
     }
@@ -674,7 +723,8 @@ public sealed class GroundNavigator
 
     /// <summary>
     /// The entry-alignment slow-turn for a segment the aircraft begins <paramref name="headingDelta"/>° off its
-    /// first tangent, and which aim built it ("node" or "bearing").
+    /// first tangent, which aim built it ("node", "node-ahead", "node-reversal" or "bearing"), and whether the
+    /// reversal tie-break turned it against its short way.
     ///
     /// <para>
     /// A segment starting at a virtual node is a free-space leg: no painted centerline runs out of its
@@ -686,8 +736,18 @@ public sealed class GroundNavigator
     /// <see cref="PathPrimitiveBuilder.MaxAimSweepDeg"/>),
     /// the bearing aim below is the fallback.
     /// </para>
+    ///
+    /// <para>
+    /// A REVERSAL onto a painted leg (<see cref="ReversalEntryThresholdDeg"/>) is aimed at a node for the same
+    /// reason, in the direction the tie-break has already chosen
+    /// (<see cref="PathPrimitiveBuilder.SlowTurnToPointDirected"/>). A half turn ends exactly one diameter abeam
+    /// the outgoing centerline — a semicircle finishes on a line PARALLEL to the one it aimed at, never on it —
+    /// and pure pursuit then steers tens of degrees off the tangent to re-acquire, which is rotation on top of
+    /// the reversal the operator sees as part of the same loop. A sub-threshold entry is an ordinary corner: it
+    /// keeps the bearing aim, whose exit the adaptive rounding radius already fits to the outgoing leg.
+    /// </para>
     /// </summary>
-    private (PathPrimitiveSlowTurn Arc, string Aim) BuildEntryAlignmentArc(
+    private (PathPrimitiveSlowTurn Arc, string Aim, bool ReversalFlip) BuildEntryAlignmentArc(
         TaxiRoute route,
         TaxiRouteSegment seg,
         PhaseContext ctx,
@@ -697,20 +757,26 @@ public sealed class GroundNavigator
         if (_segmentFromIsVirtual)
         {
             double freeSpaceRadiusFt = CategoryPerformance.NoseWheelTurnRadiusFt(ctx.Category);
-            var aimed = PathPrimitiveBuilder.SlowTurnToPoint(
-                fromLat: ctx.Aircraft.Position.Lat,
-                fromLon: ctx.Aircraft.Position.Lon,
-                fromHdgDeg: ctx.Aircraft.TrueHeading.Degrees,
-                radiusFt: freeSpaceRadiusFt,
-                targetLat: TargetLat,
-                targetLon: TargetLon,
-                maxSpeedKts: CategoryPerformance.TurnRateLimitedSpeedKts(ctx.Category, freeSpaceRadiusFt),
-                toNodeId: seg.FromNodeId
-            );
-
-            if (aimed is not null)
+            if (FindAimNode(route, ctx, 2.0 * freeSpaceRadiusFt) is { } aimNode)
             {
-                return (aimed, "node");
+                var aimed = PathPrimitiveBuilder.SlowTurnToPoint(
+                    fromLat: ctx.Aircraft.Position.Lat,
+                    fromLon: ctx.Aircraft.Position.Lon,
+                    fromHdgDeg: ctx.Aircraft.TrueHeading.Degrees,
+                    radiusFt: freeSpaceRadiusFt,
+                    targetLat: aimNode.Lat,
+                    targetLon: aimNode.Lon,
+                    maxSpeedKts: CategoryPerformance.TurnRateLimitedSpeedKts(ctx.Category, freeSpaceRadiusFt),
+                    toNodeId: seg.FromNodeId
+                );
+
+                if (aimed is not null)
+                {
+                    bool aimedPast = aimNode.SegmentIndex > route.CurrentSegmentIndex;
+                    _alignmentRoute = aimedPast ? route : null;
+                    _aimedPastThroughSegmentIndex = aimedPast ? aimNode.SegmentIndex : -1;
+                    return (aimed, aimedPast ? "node-ahead" : "node", false);
+                }
             }
         }
 
@@ -724,7 +790,40 @@ public sealed class GroundNavigator
         double outgoingRunFt = seg.Edge.DistanceNm * GeoMath.FeetPerNm;
         double roundingRadiusFt = AdaptiveCornerRadiusFt(ctx.Category, headingDelta, incomingRunFt, outgoingRunFt);
 
-        var arc = PathPrimitiveBuilder.SlowTurn(
+        // Which way round to turn. The short way is right for anything that is really a corner; a reversal
+        // whose short way runs into the route's own next turn is taken the other way instead, so the two
+        // sweeps cancel rather than compounding into one loop round the compass.
+        double dthetaDeg = GeoMath.SignedBearingDifference(ctx.Aircraft.TrueHeading.Degrees, seg.Edge.DepartureBearing);
+        bool reversalFlip = ShouldReverseAgainstShortWay(dthetaDeg, SignedTurnAfterEntry(route, seg));
+        bool rightTurn = (dthetaDeg > 0) != reversalFlip;
+
+        // A reversal is aimed at a node, in that chosen direction: its half turn cannot end ON the outgoing
+        // centerline, only parallel to it a diameter away.
+        if (Math.Abs(dthetaDeg) >= ReversalEntryThresholdDeg && FindAimNode(route, ctx, 2.0 * roundingRadiusFt) is { } reversalAim)
+        {
+            var aimedReversal = PathPrimitiveBuilder.SlowTurnToPointDirected(
+                fromLat: ctx.Aircraft.Position.Lat,
+                fromLon: ctx.Aircraft.Position.Lon,
+                fromHdgDeg: ctx.Aircraft.TrueHeading.Degrees,
+                radiusFt: roundingRadiusFt,
+                targetLat: reversalAim.Lat,
+                targetLon: reversalAim.Lon,
+                maxSpeedKts: CategoryPerformance.TurnRateLimitedSpeedKts(ctx.Category, roundingRadiusFt),
+                toNodeId: seg.FromNodeId,
+                rightTurn: rightTurn
+            );
+
+            if (aimedReversal is not null)
+            {
+                bool reversalAimedPast = reversalAim.SegmentIndex > route.CurrentSegmentIndex;
+                _alignmentRoute = reversalAimedPast ? route : null;
+                _aimedPastThroughSegmentIndex = reversalAimedPast ? reversalAim.SegmentIndex : -1;
+                _entryArcAimedAtNodeOffRealLeg = true;
+                return (aimedReversal, reversalAimedPast ? "node-reversal-ahead" : "node-reversal", reversalFlip);
+            }
+        }
+
+        var arc = PathPrimitiveBuilder.SlowTurnDirected(
             fromLat: ctx.Aircraft.Position.Lat,
             fromLon: ctx.Aircraft.Position.Lon,
             fromHdgDeg: ctx.Aircraft.TrueHeading.Degrees,
@@ -734,11 +833,98 @@ public sealed class GroundNavigator
             // not a flat 3 kt creep — a jet rounds a sharp corner at its 25 ft nose-wheel radius near
             // ~5 kt (aviation-reviewed). Floored at SlowTurnSpeedKts for degenerate radii.
             maxSpeedKts: CategoryPerformance.TurnRateLimitedSpeedKts(ctx.Category, roundingRadiusFt),
-            toNodeId: seg.FromNodeId
+            toNodeId: seg.FromNodeId,
+            rightTurn: rightTurn
         );
 
-        return (arc, "bearing");
+        return (arc, "bearing", reversalFlip);
     }
+
+    /// <summary>
+    /// The route node a free-space alignment arc aims at: walking forward from the current segment's own
+    /// to-node, the first one at least <paramref name="minDistanceFt"/> — the turning circle's diameter — from
+    /// the aircraft, with the index of the segment it ends.
+    ///
+    /// <para>
+    /// A node inside the turning circle has no tangent at all (<see cref="PathPrimitiveBuilder.SlowTurnToPoint"/>
+    /// returns null for it), and a node just outside one is reached by an arc longer than the leg that runs to
+    /// it: the arc rolls out past the node and pure pursuit then re-acquires a line the aircraft has already
+    /// left. Aiming at the first node the arc cannot overshoot covers both — the turn rolls out pointing down a
+    /// leg the aircraft still has to drive. Null when the route has no such node, leaving the bearing aim.
+    /// </para>
+    ///
+    /// <para>
+    /// The walk stops at a BAR whatever the distance: the legs an aimed arc rolls out past are retired by
+    /// <see cref="TryRetireLegsTheArcAimedPast"/>, which advances the route's own segment index without running
+    /// <c>TaxiingPhase.ArriveAtNode</c> — the AT-ground / AT-taxiway triggers, hold-short insertion and the
+    /// pre-cleared-crossing handoff all live there. A hold-short or a runway hold-short node inside the span
+    /// would be driven past with none of that having fired, so the walk aims AT the bar instead of past it,
+    /// where the arrival still happens normally.
+    /// </para>
+    /// </summary>
+    private static (int SegmentIndex, double Lat, double Lon)? FindAimNode(TaxiRoute route, PhaseContext ctx, double minDistanceFt)
+    {
+        for (int i = route.CurrentSegmentIndex; i < route.Segments.Count; i++)
+        {
+            var segment = route.Segments[i];
+            var to = segment.Edge.ToNode;
+            double distFt = GeoMath.DistanceNm(ctx.Aircraft.Position, to.Position) * GeoMath.FeetPerNm;
+            if ((distFt >= minDistanceFt) || IsBarNode(route, ctx, segment.ToNodeId))
+            {
+                return (i, to.Position.Lat, to.Position.Lon);
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Whether <paramref name="nodeId"/> is a bar an aimed alignment arc may never be solved past: a node the
+    /// route carries a <see cref="HoldShortPoint"/> at (cleared or not — a cleared runway crossing still hands
+    /// off to <c>CrossingRunwayPhase</c> on arrival), or a runway hold-short node of the layout, which is the
+    /// boundary of a runway crossing whether or not the route annotated it.
+    /// </summary>
+    private static bool IsBarNode(TaxiRoute route, PhaseContext ctx, int nodeId) =>
+        (route.GetHoldShortAt(nodeId) is not null)
+        || ((ctx.GroundLayout is { } layout) && layout.Nodes.TryGetValue(nodeId, out var node) && (node.Type == GroundNodeType.RunwayHoldShort));
+
+    /// <summary>
+    /// The signed turn (deg, right positive) the route makes immediately after the aircraft has aligned with
+    /// <paramref name="seg"/>'s first tangent: the segment's own sweep when it is a fillet arc, otherwise the
+    /// bend from its arrival bearing onto the next segment's departure bearing. Zero at the end of the route,
+    /// where nothing follows the entry to compound with it. Pure.
+    /// </summary>
+    private static double SignedTurnAfterEntry(TaxiRoute route, TaxiRouteSegment seg)
+    {
+        if (seg.Edge.Edge is GroundArc)
+        {
+            return GeoMath.SignedBearingDifference(seg.Edge.DepartureBearing, seg.Edge.ArrivalBearing);
+        }
+
+        int nextIndex = route.CurrentSegmentIndex + 1;
+        return nextIndex < route.Segments.Count
+            ? GeoMath.SignedBearingDifference(seg.Edge.ArrivalBearing, route.Segments[nextIndex].Edge.DepartureBearing)
+            : 0.0;
+    }
+
+    /// <summary>
+    /// Whether an entry turn of <paramref name="dthetaDeg"/> (signed, right positive) should be swept against
+    /// its short way because the route's next turn (<paramref name="nextTurnDeg"/>, signed) runs the same way.
+    ///
+    /// <para>
+    /// Three conditions. The entry must be a reversal (<see cref="ReversalEntryThresholdDeg"/>) — only then is
+    /// the direction free to choose. The next turn must run the same sense, or there is nothing to compound
+    /// with. And the two sweeps taken the short way — <c>|dtheta| + |next|</c> — must exceed what the other way
+    /// round costs: turning against the short way sweeps <c>360 - |dtheta|</c> and then unwinds by the next
+    /// turn, so the comparison rearranges to <c>2·|dtheta| + |next| &gt; 360</c>. UAL58 off SFO spot 9 scores
+    /// 2·180 + 90 = 450 and flips; an ordinary 60° entry into a 90° corner scores 120 + 90 = 210 and does not.
+    /// </para>
+    /// </summary>
+    private static bool ShouldReverseAgainstShortWay(double dthetaDeg, double nextTurnDeg) =>
+        (Math.Abs(dthetaDeg) >= ReversalEntryThresholdDeg)
+        && (nextTurnDeg != 0.0)
+        && (Math.Sign(nextTurnDeg) == Math.Sign(dthetaDeg))
+        && (((2.0 * Math.Abs(dthetaDeg)) + Math.Abs(nextTurnDeg)) > 360.0);
 
     /// <summary>
     /// Anchor a free-space leg's line on the aircraft's own position. The leg runs from a virtual node fixed
@@ -747,10 +933,17 @@ public sealed class GroundNavigator
     /// wherever it now stands while <see cref="TaxiRoute.FromSnapshot"/> has rebuilt the virtual node at its
     /// ORIGINAL position. Steering to the line through that stale origin chases a line the aircraft left;
     /// anchored here, the line runs from the aircraft straight onto the leg's node.
+    ///
+    /// <para>
+    /// A painted leg entered off a node-aimed REVERSAL (<see cref="_entryArcAimedAtNodeOffRealLeg"/>) is
+    /// anchored the same way and for the same reason: the arc has turned the aircraft around a turning circle
+    /// clear of the leg's from-node and rolled out pointing at its to-node, so the leg's own line now runs
+    /// BEHIND the aircraft and pure pursuit would swing back toward it.
+    /// </para>
     /// </summary>
     private void ReanchorFreeSpaceLine(PhaseContext ctx)
     {
-        if (!_segmentFromIsVirtual)
+        if (!_segmentFromIsVirtual && !_entryArcAimedAtNodeOffRealLeg)
         {
             return;
         }
@@ -1015,6 +1208,11 @@ public sealed class GroundNavigator
         // hasn't advanced yet.
         if (result == NavigatorResult.ArrivedAtNode && _pendingSegmentPrimitive is not null)
         {
+            if (TryRetireLegsTheArcAimedPast(ctx, isHoldShortCleared))
+            {
+                return NavigatorResult.Navigating;
+            }
+
             var seg = _pendingSegmentPrimitive;
             _pendingSegmentPrimitive = null;
             _currentPrimitive = seg;
@@ -1030,6 +1228,39 @@ public sealed class GroundNavigator
         }
 
         return result;
+    }
+
+    /// <summary>
+    /// Retire the legs an aimed entry-alignment arc rolled out past, when one has just completed. The arc is
+    /// aimed at the first route node it cannot overshoot (<see cref="FindAimNode"/>), so any leg between the
+    /// segment being aligned onto and that node is behind the aircraft by the time the arc ends. Leaving one of
+    /// them current would send the straight that follows back to a node the aircraft has already driven past —
+    /// at SFO gate G10 that is a 21 ft ramp leg the 169° arc ends 50 ft beyond, and chasing it cost another 84°
+    /// of turn away from the route. Setting up the aimed segment instead leaves the aircraft already pointing
+    /// down the leg it has to drive. Returns false (leaving the ordinary swap to run) when the active arc was
+    /// aimed at its own segment's to-node or at a bearing.
+    /// </summary>
+    private bool TryRetireLegsTheArcAimedPast(PhaseContext ctx, Func<int, bool> isHoldShortCleared)
+    {
+        if (_alignmentRoute is not { } route || _aimedPastThroughSegmentIndex <= route.CurrentSegmentIndex)
+        {
+            return false;
+        }
+
+        Log.LogDebug(
+            "[Nav] Entry alignment complete; retiring segments {From}..{To} the aimed arc rolled out past",
+            route.CurrentSegmentIndex,
+            _aimedPastThroughSegmentIndex - 1
+        );
+
+        _pendingSegmentPrimitive = null;
+        route.CurrentSegmentIndex = _aimedPastThroughSegmentIndex;
+
+        // SetupSegment clears the aim bookkeeping before it builds anything, so this retirement cannot cascade:
+        // the arc has rolled out on the line to the aimed segment's own to-node, and whatever that segment
+        // installs is a fresh aim solved from where the aircraft now stands.
+        SetupSegment(route, ctx, isHoldShortCleared);
+        return true;
     }
 
     /// <summary>

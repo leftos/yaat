@@ -297,6 +297,49 @@ public class PathPrimitiveBuilderTests
     }
 
     [Fact]
+    public void SlowTurnDirected_NamedDirectionIsTheLongWay_SweepsTheLongWay()
+    {
+        // Same pose and exit heading as SlowTurn_RightTurn (north → east, a 90° right turn the short way),
+        // but the caller names a left turn: the arc must sweep the whole 270° round to the left rather than
+        // quietly taking the short way in the opposite sense. This is what lets the navigator turn a reversal
+        // against its short way when the route's next turn would otherwise compound with it.
+        const double radiusFt = 25.0;
+
+        var directed = PathPrimitiveBuilder.SlowTurnDirected(
+            fromLat: 37.0,
+            fromLon: -122.0,
+            fromHdgDeg: 0.0,
+            toHdgDeg: 90.0,
+            radiusFt: radiusFt,
+            maxSpeedKts: 3.0,
+            toNodeId: 101,
+            rightTurn: false
+        );
+
+        Assert.False(directed.RightTurn, "the caller named a left turn");
+        Assert.InRange(directed.SweepDeg, 269.9, 270.1);
+        Assert.InRange(directed.EntryTangentBearingDeg, -0.1, 0.1);
+        Assert.InRange(directed.ExitTangentBearingDeg, 89.9, 90.1);
+
+        // Arc length = 270° × 25 ft × π/180 ≈ 117.8 ft — three times the short way's 39.3 ft.
+        Assert.InRange(directed.LengthFt, 117.5, 118.1);
+
+        // The short-way overload, given the same pose, still takes the 90° right turn.
+        var shortWay = PathPrimitiveBuilder.SlowTurn(
+            fromLat: 37.0,
+            fromLon: -122.0,
+            fromHdgDeg: 0.0,
+            toHdgDeg: 90.0,
+            radiusFt: radiusFt,
+            maxSpeedKts: 3.0,
+            toNodeId: 101
+        );
+
+        Assert.True(shortWay.RightTurn);
+        Assert.InRange(shortWay.SweepDeg, 89.9, 90.1);
+    }
+
+    [Fact]
     public void SlowTurn_TightRadiusIsSmallerThanLineUpTurnRadius()
     {
         // Regression guard: NoseWheelTurnRadiusFt must be substantially
