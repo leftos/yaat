@@ -189,8 +189,9 @@ public static class TdlsMutations
 
     /// <summary>
     /// Builds a <see cref="TdlsClearance"/> from the canonical TDLSS payload (nine '|'-separated
-    /// positional fields produced by <c>CommandDescriber.DescribeCommand</c>). Empty fields
-    /// become null. The caller has validated that the fields list has length 9.
+    /// positional fields produced by <c>CommandDescriber.DescribeCommand</c>). Empty fields — and the
+    /// FE's "no value" placeholder, which is a real selectable list entry the controller can land in a
+    /// field — become null. The caller has validated that the fields list has length 9.
     /// <para>
     /// The field order is the command's, not the record's: field 7 is the departure frequency and field 8 the
     /// local information, which the record declares the other way round.
@@ -198,19 +199,19 @@ public static class TdlsMutations
     /// </summary>
     public static TdlsClearance ClearancePayloadFromFields(IReadOnlyList<string> fields)
     {
-        static string? NullIfEmpty(string s) => string.IsNullOrEmpty(s) ? null : s;
+        static string? NullIfUnset(string s) => TdlsPlaceholder.IsPlaceholder(s) ? null : s;
 
         return new TdlsClearance
         {
-            Expect = NullIfEmpty(fields[0]),
-            Sid = NullIfEmpty(fields[1]),
-            Transition = NullIfEmpty(fields[2]),
-            Climbout = NullIfEmpty(fields[3]),
-            Climbvia = NullIfEmpty(fields[4]),
-            InitialAlt = NullIfEmpty(fields[5]),
-            ContactInfo = NullIfEmpty(fields[6]),
-            DepFreq = NullIfEmpty(fields[7]),
-            LocalInfo = NullIfEmpty(fields[8]),
+            Expect = NullIfUnset(fields[0]),
+            Sid = NullIfUnset(fields[1]),
+            Transition = NullIfUnset(fields[2]),
+            Climbout = NullIfUnset(fields[3]),
+            Climbvia = NullIfUnset(fields[4]),
+            InitialAlt = NullIfUnset(fields[5]),
+            ContactInfo = NullIfUnset(fields[6]),
+            DepFreq = NullIfUnset(fields[7]),
+            LocalInfo = NullIfUnset(fields[8]),
         };
     }
 }

@@ -290,7 +290,10 @@ public static class TdlsCommandHandler
             error = "MANDATORY FIELD NOT SET: Climb via";
             return false;
         }
-        if (config.MandatoryInitialAlt && string.IsNullOrEmpty(payload.InitialAlt))
+        // A climb-via clearance IS the altitude instruction (7110.65 §4-3-2): "climb via SID [except maintain X]" and
+        // "maintain X" are alternatives, never issued together. So a climb-via satisfies a mandatory Maintain —
+        // demanding an interim altitude beside one would leave the controller no sendable clearance at all.
+        if (config.MandatoryInitialAlt && string.IsNullOrEmpty(payload.InitialAlt) && string.IsNullOrEmpty(payload.Climbvia))
         {
             error = "MANDATORY FIELD NOT SET: Maintain";
             return false;
@@ -369,14 +372,14 @@ public static class TdlsCommandHandler
         var sb = new StringBuilder("CLEARED");
 
         var sid = ResolveSid(cfg, p.Sid);
-        if (sid is not null && !IsPlaceholderName(sid.Name))
+        if (sid is not null && !TdlsPlaceholder.IsPlaceholder(sid.Name))
         {
             sb.Append(' ').Append(sid.Name);
         }
         sb.Append(" DEPARTURE");
 
         var transition = ResolveTransition(sid, p.Transition);
-        if (transition is not null && !IsPlaceholderName(transition.Name))
+        if (transition is not null && !TdlsPlaceholder.IsPlaceholder(transition.Name))
         {
             sb.Append(' ').Append(transition.Name);
         }
@@ -441,16 +444,5 @@ public static class TdlsCommandHandler
             return null;
         }
         return sid.Transitions.FirstOrDefault(t => string.Equals(t.Id, transitionId, StringComparison.Ordinal));
-    }
-
-    /// <summary>Detects the FE's "no value" placeholder names so they don't leak into the PDC text as literal dashes.</summary>
-    private static bool IsPlaceholderName(string? name)
-    {
-        if (string.IsNullOrEmpty(name))
-        {
-            return true;
-        }
-        var trimmed = name.Replace(" ", "").Replace("-", "");
-        return string.IsNullOrEmpty(trimmed);
     }
 }

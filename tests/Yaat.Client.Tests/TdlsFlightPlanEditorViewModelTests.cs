@@ -676,6 +676,236 @@ public class TdlsFlightPlanEditorViewModelTests
         Assert.Equal("EXP RWY 19L", editor.LocalInfo);
     }
 
+    // ── Climb via vs Maintain: 7110.65 §4-3-2 alternatives, never both ──
+
+    /// <summary>
+    /// OAK's shape in the committed ZOA config: a climb-via list carrying the plain instruction, an "except maintain"
+    /// form, and the FE's "- - - -" placeholder, over two SIDs. NUEVO8's transition defines BOTH a climb-via and an
+    /// initial altitude — the real config does — while SKYLINE7's defines neither, so a test can hand-pick the fields
+    /// and watch what a later selection does to them. SKYLINE7 is the facility default, so construction with no filed
+    /// route applies no defaults at all.
+    /// </summary>
+    private static TdlsConfigDto BuildOakClimbViaConfig(bool mandatoryInitialAlt) =>
+        new(
+            FacilityId: "OAK",
+            FacilityName: "Oakland ATCT",
+            MandatorySid: false,
+            MandatoryClimbout: false,
+            MandatoryClimbvia: false,
+            MandatoryInitialAlt: mandatoryInitialAlt,
+            MandatoryDepFreq: false,
+            MandatoryExpect: false,
+            MandatoryContactInfo: false,
+            MandatoryLocalInfo: false,
+            Sids:
+            [
+                new TdlsSidDto("NUEVO8", "NUEVO8", [ClimbViaTransition("NUEVO8-OAK", "OAK", "CLB VIA SID EXC MAINT 10000FT", "10000FT")]),
+                new TdlsSidDto("SKYLINE7", "SKYLINE7", [ClimbViaTransition("SKYLINE7-OSI", "OSI", defaultClimbvia: null, defaultInitialAlt: null)]),
+            ],
+            Climbouts: [],
+            Climbvias:
+            [
+                new TdlsClearanceValueDto("clbvia", "CLIMB VIA SID"),
+                new TdlsClearanceValueDto("clbvia10", "CLB VIA SID EXC MAINT 10000FT"),
+                new TdlsClearanceValueDto("none", "- - - -"),
+            ],
+            InitialAlts: [new TdlsClearanceValueDto("5000", "5000FT"), new TdlsClearanceValueDto("10000", "10000FT")],
+            DepFreqs: [],
+            Expects: [],
+            ContactInfos: [],
+            LocalInfos: [],
+            DefaultSidId: "SKYLINE7",
+            DefaultTransitionId: "SKYLINE7-OSI"
+        );
+
+    private static TdlsSidTransitionDto ClimbViaTransition(string id, string fix, string? defaultClimbvia, string? defaultInitialAlt) =>
+        new(
+            id,
+            fix,
+            FirstRoutePoint: fix,
+            DefaultExpect: null,
+            DefaultClimbout: null,
+            DefaultClimbvia: defaultClimbvia,
+            DefaultInitialAlt: defaultInitialAlt,
+            DefaultDepFreq: null,
+            DefaultContactInfo: null,
+            DefaultLocalInfo: null
+        );
+
+    private static TdlsFlightPlanEditorViewModel OakEditor(bool mandatoryInitialAlt, TdlsFlightPlanInfoDto? flightPlan) =>
+        new("SWA1234", BuildOakClimbViaConfig(mandatoryInitialAlt), seed: null, flightPlan: flightPlan, isReadOnly: false, opConfigId: null);
+
+    private static TdlsFlightPlanInfoDto OakFlightPlan(string route) =>
+        new(
+            AssignedBeaconCode: 501,
+            Departure: "KOAK",
+            Destination: "KLAX",
+            Route: route,
+            AircraftType: "B738",
+            EquipmentSuffix: "L",
+            Remarks: "",
+            Cid: "1234567",
+            CruiseAltitude: 35000
+        );
+
+    [Fact]
+    public void SelectingAClimbVia_ClearsTheComposedMaintainAndLocksTheField()
+    {
+        // "Climb via SID [except maintain X]" and "maintain X" are alternatives (7110.65 §4-3-2). A clearance holding
+        // both tells the pilot two different things about the same altitude.
+        var editor = OakEditor(mandatoryInitialAlt: false, flightPlan: null);
+        editor.InitialAlt = "5000FT";
+        Assert.True(editor.IsInitialAltEnabled);
+
+        editor.SelectedClimbvia = editor.Climbvias.Single(v => v.Value == "CLIMB VIA SID");
+
+        Assert.Null(editor.SelectedInitialAlt);
+        Assert.False(editor.IsInitialAltEnabled);
+    }
+
+    [Fact]
+    public void ClearingTheClimbVia_ReEnablesMaintainWithoutRestoringWhatWasCleared()
+    {
+        // The field comes back, empty: the controller chose an altitude for a clearance that no longer exists, and
+        // silently re-issuing it would put back a value they never picked for this one.
+        var editor = OakEditor(mandatoryInitialAlt: false, flightPlan: null);
+        editor.InitialAlt = "5000FT";
+        editor.SelectedClimbvia = editor.Climbvias.Single(v => v.Value == "CLIMB VIA SID");
+
+        editor.SelectedClimbvia = null;
+
+        Assert.True(editor.IsInitialAltEnabled);
+        Assert.Null(editor.SelectedInitialAlt);
+    }
+
+    [Fact]
+    public void PlaceholderClimbVia_IsNoClimbViaAtAll()
+    {
+        // The FE's "- - - -" entry is selectable but instructs nothing, so it neither locks Maintain nor clears it.
+        var editor = OakEditor(mandatoryInitialAlt: false, flightPlan: null);
+        editor.InitialAlt = "5000FT";
+
+        editor.SelectedClimbvia = editor.Climbvias.Single(v => v.Value == "- - - -");
+
+        Assert.True(editor.IsInitialAltEnabled);
+        Assert.Equal("5000FT", editor.InitialAlt);
+    }
+
+    [Fact]
+    public void Constructor_TransitionDefiningBothClimbViaAndMaintain_AppliesOnlyTheClimbVia()
+    {
+        // ZOA's OAK NUEVO8 defines defaultClimbvia "CLB VIA SID EXC MAINT 10000FT" AND defaultInitialAlt "10000FT".
+        // Back-filling both would open the editor on a clearance no controller could have composed.
+        var editor = OakEditor(mandatoryInitialAlt: false, flightPlan: OakFlightPlan("NUEVO8 OAK V6 LIN"));
+
+        Assert.Equal("NUEVO8", editor.SelectedSid?.Id);
+        Assert.Equal("CLB VIA SID EXC MAINT 10000FT", editor.Climbvia);
+        Assert.Null(editor.SelectedInitialAlt);
+        Assert.False(editor.IsInitialAltEnabled);
+    }
+
+    [Fact]
+    public void ChangingTheSid_ToATransitionDefiningBoth_AppliesOnlyTheClimbVia()
+    {
+        // The same data through the other door: a later SID pick overwrites the fields rather than back-filling them,
+        // so the suppression has to read the climb-via assigned moments earlier in the same pass.
+        var editor = OakEditor(mandatoryInitialAlt: false, flightPlan: null);
+        editor.InitialAlt = "5000FT";
+
+        editor.SelectedSid = editor.Sids.Single(s => s.Id == "NUEVO8");
+
+        Assert.Equal("CLB VIA SID EXC MAINT 10000FT", editor.Climbvia);
+        Assert.Null(editor.SelectedInitialAlt);
+        Assert.False(editor.IsInitialAltEnabled);
+    }
+
+    [Fact]
+    public void MandatoryMaintain_IsSatisfiedByAClimbVia()
+    {
+        // A facility can make Maintain mandatory; a climb-via is the altitude instruction, so it fills that
+        // requirement. Otherwise the editor would disable the only field the Send button is waiting on.
+        var editor = OakEditor(mandatoryInitialAlt: true, flightPlan: null);
+        Assert.False(editor.IsSendEnabled);
+        Assert.Contains("Maintain", editor.MissingMandatoryFieldNames, StringComparison.Ordinal);
+
+        editor.SelectedClimbvia = editor.Climbvias.Single(v => v.Value == "CLIMB VIA SID");
+
+        Assert.True(editor.IsSendEnabled);
+        Assert.DoesNotContain("Maintain", editor.MissingMandatoryFieldNames, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void PlaceholderSelection_InAMandatoryField_StillCountsAsUnset()
+    {
+        // KIAD lists "- - - -" among its departure frequencies. Picking it is picking nothing, so a mandatory field
+        // holding it is still missing — the Send button must not unlock on a row of dashes.
+        var editor = new TdlsFlightPlanEditorViewModel(
+            "UAL1742",
+            BuildIadLikeConfig("125.05"),
+            seed: null,
+            flightPlan: null,
+            isReadOnly: false,
+            opConfigId: null
+        );
+        Assert.True(editor.IsSendEnabled);
+
+        editor.SelectedDepFreq = editor.DepFreqs.Single(v => v.Value == "- - - -");
+
+        Assert.False(editor.IsSendEnabled);
+        Assert.Contains("Departure frequency", editor.MissingMandatoryFieldNames, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ApplyAmendedFlightPlan_ToAClimbViaSid_ClearsTheHandPickedMaintain()
+    {
+        // The reported bug: the aircraft was filed on a route naming no configured SID, so the controller picked a
+        // Maintain by hand. The amendment brings a SID whose transition defaults to a climb-via, and the clearance
+        // about to be sent carried both instructions.
+        var editor = OakEditor(mandatoryInitialAlt: false, flightPlan: OakFlightPlan("SUNOL V6 LIN"));
+        Assert.Equal("SKYLINE7", editor.SelectedSid?.Id);
+        editor.InitialAlt = "5000FT";
+        Assert.True(editor.IsInitialAltEnabled);
+
+        editor.ApplyAmendedFlightPlan(OakFlightPlan("NUEVO8 OAK V6 LIN"));
+
+        Assert.Equal("NUEVO8", editor.SelectedSid?.Id);
+        Assert.Equal("CLB VIA SID EXC MAINT 10000FT", editor.Climbvia);
+        Assert.Null(editor.SelectedInitialAlt);
+        Assert.False(editor.IsInitialAltEnabled);
+    }
+
+    [Fact]
+    public void ReadOnly_SentClearanceCarryingBoth_KeepsBothValues()
+    {
+        // A PDC issued before the fields became exclusive is still on the PDC list. Review shows exactly what was
+        // issued — clearing a field here would rewrite history in the panel.
+        var seed = new ClearanceDto(
+            Expect: null,
+            Sid: "NUEVO8",
+            Transition: "NUEVO8-OAK",
+            Climbout: null,
+            Climbvia: "CLIMB VIA SID",
+            InitialAlt: "5000FT",
+            ContactInfo: null,
+            LocalInfo: null,
+            DepFreq: null
+        );
+
+        var editor = new TdlsFlightPlanEditorViewModel(
+            "SWA1234",
+            BuildOakClimbViaConfig(mandatoryInitialAlt: false),
+            seed,
+            flightPlan: null,
+            isReadOnly: true,
+            opConfigId: null
+        );
+
+        Assert.Equal("CLIMB VIA SID", editor.Climbvia);
+        Assert.Equal("5000FT", editor.InitialAlt);
+        // Every dropdown is disabled in review, Maintain among them.
+        Assert.False(editor.IsInitialAltEnabled);
+    }
+
     [Fact]
     public void ReadOnly_SidChange_NeverAppliesTransitionDefaults()
     {

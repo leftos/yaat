@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+- Selecting a climb-via in the vTDLS editor clears and greys out the Maintain box, including when an amendment brings a climb-via SID.
+- A SID transition defining both a climb-via and an initial altitude fills only the climb-via, leaving Maintain blank.
+- A climb-via satisfies a facility that marks Maintain mandatory, so Send unlocks without an interim altitude.
+- A PDC drops any field holding the `- - - -` placeholder, so no clearance goes out reading `MAINT - - - -`.
+- A mandatory vTDLS field holding the `- - - -` placeholder counts as unset and keeps Send locked.
+
 ## v0.12.34-beta [2026/09/15]
 
 ### Highlights

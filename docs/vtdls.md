@@ -359,6 +359,44 @@ blank, filling one leaves `CanSend` false, so an `[ObservableProperty]`
 notification keyed on it would never fire and the footer would keep
 naming the field the controller just filled.
 
+### Climb via and Maintain are mutually exclusive
+
+7110.65 §4-3-2 gives a departure clearance one altitude instruction, not
+two: "climb via SID" (optionally "except maintain (altitude)") when the
+SID publishes crossing restrictions, or "maintain (altitude)" when no SID
+is assigned, the SID publishes none, or it is a radar-vectors SID. So a
+climb-via value in force **disables and clears** the Maintain dropdown
+(`TdlsFlightPlanEditorViewModel.IsInitialAltEnabled`, which the view binds
+in place of `IsEditable` on that one ComboBox), and a mandatory
+`InitialAlt` counts as satisfied by a climb-via on both gates — the
+editor's missing-field list and the Sim's `ValidateMandatoryFields`.
+Without the second half, a facility setting `mandatoryInitialAlt` over a
+climb-via SID would be a dead end: the field disabled and reported
+missing at once. The rule is one-directional. Clearing the climb-via
+re-enables Maintain (it does not restore the cleared value), and picking a
+Maintain never disables climb-via, so the controller always has a way
+back.
+
+**The suppression has to read live state.** Some FE transitions define
+both defaults: ZOA's OAK `NUEVO8`/`SLNT3` pair `CLB VIA SID EXC MAINT
+10000FT` with `defaultInitialAlt` `10000FT`, duplicating the altitude,
+and SMF's `SCTWN4`/`RVRCT4` pair a climb-via with the `- - - -`
+placeholder. `TransitionDefaultFields` lists Climbvia ahead of InitialAlt
+and the InitialAlt entry carries a suppression predicate rather than a
+captured bool, so the climb-via is assigned first and the Maintain
+default is then skipped. A bool captured when the array is built would
+read the pre-assignment value and fill both. Read-only editors suppress
+nothing: a sent PDC under review shows exactly what was issued, both
+fields included.
+
+**The `- - - -` placeholder is no value.** It is a real selectable list
+entry at SMF, not just a display string for an empty dropdown.
+`TdlsPlaceholder` (Yaat.Sim) is the one predicate both sides use: a
+placeholder climb-via does not disable Maintain, a placeholder selection
+never satisfies a mandatory field, and `ClearancePayloadFromFields` nulls
+it on the way in, so a PDC no longer reaches the pilot reading
+`MAINT - - - -`.
+
 ### Operational configurations
 
 A facility with `dclOpConfigsEnabled` keeps **no** SIDs at facility level — every SID moves into

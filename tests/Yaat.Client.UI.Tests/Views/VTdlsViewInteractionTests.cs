@@ -171,6 +171,37 @@ public class VTdlsViewInteractionTests
     }
 
     /// <summary>
+    /// Climb via and Maintain are alternatives (7110.65 §4-3-2), and the editor's rule has to reach the rendered
+    /// control: the Maintain dropdown is the one field in the row bound to <c>IsInitialAltEnabled</c> rather than
+    /// <c>IsEditable</c>, so picking a climb-via greys it out instead of leaving a selectable field the clearance
+    /// can no longer carry.
+    /// </summary>
+    [AvaloniaFact]
+    public void ClimbViaSelection_GreysOutTheMaintainDropdown()
+    {
+        var (vm, transport) = MakeVm();
+        SeedFacility(vm, ConfigWithClimbVias());
+        transport.PushState(new TdlsStateDto([Item("id1", "UAL1742", facilityId: "IAD")], []));
+        Dispatcher.UIThread.RunJobs();
+        var view = BootView(vm);
+
+        vm.SelectedItem = vm.DclItems.Single();
+        Dispatcher.UIThread.RunJobs();
+        view.UpdateLayout();
+        Dispatcher.UIThread.RunJobs();
+
+        var maintain = DropdownRowCombos(view)["Maintain"];
+        Assert.True(maintain.IsEffectivelyEnabled);
+
+        vm.Editor!.SelectedClimbvia = vm.Editor.Climbvias.Single(v => v.Value == "CLIMB VIA SID");
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.False(maintain.IsEffectivelyEnabled);
+        // Every other dropdown stays on IsEditable.
+        Assert.True(DropdownRowCombos(view)["Climb out"].IsEffectivelyEnabled);
+    }
+
+    /// <summary>
     /// An amendment that lands while the controller is composing a clearance updates the header in place. Re-inserting
     /// the item's view-model would null the two-way bound ListBox selection, which closes the editor and discards every
     /// dropdown already chosen — so the same editor instance has to survive the push and show the new route.
@@ -588,6 +619,16 @@ public class VTdlsViewInteractionTests
             DefaultSidId: "RNLDI4",
             DefaultTransitionId: "OTTTO"
         );
+
+    /// <summary>
+    /// The same facility with a climb-via list on it — OAK's shape: the plain instruction plus the FE's "- - - -"
+    /// placeholder entry. Nothing defaults to one, so the editor still opens with Maintain in play.
+    /// </summary>
+    private static TdlsConfigDto ConfigWithClimbVias() =>
+        ConfigWithMandatoryDepFreq() with
+        {
+            Climbvias = [new TdlsClearanceValueDto("clbvia", "CLIMB VIA SID"), new TdlsClearanceValueDto("none", "- - - -")],
+        };
 
     /// <summary>
     /// Facility offering two SIDs with one transition each, so an amended route can name a different SID than the one

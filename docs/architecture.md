@@ -208,7 +208,7 @@ Services/
 ViewModels/
   VTdlsViewModel.cs             # Root vTDLS VM; reconciles DCL (Pending) and PDC (Sent+Wilco) lists from broadcast events; surfaces accessible-facility list + Switch/Refresh. Ctor takes ITdlsTransport + send-command delegate + Func<string>? getUserInitials. Clear() empties every item, the selection and any open editor (called on connection loss and by the host when the room's session goes away).
   TdlsItemViewModel.cs          # Per-item observable: AircraftId, Status, Sequence, timestamps, SentPayload. Instance identity preserved across reconciles so Avalonia bindings stay stable.
-  TdlsFlightPlanEditorViewModel.cs # Nine-field editor; wraps a working ClearanceDto, exposes per-field dropdowns from the facility's TdlsConfigDto, applies SID+transition defaults on selection, gates Send button on mandatory-field completion.
+  TdlsFlightPlanEditorViewModel.cs # Nine-field editor; wraps a working ClearanceDto, exposes per-field dropdowns from the facility's TdlsConfigDto, applies SID+transition defaults on selection, gates Send button on mandatory-field completion. A climb-via value disables and clears Maintain (IsInitialAltEnabled) and satisfies a mandatory InitialAlt — one altitude instruction per clearance.
   VTdlsCanonicalBuilder.cs      # Build canonical TDLS commands (TDLSQ / TDLSS Expect|Sid|... | LocalInfo / TDLSW / TDLSDUMP) from UI gestures.
 
 Views/VTdls/
@@ -1467,13 +1467,19 @@ TdlsChangeTracker.cs           # The broadcast seam for TdlsState: TdlsRemoval (
 TdlsMutations.cs               # Stateless mutation helpers for TdlsState (queue/send/mark-Wilco/dump/expire, ResolveFacilityForAirport, FindActiveItem) —
                                # callers hold Gate externally. Helpers that allocate new ids advance NextItemId; helpers that change status return the
                                # updated record (or null if the item didn't exist) and record it in TdlsState.Changes for the host to broadcast.
+                               # ClearancePayloadFromFields nulls an FE placeholder as well as an empty field, so a "- - - -" pick never reaches
+                               # SentPayload, the PDC text or the snapshot.
 TdlsCommandHandler.cs          # Static dispatch for TDLSQ / TDLSS / TDLSW / TDLSDUMP against SimulationEngine.Tdls: resolves the aircraft's TDLS facility,
                                # mutates through TdlsMutations, and builds the ACARS PDC text for a TDLSS send; owns the auto/manual WILCO delay
                                # (DefaultWilcoDelay). ArmTable's Tdls/TdlsOps rows call it (and SimulationEngine.ApplyTdlsOpConfig) as Sim bodies now,
-                               # not host slots.
+                               # not host slots. ValidateMandatoryFields treats a climb-via as satisfying a mandatory InitialAlt — one altitude
+                               # instruction per clearance (7110.65 4-3-2), so requiring both would be a dead end.
 TdlsClearance.cs               # The clearance a PDC carries: the nine canonical TDLSS payload fields, in the order the command describes them.
                                # The simulation's clearance model — held by TdlsItemRecord and round-tripped by the snapshot; the server projects
                                # it onto the CRC wire ClearanceDto on its way out
+TdlsPlaceholder.cs             # The one predicate for the FE's "no value" entry (blank, or dashes and spaces only — "- - - -" is a real selectable
+                               # list entry at SMF, not just an empty dropdown's display text). Shared by the Sim's PDC text and mandatory-field
+                               # gates and by the client editor's transition matching, climb-via rule and missing-field list.
 
 # Simulation/Eram/ — ERAM CRR-group core types, engine-owned (SimulationEngine.Eram.cs owns the dictionary + dirty flag)
 EramCrrGroup.cs                # EramCrrGroup(Label, EramCrrColor Color, Latitude, Longitude) + the EramCrrColor enum mirroring the wire CrrColor (parity pinned on

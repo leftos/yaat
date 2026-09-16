@@ -5,6 +5,7 @@ using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
 using Yaat.Client.Services;
 using Yaat.Sim;
+using Yaat.Sim.Simulation.Tdls;
 
 namespace Yaat.Client.ViewModels;
 
@@ -14,6 +15,11 @@ namespace Yaat.Client.ViewModels;
 /// per-field dropdown sources from the facility's <see cref="TdlsConfigDto"/>,
 /// applies SID + transition defaults on selection, and gates the Send button on
 /// mandatory-field completion.
+///
+/// Climb via and Maintain are alternatives, not companions (7110.65 §4-3-2): a
+/// climb-via clearance is itself the altitude instruction, so taking one into
+/// force clears the Maintain field, disables it (<see cref="IsInitialAltEnabled"/>)
+/// and satisfies it where the facility makes it mandatory.
 ///
 /// Owned by <see cref="VTdlsViewModel"/>; created fresh per selected item so the
 /// editor state doesn't bleed across selections.
@@ -49,6 +55,19 @@ public partial class TdlsFlightPlanEditorViewModel : ObservableObject
 
     /// <summary>Convenience inverse of <see cref="IsReadOnly"/> for binding control IsEnabled/IsVisible.</summary>
     public bool IsEditable => !IsReadOnly;
+
+    /// <summary>
+    /// True when a climb-via instruction is actually in force: an entry is selected and it carries an instruction
+    /// rather than the FE's "- - - -" placeholder, which is selectable but says nothing.
+    /// </summary>
+    private bool HasClimbVia => (SelectedClimbvia is not null) && !TdlsPlaceholder.IsPlaceholder(SelectedClimbvia.Value);
+
+    /// <summary>
+    /// Whether the Maintain (interim altitude) dropdown takes a selection — bound to its IsEnabled. A climb-via
+    /// clearance IS the altitude instruction, so "climb via SID [except maintain X]" and "maintain X" are alternatives
+    /// (7110.65 §4-3-2): the field greys out while a climb-via is in force and comes back, empty, when it is cleared.
+    /// </summary>
+    public bool IsInitialAltEnabled => IsEditable && !HasClimbVia;
 
     /// <summary>SIDs offered by the facility. Display via <c>Name</c>; the canonical command uses <c>Id</c>.</summary>
     public ObservableCollection<TdlsSidDto> Sids { get; } = [];
@@ -326,7 +345,23 @@ public partial class TdlsFlightPlanEditorViewModel : ObservableObject
 
     partial void OnSelectedClimboutChanged(TdlsClearanceValueDto? value) => RecomputeCanSend();
 
-    partial void OnSelectedClimbviaChanged(TdlsClearanceValueDto? value) => RecomputeCanSend();
+    /// <summary>
+    /// A climb-via coming into force drops whatever Maintain held and locks the field; clearing it back to nothing
+    /// unlocks the field, still empty — the altitude the controller chose belonged to a clearance that no longer
+    /// exists. A read-only editor clears nothing, the same carve-out the default propagation has: a sent PDC under
+    /// review shows exactly what was issued. The enabled state is re-raised either way, so the re-enable path reaches
+    /// the view too.
+    /// </summary>
+    partial void OnSelectedClimbviaChanged(TdlsClearanceValueDto? value)
+    {
+        if (HasClimbVia && !IsReadOnly)
+        {
+            SelectedInitialAlt = null;
+        }
+
+        OnPropertyChanged(nameof(IsInitialAltEnabled));
+        RecomputeCanSend();
+    }
 
     partial void OnSelectedInitialAltChanged(TdlsClearanceValueDto? value) => RecomputeCanSend();
 
@@ -418,10 +453,7 @@ public partial class TdlsFlightPlanEditorViewModel : ObservableObject
     /// "- - - -") names no fix, so it never satisfies a hint.
     /// </summary>
     private static bool CandidateMatchesHint(string? candidate, string transitionHint) =>
-        !IsPlaceholderName(candidate) && string.Equals(candidate, transitionHint, StringComparison.OrdinalIgnoreCase);
-
-    /// <summary>Detects blank values and the FE's "no value" placeholder names, which are made of dashes and spaces only.</summary>
-    private static bool IsPlaceholderName(string? name) => string.IsNullOrWhiteSpace(name) || name.Replace(" ", "").Replace("-", "").Length == 0;
+        !TdlsPlaceholder.IsPlaceholder(candidate) && string.Equals(candidate, transitionHint, StringComparison.OrdinalIgnoreCase);
 
     private TdlsSidDto? ResolveSid(string? sidId) =>
         sidId is null ? null : _config.ResolveSids(_opConfigId).FirstOrDefault(s => string.Equals(s.Id, sidId, StringComparison.Ordinal));
@@ -503,8 +535,9 @@ public partial class TdlsFlightPlanEditorViewModel : ObservableObject
     /// Applies a newly selected transition's defaults, overwriting what the fields hold. Upstream's contract is that
     /// "selecting a SID and transition pair also populates the remaining fields with default values defined by the
     /// Facility Engineer", so a controller who switches SID gets that SID's clearance rather than a mix of two.
-    /// A field the transition defines no default for keeps its value — the FE said nothing about it — and a read-only
-    /// editor is never touched, because a sent PDC under review has to keep showing what was issued.
+    /// A field the transition defines no default for keeps its value — the FE said nothing about it — a field another
+    /// field has ruled out is skipped, and a read-only editor is never touched, because a sent PDC under review has to
+    /// keep showing what was issued.
     /// </summary>
     private void ApplyTransitionDefaults(TdlsSidTransitionDto? transition)
     {
@@ -514,7 +547,7 @@ public partial class TdlsFlightPlanEditorViewModel : ObservableObject
         }
         foreach (var field in TransitionDefaultFields(transition))
         {
-            if (!string.IsNullOrWhiteSpace(field.Default))
+            if (!string.IsNullOrWhiteSpace(field.Default) && !field.Suppressed())
             {
                 field.Assign(field.Default);
             }
@@ -523,7 +556,8 @@ public partial class TdlsFlightPlanEditorViewModel : ObservableObject
 
     /// <summary>
     /// Fills only the fields that are still empty. This is construction's rule: what the seed brought is a clearance
-    /// already composed (or already sent), and it outranks the facility's defaults.
+    /// already composed (or already sent), and it outranks the facility's defaults. A field ruled out by another one
+    /// is skipped here too.
     /// </summary>
     private void BackFillTransitionDefaults(TdlsSidTransitionDto? transition)
     {
@@ -533,7 +567,7 @@ public partial class TdlsFlightPlanEditorViewModel : ObservableObject
         }
         foreach (var field in TransitionDefaultFields(transition))
         {
-            if (field.Current is null)
+            if ((field.Current is null) && !field.Suppressed())
             {
                 field.Assign(field.Default);
             }
@@ -541,23 +575,35 @@ public partial class TdlsFlightPlanEditorViewModel : ObservableObject
     }
 
     /// <summary>
-    /// The seven fields a transition can carry a default for — what it defines, what the editor holds now, and the
-    /// setter that resolves a value string to this field's dropdown entry through <see cref="ResolveItem"/>. The two
-    /// policies above share it so the field list exists once.
+    /// The seven fields a transition can carry a default for — what it defines, what the editor holds now, the setter
+    /// that resolves a value string to this field's dropdown entry through <see cref="ResolveItem"/>, and whether
+    /// another field has ruled it out. The two policies above share it so the field list exists once.
+    ///
+    /// <para>The suppression predicate reads live editor state on each pass rather than a captured verdict: Climbvia is
+    /// assigned earlier in the same loop, and ZOA's OAK NUEVO8 defines a climb-via and an initial altitude on the one
+    /// transition. A bool captured when this array was built would still say "no climb-via" and fill both.</para>
     /// </summary>
     private TransitionDefaultField[] TransitionDefaultFields(TdlsSidTransitionDto transition) =>
         [
-            new(transition.DefaultExpect, SelectedExpect, value => Expect = value),
-            new(transition.DefaultClimbout, SelectedClimbout, value => Climbout = value),
-            new(transition.DefaultClimbvia, SelectedClimbvia, value => Climbvia = value),
-            new(transition.DefaultInitialAlt, SelectedInitialAlt, value => InitialAlt = value),
-            new(transition.DefaultDepFreq, SelectedDepFreq, value => DepFreq = value),
-            new(transition.DefaultContactInfo, SelectedContactInfo, value => ContactInfo = value),
-            new(transition.DefaultLocalInfo, SelectedLocalInfo, value => LocalInfo = value),
+            new(transition.DefaultExpect, SelectedExpect, value => Expect = value, NeverSuppressed),
+            new(transition.DefaultClimbout, SelectedClimbout, value => Climbout = value, NeverSuppressed),
+            new(transition.DefaultClimbvia, SelectedClimbvia, value => Climbvia = value, NeverSuppressed),
+            new(transition.DefaultInitialAlt, SelectedInitialAlt, value => InitialAlt = value, () => HasClimbVia),
+            new(transition.DefaultDepFreq, SelectedDepFreq, value => DepFreq = value, NeverSuppressed),
+            new(transition.DefaultContactInfo, SelectedContactInfo, value => ContactInfo = value, NeverSuppressed),
+            new(transition.DefaultLocalInfo, SelectedLocalInfo, value => LocalInfo = value, NeverSuppressed),
         ];
 
-    /// <summary>One defaultable field: the transition's value for it, the editor's current entry, and the assignment that resolves a value.</summary>
-    private readonly record struct TransitionDefaultField(string? Default, TdlsClearanceValueDto? Current, Action<string?> Assign);
+    /// <summary>Nothing in a clearance can rule these fields out, so their defaults always apply.</summary>
+    private static readonly Func<bool> NeverSuppressed = () => false;
+
+    /// <summary>One defaultable field: the transition's value for it, the editor's current entry, the assignment that resolves a value, and a live test of whether another field has ruled this one out.</summary>
+    private readonly record struct TransitionDefaultField(
+        string? Default,
+        TdlsClearanceValueDto? Current,
+        Action<string?> Assign,
+        Func<bool> Suppressed
+    );
 
     private void RecomputeCanSend()
     {
@@ -570,41 +616,50 @@ public partial class TdlsFlightPlanEditorViewModel : ObservableObject
         OnPropertyChanged(nameof(MissingMandatoryFieldNames));
     }
 
+    /// <summary>
+    /// The mandatory fields still waiting on a value. A field holding the FE's "- - - -" entry counts as waiting: the
+    /// placeholder is selectable but instructs nothing, so unlocking Send on it would issue a PDC reading "MAINT
+    /// - - - -". Maintain is not checked at all while a climb-via is in force — the climb-via IS the altitude
+    /// instruction (7110.65 §4-3-2), and the field it would name is disabled.
+    /// </summary>
     private List<string> EnumerateMissingMandatoryFields()
     {
         var missing = new List<string>();
-        if (_config.MandatorySid && SelectedSid is null)
+        if (_config.MandatorySid && ((SelectedSid is null) || TdlsPlaceholder.IsPlaceholder(SelectedSid.Name)))
         {
             missing.Add("SID");
         }
-        if (_config.MandatoryExpect && SelectedExpect is null)
+        if (_config.MandatoryExpect && IsUnset(SelectedExpect))
         {
             missing.Add("Expect");
         }
-        if (_config.MandatoryClimbout && SelectedClimbout is null)
+        if (_config.MandatoryClimbout && IsUnset(SelectedClimbout))
         {
             missing.Add("Climb out");
         }
-        if (_config.MandatoryClimbvia && SelectedClimbvia is null)
+        if (_config.MandatoryClimbvia && IsUnset(SelectedClimbvia))
         {
             missing.Add("Climb via");
         }
-        if (_config.MandatoryInitialAlt && SelectedInitialAlt is null)
+        if (_config.MandatoryInitialAlt && !HasClimbVia && IsUnset(SelectedInitialAlt))
         {
             missing.Add("Maintain");
         }
-        if (_config.MandatoryDepFreq && SelectedDepFreq is null)
+        if (_config.MandatoryDepFreq && IsUnset(SelectedDepFreq))
         {
             missing.Add("Departure frequency");
         }
-        if (_config.MandatoryContactInfo && SelectedContactInfo is null)
+        if (_config.MandatoryContactInfo && IsUnset(SelectedContactInfo))
         {
             missing.Add("Contact info");
         }
-        if (_config.MandatoryLocalInfo && SelectedLocalInfo is null)
+        if (_config.MandatoryLocalInfo && IsUnset(SelectedLocalInfo))
         {
             missing.Add("Local info");
         }
         return missing;
     }
+
+    /// <summary>True when a dropdown carries no value: nothing selected, or the FE's "no value" placeholder entry.</summary>
+    private static bool IsUnset(TdlsClearanceValueDto? selection) => (selection is null) || TdlsPlaceholder.IsPlaceholder(selection.Value);
 }

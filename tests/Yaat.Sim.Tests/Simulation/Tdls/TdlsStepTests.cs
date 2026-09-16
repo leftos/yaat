@@ -26,6 +26,15 @@ public class TdlsStepTests
     /// <summary>The nine <c>TDLSS</c> fields in canonical order: Expect|Sid|Transition|Climbout|Climbvia|InitialAlt|ContactInfo|DepFreq|LocalInfo.</summary>
     private const string SendCanonical = "TDLSS 10 MIN|OAKLAND4|ALTAM||CLIMB VIA SID|5000||120.9|";
 
+    /// <summary>The same send carrying the climb-via alone: no interim altitude, because the climb-via is the altitude instruction.</summary>
+    private const string SendClimbViaWithoutMaintain = "TDLSS 10 MIN|OAKLAND4|ALTAM||CLIMB VIA SID|||120.9|";
+
+    /// <summary>Neither altitude instruction — no climb-via and no Maintain.</summary>
+    private const string SendWithoutAnyAltitudeInstruction = "TDLSS 10 MIN|OAKLAND4|ALTAM|||||120.9|";
+
+    /// <summary>The FE's "no value" entry sitting in the Maintain field, which is a real selectable list entry at SMF.</summary>
+    private const string SendWithPlaceholderMaintain = "TDLSS 10 MIN|OAKLAND4|ALTAM||CLIMB VIA SID|- - - -||120.9|";
+
     /// <summary>An IFR departure filed at KOAK, parked on the field — what the TDLS auto-queue is for.</summary>
     private const string DepartureAtOak = """
         {
@@ -209,6 +218,94 @@ public class TdlsStepTests
 
         Assert.False(second.Result.Success);
         Assert.Contains("already in status Sent", second.Result.Message);
+    }
+
+    /// <summary>
+    /// Makes Maintain mandatory at OAK for one test, on a private deep copy of the facility's real configuration. The
+    /// ARTCC snapshot is cached for the whole test process and <see cref="TdlsState.InitializeFromArtcc"/> stores the
+    /// very object the tree holds, so setting the flag in place would make OAK's Maintain mandatory in every other test
+    /// class running beside this one.
+    /// </summary>
+    private static void RequireMaintainAtOak(SimulationEngine engine)
+    {
+        var json = JsonSerializer.Serialize(engine.Tdls.Configs[Facility], RecordingJsonOptions.Default);
+        var isolated = JsonSerializer.Deserialize<TdlsConfig>(json, RecordingJsonOptions.Default)!;
+        isolated.MandatoryInitialAlt = true;
+        engine.Tdls.Configs[Facility] = isolated;
+    }
+
+    /// <summary>
+    /// A climb-via clearance is itself the altitude instruction (7110.65 §4-3-2), so it satisfies a facility that makes
+    /// Maintain mandatory. The two are alternatives — "climb via SID" or "maintain 5000", never both — so demanding an
+    /// interim altitude alongside a climb-via would leave the controller no clearance to send at all.
+    /// </summary>
+    [Fact]
+    public void Tdlss_AClimbViaSatisfiesAMandatoryMaintain()
+    {
+        if (Engine() is not { } engine)
+        {
+            return;
+        }
+
+        var host = new AttendanceActionHost();
+        RequireMaintainAtOak(engine);
+        Queued(engine);
+
+        var outcome = Issue(engine, host, Callsign, SendClimbViaWithoutMaintain);
+
+        Assert.True(outcome.Result.Success, outcome.Result.Message);
+        var item = Assert.Single(engine.Tdls.Items.Values);
+        Assert.Equal(TdlsItemStatus.Sent, item.Status);
+        Assert.Equal("CLIMB VIA SID", item.SentPayload!.Climbvia);
+        Assert.Null(item.SentPayload.InitialAlt);
+    }
+
+    /// <summary>The other half of the same rule: with no altitude instruction of either kind, the mandatory field is still missing.</summary>
+    [Fact]
+    public void Tdlss_MandatoryMaintainIsRefusedWhenThereIsNoClimbViaEither()
+    {
+        if (Engine() is not { } engine)
+        {
+            return;
+        }
+
+        var host = new AttendanceActionHost();
+        RequireMaintainAtOak(engine);
+        var queued = Queued(engine);
+
+        var outcome = Issue(engine, host, Callsign, SendWithoutAnyAltitudeInstruction);
+
+        Assert.False(outcome.Result.Success);
+        Assert.Contains("MANDATORY FIELD NOT SET: Maintain", outcome.Result.Message, StringComparison.Ordinal);
+        Assert.Equal(TdlsItemStatus.Pending, engine.Tdls.Items[queued.Id].Status);
+    }
+
+    /// <summary>
+    /// The FE's "- - - -" entry is a real selectable list entry, so a controller can land it in a clearance field. It
+    /// names no altitude: the payload keeps null and the PDC text carries no MAINT clause, rather than telling the pilot
+    /// to maintain four dashes.
+    /// </summary>
+    [Fact]
+    public void Tdlss_APlaceholderMaintainIsNoValueAtAll()
+    {
+        if (Engine() is not { } engine)
+        {
+            return;
+        }
+
+        var host = new AttendanceActionHost();
+        Queued(engine);
+        engine.DrainTerminalEntries();
+
+        var outcome = Issue(engine, host, Callsign, SendWithPlaceholderMaintain);
+
+        Assert.True(outcome.Result.Success, outcome.Result.Message);
+        var item = Assert.Single(engine.Tdls.Items.Values);
+        Assert.Null(item.SentPayload!.InitialAlt);
+
+        var line = Assert.Single(engine.DrainTerminalEntries(), e => e.Kind == "Tdls");
+        Assert.DoesNotContain("MAINT", line.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain("- - - -", line.Message, StringComparison.Ordinal);
     }
 
     [Fact]
