@@ -332,6 +332,15 @@ public sealed partial class SimulationEngine
     /// threshold, so it never blocks the landing deceleration. Uses no RNG, so replay/rewind stay
     /// deterministic; it runs during replay too (old recordings have <c>IsGeneratorArrival</c>
     /// false and are unaffected).
+    ///
+    /// <para>The simulated TRACON spaces an arrival only while it owns it, and it stops in one of two ways, latched
+    /// one-way on <see cref="AircraftApproachState.AutoSpacingReleased"/>. The student taking the track is a
+    /// <em>hand-over</em>: the ceiling is left exactly where it stands, because the receiving controller inherits the
+    /// restrictions the aircraft is flying (§5-4-5.h.3, §5-4-6.c) and it then lapses like any other assigned speed —
+    /// the student's own speed command, or <see cref="FlightPhysics"/>'s auto-cancel at the 5 nm / FAF window
+    /// (§5-7-1.d, AIM 4-4-12.a.7). The controller assigning a speed or deleting the speed restrictions is a
+    /// <em>release</em>: that assignment owns the speed, so the managed ceiling comes off
+    /// (<see cref="ReleaseManagedSpeedCeiling"/>). Either way the manager never writes the ceiling again.</para>
     /// </summary>
     private void ApplyArrivalSpacing()
     {
@@ -358,9 +367,28 @@ public sealed partial class SimulationEngine
                     continue;
                 }
 
-                // Override: once the controller touches this aircraft's speed or the student
-                // takes the track, hand speed authority back for good (one-way latch).
-                if (follower.Approach.AutoSpacingReleased || ShouldReleaseAutoSpacing(follower, scenario))
+                // Already let go of (one-way latch): whatever ceiling stands is somebody else's now — the speed the
+                // student inherited, or one the controller's own command left — so nothing is written here.
+                if (follower.Approach.AutoSpacingReleased)
+                {
+                    continue;
+                }
+
+                // The student taking the track is a handoff, not a release: the receiving controller inherits the
+                // restrictions the aircraft is flying (§5-4-5.h.3, §5-4-6.c), so the manager lets go of the speed
+                // without giving it back and the arrival does not accelerate on the tick the handoff is accepted.
+                // The ceiling left standing is then an ordinary assigned speed with nobody re-stamping it: it lapses
+                // the way any other does — the student's own speed command, or
+                // FlightPhysics.AutoCancelSpeedAtFinal at the 5 nm / FAF window (§5-7-1.d, AIM 4-4-12.a.7).
+                if (StudentOwnsTrack(follower, scenario))
+                {
+                    follower.Approach.AutoSpacingReleased = true;
+                    continue;
+                }
+
+                // The controller touching this aircraft's speed is a release: the assignment (or the deletion of its
+                // restrictions) is now the sole speed authority, so the managed ceiling comes off with it.
+                if (follower.Targets.HasExplicitSpeedCommand || follower.Procedure.SpeedRestrictionsDeleted)
                 {
                     follower.Approach.AutoSpacingReleased = true;
                     ReleaseManagedSpeedCeiling(follower);
@@ -396,22 +424,6 @@ public sealed partial class SimulationEngine
                 follower.Targets.SpeedCeiling = ArrivalSpacingManager.SpacingCeilingKts(leader.IndicatedAirspeed, gap, target, vref, scheduled);
             }
         }
-    }
-
-    /// <summary>
-    /// True when the in-trail spacing manager should hand speed authority back for this
-    /// generator arrival: a manual speed command was issued, its speed restrictions were
-    /// deleted, or the student controller now owns the track (the simulated TRACON spaces an
-    /// arrival only while it owns it).
-    /// </summary>
-    private static bool ShouldReleaseAutoSpacing(AircraftState aircraft, SimScenarioState scenario)
-    {
-        if (aircraft.Targets.HasExplicitSpeedCommand || aircraft.Procedure.SpeedRestrictionsDeleted)
-        {
-            return true;
-        }
-
-        return aircraft.Track.Owner is { } owner && scenario.StudentPosition is { } student && owner.MatchesPosition(student);
     }
 
     /// <summary>

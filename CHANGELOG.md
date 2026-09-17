@@ -14,6 +14,7 @@
 ### Changed
 - The simulated approach controller now spaces a scripted arrival from 20 nm out on its expected approach, instead of waiting for the approach clearance to fire.
 - The simulated approach controller adjusts an arrival's speed only until the arrival is 10 nm out or the tower student accepts its handoff, whichever comes first. A reduction already given stays in force across the boundary and across the handoff, as it would for a real receiving controller, until the student assigns a speed or the arrival is 5 nm out; it is not withdrawn at the boundary or on accept.
+- A generated arrival the simulated approach controller was spacing behind its leader keeps its assigned speed when the student accepts its handoff, instead of accelerating on that tick; the speed lapses on the student's own speed command or at 5 nm.
 - Inside 10 nm, when the student is working a Ground position, the simulated tower tells a trailing arrival to reduce to final approach speed instead of holding it at the 170-kt approach floor; the instruction stays in force to touchdown. A student on any other position gets no tower-level speed instruction.
 - The terminal log shows the tower's "reduce to final approach speed" line, attributed to the scenario's tower position.
 

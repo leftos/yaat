@@ -123,8 +123,17 @@ public class ArrivalGeneratorInTrailSpacingTests(ITestOutputHelper output)
         Assert.Null(follower.Targets.SpeedCeiling);
     }
 
+    /// <summary>
+    /// The student taking the track is a handoff, not a release: the receiving controller inherits the restrictions
+    /// the aircraft is flying (§5-4-5.h.3, §5-4-6.c), so the simulated TRACON lets go of the follower's speed without
+    /// giving it back and the arrival does not accelerate on the tick the handoff is accepted. The ceiling left
+    /// standing is then an ordinary assigned speed with nobody re-stamping it — the manager would otherwise re-derive
+    /// a different figure every tick as the gap changes, which is what the three quiet ticks here assert it does not
+    /// — and it lapses the way any other does: the student's own speed command, or the §5-7-1.d / AIM 4-4-12.a.7
+    /// window.
+    /// </summary>
     [Fact]
-    public void StudentTrackOwnership_ReleasesAutoSpacing()
+    public void StudentTrackOwnership_LeavesTheSpacingCeilingStanding()
     {
         var engine = LoadOakEngine();
         if (engine is null)
@@ -134,22 +143,45 @@ public class ArrivalGeneratorInTrailSpacingTests(ITestOutputHelper output)
         var rwy30 = engine.Scenario!.Generators.Single(g => g.Config.Runway == "30").Runway;
 
         InjectArrival(engine, rwy30, "DAL1", "DH8D", 10.0, isGeneratorArrival: true);
-        var follower = InjectArrival(engine, rwy30, "SWA2", "B739", 15.0, isGeneratorArrival: true);
+        InjectArrival(engine, rwy30, "SWA2", "B739", 15.0, isGeneratorArrival: true);
 
         engine.TickOneSecond();
-        Assert.NotNull(engine.FindAircraft("SWA2")!.Targets.SpeedCeiling); // manager engaged
+        var follower = engine.FindAircraft("SWA2");
+        Assert.NotNull(follower);
+        Assert.NotNull(follower.Targets.SpeedCeiling); // manager engaged
+        double standing = follower.Targets.SpeedCeiling!.Value;
 
-        // The student controller takes the track — the simulated TRACON hands off speed authority.
+        // The student controller takes the track — the assigned speed goes with it.
         var student = TrackOwner.CreateNonNas("OAK_TWR");
         engine.Scenario.StudentPosition = student;
-        engine.FindAircraft("SWA2")!.Track.Owner = TrackOwner.CreateNonNas("OAK_TWR");
+        follower.Track.Owner = TrackOwner.CreateNonNas("OAK_TWR");
 
         engine.TickOneSecond();
         follower = engine.FindAircraft("SWA2");
         Assert.NotNull(follower);
 
-        Assert.True(follower.Approach.AutoSpacingReleased, "student ownership should release auto-spacing");
+        Assert.True(follower.Approach.AutoSpacingReleased, "student ownership should end the manager's speed authority");
+        Assert.Equal(standing, follower.Targets.SpeedCeiling!.Value);
+
+        // Nobody re-derives the figure as the gap changes — it is the student's now, exactly as handed over.
+        for (int t = 0; t < 3; t++)
+        {
+            engine.TickOneSecond();
+        }
+        follower = engine.FindAircraft("SWA2");
+        Assert.NotNull(follower);
+        Assert.Equal(standing, follower.Targets.SpeedCeiling!.Value);
+
+        // The student's own speed command is what lapses it.
+        var result = engine.SendCommand("SWA2", "SPD 200");
+        Assert.True(result.Success, result.Message);
+
+        engine.TickOneSecond();
+        follower = engine.FindAircraft("SWA2");
+        Assert.NotNull(follower);
+
         Assert.Null(follower.Targets.SpeedCeiling);
+        Assert.True(follower.Approach.AutoSpacingReleased, "the latch is one-way");
     }
 
     /// <summary>

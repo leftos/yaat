@@ -448,7 +448,10 @@ All four drain in `TickPrePhysics` (`SimulationEngine.cs:465`) once per sim-seco
   the phase by `FlightPhysics.UpdateSpeed` (`goal = min(TargetSpeed, SpeedCeiling)`), so it only ever *lowers* the phase target,
   collapses to exactly Vref inside 5 NM (never blocking the landing decel), and needs no `FinalApproachPhase` change. **Override:**
   a one-way latch (`AircraftApproachState.AutoSpacingReleased`) hands speed authority back for good once a manual speed command is
-  issued, speed restrictions are deleted, or the student owns the track (`ShouldReleaseAutoSpacing`). Uses no RNG, so replay/rewind
+  issued or speed restrictions are deleted (the ceiling is cleared), or the student owns the track — where the ceiling is left
+  **standing**, the same hand-over `ApplySameRunwayArrivalProtection` does below (§5-4-5.h.3 / §5-4-6.c: the receiving controller
+  inherits the restriction), so the arrival does not accelerate on accept and the speed lapses on the student's own command or the
+  5 NM / FAF auto-cancel. Uses no RNG, so replay/rewind
   stay deterministic; it runs during replay too — old recordings have `IsGeneratorArrival` false (the marker is set at
   `SpawnGeneratedArrival`, snapshot-serialized) and are therefore unaffected. Aviation-reviewed against 7110.65 §5-5-4 (radar
   floor), §5-7-1.c.3.1 ("reduce the trailing aircraft first"), and §5-9-5.a (approach control owns final separation until handoff).
