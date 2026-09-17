@@ -177,7 +177,7 @@ public static class LineUpGeometry
         // Already-aligned short-circuit: straight rollout only.
         if (turnMagnitudeDeg < AlignedMaxTurnDeg)
         {
-            return BuildAlignedAlreadyAlignedPlan(runway, acLat, acLon, acHeading, category, dthetaDeg, arcSpeedKts);
+            return BuildAlignedAlreadyAlignedPlan(runway, acLat, acLon, acHeading, category, dthetaDeg, arcSpeedKts, RolloutLengthFt);
         }
 
         double signedCrossNm = GeoMath.SignedCrossTrackDistanceNm(
@@ -333,24 +333,64 @@ public static class LineUpGeometry
     }
 
     /// <summary>
-    /// The straight-rollout plan for a pose that is already on the runway: <see cref="RolloutLengthFt"/> feet
+    /// The straight-rollout plan for a pose that is already on the runway: <paramref name="rolloutLengthFt"/> feet
     /// along the runway heading from where the aircraft stands, with no arc to fly. <see cref="Compute"/> reaches
-    /// the same plan through its already-aligned short-circuit; <see cref="LineUpPhase.RebuildAfterRestore"/> asks
-    /// for it directly, because a restore inside a nose-wheel radius of the centerline has a maneuver the geometry
-    /// can no longer plan (the pivot collapses) but a rollout it can still fly — the nose comes round while the
-    /// aircraft rolls, which is what the interrupted turn was doing.
+    /// the same plan through its already-aligned short-circuit and asks for the standard
+    /// <see cref="RolloutLengthFt"/>; <see cref="LineUpPhase.RebuildAfterRestore"/> asks for it directly with a
+    /// length sized by <see cref="ResumedSwingRolloutLengthFt"/>, because a restore the geometry can no longer plan
+    /// a turn from (the pivot collapses near the centerline) still has a rollout it can fly — the nose comes round
+    /// while the aircraft rolls, which is what the interrupted turn was doing.
     /// </summary>
     public static LineUpPathPlan AlreadyAlignedRolloutPlan(
         RunwayInfo runway,
         double acLat,
         double acLon,
         TrueHeading acHeading,
-        AircraftCategory category
+        AircraftCategory category,
+        double rolloutLengthFt
     )
     {
         double dthetaDeg = (((runway.TrueHeading.Degrees - acHeading.Degrees) + 540.0) % 360.0) - 180.0;
         double arcSpeedKts = ComputeArcSpeedKts(category, CategoryPerformance.LineUpTurnRadiusFt(category));
-        return BuildAlignedAlreadyAlignedPlan(runway, acLat, acLon, acHeading, category, dthetaDeg, arcSpeedKts);
+        return BuildAlignedAlreadyAlignedPlan(runway, acLat, acLon, acHeading, category, dthetaDeg, arcSpeedKts, rolloutLengthFt);
+    }
+
+    /// <summary>
+    /// Speed (knots) a resumed rollout is flown at — the same turn-rate-limited speed
+    /// <see cref="AlreadyAlignedRolloutPlan"/> puts in the plan and <c>LineUpPhase.TickRollout</c> commands. Public
+    /// so the phase can size the swing's yaw rate (<see cref="CategoryPerformance.GroundYawRateAtSpeed"/>) from the
+    /// same number the length arithmetic uses.
+    /// </summary>
+    public static double ResumedRolloutSpeedKts(AircraftCategory category) =>
+        ComputeArcSpeedKts(category, CategoryPerformance.LineUpTurnRadiusFt(category));
+
+    /// <summary>
+    /// Rollout length (feet) for a line-up resumed mid-swing: long enough for the nose to come round the remaining
+    /// <paramref name="headingOffDeg"/> before the rollout ends, plus <see cref="RolloutLengthFt"/> to settle.
+    ///
+    /// <para>
+    /// The arithmetic: the rollout is flown at <see cref="ResumedRolloutSpeedKts"/> and the nose swings toward the
+    /// runway heading at <paramref name="swingRateDegPerSec"/> — the nose-wheel steering rate the phase publishes as
+    /// <c>ControlTargets.TurnRateOverride</c> for the rollout, i.e.
+    /// <see cref="CategoryPerformance.GroundYawRateAtSpeed"/> at that speed. The swing therefore takes
+    /// <c>headingOff / rate</c> seconds and covers <c>speed × time</c> feet; a rollout shorter than that stops the
+    /// aircraft with the nose still off the centerline, which is what the fixed <see cref="RolloutLengthFt"/> did.
+    /// The settle margin on top is the same straight a normally-planned line-up flies after its arc: it covers the
+    /// brake curve at the end of the rollout, where the speed — and with it the yaw rate — decays. Judgement call,
+    /// not an FAA figure: nothing in 7110.65 or the AIM says how far an aircraft rolls to line up, only that it
+    /// ends aligned on the centerline.
+    /// </para>
+    /// </summary>
+    public static double ResumedSwingRolloutLengthFt(AircraftCategory category, double headingOffDeg, double swingRateDegPerSec)
+    {
+        if (swingRateDegPerSec <= 0.0)
+        {
+            return RolloutLengthFt;
+        }
+
+        double swingSeconds = Math.Abs(headingOffDeg) / swingRateDegPerSec;
+        double swingFt = swingSeconds * ResumedRolloutSpeedKts(category) * GeoMath.FeetPerNm / 3600.0;
+        return RolloutLengthFt + swingFt;
     }
 
     // ---- Plan builders ----
@@ -362,10 +402,11 @@ public static class LineUpGeometry
         TrueHeading acHeading,
         AircraftCategory category,
         double dthetaDeg,
-        double arcSpeedKts
+        double arcSpeedKts,
+        double rolloutLengthFt
     )
     {
-        var (stopLat, stopLon) = GeoMath.ProjectPoint(acLat, acLon, runway.TrueHeading, RolloutLengthFt / GeoMath.FeetPerNm);
+        var (stopLat, stopLon) = GeoMath.ProjectPoint(acLat, acLon, runway.TrueHeading, rolloutLengthFt / GeoMath.FeetPerNm);
         return new LineUpPathPlan
         {
             Kind = LineUpPathKind.Aligned,
@@ -387,7 +428,7 @@ public static class LineUpGeometry
             RolloutFromLon = acLon,
             RolloutToLat = stopLat,
             RolloutToLon = stopLon,
-            RolloutLengthFt = RolloutLengthFt,
+            RolloutLengthFt = rolloutLengthFt,
             Provenance = "aligned-already",
         };
     }

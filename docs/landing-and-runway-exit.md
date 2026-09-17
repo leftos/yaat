@@ -66,11 +66,14 @@ go-around from one their own crossing caused without replaying the session.
 separation: a landing clearance "need not be withheld if you observe the positions of the aircraft and determine that prescribed
 runway separation *will exist when the aircraft crosses the landing threshold*"); §3-10-3.a.1 states the condition, §3-10-6.a
 authorises anticipating it. `WillBeClearOfRunway` asks whether the occupant will be clear **by the arrival's threshold crossing**,
-using the exit the occupant is already committed to (`LandingPhase.CandidateExit` / `RunwayExitPhase`): the braking leg to the exit's
-branch point at the constant-deceleration mean of present ground speed and the exit's turn-off speed, then the exit path, then the
-tail-clearance term — AIM 2-3-4.a.1 / 4-3-20.b, an aircraft is not clear until **all parts** are past the holding position marking, so
+using the exit the occupant is already committed to (`LandingPhase.CandidateExit` / `RunwayExitPhase`): for a rolling-out leader the
+braking leg to the exit's branch point at the constant-deceleration mean of present ground speed and the exit's turn-off speed, then
+the exit path at that speed; for a leader already on its exit, the remainder at the exit route's taxi ceiling and then v²/2a of
+braking to the stop; then the tail-clearance term — AIM 2-3-5.a.1 / 4-3-21.b, an aircraft is not clear until **all parts** are past the holding position marking, so
 the target is the same `VirtualNode.OffsetPast` point `RunwayExitPhase` taxis to. `SameRunwayArrivalProtection` owns that arithmetic so
-the go-around and the spacing pass cannot disagree about when an aircraft is clear.
+the go-around and the spacing pass cannot disagree about when an aircraft is clear. The spacing pass itself now works from 20 NM on
+the expected approach and, inside 10 NM with the tower simulated, holds the follower at Vapp ("reduce to final approach speed") all the
+way to touchdown — see `docs/scenario-loading-and-generation.md` § `ApplySameRunwayArrivalProtection`.
 
 Fail-closed everywhere the answer is unknown: a stopped occupant, an unresolved exit, or a missing ground layout all read as "not
 clear". **§3-10-6.b forbids anticipating separation for LUAW** — satisfied structurally rather than by a check, because a lined-up
@@ -225,6 +228,9 @@ GroundNavigator handles the actual turn through the exit. It uses:
 - **Backward-propagated braking**: walks future segments, collects speed constraints at each turn, and back-propagates braking limits. The aircraft never overspeeds into a future turn.
 - **Turn anticipation**: for turns ≥20°, the arrival threshold expands so the aircraft begins turning before reaching the node, creating a smooth arc.
 - **Heading-based speed scaling**: speed reduces proportionally to heading error (full speed at 0° error, 15% at ≥120°), modeling realistic ground steering constraints.
+- **The one-tick overshoot backstop applies only where the aircraft must arrive precisely** — a stop target, the route's last segment, or an arc entry (`TickBezier` writes position from curve state at engagement). A pass-through node on a straight polyline is retired by advance-on-pass, so it gets no backstop. Before 2026-09-17 it applied everywhere, and on a chorded exit whose every chord arrives on the tight 1.8 ft threshold (SFO 28R's T: 16 chords of 38–145 ft) it slashed the target over the last ~16 ft of each chord; physics braked at 5 kt/s and recovered at the 1.0 kt/s taxi accel with the next node 1–2 s away, so SKW3398 ratcheted 37 → 17 kt and took 39 s to clear a 1,242 ft exit leg that it now clears in 28 s at a 27.8 kt mean. `SameRunwayArrivalProtection`'s `RunwayExitPhase` regime models the same profile (steady at the route's taxi ceiling, then v²/2a of braking), so the vacate prediction the go-around and the spacing pass share tracks the phase (28.6 s predicted / 28 s flown).
+
+Where SFO 28R's runway occupancy goes (S1-SFO-2 bundle, E75L): ~6 s threshold → touchdown, ~41 s rollout to the E/T branch at ~6,200 ft — vNAS marks L and P `noTurnoff` on both 28s, so E/T is the first permitted exit whatever the brake rate — then the exit leg. T's 28R hold bar is 279 ft off the centerline but ~1,010 ft along the 33° exit, so "clear" is a 1,050 ft taxi plus half a fuselage. E off 28L (70°) is bound by its fillet's 12.1-kt arc cap through the turn and clears its 566 ft leg in ~26 s. The phase completes only when the aircraft has *stopped* half a fuselage past the bar — ~3 s after the tail is actually clear — even when `AutoPullUpToParallel` then rolls it on; that and the rollout-braking retune are backlog items in `docs/plans/MAIN.md`. `Sfo28rArrivalOccupancyTests` pins the two vacates.
 
 ## Parallel-Runway Auto-Pull-Up (issue #175)
 

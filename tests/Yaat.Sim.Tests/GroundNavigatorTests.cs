@@ -386,6 +386,85 @@ public class GroundNavigatorTests(ITestOutputHelper output)
         );
     }
 
+    // ---- Short-chord chain (runway-exit polyline) ----
+
+    /// <summary>
+    /// A chain of short collinear chords — the shape a runway-exit path has at SFO, where taxiway T off 28R is
+    /// 16 straight segments of 38–145 ft — must be flown at taxi speed the whole way. Every chord here is
+    /// shorter than 1.5× the loose node threshold, so each node arrives on the tight
+    /// <c>FinalNodeArrivalThresholdNm</c> (≈ 1.8 ft), and the one-tick overshoot backstop then slashed the
+    /// target speed over the last ~16 ft of every chord (≈ 1.9 kt per remaining foot at Δt = 0.25 s). Physics
+    /// brakes toward the slash at 5 kt/s and recovers at the 1.0 kt/s taxi accel rate with the next node a
+    /// second away, so the speed ratcheted down chord by chord — SKW3398 fell 37 → 17 kt over its 1,242 ft
+    /// exit leg and held the runway 39 s. A pass-through node needs no such precision: the advance-on-pass
+    /// rule retires it as soon as the along-track projection passes it.
+    /// </summary>
+    [Fact]
+    public void ShortChordChain_PassThroughNodes_HoldTaxiSpeed()
+    {
+        const double ChordFt = 100.0;
+        const int Chords = 10;
+        const int FirstMeasuredSegment = 1;
+        const int LastMeasuredSegment = 6;
+
+        var nodes = new List<GroundNode> { MakeNode(1, 37.0, -122.0) };
+        for (int i = 1; i <= Chords; i++)
+        {
+            var (lat, lon) = GeoMath.ProjectPoint(nodes[^1].Position, new TrueHeading(90.0), ChordFt / GeoMath.FeetPerNm);
+            nodes.Add(MakeNode(i + 1, lat, lon));
+        }
+
+        var route = new TaxiRoute
+        {
+            Segments = [.. Enumerable.Range(0, Chords).Select(i => MakeStraightSegment(nodes[i], nodes[i + 1], "T"))],
+            HoldShortPoints = [],
+        };
+
+        double taxiSpeed = CategoryPerformance.TaxiSpeed(AircraftCategory.Jet);
+        var (aircraft, ctx) = MakeFixture(nodes[0].Position, acHeadingDeg: 90.0, startSpeedKts: taxiSpeed);
+        var nav = new GroundNavigator { MaxSpeedKts = taxiSpeed };
+        nav.SetupSegment(route, ctx, _ => true);
+
+        double minSpeedOnTheChain = double.MaxValue;
+        int measuredTicks = 0;
+        bool completed = false;
+        for (int tick = 0; tick < 2000; tick++)
+        {
+            FlightPhysics.Update(aircraft, ctx.DeltaSeconds);
+            bool last = route.CurrentSegmentIndex == route.Segments.Count - 1;
+            var result = nav.Tick(ctx, last, _ => true);
+
+            if ((route.CurrentSegmentIndex >= FirstMeasuredSegment) && (route.CurrentSegmentIndex <= LastMeasuredSegment))
+            {
+                minSpeedOnTheChain = Math.Min(minSpeedOnTheChain, aircraft.IndicatedAirspeed);
+                measuredTicks++;
+            }
+
+            if (result == NavigatorResult.ArrivedAtNode)
+            {
+                if (last)
+                {
+                    completed = true;
+                    break;
+                }
+
+                route.CurrentSegmentIndex++;
+                nav.SetupSegment(route, ctx, _ => true);
+            }
+        }
+
+        _out.WriteLine($"ShortChordChain: completed={completed} measuredTicks={measuredTicks} minSpeed={minSpeedOnTheChain:F1}kt");
+
+        Assert.True(completed, "navigator never reached the end of the chord chain — it orbited or stalled on a pass-through node");
+        Assert.True(measuredTicks > 0, "aircraft never traversed the measured chords");
+        Assert.True(
+            minSpeedOnTheChain >= taxiSpeed - 2.0,
+            $"a chain of {ChordFt:F0} ft pass-through chords must be flown at the {taxiSpeed:F0} kt taxi ceiling — the braking "
+                + $"curve for the stop at the end is still {Chords - LastMeasuredSegment - 1} chords away — but the aircraft "
+                + $"dropped to {minSpeedOnTheChain:F1} kt over segments {FirstMeasuredSegment}-{LastMeasuredSegment}"
+        );
+    }
+
     /// <summary>
     /// Aircraft already aligned with the first segment within tolerance —
     /// entry alignment must NOT inject a slow-turn. Verify by asserting the

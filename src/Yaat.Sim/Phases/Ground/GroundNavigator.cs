@@ -1527,9 +1527,25 @@ public sealed class GroundNavigator
         }
 
         // Safety backstop: cap target speed so the aircraft cannot cover more
-        // than ~80% of the remaining distance in a single tick (would
-        // overshoot the arrival threshold).
-        if (ctx.DeltaSeconds > 0 && distNm > 0)
+        // than ~80% of the remaining distance in a single tick. It applies only
+        // where the aircraft must arrive at the node PRECISELY rather than merely
+        // pass it:
+        //   - a stop target (the hold-short bar it has to come to rest on),
+        //   - the last segment of the route (same),
+        //   - an arc entry — TickBezier writes position from curve state at
+        //     engagement (invariant I2), so arriving late here teleports the
+        //     aircraft up to the arrival threshold onto the arc's start point.
+        // A pass-through node on a straight polyline needs none of that: the
+        // advance-on-pass rule above retires the segment as soon as the
+        // along-track projection passes the node, and the overshoot watchdog
+        // backstops the rest. Applying it there instead ratchets the speed down
+        // a chord chain — every chord of the SFO 28R taxiway-T exit is short
+        // enough to arrive on the tight 1.8 ft threshold, so the cap (~1.9 kt per
+        // remaining foot at Δt = 0.25 s) slashed the target over the last ~16 ft
+        // of each one, and physics could not recover the loss at the 1.0 kt/s
+        // taxi accel rate before the next node (SKW3398: 37 kt down to 17, 39 s
+        // of runway occupancy over 1,242 ft).
+        if (ctx.DeltaSeconds > 0 && distNm > 0 && (isStopTarget || isLastSegment || _nextSegmentIsArc))
         {
             double maxSpeedForDist = distNm * 0.8 / ctx.DeltaSeconds * 3600.0;
             targetSpeed = Math.Min(targetSpeed, maxSpeedForDist);
@@ -1813,24 +1829,84 @@ public sealed class GroundNavigator
         double normalized = Math.Clamp(angleDiff / 90.0, 0.0, 1.0);
         double speedFraction = Math.Max(0.03, 1.0 - normalized * normalized);
 
-        double target = Math.Min(MaxSpeedKts * speedFraction, brakingLimit);
+        double headingCap = MaxSpeedKts * speedFraction;
+        double target = Math.Min(headingCap, brakingLimit);
 
         // Short-connector transit: hold a steady low speed across a short straight bracketed by two fillet
         // corner arcs (a lane change like SFO A→F1→B) instead of accelerating up to the braking-curve ceiling
         // on the connector and slamming back down for the next turn — a real crew flows through as one
         // continuous low-speed maneuver (issue #236; aviation-reviewed).
-        if (_onShortConnector)
-        {
-            target = Math.Min(target, _connectorFlowSpeedKts);
-        }
+        double connectorCap = _onShortConnector ? _connectorFlowSpeedKts : double.MaxValue;
+        target = Math.Min(target, connectorCap);
 
         // Cap on the current corner arc: the local cornering speed ahead along the curve on the braking curve.
-        if (_currentArcProfile is { } arcProfile)
+        double arcCap = _currentArcProfile is { } arcProfile ? ArcProfileLimitKts(arcProfile, _bezierTraveledFt, decelRate) : double.MaxValue;
+        target = Math.Min(target, arcCap);
+
+        if (Log.IsEnabled(LogLevel.Debug))
         {
-            target = Math.Min(target, ArcProfileLimitKts(arcProfile, _bezierTraveledFt, decelRate));
+            LogSpeedCaps(ctx, distToEndpointNm, target, headingCap, angleDiff, speedFraction, brakingLimit, connectorCap, arcCap);
         }
 
         return target;
+    }
+
+    /// <summary>
+    /// Per-tick speed-cap attribution: the target the navigator published and each of the four ceilings that
+    /// could have produced it — the heading-error scaling of <see cref="MaxSpeedKts"/>, the back-propagated
+    /// braking curve, the short-connector flow speed, and the current fillet arc's profile. <c>bind</c> names
+    /// the one that won. Note that <see cref="TickStraight"/> clamps this target again afterwards (the
+    /// re-acquire speed and the one-tick overshoot backstop), so its own <c>tgt</c> is the number that reaches
+    /// <see cref="FlightPhysics"/>.
+    /// </summary>
+    private void LogSpeedCaps(
+        PhaseContext ctx,
+        double distToEndpointNm,
+        double target,
+        double headingCap,
+        double angleDiff,
+        double speedFraction,
+        double brakingLimit,
+        double connectorCap,
+        double arcCap
+    )
+    {
+        Log.LogDebug(
+            "[Nav] {Callsign} t={Elapsed:F2}: node={Node} dist={DistFt:F0}ft target={Target:F1} bind={Bind} "
+                + "heading={HeadingCap:F1} (max={Max:F1} err={AngleDiff:F0}deg frac={Frac:F2}) "
+                + "braking={Braking:F1} (nodeReq={NodeReq:F1}) connector={Connector} arc={Arc}",
+            ctx.Aircraft.Callsign,
+            ctx.ScenarioElapsedSeconds,
+            TargetNodeId,
+            distToEndpointNm * GeoMath.FeetPerNm,
+            target,
+            BindingCapName(headingCap, brakingLimit, connectorCap, arcCap),
+            headingCap,
+            MaxSpeedKts,
+            angleDiff,
+            speedFraction,
+            brakingLimit,
+            _currentNodeRequiredSpeed,
+            CapText(connectorCap),
+            CapText(arcCap)
+        );
+    }
+
+    /// <summary>A speed ceiling for the per-tick diagnostic, or <c>none</c> when that ceiling is not in play this tick.</summary>
+    private static string CapText(double kts) => kts >= 1e6 ? "none" : kts.ToString("F1", System.Globalization.CultureInfo.InvariantCulture);
+
+    /// <summary>
+    /// Which of the four per-tick speed ceilings produced the target this tick — the heading-error scaling of
+    /// <see cref="MaxSpeedKts"/>, the back-propagated braking curve, the short-connector flow speed, or the
+    /// current fillet arc's profile. Diagnostic only; ties resolve in that order.
+    /// </summary>
+    private static string BindingCapName(double headingCap, double brakingLimit, double connectorCap, double arcCap)
+    {
+        double min = Math.Min(Math.Min(headingCap, brakingLimit), Math.Min(connectorCap, arcCap));
+        return min >= headingCap ? "heading"
+            : min >= brakingLimit ? "braking"
+            : min >= connectorCap ? "connector"
+            : "arc";
     }
 
     /// <summary>

@@ -39,7 +39,14 @@ public class RunwayDepartureQueueTests
             .Where(n => n.Edges.OfType<GroundEdge>().Select(e => e.TaxiwayName).ToHashSet(StringComparer.OrdinalIgnoreCase).SetEquals([taxiway]))
             .ToList();
 
-    private AircraftState HoldingShort(string callsign, GroundNode node)
+    private AircraftState HoldingShort(string callsign, GroundNode node) => HoldingShortNamed(callsign, node, Runway);
+
+    /// <summary>
+    /// Holding short of the destination runway at <paramref name="node"/>, with the bar named
+    /// <paramref name="targetName"/> — the name follows the clearance that reached it, so it is a single end
+    /// on one route and the combined pavement id on another.
+    /// </summary>
+    private AircraftState HoldingShortNamed(string callsign, GroundNode node, string targetName)
     {
         var ac = MakeGroundAircraft(callsign, node.Position);
         ac.Phases!.Add(
@@ -48,7 +55,7 @@ public class RunwayDepartureQueueTests
                 {
                     NodeId = node.Id,
                     Reason = HoldShortReason.DestinationRunway,
-                    TargetName = Runway,
+                    TargetName = targetName,
                 }
             )
         );
@@ -179,6 +186,33 @@ public class RunwayDepartureQueueTests
 
         Assert.Equal(1, solo.Ground.RunwayQueuePosition);
         Assert.Equal(Runway, solo.Ground.RunwayQueueRunway);
+    }
+
+    /// <summary>
+    /// A bar whose name is the combined pavement id ("10L/28R") rather than the departure end is still
+    /// labelled with the end the aircraft departs from, taken from its own clearance — and the aircraft
+    /// behind it, which reached the same bar under the end's name, reads the same label. Two names for one
+    /// line is what an RPO sees when the pavement id leaks through.
+    /// </summary>
+    [Fact]
+    public void HoldShortNamedByPavementId_IsLabelledWithTheDepartureEnd()
+    {
+        var nodes = HoldShortNodes();
+        if (nodes.Count == 0)
+        {
+            return;
+        }
+
+        var lead = HoldingShortNamed("LEAD", nodes[0], $"10L/{Runway}");
+        BindDestination(lead, nodes[0]);
+        var trailer = TaxiingToward("TRAIL", nodes[0], 0.05);
+
+        RunwayDepartureQueue.UpdatePositions([lead, trailer]);
+
+        Assert.Equal(1, lead.Ground.RunwayQueuePosition);
+        Assert.Equal(2, trailer.Ground.RunwayQueuePosition);
+        Assert.Equal(Runway, lead.Ground.RunwayQueueRunway);
+        Assert.Equal(Runway, trailer.Ground.RunwayQueueRunway);
     }
 
     [Fact]

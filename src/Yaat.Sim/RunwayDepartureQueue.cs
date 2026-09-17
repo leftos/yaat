@@ -76,20 +76,22 @@ public static class RunwayDepartureQueue
     {
         // One lookup per line, not per aircraft: the entry point is a property of the hold-short node, so
         // resolving it once also guarantees everyone in the same line shows the same label. The front
-        // aircraft is the one physically at the node, so its taxiway is the authoritative tie-breaker.
+        // aircraft is the one physically at the node, so its taxiway is the authoritative tie-breaker, and
+        // its runway end labels the whole line for the same reason — one line at one bar is one runway.
         var front = members[0];
-        string intersection = RunwayEntryPoint.Resolve(front.Layout, front.NodeId, front.Runway, front.Aircraft.Ground.CurrentTaxiway) ?? "";
+        string runway = front.Runway;
+        string intersection = RunwayEntryPoint.Resolve(front.Layout, front.NodeId, runway, front.Aircraft.Ground.CurrentTaxiway) ?? "";
 
         for (int i = 0; i < members.Count; i++)
         {
             members[i].Aircraft.Ground.RunwayQueuePosition = i + 1;
-            members[i].Aircraft.Ground.RunwayQueueRunway = members[i].Runway;
+            members[i].Aircraft.Ground.RunwayQueueRunway = runway;
             members[i].Aircraft.Ground.RunwayQueueIntersection = intersection;
             Log.LogTrace(
                 "[RunwayQueue] {Callsign}: #{Position} for {Runway}{Intersection} at node {NodeId} ({Airport}), tier={Tier}, dist={Dist:F2}nm",
                 members[i].Aircraft.Callsign,
                 i + 1,
-                members[i].Runway,
+                runway,
                 intersection.Length > 0 ? $"@{intersection}" : "",
                 members[i].NodeId,
                 members[i].AirportId,
@@ -306,7 +308,7 @@ public static class RunwayDepartureQueue
             {
                 return null;
             }
-            var runway = RunwayIdentifier.ToDisplayDesignator(holdShort.TargetName ?? "");
+            var runway = DepartureDesignator(ac, holdShort.TargetName);
             return new Member(
                 ac,
                 layout,
@@ -348,8 +350,53 @@ public static class RunwayDepartureQueue
             return null;
         }
 
-        var runway = RunwayIdentifier.ToDisplayDesignator(destination.TargetName ?? "");
+        var runway = DepartureDesignator(ac, destination.TargetName);
         return new Member(ac, layout, layout.AirportId, destination.NodeId, runway, Tier: 1, distanceNm, ac.Ground.StationarySeconds);
+    }
+
+    /// <summary>
+    /// The runway end this place in the line is labelled with. A hold-short bar is named after the pavement
+    /// it protects, so the same node is reached as "28L" on one aircraft's clearance and as the combined
+    /// "10R/28L" on another's — two runways for one line, where the RPO needs the end the aircraft will
+    /// actually depart from. Taken from the departure runway the phases assigned, then from the
+    /// destination-runway bar on the aircraft's own taxi clearance, then from <paramref name="barTargetName"/>:
+    /// the first of those that names a single end, so a combined pavement id is only ever the last resort.
+    /// </summary>
+    private static string DepartureDesignator(AircraftState ac, string? barTargetName)
+    {
+        string barLabel = RunwayIdentifier.ToDisplayDesignator(barTargetName ?? "");
+        string[] candidates = [ac.Phases?.DepartureRunway?.Designator ?? "", DestinationBarOf(ac)?.TargetName ?? "", barLabel];
+
+        foreach (string candidate in candidates)
+        {
+            string designator = RunwayIdentifier.ToDisplayDesignator(candidate);
+            if (IsSingleEnd(designator))
+            {
+                return designator;
+            }
+        }
+
+        return barLabel;
+    }
+
+    /// <summary>
+    /// True when <paramref name="designator"/> names one runway end ("28L", "9") rather than a combined
+    /// pavement id ("10R/28L", "28R - 10L") or nothing at all.
+    /// </summary>
+    private static bool IsSingleEnd(string designator)
+    {
+        int digits = 0;
+        while (digits < designator.Length && char.IsAsciiDigit(designator[digits]))
+        {
+            digits++;
+        }
+
+        if (digits is 0 or > 2)
+        {
+            return false;
+        }
+
+        return (digits == designator.Length) || ((digits == designator.Length - 1) && char.ToUpperInvariant(designator[digits]) is 'L' or 'R' or 'C');
     }
 
     /// <summary>

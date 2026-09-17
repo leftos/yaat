@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+- The simulated approach controller now spaces a scripted arrival from 20 nm out on its expected approach, instead of waiting for the approach clearance to fire.
+- Inside 10 nm, with the tower simulated, the local controller tells a trailing arrival to reduce to final approach speed instead of holding it at the 170-kt approach floor; the instruction stays in force to touchdown. A student working the tower keeps the previous behaviour.
+- The terminal log shows the tower's "reduce to final approach speed" line, attributed to the scenario's tower position.
+
+### Fixed
+- An aircraft vacating a runway no longer slows at every bend of a chorded exit taxiway: it holds taxi speed down the exit and brakes only for the stop, so an E175 clears SFO 28R at T in 28 s instead of 39 s. Taxi over any short-chord taxiway is brisker for the same reason.
+- The simulated approach controller's prediction of when a leader already on its exit will be clear now matches how the aircraft actually taxis it, instead of assuming one long brake from where it stands; fewer trailing arrivals are slowed or sent around behind a leader that will be clear in time.
+- The departure-queue readout names the departure end for every aircraft in a line; an aircraft whose hold-short bar was named by the combined pavement id showed "10R/28L" while the aircraft ahead of it showed "28L".
+- A LUAW line-up restored from a snapshot mid-turn now rolls out far enough to finish the swing onto the runway heading, instead of a fixed 80 ft that could leave it ~10° off.
+
 ## v0.13.0-beta [2026/09/17]
 
 ### Highlights

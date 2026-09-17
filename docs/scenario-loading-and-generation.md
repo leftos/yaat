@@ -467,10 +467,29 @@ All four drain in `TickPrePhysics` (`SimulationEngine.cs:465`) once per sim-seco
   to comply with, §5-7-1.b NOTE / §5-7-2.e). **Override:** the student owning the track, or a *human*-issued speed command —
   `ControlTargets.SpeedCommandIsControllerIssued`, distinguished from a scenario preset via `DispatchContext.IsScenarioScripted`,
   because a preset `AT <fix> SPD <n>` is scenario scripting rather than a controller taking authority. Floors at the §5-7-3.c
-  figures (turbojet 210/170, recip+turboprop 200/150, helicopter 60), **not** at Vref — Vref asserts a configuration the aircraft
-  does not have that far out and is unreachable anyway, since §5-7-1.b.4 stops the pass at 5 NM on final. Speed is its only actuator,
-  so a delivery far tighter than the requirement still ends in a go-around; a real TRACON would vector first (§5-7-1.a.1).
-  Aviation-reviewed 2026-09-16 against §3-10-3, §3-10-6, §5-5-4, §5-7-1, §5-7-3.
+  figures (turbojet 210/170, recip+turboprop 200/150, helicopter 60), **not** at Vref, while the simulated *approach* controller
+  owns the aircraft — Vref asserts a configuration the aircraft does not have that far out. Two extensions (user steer 2026-09-17,
+  the S1-SFO-2 bundle again: WJA1508 delivered 67 s behind an E75L that needed 80 s):
+  - **Pre-clearance engagement.** Stream membership resolves the runway from `Phases.AssignedRunway`, else from
+    `Approach.Expected` / `Procedure.DestinationRunway` via `ApproachCommandHandler.ResolveApproach` (`ResolveArrivalRunway`,
+    memoized per airport+hint). An airborne aircraft with no phase of its own, established on that runway's final course
+    (`IsOnFinal`) and inside `PreClearanceRangeNm` (20 NM, the §5-7-3.c.1.b boundary) is spaced before its `CAPP` fires — the
+    scripted `CFIX …; CAPP …` composition left it unmanaged at 210 kt for the 45 s the clearance waited in the queue.
+  - **The simulated local controller's "reduce to final approach speed".** Inside `TowerSpeedAuthorityNm` (10 NM — the arrival is
+    assumed on the tower frequency) and only when the student is not the tower (`SimScenarioState.IsStudentTowerPosition` false),
+    a predicted conflict is answered with Vapp (`FinalApproachSpeedKts` = Vref + `WindApproachAdditive`) instead of the §5-7-3.c
+    floor, under §5-7-3.f ("lower speeds may be assigned when operationally advantageous"). The instruction is a one-way latch
+    (`AircraftApproachState.SameRunwayProtectionFasInstructed`, snapshot schema 27): it is re-stamped every tick without being
+    re-announced (the AXMUL-style `RNS` and `FlightPhysics.AutoCancelSpeedAtFinal` both null the ceiling), it is **held** through
+    the §5-7-1.b.4 window (that paragraph forbids issuing an adjustment inside 5 NM / the FAF, not keeping one) and after the
+    conflict clears, and it ends only when the aircraft leaves the arrival stream (landed, went around) or another speed
+    authority takes it. The terminal line — `SFO_TWR → WJA1508: reduce to final approach speed (in-trail spacing, 28R)` — is
+    attributed to the scenario's tower position for that airport (`Scenario.AtcPositions` classified `TWR`), else the AI
+    local-control contact, else `TWR` (`ResolveTowerLabel`); it names no figure, so the 5-kt rounding applies to the approach
+    line only.
+  Speed is still its only actuator; a real TRACON would vector first (§5-7-1.a.1). Aviation-reviewed 2026-09-16 against
+  §3-10-3, §3-10-6, §5-5-4, §5-7-1, §5-7-3; the 10 NM tower hand-off and the FAS instruction were prescribed by the user (a
+  controller) on 2026-09-17.
 - **`ProcessTriggers`** (`:1994`) — fires `ScheduledTrigger`s whose `FireAtSeconds` elapsed via `ExecuteGlobalCommand`, which
   only handles the global squawk commands (`SQALL`/`SNALL`/`SSALL`).
 - **`ProcessTimedPresets`** (`:1931`) — fires `ScheduledPreset`s whose `FireAtSeconds` elapsed: parses the command with

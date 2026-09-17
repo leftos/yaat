@@ -362,6 +362,62 @@ public class LineUpGeometryTests(ITestOutputHelper output)
         Assert.Equal(plan.ArcExitLon, plan.RolloutFromLon, 10);
     }
 
+    // ---- Resumed-rollout length ----
+
+    /// <summary>
+    /// A line-up resumed mid-swing gets a rollout long enough for the nose to finish coming round: with 45° still
+    /// to turn, the length exceeds the fixed <see cref="LineUpGeometry.RolloutLengthFt"/> and buys at least as many
+    /// seconds at the rollout speed as the nose-wheel yaw rate needs for those 45° — the rate the phase publishes
+    /// as <c>TurnRateOverride</c> for the rollout.
+    /// </summary>
+    [Fact]
+    public void ResumedSwingRolloutLength_FortyFiveDegreesOff_CoversTheWholeSwing()
+    {
+        const double headingOffDeg = 45.0;
+        double rolloutSpeedKts = LineUpGeometry.ResumedRolloutSpeedKts(AircraftCategory.Jet);
+        double swingRateDegPerSec = CategoryPerformance.GroundYawRateAtSpeed(AircraftCategory.Jet, rolloutSpeedKts);
+
+        double lengthFt = LineUpGeometry.ResumedSwingRolloutLengthFt(AircraftCategory.Jet, headingOffDeg, swingRateDegPerSec);
+
+        double speedFtPerSec = rolloutSpeedKts * GeoMath.FeetPerNm / 3600.0;
+        double rolloutSeconds = lengthFt / speedFtPerSec;
+        output.WriteLine(
+            $"len={lengthFt:F1}ft at {rolloutSpeedKts:F2}kt = {rolloutSeconds:F1}s, "
+                + $"swing needs {headingOffDeg / swingRateDegPerSec:F1}s at {swingRateDegPerSec:F1}°/s"
+        );
+
+        Assert.True(
+            lengthFt > LineUpGeometry.RolloutLengthFt,
+            $"rollout {lengthFt:F1}ft is no longer than the fixed {LineUpGeometry.RolloutLengthFt:F1}ft"
+        );
+        Assert.True(
+            swingRateDegPerSec * rolloutSeconds >= headingOffDeg,
+            $"rollout {lengthFt:F1}ft only turns the nose {swingRateDegPerSec * rolloutSeconds:F1}° of {headingOffDeg:F1}°"
+        );
+    }
+
+    /// <summary>
+    /// The length scales with what is left to turn, and an already-aligned pose asks for nothing beyond the
+    /// standard rollout — the settle margin a normally-planned line-up flies after its arc.
+    /// </summary>
+    [Fact]
+    public void ResumedSwingRolloutLength_GrowsWithTheRemainingSwing()
+    {
+        double swingRateDegPerSec = CategoryPerformance.GroundYawRateAtSpeed(
+            AircraftCategory.Jet,
+            LineUpGeometry.ResumedRolloutSpeedKts(AircraftCategory.Jet)
+        );
+
+        double alignedFt = LineUpGeometry.ResumedSwingRolloutLengthFt(AircraftCategory.Jet, 0.0, swingRateDegPerSec);
+        double shallowFt = LineUpGeometry.ResumedSwingRolloutLengthFt(AircraftCategory.Jet, 15.0, swingRateDegPerSec);
+        double steepFt = LineUpGeometry.ResumedSwingRolloutLengthFt(AircraftCategory.Jet, 45.0, swingRateDegPerSec);
+
+        output.WriteLine($"0°={alignedFt:F1}ft 15°={shallowFt:F1}ft 45°={steepFt:F1}ft");
+        Assert.Equal(LineUpGeometry.RolloutLengthFt, alignedFt, 6);
+        Assert.True(shallowFt > alignedFt, $"15° off ({shallowFt:F1}ft) must roll further than aligned ({alignedFt:F1}ft)");
+        Assert.True(steepFt > shallowFt, $"45° off ({steepFt:F1}ft) must roll further than 15° off ({shallowFt:F1}ft)");
+    }
+
     // ---- Pivot plan structure ----
 
     [Fact]

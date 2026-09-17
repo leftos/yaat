@@ -1031,36 +1031,84 @@ public sealed class LineUpPhase : Phase
 
     /// <summary>
     /// Finish an interrupted line-up on the straight rollout: <see cref="TickRollout"/> steers the runway heading
-    /// the whole way, so the nose comes round over <see cref="LineUpGeometry.RolloutLengthFt"/> and the phase then
-    /// completes the way it always does — stopped on the centerline under LUAW, at taxi speed under a rolling
-    /// clearance. This is the restore-only answer to a pose the geometry will not plan a turn from; a phase
-    /// starting normally still faults there, because such a pose means something is wrong with the aircraft's
-    /// position rather than with the phase's memory of it.
+    /// the whole way, so the nose comes round while the aircraft rolls and the phase then completes the way it
+    /// always does — stopped on the centerline under LUAW, at taxi speed under a rolling clearance. This is the
+    /// restore-only answer to a pose the geometry will not plan a turn from; a phase starting normally still faults
+    /// there, because such a pose means something is wrong with the aircraft's position rather than with the
+    /// phase's memory of it.
+    ///
+    /// <para>
+    /// The swing is nose-wheel steering, not an airborne turn: the rollout publishes
+    /// <see cref="ControlTargets.TurnRateOverride"/> alongside the heading, at
+    /// <see cref="CategoryPerformance.GroundYawRateAtSpeed"/> for the rollout speed, the same pairing
+    /// <see cref="Ground.RunwayExitPhase"/> uses to hold a runway heading on the ground. Without it
+    /// <c>FlightPhysics.UpdateHeading</c> falls back to the airborne <see cref="AircraftPerformance.TurnRate"/>
+    /// (2.5-3 °/s), which swings a taxiing aircraft's nose so slowly that it arcs tens of feet off the centerline
+    /// before coming round. <see cref="OnEnd"/> drops the override again so the takeoff roll or the hold that
+    /// follows turns at its own rate.
+    /// </para>
+    ///
+    /// <para>
+    /// The rollout is long enough to finish the swing rather than the fixed <see cref="LineUpGeometry.RolloutLengthFt"/>:
+    /// <see cref="LineUpGeometry.ResumedSwingRolloutLengthFt"/> converts the remaining <paramref name="headingOffDeg"/>
+    /// into the distance the aircraft covers while the nose comes round at that rate, and adds the standard rollout
+    /// as the settle margin. The length is then capped at the pavement left ahead of the aircraft
+    /// (<see cref="RunwayInfo.PavementLengthFt"/> less the along-track distance it has already used), so a restore
+    /// deep into the runway rolls to the end and stops rather than off it.
+    /// </para>
     /// </summary>
     private void ResumeOnAlignedRollout(PhaseContext ctx, RunwayInfo rwy, double crossFt, double headingOffDeg, string reason)
     {
+        double rolloutSpeedKts = LineUpGeometry.ResumedRolloutSpeedKts(ctx.Category);
+        double swingRateDegPerSec = CategoryPerformance.GroundYawRateAtSpeed(ctx.Category, rolloutSpeedKts);
+        double swingLengthFt = LineUpGeometry.ResumedSwingRolloutLengthFt(ctx.Category, headingOffDeg, swingRateDegPerSec);
+        double usedFt =
+            GeoMath.AlongTrackDistanceNm(ctx.Aircraft.Position, new LatLon(rwy.ThresholdLatitude, rwy.ThresholdLongitude), rwy.TrueHeading)
+            * GeoMath.FeetPerNm;
+        double pavementAheadFt = Math.Max(0.0, rwy.PavementLengthFt - usedFt);
+        double rolloutLengthFt = Math.Min(swingLengthFt, pavementAheadFt);
+
         PathPlan = LineUpGeometry.AlreadyAlignedRolloutPlan(
             rwy,
             ctx.Aircraft.Position.Lat,
             ctx.Aircraft.Position.Lon,
             ctx.Aircraft.TrueHeading,
-            ctx.Category
+            ctx.Category,
+            rolloutLengthFt
         );
         _runwayHeadingDeg = rwy.TrueHeading.Degrees;
         CurrentState = State.Rollout;
         _faultLogged = false;
         ctx.Targets.TargetTrueHeading = new TrueHeading(PathPlan.RunwayHeadingDeg);
+        ctx.Targets.TurnRateOverride = swingRateDegPerSec;
         ctx.Targets.TargetSpeed = PathPlan.ArcSpeedKts;
 
         Log.LogDebug(
             "[LineUp] {Callsign}: restored mid-turn — rolling out to finish the swing "
-                + "(cross={Cross:F1}ft, hdgOff={Hdg:F1}°, rolling={Rolling}, reason={Reason})",
+                + "(cross={Cross:F1}ft, hdgOff={Hdg:F1}°, rollout={Len:F1}ft of {Swing:F1}ft wanted, yaw={Yaw:F1}°/s, "
+                + "rolling={Rolling}, reason={Reason})",
             ctx.Aircraft.Callsign,
             crossFt,
             headingOffDeg,
+            rolloutLengthFt,
+            swingLengthFt,
+            swingRateDegPerSec,
             RollingMode,
             reason
         );
+    }
+
+    /// <summary>
+    /// Drop the ground-steering turn-rate override the resumed rollout publishes
+    /// (<see cref="ResumeOnAlignedRollout"/>). Nothing downstream clears it — <see cref="TakeoffPhase.OnStart"/> and
+    /// <see cref="LinedUpAndWaitingPhase.OnStart"/> both write <see cref="ControlTargets.TargetTrueHeading"/> and
+    /// leave the rate alone — so an override left set would let the departure turn at the taxi yaw rate. Clearing on
+    /// every end status is deliberate: a line-up cancelled or skipped mid-rollout hands the aircraft to a taxi phase,
+    /// whose navigator writes the heading itself and wants no rate ceiling from us.
+    /// </summary>
+    public override void OnEnd(PhaseContext ctx, PhaseStatus endStatus)
+    {
+        ctx.Targets.TurnRateOverride = null;
     }
 
     // ---- Snapshot ----

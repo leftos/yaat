@@ -1,5 +1,10 @@
 using Xunit;
+using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Phases;
+using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Simulation;
+using Yaat.Sim.Simulation.Snapshots;
+using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests;
 
@@ -11,13 +16,18 @@ namespace Yaat.Sim.Tests;
 /// </summary>
 public class SameRunwayArrivalProtectionTests
 {
+    /// <summary>
+    /// A landing-regime rollout: the braking leg runs down to <paramref name="exitSpeedKts"/> and the steady leg
+    /// that follows is flown at the same figure, the way <c>LandingPhase</c> brakes onto its exit's turn-off speed
+    /// and then taxis the exit path at it.
+    /// </summary>
     private static SameRunwayArrivalProtection.LeaderRollout Rollout(
         double brakingLegNm,
         double entrySpeedKts,
         double exitSpeedKts,
         double steadyLegNm,
         double elapsedSeconds
-    ) => new(brakingLegNm, entrySpeedKts, exitSpeedKts, steadyLegNm, elapsedSeconds);
+    ) => new(brakingLegNm, entrySpeedKts, exitSpeedKts, steadyLegNm, exitSpeedKts, elapsedSeconds);
 
     private static SameRunwayArrivalProtection.FollowerProfile Follower(
         AircraftCategory category,
@@ -224,6 +234,209 @@ public class SameRunwayArrivalProtectionTests
         landed.Phases.Add(new Phases.Tower.LandingPhase());
 
         Assert.Null(SameRunwayArrivalProtection.TryBuildRollout(landed, elapsedSinceThresholdSeconds: 0.0));
+    }
+
+    // ---- The RunwayExitPhase regime: steady at the exit route's ceiling, then the stop ----
+
+    /// <summary>The type both exiting-leader arms fly — a jet, so 30 kt of taxi ceiling and 5 kt/s of braking.</summary>
+    private const string ExitingLeaderType = "B738";
+
+    /// <summary>Taxi ceiling (kt) <c>RunwayExitPhase</c> caps a non-expediting jet exit at.</summary>
+    private static readonly double ExitCeilingKts = CategoryPerformance.TaxiSpeed(AircraftCategory.Jet);
+
+    /// <summary>Rate (kt/s) the exit navigator brakes to the hold-short stop at.</summary>
+    private static readonly double ExitDecelKtsPerSec = CategoryPerformance.TaxiDecelRate(AircraftCategory.Jet);
+
+    /// <summary>
+    /// A leader on a real OAK 28R exit path, standing <paramref name="remainderFt"/> short of being clear — the
+    /// distance measured to the virtual target half a fuselage past the hold-short node, the same target
+    /// <see cref="RunwayExitPhase"/> taxis to — and doing <paramref name="groundSpeedKts"/>. Built through
+    /// <c>RunwayExitPhase.FromSnapshot</c> against the real layout so the hold-short node is a real one. Null
+    /// when the layout fixture is unavailable (silent skip).
+    /// </summary>
+    private static AircraftState? ExitingLeader(double remainderFt, double groundSpeedKts)
+    {
+        var layout = new TestAirportGroundData().GetLayout("OAK");
+        if (layout is null)
+        {
+            return null;
+        }
+
+        var pair = FindExitPair(layout, "28R");
+        if (pair is null)
+        {
+            return null;
+        }
+
+        var (branch, holdShort, taxiway) = pair.Value;
+        double tailFt = SameRunwayArrivalProtection.TailClearanceNm(ExitingLeaderType) * GeoMath.FeetPerNm;
+        double toHoldShortFt = Math.Max(0.0, remainderFt - tailFt);
+        double bearingToBranch = GeoMath.BearingTo(holdShort.Position, branch.Position);
+        var (lat, lon) = GeoMath.ProjectPoint(holdShort.Position, new TrueHeading(bearingToBranch), toHoldShortFt / GeoMath.FeetPerNm);
+
+        var dto = new RunwayExitPhaseDto
+        {
+            Status = (int)PhaseStatus.Active,
+            ElapsedSeconds = 4.0,
+            ReachedExitNode = true,
+            ExitNodeId = holdShort.Id,
+            ExitTaxiway = taxiway,
+            RunwayId = "28R",
+            ExitSpeed = 25.0,
+            TimeSinceLastLog = 0.0,
+            RunwayHeadingDeg = 281.0,
+            ExitStateValue = (int)RunwayExitPhase.ExitState.FollowingExitPath,
+            ExitWaypointNodeIds = [branch.Id, holdShort.Id],
+        };
+
+        var aircraft = new AircraftState
+        {
+            Callsign = "LEAD",
+            AircraftType = ExitingLeaderType,
+            Position = new LatLon(lat, lon),
+            TrueHeading = new TrueHeading(bearingToBranch + 180.0),
+            IsOnGround = true,
+            IndicatedAirspeed = groundSpeedKts,
+            Phases = new PhaseList(),
+        };
+        aircraft.Phases.Add(RunwayExitPhase.FromSnapshot(dto, layout));
+        return aircraft;
+    }
+
+    /// <summary>
+    /// A hold-short node on <paramref name="runwayId"/> plus a neighbour joined by a named taxiway edge, read
+    /// from the layout at runtime — fillet node ids shift whenever the fixture is regenerated.
+    /// </summary>
+    private static (GroundNode Branch, GroundNode HoldShort, string Taxiway)? FindExitPair(AirportGroundLayout layout, string runwayId)
+    {
+        foreach (var holdShort in layout.GetRunwayHoldShortNodes(runwayId))
+        {
+            foreach (var edge in holdShort.Edges)
+            {
+                if (string.IsNullOrEmpty(edge.TaxiwayName))
+                {
+                    continue;
+                }
+
+                foreach (var node in edge.Nodes)
+                {
+                    if (node.Id != holdShort.Id)
+                    {
+                        return (node, holdShort, edge.TaxiwayName);
+                    }
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>Seconds the steady-then-brake profile takes over <paramref name="remainderFt"/> at <paramref name="steadyKts"/>.</summary>
+    private static double SteadyThenBrakeSeconds(double remainderFt, double steadyKts)
+    {
+        double stoppingFt = steadyKts * steadyKts / (2.0 * ExitDecelKtsPerSec) / 3600.0 * GeoMath.FeetPerNm;
+        return ((remainderFt - stoppingFt) / GeoMath.FeetPerNm / steadyKts * 3600.0) + (steadyKts / ExitDecelKtsPerSec);
+    }
+
+    [Fact]
+    public void ExitingLeader_IsPredictedSteadyThenBraking()
+    {
+        // SKW3398's measured SFO 28R exit: 1,286 ft still to run to the virtual target, entering the leg at the
+        // 30-kt exit ceiling. Its navigator holds that ceiling to the braking point and only then brakes at 5 kt/s
+        // — ~1,134 ft steady (22.4 s) plus a 152 ft / 6 s stop — so modelling the whole remainder as one braking
+        // leg from the present speed (the entry/2 mean, 51 s here) is ~23 s pessimistic, and the go-around it feeds
+        // fires for a leader that will be clear.
+        var leader = ExitingLeader(remainderFt: 1286.0, groundSpeedKts: ExitCeilingKts);
+        if (leader is null)
+        {
+            return;
+        }
+
+        var rollout = SameRunwayArrivalProtection.TryBuildRollout(leader, elapsedSinceThresholdSeconds: 0.0);
+        Assert.NotNull(rollout);
+
+        double predicted = SameRunwayArrivalProtection.SecondsToRunwayClear(rollout.Value);
+        double expected = SteadyThenBrakeSeconds(1286.0, ExitCeilingKts);
+        double oneBrakingLeg = 1286.0 / GeoMath.FeetPerNm / (ExitCeilingKts / 2.0) * 3600.0;
+
+        Assert.Equal(expected, predicted, 1.0);
+        Assert.True(
+            predicted < oneBrakingLeg - 15.0,
+            $"steady-then-brake predicted {predicted:F1}s where the one-braking-leg model says {oneBrakingLeg:F1}s; the "
+                + $"measured vacate for this remainder is ~28 s, so the new figure must be far under the old one"
+        );
+    }
+
+    [Fact]
+    public void ExitingLeader_SlowerThanTaxiSpeed_HoldsItsOwnSpeed()
+    {
+        // The ceiling is a cap, not a target: a leader already below it will not accelerate to it, so the steady
+        // leg is flown at the speed it is actually doing.
+        var leader = ExitingLeader(remainderFt: 1286.0, groundSpeedKts: 18.0);
+        if (leader is null)
+        {
+            return;
+        }
+
+        var rollout = SameRunwayArrivalProtection.TryBuildRollout(leader, elapsedSinceThresholdSeconds: 0.0);
+        Assert.NotNull(rollout);
+
+        double predicted = SameRunwayArrivalProtection.SecondsToRunwayClear(rollout.Value);
+
+        Assert.Equal(SteadyThenBrakeSeconds(1286.0, 18.0), predicted, 1.0);
+        Assert.True(
+            predicted > SteadyThenBrakeSeconds(1286.0, ExitCeilingKts),
+            $"an 18-kt leader must take longer than the {ExitCeilingKts:F0}-kt one, not be sped up to the ceiling"
+        );
+    }
+
+    [Fact]
+    public void ExitingLeader_AboveTheCeiling_BleedsDownBeforeHoldingIt()
+    {
+        // On the first ticks of an exit the aircraft is still carrying its turn-off speed above the taxi ceiling.
+        // It bleeds down to the ceiling, holds it, and brakes for the stop — and at one constant rate the two braking
+        // pieces together take exactly the time of one brake from the entry speed to zero, whatever sits between them.
+        // Reading the stopping distance from the ceiling instead would grant a steady leg the aircraft cannot hold.
+        const double entryKts = 37.0;
+        var leader = ExitingLeader(remainderFt: 1286.0, groundSpeedKts: entryKts);
+        if (leader is null)
+        {
+            return;
+        }
+
+        var rollout = SameRunwayArrivalProtection.TryBuildRollout(leader, elapsedSinceThresholdSeconds: 0.0);
+        Assert.NotNull(rollout);
+
+        double stoppingFt = entryKts * entryKts / (2.0 * ExitDecelKtsPerSec) / 3600.0 * GeoMath.FeetPerNm;
+        double expected = ((1286.0 - stoppingFt) / GeoMath.FeetPerNm / ExitCeilingKts * 3600.0) + (entryKts / ExitDecelKtsPerSec);
+        double predicted = SameRunwayArrivalProtection.SecondsToRunwayClear(rollout.Value);
+
+        Assert.Equal(expected, predicted, 1.0);
+
+        // The bleed-down is short, so entering hot moves the answer by well under a second either way — the
+        // point is that it stays exact, not that it is slower or faster than entering at the ceiling.
+        Assert.Equal(SteadyThenBrakeSeconds(1286.0, ExitCeilingKts), predicted, 1.0);
+    }
+
+    [Fact]
+    public void ExitingLeader_ShorterThanStoppingDistance_IsAllBraking()
+    {
+        // Inside the stopping distance there is no steady leg left: the whole remainder is flown braking from the
+        // speed the leader is doing now, at the constant-deceleration mean of that speed and zero.
+        var leader = ExitingLeader(remainderFt: 100.0, groundSpeedKts: ExitCeilingKts);
+        if (leader is null)
+        {
+            return;
+        }
+
+        var rollout = SameRunwayArrivalProtection.TryBuildRollout(leader, elapsedSinceThresholdSeconds: 0.0);
+        Assert.NotNull(rollout);
+
+        double stoppingFt = ExitCeilingKts * ExitCeilingKts / (2.0 * ExitDecelKtsPerSec) / 3600.0 * GeoMath.FeetPerNm;
+        Assert.True(stoppingFt > 100.0, $"the fixture only exercises the short case if 100 ft is inside the {stoppingFt:F0} ft stopping distance");
+
+        double predicted = SameRunwayArrivalProtection.SecondsToRunwayClear(rollout.Value);
+        Assert.Equal(100.0 / GeoMath.FeetPerNm / (ExitCeilingKts / 2.0) * 3600.0, predicted, 0.5);
     }
 
     [Theory]

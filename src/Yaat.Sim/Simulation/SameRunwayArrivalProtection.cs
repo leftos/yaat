@@ -21,16 +21,21 @@ namespace Yaat.Sim.Simulation;
 /// vacate is the slow part, several arrivals braking to 5–8 kt while still inside 250 ft of the centerline — these
 /// constants must be retuned with it. The landed-leader regime reads live state instead and self-corrects.</para>
 ///
-/// <para><b>Clear of the runway.</b> AIM 2-3-4.a.1 and AIM 4-3-20.b: an aircraft exiting is not clear until <i>all
+/// <para><b>Clear of the runway.</b> AIM 2-3-5.a.1 and AIM 4-3-21.b: an aircraft exiting is not clear until <i>all
 /// parts</i> of it have crossed the holding position marking. Both regimes therefore measure to
 /// <see cref="TailClearanceNm"/> past the hold-short node — the same virtual target <see cref="RunwayExitPhase"/>
-/// itself taxis to, so the prediction and the phase cannot disagree about where "clear" is. The legs are flown at the
-/// constant-deceleration mean of their entry and exit speeds, not at the leader's present ground speed:
-/// <see cref="LandingPhase"/> brakes the rollout to the exit's turn-off speed by the branch point, and
-/// <see cref="RunwayExitPhase"/>'s navigator brakes to a stop at that virtual target. Stated simplification: the
-/// <see cref="RunwayExitPhase"/> regime measures the straight line from the aircraft to its hold-short node rather
-/// than the curved exit path it will actually taxi, because the phase exposes no remaining-path distance. That
-/// under-measures a curving exit and is the one term in this arithmetic still biased optimistic.</para>
+/// itself taxis to, so the prediction and the phase cannot disagree about where "clear" is. Each regime models the
+/// speed profile its phase actually flies rather than the leader's present ground speed held to the end. A
+/// <see cref="LandingPhase"/> leader brakes the rollout to the exit's turn-off speed by the branch point — a leg
+/// covered at the constant-deceleration mean of the two — and then flies the exit at that turn-off speed. A
+/// <see cref="RunwayExitPhase"/> leader is already on the exit, where its navigator holds the route's taxi ceiling
+/// and brakes to the stop only over the last v²/2a: steady leg then braking leg, not one long brake from where it
+/// stands. Modelling that whole remainder as one braking leg read the entry/2 mean over it and was ~13 s pessimistic
+/// on a 1,286 ft exit at 30 kt (41 s against a 28 s measured vacate), which is a go-around fired for a leader that
+/// will be clear. Stated simplification: the <see cref="RunwayExitPhase"/> regime measures the straight line from the
+/// aircraft to its hold-short node rather than the curved exit path it will actually taxi, because the phase exposes
+/// no remaining-path distance. That under-measures a curving exit and is the one term in this arithmetic still biased
+/// optimistic.</para>
 ///
 /// <para><b>Separation floor.</b> <see cref="WakeTurbulenceData.OnApproachWakeSeparationNm(string, AircraftCategory,
 /// string, AircraftCategory)"/> returns zero for a non-wake pair and leaves the radar minimum to its caller, so the
@@ -120,13 +125,16 @@ public static class SameRunwayArrivalProtection
     /// Live rollout state of a leader that has already touched down, used to refine the required interval from what
     /// the aircraft is actually doing instead of the per-category constant. Two legs along the path it will fly to
     /// vacate: one flown while braking from <paramref name="BrakingEntrySpeedKts"/> to
-    /// <paramref name="BrakingExitSpeedKts"/>, then one flown steadily at the latter. The two landing regimes fill
-    /// them differently — see <see cref="TryBuildRollout"/>.
+    /// <paramref name="BrakingExitSpeedKts"/>, and one flown steadily at <paramref name="SteadySpeedKts"/>. Their
+    /// order along the path does not change the total, so the two landing regimes fill them differently — the
+    /// landing rollout brakes onto its exit and then holds the turn-off speed, the aircraft already on the exit
+    /// holds the taxi ceiling and then brakes to the stop. See <see cref="TryBuildRollout"/>.
     /// </summary>
     /// <param name="BrakingLegNm">Distance still to fly on the leg the leader is decelerating over.</param>
-    /// <param name="BrakingEntrySpeedKts">Speed entering that leg: the leader's present ground speed.</param>
-    /// <param name="BrakingExitSpeedKts">Speed at the end of it, and the speed <paramref name="SteadyLegNm"/> is flown at.</param>
-    /// <param name="SteadyLegNm">Distance flown at <paramref name="BrakingExitSpeedKts"/> after the braking leg.</param>
+    /// <param name="BrakingEntrySpeedKts">Speed entering that leg, and the ceiling every other speed here is clamped to.</param>
+    /// <param name="BrakingExitSpeedKts">Speed at the end of the braking leg — the exit's turn-off speed, or zero for a stop.</param>
+    /// <param name="SteadyLegNm">Distance flown at <paramref name="SteadySpeedKts"/>.</param>
+    /// <param name="SteadySpeedKts">Speed the steady leg is flown at: the exit's turn-off speed, or the exit route's taxi ceiling.</param>
     /// <param name="ElapsedSinceThresholdSeconds">
     /// Time already spent since the leader crossed the threshold, so the result stays an interval between threshold
     /// crossings rather than a time-from-now.
@@ -136,6 +144,7 @@ public static class SameRunwayArrivalProtection
         double BrakingEntrySpeedKts,
         double BrakingExitSpeedKts,
         double SteadyLegNm,
+        double SteadySpeedKts,
         double ElapsedSinceThresholdSeconds
     );
 
@@ -221,7 +230,7 @@ public static class SameRunwayArrivalProtection
 
     /// <summary>
     /// Path distance (nm) the leader must still cover past its hold-short node before <em>all parts</em> of it are
-    /// across the holding position marking (AIM 2-3-4.a.1, AIM 4-3-20.b): half a fuselage length, which is exactly
+    /// across the holding position marking (AIM 2-3-5.a.1, AIM 4-3-21.b): half a fuselage length, which is exactly
     /// the offset <see cref="RunwayExitPhase"/> taxis to past that node.
     /// </summary>
     public static double TailClearanceNm(string aircraftType) =>
@@ -238,8 +247,8 @@ public static class SameRunwayArrivalProtection
     /// centerline in front of it, braking to its exit's turn-off speed by the branch point, then the exit path and
     /// the tail clearance at that turn-off speed. A <see cref="RunwayExitPhase"/> aircraft is already on that exit:
     /// the rollout leg is behind it and what remains is the run to the hold-short node and past it, which its
-    /// navigator flies braking to a stop — so that whole remainder is the braking leg, and a stopped aircraft reads
-    /// as never clearing.</para>
+    /// navigator flies at the exit route's taxi ceiling until the braking point and then brakes to the stop — see
+    /// <see cref="ExitRollout"/>. A stopped aircraft reads as never clearing in either shape.</para>
     /// </summary>
     /// <param name="aircraft">The landed aircraft whose vacate is being predicted.</param>
     /// <param name="elapsedSinceThresholdSeconds">
@@ -263,30 +272,77 @@ public static class SameRunwayArrivalProtection
                 BrakingEntrySpeedKts: aircraft.GroundSpeed,
                 BrakingExitSpeedKts: exit.TurnOffSpeed,
                 SteadyLegNm: ExitPathDistanceNm(exit) + tailClearance,
+                SteadySpeedKts: exit.TurnOffSpeed,
                 ElapsedSinceThresholdSeconds: elapsed
             ),
-            RunwayExitPhase { TargetHoldShortNode: { } holdShort } => new LeaderRollout(
-                BrakingLegNm: GeoMath.DistanceNm(aircraft.Position, holdShort.Position) + tailClearance,
-                BrakingEntrySpeedKts: aircraft.GroundSpeed,
-                BrakingExitSpeedKts: 0.0,
-                SteadyLegNm: 0.0,
-                ElapsedSinceThresholdSeconds: elapsed
+            RunwayExitPhase { TargetHoldShortNode: { } holdShort } => ExitRollout(
+                aircraft,
+                GeoMath.DistanceNm(aircraft.Position, holdShort.Position) + tailClearance,
+                elapsed
             ),
             _ => null,
         };
     }
 
     /// <summary>
+    /// The vacate of an aircraft already on its exit path: steady, then the stop. <see cref="RunwayExitPhase"/> caps
+    /// its navigator at <see cref="CategoryPerformance.TaxiSpeed"/> — bumped by
+    /// <see cref="CategoryPerformance.TaxiExpediteMultiplier"/> on an expedited exit — and that navigator brakes to
+    /// the hold-short stop at <see cref="CategoryPerformance.TaxiDecelRate"/>
+    /// (<see cref="CategoryPerformance.ExpediteExitDecelRate"/> when expediting), so the remainder is one leg held at
+    /// the ceiling and a final v²/2a of braking. The steady speed is never above the speed the leader is doing now:
+    /// a slower one is not sped up to the ceiling (re-acceleration at <see cref="CategoryPerformance.TaxiAccelRate"/>
+    /// is deliberately not modelled — it would only ever read the leader clear sooner, and §3-10-3.a.1 is the
+    /// requirement this anticipates), and a stopped one has no speed to cover the steady leg with and so never
+    /// clears. The braking leg is always taken from the present ground speed, which on the first ticks of an exit is
+    /// still above the ceiling: v²/2a from there covers both the bleed down to the ceiling and the stop, and at a
+    /// constant rate the two together take the same time however the steady leg sits between them. A remainder
+    /// already inside that stopping distance has no steady leg left — it is all braking, from the present speed.
+    /// </summary>
+    private static LeaderRollout ExitRollout(AircraftState aircraft, double remainderNm, double elapsedSeconds)
+    {
+        var category = AircraftCategorization.Categorize(aircraft.AircraftType);
+        bool expediting = aircraft.Ground.IsExpeditingExit;
+        double ceiling = CategoryPerformance.TaxiSpeed(category) * (expediting ? CategoryPerformance.TaxiExpediteMultiplier : 1.0);
+        double decelRate = expediting ? CategoryPerformance.ExpediteExitDecelRate(category) : CategoryPerformance.TaxiDecelRate(category);
+        double entry = Math.Max(0.0, aircraft.GroundSpeed);
+        double steady = Math.Min(entry, ceiling);
+        double stoppingNm = entry * entry / (2.0 * decelRate) / 3600.0;
+
+        if (stoppingNm >= remainderNm)
+        {
+            return new LeaderRollout(
+                BrakingLegNm: remainderNm,
+                BrakingEntrySpeedKts: entry,
+                BrakingExitSpeedKts: 0.0,
+                SteadyLegNm: 0.0,
+                SteadySpeedKts: steady,
+                ElapsedSinceThresholdSeconds: elapsedSeconds
+            );
+        }
+
+        return new LeaderRollout(
+            BrakingLegNm: stoppingNm,
+            BrakingEntrySpeedKts: entry,
+            BrakingExitSpeedKts: 0.0,
+            SteadyLegNm: remainderNm - stoppingNm,
+            SteadySpeedKts: steady,
+            ElapsedSinceThresholdSeconds: elapsedSeconds
+        );
+    }
+
+    /// <summary>
     /// Seconds from now until the aircraft is clear of the runway: the braking leg at the constant-deceleration mean
-    /// of its entry and exit speeds, then the steady leg at the exit speed. Positive infinity when a leg has distance
+    /// of its entry and exit speeds, plus the steady leg at its own speed. Positive infinity when a leg has distance
     /// left and no speed to cover it — an aircraft stopped on the pavement never clears at its present speed. The one
     /// arithmetic behind both the spacing pass's required interval and the go-around's "will it be clear by the
     /// threshold crossing" test, so the two cannot disagree about when an aircraft is off the runway.
     /// </summary>
     public static double SecondsToRunwayClear(LeaderRollout rollout)
     {
-        double exitSpeed = SteadySpeedKts(rollout);
-        return BrakingLegSeconds(rollout.BrakingLegNm, rollout.BrakingEntrySpeedKts, exitSpeed) + TravelSeconds(rollout.SteadyLegNm, exitSpeed);
+        double brakingExitSpeed = ClampToEntrySpeed(rollout.BrakingExitSpeedKts, rollout.BrakingEntrySpeedKts);
+        return BrakingLegSeconds(rollout.BrakingLegNm, rollout.BrakingEntrySpeedKts, brakingExitSpeed)
+            + TravelSeconds(rollout.SteadyLegNm, SteadySpeedKts(rollout));
     }
 
     /// <summary>
@@ -330,12 +386,17 @@ public static class SameRunwayArrivalProtection
         Math.Max(0.0, rollout.ElapsedSinceThresholdSeconds) + SecondsToRunwayClear(rollout);
 
     /// <summary>
-    /// The speed the steady leg is flown at, and the speed the braking leg decelerates to: the planned exit speed,
-    /// never above the speed the leader is doing now. A leader already slower than its exit's turn-off speed will not
-    /// accelerate to make the turn, and taking a mean against a higher figure would report it clear early.
+    /// The speed the steady leg is flown at: the planned speed, never above the one the leader is doing now. A leader
+    /// already slower than its exit's turn-off speed will not accelerate to make the turn, and a stopped one covers
+    /// nothing at all.
     /// </summary>
-    private static double SteadySpeedKts(LeaderRollout rollout) =>
-        Math.Clamp(rollout.BrakingExitSpeedKts, 0.0, Math.Max(0.0, rollout.BrakingEntrySpeedKts));
+    private static double SteadySpeedKts(LeaderRollout rollout) => ClampToEntrySpeed(rollout.SteadySpeedKts, rollout.BrakingEntrySpeedKts);
+
+    /// <summary>
+    /// <paramref name="speedKts"/> held to the speed the leader is doing now: no leg of a plan may be flown faster
+    /// than the aircraft is going, or the arithmetic reports it clear early.
+    /// </summary>
+    private static double ClampToEntrySpeed(double speedKts, double entrySpeedKts) => Math.Clamp(speedKts, 0.0, Math.Max(0.0, entrySpeedKts));
 
     /// <summary>
     /// Seconds to fly <paramref name="distanceNm"/> while decelerating from <paramref name="entrySpeedKts"/> to
