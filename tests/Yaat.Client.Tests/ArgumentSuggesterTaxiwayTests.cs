@@ -125,6 +125,20 @@ public class ArgumentSuggesterTaxiwayTests
     }
 
     [Fact]
+    public void Push_AfterAStand_OffersNoFacing()
+    {
+        // PUSH @stand parks on the stand's own heading; the parser refuses any facing after the stand. A spot
+        // still takes a facing taxiway.
+        var afterStand = Suggest("PUSH @B27 ", ["A", "TE"], spotNames: ["7A"], standNames: ["B27"], maxSuggestions: 20);
+        var afterStandPartial = Suggest("PUSH @B27 T", ["A", "TE"], spotNames: ["7A"], standNames: ["B27"], maxSuggestions: 20);
+        var afterSpot = Suggest("PUSH $7A ", ["A", "TE"], spotNames: ["7A"], standNames: ["B27"], maxSuggestions: 20);
+
+        Assert.Empty(afterStand);
+        Assert.Empty(afterStandPartial);
+        Assert.Contains(afterSpot, s => (s.Text == "TE") && (s.Description == "Taxiway"));
+    }
+
+    [Fact]
     public void Taxi_AtSigil_NoStandsLoaded_NoSuggestions()
     {
         var suggestions = Suggest("TAXI C D @", taxiwayNames: [], spotNames: [], standNames: [], maxSuggestions: 20);

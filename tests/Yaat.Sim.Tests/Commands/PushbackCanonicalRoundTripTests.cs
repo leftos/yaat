@@ -35,8 +35,6 @@ public class PushbackCanonicalRoundTripTests(ITestOutputHelper output)
     [InlineData("PUSH TE T", "PUSH TE T")]
     [InlineData("PUSH TE TAIL W", "PUSH TE FACE E")]
     [InlineData("PUSH @4A", "PUSH @4A")]
-    [InlineData("PUSH @4A A", "PUSH @4A A")]
-    [InlineData("PUSH @4A FACE NE", "PUSH @4A FACE NE")]
     [InlineData("PUSH $7A", "PUSH $7A")]
     [InlineData("PUSH $7A TAIL W", "PUSH $7A FACE E")]
     public void EveryAcceptedForm_CanonicalReParsesToTheSameCommand(string input, string expectedCanonical)
@@ -73,6 +71,27 @@ public class PushbackCanonicalRoundTripTests(ITestOutputHelper output)
                 Assert.Equal(0.0, degrees % 45.0, 6);
             }
         }
+    }
+
+    /// <summary>
+    /// A push to a stand parks on the stand's own heading, so none of the facing spellings — nor a facing taxiway —
+    /// is an accepted form with a stand destination.
+    /// </summary>
+    [Theory]
+    [InlineData("PUSH @4A A")]
+    [InlineData("PUSH @4A FACE NE")]
+    [InlineData("PUSH @4A TAIL W")]
+    [InlineData("PUSH @4A >E")]
+    [InlineData("PUSH @4A <W")]
+    [InlineData("PUSH @4A TE T")]
+    [InlineData("PUSH @4A TE FACE E")]
+    public void StandDestinationWithAFacing_Refused(string input)
+    {
+        var result = CommandParser.Parse(input);
+        output.WriteLine($"{input} → {result.Reason}");
+
+        Assert.False(result.IsSuccess, $"'{input}' was accepted");
+        Assert.Contains("PUSH @4A does not take a facing — the aircraft parks on the stand's own heading", result.Reason, StringComparison.Ordinal);
     }
 
     private static PushbackCommand Parse(string input)

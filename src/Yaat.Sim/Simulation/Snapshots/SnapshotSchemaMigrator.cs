@@ -162,9 +162,14 @@ public static class SnapshotSchemaMigrator
         //   deleting it). Equally optional and equally undemanding on read: an older snapshot restores with no ceiling
         //   attributed to the pass, which then re-engages on the next tick if the conflict it protects against is still
         //   predicted.
-        // V25→V26: Added PushbackPhaseDto.Kind, which end the tug leads with (PushbackLegKind.Push or Pull).
-        //   No data transformation — the field is optional and older snapshots restore with the default Push, which is
-        //   what every pushback written before tug moves was.
+        // V25→V26: PushbackPhaseDto now carries one tug move: its Kind (Push or Pull; older snapshots default to Push,
+        //   which every pushback written before tug moves was), Shape and shape fields, the Tight/Creep/DwellBefore
+        //   flags, StartsAtStand, the planned end, the stand push-off's facing amendment, and the move's progress.
+        //   The pre-tug-move fields (TargetHeading, TargetLatitude/Longitude, PullForwardLatitude/Longitude,
+        //   PullingForward, StartLat/StartLon, TotalDistToTarget, ReachedTarget, IsAligned) keep their JSON names as
+        //   read-only Legacy* properties. No data transformation here: a DTO with no Shape is an older snapshot, and
+        //   PushbackPhase.FromSnapshot builds the equivalent move from its legacy fields, finishing it on the first
+        //   tick because that needs the live aircraft pose.
         if (snapshot.SchemaVersion < 4)
         {
             foreach (var ac in snapshot.Aircraft)

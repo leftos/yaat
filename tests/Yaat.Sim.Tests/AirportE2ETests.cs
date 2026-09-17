@@ -304,7 +304,7 @@ public class AirportE2ETests
         var ac = MakeGroundAircraft(position: parking.Position);
 
         var push = new PushbackCommand(null, null, "D", null, null);
-        var result = GroundCommandHandler.TryPushback(ac, push, layout);
+        var result = GroundCommandHandler.TryPushback(ac, push, layout, null);
 
         Assert.True(result.Success, $"Pushback should succeed: {result.Message}");
         Assert.IsType<PushbackPhase>(ac.Phases!.CurrentPhase);
@@ -447,7 +447,7 @@ public class AirportE2ETests
 
         // Step 1: Pushback facing D
         var push = new PushbackCommand(null, null, "D", null, null);
-        var pushResult = GroundCommandHandler.TryPushback(ac, push, layout);
+        var pushResult = GroundCommandHandler.TryPushback(ac, push, layout, null);
         Assert.True(pushResult.Success, $"Pushback failed: {pushResult.Message}");
         Assert.IsType<PushbackPhase>(ac.Phases!.CurrentPhase);
 
@@ -1234,8 +1234,8 @@ public class AirportE2ETests
     [Fact]
     public void SFO_PushbackToSpot_SetsDirectReversePhase()
     {
-        // PUSH @A9 from parking A4: should set a direct-reverse PushbackPhase targeting A9,
-        // with no taxi route (a pushback reverses straight to the spot, it does not taxi there).
+        // PUSH @A9 from parking A4: a tug move whose last planned move ends on A9, with no taxi route (a
+        // pushback is towed to the stand, it does not taxi there).
         var layout = LoadLayout("SFO", "sfo");
         if (layout is null)
         {
@@ -1251,19 +1251,20 @@ public class AirportE2ETests
         ac.TrueHeading = new TrueHeading(a4.TrueHeading?.Degrees ?? 104);
 
         var cmd = new PushbackCommand(null, null, null, "A9", null);
-        var result = GroundCommandHandler.TryPushback(ac, cmd, layout);
+        var result = GroundCommandHandler.TryPushback(ac, cmd, layout, null);
 
         Assert.True(result.Success, $"PUSH @A9 should succeed: {result.Message}");
         Assert.Contains("A9", result.Message!);
         var phase = Assert.IsType<PushbackPhase>(ac.Phases!.CurrentPhase);
         Assert.Equal("A9", ac.Ground.ParkingSpot);
 
-        // Direct reverse: no taxi route, and the phase targets the A9 spot position.
+        // No taxi route, and the last queued tug move is planned to end on A9.
         Assert.Null(ac.Ground.AssignedTaxiRoute);
-        Assert.NotNull(phase.TargetLatitude);
-        Assert.NotNull(phase.TargetLongitude);
-        double distToA9 = GeoMath.DistanceNm(phase.TargetLatitude!.Value, phase.TargetLongitude!.Value, a9.Position.Lat, a9.Position.Lon);
-        Assert.True(distToA9 < 0.02, $"Pushback should target A9: dist={distToA9:F4}nm");
+        Assert.True(phase.StartsAtStand, "the first move off A4 is the stand push-off");
+        var lastMove = ac.Phases.Phases.OfType<PushbackPhase>().Last();
+        double distToA9 = GeoMath.DistanceNm(lastMove.PlannedEnd, a9.Position);
+        Assert.True(distToA9 < 0.02, $"Pushback should end on A9: dist={distToA9:F4}nm");
+        Assert.IsType<AtParkingPhase>(ac.Phases.Phases[^1]);
     }
 
     // -------------------------------------------------------------------------

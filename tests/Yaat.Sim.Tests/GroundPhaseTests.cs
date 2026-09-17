@@ -6,6 +6,7 @@ using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Simulation.Snapshots;
+using Yaat.Sim.Testing;
 
 namespace Yaat.Sim.Tests;
 
@@ -107,6 +108,75 @@ public class GroundPhaseTests
         };
     }
 
+    public GroundPhaseTests()
+    {
+        TestVnasData.EnsureInitialized();
+    }
+
+    /// <summary>A plain pushback: a straight push of the type's simple pushback distance, off no stand.</summary>
+    private static PushbackPhase SimplePush(AircraftState aircraft) =>
+        PushOf(aircraft, TugMove.Straight(PushbackLegKind.Push, TugMovePlanner.SimplePushbackFt(aircraft.AircraftType)));
+
+    private static PushbackPhase PushOf(AircraftState aircraft, TugMove move) =>
+        new()
+        {
+            Move = move,
+            PlannedEnd = TugKinematics
+                .Simulate(new TugPose(aircraft.Position, aircraft.TrueHeading.Degrees), [move], aircraft.AircraftType, 1.0)
+                .End.Position,
+        };
+
+    private static (PushbackPhase Phase, PhaseContext Ctx) StartPush(AircraftState aircraft, TugMove move)
+    {
+        var phase = PushOf(aircraft, move);
+        aircraft.Phases = new PhaseList();
+        aircraft.Phases.Add(phase);
+        var ctx = MakeContext(aircraft);
+        aircraft.Phases.Start(ctx);
+        return (phase, ctx);
+    }
+
+    /// <summary>One engine-order second: what the aircraft moved, how far the nose turned, and how far the push heading is off the nose's reciprocal (null on a pull).</summary>
+    private readonly record struct PushTick(double MovedFt, double NoseTurnDeg, double? PushGapDeg);
+
+    /// <summary>Ticks the phase then physics, one second at a time, until the phase completes or the budget runs out.</summary>
+    private static (bool Completed, List<PushTick> Ticks) RunPush(AircraftState aircraft, PushbackPhase phase, PhaseContext ctx, int maxTicks)
+    {
+        var ticks = new List<PushTick>();
+        for (int i = 0; i < maxTicks; i++)
+        {
+            var from = aircraft.Position;
+            var nose = aircraft.TrueHeading;
+            if (phase.OnTick(ctx))
+            {
+                return (true, ticks);
+            }
+
+            FlightPhysics.Update(aircraft, 1.0);
+            double? gap = aircraft.Ground.PushbackTrueHeading is { } push ? push.ToReciprocal().AbsAngleTo(aircraft.TrueHeading) : null;
+            ticks.Add(new PushTick(GeoMath.DistanceNm(from, aircraft.Position) * GeoMath.FeetPerNm, nose.AbsAngleTo(aircraft.TrueHeading), gap));
+        }
+
+        return (false, ticks);
+    }
+
+    private static void AssertWithinCurvature(PushTick tick, double radiusFt)
+    {
+        double turnRad = tick.NoseTurnDeg * Math.PI / 180.0;
+        double boundRad = ((tick.MovedFt / radiusFt) * 1.05) + 0.002;
+        Assert.True(turnRad <= boundRad, $"the nose turned {tick.NoseTurnDeg:F2}° over {tick.MovedFt:F2} ft, past 1/R = 1/{radiusFt:F1} ft");
+    }
+
+    /// <summary>Flies a turn from a standstill heading north and returns the total nose turn per foot moved, radians.</summary>
+    private static double TurnPerFoot(TugMove move)
+    {
+        var aircraft = MakeGroundAircraft(heading: 0);
+        var (phase, ctx) = StartPush(aircraft, move);
+        var run = RunPush(aircraft, phase, ctx, 20);
+        var turning = run.Ticks.Skip(2).ToList();
+        return (turning.Sum(t => t.NoseTurnDeg) * Math.PI / 180.0) / turning.Sum(t => t.MovedFt);
+    }
+
     // --- FIX 1: TryHoldPosition uses IsOnGround ---
 
     [Fact]
@@ -155,7 +225,7 @@ public class GroundPhaseTests
     {
         var aircraft = MakeGroundAircraft();
         aircraft.Phases = new PhaseList();
-        var phase = new PushbackPhase();
+        var phase = SimplePush(aircraft);
         aircraft.Phases.Add(phase);
         var ctx = MakeContext(aircraft);
         aircraft.Phases.Start(ctx);
@@ -179,7 +249,7 @@ public class GroundPhaseTests
     {
         var aircraft = MakeGroundAircraft();
         aircraft.Phases = new PhaseList();
-        var phase = new PushbackPhase();
+        var phase = SimplePush(aircraft);
         aircraft.Phases.Add(phase);
         var ctx = MakeContext(aircraft);
         aircraft.Phases.Start(ctx);
@@ -539,7 +609,7 @@ public class GroundPhaseTests
     {
         var aircraft = MakeGroundAircraft(heading: 90);
         aircraft.Phases = new PhaseList();
-        var phase = new PushbackPhase();
+        var phase = SimplePush(aircraft);
         aircraft.Phases.Add(phase);
         var ctx = MakeContext(aircraft);
         aircraft.Phases.Start(ctx);
@@ -578,7 +648,7 @@ public class GroundPhaseTests
         var aircraft = MakeGroundAircraft();
         aircraft.Targets.TargetTrueHeading = new TrueHeading(270);
         aircraft.Phases = new PhaseList();
-        var phase = new PushbackPhase();
+        var phase = SimplePush(aircraft);
         aircraft.Phases.Add(phase);
         var ctx = MakeContext(aircraft);
         aircraft.Phases.Start(ctx);
@@ -586,129 +656,76 @@ public class GroundPhaseTests
         Assert.Null(aircraft.Targets.TargetTrueHeading);
     }
 
-    // --- Mode 2: pushback path curves with nose rotation ---
+    // --- Tug moves: curvature-limited steering ---
 
+    /// <summary>
+    /// Pins: a push turning onto a facing starts moving at once, turns the nose only as it moves and never tighter
+    /// than the routine radius, keeps the tail leading (push heading = the nose's reciprocal), and ends on the facing.
+    /// </summary>
     [Fact]
-    public void PushbackPhase_HeadingMode_CurvesPushbackWithNose()
+    public void PushbackPhase_PushTurnTo_TurnsOnlyAsItMovesAndEndsOnTheFacing()
     {
         var aircraft = MakeGroundAircraft(heading: 0);
-        aircraft.Phases = new PhaseList();
-        var phase = new PushbackPhase { TargetHeading = 90 };
-        aircraft.Phases.Add(phase);
-        var ctx = MakeContext(aircraft);
-        aircraft.Phases.Start(ctx);
+        var (phase, ctx) = StartPush(aircraft, TugMove.TurnTo(PushbackLegKind.Push, 90));
+        double radiusFt = TugKinematics.TurnRadiusFt(aircraft.AircraftType, tight: false);
 
-        // 90° diff > 20° threshold → alignment stage, no PushbackHeading yet
-        Assert.Null(aircraft.Ground.PushbackTrueHeading);
+        var run = RunPush(aircraft, phase, ctx, 300);
 
-        // Tick through alignment until aligned (nose rotates toward 90)
-        for (int i = 0; i < 100; i++)
-        {
-            FlightPhysics.Update(aircraft, 1.0);
-            phase.OnTick(ctx);
-            if (aircraft.Ground.PushbackTrueHeading is not null)
-            {
-                break;
-            }
-        }
-
-        // Should now be aligned and pushing
-        Assert.NotNull(aircraft.Ground.PushbackTrueHeading);
-        Assert.True(aircraft.TrueHeading.Degrees > 60, "Nose should have rotated toward 90 during alignment");
-
-        // After more ticks, pushback heading should track nose+180
-        for (int i = 0; i < 5; i++)
-        {
-            FlightPhysics.Update(aircraft, 1.0);
-            phase.OnTick(ctx);
-        }
-
-        double expectedPush = (aircraft.TrueHeading.Degrees + 180.0) % 360.0;
-        Assert.Equal(expectedPush, aircraft.Ground.PushbackTrueHeading!.Value.Degrees, 1.0);
+        Assert.True(run.Completed, "the turn never completed");
+        Assert.All(run.Ticks, t => AssertWithinCurvature(t, radiusFt));
+        Assert.All(run.Ticks, t => Assert.True(t.PushGapDeg is <= 0.01, $"push heading {t.PushGapDeg:F2}° off the nose's reciprocal"));
+        Assert.True(new TrueHeading(90).AbsAngleTo(aircraft.TrueHeading) <= 0.5, $"ended with the nose on {aircraft.TrueHeading.Degrees:F1}°");
     }
 
-    // --- Mode 2: requires minimum distance even if heading already close ---
-
+    /// <summary>Pins: a straight move completes only once it has covered its distance, and overshoots it by under a step.</summary>
     [Fact]
-    public void PushbackPhase_HeadingMode_RequiresMinimumDistance()
+    public void PushbackPhase_Straight_CompletesOnlyAfterItsDistance()
     {
-        // Start facing 90, push with target 91 (already nearly there)
         var aircraft = MakeGroundAircraft(heading: 90);
-        aircraft.Phases = new PhaseList();
-        var phase = new PushbackPhase { TargetHeading = 91 };
-        aircraft.Phases.Add(phase);
-        var ctx = MakeContext(aircraft);
-        aircraft.Phases.Start(ctx);
+        var start = aircraft.Position;
+        var (phase, ctx) = StartPush(aircraft, TugMove.Straight(PushbackLegKind.Push, 50.0));
 
-        // One tick: heading reached almost immediately, but distance hasn't been pushed
+        Assert.False(phase.OnTick(ctx), "completed before moving");
         FlightPhysics.Update(aircraft, 1.0);
-        bool completed = phase.OnTick(ctx);
-        Assert.False(completed, "Should not complete before minimum pushback distance");
+        var run = RunPush(aircraft, phase, ctx, 300);
+
+        double pushedFt = GeoMath.DistanceNm(start, aircraft.Position) * GeoMath.FeetPerNm;
+        Assert.True(run.Completed, "the straight push never completed");
+        Assert.InRange(pushedFt, 50.0, 52.0);
+        Assert.Equal(270.0, GeoMath.BearingTo(start, aircraft.Position), 1.0);
     }
 
-    // --- Mode 3: pushback arcs gradually instead of snapping ---
-
+    /// <summary>
+    /// Pins: a push toward a point off its tail steers by curvature — a stopped aircraft does not rotate, and a moving
+    /// one turns no tighter than the routine radius — and ends on the point.
+    /// </summary>
     [Fact]
-    public void PushbackPhase_TargetedMode_ArcsGraduallyTowardTarget()
+    public void PushbackPhase_ToPoint_TurnsNoTighterThanTheRadius()
     {
-        // Aircraft facing east, target is to the south.
-        // Alignment heading = (180+180)%360 = 0 (nose north, tail south).
-        // Aircraft heading = 90, diff = 90° > 20° → alignment stage first.
         var aircraft = MakeGroundAircraft(lat: 37.620, lon: -122.380, heading: 90);
-        double targetLat = 37.619; // south
-        double targetLon = -122.380;
+        var target = GeoMath.ProjectPoint(aircraft.Position, new TrueHeading(225), 400.0 / GeoMath.FeetPerNm);
+        var (phase, ctx) = StartPush(aircraft, TugMove.ToPoint(PushbackLegKind.Push, target));
+        double radiusFt = TugKinematics.TurnRadiusFt(aircraft.AircraftType, tight: false);
 
-        aircraft.Phases = new PhaseList();
-        var phase = new PushbackPhase
-        {
-            TargetLatitude = targetLat,
-            TargetLongitude = targetLon,
-            TargetHeading = 270,
-        };
-        aircraft.Phases.Add(phase);
-        var ctx = MakeContext(aircraft);
-        aircraft.Phases.Start(ctx);
+        var run = RunPush(aircraft, phase, ctx, 600);
 
-        // Should be in alignment stage — no PushbackHeading yet
-        Assert.Null(aircraft.Ground.PushbackTrueHeading);
-
-        // Tick through alignment until push stage begins
-        for (int i = 0; i < 100; i++)
-        {
-            FlightPhysics.Update(aircraft, 1.0);
-            phase.OnTick(ctx);
-            if (aircraft.Ground.PushbackTrueHeading is not null)
-            {
-                break;
-            }
-        }
-
-        Assert.NotNull(aircraft.Ground.PushbackTrueHeading);
-        double initialPushHdg = aircraft.Ground.PushbackTrueHeading!.Value.Degrees;
-
-        // Now in push stage — after one tick, PushbackTrueHeading arcs gradually
-        FlightPhysics.Update(aircraft, 1.0);
-        phase.OnTick(ctx);
-
-        double newPushHdg = aircraft.Ground.PushbackTrueHeading!.Value.Degrees;
-        double changeDeg = Math.Abs(aircraft.Ground.PushbackTrueHeading.Value.SignedAngleTo(new TrueHeading(initialPushHdg)));
-        double maxAllowed = CategoryPerformance.PushbackTurnRate(AircraftCategory.Jet) * 1.0 + 1.0;
-
-        Assert.True(changeDeg <= maxAllowed, $"PushbackHeading changed {changeDeg:F1}° in 1s, max expected ~{maxAllowed:F0}°");
+        Assert.True(run.Completed, "the push never reached its point");
+        Assert.Equal(0.0, run.Ticks[0].NoseTurnDeg, 6);
+        Assert.All(run.Ticks, t => AssertWithinCurvature(t, radiusFt));
+        Assert.True(run.Ticks.Max(t => t.NoseTurnDeg) > 0.5, "the push never turned, so the bound proved nothing");
+        Assert.True(GeoMath.DistanceNm(aircraft.Position, target) * GeoMath.FeetPerNm <= 3.0, "ended off the point");
     }
 
-    // --- PushbackTurnRate is slower than GroundTurnRate ---
-
+    /// <summary>Pins: a tight move turns on the tight radius — more heading per foot than the same move flown routinely.</summary>
     [Fact]
-    public void PushbackTurnRate_IsSlowerThanGroundTurnRate()
+    public void PushbackPhase_TightTurnTo_TurnsMorePerFootThanARoutineOne()
     {
-        foreach (var cat in new[] { AircraftCategory.Jet, AircraftCategory.Turboprop, AircraftCategory.Piston })
-        {
-            Assert.True(
-                CategoryPerformance.PushbackTurnRate(cat) < CategoryPerformance.GroundTurnRate(cat),
-                $"PushbackTurnRate should be slower than GroundTurnRate for {cat}"
-            );
-        }
+        double routine = TurnPerFoot(TugMove.TurnTo(PushbackLegKind.Push, 180));
+        double tight = TurnPerFoot(TugMove.TurnTo(PushbackLegKind.Push, 180) with { Tight = true });
+
+        double expected = TugKinematics.TurnRadiusFt("B738", tight: false) / TugKinematics.TurnRadiusFt("B738", tight: true);
+        Assert.True(tight > routine * 1.5, $"tight {tight:F4} rad/ft vs routine {routine:F4} rad/ft");
+        Assert.InRange(tight / routine, expected * 0.9, expected * 1.1);
     }
 
     // --- Pushback other directions ---
@@ -718,7 +735,7 @@ public class GroundPhaseTests
     {
         var aircraft = MakeGroundAircraft(heading: 180);
         aircraft.Phases = new PhaseList();
-        var phase = new PushbackPhase();
+        var phase = SimplePush(aircraft);
         aircraft.Phases.Add(phase);
         var ctx = MakeContext(aircraft);
         aircraft.Phases.Start(ctx);
@@ -733,7 +750,7 @@ public class GroundPhaseTests
     {
         var aircraft = MakeGroundAircraft(heading: 270);
         aircraft.Phases = new PhaseList();
-        var phase = new PushbackPhase();
+        var phase = SimplePush(aircraft);
         aircraft.Phases.Add(phase);
         var ctx = MakeContext(aircraft);
         aircraft.Phases.Start(ctx);
@@ -746,7 +763,7 @@ public class GroundPhaseTests
     {
         var aircraft = MakeGroundAircraft(heading: 360);
         aircraft.Phases = new PhaseList();
-        var phase = new PushbackPhase();
+        var phase = SimplePush(aircraft);
         aircraft.Phases.Add(phase);
         var ctx = MakeContext(aircraft);
         aircraft.Phases.Start(ctx);
@@ -906,7 +923,7 @@ public class GroundPhaseTests
     {
         var aircraft = MakeGroundAircraft();
         aircraft.Phases = new PhaseList();
-        var phase = new PushbackPhase();
+        var phase = SimplePush(aircraft);
         aircraft.Phases.Add(phase);
         var ctx = MakeContext(aircraft);
         aircraft.Phases.Start(ctx);
@@ -923,314 +940,117 @@ public class GroundPhaseTests
         Assert.Equal(0, aircraft.GroundSpeed);
     }
 
-    // --- Pushback alignment stage ---
+    // --- Tug moves: no alignment stage, pulls, dwell ---
 
+    /// <summary>
+    /// Pins: there is no rotate-in-place stage — a push whose facing is 180° away is under way from its first tick,
+    /// tail-first, and its nose has not moved before the aircraft has.
+    /// </summary>
     [Fact]
-    public void PushbackPhase_TargetedMode_RotatesBeforePushing()
+    public void PushbackPhase_LargeTurn_StartsMovingAtOnceWithNoPivot()
     {
-        // Aircraft facing east, target to the north → alignment heading = (0+180)%360 = 180
-        // Current heading = 90, diff = 90° > 20° → alignment stage
-        var aircraft = MakeGroundAircraft(lat: 37.620, lon: -122.380, heading: 90);
-        aircraft.Phases = new PhaseList();
-        var phase = new PushbackPhase { TargetLatitude = 37.621, TargetLongitude = -122.380 };
-        aircraft.Phases.Add(phase);
-        var ctx = MakeContext(aircraft);
-        aircraft.Phases.Start(ctx);
-
-        // Alignment stage: no PushbackHeading, speed = 0
-        Assert.Null(aircraft.Ground.PushbackTrueHeading);
-        Assert.Equal(0, ctx.Targets.TargetSpeed);
-
-        // Tick a few times — heading should change, position should not
-        var startPos = aircraft.Position;
-        double startHeading = aircraft.TrueHeading.Degrees;
-
-        for (int i = 0; i < 5; i++)
-        {
-            FlightPhysics.Update(aircraft, 1.0);
-            phase.OnTick(ctx);
-        }
-
-        Assert.NotEqual(startHeading, aircraft.TrueHeading.Degrees);
-        Assert.Equal(startPos.Lat, aircraft.Position.Lat, 6);
-        Assert.Equal(startPos.Lon, aircraft.Position.Lon, 6);
-
-        // Eventually transitions to push stage
-        for (int i = 0; i < 100; i++)
-        {
-            FlightPhysics.Update(aircraft, 1.0);
-            phase.OnTick(ctx);
-            if (aircraft.Ground.PushbackTrueHeading is not null)
-            {
-                break;
-            }
-        }
-
-        Assert.NotNull(aircraft.Ground.PushbackTrueHeading);
-        Assert.True(ctx.Targets.TargetSpeed > 0);
-    }
-
-    [Fact]
-    public void PushbackPhase_HeadingMode_RotatesBeforePushing()
-    {
-        // Heading = 0, target heading = 90 → diff = 90° > 20° → alignment
         var aircraft = MakeGroundAircraft(heading: 0);
-        aircraft.Phases = new PhaseList();
-        var phase = new PushbackPhase { TargetHeading = 90 };
-        aircraft.Phases.Add(phase);
-        var ctx = MakeContext(aircraft);
-        aircraft.Phases.Start(ctx);
+        var (phase, ctx) = StartPush(aircraft, TugMove.TurnTo(PushbackLegKind.Push, 180) with { Tight = true });
 
-        Assert.Null(aircraft.Ground.PushbackTrueHeading);
-        Assert.Equal(0, ctx.Targets.TargetSpeed);
+        Assert.Equal(180.0, aircraft.Ground.PushbackTrueHeading!.Value.Degrees, 6);
+        Assert.True(ctx.Targets.TargetSpeed > 0, "the push did not ask for speed");
 
-        // Position unchanged during alignment
-        var startPos = aircraft.Position;
+        var run = RunPush(aircraft, phase, ctx, 5);
 
-        for (int i = 0; i < 5; i++)
-        {
-            FlightPhysics.Update(aircraft, 1.0);
-            phase.OnTick(ctx);
-        }
-
-        Assert.Equal(startPos.Lat, aircraft.Position.Lat, 6);
-        Assert.Equal(startPos.Lon, aircraft.Position.Lon, 6);
-        Assert.Null(aircraft.Ground.PushbackTrueHeading);
+        Assert.True(run.Ticks.Sum(t => t.MovedFt) > 1.0, "the aircraft did not move");
+        double radiusFt = TugKinematics.TurnRadiusFt(aircraft.AircraftType, tight: true);
+        Assert.All(run.Ticks, t => AssertWithinCurvature(t, radiusFt));
     }
 
+    /// <summary>Pins: a pull leaves the push heading null and moves the aircraft nose-first.</summary>
     [Fact]
-    public void PushbackPhase_AlreadyAligned_SkipsRotation()
+    public void PushbackPhase_Pull_LeadsWithTheNose()
     {
-        // Heading = 10, target heading = 0 → diff = 10° < 20° → skip alignment
-        var aircraft = MakeGroundAircraft(heading: 10);
-        aircraft.Phases = new PhaseList();
-        var phase = new PushbackPhase { TargetHeading = 0 };
-        aircraft.Phases.Add(phase);
-        var ctx = MakeContext(aircraft);
-        aircraft.Phases.Start(ctx);
+        var aircraft = MakeGroundAircraft(heading: 30);
+        var start = aircraft.Position;
+        var target = GeoMath.ProjectPoint(start, new TrueHeading(30), 200.0 / GeoMath.FeetPerNm);
+        var (phase, ctx) = StartPush(aircraft, TugMove.ToPoint(PushbackLegKind.Pull, target));
 
-        // PushbackHeading set immediately
-        Assert.NotNull(aircraft.Ground.PushbackTrueHeading);
-        Assert.True(ctx.Targets.TargetSpeed > 0);
+        Assert.Null(aircraft.Ground.PushbackTrueHeading);
+        var run = RunPush(aircraft, phase, ctx, 10);
+
+        Assert.All(run.Ticks, t => Assert.Null(t.PushGapDeg));
+        Assert.True(run.Ticks.Sum(t => t.MovedFt) > 10.0, "the pull did not move the aircraft");
+        Assert.Equal(30.0, GeoMath.BearingTo(start, aircraft.Position), 1.0);
     }
 
+    /// <summary>
+    /// Pins: a reversal dwells stopped for <see cref="PushbackPhase.DwellSeconds"/> — no movement, no rotation, no speed
+    /// asked for, the push heading already set — and then moves.
+    /// </summary>
     [Fact]
-    public void PushbackPhase_NoMovementDuringAlignment()
+    public void PushbackPhase_DwellBefore_HoldsStillForTheDwellThenMoves()
     {
-        // Large misalignment: heading = 0, target heading = 180 → 180° diff
         var aircraft = MakeGroundAircraft(heading: 0);
-        aircraft.Phases = new PhaseList();
-        var phase = new PushbackPhase { TargetHeading = 180 };
-        aircraft.Phases.Add(phase);
-        var ctx = MakeContext(aircraft);
-        aircraft.Phases.Start(ctx);
+        var start = aircraft.Position;
+        var (phase, ctx) = StartPush(aircraft, TugMove.Straight(PushbackLegKind.Push, 50.0) with { DwellBefore = true });
+        int dwellTicks = (int)PushbackPhase.DwellSeconds;
 
-        var startPos = aircraft.Position;
+        var dwell = RunPush(aircraft, phase, ctx, dwellTicks);
 
-        // Tick 10 times during alignment
-        for (int i = 0; i < 10; i++)
-        {
-            FlightPhysics.Update(aircraft, 1.0);
-            phase.OnTick(ctx);
-        }
+        Assert.All(dwell.Ticks, t => Assert.Equal(0.0, t.MovedFt, 9));
+        Assert.All(dwell.Ticks, t => Assert.Equal(0.0, t.NoseTurnDeg, 9));
+        Assert.All(dwell.Ticks, t => Assert.Equal(0.0, t.PushGapDeg!.Value, 6));
+        Assert.Equal(0, ctx.Targets.TargetSpeed ?? 0);
+        Assert.Equal(start, aircraft.Position);
 
-        // Position must not change during alignment
-        Assert.Equal(startPos.Lat, aircraft.Position.Lat, 6);
-        Assert.Equal(startPos.Lon, aircraft.Position.Lon, 6);
+        var moving = RunPush(aircraft, phase, ctx, 1);
+        Assert.True(moving.Ticks[0].MovedFt > 0.0, "the push did not move once the dwell was over");
     }
 
     // -------------------------------------------------------------------------
     // Issue #167 — adjust pushback face direction mid-pushback
     // -------------------------------------------------------------------------
 
+    /// <summary>
+    /// Pins: the stand push-off of a single-goal push can be amended while it runs and not once it has completed;
+    /// it is on the stand until it has moved half a fuselage; and it reports its planned end until it completes.
+    /// </summary>
     [Fact]
-    public void PushbackPhase_SimpleMode_DuringAlignment_FaceUpdate_RetargetsAlignment()
+    public void PushbackPhase_StandPushOff_AmendableAndOnTheStandUntilItHasMoved()
     {
-        // Misaligned simple-mode push (no taxiway target). Aircraft is still
-        // rotating in place to original target heading — amend should redirect.
         var aircraft = MakeGroundAircraft(heading: 0);
-        aircraft.Phases = new PhaseList();
-        var phase = new PushbackPhase { TargetHeading = 90 };
-        aircraft.Phases.Add(phase);
-        var ctx = MakeContext(aircraft);
-        aircraft.Phases.Start(ctx);
-
-        // Confirm we're in alignment (PushbackTrueHeading not yet set)
-        Assert.Null(aircraft.Ground.PushbackTrueHeading);
-
-        // Amend to target 180 (south) — should succeed
-        Assert.True(phase.TryUpdateTargetHeading(180, ctx));
-        Assert.Equal(180, phase.TargetHeading);
-
-        // Tick until aligned — nose should rotate toward 180, NOT 90
-        for (int i = 0; i < 100; i++)
-        {
-            FlightPhysics.Update(aircraft, 1.0);
-            phase.OnTick(ctx);
-            if (aircraft.Ground.PushbackTrueHeading is not null)
-            {
-                break;
-            }
-        }
-
-        Assert.NotNull(aircraft.Ground.PushbackTrueHeading);
-        // Nose should be near 180 (within alignment threshold of 20°), not near 90
-        double noseDiffFromNewTarget = new TrueHeading(180).AbsAngleTo(aircraft.TrueHeading);
-        double noseDiffFromOldTarget = new TrueHeading(90).AbsAngleTo(aircraft.TrueHeading);
-        Assert.True(noseDiffFromNewTarget <= 20, $"Nose {aircraft.TrueHeading.Degrees:F0} should be within 20° of new target 180");
-        Assert.True(noseDiffFromNewTarget < noseDiffFromOldTarget, "Nose should be closer to new target (180) than old (90)");
-    }
-
-    [Fact]
-    public void PushbackPhase_SimpleMode_AfterAlignment_FaceUpdate_Rejected()
-    {
-        // Simple mode, already-aligned start (heading=10, target=0 → diff < 20°).
-        // _isAligned is set in OnStart — amendment must be rejected.
-        var aircraft = MakeGroundAircraft(heading: 10);
-        aircraft.Phases = new PhaseList();
-        var phase = new PushbackPhase { TargetHeading = 0 };
-        aircraft.Phases.Add(phase);
-        var ctx = MakeContext(aircraft);
-        aircraft.Phases.Start(ctx);
-
-        // Confirm already-aligned (PushbackTrueHeading set in OnStart)
-        Assert.NotNull(aircraft.Ground.PushbackTrueHeading);
-
-        Assert.False(phase.TryUpdateTargetHeading(180, ctx));
-        Assert.Equal(0, phase.TargetHeading);
-    }
-
-    [Fact]
-    public void PushbackPhase_TargetedMode_BeforeNoseRotation_FaceUpdate_Applies()
-    {
-        // Targeted mode: aircraft pushes back along an arc, nose rotation to
-        // TargetHeading doesn't begin until 60% of distance is covered.
-        // Aircraft heading=0 (north), target south of aircraft → tail-south, nose-north (already ~aligned).
-        var aircraft = MakeGroundAircraft(lat: 37.620, lon: -122.380, heading: 0);
-        aircraft.Phases = new PhaseList();
+        var standPose = new TugPose(aircraft.Position, 0);
+        var move = TugMove.Straight(PushbackLegKind.Push, 100.0);
         var phase = new PushbackPhase
         {
-            TargetLatitude = 37.619,
-            TargetLongitude = -122.380,
-            TargetHeading = 90,
+            Move = move,
+            PlannedEnd = TugKinematics.Simulate(standPose, [move], aircraft.AircraftType, 1.0).End.Position,
+            StartsAtStand = true,
+            Amendment = TugAmendment.For(TugGoal.Facing(90), standPose),
         };
+        aircraft.Phases = new PhaseList();
         aircraft.Phases.Add(phase);
         var ctx = MakeContext(aircraft);
         aircraft.Phases.Start(ctx);
 
-        // Should be aligned immediately (nose=0, alignment heading=0)
-        Assert.NotNull(aircraft.Ground.PushbackTrueHeading);
+        Assert.True(phase.CanAmend(aircraft));
+        Assert.False(phase.HasLeftTheStand(aircraft));
+        Assert.True(phase.TryGetPushLegEnd(aircraft, out var end));
+        Assert.Equal(phase.PlannedEnd, end);
 
-        // Tick a couple of seconds — well under 60% progress
-        for (int i = 0; i < 2; i++)
-        {
-            FlightPhysics.Update(aircraft, 1.0);
-            phase.OnTick(ctx);
-        }
+        var run = RunPush(aircraft, phase, ctx, 300);
 
-        // Amend to face 270 (west)
-        Assert.True(phase.TryUpdateTargetHeading(270, ctx));
-        Assert.Equal(270, phase.TargetHeading);
+        Assert.True(run.Completed);
+        Assert.True(phase.HasLeftTheStand(aircraft), "a 100 ft push-off left a B738 on its stand");
+        Assert.False(phase.CanAmend(aircraft), "a completed push-off was still amendable");
+        Assert.False(phase.TryGetPushLegEnd(aircraft, out _), "a completed move still reported an end");
     }
 
+    /// <summary>Pins: a move with no amendment is never amendable, and a move that is not the push-off has left the stand.</summary>
     [Fact]
-    public void PushbackPhase_TargetedMode_AfterNoseRotation_FaceUpdate_Rejected()
+    public void PushbackPhase_LaterMove_NotAmendableAndOffTheStand()
     {
-        // Drive the phase past _reachedTarget — amendment must be rejected.
-        var aircraft = MakeGroundAircraft(lat: 37.620, lon: -122.380, heading: 0);
-        aircraft.Phases = new PhaseList();
-        var phase = new PushbackPhase
-        {
-            TargetLatitude = 37.619995, // very close, target reached quickly
-            TargetLongitude = -122.380,
-            TargetHeading = 90,
-        };
-        aircraft.Phases.Add(phase);
-        var ctx = MakeContext(aircraft);
-        aircraft.Phases.Start(ctx);
+        var aircraft = MakeGroundAircraft(heading: 0);
+        var (phase, _) = StartPush(aircraft, TugMove.TurnTo(PushbackLegKind.Push, 90));
 
-        // Tick until reachedTarget — read snapshot to detect _reachedTarget=true
-        for (int i = 0; i < 300; i++)
-        {
-            FlightPhysics.Update(aircraft, 1.0);
-            phase.OnTick(ctx);
-            var snap = (PushbackPhaseDto)phase.ToSnapshot();
-            if (snap.ReachedTarget)
-            {
-                break;
-            }
-        }
-
-        var snapAfter = (PushbackPhaseDto)phase.ToSnapshot();
-        Assert.True(snapAfter.ReachedTarget, "test setup: phase should have reached target");
-
-        Assert.False(phase.TryUpdateTargetHeading(180, ctx));
-        Assert.Equal(90, phase.TargetHeading);
-    }
-
-    [Fact]
-    public void PushbackToSpotPhase_BeforeFinalNode_FaceUpdate_Applies()
-    {
-        // Two-segment pushback route — amendment must succeed while still en route.
-        var layout = BuildCrossingLayout();
-        var aircraft = MakeGroundAircraft(lat: 37.620, lon: -122.380, heading: 0);
-
-        var route = new TaxiRoute
-        {
-            Segments =
-            [
-                new TaxiRouteSegment { TaxiwayName = "A", Edge = layout.Edges[0].Directed(layout.Nodes[0], layout.Nodes[1]) },
-                new TaxiRouteSegment { TaxiwayName = "A", Edge = layout.Edges[1].Directed(layout.Nodes[1], layout.Nodes[2]) },
-            ],
-            HoldShortPoints = [],
-        };
-        aircraft.Phases = new PhaseList();
-        var phase = new PushbackToSpotPhase(route, targetHeading: 90);
-        aircraft.Phases.Add(phase);
-        var ctx = MakeContext(aircraft, layout);
-        aircraft.Phases.Start(ctx);
-
-        Assert.True(phase.TryUpdateTargetHeading(180, ctx));
-        var snap = (PushbackToSpotPhaseDto)phase.ToSnapshot();
-        Assert.Equal(180, snap.TargetHeading);
-    }
-
-    [Fact]
-    public void PushbackToSpotPhase_AfterFinalNode_FaceUpdate_Rejected()
-    {
-        // Drive phase to _reachedFinalNode — amendment must be rejected.
-        var layout = BuildCrossingLayout();
-        // Start very close to the second node so the short single-segment route completes fast.
-        var aircraft = MakeGroundAircraft(lat: 37.620999, lon: -122.380, heading: 180);
-
-        var route = new TaxiRoute
-        {
-            Segments = [new TaxiRouteSegment { TaxiwayName = "A", Edge = layout.Edges[0].Directed(layout.Nodes[0], layout.Nodes[1]) }],
-            HoldShortPoints = [],
-        };
-        aircraft.Phases = new PhaseList();
-        var phase = new PushbackToSpotPhase(route, targetHeading: 90);
-        aircraft.Phases.Add(phase);
-        var ctx = MakeContext(aircraft, layout);
-        aircraft.Phases.Start(ctx);
-
-        // Tick until ReachedFinalNode is true
-        for (int i = 0; i < 200; i++)
-        {
-            FlightPhysics.Update(aircraft, 1.0);
-            phase.OnTick(ctx);
-            var snap = (PushbackToSpotPhaseDto)phase.ToSnapshot();
-            if (snap.ReachedFinalNode)
-            {
-                break;
-            }
-        }
-
-        var snapAfter = (PushbackToSpotPhaseDto)phase.ToSnapshot();
-        Assert.True(snapAfter.ReachedFinalNode, "test setup: phase should have reached final node");
-
-        Assert.False(phase.TryUpdateTargetHeading(180, ctx));
-        Assert.Equal(90, snapAfter.TargetHeading);
+        Assert.False(phase.CanAmend(aircraft));
+        Assert.True(phase.HasLeftTheStand(aircraft));
     }
 
     // -------------------------------------------------------------------------
@@ -1393,7 +1213,6 @@ public class GroundPhaseTests
     [InlineData("Taxiing")]
     [InlineData("RunwayExit")]
     [InlineData("Pushback")]
-    [InlineData("PushbackToSpot")]
     [InlineData("CrossingRunway")]
     [InlineData("ClearRunway")]
     [InlineData("AirTaxi")]
@@ -1412,8 +1231,7 @@ public class GroundPhaseTests
         {
             "Taxiing" => new TaxiingPhase(),
             "RunwayExit" => new RunwayExitPhase(),
-            "Pushback" => new PushbackPhase(),
-            "PushbackToSpot" => new PushbackToSpotPhase(route, null),
+            "Pushback" => SimplePush(aircraft),
             "CrossingRunway" => new CrossingRunwayPhase(layout.Nodes[0].Id, layout.Nodes[1].Id, "28R"),
             "ClearRunway" => new ClearRunwayPhase(layout.Nodes[0].Id, layout.Nodes[1].Id),
             "AirTaxi" => new AirTaxiPhase(37.621, -122.380, null),

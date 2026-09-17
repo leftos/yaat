@@ -425,31 +425,125 @@ public sealed class FollowingPhaseDto : PhaseDto
     public required double TimeSinceLastLog { get; init; }
 }
 
+/// <summary>
+/// A <c>PushbackPhase</c>: the <see cref="TugMove"/> it flies, where the planner said it ends, its stand push-off
+/// amendment, and its progress. A snapshot written before tug moves existed carries none of the move fields
+/// (<see cref="Shape"/> is null) and only the <c>Legacy*</c> ones, which <c>PushbackPhase.FromSnapshot</c> turns into
+/// an equivalent move.
+/// </summary>
 public sealed class PushbackPhaseDto : PhaseDto
 {
     /// <summary>
-    /// Which end the tug leads with over the leg. Defaults to <see cref="PushbackLegKind.Push"/>, which is
+    /// Which end the tug leads with over the move. Defaults to <see cref="PushbackLegKind.Push"/>, which is
     /// what a snapshot written before tug moves existed meant — an ordinary tail-first reverse.
     /// </summary>
     public PushbackLegKind Kind { get; init; }
 
-    public int? TargetHeading { get; init; }
-    public double? TargetLatitude { get; init; }
-    public double? TargetLongitude { get; init; }
+    /// <summary>The move's shape; null on a snapshot written before tug moves existed.</summary>
+    public TugMoveShape? Shape { get; init; }
 
-    // Spot pushback second leg (null/false for every other pushback — old snapshots restore as single-leg).
-    public double? PullForwardLatitude { get; init; }
-    public double? PullForwardLongitude { get; init; }
-    public bool PullingForward { get; init; }
-    public required double StartLat { get; init; }
-    public required double StartLon { get; init; }
-    public required double TotalDistToTarget { get; init; }
-    public required bool ReachedTarget { get; init; }
-    public required bool IsAligned { get; init; }
+    public double StraightDistanceFt { get; init; }
+    public double PointLatitude { get; init; }
+    public double PointLongitude { get; init; }
+    public double LineTravelTrueDeg { get; init; }
+    public double? StopAtLatitude { get; init; }
+    public double? StopAtLongitude { get; init; }
+    public double FacingTrueDeg { get; init; }
+    public bool Tight { get; init; }
+    public bool Creep { get; init; }
+    public bool DwellBefore { get; init; }
+    public bool StartsAtStand { get; init; }
+    public double PlannedEndLatitude { get; init; }
+    public double PlannedEndLongitude { get; init; }
+
+    // The stand push-off's mid-push facing amendment (TugAmendment); all null on every other move.
+    public TugGoalKind? AmendmentGoalKind { get; init; }
+    public int? AmendmentNodeId { get; init; }
+    public string? AmendmentTaxiway { get; init; }
+    public double? AmendmentStandLatitude { get; init; }
+    public double? AmendmentStandLongitude { get; init; }
+    public double? AmendmentStandNoseTrueDeg { get; init; }
+
+    // The move's TugMoveProgress.
+    public double ProgressStartLatitude { get; init; }
+    public double ProgressStartLongitude { get; init; }
+    public double ProgressStartTravelTrueDeg { get; init; }
+    public double ProgressDistanceFt { get; init; }
+    public bool ProgressCaptured { get; init; }
+    public double ProgressMaxTravelDeviationDeg { get; init; }
+
+    public double LastLatitude { get; init; }
+    public double LastLongitude { get; init; }
+    public double DwellElapsedSeconds { get; init; }
     public required double TimeSinceLastLog { get; init; }
+
+    /// <summary>
+    /// A move restored from a pre-tug-move snapshot that has not ticked yet: its first tick restarts it from the live
+    /// pose (and, for a straight or turn, re-simulates its planned end).
+    /// </summary>
+    public bool ProgressPending { get; init; }
+
+    /// <summary>
+    /// A pending simple push's recorded start: its first tick owes the simple pushback distance less how far the
+    /// aircraft already is from here.
+    /// </summary>
+    public double? PendingPushedFromLatitude { get; init; }
+    public double? PendingPushedFromLongitude { get; init; }
+
+    // The pre-tug-move fields, under their original JSON names. Read only by PushbackPhase.FromSnapshot to restore
+    // a snapshot written before tug moves; never written.
+
+    /// <summary>Pre-tug-move: the final nose heading, degrees true. Read only to restore an old snapshot; never written.</summary>
+    [JsonPropertyName("TargetHeading")]
+    public int? LegacyTargetHeading { get; init; }
+
+    /// <summary>Pre-tug-move: the reverse target. Read only to restore an old snapshot; never written.</summary>
+    [JsonPropertyName("TargetLatitude")]
+    public double? LegacyTargetLatitude { get; init; }
+
+    /// <summary>Pre-tug-move: the reverse target. Read only to restore an old snapshot; never written.</summary>
+    [JsonPropertyName("TargetLongitude")]
+    public double? LegacyTargetLongitude { get; init; }
+
+    /// <summary>Pre-tug-move: a spot push's rest point. Read only to restore an old snapshot; never written.</summary>
+    [JsonPropertyName("PullForwardLatitude")]
+    public double? LegacyPullForwardLatitude { get; init; }
+
+    /// <summary>Pre-tug-move: a spot push's rest point. Read only to restore an old snapshot; never written.</summary>
+    [JsonPropertyName("PullForwardLongitude")]
+    public double? LegacyPullForwardLongitude { get; init; }
+
+    /// <summary>Pre-tug-move: the spot push was on its pull forward. Read only to restore an old snapshot; never written.</summary>
+    [JsonPropertyName("PullingForward")]
+    public bool? LegacyPullingForward { get; init; }
+
+    /// <summary>Pre-tug-move: where the push (or its current leg) began. Read only to restore an old snapshot; never written.</summary>
+    [JsonPropertyName("StartLat")]
+    public double? LegacyStartLat { get; init; }
+
+    /// <summary>Pre-tug-move: where the push (or its current leg) began. Read only to restore an old snapshot; never written.</summary>
+    [JsonPropertyName("StartLon")]
+    public double? LegacyStartLon { get; init; }
+
+    /// <summary>Pre-tug-move: the distance to the target at the start. Read only to restore an old snapshot; never written.</summary>
+    [JsonPropertyName("TotalDistToTarget")]
+    public double? LegacyTotalDistToTarget { get; init; }
+
+    /// <summary>Pre-tug-move: the push had reached its target. Read only to restore an old snapshot; never written.</summary>
+    [JsonPropertyName("ReachedTarget")]
+    public bool? LegacyReachedTarget { get; init; }
+
+    /// <summary>Pre-tug-move: the nose had finished its in-place alignment. Read only to restore an old snapshot; never written.</summary>
+    [JsonPropertyName("IsAligned")]
+    public bool? LegacyIsAligned { get; init; }
 }
 
-// Retained for snapshot restore only (see PushbackToSpotPhase) — no longer produced by the command path.
+/// <summary>
+/// The pre-#233 spot pushback: a multi-segment reverse along a taxi route, pivoting in place at the corners. Retained
+/// as data only, so that snapshots written before the tug-move rework still deserialize — the phase that flew it is
+/// gone, and <see cref="Yaat.Sim.Phases.PhaseList"/> converts this DTO to a <see cref="PushbackPhaseDto"/> on restore.
+/// Never written by this build, and never flown.
+/// </summary>
 public sealed class PushbackToSpotPhaseDto : PhaseDto
 {
     public required TaxiRouteDto Route { get; init; }

@@ -116,6 +116,13 @@ internal static class ArgumentSuggester
             }
         }
 
+        // PUSH @stand parks on the stand's own heading, so nothing may follow the stand: the parser refuses a
+        // facing (an orientation or a facing taxiway) after it. Claim the slot so no facing is offered.
+        if (IsAfterPushStand(parsed))
+        {
+            return true;
+        }
+
         var slot = new TokenSlot(fullText, parsed.ActiveTokenStart, parsed.ActiveTokenEnd, partial);
         if (TryAddSigilSuggestions(parsed, slot, names, suggestions, maxSuggestions))
         {
@@ -287,6 +294,13 @@ internal static class ArgumentSuggester
 
         return true;
     }
+
+    /// <summary>Whether the caret is on an argument after a <c>PUSH</c> whose first argument is an <c>@stand</c>.</summary>
+    private static bool IsAfterPushStand(CommandInputParseResult parsed) =>
+        (parsed.Definition!.Type == CanonicalCommandType.Pushback)
+        && (parsed.ParameterIndex >= 1)
+        && (parsed.TypedArgs.Length > 0)
+        && parsed.TypedArgs[0].StartsWith('@');
 
     /// <summary>
     /// The count of fixed (non-repeatable) parameters in an overload. A single trailing repeatable

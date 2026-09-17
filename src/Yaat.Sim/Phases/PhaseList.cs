@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases.Approach;
@@ -134,6 +135,8 @@ public sealed class DepartureClearanceInfo
 
 public sealed class PhaseList
 {
+    private static readonly ILogger Log = SimLog.CreateLogger("PhaseList");
+
     public RunwayInfo? AssignedRunway { get; set; }
 
     /// <summary>
@@ -446,7 +449,7 @@ public sealed class PhaseList
             TaxiingPhaseDto d => TaxiingPhase.FromSnapshot(d),
             FollowingPhaseDto d => FollowingPhase.FromSnapshot(d),
             PushbackPhaseDto d => PushbackPhase.FromSnapshot(d),
-            PushbackToSpotPhaseDto d => PushbackToSpotPhase.FromSnapshot(d, groundLayout)!,
+            PushbackToSpotPhaseDto d => PushbackPhase.FromSnapshot(SpotPushbackAsMove(d, groundLayout)),
             RunwayExitPhaseDto d => RunwayExitPhase.FromSnapshot(d, groundLayout),
             HelicopterLandingPhaseDto d => HelicopterLandingPhase.FromSnapshot(d),
             HelicopterApproachPhaseDto d => HelicopterApproachPhase.FromSnapshot(d),
@@ -485,6 +488,48 @@ public sealed class PhaseList
             DepartureProcedurePhaseDto d => DepartureProcedurePhase.FromSnapshot(d),
             _ => throw new InvalidOperationException($"Unknown phase DTO type: {dto.GetType().Name}"),
         };
+
+    /// <summary>
+    /// Converts a pre-#233 spot pushback — a multi-segment reverse along a taxi route, pivoting in place at the
+    /// corners — into the pushback it would be issued as today: one tug move onto the spot, expressed in the legacy
+    /// fields <see cref="PushbackPhase.FromSnapshot"/> already reads for a pre-tug-move snapshot, which finish the
+    /// move from the live pose on the first tick. The route's last node is the spot, so the whole route collapses to
+    /// a single move onto it; the intermediate nodes and the pivots are dropped. One that had arrived restores
+    /// completed. Without a ground layout, or when the node is not in one, the current segment's end stands in and
+    /// the aircraft stops short of the spot, there.
+    /// </summary>
+    private static PushbackPhaseDto SpotPushbackAsMove(PushbackToSpotPhaseDto dto, AirportGroundLayout? groundLayout)
+    {
+        var target = new LatLon(dto.TargetLat, dto.TargetLon);
+        int? spotNodeId = dto.Route?.Segments is { Count: > 0 } segments ? segments[^1].ToNodeId : null;
+        if ((groundLayout is { } layout) && (spotNodeId is { } nodeId) && layout.Nodes.TryGetValue(nodeId, out var spotNode))
+        {
+            target = spotNode.Position;
+        }
+        else
+        {
+            Log.LogWarning(
+                "[Restore] A pre-#233 spot pushback names destination node {NodeId}, which this ground layout does not have; the "
+                    + "restored push stops at its current segment's end ({Lat:F6},{Lon:F6}) instead of the spot",
+                spotNodeId?.ToString() ?? "none",
+                target.Lat,
+                target.Lon
+            );
+        }
+
+        return new PushbackPhaseDto
+        {
+            Status = dto.Status,
+            ElapsedSeconds = dto.ElapsedSeconds,
+            Requirements = dto.Requirements,
+            Kind = PushbackLegKind.Push,
+            LegacyTargetLatitude = target.Lat,
+            LegacyTargetLongitude = target.Lon,
+            LegacyTargetHeading = dto.TargetHeading,
+            LegacyReachedTarget = dto.ReachedFinalNode,
+            TimeSinceLastLog = dto.TimeSinceLastLog,
+        };
+    }
 
     public PhaseListDto ToSnapshot() =>
         new()

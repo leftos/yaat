@@ -730,7 +730,7 @@ public class GroundConflictDetectorTests
         // A is pushing back south (pushbackHeading=180), B is south of A (in pushback path, 150ft)
         var a = MakeAircraft("A", new LatLon(BaseLat + 1.5 * OffsetLatPer100Ft, BaseLon), heading: 0, gs: 3, pushbackHeading: 180);
         a.Phases = new PhaseList();
-        a.Phases.Add(new PushbackPhase());
+        a.Phases.Add(StraightPushFrom(a));
         a.Phases.CurrentPhase!.Status = PhaseStatus.Active;
 
         var b = MakeAircraft("B", new LatLon(BaseLat, BaseLon), heading: 0, gs: 15);
@@ -749,7 +749,7 @@ public class GroundConflictDetectorTests
         // A is pushing back south (pushbackHeading=180), B is north of A (not in pushback path)
         var a = MakeAircraft("A", new LatLon(BaseLat, BaseLon), heading: 0, gs: 3, pushbackHeading: 180);
         a.Phases = new PhaseList();
-        a.Phases.Add(new PushbackPhase());
+        a.Phases.Add(StraightPushFrom(a));
         a.Phases.CurrentPhase!.Status = PhaseStatus.Active;
 
         var b = MakeAircraft("B", new LatLon(BaseLat + 1.5 * OffsetLatPer100Ft, BaseLon), heading: 0, gs: 0, phase: new AtParkingPhase());
@@ -770,7 +770,7 @@ public class GroundConflictDetectorTests
         // pinned to 0 by a parked neighbor; it may creep at its pushback speed.
         var a = MakeAircraft("A", new LatLon(BaseLat + 1.8 * OffsetLatPer100Ft, BaseLon), heading: 0, gs: 3, pushbackHeading: 180);
         a.Phases = new PhaseList();
-        a.Phases.Add(new PushbackPhase());
+        a.Phases.Add(StraightPushFrom(a));
         a.Phases.CurrentPhase!.Status = PhaseStatus.Active;
 
         var b = MakeAircraft("B", new LatLon(BaseLat, BaseLon), heading: 0, gs: 0, phase: new AtParkingPhase());
@@ -794,7 +794,7 @@ public class GroundConflictDetectorTests
         // still hard-stops so it does not back into the parked aircraft.
         var a = MakeAircraft("A", new LatLon(BaseLat + 1.2 * OffsetLatPer100Ft, BaseLon), heading: 0, gs: 3, pushbackHeading: 180);
         a.Phases = new PhaseList();
-        a.Phases.Add(new PushbackPhase());
+        a.Phases.Add(StraightPushFrom(a));
         a.Phases.CurrentPhase!.Status = PhaseStatus.Active;
 
         var b = MakeAircraft("B", new LatLon(BaseLat, BaseLon), heading: 0, gs: 0, phase: new AtParkingPhase());
@@ -816,7 +816,18 @@ public class GroundConflictDetectorTests
     {
         var pusher = MakeAircraft("PSH", standPosition, heading: 0, gs: 3, pushbackHeading: 180);
         pusher.Phases = new PhaseList();
-        pusher.Phases.Add(new PushbackPhase());
+        pusher.Phases.Add(
+            new PushbackPhase
+            {
+                Move = TugMove.Straight(PushbackLegKind.Push, TugMovePlanner.SimplePushbackFt(pusher.AircraftType)),
+                PlannedEnd = GeoMath.ProjectPoint(
+                    standPosition,
+                    new TrueHeading(180),
+                    CategoryPerformance.SimplePushbackDistanceNm(pusher.AircraftType)
+                ),
+                StartsAtStand = true,
+            }
+        );
         pusher.Phases.Start(CommandDispatcher.BuildMinimalContext(pusher));
         pusher.Position = position;
         return pusher;
@@ -834,11 +845,33 @@ public class GroundConflictDetectorTests
         double noseAtStand = new TrueHeading(GeoMath.BearingTo(standPosition, target)).ToReciprocal().Degrees;
         var pusher = MakeAircraft("PSH", standPosition, heading: noseAtStand, gs: 3, pushbackHeading: pushHeading);
         pusher.Phases = new PhaseList();
-        pusher.Phases.Add(new PushbackPhase { TargetLatitude = target.Lat, TargetLongitude = target.Lon });
+        pusher.Phases.Add(
+            new PushbackPhase
+            {
+                Move = TugMove.ToPoint(PushbackLegKind.Push, target),
+                PlannedEnd = target,
+                StartsAtStand = true,
+            }
+        );
         pusher.Phases.Start(CommandDispatcher.BuildMinimalContext(pusher));
         pusher.Position = position;
         pusher.Ground.PushbackTrueHeading = new TrueHeading(pushHeading);
         return pusher;
+    }
+
+    /// <summary>
+    /// A not-yet-started straight push of the simple pushback distance, planned to end that far along the aircraft's
+    /// push heading (the nose's reciprocal when none is set).
+    /// </summary>
+    private static PushbackPhase StraightPushFrom(AircraftState aircraft)
+    {
+        var pushHeading = aircraft.Ground.PushbackTrueHeading ?? aircraft.TrueHeading.ToReciprocal();
+        return new PushbackPhase
+        {
+            Move = TugMove.Straight(PushbackLegKind.Push, TugMovePlanner.SimplePushbackFt(aircraft.AircraftType)),
+            PlannedEnd = GeoMath.ProjectPoint(aircraft.Position, pushHeading, CategoryPerformance.SimplePushbackDistanceNm(aircraft.AircraftType)),
+            StartsAtStand = true,
+        };
     }
 
     /// <summary>An E75L taxiing at 8 kt on <paramref name="heading"/>, with no route and no phase.</summary>

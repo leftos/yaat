@@ -3,14 +3,15 @@ using Yaat.Client.Models;
 using Yaat.Client.Services;
 using Yaat.Client.ViewModels;
 using Yaat.Sim;
+using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
 
 namespace Yaat.Client.Tests;
 
 // Covers the ground view's "Push route..." draw mode: the clicked ramp points become PUSHM targets
 // verbatim (never a graph route — a tug move is free space), each target keeps the sigil that tells a
-// spot apart from a gate of the same name, and the drawn preview is whatever PushbackLegPlanner plans
-// for the same inputs, refusals included.
+// spot apart from a gate of the same name, and the drawn preview is whatever TugMovePlanner plans for
+// the goals those very tokens resolve to, refusals included.
 public class GroundViewModelPushRouteTests
 {
     private const double Lat0 = 37.620;
@@ -45,7 +46,7 @@ public class GroundViewModelPushRouteTests
     }
 
     [Fact]
-    public void UndoPushWaypoint_DropsLastLegAndShrinksPreview()
+    public void UndoPushWaypoint_DropsLastLegAndShrinksPreviewToTheRemainingTargets()
     {
         var vm = MakeViewModel();
         vm.SetLayoutForTesting(RampLayout());
@@ -55,11 +56,11 @@ public class GroundViewModelPushRouteTests
         Assert.True(vm.AddPushWaypoint(2));
         Assert.True(vm.AddPushWaypoint(3));
         Assert.True(vm.AddPushWaypoint(4));
-        Assert.Equal(3, vm.PushRoutePreview!.Count);
+        AssertSamePlan(PlanFor(vm, ac, 2, 3, 4), vm.PushRoutePreview);
 
         vm.UndoPushWaypoint();
 
-        Assert.Equal(2, vm.PushRoutePreview!.Count);
+        AssertSamePlan(PlanFor(vm, ac, 2, 3), vm.PushRoutePreview);
         Assert.Equal("PUSHM $A $B", vm.FinishPushRoute());
     }
 
@@ -68,30 +69,48 @@ public class GroundViewModelPushRouteTests
     {
         var vm = MakeViewModel();
         vm.SetLayoutForTesting(RampLayout());
-        var ac = MakeAircraft();
+        var ac = MakeParkedAircraft();
 
         vm.StartPushRoute(ac);
         Assert.True(vm.AddPushWaypoint(2));
         Assert.True(vm.AddPushWaypoint(3));
 
-        var layout = vm.DomainLayout!;
-        var targets = new List<PushbackTarget> { new(layout.Nodes[2], IsSpot: true), new(layout.Nodes[3], IsSpot: true) };
-        var expected = PushbackLegPlanner.Plan(
-            layout,
-            ac.Position,
-            ac.Heading.Degrees,
-            startsAtStand: false,
-            targets,
-            explicitFinalFacingTrueDeg: null,
-            GroundViewModel.CategoryFor(ac),
-            out string refusal
-        );
+        Assert.Null(vm.PushRouteRefusal);
+        AssertSamePlan(PlanFor(vm, ac, 2, 3), vm.PushRoutePreview);
+    }
 
-        Assert.Equal("", refusal);
-        Assert.NotNull(expected);
-        Assert.Equal(expected!.Select(l => l.Kind), vm.PushRoutePreview!.Select(l => l.Kind));
-        Assert.Equal(expected.Select(l => l.EndTrueHeadingDeg), vm.PushRoutePreview!.Select(l => l.EndTrueHeadingDeg));
-        Assert.Equal(ac.Position, vm.PushRouteStart);
+    [Fact]
+    public void PushRoutePreview_StartsAtTheAircraftsOwnPosition()
+    {
+        var vm = MakeViewModel();
+        vm.SetLayoutForTesting(RampLayout());
+        var ac = MakeParkedAircraft();
+
+        vm.StartPushRoute(ac);
+        Assert.True(vm.AddPushWaypoint(2));
+        Assert.True(vm.AddPushWaypoint(3));
+
+        // The path carries its own start, so nothing else has to be held alongside it to draw the first move.
+        var first = vm.PushRoutePreview!.Moves[0].Samples[0];
+        Assert.Equal(ac.Position.Lat, first.Position.Lat, 9);
+        Assert.Equal(ac.Position.Lon, first.Position.Lon, 9);
+        Assert.Equal(ac.Heading.Degrees, first.NoseTrueDeg, 9);
+    }
+
+    [Fact]
+    public void OneTarget_IsAHalfBuiltRouteWithNoPreviewAndNoRefusal()
+    {
+        var vm = MakeViewModel();
+        vm.SetLayoutForTesting(RampLayout());
+        var ac = MakeAircraft();
+
+        vm.StartPushRoute(ac);
+        Assert.True(vm.AddPushWaypoint(2));
+
+        Assert.Null(vm.PushRoutePreview);
+        Assert.Null(vm.PushRouteRefusal);
+        Assert.Null(vm.FinishPushRoute());
+        Assert.True(vm.IsDrawingRoute);
     }
 
     [Fact]
@@ -106,7 +125,6 @@ public class GroundViewModelPushRouteTests
         Assert.True(vm.AddPushWaypoint(5)); // Parking "FAR", well past the tug-move length guard
 
         Assert.Null(vm.PushRoutePreview);
-        Assert.Null(vm.PushRouteStart);
         Assert.NotNull(vm.PushRouteRefusal);
         Assert.Contains("2000 ft", vm.PushRouteRefusal);
         Assert.Null(vm.FinishPushRoute());
@@ -166,14 +184,79 @@ public class GroundViewModelPushRouteTests
         return new GroundViewModel(connection, sendCommand: (_, _, _) => Task.CompletedTask);
     }
 
+    // What the sim would plan for the same aircraft and the same clicked nodes, through the very tokens the
+    // PUSHM will carry — the preview has no planning of its own to get right.
+    private static TugPlan? PlanFor(GroundViewModel vm, AircraftModel ac, params int[] nodeIds)
+    {
+        var layout = vm.DomainLayout!;
+        var goals = new List<TugGoal>();
+        foreach (int id in nodeIds)
+        {
+            var node = layout.Nodes[id];
+            string token = node switch
+            {
+                { Type: GroundNodeType.Spot, Name: { Length: > 0 } spot } => $"${spot}",
+                { Type: GroundNodeType.Parking or GroundNodeType.Helipad, Name: { Length: > 0 } stand } => $"@{stand}",
+                _ => $"#{node.Id}",
+            };
+            goals.Add(GroundCommandHandler.ResolveTugGoal(layout, token)!);
+        }
+
+        var request = new TugRequest
+        {
+            Start = new TugPose(ac.Position, ac.Heading.Degrees),
+            StartsAtStand = ac.CurrentPhase == "At Parking",
+            AircraftType = ac.AircraftType,
+            Goals = goals,
+            FinalFacingTrueDeg = null,
+            PreviousKind = null,
+        };
+
+        var plan = TugMovePlanner.Plan(layout, request, out string refusal);
+        Assert.Equal("", refusal);
+        Assert.NotNull(plan);
+        return plan;
+    }
+
+    private static void AssertSamePlan(TugPlan? expected, TugPlan? actual)
+    {
+        Assert.NotNull(expected);
+        Assert.NotNull(actual);
+        Assert.Equal(expected!.Moves.Count, actual!.Moves.Count);
+        for (int i = 0; i < expected.Moves.Count; i++)
+        {
+            var want = expected.Moves[i].Move;
+            var got = actual.Moves[i].Move;
+            Assert.Equal(want.Kind, got.Kind);
+            Assert.Equal(want.Shape, got.Shape);
+            Assert.Equal(want.DwellBefore, got.DwellBefore);
+        }
+
+        double offsetFt = GeoMath.DistanceNm(expected.End.Position, actual.End.Position) * GeoMath.FeetPerNm;
+        Assert.True(offsetFt < 0.01, $"end position differs by {offsetFt:F4} ft");
+        Assert.Equal(expected.End.NoseTrueDeg, actual.End.NoseTrueDeg, 2);
+    }
+
     // Stopped in the alley after a bare PUSH, nose south, with the ramp targets behind it to the north.
     private static AircraftModel MakeAircraft() =>
         new()
         {
             Callsign = "TST123",
+            AircraftType = "B738",
             Position = new LatLon(Lat0, Lon0),
             Heading = new TrueHeading(180),
             CurrentPhase = "Holding After Pushback",
+        };
+
+    // The same aircraft still on stand 8B, so the plan opens with the straight push off the stand.
+    private static AircraftModel MakeParkedAircraft() =>
+        new()
+        {
+            Callsign = "TST123",
+            AircraftType = "B738",
+            Position = new LatLon(Lat0, Lon0),
+            Heading = new TrueHeading(180),
+            CurrentPhase = "At Parking",
         };
 
     // A ramp lane running north: stand 8B, spots A and B, a plain intersection, and a stand a mile off.

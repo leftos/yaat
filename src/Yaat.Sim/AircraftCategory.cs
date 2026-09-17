@@ -766,7 +766,10 @@ public static class CategoryPerformance
             _ => 3000,
         };
 
-    /// <summary>Pushback speed (knots). All categories reverse at ~5 kts.</summary>
+    /// <summary>
+    /// Tug speed (knots) for every push and pull, all categories: 5 kt. A judgement call under ISO 20683's
+    /// 10 km/h (≈5.4 kt) towing ceiling; AC 00-65A §11.14 asks for no more than the walking team's pace.
+    /// </summary>
     public static double PushbackSpeed(AircraftCategory cat)
     {
         _ = cat;
@@ -774,53 +777,14 @@ public static class CategoryPerformance
     }
 
     /// <summary>
-    /// Forward alignment creep speed (knots) for the final pull onto a ramp spot. Final stand/spot
-    /// positioning ("docking") is done at walking pace for precision, slower than the reverse leg.
+    /// Creep speed (knots) for the last stretch of a creep move, the final pull onto a ramp spot: 3 kt. A
+    /// judgement call under ISO 20683's 10 km/h (≈5.4 kt) towing ceiling, slower than <see cref="PushbackSpeed"/>
+    /// for precise positioning on the mark.
     /// </summary>
     public static double PushbackAlignSpeed(AircraftCategory cat)
     {
         _ = cat;
         return 3;
-    }
-
-    /// <summary>Pushback turn rate (deg/sec). Tug-steered, slower than self-powered taxi. Flat across categories.</summary>
-    public static double PushbackTurnRate(AircraftCategory cat)
-    {
-        _ = cat;
-        return 5;
-    }
-
-    /// <summary>
-    /// How far past the target taxiway node the aircraft overshoots during pushback (nm).
-    /// Simulates the tug pushing and turning simultaneously — larger aircraft need more room
-    /// to complete the turn, so the overshoot is bigger.
-    /// Uses CWT code (A-I) with fallback to AircraftCategory.
-    /// </summary>
-    public static double PushbackOvershootNm(string aircraftType)
-    {
-        var cwt = WakeTurbulenceData.GetCwt(aircraftType);
-        if (cwt is not null)
-        {
-            return cwt switch
-            {
-                "A" => 0.013, // Super (A388): ~80ft
-                "B" => 0.012, // Upper Heavy (B744): ~70ft
-                "C" => 0.010, // Lower Heavy (B763): ~60ft
-                "D" => 0.008, // Upper Large (B738): ~50ft
-                "E" => 0.007, // Lower Large (E170): ~45ft
-                "F" => 0.007, // Upper Small (C560): ~40ft
-                _ => 0.005, // G-I Small/Light: ~30ft
-            };
-        }
-
-        var cat = AircraftCategorization.Categorize(aircraftType);
-        return cat switch
-        {
-            AircraftCategory.Jet => 0.008,
-            AircraftCategory.Turboprop => 0.007,
-            AircraftCategory.Piston => 0.005,
-            _ => 0.008,
-        };
     }
 
     /// <summary>

@@ -131,11 +131,11 @@ public class SfoPushbackTests(ITestOutputHelper output)
     }
 
     /// <summary>
-    /// PUSH @B13 FACE S — push to B13 with explicit cardinal facing south (180°). Verify aircraft
-    /// ends up near B13 facing heading ~180.
+    /// PUSH @B13 FACE S — a push to a stand parks on the stand's own heading, so a facing with it is refused, and the
+    /// aircraft stays parked on B12.
     /// </summary>
     [Fact]
-    public void Sfo_PushToSpot_SWA1360_B12_ToB13_Heading180()
+    public void Sfo_PushToStand_SWA1360_B12_ToB13_FaceS_Refused()
     {
         var scenarioJson = LoadScenarioJson();
         var engine = BuildEngine();
@@ -157,68 +157,15 @@ public class SfoPushbackTests(ITestOutputHelper output)
         var ac = engine.FindAircraft("SWA1360");
         Assert.NotNull(ac);
 
-        var layout = engine.World.GroundLayout;
-        Assert.NotNull(layout);
-        var b13 = layout.FindSpotByName("B13");
-        Assert.NotNull(b13);
+        var start = ac.Position;
 
-        // Send PUSH @B13 FACE S — cardinal facing south (180°)
         var result = engine.SendCommand("SWA1360", "PUSH @B13 FACE S");
-        Assert.True(result.Success, $"PUSH @B13 FACE S failed: {result.Message}");
-        _output.WriteLine($"Command result: {result.Message}");
+        _output.WriteLine($"Command result: success={result.Success} \"{result.Message}\"");
 
-        // Tick until completion
-        _output.WriteLine($"{"t(s)", 5}  {"gs(kts)", 8}  {"dist(ft)", 9}  {"noseHdg", 8}  {"phase", -24}");
-
-        bool reachedParking = false;
-        for (int tick = 0; tick < 120; tick++)
-        {
-            engine.TickOneSecond();
-
-            double distFt = GeoMath.DistanceNm(ac.Position.Lat, ac.Position.Lon, b13.Position.Lat, b13.Position.Lon) * GeoMath.FeetPerNm;
-            string phase = ac.Phases?.CurrentPhase?.Name ?? "complete";
-            _output.WriteLine($"{tick + 13, 5}  {ac.GroundSpeed, 8:F2}  {distFt, 9:F1}  {ac.TrueHeading.Degrees, 8:F0}  {phase, -24}");
-
-            if (ac.Phases?.CurrentPhase is AtParkingPhase)
-            {
-                reachedParking = true;
-                break;
-            }
-
-            if (ac.Phases?.CurrentPhase is null)
-            {
-                break;
-            }
-        }
-
-        Assert.True(reachedParking, $"Pushback should complete to AtParkingPhase, got: {ac.Phases?.CurrentPhase?.Name ?? "null"}");
-
-        // Verify final heading is near 180
-        double hdgDiff = Math.Abs(NormalizeAngle(ac.TrueHeading.Degrees - 180.0));
-        _output.WriteLine($"Final heading: {ac.TrueHeading.Degrees:F0} (diff from 180: {hdgDiff:F1})");
-        Assert.True(hdgDiff < 5.0, $"Aircraft should face ~180 after pushback, got {ac.TrueHeading.Degrees:F0} (diff={hdgDiff:F1})");
-
-        // Verify near B13
-        double finalDist = GeoMath.DistanceNm(ac.Position.Lat, ac.Position.Lon, b13.Position.Lat, b13.Position.Lon) * GeoMath.FeetPerNm;
-        _output.WriteLine($"Final distance to B13: {finalDist:F0}ft");
-        Assert.True(finalDist < 200, $"Aircraft should be near B13: dist={finalDist:F0}ft");
-    }
-
-    // NormalizeAngle is private in FlightPhysics — inline equivalent.
-    private static double NormalizeAngle(double angle)
-    {
-        angle %= 360.0;
-        if (angle > 180.0)
-        {
-            angle -= 360.0;
-        }
-
-        if (angle < -180.0)
-        {
-            angle += 360.0;
-        }
-
-        return angle;
+        Assert.False(result.Success, "PUSH @B13 FACE S was accepted");
+        Assert.Contains("PUSH @B13 does not take a facing — the aircraft parks on the stand's own heading", result.Message, StringComparison.Ordinal);
+        Assert.IsType<AtParkingPhase>(ac.Phases?.CurrentPhase);
+        Assert.Equal(start, ac.Position);
     }
 
     /// <summary>

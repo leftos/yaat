@@ -20,6 +20,12 @@ public class TugKinematicsTests
     private const double CaptureFirstStopFt = 250.0;
     private const double SixAAbeamFt = 140.5;
 
+    /// <summary>How far down the 6B lane, past 6B, the far-stop pull ends.</summary>
+    private const double FarStopFt = 300.0;
+
+    /// <summary>The stretch before a far stop over which a captured line must be held steady.</summary>
+    private const double SettledStretchFt = 100.0;
+
     private readonly ITestOutputHelper _output;
 
     public TugKinematicsTests(ITestOutputHelper output)
@@ -236,6 +242,40 @@ public class TugKinematicsTests
         Assert.True(overshootFt > 0.0, $"ended {overshootFt:F2} ft along from the stop, but the stop comes before the capture");
     }
 
+    /// <summary>
+    /// A pull that captures the 6B lane from 70 ft abeam, 45° in, and follows it to a stop 300 ft down the lane:
+    /// once on the line it stays there. Near the line the roll-out angle blends to zero, so the nose settles on the
+    /// lane instead of hunting from side to side.
+    /// </summary>
+    [Fact]
+    public void ViaLinePullFollowedToAFarStop_HoldsTheLineWithoutChatter()
+    {
+        if (LoadLane() is not { } lane)
+        {
+            return;
+        }
+
+        var stop = GeoMath.ProjectPoint(lane.SixB.Position, new TrueHeading(lane.TravelDeg), FarStopFt / GeoMath.FeetPerNm);
+        var move = TugMove.ViaLine(PushbackLegKind.Pull, lane.SixB.Position, lane.TravelDeg, stop);
+        var position = TowardSixA(lane, 70.0);
+        double towardLine = CrossTrackFt(position, move) > 0.0 ? -45.0 : 45.0;
+        var start = new TugPose(position, lane.TravelDeg + towardLine);
+
+        var trace = Assert.Single(TugKinematics.Simulate(start, [move], Narrowbody, StepFt).Moves);
+
+        var lastStretch = trace.Samples.Where(s => AlongFt(s.Position, stop, lane.TravelDeg) >= -SettledStretchFt).ToList();
+        double worstNoseDeg = lastStretch.Max(s => AbsDiffDeg(s.NoseTrueDeg, lane.TravelDeg));
+        double overshootFt = FarSideOvershootFt(trace, move);
+        _output.WriteLine(
+            $"path {trace.PathLengthFt:F0} ft, {lastStretch.Count} samples in the last {SettledStretchFt:F0} ft, worst nose error there "
+                + $"{worstNoseDeg:F3}°, far-side overshoot {overshootFt:F3} ft, end overshoot {trace.EndOvershootFt:F2} ft"
+        );
+        Assert.True(trace.Completed, "the move never reached its stop");
+        Assert.True(lastStretch.Count >= 10, $"only {lastStretch.Count} samples in the last {SettledStretchFt:F0} ft");
+        Assert.True(worstNoseDeg <= 0.1, $"the nose was {worstNoseDeg:F3}° off the lane in the last {SettledStretchFt:F0} ft");
+        Assert.True(overshootFt <= 0.5, $"the path overshot the lane by {overshootFt:F3} ft");
+    }
+
     [Theory]
     [InlineData(PushbackLegKind.Push)]
     [InlineData(PushbackLegKind.Pull)]
@@ -351,6 +391,33 @@ public class TugKinematicsTests
         Assert.True(simulation.Moves[0].PathLengthFt > 600.0, "the move gave up before its budget");
         Assert.False(simulation.Moves[1].Completed, "the move after an unflyable one was reported completed");
         Assert.Empty(simulation.Moves[1].Samples);
+    }
+
+    /// <summary>
+    /// A to-point move whose steps are longer than the 1 ft stop window must still end on its point: a widebody
+    /// 11 ft short of a point 2 ft off its track cannot turn onto it in time, so it passes the point abeam at more
+    /// than 1 ft. It completes there (within 3 ft, with the point abeam or behind) instead of orbiting back.
+    /// </summary>
+    [Fact]
+    public void ToPointPassedAbeamWithLongSteps_CompletesInsteadOfOrbiting()
+    {
+        if (LoadLane() is not { } lane)
+        {
+            return;
+        }
+
+        const double longStepFt = 2.0;
+        var start = new TugPose(OnLaneBeforeSixB(lane), lane.TravelDeg);
+        var ahead = GeoMath.ProjectPoint(start.Position, new TrueHeading(lane.TravelDeg), 11.0 / GeoMath.FeetPerNm);
+        var target = GeoMath.ProjectPoint(ahead, new TrueHeading(lane.TravelDeg + 90.0), 2.0 / GeoMath.FeetPerNm);
+
+        var trace = Assert.Single(TugKinematics.Simulate(start, [TugMove.ToPoint(PushbackLegKind.Pull, target)], Widebody, longStepFt).Moves);
+        double endOffFt = FeetBetween(trace.End.Position, target);
+        _output.WriteLine($"completed={trace.Completed}, flew {trace.PathLengthFt:F1} ft, ended {endOffFt:F2} ft off the point");
+
+        Assert.True(trace.Completed, $"the move never completed; it flew {trace.PathLengthFt:F0} ft");
+        Assert.True(trace.PathLengthFt <= 20.0, $"the move flew {trace.PathLengthFt:F1} ft for a point 11 ft ahead — it went round again");
+        Assert.True(endOffFt <= 3.0, $"the move ended {endOffFt:F2} ft off its point");
     }
 
     private sealed record Lane(GroundNode SixA, GroundNode SixB, double TravelDeg);

@@ -17,8 +17,8 @@ namespace Yaat.Sim.Tests;
 ///
 /// <para>Both run on the real SFO layout around stand B12: taxilane Yankee sits ~186 ft behind the stand and
 /// taxiway Alpha a further ~218 ft beyond it, which is the geometry <see cref="SfoYankeePushTests"/> pins the
-/// single-leg push against. The push case is here as the pin the pull refactor must not move; the pull cases
-/// are the new leg kind. Every node is resolved by name — ids renumber whenever the layout is regenerated.</para>
+/// single-leg push against. Each leg is one <see cref="TugMove"/>: a to-point push or pull, or a line capture.
+/// Every node is resolved by name — ids renumber whenever the layout is regenerated.</para>
 /// </summary>
 public class PushbackPullLegTests(ITestOutputHelper output)
 {
@@ -33,26 +33,26 @@ public class PushbackPullLegTests(ITestOutputHelper output)
     /// <summary>How close to the leg's target the aircraft must come to rest.</summary>
     private const double OnTargetToleranceFt = 15.0;
 
-    /// <summary>How far off the bearing to the target the steering case starts, inside the phase's 20° alignment window.</summary>
+    /// <summary>How far off the bearing to the target the steering case starts.</summary>
     private const double StartOffsetDeg = 15.0;
 
     /// <summary>How close to the bearing it travelled a steered nose must finish.</summary>
     private const double SteeredToleranceDeg = 6.0;
 
-    /// <summary>Length of the short nudge leg the two-nose-writer case runs, in feet.</summary>
-    private const double NudgeLegFt = 15.0;
+    /// <summary>How far ahead of the start the line the capture case pulls onto passes, in feet.</summary>
+    private const double LineOffsetFt = 40.0;
 
-    /// <summary>How far off the travel bearing that case's nose starts, just inside the phase's alignment window.</summary>
-    private const double StartLagDeg = 19.0;
+    /// <summary>How far off the start nose the capture case's line runs.</summary>
+    private const double LineOffsetDeg = 90.0;
 
-    /// <summary>How far off the travel bearing that case's final facing sits, on the side the nose is turning toward.</summary>
-    private const double FacingOffsetDeg = 90.0;
+    /// <summary>Tick budget for the capture leg.</summary>
+    private const int CaptureObservationSeconds = 180;
 
-    /// <summary>Tick budget for the nudge leg — long enough that the nose settles even if the leg never closes.</summary>
-    private const int NudgeObservationSeconds = 60;
+    /// <summary>Headroom on the per-second curvature bound: the chord is shorter than the arc, and the steps are discrete.</summary>
+    private const double CurvatureSlack = 1.05;
 
-    /// <summary>Floating-point slack on the per-second turn-rate ceiling.</summary>
-    private const double TurnRateToleranceDeg = 0.1;
+    /// <summary>Floating-point slack on the per-second curvature bound, radians.</summary>
+    private const double CurvatureSlackRad = 0.002;
 
     /// <summary>
     /// A pull leg tows the aircraft nose-first: the pushback heading stays null for the whole leg — which is
@@ -175,19 +175,13 @@ public class PushbackPullLegTests(ITestOutputHelper output)
     }
 
     /// <summary>
-    /// One end of the aircraft is the tug's to steer, and only one thing may steer it per tick. On a pull leg
-    /// the pursuit arc and the final-facing rotation both write the nose, so a leg run with a facing well off
-    /// the bearing it travels must still never turn the nose faster than
-    /// <see cref="CategoryPerformance.PushbackTurnRate"/> — a tug cannot steer the nose gear twice in one tick.
-    ///
-    /// <para>The leg is a short nudge deliberately: the pursuit arc is still curving the nose onto the bearing
-    /// it travels when the leg captures its target and the final-facing rotation takes the nose over, which is
-    /// where two writers would compound. The nose starts inside the phase's 20°
-    /// alignment window so the leg begins moving without an in-place pivot, offset to the side the facing is
-    /// <em>not</em> on, so both writers pull the nose the same way.</para>
+    /// One end of the aircraft is the tug's to steer, and it is steered by curvature alone. A pull onto a line
+    /// running 90° off the way the nose points, 40 ft to the side, has to turn hard; measured from the positions
+    /// the engine actually produced, every second's nose turn stays within the distance moved that second over
+    /// the turn radius, and a second without movement turns the nose not at all.
     /// </summary>
     [Fact]
-    public void PullLeg_FacingWellOffTheTravelBearing_NeverTurnsTheNoseFasterThanTheTug()
+    public void PullLineCapture_NeverTurnsTheNoseTighterThanTheRadius()
     {
         if (SfoGroundHarness.Build(output, autoCross: false) is not { } ground)
         {
@@ -195,53 +189,44 @@ public class PushbackPullLegTests(ITestOutputHelper output)
         }
 
         var start = NearestNodeOnTaxiway(ground.Layout, LaneTaxiway, StandPosition(ground));
-        double bearingDeg = GeoMath.BearingTo(start.Position, NearestNodeOnTaxiway(ground.Layout, MovementTaxiway, start.Position).Position);
-        var target = GeoMath.ProjectPoint(start.Position, new TrueHeading(bearingDeg), NudgeLegFt / GeoMath.FeetPerNm);
+        double noseDeg = GeoMath.BearingTo(start.Position, NearestNodeOnTaxiway(ground.Layout, MovementTaxiway, start.Position).Position);
+        double lineDeg = noseDeg + LineOffsetDeg;
+        var linePoint = GeoMath.ProjectPoint(start.Position, new TrueHeading(noseDeg), LineOffsetFt / GeoMath.FeetPerNm);
+        var move = TugMove.ViaLine(PushbackLegKind.Pull, linePoint, lineDeg, stopAt: null);
+        var planned = TugKinematics.Simulate(new TugPose(start.Position, noseDeg), [move], AircraftType, 1.0).End.Position;
+        var phase = new PushbackPhase { Move = move, PlannedEnd = planned };
+        var ac = SfoGroundHarness.SpawnAt(ground, "PUL4", AircraftType, (start, new TrueHeading(noseDeg)), phase);
+        double radiusFt = TugKinematics.TurnRadiusFt(AircraftType, tight: false);
 
-        var phase = new PushbackPhase
-        {
-            Kind = PushbackLegKind.Pull,
-            TargetLatitude = target.Lat,
-            TargetLongitude = target.Lon,
-            TargetHeading = new TrueHeading(bearingDeg - FacingOffsetDeg).ToDisplayInt(),
-        };
-        var ac = SfoGroundHarness.SpawnAt(ground, "PUL4", AircraftType, (start, new TrueHeading(bearingDeg + StartLagDeg)), phase);
-
-        double turnRateDegPerSec = CategoryPerformance.PushbackTurnRate(AircraftCategorization.Categorize(AircraftType));
-        double previousNoseDeg = ac.TrueHeading.Degrees;
-        double worstDeltaDeg = 0;
-        int worstSecond = 0;
-        SfoGroundHarness.TickUntil(
+        var previousPosition = ac.Position;
+        var previousNose = ac.TrueHeading;
+        double worstRatio = 0.0;
+        double totalTurnDeg = 0.0;
+        int completed = SfoGroundHarness.TickUntil(
             ground.Engine,
             () => ac.Phases?.CurrentPhase is not PushbackPhase,
-            NudgeObservationSeconds,
+            CaptureObservationSeconds,
             second =>
             {
-                double deltaDeg = new TrueHeading(previousNoseDeg).AbsAngleTo(ac.TrueHeading);
-                previousNoseDeg = ac.TrueHeading.Degrees;
-                if (deltaDeg > worstDeltaDeg)
-                {
-                    worstDeltaDeg = deltaDeg;
-                    worstSecond = second;
-                }
-
-                output.WriteLine(
-                    $"  t={second, 3}s nose={ac.TrueHeading.Degrees, 6:F1}° turned={deltaDeg, 5:F2}°/s "
-                        + $"toTarget={DistanceFt(ac.Position, target), 5:F0}ft phase={PhaseName(ac)}"
+                double movedFt = DistanceFt(previousPosition, ac.Position);
+                double turnDeg = previousNose.AbsAngleTo(ac.TrueHeading);
+                double boundRad = ((movedFt / radiusFt) * CurvatureSlack) + CurvatureSlackRad;
+                output.WriteLine($"  t={second, 3}s moved={movedFt, 5:F2}ft turned={turnDeg, 5:F2}° nose={ac.TrueHeading.Degrees, 6:F1}°");
+                Assert.True(
+                    (turnDeg * Math.PI / 180.0) <= boundRad,
+                    $"t={second}s: the nose turned {turnDeg:F2}° over {movedFt:F2} ft, tighter than R={radiusFt:F1} ft"
                 );
+                worstRatio = Math.Max(worstRatio, movedFt > 0.5 ? (turnDeg * Math.PI / 180.0) / movedFt * radiusFt : 0.0);
+                totalTurnDeg += turnDeg;
+                previousPosition = ac.Position;
+                previousNose = ac.TrueHeading;
             }
         );
 
-        output.WriteLine(
-            $"pull leg with facing {phase.TargetHeading:000}° against a {bearingDeg:F0}° travel bearing: "
-                + $"fastest nose turn {worstDeltaDeg:F2}°/s at t={worstSecond}s, tug limit {turnRateDegPerSec:F2}°/s"
-        );
-
-        Assert.True(
-            worstDeltaDeg <= (turnRateDegPerSec + TurnRateToleranceDeg),
-            $"the nose turned {worstDeltaDeg:F2}° in the second at t={worstSecond}s, past the tug's {turnRateDegPerSec:F2}°/s — "
-                + "the pursuit arc and the final-facing rotation both wrote the nose that tick; a pull leg has one nose writer"
-        );
+        output.WriteLine($"capture finished t={completed}s, turned {totalTurnDeg:F0}° in all, worst turn/(moved/R) {worstRatio:F2}");
+        Assert.True(completed > 0, $"the capture never completed within {CaptureObservationSeconds}s (phase={PhaseName(ac)})");
+        Assert.True(totalTurnDeg > 60.0, $"the capture turned only {totalTurnDeg:F0}°, so the bound proved nothing");
+        Assert.True(new TrueHeading(lineDeg).AbsAngleTo(ac.TrueHeading) <= 2.0, $"the capture ended with the nose on {ac.TrueHeading.Degrees:F1}°");
     }
 
     /// <summary>
@@ -251,12 +236,8 @@ public class PushbackPullLegTests(ITestOutputHelper output)
     [Fact]
     public void Kind_SurvivesTheSnapshot_AndAKindlessSnapshotRestoresAsPush()
     {
-        var phase = new PushbackPhase
-        {
-            Kind = PushbackLegKind.Pull,
-            TargetLatitude = 37.6188,
-            TargetLongitude = -122.3750,
-        };
+        var target = new LatLon(37.6188, -122.3750);
+        var phase = new PushbackPhase { Move = TugMove.ToPoint(PushbackLegKind.Pull, target), PlannedEnd = target };
 
         var dto = Assert.IsType<PushbackPhaseDto>(phase.ToSnapshot());
         Assert.Equal(PushbackLegKind.Pull, dto.Kind);
@@ -270,6 +251,73 @@ public class PushbackPullLegTests(ITestOutputHelper output)
         var restored = Assert.IsType<PushbackPhaseDto>(JsonSerializer.Deserialize<PhaseDto>(written.ToJsonString(), RecordingJsonOptions.Default));
         Assert.Equal(PushbackLegKind.Push, restored.Kind);
         Assert.Equal(PushbackLegKind.Push, PushbackPhase.FromSnapshot(restored).Kind);
+    }
+
+    /// <summary>
+    /// A stand push-off snapshotted mid-move, through JSON and back, restores every field it carries — the move and
+    /// its flags, the planned end, the stand flag, the facing amendment, the progress, the last position and the
+    /// dwell clock — and the restored phase finishes the move on the same planned end.
+    /// </summary>
+    [Fact]
+    public void MidMoveSnapshot_RoundTripsEveryField_AndTheRestoredMoveFinishes()
+    {
+        if (SfoGroundHarness.Build(output, autoCross: false) is not { } ground)
+        {
+            return;
+        }
+
+        var stand = FindStand(ground);
+        var target = NearestNodeOnTaxiway(ground.Layout, LaneTaxiway, stand.Position);
+        double noseDeg = new TrueHeading(GeoMath.BearingTo(stand.Position, target.Position)).ToReciprocal().Degrees;
+        var standPose = new TugPose(stand.Position, noseDeg);
+        var move = TugMove.ToPoint(PushbackLegKind.Push, target.Position) with { Creep = true, DwellBefore = true, Tight = true };
+        var phase = new PushbackPhase
+        {
+            Move = move,
+            PlannedEnd = target.Position,
+            StartsAtStand = true,
+            Amendment = TugAmendment.For(TugGoal.TaxiwayLine(target, LaneTaxiway, noseDeg), standPose),
+        };
+        Assert.NotNull(phase.Amendment);
+        var ac = SfoGroundHarness.SpawnAt(ground, "PSH2", AircraftType, (stand, new TrueHeading(noseDeg)), phase);
+        SfoGroundHarness.TickUntil(ground.Engine, () => false, 15, null);
+        Assert.Same(phase, ac.Phases?.CurrentPhase);
+
+        var dto = Assert.IsType<PushbackPhaseDto>(phase.ToSnapshot());
+        string json = JsonSerializer.Serialize<PhaseDto>(dto, RecordingJsonOptions.Default);
+        output.WriteLine(json);
+        var readBack = Assert.IsType<PushbackPhaseDto>(JsonSerializer.Deserialize<PhaseDto>(json, RecordingJsonOptions.Default));
+        var restored = PushbackPhase.FromSnapshot(readBack);
+        string rewritten = JsonSerializer.Serialize<PhaseDto>(restored.ToSnapshot(), RecordingJsonOptions.Default);
+
+        Assert.Equal(json, rewritten);
+        Assert.Equal(move, restored.Move);
+        Assert.Equal(phase.PlannedEnd, restored.PlannedEnd);
+        Assert.True(restored.StartsAtStand);
+        Assert.Equal(phase.Amendment, restored.Amendment);
+        Assert.True(dto.ProgressDistanceFt > 0.0, "the snapshot was taken before the move had gone anywhere");
+        Assert.Equal(PushbackPhase.DwellSeconds, dto.DwellElapsedSeconds);
+        Assert.Null(dto.LegacyTargetLatitude);
+        Assert.Equal(phase.HasLeftTheStand(ac), restored.HasLeftTheStand(ac));
+
+        // A fresh engine, so the original aircraft still on the same path cannot hold the restored one.
+        var restoredGround = SfoGroundHarness.Build(output, autoCross: false)!.Value;
+        var twin = SfoGroundHarness.SpawnAt(restoredGround, "PSH3", AircraftType, (stand, new TrueHeading(noseDeg)), restored);
+        twin.Position = ac.Position;
+        twin.TrueHeading = ac.TrueHeading;
+        twin.IndicatedAirspeed = ac.IndicatedAirspeed;
+        twin.Ground.PushbackTrueHeading = ac.Ground.PushbackTrueHeading;
+        int finished = SfoGroundHarness.TickUntil(
+            restoredGround.Engine,
+            () => twin.Phases?.CurrentPhase is not PushbackPhase,
+            LegBudgetSeconds,
+            null
+        );
+
+        double offEndFt = DistanceFt(twin.Position, target.Position);
+        output.WriteLine($"restored move finished t={finished}s, {offEndFt:F2} ft off the planned end");
+        Assert.True(finished > 0, "the restored move never finished");
+        Assert.True(offEndFt <= 3.0, $"the restored move ended {offEndFt:F2} ft off its planned end");
     }
 
     /// <summary>One leg to run: who flies it, which way the tug moves them, from where on what heading, to what.</summary>
@@ -305,12 +353,7 @@ public class PushbackPullLegTests(ITestOutputHelper output)
     /// <returns>What the run did.</returns>
     private LegRun RunLeg(SfoGround ground, LegSetup setup)
     {
-        var phase = new PushbackPhase
-        {
-            Kind = setup.Kind,
-            TargetLatitude = setup.Target.Position.Lat,
-            TargetLongitude = setup.Target.Position.Lon,
-        };
+        var phase = new PushbackPhase { Move = TugMove.ToPoint(setup.Kind, setup.Target.Position), PlannedEnd = setup.Target.Position };
         var ac = SfoGroundHarness.SpawnAt(ground, setup.Callsign, AircraftType, (setup.From, new TrueHeading(setup.StartHeadingDeg)), phase);
         var startPosition = ac.Position;
 

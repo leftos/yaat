@@ -2428,9 +2428,9 @@ public static class CommandDispatcher
 
             // Ground commands
             case PushbackCommand push:
-                return GroundCommandHandler.TryPushback(aircraft, push, groundLayout);
+                return GroundCommandHandler.TryPushback(aircraft, push, groundLayout, ctx.ListAircraft);
             case PushbackMultiCommand pushMulti:
-                return GroundCommandHandler.TryPushbackMulti(aircraft, pushMulti, groundLayout);
+                return GroundCommandHandler.TryPushbackMulti(aircraft, pushMulti, groundLayout, ctx.ListAircraft);
             case TaxiCommand taxi:
                 return GroundCommandHandler.TryTaxi(aircraft, taxi, groundLayout, autoCrossRunway);
             case TaxiAutoCommand autoTaxi:

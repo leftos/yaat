@@ -4,21 +4,22 @@ using Yaat.Sim.Data.Faa;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Simulation;
+using Yaat.Sim.Simulation.Snapshots;
 using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests.Simulation.GroundTaxi;
 
 /// <summary>
-/// <c>PUSHM</c> end to end on the real SFO ramp: the tug move a ZOA ground controller makes off gate D15 into
-/// the six alley, <c>PUSH $6A</c> then <c>PUSH $6B</c> in the ground video, issued here as one
-/// <c>PUSHM $6A $6B</c>. The engine is driven rather than the phase ticked directly —
-/// <see cref="FlightPhysics"/> is the only integrator of ground speed, so a bare OnTick loop would leave the
-/// aircraft parked on the stand.
+/// Tug moves end to end on the real SFO ramp, off gate D15 into the six alley: <c>PUSH $6A</c>, and the move a
+/// ZOA ground controller makes in the ground video — <c>PUSH $6A</c> then <c>PUSH $6B</c> — issued here as one
+/// <c>PUSHM $6A $6B</c>. The engine is driven rather than a phase ticked directly: <see cref="FlightPhysics"/> is
+/// the only integrator of ground speed, so a bare OnTick loop would leave the aircraft parked on the stand.
 ///
-/// <para>The move is two legs of different kinds: D15 is a stand, so leg 1 can only be a push (the tug
-/// reverses the aircraft tail-first out of the gate), and spot 6B sits ahead of the nose from 6A, so leg 2 is
-/// a pull (the tug tows it forward). The alley case is the one the bug report hits: an aircraft already out of
-/// its gate, holding in the alley, given a move whose first leg is ahead of it.</para>
+/// <para>A whole move is sampled once per simulated second — the engine has no public way to advance one live
+/// physics sub-tick (<see cref="SimulationEngine.ReplayOneSubTick"/> steps a replay, under the replay host) — and
+/// checked for what a tug cannot do: turn the nose tighter than the type's tightest radius, turn it while the
+/// aircraft is still, crab (a push keeps the nose on the reciprocal of its travel, a pull travels where the nose
+/// points), or change between push and pull without first waiting stopped.</para>
 ///
 /// <para>Every node is resolved by name — ids are geometry-coupled and renumber whenever the layout is
 /// regenerated. A missing SFO layout silently skips, the repo's convention for absent test data.</para>
@@ -29,8 +30,10 @@ public class SfoPushRouteE2ETests(ITestOutputHelper output)
     private const string AlleySpot = "6A";
     private const string EndSpot = "6B";
     private const string AircraftType = "B738";
+    private const string PushCommand = "PUSH $6A";
     private const string MoveCommand = "PUSHM $6A $6B";
-    private const string TaxiOutCommand = "TAXI A";
+    private const string TaxiOutTaxiway = "A";
+    private const string TaxiOutCommand = $"TAXI {TaxiOutTaxiway}";
 
     /// <summary>The gate a stand-terminus move ends on — D15's neighbour across the six alley's near side.</summary>
     private const string EndGate = "D16";
@@ -44,18 +47,20 @@ public class SfoPushRouteE2ETests(ITestOutputHelper output)
     /// <summary>The move a redirect issues mid-move: the same alley, stopping one marking short of the original.</summary>
     private const string RedirectCommand = "PUSHM $6A $6";
 
-    /// <summary>Tick budget for the whole move: ~520 ft reversed at 5 kt then ~140 ft towed at 3 kt, with slack.</summary>
+    /// <summary>Tick budget for a whole move off D15: <c>PUSHM $6A $6B</c> takes about 230 s.</summary>
     private const int MoveBudgetSeconds = 300;
 
-    /// <summary>How long the move runs before the mid-move HOLD is issued.</summary>
-    private const int MidMoveSeconds = 20;
-
     /// <summary>
-    /// How long the move runs before the mid-move taxi clearance. Later than the hold: a taxi route only
-    /// resolves once the aircraft is far enough out of the gate to reach the movement area, and leg 1 is still
-    /// running (its target is ~520 ft away at 5 kt), so a leg is still queued behind it.
+    /// How far the running tug move must have moved the aircraft before a mid-move command is issued, feet: far
+    /// enough that the move is under way, not just starting.
     /// </summary>
-    private const int TaxiCueSeconds = 60;
+    private const double MidMoveFt = 30.0;
+
+    /// <summary>How long a held aircraft may take to come to rest; braking 5 kt at the jet brake rate takes about a second.</summary>
+    private const int HoldStopBudgetSeconds = 5;
+
+    /// <summary>How far into the dwell before the pull onto 6A the dwell redirect is issued, seconds.</summary>
+    private const double DwellRedirectAfterSeconds = 1.0;
 
     /// <summary>How long a held aircraft is watched for movement.</summary>
     private const int HoldObservationSeconds = 15;
@@ -69,21 +74,77 @@ public class SfoPushRouteE2ETests(ITestOutputHelper output)
     /// <summary>Ground speed (kt) below which the aircraft counts as stopped.</summary>
     private const double AtRestSpeedKts = 0.5;
 
-    /// <summary>How close to the spot's rest point the move must finish.</summary>
-    private const double OnSpotToleranceFt = 20.0;
+    /// <summary>How close to the spot's rest point a move checked end to end must finish.</summary>
+    private const double RestPositionToleranceFt = 3.0;
 
-    /// <summary>How close to the spot's nose-out heading the nose must finish.</summary>
-    private const double NoseOutToleranceDeg = 12.0;
+    /// <summary>How close to the spot's nose-out heading a move checked end to end must finish.</summary>
+    private const double RestNoseToleranceDeg = 1.0;
+
+    /// <summary>How close to a spot's rest point a held or redirected move must finish.</summary>
+    private const double OnSpotToleranceFt = 20.0;
 
     /// <summary>How far a held aircraft may drift before it counts as still moving.</summary>
     private const double FrozenToleranceFt = 2.0;
+
+    /// <summary>A second in which the aircraft moved less than this counts as still.</summary>
+    private const double StillFt = 0.05;
+
+    /// <summary>The most the nose may turn in a still second.</summary>
+    private const double StillNoseToleranceDeg = 0.01;
+
+    /// <summary>The curvature bound's margin: a second's chord is a little shorter than the arc it spans.</summary>
+    private const double CurvatureMargin = 1.05;
+
+    /// <summary>The curvature bound's slack for rounding, radians.</summary>
+    private const double CurvatureSlackRad = 0.002;
+
+    /// <summary>How far a push's nose may sit off the reciprocal of its push heading.</summary>
+    private const double PushNoseToleranceDeg = 1.0;
+
+    /// <summary>How far a pull's displacement may point off the nose it had midway through the second.</summary>
+    private const double PullTravelToleranceDeg = 2.0;
+
+    /// <summary>A pull second must move at least this far before its displacement bearing is judged.</summary>
+    private const double PullBearingMinMoveFt = 0.5;
+
+    /// <summary>
+    /// Whole still seconds that must precede the first movement after a change between push and pull: the 5 s
+    /// dwell counts from a standstill in quarter-second steps, so at least four whole seconds are still.
+    /// </summary>
+    private const int MinStillSecondsBeforeReversal = 4;
 
     /// <summary>Fuselage length assumed for a type the FAA database does not carry, matching the handler's.</summary>
     private const double DefaultFuselageLengthFt = 110.0;
 
     /// <summary>
-    /// The documented case. <c>PUSHM $6A $6B</c> off gate D15 is accepted, runs to completion, and leaves the
-    /// aircraft stopped on spot 6B nose-out — the nosewheel on the marking, which puts the centroid a
+    /// <c>PUSH $6A</c> off D15: the push-off, a push down onto the T6A lane, then a reversal and a pull up the lane
+    /// onto the mark — flown without a pivot or a crab, ending nose-out on the rest point.
+    /// </summary>
+    [Fact]
+    public void PushFromD15ToSixA_PushesPushesThenPulls_WithoutPivotOrCrab()
+    {
+        if (SfoGroundHarness.Build(output, autoCross: false) is not { } ground)
+        {
+            return;
+        }
+
+        var ac = SfoGroundHarness.SpawnParked(ground, "PSH9", AircraftType, Gate);
+        var result = ground.Engine.SendCommand(ac.Callsign, PushCommand);
+        output.WriteLine($"{Gate} stand heading {ac.TrueHeading.Degrees:F1}° — '{PushCommand}' → success={result.Success} \"{result.Message}\"");
+        Assert.True(result.Success, $"'{PushCommand}' off {Gate} was refused: {result.Message}");
+
+        var run = TickMove(ground, ac, MoveBudgetSeconds);
+
+        Assert.True(run.CompletedSecond > 0, $"the move never finished within {MoveBudgetSeconds}s (phase={PhaseName(ac)})");
+        AssertKinds(run, PushbackLegKind.Push, PushbackLegKind.Push, PushbackLegKind.Pull);
+        AssertTugMotion(run);
+        AssertRestsOnSpot(ground.Layout, ac, AlleySpot);
+        Assert.IsType<HoldingAfterPushbackPhase>(ac.Phases?.CurrentPhase);
+    }
+
+    /// <summary>
+    /// The documented case. <c>PUSHM $6A $6B</c> off gate D15 is accepted, flown without a pivot or a crab, and
+    /// leaves the aircraft stopped on spot 6B nose-out — the nosewheel on the marking, which puts the centroid a
     /// half-fuselage behind it, the same geometry <c>PUSH $spot</c> ends in. A spot is not a stand, so the
     /// aircraft holds after the pushback with no parking spot, as <c>PUSH $spot</c> leaves it.
     /// </summary>
@@ -97,33 +158,14 @@ public class SfoPushRouteE2ETests(ITestOutputHelper output)
 
         var ac = SfoGroundHarness.SpawnParked(ground, "PSM1", AircraftType, Gate);
         var result = ground.Engine.SendCommand(ac.Callsign, MoveCommand);
-        output.WriteLine($"{Gate} stand heading {ac.TrueHeading.Degrees:F0}° — '{MoveCommand}' → success={result.Success} \"{result.Message}\"");
+        output.WriteLine($"{Gate} stand heading {ac.TrueHeading.Degrees:F1}° — '{MoveCommand}' → success={result.Success} \"{result.Message}\"");
         Assert.True(result.Success, $"'{MoveCommand}' off {Gate} was refused: {result.Message}");
 
         var run = TickMove(ground, ac, MoveBudgetSeconds);
-        var rest = SpotRest(ground.Layout, EndSpot);
-        double offRestFt = DistanceFt(ac.Position, rest.Position);
-        double offNoseOutDeg = new TrueHeading(rest.OutHeadingDeg).AbsAngleTo(ac.TrueHeading);
 
-        output.WriteLine($"legs: {Describe(run.Legs)}, finished t={run.CompletedSecond}s, phase={PhaseName(ac)}");
-        output.WriteLine(
-            $"at rest {offRestFt:F1} ft off the {EndSpot} rest point, nose {ac.TrueHeading.Degrees:F1}° "
-                + $"vs nose-out {rest.OutHeadingDeg:F1}° ({offNoseOutDeg:F1}° off), gs={ac.GroundSpeed:F2}kt"
-        );
-
-        Assert.True(
-            run.CompletedSecond > 0,
-            $"the move never finished within {MoveBudgetSeconds}s (phase={PhaseName(ac)}, legs={Describe(run.Legs)})"
-        );
-        Assert.True(
-            offRestFt <= OnSpotToleranceFt,
-            $"the move ended {offRestFt:F1} ft from spot {EndSpot}'s rest point, past the {OnSpotToleranceFt:F0} ft tolerance"
-        );
-        Assert.True(
-            offNoseOutDeg <= NoseOutToleranceDeg,
-            $"the nose finished {offNoseOutDeg:F1}° off spot {EndSpot}'s {rest.OutHeadingDeg:F0}° nose-out heading, past the "
-                + $"{NoseOutToleranceDeg:F0}° tolerance — a spot pushback leaves the aircraft pointed out to taxi"
-        );
+        Assert.True(run.CompletedSecond > 0, $"the move never finished within {MoveBudgetSeconds}s (phase={PhaseName(ac)})");
+        AssertTugMotion(run);
+        AssertRestsOnSpot(ground.Layout, ac, EndSpot);
         Assert.True(ac.GroundSpeed <= AtRestSpeedKts, $"the aircraft was still moving at {ac.GroundSpeed:F2} kt when the move ended");
         Assert.IsType<HoldingAfterPushbackPhase>(ac.Phases?.CurrentPhase);
         Assert.Null(ac.Ground.ParkingSpot);
@@ -148,24 +190,48 @@ public class SfoPushRouteE2ETests(ITestOutputHelper output)
         Assert.True(result.Success, $"'{StandMoveCommand}' off {Gate} was refused: {result.Message}");
 
         var run = TickMove(ground, ac, MoveBudgetSeconds);
-        output.WriteLine($"legs: {Describe(run.Legs)}, finished t={run.CompletedSecond}s, phase={PhaseName(ac)}");
-
-        Assert.True(
-            run.CompletedSecond > 0,
-            $"the move never finished within {MoveBudgetSeconds}s (phase={PhaseName(ac)}, legs={Describe(run.Legs)})"
+        var endGate = ground.Layout.FindParkingByName(EndGate) ?? throw new InvalidOperationException($"the SFO layout has no gate '{EndGate}'");
+        output.WriteLine(
+            $"at rest {DistanceFt(ac.Position, endGate.Position):F2} ft off {EndGate}, nose {ac.TrueHeading.Degrees:F2}° vs the stand's "
+                + $"{DescribeHeading(endGate.TrueHeading?.Degrees)}"
         );
+
+        Assert.True(run.CompletedSecond > 0, $"the move never finished within {MoveBudgetSeconds}s (phase={PhaseName(ac)})");
+        AssertTugMotion(run);
         Assert.IsType<AtParkingPhase>(ac.Phases?.CurrentPhase);
         Assert.Equal(EndGate, ac.Ground.ParkingSpot);
     }
 
     /// <summary>
-    /// The leg kinds the planner chose are the kinds that run. Leg 1 off the stand reverses the aircraft, so
-    /// <c>Ground.PushbackTrueHeading</c> — the heading <see cref="FlightPhysics"/> displaces along, tail-first —
-    /// is set for the whole leg; leg 2 tows it forward onto 6B, so that field stays null and the aircraft moves
-    /// nose-first.
+    /// A move whose last target is a stand parks on the stand's own heading, so a final facing with it is refused
+    /// and the aircraft stays parked.
     /// </summary>
     [Fact]
-    public void PushmFromD15_RunsLegOneAsAPushAndLegTwoAsAPull()
+    public void PushmEndingOnAGate_WithAFacing_Refused()
+    {
+        if (SfoGroundHarness.Build(output, autoCross: false) is not { } ground)
+        {
+            return;
+        }
+
+        var ac = SfoGroundHarness.SpawnParked(ground, "PSM9", AircraftType, Gate);
+        string command = $"{StandMoveCommand} FACE E";
+        var result = ground.Engine.SendCommand(ac.Callsign, command);
+        output.WriteLine($"'{command}' off {Gate} → success={result.Success} \"{result.Message}\"");
+
+        Assert.False(result.Success, $"'{command}' was accepted");
+        Assert.Equal($"PUSHM to {EndGate} does not take a facing — the aircraft parks on the stand's own heading", result.Message);
+        Assert.IsType<AtParkingPhase>(ac.Phases?.CurrentPhase);
+    }
+
+    /// <summary>
+    /// The move kinds the planner chose are the kinds that run: push off the stand, push down to the T6A lane,
+    /// pull up onto 6A, push down to the T6B lane, pull up onto 6B. A push sets <c>Ground.PushbackTrueHeading</c> —
+    /// the heading <see cref="FlightPhysics"/> displaces along, tail-first — for its whole run; a pull leaves it
+    /// null, so the aircraft moves nose-first.
+    /// </summary>
+    [Fact]
+    public void PushmFromD15_RunsPushPushPullPushPull()
     {
         if (SfoGroundHarness.Build(output, autoCross: false) is not { } ground)
         {
@@ -177,19 +243,16 @@ public class SfoPushRouteE2ETests(ITestOutputHelper output)
         Assert.True(result.Success, $"'{MoveCommand}' off {Gate} was refused: {result.Message}");
 
         var run = TickMove(ground, ac, MoveBudgetSeconds);
-        output.WriteLine($"legs: {Describe(run.Legs)}, finished t={run.CompletedSecond}s");
 
-        Assert.Equal(2, run.Legs.Count);
-        Assert.Equal(PushbackLegKind.Push, run.Legs[0].Kind);
-        Assert.Equal(PushbackLegKind.Pull, run.Legs[1].Kind);
-        Assert.True(
-            run.Legs[0].EverPushHeadingSet && !run.Legs[0].EverPushHeadingNullUnderWay,
-            "leg 1 off the stand moved on a tick with Ground.PushbackTrueHeading null — that tick took the aircraft nose-first out of its gate"
-        );
-        Assert.False(
-            run.Legs[1].EverPushHeadingSet,
-            "leg 2 set Ground.PushbackTrueHeading — that field reverses the aircraft, and a pull leg tows it forward"
-        );
+        AssertKinds(run, PushbackLegKind.Push, PushbackLegKind.Push, PushbackLegKind.Pull, PushbackLegKind.Push, PushbackLegKind.Pull);
+        foreach (var sample in run.Samples.Where(s => s.Phase is not null))
+        {
+            bool push = sample.Phase!.Kind == PushbackLegKind.Push;
+            Assert.True(
+                push == sample.PushHeadingDeg.HasValue,
+                $"t={sample.Second}s: a {sample.Phase.Kind} move had Ground.PushbackTrueHeading {DescribeHeading(sample.PushHeadingDeg)}"
+            );
+        }
     }
 
     /// <summary>
@@ -214,19 +277,19 @@ public class SfoPushRouteE2ETests(ITestOutputHelper output)
         Assert.True(result.Success, $"'{MoveCommand}' from the alley was refused: {result.Message}");
 
         var run = TickMove(ground, ac, MoveBudgetSeconds);
-        output.WriteLine($"legs: {Describe(run.Legs)}");
 
-        Assert.NotEmpty(run.Legs);
-        Assert.Equal(PushbackLegKind.Pull, run.Legs[0].Kind);
+        Assert.NotEmpty(run.Moves);
+        Assert.Equal(PushbackLegKind.Pull, run.Moves[0].Kind);
         Assert.False(
-            run.Legs[0].EverPushHeadingSet,
+            run.Samples.Any(s => ReferenceEquals(s.Phase, run.Moves[0].Phase) && s.PushHeadingDeg.HasValue),
             "the first leg set Ground.PushbackTrueHeading — the aircraft was reversed toward a target that was ahead of its nose"
         );
     }
 
     /// <summary>
-    /// <c>HOLD</c> stops the tug where it is without dropping the move, and <c>RES</c> puts it back under way on
-    /// the very leg it was running — not on the next one, and not on a fresh plan.
+    /// <c>HOLD</c>, issued while a tug move is rolling mid-move with more moves queued behind it, stops the tug and
+    /// keeps it where it came to rest without dropping the move, and <c>RES</c> puts it back under way on the very
+    /// leg it was running — not on the next one, and not on a fresh plan.
     /// </summary>
     [Fact]
     public void PushmHeldMidMove_ResumesOnTheLegItWasRunning()
@@ -238,17 +301,21 @@ public class SfoPushRouteE2ETests(ITestOutputHelper output)
 
         var ac = SfoGroundHarness.SpawnParked(ground, "PSM4", AircraftType, Gate);
         Assert.True(ground.Engine.SendCommand(ac.Callsign, MoveCommand) is { Success: true });
-        SfoGroundHarness.TickUntil(ground.Engine, () => false, MidMoveSeconds, null);
+        int cueSecond = TickUntilCue(ground, ac, "a move rolling mid-move with another queued", () => (MidMove(ac) is not null) && IsRolling(ac));
 
         var running = Assert.IsType<PushbackPhase>(ac.Phases?.CurrentPhase);
         var hold = ground.Engine.SendCommand(ac.Callsign, "HOLD");
         Assert.True(hold.Success, $"'HOLD' during the tug move was refused: {hold.Message}");
 
+        int stoppedSecond = SfoGroundHarness.TickUntil(ground.Engine, () => !IsRolling(ac), HoldStopBudgetSeconds, null);
+        Assert.True(stoppedSecond > 0, $"the held aircraft was still rolling at {ac.GroundSpeed:F2} kt {HoldStopBudgetSeconds}s after HOLD");
+
         var heldAt = ac.Position;
         SfoGroundHarness.TickUntil(ground.Engine, () => false, HoldObservationSeconds, null);
         double driftFt = DistanceFt(ac.Position, heldAt);
         output.WriteLine(
-            $"held on leg {running.Kind} at t={MidMoveSeconds}s: drifted {driftFt:F1} ft over {HoldObservationSeconds}s, gs={ac.GroundSpeed:F2}kt"
+            $"held on a {running.Kind} move at t={cueSecond}s, at rest {stoppedSecond}s later: drifted {driftFt:F1} ft over "
+                + $"{HoldObservationSeconds}s, gs={ac.GroundSpeed:F2}kt"
         );
 
         Assert.True(driftFt <= FrozenToleranceFt, $"the held aircraft drifted {driftFt:F1} ft — HOLD stops the tug");
@@ -261,8 +328,9 @@ public class SfoPushRouteE2ETests(ITestOutputHelper output)
         var run = TickMove(ground, ac, MoveBudgetSeconds);
         var rest = SpotRest(ground.Layout, EndSpot);
         double offRestFt = DistanceFt(ac.Position, rest.Position);
-        output.WriteLine($"resumed legs: {Describe(run.Legs)}, finished t={run.CompletedSecond}s, {offRestFt:F1} ft off the {EndSpot} rest point");
+        output.WriteLine($"resumed: finished t={run.CompletedSecond}s, {offRestFt:F1} ft off the {EndSpot} rest point");
 
+        Assert.Same(running, run.Moves[0].Phase);
         Assert.True(run.CompletedSecond > 0, $"the resumed move never finished within {MoveBudgetSeconds}s (phase={PhaseName(ac)})");
         Assert.True(offRestFt <= OnSpotToleranceFt, $"the resumed move ended {offRestFt:F1} ft from spot {EndSpot}'s rest point");
     }
@@ -270,7 +338,8 @@ public class SfoPushRouteE2ETests(ITestOutputHelper output)
     /// <summary>
     /// A taxi clearance mid-move drops the whole move, not just the leg under way: with the remaining legs
     /// still queued behind the running one, clearing the phase has to take them with it or a leg re-arms behind
-    /// the taxi and reverses the aircraft mid-clearance.
+    /// the taxi and reverses the aircraft mid-clearance. The clearance is issued at the first second, mid-move with a
+    /// leg queued, from which <c>TAXI A</c> routes; from much of the ramp it is refused as unreachable.
     /// </summary>
     [Fact]
     public void TaxiMidMove_DropsEveryQueuedLeg()
@@ -282,18 +351,21 @@ public class SfoPushRouteE2ETests(ITestOutputHelper output)
 
         var ac = SfoGroundHarness.SpawnParked(ground, "PSM5", AircraftType, Gate);
         Assert.True(ground.Engine.SendCommand(ac.Callsign, MoveCommand) is { Success: true });
-        SfoGroundHarness.TickUntil(ground.Engine, () => false, TaxiCueSeconds, null);
+        TickUntilCue(
+            ground,
+            ac,
+            $"mid-move with another move queued, and '{TaxiOutCommand}' routing from here",
+            () => (MidMove(ac) is not null) && TaxiOutRoutes(ground.Layout, ac)
+        );
 
-        Assert.IsType<PushbackPhase>(ac.Phases?.CurrentPhase);
-        int queuedLegs = ac.Phases!.Phases.Count(p => p is PushbackPhase);
-        output.WriteLine($"at t={TaxiCueSeconds}s the move has {queuedLegs} tug legs in the phase list");
-        Assert.True(queuedLegs >= 2, $"the move only queued {queuedLegs} tug leg(s) — this case needs a leg still pending behind the running one");
+        int liveLegs = LiveTugLegs(ac).Count;
+        Assert.True(liveLegs >= 2, $"the move only has {liveLegs} live tug leg(s) — this case needs a leg still pending behind the running one");
 
         var taxi = ground.Engine.SendCommand(ac.Callsign, TaxiOutCommand);
         output.WriteLine($"'{TaxiOutCommand}' mid-move → success={taxi.Success} \"{taxi.Message}\"");
         Assert.True(taxi.Success, $"'{TaxiOutCommand}' during the tug move was refused: {taxi.Message}");
 
-        var stillLive = ac.Phases!.Phases.Where(p => (p is PushbackPhase) && (p.Status is PhaseStatus.Active or PhaseStatus.Pending)).ToList();
+        var stillLive = LiveTugLegs(ac);
         Assert.True(stillLive.Count == 0, $"{stillLive.Count} tug leg(s) survived the taxi clearance — the remaining legs must go with the move");
 
         int reArmedSecond = SfoGroundHarness.TickUntil(ground.Engine, () => ac.Phases?.CurrentPhase is PushbackPhase, TaxiObservationSeconds, null);
@@ -317,7 +389,7 @@ public class SfoPushRouteE2ETests(ITestOutputHelper output)
 
         var ac = SfoGroundHarness.SpawnParked(ground, "PSM7", AircraftType, Gate);
         Assert.True(ground.Engine.SendCommand(ac.Callsign, MoveCommand) is { Success: true });
-        SfoGroundHarness.TickUntil(ground.Engine, () => false, MidMoveSeconds, null);
+        int cueSecond = TickUntilCue(ground, ac, "mid-move with another move queued", () => MidMove(ac) is not null);
 
         Assert.IsType<PushbackPhase>(ac.Phases?.CurrentPhase);
         var originalLegs = ac.Phases!.Phases.OfType<PushbackPhase>().ToList();
@@ -327,7 +399,7 @@ public class SfoPushRouteE2ETests(ITestOutputHelper output)
         );
 
         var redirect = ground.Engine.SendCommand(ac.Callsign, RedirectCommand);
-        output.WriteLine($"'{RedirectCommand}' at t={MidMoveSeconds}s into '{MoveCommand}' → success={redirect.Success} \"{redirect.Message}\"");
+        output.WriteLine($"'{RedirectCommand}' at t={cueSecond}s into '{MoveCommand}' → success={redirect.Success} \"{redirect.Message}\"");
         Assert.True(redirect.Success, $"'{RedirectCommand}' during the tug move was refused: {redirect.Message}");
 
         var survivors = ac.Phases!.Phases.Where(p => originalLegs.Any(leg => ReferenceEquals(leg, p))).ToList();
@@ -341,14 +413,11 @@ public class SfoPushRouteE2ETests(ITestOutputHelper output)
         double offRestFt = DistanceFt(ac.Position, rest.Position);
         double offOldEndFt = DistanceFt(ac.Position, SpotRest(ground.Layout, EndSpot).Position);
         output.WriteLine(
-            $"redirected legs: {Describe(run.Legs)}, finished t={run.CompletedSecond}s — {offRestFt:F1} ft off spot "
-                + $"{RedirectEndSpot}'s rest point, {offOldEndFt:F1} ft off spot {EndSpot}'s"
+            $"redirected: finished t={run.CompletedSecond}s — {offRestFt:F1} ft off spot {RedirectEndSpot}'s rest point, "
+                + $"{offOldEndFt:F1} ft off spot {EndSpot}'s"
         );
 
-        Assert.True(
-            run.CompletedSecond > 0,
-            $"the redirected move never finished within {MoveBudgetSeconds}s (phase={PhaseName(ac)}, legs={Describe(run.Legs)})"
-        );
+        Assert.True(run.CompletedSecond > 0, $"the redirected move never finished within {MoveBudgetSeconds}s (phase={PhaseName(ac)})");
         Assert.True(
             offRestFt <= OnSpotToleranceFt,
             $"the redirected move ended {offRestFt:F1} ft from spot {RedirectEndSpot}'s rest point, past the {OnSpotToleranceFt:F0} ft tolerance"
@@ -356,6 +425,106 @@ public class SfoPushRouteE2ETests(ITestOutputHelper output)
         Assert.True(
             offOldEndFt > OnSpotToleranceFt,
             $"the aircraft came to rest {offOldEndFt:F1} ft from spot {EndSpot}, the terminus of the move the redirect was supposed to replace"
+        );
+    }
+
+    /// <summary>
+    /// A redirect that reverses the move under way waits like any other reversal: <c>PUSHM $6A $6B</c> issued again
+    /// while the aircraft is still being pushed, mid-move, on the push the plan follows with a pull, plans a pull onto
+    /// 6A first, and the tug stops and waits the full dwell, stopped, before it pulls.
+    /// </summary>
+    [Fact]
+    public void PushmMidPush_FirstNewMoveIsAPull_StopsAndDwellsBeforePulling()
+    {
+        if (SfoGroundHarness.Build(output, autoCross: false) is not { } ground)
+        {
+            return;
+        }
+
+        var ac = SfoGroundHarness.SpawnParked(ground, "PSM9", AircraftType, Gate);
+        Assert.True(ground.Engine.SendCommand(ac.Callsign, MoveCommand) is { Success: true });
+        TickUntilCue(
+            ground,
+            ac,
+            "a push rolling mid-move with a pull queued next, from where the re-plan starts with a pull",
+            () =>
+                (MidMove(ac) is { Kind: PushbackLegKind.Push })
+                && IsRolling(ac)
+                && (NextTugMove(ac) is { Kind: PushbackLegKind.Pull })
+                && (FirstMoveOfMoveCommandFromHere(ground.Layout, ac) == PushbackLegKind.Pull)
+        );
+        var pushing = Assert.IsType<PushbackPhase>(ac.Phases?.CurrentPhase);
+        Assert.Equal(PushbackLegKind.Push, pushing.Kind);
+        Assert.True(ac.GroundSpeed > AtRestSpeedKts, $"test setup: the push is not rolling ({ac.GroundSpeed:F2} kt)");
+
+        var redirect = ground.Engine.SendCommand(ac.Callsign, MoveCommand);
+        Assert.True(redirect.Success, $"'{MoveCommand}' mid-push was refused: {redirect.Message}");
+        var first = Assert.IsType<PushbackPhase>(ac.Phases?.CurrentPhase);
+        output.WriteLine($"redirect → first move {first.Kind} {first.Move.Shape}, dwell before={first.Move.DwellBefore}");
+        Assert.Equal(PushbackLegKind.Pull, first.Kind);
+        Assert.True(first.Move.DwellBefore, "a pull replacing a running push is a reversal, so it dwells first");
+
+        var run = TickMove(ground, ac, MoveBudgetSeconds);
+
+        int firstPull = FirstForwardMotionIndex(run.Samples, first);
+        Assert.True(firstPull > 0, "the redirected pull never moved the aircraft nose-first");
+        double dwellSeconds = run.Samples[firstPull].DwellSeconds;
+        int stillSeconds = StillSecondsBefore(run.Samples, firstPull);
+        output.WriteLine(
+            $"first nose-first second t={run.Samples[firstPull].Second}s: dwell {dwellSeconds:F2} s, {stillSeconds} still seconds before it"
+        );
+        Assert.True(dwellSeconds >= PushbackPhase.DwellSeconds, $"the pull moved after only {dwellSeconds:F2} s of dwell at rest");
+        Assert.True(stillSeconds >= MinStillSecondsBeforeReversal, $"only {stillSeconds} still second(s) came before the pull moved");
+    }
+
+    /// <summary>
+    /// A redirect issued while a pull is still waiting out its dwell reverses the push before that pull: the aircraft
+    /// has not pulled yet. <c>PUSHM $6A $6B</c> issued again a second into the dwell before the creep onto 6A plans
+    /// that same pull first, as a reversal, so the aircraft stays stopped at least
+    /// <see cref="PushbackPhase.DwellSeconds"/> whole seconds in all, counted across the redirect, before it pulls.
+    /// </summary>
+    [Fact]
+    public void PushmWhileAPullDwells_FirstNewMoveIsAPull_StillWaitsTheFullDwellBeforePulling()
+    {
+        if (SfoGroundHarness.Build(output, autoCross: false) is not { } ground)
+        {
+            return;
+        }
+
+        var ac = SfoGroundHarness.SpawnParked(ground, "PSM10", AircraftType, Gate);
+        Assert.True(ground.Engine.SendCommand(ac.Callsign, MoveCommand) is { Success: true });
+        var before = new List<Sample> { SampleOf(0, ac) };
+        int redirectSecond = SfoGroundHarness.TickUntil(
+            ground.Engine,
+            () => before[^1] is { Phase: { Kind: PushbackLegKind.Pull, Move.DwellBefore: true }, DwellSeconds: >= DwellRedirectAfterSeconds },
+            MoveBudgetSeconds,
+            second => before.Add(SampleOf(second, ac))
+        );
+        Assert.True(redirectSecond > 0, "test setup: the move never reached a pull waiting out its dwell");
+        var dwelling = Assert.IsType<PushbackPhase>(ac.Phases?.CurrentPhase);
+        output.WriteLine(
+            $"at t={redirectSecond}s: {dwelling.Kind} {dwelling.Move.Shape} dwelling {before[^1].DwellSeconds:F2} s, moved={dwelling.HasMoved}"
+        );
+        Assert.False(dwelling.HasMoved, "test setup: the dwelling pull has already moved the aircraft");
+
+        var redirect = ground.Engine.SendCommand(ac.Callsign, MoveCommand);
+        Assert.True(redirect.Success, $"'{MoveCommand}' during the dwell was refused: {redirect.Message}");
+        var first = Assert.IsType<PushbackPhase>(ac.Phases?.CurrentPhase);
+        output.WriteLine($"redirect → first move {first.Kind} {first.Move.Shape}, dwell before={first.Move.DwellBefore}");
+        Assert.Equal(PushbackLegKind.Pull, first.Kind);
+        Assert.True(first.Move.DwellBefore, "the aircraft last moved in a push, so the redirected pull is a reversal and dwells first");
+
+        var run = TickMove(ground, ac, MoveBudgetSeconds);
+
+        // The run's first sample is the redirect second again, now with the redirected move running.
+        var samples = before.Take(before.Count - 1).Concat(run.Samples.Select(s => s with { Second = s.Second + redirectSecond })).ToList();
+        int firstPull = FirstForwardMotionIndex(samples, first);
+        Assert.True(firstPull > 0, "the redirected pull never moved the aircraft nose-first");
+        int stillSeconds = StillSecondsBefore(samples, firstPull);
+        output.WriteLine($"first nose-first second t={samples[firstPull].Second}s: {stillSeconds} still seconds before it, across the redirect");
+        Assert.True(
+            stillSeconds >= PushbackPhase.DwellSeconds,
+            $"only {stillSeconds} still second(s), across the redirect, came before the pull moved"
         );
     }
 
@@ -388,84 +557,375 @@ public class SfoPushRouteE2ETests(ITestOutputHelper output)
         Assert.Null(ac.Ground.PushbackTrueHeading);
     }
 
-    /// <summary>What one leg of a tug move did while it ran.</summary>
-    private sealed class LegTrace
+    /// <summary>The aircraft at the end of one simulated second.</summary>
+    /// <param name="Second">The second, counted from the start of the sampled run (0 = before the first tick).</param>
+    /// <param name="Position">The reference point.</param>
+    /// <param name="NoseDeg">The nose heading, degrees true.</param>
+    /// <param name="GroundSpeedKts">Ground speed, knots.</param>
+    /// <param name="Phase">The tug move running, or null once none is.</param>
+    /// <param name="PushHeadingDeg"><c>Ground.PushbackTrueHeading</c>, degrees true, or null.</param>
+    /// <param name="DwellSeconds">The running move's dwell so far, seconds; zero when none is running.</param>
+    private sealed record Sample(
+        int Second,
+        LatLon Position,
+        double NoseDeg,
+        double GroundSpeedKts,
+        PushbackPhase? Phase,
+        double? PushHeadingDeg,
+        double DwellSeconds
+    );
+
+    /// <summary>What one tug move did while it ran.</summary>
+    private sealed class MoveTrace
     {
-        /// <summary>Which way the tug moved the aircraft over the leg.</summary>
-        internal required PushbackLegKind Kind { get; init; }
+        internal required PushbackPhase Phase { get; init; }
 
-        /// <summary>The second the leg was first observed running.</summary>
-        internal required int StartedSecond { get; init; }
+        internal PushbackLegKind Kind => Phase.Kind;
 
-        /// <summary>The last second the leg was observed running.</summary>
-        internal int EndedSecond { get; set; }
+        internal required int FirstSecond { get; init; }
 
-        /// <summary>True when <c>Ground.PushbackTrueHeading</c> was set on any tick of the leg.</summary>
-        internal bool EverPushHeadingSet { get; set; }
+        internal int LastSecond { get; set; }
 
-        /// <summary>
-        /// True when it was null on a tick the aircraft was actually moving. Ticks where it is stationary are
-        /// not sampled: a leg whose nose has to swing more than the phase's alignment window first rotates in
-        /// place with no push heading set, which is the tug hooking up rather than a leg running the wrong way.
-        /// </summary>
-        internal bool EverPushHeadingNullUnderWay { get; set; }
+        /// <summary>The distance covered in the seconds that began with this move running, feet.</summary>
+        internal double PathFt { get; set; }
 
-        /// <summary>The closest the aircraft ever came to the point the leg is steering for, in feet.</summary>
-        internal double ClosestToTargetFt { get; set; } = double.PositiveInfinity;
+        internal double PeakKts { get; set; }
+
+        internal double DwellSeconds { get; set; }
+
+        internal string Describe()
+        {
+            var move = Phase.Move;
+            string flags = $"{(move.DwellBefore ? " dwell" : "")}{(move.Tight ? " tight" : "")}{(move.Creep ? " creep" : "")}";
+            return $"{move.Kind} {move.Shape}{flags}: t={FirstSecond}-{LastSecond}s ({LastSecond - FirstSecond + 1} s), path {PathFt:F1} ft, "
+                + $"dwell {DwellSeconds:F2} s, peak {PeakKts:F2} kt";
+        }
     }
 
-    /// <summary>What one tug move did: its legs in order, and the second the last one ended (-1 on budget).</summary>
-    /// <param name="Legs">The legs observed, in the order they ran.</param>
-    /// <param name="CompletedSecond">The second the move left its last leg, or -1 when the budget ran out.</param>
-    private readonly record struct MoveRun(IReadOnlyList<LegTrace> Legs, int CompletedSecond);
+    /// <summary>What a sampled run did: a sample per second, the moves in the order they ran, and when it ended.</summary>
+    /// <param name="Samples">One sample per second, starting before the first tick.</param>
+    /// <param name="Moves">The moves observed, in order.</param>
+    /// <param name="CompletedSecond">The second no move was running any more, or -1 when the budget ran out.</param>
+    private sealed record MoveRun(IReadOnlyList<Sample> Samples, IReadOnlyList<MoveTrace> Moves, int CompletedSecond);
 
     /// <summary>
-    /// Ticks the engine until no tug leg is running, recording one <see cref="LegTrace"/> per leg and writing a
-    /// trajectory sample every <see cref="TrajectoryLogInterval"/> seconds.
+    /// Ticks the engine until no tug move is running, sampling the aircraft every second, then writes one line per
+    /// move (kind, shape, flags, duration, path length, dwell, peak speed) and the peak pull speed.
     /// </summary>
-    /// <param name="ground">Engine + layout from <see cref="SfoGroundHarness.Build"/>.</param>
-    /// <param name="ac">The aircraft the move is driving.</param>
-    /// <param name="budgetSeconds">Tick budget.</param>
-    /// <returns>The legs the move ran and when it finished.</returns>
     private MoveRun TickMove(SfoGround ground, AircraftState ac, int budgetSeconds)
     {
-        var legs = new List<LegTrace>();
-        PushbackPhase? running = null;
+        var samples = new List<Sample> { SampleOf(0, ac) };
+        var moves = new List<MoveTrace>();
+        Observe(moves, samples[0]);
         int completed = SfoGroundHarness.TickUntil(
             ground.Engine,
-            () => (legs.Count > 0) && (ac.Phases?.CurrentPhase is not PushbackPhase),
+            () => ac.Phases?.CurrentPhase is not PushbackPhase,
             budgetSeconds,
             second =>
             {
-                if (ac.Phases?.CurrentPhase is not PushbackPhase phase)
+                var previous = samples[^1];
+                var sample = SampleOf(second, ac);
+                samples.Add(sample);
+                if (moves.FirstOrDefault(m => ReferenceEquals(m.Phase, previous.Phase)) is { } startedIn)
                 {
-                    return;
+                    startedIn.PathFt += DistanceFt(previous.Position, sample.Position);
                 }
 
-                if (!ReferenceEquals(phase, running))
-                {
-                    running = phase;
-                    legs.Add(new LegTrace { Kind = phase.Kind, StartedSecond = second });
-                }
-
-                var leg = legs[^1];
-                leg.EndedSecond = second;
-                leg.EverPushHeadingSet |= ac.Ground.PushbackTrueHeading is not null;
-                leg.EverPushHeadingNullUnderWay |= (ac.Ground.PushbackTrueHeading is null) && (ac.GroundSpeed > AtRestSpeedKts);
-                double toTargetFt = LegTargetDistanceFt(ac, phase);
-                leg.ClosestToTargetFt = Math.Min(leg.ClosestToTargetFt, toTargetFt);
+                Observe(moves, sample);
                 if ((second % TrajectoryLogInterval) == 0)
                 {
                     output.WriteLine(
-                        $"  t={second, 3}s leg{legs.Count} {phase.Kind, -4} gs={ac.GroundSpeed, 5:F2}kt "
-                            + $"nose={ac.TrueHeading.Degrees, 6:F1}° push={Describe(ac.Ground.PushbackTrueHeading)} "
-                            + $"toTarget={toTargetFt, 7:F1}ft pos=({ac.Position.Lat:F6},{ac.Position.Lon:F6})"
+                        $"  t={second, 3}s move{moves.Count} {sample.Phase?.Kind.ToString() ?? "-", -4} gs={sample.GroundSpeedKts, 5:F2}kt "
+                            + $"nose={sample.NoseDeg, 6:F1}° push={DescribeHeading(sample.PushHeadingDeg)} "
+                            + $"pos=({sample.Position.Lat:F6},{sample.Position.Lon:F6})"
                     );
                 }
             }
         );
 
-        return new MoveRun(legs, completed);
+        for (int i = 0; i < moves.Count; i++)
+        {
+            output.WriteLine($"move {i + 1}: {moves[i].Describe()}");
+        }
+
+        double peakPullKts = moves.Where(m => m.Kind == PushbackLegKind.Pull).Select(m => m.PeakKts).DefaultIfEmpty(0.0).Max();
+        output.WriteLine($"finished t={completed}s, phase={PhaseName(ac)}, peak pull speed {peakPullKts:F2} kt");
+        return new MoveRun(samples, moves, completed);
+    }
+
+    private static Sample SampleOf(int second, AircraftState ac)
+    {
+        var phase = ac.Phases?.CurrentPhase as PushbackPhase;
+        double dwell = phase?.ToSnapshot() is PushbackPhaseDto dto ? dto.DwellElapsedSeconds : 0.0;
+        return new Sample(second, ac.Position, ac.TrueHeading.Degrees, ac.GroundSpeed, phase, ac.Ground.PushbackTrueHeading?.Degrees, dwell);
+    }
+
+    private static void Observe(List<MoveTrace> moves, Sample sample)
+    {
+        if (sample.Phase is not { } phase)
+        {
+            return;
+        }
+
+        if ((moves.Count == 0) || !ReferenceEquals(moves[^1].Phase, phase))
+        {
+            moves.Add(new MoveTrace { Phase = phase, FirstSecond = sample.Second });
+        }
+
+        var move = moves[^1];
+        move.LastSecond = sample.Second;
+        move.PeakKts = Math.Max(move.PeakKts, sample.GroundSpeedKts);
+        move.DwellSeconds = sample.DwellSeconds;
+    }
+
+    /// <summary>
+    /// The checks a tug move passes second by second: (a) the nose turns no more than the distance moved over the
+    /// type's tightest radius; (b) a still second does not turn it; (c) a push keeps the nose on the reciprocal of
+    /// its push heading, and a pull leaves the push heading null and moves where the nose pointed midway through
+    /// the second; (d) every change between push and pull has at least four still seconds before the new move
+    /// moves.
+    /// </summary>
+    private void AssertTugMotion(MoveRun run)
+    {
+        double tightRadiusFt = TugKinematics.TurnRadiusFt(AircraftType, tight: true);
+        var samples = run.Samples;
+        for (int i = 1; i < samples.Count; i++)
+        {
+            var from = samples[i - 1];
+            var to = samples[i];
+            double movedFt = DistanceFt(from.Position, to.Position);
+            double turnedDeg = new TrueHeading(from.NoseDeg).AbsAngleTo(new TrueHeading(to.NoseDeg));
+            double boundRad = ((movedFt / tightRadiusFt) * CurvatureMargin) + CurvatureSlackRad;
+            Assert.True(
+                (turnedDeg * Math.PI / 180.0) <= boundRad,
+                $"t={to.Second}s: the nose turned {turnedDeg:F3}° over {movedFt:F2} ft, tighter than R={tightRadiusFt:F1} ft allows"
+            );
+            if (movedFt < StillFt)
+            {
+                Assert.True(turnedDeg < StillNoseToleranceDeg, $"t={to.Second}s: the nose turned {turnedDeg:F4}° while the aircraft was still");
+            }
+
+            AssertNoCrab(from, to, movedFt);
+        }
+
+        for (int k = 1; k < run.Moves.Count; k++)
+        {
+            var previous = run.Moves[k - 1];
+            var next = run.Moves[k];
+            if (previous.Kind == next.Kind)
+            {
+                continue;
+            }
+
+            int firstMotion = FirstMotionIndex(samples, next.Phase);
+            Assert.True(firstMotion > 0, $"move {k + 1} ({next.Describe()}) never moved the aircraft");
+            int still = StillSecondsBefore(samples, firstMotion);
+            Assert.True(
+                still >= MinStillSecondsBeforeReversal,
+                $"move {k + 1} ({next.Describe()}) reversed move {k}'s {previous.Kind} after only {still} still second(s)"
+            );
+        }
+    }
+
+    private static void AssertNoCrab(Sample from, Sample to, double movedFt)
+    {
+        if (to.Phase is not { } phase)
+        {
+            return;
+        }
+
+        if (phase.Kind == PushbackLegKind.Push)
+        {
+            double pushDeg = Assert.NotNull(to.PushHeadingDeg);
+            double offDeg = new TrueHeading(to.NoseDeg).AbsAngleTo(new TrueHeading(pushDeg).ToReciprocal());
+            Assert.True(offDeg <= PushNoseToleranceDeg, $"t={to.Second}s: a push had the nose {offDeg:F2}° off the reciprocal of its travel");
+            return;
+        }
+
+        Assert.True(to.PushHeadingDeg is null, $"t={to.Second}s: a pull had Ground.PushbackTrueHeading {DescribeHeading(to.PushHeadingDeg)}");
+        if (!ReferenceEquals(from.Phase, phase) || (movedFt <= PullBearingMinMoveFt))
+        {
+            return;
+        }
+
+        double offDegPull = new TrueHeading(GeoMath.BearingTo(from.Position, to.Position)).AbsAngleTo(new TrueHeading(MidNoseDeg(from, to)));
+        Assert.True(offDegPull <= PullTravelToleranceDeg, $"t={to.Second}s: a pull moved {offDegPull:F2}° off its nose over {movedFt:F2} ft");
+    }
+
+    /// <summary>
+    /// Where the aircraft comes to rest: within <see cref="RestPositionToleranceFt"/> of the spot's rest point and
+    /// <see cref="RestNoseToleranceDeg"/> of its nose-out heading.
+    /// </summary>
+    private void AssertRestsOnSpot(AirportGroundLayout layout, AircraftState ac, string spotName)
+    {
+        var rest = SpotRest(layout, spotName);
+        double offRestFt = DistanceFt(ac.Position, rest.Position);
+        double offNoseOutDeg = new TrueHeading(rest.OutHeadingDeg).AbsAngleTo(ac.TrueHeading);
+        output.WriteLine(
+            $"at rest {offRestFt:F2} ft off the {spotName} rest point, nose {ac.TrueHeading.Degrees:F2}° vs nose-out "
+                + $"{rest.OutHeadingDeg:F2}° ({offNoseOutDeg:F2}° off), gs={ac.GroundSpeed:F2}kt"
+        );
+        Assert.True(
+            offRestFt <= RestPositionToleranceFt,
+            $"the move ended {offRestFt:F2} ft from spot {spotName}'s rest point, past the {RestPositionToleranceFt:F0} ft tolerance"
+        );
+        Assert.True(
+            offNoseOutDeg <= RestNoseToleranceDeg,
+            $"the nose finished {offNoseOutDeg:F2}° off spot {spotName}'s {rest.OutHeadingDeg:F1}° nose-out heading — a spot move leaves the "
+                + "aircraft pointed out to taxi"
+        );
+    }
+
+    private static void AssertKinds(MoveRun run, params PushbackLegKind[] expected)
+    {
+        var kinds = run.Moves.Select(m => m.Kind).ToArray();
+        Assert.True(
+            expected.SequenceEqual(kinds),
+            $"expected moves {string.Join(", ", expected)} but ran {string.Join(", ", run.Moves.Select(m => m.Describe()))}"
+        );
+    }
+
+    /// <summary>The first sample index whose second began and ended in <paramref name="phase"/> and moved the aircraft.</summary>
+    private static int FirstMotionIndex(IReadOnlyList<Sample> samples, PushbackPhase phase)
+    {
+        for (int i = 1; i < samples.Count; i++)
+        {
+            if (ReferenceEquals(samples[i - 1].Phase, phase) && ReferenceEquals(samples[i].Phase, phase) && (StepFt(samples, i) >= StillFt))
+            {
+                return i;
+            }
+        }
+
+        return -1;
+    }
+
+    /// <summary>
+    /// The first sample index whose second began and ended in <paramref name="phase"/> and moved the aircraft
+    /// nose-first.
+    /// </summary>
+    private static int FirstForwardMotionIndex(IReadOnlyList<Sample> samples, PushbackPhase phase)
+    {
+        for (int i = 1; i < samples.Count; i++)
+        {
+            var from = samples[i - 1];
+            var to = samples[i];
+            bool inPhase = ReferenceEquals(from.Phase, phase) && ReferenceEquals(to.Phase, phase);
+            if (!inPhase || (StepFt(samples, i) < StillFt))
+            {
+                continue;
+            }
+
+            double offNoseDeg = new TrueHeading(GeoMath.BearingTo(from.Position, to.Position)).AbsAngleTo(new TrueHeading(MidNoseDeg(from, to)));
+            if (offNoseDeg < 90.0)
+            {
+                return i;
+            }
+        }
+
+        return -1;
+    }
+
+    /// <summary>How many still seconds come straight before sample <paramref name="index"/>.</summary>
+    private static int StillSecondsBefore(IReadOnlyList<Sample> samples, int index)
+    {
+        int still = 0;
+        for (int i = index - 1; (i >= 1) && (StepFt(samples, i) < StillFt); i--)
+        {
+            still++;
+        }
+
+        return still;
+    }
+
+    private static double StepFt(IReadOnlyList<Sample> samples, int index) => DistanceFt(samples[index - 1].Position, samples[index].Position);
+
+    /// <summary>The nose midway through a second: the start nose turned half the way to the end nose.</summary>
+    private static double MidNoseDeg(Sample from, Sample to) =>
+        new TrueHeading(from.NoseDeg + (new TrueHeading(from.NoseDeg).SignedAngleTo(new TrueHeading(to.NoseDeg)) / 2.0)).Degrees;
+
+    private static List<PushbackPhase> LiveTugLegs(AircraftState ac) =>
+        ac.Phases!.Phases.OfType<PushbackPhase>().Where(p => p.Status is PhaseStatus.Active or PhaseStatus.Pending).ToList();
+
+    /// <summary>The tug move queued straight behind the running one, or null.</summary>
+    private static PushbackPhase? NextTugMove(AircraftState ac) => LiveTugLegs(ac).Skip(1).FirstOrDefault();
+
+    /// <summary>
+    /// The running tug move, when it has moved the aircraft at least <see cref="MidMoveFt"/> and another move is
+    /// queued behind it; null otherwise.
+    /// </summary>
+    private static PushbackPhase? MidMove(AircraftState ac) =>
+        (ac.Phases?.CurrentPhase is PushbackPhase running) && (MovedFt(running) >= MidMoveFt) && (NextTugMove(ac) is not null) ? running : null;
+
+    /// <summary>How far a tug move has moved the aircraft so far, feet.</summary>
+    private static double MovedFt(PushbackPhase phase) => phase.ToSnapshot() is PushbackPhaseDto dto ? dto.ProgressDistanceFt : 0.0;
+
+    private static bool IsRolling(AircraftState ac) => ac.GroundSpeed > AtRestSpeedKts;
+
+    /// <summary>
+    /// The kind of the first move <see cref="MoveCommand"/> would plan if issued now, planned the way the handler plans a
+    /// redirect of a push that has moved: from the live pose, off the stand, with a push as the last motion. Null when
+    /// the plan is refused. A push turn on the routine radius is long, and a re-plan early in it carries the turn on
+    /// before pulling, so a test that needs a pull first has to wait for a pose that gives one.
+    /// </summary>
+    private static PushbackLegKind? FirstMoveOfMoveCommandFromHere(AirportGroundLayout layout, AircraftState ac)
+    {
+        var request = new TugRequest
+        {
+            Start = new TugPose(ac.Position, ac.TrueHeading.Degrees),
+            StartsAtStand = false,
+            AircraftType = ac.AircraftType,
+            Goals = [TugGoal.Spot(Spot(layout, AlleySpot)), TugGoal.Spot(Spot(layout, EndSpot))],
+            FinalFacingTrueDeg = null,
+            PreviousKind = PushbackLegKind.Push,
+        };
+        return TugMovePlanner.Plan(layout, request, out _)?.Moves[0].Move.Kind;
+    }
+
+    /// <summary>
+    /// Ticks until <paramref name="cue"/> holds and writes what the aircraft was doing then; fails when the cue has not
+    /// come within <see cref="MoveBudgetSeconds"/>.
+    /// </summary>
+    /// <returns>The second the cue came.</returns>
+    private int TickUntilCue(SfoGround ground, AircraftState ac, string cueName, Func<bool> cue)
+    {
+        int second = SfoGroundHarness.TickUntil(ground.Engine, cue, MoveBudgetSeconds, null);
+        Assert.True(second > 0, $"test setup: the cue '{cueName}' never came within {MoveBudgetSeconds}s (phase={PhaseName(ac)})");
+        string running = ac.Phases?.CurrentPhase is PushbackPhase phase
+            ? $"{phase.Kind} {phase.Move.Shape} moved {MovedFt(phase):F1} ft, next {NextTugMove(ac)?.Kind.ToString() ?? "none"}"
+            : PhaseName(ac);
+        output.WriteLine(
+            $"cue '{cueName}' at t={second}s: {running}, {LiveTugLegs(ac).Count} tug legs live, gs={ac.GroundSpeed:F2}kt, "
+                + $"pos=({ac.Position.Lat:F6},{ac.Position.Lon:F6}) nose={ac.TrueHeading.Degrees:F1}°"
+        );
+        return second;
+    }
+
+    /// <summary>
+    /// Whether <c>TAXI A</c> would route from where the aircraft is now, resolved the way the taxi handler resolves it,
+    /// without issuing it: the start node nearest the aircraft along its heading (else the nearest node), re-anchored
+    /// onto a node of taxiway A within 100 ft that is at least as close, then the explicit-path resolver from there
+    /// with the aircraft's heading.
+    /// </summary>
+    private static bool TaxiOutRoutes(AirportGroundLayout layout, AircraftState ac)
+    {
+        var start = layout.FindNearestNodeForTaxi(ac.Position, ac.TrueHeading) ?? layout.FindNearestNode(ac.Position);
+        if (start is null)
+        {
+            return false;
+        }
+
+        if (
+            !start.Edges.Any(e => e.MatchesTaxiway(TaxiOutTaxiway))
+            && (layout.FindNearestNodeOnTaxiway(ac.Position, TaxiOutTaxiway, maxDistFt: 100.0) is { } onTaxiway)
+            && (DistanceFt(ac.Position, onTaxiway.Position) <= DistanceFt(ac.Position, start.Position))
+        )
+        {
+            start = onTaxiway;
+        }
+
+        var options = new ExplicitPathOptions { StartHeadingTrue = ac.TrueHeading.Degrees };
+        var category = AircraftCategorization.Categorize(ac.AircraftType);
+        return TaxiPathfinder.ResolveExplicitPathDetailed(layout, start.Id, [TaxiOutTaxiway], out _, options, category) is not null;
     }
 
     /// <summary>
@@ -482,28 +942,6 @@ public class SfoPushRouteE2ETests(ITestOutputHelper output)
         Assert.True(layout.TryGetSpotOutboundHeading(spot, out double outBearingDeg), $"spot '{spotName}' has no outbound heading in the layout");
         double halfLengthNm = ((FaaAircraftDatabase.Get(AircraftType)?.LengthFt ?? DefaultFuselageLengthFt) / 2.0) / GeoMath.FeetPerNm;
         return (GeoMath.ProjectPoint(spot.Position, new TrueHeading(outBearingDeg).ToReciprocal(), halfLengthNm), outBearingDeg);
-    }
-
-    /// <summary>
-    /// How far the aircraft is from the point the leg comes to rest on: the pull-forward point when the leg has
-    /// one (a spot push stages behind the mark and creeps onto it), else the leg's own target.
-    /// </summary>
-    /// <param name="ac">The aircraft the leg is moving.</param>
-    /// <param name="phase">The leg running.</param>
-    /// <returns>Distance in feet, or infinity for a leg with no target.</returns>
-    private static double LegTargetDistanceFt(AircraftState ac, PushbackPhase phase)
-    {
-        if ((phase.PullForwardLatitude is { } pullLat) && (phase.PullForwardLongitude is { } pullLon))
-        {
-            return DistanceFt(ac.Position, new LatLon(pullLat, pullLon));
-        }
-
-        if ((phase.TargetLatitude is { } targetLat) && (phase.TargetLongitude is { } targetLon))
-        {
-            return DistanceFt(ac.Position, new LatLon(targetLat, targetLon));
-        }
-
-        return double.PositiveInfinity;
     }
 
     private static GroundNode Spot(AirportGroundLayout layout, string spotName) =>
@@ -533,12 +971,7 @@ public class SfoPushRouteE2ETests(ITestOutputHelper output)
         return best!;
     }
 
-    private static string Describe(IReadOnlyList<LegTrace> legs) =>
-        legs.Count == 0
-            ? "(none)"
-            : string.Join(", ", legs.Select(l => $"{l.Kind} t={l.StartedSecond}-{l.EndedSecond}s closest={l.ClosestToTargetFt:F1}ft"));
-
-    private static string Describe(TrueHeading? heading) => heading is { } hdg ? $"{hdg.Degrees:F1}°" : "null";
+    private static string DescribeHeading(double? headingDeg) => headingDeg is { } deg ? $"{deg:F1}°" : "null";
 
     private static double DistanceFt(LatLon from, LatLon to) => GeoMath.DistanceNm(from, to) * GeoMath.FeetPerNm;
 

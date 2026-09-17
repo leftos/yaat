@@ -1,65 +1,152 @@
-# Pushback
+# Pushback and tug moves
 
-Pushback is a **separate ground-movement mechanism** from the taxi pipeline (fillet → pathfinder → navigator). It is a tug reversing the aircraft tail-first away from a gate. It does **not** use `GroundNavigator` or the taxiway graph route — movement is a bespoke per-tick reverse steered by `AircraftGroundOps.PushbackTrueHeading`.
+A tug move — every `PUSH` form and `PUSHM` — is a **separate ground-movement mechanism** from the taxi pipeline (fillet → pathfinder → navigator). A tug attached to the nose gear pushes the aircraft tail-first or pulls it nose-first across the ramp; it never uses `GroundNavigator` or the taxiway graph route. The move is **planned** as a chain of moves, each move is **flown** by its own `PushbackPhase`, and one **motion body** does the steering for both.
 
-Core code: `src/Yaat.Sim/Phases/Ground/PushbackPhase.cs`, `GroundCommandHandler.TryPushback` / `TryPushbackToSpot`, and `FlightPhysics.UpdatePosition` (which displaces the aircraft along `Ground.PushbackTrueHeading` — tail-first — whenever that field is set).
+Core code:
+
+| Piece | Where | Role |
+|---|---|---|
+| `TugKinematics`, `TugMove`, `TugPose`, `TugMoveProgress` | `src/Yaat.Sim/Data/Airport/TugKinematics.cs` | The motion body: pure, deterministic, no aircraft state. Used by the planner to simulate and by the phase to steer. |
+| `TugMovePlanner`, `TugGoal`, `TugRequest`, `TugPlan`, `TugAmendment` | `src/Yaat.Sim/Data/Airport/TugMovePlanner.cs` | Turns goals into a chain of moves, simulates every candidate, drops the unflyable or unsafe ones, keeps the best. |
+| `TugPathCheck` | `src/Yaat.Sim/Data/Airport/TugPathCheck.cs` | The flown-path check: runways, holding positions, movement-area pavement the move was not sent to. |
+| `PushbackPhase` | `src/Yaat.Sim/Phases/Ground/PushbackPhase.cs` | Flies one `TugMove`. `FlightPhysics.UpdatePosition` displaces the aircraft along `Ground.PushbackTrueHeading` (tail-first) when that field is set, along the nose otherwise. |
+| `GroundCommandHandler.TryPushback` / `TryPushbackMulti` / `TryAmendPushback` / `InstallTugMove` | `src/Yaat.Sim/Commands/GroundCommandHandler.cs` | Resolves the command's targets to goals, plans, installs one phase per move plus the terminus phase. |
+| `GroundOutline` | `src/Yaat.Sim/GroundOutline.cs` | The plan-view outline the conflict detector sweeps against parked neighbours. |
+
+The client's ground view plans the same way for its "Push route…" preview ([ground-rendering.md](../ground-rendering.md)): `TugMovePlanner.Plan` on the client's copy of the layout, so the preview draws the path the aircraft will fly.
 
 ## Why a pushback is not a taxi route
 
-A pushback happens entirely in the **nonmovement area** (ramp/apron), under the tug/ramp-control, along ramp lead lines — not along ATC-controlled taxiway centerlines (7110.65 §3-7-2 NOTE 2; PCG *movement area* excludes ramps). Modeling it as a tail-first A\* taxi over the movement-area graph is wrong: it can route the aircraft onto a real taxiway and back to reach a ramp spot. A pushback must reverse **directly** to the target.
+A pushback happens in the **nonmovement area** (ramp/apron), under the tug and ramp control, along ramp lead lines — not along ATC-controlled taxiway centerlines (7110.65 §3-7-2 NOTE 2; PCG *movement area* excludes ramps). Modeling it as a tail-first A\* taxi over the movement-area graph is wrong: it can route the aircraft onto a real taxiway and back to reach a ramp spot. A tug move goes **directly** to its goal, and the flown-path check refuses one that would put the aircraft on pavement it was not sent to.
 
-> This was GitHub issue #233: `PUSH $5A` at SFO gate D2 graph-routed ~999 ft down taxiway T5 onto taxiway Alpha (the only graph path from D2's ramp to spot 5A's lane) and reversed back — instead of the 529 ft direct reverse. The fix routes all `PUSH @parking` / `PUSH $spot` through `PushbackPhase`'s targeted mode.
+> This was GitHub issue #233: `PUSH $5A` at SFO gate D2 graph-routed ~999 ft down taxiway T5 onto taxiway Alpha and reversed back — instead of the 529 ft direct reverse.
 
-## `PushbackPhase` — three modes
+7110.65 and the AIM carry no pushback or towing procedure at all. The governing FAA document is **AC 00-65A** (*Towbar and Towbarless Movement of Aircraft*); tow speed ceilings come from **ISO 20683**. Every constant below that is not a citation is labelled a judgement call in the code.
 
-`PushbackPhase` (a `Phase`) covers all pushbacks. The mode is chosen by which fields are set:
+## The motion body — `TugKinematics`
 
-| Mode | Set fields | Behavior |
-|------|-----------|----------|
-| **Simple** | neither `TargetHeading` nor `TargetLat/Lon` | Push straight back `CategoryPerformance.SimplePushbackDistanceNm` (≈1.3× aircraft length) to clear the gate, then stop. |
-| **Heading-only** | `TargetHeading` only | Push back along a curved arc while rotating the nose to `TargetHeading`. Used by `PUSH FACE/TAIL <cardinal>` and `PUSH <taxiway> <facing>`. |
-| **Targeted position** | `TargetLatitude`/`TargetLongitude` (+ optional `TargetHeading`) | Reverse directly to the target point along a pursuit arc, then rotate the nose to the final heading. Used by `PUSH <taxiway>` (target = a point on the taxiway) and `PUSH @parking` (target = the parking node). |
-| **Spot (targeted + pull-forward)** | additionally `PullForwardLatitude`/`PullForwardLongitude` | Two-leg tug maneuver for `PUSH $spot`: reverse to a **staging point behind the marking**, then pull **forward** onto the spot (see below). |
+The reference point travels along the aircraft's own axis: the main gear cannot slide sideways, so on a push the nose is the reciprocal of the direction of travel and on a pull the nose *is* the direction of travel. There is no in-place pivot and no crab.
 
-### Lifecycle (targeted mode)
+- **Steering is by curvature, never by rate.** Over a step of `d` feet the direction of travel turns by at most `d / R` radians. A stopped aircraft never rotates, and the path does not depend on speed.
+- **Turn radius per type** (`TurnRadiusFt`; judgement calls): routine `R = WheelbaseFt` (45° of nose-gear steering, from `FaaAircraftDatabase`); tight `R / tan 67.5°` (≈0.41 × wheelbase; B738 ≈ 21 ft). A type with no wheelbase falls back by category: Jet 50 ft, Turboprop 30 ft, Piston 7 ft, Helicopter 10 ft.
+- **Move shapes** (`TugMove`, one continuous push or pull):
+  - `Straight(distanceFt)` — along the travel it started with.
+  - `ToPoint(point)` — pursues the point; ends within 1 ft, or within 3 ft once the point is abeam or behind.
+  - `ViaLine(linePoint, lineTravelDeg, stopAt?)` — captures the line with the **roll-out law**: commanded course `χL − sign(e)·θ(e)`, θ = 90° when |e| ≥ R_c, else `acos(1 − |e|/R_c)`, `R_c = 1.15 R`; within 5 ft of the line θ blends linearly to zero so a captured line followed to a far stop does not chatter. The aircraft turns in at up to 90°, flies straight, rolls out on an arc — the shortest lateral S-curve. With `stopAt` it completes only once it has captured the line (|e| ≤ 1 ft, |Δχ| ≤ 1°) **and** reached the stop's along-line position; a move that reaches the stop first carries on until it captures and the planner then judges the overshoot. Without `stopAt` it ends at capture.
+  - `TurnTo(facingDeg)` — a constant-radius arc until the nose is on the facing. An exact 180° change turns whichever way `GeoMath.TurnHeadingToward`'s normalisation lands the raw difference (+180 goes right, −180 goes left), so the side depends on the two headings' numbering, not on room.
+- **Flags**: `Tight` (tight radius), `Creep` (3 kt over the last stretch), `DwellBefore` (this move reverses the previous one).
+- `Simulate(start, moves, type, stepFt)` flies the chain with fixed steps (the planner uses 1 ft) and returns per-move traces: samples about every 5 ft, completion, path length, maximum travel deviation, end pose, and for a line move the end cross-track, travel error and overshoot. The travel budget per move is a straight's distance + 1 ft, a turn's 2πR + 50 ft, else max(3 × direct distance, 600 ft); a move that exceeds it is unflyable.
 
-1. **Align** (`OnStart` / alignment stage): compute the alignment heading (nose faces *away* from the target so the tail points at it). If the nose is within `AlignmentThresholdDeg` (20°) of it, start reversing immediately; otherwise rotate the nose in place first. Gate pushbacks are typically already aligned (the tail points down the alley), so no in-place rotation occurs.
-2. **Reverse arc** (`TickTargetedPushback`): each tick, steer `PushbackTrueHeading` toward the bearing-to-target at `CategoryPerformance.PushbackTurnRate` — a smooth pursuit arc (the tug curving the tail), not a straight-line slide — at `PushbackSpeed` (≈5 kt). Nose rotation to `TargetHeading` is delayed until `NoseRotationProgressThreshold` (60%) of the push is covered, then completes while still moving (no stationary nose pivot).
-3. **Reached target** (`_reachedTarget`, within `TargetReachedThresholdNm` ≈3 ft): stop translating; finish rotating the nose to `TargetHeading` in place if not already there, then the phase completes and the queued terminal phase takes over — see below.
+## The planner — `TugMovePlanner`
 
-### The terminal phase
+**Input** (`TugRequest`): the start pose, whether the aircraft is on a stand, the type, the goals in order, an optional final facing that overrides the last goal's, and the kind of the move under way when re-planning a tow (`PreviousKind`, so a first move of the other kind dwells).
 
-What a completed pushback hands over to follows the stand-vs-surface rule in [phases.md](../phases.md): only a stand parks.
+**Goals** (`TugGoal`):
 
-| Push | Terminal phase | `Ground.ParkingSpot` |
-|------|----------------|----------------------|
-| `PUSH` (simple), `PUSH <taxiway>`, `PUSH FACE/TAIL <dir>` | `HoldingAfterPushbackPhase` | cleared by the `TAXI`/`PUSH` that follows |
-| `PUSH @<gate>` / `PUSH @<helipad>` | `AtParkingPhase` | the stand pushed onto |
-| `PUSH $<spot>` | `HoldingAfterPushbackPhase` | null — the aircraft left its gate and a spot is not a stand |
+| Goal | From | Facing | Stop |
+|---|---|---|---|
+| `Spot(node)` | `PUSH $spot`, `PUSHM $spot`, `#spot-node` | nose-out along the sub-lane toward the parent taxiway (`TryGetSpotOutboundHeading`) | a half-fuselage behind the mark so the nosewheel sits on it; a staging point a further clamp(0.75 × length, 40, 100) ft behind (`SpotStopGeometry`) |
+| `Stand(node)` | `PUSH @gate`, `PUSHM @gate`, `#parking/helipad node` | the stand's own heading; **takes no facing** | the node |
+| `AtNode(node, facing?)` | `PUSHM #node` | as given, or whatever the move leaves | the node |
+| `TaxiwayLine(exit, twy, facing)` | `PUSH <twy> <facing-twy>`, `PUSH <twy> FACE/TAIL` | the taxiway's edge direction nearest the hint | floating — stops once lined up |
+| `StraightBackTo(exit, twy)` | bare `PUSH <twy>` | the stand heading (across) or along the taxiway (alongside) | see below |
+| `Facing(deg)` | `PUSH FACE/TAIL` | as given | — |
+| `Clear()` | bare `PUSH` | the stand heading | `SimplePushbackDistanceNm` back |
 
-`HoldingAfterPushbackPhase` accepts a fresh `Pushback`, and `TryPushback` takes it as a precondition alongside `AtParkingPhase`, so an aircraft resting on a spot can be pushed again without a `TAXI` in between.
+Every facing is **true**; the handler converts the controller's magnetic cardinal first.
 
-## Spot pushback — reverse-past-then-pull-forward (`PUSH $spot`)
+**Output** (`TugPlan`): the moves with their simulated traces, and the end pose. A refusal returns null with the message the controller sees.
 
-A ramp spot is a painted **nosewheel** marking on a ramp sub-lane (e.g. SFO spot `7A` on lane `T7A`, ~174 ft off taxiway Alpha). A tug positions an aircraft onto one the way it lines up any stand: reverse *past* the mark, then pull *forward* onto it (forward taxi is self-correcting; a towed aircraft can't precisely position in reverse). `GroundCommandHandler.TryPushbackToSpot` builds this as a two-leg targeted pushback:
+**Rules**, per goal, planned greedily from where the previous goal ended:
 
-- **Facing (`H_out`)**: `PUSH $7A` has no facing data (spot nodes carry no heading — only parking nodes do), so the handler derives a **nose-out** heading from `AirportGroundLayout.TryGetSpotOutboundHeading` — the direction along the sub-lane toward the parent movement-area taxiway (the neighbour that reaches a real taxiway, not RAMP). A departure is left pointed to taxi out. An explicit `PUSH $7A FACE <dir>` overrides it.
-- **Geometry** (along `H_out`, origin = spot): the aircraft comes to rest with its centroid a **half-fuselage behind** the mark, so the front of the footprint (nosewheel) sits on the spot — the same setback as taxi-to-spot stops ([landing-and-runway-exit / #234](../../CHANGELOG.md); `TaxiingPhase.TryStopNoseAtSpot`). The **reverse target** (`TargetLatitude/Longitude`) is a staging point a further `D_fwd` behind that, where `D_fwd = clamp(0.75 × fuselageLengthFt, 40, 100) ft` (the cap keeps the staging point on the sub-lane).
-- **Legs**: leg 1 is the normal targeted pursuit-arc reverse to the staging point (nose rotating to `H_out`); on reaching it `PushbackPhase` flips `_pullingForward` and runs leg 2 (`TickPullForward`) — a slow forward creep (`CategoryPerformance.PushbackAlignSpeed` = 3 kt, vs the 5 kt reverse) toward `PullForwardLatitude/Longitude` (the rest point), nose held on `H_out`, completing on arrival. `HoldingAfterPushbackPhase` then takes over.
+1. **Stand start.** Off a stand the first move is `Push Straight(½ fuselage)` (the same half-fuselage `HasLeftTheStand` uses), and the next move must be a push. `Clear` and `StraightBackTo` are straight pushes already and carry no separate push-off. A `Node` goal ahead of the nose off a stand is refused.
+2. **A goal with a facing F** (spot, stand, node with a facing, or the last goal with an explicit facing) is reached along the approach line through its stop along F, from either side. The **side test** only orders the candidates: pull first when the stop is within 90° of F as seen from the aircraft, else push first; within 5° of 90° the push side goes first (SFO's 6A/6B sit exactly abeam, where a foot of end error flips the test). Three templates per side: **T1** the side move straight onto the line (a spot push stops at the staging point, then a creep pull onto the stop); **T2** the other kind onto the line first, then T1; **T3** a three-point turn — the other kind turns the nose to F ± 90°/60°/30°, then T1 — built when the nose has to rotate more than 30°. The final pull onto a spot is always a `Creep`.
+   - A candidate is **dropped** when it breaks rule 1; a same-kind run without a turn wanders more than 120° from where it started (a loop); a move exceeds its budget; the last move ends more than 2° off the facing or 3 ft off the line; a move onto a stop point runs more than 3 ft past it (a push onto a staging point, 100 ft); or it fails the flown-path check.
+   - A candidate dropped only because its final line pull overshot the stop by ≤ 60 ft is retried once with a straight of the kind before the reversal, 1.5 × overshoot + 10 ft, inserted before the reversal (C9 → `$5B`'s best three-point turn overshot by 6 ft).
+   - Among the survivors: fewest reversals, then shortest path, then template order. A refusal is reported only from candidates whose shape was sound — a candidate that was never a way to fly the move does not name the pavement it would have crossed.
+   - Turns the planner invents (T3, line captures) always use the routine radius; `Tight` is only for an explicit `PUSH FACE` that rotates the nose more than 135°.
+   - D15 `PUSH $6A` (B738, measured 2026-09-16): a T3 three-point turn wins — `Push Straight` 65 ft (the push-off), `Push TurnTo` 99 ft, reversal, `Pull ViaLine` 615 ft creeping onto 6A; one reversal, 779 ft. `PUSHM $6A $6B` adds two more reversals: `Push ViaLine` 209 ft onto the T6B line, then `Pull ViaLine` 114 ft creeping onto 6B. The reference point (the fuselage midpoint, standing in for the main-gear centre that a bicycle model actually rotates about; a B738's main gear is ~4 ft aft of it, a B77W's ~12 ft) never comes within 173 ft of taxiway A, wingtips included.
+3. **`Node` with no facing.** Push when the node is more than 90° off the nose, else pull; shape `ToPoint`.
+4. **`Facing`.** Push-off, `Push TurnTo(F)` (`Tight` over 135°), then a straight push for whatever remains of the simple pushback distance.
+5. **`Clear`.** `Push Straight(SimplePushbackDistanceNm)`.
+6. **`StraightBackTo`** — a bare `PUSH <twy>` splits on one angle, `AcrossAngleDeg` = 45° (a judgement call; the two measured cases are OAK gate 25 `PUSH TE`, whose TE edge meets the push at 31.5° 645 ft back, and SFO B12 `PUSH A`, crossing A at 76° 417 ft back):
+   - **Across**: the push ray crosses a straight centreline edge of the taxiway at ≥ 45° within 2,000 ft → push straight back to it; the nose keeps the stand heading.
+   - **Alongside**: otherwise, a straight edge running within 45° of the push direction whose nearest point is behind the aircraft and within 2,000 ft → push-off, then a push onto that edge's line. The push ends at capture when that point already lies within 25 ft (`OnTaxiwayCorridorFt`, half an ADG-III taxiway's width; a judgement call) of any straight edge of the taxiway's extent — OAK gate 32 `PUSH TE` stops as soon as it is on TE, 8.7 ft off the piece beside the stand where TE bends; when the capture completes short of the taxiway it carries on along the line to the taxiway's nearest point (SFO B2 `PUSH M4`, issue #172: M4 runs 87 ft to the side of the push and starts 200 ft further back). Either way the aircraft ends **on** the taxiway with the nose along it.
+   - Otherwise: `Unable, taxiway X is not behind the aircraft`.
+7. **`TaxiwayLine`.** Push-off, then `Push ViaLine(L, floating)` through the exit node along the facing (`Tight` over 135°).
+8. **Dwell.** `DwellBefore` is set on every move whose kind differs from the previous move's.
 
-`PUSH @parking` (gates) is unchanged — a single reverse onto the parking node. If a spot's out-heading can't be derived and none is given, `PUSH $spot` falls back to the single-leg reverse.
+**Outright refusals**: a goal more than `MaxGoalDistanceFt` (2,000 ft, a UI mis-click guard, not an aviation rule) from where the aircraft will be; a goal on a runway holding-position node (AIM 4-3-18.a.5; AC 00-65A §11.13). A `PUSHM` needs at least two targets.
 
-## Mid-push face amendment (`TryUpdateTargetHeading`, issue #167)
+**No layout**: `Plan` accepts a null layout for `Clear` and `Facing` goals only and skips the flown-path check, so a bare `PUSH` and `PUSH FACE` work at an airport with no ground map.
 
-A heading-only `PUSH FACE C` / `TAIL C` while a pushback is active amends the target facing in place — no new phase. Accepted until the nose has begun rotating to the prior target:
+### The flown-path check — `TugPathCheck`
 
-- **Simple mode**: until alignment completes (`_isAligned`).
-- **Heading-only / targeted**: until 60% of the push distance is covered (or `_reachedTarget`).
+Every candidate's samples are checked, about every 5 ft, in a flat frame about the plan's start. Edges are taken as chords. The first rule broken wins, in this order:
 
-After that it is rejected with `Unable, pushback turn in progress`. Non-heading-only `PUSH` commands during an active pushback are rejected (`only face/tail amendment accepted during pushback`).
+- **Runway.** The footprint rectangle (fuselage length × wingspan about the reference point, oriented by the nose) comes within the runway's half-width of its centreline.
+- **Holding position.** A footprint side crosses any edge that touches a `RunwayHoldShort` node.
+- **Movement area.** The fuselage segment (nose to tail) crosses movement-area pavement, as classified by `PavementClassifier.MovementAreaName`, except:
+  - pavement the goal names (a `TaxiwayLine`/`StraightBackTo` taxiway; a node goal's edge names);
+  - the **taxiway behind the stand**: for a plan that starts on a stand, the first movement-area edge within `StandBehindExemptionFt` (300 ft) straight behind it is exempt for the whole plan — the push clearance covers pushing onto it and pulling back off it (SFO's Y, 186 ft behind the B gates);
+  - **leaving and arriving**, per goal: the edges the fuselage lies across at the goal's start pose, extended through shared nodes along the same movement-area name for at most one fuselage length of chain, stay exempt for the unbroken run of samples from the start over which the fuselage still crosses one of them; symmetrically for the edges crossed at the goal's end pose, back from the end. The chain is needed because the graph splits a taxiway's centreline at every junction into stubs as short as 5 ft (SFO's taxiway A); the bound is the aircraft's own length because an aircraft leaving a taxiway clears the centreline within about that much travel along it, so a fuselage still across the taxiway further along is transiting, not leaving.
+- **Open apron is not checked.** The layout carries no pavement polygons, and real aprons have ungraphed stretches wider than any distance-from-the-graph test could allow (a 100 ft rule refused OAK `PUSH D` and SFO `PUSH @A9`).
+
+A refusal names the leg and the pavement: `Unable, the move to spot 6A would put the aircraft on taxiway A`, `Unable, leg 2 to spot 6B reaches a runway holding position`, `Unable, … on runway 10L - 28R`.
+
+## Flying one move — `PushbackPhase`
+
+`InstallTugMove` clears whatever the aircraft was doing and installs one `PushbackPhase` per planned move, then the terminus phase. The phase keeps the name "Pushback" (client menu gates key on it).
+
+- **Movement.** Each sub-tick `TugKinematics.SteerTravel` turns the direction of travel by at most the distance physics is about to move the aircraft divided by the radius. On a push `Ground.PushbackTrueHeading` is the travel and `TrueHeading` its reciprocal, for the whole move, dwell included; on a pull `PushbackTrueHeading` is null and `TrueHeading` is the travel. Every reader keeps its "set ⇒ tail-first" assumption.
+- **Speed.** `CategoryPerformance.PushbackSpeed` = 5 kt for every push and pull, or `PushbackAlignSpeed` = 3 kt over the last stretch of a `Creep` move (both judgement calls under ISO 20683's ≈5.4 kt ceiling; AC 00-65A §11.14 asks for no more than the walking team's pace). A step that turns by more than a quarter of the most it may (`TurningStepFraction`) is slowed by `R / (R + half-span)` so the outer wingtip keeps walking pace — a B738 on its routine radius then moves its reference point at 2.3 kt, the tug at 3.3 kt and the wingtip at 5.0 kt, all under ISO 20683's 10 km/h; a step turning at less than that fraction is not capped, so on a very shallow arc the wingtip can reach about 6.4 kt (11.9 km/h). Within 10 ft of the planned end the speed is 1 kt so the last step lands inside the 1 ft stop tolerance. The move stops dead when it completes.
+- **Dwell.** A move with `DwellBefore` waits `DwellSeconds` = 5 s at a standstill first, counted only while stopped (AC 00-65A §11.17 says towing "should not start and stop suddenly" and gives no duration).
+- **`HasLeftTheStand`**: true for every move except the stand push-off (`StartsAtStand`), which reports true once the aircraft has moved more than half its fuselage length from where the move began. `GroundConflictDetector` uses it to decide whether a push outranks taxiing traffic.
+- **`TryGetPushLegEnd`** returns the move's planned end; **`RemainingPath`** returns the rest of the move simulated from the live pose, each sample with its distance along the path, re-simulated once the aircraft has moved more than 2 ft (the conflict detector's outline sweep reads it). **`StartPose`** is where the move began (the live pose for a phase whose start was never recorded).
+- **Commands.** `HOLD`/`RES` are allowed; `TAXI`, `TAXIAUTO`, `AIRTAXI`, `LAND`, `DEL` and `PUSHM` clear the phase and every move queued behind it (a redirect of an attached tug is ordinary; the new plan is made from the live pose, and a first move that reverses the last motion dwells first). A `PUSH` during a tow is only ever the facing amendment below.
+- **Snapshot.** `PushbackPhaseDto` carries the move (shape, kind, flags, line point, line travel, stop point, straight distance, facing, planned end), the progress (start, distance, captured, dwell elapsed), the amendment and `StartsAtStand`. A snapshot written before tug moves existed restores through the nullable `Legacy*` fields as the equivalent move: target + heading → a line capture onto the target; heading only → a turn; neither → a straight push for the clearance still owed, finished on the first tick from the live pose. A pull-forward still pending behind the target is dropped with a Warning log, and the aircraft stops at the staging point. A pre-#233 spot pushback (`PushbackToSpotPhaseDto` — the multi-segment reverse with in-place pivots, whose phase is gone) restores through that same mapping: `PhaseList.SpotPushbackAsMove` collapses its route to one push onto the node the last segment ended on, resolved through the ground layout (without one, or when the layout no longer has that node, it stops at the current segment's end and logs a Warning), and one that had already arrived restores completed. The DTO is retained as data only so those snapshots still deserialize; it is never written and never flown. A mid-push `PUSH FACE` on such a restore is judged by `PushbackPhase.CanAmend` like any other push — a restored spot push is past its push-off, so the answer is "Unable, pushback turn in progress".
+
+### Mid-push face amendment (issue #167)
+
+A heading-only `PUSH FACE C` / `PUSH TAIL C` during a tow is accepted only while the **stand push-off** of a single-goal `PUSH` is still running — before any turn has begun. The push-off carries a `TugAmendment` (the goal kind, its node and taxiway, and the stand start pose) for a `Facing`, `Spot` or `TaxiwayLine` goal; the same goal is re-planned on the new facing **from the stand start pose**, so the new plan's first move is the same push-off, which keeps running, and every move behind it is replaced. After that: `Unable, pushback turn in progress`. A push to a stand is never amended (`Unable, a pushback to a stand keeps the stand's heading`); `PUSHM` carries no amendment; any other `PUSH` during a tow is `Unable, only face/tail amendment accepted during pushback`.
+
+## The command forms — `GroundCommandHandler`
+
+| Command | Goal | Terminus phase | `Ground.ParkingSpot` |
+|---|---|---|---|
+| `PUSH` | `Clear` | `HoldingAfterPushbackPhase` | untouched |
+| `PUSH FACE/TAIL C` | `Facing` | `HoldingAfterPushbackPhase` | untouched |
+| `PUSH <twy>` | `StraightBackTo` | `HoldingAfterPushbackPhase` | untouched |
+| `PUSH <twy> <twy2>` / `PUSH <twy> FACE C` | `TaxiwayLine` | `HoldingAfterPushbackPhase` | untouched |
+| `PUSH @<gate>` / `@<helipad>` | `Stand` | `AtParkingPhase` | the stand pushed onto |
+| `PUSH $<spot>` [facing] | `Spot` | `HoldingAfterPushbackPhase` | null — a spot is not a stand |
+| `PUSHM <t1> <t2> …` [facing] | one goal per target by sigil (`$` spot, `@` stand, `#` node — a parking/helipad node is a stand, a spot node a spot) | by the last target, as above | as above |
+
+The stand-vs-surface rule is [phases.md](../phases.md)'s: only a stand parks. `HoldingAfterPushbackPhase` accepts a fresh `PUSH`/`PUSHM`, so an aircraft resting on a spot can be pushed again without a `TAXI`.
+
+- **A stand takes no facing.** `PUSH @gate FACE …`, `PUSH @gate <twy>` and a `PUSHM` whose last target is a stand with a final facing are refused: the aircraft parks on the stand's own heading.
+- `PUSH <twy> <facing-twy>` is refused when the facing taxiway cannot be found near the exit node; when it is found but has no edge to align along, the raw bearing toward it is used.
+- **Overlap refusal.** After planning and before installing, if the aircraft's outline at its start (with the tug's 30 ft lead when the first move is a pull) comes within the detector's 0.5 ft slack of any parked or held aircraft's outline, the command is refused naming both: `Unable, SWA1 is up against SWA2 — their outlines overlap; reposition one of them before towing`. A modelled collision at the start is a scenario or placement error the tow must not paper over. The check needs the dispatch context's aircraft list (the engine supplies it; a minimal context skips it).
+- Readbacks are unchanged: `Pushing back [onto TE][ facing T | , face heading 090]`, `Pushing back to 6A`, `Tug move to 6B, 2 legs`.
+
+## Parked neighbours — the outline rule in `GroundConflictDetector`
+
+A tug-moved aircraft (push or pull) against a **parked or held** neighbour is judged by sweeping its `GroundOutline` — a cross of the fuselage segment (extended 30 ft ahead of the nose tip for the tug on a pull, which overstates a towbar rig by ~15 ft since the 30–40 ft figure is measured from the nose gear; conservative), the wing at the reference point and a tailplane 40 % of the span wide at the tail — along `RemainingPath` against the neighbour's outline. The segments have no width, so a modelled 25 ft is about 19 ft of skin clearance for a B738, which is the AC 150/5300-13B taxilane wingtip standard (0.05 × span + 10 ft):
+
+- **Floor.** The clearance may never drop below `min(WingtipBufferFt = 25 ft, clearance at the move's start) − 0.5 ft`, and never below the 0.5 ft slack. The floor is anchored to the **move's start pose**, not the live one: a floor that followed the mover down ratcheted it into contact a foot at a time. Neighbouring stands usually start closer than 25 ft, and a move that never closes on them passes.
+- **Stop.** A move that fouls the neighbour at some sample is stopped (`outline stop`, limit 0, the neighbour shown as the yield target) once that sample lies within the stopping margin: the braking distance from `PushbackSpeed` plus one detector interval (0.25 s) of travel — about 6 ft at 5 kt, constant for the move. Measured at the live speed the margin is zero at rest and the stop released every tick. A move still further out than the margin takes no limit and is re-measured next pass, which is what lets a push creep past a neighbour it will clear.
+- **Never stationary.** An aircraft under an active `PushbackPhase` never classifies as `Stationary`, whatever its speed: physics nulls `TargetSpeed` when IAS reaches a zero limit, and a stopped pull would otherwise leave conflict resolution and inch forward ~0.2 ft/s. A controller hold (`IsImmobile`) still makes it a passable obstacle.
+
+This replaces the half-wingspan lateral test for these pairs, which compared the room along a straight line against two half-spans and so held a straight push whose neighbour sat beside the tail (issue #222 at OAK gates 25/26) while being blind to a turn that swings the tail into a neighbour further along. Movers, shadows and the give-way-to-pushback arbitration are unchanged — see [conflict-and-visual-detection.md](../conflict-and-visual-detection.md).
 
 ## Notes / footguns
 
-- **The `AtParkingPhase` precondition is reachable by warp.** `TryPushback` accepts only `AtParkingPhase` or `HoldingAfterPushbackPhase`. `WARPG @<gate>` (or `WARPG #<parkingNode>`, which is what the Ground View's "Warp here" sends) parks the aircraft at the stand, so an instructor can set a pushback up directly — no `TAXI @<gate>` in between. A warp onto a taxi spot or a taxiway node does *not* park it, and `PUSH` there is still refused.
-- The direct reverse is **not obstacle-aware** — it has no taxiway-graph guidance. `GroundConflictDetector` still speed-limits/holds a pushing aircraft near moving traffic (parked/held neighbors are passable — see #222), but the reverse path itself is a straight/curved line to the target. This is correct for a ramp pushback (short, in open ramp pavement).
-- Snapshot: `PushbackPhaseDto` stores only scalars (`TargetHeading`, `TargetLatitude/Longitude`, `PullForwardLatitude/Longitude`, `PullingForward`, `StartLat/Lon`, `ReachedTarget`, `IsAligned`, …) — there is no `TaxiRoute` to reconstruct, so restore is trivial. The spot fields are optional (null/false), so pre-feature snapshots restore as an ordinary single-leg reverse.
+- **The `AtParkingPhase` precondition is reachable by warp.** `WARPG @<gate>` parks the aircraft, so an instructor can set a pushback up directly. A warp onto a spot or a taxiway node leaves it holding, and `PUSH` is still accepted there (`HoldingAfterPushbackPhase`) but plans without the stand push-off.
+- **The two best 6A → 6B plans differ by 1 ft** (324 ft push-side T1 vs 323 ft pull-side T2, measured 2026-09-16), so which wins can flip with a slightly different start pose. Both give the same push-then-creep-pull kinds.
+- **The tight steering angle (67.5°) is type-blind**: inside a 737's ±78° nose-gear limit, but at or past what a connected towbar rig steers on a B777 (tiller ±70°). It only fires for an explicit `PUSH FACE` over 135°.
+- **The planner sees no parked aircraft** beyond the start-pose overlap refusal: a swing through a neighbour is accepted and then dead-stopped by the outline sweep mid-manoeuvre. Feeding the parked set into `Judge` is queued in the plan.
+- **A `Creep` move runs at 5 kt for most of its length**: the 3 kt creep applies only within the spot pull-forward distance of the planned end.
+- **A 5 s dwell covers only 4 whole still seconds** at one-second sampling; assert ≥ 4 in an E2E, or sample sub-ticks.
+- **`ReplayOneSubTick()` is replay-only**; a live E2E samples per second and bounds |Δnose| by that second's displacement.
+- **`RemainingPath` subdivides** the simulation's 5 ft samples wherever the nose turns more than 5° between two of them; nothing of it is snapshotted, and a restored phase simulates on first use.
+- **Legacy snapshots**: a pre-tug-move spot pushback that had not reached its staging point restores without its pull-forward (Warning logged).

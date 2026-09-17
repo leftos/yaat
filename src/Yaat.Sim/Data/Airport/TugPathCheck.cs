@@ -8,7 +8,6 @@ internal enum TugPathSeverity
     Runway,
     HoldingPosition,
     MovementArea,
-    OffGraph,
 }
 
 /// <summary>A flown-path refusal and the rule it comes from.</summary>
@@ -18,22 +17,25 @@ internal readonly record struct TugPathRefusal(TugPathSeverity Severity, string 
 /// Checks a candidate's flown path, sample by sample, against the layout: the footprint (fuselage length ×
 /// wingspan about the reference point, oriented by the nose) must stay more than a runway's half-width from its
 /// centreline and must not cross an edge touching a runway holding position; the fuselage centreline must not
-/// cross movement-area pavement the goal does not name, except within 25 ft of the plan's start or the goal's
-/// end; and the reference point must stay within <see cref="MaxOffGraphFt"/> of some ground-graph edge. Edges are
-/// taken as their chords. Works in flat feet east and north of the plan's start, the frame
-/// <c>GeoMath.ProjectPoint</c> steps in. Holds one plan's precomputed segments and memoized pavement verdicts, so
-/// one instance serves every candidate of a plan.
+/// cross movement-area pavement the goal does not name, except the pavement the goal's own first sample already
+/// lies across, for the unbroken run of samples still across it, and the pavement its last sample lies across,
+/// over the unbroken run back to it — leaving pavement and reaching it. That pavement is the edges the fuselage
+/// lies across plus their chain of same-named neighbours within a fuselage length, because the graph cuts a
+/// taxiway's centreline into a stub at every junction.
+/// Open apron is not checked: the layout carries no pavement polygons, and real aprons have ungraphed
+/// stretches wider than any distance-from-the-graph test could allow. Edges are taken as their chords. Works in
+/// flat feet east and north of the plan's start, the frame <c>GeoMath.ProjectPoint</c> steps in. Holds one plan's
+/// precomputed segments and memoized pavement verdicts, so one instance serves every candidate of a plan.
 /// </summary>
 internal sealed class TugPathCheck
 {
-    /// <summary>
-    /// How far a sample's reference point may lie from the nearest ground-graph edge of any type (ramp lane,
-    /// parking stub or taxiway), feet; a judgement call. The layout carries no pavement polygons, so distance from
-    /// the graph stands in for "on pavement".
-    /// </summary>
-    internal const double MaxOffGraphFt = 100.0;
-
     private const double Epsilon = 1e-9;
+
+    /// <summary>The spacing of a trace's samples, feet, for naming where along a move a sample lies.</summary>
+    private const double SampleSpacingFt = 5.0;
+
+    /// <summary>How far past an edge's end a point may project and still count as on that edge, feet.</summary>
+    private const double ExtentSlackFt = 1.0;
 
     private static readonly ILogger Log = SimLog.CreateLogger("TugPathCheck");
     private const double DegToRad = Math.PI / 180.0;
@@ -58,23 +60,185 @@ internal sealed class TugPathCheck
     }
 
     /// <summary>
-    /// The first rule the path breaks — runway, then holding position, then movement area, then off the ground
-    /// graph — or null when clear.
+    /// The first rule the path breaks — runway, then holding position, then movement area — or null when clear.
     /// </summary>
-    internal TugPathRefusal? Check(IReadOnlyList<TugMoveTrace> traces, TugPose goalEnd, IReadOnlySet<string> exemptNames, string subject)
+    internal TugPathRefusal? Check(IReadOnlyList<TugMoveTrace> traces, IReadOnlySet<string> exemptNames, string subject)
     {
-        var poses = traces.SelectMany(t => t.Samples).Select(p => new LocalPose(Local(p.Position), p.NoseTrueDeg * DegToRad)).ToList();
+        var poses = traces
+            .SelectMany((t, move) => t.Samples.Select((p, sample) => new LocalPose(Local(p.Position), p.NoseTrueDeg * DegToRad, move, sample)))
+            .ToList();
         if (poses.Count == 0)
         {
             return null;
         }
 
-        // The prefilter reaches as far as the footprint does and as far as the off-graph test looks.
-        var box = Box.Around(poses).Padded(Math.Max((2.0 * _halfLengthFt) + (2.0 * _halfSpanFt), MaxOffGraphFt));
+        // The prefilter reaches as far as the footprint does.
+        var box = Box.Around(poses).Padded((2.0 * _halfLengthFt) + (2.0 * _halfSpanFt));
         return RunwayRefusal(poses, box, subject)
             ?? HoldingPositionRefusal(poses, box, subject)
-            ?? MovementAreaRefusal(poses, box, Local(goalEnd.Position), exemptNames, subject)
-            ?? OffGraphRefusal(poses, box, subject);
+            ?? MovementAreaRefusal(poses, box, exemptNames, subject);
+    }
+
+    /// <summary>
+    /// The nearest edge that the straight ray from <paramref name="from"/> along <paramref name="travelTrueDeg"/>
+    /// crosses inside <paramref name="window"/> (from its minimum distance out to its range, feet), among the edges
+    /// <paramref name="match"/> accepts, and how far along the ray it is crossed. An edge running parallel to the ray
+    /// is never crossed. Null when none is.
+    /// </summary>
+    internal (IGroundEdge Edge, double DistanceFt)? FirstCrossing(
+        LatLon from,
+        double travelTrueDeg,
+        (double MinDistanceFt, double RangeFt) window,
+        Func<IGroundEdge, bool> match
+    )
+    {
+        var (minDistanceFt, rangeFt) = window;
+        var start = Local(from);
+        double travelRad = travelTrueDeg * DegToRad;
+        var ray = new Pt(Math.Sin(travelRad) * rangeFt, Math.Cos(travelRad) * rangeFt);
+        (IGroundEdge Edge, double DistanceFt)? nearest = null;
+        foreach (var edge in _edges)
+        {
+            if ((RayFraction(start, ray, edge.A, edge.B) is not { } fraction) || !match(edge.Edge))
+            {
+                continue;
+            }
+
+            double distanceFt = fraction * rangeFt;
+            if (distanceFt < minDistanceFt)
+            {
+                continue;
+            }
+
+            if ((nearest is not { } held) || (distanceFt < held.DistanceFt))
+            {
+                nearest = (edge.Edge, distanceFt);
+            }
+        }
+
+        return nearest;
+    }
+
+    /// <summary>
+    /// The nearest edge, among those <paramref name="match"/> accepts, that runs within the window's
+    /// <c>MaxAngleDeg</c> of <paramref name="travelTrueDeg"/> (either way along the edge) and whose point nearest
+    /// <paramref name="from"/> lies ahead along that travel, past zero, with both that distance ahead and the
+    /// straight-line distance from <paramref name="from"/> no further than the window's range, feet. Bounding the
+    /// straight-line distance too keeps an edge far off to the side from qualifying on its along-track distance alone.
+    /// Reports the edge's direction nearest the travel, degrees true, that nearest point, how far ahead along the
+    /// travel it lies, and how far it is from <paramref name="from"/>. Null when no edge qualifies.
+    /// </summary>
+    internal (IGroundEdge Edge, double LineTravelTrueDeg, LatLon NearestPoint, double AlongFt, double DistanceFt)? NearestAlongside(
+        LatLon from,
+        double travelTrueDeg,
+        (double MaxAngleDeg, double RangeFt) window,
+        Func<IGroundEdge, bool> match
+    )
+    {
+        var start = Local(from);
+        double travelRad = travelTrueDeg * DegToRad;
+        var travel = new Pt(Math.Sin(travelRad), Math.Cos(travelRad));
+        (IGroundEdge Edge, double LineTravelTrueDeg, LatLon NearestPoint, double AlongFt, double DistanceFt)? nearest = null;
+        foreach (var edge in _edges)
+        {
+            if (!match(edge.Edge))
+            {
+                continue;
+            }
+
+            var nearestPoint = NearestPointOnSegment(start, edge.A, edge.B);
+            var offset = nearestPoint - start;
+            double alongFt = (offset.X * travel.X) + (offset.Y * travel.Y);
+            double distanceFt = Distance(offset, default);
+            var lineTravel = AlongsideTravelDeg(edge, travelTrueDeg, window.MaxAngleDeg);
+            Log.LogDebug(
+                "Alongside search on {TravelDeg:F1}°: edge {NodeA}-{NodeB} nearest point {DistanceFt:F1} ft away, {AlongFt:F1} ft along; {Verdict}",
+                travelTrueDeg,
+                edge.Edge.Nodes[0].Id,
+                edge.Edge.Nodes[1].Id,
+                distanceFt,
+                alongFt,
+                lineTravel is { } deg ? $"runs on {deg:F1}°" : "runs across"
+            );
+            if (lineTravel is not { } lineTravelDeg)
+            {
+                continue;
+            }
+
+            bool ahead = (alongFt > 0.0) && (alongFt <= window.RangeFt) && (distanceFt <= window.RangeFt);
+            if (ahead && ((nearest is not { } held) || (distanceFt < held.DistanceFt)))
+            {
+                nearest = (edge.Edge, lineTravelDeg, Geo(nearestPoint), alongFt, distanceFt);
+            }
+        }
+
+        return nearest;
+    }
+
+    /// <summary>
+    /// Whether <paramref name="point"/> lies on the extent of one of the edges <paramref name="match"/> accepts: it
+    /// projects between that edge's own ends, with <see cref="ExtentSlackFt"/> of slack at each, and lies no further
+    /// than <paramref name="toleranceFt"/> off its line. Being near an edge's line is not the same as being on the
+    /// edge — a point off the end of every edge of a taxiway is not on the taxiway.
+    /// </summary>
+    internal bool IsOnEdgeExtent(LatLon point, double toleranceFt, Func<IGroundEdge, bool> match)
+    {
+        var p = Local(point);
+        foreach (var edge in _edges)
+        {
+            if (!match(edge.Edge))
+            {
+                continue;
+            }
+
+            var direction = edge.B - edge.A;
+            double lengthFt = Distance(direction, default);
+            if (lengthFt <= Epsilon)
+            {
+                continue;
+            }
+
+            var offset = p - edge.A;
+            double alongFt = ((offset.X * direction.X) + (offset.Y * direction.Y)) / lengthFt;
+            double crossFt = Math.Abs(Cross(direction, offset)) / lengthFt;
+            bool onEdge = (alongFt >= -ExtentSlackFt) && (alongFt <= (lengthFt + ExtentSlackFt)) && (crossFt <= toleranceFt);
+            Log.LogDebug(
+                "Extent check: edge {NodeA}-{NodeB} is {LengthFt:F1} ft long; the point lies {AlongFt:F1} ft along it and {CrossFt:F1} ft off its line — {Verdict}",
+                edge.Edge.Nodes[0].Id,
+                edge.Edge.Nodes[1].Id,
+                lengthFt,
+                alongFt,
+                crossFt,
+                onEdge ? "on the edge" : "off it"
+            );
+            if (onEdge)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>The movement-area name an edge carries, or null when it is ramp.</summary>
+    internal string? MovementAreaName(IGroundEdge edge) => _pavement.MovementAreaName(edge);
+
+    /// <summary>
+    /// The edge's direction, one way or the other, nearest <paramref name="travelTrueDeg"/>, degrees true, when it is
+    /// within <paramref name="maxAngleDeg"/> of it; null otherwise or for a zero-length edge.
+    /// </summary>
+    private static double? AlongsideTravelDeg(EdgeSegment edge, double travelTrueDeg, double maxAngleDeg)
+    {
+        var direction = edge.B - edge.A;
+        if (Distance(direction, default) <= Epsilon)
+        {
+            return null;
+        }
+
+        var forward = new TrueHeading(Math.Atan2(direction.X, direction.Y) / DegToRad);
+        var travel = new TrueHeading(travelTrueDeg);
+        var nearer = forward.AbsAngleTo(travel) <= forward.ToReciprocal().AbsAngleTo(travel) ? forward : forward.ToReciprocal();
+        return nearer.AbsAngleTo(travel) <= maxAngleDeg ? nearer.Degrees : null;
     }
 
     private TugPathRefusal? RunwayRefusal(List<LocalPose> poses, Box box, string subject)
@@ -110,53 +274,202 @@ internal sealed class TugPathCheck
         return null;
     }
 
-    private TugPathRefusal? MovementAreaRefusal(List<LocalPose> poses, Box box, Pt goalEnd, IReadOnlySet<string> exemptNames, string subject)
+    private TugPathRefusal? MovementAreaRefusal(List<LocalPose> poses, Box box, IReadOnlySet<string> exemptNames, string subject)
     {
         var movementEdges = _edges
             .Where(e => box.Overlaps(e.A, e.B) && !RampLaneReposition.EdgeNames(e.Edge).Any(exemptNames.Contains))
             .Select(e => (Segment: e, Name: _pavement.MovementAreaName(e.Edge)))
             .Where(e => e.Name is not null)
+            .Select(e => new MovementEdge(e.Segment, e.Name!))
             .ToList();
-        foreach (var pose in poses.Where(p => !IsNearStartOrEnd(p.Position, goalEnd)))
+        var adjacency = AdjacencyOf(movementEdges);
+        var leaving = PavementAt(poses[0], movementEdges, adjacency);
+        var arriving = PavementAt(poses[^1], movementEdges, adjacency);
+        var runs = new EndRuns(leaving, LeavingRunLength(poses, movementEdges, leaving), arriving, ArrivingRunStart(poses, movementEdges, arriving));
+        for (int sample = 0; sample < poses.Count; sample++)
         {
-            var (nose, tail) = Fuselage(pose);
-            foreach (var (segment, name) in movementEdges)
+            var (nose, tail) = Fuselage(poses[sample]);
+            for (int e = 0; e < movementEdges.Count; e++)
             {
-                if (Crosses(nose, tail, segment.A, segment.B))
+                var edge = movementEdges[e];
+                if (runs.Exempts(sample, e) || !Crosses(nose, tail, edge.Segment.A, edge.Segment.B))
                 {
-                    return new TugPathRefusal(TugPathSeverity.MovementArea, $"Unable, {subject} would put the aircraft on taxiway {name}");
+                    continue;
+                }
+
+                LogCrossing(subject, poses[sample], edge);
+                return new TugPathRefusal(TugPathSeverity.MovementArea, $"Unable, {subject} would put the aircraft on taxiway {edge.Name}");
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// The pavement the pose stands on: the edges the fuselage lies across, and the edges of the same movement area
+    /// reached from their end nodes within one fuselage length of chain. The graph splits a taxiway's centreline at
+    /// every junction, into stubs as short as a few feet — SFO's taxiway A runs through 5 ft and 7 ft pieces between
+    /// the terminal alleys — so the one edge a fuselage happens to lie across is not the pavement it is standing on,
+    /// and its neighbours in the chain are the same taxiway.
+    /// </summary>
+    private HashSet<int> PavementAt(LocalPose pose, List<MovementEdge> edges, Dictionary<int, List<int>> adjacency)
+    {
+        var pavement = CrossedAt(pose, edges);
+        foreach (var chain in pavement.ToList().GroupBy(e => edges[e].Name, StringComparer.OrdinalIgnoreCase))
+        {
+            WalkChain(edges, adjacency, chain, pavement);
+        }
+
+        return pavement;
+    }
+
+    /// <summary>
+    /// Adds to <paramref name="pavement"/> the edges of one movement area reached from the end nodes of the seed
+    /// edges within a fuselage length, walked as cumulative edge length each way. The edge that would take the walk
+    /// past the bound is taken and the walk stops there: a 5 ft stub has to pull in the 69 ft neighbour it is part of.
+    /// The bound is a fuselage length because that is about what it takes to clear a centreline — a B738 pulling off
+    /// at 90° on its 51 ft radius is clear after roughly 65 ft — so a fuselage still across a taxiway further along
+    /// the chain than its own length is transiting it, not leaving it.
+    /// </summary>
+    private void WalkChain(List<MovementEdge> edges, Dictionary<int, List<int>> adjacency, IEnumerable<int> seeds, HashSet<int> pavement)
+    {
+        double boundFt = 2.0 * _halfLengthFt;
+        var reached = new Dictionary<int, double>();
+        var queue = new Queue<int>();
+        string? name = null;
+        foreach (int seed in seeds)
+        {
+            name ??= edges[seed].Name;
+            foreach (var node in edges[seed].Segment.Edge.Nodes)
+            {
+                if (reached.TryAdd(node.Id, 0.0))
+                {
+                    queue.Enqueue(node.Id);
                 }
             }
         }
 
-        return null;
+        while (queue.Count > 0)
+        {
+            int nodeId = queue.Dequeue();
+            double fromSeedFt = reached[nodeId];
+            if (fromSeedFt >= boundFt)
+            {
+                continue;
+            }
+
+            foreach (int e in adjacency.TryGetValue(nodeId, out var touching) ? touching : [])
+            {
+                if (name!.Equals(edges[e].Name, StringComparison.OrdinalIgnoreCase))
+                {
+                    pavement.Add(e);
+                    Step(edges[e], nodeId, fromSeedFt, reached, queue);
+                }
+            }
+        }
     }
 
-    private TugPathRefusal? OffGraphRefusal(List<LocalPose> poses, Box box, string subject)
+    /// <summary>Walks an edge from a node reached at <paramref name="fromSeedFt"/>, queueing its far node when that is nearer than any walk before.</summary>
+    private static void Step(MovementEdge edge, int nodeId, double fromSeedFt, Dictionary<int, double> reached, Queue<int> queue)
     {
-        var nearbyEdges = _edges.Where(e => box.Overlaps(e.A, e.B)).ToList();
-        foreach (var pose in poses)
+        var far = edge.Segment.Edge.Nodes[0].Id == nodeId ? edge.Segment.Edge.Nodes[1] : edge.Segment.Edge.Nodes[0];
+        double farFt = fromSeedFt + Distance(edge.Segment.A, edge.Segment.B);
+        if (reached.TryGetValue(far.Id, out double held) && (held <= farFt))
         {
-            if (!nearbyEdges.Any(e => PointToSegmentFt(pose.Position, e.A, e.B) <= MaxOffGraphFt))
+            return;
+        }
+
+        reached[far.Id] = farFt;
+        queue.Enqueue(far.Id);
+    }
+
+    /// <summary>The movement edges touching each node, by node id.</summary>
+    private static Dictionary<int, List<int>> AdjacencyOf(List<MovementEdge> edges)
+    {
+        var adjacency = new Dictionary<int, List<int>>();
+        for (int e = 0; e < edges.Count; e++)
+        {
+            foreach (var node in edges[e].Segment.Edge.Nodes)
             {
-                Log.LogDebug(
-                    "{Subject}: the sample {EastFt:F0} ft east and {NorthFt:F0} ft north of the plan's start is {DistanceFt:F0} ft from the nearest ground-graph edge",
-                    subject,
-                    pose.Position.X,
-                    pose.Position.Y,
-                    nearbyEdges.Count == 0 ? double.PositiveInfinity : nearbyEdges.Min(e => PointToSegmentFt(pose.Position, e.A, e.B))
-                );
-                return new TugPathRefusal(TugPathSeverity.OffGraph, $"Unable, {subject} would leave the ramp");
+                if (!adjacency.TryGetValue(node.Id, out var touching))
+                {
+                    touching = [];
+                    adjacency[node.Id] = touching;
+                }
+
+                touching.Add(e);
             }
         }
 
-        return null;
+        return adjacency;
     }
 
-    /// <summary>Pavement within the window of the plan's start is being left; within the window of the goal's end, reached.</summary>
-    private static bool IsNearStartOrEnd(Pt position, Pt goalEnd) =>
-        (Distance(position, default) <= TugPavementClassifier.MovementAreaEndWindowFt)
-        || (Distance(position, goalEnd) <= TugPavementClassifier.MovementAreaEndWindowFt);
+    /// <summary>The indices of the edges the pose's fuselage lies across.</summary>
+    private HashSet<int> CrossedAt(LocalPose pose, List<MovementEdge> edges)
+    {
+        var (nose, tail) = Fuselage(pose);
+        var crossed = new HashSet<int>();
+        for (int e = 0; e < edges.Count; e++)
+        {
+            if (Crosses(nose, tail, edges[e].Segment.A, edges[e].Segment.B))
+            {
+                crossed.Add(e);
+            }
+        }
+
+        return crossed;
+    }
+
+    /// <summary>Whether the pose's fuselage lies across any of the edges <paramref name="among"/> indexes.</summary>
+    private bool CrossesAny(LocalPose pose, List<MovementEdge> edges, HashSet<int> among)
+    {
+        var (nose, tail) = Fuselage(pose);
+        return among.Any(e => Crosses(nose, tail, edges[e].Segment.A, edges[e].Segment.B));
+    }
+
+    /// <summary>
+    /// How many samples, from the first, the fuselage is still across pavement it started across: the run over which
+    /// the leg is leaving that pavement. It ends at the first sample across none of it, whatever the distance flown.
+    /// </summary>
+    private int LeavingRunLength(List<LocalPose> poses, List<MovementEdge> edges, HashSet<int> among)
+    {
+        int count = 0;
+        while ((count < poses.Count) && CrossesAny(poses[count], edges, among))
+        {
+            count++;
+        }
+
+        return count;
+    }
+
+    /// <summary>The first sample of the unbroken run back from the last over which the fuselage is across the pavement it ends across.</summary>
+    private int ArrivingRunStart(List<LocalPose> poses, List<MovementEdge> edges, HashSet<int> among)
+    {
+        int start = poses.Count;
+        while ((start > 0) && CrossesAny(poses[start - 1], edges, among))
+        {
+            start--;
+        }
+
+        return start;
+    }
+
+    private static void LogCrossing(string subject, LocalPose pose, MovementEdge edge) =>
+        Log.LogDebug(
+            "{Subject}: move {Move} sample {Sample} (about {AlongFt:F0} ft along it), {EastFt:F0} ft east and {NorthFt:F0} ft "
+                + "north of the plan's start, nose {NoseDeg:F1}°: the fuselage crosses {Name} edge {NodeA}-{NodeB} ({EdgeNames})",
+            subject,
+            pose.MoveIndex + 1,
+            pose.SampleIndex,
+            pose.SampleIndex * SampleSpacingFt,
+            pose.Position.X,
+            pose.Position.Y,
+            new TrueHeading(pose.NoseRad / DegToRad).Degrees,
+            edge.Name,
+            edge.Segment.Edge.Nodes[0].Id,
+            edge.Segment.Edge.Nodes[1].Id,
+            string.Join("/", RampLaneReposition.EdgeNames(edge.Segment.Edge))
+        );
 
     private (Pt Nose, Pt Tail) Fuselage(LocalPose pose)
     {
@@ -178,6 +491,9 @@ internal sealed class TugPathCheck
     private Pt Ahead(LocalPose pose) => new(Math.Sin(pose.NoseRad) * _halfLengthFt, Math.Cos(pose.NoseRad) * _halfLengthFt);
 
     private Pt Local(LatLon point) => new((point.Lon - _origin.Lon) * _eastFtPerDeg, (point.Lat - _origin.Lat) * 60.0 * GeoMath.FeetPerNm);
+
+    /// <summary>The inverse of <see cref="Local"/>.</summary>
+    private LatLon Geo(Pt point) => new(_origin.Lat + (point.Y / (60.0 * GeoMath.FeetPerNm)), _origin.Lon + (point.X / _eastFtPerDeg));
 
     private IEnumerable<RunwaySegment> RunwaySegments(GroundRunway runway)
     {
@@ -221,6 +537,28 @@ internal sealed class TugPathCheck
     private static bool Within(double value, double end1, double end2) =>
         (value >= (Math.Min(end1, end2) - Epsilon)) && (value <= (Math.Max(end1, end2) + Epsilon));
 
+    /// <summary>
+    /// Where along <paramref name="ray"/> (as a fraction of its length, from <paramref name="start"/>) the segment
+    /// crosses it, or null when it does not or runs parallel to it.
+    /// </summary>
+    private static double? RayFraction(Pt start, Pt ray, Pt q1, Pt q2)
+    {
+        var segment = q2 - q1;
+        double denominator = Cross(ray, segment);
+        if (Math.Abs(denominator) <= Epsilon)
+        {
+            return null;
+        }
+
+        var offset = q1 - start;
+        double alongRay = Cross(offset, segment) / denominator;
+        double alongSegment = Cross(offset, ray) / denominator;
+        bool crosses = (alongRay >= 0.0) && (alongRay <= 1.0) && (alongSegment >= 0.0) && (alongSegment <= 1.0);
+        return crosses ? alongRay : null;
+    }
+
+    private static double Cross(Pt a, Pt b) => (a.X * b.Y) - (a.Y * b.X);
+
     private static double SegmentDistanceFt(Pt p1, Pt p2, Pt q1, Pt q2)
     {
         if (Crosses(p1, p2, q1, q2))
@@ -233,13 +571,15 @@ internal sealed class TugPathCheck
         return Math.Min(fromP, fromQ);
     }
 
-    private static double PointToSegmentFt(Pt p, Pt a, Pt b)
+    private static double PointToSegmentFt(Pt p, Pt a, Pt b) => Distance(p, NearestPointOnSegment(p, a, b));
+
+    private static Pt NearestPointOnSegment(Pt p, Pt a, Pt b)
     {
         double dx = b.X - a.X;
         double dy = b.Y - a.Y;
         double lengthSq = (dx * dx) + (dy * dy);
         double t = lengthSq <= Epsilon ? 0.0 : Math.Clamp((((p.X - a.X) * dx) + ((p.Y - a.Y) * dy)) / lengthSq, 0.0, 1.0);
-        return Distance(p, new Pt(a.X + (t * dx), a.Y + (t * dy)));
+        return new Pt(a.X + (t * dx), a.Y + (t * dy));
     }
 
     /// <summary>A point in flat feet east (X) and north (Y) of the plan's start.</summary>
@@ -250,7 +590,22 @@ internal sealed class TugPathCheck
         public static Pt operator -(Pt a, Pt b) => new(a.X - b.X, a.Y - b.Y);
     }
 
-    private readonly record struct LocalPose(Pt Position, double NoseRad);
+    private readonly record struct LocalPose(Pt Position, double NoseRad, int MoveIndex, int SampleIndex);
+
+    /// <summary>A movement-area edge the goal does not name, and the pavement it carries.</summary>
+    private readonly record struct MovementEdge(EdgeSegment Segment, string Name);
+
+    /// <summary>
+    /// The pavement a goal's candidate is allowed to be across at either end of its own flown path: the pavement its
+    /// first sample stands on, over the run of samples that are still across one of its edges, and the pavement its
+    /// last sample stands on, over the run back to the first sample that is across one of its edges. Indices into
+    /// the candidate's movement edges.
+    /// </summary>
+    private readonly record struct EndRuns(HashSet<int> Leaving, int LeavingEnd, HashSet<int> Arriving, int ArrivingStart)
+    {
+        internal bool Exempts(int sample, int edge) =>
+            ((sample < LeavingEnd) && Leaving.Contains(edge)) || ((sample >= ArrivingStart) && Arriving.Contains(edge));
+    }
 
     private sealed record RunwaySegment(string Name, double HalfWidthFt, Pt A, Pt B);
 

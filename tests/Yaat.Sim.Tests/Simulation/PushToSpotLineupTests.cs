@@ -131,12 +131,12 @@ public class PushToSpotLineupTests(ITestOutputHelper output)
     }
 
     /// <summary>
-    /// A snapshot taken mid-pull-forward must round-trip: the DTO carries the forward-leg flag and rest
-    /// target, and <see cref="PushbackPhase.FromSnapshot"/> restores them so the restored phase resumes the
-    /// forward leg (guards the new DTO fields against a future serialization regression).
+    /// A snapshot taken part-way along the creep pull onto the spot must round-trip field for field, and the
+    /// restored creep — flown on its own from the pose the original had — must still finish with the nosewheel on
+    /// the mark (guards the move's DTO fields against a future serialization regression).
     /// </summary>
     [Fact]
-    public void PushToSpot7A_SnapshotMidPullForward_RoundTripsForwardLeg()
+    public void PushToSpot7A_SnapshotMidCreep_RestoresAndFinishesOnTheMark()
     {
         TestVnasData.EnsureInitialized();
         if (TestVnasData.NavigationDb is null)
@@ -169,30 +169,53 @@ public class PushToSpotLineupTests(ITestOutputHelper output)
         engine.World.AddAircraft(ac);
         Assert.True(engine.SendCommand(Pushed, "PUSH $7A").Success);
 
-        // Tick until the pushback is on its forward (pull-onto-spot) leg.
-        PushbackPhaseDto? midDto = null;
-        for (int t = 1; t <= 240 && midDto is null; t++)
+        // Tick until the pushback is part-way along its creep pull onto the spot.
+        PushbackPhase? creep = null;
+        for (int t = 1; t <= 240 && creep is null; t++)
         {
             engine.TickOneSecond();
-            if (engine.FindAircraft(Pushed)?.Phases?.CurrentPhase is PushbackPhase p && p.ToSnapshot() is PushbackPhaseDto { PullingForward: true } d)
+            if (
+                (ac.Phases?.CurrentPhase is PushbackPhase { Kind: PushbackLegKind.Pull, Move.Creep: true } p)
+                && (p.ToSnapshot() is PushbackPhaseDto { ProgressDistanceFt: > 2.0 })
+            )
             {
-                midDto = d;
+                creep = p;
             }
         }
 
-        Assert.NotNull(midDto);
-        Assert.NotNull(midDto!.PullForwardLatitude);
-        Assert.NotNull(midDto.PullForwardLongitude);
+        Assert.NotNull(creep);
+        var midDto = Assert.IsType<PushbackPhaseDto>(creep.ToSnapshot());
+        var restored = PushbackPhase.FromSnapshot(midDto);
+        var reDto = Assert.IsType<PushbackPhaseDto>(restored.ToSnapshot());
+        Assert.Equal(
+            System.Text.Json.JsonSerializer.Serialize<PhaseDto>(midDto, RecordingJsonOptions.Default),
+            System.Text.Json.JsonSerializer.Serialize<PhaseDto>(reDto, RecordingJsonOptions.Default)
+        );
+        Assert.Equal(creep.Move, restored.Move);
+        Assert.Equal(creep.PlannedEnd, restored.PlannedEnd);
 
-        // FromSnapshot must resume the forward leg with the same rest target, staging target, and heading.
-        var reDto = (PushbackPhaseDto)PushbackPhase.FromSnapshot(midDto).ToSnapshot();
-        Assert.True(reDto.PullingForward, "restored phase should still be on the forward leg");
-        Assert.Equal(midDto.PullForwardLatitude, reDto.PullForwardLatitude);
-        Assert.Equal(midDto.PullForwardLongitude, reDto.PullForwardLongitude);
-        Assert.Equal(midDto.TargetLatitude, reDto.TargetLatitude);
-        Assert.Equal(midDto.TargetLongitude, reDto.TargetLongitude);
-        Assert.Equal(midDto.TargetHeading, reDto.TargetHeading);
-        Assert.Equal(midDto.ReachedTarget, reDto.ReachedTarget);
+        // Fly the restored creep in its own engine from the pose the original had; the phase is installed active,
+        // as a restore leaves it, so it is not restarted.
+        var twinEngine = new SimulationEngine(groundData);
+        twinEngine.Scenario = MakeScenario();
+        var twin = MakeGroundAircraft("TWIN1", "CRJ2", ac.Position, ac.TrueHeading, layout, new HoldingAfterPushbackPhase());
+        twin.Phases = new PhaseList();
+        twin.Phases.Add(restored);
+        twin.IndicatedAirspeed = ac.IndicatedAirspeed;
+        twinEngine.World.AddAircraft(twin);
+        for (int t = 1; t <= 120 && twin.Phases.CurrentPhase is PushbackPhase; t++)
+        {
+            twinEngine.TickOneSecond();
+        }
+
+        Assert.True(layout.TryGetSpotOutboundHeading(spot, out double outboundDeg), "spot 7A has no outbound heading");
+        var (stop, _) = TugMovePlanner.SpotStopGeometry(spot, outboundDeg, "CRJ2");
+        double offStopFt = GeoMath.DistanceNm(twin.Position, stop) * GeoMath.FeetPerNm;
+        double offNoseDeg = new TrueHeading(outboundDeg).AbsAngleTo(twin.TrueHeading);
+        output.WriteLine($"restored creep ended {offStopFt:F2} ft off the stop point, nose {offNoseDeg:F2}° off nose-out");
+        Assert.False(twin.Phases.CurrentPhase is PushbackPhase, "the restored creep never finished");
+        Assert.True(offStopFt <= 3.0, $"the restored creep ended {offStopFt:F2} ft off the stop point");
+        Assert.True(offNoseDeg <= 1.0, $"the restored creep ended with the nose {offNoseDeg:F2}° off nose-out");
     }
 
     /// <summary>

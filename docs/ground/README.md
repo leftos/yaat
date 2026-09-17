@@ -20,7 +20,7 @@ GeoJSON ─► TaxiwayGraphBuilder ─► [1] Fillet generator ─► filleted g
 | 2 | **Pathfinder** | resolves a clearance into a `TaxiRoute` over that graph | [`pathfinder.md`](./pathfinder.md) | `TaxiPathfinder` · `Data/Airport/Pathfinding/*` |
 | 3 | **Navigator** | follows the route + arc geometry per tick (heading/speed) | [`navigator.md`](./navigator.md) | `GroundNavigator` (in `TaxiingPhase`) |
 
-**Pushback** is a separate ground-movement mechanism (tail-first tug reverse, not a taxi route) — see [`pushback.md`](./pushback.md) · `PushbackPhase`.
+**Pushback and tug moves** are a separate ground-movement mechanism (a tug pushing tail-first or pulling nose-first along a planned chain of moves, not a taxi route) — see [`pushback.md`](./pushback.md) · `TugKinematics`, `TugMovePlanner`, `TugPathCheck`, `PushbackPhase`.
 
 **Runway hold-short bars** are seated at graph-build time, *before* the fillet generator — the constant perpendicular standoff from the runway centerline, angle-independent. See [`hold-short-placement.md`](./hold-short-placement.md) · `RunwayCrossingDetector`.
 

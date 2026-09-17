@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using Microsoft.Extensions.Logging;
 using Xunit;
 using Yaat.Sim;
+using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
 
@@ -28,6 +29,11 @@ namespace Yaat.Sim.Tests.Simulation;
 ///
 /// Assertions are scoped to the pre-BREAK window (t &lt; 600) so the user's manual BREAK cannot mask
 /// the bug.
+///
+/// The window is entered by restoring the recording's own t=575 snapshot rather than re-simulating
+/// from t=0: the premise is the recorded pair — SWA863 stationary on TE after its push, SWA1182
+/// taxiing up behind it — and restoring the recorded poses keeps that premise whatever the pushback
+/// motion of the day leaves the lead parked on.
 /// </summary>
 public class Issue224OakTeMergeDriveThroughTests(ITestOutputHelper output)
 {
@@ -40,7 +46,10 @@ public class Issue224OakTeMergeDriveThroughTests(ITestOutputHelper output)
     private const int WindowStart = 575;
     private const int PreBreakEnd = 599;
 
-    private static SessionRecording? LoadRecording() => RecordingLoader.Load(RecordingPath);
+    // Where the recording has SWA863 parked at t=575, after its PUSH TE.
+    private const double LeadRecordedLat = 37.709153;
+    private const double LeadRecordedLon = -122.214692;
+    private const double LeadRecordedToleranceFt = 5.0;
 
     private SimulationEngine? BuildEngine()
     {
@@ -58,15 +67,63 @@ public class Issue224OakTeMergeDriveThroughTests(ITestOutputHelper output)
     [Fact]
     public void Follower_DoesNotDriveThroughLead_BeforeBreak()
     {
-        var recording = LoadRecording();
         var engine = BuildEngine();
-        if (recording is null || engine is null)
+        var archive = RecordingLoader.OpenArchive(RecordingPath);
+        if (engine is null || archive is null)
         {
             return;
         }
 
-        engine.Replay(recording, WindowStart);
+        using (archive)
+        {
+            if (!RestoreWindowStart(engine, archive))
+            {
+                return;
+            }
 
+            RunWindow(engine);
+        }
+    }
+
+    /// <summary>
+    /// Loads the scenario from the recording, restores its snapshot at the window's start, and checks the premise
+    /// the window rests on: the lead parked on TE where the recording has it, holding after its pushback, with the
+    /// follower taxiing up behind. False when the recording carries no snapshot that far in (silent skip).
+    /// </summary>
+    private bool RestoreWindowStart(SimulationEngine engine, RecordingArchive archive)
+    {
+        engine.Replay(archive.ToBaseSessionRecording(), 0);
+        var snapshot = archive.ReadSnapshotAt(WindowStart);
+        if (snapshot is null)
+        {
+            output.WriteLine($"No snapshot at or before t={WindowStart} — skipping");
+            return false;
+        }
+
+        engine.RestoreFromSnapshot(snapshot.State);
+        var lead = engine.FindAircraft(Lead);
+        var follower = engine.FindAircraft(Follower);
+        Assert.NotNull(lead);
+        Assert.NotNull(follower);
+
+        double offRecordedFt = GeoMath.DistanceNm(lead.Position, new LatLon(LeadRecordedLat, LeadRecordedLon)) * FtPerNm;
+        output.WriteLine(
+            $"restored t={snapshot.ElapsedSeconds:F0}: {Lead} {offRecordedFt:F1} ft from its recorded pose in "
+                + $"{PhaseName(lead)}; {Follower} in {PhaseName(follower)}"
+        );
+        Assert.True(
+            offRecordedFt <= LeadRecordedToleranceFt,
+            $"{Lead} restored {offRecordedFt:F1} ft from its recorded t={WindowStart} pose (expected ≤{LeadRecordedToleranceFt:F0} ft)"
+        );
+        Assert.IsType<HoldingAfterPushbackPhase>(lead.Phases?.CurrentPhase);
+        Assert.IsType<TaxiingPhase>(follower.Phases?.CurrentPhase);
+        return true;
+    }
+
+    private static string PhaseName(AircraftState aircraft) => aircraft.Phases?.CurrentPhase?.GetType().Name ?? "no phase";
+
+    private void RunWindow(SimulationEngine engine)
+    {
         double minGapFt = double.MaxValue;
         int minGapTick = -1;
         bool conflictEngaged = false;

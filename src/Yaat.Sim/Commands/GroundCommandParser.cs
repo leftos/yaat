@@ -10,9 +10,31 @@ internal static class GroundCommandParser
     /// Orientation forms: <c>&lt;C</c> (tail toward cardinal C), <c>&gt;C</c> (face cardinal C),
     /// <c>FACE C</c>, <c>TAIL C</c>, or a second taxiway name (face along push-taxiway toward it).
     /// Cardinals: N, NE, E, SE, S, SW, W, NW.
-    /// Examples: PUSH, PUSH &lt;E, PUSH FACE NE, PUSH TE, PUSH TE TAIL W, PUSH TE T, PUSH @A10 &gt;W, PUSH $7A FACE E.
+    /// Examples: PUSH, PUSH &lt;E, PUSH FACE NE, PUSH TE, PUSH TE TAIL W, PUSH TE T, PUSH @A10, PUSH $7A FACE E.
+    /// A stand destination takes no facing, neither an orientation nor a facing taxiway: the aircraft parks on the
+    /// stand's own heading.
     /// </summary>
     internal static PR ParsePushback(string? arg)
+    {
+        var parsed = ParsePushbackForm(arg);
+        if (
+            parsed.Value is PushbackCommand { DestinationParking: { } stand } push
+            && ((push.MagneticHeading is not null) || (push.FacingTaxiway is not null))
+        )
+        {
+            return PR.Fail(StandFacingRefusal(stand));
+        }
+
+        return parsed;
+    }
+
+    /// <summary>Why a <c>PUSH @stand</c> with a facing is refused; the handler refuses a hand-built one the same way.</summary>
+    /// <param name="stand">The stand's name as typed.</param>
+    /// <returns>The refusal text.</returns>
+    internal static string StandFacingRefusal(string stand) =>
+        $"PUSH @{stand} does not take a facing — the aircraft parks on the stand's own heading";
+
+    private static PR ParsePushbackForm(string? arg)
     {
         if (arg is null)
         {
@@ -54,7 +76,7 @@ internal static class GroundCommandParser
         static PushbackCommand Build(MagneticHeading? hdg, string? taxiway, string? facingTwy, string? parking, string? spot) =>
             new(hdg, taxiway, facingTwy, parking, spot);
 
-        // First, try to read an orientation directly (no taxiway): PUSH <E, PUSH FACE E, PUSH @A10 <E, PUSH $7A TAIL W.
+        // First, try to read an orientation directly (no taxiway): PUSH <E, PUSH FACE E, PUSH $7A TAIL W.
         var orient = TryOrientation(rest, 0);
         if (orient.Error is not null)
         {
@@ -101,7 +123,7 @@ internal static class GroundCommandParser
                 return PR.Fail("unexpected tokens after PUSH orientation");
             }
 
-            // PUSH TE <E / PUSH TE FACE E / PUSH @A10 FACE E
+            // PUSH TE <E / PUSH TE FACE E / PUSH $7A FACE E
             // For parking/spot, the taxiway slot is unused; orientation is absolute facing.
             return hasParkingOrSpot ? PR.Ok(Build(orient2.Hdg, null, null, parking, spot)) : PR.Ok(Build(orient2.Hdg, taxiway, null, parking, spot));
         }

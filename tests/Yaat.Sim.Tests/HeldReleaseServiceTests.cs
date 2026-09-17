@@ -1,5 +1,6 @@
 using Xunit;
 using Yaat.Sim;
+using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Phases.Tower;
@@ -251,7 +252,10 @@ public class HeldReleaseServiceTests
     [Fact]
     public void Rundown_Pushback_ReadsPushingBack()
     {
-        Assert.Equal("Pushing back (held)", RundownStatusFor(new PushbackPhase()));
+        Assert.Equal(
+            "Pushing back (held)",
+            RundownStatusFor(new PushbackPhase { Move = TugMove.Straight(PushbackLegKind.Push, 100.0), PlannedEnd = new LatLon(37.6, -122.4) })
+        );
     }
 
     [Fact]

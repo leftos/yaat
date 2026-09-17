@@ -394,23 +394,16 @@ public class GroundParserTests
         Assert.Equal(270, push.MagneticHeading!.Value.ToDisplayInt());
     }
 
-    [Fact]
-    public void Push_ParkingPlusFace()
+    /// <summary>A push to a stand parks on the stand's own heading, so a facing with it is refused.</summary>
+    [Theory]
+    [InlineData("PUSH @A10 FACE NE")]
+    [InlineData("PUSH @A10 >W")]
+    public void Push_ParkingPlusFacing_Refused(string input)
     {
-        var cmd = CommandParser.Parse("PUSH @A10 FACE NE");
-        var push = Assert.IsType<PushbackCommand>(cmd.Value);
-        Assert.Equal("A10", push.DestinationParking);
-        Assert.Equal(45, push.MagneticHeading!.Value.ToDisplayInt());
-        Assert.Null(push.Taxiway);
-    }
+        var cmd = CommandParser.Parse(input);
 
-    [Fact]
-    public void Push_ParkingPlusArrow()
-    {
-        var cmd = CommandParser.Parse("PUSH @A10 >W");
-        var push = Assert.IsType<PushbackCommand>(cmd.Value);
-        Assert.Equal("A10", push.DestinationParking);
-        Assert.Equal(270, push.MagneticHeading!.Value.ToDisplayInt());
+        Assert.False(cmd.IsSuccess, $"'{input}' parsed as {cmd.Value}");
+        Assert.Contains("PUSH @A10 does not take a facing — the aircraft parks on the stand's own heading", cmd.Reason, StringComparison.Ordinal);
     }
 
     [Fact]

@@ -477,6 +477,9 @@ public sealed class GroundRenderer : IDisposable
         StrokeCap = SKStrokeCap.Round,
     };
 
+    // The colour is the move's own (push or pull), set before each dot is drawn.
+    private readonly SKPaint _reversalDotPaint = new() { Style = SKPaintStyle.Fill, IsAntialias = true };
+
     private readonly SKPaint _waypointMarkerPaint = new()
     {
         Color = WaypointMarkerColor,
@@ -612,8 +615,7 @@ public sealed class GroundRenderer : IDisposable
         TaxiRoute? drawnRoutePreview,
         TaxiRoute? drawHoverPreview,
         IReadOnlyList<int>? drawWaypoints,
-        LatLon? pushRouteStart,
-        IReadOnlyList<PushbackLeg>? pushLegs,
+        TugPlan? pushPlan,
         IReadOnlyDictionary<string, SKPoint>? dataBlockOffsets,
         IReadOnlyDictionary<string, SKPoint>? deconflictOffsets,
         bool showDebugInfo,
@@ -690,7 +692,7 @@ public sealed class GroundRenderer : IDisposable
             DrawHoverRoute(canvas, vp, layout, hoverRoute);
             DrawDrawnRoute(canvas, vp, layout, drawnRoutePreview, drawWaypoints);
             DrawDrawHoverPreview(canvas, vp, layout, drawHoverPreview);
-            DrawPushLegs(canvas, vp, pushRouteStart, pushLegs, _pushLegPaint, _pullLegPaint);
+            DrawPushLegs(canvas, vp, pushPlan, _pushLegPaint, _pullLegPaint, _reversalDotPaint);
             DrawNodes(canvas, vp, layout, hoveredNodeId, showDebugInfo, showHoldShort, showParking, showSpot);
             DrawLabels(canvas, hoveredOnly: false);
 
@@ -1326,34 +1328,74 @@ public sealed class GroundRenderer : IDisposable
     }
 
     /// <summary>
-    /// Draws a planned tug move: one straight line per leg, from the aircraft through each target in order.
-    /// These are free-space legs (docs/ground/pushback.md), so they never touch the ground graph the taxi
-    /// overlays walk. The arrowhead always points at the target — the colour is what says whether the tug
-    /// reverses the aircraft tail-first (push) or tows it nose-first (pull).
+    /// Draws a planned tug move: each move's flown path, as the planner sampled it, with an arrowhead where the
+    /// move ends and a filled dot where the tug stops and reverses. These are free-space paths
+    /// (docs/ground/pushback.md), so they never touch the ground graph the taxi overlays walk. The colour says
+    /// whether the tug reverses the aircraft tail-first (push) or tows it nose-first (pull).
     /// </summary>
-    private static void DrawPushLegs(
-        SKCanvas canvas,
-        MapViewport vp,
-        LatLon? start,
-        IReadOnlyList<PushbackLeg>? legs,
-        SKPaint pushPaint,
-        SKPaint pullPaint
-    )
+    private static void DrawPushLegs(SKCanvas canvas, MapViewport vp, TugPlan? plan, SKPaint pushPaint, SKPaint pullPaint, SKPaint dotPaint)
     {
-        if (start is not { } from || legs is null || legs.Count == 0)
+        const float reversalDotRadiusPx = 5f;
+
+        if (plan is null)
         {
             return;
         }
 
-        var fromScreen = vp.LatLonToScreen(from.Lat, from.Lon);
-        foreach (var leg in legs)
+        foreach (var trace in plan.Moves)
         {
-            var toScreen = vp.LatLonToScreen(leg.Target.Lat, leg.Target.Lon);
-            var paint = leg.Kind == PushbackLegKind.Push ? pushPaint : pullPaint;
-            canvas.DrawLine(fromScreen.X, fromScreen.Y, toScreen.X, toScreen.Y, paint);
-            DrawLegArrowHead(canvas, fromScreen, toScreen, paint);
-            fromScreen = toScreen;
+            if (trace.Samples.Count == 0)
+            {
+                continue;
+            }
+
+            var screen = new List<(float X, float Y)>(trace.Samples.Count);
+            foreach (var sample in trace.Samples)
+            {
+                screen.Add(vp.LatLonToScreen(sample.Position.Lat, sample.Position.Lon));
+            }
+
+            var paint = trace.Move.Kind == PushbackLegKind.Push ? pushPaint : pullPaint;
+            using var path = new SKPath();
+            path.MoveTo(screen[0].X, screen[0].Y);
+            for (int i = 1; i < screen.Count; i++)
+            {
+                path.LineTo(screen[i].X, screen[i].Y);
+            }
+
+            canvas.DrawPath(path, paint);
+            DrawLegArrowHead(canvas, ArrowAnchor(screen), screen[^1], paint);
+
+            // A dwell before the move is a stop-and-reverse: the tug changes direction here.
+            if (trace.Move.DwellBefore)
+            {
+                dotPaint.Color = paint.Color;
+                canvas.DrawCircle(screen[0].X, screen[0].Y, reversalDotRadiusPx, dotPaint);
+            }
         }
+    }
+
+    /// <summary>
+    /// The point the arrowhead at the end of a sampled path takes its direction from: the last sample far enough
+    /// back for the head to have a direction at all. The samples are about 5 ft apart, so the neighbouring one is
+    /// a pixel or two away at most ground-view zooms and would leave the arrowhead pointing at noise.
+    /// </summary>
+    private static (float X, float Y) ArrowAnchor(List<(float X, float Y)> screen)
+    {
+        const float minAnchorPx = 12f;
+
+        var end = screen[^1];
+        for (int i = screen.Count - 2; i >= 0; i--)
+        {
+            float dx = end.X - screen[i].X;
+            float dy = end.Y - screen[i].Y;
+            if (((dx * dx) + (dy * dy)) >= (minAnchorPx * minAnchorPx))
+            {
+                return screen[i];
+            }
+        }
+
+        return screen[0];
     }
 
     /// <summary>Two strokes back off the target end of a leg, forming an arrowhead in the leg's direction.</summary>
@@ -2518,6 +2560,7 @@ public sealed class GroundRenderer : IDisposable
         _drawHoverPreviewPaint.Dispose();
         _pushLegPaint.Dispose();
         _pullLegPaint.Dispose();
+        _reversalDotPaint.Dispose();
         _waypointMarkerPaint.Dispose();
         _waypointTextPaint.Dispose();
         _waypointTextFont.Dispose();

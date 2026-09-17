@@ -86,7 +86,6 @@
                                  DrawnRoutePreview="{Binding DrawnRoutePreview}"
                                  DrawHoverPreview="{Binding DrawHoverPreview}"
                                  PushRoutePreview="{Binding PushRoutePreview}"
-                                 PushRouteStart="{Binding PushRouteStart}"
                                  IsDrawingRoute="{Binding IsDrawingRoute}"
                                  IsMeasuring="{Binding Measure.IsMeasuring}"
                                  RangeBearingLines="{Binding Measure.Lines}"

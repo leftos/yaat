@@ -8,8 +8,22 @@
 - The terminal log shows the simulated approach controller's in-trail speed reductions.
 - **Tug moves.** `PUSHM $6A $6B` walks an aircraft through two or more ramp points, working out per leg whether the tug pushes it back or pulls it forward.
 - **Push route.** Right-click the ground view, pick **Push route…**, then click each ramp point; every leg draws coloured by whether the tug pushes or pulls.
+- The push-route preview draws the path the tug will actually drive, with a dot at every point where it stops and reverses.
+- A tug move that would put the aircraft on a runway, across a runway holding position, or along a taxiway it was not sent to is refused, naming the leg and the pavement.
+- A `PUSH` or `PUSHM` for an aircraft already standing with its outline against a parked neighbour's is refused naming both aircraft.
+- A `PUSHM` given to an aircraft already under tow replaces the rest of its move.
 
 ### Changed
+- Every pushback and tug move now rolls the way a tug moves an aircraft: it turns only while moving on the type's turn radius, never pivots in place or slides sideways, and pauses about 5 s at each reversal.
+- A `PUSH $spot` ends nose-out with a slow pull forward onto the mark, reached from whichever side needs the fewest reversals; an intermediate spot in a `PUSHM` is reached the same way.
+- `PUSH FACE` and `PUSH TAIL` facings are now true headings resolved from the cardinal, not magnetic; at SFO the push ended about 13° off before.
+- `PUSH @gate` parks on the stand's own heading and refuses a `FACE`/`TAIL` or facing taxiway.
+- A bare `PUSH <taxiway>` pushes straight back onto a taxiway that lies across the push and S-curves onto the centreline of one that runs alongside it, ending on the taxiway either way; before, it stopped short of a taxiway that was not square behind the stand.
+- A mid-push `PUSH FACE` amendment is accepted only during the straight push-off from the stand, before any turn has begun.
+- A pushback past an aircraft parked at the next gate is judged by sweeping both aircraft's outlines along the rest of the move instead of by a two-half-wingspan rule, so a gate push whose neighbour sits beside its tail is no longer held (issue #222).
+- A tow that would run into a parked aircraft stops where the two outlines would meet, tug included, and shows the parked aircraft as what it waits for.
+- The pulls of a tug move run at 5 kt, the same as its pushes.
+- A recording made before the spot-pushback change replays its spot pushback as a tug move too; the old phase that rotated the aircraft in place at 5°/s is gone.
 - The ERAM `VP` keyboard amends an existing VFR flight plan instead of rejecting every plan with `DUP NEW ID`.
 - ERAM `VP` refuses another sector's track with `NOT YOUR TRACK`, like the other flight-data edits.
 - Filing from the CRC flight-plan editor on an aircraft that already has a plan amends it, keeping the dialog's speed, remarks and beacon.

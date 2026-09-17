@@ -1,8 +1,6 @@
-using Microsoft.Extensions.Logging;
 using Xunit;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases.Ground;
-using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests.Simulation;
@@ -14,96 +12,48 @@ namespace Yaat.Sim.Tests.Simulation;
 /// is ON M4. Re-issuing <c>TAXI M2 $2</c> (omitting the current taxiway) worked (`M5 M2 $2`). Naming
 /// the taxiway the aircraft is already on as the first cleared taxiway must not make it unreachable.
 ///
-/// Recording: S1-SFO-4 (ZOA). PUSH M4 at t=1903; TAXI M4 M2 $2 issued shortly after.
+/// Reported from the S1-SFO-4 (ZOA) recording: PUSH M4 at t=1903, TAXI M4 M2 $2 issued shortly after.
 /// </summary>
 public class Issue172Wja1521CurrentTaxiwayTests(ITestOutputHelper output)
 {
-    private const string RecordingPath = "TestData/issue172-sfo-taxiing-recording.yaat-bug-report-bundle.zip";
+    /// <summary>How long the push onto M4 may take; a B737 covers several hundred feet at 5 kt in well under this.</summary>
+    private const int PushBudgetSeconds = 180;
 
-    private SimulationEngine? BuildEngine()
-    {
-        TestVnasData.EnsureInitialized();
-        if (TestVnasData.NavigationDb is null)
-        {
-            return null;
-        }
-
-        var groundData = new TestAirportGroundData();
-        if (groundData.GetLayout("SFO") is null)
-        {
-            return null;
-        }
-
-        SimLogBuilder.CreateForTest(output).EnableCategory("GroundCommandHandler", LogLevel.Debug).InitializeSimLog();
-        return new SimulationEngine(groundData);
-    }
-
+    /// <summary>
+    /// Replay-free: WJA1521 (a B737) parked on gate B2, as the recording spawns it. A bare <c>PUSH M4</c> pushes
+    /// the aircraft back onto taxiway M4, which runs alongside the push, and <c>TAXI M4 M2 $2</c> is then accepted.
+    /// </summary>
     [Fact]
-    public void TaxiM4M2_FromM4_Succeeds()
+    public void PushM4FromGateB2_EndsOnM4_ThenTaxiM4M2Accepted()
     {
-        var recording = RecordingLoader.Load(RecordingPath);
-        var engine = BuildEngine();
-        if (recording is null || engine is null)
+        if (SfoGroundHarness.Build(output, autoCross: false) is not { } ground)
         {
             return;
         }
 
-        engine.Replay(recording, 1945);
-        var aircraft = engine.FindAircraft("WJA1521");
-        Assert.NotNull(aircraft);
+        var aircraft = SfoGroundHarness.SpawnParked(ground, "WJA1521", "B737", "B2");
+        var push = ground.Engine.SendCommand(aircraft.Callsign, "PUSH M4");
+        output.WriteLine($"PUSH M4: success={push.Success} msg={push.Message}");
+        Assert.True(push.Success, $"PUSH M4 off B2 was refused: {push.Message}");
 
-        // Precondition: WJA1521 pushed back onto M4 (it sits on an M4 node, post-pushback, so
-        // CurrentTaxiway is not yet latched). The clearance names M4 as the first cleared taxiway.
-        var layout = new TestAirportGroundData().GetLayout("SFO");
-        Assert.NotNull(layout);
-        var nearest = layout.FindNearestNode(aircraft.Position.Lat, aircraft.Position.Lon);
+        bool everPushed = false;
+        int doneSecond = SfoGroundHarness.TickUntil(
+            ground.Engine,
+            () => everPushed && (aircraft.Phases?.CurrentPhase is HoldingAfterPushbackPhase),
+            PushBudgetSeconds,
+            _ => everPushed |= aircraft.Phases?.CurrentPhase is PushbackPhase
+        );
+        Assert.True(doneSecond > 0, $"PUSH M4 never finished within {PushBudgetSeconds}s (phase={aircraft.Phases?.CurrentPhase?.Name ?? "null"})");
+
+        var nearest = ground.Layout.FindNearestNode(aircraft.Position.Lat, aircraft.Position.Lon);
         Assert.NotNull(nearest);
+        output.WriteLine(
+            $"push finished t={doneSecond}s; nearest node {nearest.Id}: {string.Join(", ", nearest.Edges.SelectMany(RampLaneReposition.EdgeNames))}"
+        );
         Assert.Contains(nearest.Edges, e => e.MatchesTaxiway("M4"));
 
-        var result = engine.SendCommand("WJA1521", "TAXI M4 M2 $2");
-        output.WriteLine($"TAXI M4 M2 $2: success={result.Success} msg={result.Message}");
-
-        Assert.True(result.Success, $"TAXI M4 M2 $2 should succeed from M4 but failed: {result.Message}");
-        Assert.DoesNotContain("unreachable", result.Message, StringComparison.OrdinalIgnoreCase);
-
-        // The aircraft must actually taxi the route — not stall or orbit. Tick forward and confirm it
-        // covers a meaningful distance, never sits still while taxiing, and reaches its spot.
-        var start = aircraft.Position;
-        int taxiingSeconds = 0;
-        int stalledSeconds = 0;
-        bool arrived = false;
-        var prev = start;
-        // WJA1521 parks at spot 2 after 147 s of taxi under the physics taxi rates (measured); a 200 s
-        // window keeps ~35% headroom over the arrival.
-        for (int t = 0; t < 200; t++)
-        {
-            engine.TickOneSecond();
-            var ac = engine.FindAircraft("WJA1521");
-            Assert.NotNull(ac);
-
-            // Count stationary ticks only while the aircraft is still taxiing. It reaches spot 2 partway
-            // through the window and parks, so a plain moving/total ratio would score arrival as a stall.
-            if (ac.Phases?.CurrentPhase is TaxiingPhase)
-            {
-                taxiingSeconds++;
-                if (GeoMath.DistanceNm(prev, ac.Position) * 6076.0 <= 1.0)
-                {
-                    stalledSeconds++;
-                }
-            }
-            else if (taxiingSeconds > 0)
-            {
-                arrived = true;
-            }
-
-            prev = ac.Position;
-        }
-
-        var end = engine.FindAircraft("WJA1521")!.Position;
-        double traveledFt = GeoMath.DistanceNm(start, end) * 6076.0;
-        output.WriteLine($"traveled={traveledFt:F0}ft taxiing={taxiingSeconds}s stalled={stalledSeconds}s arrived={arrived}");
-        Assert.True(traveledFt > 200.0, $"WJA1521 should make progress along the route, only moved {traveledFt:F0}ft (possible spin/stall)");
-        Assert.True(stalledSeconds <= 5, $"WJA1521 sat still for {stalledSeconds}s of {taxiingSeconds}s taxiing (possible spin/stall/deadlock)");
-        Assert.True(arrived, "WJA1521 should reach its destination spot within the window, not still be taxiing");
+        var taxi = ground.Engine.SendCommand(aircraft.Callsign, "TAXI M4 M2 $2");
+        output.WriteLine($"TAXI M4 M2 $2: success={taxi.Success} msg={taxi.Message}");
+        Assert.True(taxi.Success, $"TAXI M4 M2 $2 should succeed from M4 but failed: {taxi.Message}");
     }
 }

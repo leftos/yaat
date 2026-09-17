@@ -2,6 +2,7 @@
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 using Yaat.Sim.Commands;
+using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
 
@@ -86,7 +87,7 @@ public class WaitCommandDispatchTests
     public void WaitCommand_Standalone_DuringPushback_IsRejected()
     {
         var ac = MakeGroundAircraft();
-        StartPhase(ac, new PushbackPhase());
+        StartPhase(ac, new PushbackPhase { Move = TugMove.Straight(PushbackLegKind.Push, 100.0), PlannedEnd = ac.Position });
 
         // Standalone WAIT (no following commands) during pushback is rejected
         // because WAIT without a payload is meaningless
@@ -114,7 +115,7 @@ public class WaitCommandDispatchTests
     public void WaitThenTaxi_DuringPushback_CreatesDeferredDispatch()
     {
         var ac = MakeGroundAircraft();
-        StartPhase(ac, new PushbackPhase());
+        StartPhase(ac, new PushbackPhase { Move = TugMove.Straight(PushbackLegKind.Push, 100.0), PlannedEnd = ac.Position });
 
         // WAIT 15; TAXI A — two sequential blocks
         var compound = new CompoundCommand([new ParsedBlock(null, [new WaitCommand(15)]), new ParsedBlock(null, [new TaxiCommand(["A"], [])])]);

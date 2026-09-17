@@ -110,7 +110,6 @@ public static class PositionJurisdiction
             RunwayExitPhase exit => exit.IsOnCenterline ? ControlRole.Local : ControlRole.Ground,
             AtParkingPhase
             or PushbackPhase
-            or PushbackToSpotPhase
             or HoldingAfterPushbackPhase
             or TaxiingPhase
             or FollowingPhase

@@ -7,6 +7,7 @@ using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Phases.Tower;
+using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests;
 
@@ -335,7 +336,7 @@ public class GroundCommandHandlerTests
         // Phases empty (no AtParkingPhase)
         var cmd = new PushbackCommand(null, null, null, null, null);
 
-        var result = GroundCommandHandler.TryPushback(ac, cmd, null);
+        var result = GroundCommandHandler.TryPushback(ac, cmd, null, null);
 
         Assert.False(result.Success);
         Assert.Contains("at parking", result.Message!);
@@ -347,23 +348,53 @@ public class GroundCommandHandlerTests
         var ac = MakeAircraftAtParking();
         var cmd = new PushbackCommand(null, null, null, null, null);
 
-        var result = GroundCommandHandler.TryPushback(ac, cmd, null);
+        var result = GroundCommandHandler.TryPushback(ac, cmd, null, null);
 
         Assert.True(result.Success);
         Assert.Contains("Pushing back", result.Message!);
     }
 
+    /// <summary>SFO gate B12 backs onto taxiway Y: a bare <c>PUSH Y</c> pushes straight back to it.</summary>
     [Fact]
     public void TryPushback_WithTaxiway_ResolvesTarget()
     {
-        var ac = MakeAircraftAtParking();
-        var layout = MakeSimpleLayout();
-        var cmd = new PushbackCommand(null, "A", null, null, null);
+        if (ParkedOnSfoB12() is not (var ac, var layout))
+        {
+            return;
+        }
 
-        var result = GroundCommandHandler.TryPushback(ac, cmd, layout);
+        var cmd = new PushbackCommand(null, "Y", null, null, null);
 
-        Assert.True(result.Success);
-        Assert.Contains("onto A", result.Message!);
+        var result = GroundCommandHandler.TryPushback(ac, cmd, layout, null);
+
+        Assert.True(result.Success, result.Message);
+        Assert.Contains("onto Y", result.Message!);
+    }
+
+    /// <summary>
+    /// A stand destination takes no facing. The parser never builds one; a hand-built <c>PUSH @B13</c> carrying a
+    /// facing heading or a facing taxiway is refused with the parser's own words, and the aircraft stays parked.
+    /// </summary>
+    [Theory]
+    [InlineData("FACE S", 180, null)]
+    [InlineData("Y", null, "Y")]
+    public void TryPushback_StandWithAFacing_RefusedWithTheParsersWords(string parsedFacing, int? faceHeading, string? facingTaxiway)
+    {
+        if (ParkedOnSfoB12() is not (var ac, var layout))
+        {
+            return;
+        }
+
+        var parsed = CommandParser.Parse($"PUSH @B13 {parsedFacing}");
+        Assert.False(parsed.IsSuccess, $"'PUSH @B13 {parsedFacing}' parsed as {parsed.Value}");
+        var cmd = new PushbackCommand(faceHeading is { } heading ? new MagneticHeading(heading) : null, null, facingTaxiway, "B13", null);
+
+        var result = GroundCommandHandler.TryPushback(ac, cmd, layout, null);
+
+        Assert.False(result.Success, $"a stand push with a facing was accepted: {result.Message}");
+        Assert.Equal("PUSH @B13 does not take a facing — the aircraft parks on the stand's own heading", result.Message);
+        Assert.Contains(result.Message!, parsed.Reason, StringComparison.Ordinal);
+        Assert.IsType<AtParkingPhase>(ac.Phases?.CurrentPhase);
     }
 
     [Fact]
@@ -372,86 +403,65 @@ public class GroundCommandHandlerTests
         var ac = MakeAircraftAtParking();
         var cmd = new PushbackCommand(new MagneticHeading(180), null, null, null, null);
 
-        var result = GroundCommandHandler.TryPushback(ac, cmd, null);
+        var result = GroundCommandHandler.TryPushback(ac, cmd, null, null);
 
         Assert.True(result.Success);
         Assert.Contains("180", result.Message!);
     }
 
-    // Layout for cardinal-hint snap tests: aircraft sits at the central intersection of a
-    // straight north-south taxiway "A" with edges in both directions.
-    private static AirportGroundLayout MakeCardinalSnapLayout()
+    /// <summary>
+    /// A B738 parked on SFO gate B12, nose on the stand heading (284° true). Taxiway Y runs behind the stand, its
+    /// edge at the exit node lying along 028° / 208° true. Null when the SFO layout is missing.
+    /// </summary>
+    private static (AircraftState Aircraft, AirportGroundLayout Layout)? ParkedOnSfoB12()
     {
-        var layout = new AirportGroundLayout { AirportId = "TEST" };
-        var node1 = new GroundNode
+        var layout = new TestAirportGroundData().GetLayout("SFO");
+        if (layout is null)
         {
-            Id = 1,
-            Position = new LatLon(37.727, -122.218),
-            Type = GroundNodeType.TaxiwayIntersection,
-        };
-        var node2 = new GroundNode
-        {
-            Id = 2,
-            Position = new LatLon(37.728, -122.218),
-            Type = GroundNodeType.TaxiwayIntersection,
-        };
-        var node3 = new GroundNode
-        {
-            Id = 3,
-            Position = new LatLon(37.729, -122.218),
-            Type = GroundNodeType.TaxiwayIntersection,
-        };
-        layout.Nodes[1] = node1;
-        layout.Nodes[2] = node2;
-        layout.Nodes[3] = node3;
-        var edge12 = new GroundEdge
-        {
-            Nodes = [node1, node2],
-            TaxiwayName = "A",
-            DistanceNm = GeoMath.DistanceNm(node1.Position, node2.Position),
-        };
-        var edge23 = new GroundEdge
-        {
-            Nodes = [node2, node3],
-            TaxiwayName = "A",
-            DistanceNm = GeoMath.DistanceNm(node2.Position, node3.Position),
-        };
-        layout.Edges.Add(edge12);
-        layout.Edges.Add(edge23);
-        node1.Edges.Add(edge12);
-        node2.Edges.Add(edge12);
-        node2.Edges.Add(edge23);
-        node3.Edges.Add(edge23);
-        layout.RebuildAdjacencyLists();
-        return layout;
+            return null;
+        }
+
+        var stand = layout.FindParkingByName("B12") ?? throw new InvalidOperationException("the SFO layout has no gate B12");
+        var ac = MakeAircraftAtParking();
+        ac.Position = stand.Position;
+        ac.TrueHeading = stand.TrueHeading ?? throw new InvalidOperationException("SFO gate B12 has no heading");
+        return (ac, layout);
     }
 
+    /// <summary>
+    /// FACE N (013° true at SFO) snaps to Y's edge direction nearest it, 028° true, and the readback echoes that.
+    /// </summary>
     [Fact]
     public void TryPushback_TaxiwayWithFaceN_SnapsNorthEdge()
     {
-        var ac = MakeAircraftAtParking(); // sits at (37.728, -122.218) == node2
-        var layout = MakeCardinalSnapLayout();
-        // FACE N → cardinal hint = 360° magnetic; closer of (180, 360) is 360.
-        var cmd = new PushbackCommand(new MagneticHeading(360), "A", null, null, null);
+        if (ParkedOnSfoB12() is not (var ac, var layout))
+        {
+            return;
+        }
 
-        var result = GroundCommandHandler.TryPushback(ac, cmd, layout);
+        var cmd = new PushbackCommand(new MagneticHeading(360), "Y", null, null, null);
 
-        Assert.True(result.Success);
-        Assert.Contains("face heading 360", result.Message!);
+        var result = GroundCommandHandler.TryPushback(ac, cmd, layout, null);
+
+        Assert.True(result.Success, result.Message);
+        Assert.Contains("face heading 028", result.Message!);
     }
 
+    /// <summary>FACE S (193° true at SFO) snaps to Y's other edge direction, 208° true.</summary>
     [Fact]
     public void TryPushback_TaxiwayWithFaceS_SnapsSouthEdge()
     {
-        var ac = MakeAircraftAtParking();
-        var layout = MakeCardinalSnapLayout();
-        // FACE S → cardinal hint = 180°; closer of (180, 360) is 180.
-        var cmd = new PushbackCommand(new MagneticHeading(180), "A", null, null, null);
+        if (ParkedOnSfoB12() is not (var ac, var layout))
+        {
+            return;
+        }
 
-        var result = GroundCommandHandler.TryPushback(ac, cmd, layout);
+        var cmd = new PushbackCommand(new MagneticHeading(180), "Y", null, null, null);
 
-        Assert.True(result.Success);
-        Assert.Contains("face heading 180", result.Message!);
+        var result = GroundCommandHandler.TryPushback(ac, cmd, layout, null);
+
+        Assert.True(result.Success, result.Message);
+        Assert.Contains("face heading 208", result.Message!);
     }
 
     [Fact]
@@ -461,7 +471,7 @@ public class GroundCommandHandlerTests
         var ac = MakeAircraftAtParking();
         var cmd = new PushbackCommand(new MagneticHeading(45), null, null, null, null);
 
-        var result = GroundCommandHandler.TryPushback(ac, cmd, null);
+        var result = GroundCommandHandler.TryPushback(ac, cmd, null, null);
 
         Assert.True(result.Success);
         Assert.Contains("face heading 045", result.Message!);

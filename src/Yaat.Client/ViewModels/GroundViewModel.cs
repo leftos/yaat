@@ -8,6 +8,7 @@ using Yaat.Client.Models;
 using Yaat.Client.Services;
 using Yaat.Client.Views.Ground;
 using Yaat.Sim;
+using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
 
@@ -112,12 +113,13 @@ public partial class GroundViewModel : ObservableObject
     private TaxiRoute? _drawHoverPreview;
 
     /// <summary>
-    /// The legs <see cref="PushbackLegPlanner"/> plans for the tug move being drawn, or null when no push
-    /// route is being drawn or the current one is refused. Drawn by the ground renderer, one straight line
-    /// per leg, coloured by whether the tug pushes or pulls.
+    /// The plan <see cref="TugMovePlanner"/> builds for the tug move being drawn, or null when no push route
+    /// is being drawn or the current one is refused. Drawn by the ground renderer as the sampled path of each
+    /// move, coloured by whether the tug pushes or pulls; the path carries its own start, so the preview on
+    /// screen is exactly what was planned even once the aircraft has moved on.
     /// </summary>
     [ObservableProperty]
-    private IReadOnlyList<PushbackLeg>? _pushRoutePreview;
+    private TugPlan? _pushRoutePreview;
 
     /// <summary>
     /// Why the tug move being drawn cannot be planned, or null when it can. The waypoint stays on the list
@@ -125,13 +127,6 @@ public partial class GroundViewModel : ObservableObject
     /// </summary>
     [ObservableProperty]
     private string? _pushRouteRefusal;
-
-    /// <summary>
-    /// Where <see cref="PushRoutePreview"/>'s first leg starts: the aircraft's position when the preview was
-    /// planned. Held rather than read live at draw time so the lines on screen are exactly the planned legs.
-    /// </summary>
-    [ObservableProperty]
-    private LatLon? _pushRouteStart;
 
     [ObservableProperty]
     private double _airportCenterLat;
@@ -2090,7 +2085,6 @@ public partial class GroundViewModel : ObservableObject
         DrawWaypoints = null;
         PushRoutePreview = null;
         PushRouteRefusal = null;
-        PushRouteStart = null;
     }
 
     private TaxiRoute MergeSubRoutes()
@@ -2138,7 +2132,6 @@ public partial class GroundViewModel : ObservableObject
         DrawWaypoints = [startNode.Value];
         PushRoutePreview = null;
         PushRouteRefusal = null;
-        PushRouteStart = null;
         IsDrawingRoute = true;
     }
 
@@ -2201,16 +2194,17 @@ public partial class GroundViewModel : ObservableObject
             return null;
         }
 
-        // The command carries exactly the clicked targets: the sim plans the legs from them, and the
+        // The command carries exactly the clicked targets: the sim plans the moves from them, and the
         // sigil is the only thing telling a spot apart from a gate of the same name.
-        var command = $"PUSHM {string.Join(" ", targets.Select(t => PushTargetToken(t.Node)))}";
+        var command = $"PUSHM {string.Join(" ", targets.Select(PushTargetToken))}";
         ClearDrawState();
         return command;
     }
 
     /// <summary>
-    /// Re-plans the drawn tug move through <see cref="PushbackLegPlanner"/> — the same body the simulation
-    /// runs, so the preview and the executed move cannot disagree about which legs push and which pull.
+    /// Re-plans the drawn tug move through <see cref="TugMovePlanner"/> — the same body the simulation runs,
+    /// on goals resolved from the very tokens the <c>PUSHM</c> will carry, so the preview and the executed
+    /// move cannot disagree about which moves push, which pull, or where the aircraft ends up.
     /// </summary>
     private void RefreshPushRoutePreview()
     {
@@ -2223,30 +2217,42 @@ public partial class GroundViewModel : ObservableObject
         {
             PushRoutePreview = null;
             PushRouteRefusal = null;
-            PushRouteStart = null;
             return;
         }
 
-        var legs = PushbackLegPlanner.Plan(
-            _domainLayout,
-            _drawAircraft.Position,
-            _drawAircraft.Heading.Degrees,
-            startsAtStand: _drawAircraft.CurrentPhase == "At Parking",
-            targets,
-            explicitFinalFacingTrueDeg: null,
-            CategoryFor(_drawAircraft),
-            out string refusal
-        );
+        var goals = new List<TugGoal>(targets.Count);
+        foreach (var node in targets)
+        {
+            string token = PushTargetToken(node);
+            if (GroundCommandHandler.ResolveTugGoal(_domainLayout, token) is not { } goal)
+            {
+                PushRoutePreview = null;
+                PushRouteRefusal = $"Cannot find {token}";
+                return;
+            }
 
-        PushRoutePreview = legs;
-        PushRouteRefusal = legs is null ? refusal : null;
-        PushRouteStart = legs is null ? null : _drawAircraft.Position;
+            goals.Add(goal);
+        }
+
+        var request = new TugRequest
+        {
+            Start = new TugPose(_drawAircraft.Position, _drawAircraft.Heading.Degrees),
+            StartsAtStand = _drawAircraft.CurrentPhase == "At Parking",
+            AircraftType = _drawAircraft.AircraftType,
+            Goals = goals,
+            FinalFacingTrueDeg = null,
+            PreviousKind = null,
+        };
+
+        var plan = TugMovePlanner.Plan(_domainLayout, request, out string refusal);
+        PushRoutePreview = plan;
+        PushRouteRefusal = plan is null ? refusal : null;
     }
 
-    /// <summary>The clicked targets, in order. Index 0 of the waypoint list is the aircraft's own node.</summary>
-    private List<PushbackTarget> CurrentPushTargets()
+    /// <summary>The clicked target nodes, in order. Index 0 of the waypoint list is the aircraft's own node.</summary>
+    private List<GroundNode> CurrentPushTargets()
     {
-        var targets = new List<PushbackTarget>();
+        var targets = new List<GroundNode>();
         if (_domainLayout is null)
         {
             return targets;
@@ -2256,7 +2262,7 @@ public partial class GroundViewModel : ObservableObject
         {
             if (_domainLayout.Nodes.TryGetValue(_drawWaypointIds[i], out var node))
             {
-                targets.Add(new PushbackTarget(node, node.Type == GroundNodeType.Spot));
+                targets.Add(node);
             }
         }
 

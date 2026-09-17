@@ -21,7 +21,7 @@ namespace Yaat.Sim.Tests.Simulation.GroundTaxi;
 /// span) passing a parked B738 (117.4 ft span) needs 50.85 + 58.7 + 25 = 134.55 ft for the detector's
 /// wingspan bypass, and the outer lanes give 140.2 ft — a 5.6 ft margin — so no speed cap may appear.
 /// Passing one that is still <em>moving</em> costs more: the detector trails it, and on that 5.6 ft of
-/// margin the trail limit briefly reaches zero, so the arrival waits a few seconds for the tail to settle.
+/// margin the trail limit caps the arrival, and may briefly reach zero while the tail settles.
 /// What the arrival may not be given is a hold that outlasts the push — it is trailing a neighbour, not
 /// giving way to it, so the wait is short, it is never annotated as yielding to the pusher, and it is never
 /// stopped again once the push has finished.</para>
@@ -66,10 +66,19 @@ public class SfoSixAlleyChoreographyTests
 
     /// <summary>
     /// How long the arrival may sit at a zero trail limit while the pusher is still reversing on the other
-    /// outer lane. Trailing a mover abreast on 5.6 ft of lateral margin costs a real pause — 4 s, measured —
-    /// but a wait that runs past this is no longer the tail settling, it is a hold.
+    /// outer lane. Trailing a mover abreast on 5.6 ft of lateral margin may cost a pause (measured with the push
+    /// timing here: a trail cap down to about 5 kt and no zero-cap second), but a wait that runs past this is no
+    /// longer the tail settling, it is a hold.
     /// </summary>
     private const int MaxHoldWhilePushRollsSeconds = 10;
+
+    /// <summary>
+    /// How long after the push the arrival is cleared to taxi in the concurrent run. From the 28L bar the arrival
+    /// reaches the alley about 60 s after its clearance, and the D15 push onto 6B makes its final push along the
+    /// T6B lane at t≈90–100 s and creeps onto the mark until t≈123 s (measured), so a clearance 40 s into the push
+    /// brings the arrival up T6A abeam the pusher while it is still rolling on the other lane.
+    /// </summary>
+    private const int ArrivalClearanceSeconds = 40;
     private const int PushBudgetSeconds = 200;
     private const int ArrivalBudgetSeconds = 240;
     private const int ChoreographyBudgetSeconds = 400;
@@ -140,11 +149,12 @@ public class SfoSixAlleyChoreographyTests
     }
 
     /// <summary>
-    /// Push and taxi are issued in the same second, on the two outer lanes: the D-pier pusher backs onto T6B
-    /// and stops on spot 6B, while the arrival taxis up T6A to its gate on the E pier. Nothing crosses the
+    /// The push goes first and the taxi clearance <see cref="ArrivalClearanceSeconds"/> later, timed so the two meet
+    /// on the two outer lanes: the D-pier pusher makes its final push along T6B and creeps onto spot 6B while the
+    /// arrival taxis up T6A to its gate on the E pier. Nothing crosses the
     /// arrival's lane, so what the push costs it is the trail limit — capped while the B738 is rolling
-    /// abreast at ~140 ft, which on that 5.6 ft of lateral margin briefly means a stop, measured at 4 s. That
-    /// wait is bounded (<see cref="MaxHoldWhilePushRollsSeconds"/>) and it belongs to the rolling push: once
+    /// abreast at ~140 ft; on that 5.6 ft of lateral margin the cap may briefly reach a stop (measured here: capped,
+    /// slowed to about 5 kt, never stopped). Any such wait is bounded (<see cref="MaxHoldWhilePushRollsSeconds"/>) and it belongs to the rolling push: once
     /// the pusher has come to rest, the arrival is never capped to a stop by it again — a stopped neighbour a
     /// lane away costs nothing at all, which is <see cref="PushLong_ArrivalNeverSlowed"/>. It is never annotated
     /// as auto-yielding either: this is trailing, not giving way. Both then reach their marks, and the pair
@@ -166,11 +176,16 @@ public class SfoSixAlleyChoreographyTests
         string pushCommand = $"PUSH ${AlleySpot}";
         var push = engine.SendCommand(Pusher, pushCommand);
         Assert.True(push.Success, $"'{pushCommand}' from {TrailPusherGate} failed: {push.Message}");
+        SfoGroundHarness.TickUntil(engine, () => false, ArrivalClearanceSeconds, second => guard.Tick(second));
+        Assert.True(
+            alley.Pusher.Phases?.CurrentPhase is PushbackPhase,
+            $"test setup: the push had stopped before the arrival's clearance at t={ArrivalClearanceSeconds}s (phase={PhaseName(alley.Pusher)})"
+        );
         string clearance = $"TAXI T A T6A @{AlleyGate}";
         var taxi = engine.SendCommand(Arrival, clearance);
         Assert.True(taxi.Success, $"'{clearance}' from the 28L bar on T failed: {taxi.Message}");
 
-        var run = RunTrail(alley, guard);
+        var run = RunTrail(alley, guard, ArrivalClearanceSeconds);
         double requiredFt = RequiredLateralFt(ArrivalType, PusherType);
         _output.WriteLine(
             $"push finished t={run.PusherDoneSecond}s, arrival parked t={run.ArrivalParkedSecond}s, trail-limited={run.TrailLimited}, "
@@ -326,9 +341,9 @@ public class SfoSixAlleyChoreographyTests
     /// <summary>
     /// Ticks the concurrent push and taxi to completion, watching the arrival's speed cap and yield
     /// annotation, the closest approach, and the second each aircraft comes to rest, with a trace line every
-    /// ten seconds.
+    /// ten seconds. Seconds are counted from the push, which started <paramref name="startSecond"/> seconds before.
     /// </summary>
-    private TrailRun RunTrail(Alley alley, DeadlockGuard guard)
+    private TrailRun RunTrail(Alley alley, DeadlockGuard guard, int startSecond)
     {
         var run = new TrailRun();
         bool everPushed = false;
@@ -337,8 +352,9 @@ public class SfoSixAlleyChoreographyTests
             alley.Ground.Engine,
             () => (run.PusherDoneSecond > 0) && (run.ArrivalParkedSecond > 0),
             ChoreographyBudgetSeconds,
-            second =>
+            tick =>
             {
+                int second = startSecond + tick;
                 guard.Tick(second);
                 double separationFt = DistanceFt(alley.Pusher.Position, alley.Arrival.Position);
                 run.MinSeparationFt = Math.Min(run.MinSeparationFt, separationFt);
