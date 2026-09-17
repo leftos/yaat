@@ -1,4 +1,5 @@
 # YAAT plans — index
+<!-- plan-doc-hygiene: 2026-09-17 0cf9b9ac -->
 
 Entry point for `docs/plans/`. One line per item; the detail lives in the linked subplan. Finished items and finished plans are deleted, never left ticked (steer 2026-09-14) — git history is the record (a plan whose rationale or status table still has reference value is promoted into `docs/` instead). Issue-specific plans live in [`open-issues/`](./open-issues/) and are deleted once implemented.
 
