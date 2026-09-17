@@ -199,6 +199,7 @@ public class PushbackPullLegTests(ITestOutputHelper output)
             Move = move,
             PlannedEnd = planned,
             ContinuesIntoNextMove = false,
+            ContinuesStandPushOff = false,
         };
         var ac = SfoGroundHarness.SpawnAt(ground, "PUL4", AircraftType, (start, new TrueHeading(noseDeg)), phase);
         double radiusFt = TugKinematics.TurnRadiusFt(AircraftType, tight: false);
@@ -247,6 +248,7 @@ public class PushbackPullLegTests(ITestOutputHelper output)
             Move = TugMove.ToPoint(PushbackLegKind.Pull, target),
             PlannedEnd = target,
             ContinuesIntoNextMove = false,
+            ContinuesStandPushOff = false,
         };
 
         var dto = Assert.IsType<PushbackPhaseDto>(phase.ToSnapshot());
@@ -261,6 +263,41 @@ public class PushbackPullLegTests(ITestOutputHelper output)
         var restored = Assert.IsType<PushbackPhaseDto>(JsonSerializer.Deserialize<PhaseDto>(written.ToJsonString(), RecordingJsonOptions.Default));
         Assert.Equal(PushbackLegKind.Push, restored.Kind);
         Assert.Equal(PushbackLegKind.Push, PushbackPhase.FromSnapshot(restored).Kind);
+    }
+
+    /// <summary>
+    /// Leg 1 of a push off a stand rides the snapshot: a move flown through from the push-off restores still carrying
+    /// the flag, so the restored phase keeps the push's ramp priority. Pure DTO work, so it needs no layout.
+    /// </summary>
+    [Fact]
+    public void ContinuesStandPushOff_SurvivesTheSnapshot()
+    {
+        var target = new LatLon(37.6188, -122.3750);
+        var phase = new PushbackPhase
+        {
+            Move = TugMove.ToPoint(PushbackLegKind.Push, target),
+            PlannedEnd = target,
+            ContinuesIntoNextMove = false,
+            ContinuesStandPushOff = true,
+        };
+        var ac = new AircraftState
+        {
+            Callsign = "PSH4",
+            AircraftType = AircraftType,
+            Position = target,
+            TrueHeading = new TrueHeading(0),
+            IsOnGround = true,
+        };
+
+        var dto = Assert.IsType<PushbackPhaseDto>(phase.ToSnapshot());
+        Assert.True(dto.ContinuesStandPushOff);
+
+        string json = JsonSerializer.Serialize<PhaseDto>(dto, RecordingJsonOptions.Default);
+        var readBack = Assert.IsType<PushbackPhaseDto>(JsonSerializer.Deserialize<PhaseDto>(json, RecordingJsonOptions.Default));
+        var restored = PushbackPhase.FromSnapshot(readBack);
+
+        Assert.True(restored.ContinuesStandPushOff);
+        Assert.True(restored.HasRampPriority(ac), "a restored continuation of the push-off lost the push's ramp priority");
     }
 
     /// <summary>
@@ -287,6 +324,7 @@ public class PushbackPullLegTests(ITestOutputHelper output)
             PlannedEnd = target.Position,
             StartsAtStand = true,
             ContinuesIntoNextMove = false,
+            ContinuesStandPushOff = false,
             Amendment = TugAmendment.For(TugGoal.TaxiwayLine(target, LaneTaxiway, noseDeg), standPose),
         };
         Assert.NotNull(phase.Amendment);
@@ -309,7 +347,7 @@ public class PushbackPullLegTests(ITestOutputHelper output)
         Assert.True(dto.ProgressDistanceFt > 0.0, "the snapshot was taken before the move had gone anywhere");
         Assert.Equal(PushbackPhase.DwellSeconds, dto.DwellElapsedSeconds);
         Assert.Null(dto.LegacyTargetLatitude);
-        Assert.Equal(phase.HasLeftTheStand(ac), restored.HasLeftTheStand(ac));
+        Assert.Equal(phase.HasRampPriority(ac), restored.HasRampPriority(ac));
 
         // A fresh engine, so the original aircraft still on the same path cannot hold the restored one.
         var restoredGround = SfoGroundHarness.Build(output, autoCross: false)!.Value;
@@ -369,6 +407,7 @@ public class PushbackPullLegTests(ITestOutputHelper output)
             Move = TugMove.ToPoint(setup.Kind, setup.Target.Position),
             PlannedEnd = setup.Target.Position,
             ContinuesIntoNextMove = false,
+            ContinuesStandPushOff = false,
         };
         var ac = SfoGroundHarness.SpawnAt(ground, setup.Callsign, AircraftType, (setup.From, new TrueHeading(setup.StartHeadingDeg)), phase);
         var startPosition = ac.Position;

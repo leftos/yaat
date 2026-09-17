@@ -807,12 +807,20 @@ public class GroundConflictDetectorTests
     }
 
     /// <summary>
-    /// A B738 mid-push, tail-first to the south. The phase is started while the aircraft is at
-    /// <paramref name="standPosition"/> — what <see cref="PushbackPhase.HasLeftTheStand"/> measures from — and
+    /// A B738 mid-push off a stand, tail-first to the south. The phase is started while the aircraft is at
+    /// <paramref name="standPosition"/> — what <see cref="PushbackPhase.HasRampPriority"/> measures from — and
     /// the aircraft is then placed where the push has got to, so passing the same point for both leaves it
     /// still on its stand.
     /// </summary>
-    private static AircraftState MakePusherFromStand(LatLon standPosition, LatLon position)
+    private static AircraftState MakePusherFromStand(LatLon standPosition, LatLon position) =>
+        MakePusher(standPosition, position, startsAtStand: true, continuesStandPushOff: false);
+
+    /// <summary>
+    /// The same straight push with the two priority flags set explicitly: the stand push-off
+    /// (<paramref name="startsAtStand"/>), a move flown through from it (<paramref name="continuesStandPushOff"/>),
+    /// or — with both false — a move the plan reversed into, which is a repositioning tow.
+    /// </summary>
+    private static AircraftState MakePusher(LatLon standPosition, LatLon position, bool startsAtStand, bool continuesStandPushOff)
     {
         var pusher = MakeAircraft("PSH", standPosition, heading: 0, gs: 3, pushbackHeading: 180);
         pusher.Phases = new PhaseList();
@@ -825,8 +833,9 @@ public class GroundConflictDetectorTests
                     new TrueHeading(180),
                     CategoryPerformance.SimplePushbackDistanceNm(pusher.AircraftType)
                 ),
-                StartsAtStand = true,
+                StartsAtStand = startsAtStand,
                 ContinuesIntoNextMove = false,
+                ContinuesStandPushOff = continuesStandPushOff,
             }
         );
         pusher.Phases.Start(CommandDispatcher.BuildMinimalContext(pusher));
@@ -838,7 +847,7 @@ public class GroundConflictDetectorTests
     /// A B738 mid-push whose remaining leg ends at <paramref name="target"/>, placed at
     /// <paramref name="position"/> with the tail currently tracking <paramref name="pushHeading"/> — the two
     /// differ while the tug is steering the pursuit arc. The phase is started at
-    /// <paramref name="standPosition"/> (what <see cref="PushbackPhase.HasLeftTheStand"/> measures from) with
+    /// <paramref name="standPosition"/> (what <see cref="PushbackPhase.HasRampPriority"/> measures from) with
     /// the nose pointed away from the target, so it is aligned and reversing from the first tick.
     /// </summary>
     private static AircraftState MakePusherToTarget(LatLon standPosition, LatLon position, LatLon target, double pushHeading)
@@ -853,6 +862,7 @@ public class GroundConflictDetectorTests
                 PlannedEnd = target,
                 StartsAtStand = true,
                 ContinuesIntoNextMove = false,
+                ContinuesStandPushOff = false,
             }
         );
         pusher.Phases.Start(CommandDispatcher.BuildMinimalContext(pusher));
@@ -874,6 +884,7 @@ public class GroundConflictDetectorTests
             PlannedEnd = GeoMath.ProjectPoint(aircraft.Position, pushHeading, CategoryPerformance.SimplePushbackDistanceNm(aircraft.AircraftType)),
             StartsAtStand = true,
             ContinuesIntoNextMove = false,
+            ContinuesStandPushOff = false,
         };
     }
 
@@ -918,6 +929,60 @@ public class GroundConflictDetectorTests
         Assert.True(
             (pusher.Ground.SpeedLimit is null) || (pusher.Ground.SpeedLimit > 0),
             $"Pushback in progress must keep going, but SpeedLimit={pusher.Ground.SpeedLimit}"
+        );
+        Assert.Null(pusher.Ground.AutoYieldTarget);
+    }
+
+    [Fact]
+    public void MoverVsPusher_PushAfterAReversal_MoverKeepsGoing_PusherYields()
+    {
+        // Same geometry as the mutual stop, but the push is a leg the plan reversed into — the second leg of a
+        // PUSHM, or the push half of a three-point turn. That tow is repositioning, not committing an alley off a
+        // stand, so it is ordinary ramp traffic: the mover keeps going and the pusher takes the hard stop.
+        var pusher = MakePusher(
+            StandNorthOf(190),
+            new LatLon(BaseLat + (1.9 * OffsetLatPer100Ft), BaseLon),
+            startsAtStand: false,
+            continuesStandPushOff: false
+        );
+        var mover = MakeTaxiingE75L(new LatLon(BaseLat, BaseLon), heading: 0);
+
+        var aircraft = new List<AircraftState> { pusher, mover };
+        GroundConflictDetector.ApplySpeedLimits(aircraft, null);
+
+        Assert.True(
+            (mover.Ground.SpeedLimit is null) || (mover.Ground.SpeedLimit > 0),
+            $"the mover was held for a repositioning tow, SpeedLimit={mover.Ground.SpeedLimit}"
+        );
+        Assert.NotEqual("PSH", mover.Ground.AutoYieldTarget);
+        Assert.NotNull(pusher.Ground.SpeedLimit);
+        Assert.Equal(0.0, pusher.Ground.SpeedLimit!.Value);
+    }
+
+    [Fact]
+    public void MoverVsPusher_ContinuationPush_KeepsPriority()
+    {
+        // The move after the push-off, flown through from it with no reversal between, is still leg 1 of the push
+        // off the stand: the tail is out in the alley and the tug crew cannot see behind it, so the taxiing
+        // aircraft gives way exactly as it does for the push-off itself.
+        var pusher = MakePusher(
+            StandNorthOf(190),
+            new LatLon(BaseLat + (1.9 * OffsetLatPer100Ft), BaseLon),
+            startsAtStand: false,
+            continuesStandPushOff: true
+        );
+        var mover = MakeTaxiingE75L(new LatLon(BaseLat, BaseLon), heading: 0);
+
+        var aircraft = new List<AircraftState> { pusher, mover };
+        GroundConflictDetector.ApplySpeedLimits(aircraft, null);
+
+        Assert.NotNull(mover.Ground.SpeedLimit);
+        Assert.Equal(0.0, mover.Ground.SpeedLimit!.Value);
+        Assert.Equal("PSH", mover.Ground.AutoYieldTarget);
+        Assert.False(mover.Ground.AutoYieldIsFollowing);
+        Assert.True(
+            (pusher.Ground.SpeedLimit is null) || (pusher.Ground.SpeedLimit > 0),
+            $"a continuation of the push-off must keep going, but SpeedLimit={pusher.Ground.SpeedLimit}"
         );
         Assert.Null(pusher.Ground.AutoYieldTarget);
     }
@@ -1063,6 +1128,51 @@ public class GroundConflictDetectorTests
         Assert.Equal(0.0, mover.Ground.SpeedLimit!.Value);
         Assert.Equal("PSH", mover.Ground.AutoYieldTarget);
         Assert.Equal(0.0, pusher.Ground.SpeedLimit!.Value);
+    }
+
+    /// <summary>
+    /// A B738 on the last stretch of a creep move — the pull onto a spot <paramref name="remainingFt"/> ahead, inside
+    /// the pull-forward distance where the tug is commanded down to the alignment creep.
+    /// </summary>
+    private static AircraftState MakeCreepingPuller(LatLon position, double remainingFt)
+    {
+        var move = TugMove.Straight(PushbackLegKind.Pull, remainingFt) with { Creep = true };
+        var phase = new PushbackPhase
+        {
+            Move = move,
+            PlannedEnd = GeoMath.ProjectPoint(position, new TrueHeading(0), remainingFt / FtPerNm),
+            ContinuesIntoNextMove = false,
+            ContinuesStandPushOff = false,
+        };
+        return MakeAircraft("TUG", position, heading: 0, gs: 2, phase: phase);
+    }
+
+    [Fact]
+    public void CreepingTugMove_LimitAboveTheCommandedCreep_ShowsNoYieldTarget()
+    {
+        var parked = MakeAircraft("PRK", new LatLon(BaseLat, BaseLon + OffsetLonPer100Ft), heading: 0, gs: 0, phase: new AtParkingPhase());
+        var mover = MakeCreepingPuller(new LatLon(BaseLat, BaseLon), remainingFt: 20);
+        var tugMove = (PushbackPhase)mover.Phases!.CurrentPhase!;
+        Assert.Equal(CategoryPerformance.PushbackAlignSpeed(AircraftCategory.Jet), tugMove.CommandedSpeedKts(mover));
+
+        // 4 kt is above the 3 kt this stretch is commanded at, so the limit takes nothing off the tow: naming a yield
+        // target there points the operator at a neighbour the move is not slowing for.
+        GroundConflictDetector.ShowTugMoveYield(mover, parked, limitKts: 4);
+
+        Assert.Null(mover.Ground.AutoYieldTarget);
+    }
+
+    [Fact]
+    public void CreepingTugMove_LimitBelowTheCommandedCreep_ShowsTheNeighbour()
+    {
+        var parked = MakeAircraft("PRK", new LatLon(BaseLat, BaseLon + OffsetLonPer100Ft), heading: 0, gs: 0, phase: new AtParkingPhase());
+        var mover = MakeCreepingPuller(new LatLon(BaseLat, BaseLon), remainingFt: 20);
+
+        // 2 kt is under the commanded creep: the tow is being braked for the neighbour, and the operator sees who for.
+        GroundConflictDetector.ShowTugMoveYield(mover, parked, limitKts: 2);
+
+        Assert.Equal("PRK", mover.Ground.AutoYieldTarget);
+        Assert.False(mover.Ground.AutoYieldIsFollowing);
     }
 
     [Fact]

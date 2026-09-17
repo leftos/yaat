@@ -1250,7 +1250,11 @@ public record AircraftDto(
     // LiveTrafficStale = the feed has missed its sweeps and the position is dead-reckoned (CST).
     bool IsLiveTraffic = false,
     bool LiveTrafficStale = false,
-    string? LiveTrafficSource = null
+    string? LiveTrafficSource = null,
+    // The tug's pose while the aircraft is under tow: the direction from the nose gear out along the towbar to
+    // the tug, degrees true, null when no tug is attached. Kept name-for-name in sync with the server's
+    // AircraftStateDto; the ground view draws the tug from it.
+    double? TowbarTrueHeadingDeg = null
 );
 
 public record LoadScenarioResultDto(

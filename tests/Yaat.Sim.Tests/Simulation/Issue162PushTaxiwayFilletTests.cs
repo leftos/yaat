@@ -19,11 +19,20 @@ namespace Yaat.Sim.Tests.Simulation;
 ///
 /// Recording: <c>S1-SFO-4 | FD/CD/GC 19/10</c>. DAL451 spawns at
 /// <c>(37.615525, -122.382720)</c>; <c>PUSH T5B</c> fires at t=101; the
-/// pushback phase completes by t=120.
+/// pushback phase completes at t=139.
 /// </summary>
 public class Issue162PushTaxiwayFilletTests(ITestOutputHelper output)
 {
     private const string RecordingPath = "TestData/issue162-push-t5b-fillet-recording.zip";
+
+    /// <summary>
+    /// Five seconds after the push completes. Measured by replaying to each second in turn (2026-09-17): the phase is
+    /// still <c>Pushback</c> at t=138 (1.0 kt, crawling the last stretch) and <c>Holding After Pushback</c> from t=139,
+    /// resting at <c>(37.616024, -122.382440)</c> and never moving again. The tow reaches its end 19 s later than it
+    /// did before the towbar accel/decel rates (0.3 / 1.0 kt/s), which is the whole of the change here: the push-off
+    /// takes ~16 s to reach 5 kt instead of 5, and the last ~20 ft are a braking curve onto a 1 kt crawl.
+    /// </summary>
+    private const int SampleSeconds = 144;
 
     private static SessionRecording? LoadRecording() => RecordingLoader.Load(RecordingPath);
 
@@ -78,7 +87,7 @@ public class Issue162PushTaxiwayFilletTests(ITestOutputHelper output)
     }
 
     /// <summary>
-    /// E2E replay: at t=125 (5s after the push-back phase completes) DAL451's
+    /// E2E replay: at <see cref="SampleSeconds"/> (5 s after the push-back phase completes) DAL451's
     /// nearest node must have a straight T5B <see cref="GroundEdge"/>. The
     /// buggy behavior parked the aircraft center on node #2161, whose only
     /// T5B-named connections are arcs.
@@ -93,15 +102,16 @@ public class Issue162PushTaxiwayFilletTests(ITestOutputHelper output)
             return;
         }
 
-        engine.Replay(recording, 125);
+        engine.Replay(recording, SampleSeconds);
 
         var ac = engine.FindAircraft("DAL451");
         Assert.NotNull(ac);
+        output.WriteLine($"t={SampleSeconds} DAL451: phase={ac.Phases?.CurrentPhase?.Name ?? "(none)"} ias={ac.IndicatedAirspeed:F2}");
 
         var layout = new TestAirportGroundData().GetLayout("SFO");
         Assert.NotNull(layout);
 
-        NearestNodeHelper.Log(output, "t=125 DAL451:", ac, layout, count: 5);
+        NearestNodeHelper.Log(output, $"t={SampleSeconds} DAL451:", ac, layout, count: 5);
 
         var nearest = layout.Nodes.Values.OrderBy(n => GeoMath.DistanceNm(ac.Position, n.Position)).First();
 

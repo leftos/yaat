@@ -116,6 +116,13 @@ public partial class AircraftModel : ObservableObject
     /// <summary>Live heading in magnetic, 3-digit zero-padded for display (matches the assigned-heading frame).</summary>
     public string HeadingDisplay => Heading.ToMagnetic(MagneticDeclination.GetDeclination(Position)).ToDisplayString();
 
+    /// <summary>
+    /// The tug's pose while the aircraft is under tow: the true heading from the nose gear out along the
+    /// towbar to the tug, null when no tug is attached. The ground view draws the tug from it.
+    /// </summary>
+    [ObservableProperty]
+    private TrueHeading? _towbarHeading;
+
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(MachDisplay))]
     private double _altitude;
@@ -1054,6 +1061,7 @@ public partial class AircraftModel : ObservableObject
             FiledAircraftType = dto.FiledAircraftType,
             Position = new LatLon(dto.Latitude, dto.Longitude),
             Heading = new TrueHeading(dto.Heading),
+            TowbarHeading = dto.TowbarTrueHeadingDeg.HasValue ? new TrueHeading(dto.TowbarTrueHeadingDeg.Value) : null,
             Altitude = dto.Altitude,
             GroundSpeed = dto.GroundSpeed,
             BeaconCode = dto.BeaconCode,
@@ -1168,6 +1176,7 @@ public partial class AircraftModel : ObservableObject
         FiledAircraftType = dto.FiledAircraftType;
         Position = new LatLon(dto.Latitude, dto.Longitude);
         Heading = new TrueHeading(dto.Heading);
+        TowbarHeading = dto.TowbarTrueHeadingDeg.HasValue ? new TrueHeading(dto.TowbarTrueHeadingDeg.Value) : null;
         Altitude = dto.Altitude;
         GroundSpeed = dto.GroundSpeed;
         BeaconCode = dto.BeaconCode;

@@ -96,6 +96,32 @@ public sealed class GroundSpeedIntegrationTests
     }
 
     /// <summary>
+    /// Accelerating on the ground runs at the category's taxi accel rate (1.0 kt/s for a jet) unless a phase
+    /// published a rate of its own — a tug move under tow — which physics then honors on the accel branch, the
+    /// mirror of <see cref="UpdateSpeed_OnGround_UsesTaxiDecelRate_UnlessDesiredDecelRateSet"/>.
+    /// </summary>
+    [Fact]
+    public void UpdateSpeed_OnGround_UsesDesiredAccelRate_WhenSet()
+    {
+        var aircraft = MakeB738(onGround: true);
+        aircraft.IndicatedAirspeed = 0;
+        aircraft.Targets.TargetSpeed = 30;
+
+        TickOneSecond(aircraft);
+
+        Assert.Equal(1.0, aircraft.IndicatedAirspeed, 1e-9);
+
+        var overridden = MakeB738(onGround: true);
+        overridden.IndicatedAirspeed = 0;
+        overridden.Targets.TargetSpeed = 30;
+        overridden.Targets.DesiredAccelRate = 0.3;
+
+        TickOneSecond(overridden);
+
+        Assert.Equal(0.3, overridden.IndicatedAirspeed, 1e-9);
+    }
+
+    /// <summary>
     /// The snap window on the ground is one sub-tick of change. Physics may close the last sliver of a gap
     /// in a single step, but never more than the <c>rate x deltaSeconds</c> it would have integrated anyway:
     /// a fixed 2 kt window is two whole seconds of jet taxi acceleration delivered as a jump.

@@ -69,6 +69,18 @@ public class ControlTargets
     /// </summary>
     public double? DesiredDecelRate { get; set; }
 
+    /// <summary>
+    /// Acceleration rate override in knots/sec (positive). Null means use the category
+    /// default from <see cref="CategoryPerformance.TaxiAccelRate"/> on the ground and
+    /// <see cref="AircraftPerformance.AccelRate"/> airborne. Set by
+    /// <see cref="Phases.Ground.PushbackPhase"/> while a tug has the aircraft, so a tow
+    /// picks up speed at the towbar rate rather than the aircraft's own breakaway rate.
+    /// <see cref="FlightPhysics.UpdateSpeed"/> reads this when accelerating toward
+    /// <see cref="TargetSpeed"/>; it is ignored on the deceleration branch. Cleared on
+    /// phase transition by the phase that set it.
+    /// </summary>
+    public double? DesiredAccelRate { get; set; }
+
     /// <summary>Minimum IAS in knots (speed floor, "maintain X or greater"). Enforced continuously.</summary>
     public double? SpeedFloor { get; set; }
 
@@ -149,6 +161,7 @@ public class ControlTargets
             DesiredVerticalRate = DesiredVerticalRate,
             TargetSpeed = TargetSpeed,
             DesiredDecelRate = DesiredDecelRate,
+            DesiredAccelRate = DesiredAccelRate,
             SpeedFloor = SpeedFloor,
             SpeedCeiling = SpeedCeiling,
             AssignedMagneticHeadingDeg = AssignedMagneticHeading?.Degrees,
@@ -173,6 +186,7 @@ public class ControlTargets
         targets.DesiredVerticalRate = dto.DesiredVerticalRate;
         targets.TargetSpeed = dto.TargetSpeed;
         targets.DesiredDecelRate = dto.DesiredDecelRate;
+        targets.DesiredAccelRate = dto.DesiredAccelRate;
         targets.SpeedFloor = dto.SpeedFloor;
         targets.SpeedCeiling = dto.SpeedCeiling;
         targets.AssignedMagneticHeading = dto.AssignedMagneticHeadingDeg.HasValue ? new MagneticHeading(dto.AssignedMagneticHeadingDeg.Value) : null;

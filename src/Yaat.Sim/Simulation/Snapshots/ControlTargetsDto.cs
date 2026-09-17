@@ -11,6 +11,7 @@ public sealed class ControlTargetsDto
     public double? DesiredVerticalRate { get; init; }
     public double? TargetSpeed { get; init; }
     public double? DesiredDecelRate { get; init; }
+    public double? DesiredAccelRate { get; init; }
     public double? SpeedFloor { get; init; }
     public double? SpeedCeiling { get; init; }
     public double? AssignedMagneticHeadingDeg { get; init; }

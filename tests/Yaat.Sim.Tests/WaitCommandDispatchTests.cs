@@ -94,6 +94,7 @@ public class WaitCommandDispatchTests
                 Move = TugMove.Straight(PushbackLegKind.Push, 100.0),
                 PlannedEnd = ac.Position,
                 ContinuesIntoNextMove = false,
+                ContinuesStandPushOff = false,
             }
         );
 
@@ -130,6 +131,7 @@ public class WaitCommandDispatchTests
                 Move = TugMove.Straight(PushbackLegKind.Push, 100.0),
                 PlannedEnd = ac.Position,
                 ContinuesIntoNextMove = false,
+                ContinuesStandPushOff = false,
             }
         );
 

@@ -1198,19 +1198,21 @@ public static class FlightPhysics
     /// ground phases and <see cref="Phases.Ground.GroundNavigator"/> publish
     /// <see cref="ControlTargets.TargetSpeed"/> and let this rate close the gap.
     /// A phase that needs a specific braking rate (a firm rollout stop, an expedited runway exit) publishes
-    /// <see cref="ControlTargets.DesiredDecelRate"/>; null falls back to the category default.
+    /// <see cref="ControlTargets.DesiredDecelRate"/>, and one that needs a specific acceleration (a tug move,
+    /// which picks up speed at the towbar rate rather than the aircraft's own) publishes
+    /// <see cref="ControlTargets.DesiredAccelRate"/>; null falls back to the category default on either branch.
     /// </summary>
     private static double SpeedChangeRate(AircraftState aircraft, AircraftCategory cat, bool accelerating)
     {
         if (aircraft.IsOnGround)
         {
             return accelerating
-                ? CategoryPerformance.TaxiAccelRate(cat)
+                ? (aircraft.Targets.DesiredAccelRate ?? CategoryPerformance.TaxiAccelRate(cat))
                 : (aircraft.Targets.DesiredDecelRate ?? CategoryPerformance.TaxiDecelRate(cat));
         }
 
         return accelerating
-            ? AircraftPerformance.AccelRate(aircraft.AircraftType, cat)
+            ? (aircraft.Targets.DesiredAccelRate ?? AircraftPerformance.AccelRate(aircraft.AircraftType, cat))
             : (aircraft.Targets.DesiredDecelRate ?? AircraftPerformance.DecelRate(aircraft.AircraftType, cat));
     }
 

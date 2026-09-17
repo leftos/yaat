@@ -66,7 +66,8 @@ The numbered "8/10-step" list in [tick-loop.md](tick-loop.md) is the canonical o
 | `DesiredVerticalRate` | `double?` fpm (+ = climb) | phases (glidepath, flare, initial climb), generators and live-traffic seeding, the instructor | `UpdateAltitude` | Nulled on altitude snap and on fix revert; null = category rate. A set value is flown verbatim — expedite never scales a commanded rate (7110.65 §4-5-7 NOTE 4). (`EXPEDITE` does not write a value here — it sets `Procedure.IsExpediting`, which scales only the profile-rate branch via `CategoryPerformance.ExpediteVerticalRate`. `NORM`/CM/DM/snap clear it) |
 | `PlannedVerticalRate` | `double?` fpm (+ = climb) | climb/descent planners only | `UpdateAltitude` (behind `DesiredVerticalRate`) | **Transient**: `Update` nulls it before the planners run every tick, so it exists only while a constrained fix is in the route — a vector that clears the route releases it on the next tick (issue #429: a `CFIX` rate outlived `FH` and held an A319 at 730 fpm through `DM`/`EXP`). Flown verbatim like a phase rate; not in `ControlTargetsDto` (re-derived after restore) |
 | `TargetSpeed` | `double?` KIAS | `SPD`/`SLOW` handlers, speed planner, Mach hold, phases | `UpdateSpeed` | **Self-nulls** on snap (±2 kt) |
-| `DesiredDecelRate` | `double?` kt/s (+ = decel) | `LandingPhase` / `RunwayExitPhase` | `UpdateSpeed` **decel branch only** | Must be cleared on phase transition; null = category default |
+| `DesiredDecelRate` | `double?` kt/s (+ = decel) | `LandingPhase` / `RunwayExitPhase` / `PushbackPhase` (the towbar rate) | `UpdateSpeed` **decel branch only** | Must be cleared on phase transition; null = category default |
+| `DesiredAccelRate` | `double?` kt/s (+ = accel) | `PushbackPhase` only (`CategoryPerformance.TugAccelRate`, 0.3 kt/s: a tow picks up speed at the towbar rate, not the aircraft's breakaway rate) | `UpdateSpeed` **accel branch only** | Re-published every tick by the phase and nulled in its `OnEnd`; null = category default |
 | `SpeedFloor` / `SpeedCeiling` | `double?` KIAS | floor/ceiling handlers, AIM 5-4-1 procedural memory | `UpdateSpeed`, `UpdateSpeedPlanning`, `ApplyFixConstraints` | Persist; enforced continuously |
 | `AssignedMagneticHeading` | `MagneticHeading?` | `FH`/`TL`/`TR`/`FPH`/`PTAC` | (UI/autopilot only — not consumed by the integrator) | Persists for the UI until re-vectored |
 | `AssignedAltitude` | `double?` ft MSL | `CM`/`DM` | (UI/autopilot only) | Persists for the UI |
@@ -217,10 +218,11 @@ Layers 1, 2 and 5 all clamp against `RegulatorySpeedLimit(aircraft, below10k, sp
 7. **Snap + integrate** — `|diff| < snapWindow` → snap IAS, **null `TargetSpeed`**; the window is `SpeedSnapKts` (2 kt, `:14`) airborne but
    `rate × deltaSeconds` on the ground, so a taxiing aircraft never snaps further than the one sub-tick it would have integrated anyway
    (2 kt is two whole seconds of taxi acceleration). Otherwise accelerate/decelerate at `SpeedChangeRate`: airborne
-   `AircraftPerformance.AccelRate` / `DesiredDecelRate ?? AircraftPerformance.DecelRate`; on the ground `CategoryPerformance.TaxiAccelRate` /
-   `DesiredDecelRate ?? CategoryPerformance.TaxiDecelRate` — physics is the only integrator of ground speed; ground phases and the navigator
-   only publish targets. `DesiredDecelRate` is honored
-   **only on the deceleration branch** — it is ignored when accelerating.
+   `DesiredAccelRate ?? AircraftPerformance.AccelRate` / `DesiredDecelRate ?? AircraftPerformance.DecelRate`; on the ground
+   `DesiredAccelRate ?? CategoryPerformance.TaxiAccelRate` / `DesiredDecelRate ?? CategoryPerformance.TaxiDecelRate` — physics is the only
+   integrator of ground speed; ground phases and the navigator only publish targets. Each override is honored **only on its own branch**:
+   `DesiredDecelRate` is ignored when accelerating and `DesiredAccelRate` when decelerating. A tug move publishes both
+   (`CategoryPerformance.TugAccelRate` 0.3 kt/s / `TugDecelRate` 1.0 kt/s), so nothing on a towbar starts or stops at the taxi rates.
 
 **Look-ahead planning** (`UpdateSpeedPlanning`, `:458`) runs before the integrator and pre-sets `TargetSpeed` so the aircraft *arrives* at a
 procedure speed restriction at the constrained fix rather than reacting after it: it computes change-time vs time-to-fix and starts decel only
@@ -367,8 +369,9 @@ If `Position` is non-finite or out of range (`|lat| > 90`, `|lon| > 180`), the W
   (`HasExplicitSpeedCommand` / `SpeedRestrictionsDeleted` / `TargetMach` guards). The *altitude* planners (`UpdateClimbPlanning` /
   `UpdateDescentPlanning`) have **no** explicit-command guard — they overwrite `TargetAltitude` whenever the route carries an altitude constraint
   (or via mode is on), so a bare `CM`/`DM` altitude you expect to stick can be re-derived by a planner the moment the route has a constrained fix.
-- **`DesiredDecelRate` is honored only on the deceleration branch of `UpdateSpeed` and ignored when accelerating.** It must be cleared on phase
-  transition or firm braking leaks into the next phase. See [landing-and-runway-exit.md](landing-and-runway-exit.md).
+- **`DesiredDecelRate` is honored only on the deceleration branch of `UpdateSpeed` and ignored when accelerating; `DesiredAccelRate` is the
+  mirror.** Both must be cleared on phase transition or firm braking (or a tug's 0.3 kt/s crawl) leaks into the next phase. See
+  [landing-and-runway-exit.md](landing-and-runway-exit.md) and [ground/pushback.md](ground/pushback.md).
 - **Magnetic declination is cached with a 0.02° box; a non-finite/out-of-range `Position` SKIPS the WMM update (logged) and keeps the stale
   value** rather than throwing — so an upstream bug can leave declination subtly stale without an obvious crash. `DeclinationCachePosition` is
   `[JsonIgnore]`, so the first tick after a snapshot restore re-runs the full WMM eval.

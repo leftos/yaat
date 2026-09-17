@@ -48,6 +48,7 @@
 using Microsoft.Extensions.Logging;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Faa;
+using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Simulation;
 
@@ -81,7 +82,8 @@ public static class GroundConflictDetector
     /// <summary>
     /// How often <see cref="ApplySpeedLimits"/> runs, seconds: once per physics sub-tick
     /// (<see cref="SimulationEngine.PhysicsSubTickRate"/> of them per simulated second), which is the next chance the
-    /// outline sweep has to stop a tug move (<see cref="TugMoveStopMarginFt"/>).
+    /// outline sweep has to re-measure a tug move's braking limit (<see cref="TugMoveStopMarginFt"/>,
+    /// <see cref="TugMoveBrakingLimitKts"/>) — so one interval of travel is unbraked in both.
     /// </summary>
     private const double DetectorIntervalSeconds = 1.0 / SimulationEngine.PhysicsSubTickRate;
     private const double OppositeStopDistanceFt = 300.0;
@@ -134,6 +136,14 @@ public static class GroundConflictDetector
     public static bool WingspanLateralCheckRequireStationary { get; set; } = true;
 
     /// <summary>
+    /// The tug run behind each towed mover's current move for the <see cref="ApplySpeedLimits"/> pass in flight
+    /// (<see cref="TugRunContinuation"/>), keyed by mover. Thread-static, opened by the pass and dropped when it ends,
+    /// so two threads running the detector never share one and nothing outlives the pass that built it.
+    /// </summary>
+    [ThreadStatic]
+    private static Dictionary<AircraftState, IReadOnlyList<TugMove>>? _tugRunContinuations;
+
+    /// <summary>
     /// Fraction of the source's removal window of delivery silence after which a coasting live surface track stops
     /// being an obstacle (the feed host removes it at the full window). A fraction rather than a fixed grace so the
     /// ghost threshold always lands between the coast threshold and removal for every source (ASDE-X 36 s, STARS 54 s;
@@ -176,6 +186,7 @@ public static class GroundConflictDetector
         Action<string>? diagnosticLog = null
     )
     {
+        _tugRunContinuations = new Dictionary<AircraftState, IReadOnlyList<TugMove>>(ReferenceEqualityComparer.Instance);
         var explicitLog = diagnosticLog;
         var sink = DebugSink;
         if (sink is not null)
@@ -333,6 +344,8 @@ public static class GroundConflictDetector
                 }
             }
         }
+
+        _tugRunContinuations = null;
     }
 
     /// <summary>
@@ -413,8 +426,8 @@ public static class GroundConflictDetector
         // Ground.PushbackTrueHeading classifies it Pushing below whatever its speed — but a pull clears that
         // heading and so fell through to the rest gates. Same shape as #407 and #409 below: a phase that is
         // actively driving the aircraft is a mover, not an obstacle. A controller hold (IsImmobile) is different
-        // and still counts: PushbackPhase.OnTick zeroes the speed and returns while it is in force, so a held tug
-        // move genuinely cannot move and stays a passable obstacle.
+        // and still counts: PushbackPhase.OnTick brakes the tow to a stop at the towbar rate and returns while it
+        // is in force, so a held tug move is a mover until it is at rest and a passable obstacle after that.
         bool underTug = ac.Phases?.CurrentPhase is PushbackPhase { Status: Phases.PhaseStatus.Active };
 
         // A stationary-named phase only counts as Stationary while the aircraft is
@@ -770,8 +783,10 @@ public static class GroundConflictDetector
     /// (AIM 4-3-21.b).</item>
     /// <item>A live-traffic shadow cannot be held at all (nothing of ours drives it), so the pusher keeps its
     /// hard stop — the same rule <see cref="ChooseMutualStopHolder"/> follows.</item>
-    /// <item>A push still on its stand has no priority (<see cref="PushbackPhase.HasLeftTheStand"/>): it can
-    /// wait for the traffic to pass, and the tug has not committed the lane yet.</item>
+    /// <item>Only the committed push off a stand has priority (<see cref="PushbackPhase.HasRampPriority"/>):
+    /// leg 1 of a push off a stand, once its tail is in the lane. A push still on its stand can wait for the
+    /// traffic to pass, and a tow already repositioning — a later leg of a tug move, or the push half of a
+    /// three-point turn after a reversal — is ordinary ramp traffic.</item>
     /// </list>
     /// </summary>
     private static bool WouldDeadlock(PushbackParty pusher, PushbackParty mover)
@@ -795,7 +810,7 @@ public static class GroundConflictDetector
             return false;
         }
 
-        if ((pusher.Aircraft.Phases?.CurrentPhase as PushbackPhase)?.HasLeftTheStand(pusher.Aircraft) != true)
+        if ((pusher.Aircraft.Phases?.CurrentPhase as PushbackPhase)?.HasRampPriority(pusher.Aircraft) != true)
         {
             return false;
         }
@@ -817,12 +832,14 @@ public static class GroundConflictDetector
     /// for one it would actually hit. Returns false (leaving the pair to the independent sides) when the two
     /// would not wedge.
     ///
-    /// <para>Priority goes to the push because of what each aircraft occupies: a pusher mid-lane blocks it
-    /// whether it is moving or stopped, so holding it frees nothing and keeps the lane blocked longer, while
-    /// the taxiing aircraft can wait where it is. The tug crew also faces the aircraft and cannot see traffic
-    /// behind the tail, so it is the worse party to ask for a judgement. 7110.65 §3-7-2 NOTE 2 leaves
-    /// separation in the nonmovement area to the pilots and the ramp operator, so this models the ramp
-    /// convention rather than an ATC instruction.</para>
+    /// <para>Priority goes to the push off a stand — leg 1 of it, and nothing else — because of what each
+    /// aircraft occupies: a pusher mid-lane blocks it whether it is moving or stopped, so holding it frees
+    /// nothing and keeps the lane blocked longer, while the taxiing aircraft can wait where it is. The tug crew
+    /// also faces the aircraft and cannot see traffic behind the tail, so it is the worse party to ask for a
+    /// judgement. A tow that has already repositioned — a later leg of a tug move, or the push half of a
+    /// three-point turn after a reversal — has stopped once and can stop again, so it yields like any other
+    /// ramp traffic. 7110.65 §3-7-2 NOTE 2 leaves separation in the nonmovement area to the pilots and the ramp
+    /// operator, so this models the ramp convention rather than an ATC instruction.</para>
     ///
     /// <para>The closing logic is skipped outright when the rest of the push clears the holder laterally, and
     /// this is the mirror of <see cref="RouteLateralClearanceFt"/>: a mover's remaining route says where it
@@ -926,8 +943,9 @@ public static class GroundConflictDetector
     /// <para>A genuinely parked/held neighbor at a gate is a passable obstacle, not a hard stop — a
     /// gate pushback clears an aircraft parked at the adjacent gate as a matter of course. The pusher carries on
     /// when the rest of its move keeps its outline clear of the neighbour's (<see cref="TugMoveFoulsParkedAt"/>);
-    /// otherwise it is stopped where the two outlines would meet (<see cref="TugMoveLimit"/>), showing the neighbour as
-    /// what it waits for, and keeps its speed until then rather than being slowed by the nose-to-nose distances. That
+    /// otherwise it is braked at the towbar rate to a stop where the two outlines would meet
+    /// (<see cref="TugMoveLimit"/>), showing the neighbour as what it waits for, and is not slowed at all further out
+    /// than that rather than being held off by the nose-to-nose distances. That
     /// still leaves one wedge the controller has to break by hand: a move that runs into a parked aircraft stops short
     /// of it, and neither moves again without a new clearance or a BREAK.</para>
     ///
@@ -969,7 +987,7 @@ public static class GroundConflictDetector
             if (ComputeClosingLimit(pusher, pushDir, other.Aircraft, other.State, distFt, diagnosticLog) is { } closing)
             {
                 ApplyMinLimit(pusher, closing.Limit, closing.Reason, other.Aircraft, distFt);
-                ShowTugMoveStop(pusher, other.Aircraft, closing.Limit);
+                ShowTugMoveYield(pusher, other.Aircraft, closing.Limit);
             }
 
             return;
@@ -1199,9 +1217,81 @@ public static class GroundConflictDetector
         (mover.Phases?.CurrentPhase is PushbackPhase tugMove) && IsParkedOrHeld(obstacle) ? tugMove : null;
 
     /// <summary>
-    /// The whole of what a tug move owes a parked or held neighbour: null while it may carry on, a hard stop once the
-    /// outline sweep (<see cref="TugMoveFoulsParkedAt"/>) says the move fouls the neighbour within
-    /// <see cref="TugMoveStopMarginFt"/> of where it is.
+    /// The rest of the run the tug goes straight on into after the move it is flying: the moves of the
+    /// <see cref="PushbackPhase"/>s queued behind the current one, up to but not including the first that dwells.
+    ///
+    /// <para>A dwell is a full stop — the plan reverses there (AC 00-65A §11.17) — so nothing past it needs braking for
+    /// yet, and every move of the run up to it is the kind the current one is, which is what lets the sweep judge them
+    /// all on the one <see cref="GroundOutlineSize"/>. The run also ends at the terminus phase, which is not a tug
+    /// move.</para>
+    ///
+    /// <para>Sweeping the run rather than the move is what gives the tug room to brake: a neighbour the next move walks
+    /// into is invisible while <see cref="PushbackPhase.RemainingPath"/> covers this move alone, and by the time that
+    /// move starts the tow is already carrying its commanded speed into it.</para>
+    ///
+    /// <para>Nothing queued behind the current phase is ever complete — <c>PhaseList</c> marks a phase Completed as it
+    /// leaves it and only then advances, so everything past <c>CurrentIndex</c> is still pending — and skipping such an
+    /// entry would step the walk over the dwell that ends the run rather than stopping at it.</para>
+    ///
+    /// <para>Built once per mover per <see cref="ApplySpeedLimits"/> pass (<see cref="_tugRunContinuations"/>): the run
+    /// is a property of the mover alone and cannot change inside a pass, and the outline sweep asks for it on every
+    /// obstacle the mover is measured against.</para>
+    /// </summary>
+    private static IReadOnlyList<TugMove> TugRunContinuation(AircraftState mover)
+    {
+        if (_tugRunContinuations is not { } cache)
+        {
+            return BuildTugRunContinuation(mover);
+        }
+
+        if (!cache.TryGetValue(mover, out var cached))
+        {
+            cached = BuildTugRunContinuation(mover);
+            cache[mover] = cached;
+        }
+
+        return cached;
+    }
+
+    /// <summary>Walks the phases queued behind the mover's current one, as <see cref="TugRunContinuation"/> describes.</summary>
+    private static IReadOnlyList<TugMove> BuildTugRunContinuation(AircraftState mover)
+    {
+        if (mover.Phases is not { } phases)
+        {
+            return [];
+        }
+
+        var moves = new List<TugMove>();
+        for (int i = phases.CurrentIndex + 1; i < phases.Phases.Count; i++)
+        {
+            if (phases.Phases[i] is not PushbackPhase queued)
+            {
+                break;
+            }
+
+            if (queued.Move.DwellBefore)
+            {
+                break;
+            }
+
+            moves.Add(queued.Move);
+        }
+
+        return moves;
+    }
+
+    /// <summary>
+    /// The whole of what a tug move owes a parked or held neighbour: null while it may carry on, otherwise the speed the
+    /// tug can still brake to a stop from — at the towbar rate (<see cref="CategoryPerformance.TugDecelRate"/>) — before
+    /// the two outlines meet, once the outline sweep (<see cref="TugMoveFoulsParkedAt"/>) says the move fouls the
+    /// neighbour within <see cref="TugMoveStopMarginFt"/> of where it is.
+    ///
+    /// <para>The limit is a braking curve, not a hard stop: at the margin it equals the move's commanded speed
+    /// (<see cref="CategoryPerformance.PushbackSpeed"/>), so a move coming into range takes no step down, and it falls
+    /// to zero within one detector interval (<see cref="DetectorIntervalSeconds"/>) of the fouled sample. Re-measured
+    /// every pass as the mover closes, it walks the tug down at the towbar rate — the hard clamp physics applies to
+    /// <see cref="AircraftGroundOps.SpeedLimit"/> follows the curve instead of halting the tow from 5 kt in one
+    /// sub-tick, which a towbar cannot do.</para>
     ///
     /// <para>The stop is where the two <em>outlines</em> would meet, not where the two noses would. The nose-based stop
     /// distance (<see cref="GetSeparation"/>) leaves <see cref="StopBufferFt"/> between fuselage ends, which is inside
@@ -1238,29 +1328,60 @@ public static class GroundConflictDetector
             return null;
         }
 
+        double limitKts = TugMoveBrakingLimitKts(mover, failAlongFt);
         diagnosticLog?.Invoke(
-            $"    [Closing] {mover.Callsign}→{obstacle.Callsign}: tug move fouls {failAlongFt:F1}ft along ≤ margin({marginFt:F1}ft) → limit=0"
+            $"    [Closing] {mover.Callsign}→{obstacle.Callsign}: tug move fouls {failAlongFt:F1}ft along ≤ margin({marginFt:F1}ft) → "
+                + $"limit={limitKts:F2}kt"
         );
-        return (0, "outline stop");
+        return (limitKts, "outline stop");
     }
 
     /// <summary>
-    /// How far short of the point its outline fouls a neighbour a tug move has to be stopped, feet: the distance the tug
-    /// needs to brake to a stop (<see cref="CategoryPerformance.TaxiDecelRate"/>) from the speed it would otherwise be
-    /// moving at, plus the distance it covers at that speed between this detector pass and the next
-    /// (<see cref="DetectorIntervalSeconds"/>, the last moment the sweep can still stop it).
+    /// How fast a tug move may be going with <paramref name="failAlongFt"/> feet left to the sample where its outline
+    /// fouls the neighbour, knots: the speed it can still brake to a stop from at the towbar rate
+    /// (<see cref="CategoryPerformance.TugDecelRate"/>) over what is left after the distance it covers before the next
+    /// detector pass (<see cref="DetectorIntervalSeconds"/>) — zero inside that last interval.
+    ///
+    /// <para>Capped at the move's commanded speed (<see cref="CategoryPerformance.PushbackSpeed"/>), which the curve
+    /// reaches exactly at <see cref="TugMoveStopMarginFt"/>: a move that comes into range takes no step down, and the
+    /// hard clamp on <see cref="AircraftGroundOps.SpeedLimit"/> then walks it down at the towbar rate as the sweep
+    /// re-measures the distance left on every pass.</para>
+    /// </summary>
+    private static double TugMoveBrakingLimitKts(AircraftState mover, double failAlongFt)
+    {
+        var category = AircraftCategorization.Categorize(mover.AircraftType);
+        double speedKts = CategoryPerformance.PushbackSpeed(category);
+        double ftPerSecPerKt = FtPerNm / 3600.0;
+        double brakingFt = failAlongFt - (speedKts * DetectorIntervalSeconds * ftPerSecPerKt);
+        if (brakingFt <= 0.0)
+        {
+            return 0.0;
+        }
+
+        return Math.Min(speedKts, Math.Sqrt(2.0 * CategoryPerformance.TugDecelRate(category) * brakingFt / ftPerSecPerKt));
+    }
+
+    /// <summary>
+    /// How far short of the point its outline fouls a neighbour a tug move has to start braking, feet: the distance the
+    /// tug needs to brake to a stop at the towbar rate (<see cref="CategoryPerformance.TugDecelRate"/>) from the speed
+    /// it would otherwise be moving at, plus the distance it covers at that speed between this detector pass and the
+    /// next (<see cref="DetectorIntervalSeconds"/>, the last moment the sweep can still act on it).
     ///
     /// <para>The speed is the move's commanded speed (<see cref="CategoryPerformance.PushbackSpeed"/>), not the live
     /// one, which makes the margin a constant of the pair for the whole move. Measured at the live speed it is zero at
     /// rest: a mover stopped by this rule is released on the very next pass, rolls again, and creeps into the neighbour
     /// a foot at a time. A creep move drops to <see cref="CategoryPerformance.PushbackAlignSpeed"/> only over its last
-    /// stretch, and the larger figure is the safe one to stop for.</para>
+    /// stretch, and the larger figure is the safe one to brake for.</para>
+    ///
+    /// <para>The rate is the towbar's, not the aircraft's own brakes
+    /// (<see cref="CategoryPerformance.TaxiDecelRate"/>): a tug stops the tow it is connected to, and it is
+    /// <see cref="TugMoveBrakingLimitKts"/> at this margin that the limit curve starts from.</para>
     /// </summary>
     private static double TugMoveStopMarginFt(AircraftState mover)
     {
         var category = AircraftCategorization.Categorize(mover.AircraftType);
         double speedKts = CategoryPerformance.PushbackSpeed(category);
-        double brakingKtSeconds = (speedKts * speedKts) / (2 * CategoryPerformance.TaxiDecelRate(category));
+        double brakingKtSeconds = (speedKts * speedKts) / (2 * CategoryPerformance.TugDecelRate(category));
         return (brakingKtSeconds + (speedKts * DetectorIntervalSeconds)) * FtPerNm / 3600.0;
     }
 
@@ -1290,7 +1411,7 @@ public static class GroundConflictDetector
     /// </summary>
     private static double? TugMoveFoulsParkedAt(AircraftState mover, PushbackPhase tugMove, AircraftState obstacle, Action<string>? diagnosticLog)
     {
-        var path = tugMove.RemainingPath(mover);
+        var path = tugMove.RemainingPath(mover, TugRunContinuation(mover));
         var frame = new GroundOutlineFrame(mover.Position);
         var moverSize = GroundOutlineSize.Of(mover.AircraftType, towedNoseFirst: tugMove.Kind == PushbackLegKind.Pull);
         var obstacleSize = GroundOutlineSize.Of(obstacle.AircraftType, towedNoseFirst: false);
@@ -1313,17 +1434,21 @@ public static class GroundConflictDetector
                 continue;
             }
 
-            double clearanceFt = GroundOutline.Clearance(GroundOutline.At(centre, pose.NoseTrueDeg, moverSize), obstacleOutline);
+            double clearanceFt = ClearanceAt(pose, frame, moverSize, obstacleOutline);
             closestFt = Math.Min(closestFt, clearanceFt);
             if (clearanceFt < floorFt)
             {
+                var previous = path[Math.Max(0, i - 1)];
+                double previousClearanceFt = ClearanceAt(previous.Pose, frame, moverSize, obstacleOutline);
+                double crossingFt = FloorCrossingAlongFt(floorFt, (previous.AlongFt, previousClearanceFt), (alongFt, clearanceFt));
                 diagnosticLog?.Invoke(
                     $"    [Outline] {mover.Callsign}→{obstacle.Callsign}: {tugMove.Kind} started {startFt:F1}ft off, sample {i}/{path.Count} "
-                        + $"{alongFt:F1}ft along {clearanceFt:F1}ft < floor({floorFt:F1}ft), in the way"
+                        + $"{alongFt:F1}ft along {clearanceFt:F1}ft < floor({floorFt:F1}ft), crossing {crossingFt:F1}ft along, in the way"
                 );
                 Log.LogDebug(
                     "[Outline] {Callsign}: {Kind} move comes within {ClearanceFt:F1} ft of {Other} (started {StartFt:F1} ft off, "
-                        + "floor {FloorFt:F1} ft) at sample {Sample} of {Samples}, {AlongFt:F1} ft along",
+                        + "floor {FloorFt:F1} ft) at sample {Sample} of {Samples}, {AlongFt:F1} ft along, crossing the floor "
+                        + "{CrossingFt:F1} ft along",
                     mover.Callsign,
                     tugMove.Kind,
                     clearanceFt,
@@ -1332,9 +1457,10 @@ public static class GroundConflictDetector
                     floorFt,
                     i,
                     path.Count,
-                    alongFt
+                    alongFt,
+                    crossingFt
                 );
-                return alongFt;
+                return crossingFt;
             }
         }
 
@@ -1347,12 +1473,56 @@ public static class GroundConflictDetector
     }
 
     /// <summary>
-    /// A tug-moved aircraft stopped for a parked or held neighbour shows who it is waiting for
-    /// (<see cref="AircraftGroundOps.AutoYieldTarget"/>), as a pusher stopped for traffic does.
+    /// The mover's outline clearance from the neighbour at one sample of its path, feet.
     /// </summary>
-    private static void ShowTugMoveStop(AircraftState mover, AircraftState obstacle, double limitKts)
+    private static double ClearanceAt(TugPose pose, GroundOutlineFrame frame, GroundOutlineSize moverSize, GroundOutline obstacleOutline) =>
+        GroundOutline.Clearance(GroundOutline.At(frame.ToLocal(pose.Position), pose.NoseTrueDeg, moverSize), obstacleOutline);
+
+    /// <summary>
+    /// How far along the path the clearance falls through <paramref name="floorFt"/> between the last sample that was
+    /// clear of it (<paramref name="from"/>) and the first that is under it (<paramref name="to"/>), feet: the two
+    /// samples' along-distances interpolated at the crossing.
+    ///
+    /// <para>The samples are a few feet apart and the simulation is redone every couple of feet of travel, so the along
+    /// distance of the first fouled <em>sample</em> steps down in jumps of the sample spacing and back up whenever the
+    /// grid moves. The braking limit is read off that distance, so those jumps would land in the tug's speed. The
+    /// crossing point is a property of the path, not of the grid it was sampled on, and moves smoothly as the mover
+    /// closes.</para>
+    ///
+    /// <para><paramref name="to"/>'s own along-distance is the answer when the clearance does not fall between the two
+    /// — the live pose itself already fouling the neighbour, which is <c>from</c> and <c>to</c> at once.</para>
+    /// </summary>
+    private static double FloorCrossingAlongFt(double floorFt, (double AlongFt, double ClearanceFt) from, (double AlongFt, double ClearanceFt) to)
     {
-        if ((limitKts > 0) || (TugMoveAgainstParked(mover, obstacle) is null))
+        if ((from.ClearanceFt <= to.ClearanceFt) || (from.ClearanceFt < floorFt))
+        {
+            return to.AlongFt;
+        }
+
+        double fraction = (from.ClearanceFt - floorFt) / (from.ClearanceFt - to.ClearanceFt);
+        return from.AlongFt + (fraction * (to.AlongFt - from.AlongFt));
+    }
+
+    /// <summary>
+    /// A tug-moved aircraft giving way to a parked or held neighbour shows who it is yielding to
+    /// (<see cref="AircraftGroundOps.AutoYieldTarget"/>), as a pusher stopped for traffic does — whether it is still
+    /// braking for the neighbour or already stopped at it. Any outline limit under the speed the move is commanding from
+    /// where it stands (<see cref="PushbackPhase.CommandedSpeedKts"/>) counts, not only the zero at the end of the curve:
+    /// the tug is already slowing for the neighbour, and the operator sees what for from the first foot of it.
+    ///
+    /// <para>The commanded speed is the move's own, not <see cref="CategoryPerformance.PushbackSpeed"/>: a creep move
+    /// runs its last stretch at <see cref="CategoryPerformance.PushbackAlignSpeed"/>, and a limit between the two is not
+    /// slowing that move at all — annotating it would name a yield target for a tow going exactly as fast as it asked
+    /// to.</para>
+    /// </summary>
+    public static void ShowTugMoveYield(AircraftState mover, AircraftState obstacle, double limitKts)
+    {
+        if (TugMoveAgainstParked(mover, obstacle) is not { } tugMove)
+        {
+            return;
+        }
+
+        if (limitKts >= tugMove.CommandedSpeedKts(mover))
         {
             return;
         }
@@ -1467,13 +1637,13 @@ public static class GroundConflictDetector
             {
                 diagnosticLog?.Invoke($"  [Crossing] one-sided: {a.Callsign} limited {resultA.Limit:F1} ({resultA.Reason}) for {b.Callsign}");
                 ApplyMinLimit(a, resultA.Limit, resultA.Reason, b, distFt);
-                ShowTugMoveStop(a, b, resultA.Limit);
+                ShowTugMoveYield(a, b, resultA.Limit);
             }
             if (limitForB is { } resultB)
             {
                 diagnosticLog?.Invoke($"  [Crossing] one-sided: {b.Callsign} limited {resultB.Limit:F1} ({resultB.Reason}) for {a.Callsign}");
                 ApplyMinLimit(b, resultB.Limit, resultB.Reason, a, distFt);
-                ShowTugMoveStop(b, a, resultB.Limit);
+                ShowTugMoveYield(b, a, resultB.Limit);
             }
         }
 

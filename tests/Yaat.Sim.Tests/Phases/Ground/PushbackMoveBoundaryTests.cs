@@ -1,6 +1,7 @@
 using Xunit;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Faa;
+using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
@@ -44,9 +45,13 @@ public class PushbackMoveBoundaryTests
     /// </summary>
     private const double ContinuousSpeedFloorKts = 2.0;
 
-    /// <summary>The speed a push is up to once it is clear of the stand, knots, and the second it has by.</summary>
+    /// <summary>
+    /// The speed a push is up to once it is clear of the stand, knots, and the second it has by: a tug picks speed
+    /// up at <see cref="CategoryPerformance.TugAccelRate"/>, so 4.5 kt from rest is 15 s of pulling, and the budget
+    /// carries two seconds of slack for the quarter-second sub-ticks and the second the clearance lands in.
+    /// </summary>
     private const double PromptSpeedKts = 4.5;
-    private const int PromptSpeedBySecond = 8;
+    private const int PromptSpeedBySecond = 17;
 
     /// <summary>Ground speed at or below which the aircraft counts as stopped for the dwell, knots.</summary>
     private const double AtRestKts = 0.05;
@@ -68,9 +73,29 @@ public class PushbackMoveBoundaryTests
 
     /// <summary>
     /// The fastest the aircraft may be going one second after a clearance clears the push, knots: the tug let go
-    /// at a standstill, so all it can have is the one second of taxi acceleration from rest (1 kt/s).
+    /// at a standstill, so all it can have is the one second of taxi acceleration from rest (1 kt/s) — the taxi
+    /// rate, because the towbar rates went with the tug.
     /// </summary>
     private const double ClearedSpeedCeilingKts = 1.0;
+
+    /// <summary>How far a second's speed change may overshoot the towbar rate it is integrated at, knots.</summary>
+    private const double RateToleranceKts = 0.05;
+
+    /// <summary>A second in which the nose turned by more than this is a turning second.</summary>
+    private const double TurnNoticedDeg = 1.0;
+
+    /// <summary>How far over the wingtip cap the first turning second may be, knots.</summary>
+    private const double TurnCapToleranceKts = 0.5;
+
+    /// <summary>How far under push speed the tug must already be the second before the nose comes round, knots.</summary>
+    private const double EasedOffByKts = 0.5;
+
+    /// <summary>
+    /// The fastest the tug may still be going the second before it comes to a stand, knots: the last stretch is
+    /// held at <see cref="PushbackPhase.FinalApproachKts"/>, and a second sampled just before the crawl window
+    /// opens sits a sliver above it (1.15 kt measured on this run).
+    /// </summary>
+    private const double CrawlBeforeStopKts = 1.5;
 
     private readonly ITestOutputHelper _output;
 
@@ -229,13 +254,160 @@ public class PushbackMoveBoundaryTests
                 + $"{PromptSpeedKts:F1}+ kt — the cleared move handed its speed on instead of stopping dead"
         );
         Assert.Null(aircraft.Ground.PushbackTrueHeading);
+        Assert.Null(aircraft.Targets.DesiredAccelRate);
+        Assert.Null(aircraft.Targets.DesiredDecelRate);
     }
 
-    /// <summary>One second of the run: the ground speed, and whether the tug still had the aircraft tail-first.</summary>
+    /// <summary>
+    /// Nothing on a towbar starts or stops at the aircraft's own taxi rates: every second of the run changes the
+    /// speed by no more than <see cref="CategoryPerformance.TugAccelRate"/> going up or
+    /// <see cref="CategoryPerformance.TugDecelRate"/> coming down. The one fall that is allowed to be abrupt is
+    /// the standstill at the end of a move, which the tug reaches already down at the
+    /// <see cref="PushbackPhase.FinalApproachKts"/> crawl — <see cref="CrawlBeforeStopKts"/>, the same allowance
+    /// <see cref="ReachesTheCrawlBeforeTheStop"/> holds every stop to.
+    /// </summary>
+    [Fact]
+    public void SpeedChangesAtTowbarRates()
+    {
+        var run = RunPush();
+        if (run is null)
+        {
+            return;
+        }
+
+        var samples = run.Value.Samples;
+        double accelRate = CategoryPerformance.TugAccelRate(AircraftCategory.Jet);
+        double decelRate = CategoryPerformance.TugDecelRate(AircraftCategory.Jet);
+        for (int i = 1; i < samples.Count; i++)
+        {
+            double from = samples[i - 1].GroundSpeedKts;
+            double change = samples[i].GroundSpeedKts - from;
+            if (change >= 0.0)
+            {
+                Assert.True(
+                    change <= accelRate + RateToleranceKts,
+                    $"the tow gained {change:F2} kt over the second to t={samples[i].Second}s, past the {accelRate:F1} kt/s towbar "
+                        + $"accel rate: {Trace(samples)}"
+                );
+                continue;
+            }
+
+            if (from <= CrawlBeforeStopKts)
+            {
+                continue;
+            }
+
+            Assert.True(
+                -change <= decelRate + RateToleranceKts,
+                $"the tow shed {-change:F2} kt over the second to t={samples[i].Second}s from {from:F2} kt, past the {decelRate:F1} kt/s "
+                    + $"towbar brake rate: {Trace(samples)}"
+            );
+        }
+    }
+
+    /// <summary>
+    /// The tug is already down to the wingtip cap when the nose starts to come round, and was easing before it:
+    /// the move looks ahead to its next turning step and brakes onto <c>R / (R + half-span)</c> of the push speed
+    /// over the distance the towbar rate needs, so the second before the turn is already off push speed.
+    ///
+    /// <para>The turn judged is the first one the tug meets <em>inside</em> a move: the same phase instance as
+    /// the second before, which was itself still running straight. A turn that opens a move is a different case —
+    /// the look-ahead is scoped to the move being flown, so nothing brakes the tug before a boundary that hands
+    /// it straight into a turn, and the plan's first push turn does exactly that. Judging that second here would
+    /// pin the boundary carry-over instead of the look-ahead. A second in the middle of a turn already under way
+    /// is not the entry to one either.</para>
+    /// </summary>
+    [Fact]
+    public void EasesOffBeforeTheTurn()
+    {
+        var run = RunPush();
+        if (run is null)
+        {
+            return;
+        }
+
+        var samples = run.Value.Samples;
+        int turning = -1;
+        for (int i = 2; i < samples.Count; i++)
+        {
+            if (!ReferenceEquals(samples[i].Phase, samples[i - 1].Phase) || !TurnedInSecond(samples, i) || TurnedInSecond(samples, i - 1))
+            {
+                continue;
+            }
+
+            turning = i;
+            break;
+        }
+
+        Assert.True(turning > 0, $"the tug never entered a turn inside a move: {Trace(samples)}");
+
+        double radiusFt = TugKinematics.TurnRadiusFt(PusherType, false);
+        double halfSpanFt = TugMovePlanner.WingspanFt(PusherType) / 2.0;
+        double pushKts = CategoryPerformance.PushbackSpeed(AircraftCategory.Jet);
+        double capKts = pushKts * radiusFt / (radiusFt + halfSpanFt);
+        var entry = samples[turning];
+        var before = samples[turning - 1];
+        _output.WriteLine(
+            $"first in-move turn over the second to t={entry.Second}s: {before.GroundSpeedKts:F2} kt → {entry.GroundSpeedKts:F2} kt "
+                + $"(cap {capKts:F2} kt, push speed {pushKts:F1} kt)"
+        );
+
+        Assert.True(
+            entry.GroundSpeedKts <= capKts + TurnCapToleranceKts,
+            $"the nose came round over the second to t={entry.Second}s with the tug doing {entry.GroundSpeedKts:F2} kt, past the "
+                + $"{capKts:F2} kt wingtip cap it should have braked onto first: {Trace(samples)}"
+        );
+        Assert.True(
+            before.GroundSpeedKts <= pushKts - EasedOffByKts,
+            $"the tug was still doing {before.GroundSpeedKts:F2} kt at t={before.Second}s, the second before the nose came round — it "
+                + $"dropped onto the {capKts:F2} kt cap at the turn instead of easing onto it ahead of it: {Trace(samples)}"
+        );
+    }
+
+    /// <summary>Whether the nose turned by more than <see cref="TurnNoticedDeg"/> over the second ending at <paramref name="index"/>.</summary>
+    private static bool TurnedInSecond(List<SpeedSample> samples, int index) =>
+        new TrueHeading(samples[index - 1].NoseTrueDeg).AbsAngleTo(new TrueHeading(samples[index].NoseTrueDeg)) > TurnNoticedDeg;
+
+    /// <summary>
+    /// Every stand the tug comes to is reached at the crawl, not dropped onto from walking pace: the last rolling
+    /// second before each standstill is at most <see cref="CrawlBeforeStopKts"/>.
+    /// </summary>
+    [Fact]
+    public void ReachesTheCrawlBeforeTheStop()
+    {
+        var run = RunPush();
+        if (run is null)
+        {
+            return;
+        }
+
+        var samples = run.Value.Samples;
+        int stops = 0;
+        for (int i = 1; i < samples.Count; i++)
+        {
+            if ((samples[i].GroundSpeedKts > AtRestKts) || (samples[i - 1].GroundSpeedKts <= AtRestKts))
+            {
+                continue;
+            }
+
+            stops++;
+            Assert.True(
+                samples[i - 1].GroundSpeedKts <= CrawlBeforeStopKts,
+                $"the tug stood still at t={samples[i].Second}s straight off {samples[i - 1].GroundSpeedKts:F2} kt, without reaching the "
+                    + $"{CrawlBeforeStopKts:F1} kt crawl first: {Trace(samples)}"
+            );
+        }
+
+        Assert.True(stops > 0, $"the run never came to a standstill: {Trace(samples)}");
+    }
+
+    /// <summary>One second of the run: the ground speed, the nose, the move running it and the push/pull of it.</summary>
     /// <param name="Second">Seconds since the clearance.</param>
     /// <param name="GroundSpeedKts">Ground speed at the end of that second.</param>
+    /// <param name="NoseTrueDeg">True heading of the nose at the end of that second.</param>
+    /// <param name="Phase">The phase driving the aircraft at the end of that second — one instance per planned move.</param>
     /// <param name="Pushing">The aircraft was being pushed (tail-first) rather than pulled.</param>
-    private readonly record struct SpeedSample(int Second, double GroundSpeedKts, bool Pushing);
+    private readonly record struct SpeedSample(int Second, double GroundSpeedKts, double NoseTrueDeg, Phase? Phase, bool Pushing);
 
     /// <summary>A finished E6 push to 6B: the world it ran in, the per-second samples and when it came to rest.</summary>
     private readonly record struct PushRun(SfoGround Ground, AircraftState Aircraft, GroundNode Spot, List<SpeedSample> Samples, int DoneSecond);
@@ -272,7 +444,15 @@ public class PushbackMoveBoundaryTests
             BudgetSeconds,
             second =>
             {
-                samples.Add(new SpeedSample(second, aircraft.GroundSpeed, aircraft.Ground.PushbackTrueHeading is not null));
+                samples.Add(
+                    new SpeedSample(
+                        second,
+                        aircraft.GroundSpeed,
+                        aircraft.TrueHeading.Degrees,
+                        aircraft.Phases?.CurrentPhase,
+                        aircraft.Ground.PushbackTrueHeading is not null
+                    )
+                );
                 everPushed |= aircraft.Phases?.CurrentPhase is PushbackPhase;
                 if ((done < 0) && everPushed && (aircraft.Phases?.CurrentPhase is HoldingAfterPushbackPhase))
                 {
@@ -311,7 +491,7 @@ public class PushbackMoveBoundaryTests
         );
     }
 
-    /// <summary>The per-second speeds as one line, each second tagged push or pull.</summary>
+    /// <summary>The per-second speeds and noses as one line, each second tagged push or pull.</summary>
     private static string Trace(IEnumerable<SpeedSample> samples) =>
-        string.Join(" ", samples.Select(s => $"{s.Second}:{s.GroundSpeedKts:F1}{(s.Pushing ? "P" : "-")}"));
+        string.Join(" ", samples.Select(s => $"{s.Second}:{s.GroundSpeedKts:F1}@{s.NoseTrueDeg:F0}{(s.Pushing ? "P" : "-")}"));
 }

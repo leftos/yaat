@@ -130,33 +130,62 @@ public class SnapshotRoundTripTests
         Assert.Equal(ac.Targets.TargetTrueHeading?.Degrees, restored.Targets.TargetTrueHeading?.Degrees);
     }
 
+    /// <summary>
+    /// The towbar heading — from the nose gear out along the towbar to the tug — round-trips both ways: a value while
+    /// a tug is attached, and null once it is gone.
+    /// </summary>
     [Fact]
-    public void ControlTargets_DesiredDecelRate_RoundTrips()
+    public void AircraftGroundOps_TowbarTrueHeading_RoundTrips()
     {
-        var targets = new ControlTargets { TargetSpeed = 40.0, DesiredDecelRate = 4.5 };
+        var attached = new AircraftGroundOps { TowbarTrueHeading = new TrueHeading(123.5) };
+
+        var restoredAttached = AircraftGroundOps.FromSnapshot(attached.ToSnapshot(), null);
+
+        Assert.Equal(123.5, restoredAttached.TowbarTrueHeading!.Value.Degrees, 9);
+
+        var detached = new AircraftGroundOps { TowbarTrueHeading = null };
+
+        var restoredDetached = AircraftGroundOps.FromSnapshot(detached.ToSnapshot(), null);
+
+        Assert.Null(restoredDetached.TowbarTrueHeading);
+    }
+
+    [Fact]
+    public void ControlTargets_DesiredRates_RoundTrip()
+    {
+        var targets = new ControlTargets
+        {
+            TargetSpeed = 40.0,
+            DesiredDecelRate = 4.5,
+            DesiredAccelRate = 0.3,
+        };
 
         var dto = targets.ToSnapshot();
         Assert.Equal(4.5, dto.DesiredDecelRate);
+        Assert.Equal(0.3, dto.DesiredAccelRate);
 
         var restored = new ControlTargets();
         ControlTargets.RestoreFrom(dto, restored);
 
         Assert.Equal(4.5, restored.DesiredDecelRate);
+        Assert.Equal(0.3, restored.DesiredAccelRate);
         Assert.Equal(40.0, restored.TargetSpeed);
     }
 
     [Fact]
-    public void ControlTargets_DesiredDecelRate_NullRoundTrips()
+    public void ControlTargets_DesiredRates_NullRoundTrip()
     {
         var targets = new ControlTargets { TargetSpeed = 100.0 };
 
         var dto = targets.ToSnapshot();
         Assert.Null(dto.DesiredDecelRate);
+        Assert.Null(dto.DesiredAccelRate);
 
         var restored = new ControlTargets();
         ControlTargets.RestoreFrom(dto, restored);
 
         Assert.Null(restored.DesiredDecelRate);
+        Assert.Null(restored.DesiredAccelRate);
     }
 
     [Fact]

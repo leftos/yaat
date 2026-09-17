@@ -1855,7 +1855,12 @@ public sealed class GroundRenderer : IDisposable
     /// <summary>Feet per degree of latitude (constant).</summary>
     private const double FeetPerDegLat = 364_567.2;
 
-    private void DrawAircraft(SKCanvas canvas, MapViewport vp, IReadOnlyList<AircraftModel> aircraft, AircraftModel? selectedAircraft)
+    /// <summary>
+    /// Draws every aircraft symbol: a helicopter or fixed-wing silhouette scaled to the type's FAA ACD
+    /// dimensions. A fixed-wing aircraft on the ground with a towbar heading also gets its tug drawn —
+    /// towbar and tug body out from the nose gear (<see cref="DrawTug"/>).
+    /// </summary>
+    public void DrawAircraft(SKCanvas canvas, MapViewport vp, IReadOnlyList<AircraftModel> aircraft, AircraftModel? selectedAircraft)
     {
         // Pixels per foot at current zoom (latitude direction, no cosine correction needed for small areas)
         var pxPerFt = (float)(vp.Zoom * 5000.0 / FeetPerDegLat);
@@ -1869,7 +1874,9 @@ public sealed class GroundRenderer : IDisposable
             var paint = ac.IsLiveTraffic ? _shadowAircraftPaint : _aircraftPaint;
             paint.Color = ac.LiveTrafficStale ? _aircraftColor.WithAlpha(TargetRenderer.StaleAlpha) : _aircraftColor;
 
-            var (lengthPx, widthPx) = ComputeAircraftPixelSize(ac.AircraftType, pxPerFt);
+            // One FAA lookup per aircraft: the silhouette, the rotor and the tug all read the same record.
+            var record = FaaAircraftDatabase.Get(ac.AircraftType);
+            var (lengthPx, widthPx) = ComputeAircraftPixelSize(record, pxPerFt);
             if (isSelected)
             {
                 lengthPx *= SelectedScaleFactor;
@@ -1881,38 +1888,47 @@ public sealed class GroundRenderer : IDisposable
 
             if (isHeli)
             {
-                float rotorPx = ComputeRotorPixelRadius(ac.AircraftType, pxPerFt);
+                float rotorPx = ComputeRotorPixelRadius(record, pxPerFt);
                 DrawHelicopterSilhouette(canvas, sx, sy, headingDeg, lengthPx, widthPx, rotorPx, paint);
             }
             else
             {
                 DrawFixedWingSilhouette(canvas, sx, sy, headingDeg, lengthPx, widthPx, paint);
+
+                if ((!isAirborne) && (ac.TowbarHeading is { } towbar) && ((TugLengthFt * pxPerFt) >= MinTugPx))
+                {
+                    var pose = new TugDrawPose(
+                        new SKPoint(sx, sy),
+                        AircraftLengthFt(record),
+                        headingDeg,
+                        (float)(towbar.Degrees - vp.RotationDeg),
+                        pxPerFt
+                    );
+                    DrawTug(canvas, in pose, paint);
+                }
             }
         }
     }
+
+    /// <summary>
+    /// Nose-to-tail length in feet from the type's FAA ACD record, falling back to
+    /// <see cref="FallbackLengthFt"/> when the type is unknown or carries no length.
+    /// </summary>
+    public static float AircraftLengthFt(FaaAircraftRecord? record) => record?.LengthFt is { } len ? (float)len : FallbackLengthFt;
 
     /// <summary>
     /// Returns (halfLengthPx, halfWidthPx) for the aircraft silhouette.
     /// Uses FAA ACD dimensions when available, otherwise category fallbacks.
     /// Clamps to <see cref="MinAircraftPx"/> so aircraft remain visible when zoomed out.
     /// </summary>
-    private static (float HalfLengthPx, float HalfWidthPx) ComputeAircraftPixelSize(string? aircraftType, float pxPerFt)
+    private static (float HalfLengthPx, float HalfWidthPx) ComputeAircraftPixelSize(FaaAircraftRecord? record, float pxPerFt)
     {
-        float lengthFt = FallbackLengthFt;
+        float lengthFt = AircraftLengthFt(record);
         float wingspanFt = FallbackWingspanFt;
 
-        var record = FaaAircraftDatabase.Get(aircraftType);
-        if (record is not null)
+        if (record?.WingspanFt is { } ws)
         {
-            if (record.LengthFt is { } len)
-            {
-                lengthFt = (float)len;
-            }
-
-            if (record.WingspanFt is { } ws)
-            {
-                wingspanFt = (float)ws;
-            }
+            wingspanFt = (float)ws;
         }
 
         float halfLenPx = MathF.Max(lengthFt * 0.5f * pxPerFt, MinAircraftPx);
@@ -1923,10 +1939,9 @@ public sealed class GroundRenderer : IDisposable
     /// <summary>Fallback rotor diameter when FAA ACD data is unavailable (medium helicopter).</summary>
     private const float FallbackRotorDiameterFt = 40f;
 
-    private static float ComputeRotorPixelRadius(string? aircraftType, float pxPerFt)
+    private static float ComputeRotorPixelRadius(FaaAircraftRecord? record, float pxPerFt)
     {
         float diameterFt = FallbackRotorDiameterFt;
-        var record = FaaAircraftDatabase.Get(aircraftType);
         if (record?.RotorDiameterFt is { } rd)
         {
             diameterFt = (float)rd;
@@ -2004,6 +2019,115 @@ public sealed class GroundRenderer : IDisposable
         ];
 
         DrawRotatedSilhouette(canvas, cx, cy, headingDeg, halfLength, halfWidth, pts, paint);
+    }
+
+    /// <summary>
+    /// How far aft of the nose tip the nose gear sits, as a fraction of the aircraft's length. A judgement
+    /// call: a B738's nose gear is roughly 15 ft behind the nose tip on a 129 ft airframe.
+    /// </summary>
+    public const float NoseGearSetbackFraction = 0.12f;
+
+    /// <summary>Towbar length from the nose gear to the tug's hitch, feet. A judgement call.</summary>
+    public const float TowbarLengthFt = 18f;
+
+    /// <summary>Tug body length from the hitch aft, feet. A judgement call.</summary>
+    public const float TugLengthFt = 15f;
+
+    /// <summary>Tug body width, feet. A judgement call.</summary>
+    public const float TugWidthFt = 8f;
+
+    /// <summary>
+    /// Below this on-screen tug length the tug is not drawn at all, so a zoomed-out field is not speckled
+    /// with sub-pixel rigs. A judgement call.
+    /// </summary>
+    public const float MinTugPx = 4f;
+
+    /// <summary>Width of the cab block as a fraction of the tug body width. A judgement call.</summary>
+    private const float TugCabWidthFraction = 0.6f;
+
+    /// <summary>Length of the cab block at the hitch end, as a fraction of the tug body length. A judgement call.</summary>
+    private const float TugCabLengthFraction = 0.4f;
+
+    /// <summary>Towbar stroke width in feet, and the floor it is clamped to in pixels. Judgement calls.</summary>
+    private const float TowbarStrokeWidthFt = 1f;
+    private const float MinTowbarStrokePx = 1.5f;
+
+    /// <summary>
+    /// Everything <see cref="DrawTug"/> needs to place a tug: the aircraft's screen reference point, the
+    /// length that puts the nose gear ahead of it, the view-rotated aircraft and towbar headings, and the
+    /// current zoom scale.
+    /// </summary>
+    private readonly record struct TugDrawPose(
+        SKPoint ReferencePoint,
+        float AircraftLengthFt,
+        float AircraftHeadingDeg,
+        float TowbarHeadingDeg,
+        float PxPerFt
+    );
+
+    /// <summary>
+    /// Draws the towbar and tug for an aircraft under tow: the towbar runs from the nose gear out along the
+    /// towbar heading, and the tug body sits beyond it, cab end (driver facing the aircraft) at the hitch.
+    /// Geometry is built in feet and scaled by the zoom, so the rig grows and shrinks with the airframe.
+    /// </summary>
+    private static void DrawTug(SKCanvas canvas, in TugDrawPose pose, SKPaint paint)
+    {
+        float noseGearPx = ((pose.AircraftLengthFt * 0.5f) - (pose.AircraftLengthFt * NoseGearSetbackFraction)) * pose.PxPerFt;
+        float noseRad = (pose.AircraftHeadingDeg - 90f) * MathF.PI / 180f;
+        float noseX = pose.ReferencePoint.X + (MathF.Cos(noseRad) * noseGearPx);
+        float noseY = pose.ReferencePoint.Y + (MathF.Sin(noseRad) * noseGearPx);
+
+        // Local tug frame: X out along the towbar (hitch at 0), Y lateral.
+        float towbarRad = (pose.TowbarHeadingDeg - 90f) * MathF.PI / 180f;
+        float cosT = MathF.Cos(towbarRad);
+        float sinT = MathF.Sin(towbarRad);
+        float cosP = MathF.Cos(towbarRad + (MathF.PI / 2f));
+        float sinP = MathF.Sin(towbarRad + (MathF.PI / 2f));
+
+        float hitchX = noseX + (cosT * TowbarLengthFt * pose.PxPerFt);
+        float hitchY = noseY + (sinT * TowbarLengthFt * pose.PxPerFt);
+
+        using var towbarPaint = paint.Clone();
+        towbarPaint.Style = SKPaintStyle.Stroke;
+        towbarPaint.StrokeWidth = MathF.Max(MinTowbarStrokePx, TowbarStrokeWidthFt * pose.PxPerFt);
+        canvas.DrawLine(noseX, noseY, hitchX, hitchY, towbarPaint);
+
+        float halfWidthPx = TugWidthFt * 0.5f * pose.PxPerFt;
+        float cabHalfWidthPx = halfWidthPx * TugCabWidthFraction;
+        float cabEndPx = TugLengthFt * TugCabLengthFraction * pose.PxPerFt;
+        float tailPx = TugLengthFt * pose.PxPerFt;
+
+        SKPoint[] bodyPts =
+        [
+            // Cab face at the hitch, then down the near side to the full-width body and around the tail.
+            new(0f, -cabHalfWidthPx),
+            new(0f, cabHalfWidthPx),
+            new(cabEndPx, cabHalfWidthPx),
+            new(cabEndPx, halfWidthPx),
+            new(tailPx, halfWidthPx),
+            new(tailPx, -halfWidthPx),
+            new(cabEndPx, -halfWidthPx),
+            new(cabEndPx, -cabHalfWidthPx),
+        ];
+
+        using var path = new SKPath();
+        for (int i = 0; i < bodyPts.Length; i++)
+        {
+            float screenX = hitchX + (cosT * bodyPts[i].X) + (cosP * bodyPts[i].Y);
+            float screenY = hitchY + (sinT * bodyPts[i].X) + (sinP * bodyPts[i].Y);
+
+            if (i == 0)
+            {
+                path.MoveTo(screenX, screenY);
+            }
+            else
+            {
+                path.LineTo(screenX, screenY);
+            }
+        }
+
+        path.Close();
+        canvas.DrawPath(path, paint);
     }
 
     /// <summary>

@@ -104,6 +104,17 @@ public class Issue167AdjustPushbackFaceTests(ITestOutputHelper output)
         Assert.True(amend.Success, $"PUSH FACE S amendment failed: {amend.Message}");
         Assert.Same(pushOff, ac.Phases?.CurrentPhase);
 
+        // The re-planned moves behind the running push-off are still leg 1 of the push off B12, so they keep its
+        // ramp priority: the amendment must re-plan as a move off a stand, not as a repositioning tow.
+        var replanned = ac.Phases!.Phases.OfType<PushbackPhase>().Where(phase => !ReferenceEquals(phase, pushOff)).ToList();
+        string flags = string.Join(", ", replanned.Select(phase => phase.ContinuesStandPushOff));
+        _output.WriteLine($"re-planned behind the push-off: {replanned.Count} moves, ContinuesStandPushOff [{flags}]");
+        Assert.False(pushOff.ContinuesStandPushOff, "the push-off itself carries the continuation flag");
+        Assert.All(
+            replanned.TakeWhile(phase => !phase.Move.DwellBefore),
+            phase => Assert.True(phase.ContinuesStandPushOff, "a re-planned continuation of the push-off lost the push's ramp priority")
+        );
+
         Assert.True(TickUntilHolding(engine, ac), $"the push never finished; phase={ac.Phases?.CurrentPhase?.Name ?? "null"}");
 
         double hdg = ac.TrueHeading.Degrees;

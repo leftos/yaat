@@ -47,8 +47,12 @@ public class SfoPushRouteE2ETests(ITestOutputHelper output)
     /// <summary>The move a redirect issues mid-move: the same alley, stopping one marking short of the original.</summary>
     private const string RedirectCommand = "PUSHM $6A $6";
 
-    /// <summary>Tick budget for a whole move off D15: <c>PUSHM $6A $6B</c> takes about 230 s.</summary>
-    private const int MoveBudgetSeconds = 300;
+    /// <summary>
+    /// Tick budget for a whole move off D15. A five-leg <c>PUSHM</c> spends a quarter-minute of towbar
+    /// acceleration on every standing start and brakes onto every turn, so <c>PUSHM $6A @D16</c> runs past the
+    /// 300 s that covered it when a tug started and stopped at the aircraft's own taxi rates.
+    /// </summary>
+    private const int MoveBudgetSeconds = 450;
 
     /// <summary>
     /// How far the running tug move must have moved the aircraft before a mid-move command is issued, feet: far
@@ -56,8 +60,11 @@ public class SfoPushRouteE2ETests(ITestOutputHelper output)
     /// </summary>
     private const double MidMoveFt = 30.0;
 
-    /// <summary>How long a held aircraft may take to come to rest; braking 5 kt at the jet brake rate takes about a second.</summary>
-    private const int HoldStopBudgetSeconds = 5;
+    /// <summary>How long a held aircraft may take to come to rest; shedding 5 kt at the towbar brake rate takes five seconds.</summary>
+    private const int HoldStopBudgetSeconds = 6;
+
+    /// <summary>The most speed a held tug may lose in the first second of the stop, knots: one second of the towbar brake rate.</summary>
+    private const double HoldFirstSecondLossKts = 1.1;
 
     /// <summary>How far into the dwell before the pull onto 6A the dwell redirect is issued, seconds.</summary>
     private const double DwellRedirectAfterSeconds = 1.0;
@@ -242,6 +249,8 @@ public class SfoPushRouteE2ETests(ITestOutputHelper output)
         var result = ground.Engine.SendCommand(ac.Callsign, MoveCommand);
         Assert.True(result.Success, $"'{MoveCommand}' off {Gate} was refused: {result.Message}");
 
+        AssertStandPushOffLeg(ac);
+
         var run = TickMove(ground, ac, MoveBudgetSeconds);
 
         AssertKinds(run, PushbackLegKind.Push, PushbackLegKind.Push, PushbackLegKind.Pull, PushbackLegKind.Push, PushbackLegKind.Pull);
@@ -252,6 +261,32 @@ public class SfoPushRouteE2ETests(ITestOutputHelper output)
                 push == sample.PushHeadingDeg.HasValue,
                 $"t={sample.Second}s: a {sample.Phase.Kind} move had Ground.PushbackTrueHeading {DescribeHeading(sample.PushHeadingDeg)}"
             );
+        }
+    }
+
+    /// <summary>
+    /// Pins how the installed moves carry the push's ramp priority off a stand: move 0 is the push-off, every move
+    /// flown through from it before the plan's first reversal is leg 1 of the same push, and the reversal and
+    /// everything behind it — the second leg's push in particular — is a repositioning tow with neither flag.
+    /// </summary>
+    /// <param name="aircraft">The aircraft the tug move was installed on, before it is ticked.</param>
+    private static void AssertStandPushOffLeg(AircraftState aircraft)
+    {
+        var moves = aircraft.Phases!.Phases.OfType<PushbackPhase>().ToList();
+        Assert.True(moves[0].StartsAtStand, "the first move off the gate is not the stand push-off");
+        Assert.False(moves[0].ContinuesStandPushOff, "the push-off itself carries the continuation flag");
+
+        int firstDwell = moves.FindIndex(move => move.Move.DwellBefore);
+        Assert.True(firstDwell > 0, $"the plan has no reversal to measure leg 1 against ({moves.Count} moves)");
+        for (int i = 1; i < firstDwell; i++)
+        {
+            Assert.True(moves[i].ContinuesStandPushOff, $"move {i}, flown through from the push-off, lost the push's ramp priority");
+        }
+
+        for (int i = firstDwell; i < moves.Count; i++)
+        {
+            Assert.False(moves[i].ContinuesStandPushOff, $"move {i}, after the plan's first reversal, claimed the push's ramp priority");
+            Assert.False(moves[i].StartsAtStand, $"move {i} claimed to be the stand push-off");
         }
     }
 
@@ -304,8 +339,19 @@ public class SfoPushRouteE2ETests(ITestOutputHelper output)
         int cueSecond = TickUntilCue(ground, ac, "a move rolling mid-move with another queued", () => (MidMove(ac) is not null) && IsRolling(ac));
 
         var running = Assert.IsType<PushbackPhase>(ac.Phases?.CurrentPhase);
+        double speedAtHold = ac.GroundSpeed;
         var hold = ground.Engine.SendCommand(ac.Callsign, "HOLD");
         Assert.True(hold.Success, $"'HOLD' during the tug move was refused: {hold.Message}");
+
+        // The hold brakes the tow at the towbar rate rather than freezing it where it stands: a second later the
+        // aircraft is still rolling, and has lost no more than that second of braking.
+        ground.Engine.TickOneSecond();
+        output.WriteLine($"held at {speedAtHold:F2} kt, {ac.GroundSpeed:F2} kt one second later");
+        Assert.True(
+            ac.GroundSpeed >= speedAtHold - HoldFirstSecondLossKts,
+            $"the held tug went from {speedAtHold:F2} kt to {ac.GroundSpeed:F2} kt in one second, harder than the towbar brake rate"
+        );
+        Assert.True(ac.GroundSpeed > 0.0, $"the held tug stopped dead from {speedAtHold:F2} kt instead of braking to rest");
 
         int stoppedSecond = SfoGroundHarness.TickUntil(ground.Engine, () => !IsRolling(ac), HoldStopBudgetSeconds, null);
         Assert.True(stoppedSecond > 0, $"the held aircraft was still rolling at {ac.GroundSpeed:F2} kt {HoldStopBudgetSeconds}s after HOLD");

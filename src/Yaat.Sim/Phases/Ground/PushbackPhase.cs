@@ -14,15 +14,24 @@ namespace Yaat.Sim.Phases.Ground;
 /// the distance the aircraft is about to move divided by the type's turn radius, so a stopped aircraft never
 /// rotates. A push leads with the tail: <see cref="AircraftGroundOps.PushbackTrueHeading"/> is the direction of
 /// travel for the whole move, dwell included, and the nose is its reciprocal. A pull leads with the nose: that
-/// field stays null and the nose is the direction of travel. <see cref="FlightPhysics"/> moves the aircraft.</para>
+/// field stays null and the nose is the direction of travel. <see cref="AircraftGroundOps.TowbarTrueHeading"/>
+/// carries the tug itself: the direction from the nose gear out along the towbar, taken from the nose-gear steer
+/// angle each step implies (<see cref="SteerTowbar"/>), set as the move starts and dropped as it ends unless the
+/// tow flows into the next move. <see cref="FlightPhysics"/> moves the aircraft.</para>
 ///
 /// <para><b>Speed.</b> <see cref="CategoryPerformance.PushbackSpeed"/>, or
 /// <see cref="CategoryPerformance.PushbackAlignSpeed"/> on the last stretch of a creep move; on a step that turns
-/// by more than a quarter of the most it may, slowed so the outer wingtip keeps the same pace. A move that ends at
-/// a genuine stop — the plan's last move, or the one before a reversal's dwell — runs its last 10 ft at 1 kt so the
-/// final step lands inside the 1 ft stop tolerance, and stops dead when it completes. A move that continues into
-/// the next one (<see cref="ContinuesIntoNextMove"/>) does neither: it holds its speed to the boundary and hands it
-/// to the next move, so a plan is one continuous tow rather than a queue of standing starts.</para>
+/// by more than a quarter of the most it may, slowed so the outer wingtip keeps the same pace. The tug picks the
+/// speed up at <see cref="CategoryPerformance.TugAccelRate"/> and sheds it at
+/// <see cref="CategoryPerformance.TugDecelRate"/>, both published as
+/// <see cref="ControlTargets.DesiredAccelRate"/> / <see cref="ControlTargets.DesiredDecelRate"/> for physics to
+/// integrate, so nothing on a towbar starts or stops at the aircraft's own taxi rates. Every stop is a braking
+/// curve onto its end speed: ahead of the next turn in the move onto the wingtip cap, and — on a move that ends at
+/// a genuine stop, the plan's last move or the one before a reversal's dwell — onto
+/// <see cref="FinalApproachKts"/> for the last <see cref="FinalApproachFt"/>, so the final step lands inside the
+/// 1 ft stop tolerance before the move stops dead. A move that continues into the next one
+/// (<see cref="ContinuesIntoNextMove"/>) takes no end-of-move curve: it holds its speed to the boundary and hands
+/// it to the next move, so a plan is one continuous tow rather than a queue of standing starts.</para>
 ///
 /// <para><b>Dwell.</b> A move that reverses the previous one (<see cref="TugMove.DwellBefore"/>) waits
 /// <see cref="DwellSeconds"/> at a standstill before it starts, counted only while the aircraft is stopped.</para>
@@ -51,13 +60,16 @@ public sealed class PushbackPhase : Phase
 
     private const double RadToDeg = 180.0 / Math.PI;
 
-    /// <summary>Within this distance of the planned end the tug slows to <see cref="FinalApproachKts"/>.</summary>
-    private const double FinalApproachFt = 10.0;
+    /// <summary>Within this distance of the planned end the tug is down to <see cref="FinalApproachKts"/>.</summary>
+    public const double FinalApproachFt = 10.0;
 
     /// <summary>The last-stretch speed: a quarter-second step at 1 kt is 0.42 ft, inside the 1 ft stop tolerance.</summary>
-    private const double FinalApproachKts = 1.0;
+    public const double FinalApproachKts = 1.0;
 
-    /// <summary>Fuselage length assumed by <see cref="HasLeftTheStand"/> for a type the FAA database does not carry.</summary>
+    /// <summary>Feet per second per knot: how fast a knot is, for the braking curve's unit conversion.</summary>
+    private const double FtPerSecPerKt = GeoMath.FeetPerNm / 3600.0;
+
+    /// <summary>Fuselage length assumed by <see cref="HasRampPriority"/> for a type the FAA database does not carry.</summary>
     private const double DefaultFuselageLengthFt = 110.0;
 
     /// <summary>The farthest apart two <see cref="RemainingPath"/> samples lie, feet.</summary>
@@ -78,12 +90,11 @@ public sealed class PushbackPhase : Phase
     private LatLon? _pendingPushedFrom;
     private double _timeSinceLastLog;
 
-    // The rest of the move as last simulated, each sample with its distance along the path from where the simulation
-    // started; and the last path handed out, with the pose it was built for. Neither is snapshotted.
-    private List<(TugPose Pose, double AlongFt)>? _simulatedPath;
-    private LatLon _simulatedFrom;
-    private IReadOnlyList<(TugPose Pose, double AlongFt)>? _pathFromHere;
-    private TugPose _pathFromHerePose;
+    // One cache per caller: the turn look-ahead asks for this move alone and the conflict detector for the continuing
+    // run, on alternating sub-ticks, so a single cache would invalidate each one on the other's call and simulate both
+    // chains every sub-tick. None of it is snapshotted.
+    private readonly PathCache _movePathCache = new();
+    private readonly PathCache _runPathCache = new();
 
     /// <summary>The move this phase flies.</summary>
     public required TugMove Move
@@ -114,6 +125,14 @@ public sealed class PushbackPhase : Phase
     public required bool ContinuesIntoNextMove { get; init; }
 
     /// <summary>
+    /// This move is flown through from the stand push-off with no reversal between it and the push-off: leg 1 of a
+    /// push off a stand, after the push-off itself. False on the push-off (which has
+    /// <see cref="StartsAtStand"/> instead), on every move the plan reverses into, and on every move of a tow that
+    /// did not start on a stand. <see cref="HasRampPriority"/> is what reads it.
+    /// </summary>
+    public required bool ContinuesStandPushOff { get; init; }
+
+    /// <summary>
     /// On the stand push-off of a single-goal <c>PUSH</c> only: what a mid-push facing change needs to re-plan the
     /// push (issue #167). Null on every other move.
     /// </summary>
@@ -140,23 +159,30 @@ public sealed class PushbackPhase : Phase
         (Amendment is not null) && (Status != PhaseStatus.Completed) && !TugKinematics.IsComplete(PoseOf(aircraft), Move, _progress);
 
     /// <summary>
-    /// True once the aircraft is out in the lane rather than still on its stand. On the stand push-off
-    /// (<see cref="StartsAtStand"/>) that is once it has moved more than half its fuselage length from where the
-    /// move began — recomputed from the recorded start each time, so a snapshot restore reproduces it. Every other
-    /// move starts off the stand, so it is true throughout.
+    /// Whether this move is the committed push off a stand, which outranks taxiing traffic in the alley. That is leg
+    /// 1 of a push off a stand and nothing else: the push-off (<see cref="StartsAtStand"/>) once the aircraft has
+    /// moved more than half its fuselage length from where the move began — recomputed from the recorded start each
+    /// time, so a snapshot restore reproduces it — and the moves flown through from it before the first reversal
+    /// (<see cref="ContinuesStandPushOff"/>).
     ///
-    /// <para><see cref="GroundConflictDetector"/> uses this to decide whether a pushback outranks taxiing
-    /// traffic. A push whose tail already occupies the lane is not worth holding — stopping it frees nothing
-    /// and blocks the lane for longer — while one still on the stand can wait for the traffic to go by, which
-    /// is what a ramp controller means by "hold your push, traffic in the alley".</para>
+    /// <para><see cref="GroundConflictDetector"/> uses this to decide whether a pushback outranks taxiing traffic. A
+    /// push that has committed the alley is not worth holding — stopping it frees nothing, it blocks the lane for
+    /// longer, and the tug crew faces the aircraft and cannot see behind the tail. One still on its stand can wait
+    /// for the traffic to go by, which is what a ramp controller means by "hold your push, traffic in the alley",
+    /// and a tow already repositioning — the second leg of a <c>PUSHM</c>, or the push half of a three-point turn
+    /// after a reversal — is ordinary ramp traffic that yields like anything else. 7110.65 §3-7-2 NOTE 2 leaves
+    /// movement on a nonmovement area to the pilot, the operator and airport management, so this is the ramp
+    /// convention modelled rather than an ATC instruction.</para>
+    ///
+    /// <para>A pull never gets here with priority: it never classifies as a push to the detector.</para>
     /// </summary>
     /// <param name="aircraft">The aircraft this phase is driving.</param>
-    /// <returns>True when the aircraft has left its stand.</returns>
-    public bool HasLeftTheStand(AircraftState aircraft)
+    /// <returns>True when the move is the committed push off a stand.</returns>
+    public bool HasRampPriority(AircraftState aircraft)
     {
         if (!StartsAtStand)
         {
-            return true;
+            return ContinuesStandPushOff;
         }
 
         var start = _progress.Start;
@@ -201,7 +227,7 @@ public sealed class PushbackPhase : Phase
     /// taken from the live pose instead would follow the mover down and ratchet it into contact a foot at a time.</para>
     ///
     /// <para>A phase that was never started has no recorded start (the same unset <c>(0, 0)</c>
-    /// <see cref="HasLeftTheStand"/> guards against); it answers the live pose, so the floor is anchored to where the
+    /// <see cref="HasRampPriority"/> guards against); it answers the live pose, so the floor is anchored to where the
     /// aircraft is rather than to the Gulf of Guinea.</para>
     /// </summary>
     /// <param name="aircraft">The aircraft this phase is driving.</param>
@@ -215,45 +241,59 @@ public sealed class PushbackPhase : Phase
     }
 
     /// <summary>
-    /// Where the rest of this move takes the aircraft, as poses with how far along the remaining path each one sits: the
-    /// live pose first at zero feet, then the move simulated from it (a straight for the distance it still owes, any
-    /// other shape as it is), no more than <see cref="RemainingPathSpacingFt"/> and <see cref="RemainingPathTurnDeg"/>
-    /// apart. Only the live pose once the move is complete.
+    /// Where the rest of this move, and the moves in <paramref name="continuation"/> the tug runs straight on into, take
+    /// the aircraft: poses with how far along the remaining path each one sits — the live pose first at zero feet, then
+    /// the moves simulated from it as one chain (this move a straight for the distance it still owes, any other shape as
+    /// it is), no more than <see cref="RemainingPathSpacingFt"/> and <see cref="RemainingPathTurnDeg"/> apart, with the
+    /// along-distance running on through every move. Only the live pose once this move is complete.
     ///
     /// <para><see cref="GroundConflictDetector"/> sweeps the aircraft's outline along this path to decide whether a
-    /// parked or held neighbour is in the way, and the along-path distance of the first sample that fouls it is how far
-    /// the mover has left before it has to be stopped. The simulation is kept and redone only once the aircraft has
-    /// moved more than <see cref="RemainingPathRebuildFt"/> from where it ran; in between, the samples already passed
-    /// are dropped and the rest are charged the distance already covered. None of it is in the snapshot: a restored
-    /// phase simulates on first use.</para>
+    /// parked or held neighbour is in the way, and the along-path distance at which it first fouls one is how far the
+    /// mover has left before it has to be stopped. It passes the rest of the tug's run, so a neighbour the next move
+    /// walks into is found while there is still room to brake for it rather than at the boundary, at speed. A caller
+    /// that only cares about this move — the ease-off look-ahead — passes an empty continuation.</para>
+    ///
+    /// <para>Each of the two callers keeps its own cache — the look-ahead asks for this move alone every sub-tick while
+    /// the detector asks for the continuing run, and one shared cache would rebuild both chains on every call. Within a
+    /// cache the simulation is kept and redone only once the aircraft has moved more than
+    /// <see cref="RemainingPathRebuildFt"/> from where it ran, or the continuation changed; in between, the samples
+    /// already passed are dropped and the rest are charged the distance already covered. None of it is in the snapshot:
+    /// a restored phase simulates on first use.</para>
     /// </summary>
     /// <param name="aircraft">The aircraft this phase is driving.</param>
+    /// <param name="continuation">The moves the tug runs on into after this one, in order; empty for this move alone.</param>
     /// <returns>The remaining path, starting at the live pose at zero feet.</returns>
-    public IReadOnlyList<(TugPose Pose, double AlongFt)> RemainingPath(AircraftState aircraft)
+    public IReadOnlyList<(TugPose Pose, double AlongFt)> RemainingPath(AircraftState aircraft, IReadOnlyList<TugMove> continuation)
     {
+        var cache = continuation.Count == 0 ? _movePathCache : _runPathCache;
         var pose = PoseOf(aircraft);
-        if ((_pathFromHere is not null) && (_pathFromHerePose == pose))
+        bool sameContinuation = SameMoves(cache.Continuation, continuation);
+        if ((cache.PathFromHere is { } cached) && (cache.PathFromHerePose == pose) && sameContinuation)
         {
-            return _pathFromHere;
+            return cached;
         }
 
-        _pathFromHerePose = pose;
+        cache.PathFromHerePose = pose;
+        cache.Continuation = continuation;
         if ((Status == PhaseStatus.Completed) || TugKinematics.IsComplete(pose, Move, _progress))
         {
-            _pathFromHere = [(pose, 0.0)];
-            return _pathFromHere;
+            IReadOnlyList<(TugPose Pose, double AlongFt)> here = [(pose, 0.0)];
+            cache.PathFromHere = here;
+            return here;
         }
 
-        double movedFt = _simulatedPath is null ? 0.0 : FeetBetween(_simulatedFrom, pose.Position);
-        if ((_simulatedPath is null) || (movedFt > RemainingPathRebuildFt))
+        var simulated = cache.SimulatedPath;
+        double movedFt = simulated is null ? 0.0 : FeetBetween(cache.SimulatedFrom, pose.Position);
+        if ((simulated is null) || (movedFt > RemainingPathRebuildFt) || !sameContinuation)
         {
-            _simulatedPath = SimulateRemaining(aircraft.AircraftType, pose);
-            _simulatedFrom = pose.Position;
+            simulated = SimulateRemaining(aircraft.AircraftType, pose, continuation);
+            cache.SimulatedPath = simulated;
+            cache.SimulatedFrom = pose.Position;
             movedFt = 0.0;
         }
 
-        var path = new List<(TugPose Pose, double AlongFt)>(_simulatedPath.Count) { (pose, 0.0) };
-        foreach (var (sample, alongFt) in _simulatedPath)
+        var path = new List<(TugPose Pose, double AlongFt)>(simulated.Count) { (pose, 0.0) };
+        foreach (var (sample, alongFt) in simulated)
         {
             if (alongFt > movedFt)
             {
@@ -261,16 +301,42 @@ public sealed class PushbackPhase : Phase
             }
         }
 
-        _pathFromHere = path;
+        cache.PathFromHere = path;
         return path;
     }
 
     /// <summary>
-    /// The rest of the move flown from <paramref name="pose"/>, with each sample's distance along the path; the
-    /// simulation's 5 ft samples are subdivided wherever the nose turns more than <see cref="RemainingPathTurnDeg"/>
-    /// between two of them (over 5 ft the chord and the arc differ by well under a tenth of a foot).
+    /// One caller's <see cref="RemainingPath"/> working set: the chain as last simulated and where it was simulated
+    /// from, and the path last handed out with the pose and the continuation it was built for.
     /// </summary>
-    private List<(TugPose Pose, double AlongFt)> SimulateRemaining(string aircraftType, TugPose pose)
+    private sealed class PathCache
+    {
+        public List<(TugPose Pose, double AlongFt)>? SimulatedPath { get; set; }
+
+        public LatLon SimulatedFrom { get; set; }
+
+        public IReadOnlyList<(TugPose Pose, double AlongFt)>? PathFromHere { get; set; }
+
+        public TugPose PathFromHerePose { get; set; }
+
+        public IReadOnlyList<TugMove>? Continuation { get; set; }
+
+        /// <summary>Drops the simulation and the path built from it, so the next call simulates from the live pose.</summary>
+        public void Invalidate()
+        {
+            SimulatedPath = null;
+            PathFromHere = null;
+        }
+    }
+
+    /// <summary>
+    /// The rest of this move and then <paramref name="continuation"/> flown from <paramref name="pose"/> as one chain,
+    /// with each sample's distance along the whole path; the simulation's 5 ft samples are subdivided wherever the nose
+    /// turns more than <see cref="RemainingPathTurnDeg"/> between two of them (over 5 ft the chord and the arc differ by
+    /// well under a tenth of a foot). Every move after the first opens on the previous one's end pose, which is dropped
+    /// so the chain carries each pose once.
+    /// </summary>
+    private List<(TugPose Pose, double AlongFt)> SimulateRemaining(string aircraftType, TugPose pose, IReadOnlyList<TugMove> continuation)
     {
         var move =
             Move.Shape == TugMoveShape.Straight
@@ -279,7 +345,16 @@ public sealed class PushbackPhase : Phase
                     StraightDistanceFt = Math.Max(0.0, Move.StraightDistanceFt - _progress.DistanceFt),
                 }
                 : Move;
-        var samples = TugKinematics.Simulate(pose, [move], aircraftType, TugMovePlanner.StepFt).Moves[0].Samples;
+        var traces = TugKinematics.Simulate(pose, [move, .. continuation], aircraftType, TugMovePlanner.StepFt).Moves;
+        var samples = new List<TugPose>();
+        foreach (var trace in traces)
+        {
+            for (int i = samples.Count == 0 ? 0 : 1; i < trace.Samples.Count; i++)
+            {
+                samples.Add(trace.Samples[i]);
+            }
+        }
+
         var path = new List<(TugPose Pose, double AlongFt)>(samples.Count * 2) { (samples[0], 0.0) };
         double alongFt = 0.0;
         for (int i = 1; i < samples.Count; i++)
@@ -305,6 +380,29 @@ public sealed class PushbackPhase : Phase
         return path;
     }
 
+    /// <summary>
+    /// Whether two continuations are the same moves in the same order, by identity: the planner mints one
+    /// <see cref="TugMove"/> per move and every caller hands out those, so a re-planned run is a different list even
+    /// where it flies the same shapes. An identical-but-rebuilt list only costs one more simulation.
+    /// </summary>
+    private static bool SameMoves(IReadOnlyList<TugMove>? a, IReadOnlyList<TugMove> b)
+    {
+        if ((a is null) || (a.Count != b.Count))
+        {
+            return false;
+        }
+
+        for (int i = 0; i < a.Count; i++)
+        {
+            if (!ReferenceEquals(a[i], b[i]))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
     public override void OnStart(PhaseContext ctx)
     {
         var aircraft = ctx.Aircraft;
@@ -314,6 +412,11 @@ public sealed class PushbackPhase : Phase
         ctx.Targets.TargetTrueHeading = null;
         aircraft.IsOnGround = true;
         aircraft.Ground.PushbackTrueHeading = Move.Kind == PushbackLegKind.Push ? new TrueHeading(pose.TravelTrueDeg(Move.Kind)) : null;
+
+        // The tug hitches up on the fuselage axis. A move flown through from the one before finds the towbar already
+        // set and keeps it, so a continuous tow does not snap the tug straight at the boundary.
+        aircraft.Ground.TowbarTrueHeading ??= aircraft.TrueHeading;
+        PublishTugRates(ctx);
         ctx.Targets.TargetSpeed = Move.DwellBefore ? 0 : CategoryPerformance.PushbackSpeed(ctx.Category);
 
         Log.LogDebug(
@@ -337,13 +440,6 @@ public sealed class PushbackPhase : Phase
     public override bool OnTick(PhaseContext ctx)
     {
         var aircraft = ctx.Aircraft;
-        if (aircraft.Ground.IsImmobile)
-        {
-            aircraft.IndicatedAirspeed = 0;
-            ctx.Targets.TargetSpeed = 0;
-            return false;
-        }
-
         var pose = PoseOf(aircraft);
         if (_progressPending)
         {
@@ -353,6 +449,9 @@ public sealed class PushbackPhase : Phase
         _progress = TugKinematics.Record(_progress, pose, Move, FeetBetween(_lastPosition, pose.Position));
         _lastPosition = pose.Position;
 
+        // Completion is judged before the hold: the feet a braking tow covers still belong to the move, so a hold
+        // that lands inside the braking distance can carry the move through its end, and a finished move hands over
+        // then rather than sitting on a covered distance until the hold is lifted.
         if (TugKinematics.IsComplete(pose, Move, _progress))
         {
             HandOver(ctx, pose);
@@ -366,6 +465,16 @@ public sealed class PushbackPhase : Phase
                 pose.NoseTrueDeg
             );
             return true;
+        }
+
+        // A controller hold brakes the tug rather than freezing it: physics sheds the speed at the towbar rate along
+        // the headings the last driven tick left set, and the feet that takes are recorded above as the move's own.
+        // Nothing else runs while the hold is in force.
+        if (aircraft.Ground.IsImmobile)
+        {
+            PublishTugRates(ctx);
+            ctx.Targets.TargetSpeed = 0;
+            return false;
         }
 
         if (IsDwelling(ctx))
@@ -402,6 +511,31 @@ public sealed class PushbackPhase : Phase
         }
 
         ctx.Aircraft.Ground.PushbackTrueHeading = null;
+
+        // The tug lets go with the phase, except where the tow goes straight on into the next move: that move's start
+        // picks the towbar up where this one left it, so a flown-through boundary does not snap the tug straight. A
+        // move the plan reverses after ends at a standstill, and the next move hitches up on the axis over its dwell.
+        if (!((endStatus == PhaseStatus.Completed) && ContinuesIntoNextMove))
+        {
+            ctx.Aircraft.Ground.TowbarTrueHeading = null;
+        }
+
+        // The towbar rates belong to the tug, not to the aircraft: whatever comes next accelerates and brakes on
+        // its own terms.
+        ctx.Targets.DesiredAccelRate = null;
+        ctx.Targets.DesiredDecelRate = null;
+    }
+
+    /// <summary>
+    /// Publishes the rates physics integrates the tow at — <see cref="CategoryPerformance.TugAccelRate"/> and
+    /// <see cref="CategoryPerformance.TugDecelRate"/>. Re-published every tick, the way the ground phases publish
+    /// their targets, so nothing a command or another phase left behind survives into a tug move.
+    /// </summary>
+    /// <param name="ctx">The phase context.</param>
+    private static void PublishTugRates(PhaseContext ctx)
+    {
+        ctx.Targets.DesiredAccelRate = CategoryPerformance.TugAccelRate(ctx.Category);
+        ctx.Targets.DesiredDecelRate = CategoryPerformance.TugDecelRate(ctx.Category);
     }
 
     /// <summary>
@@ -455,6 +589,7 @@ public sealed class PushbackPhase : Phase
             return false;
         }
 
+        PublishTugRates(ctx);
         ctx.Targets.TargetSpeed = 0;
         if (ctx.Aircraft.GroundSpeed <= AtRestKts)
         {
@@ -475,6 +610,7 @@ public sealed class PushbackPhase : Phase
     private void Drive(PhaseContext ctx, TugPose pose)
     {
         var aircraft = ctx.Aircraft;
+        PublishTugRates(ctx);
         double radiusFt = TugKinematics.TurnRadiusFt(aircraft.AircraftType, Move.Tight);
         double speedKts = MoveSpeedKts(ctx, pose, radiusFt, turning: false);
         double stepFt = StepFt(ctx, speedKts);
@@ -488,6 +624,7 @@ public sealed class PushbackPhase : Phase
 
         ctx.Targets.TargetSpeed = speedKts;
         var travel = new TrueHeading(travelDeg);
+        double travelTurnDeg = new TrueHeading(pose.TravelTrueDeg(Move.Kind)).SignedAngleTo(travel);
         if (Move.Kind == PushbackLegKind.Push)
         {
             aircraft.Ground.PushbackTrueHeading = travel;
@@ -498,6 +635,45 @@ public sealed class PushbackPhase : Phase
             aircraft.Ground.PushbackTrueHeading = null;
             aircraft.TrueHeading = travel;
         }
+
+        SteerTowbar(aircraft, travelTurnDeg, stepFt);
+    }
+
+    /// <summary>
+    /// Points the towbar for the step just flown — <see cref="AircraftGroundOps.TowbarTrueHeading"/>, the direction
+    /// from the nose gear out along the towbar to the tug — off the nose heading this tick was driven to.
+    ///
+    /// <para>The tow is a bicycle on the wheelbase <c>L</c>: the type's FAA figure, or the same fallback
+    /// <see cref="TugKinematics.TurnRadiusFt"/> uses for a type that has none. The step turned the direction of travel
+    /// by <c>Δψ</c> over its length, and the nose turns with it the same way on both kinds, so the path's curvature is
+    /// <c>κ = Δψ / step</c> and the nose gear stands <c>δ = atan(L·κ)</c> off the fuselage axis.</para>
+    ///
+    /// <para>Which side of the axis the tug is on is the kinds' difference. On a pull, turning right steers the nose
+    /// gear right and the tug sits ahead and to the right: <c>nose + δ</c>. On a push the nose gear is travelling
+    /// backwards — its velocity in the fuselage frame is <c>(−v, ωL)</c> — so its wheel line lies
+    /// <c>−atan(ωL / v)</c> off the axis: a nose yawing right means the tug has swung to the aircraft's <em>left</em>,
+    /// at <c>nose − δ</c>.</para>
+    ///
+    /// <para>A step of no length leaves the towbar where it stood: a dwell, a controller hold and a standstill neither
+    /// move the aircraft nor straighten the tug.</para>
+    /// </summary>
+    /// <param name="aircraft">The aircraft under tow, with this tick's nose heading already set.</param>
+    /// <param name="travelTurnDeg">How far the step turned the direction of travel, degrees, positive clockwise.</param>
+    /// <param name="stepFt">The step's length, feet.</param>
+    private void SteerTowbar(AircraftState aircraft, double travelTurnDeg, double stepFt)
+    {
+        if (stepFt <= 0.0)
+        {
+            return;
+        }
+
+        double? recordedWheelbaseFt = Data.Faa.FaaAircraftDatabase.Get(aircraft.AircraftType)?.WheelbaseFt;
+        double wheelbaseFt =
+            (recordedWheelbaseFt is { } recorded && (recorded > 0.0)) ? recorded : TugKinematics.TurnRadiusFt(aircraft.AircraftType, tight: false);
+        double curvaturePerFt = (travelTurnDeg / RadToDeg) / stepFt;
+        double steerDeg = Math.Atan(wheelbaseFt * curvaturePerFt) * RadToDeg;
+        double towbarSide = Move.Kind == PushbackLegKind.Push ? -1.0 : 1.0;
+        aircraft.Ground.TowbarTrueHeading = new TrueHeading(aircraft.TrueHeading.Degrees + (towbarSide * steerDeg));
     }
 
     /// <summary>The distance physics will move the aircraft this tick toward a target speed, feet.</summary>
@@ -522,25 +698,97 @@ public sealed class PushbackPhase : Phase
     /// <summary>
     /// The tug's speed this tick: the push speed, or the alignment creep once a creep move is within the spot
     /// pull-forward distance of its end; while turning, scaled by R / (R + half-span) so the outer wingtip keeps
-    /// that pace (a judgement call, AC 00-65A §11.14: towing no faster than the walking team); and, on a move that
-    /// ends at a standstill, at most <see cref="FinalApproachKts"/> within <see cref="FinalApproachFt"/> of the
-    /// planned end. A move that continues into the next one takes no such clamp: it is not stopping there, and the
-    /// crawl would restart the whole tow from walking pace at every boundary.
+    /// that pace (a judgement call, AC 00-65A §11.14: towing no faster than the walking team); braked down that
+    /// same wingtip cap on the run in to the next turn the move makes; and, on a move that ends at a standstill,
+    /// braked onto <see cref="FinalApproachKts"/> for the last <see cref="FinalApproachFt"/> before the planned
+    /// end. Both approaches are <see cref="BrakeCurveKts"/>, so the tug arrives at the speed it needs instead of
+    /// dropping onto it at the boundary. A move that continues into the next one takes no end-of-move curve: it is
+    /// not stopping there, and the crawl would restart the whole tow from walking pace at every boundary.
     /// </summary>
     private double MoveSpeedKts(PhaseContext ctx, TugPose pose, double radiusFt, bool turning)
     {
         string type = ctx.Aircraft.AircraftType;
         double remainingFt = FeetBetween(pose.Position, PlannedEnd);
-        bool creeping = Move.Creep && (remainingFt <= TugMovePlanner.SpotPullForwardFt(type));
-        double speedKts = creeping ? CategoryPerformance.PushbackAlignSpeed(ctx.Category) : CategoryPerformance.PushbackSpeed(ctx.Category);
-        if (turning)
+        double baseKts = BaseSpeedKts(type, ctx.Category, remainingFt);
+        double halfSpanFt = TugMovePlanner.WingspanFt(type) / 2.0;
+        double turningCapKts = baseKts * radiusFt / (radiusFt + halfSpanFt);
+        double decelKtPerSec = CategoryPerformance.TugDecelRate(ctx.Category);
+        double speedKts = turning ? turningCapKts : baseKts;
+
+        if (NextTurnAlongFt(ctx.Aircraft, radiusFt) is { } turnAtFt)
         {
-            double halfSpanFt = TugMovePlanner.WingspanFt(type) / 2.0;
-            speedKts *= radiusFt / (radiusFt + halfSpanFt);
+            speedKts = Math.Min(speedKts, BrakeCurveKts(turnAtFt, turningCapKts, decelKtPerSec));
         }
 
-        return !ContinuesIntoNextMove && (remainingFt <= FinalApproachFt) ? Math.Min(speedKts, FinalApproachKts) : speedKts;
+        return ContinuesIntoNextMove ? speedKts : Math.Min(speedKts, BrakeCurveKts(remainingFt - FinalApproachFt, FinalApproachKts, decelKtPerSec));
     }
+
+    /// <summary>
+    /// The speed this move commands from where the aircraft stands, knots: <see cref="CategoryPerformance.PushbackSpeed"/>,
+    /// or <see cref="CategoryPerformance.PushbackAlignSpeed"/> once a creep move is inside the spot pull-forward distance
+    /// of its end. The turn and stop curves <see cref="MoveSpeedKts"/> lays over it only ever lower it, so this is the
+    /// pace the move is asking for right now.
+    ///
+    /// <para><see cref="GroundConflictDetector"/> reads it to tell a tow that is slowing for a neighbour from one running
+    /// at its commanded pace: a limit at or above this is not slowing the move at all, and a creep move's last stretch is
+    /// commanded well under the push speed.</para>
+    /// </summary>
+    /// <param name="aircraft">The aircraft this phase is driving.</param>
+    /// <returns>The speed the move commands from the live pose, knots.</returns>
+    public double CommandedSpeedKts(AircraftState aircraft) =>
+        BaseSpeedKts(aircraft.AircraftType, AircraftCategorization.Categorize(aircraft.AircraftType), FeetBetween(aircraft.Position, PlannedEnd));
+
+    /// <summary>The push speed, or a creep move's alignment speed once it is within the pull-forward distance of its end.</summary>
+    private double BaseSpeedKts(string aircraftType, AircraftCategory category, double remainingFt) =>
+        (Move.Creep && (remainingFt <= TugMovePlanner.SpotPullForwardFt(aircraftType)))
+            ? CategoryPerformance.PushbackAlignSpeed(category)
+            : CategoryPerformance.PushbackSpeed(category);
+
+    /// <summary>
+    /// How far along the rest of the move the next turning step lies, feet: the along-path distance of the last
+    /// sample of <see cref="RemainingPath"/> still running straight, zero when the move is turning here and now.
+    /// Null when nothing left of the move turns. A pair of samples counts as turning by the same test a live step
+    /// does (<see cref="IsTurningStep"/>): more than <see cref="TurningStepFraction"/> of the most a step that long
+    /// may turn the aircraft.
+    ///
+    /// <para>The look-ahead is this move's alone — it passes no continuation — so a turn that opens the next move is
+    /// entered at the boundary speed and braked onto the wingtip cap from there.</para>
+    /// </summary>
+    /// <param name="aircraft">The aircraft this phase is driving.</param>
+    /// <param name="radiusFt">The turn radius the move is flown on, feet.</param>
+    /// <returns>The distance to the next turn, or null when the rest of the move is straight.</returns>
+    private double? NextTurnAlongFt(AircraftState aircraft, double radiusFt)
+    {
+        var path = RemainingPath(aircraft, []);
+        for (int i = 1; i < path.Count; i++)
+        {
+            double stepFt = path[i].AlongFt - path[i - 1].AlongFt;
+            if (stepFt <= 0.0)
+            {
+                continue;
+            }
+
+            double turnedDeg = new TrueHeading(path[i - 1].Pose.NoseTrueDeg).AbsAngleTo(new TrueHeading(path[i].Pose.NoseTrueDeg));
+            if (turnedDeg > (TurningStepFraction * (stepFt / radiusFt) * RadToDeg))
+            {
+                return path[i - 1].AlongFt;
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// The speed a tug braking at <paramref name="decelKtPerSec"/> may hold <paramref name="distanceFt"/> before a
+    /// point it has to be down to <paramref name="endSpeedKts"/> at: v = sqrt(v_end² + 2·a·d), the distance
+    /// converted from feet to knot-seconds. At or past the point it is the end speed itself.
+    /// </summary>
+    /// <param name="distanceFt">Distance still to run before the point, feet; at or below zero gives the end speed.</param>
+    /// <param name="endSpeedKts">The speed to arrive at, knots.</param>
+    /// <param name="decelKtPerSec">The braking rate, knots per second.</param>
+    /// <returns>The highest speed that still arrives at <paramref name="endSpeedKts"/>, knots.</returns>
+    private static double BrakeCurveKts(double distanceFt, double endSpeedKts, double decelKtPerSec) =>
+        Math.Sqrt((endSpeedKts * endSpeedKts) + (2.0 * decelKtPerSec * Math.Max(0.0, distanceFt) / FtPerSecPerKt));
 
     /// <summary>
     /// Finishes a restore from a snapshot written before tug moves existed, now that the live pose is known:
@@ -559,8 +807,8 @@ public sealed class PushbackPhase : Phase
 
         _progress = TugMoveProgress.Begin(pose, Move);
         _lastPosition = pose.Position;
-        _simulatedPath = null;
-        _pathFromHere = null;
+        _movePathCache.Invalidate();
+        _runPathCache.Invalidate();
         if (Move.Shape is TugMoveShape.Straight or TugMoveShape.TurnTo)
         {
             _plannedEnd = TugKinematics.Simulate(pose, [Move], type, TugMovePlanner.StepFt).End.Position;
@@ -629,6 +877,7 @@ public sealed class PushbackPhase : Phase
             DwellBefore = Move.DwellBefore,
             StartsAtStand = StartsAtStand,
             ContinuesIntoNextMove = ContinuesIntoNextMove,
+            ContinuesStandPushOff = ContinuesStandPushOff,
             PlannedEndLatitude = PlannedEnd.Lat,
             PlannedEndLongitude = PlannedEnd.Lon,
             AmendmentGoalKind = Amendment?.GoalKind,
@@ -681,6 +930,7 @@ public sealed class PushbackPhase : Phase
             PlannedEnd = new LatLon(dto.PlannedEndLatitude, dto.PlannedEndLongitude),
             StartsAtStand = dto.StartsAtStand,
             ContinuesIntoNextMove = dto.ContinuesIntoNextMove,
+            ContinuesStandPushOff = dto.ContinuesStandPushOff,
             Amendment = AmendmentFromSnapshot(dto),
         };
         phase._progress = new TugMoveProgress(
@@ -727,12 +977,14 @@ public sealed class PushbackPhase : Phase
         bool owesClearance = (target is null) && (dto.LegacyTargetHeading is null);
         var (move, plannedEnd) = target is { } point ? LegacyTargetedMove(dto, point) : (LegacyUntargetedMove(dto.LegacyTargetHeading), start);
 
-        // A pre-tug-move snapshot carries a single pushback, never a chain, so it always ends at a standstill.
+        // A pre-tug-move snapshot carries a single pushback, never a chain, so it always ends at a standstill and
+        // nothing was ever flown through from a push-off.
         var phase = new PushbackPhase
         {
             Move = move,
             PlannedEnd = plannedEnd,
             ContinuesIntoNextMove = false,
+            ContinuesStandPushOff = false,
         };
         phase._progressPending = true;
         phase._pendingPushedFrom = owesClearance ? start : null;

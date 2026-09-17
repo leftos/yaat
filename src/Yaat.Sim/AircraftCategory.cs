@@ -788,6 +788,29 @@ public static class CategoryPerformance
     }
 
     /// <summary>
+    /// How fast a tug picks up speed (knots/sec), all categories: 0.3 kt/s, about seventeen seconds from rest to
+    /// <see cref="PushbackSpeed"/>. A judgement call, not a citation: AC 00-65A §11.17 says tow vehicle operators
+    /// "should not start and stop suddenly" and gives no figure, so the rate is chosen to be visibly gentler than
+    /// the aircraft's own breakaway taxi acceleration.
+    /// </summary>
+    public static double TugAccelRate(AircraftCategory cat)
+    {
+        _ = cat;
+        return 0.3;
+    }
+
+    /// <summary>
+    /// How hard a tug brakes (knots/sec, positive), all categories: 1.0 kt/s. A judgement call, not a citation:
+    /// AC 00-65A §11.17 asks only that towing not "start and stop suddenly". 1 kt/s is ≈0.05 g, well inside any towbar
+    /// rig's load limits, and takes <see cref="PushbackSpeed"/> down to rest in five seconds.
+    /// </summary>
+    public static double TugDecelRate(AircraftCategory cat)
+    {
+        _ = cat;
+        return 1.0;
+    }
+
+    /// <summary>
     /// Distance (nm) for a simple pushback (no taxiway/heading target). Floors
     /// at the prior 0.015 nm (~91 ft) baseline so small aircraft are unaffected;
     /// scales up to ~1× aircraft length for jets so the tail clears the gate

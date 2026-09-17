@@ -260,6 +260,7 @@ public class HeldReleaseServiceTests
                     Move = TugMove.Straight(PushbackLegKind.Push, 100.0),
                     PlannedEnd = new LatLon(37.6, -122.4),
                     ContinuesIntoNextMove = false,
+                    ContinuesStandPushOff = false,
                 }
             )
         );

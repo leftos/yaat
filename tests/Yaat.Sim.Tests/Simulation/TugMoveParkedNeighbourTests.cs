@@ -36,6 +36,30 @@ public class TugMoveParkedNeighbourTests(ITestOutputHelper output)
     /// <summary>How far apart the outlines of the abeam pair start, feet: inside the wingtip buffer, clear of contact.</summary>
     private const double StartingGapFt = 15.0;
 
+    /// <summary>
+    /// How much more than the towbar braking rate (<see cref="CategoryPerformance.TugDecelRate"/>) one second's fall in
+    /// ground speed may measure, knots. The limit is re-measured every quarter second against a path sampled about a
+    /// foot apart, so a second's fall lands a little either side of the rate; this is that sampling, not slack in the
+    /// rate itself.
+    /// </summary>
+    private const double BrakingToleranceKt = 0.05;
+
+    /// <summary>
+    /// The crawl a tow is down to as it comes to rest, knots: a second that <em>ends</em> at or below this and starts at
+    /// or below twice it is the tow stopping, not a braking event, and is not judged against the towbar rate.
+    ///
+    /// <para>The detector's outline limit is a √ curve that ends at zero, hard-clamped onto the speed four times a
+    /// second, with the mover running each quarter second at the value that quarter second opened with. The tow
+    /// therefore reaches the crawl part-way through a second, and that straddling second sheds up to about 1.2 kt —
+    /// 0.057 g against the towbar rate's 0.052 g. A second that falls from the commanded 5 kt is still judged: only one
+    /// that both ends on the crawl and starts within twice it is the stop.</para>
+    ///
+    /// <para><c>PushbackMoveBoundaryTests</c> excepts the end of a move under the same name; its tow is already at
+    /// <see cref="PushbackPhase.FinalApproachKts"/> when the last second opens, because a move's own stop is a target
+    /// speed physics approaches at the towbar rate rather than a clamp.</para>
+    /// </summary>
+    private const double CrawlBeforeStopKts = 1.5;
+
     private (SimulationEngine Engine, AirportGroundLayout Layout)? Build(string airport)
     {
         TestVnasData.EnsureInitialized();
@@ -111,15 +135,19 @@ public class TugMoveParkedNeighbourTests(ITestOutputHelper output)
             Move = move,
             PlannedEnd = end,
             ContinuesIntoNextMove = false,
+            ContinuesStandPushOff = false,
         };
     }
 
     /// <summary>What a run of a tug move next to a parked aircraft did.</summary>
-    private sealed record Run(int CompletedSecond, int LongestHoldSeconds, double ClosestFt, double ClosestWithTugFt);
+    private sealed record Run(int CompletedSecond, int LongestHoldSeconds, double ClosestFt, double ClosestWithTugFt, double LargestSpeedDropKt);
 
     /// <summary>
     /// Ticks until the mover's tug moves are all done or <see cref="BudgetSeconds"/> pass, tracking the longest run of
-    /// seconds at a zero speed limit and the closest the two outlines came.
+    /// seconds at a zero speed limit, the closest the two outlines came, and the largest fall in ground speed between
+    /// two consecutive seconds (a tug brakes at <see cref="CategoryPerformance.TugDecelRate"/>; it never drops the
+    /// aircraft's speed in one step). A second that ends at or below <see cref="CrawlBeforeStopKts"/> having started
+    /// within twice it is the tow stopping, not braking, and is left out of that figure.
     /// </summary>
     private Run TickPast(SimulationEngine engine, AircraftState mover, AircraftState parked, bool pulled)
     {
@@ -127,14 +155,23 @@ public class TugMoveParkedNeighbourTests(ITestOutputHelper output)
         int longestHold = 0;
         double closestFt = GroundOutline.ClearanceBetween(mover, aTowedNoseFirst: false, parked);
         double closestWithTugFt = GroundOutline.ClearanceBetween(mover, aTowedNoseFirst: pulled, parked);
+        double previousSpeedKts = mover.GroundSpeed;
+        double largestDropKt = 0.0;
         for (int t = 1; t <= BudgetSeconds; t++)
         {
             engine.TickOneSecond();
             closestFt = Math.Min(closestFt, GroundOutline.ClearanceBetween(mover, aTowedNoseFirst: false, parked));
             closestWithTugFt = Math.Min(closestWithTugFt, GroundOutline.ClearanceBetween(mover, aTowedNoseFirst: pulled, parked));
+            bool comingToRest = (mover.GroundSpeed <= CrawlBeforeStopKts) && (previousSpeedKts <= (2.0 * CrawlBeforeStopKts));
+            if (!comingToRest)
+            {
+                largestDropKt = Math.Max(largestDropKt, previousSpeedKts - mover.GroundSpeed);
+            }
+
+            previousSpeedKts = mover.GroundSpeed;
             if (mover.Phases?.CurrentPhase is not PushbackPhase)
             {
-                return new Run(t, longestHold, closestFt, closestWithTugFt);
+                return new Run(t, longestHold, closestFt, closestWithTugFt, largestDropKt);
             }
 
             bool held = mover.Ground.SpeedLimit is <= 0.0;
@@ -142,8 +179,14 @@ public class TugMoveParkedNeighbourTests(ITestOutputHelper output)
             longestHold = Math.Max(longestHold, holdSeconds);
         }
 
-        return new Run(-1, longestHold, closestFt, closestWithTugFt);
+        return new Run(-1, longestHold, closestFt, closestWithTugFt, largestDropKt);
     }
+
+    /// <summary>
+    /// The most a second's fall in ground speed may measure for a tug move braking for a parked neighbour, knots: the
+    /// towbar braking rate plus <see cref="BrakingToleranceKt"/> of sampling.
+    /// </summary>
+    private static double MaxSpeedDropKt => CategoryPerformance.TugDecelRate(AircraftCategory.Jet) + BrakingToleranceKt;
 
     private void Report(string scenario, AircraftState mover, AircraftState parked, Run run)
     {
@@ -152,6 +195,7 @@ public class TugMoveParkedNeighbourTests(ITestOutputHelper output)
             $"{scenario}: completed at t={run.CompletedSecond}s, longest hold {run.LongestHoldSeconds}s, closest outline {run.ClosestFt:F1} ft "
                 + $"({run.ClosestWithTugFt:F1} ft counting a tug), phase={mover.Phases?.CurrentPhase?.Name ?? "none"}, "
                 + $"limit={mover.Ground.SpeedLimit?.ToString("F1") ?? "none"}, gs={mover.GroundSpeed:F2}kt, "
+                + $"largest fall {run.LargestSpeedDropKt:F2}kt in a second, "
                 + $"yield={mover.Ground.AutoYieldTarget ?? "-"}, now {nowFt:F1} ft apart"
         );
     }
@@ -224,6 +268,11 @@ public class TugMoveParkedNeighbourTests(ITestOutputHelper output)
         output.WriteLine($"closest over the run {run.ClosestWithTugFt:F1} ft; at rest the outlines are {finalGapFt:F1} ft apart");
         Assert.True(run.ClosestWithTugFt >= MinStopGapFt, $"the pusher's outline came within {run.ClosestWithTugFt:F1} ft of the parked aircraft's");
         Assert.True(finalGapFt >= MinStopGapFt, $"the pusher came to rest {finalGapFt:F1} ft from the parked aircraft");
+        Assert.True(
+            run.LargestSpeedDropKt <= MaxSpeedDropKt,
+            $"the push lost {run.LargestSpeedDropKt:F2} kt in one second braking for the parked aircraft, past the towbar rate "
+                + $"({MaxSpeedDropKt:F2} kt/s)"
+        );
     }
 
     /// <summary>
@@ -295,6 +344,11 @@ public class TugMoveParkedNeighbourTests(ITestOutputHelper output)
             $"the pulled aircraft's outline came within {run.ClosestWithTugFt:F1} ft of the parked aircraft's"
         );
         Assert.True(finalGapFt >= MinStopGapFt, $"the tow came to rest {finalGapFt:F1} ft from the parked aircraft");
+        Assert.True(
+            run.LargestSpeedDropKt <= MaxSpeedDropKt,
+            $"the pull lost {run.LargestSpeedDropKt:F2} kt in one second braking for the parked aircraft, past the towbar rate "
+                + $"({MaxSpeedDropKt:F2} kt/s)"
+        );
     }
 
     /// <summary>

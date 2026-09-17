@@ -2259,20 +2259,33 @@ public static class GroundCommandHandler
     /// Move 0 of a plan that started parked is the stand push-off, the only one that carries the amendment. A move
     /// the plan follows with another that does not dwell is flown through at speed
     /// (<see cref="PushbackPhase.ContinuesIntoNextMove"/>); the last move, and one the plan reverses after, stop.
+    ///
+    /// <para>Off a stand, every move up to the plan's first reversal is leg 1 of the push off it
+    /// (<see cref="PushbackPhase.ContinuesStandPushOff"/>), which is what carries the push's ramp priority past the
+    /// push-off; the reversal itself and everything behind it is a repositioning tow with no priority. A re-plan that
+    /// keeps the running push-off (<paramref name="firstMove"/> of 1) still passes <paramref name="fromStand"/>, so
+    /// its moves are judged the same way.</para>
     /// </summary>
     private static IEnumerable<Phase> TugMovePhases(TugPlan plan, bool fromStand, bool parksAtEnd, TugAmendment? amendment, int firstMove)
     {
+        bool inFirstLeg = fromStand;
         for (int i = firstMove; i < plan.Moves.Count; i++)
         {
             var trace = plan.Moves[i];
             bool pushOff = fromStand && (i == 0);
             bool continues = (i + 1 < plan.Moves.Count) && !plan.Moves[i + 1].Move.DwellBefore;
+            if (trace.Move.DwellBefore)
+            {
+                inFirstLeg = false;
+            }
+
             yield return new PushbackPhase
             {
                 Move = trace.Move,
                 PlannedEnd = trace.End.Position,
                 StartsAtStand = pushOff,
                 ContinuesIntoNextMove = continues,
+                ContinuesStandPushOff = inFirstLeg && (i > 0),
                 Amendment = pushOff ? amendment : null,
             };
         }

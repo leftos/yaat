@@ -28,6 +28,9 @@ public sealed class AircraftGroundOpsDto
     /// <summary>Taxiway name of the intersection this aircraft is departing from (e.g. "E"), empty for a full-length departure or when not in a line.</summary>
     public string RunwayQueueIntersection { get; init; } = "";
     public double? PushbackTrueHeadingDeg { get; init; }
+
+    /// <summary>The direction from the nose gear out along the towbar to the tug, degrees true; null when no tug is attached.</summary>
+    public double? TowbarTrueHeadingDeg { get; init; }
     public required bool HasAnnouncedReady { get; init; }
     public bool InitialCallupDecisionProcessed { get; init; }
     public bool IsScriptedDeparture { get; init; }

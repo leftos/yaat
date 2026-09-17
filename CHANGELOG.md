@@ -12,6 +12,7 @@
 - A tug move that would put the aircraft on a runway, across a runway holding position, or along a taxiway it was not sent to is refused, naming the leg and the pavement.
 - A `PUSH` or `PUSHM` for an aircraft already standing with its outline against a parked neighbour's is refused naming both aircraft.
 - A `PUSHM` given to an aircraft already under tow replaces the rest of its move.
+- The ground view draws the tow tug on its towbar ahead of the nose while an aircraft is pushed or towed, swinging with the nose-gear steering.
 
 ### Changed
 - Every pushback and tug move now rolls the way a tug moves an aircraft: it turns only while moving on the type's turn radius, never pivots in place or slides sideways, and pauses about 5 s at each reversal.
@@ -23,6 +24,12 @@
 - A pushback past an aircraft parked at the next gate is judged by sweeping both aircraft's outlines along the rest of the move instead of by a two-half-wingspan rule, so a gate push whose neighbour sits beside its tail is no longer held (issue #222).
 - A tow that would run into a parked aircraft stops where the two outlines would meet, tug included, and shows the parked aircraft as what it waits for.
 - The pulls of a tug move run at 5 kt, the same as its pushes.
+- Every push and tug move now picks up speed at 0.3 kt/s and brakes at 1 kt/s, the pace of a tug on a towbar, instead of the aircraft's own taxi rates (a stand push-off takes about 17 s to reach 5 kt).
+- A tug eases off before a turn inside a move and eases onto its 1 kt crawl over the last 20 ft before a stop, rather than dropping onto either speed at the boundary.
+- `HOLD` during a push or tug move brakes the aircraft to a stop over about 5 s instead of freezing it in place.
+- A tow closing on a parked aircraft brakes at the towbar rate to its stop instead of halting from 5 kt in one instant, and the parked aircraft shows as what it waits for from the moment braking starts.
+- A tow now sees a parked aircraft that a later leg of the same continuous move would run into, and starts braking one stopping distance before it rather than at the leg boundary.
+- Taxiing traffic gives way only to the first leg of a push off a stand; a tow that has already reversed once (the second leg of a `PUSHM`, the push half of a three-point turn) yields to taxiing traffic like any other ramp mover instead of holding it for the length of the alley.
 - A recording made before the spot-pushback change replays its spot pushback as a tug move too; the old phase that rotated the aircraft in place at 5°/s is gone.
 - The ERAM `VP` keyboard amends an existing VFR flight plan instead of rejecting every plan with `DUP NEW ID`.
 - ERAM `VP` refuses another sector's track with `NOT YOUR TRACK`, like the other flight-data edits.

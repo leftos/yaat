@@ -2,6 +2,7 @@
 using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Data.Faa;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Phases.Tower;
@@ -125,6 +126,7 @@ public class GroundPhaseTests
                 .Simulate(new TugPose(aircraft.Position, aircraft.TrueHeading.Degrees), [move], aircraft.AircraftType, 1.0)
                 .End.Position,
             ContinuesIntoNextMove = false,
+            ContinuesStandPushOff = false,
         };
 
     private static (PushbackPhase Phase, PhaseContext Ctx) StartPush(AircraftState aircraft, TugMove move)
@@ -137,8 +139,67 @@ public class GroundPhaseTests
         return (phase, ctx);
     }
 
-    /// <summary>One engine-order second: what the aircraft moved, how far the nose turned, and how far the push heading is off the nose's reciprocal (null on a pull).</summary>
-    private readonly record struct PushTick(double MovedFt, double NoseTurnDeg, double? PushGapDeg);
+    /// <summary>
+    /// A started move off no stand, with the leg-1 flag set as given: a move flown through from the stand push-off, or
+    /// one the plan reversed into.
+    /// </summary>
+    private static (PushbackPhase Phase, PhaseContext Ctx) StartMoveOffTheStand(AircraftState aircraft, TugMove move, bool continuesStandPushOff)
+    {
+        var phase = new PushbackPhase
+        {
+            Move = move,
+            PlannedEnd = TugKinematics
+                .Simulate(new TugPose(aircraft.Position, aircraft.TrueHeading.Degrees), [move], aircraft.AircraftType, 1.0)
+                .End.Position,
+            ContinuesIntoNextMove = false,
+            ContinuesStandPushOff = continuesStandPushOff,
+        };
+        aircraft.Phases = new PhaseList();
+        aircraft.Phases.Add(phase);
+        var ctx = MakeContext(aircraft);
+        aircraft.Phases.Start(ctx);
+        return (phase, ctx);
+    }
+
+    /// <summary>
+    /// A started move off no stand with the flow-through flag set as given: one the plan follows with another move, or
+    /// one that ends at a standstill.
+    /// </summary>
+    private static (PushbackPhase Phase, PhaseContext Ctx) StartMoveContinuing(AircraftState aircraft, TugMove move, bool continuesIntoNextMove)
+    {
+        var phase = new PushbackPhase
+        {
+            Move = move,
+            PlannedEnd = TugKinematics
+                .Simulate(new TugPose(aircraft.Position, aircraft.TrueHeading.Degrees), [move], aircraft.AircraftType, 1.0)
+                .End.Position,
+            ContinuesIntoNextMove = continuesIntoNextMove,
+            ContinuesStandPushOff = false,
+        };
+        aircraft.Phases = new PhaseList();
+        aircraft.Phases.Add(phase);
+        var ctx = MakeContext(aircraft);
+        aircraft.Phases.Start(ctx);
+        return (phase, ctx);
+    }
+
+    /// <summary>The type's FAA wheelbase, the bicycle model's axle spacing; every type these tests tow carries one.</summary>
+    private static double WheelbaseFt(string aircraftType) => FaaAircraftDatabase.Get(aircraftType)!.WheelbaseFt!.Value;
+
+    /// <summary>
+    /// The ticks whose step steered the direction of travel at the full rate the radius allows — the steady part of a
+    /// turn, where the nose gear sits at atan(L / R). Leaves out the accelerating steps (which move farther than the
+    /// step they were steered for) and the rate-limited last one.
+    /// </summary>
+    private static List<PushTick> FullRateTurns(List<PushTick> ticks, double radiusFt) =>
+        ticks.Where(t => (t.MovedFt > 0.1) && (t.NoseTurnDeg >= (0.98 * (t.MovedFt / radiusFt) * (180.0 / Math.PI)))).ToList();
+
+    /// <summary>
+    /// One engine-order second: what the aircraft moved, how far the nose turned, how far the push heading is off the
+    /// nose's reciprocal (null on a pull), and where the towbar points relative to the nose — signed, positive to the
+    /// right, null when no tug is attached.
+    /// </summary>
+    private readonly record struct PushTick(double MovedFt, double NoseTurnDeg, double? PushGapDeg, double? TowbarOffsetDeg);
 
     /// <summary>Ticks the phase then physics, one second at a time, until the phase completes or the budget runs out.</summary>
     private static (bool Completed, List<PushTick> Ticks) RunPush(AircraftState aircraft, PushbackPhase phase, PhaseContext ctx, int maxTicks)
@@ -155,7 +216,10 @@ public class GroundPhaseTests
 
             FlightPhysics.Update(aircraft, 1.0);
             double? gap = aircraft.Ground.PushbackTrueHeading is { } push ? push.ToReciprocal().AbsAngleTo(aircraft.TrueHeading) : null;
-            ticks.Add(new PushTick(GeoMath.DistanceNm(from, aircraft.Position) * GeoMath.FeetPerNm, nose.AbsAngleTo(aircraft.TrueHeading), gap));
+            double? towbar = aircraft.Ground.TowbarTrueHeading is { } bar ? aircraft.TrueHeading.SignedAngleTo(bar) : null;
+            ticks.Add(
+                new PushTick(GeoMath.DistanceNm(from, aircraft.Position) * GeoMath.FeetPerNm, nose.AbsAngleTo(aircraft.TrueHeading), gap, towbar)
+            );
         }
 
         return (false, ticks);
@@ -239,9 +303,18 @@ public class GroundPhaseTests
         phase.OnTick(ctx);
         Assert.True(aircraft.GroundSpeed > 0);
 
-        // Hold and tick again
+        // Hold and tick again: the tug brakes the tow at the towbar rate rather than freezing it where it stands,
+        // so the aircraft is still rolling the instant the hold lands and comes to rest over the seconds after.
         aircraft.Ground.Hold = HoldDirective.HoldPosition;
         phase.OnTick(ctx);
+        Assert.True(aircraft.GroundSpeed > 0, "the hold stopped the tug dead instead of braking it to a stop");
+
+        for (int i = 0; i < 5; i++)
+        {
+            FlightPhysics.Update(aircraft, 1.0);
+            phase.OnTick(ctx);
+        }
+
         Assert.Equal(0, aircraft.GroundSpeed);
     }
 
@@ -258,9 +331,14 @@ public class GroundPhaseTests
         // Let physics accelerate once
         FlightPhysics.Update(aircraft, 1.0);
 
-        // Hold
+        // Hold, and let the tow brake to rest at the towbar rate
         aircraft.Ground.Hold = HoldDirective.HoldPosition;
-        phase.OnTick(ctx);
+        for (int i = 0; i < 5; i++)
+        {
+            phase.OnTick(ctx);
+            FlightPhysics.Update(aircraft, 1.0);
+        }
+
         Assert.Equal(0, aircraft.GroundSpeed);
 
         // Resume — phase OnTick reasserts TargetSpeed automatically
@@ -272,6 +350,42 @@ public class GroundPhaseTests
         }
 
         Assert.True(aircraft.GroundSpeed > 0);
+    }
+
+    [Fact]
+    public void PushbackPhase_HeldOverTheEndOfTheMove_StillCompletes()
+    {
+        // A hold that lands inside the braking distance still brakes the tow over the last feet of the move, and
+        // those feet belong to the move: once the distance is covered the move is over, and the phase has to hand
+        // over instead of sitting on a finished move until RES lifts the hold.
+        var aircraft = MakeGroundAircraft(heading: 0);
+        var move = TugMove.Straight(PushbackLegKind.Push, TugMovePlanner.SimplePushbackFt(aircraft.AircraftType));
+        var (phase, ctx) = StartPush(aircraft, move);
+
+        var start = aircraft.Position;
+        double movedFt = 0;
+        bool completedEarly = false;
+        for (int i = 0; (i < 120) && (movedFt < move.StraightDistanceFt) && !completedEarly; i++)
+        {
+            completedEarly = phase.OnTick(ctx);
+            FlightPhysics.Update(aircraft, 1.0);
+            movedFt = GeoMath.DistanceNm(start, aircraft.Position) * GeoMath.FeetPerNm;
+        }
+
+        Assert.False(completedEarly, "the move completed before the hold could land on its last step");
+        Assert.True(movedFt >= move.StraightDistanceFt, $"the push stopped {move.StraightDistanceFt - movedFt:F1} ft short of its end");
+
+        // The hold lands on the step that carried the tow through the planned end.
+        aircraft.Ground.Hold = HoldDirective.HoldPosition;
+        bool completed = false;
+        for (int i = 0; (i < 10) && !completed; i++)
+        {
+            completed = phase.OnTick(ctx);
+            FlightPhysics.Update(aircraft, 1.0);
+        }
+
+        Assert.True(completed, "a hold over the end of the move left the finished push running until RES");
+        Assert.Equal(0, aircraft.GroundSpeed);
     }
 
     // --- FIX 3: Hold-short → taxi resume ---
@@ -657,6 +771,43 @@ public class GroundPhaseTests
         Assert.Null(aircraft.Targets.TargetTrueHeading);
     }
 
+    // --- Pushback publishes the towbar rates and takes them away again ---
+
+    /// <summary>
+    /// A tug move is integrated at the towbar rates, not the aircraft's own: the phase publishes
+    /// <see cref="CategoryPerformance.TugAccelRate"/> and <see cref="CategoryPerformance.TugDecelRate"/> as it
+    /// starts, and hands the aircraft back on its category rates however the move ends — the tug is gone, and
+    /// whatever taxis next accelerates and brakes on its own terms.
+    /// </summary>
+    [Fact]
+    public void PushbackPhase_PublishesTowbarRates_AndClearsThemOnEveryEnd()
+    {
+        double accel = CategoryPerformance.TugAccelRate(AircraftCategory.Jet);
+        double decel = CategoryPerformance.TugDecelRate(AircraftCategory.Jet);
+
+        var completing = MakeGroundAircraft();
+        var (completingPhase, completingCtx) = StartPush(completing, TugMove.Straight(PushbackLegKind.Push, 50.0));
+
+        Assert.Equal(accel, completingCtx.Targets.DesiredAccelRate!.Value, 1e-9);
+        Assert.Equal(decel, completingCtx.Targets.DesiredDecelRate!.Value, 1e-9);
+
+        completingPhase.OnEnd(completingCtx, PhaseStatus.Completed);
+
+        Assert.Null(completingCtx.Targets.DesiredAccelRate);
+        Assert.Null(completingCtx.Targets.DesiredDecelRate);
+
+        var skipping = MakeGroundAircraft();
+        var (skippingPhase, skippingCtx) = StartPush(skipping, TugMove.Straight(PushbackLegKind.Push, 50.0));
+
+        Assert.Equal(accel, skippingCtx.Targets.DesiredAccelRate!.Value, 1e-9);
+        Assert.Equal(decel, skippingCtx.Targets.DesiredDecelRate!.Value, 1e-9);
+
+        skippingPhase.OnEnd(skippingCtx, PhaseStatus.Skipped);
+
+        Assert.Null(skippingCtx.Targets.DesiredAccelRate);
+        Assert.Null(skippingCtx.Targets.DesiredDecelRate);
+    }
+
     // --- Tug moves: curvature-limited steering ---
 
     /// <summary>
@@ -676,6 +827,107 @@ public class GroundPhaseTests
         Assert.All(run.Ticks, t => AssertWithinCurvature(t, radiusFt));
         Assert.All(run.Ticks, t => Assert.True(t.PushGapDeg is <= 0.01, $"push heading {t.PushGapDeg:F2}° off the nose's reciprocal"));
         Assert.True(new TrueHeading(90).AbsAngleTo(aircraft.TrueHeading) <= 0.5, $"ended with the nose on {aircraft.TrueHeading.Degrees:F1}°");
+    }
+
+    /// <summary>
+    /// Pins the tug's pose on a move that steers nothing: a straight push never turns the direction of travel, so the
+    /// nose gear stays straight and the towbar lies along the fuselage axis for the whole move.
+    /// </summary>
+    [Fact]
+    public void PushbackPhase_StraightPush_KeepsTheTowbarOnTheNoseAxis()
+    {
+        var aircraft = MakeGroundAircraft(heading: 90);
+        var (phase, ctx) = StartPush(aircraft, TugMove.Straight(PushbackLegKind.Push, 50.0));
+
+        var run = RunPush(aircraft, phase, ctx, 300);
+
+        Assert.True(run.Completed, "the straight push never completed");
+        Assert.All(
+            run.Ticks,
+            t => Assert.True((t.TowbarOffsetDeg is { } offset) && (Math.Abs(offset) < 0.5), $"the towbar sat {t.TowbarOffsetDeg:F2}° off the nose")
+        );
+    }
+
+    /// <summary>
+    /// Pins which side the tug is on when a push turns: pushing while the nose yaws right, the nose gear's velocity in
+    /// the fuselage frame is (−v, ωL), so the wheel line — and the towbar out along it — sits atan(ωL / v) = atan(L / R)
+    /// to the <em>left</em> of the axis, the opposite side from the yaw.
+    /// </summary>
+    [Fact]
+    public void PushbackPhase_PushTurningRight_PutsTheTowbarLeftOfTheNose()
+    {
+        var aircraft = MakeGroundAircraft(heading: 0);
+        var (phase, ctx) = StartPush(aircraft, TugMove.TurnTo(PushbackLegKind.Push, 90));
+        double radiusFt = TugKinematics.TurnRadiusFt(aircraft.AircraftType, tight: false);
+        double expectedDeg = Math.Atan(WheelbaseFt(aircraft.AircraftType) / radiusFt) * (180.0 / Math.PI);
+
+        var run = RunPush(aircraft, phase, ctx, 300);
+        var steering = FullRateTurns(run.Ticks, radiusFt);
+
+        Assert.True(run.Completed, "the turn never completed");
+        Assert.True(steering.Count >= 5, $"only {steering.Count} steps steered at the full rate, so the towbar angle proved nothing");
+        Assert.All(steering, t => Assert.Equal(-expectedDeg, t.TowbarOffsetDeg!.Value, 3.0));
+    }
+
+    /// <summary>
+    /// Pins the other kind: pulling and turning right the nose gear is steered right, so the tug sits ahead and to the
+    /// <em>right</em> of the nose by that same atan(L / R).
+    /// </summary>
+    [Fact]
+    public void PushbackPhase_PullTurningRight_PutsTheTowbarRightOfTheNose()
+    {
+        var aircraft = MakeGroundAircraft(heading: 0);
+        var (phase, ctx) = StartPush(aircraft, TugMove.TurnTo(PushbackLegKind.Pull, 90));
+        double radiusFt = TugKinematics.TurnRadiusFt(aircraft.AircraftType, tight: false);
+        double expectedDeg = Math.Atan(WheelbaseFt(aircraft.AircraftType) / radiusFt) * (180.0 / Math.PI);
+
+        var run = RunPush(aircraft, phase, ctx, 300);
+        var steering = FullRateTurns(run.Ticks, radiusFt);
+
+        Assert.True(run.Completed, "the turn never completed");
+        Assert.True(steering.Count >= 5, $"only {steering.Count} steps steered at the full rate, so the towbar angle proved nothing");
+        Assert.All(steering, t => Assert.Equal(expectedDeg, t.TowbarOffsetDeg!.Value, 3.0));
+    }
+
+    /// <summary>Pins: the move starts with the towbar on the fuselage axis, and a tug taken off the move lets go of it.</summary>
+    [Fact]
+    public void PushbackPhase_OnStart_AttachesTheTowbar_AndASkippedMoveDetachesIt()
+    {
+        var aircraft = MakeGroundAircraft(heading: 90);
+        var (phase, ctx) = StartPush(aircraft, TugMove.Straight(PushbackLegKind.Push, 50.0));
+
+        Assert.NotNull(aircraft.Ground.TowbarTrueHeading);
+        Assert.Equal(90.0, aircraft.Ground.TowbarTrueHeading!.Value.Degrees, 9);
+
+        phase.OnEnd(ctx, PhaseStatus.Skipped);
+
+        Assert.Null(aircraft.Ground.TowbarTrueHeading);
+    }
+
+    /// <summary>
+    /// Pins the boundary: a move that completes into the next one leaves the towbar standing, so a continuous tow does
+    /// not snap the tug straight at the boundary; one that completes at a standstill is the end of the tow and lets go.
+    /// </summary>
+    [Fact]
+    public void PushbackPhase_CompletedMove_KeepsTheTowbarOnlyWhenItFlowsIntoTheNext()
+    {
+        var continuing = MakeGroundAircraft(heading: 90);
+        var (continuingPhase, continuingCtx) = StartMoveContinuing(
+            continuing,
+            TugMove.Straight(PushbackLegKind.Push, 50.0),
+            continuesIntoNextMove: true
+        );
+
+        continuingPhase.OnEnd(continuingCtx, PhaseStatus.Completed);
+
+        Assert.NotNull(continuing.Ground.TowbarTrueHeading);
+
+        var stopping = MakeGroundAircraft(heading: 90);
+        var (stoppingPhase, stoppingCtx) = StartMoveContinuing(stopping, TugMove.Straight(PushbackLegKind.Push, 50.0), continuesIntoNextMove: false);
+
+        stoppingPhase.OnEnd(stoppingCtx, PhaseStatus.Completed);
+
+        Assert.Null(stopping.Ground.TowbarTrueHeading);
     }
 
     /// <summary>Pins: a straight move completes only once it has covered its distance, and overshoots it by under a step.</summary>
@@ -933,11 +1185,18 @@ public class GroundPhaseTests
         FlightPhysics.Update(aircraft, 1.0);
         phase.OnTick(ctx);
 
-        // Hold
+        // Hold: the target goes to zero at once, and physics brakes the tow onto it at the towbar rate
         aircraft.Ground.Hold = HoldDirective.HoldPosition;
         phase.OnTick(ctx);
 
         Assert.Equal(0, ctx.Targets.TargetSpeed);
+
+        for (int i = 0; i < 5; i++)
+        {
+            FlightPhysics.Update(aircraft, 1.0);
+            phase.OnTick(ctx);
+        }
+
         Assert.Equal(0, aircraft.GroundSpeed);
     }
 
@@ -1010,10 +1269,11 @@ public class GroundPhaseTests
 
     /// <summary>
     /// Pins: the stand push-off of a single-goal push can be amended while it runs and not once it has completed;
-    /// it is on the stand until it has moved half a fuselage; and it reports its planned end until it completes.
+    /// it has no ramp priority until it has moved half a fuselage off the stand; and it reports its planned end
+    /// until it completes.
     /// </summary>
     [Fact]
-    public void PushbackPhase_StandPushOff_AmendableAndOnTheStandUntilItHasMoved()
+    public void PushbackPhase_StandPushOff_AmendableAndNoRampPriorityUntilItHasMoved()
     {
         var aircraft = MakeGroundAircraft(heading: 0);
         var standPose = new TugPose(aircraft.Position, 0);
@@ -1024,6 +1284,7 @@ public class GroundPhaseTests
             PlannedEnd = TugKinematics.Simulate(standPose, [move], aircraft.AircraftType, 1.0).End.Position,
             StartsAtStand = true,
             ContinuesIntoNextMove = false,
+            ContinuesStandPushOff = false,
             Amendment = TugAmendment.For(TugGoal.Facing(90), standPose),
         };
         aircraft.Phases = new PhaseList();
@@ -1032,27 +1293,44 @@ public class GroundPhaseTests
         aircraft.Phases.Start(ctx);
 
         Assert.True(phase.CanAmend(aircraft));
-        Assert.False(phase.HasLeftTheStand(aircraft));
+        Assert.False(phase.HasRampPriority(aircraft));
         Assert.True(phase.TryGetPushLegEnd(aircraft, out var end));
         Assert.Equal(phase.PlannedEnd, end);
 
         var run = RunPush(aircraft, phase, ctx, 300);
 
         Assert.True(run.Completed);
-        Assert.True(phase.HasLeftTheStand(aircraft), "a 100 ft push-off left a B738 on its stand");
+        Assert.True(phase.HasRampPriority(aircraft), "a 100 ft push-off left a B738 on its stand");
         Assert.False(phase.CanAmend(aircraft), "a completed push-off was still amendable");
         Assert.False(phase.TryGetPushLegEnd(aircraft, out _), "a completed move still reported an end");
     }
 
-    /// <summary>Pins: a move with no amendment is never amendable, and a move that is not the push-off has left the stand.</summary>
+    /// <summary>
+    /// Pins: a move with no amendment is never amendable, and a move flown through from the stand push-off with no
+    /// reversal between keeps the push-off's ramp priority — it is still leg 1 of the push off the stand.
+    /// </summary>
     [Fact]
-    public void PushbackPhase_LaterMove_NotAmendableAndOffTheStand()
+    public void PushbackPhase_MoveContinuingThePushOff_NotAmendableAndKeepsRampPriority()
     {
         var aircraft = MakeGroundAircraft(heading: 0);
-        var (phase, _) = StartPush(aircraft, TugMove.TurnTo(PushbackLegKind.Push, 90));
+        var (phase, _) = StartMoveOffTheStand(aircraft, TugMove.TurnTo(PushbackLegKind.Push, 90), continuesStandPushOff: true);
 
         Assert.False(phase.CanAmend(aircraft));
-        Assert.True(phase.HasLeftTheStand(aircraft));
+        Assert.True(phase.HasRampPriority(aircraft), "a move flown through from the push-off lost the push's ramp priority");
+    }
+
+    /// <summary>
+    /// Pins: a move the plan reversed into — the second leg of a tug move, or the push half of a three-point turn —
+    /// is a repositioning tow, so it has no ramp priority and yields to taxiing traffic like anything else.
+    /// </summary>
+    [Fact]
+    public void PushbackPhase_MoveAfterAReversal_HasNoRampPriority()
+    {
+        var aircraft = MakeGroundAircraft(heading: 0);
+        var (phase, _) = StartMoveOffTheStand(aircraft, TugMove.TurnTo(PushbackLegKind.Push, 90), continuesStandPushOff: false);
+
+        Assert.False(phase.CanAmend(aircraft));
+        Assert.False(phase.HasRampPriority(aircraft), "a move after a reversal claimed the push-off's ramp priority");
     }
 
     // -------------------------------------------------------------------------

@@ -460,6 +460,13 @@ public sealed class PushbackPhaseDto : PhaseDto
     /// the behaviour those snapshots were recorded with.
     /// </summary>
     public bool ContinuesIntoNextMove { get; init; }
+
+    /// <summary>
+    /// The move is flown through from the stand push-off with no reversal between, so it keeps the push's ramp priority
+    /// in the conflict detector. Absent on a snapshot written before the priority was narrowed to leg 1, which restores
+    /// false — only the push-off itself then keeps its priority, through <see cref="StartsAtStand"/>.
+    /// </summary>
+    public bool ContinuesStandPushOff { get; init; }
     public double PlannedEndLatitude { get; init; }
     public double PlannedEndLongitude { get; init; }
 

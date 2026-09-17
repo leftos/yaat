@@ -175,6 +175,13 @@ public class AircraftGroundOps
     public TrueHeading? PushbackTrueHeading { get; set; }
 
     /// <summary>
+    /// The direction from the nose gear out along the towbar to the tug, degrees true — the tug's pose for anything
+    /// that draws it. Null when no tug is attached. Set by <c>PushbackPhase</c> from the nose-gear steer angle the
+    /// step it just flew implies, so on a straight tow it lies along the fuselage axis and in a turn it leans off it.
+    /// </summary>
+    public TrueHeading? TowbarTrueHeading { get; set; }
+
+    /// <summary>
     /// Set by AtParkingPhase after the spawn check-in line has been emitted once.
     /// Prevents the ready-to-taxi readback from spamming the terminal every tick the
     /// aircraft sits at the gate. Snapshot-serialized so replays produce identical pilot output.
@@ -283,6 +290,7 @@ public class AircraftGroundOps
             RunwayQueueRunway = RunwayQueueRunway,
             RunwayQueueIntersection = RunwayQueueIntersection,
             PushbackTrueHeadingDeg = PushbackTrueHeading?.Degrees,
+            TowbarTrueHeadingDeg = TowbarTrueHeading?.Degrees,
             HasAnnouncedReady = HasAnnouncedReady,
             InitialCallupDecisionProcessed = InitialCallupDecisionProcessed,
             IsScriptedDeparture = IsScriptedDeparture,
@@ -320,6 +328,7 @@ public class AircraftGroundOps
             RunwayQueueRunway = dto.RunwayQueueRunway,
             RunwayQueueIntersection = dto.RunwayQueueIntersection,
             PushbackTrueHeading = dto.PushbackTrueHeadingDeg.HasValue ? new TrueHeading(dto.PushbackTrueHeadingDeg.Value) : null,
+            TowbarTrueHeading = dto.TowbarTrueHeadingDeg.HasValue ? new TrueHeading(dto.TowbarTrueHeadingDeg.Value) : null,
             HasAnnouncedReady = dto.HasAnnouncedReady,
             InitialCallupDecisionProcessed = dto.InitialCallupDecisionProcessed,
             IsScriptedDeparture = dto.IsScriptedDeparture,

@@ -80,6 +80,13 @@ the aircraft's position via `Heading.ToMagnetic(MagneticDeclination.GetDeclinati
 `ToDisplayString()` (3-digit zero-padded, north = `360`, never `000`) — use it for every UI/readback heading instead of
 hand-rolling `:F0`/`:D3` on `.Degrees`.
 
+**`TowbarTrueHeadingDeg` (true, nullable) is the tug's pose.** Present only while a `PushbackPhase` drives the aircraft:
+the true heading from the nose gear out along the towbar to the tug, from `ac.Ground.TowbarTrueHeading`
+(`PushbackPhase.SteerTowbar`'s bicycle model, [ground/pushback.md](ground/pushback.md)). Null means no tug is attached.
+It is in `TrainingDtoFingerprint` on purpose — it is the one thing that moves as the tug swings through a turn, and
+without it the client's tug would freeze where the first update left it (`ChangeDetectionTests.TowbarTrueHeading_Change…`).
+The client keeps it as `AircraftModel.TowbarHeading` and `GroundRenderer.DrawTug` draws from it.
+
 ## Hub method catalog (client → server)
 
 Every row is `ServerConnection` wrapper → the **string literal** passed to `InvokeAsync` → server hub method. The
