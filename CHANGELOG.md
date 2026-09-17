@@ -1,6 +1,12 @@
 # Changelog
 
-## Unreleased
+## v0.13.0-beta [2026/09/17]
+
+### Highlights
+- **Tug moves.** `PUSHM $6A $6B` pushes or pulls an aircraft through two or more ramp points; **Push route…** on the ground view plans one by clicking, with each leg coloured by push or pull.
+- Every pushback rolls the way a tug moves an aircraft: it turns only while moving, pauses at each reversal, starts and brakes at towbar rates, and a tug icon shows on the ground view.
+- Pressing play after rewinding the timeline replays the recording instead of discarding everything past that point.
+- A cleared departure rolls through the runway holding position into its line-up and starts the takeoff roll as it straightens onto the centerline, instead of stopping and re-accelerating.
 
 ### Added
 - Issuing a command during playback asks for confirmation before it ends the replay and discards the rest of the timeline.
@@ -37,7 +43,6 @@
 - The flight-plan editor refuses that amendment with `ILL TRK` when another position owns the track.
 
 ### Fixed
-- A pushback planned as several tug moves holds its speed through the boundary between two moves in the same direction instead of crawling to 1 kt and restarting from a standstill; the tug still stops and dwells before reversing.
 - A taxi clearance whose consecutive taxiways do not meet no longer bridges them through a connector behind the aircraft: the detour ranks candidate connectors by pavement cost plus a reversal charge against the aircraft's heading instead of the bridge's raw length, so SFO `TAXI Y A A1 1R` after `PUSH Y A1` leaves taxilane Y through AY3 ahead of the nose rather than turning around in the alley for AY2.
 - `VP` refuses an existing IFR or VFR-on-top flight plan with `DUP NEW ID` instead of converting it to VFR.
 - Pressing play after rewinding the timeline replays the recording instead of discarding everything past that point; pausing, bookmarking and `SHOWAT` are equally safe.
