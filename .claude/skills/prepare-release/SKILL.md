@@ -390,7 +390,7 @@ Once the user approves:
     longer be amended.
 
     If the release commit is a partial commit of a dirty tree, follow the
-    partial-commit protocol in the `changelog-and-commit-yaat` skill — stash the
+    partial-commit protocol in the `yaat-changelog-and-commit` skill — stash the
     remainder including untracked files, commit with explicit paths, pop, then
     `git show --stat HEAD` to confirm nothing extra landed.
 

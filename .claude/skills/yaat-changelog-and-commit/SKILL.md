@@ -1,5 +1,5 @@
 ---
-name: changelog-and-commit-yaat
+name: yaat-changelog-and-commit
 description: "Use in the yaat / yaat-server repos whenever the user says \"changelog and commit\", \"log it and commit\", \"update the changelog and commit\", \"changelog + commit\", or invokes /changelog-and-commit — this yaat-specific variant replaces the user-level `changelog-and-commit` skill here (one CHANGELOG in yaat, two repos, cross-repo commits). Derives bullets from the currently uncommitted (staged + unstaged) work only. Writes the changelog and commits without further prompts — invoking the skill IS the approval."
 ---
 
@@ -11,7 +11,7 @@ Two-stage skill: produce or update the CHANGELOG entry for the **work the user i
 
 ## YAAT-specific: one CHANGELOG, two repos
 
-This is the yaat-specific variant of the user-level `changelog-and-commit` skill. It carries a distinct name because a personal skill shadows a project skill of the same name, so a same-named copy here would never load; in this repo, invoke `changelog-and-commit-yaat` (the `ship` skill does). Keep the two in step when the generic flow changes.
+This is the yaat-specific variant of the user-level `changelog-and-commit` skill. It carries a distinct name because a personal skill shadows a project skill of the same name, so a same-named copy here would never load; in this repo, invoke `yaat-changelog-and-commit` (the `ship` skill does). Keep the two in step when the generic flow changes.
 
 In the YAAT setup, there is **one** `CHANGELOG.md` and it lives in the main yaat repo (`CHANGELOG.md` at the yaat checkout root). The sibling repo `..\yaat-server\` has **no** CHANGELOG of its own — its user-visible changes are logged in yaat's CHANGELOG too. (Confirm by looking for existing yaat CHANGELOG entries that describe server-only fixes — there are several.)
 

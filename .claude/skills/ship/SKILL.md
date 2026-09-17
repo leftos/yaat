@@ -1,13 +1,13 @@
 ---
 name: ship
-description: "End-to-end release of the current session's work: changelog + commit, land onto `main` in both repos, push, then close the related GitHub issue(s). Trigger when the user says \"ship it\", \"ship this\", \"ship the session\", \"land and push\", \"push and close the issue\", or invokes /ship. Composes /changelog-and-commit-yaat → /merge-session-to-main → push → `gh issue close`. Invoking the skill IS the approval — it pushes to origin/main and closes issues without further prompts."
+description: "End-to-end release of the current session's work: changelog + commit, land onto `main` in both repos, push, then close the related GitHub issue(s). Trigger when the user says \"ship it\", \"ship this\", \"ship the session\", \"land and push\", \"push and close the issue\", or invokes /ship. Composes /yaat-changelog-and-commit → /merge-session-to-main → push → `gh issue close`. Invoking the skill IS the approval — it pushes to origin/main and closes issues without further prompts."
 ---
 
 # Ship
 
 One command to take finished session work all the way out the door:
 
-1. **Changelog + commit** — `/changelog-and-commit-yaat`
+1. **Changelog + commit** — `/yaat-changelog-and-commit`
 2. **Land onto `main`** — `/merge-session-to-main`
 3. **Verify `main`** — build gate when the landing was a real cherry-pick
 4. **Push** both repos to `origin`
@@ -17,7 +17,7 @@ Invoking `/ship` **is** the approval for every step, including `git push` to `or
 
 ## Composition, not duplication
 
-Phases 1 and 2 are the existing skills, invoked with the **Skill** tool (`changelog-and-commit-yaat`, then `merge-session-to-main`). Follow their instructions as written; do not re-derive or paraphrase their logic here. This file only covers what `/ship` adds on top: the sequencing, the tolerance rules for no-op phases, the push, and the issue close.
+Phases 1 and 2 are the existing skills, invoked with the **Skill** tool (`yaat-changelog-and-commit`, then `merge-session-to-main`). Follow their instructions as written; do not re-derive or paraphrase their logic here. This file only covers what `/ship` adds on top: the sequencing, the tolerance rules for no-op phases, the push, and the issue close.
 
 The one place `/ship` **overrides** a sub-skill: `/merge-session-to-main` ends with "Do not push as part of this skill, even if the user said 'merge and push' — confirm separately." `/ship` is that separate confirmation. When that skill reports its final "not pushed" state, continue to Phase 3 rather than stopping.
 
@@ -59,11 +59,11 @@ Then collect issue candidates *now*, while the branch name and pre-landing commi
 
 ## Phase 1: Changelog and commit
 
-Invoke the `changelog-and-commit-yaat` skill. It snapshots the index, drafts bullets from the working-tree diff, writes `CHANGELOG.md`, and commits — per-repo, yaat-server first when the work is cross-repo.
+Invoke the `yaat-changelog-and-commit` skill. It snapshots the index, drafts bullets from the working-tree diff, writes `CHANGELOG.md`, and commits — per-repo, yaat-server first when the work is cross-repo.
 
 **Tolerance rule:** that skill halts with "nothing to commit" when both trees are clean. Under `/ship` that is a **no-op, not a failure** — say `Phase 1: skipped (working trees clean)` and continue to Phase 2. Only a real failure (hook failure, secrets file, dirty state it can't resolve) stops `/ship`.
 
-**Plan reconciliation happens in this phase even when the trees are clean.** `changelog-and-commit-yaat`'s Step 2b ticks the `docs/plans/MAIN.md` items the diff resolves. When Phase 1 is skipped because both trees are clean, run that step yourself over the session's commits (`git log origin/main..HEAD --oneline` in both repos): scan MAIN.md and the active subplan for unchecked items those commits resolve, tick or delete them, and commit the plan as `docs:` before Phase 2. Either way the outcome is one line in Phase 6: `Plan: <n> items closed — …` or `Plan: nothing to reconcile`.
+**Plan reconciliation happens in this phase even when the trees are clean.** `yaat-changelog-and-commit`'s Step 2b ticks the `docs/plans/MAIN.md` items the diff resolves. When Phase 1 is skipped because both trees are clean, run that step yourself over the session's commits (`git log origin/main..HEAD --oneline` in both repos): scan MAIN.md and the active subplan for unchecked items those commits resolve, tick or delete them, and commit the plan as `docs:` before Phase 2. Either way the outcome is one line in Phase 6: `Plan: <n> items closed — …` or `Plan: nothing to reconcile`.
 
 **No-bullet outcome:** that skill's Step 2 gate can decide the diff warrants no changelog entry (planning docs for unbuilt work, internal refactors, test/CI-only diffs) and commit anyway. `/ship` inherits that decision — it is a normal Phase 1 result, not a skipped phase. Report `Phase 1: committed, no changelog bullet (<reason>)` and carry the reason into Phase 6 where the changelog line would go.
 
@@ -245,7 +245,7 @@ server_main="$yaat_main/../yaat-server"
 git -C "$yaat_main"   status -sb | head -1   # "## HEAD (no branch)" -> halt
 git -C "$server_main" status -sb | head -1   # "## HEAD (no branch)" -> halt
 
-# Phase 1 — Skill: changelog-and-commit-yaat   (clean tree → skip, not fail)
+# Phase 1 — Skill: yaat-changelog-and-commit   (clean tree → skip, not fail)
 # Phase 2 — Skill: merge-session-to-main  (on main already → skip; cross-repo sig change → land yaat-server FIRST)
 
 # Phase 3 — gate, only if a real cherry-pick happened (never append | tail or | grep)
