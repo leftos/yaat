@@ -4,7 +4,7 @@
 
 The systematic FAA-coverage audit ran in two prior sessions and produced [`phraseology-coverage-backlog.md`](./phraseology-coverage-backlog.md) — 799 phrasings classified as **Covered / MissingRule / MissingCanonical / OutOfScope** across 7110.65 Chapters 2/3/4/5/6/7/9 and AIM Chapters 4/5/10.
 
-**Your job:** turn the **219 MissingRule entries** into shipped rules. MissingCanonical entries are deferred to product review; you do not touch those (except to surface them at the end). OutOfScope entries are noise — ignore them.
+**Your job:** turn the remaining **176 MissingRule entries** into shipped rules. MissingCanonical entries are deferred to product review; you do not touch those (except to surface them at the end). OutOfScope entries are noise — ignore them.
 
 Each MissingRule entry names a canonical command that already exists in `Yaat.Sim.Commands.CanonicalCommandType` but has no rule in `src/Yaat.Sim/Speech/PhraseologyRules.cs` that produces it from the FAA-cited phrasing. The fix is mechanical: add the literal-token pattern + canonical-output template to `PhraseologyRules.cs`, write a failing test, confirm it passes, run the verbalizer regression check, ship.
 
@@ -48,7 +48,11 @@ For every stage you ship, follow this loop **in order**. The CLAUDE.md project r
 
 Each stage corresponds to a canonical (or tightly-related canonical family) that already exists in the enum and is missing one or more rules. They are roughly ordered by how many backlog entries each closes.
 
+**Start here:** Stages 1–4, 7, 8 and 10 shipped 2026-05-26/27; Stages 5 and 9 shipped in part. The next unshipped work is the rest of **Stage 5** (`JoinAirway`, `JoinRadialInbound`/`Outbound`, `JoinFinalApproachCourse` — no rules produce any of them), then **Stage 6** (`HoldingPattern` full charted-hold form) and the `SafetyAlert` half of **Stage 9**.
+
 ### Stage 1 — `CrossFix` (≈15+ entries closed)
+
+**Done** — 6c9e6b2e. Rules at `PhraseologyRules.cs:172-179` (bare / at-or-above / at-or-below / at-and-maintain / altitude+speed). Speed-only "cross {fix} at {speed}" reclassified MissingCanonical.
 
 The single highest-leverage stage. `CrossFix` appears as MissingRule in 7110.65 §4-3, §4-5, §4-7, §4-8, §5-6, §5-7, §5-9, AIM §4-4, §5-3, §5-4.
 
@@ -65,6 +69,8 @@ The single highest-leverage stage. `CrossFix` appears as MissingRule in 7110.65 
 
 ### Stage 2 — `ClimbVia` / `DescendVia` (≈8-10 entries closed)
 
+**Done** — 07cd653b (bare "climb via SID"), 7bae27e0 (named SID/STAR via `SidStarNameNormalizer`). Rules at `PhraseologyRules.cs:128-151`; named STAR forms emit `JARR {star}`.
+
 7110.65 §4-3, §4-5, §4-7, §5-7, AIM §4-4, §5-2, §5-4, §5-5. Critical for STAR/SID modeling.
 
 **Add to `AltitudeSpeedRules()`:**
@@ -78,15 +84,21 @@ The single highest-leverage stage. `CrossFix` appears as MissingRule in 7110.65 
 
 ### Stage 3 — `ClimbVia` / `DescendVia` EXCEPT modifiers (≈4 entries)
 
+**Done** — 07cd653b, 7bae27e0. "Except maintain {alt}" is a rule (`PhraseologyRules.cs:129, 136`); the "except cross {fix} at or above {alt}" composite relies on the greedy multi-clause matcher and still has no regression test (backlog AIM §5-4 MissingRule).
+
 Depends on Stages 1 + 2. Verify `CommandSchemeParser` supports the compound form via `;`/`,` already; if so, the rule is a multi-clause pattern. If the parser needs work, this becomes blocked-on-canonical.
 
 ### Stage 4 — `ClearedApproach` type-token alternation (≈5 entries)
+
+**Done** — 9d3ca5d1 (`cleared`), b237f312 (`expect`). Localizer / LOC BC / VOR / LDA at `PhraseologyRules.cs:301-308` and `329-332`. GLS remains open: `NavigationDatabase.ResolveApproachId.TryStripTypePrefix` has no "GLS" entry.
 
 7110.65 §4-8, AIM §5-4. Existing rules at `PhraseologyRules.cs:197-209` only enumerate ILS / RNAV. Extend to Localizer, LOC-BC, VOR, GLS, LDA.
 
 **Approach: introduce an internal helper or duplicate-with-type alternation.** Watch out — the canonical output `CAPP ILS{rwy}` encodes the approach type in the canonical. Adding "Localizer" means the canonical needs to be `CAPP LOC{rwy}` and the downstream `CAPP` dispatcher must accept that type tag. Verify in `ApproachCommandHandler` / wherever `CAPP` is parsed back. If it doesn't, surface to product (MissingCanonical extension needed).
 
 ### Stage 5 — `JoinStar`, `JoinAirway`, `JoinRadialInbound/Outbound`, `JoinFinalApproachCourse` (≈8 entries)
+
+**Partly done** — 7bae27e0 shipped `JoinStar` ("(STAR) arrival", "cleared (STAR) arrival", "+ (transition) transition" at `PhraseologyRules.cs:142-151`). `JoinAirway`, `JoinRadialInbound`/`Outbound` and `JoinFinalApproachCourse` still have no rule.
 
 Five canonicals in the enum, no rules. 7110.65 §4-4, §4-7, §5-6, AIM §4-5, §5-4.
 
@@ -108,6 +120,8 @@ Verify `HoldingPattern` canonical's argument shape before deciding the canonical
 
 ### Stage 7 — Tower modifier wedges (≈8 entries)
 
+**Done** — 4dfd2595. No rule was needed: the matcher's no-match advance skips the wedge and the bare CTO/LUAW/CLAND rule fires; the commit pins that with `TowerModifierWedges_Rules`.
+
 7110.65 §3-9, §3-10. The CTO/LUAW/CTL/LAHSO rules don't tolerate adverbial modifiers between the runway and the verb:
 - `runway {rwy} shortened, cleared for takeoff` → `CTO`
 - `runway {rwy} full length, cleared for takeoff` → `CTO`
@@ -121,6 +135,8 @@ Verify `HoldingPattern` canonical's argument shape before deciding the canonical
 
 ### Stage 8 — Taxi/Ground verb synonyms (≈6 entries)
 
+**Done** — d4bbc9a3. `continue taxiing via` / `proceed via` / `across runway` / `behind {callsign}` / `hold for {reason...}` at `PhraseologyRules.cs:803-804, 903, 909, 930`. "Cross runway (number) at (taxiway)" stayed out: `CrossRunwayCommand` carries no taxiway argument.
+
 7110.65 §3-7:
 - `continue taxiing via {path...}` → `TAXI {path}`
 - `proceed via {path...}` → `TAXI {path}`
@@ -130,6 +146,8 @@ Verify `HoldingPattern` canonical's argument shape before deciding the canonical
 - `hold for wake turbulence` / `hold for traffic` → `HOLD` (extend HoldPosition rule line 497 with optional "for {reason...}" tail)
 
 ### Stage 9 — `SafetyAlert` + `WakeAdvisory` (≈4 entries)
+
+**Partly done** — 8198b717 shipped `WakeAdvisory` ("caution wake turbulence" ± traffic tail, `PhraseologyRules.cs:275-276`). `SafetyAlert` still has no rule (low-altitude alert, traffic alert).
 
 Canonicals exist (lines 174-175 in `CanonicalCommandType.cs`), no rules.
 
@@ -142,6 +160,8 @@ These are controller-issued. Confirm in code review whether YAAT's STT pipeline 
 
 ### Stage 10 — Pattern-entry "APPROVED" shorthand (≈2 entries)
 
+**Done** — 2ab38c63. `straight in approved` / `left traffic approved` / `right traffic approved` at `PhraseologyRules.cs:609-611`, all SttOnly.
+
 7110.65 §3-10. Existing `EnterFinal` / `MakeRightTraffic` rules accept "make/enter ..." but not the "(direction) APPROVED" form:
 - `straight in approved` → `EF`
 - `right traffic approved` → `MRT`
@@ -149,16 +169,18 @@ These are controller-issued. Confirm in code review whether YAAT's STT pipeline 
 
 ### Stage 11+ — Remaining single-canonical clusters
 
+**Partly done** — six of these shipped: see the per-item notes below.
+
 Work through the backlog from the top down. Remaining `MissingRule` entries cluster on:
-- `Cruise` canonical (7110.65 §4-5, §6-6, AIM §4-4)
-- `DepartFix` (`depart {fix} heading {hdg}`) (7110.65 §5-6)
-- `LineUpAndWait` / `ClearedForTakeoff` / `ClearedToLand` modifier variants (already covered by Stage 7 to some extent)
+- `Cruise` canonical (7110.65 §4-5, §6-6, AIM §4-4) — **Done**, edc4fdda (`PhraseologyRules.cs:122`)
+- `DepartFix` (`depart {fix} heading {hdg}`) (7110.65 §5-6) — **Done**, c5867dbc (`PhraseologyRules.cs:182`)
+- `LineUpAndWait` / `ClearedForTakeoff` / `ClearedToLand` modifier variants (already covered by Stage 7 to some extent) — **Done** with Stage 7, 4dfd2595
 - `CircleAirport` directional form (`circle (cardinal) of the airport/runway for a (left/right) base/downwind to runway X`)
-- `ExitLeft`/`ExitRight` conditional ("if able, turn left/right ...")
+- `ExitLeft`/`ExitRight` conditional ("if able, turn left/right ...") — **Done**, 26b9d866 + 168c531a (`PhraseologyRules.cs:940-947`)
 - `LowApproach` with altitude restriction (`cleared low approach at or above {alt}`)
-- `ClearedForOption` "option approved" alternate
-- `ExpectApproach` non-ILS/RNAV/visual variants (VOR, PAR, ASR, surveillance, precision) — depends on Stage 4 token-alternation infrastructure
-- `Speed`/`Mach` "until {fix}" trigger (may need parser work)
+- `ClearedForOption` "option approved" alternate — **Done**, c5867dbc (`PhraseologyRules.cs:272`)
+- `ExpectApproach` non-ILS/RNAV/visual variants (VOR, PAR, ASR, surveillance, precision) — depends on Stage 4 token-alternation infrastructure — **Done** for LOC / LOC BC / VOR / LDA, b237f312 (`PhraseologyRules.cs:329-332`); PAR / ASR / surveillance still open
+- `Speed`/`Mach` "until {fix}" trigger (may need parser work) — **Done** for `Speed`, edc4fdda (`PhraseologyRules.cs:117`, expanded by `CommandSchemeParser.ExpandSpeedUntil`); `Mach` until-fix still open
 
 For each, follow the same workflow. Stop after each stage and ask the user.
 

@@ -390,6 +390,8 @@ in `SameRunwaySeparationTracker.Reset` leaks across scenarios.
 
 ## Footguns & pitfalls
 
+- **Departure wake intervals are measured to the start of the takeoff roll** (7110.65 §3-9-7.a, AIM §4-3-10.f/h; `SoloTrainingEvaluator` models it that way). Since the CTO-to-roll change (2026-09-15) a cleared departure reaches the runway about 25 s sooner, so a scenario tuned against the old timing can start failing the wake check where it used to pass. That is the trainer working as intended (§3-9-5 makes the interval a live controller judgement) — check the timing change before triaging such a report as a defect.
+
 - **Findings clear on proof, not on geometry.** Separation/advisory/wake findings do not clear because spacing
   recovered — they clear because the controller issued the matching command (RTIS / SAFAL / CWT / field-in-sight),
   captured by `RecordControllerCommand` into `_advisoryProofs` / `_safetyAlertProofs` / `_wakeAdvisoryProofs` /

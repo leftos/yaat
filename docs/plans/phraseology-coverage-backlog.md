@@ -368,6 +368,9 @@ Every entry uses these four fields in this order. No prose. Keep entries scannab
 - **Phrasing:** "RUNWAY (number), WIND (direction velocity), CLEARED FOR TAKEOFF" (§3-9-10 sub 9, USA/USN/USAF)
   **Canonical:** `ClearedForTakeoff`
   **Notes:** wind-advisory wedge silent skip; bare CTO fires.
+- **Phrasing:** "HOLD FOR WAKE TURBULENCE" (§3-9-6 sub l / §3-9-7 sub a4)
+  **Canonical:** `HoldPosition`
+  **Notes:** "hold for" variant; also at §3-7 and §3-11.
 
 ##### MissingRule
 - **Phrasing:** "CROSS RUNWAY (number), RUNWAY (number) CLEARED FOR TAKEOFF" (§3-9-10 sub 5)
@@ -382,9 +385,6 @@ Every entry uses these four fields in this order. No prose. Keep entries scannab
 - **Phrasing:** "TAXI OFF THE RUNWAY" (§3-9-4 sub 9 / sub 12)
   **Canonical:** `??`
   **Notes:** no canonical for "vacate runway from LUAW"; closest is `ExitTaxiway` but no taxiway named. Defer.
-- **Phrasing:** "HOLD FOR WAKE TURBULENCE" (§3-9-6 sub l / §3-9-7 sub a4)
-  **Canonical:** `HoldPosition`
-  **Notes:** "hold for" variant; also at §3-7 and §3-11.
 - **Phrasing:** "RUNWAY (NUMBER) SHORTENED" — standalone advisory (§3-9-1 sub 10)
   **Canonical:** `??`
   **Notes:** standalone advisory unaccompanied by clearance.
@@ -588,7 +588,7 @@ Every entry uses these four fields in this order. No prose. Keep entries scannab
   **Canonical:** —
   **Notes:** entirely separation procedures (Category I/II/III distance minima for float planes in sea lanes); no PHRASEOLOGY- blocks. Sea-lane operations not in YAAT scope.
 
-**Ch 3 totals:** Covered 54 · MissingRule 25 · MissingCanonical 28 · OutOfScope 50 · Phrasings 157
+**Ch 3 totals:** Covered 55 · MissingRule 24 · MissingCanonical 28 · OutOfScope 50 · Phrasings 157
 
 ### Chapter 4 — IFR (TRACON / approach control)
 
@@ -2380,7 +2380,7 @@ Every entry uses these four fields in this order. No prose. Keep entries scannab
   **Canonical:** —
   **Notes:** no controller→pilot phraseology.
 
-**Ch 9 totals:** Covered 0 · MissingRule 0 · MissingCanonical 20 · OutOfScope 8 · Phrasings 28
+**Ch 9 totals:** Covered 4 · MissingRule 0 · MissingCanonical 17 · OutOfScope 8 · Phrasings 29
 
 ---
 
@@ -2532,6 +2532,9 @@ Every entry uses these four fields in this order. No prose. Keep entries scannab
 - **Phrasing:** §4-3-23 "Cleared for the option"
   **Canonical:** `ClearedForOption`
   **Notes:** `PhraseologyRules.cs:178-179`.
+- **Phrasing:** §4-3-10 Pilot readback of "Hold for wake turbulence"
+  **Canonical:** `??`
+  **Notes:** overlaps `HoldShort` but trigger is wake; also at 7110.65 §3-7, §3-9.
 
 ##### MissingRule
 - **Phrasing:** §4-3-2.1 Pilot tower-arrival check-in (~15 miles out)
@@ -2543,9 +2546,6 @@ Every entry uses these four fields in this order. No prose. Keep entries scannab
 - **Phrasing:** §4-3-10 "Request waiver to 3-minute interval" (wake-turbulence waiver request)
   **Canonical:** `??`
   **Notes:** pilot wake-waiver request.
-- **Phrasing:** §4-3-10 Pilot readback of "Hold for wake turbulence"
-  **Canonical:** `??`
-  **Notes:** overlaps `HoldShort` but trigger is wake; also at 7110.65 §3-7, §3-9.
 - **Phrasing:** §4-3-11 "Unable to LAHSO" / pilot declining LAHSO
   **Canonical:** `??`
   **Notes:** no rule for "unable"/"negative" rejecting LAHSO.
@@ -2623,14 +2623,14 @@ Every entry uses these four fields in this order. No prose. Keep entries scannab
 - **Phrasing:** §4-4-12-f-5 "climb via SID"
   **Canonical:** `ClimbVia`
   **Notes:** `PhraseologyRules.cs:113-114`. Bare + "except maintain {alt}" forms. Also at 7110.65 §4-3, §4-5.
-
-##### MissingRule
 - **Phrasing:** §4-4-3-d-3 "cruise (altitude)"
   **Canonical:** `Cruise`
   **Notes:** canonical exists in enum; no rule. Also at 7110.65 §4-5, §6-6.
 - **Phrasing:** §4-4-12-f-5 "descend via the TYLER One arrival"
   **Canonical:** `DescendVia`
   **Notes:** canonical exists; no rule. Also at 7110.65 §4-5, §4-7.
+
+##### MissingRule
 - **Phrasing:** §4-4-14-b Pilot acceptance of visual separation: "{callsign} in sight, will maintain visual separation"
   **Canonical:** `ReportTrafficInSight` (?)
   **Notes:** pilot-side readback wording diverges from controller-side `report traffic in sight`.
@@ -2720,7 +2720,7 @@ Every entry uses these four fields in this order. No prose. Keep entries scannab
   **Canonical:** —
   **Notes:** workflow/equipment/flight-planning background.
 
-**AIM Ch 4 totals:** Covered 34 · MissingRule 27 · MissingCanonical 21 · OutOfScope 10 · Phrasings 92
+**AIM Ch 4 totals:** Covered 37 · MissingRule 24 · MissingCanonical 21 · OutOfScope 10 · Phrasings 92
 
 ### Chapter 5 — Air Traffic Procedures
 
@@ -2748,11 +2748,11 @@ Every entry uses these four fields in this order. No prose. Keep entries scannab
 - **Phrasing:** §5-2-9 "Cleared Loop Six departure, climb and maintain four thousand" (altitude leg)
   **Canonical:** `ClimbMaintain`
   **Notes:** `PhraseologyRules.cs:73-74`.
-
-##### MissingRule
 - **Phrasing:** §5-2-9 "Climb via SID" / "Climb via the Suzan Two departure" / "Climb via SID except maintain FL180" / "Climb via SID except cross Mkala at or above 7000"
   **Canonical:** `ClimbVia`
   **Notes:** Bare + named-SID forms + "except maintain {alt}" all shipped at `PhraseologyRules.cs:113-118`. "Except cross {fix} at or above {alt}" composite chains via greedy multi-clause matcher (CrossFix shipped). Recurring across §4-3, §4-5, AIM §4-4, AIM §5-5.
+
+##### MissingRule
 - **Phrasing:** §5-2-9 "Cleared (DP name) departure" / "Cleared Loop Six departure" (lateral SID clearance)
   **Canonical:** `??`
   **Notes:** no `ClearedSid`/`ClearedDeparture` canonical.
@@ -2965,6 +2965,9 @@ Every entry uses these four fields in this order. No prose. Keep entries scannab
 - **Phrasing:** §5-5-12 Visual Separation
   **Canonical:** `Follow`
   **Notes:** `PhraseologyRules.cs:220-221`.
+- **Phrasing:** §5-5-14 "Climb via SID" / "Descend via STAR"
+  **Canonical:** `ClimbVia` / `DescendVia`
+  **Notes:** Both shipped (`PhraseologyRules.cs:113-128`) — ClimbVia bare + named via SidStarNameNormalizer (drops SID name), DescendVia named maps to `JARR {star}`. Recurring.
 
 ##### MissingRule
 - **Phrasing:** §5-5-9.C.5.b "comply with speed restrictions"
@@ -2976,9 +2979,6 @@ Every entry uses these four fields in this order. No prose. Keep entries scannab
 - **Phrasing:** §5-5-14 "Fly runway heading" (initial heading after takeoff)
   **Canonical:** `??` (or `FlyPresentHeading`)
   **Notes:** distinct from `FlyPresentHeading`. Also at 7110.65 §4-3, §5-8, §5-10.
-- **Phrasing:** §5-5-14 "Climb via SID" / "Descend via STAR"
-  **Canonical:** `ClimbVia` / `DescendVia`
-  **Notes:** Both shipped (`PhraseologyRules.cs:113-128`) — ClimbVia bare + named via SidStarNameNormalizer (drops SID name), DescendVia named maps to `JARR {star}`. Recurring.
 
 ##### OutOfScope
 - **Phrasing:** §5-5-1, §5-5-2 narrative, §5-5-3, §5-5-5 pilot duties, §5-5-8, §5-5-13, §5-5-15, §5-5-16.
@@ -2992,7 +2992,7 @@ Every entry uses these four fields in this order. No prose. Keep entries scannab
   **Canonical:** —
   **Notes:** regulatory/operational rules and visual-signal communication; emergency/IRROPS-adjacent per audit rules.
 
-**AIM Ch 5 totals:** Covered 25 · MissingRule 28 · MissingCanonical 14 · OutOfScope 6 · Phrasings 73
+**AIM Ch 5 totals:** Covered 27 · MissingRule 26 · MissingCanonical 14 · OutOfScope 6 · Phrasings 73
 
 ### Chapter 10 — Helicopter Operations
 
@@ -3041,42 +3041,42 @@ All 10 chapters audited.
 
 | Bucket | Count |
 |---|---|
-| Covered | 188 |
-| MissingRule | 182 |
-| MissingCanonical | 239 |
+| Covered | 198 |
+| MissingRule | 176 |
+| MissingCanonical | 236 |
 | OutOfScope | 189 |
-| **Total phrasings audited** | **798** |
+| **Total phrasings audited** | **799** |
 
 ### Per-chapter totals
 
 | Chapter | Covered | MissingRule | MissingCanonical | OutOfScope | Phrasings |
 |---|---:|---:|---:|---:|---:|
-| 7110.65 Ch 3 — Tower | 54 | 25 | 28 | 50 | 157 |
+| 7110.65 Ch 3 — Tower | 55 | 24 | 28 | 50 | 157 |
 | 7110.65 Ch 4 — IFR/TRACON | 28 | 18 | 55 | 29 | 130 |
 | 7110.65 Ch 5 — Radar | 32 | 31 | 62 | 37 | 162 |
 | 7110.65 Ch 7 — Visual | 10 | 39 | 14 | 13 | 76 |
 | 7110.65 Ch 2 — General Control | 4 | 13 | 13 | 18 | 48 |
 | 7110.65 Ch 6 — Nonradar | 1 | 1 | 12 | 9 | 23 |
-| 7110.65 Ch 9 — Special Flights | 0 | 0 | 20 | 8 | 28 |
-| AIM Ch 4 — ATC | 34 | 27 | 21 | 10 | 92 |
-| AIM Ch 5 — ATC Procedures | 25 | 28 | 14 | 6 | 73 |
+| 7110.65 Ch 9 — Special Flights | 4 | 0 | 17 | 8 | 29 |
+| AIM Ch 4 — ATC | 37 | 24 | 21 | 10 | 92 |
+| AIM Ch 5 — ATC Procedures | 27 | 26 | 14 | 6 | 73 |
 | AIM Ch 10 — Helicopter Ops | 0 | 0 | 0 | 9 | 9 |
-| **Total** | **188** | **182** | **239** | **189** | **798** |
+| **Total** | **198** | **176** | **236** | **189** | **799** |
 
 ### High-leverage MissingRule clusters (canonicals already exist; just need rule tokens)
 
 Implementation sessions should pull these first — one rule addition per cluster closes many backlog entries:
 
-- ~~**`CrossFix`**~~ — Stage 1 shipped (PhraseologyRules.cs:128-135). Closes 7110.65 §4-5, §4-7, §4-8, §5-7 (alt+speed), §5-9 (compound w/ ClearedApproach), AIM §4-4, AIM §5-3, AIM §5-4. Composite forms with DirectTo/ClimbVia/DescendVia await Stages 2-3. Speed-only "cross {fix} at {speed}" reclassified MissingCanonical (CrossFixCommand.Altitude is non-nullable).
-- ~~**`ClimbVia`**~~ — Stage 2 + named-SID variants shipped (PhraseologyRules.cs:113-118): bare "climb via SID" / "climb via SID except maintain {alt}" plus "climb via the {sid} departure [except maintain {alt}]" (SID name dropped — bare CVIA uses the aircraft's filed SID). Backed by `SidStarNameNormalizer` for fuzzy spoken-name collapse.
-- ~~**`DescendVia`** / **`JoinStar`**~~ — Named STAR forms shipped (PhraseologyRules.cs:120-128): "descend via the {star} arrival [{transition} transition]" and bare "(STAR) arrival" / "cleared (STAR) arrival" / "(STAR) arrival, (transition) transition". All map to `JARR {star} [{transition}]` → JoinStarCommand. Multi-token spoken names ("eagul five") resolve via the new normalizer + PhoneticFixMatcher (Whisper variants like "eagle" still match). Procedure-capture validation post-pass in PhraseologyMapper rejects rule matches whose {star}/{sid} isn't a real procedure in scope.
+- **`CrossFix`** — Stage 1 shipped (PhraseologyRules.cs:128-135). Closes 7110.65 §4-5, §4-7, §4-8, §5-7 (alt+speed), §5-9 (compound w/ ClearedApproach), AIM §4-4, AIM §5-3, AIM §5-4. Composite forms with DirectTo/ClimbVia/DescendVia await Stages 2-3. Speed-only "cross {fix} at {speed}" reclassified MissingCanonical (CrossFixCommand.Altitude is non-nullable).
+- **`ClimbVia`** — Stage 2 + named-SID variants shipped (PhraseologyRules.cs:113-118): bare "climb via SID" / "climb via SID except maintain {alt}" plus "climb via the {sid} departure [except maintain {alt}]" (SID name dropped — bare CVIA uses the aircraft's filed SID). Backed by `SidStarNameNormalizer` for fuzzy spoken-name collapse.
+- **`DescendVia`** / **`JoinStar`** — Named STAR forms shipped (PhraseologyRules.cs:120-128): "descend via the {star} arrival [{transition} transition]" and bare "(STAR) arrival" / "cleared (STAR) arrival" / "(STAR) arrival, (transition) transition". All map to `JARR {star} [{transition}]` → JoinStarCommand. Multi-token spoken names ("eagul five") resolve via the new normalizer + PhoneticFixMatcher (Whisper variants like "eagle" still match). Procedure-capture validation post-pass in PhraseologyMapper rejects rule matches whose {star}/{sid} isn't a real procedure in scope.
 - **`JoinStar`** — 7110.65 §4-7, AIM §5-4. Add `cleared (star) arrival` / `(star) arrival, (transition) transition`.
 - **`JoinAirway`** / **`JoinRadialInbound`** / **`JoinRadialOutbound`** — 7110.65 §4-4, §5-6, AIM §4-5. Add `via (airway)` / `join (airway)` / `via (NAVAID) radial` etc.
 - **`HoldingPattern`** — 7110.65 §4-6, AIM §5-3. Extend beyond bare `hold at {fix}` to full charted-hold form.
-- ~~**`ClearedApproach`** Localizer/VOR/LDA + LOC BC variants~~ — Stage 4 shipped (PhraseologyRules.cs:223-230). GLS variant of §4-8 remains MissingRule pending a `TryStripTypePrefix` "GLS"→'J' addition.
+- **`ClearedApproach`** Localizer/VOR/LDA + LOC BC variants — Stage 4 shipped (PhraseologyRules.cs:223-230). GLS variant of §4-8 remains MissingRule pending a `TryStripTypePrefix` "GLS"→'J' addition.
 - **`Contact`** / **`FrequencyChangeApproved`** — referenced everywhere; canonicals exist, no rules. Out-of-pilot-scope per current index but ubiquitous in FAA docs — may want product decision.
 - **`SafetyAlert`** — 7110.65 §2-1, §5-9, AIM §4-1, §5-4. Add `low altitude alert` / `traffic alert advise you turn...`.
-- ~~**`WakeAdvisory`**~~ — Stage 9 shipped (PhraseologyRules.cs:222-223). Trailing traffic info is captured and dropped.
+- **`WakeAdvisory`** — Stage 9 shipped (PhraseologyRules.cs:222-223). Trailing traffic info is captured and dropped.
 
 ### High-leverage MissingCanonical proposals (need product review)
 

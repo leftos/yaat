@@ -591,6 +591,12 @@ Two wire channels feed it, both defined once in `Yaat.Sim` and carried on the tr
   (`ProcedureTurnPhase`), and open-ended SID coded-leg vectors (`DepartureProcedurePhase.Legs`, dashed, each labeled via
   `CrossingRestrictionLabel`). The client renders them as `ShownShapeEntry` in `RadarViewModel.RefreshShownPaths` → `RadarRenderer.DrawShownShapes`,
   through the same `ShownPaths` plumbing. Only those three phase types are projected; coded-leg endpoints are nominal.
+  - **Published and active restrictions look the same.** The overlay draws a published SID/STAR crossing exactly like a controller-issued
+    `CFIX` one, but under AIM 5-2-9 / 5-4-1 a published crossing binds only under an active "climb via" / "descend via" clearance, AIM
+    5-2-9.10 cancels published SID *altitude* restrictions once ATC assigns an altitude (speed and lateral survive), and an ODP's crossings
+    (AIM 5-2-9.11) can never be cancelled. The overlay cannot read clearance state out of CIFP data, so distinguishing *active* from
+    *latent published* restrictions is open work; so is a racetrack for a hold that exists only as a route fix or as
+    `AirspaceBoundaryHoldPhase` / `VfrHoldPhase` (add cases to `NavRouteOverlayProjector.BuildShapes`).
 
 DME-arc legs with no charted turn direction take the minor (≤180°) arc via `GeoMath.ResolveArcTurnRight`; all three arc expanders
 (`DepartureClearanceHandler`, `ApproachCommandHandler`, `ProcedureLegResolver`) share it, so the overlay and the flown path agree.
