@@ -824,7 +824,7 @@ public partial class MainViewModel
 
             // MVA tint is a user-local display default (unlike room-shared auto-cleared-to-land, which
             // arrives as its own field): a joining RPO seeds it from their own per-position-type default.
-            _studentPositionType = state.StudentPositionType;
+            SetStudentPositionType(state.StudentPositionType);
             foreach (var radar in AllRadarViews)
             {
                 radar.ShowMvaHints = _preferences.GetMvaHintDefault(state.StudentPositionType);

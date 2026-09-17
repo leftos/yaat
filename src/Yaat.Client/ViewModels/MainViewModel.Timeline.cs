@@ -679,7 +679,7 @@ public partial class MainViewModel
             SetDistanceReference(result.PrimaryAirportId);
         }
 
-        _studentPositionType = result.StudentPositionType;
+        SetStudentPositionType(result.StudentPositionType);
         _isAutoClearedToLand = _preferences.GetAutoClearedToLand(_studentPositionType);
         foreach (var radar in AllRadarViews)
         {

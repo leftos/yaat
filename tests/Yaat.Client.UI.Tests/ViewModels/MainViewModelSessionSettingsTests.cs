@@ -152,6 +152,30 @@ public class MainViewModelSessionSettingsTests
         Assert.True(vm.SessionRpoShowPilotSpeech);
     }
 
+    /// <summary>
+    /// The flyout's auto arrival spacing toggle is greyed out for a student who is themselves the approach
+    /// controller: the sim has nobody to do the spacing then. Ground (and every other position, including none at
+    /// all once the scenario is unloaded) leaves it live.
+    /// </summary>
+    [AvaloniaFact]
+    public void AutoArrivalSpacingApplies_IsFalseForAnApproachStudent_AndTrueForGround()
+    {
+        var vm = new MainViewModel(new FakeFilePickerService());
+
+        vm.SetStudentPositionType("APP");
+        Assert.False(vm.SessionAutoArrivalSpacingApplies);
+
+        vm.SetStudentPositionType("CTR");
+        Assert.False(vm.SessionAutoArrivalSpacingApplies);
+
+        vm.SetStudentPositionType("GND");
+        Assert.True(vm.SessionAutoArrivalSpacingApplies);
+
+        vm.SetStudentPositionType("APP");
+        vm.ClearScenarioState();
+        Assert.True(vm.SessionAutoArrivalSpacingApplies);
+    }
+
     [AvaloniaFact]
     public void LiveTrafficAvailable_IsFalseUntilTheServerReportsTheGateOn()
     {

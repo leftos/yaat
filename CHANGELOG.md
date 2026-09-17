@@ -6,10 +6,10 @@
 - The simulated approach controller spaces a scripted arrival from 20 nm out on its expected approach, before the approach clearance fires.
 - Inside 10 nm, with a student on Ground, the simulated tower tells a trailing arrival to reduce to final approach speed, and the instruction holds to touchdown.
 - An aircraft vacating a runway holds taxi speed down a chorded exit and brakes only for the stop; an E175 clears SFO 28R at T in 28 s instead of 39 s.
-- **Auto arrival spacing behind traffic on the runway** is a new Simulation Shortcuts setting, on by default; turn it off to deliver scenario arrivals exactly as scripted.
+- **Auto arrival spacing behind traffic on the runway** is a new Simulation Shortcuts setting per student position (GND and TWR, both on by default); turn it off to deliver scenario arrivals exactly as scripted.
 
 ### Added
-- **Auto arrival spacing behind traffic on the runway** — a Simulation Shortcuts setting and session checkbox, on by default, that switches the simulated approach controller's in-trail spacing of scenario arrivals off so they are delivered exactly as scripted.
+- **Auto arrival spacing behind traffic on the runway** — a Simulation Shortcuts setting, per student position (GND and TWR, both on by default) like auto-cleared-to-land, and a session checkbox, that switch the simulated approach controller's in-trail spacing of scenario arrivals off so they are delivered exactly as scripted. With the student on Approach or Center the student is the approach controller: the spacing does not run and the session checkbox is greyed out.
 
 ### Changed
 - The simulated approach controller now spaces a scripted arrival from 20 nm out on its expected approach, instead of waiting for the approach clearance to fire.

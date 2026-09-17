@@ -504,10 +504,14 @@ All four drain in `TickPrePhysics` (`SimulationEngine.cs:465`) once per sim-seco
     boundary would produce. A ceiling somebody cancelled (`RNS` nulls it) is not re-imposed: the hold returns false when nothing
     is standing. The front-of-stream aircraft keeps a held reduction inside 10 NM for the same reason, where outside it is
     released.
-  - **Setting.** `SimScenarioState.AutoArrivalSpacingOnOccupiedRunway` gates the whole pass; off, the release loop still runs so
-    anything owned is handed back the tick it is switched off. Sim default `false` (pre-setting recordings replay without the
-    pass — the replay E2E tests that assert on it set the flag after `Replay`/`RestoreFromSnapshot`), client preference
-    default on, plumbed like `AutoGoAroundOnOccupiedRunway` (session settings, hub method, `RecordedSettingChange`).
+  - **Setting and student position.** `SimScenarioState.AutoArrivalSpacingOnOccupiedRunway` gates the whole pass, and so does
+    `HasSimulatedApproachController` (`StudentPositionType is not ("APP" or "CTR")` — a student on approach or center *is* the
+    approach controller; null, an RPO-only room, counts as having one); with either false the release loop still runs so anything
+    owned is handed back that tick. Sim default `false` (pre-setting recordings replay without the pass — the replay E2E tests
+    that assert on it set the flag after `Replay`/`RestoreFromSnapshot`), plumbed like `AutoGoAroundOnOccupiedRunway` (session
+    settings, hub method, `RecordedSettingChange`). The client preference is per student position like auto-cleared-to-land —
+    `UserPreferences.GetAutoArrivalSpacingOnOccupiedRunway(positionType)`: GND and TWR each default on, APP/CTR push false —
+    and the session flyout greys the toggle (`MainViewModel.SessionAutoArrivalSpacingApplies`) for an APP or CTR student.
   Speed is still its only actuator; a real TRACON would vector first (§5-7-1.a.1). Aviation-reviewed 2026-09-16 against
   §3-10-3, §3-10-6, §5-5-4, §5-7-1, §5-7-3; the 10 NM tower hand-off and the FAS instruction were prescribed by the user (a
   controller) on 2026-09-17.

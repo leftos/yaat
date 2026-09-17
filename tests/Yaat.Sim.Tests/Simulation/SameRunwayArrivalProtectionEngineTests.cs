@@ -939,9 +939,9 @@ public class SameRunwayArrivalProtectionEngineTests(ITestOutputHelper output)
     }
 
     /// <summary>
-    /// The simulated tower's §5-7-3.f instruction is only available while the student is working a ground position:
-    /// with the student on approach control the local controller is an AI the sim does not speak for either, so a
-    /// conflict that first appears inside the boundary gets nothing.
+    /// With the student on approach control the pass does not run at all (the student is the approach controller),
+    /// so a conflict that first appears inside the tower boundary gets no tower-level instruction either — the
+    /// inside-10 nm mirror of <see cref="ApproachStudent_TheStreamIsNotManaged"/>.
     /// </summary>
     [Fact]
     public void ApproachStudent_InsideTenMiles_GetsNoTowerLevelAdjustment()
@@ -961,6 +961,79 @@ public class SameRunwayArrivalProtectionEngineTests(ITestOutputHelper output)
         Assert.Null(pair.Follower.Targets.SpeedCeiling);
         Assert.Empty(SpacingLines(pair.Follower));
         Assert.False(pair.Follower.Approach.SameRunwayProtectionFasInstructed);
+    }
+
+    /// <summary>
+    /// The pass speaks for the simulated approach controller, which only exists while the student works a position
+    /// below it. A student on APP <em>is</em> the approach controller: spacing the stream for them would be the sim
+    /// doing their job, so the stream walk does not run at all — no ceiling, and nothing said.
+    /// </summary>
+    [Fact]
+    public void ApproachStudent_TheStreamIsNotManaged()
+    {
+        var pair = ConflictingPair(LeaderDistanceNm, FollowerDistanceNm);
+        if (pair is null)
+        {
+            return;
+        }
+
+        pair.Engine.Scenario!.StudentPositionType = "APP";
+
+        pair.Pass();
+        Report(pair, "with the student on the approach position");
+
+        Assert.Null(pair.Follower.Approach.SameRunwayProtectionCeilingKts);
+        Assert.Null(pair.Follower.Targets.SpeedCeiling);
+        Assert.Empty(SpacingLines(pair.Follower));
+    }
+
+    /// <summary>The same for a student on the center position — they own the arrival stream before approach does.</summary>
+    [Fact]
+    public void CenterStudent_TheStreamIsNotManaged()
+    {
+        var pair = ConflictingPair(LeaderDistanceNm, FollowerDistanceNm);
+        if (pair is null)
+        {
+            return;
+        }
+
+        pair.Engine.Scenario!.StudentPositionType = "CTR";
+
+        pair.Pass();
+        Report(pair, "with the student on the center position");
+
+        Assert.Null(pair.Follower.Approach.SameRunwayProtectionCeilingKts);
+        Assert.Null(pair.Follower.Targets.SpeedCeiling);
+        Assert.Empty(SpacingLines(pair.Follower));
+    }
+
+    /// <summary>
+    /// A student moving up to the approach position mid-session (a position change is a recorded action) must get the
+    /// stream back the way switching the setting off gives it back: the release loop runs unconditionally, so the
+    /// ceiling the pass was holding is handed over on the next tick rather than left frozen on the aircraft.
+    /// </summary>
+    [Fact]
+    public void ApproachStudentTakingOver_ReleasesAnEngagedCeiling()
+    {
+        var pair = ConflictingPair(LeaderDistanceNm, FollowerDistanceNm);
+        if (pair is null)
+        {
+            return;
+        }
+
+        pair.Engine.Scenario!.StudentPositionType = "GND";
+
+        pair.Pass();
+        Report(pair, "engaged with the student on the ground position");
+        Assert.NotNull(pair.Follower.Approach.SameRunwayProtectionCeilingKts);
+
+        pair.Engine.Scenario!.StudentPositionType = "APP";
+
+        pair.Pass();
+        Report(pair, "after the student took the approach position");
+
+        Assert.Null(pair.Follower.Approach.SameRunwayProtectionCeilingKts);
+        Assert.Null(pair.Follower.Targets.SpeedCeiling);
     }
 
     private static List<string> SpacingLines(AircraftState aircraft) =>

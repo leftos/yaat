@@ -297,6 +297,7 @@
                                   IsChecked="{Binding SessionAutoRejectTakeoffOnOccupiedRunway}" />
 
                         <CheckBox Content="Auto Arrival Spacing on Occupied Runway"
+                                  IsEnabled="{Binding SessionAutoArrivalSpacingApplies}"
                                   IsChecked="{Binding SessionAutoArrivalSpacingOnOccupiedRunway}" />
 
                         <CheckBox Content="Live Traffic (SWIM)"

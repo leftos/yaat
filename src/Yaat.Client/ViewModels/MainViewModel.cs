@@ -63,6 +63,17 @@ public partial class MainViewModel : ObservableObject
     private string? _studentPositionType;
     private bool _isAutoClearedToLand;
 
+    /// <summary>
+    /// The single write path for <see cref="_studentPositionType"/>: every scenario load, join, rewind and unload
+    /// goes through here so the settings that depend on the position — auto arrival spacing, which has no simulated
+    /// approach controller behind it when the student is the approach controller — stay in step with it.
+    /// </summary>
+    internal void SetStudentPositionType(string? positionType)
+    {
+        _studentPositionType = positionType;
+        SessionAutoArrivalSpacingApplies = positionType is not ("APP" or "CTR");
+    }
+
     public GroundViewModel Ground { get; }
     public RadarViewModel Radar { get; }
 
@@ -232,6 +243,14 @@ public partial class MainViewModel : ObservableObject
 
     [ObservableProperty]
     private bool _sessionAutoArrivalSpacingOnOccupiedRunway;
+
+    /// <summary>
+    /// Whether auto arrival spacing means anything for the student position the room is working: the simulated
+    /// approach controller doing the spacing only exists below approach, so the flyout toggle is greyed out while the
+    /// student is on APP or CTR. True with no scenario loaded.
+    /// </summary>
+    [ObservableProperty]
+    private bool _sessionAutoArrivalSpacingApplies = true;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsLiveTrafficStatusVisible))]
@@ -3951,7 +3970,7 @@ public partial class MainViewModel : ObservableObject
     {
         try
         {
-            await _connection.SetAutoArrivalSpacingOnOccupiedRunwayAsync(_preferences.AutoArrivalSpacingOnOccupiedRunway);
+            await _connection.SetAutoArrivalSpacingOnOccupiedRunwayAsync(_preferences.GetAutoArrivalSpacingOnOccupiedRunway(_studentPositionType));
         }
         catch (Exception ex)
         {

@@ -251,7 +251,8 @@ public sealed class UserPreferences
     public bool AutoPullUpToParallel => _data.AutoPullUpToParallel;
     public bool AutoGoAroundOnOccupiedRunway => _data.AutoGoAroundOnOccupiedRunway;
     public bool AutoRejectTakeoffOnOccupiedRunway => _data.AutoRejectTakeoffOnOccupiedRunway;
-    public bool AutoArrivalSpacingOnOccupiedRunway => _data.AutoArrivalSpacingOnOccupiedRunway;
+    public bool AutoArrivalSpacingOnOccupiedRunwayGnd => _data.AutoArrivalSpacingOnOccupiedRunwayGnd;
+    public bool AutoArrivalSpacingOnOccupiedRunwayTwr => _data.AutoArrivalSpacingOnOccupiedRunwayTwr;
     public bool SoloTrainingMode => _data.SoloTrainingMode;
     public int SoloParkingInitialCallupRatePercent => Math.Clamp(_data.SoloParkingInitialCallupRatePercent, 0, 200);
     public int SoloArrivalGeneratorRatePercent => Math.Clamp(_data.SoloArrivalGeneratorRatePercent, 0, 100);
@@ -271,6 +272,22 @@ public sealed class UserPreferences
             "APP" => AutoClearedToLandApp,
             "CTR" => AutoClearedToLandCtr,
             _ => true,
+        };
+    }
+
+    /// <summary>
+    /// Auto arrival spacing per student position type. The simulated approach controller doing the spacing only
+    /// exists while the student works a position below it, so APP and CTR read false — a student on either is the
+    /// approach controller. An unrecognized type, or none at all (an RPO-only room), reads the tower value.
+    /// </summary>
+    public bool GetAutoArrivalSpacingOnOccupiedRunway(string? positionType)
+    {
+        return positionType?.ToUpperInvariant() switch
+        {
+            "GND" => AutoArrivalSpacingOnOccupiedRunwayGnd,
+            "TWR" => AutoArrivalSpacingOnOccupiedRunwayTwr,
+            "APP" or "CTR" => false,
+            _ => AutoArrivalSpacingOnOccupiedRunwayTwr,
         };
     }
 
@@ -881,7 +898,8 @@ public sealed class UserPreferences
         bool autoPullUpToParallel,
         bool autoGoAroundOnOccupiedRunway,
         bool autoRejectTakeoffOnOccupiedRunway,
-        bool autoArrivalSpacingOnOccupiedRunway
+        bool autoArrivalSpacingOnOccupiedRunwayGnd,
+        bool autoArrivalSpacingOnOccupiedRunwayTwr
     )
     {
         _data.AutoClearedToLandGnd = autoClearedToLandGnd;
@@ -892,7 +910,8 @@ public sealed class UserPreferences
         _data.AutoPullUpToParallel = autoPullUpToParallel;
         _data.AutoGoAroundOnOccupiedRunway = autoGoAroundOnOccupiedRunway;
         _data.AutoRejectTakeoffOnOccupiedRunway = autoRejectTakeoffOnOccupiedRunway;
-        _data.AutoArrivalSpacingOnOccupiedRunway = autoArrivalSpacingOnOccupiedRunway;
+        _data.AutoArrivalSpacingOnOccupiedRunwayGnd = autoArrivalSpacingOnOccupiedRunwayGnd;
+        _data.AutoArrivalSpacingOnOccupiedRunwayTwr = autoArrivalSpacingOnOccupiedRunwayTwr;
         Save();
     }
 
@@ -1769,7 +1788,8 @@ public sealed class UserPreferences
             AutoPullUpToParallel = GetFieldOr(obj, "autoPullUpToParallel", true),
             AutoGoAroundOnOccupiedRunway = GetFieldOr(obj, "autoGoAroundOnOccupiedRunway", true),
             AutoRejectTakeoffOnOccupiedRunway = GetFieldOr(obj, "autoRejectTakeoffOnOccupiedRunway", true),
-            AutoArrivalSpacingOnOccupiedRunway = GetFieldOr(obj, "autoArrivalSpacingOnOccupiedRunway", true),
+            AutoArrivalSpacingOnOccupiedRunwayGnd = GetFieldOr(obj, "autoArrivalSpacingOnOccupiedRunwayGnd", true),
+            AutoArrivalSpacingOnOccupiedRunwayTwr = GetFieldOr(obj, "autoArrivalSpacingOnOccupiedRunwayTwr", true),
             SoloTrainingMode = GetFieldOr(obj, "soloTrainingMode", false),
             SoloParkingInitialCallupRatePercent = GetFieldOr(obj, "soloParkingInitialCallupRatePercent", 100),
             SoloArrivalGeneratorRatePercent = GetFieldOr(obj, "soloArrivalGeneratorRatePercent", 100),
@@ -2057,7 +2077,8 @@ public sealed class UserPreferences
         public bool AutoPullUpToParallel { get; set; } = true;
         public bool AutoGoAroundOnOccupiedRunway { get; set; } = true;
         public bool AutoRejectTakeoffOnOccupiedRunway { get; set; } = true;
-        public bool AutoArrivalSpacingOnOccupiedRunway { get; set; } = true;
+        public bool AutoArrivalSpacingOnOccupiedRunwayGnd { get; set; } = true;
+        public bool AutoArrivalSpacingOnOccupiedRunwayTwr { get; set; } = true;
 
         // How far the VFR-only command set opens up for IFR aircraft: "None", "EnterFinalOnly",
         // or "All". Stored as a string (like RendererMode) so enum reordering can't misassign it.

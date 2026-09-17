@@ -451,7 +451,7 @@ public partial class MainViewModel
 
     private void ApplyScenarioResult(LoadScenarioResultDto result)
     {
-        _studentPositionType = result.StudentPositionType;
+        SetStudentPositionType(result.StudentPositionType);
         _isAutoClearedToLand = _preferences.GetAutoClearedToLand(_studentPositionType);
         foreach (var radar in AllRadarViews)
         {
@@ -493,7 +493,7 @@ public partial class MainViewModel
         {
             _log.LogInformation("Scenario loaded by another client: '{Name}' ({Id})", dto.ScenarioName, dto.ScenarioId);
 
-            _studentPositionType = dto.StudentPositionType;
+            SetStudentPositionType(dto.StudentPositionType);
             _isAutoClearedToLand = _preferences.GetAutoClearedToLand(_studentPositionType);
             foreach (var radar in AllRadarViews)
             {
@@ -681,7 +681,7 @@ public partial class MainViewModel
         ActiveScenarioName = null;
         ActiveScenarioPrimaryAirportId = null;
         IsLiveSession = false;
-        _studentPositionType = null;
+        SetStudentPositionType(null);
         _isAutoClearedToLand = false;
         foreach (var radar in AllRadarViews)
         {

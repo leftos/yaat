@@ -407,6 +407,13 @@ public sealed class SimScenarioState
     /// </summary>
     public bool IsStudentGroundPosition => StudentPositionType == "GND";
 
+    /// <summary>
+    /// True when the simulated approach controller exists: the student works a position below it (GND, TWR) or the
+    /// room has no student position at all (<see cref="StudentPositionType"/> null — an RPO-only room). A student on
+    /// APP or CTR <em>is</em> the approach controller, so the same-runway arrival protection does not run.
+    /// </summary>
+    public bool HasSimulatedApproachController => StudentPositionType is not ("APP" or "CTR");
+
     public Dictionary<string, CoordinationChannel> CoordinationChannels { get; set; } = [];
 
     public ScenarioSnapshotDto ToSnapshot() =>

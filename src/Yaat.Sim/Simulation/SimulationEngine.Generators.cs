@@ -467,9 +467,11 @@ public sealed partial class SimulationEngine
     /// net is unchanged.
     ///
     /// <para>The whole issuing side is gated on
-    /// <see cref="SimScenarioState.AutoArrivalSpacingOnOccupiedRunway"/>: with the setting off the arrival streams are
-    /// not walked at all, and the release loop — which runs either way — hands back every ceiling and latched
-    /// instruction the pass still owns on that same tick.</para>
+    /// <see cref="SimScenarioState.AutoArrivalSpacingOnOccupiedRunway"/> and on
+    /// <see cref="SimScenarioState.HasSimulatedApproachController"/> — the controller this pass speaks for only exists
+    /// while the student works a position below approach, and a student on APP or CTR does this sequencing themselves.
+    /// With either gate closed the arrival streams are not walked at all, and the release loop — which runs either
+    /// way — hands back every ceiling and latched instruction the pass still owns on that same tick.</para>
     /// </summary>
     private void ApplySameRunwayArrivalProtection()
     {
@@ -481,9 +483,11 @@ public sealed partial class SimulationEngine
 
         var protectedThisTick = new HashSet<string>(StringComparer.Ordinal);
 
-        // The stream walk is the whole of the issuing side, so the setting gates it here; the release loop below
-        // stays unconditional, which is what hands every owned speed back on the tick the setting is switched off.
-        if (scenario.AutoArrivalSpacingOnOccupiedRunway)
+        // The stream walk is the whole of the issuing side, so the setting — and the existence of the simulated
+        // approach controller doing the spacing, which a student on APP or CTR is themselves — gates it here; the
+        // release loop below stays unconditional, which is what hands every owned speed back on the tick the setting
+        // is switched off or the student takes a position that owns the stream.
+        if (scenario.AutoArrivalSpacingOnOccupiedRunway && scenario.HasSimulatedApproachController)
         {
             foreach (var stream in BuildRunwayArrivalStreams())
             {
