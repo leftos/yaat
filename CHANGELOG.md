@@ -1,6 +1,12 @@
 # Changelog
 
-## Unreleased
+## v0.13.1-beta [2026/09/17]
+
+### Highlights
+- The simulated approach controller spaces a scripted arrival from 20 nm out on its expected approach, before the approach clearance fires.
+- Inside 10 nm, a simulated tower tells a trailing arrival to reduce to final approach speed, and the instruction holds to touchdown.
+- An aircraft vacating a runway holds taxi speed down a chorded exit and brakes only for the stop; an E175 clears SFO 28R at T in 28 s instead of 39 s.
+- Fewer trailing arrivals are slowed or sent around behind a leader that will be clear of the runway in time.
 
 ### Changed
 - The simulated approach controller now spaces a scripted arrival from 20 nm out on its expected approach, instead of waiting for the approach clearance to fire.
