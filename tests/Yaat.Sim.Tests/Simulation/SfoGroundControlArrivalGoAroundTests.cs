@@ -9,38 +9,41 @@ namespace Yaat.Sim.Tests.Simulation;
 /// E2E arms over the <c>sfo-gc-arrival-goarounds</c> bundle — a <c>S1-SFO-2 | Ground Control 28/01</c>
 /// session flown from SFO_GND with <c>AutoGoAroundOnOccupiedRunway</c> on. Three
 /// <c>OccupiedRunwayGoAround</c> triggers fired in the recorded run; this class pins which of them the
-/// sim should still produce, and — for the two arrival-behind-arrival cases — that the simulated-TRACON
-/// same-runway protection is running on them and that the go-around it could not prevent is still a
-/// legal one.
+/// sim should still produce, and — for the two arrival-behind-arrival cases — that the simulated TRACON
+/// and the simulated tower between them now deliver the arrival to a landing instead.
 ///
 /// <list type="bullet">
-/// <item><b>WJA1508 (28R)</b> — sent around at t=357 with SKW3398 still rolling out 4,705 ft down the
-/// runway. The protection engages and pushes the go-around out to t≈364.</item>
-/// <item><b>SKW5536 (28L)</b> — the same shape at t=689 behind UAL2627, pushed out to t≈708.</item>
+/// <item><b>WJA1508 (28R)</b> — sent around at t=357 in the recorded run with SKW3398 still rolling out
+/// 4,705 ft down the runway. Spaced from 12 nm out, it now lands.</item>
+/// <item><b>SKW5536 (28L)</b> — the same shape at t=689 behind UAL2627. It now lands too.</item>
 /// <item><b>SKW5416 (28L, control)</b> — sent around at t=1109 because the student issued
 /// <c>CROSS 28L</c> to SWA2644 at t=1092 with SKW5416 1.2 nm from the threshold. That is a legitimate,
 /// student-caused incursion and the go-around must keep firing.</item>
 /// </list>
 ///
-/// <para><b>Why "it lands" is not the criterion.</b> The two arrival arms deliberately do <em>not</em>
-/// assert a landing. This scenario delivers those pairs ~53–57 s in trail against a ~76.6 s required
-/// threshold interval, and once the speed reduction is held to the §5-7-3.c floors there is only ~8 s of
-/// net authority left in the 13→5 nm window the pass may operate in (§5-7-1.b.4 closes it at 5 nm). A
-/// real TRACON opens a gap that size with vectors (§5-7-1.a.1); speed is this pass's only actuator, so it
-/// cannot repair this geometry and hands what is left to the go-around. The residual cause is runway
-/// occupancy — 59–77 s measured here against a real-world ~50 s, dominated by the rollout braking rate —
-/// which is tracked as its own backlog item in <c>docs/plans/MAIN.md</c>. <b>When that rollout-braking
-/// item lands, these two arms should flip to asserting a landing</b> (no go-around, reaches
-/// <c>LandingPhase</c>): they are a deliberate waypoint, not a weakened test.</para>
+/// <para><b>The two levers that close the gap.</b> This scenario delivers those pairs ~53–57 s in trail
+/// against a ~76.6 s required threshold interval, and speed is the only actuator the simulated TRACON
+/// has — so where it may start reducing, and how low it may go, is the whole budget.
+/// (1) <b>Before the approach clearance.</b> WJA1508's preset is
+/// <c>CFIX CEPIN 3000 210; CAPP 28R; AT CEPIN SPD 180 AXMUL</c>: the CAPP waits in the command queue
+/// behind the fix condition and did not fire until t=175, so a pass that waited for a clearance had ~12
+/// nm of the 20→5 nm window left. The pass manages an arrival from
+/// <c>SameRunwayArrivalProtection.PreClearanceRangeNm</c> in on its expected approach alone, and WJA1508
+/// is now spaced from t=141 while it is still flying its route with no phase of its own.
+/// (2) <b>Final approach speed.</b> Inside <c>SameRunwayArrivalProtection.TowerSpeedAuthorityNm</c> the
+/// arrival is on the simulated local controller's frequency and configuring to land, so that controller
+/// may say "reduce to final approach speed" (§5-7-3.f) rather than stopping at the §5-7-3.c.1.b 170-kt
+/// floor — and keeps it through the §5-7-1.b.4 window, which forbids issuing a new adjustment inside 5
+/// nm, not flying one already issued. SKW5536's preset is a bare <c>CAPP 28L</c>, so it is the second
+/// lever alone that moves it.</para>
 ///
-/// <para><b>What each arrival arm pins instead.</b> (1) The protection engaged on the follower at some
-/// point in the window — the regression guard that the pass runs on scenario-scripted arrivals at all,
-/// which is the whole feature. (2) The go-around is legitimate: at the tick the follower enters
-/// <c>GoAroundPhase</c> the leader is demonstrably still on or leaving the runway (§3-10-3.a.1 — the
-/// preceding aircraft must be clear before the succeeding one crosses the threshold), never already
-/// taxiing clear. That is the assertion that catches the vacate projection regressing back toward
-/// fail-open and suppressing a *correct* go-around. (3) The reduction measurably delayed the go-around
-/// past the unprotected recorded second.</para>
+/// <para><b>What each arrival arm pins.</b> (1) The protection engaged on the follower — the regression
+/// guard that the pass runs on scenario-scripted arrivals at all. (2) The simulated tower issued the
+/// final-approach-speed instruction, which is the half of the authority that arrives inside 10 nm.
+/// (3) The follower reaches <c>LandingPhase</c> and never enters a go-around: the delivery is legal under
+/// §3-10-3.a.1 (the preceding aircraft is clear of the runway before the succeeding one crosses the
+/// threshold) without the go-around having to catch it. The control arm below is what keeps this from
+/// being bought by a go-around trigger that has gone fail-open.</para>
 ///
 /// Hybrid replay (docs/e2e-tdd-issue-debugging.md §5b): each arm restores the recorded snapshot at its
 /// own T and steps forward with current code. A full replay from t=0 would re-simulate 1,200 s of
@@ -60,20 +63,18 @@ public class SfoGroundControlArrivalGoAroundTests(ITestOutputHelper output)
     private const string RecordingPath = "TestData/sfo-gc-arrival-goarounds-recording.yaat-bug-report-bundle.zip";
 
     /// <summary>
-    /// Second WJA1508 went around in the recorded, unprotected run (bundle terminal log, t=357). The arm asserts the
-    /// protected run goes around strictly later than this, which is what "the reduction bought real time" means here.
-    /// </summary>
-    private const int RecordedGoAroundSecondWja1508 = 357;
-
-    /// <summary>Second SKW5536 went around in the recorded, unprotected run (bundle terminal log, t=689).</summary>
-    private const int RecordedGoAroundSecondSkw5536 = 689;
-
-    /// <summary>
     /// What one arm watched over its window: every distinct phase the follower passed through, the second it first
-    /// entered <c>GoAroundPhase</c> (null when it never did), the leader's phase at that same second, and whether the
-    /// same-runway protection ever owned a speed ceiling on the follower.
+    /// entered <c>GoAroundPhase</c> (null when it never did), the leader's phase at that same second, whether the
+    /// same-runway protection ever owned a speed ceiling on the follower, and whether the simulated tower ever told
+    /// it to reduce to final approach speed.
     /// </summary>
-    private sealed record ArmTrace(HashSet<string> FollowerPhases, int? GoAroundSecond, string? LeaderPhaseAtGoAround, bool ProtectionEngaged);
+    private sealed record ArmTrace(
+        HashSet<string> FollowerPhases,
+        int? GoAroundSecond,
+        string? LeaderPhaseAtGoAround,
+        bool ProtectionEngaged,
+        bool FasInstructed
+    );
 
     /// <summary>
     /// Restores the snapshot at <paramref name="restoreAt"/>, replays recorded actions second-by-second
@@ -115,6 +116,7 @@ public class SfoGroundControlArrivalGoAroundTests(ITestOutputHelper output)
             int? goAroundSecond = null;
             string? leaderPhaseAtGoAround = null;
             bool protectionEngaged = false;
+            bool fasInstructed = false;
 
             var pre = engine.FindAircraft(callsign);
             if (pre?.Phases?.CurrentPhase is { } startPhase)
@@ -152,6 +154,13 @@ public class SfoGroundControlArrivalGoAroundTests(ITestOutputHelper output)
                     protectionEngaged = true;
                 }
 
+                if (ac.Approach.SameRunwayProtectionFasInstructed && !fasInstructed)
+                {
+                    fasInstructed = true;
+                    string held = ac.Targets.SpeedCeiling?.ToString("F0") ?? "(none)";
+                    output.WriteLine($"t={t}: {callsign} told to reduce to final approach speed, holding {held} kt");
+                }
+
                 if (ac.Phases?.CurrentPhase is not { } phase)
                 {
                     continue;
@@ -173,7 +182,7 @@ public class SfoGroundControlArrivalGoAroundTests(ITestOutputHelper output)
             }
 
             output.WriteLine($"{callsign} phases seen t={restoreAt}..{endAt}: {string.Join(", ", seen.OrderBy(n => n, StringComparer.Ordinal))}");
-            return new ArmTrace(seen, goAroundSecond, leaderPhaseAtGoAround, protectionEngaged);
+            return new ArmTrace(seen, goAroundSecond, leaderPhaseAtGoAround, protectionEngaged, fasInstructed);
         }
     }
 
@@ -187,11 +196,13 @@ public class SfoGroundControlArrivalGoAroundTests(ITestOutputHelper output)
     private static bool HasGoAround(HashSet<string> phases) => phases.Any(n => n.Contains("GoAround", StringComparison.Ordinal));
 
     /// <summary>
-    /// The three things an arrival-behind-arrival arm pins: the protection ran on this follower, the go-around it
-    /// could not prevent was legal (§3-10-3.a.1 — the leader was still on the pavement), and the reduction pushed it
-    /// past the second it fired at in the unprotected recorded run.
+    /// What an arrival-behind-arrival arm pins: both levers ran on this follower — the simulated TRACON took its
+    /// speed, and the simulated tower issued the final-approach-speed instruction inside 10 nm — and the delivery
+    /// that produced is one the follower lands out of, with the go-around never firing. A go-around here is the
+    /// regression: the leader was not clear of the runway in time (§3-10-3.a.1), which is what the spacing exists to
+    /// prevent.
     /// </summary>
-    private static void AssertSpacedAndLegitimate(ArmTrace trace, string follower, string leader, string runway, int recordedGoAroundSecond)
+    private static void AssertSpacedAndLands(ArmTrace trace, string follower, string leader, string runway)
     {
         string seen = string.Join(", ", trace.FollowerPhases.OrderBy(n => n, StringComparer.Ordinal));
 
@@ -202,26 +213,24 @@ public class SfoGroundControlArrivalGoAroundTests(ITestOutputHelper output)
         );
 
         Assert.True(
-            trace.GoAroundSecond is not null,
-            $"{follower} never went around behind {leader} on {runway}. That is better than this arm pins: the "
-                + $"rollout-braking retune (docs/plans/MAIN.md) has evidently landed and runway occupancy now fits "
-                + $"inside the delivered interval. Flip this arm to assert the landing — no go-around, reaches "
-                + $"LandingPhase — and delete the recorded-baseline constant. Phases seen: {seen}."
+            trace.FasInstructed,
+            $"The simulated tower never told {follower} to reduce to final approach speed. Inside "
+                + $"SameRunwayArrivalProtection.TowerSpeedAuthorityNm that instruction is the rest of the authority "
+                + $"this delivery needs (§5-7-3.f); without it the pass is back to the §5-7-3.c.1.b 170-kt floor. "
+                + $"Phases seen: {seen}."
         );
 
         Assert.True(
-            trace.LeaderPhaseAtGoAround is "LandingPhase" or "RunwayExitPhase",
-            $"{follower} went around at t={trace.GoAroundSecond} while {leader} was already in "
-                + $"{trace.LeaderPhaseAtGoAround} — clear of {runway}. A go-around for an aircraft that has vacated is "
-                + $"not a §3-10-3.a.1 trigger; the vacate projection has regressed toward reporting the runway "
-                + $"occupied when it is not."
+            trace.FollowerPhases.Contains("LandingPhase"),
+            $"{follower} never reached LandingPhase behind {leader} on {runway} — the spaced arrival did not land. " + $"Phases seen: {seen}."
         );
 
         Assert.True(
-            trace.GoAroundSecond > recordedGoAroundSecond,
-            $"{follower} went around at t={trace.GoAroundSecond}, no later than the t={recordedGoAroundSecond} of the "
-                + $"unprotected recorded run — the speed reduction bought no time, so the protection is engaging too "
-                + $"late, or its ceiling is a no-op against the scheduled profile."
+            trace.GoAroundSecond is null,
+            $"{follower} went around at t={trace.GoAroundSecond} behind {leader} on {runway} ({leader} was in "
+                + $"{trace.LeaderPhaseAtGoAround}). The two levers used to buy enough of the 20→5 nm window to land "
+                + $"this arrival; something has given that authority back — engaging later, a ceiling that is a no-op "
+                + $"against the scheduled profile, or the instruction being cancelled at the §5-7-1.b.4 window."
         );
     }
 
@@ -230,7 +239,7 @@ public class SfoGroundControlArrivalGoAroundTests(ITestOutputHelper output)
     /// the arm then ticks on to t=470 so the spaced arrival's own outcome, not the deletion, is what is observed.
     /// </summary>
     [Fact]
-    public void WJA1508_IsSpacedAndItsGoAroundStaysLegitimate_28R()
+    public void WJA1508_IsSpacedAndLands_28R()
     {
         var trace = Observe("WJA1508", leaderCallsign: "SKW3398", restoreAt: 125, replayUntil: 410, endAt: 470);
         if (trace is null)
@@ -238,7 +247,7 @@ public class SfoGroundControlArrivalGoAroundTests(ITestOutputHelper output)
             return;
         }
 
-        AssertSpacedAndLegitimate(trace, "WJA1508", "SKW3398", "28R", RecordedGoAroundSecondWja1508);
+        AssertSpacedAndLands(trace, "WJA1508", "SKW3398", "28R");
     }
 
     /// <summary>
@@ -246,7 +255,7 @@ public class SfoGroundControlArrivalGoAroundTests(ITestOutputHelper output)
     /// the arm then ticks on to t=790.
     /// </summary>
     [Fact]
-    public void SKW5536_IsSpacedAndItsGoAroundStaysLegitimate_28L()
+    public void SKW5536_IsSpacedAndLands_28L()
     {
         var trace = Observe("SKW5536", leaderCallsign: "UAL2627", restoreAt: 500, replayUntil: 725, endAt: 790);
         if (trace is null)
@@ -254,7 +263,7 @@ public class SfoGroundControlArrivalGoAroundTests(ITestOutputHelper output)
             return;
         }
 
-        AssertSpacedAndLegitimate(trace, "SKW5536", "UAL2627", "28L", RecordedGoAroundSecondSkw5536);
+        AssertSpacedAndLands(trace, "SKW5536", "UAL2627", "28L");
     }
 
     /// <summary>

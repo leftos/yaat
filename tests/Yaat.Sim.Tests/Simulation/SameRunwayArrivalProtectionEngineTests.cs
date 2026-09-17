@@ -1,6 +1,7 @@
 using Xunit;
 using Yaat.Sim;
 using Yaat.Sim.Commands;
+using Yaat.Sim.Data;
 using Yaat.Sim.LiveTraffic;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Scenarios;
@@ -56,6 +57,36 @@ public class SameRunwayArrivalProtectionEngineTests(ITestOutputHelper output)
     /// <see cref="SameRunwayArrivalProtection.ReleaseHysteresisSeconds"/>.
     /// </summary>
     private const double DeadbandProbeSeconds = 5.0;
+
+    /// <summary>
+    /// Indicated airspeed (kt) an expected-approach arrival is injected at — the speed the motivating bundle's
+    /// scripted <c>CFIX CEPIN 3000 210</c> crossing restriction left its arrival flying while the CAPP waited in the
+    /// queue, and above every §5-7-3.c figure the pass may ask for.
+    /// </summary>
+    private const double ExpectedArrivalSpeedKts = 210.0;
+
+    /// <summary>
+    /// Distances (nm) for the arm that pins the <see cref="SameRunwayArrivalProtection.PreClearanceRangeNm"/>
+    /// boundary: a pair that genuinely conflicts, with the follower just outside the 20-mile membership line, so the
+    /// arm fails for the boundary and not because there was nothing to space.
+    /// </summary>
+    private const double BeyondPreClearanceLeaderDistanceNm = 18.0;
+
+    /// <summary>Follower distance (nm) for that arm — just outside <see cref="SameRunwayArrivalProtection.PreClearanceRangeNm"/>.</summary>
+    private const double BeyondPreClearanceFollowerDistanceNm = 21.0;
+
+    /// <summary>
+    /// Leader distance (nm) for the arms about the simulated tower's own speed instruction: close enough in that the
+    /// follower behind it is inside <see cref="SameRunwayArrivalProtection.TowerSpeedAuthorityNm"/> while the pair
+    /// still conflicts.
+    /// </summary>
+    private const double TowerAuthorityLeaderDistanceNm = 3.0;
+
+    /// <summary>Follower distance (nm) for those arms — inside the 10-mile tower line, outside the §5-7-1.b.4 window.</summary>
+    private const double TowerAuthorityFollowerDistanceNm = 8.0;
+
+    /// <summary>How far below the tower's final approach speed an arm parks a competing ceiling that must not be raised.</summary>
+    private const double LowerCeilingMarginKts = 5.0;
 
     [Fact]
     public void ProtectionReleases_WhenTheConflictClears()
@@ -223,6 +254,11 @@ public class SameRunwayArrivalProtectionEngineTests(ITestOutputHelper output)
     /// §5-7-1.b.4 — no speed adjustment inside the FAF or 5 nm from the runway, whichever is closer. The arm engages
     /// the same pair just outside the window first, so the release that follows is attributable to the window and not
     /// to the conflict having evaporated.
+    ///
+    /// <para>This geometry sits inside <see cref="SameRunwayArrivalProtection.TowerSpeedAuthorityNm"/>, so the arm
+    /// runs with the student on the tower position: what it pins is the §5-7-3.c floor path, which is the only one
+    /// left when the sim may not speak for the local controller. The simulated-tower path holds its instruction
+    /// through the same window — <see cref="FasInstruction_IsNotCancelledAtFiveMiles"/> is the mirror.</para>
     /// </summary>
     [Fact]
     public void NoCeilingIsStamped_OnceTheFollowerIsInsideFiveMilesOnFinal()
@@ -232,6 +268,8 @@ public class SameRunwayArrivalProtectionEngineTests(ITestOutputHelper output)
         {
             return;
         }
+
+        pair.Engine.Scenario!.IsStudentTowerPosition = true;
 
         pair.Pass();
         Report(pair, "engaged outside the §5-7-1.b.4 window");
@@ -332,6 +370,320 @@ public class SameRunwayArrivalProtectionEngineTests(ITestOutputHelper output)
         Assert.Equal(2, lines.Count);
     }
 
+    /// <summary>
+    /// Lever 1 — an arrival known to be inbound to the runway by its <see cref="AircraftApproachState.Expected"/>
+    /// approach is spaced <em>before</em> it is cleared for that approach. This is the scripted
+    /// <c>CFIX … ; CAPP …</c> composition the motivating bundle flew: the CAPP waits in the command queue behind a
+    /// fix condition, so until it fires the aircraft carries no <c>AssignedRunway</c> and runs no approach phase at
+    /// all, and a pass that waited for the clearance had barely any of the 20→5 nm window left to work in. The
+    /// ceiling is still the §5-7-3.c.1.b turbojet figure — being early does not license a lower assignment.
+    /// </summary>
+    [Fact]
+    public void ExpectedApproachFollower_IsSpacedBeforeItsApproachClearance()
+    {
+        var pair = ExpectedApproachPair(LeaderDistanceNm, FollowerDistanceNm);
+        if (pair is null)
+        {
+            output.WriteLine("skipped: scenario, navdata, OAK layout or an approach to runway 30 is unavailable");
+            return;
+        }
+
+        output.WriteLine($"{pair.Follower.Callsign} expects approach {pair.Follower.Approach.Expected}");
+        pair.Pass();
+        Report(pair, "expected-approach follower");
+
+        Assert.NotNull(pair.Follower.Approach.SameRunwayProtectionCeilingKts);
+        Assert.Equal(pair.Follower.Approach.SameRunwayProtectionCeilingKts, pair.Follower.Targets.SpeedCeiling);
+
+        var lines = SpacingLines(pair.Follower);
+        Assert.Single(lines);
+        Assert.Contains("reduce speed to 170", lines[0], StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Membership is being on the final course, not merely carrying the expected approach: an aircraft tracking 90°
+    /// across the landing course is being vectored somewhere else first and its threshold ETA is not a prediction of
+    /// anything. With no phase to read, "on final" is the track test — the same one
+    /// <c>ApproachCommandHandler.IsOnFinal</c> applies to a downwind.
+    /// </summary>
+    [Fact]
+    public void ExpectedApproachFollower_OffTheFinalCourse_IsNotSpaced()
+    {
+        var pair = ExpectedApproachPair(LeaderDistanceNm, FollowerDistanceNm);
+        if (pair is null)
+        {
+            output.WriteLine("skipped: scenario, navdata, OAK layout or an approach to runway 30 is unavailable");
+            return;
+        }
+
+        var across = new TrueHeading((pair.Runway.TrueHeading.Degrees + 90.0) % 360.0);
+        pair.Follower.TrueHeading = across;
+        pair.Follower.TrueTrack = across;
+
+        pair.Pass();
+        Report(pair, "expected-approach follower across the final course");
+
+        Assert.Null(pair.Follower.Approach.SameRunwayProtectionCeilingKts);
+        Assert.Null(pair.Follower.Targets.SpeedCeiling);
+        Assert.Empty(SpacingLines(pair.Follower));
+    }
+
+    /// <summary>
+    /// The pre-clearance stream reaches out to <see cref="SameRunwayArrivalProtection.PreClearanceRangeNm"/> and no
+    /// further — the §5-7-3.c.1.b / §5-7-3.c.2.b 20-mile boundary, beyond which the only speeds this pass could
+    /// assign are the 210/200 figures an arrival at that range is already flying. The pair conflicts, so the arm
+    /// fails for the boundary and not for want of anything to space.
+    /// </summary>
+    [Fact]
+    public void ExpectedApproachFollower_BeyondTwentyMiles_IsNotSpaced()
+    {
+        var pair = ExpectedApproachPair(BeyondPreClearanceLeaderDistanceNm, BeyondPreClearanceFollowerDistanceNm);
+        if (pair is null)
+        {
+            output.WriteLine("skipped: scenario, navdata, OAK layout or an approach to runway 30 is unavailable");
+            return;
+        }
+
+        pair.Pass();
+        Report(pair, "expected-approach follower beyond 20 nm");
+
+        Assert.Null(pair.Follower.Approach.SameRunwayProtectionCeilingKts);
+        Assert.Null(pair.Follower.Targets.SpeedCeiling);
+        Assert.Empty(SpacingLines(pair.Follower));
+    }
+
+    /// <summary>
+    /// Lever 2 — inside <see cref="SameRunwayArrivalProtection.TowerSpeedAuthorityNm"/> the arrival is on the local
+    /// controller's frequency and configuring to land, so the simulated tower may say "reduce to final approach
+    /// speed" (§5-7-3.f, lower speeds when operationally advantageous) instead of stopping at the §5-7-3.c.1.b
+    /// 170-kt floor. The assigned figure is Vapp — Vref plus the wind additive — never bare Vref, and the line
+    /// carries no number, so there is nothing to round to 5-kt increments (§5-7-1.a.7).
+    /// </summary>
+    [Fact]
+    public void InsideTenMiles_TheTowerReducesToFinalApproachSpeed()
+    {
+        var pair = ConflictingPair(TowerAuthorityLeaderDistanceNm, TowerAuthorityFollowerDistanceNm);
+        if (pair is null)
+        {
+            return;
+        }
+
+        pair.Pass();
+        Report(pair, "inside the tower's speed authority");
+
+        var lines = SpacingLines(pair.Follower);
+        output.WriteLine($"lines: {string.Join(" | ", lines)}");
+        Assert.Single(lines);
+        Assert.Contains("reduce to final approach speed", lines[0], StringComparison.Ordinal);
+        Assert.Contains("(in-trail spacing, 30)", lines[0], StringComparison.Ordinal);
+
+        string label = lines[0].Split(' ')[0];
+        Assert.True(
+            (label == "TWR") || (AtcPositionTypeClassifier.Classify(label) == "TWR"),
+            $"the instruction is attributed to '{label}', which is not a local-control position"
+        );
+
+        Assert.True(pair.Follower.Approach.SameRunwayProtectionFasInstructed);
+        Assert.Equal(pair.FinalApproachSpeedKts(), pair.Follower.Targets.SpeedCeiling);
+        Assert.Equal(pair.FinalApproachSpeedKts(), pair.Follower.Approach.SameRunwayProtectionCeilingKts);
+    }
+
+    /// <summary>
+    /// Outside that range the arrival is still the approach controller's and still clean, so the floor stays at the
+    /// §5-7-3.c.1.b figure and no instruction is latched — Vref with the gear and flaps up is a speed the aircraft
+    /// does not have (§5-7-1.a.3.d).
+    /// </summary>
+    [Fact]
+    public void OutsideTenMiles_TheFloorStaysAtTheRegulatoryFigure()
+    {
+        var pair = ConflictingPair(LeaderDistanceNm, FollowerDistanceNm);
+        if (pair is null)
+        {
+            return;
+        }
+
+        pair.Pass();
+        Report(pair, "outside the tower's speed authority");
+
+        var lines = SpacingLines(pair.Follower);
+        Assert.Single(lines);
+        Assert.Contains("reduce speed to 170", lines[0], StringComparison.Ordinal);
+        Assert.False(pair.Follower.Approach.SameRunwayProtectionFasInstructed);
+    }
+
+    /// <summary>
+    /// §5-7-1.b.4 forbids <em>issuing</em> a speed adjustment inside the FAF or 5 nm, not keeping one already issued:
+    /// an aircraft told to fly final approach speed at 8 nm is not told to speed up again at 5. The mirror of
+    /// <see cref="NoCeilingIsStamped_OnceTheFollowerIsInsideFiveMilesOnFinal"/>, which is that same window with the
+    /// §5-7-3.c floor path — the one that is an adjustment the pass would have to re-issue each tick.
+    /// </summary>
+    [Fact]
+    public void FasInstruction_IsNotCancelledAtFiveMiles()
+    {
+        var pair = ConflictingPair(TowerAuthorityLeaderDistanceNm, TowerAuthorityFollowerDistanceNm);
+        if (pair is null)
+        {
+            return;
+        }
+
+        pair.Pass();
+        Assert.True(pair.Follower.Approach.SameRunwayProtectionFasInstructed);
+
+        pair.PlaceFollowerAt(4.0);
+        pair.Pass();
+        Report(pair, "inside the §5-7-1.b.4 window with an instruction already issued");
+
+        Assert.True(pair.Follower.Approach.SameRunwayProtectionFasInstructed);
+        Assert.Equal(pair.FinalApproachSpeedKts(), pair.Follower.Targets.SpeedCeiling);
+    }
+
+    /// <summary>
+    /// Nor is it cancelled because the conflict that prompted it has opened up: the aircraft was told to fly final
+    /// approach speed and is flying it until it lands, goes around, or someone else takes its speed. §5-7-1's
+    /// "terminate speed adjustments when no longer needed" is about the controller's judgement, and taking the
+    /// instruction back the moment the arithmetic tips over is exactly the alternate decrease/increase that same
+    /// paragraph tells a controller to avoid.
+    /// </summary>
+    [Fact]
+    public void FasInstruction_HoldsAfterTheConflictClears()
+    {
+        var pair = ConflictingPair(TowerAuthorityLeaderDistanceNm, TowerAuthorityFollowerDistanceNm);
+        if (pair is null)
+        {
+            return;
+        }
+
+        pair.Pass();
+        Assert.True(pair.Follower.Approach.SameRunwayProtectionFasInstructed);
+
+        pair.PlaceFollowerAt(ClearOfConflictDistanceNm);
+        pair.Pass();
+        Report(pair, "with the conflict long gone");
+
+        Assert.True(pair.Follower.Approach.SameRunwayProtectionFasInstructed);
+        Assert.Equal(pair.FinalApproachSpeedKts(), pair.Follower.Targets.SpeedCeiling);
+    }
+
+    /// <summary>
+    /// The instruction is spoken once even though the ceiling itself is re-stamped every tick. It has to be
+    /// re-stamped: <c>FlightPhysics.AutoCancelSpeedAtFinal</c> nulls
+    /// <see cref="ControlTargets.SpeedCeiling"/> at the §5-7-1.b.4 window and a scripted <c>RNS</c> clears it too, so
+    /// a stamp-once instruction would silently evaporate. A wiped ceiling is therefore re-applied without a second
+    /// terminal line — the controller said it once.
+    /// </summary>
+    [Fact]
+    public void FasInstruction_IsAnnouncedOnce_AcrossACeilingWipe()
+    {
+        var pair = ConflictingPair(TowerAuthorityLeaderDistanceNm, TowerAuthorityFollowerDistanceNm);
+        if (pair is null)
+        {
+            return;
+        }
+
+        pair.Pass();
+        pair.Follower.Targets.SpeedCeiling = null;
+        pair.Pass();
+        pair.Pass();
+        Report(pair, "after a ceiling wipe");
+
+        var lines = pair.Follower.PendingNotifications.Where(n => n.Contains("final approach speed", StringComparison.Ordinal)).ToList();
+        output.WriteLine($"lines: {string.Join(" | ", lines)}");
+        Assert.Single(lines);
+        Assert.Equal(pair.FinalApproachSpeedKts(), pair.Follower.Targets.SpeedCeiling);
+    }
+
+    /// <summary>
+    /// When the student is the one working the tower, the sim does not speak for them: the local controller's
+    /// §5-7-3.f instruction is theirs to give, so the pass stays on the §5-7-3.c floors it may assign as the
+    /// simulated approach controller — and releases at the §5-7-1.b.4 window like any other adjustment.
+    /// </summary>
+    [Fact]
+    public void TowerStudent_KeepsTheApproachFloor()
+    {
+        var pair = ConflictingPair(TowerAuthorityLeaderDistanceNm, TowerAuthorityFollowerDistanceNm);
+        if (pair is null)
+        {
+            return;
+        }
+
+        pair.Engine.Scenario!.IsStudentTowerPosition = true;
+
+        pair.Pass();
+        Report(pair, "with the student on the tower position");
+
+        Assert.False(pair.Follower.Approach.SameRunwayProtectionFasInstructed);
+        var lines = SpacingLines(pair.Follower);
+        Assert.Single(lines);
+        Assert.Contains("reduce speed to 170", lines[0], StringComparison.Ordinal);
+
+        pair.PlaceFollowerAt(4.0);
+        pair.Pass();
+        Report(pair, "student tower, inside the §5-7-1.b.4 window");
+
+        Assert.Null(pair.Follower.Approach.SameRunwayProtectionCeilingKts);
+        Assert.Null(pair.Follower.Targets.SpeedCeiling);
+    }
+
+    /// <summary>
+    /// A human controller's speed assignment ends the instruction as it ends any other engagement (§5-7-4 — a
+    /// controller's assignment is retained until deleted): the aircraft is theirs now, latch included.
+    /// </summary>
+    [Fact]
+    public void ControllerIssuedSpeed_ClearsTheFasInstruction()
+    {
+        var pair = ConflictingPair(TowerAuthorityLeaderDistanceNm, TowerAuthorityFollowerDistanceNm);
+        if (pair is null)
+        {
+            return;
+        }
+
+        pair.Pass();
+        Assert.True(pair.Follower.Approach.SameRunwayProtectionFasInstructed);
+
+        var result = pair.Engine.SendCommand(pair.Follower.Callsign, "SPD 200");
+        Assert.True(result.Success, result.Message);
+
+        pair.Pass();
+        Report(pair, "after an instructor SPD over an instruction");
+
+        Assert.False(pair.Follower.Approach.SameRunwayProtectionFasInstructed);
+        Assert.Null(pair.Follower.Approach.SameRunwayProtectionCeilingKts);
+        Assert.Null(pair.Follower.Targets.SpeedCeiling);
+    }
+
+    /// <summary>
+    /// The instruction lowers a ceiling, it never raises one. A generator arrival is already being held by the
+    /// in-trail spacing manager, whose floor is bare Vref — below the Vapp a tower instruction means — so there is
+    /// nothing for this pass to stamp and it leaves the aircraft alone. (The arm parks a scripted speed on the
+    /// follower so that the spacing manager, handing authority back over the explicit command, leaves its own ceiling
+    /// standing rather than clearing it — a scripted speed does not take the aircraft off this pass's books, which
+    /// <see cref="ScenarioPresetSpeed_LeavesTheProtectionInCharge"/> pins.)
+    /// </summary>
+    [Fact]
+    public void GeneratorArrival_WithALowerGeneratorCeiling_IsLeftAlone()
+    {
+        var pair = ConflictingPair(TowerAuthorityLeaderDistanceNm, TowerAuthorityFollowerDistanceNm);
+        if (pair is null)
+        {
+            return;
+        }
+
+        pair.Follower.IsGeneratorArrival = true;
+        var result = CommandDispatcher.Dispatch(new SpeedCommand(200), pair.Follower, TestDispatch.Context(Random.Shared, isScenarioScripted: true));
+        Assert.True(result.Success, result.Message);
+
+        double generatorCeiling = pair.FinalApproachSpeedKts() - LowerCeilingMarginKts;
+        pair.Follower.Targets.SpeedCeiling = generatorCeiling;
+
+        pair.Pass();
+        Report(pair, "over a lower generator ceiling");
+
+        Assert.Equal(generatorCeiling, pair.Follower.Targets.SpeedCeiling);
+        Assert.Null(pair.Follower.Approach.SameRunwayProtectionCeilingKts);
+        Assert.False(pair.Follower.Approach.SameRunwayProtectionFasInstructed);
+        Assert.Empty(SpacingLines(pair.Follower));
+    }
+
     private static List<string> SpacingLines(AircraftState aircraft) =>
         aircraft.PendingNotifications.Where(n => n.Contains("in-trail spacing", StringComparison.Ordinal)).ToList();
 
@@ -356,7 +708,18 @@ public class SameRunwayArrivalProtectionEngineTests(ITestOutputHelper output)
     /// A turboprop leader with a faster jet follower behind it on the OAK runway 30 final — the shape the pass exists
     /// for. Returns null when the scenario, navdata or OAK layout is unavailable (silent skip).
     /// </summary>
-    private static ArrivalPair? ConflictingPair(double leaderDistanceNm, double followerDistanceNm)
+    private static ArrivalPair? ConflictingPair(double leaderDistanceNm, double followerDistanceNm) =>
+        Pair(leaderDistanceNm, followerDistanceNm, expectedApproachFollower: false);
+
+    /// <summary>
+    /// The same pair, except the follower carries only an expected approach — no clearance, no runway, no phase —
+    /// the state a scripted <c>CFIX … ; CAPP …</c> arrival is in until its queued clearance fires. Also null when the
+    /// navdata carries no approach to runway 30 (silent skip).
+    /// </summary>
+    private static ArrivalPair? ExpectedApproachPair(double leaderDistanceNm, double followerDistanceNm) =>
+        Pair(leaderDistanceNm, followerDistanceNm, expectedApproachFollower: true);
+
+    private static ArrivalPair? Pair(double leaderDistanceNm, double followerDistanceNm, bool expectedApproachFollower)
     {
         if (!File.Exists(ScenarioPath))
         {
@@ -386,8 +749,10 @@ public class SameRunwayArrivalProtectionEngineTests(ITestOutputHelper output)
 
         var runway = engine.Scenario.Generators.Single(g => g.Config.Runway == "30").Runway;
         var leader = InjectArrival(engine, runway, "MANUAL1", "DH8D", leaderDistanceNm);
-        var follower = InjectArrival(engine, runway, "MANUAL3", "B739", followerDistanceNm);
-        return new ArrivalPair(engine, runway, leader, follower);
+        var follower = expectedApproachFollower
+            ? InjectExpectedArrival(engine, runway, "MANUAL3", "B739", followerDistanceNm)
+            : InjectArrival(engine, runway, "MANUAL3", "B739", followerDistanceNm);
+        return follower is null ? null : new ArrivalPair(engine, runway, leader, follower);
     }
 
     private static AircraftState InjectArrival(SimulationEngine engine, RunwayInfo runway, string callsign, string type, double distanceNm)
@@ -408,6 +773,42 @@ public class SameRunwayArrivalProtectionEngineTests(ITestOutputHelper output)
             FlightPlan = new AircraftFlightPlan { Destination = "KOAK" },
             Phases = init.Phases,
         };
+
+        engine.World.AddAircraft(aircraft);
+        return aircraft;
+    }
+
+    /// <summary>
+    /// An arrival that knows where it is going but has not been cleared there: no <c>AssignedRunway</c>, no phase,
+    /// only <see cref="AircraftApproachState.Expected"/> and a destination. Placed on the runway's own final with its
+    /// track along the landing course, because with no phase to read "on final" is a track test. Null when the
+    /// navdata carries no approach to this runway (silent skip).
+    /// </summary>
+    private static AircraftState? InjectExpectedArrival(SimulationEngine engine, RunwayInfo runway, string callsign, string type, double distanceNm)
+    {
+        if (NavigationDatabase.Instance.ResolveApproachCandidates(runway.AirportId, runway.Designator).FirstOrDefault() is not { } approachId)
+        {
+            return null;
+        }
+
+        var category = AircraftCategorization.Categorize(type);
+        var init = AircraftInitializer.InitializeOnFinal(runway, category, callsign, requestedDistanceNm: distanceNm, aircraftType: type);
+
+        var aircraft = new AircraftState
+        {
+            Callsign = callsign,
+            AircraftType = type,
+            Position = init.Position,
+            TrueHeading = init.TrueHeading,
+            TrueTrack = init.TrueHeading,
+            Altitude = init.Altitude,
+            IndicatedAirspeed = ExpectedArrivalSpeedKts,
+            IsOnGround = false,
+            IsGeneratorArrival = false,
+            FlightPlan = new AircraftFlightPlan { Destination = "KOAK" },
+            Phases = null,
+        };
+        aircraft.Approach.Expected = approachId;
 
         engine.World.AddAircraft(aircraft);
         return aircraft;
@@ -456,6 +857,20 @@ public class SameRunwayArrivalProtectionEngineTests(ITestOutputHelper output)
             double leaderEta = RunwayOccupancy.SecondsToAssignedThreshold(Leader, Runway, Engine.World.GroundLayout);
             double targetEta = leaderEta + RequiredIntervalSeconds() + marginSeconds;
             PlaceFollowerAt(Follower.GroundSpeed * targetEta / 3600.0);
+        }
+
+        /// <summary>
+        /// The speed a tower instruction to "reduce to final approach speed" means for this follower — Vref plus the
+        /// session's wind additive, from the same helpers the pass calls.
+        /// </summary>
+        public double FinalApproachSpeedKts()
+        {
+            var category = AircraftCategorization.Categorize(Follower.AircraftType);
+            double vref = AircraftPerformance.ApproachSpeed(Follower.AircraftType, category);
+            return SameRunwayArrivalProtection.FinalApproachSpeedKts(
+                vref,
+                AircraftPerformance.WindApproachAdditive(Engine.World.Weather, Runway.TrueHeading.Degrees)
+            );
         }
 
         /// <summary>
