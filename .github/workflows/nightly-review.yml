@@ -19,8 +19,13 @@ name: Nightly Review
 #                          via `claude setup-token`; shared with the claude.yml and
 #                          claude-code-review.yml workflows. Runs draw on the
 #                          subscription's usage quota instead of metered API
-#                          billing; if the subscription's weekly limit is exhausted
-#                          the run fails, which the Discord notifier surfaces.
+#                          billing. A revoked token or an exhausted weekly limit
+#                          does NOT fail the action's step (the agent returns an
+#                          is_error result and the step reports success), so the
+#                          publish step reads that result and fails the job
+#                          itself, which the Discord notifier surfaces. Rotate with
+#                          `claude setup-token` then
+#                          `gh secret set CLAUDE_CODE_OAUTH_TOKEN --repo leftos/yaat`.
 #   NIGHTLY_REVIEW_TOKEN - PAT used for git/gh across both repos: read on
 #                          leftos/yaat-server, and contents+issues+pull-requests
 #                          write on leftos/yaat. A classic repo-scoped PAT works;
@@ -252,10 +257,28 @@ jobs:
             echo "_The reviewer wrote no report file._" >> "$GITHUB_STEP_SUMMARY"
           fi
 
+          # The action's step succeeds even when the agent never ran: a revoked
+          # OAuth token, an exhausted quota or any other API failure comes back
+          # as a "result" record with is_error=true and the step still reports
+          # success (three nights of "401 OAuth access token has been revoked"
+          # posted green, 2026-09-15..17). Read that record here: its text goes
+          # into the Discord TL;DR and the job fails at the end of this step, so
+          # the workflow conclusion, the GitHub check and the Discord post all
+          # go red. The artifact upload below runs on always(), so nothing is
+          # lost by failing here.
           FILE="$EXECUTION_FILE"
           COST=""
+          AGENT_ERROR=""
+          OUTCOME="${REVIEW_OUTCOME:-unknown}"
           if [ -n "$FILE" ] && [ -f "$FILE" ]; then
             COST=$(jq -r '[.. | objects | .total_cost_usd? // empty] | last // empty' "$FILE" 2>/dev/null || true)
+            AGENT_ERROR=$(jq -r '[.. | objects | select(.type? == "result")] | last
+              | if (. != null and .is_error == true) then (.result // "the agent reported an error with no message") else empty end' \
+              "$FILE" 2>/dev/null || true)
+          fi
+          if [ -n "$AGENT_ERROR" ]; then
+            OUTCOME="failure"
+            echo "::error::Nightly review agent failed: $AGENT_ERROR"
           fi
           {
             echo "### Nightly Review cost"
@@ -271,6 +294,9 @@ jobs:
           # overruns despite the prompt's hard limit, cut at the last complete
           # line inside the budget and say so, instead of stopping mid-sentence.
           TLDR="(The reviewer wrote no TL;DR - see the run's job summary for details.)"
+          if [ -n "$AGENT_ERROR" ]; then
+            TLDR="The reviewer did not run: $AGENT_ERROR"
+          fi
           TLDR_SRC="${GITHUB_WORKSPACE}/nightly-review-tldr.txt"
           if [ -s "$TLDR_SRC" ]; then
             TLDR=$(cat "$TLDR_SRC")
@@ -283,12 +309,16 @@ jobs:
             fi
           fi
           jq -n \
-            --arg outcome "${REVIEW_OUTCOME:-unknown}" \
+            --arg outcome "$OUTCOME" \
             --arg cost "${COST:-}" \
             --arg tldr "$TLDR" \
             '{outcome: $outcome, cost: $cost, tldr: $tldr}' > notify/summary.json
           echo "Staged Discord summary:"
           cat notify/summary.json
+
+          if [ -n "$AGENT_ERROR" ]; then
+            exit 1
+          fi
 
       - name: Upload Discord summary and report
         if: always()
