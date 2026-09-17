@@ -179,6 +179,4 @@ public class Issue224OakTeMergeDriveThroughTests(ITestOutputHelper output)
             $"{Lead} (the merge lead) only moved {leadDistanceTravelledFt:F0}ft before BREAK — it was pinned instead of proceeding."
         );
     }
-
-    private static string Fmt(double? v) => v is { } x ? x.ToString("F1") : "-";
 }

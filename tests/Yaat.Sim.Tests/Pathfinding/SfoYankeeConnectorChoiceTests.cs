@@ -12,12 +12,12 @@ namespace Yaat.Sim.Tests.Pathfinding;
 /// <c>PUSH Y A1</c> comes to rest on Y facing 208° — AY2 ~96 ft behind it, AY3 ~600 ft ahead — and the
 /// follow-up clearance is <c>TAXI Y A A1 1R</c>.
 ///
-/// <para>The Y→A bridge must leave through the connector the aircraft is facing. AY3 is both ahead of the
-/// nose and the shorter way to A1 (3,440 ft vs 3,650 ft through AY2), yet the mandatory-connector detour
-/// (<c>SegmentExpander.TryDetour</c>) ranks its candidate A-entry nodes on the bridge's own raw distance
-/// (<c>TaxiRoute.TotalDistanceNm</c>), which sees neither the aircraft's heading nor the rest of the route
-/// to A1 — so it takes the 261 ft hop back through AY2 and the taxi begins with a 180° about-face in a
-/// ramp alley.</para>
+/// <para>The Y→A bridge leaves through the connector the aircraft is facing. AY3 is both ahead of the nose
+/// and the shorter way to A1 (3,440 ft vs 3,650 ft through AY2), and the mandatory-connector detour
+/// (<c>SegmentExpander.TryDetour</c>) ranks its candidate A-entry nodes by the bridge's pavement cost plus a
+/// reversal charge against the aircraft's pose rather than by the bridge's raw distance — so the 261 ft hop
+/// back through AY2 pays for its about-face and loses to the 1,383 ft bridge through AY3, and the taxi out
+/// of the ramp alley starts as one continuous turn.</para>
 /// </summary>
 public class SfoYankeeConnectorChoiceTests
 {
@@ -42,11 +42,7 @@ public class SfoYankeeConnectorChoiceTests
         TestVnasData.EnsureInitialized();
     }
 
-    // FAILS: TryDetour ranks Y→A bridge candidates on the bridge's own raw distance, so the 261 ft hop back
-    // through AY2 behind the nose beats AY3 ahead of it and the route departs 180° off the 208° start heading.
-    [Fact(
-        Skip = "Red pin for finding F-4 (docs/plans/sfo-ground-technique-tests.md): the connector detour ranks landings by raw bridge distance — un-skip when it ranks by cost + tail"
-    )]
+    [Fact]
     public void TaxiYAA1_FromYankeeFacingA1_BridgesThroughAy3_NotBackThroughAy2()
     {
         var layout = new TestAirportGroundData().GetLayout("SFO");

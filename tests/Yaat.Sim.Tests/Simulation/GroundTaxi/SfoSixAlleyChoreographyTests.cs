@@ -27,7 +27,7 @@ namespace Yaat.Sim.Tests.Simulation.GroundTaxi;
 /// stopped again once the push has finished.</para>
 ///
 /// <para>The give-way case — a push whose tail does cross the arrival's lane — lives in
-/// <see cref="SfoSixAlleyGiveWayWedgeTests"/>.</para>
+/// <see cref="SfoSixAlleyArrivalAheadOfPushTests"/>.</para>
 /// </summary>
 public class SfoSixAlleyChoreographyTests
 {
@@ -56,9 +56,10 @@ public class SfoSixAlleyChoreographyTests
 
     /// <summary>
     /// The arrival's gate in the concurrent run: an E-pier stand whose lead-in hangs off T6A, a little past
-    /// spot 6A, so a clearance up T6A never enters the T6B lane that spot 6B sits on. Its resolved route
-    /// clears the pusher parked on 6B by 194 ft — against the 134.55 ft two half-spans plus the wingtip
-    /// buffer ask for — where a D gate would have routed the arrival straight over the parked aircraft.
+    /// spot 6A, so a clearance up T6A never enters the T6B lane that spot 6B sits on. The path it flies comes
+    /// no closer than about 140 ft to where the push comes to rest on 6B — against the 134.55 ft two
+    /// half-spans plus the wingtip buffer ask for — where a D gate would have routed the arrival straight
+    /// over the parked aircraft.
     /// </summary>
     private const string AlleyGate = "E9";
     private const double SpotToleranceMarginFt = 25.0;

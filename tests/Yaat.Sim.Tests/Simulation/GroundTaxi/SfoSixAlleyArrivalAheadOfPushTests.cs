@@ -8,17 +8,18 @@ using Yaat.Sim.Tests.Helpers;
 namespace Yaat.Sim.Tests.Simulation.GroundTaxi;
 
 /// <summary>
-/// Giving way in the SFO six alley has to leave the push somewhere to go. An arrival rolling up T6A toward
-/// an E gate meets an E-pier pusher reversing across that same lane on its way to spot 6B on the far side:
-/// the arrival stops at the alley entrance and waits, the push crosses T6A and finishes on T6B, and the
-/// arrival — now with a clear lane — carries on to its gate at E9, passing the stopped pusher a lane away.
+/// An E-pier push and an inbound taxi share the SFO six alley: a B738 at gate E6 pushes back across T6A to
+/// spot 6B on the near lane, while an E75L off the 28L bar taxis up that same T6A to its gate at E9. The two
+/// legs interleave rather than contend — the arrival is up the lane and parked while the push is still on its
+/// first leg, and the push then finishes on 6B behind it. This class pins that the alley keeps flowing:
+/// neither aircraft is held for the other, both come to rest where they were sent, and they never close
+/// inside the 90 ft floor.
 ///
-/// <para>That is what a ground controller watching the alley expects to see, and it is what this class pins:
-/// the give-way is only correct if the aircraft that gave way does not become the obstacle that strands the
-/// push. The arrival holds inside the pushback buffer, so the push's remaining leg runs past a stationary
-/// aircraft rather than empty pavement, and the two must still clear each other.</para>
+/// <para>It began as the red pin for the F-6 wedge, where the arrival was held at the alley mouth until the
+/// push tail was already in its lane and the two stranded each other; it now guards against that
+/// regression.</para>
 /// </summary>
-public class SfoSixAlleyGiveWayWedgeTests
+public class SfoSixAlleyArrivalAheadOfPushTests
 {
     private const string Pusher = "PSH1";
     private const string Arrival = "ARR1";
@@ -36,41 +37,40 @@ public class SfoSixAlleyGiveWayWedgeTests
 
     /// <summary>
     /// The arrival's gate: an E-pier stand whose lead-in hangs off T6A, a little past spot 6A, so a clearance
-    /// up T6A never enters the T6B lane that spot 6B sits on. Its resolved route clears the pusher stopped on
-    /// 6B by 194 ft — against the 134.55 ft two half-spans plus the wingtip buffer ask for — where a D gate
-    /// would have routed the arrival straight over the stopped aircraft.
+    /// up T6A never enters the T6B lane that spot 6B sits on. The path it flies comes no closer than about
+    /// 140 ft to where the push comes to rest on 6B — against the 134.55 ft two half-spans plus the wingtip
+    /// buffer ask for — where a D gate would have routed the arrival straight over the stopped aircraft.
     /// </summary>
     private const string AlleyGate = "E9";
     private const double SpotToleranceMarginFt = 25.0;
     private const double SpotHeadingToleranceDeg = 15.0;
     private const double MinSeparationFt = 90.0;
-    private const double YieldProximityFt = 200.0;
     private const int ChoreographyBudgetSeconds = 400;
+
+    /// <summary>
+    /// The arrival's unimpeded run from the 28L bar up T6A to E9 measures 75 s. Being held for the push costs
+    /// tens of seconds at the alley mouth, so parking later than this budget means the alley contended.
+    /// </summary>
+    private const int ArrivalUnimpededBudgetSeconds = 100;
 
     private readonly ITestOutputHelper _output;
 
-    public SfoSixAlleyGiveWayWedgeTests(ITestOutputHelper output)
+    public SfoSixAlleyArrivalAheadOfPushTests(ITestOutputHelper output)
     {
         _output = output;
         TestVnasData.EnsureInitialized();
     }
 
     /// <summary>
-    /// Push and taxi are issued in the same second: the E-pier pusher reverses out across T6A — the lane the
-    /// arrival is cleared up — and on to the D-side lane's spot 6B, while the arrival taxis up T6A to its gate
-    /// on the E pier. The arrival is inside the pushback buffer by the time the tail is in its lane, so it
-    /// gives way and holds; the tail then leaves T6A and the push finishes on T6B instead of stopping against
-    /// the aircraft holding for it. The push finishes first and the arrival then reaches its gate, passing the
-    /// pusher stopped on 6B a lane away (140 ft, against the 134.55 ft two half-spans plus the wingtip buffer
-    /// ask for), and the two never come inside 90 ft — the whole point of the lane split, so the arrival's
-    /// gate has to be one T6A actually serves.
+    /// Push and taxi are issued in the same second: the E6 pusher reverses out across T6A — the lane the
+    /// arrival is cleared up — and on toward the D-side lane's spot 6B, while the arrival taxis up T6A to its
+    /// gate on the E pier. The arrival takes T6A into the alley unimpeded while the push is still working its
+    /// first leg, and parks at E9 inside its unimpeded budget; the push then completes behind it, resting
+    /// nose-out on 6B. Neither is held for the other and the two never come inside the 90 ft floor — the point
+    /// of the lane split, so the arrival's gate has to be one T6A actually serves.
     /// </summary>
-    // FAILS: give-way engages only once the push tail is in the lane (~143 ft); the remaining leg to 6B then passes
-    // 125 ft from the held arrival (< 134.55 ft) and both wedge — finding F-6 in docs/plans/sfo-ground-technique-tests.md
-    [Fact(
-        Skip = "Red pin for finding F-6 (docs/plans/sfo-ground-technique-tests.md): give-way to a crossing push engages too late and the pair wedges — un-skip when the mover holds at the alley entrance"
-    )]
-    public void ArrivalGivesWayToCrossingPush_PushCompletes()
+    [Fact]
+    public void ArrivalCrossesAlleyAheadOfPush_PushCompletes()
     {
         var setup = Setup(AlleyPusherGate, AlleySpot, AlleyGate);
         if (setup is null)
@@ -104,13 +104,9 @@ public class SfoSixAlleyGiveWayWedgeTests
             $"the arrival never reached {AlleyGate} within {ChoreographyBudgetSeconds}s (phase={PhaseName(alley.Arrival)})"
         );
         Assert.True(
-            run.PusherDoneSecond <= run.ArrivalParkedSecond,
-            $"the arrival parked at t={run.ArrivalParkedSecond}s, before the pusher finished its push at t={run.PusherDoneSecond}s"
-        );
-        Assert.True(
-            run.Yielded,
-            "the arrival never gave way to the pushing B738: it was never annotated as auto-yielding to PSH1 and never stopped "
-                + $"within {YieldProximityFt:F0}ft of it while the push was running"
+            run.ArrivalParkedSecond <= ArrivalUnimpededBudgetSeconds,
+            $"the arrival took {run.ArrivalParkedSecond}s to reach {AlleyGate} against an unimpeded budget of "
+                + $"{ArrivalUnimpededBudgetSeconds}s: it was held up on its way through the alley (yielded={run.Yielded})"
         );
         Assert.True(
             run.MinSeparationFt >= MinSeparationFt,

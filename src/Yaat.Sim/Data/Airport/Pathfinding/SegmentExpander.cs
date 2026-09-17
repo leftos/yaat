@@ -3367,30 +3367,7 @@ public static class SegmentExpander
             );
         }
 
-        // Route from head to the nearest node on toTaxiway via a bounded AutoRouter that inherits the
-        // authorized set — so numbered connectors and RAMP edges are preferred over unnamed letter taxiways.
-        GroundNode? bestEntry = null;
-        TaxiRoute? bestRoute = null;
-
-        foreach (var entryNode in toTaxiwayNodes)
-        {
-            if (entryNode.Id == head.HeadNodeId)
-            {
-                continue;
-            }
-
-            var detourCtx = BuildDetourContext(ctx, head.HeadNodeId, entryNode.Id);
-            var (route, _) = RunBoundedDetour(detourCtx, head);
-
-            if (route is not null)
-            {
-                if (bestRoute is null || (route.TotalDistanceNm < bestRoute.TotalDistanceNm))
-                {
-                    bestRoute = route;
-                    bestEntry = entryNode;
-                }
-            }
-        }
+        var (bestEntry, bestRoute, bestScore) = PickDetourEntry(head, fromTaxiway, toTaxiway, ctx);
 
         if (bestRoute is null)
         {
@@ -3407,10 +3384,176 @@ public static class SegmentExpander
             );
         }
 
-        ctx.DiagnosticLog?.Invoke($"[detour] found detour {fromTaxiway}→{toTaxiway} via #{bestEntry!.Id} segs={bestRoute.Segments.Count}");
+        ctx.DiagnosticLog?.Invoke(
+            $"[detour] found detour {fromTaxiway}→{toTaxiway} via #{bestEntry!.Id} segs={bestRoute.Segments.Count} score={bestScore:F3}"
+        );
 
         var newHead = BuildHeadFromRoute(head, bestRoute);
         return (bestRoute.Segments.Select(s => s.Edge).ToList(), newHead, null);
+    }
+
+    /// <summary>
+    /// Pick the node on <paramref name="toTaxiway"/> the bridge should land on, and the bridge route to it.
+    /// One bounded <see cref="AutoRouter"/> run per candidate node (each inheriting the authorized set, so
+    /// numbered connectors and RAMP beat unnamed letter taxiways), ranked by two terms:
+    /// <see cref="BridgePavementCost"/> plus <see cref="ReversalAgainstPoseCost"/>.
+    ///
+    /// <para>The pavement cost carries the bridge's soft taxiway policy — without its unauthorized-letter
+    /// charge SFO's Y→A bridge takes taxiway H, which the controller never cleared, over the AY3 connector.
+    /// The reversal charge carries the aircraft's pose, which the bridge's raw length is blind to: an E75L
+    /// resting on SFO's taxilane Y facing 208° takes the 261 ft hop back through AY2 <em>behind</em> its
+    /// nose over the 1,383 ft bridge through AY3 ahead of it, and <c>TAXI Y A A1 1R</c> then begins with a
+    /// 180° about-face in a ramp alley. Charged for the turn-around, the connector ahead wins even though
+    /// its bridge is five times as long.</para>
+    ///
+    /// <para>With no pose to rank by — a route resolved from a bare node, with neither a prior edge nor a
+    /// start heading — neither term carries directional information, so the order is the shortest
+    /// bridge.</para>
+    ///
+    /// <para>Ranking may reorder the bridges but must not cost the clearance a taxiway the shortest bridge
+    /// reached: when the bridge starts <em>off</em> <paramref name="fromTaxiway"/> (it is how the route gets
+    /// onto it), the ranked candidate does not reach it and the shortest-bridge candidate does, the shortest
+    /// bridge is kept — otherwise SFO gate G3's <c>TAXI A Q B F 28L HS 1L</c>, which bridges A→Q straight
+    /// from the stand, would arrive on Q having never touched A and <see cref="ResolveExplicit"/>'s
+    /// honor-named-taxiway check would refuse the whole clearance. It is deliberately only a do-no-harm
+    /// guard and not "always prefer a candidate that reaches <paramref name="fromTaxiway"/>": when no bridge
+    /// reaches the taxiway at all, the clearance is one the resolver is supposed to fail (gate B20S's
+    /// <c>TAXI M5 …</c> across the ramp, issue #396, whose free-space cut keys on exactly that failure), and
+    /// hunting down a far-side bridge that touches M5 would take the failure away.</para>
+    /// </summary>
+    private static (GroundNode? Entry, TaxiRoute? Route, double Score) PickDetourEntry(
+        PartialRoute head,
+        string fromTaxiway,
+        string toTaxiway,
+        SearchContext ctx
+    )
+    {
+        bool rankByPose = (head.LastEdge is not null) || (ctx.StartHeadingTrue is not null);
+        bool guardFromTaxiway = rankByPose && !fromTaxiway.StartsWith('#') && !HeadHasReachedTaxiway(head, fromTaxiway, ctx);
+
+        (GroundNode? Entry, TaxiRoute? Route, double Score) best = (null, null, double.MaxValue);
+        (GroundNode? Entry, TaxiRoute? Route, double Score) shortest = (null, null, double.MaxValue);
+
+        foreach (var entryNode in ctx.Layout.GetNodesOnTaxiway(toTaxiway))
+        {
+            if (entryNode.Id == head.HeadNodeId)
+            {
+                continue;
+            }
+
+            var (route, _) = RunBoundedDetour(BuildDetourContext(ctx, head.HeadNodeId, entryNode.Id), head);
+            if (route is null)
+            {
+                continue;
+            }
+
+            double score = rankByPose ? BridgePavementCost(route, ctx) + ReversalAgainstPoseCost(head, route, ctx) : route.TotalDistanceNm;
+
+            if (score < best.Score)
+            {
+                best = (entryNode, route, score);
+            }
+
+            if (guardFromTaxiway && (route.TotalDistanceNm < shortest.Score))
+            {
+                shortest = (entryNode, route, route.TotalDistanceNm);
+            }
+        }
+
+        if (
+            guardFromTaxiway
+            && (best.Route is not null)
+            && (shortest.Route is not null)
+            && !RouteReachesTaxiway(best.Route, fromTaxiway)
+            && RouteReachesTaxiway(shortest.Route, fromTaxiway)
+        )
+        {
+            ctx.DiagnosticLog?.Invoke($"[detour] cost pick drops {fromTaxiway}; keeping the shortest bridge via #{shortest.Entry!.Id}");
+            return shortest;
+        }
+
+        return best;
+    }
+
+    /// <summary>
+    /// What a candidate bridge's pavement costs, in the cost function's own terms: its length, a runway's
+    /// ten times over (<see cref="RouteCostFunction.RunwayCenterlineDistanceMultiplier"/>), the
+    /// <see cref="RouteCostFunction.UnauthorizedTaxiwayFirstUseCostNm"/> charge for each unnamed letter
+    /// taxiway it threads (first use only, as <see cref="RouteCostFunction.IncrementalCost"/> charges it).
+    ///
+    /// <para>The unauthorized charge is the term that has to be here: it is the bridge's whole soft policy —
+    /// a numbered connector or RAMP is free, an unnamed letter taxiway is dearer but usable — and without it
+    /// SFO's Y→A bridge takes taxiway H, which the controller never cleared, over the AY3 connector.</para>
+    ///
+    /// <para>The turn budget, the per-transition charge and the per-crossing charge are deliberately left
+    /// out. All three count pieces of pavement a bridge threads, which across candidate landings is junction
+    /// geometry rather than route quality — a bridge through a ramp threads more corners and more hold-short
+    /// bars than one cutting across a runway — and together they outweigh thousands of feet of taxiing: with
+    /// them, OAK's <c>TAXI F 33 D C B RWY 28R</c> prices a 4,015 ft bridge down D and along runway 15/33 at
+    /// 1.01 nm against the correct 2,810 ft ramp bridge's 1.26 nm, and the route that follows can no longer
+    /// make the turn onto D. Nothing is lost by leaving them out: every bar on the resolved route is
+    /// annotated as a hold-short the controller still has to clear, and driving <em>along</em> a runway is
+    /// still ten times its length.</para>
+    /// </summary>
+    private static double BridgePavementCost(TaxiRoute route, SearchContext ctx)
+    {
+        double cost = 0.0;
+        var chargedTaxiways = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var seg in route.Segments)
+        {
+            var edge = seg.Edge.Edge;
+            cost += edge.DistanceNm * (edge.IsRunwayCenterline ? RouteCostFunction.RunwayCenterlineDistanceMultiplier : 1.0);
+
+            string name = RouteCostFunction.ResolveTaxiwayName(edge, seg.FromNodeId);
+            if (
+                (ctx.AuthorizedTaxiways is { } authorized)
+                && SearchContext.IsLetterOnlyTaxiway(name)
+                && !authorized.Contains(name)
+                && chargedTaxiways.Add(name)
+            )
+            {
+                cost += RouteCostFunction.UnauthorizedTaxiwayFirstUseCostNm;
+            }
+        }
+
+        return cost;
+    }
+
+    /// <summary>
+    /// <see cref="RouteCostFunction.DirectionReversalCostNm"/> when <paramref name="route"/>'s first edge
+    /// is an about-face against the pose the aircraft holds at <paramref name="head"/> — the prior
+    /// segment's arrival bearing, or <see cref="SearchContext.StartHeadingTrue"/> when the bridge starts
+    /// where the aircraft stands — and 0 otherwise. A bridge's first edge is the search's first edge, where
+    /// the turn-budget term is skipped (there is no prior edge inside the search) and only the soft
+    /// first-hop bias resists, so without this charge a connector 180° behind the nose is priced as if the
+    /// about-face were free. It is applied in the ranking rather than inside the detour A* for the reason
+    /// <see cref="RouteCostFunction.IncrementalCost"/> gives — a per-edge reversal term breaks the
+    /// heuristic's admissibility — and it is the same constant, so a bridge that must reverse stays usable
+    /// when every candidate reverses.
+    ///
+    /// <para>"About-face" is the pathfinder's own line between a turn and a reversal:
+    /// <see cref="CategoryLimits.MaxHeadingChangeDeg"/>, the heading change past which
+    /// <see cref="GeometricAdmissibility"/> refuses an edge as undrivable (135° for a jet). Anything
+    /// inside it is a turn the aircraft can drive and the clearance may well call for — a 90°-off first
+    /// edge is how a route leaves a junction onto a crossing taxiway (SFO's <c>TAXI B H F C …</c> from the
+    /// B/H junction), and charging those a reversal re-ranks ordinary bridges.</para>
+    /// </summary>
+    private static double ReversalAgainstPoseCost(PartialRoute head, TaxiRoute route, SearchContext ctx)
+    {
+        if (route.Segments.Count == 0)
+        {
+            return 0.0;
+        }
+
+        double? poseBearing = head.LastEdge is not null ? head.ArrivalBearing : ctx.StartHeadingTrue;
+        if (poseBearing is not { } pose)
+        {
+            return 0.0;
+        }
+
+        double turnDeg = RouteCostFunction.HeadingDelta(pose, route.Segments[0].Edge.DepartureBearing);
+        return (turnDeg > CategoryLimits.MaxHeadingChangeDeg(ctx.Category)) ? RouteCostFunction.DirectionReversalCostNm : 0.0;
     }
 
     /// <summary>
@@ -3438,6 +3581,31 @@ public static class SegmentExpander
     private static (TaxiRoute? Route, PathfindingFailure? Failure) RunBoundedDetour(SearchContext ctx, PartialRoute priorHead)
     {
         return AutoRouter.Run(ctx, startOverride: priorHead, maxExpansions: MaxDetourExpansions);
+    }
+
+    /// <summary>
+    /// True when the walk has already reached <paramref name="taxiwayName"/>: the head stands on a node
+    /// incident to it, or an edge already walked is labeled for it. A bridge from such a head is a
+    /// transition off a taxiway the route has honored; one from anywhere else is how the route gets onto
+    /// the taxiway in the first place and must still touch it (see the honor check in
+    /// <see cref="ResolveExplicit"/>).
+    /// </summary>
+    private static bool HeadHasReachedTaxiway(PartialRoute head, string taxiwayName, SearchContext ctx)
+    {
+        if (ctx.Layout.Nodes.TryGetValue(head.HeadNodeId, out var node) && NodeIncidentToTaxiway(node, taxiwayName))
+        {
+            return true;
+        }
+
+        for (var cursor = head; cursor?.LastEdge is not null; cursor = cursor.Previous)
+        {
+            if (cursor.LastEdge.MatchesTaxiway(taxiwayName))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     // -----------------------------------------------------------------------

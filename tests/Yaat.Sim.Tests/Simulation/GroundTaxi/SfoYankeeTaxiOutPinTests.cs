@@ -7,17 +7,18 @@ using Yaat.Sim.Tests.Helpers;
 namespace Yaat.Sim.Tests.Simulation.GroundTaxi;
 
 /// <summary>
-/// The end-to-end pin for finding F-4, the connector detour out of SFO gate B12: a departure pushed onto
-/// taxilane Yankee facing A1 should leave along Y and reach Alpha through the AY connector that lies ahead
-/// of it, as one continuous turn. Today the push comes to rest on the straight-line bearing toward A1 while
-/// the route leaves through a connector 180° behind the nose, so the aircraft has to turn around to fly its
-/// own clearance.
+/// The end-to-end pin for the connector detour out of SFO gate B12: a departure pushed onto taxilane Yankee
+/// facing A1 (nose on 208°, along Y) leaves along Y and reaches Alpha through the AY connector ahead of it
+/// — AY3, ~600 ft down the lane, rather than AY2 ~96 ft behind the nose — as one continuous turn. The
+/// mandatory-connector detour ranks its bridge candidates by pavement cost plus a reversal charge against
+/// the aircraft's pose, not by the bridge's raw length, so the connector behind the nose pays for the
+/// about-face it would take.
 ///
 /// <para>This class drives the whole chain — push, clearance, resolved route, first seconds of the taxi —
 /// so it reds on any part of it. The unit-level pin on the pathfinder's connector choice alone is
-/// <c>Pathfinding/SfoYankeeConnectorChoiceTests</c>; fix that and this one is the check that the fix reaches
-/// the aircraft. The pushes that already behave — a bare <c>PUSH Y</c> and the <c>PUSH A</c> control — live
-/// in <see cref="SfoYankeePushTests"/>.</para>
+/// <c>Pathfinding/SfoYankeeConnectorChoiceTests</c>; this one is the check that the choice reaches the
+/// aircraft. The pushes that behave on their own — a bare <c>PUSH Y</c> and the <c>PUSH A</c> control —
+/// live in <see cref="SfoYankeePushTests"/>.</para>
 /// </summary>
 public class SfoYankeeTaxiOutPinTests
 {
@@ -27,7 +28,14 @@ public class SfoYankeeTaxiOutPinTests
     private const double MaxTurnDeg = 135.0;
     private const double AboutFaceDeg = 160.0;
     private const int PushBudgetSeconds = 120;
-    private const int TaxiObservationSeconds = 45;
+
+    /// <summary>
+    /// How long the taxi-out is watched for. The AY connector ahead of the push (AY3) is ~700 ft down the
+    /// lane, and a jet leaving a standstill at ramp taxi speed needs the better part of a minute to cover
+    /// it — the window has to outlast that, or "still on Y" reads as a failure to leave rather than as the
+    /// length of the lane.
+    /// </summary>
+    private const int TaxiObservationSeconds = 90;
 
     private readonly ITestOutputHelper _output;
 
@@ -43,14 +51,7 @@ public class SfoYankeeTaxiOutPinTests
     /// follow-up <c>TAXI Y A A1 1R</c> — which resolves Y → AY connector → A with the single
     /// destination-runway bar — is flown as one continuous turn rather than an about-face.
     /// </summary>
-    // FAILS: the push itself is right — 'PUSH Y A1' stops on Y (distY=2ft, distA=220ft, never inside 220ft of A while
-    // reversing) — but it comes to rest facing 208°, the straight-line bearing toward A1, while the cleared
-    // TAXI Y A A1 1R leaves Y through AY2 whose entry node is 96ft away on bearing 28°: exactly 180° opposed, so the
-    // alignment assertion reds. The same rest state also reds the "first named leg is Y" check, because resting 96ft from
-    // the corner leaves the route with no plain-Y leg at all (taxiways [Y - AY2, AY2, A, A - A1, A1], 41 segments).
-    [Fact(
-        Skip = "Red pin for finding F-4 (docs/plans/sfo-ground-technique-tests.md): TAXI Y A A1 1R after PUSH Y A1 bridges through AY2 behind the nose — un-skip with the detour re-ranking"
-    )]
+    [Fact]
     public void E75L_PushYTowardA1_EndsOnY_TaxiesOutWithoutReversal()
     {
         var built = SfoGroundHarness.Build(_output, autoCross: false);
