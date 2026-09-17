@@ -18,8 +18,11 @@ namespace Yaat.Sim.Phases.Ground;
 ///
 /// <para><b>Speed.</b> <see cref="CategoryPerformance.PushbackSpeed"/>, or
 /// <see cref="CategoryPerformance.PushbackAlignSpeed"/> on the last stretch of a creep move; on a step that turns
-/// by more than a quarter of the most it may, slowed so the outer wingtip keeps the same pace; 1 kt over the last
-/// 10 ft so the final step lands inside the 1 ft stop tolerance. The move stops dead when it completes.</para>
+/// by more than a quarter of the most it may, slowed so the outer wingtip keeps the same pace. A move that ends at
+/// a genuine stop — the plan's last move, or the one before a reversal's dwell — runs its last 10 ft at 1 kt so the
+/// final step lands inside the 1 ft stop tolerance, and stops dead when it completes. A move that continues into
+/// the next one (<see cref="ContinuesIntoNextMove"/>) does neither: it holds its speed to the boundary and hands it
+/// to the next move, so a plan is one continuous tow rather than a queue of standing starts.</para>
 ///
 /// <para><b>Dwell.</b> A move that reverses the previous one (<see cref="TugMove.DwellBefore"/>) waits
 /// <see cref="DwellSeconds"/> at a standstill before it starts, counted only while the aircraft is stopped.</para>
@@ -101,6 +104,14 @@ public sealed class PushbackPhase : Phase
 
     /// <summary>This move is the push-off from a stand, the first move of a plan that started parked.</summary>
     public bool StartsAtStand { get; init; }
+
+    /// <summary>
+    /// The tug goes straight on into another move when this one completes: the plan has a next move and it does not
+    /// dwell. False for the plan's last move and for one followed by a reversal, both of which end at a standstill —
+    /// so the boundary between two moves of the same kind is flown through at speed, while a tug that is about to
+    /// reverse still stops first (AC 00-65A §11.17).
+    /// </summary>
+    public required bool ContinuesIntoNextMove { get; init; }
 
     /// <summary>
     /// On the stand push-off of a single-goal <c>PUSH</c> only: what a mid-push facing change needs to re-plan the
@@ -344,8 +355,7 @@ public sealed class PushbackPhase : Phase
 
         if (TugKinematics.IsComplete(pose, Move, _progress))
         {
-            aircraft.IndicatedAirspeed = 0;
-            ctx.Targets.TargetSpeed = 0;
+            HandOver(ctx, pose);
             Log.LogDebug(
                 "[Push] {Callsign}: {Kind} {Shape} complete after {DistanceFt:F1} ft, {OffEndFt:F2} ft off the planned end, nose={Nose:F1}",
                 aircraft.Callsign,
@@ -378,9 +388,42 @@ public sealed class PushbackPhase : Phase
             ctx.Aircraft.TrueHeading.Degrees
         );
 
-        ctx.Aircraft.IndicatedAirspeed = 0;
-        ctx.Targets.TargetSpeed = 0;
+        // Only a move that ran to completion hands its speed to the move behind it. Every other end is the tug
+        // letting go mid-move — a TAXI, TAXIAUTO, AIRTAXI, LAND, DEL or PUSHM clearing the phase, or an abort —
+        // and the aircraft is still tail-first with a direction of travel about to flip, so it stops dead.
+        if (endStatus == PhaseStatus.Completed)
+        {
+            HandOver(ctx, PoseOf(ctx.Aircraft));
+        }
+        else
+        {
+            ctx.Aircraft.IndicatedAirspeed = 0;
+            ctx.Targets.TargetSpeed = 0;
+        }
+
         ctx.Aircraft.Ground.PushbackTrueHeading = null;
+    }
+
+    /// <summary>
+    /// Hands the aircraft on when a move <em>completes</em>. One that continues into the next move keeps the speed it
+    /// is carrying and publishes the move's speed as the target, so physics holds the tow at pace over the boundary
+    /// until the next move's <see cref="OnStart"/> takes the targets over in the same tick. One that ends at a
+    /// genuine stop — the plan's last, or the one before a reversal's dwell — stops the aircraft dead. A move ended
+    /// any other way never gets here: <see cref="OnEnd"/> stops a cleared or aborted move itself.
+    /// </summary>
+    /// <param name="ctx">The phase context.</param>
+    /// <param name="pose">The pose the move ended at.</param>
+    private void HandOver(PhaseContext ctx, TugPose pose)
+    {
+        if (!ContinuesIntoNextMove)
+        {
+            ctx.Aircraft.IndicatedAirspeed = 0;
+            ctx.Targets.TargetSpeed = 0;
+            return;
+        }
+
+        double radiusFt = TugKinematics.TurnRadiusFt(ctx.Aircraft.AircraftType, Move.Tight);
+        ctx.Targets.TargetSpeed = MoveSpeedKts(ctx, pose, radiusFt, turning: false);
     }
 
     public override CommandAcceptance CanAcceptCommand(CanonicalCommandType cmd)
@@ -479,8 +522,10 @@ public sealed class PushbackPhase : Phase
     /// <summary>
     /// The tug's speed this tick: the push speed, or the alignment creep once a creep move is within the spot
     /// pull-forward distance of its end; while turning, scaled by R / (R + half-span) so the outer wingtip keeps
-    /// that pace (a judgement call, AC 00-65A §11.14: towing no faster than the walking team); and at most
-    /// <see cref="FinalApproachKts"/> within <see cref="FinalApproachFt"/> of the planned end.
+    /// that pace (a judgement call, AC 00-65A §11.14: towing no faster than the walking team); and, on a move that
+    /// ends at a standstill, at most <see cref="FinalApproachKts"/> within <see cref="FinalApproachFt"/> of the
+    /// planned end. A move that continues into the next one takes no such clamp: it is not stopping there, and the
+    /// crawl would restart the whole tow from walking pace at every boundary.
     /// </summary>
     private double MoveSpeedKts(PhaseContext ctx, TugPose pose, double radiusFt, bool turning)
     {
@@ -494,7 +539,7 @@ public sealed class PushbackPhase : Phase
             speedKts *= radiusFt / (radiusFt + halfSpanFt);
         }
 
-        return remainingFt <= FinalApproachFt ? Math.Min(speedKts, FinalApproachKts) : speedKts;
+        return !ContinuesIntoNextMove && (remainingFt <= FinalApproachFt) ? Math.Min(speedKts, FinalApproachKts) : speedKts;
     }
 
     /// <summary>
@@ -583,6 +628,7 @@ public sealed class PushbackPhase : Phase
             Creep = Move.Creep,
             DwellBefore = Move.DwellBefore,
             StartsAtStand = StartsAtStand,
+            ContinuesIntoNextMove = ContinuesIntoNextMove,
             PlannedEndLatitude = PlannedEnd.Lat,
             PlannedEndLongitude = PlannedEnd.Lon,
             AmendmentGoalKind = Amendment?.GoalKind,
@@ -634,6 +680,7 @@ public sealed class PushbackPhase : Phase
             Move = move with { Tight = dto.Tight, Creep = dto.Creep, DwellBefore = dto.DwellBefore },
             PlannedEnd = new LatLon(dto.PlannedEndLatitude, dto.PlannedEndLongitude),
             StartsAtStand = dto.StartsAtStand,
+            ContinuesIntoNextMove = dto.ContinuesIntoNextMove,
             Amendment = AmendmentFromSnapshot(dto),
         };
         phase._progress = new TugMoveProgress(
@@ -680,7 +727,13 @@ public sealed class PushbackPhase : Phase
         bool owesClearance = (target is null) && (dto.LegacyTargetHeading is null);
         var (move, plannedEnd) = target is { } point ? LegacyTargetedMove(dto, point) : (LegacyUntargetedMove(dto.LegacyTargetHeading), start);
 
-        var phase = new PushbackPhase { Move = move, PlannedEnd = plannedEnd };
+        // A pre-tug-move snapshot carries a single pushback, never a chain, so it always ends at a standstill.
+        var phase = new PushbackPhase
+        {
+            Move = move,
+            PlannedEnd = plannedEnd,
+            ContinuesIntoNextMove = false,
+        };
         phase._progressPending = true;
         phase._pendingPushedFrom = owesClearance ? start : null;
         return phase;

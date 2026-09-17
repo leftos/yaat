@@ -826,6 +826,7 @@ public class GroundConflictDetectorTests
                     CategoryPerformance.SimplePushbackDistanceNm(pusher.AircraftType)
                 ),
                 StartsAtStand = true,
+                ContinuesIntoNextMove = false,
             }
         );
         pusher.Phases.Start(CommandDispatcher.BuildMinimalContext(pusher));
@@ -851,6 +852,7 @@ public class GroundConflictDetectorTests
                 Move = TugMove.ToPoint(PushbackLegKind.Push, target),
                 PlannedEnd = target,
                 StartsAtStand = true,
+                ContinuesIntoNextMove = false,
             }
         );
         pusher.Phases.Start(CommandDispatcher.BuildMinimalContext(pusher));
@@ -871,6 +873,7 @@ public class GroundConflictDetectorTests
             Move = TugMove.Straight(PushbackLegKind.Push, TugMovePlanner.SimplePushbackFt(aircraft.AircraftType)),
             PlannedEnd = GeoMath.ProjectPoint(aircraft.Position, pushHeading, CategoryPerformance.SimplePushbackDistanceNm(aircraft.AircraftType)),
             StartsAtStand = true,
+            ContinuesIntoNextMove = false,
         };
     }
 

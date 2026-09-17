@@ -2256,7 +2256,9 @@ public static class GroundCommandHandler
 
     /// <summary>
     /// One <see cref="PushbackPhase"/> per planned move from <paramref name="firstMove"/> on, then the resting phase.
-    /// Move 0 of a plan that started parked is the stand push-off, the only one that carries the amendment.
+    /// Move 0 of a plan that started parked is the stand push-off, the only one that carries the amendment. A move
+    /// the plan follows with another that does not dwell is flown through at speed
+    /// (<see cref="PushbackPhase.ContinuesIntoNextMove"/>); the last move, and one the plan reverses after, stop.
     /// </summary>
     private static IEnumerable<Phase> TugMovePhases(TugPlan plan, bool fromStand, bool parksAtEnd, TugAmendment? amendment, int firstMove)
     {
@@ -2264,11 +2266,13 @@ public static class GroundCommandHandler
         {
             var trace = plan.Moves[i];
             bool pushOff = fromStand && (i == 0);
+            bool continues = (i + 1 < plan.Moves.Count) && !plan.Moves[i + 1].Move.DwellBefore;
             yield return new PushbackPhase
             {
                 Move = trace.Move,
                 PlannedEnd = trace.End.Position,
                 StartsAtStand = pushOff,
+                ContinuesIntoNextMove = continues,
                 Amendment = pushOff ? amendment : null,
             };
         }

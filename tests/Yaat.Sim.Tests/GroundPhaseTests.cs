@@ -124,6 +124,7 @@ public class GroundPhaseTests
             PlannedEnd = TugKinematics
                 .Simulate(new TugPose(aircraft.Position, aircraft.TrueHeading.Degrees), [move], aircraft.AircraftType, 1.0)
                 .End.Position,
+            ContinuesIntoNextMove = false,
         };
 
     private static (PushbackPhase Phase, PhaseContext Ctx) StartPush(AircraftState aircraft, TugMove move)
@@ -1022,6 +1023,7 @@ public class GroundPhaseTests
             Move = move,
             PlannedEnd = TugKinematics.Simulate(standPose, [move], aircraft.AircraftType, 1.0).End.Position,
             StartsAtStand = true,
+            ContinuesIntoNextMove = false,
             Amendment = TugAmendment.For(TugGoal.Facing(90), standPose),
         };
         aircraft.Phases = new PhaseList();

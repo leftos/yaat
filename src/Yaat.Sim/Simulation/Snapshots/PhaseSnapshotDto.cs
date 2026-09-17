@@ -453,6 +453,13 @@ public sealed class PushbackPhaseDto : PhaseDto
     public bool Creep { get; init; }
     public bool DwellBefore { get; init; }
     public bool StartsAtStand { get; init; }
+
+    /// <summary>
+    /// The tug goes straight on into another move when this one completes, so the move neither crawls its last 10 ft
+    /// nor stops dead. Absent on a snapshot written before move boundaries were flown through, which restores false —
+    /// the behaviour those snapshots were recorded with.
+    /// </summary>
+    public bool ContinuesIntoNextMove { get; init; }
     public double PlannedEndLatitude { get; init; }
     public double PlannedEndLongitude { get; init; }
 

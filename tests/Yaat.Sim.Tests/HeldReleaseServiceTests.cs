@@ -254,7 +254,14 @@ public class HeldReleaseServiceTests
     {
         Assert.Equal(
             "Pushing back (held)",
-            RundownStatusFor(new PushbackPhase { Move = TugMove.Straight(PushbackLegKind.Push, 100.0), PlannedEnd = new LatLon(37.6, -122.4) })
+            RundownStatusFor(
+                new PushbackPhase
+                {
+                    Move = TugMove.Straight(PushbackLegKind.Push, 100.0),
+                    PlannedEnd = new LatLon(37.6, -122.4),
+                    ContinuesIntoNextMove = false,
+                }
+            )
         );
     }
 

@@ -30,6 +30,7 @@
 - The flight-plan editor refuses that amendment with `ILL TRK` when another position owns the track.
 
 ### Fixed
+- A pushback planned as several tug moves holds its speed through the boundary between two moves in the same direction instead of crawling to 1 kt and restarting from a standstill; the tug still stops and dwells before reversing.
 - A taxi clearance whose consecutive taxiways do not meet no longer bridges them through a connector behind the aircraft: the detour ranks candidate connectors by pavement cost plus a reversal charge against the aircraft's heading instead of the bridge's raw length, so SFO `TAXI Y A A1 1R` after `PUSH Y A1` leaves taxilane Y through AY3 ahead of the nose rather than turning around in the alley for AY2.
 - `VP` refuses an existing IFR or VFR-on-top flight plan with `DUP NEW ID` instead of converting it to VFR.
 - Pressing play after rewinding the timeline replays the recording instead of discarding everything past that point; pausing, bookmarking and `SHOWAT` are equally safe.

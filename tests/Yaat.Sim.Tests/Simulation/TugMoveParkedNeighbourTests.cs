@@ -106,7 +106,12 @@ public class TugMoveParkedNeighbourTests(ITestOutputHelper output)
     {
         var move = TugMove.Straight(PushbackLegKind.Pull, distanceFt);
         var end = TugKinematics.Simulate(new TugPose(start.Position, start.NoseTrueDeg), [move], Narrowbody, 1.0).End.Position;
-        return new PushbackPhase { Move = move, PlannedEnd = end };
+        return new PushbackPhase
+        {
+            Move = move,
+            PlannedEnd = end,
+            ContinuesIntoNextMove = false,
+        };
     }
 
     /// <summary>What a run of a tug move next to a parked aircraft did.</summary>

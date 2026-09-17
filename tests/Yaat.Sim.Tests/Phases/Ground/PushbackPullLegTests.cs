@@ -194,7 +194,12 @@ public class PushbackPullLegTests(ITestOutputHelper output)
         var linePoint = GeoMath.ProjectPoint(start.Position, new TrueHeading(noseDeg), LineOffsetFt / GeoMath.FeetPerNm);
         var move = TugMove.ViaLine(PushbackLegKind.Pull, linePoint, lineDeg, stopAt: null);
         var planned = TugKinematics.Simulate(new TugPose(start.Position, noseDeg), [move], AircraftType, 1.0).End.Position;
-        var phase = new PushbackPhase { Move = move, PlannedEnd = planned };
+        var phase = new PushbackPhase
+        {
+            Move = move,
+            PlannedEnd = planned,
+            ContinuesIntoNextMove = false,
+        };
         var ac = SfoGroundHarness.SpawnAt(ground, "PUL4", AircraftType, (start, new TrueHeading(noseDeg)), phase);
         double radiusFt = TugKinematics.TurnRadiusFt(AircraftType, tight: false);
 
@@ -237,7 +242,12 @@ public class PushbackPullLegTests(ITestOutputHelper output)
     public void Kind_SurvivesTheSnapshot_AndAKindlessSnapshotRestoresAsPush()
     {
         var target = new LatLon(37.6188, -122.3750);
-        var phase = new PushbackPhase { Move = TugMove.ToPoint(PushbackLegKind.Pull, target), PlannedEnd = target };
+        var phase = new PushbackPhase
+        {
+            Move = TugMove.ToPoint(PushbackLegKind.Pull, target),
+            PlannedEnd = target,
+            ContinuesIntoNextMove = false,
+        };
 
         var dto = Assert.IsType<PushbackPhaseDto>(phase.ToSnapshot());
         Assert.Equal(PushbackLegKind.Pull, dto.Kind);
@@ -276,6 +286,7 @@ public class PushbackPullLegTests(ITestOutputHelper output)
             Move = move,
             PlannedEnd = target.Position,
             StartsAtStand = true,
+            ContinuesIntoNextMove = false,
             Amendment = TugAmendment.For(TugGoal.TaxiwayLine(target, LaneTaxiway, noseDeg), standPose),
         };
         Assert.NotNull(phase.Amendment);
@@ -353,7 +364,12 @@ public class PushbackPullLegTests(ITestOutputHelper output)
     /// <returns>What the run did.</returns>
     private LegRun RunLeg(SfoGround ground, LegSetup setup)
     {
-        var phase = new PushbackPhase { Move = TugMove.ToPoint(setup.Kind, setup.Target.Position), PlannedEnd = setup.Target.Position };
+        var phase = new PushbackPhase
+        {
+            Move = TugMove.ToPoint(setup.Kind, setup.Target.Position),
+            PlannedEnd = setup.Target.Position,
+            ContinuesIntoNextMove = false,
+        };
         var ac = SfoGroundHarness.SpawnAt(ground, setup.Callsign, AircraftType, (setup.From, new TrueHeading(setup.StartHeadingDeg)), phase);
         var startPosition = ac.Position;
 
