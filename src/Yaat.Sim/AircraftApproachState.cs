@@ -82,6 +82,17 @@ public class AircraftApproachState
     public double? SameRunwayProtectionDisplacedCeilingKts { get; set; }
 
     /// <summary>
+    /// One-way latch set when the simulated tower has told this arrival to reduce to final approach speed under the
+    /// same-runway protection (§5-7-3.f, inside
+    /// <see cref="Simulation.SameRunwayArrivalProtection.TowerSpeedAuthorityNm"/>). While set the pass re-stamps the
+    /// Vapp ceiling every tick and does not release it at the §5-7-1.b.4 window or when the conflict clears — that
+    /// paragraph forbids issuing a new adjustment inside 5 nm / the FAF, not keeping one already issued. Cleared only
+    /// by <c>ReleaseSameRunwayProtection</c> (landing, go-around, or another speed authority taking the aircraft).
+    /// Snapshot-serialized.
+    /// </summary>
+    public bool SameRunwayProtectionFasInstructed { get; set; }
+
+    /// <summary>
     /// Deferred pattern-leg reports armed by the controller's <c>REPORT</c> command. When set,
     /// the corresponding pattern phase voices a "turning crosswind/downwind/base/final" pilot
     /// report on each circuit. These flags persist across laps (the phase instances are rebuilt
@@ -140,6 +151,7 @@ public class AircraftApproachState
             AutoSpacingReleased = AutoSpacingReleased,
             SameRunwayProtectionCeilingKts = SameRunwayProtectionCeilingKts,
             SameRunwayProtectionDisplacedCeilingKts = SameRunwayProtectionDisplacedCeilingKts,
+            SameRunwayProtectionFasInstructed = SameRunwayProtectionFasInstructed,
             ReportArmedCrosswind = ReportArmedCrosswind,
             ReportArmedDownwind = ReportArmedDownwind,
             ReportArmedBase = ReportArmedBase,
@@ -163,6 +175,7 @@ public class AircraftApproachState
             AutoSpacingReleased = dto.AutoSpacingReleased,
             SameRunwayProtectionCeilingKts = dto.SameRunwayProtectionCeilingKts,
             SameRunwayProtectionDisplacedCeilingKts = dto.SameRunwayProtectionDisplacedCeilingKts,
+            SameRunwayProtectionFasInstructed = dto.SameRunwayProtectionFasInstructed,
             ReportArmedCrosswind = dto.ReportArmedCrosswind,
             ReportArmedDownwind = dto.ReportArmedDownwind,
             ReportArmedBase = dto.ReportArmedBase,

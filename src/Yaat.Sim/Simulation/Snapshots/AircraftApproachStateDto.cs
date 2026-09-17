@@ -30,6 +30,13 @@ public sealed class AircraftApproachStateDto
     public double? SameRunwayProtectionDisplacedCeilingKts { get; init; }
 
     /// <summary>
+    /// The pass's "tower has instructed final approach speed" latch. Non-required so older snapshots default to
+    /// <see langword="false"/> — the instruction is re-issued on the next tick if the conflict is still predicted and
+    /// the follower is still outside the §5-7-1.b.4 window.
+    /// </summary>
+    public bool SameRunwayProtectionFasInstructed { get; init; }
+
+    /// <summary>
     /// Deferred REPORT command armed state. All non-required so older snapshots default to
     /// unarmed (<see langword="false"/> / <see langword="null"/>).
     /// </summary>

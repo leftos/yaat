@@ -356,6 +356,41 @@ public class SameRunwayArrivalProtectionTests
     }
 
     [Theory]
+    // §5-7-3.f: inside 10 nm the arrival is on the local controller's frequency, so the simulated tower may assign
+    // final approach speed. The boundary is inclusive — 10.0 is inside, 10.1 is not.
+    [InlineData(10.0, true)]
+    [InlineData(10.1, false)]
+    [InlineData(4.0, true)]
+    public void TowerAuthority_BeginsAtTenMiles(double distanceToThresholdNm, bool expectedInside)
+    {
+        Assert.Equal(expectedInside, SameRunwayArrivalProtection.IsInsideTowerSpeedAuthority(distanceToThresholdNm));
+    }
+
+    [Fact]
+    public void FinalApproachSpeed_IsVrefPlusTheWindAdditive_NeverBareVref()
+    {
+        // "Reduce to final approach speed" means Vapp — Vref plus the wind/gust additive, the same formula
+        // FinalApproachPhase flies. Commanding bare Vref into a gust would put the aircraft below its own target.
+        Assert.Equal(151.0, SameRunwayArrivalProtection.FinalApproachSpeedKts(vrefKts: 144.0, windAdditiveKts: 7.0), 3);
+        Assert.Equal(144.0, SameRunwayArrivalProtection.FinalApproachSpeedKts(vrefKts: 144.0, windAdditiveKts: 0.0), 3);
+    }
+
+    [Fact]
+    public void Ceiling_StillFloorsAtTheRegulatorySpeedOutsideTowerAuthority()
+    {
+        // The pure ceiling arithmetic is unchanged by the tower-authority constant: a jet at 12 nm — inside the
+        // §5-7-3.c 20-mile boundary but outside the 10 nm the tower speaks at — still floors at the 170 kt figure and
+        // not at its 144 kt Vref. Dropping to final approach speed is the engine's decision, not this function's.
+        double ceiling = SameRunwayArrivalProtection.ProtectionCeilingKts(
+            leaderIasKts: 126.0,
+            shortfallSeconds: 120.0,
+            Follower(AircraftCategory.Jet, groundSpeedKts: 200.0, distanceToThresholdNm: 12.0, vrefKts: 144.0, scheduledKts: 187.0)
+        );
+
+        Assert.Equal(170.0, ceiling, 3);
+    }
+
+    [Theory]
     // Leader 10 s out, 70 s required: the follower must not be inside t=80.
     [InlineData(79.0, true)]
     [InlineData(80.0, false)]

@@ -1,4 +1,5 @@
 using Xunit;
+using Yaat.Sim.Simulation.Snapshots;
 
 namespace Yaat.Sim.Tests;
 
@@ -8,7 +9,9 @@ namespace Yaat.Sim.Tests;
 /// ceiling ownership (<see cref="AircraftApproachState.SameRunwayProtectionCeilingKts"/> plus the ceiling it displaced).
 /// Both drive behaviour that must survive a rewind, a restore and a replay: a lost provenance flag hands a controller's
 /// speed back to the simulated TRACON, and a lost displaced ceiling makes the protection's release delete a published
-/// crossing-speed restriction instead of restoring it.
+/// crossing-speed restriction instead of restoring it. Schema 27 adds the third of them,
+/// <see cref="AircraftApproachState.SameRunwayProtectionFasInstructed"/>: the latch recording that the simulated tower
+/// has already told this arrival to reduce to final approach speed, which the pass holds through the §5-7-1.b.4 window.
 /// </summary>
 public class SameRunwayProtectionSnapshotTests
 {
@@ -79,6 +82,30 @@ public class SameRunwayProtectionSnapshotTests
         // was no ceiling before" and clears the field rather than restoring a value that never existed.
         Assert.Equal(170.0, restored.Approach.SameRunwayProtectionCeilingKts);
         Assert.Null(restored.Approach.SameRunwayProtectionDisplacedCeilingKts);
+    }
+
+    [Fact]
+    public void FasInstructedLatch_SurvivesSnapshotRoundTrip()
+    {
+        var aircraft = Arrival();
+        aircraft.Targets.SpeedCeiling = 151.0;
+        aircraft.Approach.SameRunwayProtectionCeilingKts = 151.0;
+        aircraft.Approach.SameRunwayProtectionFasInstructed = true;
+
+        var restored = AircraftState.FromSnapshot(aircraft.ToSnapshot(), groundLayout: null);
+
+        // The latch is what keeps the tower's "reduce to final approach speed" alive inside the §5-7-1.b.4 window;
+        // losing it across a rewind would release the instruction and let the follower accelerate on short final.
+        Assert.True(restored.Approach.SameRunwayProtectionFasInstructed);
+        Assert.Equal(151.0, restored.Approach.SameRunwayProtectionCeilingKts);
+
+        // A pre-V27 snapshot carries no such field: it restores unlatched, and the pass re-issues the instruction on
+        // the next tick if the conflict persists and the follower is still outside 5 nm.
+        var legacy = AircraftApproachState.FromSnapshot(
+            new AircraftApproachStateDto { HasReportedFieldInSight = false, HasReportedTrafficInSight = false }
+        );
+
+        Assert.False(legacy.SameRunwayProtectionFasInstructed);
     }
 
     [Fact]

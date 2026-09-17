@@ -29,7 +29,7 @@ public sealed class SnapshotSchemaException : Exception
 /// </summary>
 public static class SnapshotSchemaMigrator
 {
-    public const int CurrentSchemaVersion = 26;
+    public const int CurrentSchemaVersion = 27;
 
     /// <summary>
     /// Migrates a snapshot to <see cref="CurrentSchemaVersion"/> in place.
@@ -170,6 +170,11 @@ public static class SnapshotSchemaMigrator
         //   read-only Legacy* properties. No data transformation here: a DTO with no Shape is an older snapshot, and
         //   PushbackPhase.FromSnapshot builds the equivalent move from its legacy fields, finishing it on the first
         //   tick because that needs the live aircraft pose.
+        // V26→V27: Added AircraftApproachStateDto.SameRunwayProtectionFasInstructed, the latch recording that the
+        //   simulated tower has already told this arrival to reduce to final approach speed (§5-7-3.f), which the
+        //   same-runway protection holds through the §5-7-1.b.4 window instead of releasing there. No data
+        //   transformation — the field is optional and older snapshots default to false: the pass simply re-issues the
+        //   instruction on the next tick if the conflict persists and the follower is still outside 5 nm.
         if (snapshot.SchemaVersion < 4)
         {
             foreach (var ac in snapshot.Aircraft)

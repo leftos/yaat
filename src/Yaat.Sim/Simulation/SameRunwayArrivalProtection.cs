@@ -49,7 +49,13 @@ namespace Yaat.Sim.Simulation;
 /// valid speed with the gear and landing flaps out, so commanding it at 12 nm and 4,000 ft asserts a configuration
 /// the aircraft does not have and contradicts §5-7-1.a.3.d ("allow aircraft to operate in a clean configuration as
 /// long as circumstances permit"). Stated simplification: §5-7-3.c.1.b's "20 <i>flying</i> miles" is path distance
-/// and this uses direct distance to the threshold, which errs permissive.</para>
+/// and this uses direct distance to the threshold, which errs permissive. Inside <see cref="TowerSpeedAuthorityNm"/>
+/// that floor may drop as far as <see cref="FinalApproachSpeedKts"/>: the arrival is on the local controller's
+/// frequency by then, so the simulated tower may say "reduce to final approach speed" under §5-7-3.f, and at that
+/// range the aircraft is configuring for landing rather than being asked to hold Vref clean. Such an instruction is
+/// <em>held</em> through the §5-7-1.b.4 window, because that paragraph forbids <em>issuing</em> speed adjustments
+/// inside 5 nm / the FAF, not keeping one already issued. <see cref="SimulationEngine"/> decides when to reach for
+/// that floor; the functions here only supply it.</para>
 /// </summary>
 public static class SameRunwayArrivalProtection
 {
@@ -77,6 +83,20 @@ public static class SameRunwayArrivalProtection
 
     /// <summary>Distance to the threshold (NM) inside which the lower §5-7-3.c.1.b / §5-7-3.c.2.b floors apply.</summary>
     public const double RegulatoryFloorDistanceNm = 20.0;
+
+    /// <summary>
+    /// Distance to the threshold (NM) inside which the arrival is assumed to be on the local controller's frequency,
+    /// so the simulated tower may assign final approach speed (§5-7-3.f). The assignment is issued outside the
+    /// §5-7-1.b.4 window (5 nm / the FAF) and held inside it.
+    /// </summary>
+    public const double TowerSpeedAuthorityNm = 10.0;
+
+    /// <summary>
+    /// Distance to the threshold (NM) from which an arrival known to be inbound to a runway (an expected approach)
+    /// but not yet cleared is spaced — the §5-7-3.c.1.b / §5-7-3.c.2.b 20-mile boundary, beyond which the pass could
+    /// only ever assign the 210/200 figures.
+    /// </summary>
+    public const double PreClearanceRangeNm = RegulatoryFloorDistanceNm;
 
     /// <summary>§5-7-3.c.1.a — turbojet arrival below 10,000 ft, beyond 20 flying miles.</summary>
     public const double JetFloorKts = 210.0;
@@ -185,6 +205,19 @@ public static class SameRunwayArrivalProtection
             _ => within20 ? RecipFloorWithin20Kts : RecipFloorKts,
         };
     }
+
+    /// <summary>
+    /// True when the arrival is close enough to the threshold that the simulated local controller has it on frequency
+    /// and may assign final approach speed under §5-7-3.f — see <see cref="TowerSpeedAuthorityNm"/>.
+    /// </summary>
+    public static bool IsInsideTowerSpeedAuthority(double distanceToThresholdNm) => distanceToThresholdNm <= TowerSpeedAuthorityNm;
+
+    /// <summary>
+    /// The "final approach speed" a tower instruction means: Vapp — <paramref name="vrefKts"/> plus the wind/gust
+    /// additive <see cref="AircraftPerformance.WindApproachAdditive"/> supplies (the
+    /// <see cref="Phases.Tower.FinalApproachPhase"/> Vapp formula), never bare Vref.
+    /// </summary>
+    public static double FinalApproachSpeedKts(double vrefKts, double windAdditiveKts) => vrefKts + windAdditiveKts;
 
     /// <summary>
     /// Path distance (nm) the leader must still cover past its hold-short node before <em>all parts</em> of it are
