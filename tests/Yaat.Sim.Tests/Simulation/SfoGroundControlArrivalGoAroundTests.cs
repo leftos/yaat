@@ -112,6 +112,9 @@ public class SfoGroundControlArrivalGoAroundTests(ITestOutputHelper output)
             }
             engine.RestoreFromSnapshot(snapshot.State);
 
+            // The restore overwrites the flag from the snapshot DTO, and this recording predates the setting.
+            engine.Scenario!.AutoArrivalSpacingOnOccupiedRunway = true;
+
             var seen = new HashSet<string>(StringComparer.Ordinal);
             int? goAroundSecond = null;
             string? leaderPhaseAtGoAround = null;

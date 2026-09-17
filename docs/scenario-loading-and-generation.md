@@ -476,8 +476,8 @@ All four drain in `TickPrePhysics` (`SimulationEngine.cs:465`) once per sim-seco
     (`IsOnFinal`) and inside `PreClearanceRangeNm` (20 NM, the §5-7-3.c.1.b boundary) is spaced before its `CAPP` fires — the
     scripted `CFIX …; CAPP …` composition left it unmanaged at 210 kt for the 45 s the clearance waited in the queue.
   - **The simulated local controller's "reduce to final approach speed".** Inside `TowerSpeedAuthorityNm` (10 NM — the arrival is
-    assumed on the tower frequency) and only when the student is not the tower (`SimScenarioState.IsStudentTowerPosition` false),
-    a predicted conflict is answered with Vapp (`FinalApproachSpeedKts` = Vref + `WindApproachAdditive`) instead of the §5-7-3.c
+    assumed on the tower frequency) and only when the student is on a ground position (`SimScenarioState.IsStudentGroundPosition`:
+    `StudentPositionType == "GND"`, which the classifier assigns to GND, GC and DEL), a predicted conflict is answered with Vapp (`FinalApproachSpeedKts` = Vref + `WindApproachAdditive`) instead of the §5-7-3.c
     floor, under §5-7-3.f ("lower speeds may be assigned when operationally advantageous"). The instruction is a one-way latch
     (`AircraftApproachState.SameRunwayProtectionFasInstructed`, snapshot schema 27): it is re-stamped every tick without being
     re-announced (the AXMUL-style `RNS` and `FlightPhysics.AutoCancelSpeedAtFinal` both null the ceiling), it is **held** through
@@ -487,6 +487,24 @@ All four drain in `TickPrePhysics` (`SimulationEngine.cs:465`) once per sim-seco
     attributed to the scenario's tower position for that airport (`Scenario.AtcPositions` classified `TWR`), else the AI
     local-control contact, else `TWR` (`ResolveTowerLabel`); it names no figure, so the 5-kt rounding applies to the approach
     line only.
+  - **Who may adjust where** (user-prescribed, 2026-09-17). The simulated *approach* controller issues a new adjustment only
+    outside `TowerSpeedAuthorityNm` and only while nobody else owns the speed — `HasOtherSpeedAuthority`: a controller-issued
+    speed, deleted restrictions, or the student owning the track. The student taking the track (a tower student's accepted
+    handoff) does not release the speed: `HandOverSameRunwayProtection` clears the pass's ownership fields and leaves
+    `SpeedCeiling` standing — the receiving controller inherits the restriction (§5-4-5.h.3, §5-4-6.c) — so it lapses the way any
+    assigned speed does, on the student's own speed command or `FlightPhysics.AutoCancelSpeedAtFinal` at the 5 NM / FAF window
+    (§5-7-1.d, AIM 4-4-12.a.7). Inside 10 NM with no tower-level authority (any student position other than ground, including a tower student who has not yet
+    accepted the handoff, an approach student, or no student position at all), the pass issues nothing new but **holds** an
+    approach reduction already in force (`HoldApproachReductionInsideTowerBoundary`: the same stamped ceiling re-applied each
+    tick, no conflict re-evaluation, no new terminal line) until the student takes the aircraft (hand-over, above) or the
+    5 NM / FAF window releases it — §5-7-1 warns against the alternating decreases and increases that withdrawing it at the
+    boundary would produce. A ceiling somebody cancelled (`RNS` nulls it) is not re-imposed: the hold returns false when nothing
+    is standing. The front-of-stream aircraft keeps a held reduction inside 10 NM for the same reason, where outside it is
+    released.
+  - **Setting.** `SimScenarioState.AutoArrivalSpacingOnOccupiedRunway` gates the whole pass; off, the release loop still runs so
+    anything owned is handed back the tick it is switched off. Sim default `false` (pre-setting recordings replay without the
+    pass — the replay E2E tests that assert on it set the flag after `Replay`/`RestoreFromSnapshot`), client preference
+    default on, plumbed like `AutoGoAroundOnOccupiedRunway` (session settings, hub method, `RecordedSettingChange`).
   Speed is still its only actuator; a real TRACON would vector first (§5-7-1.a.1). Aviation-reviewed 2026-09-16 against
   §3-10-3, §3-10-6, §5-5-4, §5-7-1, §5-7-3; the 10 NM tower hand-off and the FAS instruction were prescribed by the user (a
   controller) on 2026-09-17.

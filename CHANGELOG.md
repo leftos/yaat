@@ -4,13 +4,17 @@
 
 ### Highlights
 - The simulated approach controller spaces a scripted arrival from 20 nm out on its expected approach, before the approach clearance fires.
-- Inside 10 nm, a simulated tower tells a trailing arrival to reduce to final approach speed, and the instruction holds to touchdown.
+- Inside 10 nm, with a student on Ground, the simulated tower tells a trailing arrival to reduce to final approach speed, and the instruction holds to touchdown.
 - An aircraft vacating a runway holds taxi speed down a chorded exit and brakes only for the stop; an E175 clears SFO 28R at T in 28 s instead of 39 s.
-- Fewer trailing arrivals are slowed or sent around behind a leader that will be clear of the runway in time.
+- **Auto arrival spacing behind traffic on the runway** is a new Simulation Shortcuts setting, on by default; turn it off to deliver scenario arrivals exactly as scripted.
+
+### Added
+- **Auto arrival spacing behind traffic on the runway** — a Simulation Shortcuts setting and session checkbox, on by default, that switches the simulated approach controller's in-trail spacing of scenario arrivals off so they are delivered exactly as scripted.
 
 ### Changed
 - The simulated approach controller now spaces a scripted arrival from 20 nm out on its expected approach, instead of waiting for the approach clearance to fire.
-- Inside 10 nm, with the tower simulated, the local controller tells a trailing arrival to reduce to final approach speed instead of holding it at the 170-kt approach floor; the instruction stays in force to touchdown. A student working the tower keeps the previous behaviour.
+- The simulated approach controller adjusts an arrival's speed only until the arrival is 10 nm out or the tower student accepts its handoff, whichever comes first. A reduction already given stays in force across the boundary and across the handoff, as it would for a real receiving controller, until the student assigns a speed or the arrival is 5 nm out; it is not withdrawn at the boundary or on accept.
+- Inside 10 nm, when the student is working a Ground position, the simulated tower tells a trailing arrival to reduce to final approach speed instead of holding it at the 170-kt approach floor; the instruction stays in force to touchdown. A student on any other position gets no tower-level speed instruction.
 - The terminal log shows the tower's "reduce to final approach speed" line, attributed to the scenario's tower position.
 
 ### Fixed

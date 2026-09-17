@@ -453,6 +453,11 @@ public sealed partial class SimulationEngine
     /// touched, matching the precedent <see cref="ApplyArrivalSpacing"/> set. No RNG, so replay and rewind stay
     /// deterministic. When the reduction cannot open the interval in time the go-around still fires — the safety
     /// net is unchanged.
+    ///
+    /// <para>The whole issuing side is gated on
+    /// <see cref="SimScenarioState.AutoArrivalSpacingOnOccupiedRunway"/>: with the setting off the arrival streams are
+    /// not walked at all, and the release loop — which runs either way — hands back every ceiling and latched
+    /// instruction the pass still owns on that same tick.</para>
     /// </summary>
     private void ApplySameRunwayArrivalProtection()
     {
@@ -463,25 +468,48 @@ public sealed partial class SimulationEngine
         }
 
         var protectedThisTick = new HashSet<string>(StringComparer.Ordinal);
-        foreach (var stream in BuildRunwayArrivalStreams())
-        {
-            for (int i = 0; i < stream.Count; i++)
-            {
-                var (followerDistance, follower, runway, preClearance) = stream[i];
-                if (!IsProtectionEligible(follower, runway, scenario, preClearance))
-                {
-                    continue;
-                }
 
-                // Index 0 is the aircraft at the front of the stream — nobody ahead of it to be protected from, so
-                // the only thing to do for it is keep re-applying a tower instruction it was already issued.
-                bool owned =
-                    i == 0
-                        ? HoldTowerFasInstruction(follower, runway)
-                        : TryProtectFollower(follower, followerDistance, stream[i - 1].Aircraft, runway, scenario);
-                if (owned)
+        // The stream walk is the whole of the issuing side, so the setting gates it here; the release loop below
+        // stays unconditional, which is what hands every owned speed back on the tick the setting is switched off.
+        if (scenario.AutoArrivalSpacingOnOccupiedRunway)
+        {
+            foreach (var stream in BuildRunwayArrivalStreams())
+            {
+                for (int i = 0; i < stream.Count; i++)
                 {
-                    protectedThisTick.Add(follower.Callsign);
+                    var (followerDistance, follower, runway, preClearance) = stream[i];
+
+                    // The student taking the track is a handoff, not a release: the receiving controller inherits the
+                    // restrictions the aircraft is flying (§5-4-5.h.3, §5-4-6.c), so the pass lets go of the speed
+                    // without giving it back. Ahead of the eligibility test because that test would only make the
+                    // follower ineligible, and an ineligible follower falls to the release loop below.
+                    if (StudentOwnsTrack(follower, scenario) && PassOwnsProtection(follower))
+                    {
+                        HandOverSameRunwayProtection(follower);
+                        continue;
+                    }
+
+                    if (!IsProtectionEligible(follower, runway, scenario, preClearance))
+                    {
+                        continue;
+                    }
+
+                    // Index 0 is the aircraft at the front of the stream — nobody ahead of it to be protected from,
+                    // so the only thing to do for it is keep re-applying what it was already told: a tower
+                    // instruction, or an approach reduction it is still flying inside the tower boundary. Neither is
+                    // withdrawn merely because the aircraft ahead has landed.
+                    bool owned =
+                        i == 0
+                            ? HoldTowerFasInstruction(follower, runway)
+                                || (
+                                    SameRunwayArrivalProtection.IsInsideTowerSpeedAuthority(followerDistance)
+                                    && HoldApproachReductionInsideTowerBoundary(follower)
+                                )
+                            : TryProtectFollower(follower, followerDistance, stream[i - 1].Aircraft, runway, scenario);
+                    if (owned)
+                    {
+                        protectedThisTick.Add(follower.Callsign);
+                    }
                 }
             }
         }
@@ -492,12 +520,37 @@ public sealed partial class SimulationEngine
         // arrival stream (it landed or went around) or someone else taking its speed.
         foreach (var aircraft in World.GetSnapshot())
         {
-            bool owned = (aircraft.Approach.SameRunwayProtectionCeilingKts is not null) || aircraft.Approach.SameRunwayProtectionFasInstructed;
-            if (owned && !protectedThisTick.Contains(aircraft.Callsign))
+            if (PassOwnsProtection(aircraft) && !protectedThisTick.Contains(aircraft.Callsign))
             {
                 ReleaseSameRunwayProtection(aircraft);
             }
         }
+    }
+
+    /// <summary>
+    /// True while the same-runway protection pass owns this aircraft's speed — it has a ceiling stamped, a latched
+    /// simulated-tower instruction, or both.
+    /// </summary>
+    private static bool PassOwnsProtection(AircraftState aircraft) =>
+        (aircraft.Approach.SameRunwayProtectionCeilingKts is not null) || aircraft.Approach.SameRunwayProtectionFasInstructed;
+
+    /// <summary>
+    /// Stops owning the follower's speed without touching <see cref="ControlTargets.SpeedCeiling"/>: what the student
+    /// controller inherits when they take the track. §5-4-5.h.3 and §5-4-6.c put the restrictions an aircraft is
+    /// flying on the receiving controller's account rather than cancelling them at the boundary, so the reduction
+    /// stands and the arrival does not accelerate on the tick the handoff is accepted. Unlike
+    /// <see cref="ReleaseSameRunwayProtection"/> nothing is put back, because nothing is being taken away.
+    ///
+    /// <para>The ceiling left standing is then an ordinary assigned speed with nobody in the sim re-stamping it: it
+    /// lapses the way any other does — the student's own speed command, or <c>FlightPhysics.AutoCancelSpeedAtFinal</c>
+    /// at the 5 nm / FAF window (§5-7-1.d, AIM 4-4-12.a.7).</para>
+    /// </summary>
+    private static void HandOverSameRunwayProtection(AircraftState aircraft)
+    {
+        var approach = aircraft.Approach;
+        approach.SameRunwayProtectionCeilingKts = null;
+        approach.SameRunwayProtectionDisplacedCeilingKts = null;
+        approach.SameRunwayProtectionFasInstructed = false;
     }
 
     /// <summary>
@@ -512,7 +565,8 @@ public sealed partial class SimulationEngine
     /// pass stamped — anything that has lowered it since owns it now and is left alone, the compare-before-clear
     /// shape <see cref="Phases.Approach.ProcedureTurnPhase"/> uses. Also the one place a latched simulated-tower
     /// final-approach-speed instruction (<see cref="AircraftApproachState.SameRunwayProtectionFasInstructed"/>) is
-    /// withdrawn. Clears nothing else when the pass is not engaged.
+    /// withdrawn. Clears nothing else when the pass is not engaged. The student controller taking the track is not
+    /// this path: there the speed goes with the track (<see cref="HandOverSameRunwayProtection"/>).
     /// </summary>
     private static void ReleaseSameRunwayProtection(AircraftState aircraft)
     {
@@ -698,9 +752,11 @@ public sealed partial class SimulationEngine
 
         // §5-7-1.b.4: no speed adjustment inside the FAF or 5 nm from the runway, whichever is closer. The same
         // pair of tests FlightPhysics.AutoCancelSpeedAtFinal uses, so the two agree on where the window starts and
-        // pattern traffic — which flies its whole circuit inside 5 nm — is not caught by distance alone. A
-        // simulated-tower instruction already issued outside the window is exempt: the paragraph forbids issuing a
-        // speed adjustment in there, not continuing to fly one.
+        // pattern traffic — which flies its whole circuit inside 5 nm — is not caught by distance alone. An approach
+        // reduction still standing here is released because the approach clearance supersedes it (§5-7-1.d, AIM
+        // 4-4-12.a.7). A simulated-tower instruction already issued outside the window is exempt: the paragraph
+        // forbids issuing a speed adjustment in there, not continuing to fly one, and final approach speed is the
+        // pilot's own speed from the FAF anyway.
         double thresholdDistance = GeoMath.DistanceNm(follower.Position, new LatLon(runway.ThresholdLatitude, runway.ThresholdLongitude));
         if (
             (!follower.Approach.SameRunwayProtectionFasInstructed)
@@ -726,19 +782,32 @@ public sealed partial class SimulationEngine
             return true;
         }
 
-        return aircraft.Track.Owner is { } owner && scenario.StudentPosition is { } student && owner.MatchesPosition(student);
+        return StudentOwnsTrack(aircraft, scenario);
     }
+
+    /// <summary>
+    /// True when the student controller holds this aircraft's track — they are working it, so its speed is theirs.
+    /// Split out from <see cref="HasOtherSpeedAuthority"/> because the pass treats this case differently from the
+    /// rest: a student taking the track is handed the speed (<see cref="HandOverSameRunwayProtection"/>) rather than
+    /// having it released back.
+    /// </summary>
+    private static bool StudentOwnsTrack(AircraftState aircraft, SimScenarioState scenario) =>
+        aircraft.Track.Owner is { } owner && scenario.StudentPosition is { } student && owner.MatchesPosition(student);
 
     /// <summary>
     /// Predicts the two threshold crossings and, when the follower's would fall inside the interval the leader needs
     /// to clear the runway, stamps the speed ceiling that opens it. Returns true when the pass now owns this
     /// follower's ceiling.
     ///
-    /// <para>Two figures may be assigned. Outside <see cref="SameRunwayArrivalProtection.TowerSpeedAuthorityNm"/> —
-    /// or whenever the student is the one working the tower — it is the §5-7-3.c floor the simulated approach
-    /// controller may assign. Inside it, with the arrival on the simulated local controller's frequency and
-    /// configuring to land, that controller may instead say "reduce to final approach speed" (§5-7-3.f) and the
-    /// figure is Vapp. That instruction latches: it is re-applied every tick without being re-announced, because
+    /// <para>Where the follower is decides who may speak to it. Outside
+    /// <see cref="SameRunwayArrivalProtection.TowerSpeedAuthorityNm"/> it is the simulated approach controller's, and
+    /// the figure is the §5-7-3.c floor that controller may assign. Inside, the arrival is on the local controller's
+    /// frequency, so the approach controller issues nothing new and a reduction it already assigned is merely held
+    /// (<see cref="HoldApproachReductionInsideTowerBoundary"/>). The simulated tower may issue in there — "reduce to
+    /// final approach speed" (§5-7-3.f), the figure being Vapp — but only when the student is working a ground
+    /// position (<see cref="SimScenarioState.IsStudentGroundPosition"/>): a student on the tower or on approach is
+    /// the one who would have said it. That instruction latches: it is re-applied every tick without being
+    /// re-announced, because
     /// <see cref="FlightPhysics"/>'s auto-cancel at the §5-7-1.b.4 window and a scripted <c>RNS</c> both null
     /// <see cref="ControlTargets.SpeedCeiling"/>, and a pilot already flying final approach speed does not speed up
     /// when the controller stops talking.</para>
@@ -764,6 +833,16 @@ public sealed partial class SimulationEngine
             return HoldTowerFasInstruction(follower, runway);
         }
 
+        // Inside the tower boundary the arrival is on the local controller's frequency: the simulated approach
+        // controller has nothing more to say to it, and the simulated tower speaks only for a student who is working
+        // the ground. With neither able to issue, all that is left is to keep flying what was already assigned.
+        bool insideTowerBoundary = SameRunwayArrivalProtection.IsInsideTowerSpeedAuthority(followerDistanceNm);
+        bool towerAuthority = scenario.IsStudentGroundPosition && insideTowerBoundary && ApproachCommandHandler.IsOnFinal(follower, runway);
+        if (insideTowerBoundary && !towerAuthority)
+        {
+            return HoldApproachReductionInsideTowerBoundary(follower);
+        }
+
         var followerCategory = AircraftCategorization.Categorize(follower.AircraftType);
         var leaderCategory = AircraftCategorization.Categorize(leader.AircraftType);
         double vref = AircraftPerformance.ApproachSpeed(follower.AircraftType, followerCategory);
@@ -784,11 +863,6 @@ public sealed partial class SimulationEngine
         {
             return false;
         }
-
-        bool towerAuthority =
-            (!scenario.IsStudentTowerPosition)
-            && SameRunwayArrivalProtection.IsInsideTowerSpeedAuthority(followerDistanceNm)
-            && ApproachCommandHandler.IsOnFinal(follower, runway);
 
         double scheduled = ArrivalSpacingManager.ScheduledFinalSpeedKts(
             follower.AircraftType,
@@ -868,6 +942,43 @@ public sealed partial class SimulationEngine
         }
 
         StampProtectionCeiling(follower, finalApproachSpeed, displaced);
+        return true;
+    }
+
+    /// <summary>
+    /// Re-applies a speed reduction the simulated approach controller assigned outside
+    /// <see cref="SameRunwayArrivalProtection.TowerSpeedAuthorityNm"/> to a follower that has since crossed inside it,
+    /// with no conflict test of its own and no new terminal line. That controller may not issue in there — the
+    /// arrival is on the tower's frequency — but the speed it assigned is flown until somebody takes it over or takes
+    /// it back: the tower student accepting the handoff (<see cref="HandOverSameRunwayProtection"/>, which hands the
+    /// speed over with the track and leaves the reduction standing) or the 5 nm / FAF window
+    /// (<see cref="IsProtectionEligible"/>'s test, which releases a non-FAS engagement — §5-7-1.d and AIM 4-4-12.a.7:
+    /// the approach clearance supersedes a prior speed assignment and the pilot makes their own adjustments from
+    /// there; §5-7-1.b.4 only forbids issuing in there). Returns false when nothing is stamped or the ceiling has been
+    /// cancelled — there is no reduction to hold — and true otherwise, including when a lower ceiling from another
+    /// writer is left standing.
+    /// </summary>
+    private static bool HoldApproachReductionInsideTowerBoundary(AircraftState follower)
+    {
+        // Nothing standing means somebody cancelled it — RNS nulls the ceiling without claiming the speed for a human
+        // controller — and there is nothing to hold. The release loop then hands the (already null) ceiling back.
+        if (follower.Targets.SpeedCeiling is null)
+        {
+            return false;
+        }
+
+        if (follower.Approach.SameRunwayProtectionCeilingKts is not { } stamped)
+        {
+            return false;
+        }
+
+        double? displaced = DisplacedCeilingKts(follower);
+        if (displaced is { } binding && binding <= stamped)
+        {
+            return true;
+        }
+
+        StampProtectionCeiling(follower, stamped, displaced);
         return true;
     }
 

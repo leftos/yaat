@@ -179,6 +179,15 @@ public sealed class SimScenarioState
     public bool AutoRejectTakeoffOnOccupiedRunway { get; set; }
 
     /// <summary>
+    /// When true, the simulated approach controller — and inside 10 nm the simulated tower — slows a scenario
+    /// arrival whose leader will still be on the runway when it reaches the threshold
+    /// (<c>SimulationEngine.ApplySameRunwayArrivalProtection</c>). Defaults to false here so pre-feature
+    /// recordings replay faithfully; the user-facing default is on, pushed from the client preference at scenario
+    /// load.
+    /// </summary>
+    public bool AutoArrivalSpacingOnOccupiedRunway { get; set; }
+
+    /// <summary>
     /// When true, the room mirrors real aircraft from the server's live-traffic feed as shadow aircraft
     /// (see <c>docs/live-traffic.md</c>). Defaults to false; recordings replay the samples they carry
     /// regardless of the flag. Mutually exclusive with a sim rate above 1 — real traffic cannot be warped.
@@ -390,6 +399,14 @@ public sealed class SimScenarioState
 
     public TimeSpan AutoAcceptDelay { get; set; } = TimeSpan.FromSeconds(5);
     public bool IsStudentTowerPosition { get; set; }
+
+    /// <summary>
+    /// True when the student holds a ground-control position — GND, GC and DEL all classify to <c>"GND"</c> in
+    /// <see cref="AtcPositionTypeClassifier"/>. False when the student holds no position at all
+    /// (<see cref="StudentPositionType"/> null).
+    /// </summary>
+    public bool IsStudentGroundPosition => StudentPositionType == "GND";
+
     public Dictionary<string, CoordinationChannel> CoordinationChannels { get; set; } = [];
 
     public ScenarioSnapshotDto ToSnapshot() =>
@@ -407,6 +424,7 @@ public sealed class SimScenarioState
             AutoPullUpToParallel = AutoPullUpToParallel,
             AutoGoAroundOnOccupiedRunway = AutoGoAroundOnOccupiedRunway,
             AutoRejectTakeoffOnOccupiedRunway = AutoRejectTakeoffOnOccupiedRunway,
+            AutoArrivalSpacingOnOccupiedRunway = AutoArrivalSpacingOnOccupiedRunway,
             LiveTrafficEnabled = LiveTrafficEnabled,
             LiveTrafficCeilingFt = LiveTrafficCeilingFt,
             LiveTrafficFilter = LiveTrafficFilter,

@@ -122,6 +122,7 @@ both the wrapper name and the hub method's own semantics** — grep for the stri
 | `SetAutoCrossRunwayAsync(enabled)` | `SetAutoCrossRunway` | `SetAutoCrossRunway(...)` `:581` |
 | `SetAutoPullUpToParallelAsync(enabled)` | `SetAutoPullUpToParallel` | `SetAutoPullUpToParallel(...)` |
 | `SetAutoGoAroundOnOccupiedRunwayAsync(enabled)` | `SetAutoGoAroundOnOccupiedRunway` | `SetAutoGoAroundOnOccupiedRunway(...)` |
+| `SetAutoArrivalSpacingOnOccupiedRunwayAsync(enabled)` | `SetAutoArrivalSpacingOnOccupiedRunway` | `SetAutoArrivalSpacingOnOccupiedRunway(...)` |
 | `SetAutoRejectTakeoffOnOccupiedRunwayAsync(enabled)` | `SetAutoRejectTakeoffOnOccupiedRunway` | `SetAutoRejectTakeoffOnOccupiedRunway(...)` |
 | `SetLiveTrafficEnabledAsync(enabled)` | `SetLiveTrafficEnabled` | `SetLiveTrafficEnabled(...)` — returns `CommandResultDto`; refused while `SimRate > 1` (the client reverts its checkbox) |
 | `SetLiveTrafficCeilingFtAsync(ceilingFt)` | `SetLiveTrafficCeilingFt` | `SetLiveTrafficCeilingFt(...)` — 0 = automatic |
@@ -376,7 +377,7 @@ Roughly 13 session-settings fields are duplicated across **four** DTOs and must 
 `LoadScenarioResult` (`TrainingDtos.cs:105`), `RoomStateDto` (`:182`), `ScenarioLoadedDto` (`:213`), and
 `SessionSettingsDto` (`:241`) — with the same set on the client side. The fields:
 `AutoDeleteOverride`, `EffectiveAutoDeleteMode`, `AutoAcceptDelaySeconds`, `AutoClearedToLand`, `AutoCrossRunway`,
-`AutoPullUpToParallel`, `AutoGoAroundOnOccupiedRunway`, `AutoRejectTakeoffOnOccupiedRunway`, `ValidateDctFixes`, `SoloTrainingMode`, `SoloParkingInitialCallupRatePercent`,
+`AutoPullUpToParallel`, `AutoGoAroundOnOccupiedRunway`, `AutoRejectTakeoffOnOccupiedRunway`, `AutoArrivalSpacingOnOccupiedRunway`, `ValidateDctFixes`, `SoloTrainingMode`, `SoloParkingInitialCallupRatePercent`,
 `SoloArrivalGeneratorRatePercent`, `SoloGoAroundProbabilityPercent`, `HasSoloParkingInitialCallupSource`,
 `HasSoloArrivalGeneratorSource`, `RpoShowPilotSpeech`, `CommandRunDelayMinSeconds`, `CommandRunDelayMaxSeconds`,
 `LiveTrafficEnabled`, `LiveTrafficCeilingFt`.

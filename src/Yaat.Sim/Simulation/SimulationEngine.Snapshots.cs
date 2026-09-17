@@ -80,6 +80,7 @@ public sealed partial class SimulationEngine
             Scenario.AutoPullUpToParallel = scenarioDto.AutoPullUpToParallel;
             Scenario.AutoGoAroundOnOccupiedRunway = scenarioDto.AutoGoAroundOnOccupiedRunway;
             Scenario.AutoRejectTakeoffOnOccupiedRunway = scenarioDto.AutoRejectTakeoffOnOccupiedRunway;
+            Scenario.AutoArrivalSpacingOnOccupiedRunway = scenarioDto.AutoArrivalSpacingOnOccupiedRunway;
             Scenario.LiveTrafficEnabled = scenarioDto.LiveTrafficEnabled;
             Scenario.LiveTrafficCeilingFt = scenarioDto.LiveTrafficCeilingFt;
             Scenario.LiveTrafficFilter = scenarioDto.LiveTrafficFilter;

@@ -32,6 +32,9 @@ public sealed class ScenarioSnapshotDto
     public bool AutoGoAroundOnOccupiedRunway { get; init; }
     public bool AutoRejectTakeoffOnOccupiedRunway { get; init; }
 
+    // Optional — snapshots that predate the same-runway arrival spacing restore with the pass off.
+    public bool AutoArrivalSpacingOnOccupiedRunway { get; init; }
+
     // Optional — snapshots that predate live traffic restore with the feature off, an automatic ceiling and no filter.
     public bool LiveTrafficEnabled { get; init; }
     public int LiveTrafficCeilingFt { get; init; }

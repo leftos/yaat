@@ -484,6 +484,7 @@ public partial class MainViewModel
         _ = SendAutoPullUpToParallel();
         _ = SendAutoGoAroundOnOccupiedRunway();
         _ = SendAutoRejectTakeoffOnOccupiedRunway();
+        _ = SendAutoArrivalSpacingOnOccupiedRunway();
     }
 
     private void OnScenarioLoaded(ScenarioLoadedDto dto)
@@ -744,7 +745,9 @@ public partial class MainViewModel
         {
             entry.Vm.Clear();
         }
-        ApplySessionSettings(new SessionSettingsDto(null, null, -1, false, false, true, true, true, true, false, 100, 100, 0, false, false, false));
+        ApplySessionSettings(
+            new SessionSettingsDto(null, null, -1, false, false, true, true, true, true, true, false, 100, 100, 0, false, false, false)
+        );
 
         // Active position no longer applies without a scenario; hide the indicator.
         SetActiveTcpFromServer(null);

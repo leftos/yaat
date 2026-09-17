@@ -170,6 +170,7 @@ public class ArrivalGeneratorInTrailSpacingTests(ITestOutputHelper output)
             return;
         }
         var rwy30 = engine.Scenario!.Generators.Single(g => g.Config.Runway == "30").Runway;
+        engine.Scenario.AutoArrivalSpacingOnOccupiedRunway = true;
 
         InjectArrival(engine, rwy30, "MANUAL1", "DH8D", 6.0, isGeneratorArrival: false);
         InjectArrival(engine, rwy30, "GEN2", "B739", 35.0, isGeneratorArrival: true);
@@ -223,6 +224,7 @@ public class ArrivalGeneratorInTrailSpacingTests(ITestOutputHelper output)
             return;
         }
         var rwy30 = engine.Scenario!.Generators.Single(g => g.Config.Runway == "30").Runway;
+        engine.Scenario.AutoArrivalSpacingOnOccupiedRunway = true;
 
         InjectArrival(engine, rwy30, "MANUAL1", "DH8D", 8.0, isGeneratorArrival: false);
         InjectArrival(engine, rwy30, "MANUAL3", "B739", 11.0, isGeneratorArrival: false);

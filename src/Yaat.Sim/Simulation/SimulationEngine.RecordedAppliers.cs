@@ -242,6 +242,12 @@ public sealed partial class SimulationEngine
                     scenario.AutoRejectTakeoffOnOccupiedRunway = arto;
                 }
                 break;
+            case "AutoArrivalSpacingOnOccupiedRunway":
+                if (bool.TryParse(setting.Value, out var aaso))
+                {
+                    scenario.AutoArrivalSpacingOnOccupiedRunway = aaso;
+                }
+                break;
             case "LiveTrafficEnabled":
                 if (bool.TryParse(setting.Value, out var live))
                 {

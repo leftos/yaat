@@ -88,6 +88,15 @@ public class SameRunwayArrivalProtectionEngineTests(ITestOutputHelper output)
     /// <summary>How far below the tower's final approach speed an arm parks a competing ceiling that must not be raised.</summary>
     private const double LowerCeilingMarginKts = 5.0;
 
+    /// <summary>
+    /// Distance (nm) an arm slides a follower to when it wants it inside
+    /// <see cref="SameRunwayArrivalProtection.TowerSpeedAuthorityNm"/> and still behind a leader placed at
+    /// <see cref="LeaderDistanceNm"/>. Deliberately not the leader's own distance: on a tie the stream orders by
+    /// callsign, so which aircraft is the follower — and therefore which branch holds the reduction — would depend on
+    /// the placement iteration's residual error rather than on the geometry the arm set up.
+    /// </summary>
+    private const double InsideTowerBoundaryDistanceNm = 9.0;
+
     [Fact]
     public void ProtectionReleases_WhenTheConflictClears()
     {
@@ -255,21 +264,23 @@ public class SameRunwayArrivalProtectionEngineTests(ITestOutputHelper output)
     /// the same pair just outside the window first, so the release that follows is attributable to the window and not
     /// to the conflict having evaporated.
     ///
-    /// <para>This geometry sits inside <see cref="SameRunwayArrivalProtection.TowerSpeedAuthorityNm"/>, so the arm
-    /// runs with the student on the tower position: what it pins is the §5-7-3.c floor path, which is the only one
-    /// left when the sim may not speak for the local controller. The simulated-tower path holds its instruction
-    /// through the same window — <see cref="FasInstruction_IsNotCancelledAtFiveMiles"/> is the mirror.</para>
+    /// <para>The engagement is made outside <see cref="SameRunwayArrivalProtection.TowerSpeedAuthorityNm"/>, where
+    /// the simulated approach controller may still issue, and the arm runs with the student on the tower position so
+    /// the simulated tower's §5-7-3.f instruction cannot take the follower instead: what it pins is the §5-7-3.c
+    /// floor path. That path is released at the window even though a reduction already issued is otherwise held
+    /// across the 10-mile boundary — <see cref="FasInstruction_IsNotCancelledAtFiveMiles"/> and
+    /// <see cref="TowerStudent_ApproachReductionIssuedOutsideTenMiles_HoldsAcrossTheBoundary"/> are the mirrors.</para>
     /// </summary>
     [Fact]
     public void NoCeilingIsStamped_OnceTheFollowerIsInsideFiveMilesOnFinal()
     {
-        var pair = ConflictingPair(leaderDistanceNm: 3.0, followerDistanceNm: 6.5);
+        var pair = ConflictingPair(LeaderDistanceNm, FollowerDistanceNm);
         if (pair is null)
         {
             return;
         }
 
-        pair.Engine.Scenario!.IsStudentTowerPosition = true;
+        pair.Engine.Scenario!.StudentPositionType = "TWR";
 
         pair.Pass();
         Report(pair, "engaged outside the §5-7-1.b.4 window");
@@ -457,16 +468,19 @@ public class SameRunwayArrivalProtectionEngineTests(ITestOutputHelper output)
     /// controller's frequency and configuring to land, so the simulated tower may say "reduce to final approach
     /// speed" (§5-7-3.f, lower speeds when operationally advantageous) instead of stopping at the §5-7-3.c.1.b
     /// 170-kt floor. The assigned figure is Vapp — Vref plus the wind additive — never bare Vref, and the line
-    /// carries no number, so there is nothing to round to 5-kt increments (§5-7-1.a.7).
+    /// carries no number, so there is nothing to round to 5-kt increments (§5-7-1.a.7). The sim speaks for the local
+    /// controller only while the student is working a ground position; the arm sets one.
     /// </summary>
     [Fact]
-    public void InsideTenMiles_TheTowerReducesToFinalApproachSpeed()
+    public void GroundStudent_InsideTenMiles_TheTowerReducesToFinalApproachSpeed()
     {
         var pair = ConflictingPair(TowerAuthorityLeaderDistanceNm, TowerAuthorityFollowerDistanceNm);
         if (pair is null)
         {
             return;
         }
+
+        pair.Engine.Scenario!.StudentPositionType = "GND";
 
         pair.Pass();
         Report(pair, "inside the tower's speed authority");
@@ -526,6 +540,8 @@ public class SameRunwayArrivalProtectionEngineTests(ITestOutputHelper output)
             return;
         }
 
+        pair.Engine.Scenario!.StudentPositionType = "GND";
+
         pair.Pass();
         Assert.True(pair.Follower.Approach.SameRunwayProtectionFasInstructed);
 
@@ -552,6 +568,8 @@ public class SameRunwayArrivalProtectionEngineTests(ITestOutputHelper output)
         {
             return;
         }
+
+        pair.Engine.Scenario!.StudentPositionType = "GND";
 
         pair.Pass();
         Assert.True(pair.Follower.Approach.SameRunwayProtectionFasInstructed);
@@ -580,6 +598,8 @@ public class SameRunwayArrivalProtectionEngineTests(ITestOutputHelper output)
             return;
         }
 
+        pair.Engine.Scenario!.StudentPositionType = "GND";
+
         pair.Pass();
         pair.Follower.Targets.SpeedCeiling = null;
         pair.Pass();
@@ -593,12 +613,13 @@ public class SameRunwayArrivalProtectionEngineTests(ITestOutputHelper output)
     }
 
     /// <summary>
-    /// When the student is the one working the tower, the sim does not speak for them: the local controller's
-    /// §5-7-3.f instruction is theirs to give, so the pass stays on the §5-7-3.c floors it may assign as the
-    /// simulated approach controller — and releases at the §5-7-1.b.4 window like any other adjustment.
+    /// Nothing new is issued inside <see cref="SameRunwayArrivalProtection.TowerSpeedAuthorityNm"/>: the arrival is
+    /// on the local controller's frequency there, so the simulated approach controller has stopped talking to it, and
+    /// the simulated tower speaks only when the student is not the one working a tower position. With the student on
+    /// the tower and a conflict that first appears inside the boundary, the pass has nothing it may say.
     /// </summary>
     [Fact]
-    public void TowerStudent_KeepsTheApproachFloor()
+    public void TowerStudent_InsideTenMiles_GetsNoNewAdjustment()
     {
         var pair = ConflictingPair(TowerAuthorityLeaderDistanceNm, TowerAuthorityFollowerDistanceNm);
         if (pair is null)
@@ -606,22 +627,15 @@ public class SameRunwayArrivalProtectionEngineTests(ITestOutputHelper output)
             return;
         }
 
-        pair.Engine.Scenario!.IsStudentTowerPosition = true;
+        pair.Engine.Scenario!.StudentPositionType = "TWR";
 
         pair.Pass();
-        Report(pair, "with the student on the tower position");
-
-        Assert.False(pair.Follower.Approach.SameRunwayProtectionFasInstructed);
-        var lines = SpacingLines(pair.Follower);
-        Assert.Single(lines);
-        Assert.Contains("reduce speed to 170", lines[0], StringComparison.Ordinal);
-
-        pair.PlaceFollowerAt(4.0);
-        pair.Pass();
-        Report(pair, "student tower, inside the §5-7-1.b.4 window");
+        Report(pair, "with the student on the tower position, inside 10 nm");
 
         Assert.Null(pair.Follower.Approach.SameRunwayProtectionCeilingKts);
         Assert.Null(pair.Follower.Targets.SpeedCeiling);
+        Assert.Empty(SpacingLines(pair.Follower));
+        Assert.False(pair.Follower.Approach.SameRunwayProtectionFasInstructed);
     }
 
     /// <summary>
@@ -636,6 +650,8 @@ public class SameRunwayArrivalProtectionEngineTests(ITestOutputHelper output)
         {
             return;
         }
+
+        pair.Engine.Scenario!.StudentPositionType = "GND";
 
         pair.Pass();
         Assert.True(pair.Follower.Approach.SameRunwayProtectionFasInstructed);
@@ -668,6 +684,7 @@ public class SameRunwayArrivalProtectionEngineTests(ITestOutputHelper output)
             return;
         }
 
+        pair.Engine.Scenario!.StudentPositionType = "GND";
         pair.Follower.IsGeneratorArrival = true;
         var result = CommandDispatcher.Dispatch(new SpeedCommand(200), pair.Follower, TestDispatch.Context(Random.Shared, isScenarioScripted: true));
         Assert.True(result.Success, result.Message);
@@ -682,6 +699,268 @@ public class SameRunwayArrivalProtectionEngineTests(ITestOutputHelper output)
         Assert.Null(pair.Follower.Approach.SameRunwayProtectionCeilingKts);
         Assert.False(pair.Follower.Approach.SameRunwayProtectionFasInstructed);
         Assert.Empty(SpacingLines(pair.Follower));
+    }
+
+    /// <summary>
+    /// The whole pass is a scenario setting. With it off the stream is not walked at all: no prediction, no ceiling,
+    /// no line — the delivery is the instructor's to manage, and the occupied-runway go-around is still the net.
+    /// </summary>
+    [Fact]
+    public void SettingOff_TheStreamIsNotManaged()
+    {
+        var pair = ConflictingPair(LeaderDistanceNm, FollowerDistanceNm);
+        if (pair is null)
+        {
+            return;
+        }
+
+        pair.Engine.Scenario!.AutoArrivalSpacingOnOccupiedRunway = false;
+
+        pair.Pass();
+        Report(pair, "with the setting off");
+
+        Assert.Null(pair.Follower.Approach.SameRunwayProtectionCeilingKts);
+        Assert.Null(pair.Follower.Targets.SpeedCeiling);
+        Assert.Empty(SpacingLines(pair.Follower));
+    }
+
+    /// <summary>
+    /// Switching the setting off mid-session hands the speed back on the very next tick rather than leaving an
+    /// orphaned ceiling on an aircraft nobody is managing any more: the release loop runs whether or not the stream
+    /// is walked, so an engagement the pass owns is released exactly as it is when the conflict clears.
+    /// </summary>
+    [Fact]
+    public void SettingSwitchedOff_ReleasesAnEngagedCeiling()
+    {
+        var pair = ConflictingPair(LeaderDistanceNm, FollowerDistanceNm);
+        if (pair is null)
+        {
+            return;
+        }
+
+        pair.Pass();
+        Report(pair, "engaged before the setting is switched off");
+        Assert.NotNull(pair.Follower.Approach.SameRunwayProtectionCeilingKts);
+
+        pair.Engine.Scenario!.AutoArrivalSpacingOnOccupiedRunway = false;
+        pair.Pass();
+        Report(pair, "after the setting is switched off");
+
+        Assert.Null(pair.Follower.Approach.SameRunwayProtectionCeilingKts);
+        Assert.Null(pair.Follower.Targets.SpeedCeiling);
+    }
+
+    /// <summary>
+    /// A reduction the simulated approach controller issued outside
+    /// <see cref="SameRunwayArrivalProtection.TowerSpeedAuthorityNm"/> stays in force when the arrival crosses the
+    /// boundary. The controller may not issue a new adjustment in there — the aircraft is on the tower's frequency —
+    /// but a speed already assigned is flown until somebody takes it back, so the ceiling is re-stamped at the same
+    /// figure and no second line is spoken. It still goes at the §5-7-1.b.4 window like any other adjustment.
+    /// </summary>
+    [Fact]
+    public void TowerStudent_ApproachReductionIssuedOutsideTenMiles_HoldsAcrossTheBoundary()
+    {
+        var pair = ConflictingPair(LeaderDistanceNm, FollowerDistanceNm);
+        if (pair is null)
+        {
+            return;
+        }
+
+        pair.Engine.Scenario!.StudentPositionType = "TWR";
+
+        pair.Pass();
+        Report(pair, "engaged outside the tower boundary");
+        var stamped = pair.Follower.Approach.SameRunwayProtectionCeilingKts;
+        Assert.NotNull(stamped);
+        Assert.Single(SpacingLines(pair.Follower));
+
+        pair.PlaceFollowerAt(InsideTowerBoundaryDistanceNm);
+        pair.Pass();
+        Report(pair, "held inside the tower boundary");
+
+        Assert.Equal(stamped, pair.Follower.Approach.SameRunwayProtectionCeilingKts);
+        Assert.Equal(stamped, pair.Follower.Targets.SpeedCeiling);
+        Assert.Single(SpacingLines(pair.Follower));
+
+        pair.PlaceFollowerAt(4.0);
+        pair.Pass();
+        Report(pair, "released at the §5-7-1.b.4 window");
+
+        Assert.Null(pair.Follower.Approach.SameRunwayProtectionCeilingKts);
+        Assert.Null(pair.Follower.Targets.SpeedCeiling);
+    }
+
+    /// <summary>
+    /// The other end of the held reduction: the tower student accepting the handoff takes the aircraft over, and the
+    /// speed it is flying comes with it (§5-4-5.h.3, §5-4-6.c — the receiving controller inherits the restrictions).
+    /// The pass stops owning the follower, but the assigned ceiling is left standing rather than handed back: the
+    /// aircraft does not accelerate on the tick the student takes the track. From there the ceiling lapses like any
+    /// other assigned speed — the student's own speed command, or the auto-cancel at the §5-7-1.b.4 window.
+    /// </summary>
+    [Fact]
+    public void TowerStudent_AcceptingTheHandoff_LeavesTheAssignedSpeedStanding()
+    {
+        var pair = ConflictingPair(LeaderDistanceNm, FollowerDistanceNm);
+        if (pair is null)
+        {
+            return;
+        }
+
+        pair.Engine.Scenario!.StudentPositionType = "TWR";
+        pair.Engine.Scenario.StudentPosition = new TrackOwner(
+            "OAK_TWR",
+            FacilityId: "OAK",
+            Subset: 3,
+            SectorId: "T",
+            OwnerType: TrackOwnerType.Stars
+        );
+
+        pair.Pass();
+        Assert.NotNull(pair.Follower.Approach.SameRunwayProtectionCeilingKts);
+
+        pair.PlaceFollowerAt(InsideTowerBoundaryDistanceNm);
+        pair.Pass();
+        Report(pair, "held inside the tower boundary, handoff not yet taken");
+        Assert.NotNull(pair.Follower.Approach.SameRunwayProtectionCeilingKts);
+
+        var stamped = pair.Follower.Targets.SpeedCeiling;
+        Assert.NotNull(stamped);
+        int linesBefore = SpacingLines(pair.Follower).Count;
+
+        pair.Follower.Track.Owner = pair.Engine.Scenario.StudentPosition;
+        pair.Follower.Track.HandoffAccepted = true;
+        pair.Pass();
+        Report(pair, "after the student took the track");
+
+        Assert.Null(pair.Follower.Approach.SameRunwayProtectionCeilingKts);
+        Assert.Null(pair.Follower.Approach.SameRunwayProtectionDisplacedCeilingKts);
+        Assert.Equal(stamped, pair.Follower.Targets.SpeedCeiling);
+        Assert.Equal(linesBefore, SpacingLines(pair.Follower).Count);
+
+        pair.Pass();
+        Report(pair, "a tick later, with the student still holding the track");
+
+        Assert.Null(pair.Follower.Approach.SameRunwayProtectionCeilingKts);
+        Assert.Equal(stamped, pair.Follower.Targets.SpeedCeiling);
+        Assert.Equal(linesBefore, SpacingLines(pair.Follower).Count);
+    }
+
+    /// <summary>
+    /// A reduction that somebody cancelled is not re-imposed by the hold. <c>RNS</c> nulls
+    /// <see cref="ControlTargets.SpeedCeiling"/> without claiming the speed for a human controller, so the hold inside
+    /// the tower boundary — which re-stamps what was already assigned — must read the empty ceiling as "there is
+    /// nothing left to hold" and let the pass release rather than silently putting the reduction back next tick.
+    /// </summary>
+    [Fact]
+    public void TowerStudent_ScriptedResumeNormalSpeedInsideTenMiles_EndsTheHeldReduction()
+    {
+        var pair = ConflictingPair(LeaderDistanceNm, FollowerDistanceNm);
+        if (pair is null)
+        {
+            return;
+        }
+
+        pair.Engine.Scenario!.StudentPositionType = "TWR";
+
+        pair.Pass();
+        Report(pair, "engaged outside the tower boundary");
+        Assert.NotNull(pair.Follower.Approach.SameRunwayProtectionCeilingKts);
+        int linesBefore = SpacingLines(pair.Follower).Count;
+
+        pair.PlaceFollowerAt(InsideTowerBoundaryDistanceNm);
+        pair.Pass();
+        Report(pair, "held inside the tower boundary");
+        Assert.NotNull(pair.Follower.Approach.SameRunwayProtectionCeilingKts);
+
+        var result = CommandDispatcher.Dispatch(
+            new ResumeNormalSpeedCommand(),
+            pair.Follower,
+            TestDispatch.Context(Random.Shared, isScenarioScripted: true)
+        );
+        Assert.True(result.Success, result.Message);
+        Assert.Null(pair.Follower.Targets.SpeedCeiling);
+
+        pair.Pass();
+        Report(pair, "after a scripted RNS inside the tower boundary");
+
+        Assert.Null(pair.Follower.Approach.SameRunwayProtectionCeilingKts);
+        Assert.Null(pair.Follower.Targets.SpeedCeiling);
+        Assert.Equal(linesBefore, SpacingLines(pair.Follower).Count);
+    }
+
+    /// <summary>
+    /// The front of the stream keeps what it was already flying while it is inside
+    /// <see cref="SameRunwayArrivalProtection.TowerSpeedAuthorityNm"/> — the aircraft ahead landing does not withdraw
+    /// a reduction the arrival is flying on the tower's frequency, where nobody in the sim may re-issue it. Outside
+    /// the boundary the same front-of-stream aircraft is released: there the simulated approach controller is talking
+    /// to it and has no conflict left to space.
+    /// </summary>
+    [Fact]
+    public void FrontOfStream_InsideTenMiles_KeepsAHeldReduction_AndReleasesOutside()
+    {
+        var held = ConflictingPair(LeaderDistanceNm, FollowerDistanceNm);
+        if (held is null)
+        {
+            return;
+        }
+
+        held.Engine.Scenario!.StudentPositionType = "TWR";
+
+        held.Pass();
+        Report(held, "engaged outside the tower boundary");
+        var stamped = held.Follower.Approach.SameRunwayProtectionCeilingKts;
+        Assert.NotNull(stamped);
+
+        held.PlaceFollowerAt(InsideTowerBoundaryDistanceNm);
+        held.Engine.World.RemoveAircraft(held.Leader.Callsign);
+        held.Pass();
+        Report(held, "alone at the front of the stream, inside the tower boundary");
+
+        Assert.Equal(stamped, held.Follower.Approach.SameRunwayProtectionCeilingKts);
+        Assert.Equal(stamped, held.Follower.Targets.SpeedCeiling);
+
+        var released = ConflictingPair(LeaderDistanceNm, FollowerDistanceNm);
+        if (released is null)
+        {
+            return;
+        }
+
+        released.Engine.Scenario!.StudentPositionType = "TWR";
+
+        released.Pass();
+        Assert.NotNull(released.Follower.Approach.SameRunwayProtectionCeilingKts);
+
+        released.Engine.World.RemoveAircraft(released.Leader.Callsign);
+        released.Pass();
+        Report(released, "alone at the front of the stream, outside the tower boundary");
+
+        Assert.Null(released.Follower.Approach.SameRunwayProtectionCeilingKts);
+        Assert.Null(released.Follower.Targets.SpeedCeiling);
+    }
+
+    /// <summary>
+    /// The simulated tower's §5-7-3.f instruction is only available while the student is working a ground position:
+    /// with the student on approach control the local controller is an AI the sim does not speak for either, so a
+    /// conflict that first appears inside the boundary gets nothing.
+    /// </summary>
+    [Fact]
+    public void ApproachStudent_InsideTenMiles_GetsNoTowerLevelAdjustment()
+    {
+        var pair = ConflictingPair(TowerAuthorityLeaderDistanceNm, TowerAuthorityFollowerDistanceNm);
+        if (pair is null)
+        {
+            return;
+        }
+
+        pair.Engine.Scenario!.StudentPositionType = "APP";
+
+        pair.Pass();
+        Report(pair, "with the student on the approach position, inside 10 nm");
+
+        Assert.Null(pair.Follower.Approach.SameRunwayProtectionCeilingKts);
+        Assert.Null(pair.Follower.Targets.SpeedCeiling);
+        Assert.Empty(SpacingLines(pair.Follower));
+        Assert.False(pair.Follower.Approach.SameRunwayProtectionFasInstructed);
     }
 
     private static List<string> SpacingLines(AircraftState aircraft) =>
@@ -746,6 +1025,10 @@ public class SameRunwayArrivalProtectionEngineTests(ITestOutputHelper output)
         // The arrival generators would drop unrelated traffic into the same stream on the first pass; this class is
         // about the pass's decisions over a stream it was handed, so the spawners stay off.
         engine.Scenario.SoloArrivalGeneratorRatePercent = 0;
+
+        // The pass is gated off on the Sim side (pre-feature recordings replay faithfully), so every arm that wants
+        // it has to switch it on the way a live session's client preference does.
+        engine.Scenario.AutoArrivalSpacingOnOccupiedRunway = true;
 
         var runway = engine.Scenario.Generators.Single(g => g.Config.Runway == "30").Runway;
         var leader = InjectArrival(engine, runway, "MANUAL1", "DH8D", leaderDistanceNm);

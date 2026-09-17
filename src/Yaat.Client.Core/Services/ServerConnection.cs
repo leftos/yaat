@@ -698,6 +698,12 @@ public sealed class ServerConnection : IStripsTransport, ITdlsTransport, IAsyncD
         await _connection!.InvokeAsync("SetAutoRejectTakeoffOnOccupiedRunway", enabled);
     }
 
+    public async Task SetAutoArrivalSpacingOnOccupiedRunwayAsync(bool enabled)
+    {
+        EnsureConnected();
+        await _connection!.InvokeAsync("SetAutoArrivalSpacingOnOccupiedRunway", enabled);
+    }
+
     /// <summary>Returns the server's verdict: enabling is refused while the room is warped.</summary>
     public async Task<CommandResultDto> SetLiveTrafficEnabledAsync(bool enabled)
     {
@@ -1278,6 +1284,7 @@ public record LoadScenarioResultDto(
     bool AutoPullUpToParallel = false,
     bool AutoGoAroundOnOccupiedRunway = false,
     bool AutoRejectTakeoffOnOccupiedRunway = false,
+    bool AutoArrivalSpacingOnOccupiedRunway = false,
     bool ValidateDctFixes = true,
     bool SoloTrainingMode = false,
     int SoloParkingInitialCallupRatePercent = 100,
@@ -1362,6 +1369,7 @@ public record RoomStateDto(
     bool AutoPullUpToParallel = false,
     bool AutoGoAroundOnOccupiedRunway = false,
     bool AutoRejectTakeoffOnOccupiedRunway = false,
+    bool AutoArrivalSpacingOnOccupiedRunway = false,
     bool ValidateDctFixes = true,
     bool SoloTrainingMode = false,
     int SoloParkingInitialCallupRatePercent = 100,
@@ -1456,6 +1464,7 @@ public record ScenarioLoadedDto(
     bool AutoPullUpToParallel = false,
     bool AutoGoAroundOnOccupiedRunway = false,
     bool AutoRejectTakeoffOnOccupiedRunway = false,
+    bool AutoArrivalSpacingOnOccupiedRunway = false,
     bool ValidateDctFixes = true,
     bool SoloTrainingMode = false,
     int SoloParkingInitialCallupRatePercent = 100,
@@ -1544,6 +1553,7 @@ public record SessionSettingsDto(
     bool AutoPullUpToParallel,
     bool AutoGoAroundOnOccupiedRunway,
     bool AutoRejectTakeoffOnOccupiedRunway,
+    bool AutoArrivalSpacingOnOccupiedRunway,
     bool ValidateDctFixes,
     bool SoloTrainingMode,
     int SoloParkingInitialCallupRatePercent,

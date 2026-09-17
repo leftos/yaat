@@ -251,6 +251,7 @@ public sealed class UserPreferences
     public bool AutoPullUpToParallel => _data.AutoPullUpToParallel;
     public bool AutoGoAroundOnOccupiedRunway => _data.AutoGoAroundOnOccupiedRunway;
     public bool AutoRejectTakeoffOnOccupiedRunway => _data.AutoRejectTakeoffOnOccupiedRunway;
+    public bool AutoArrivalSpacingOnOccupiedRunway => _data.AutoArrivalSpacingOnOccupiedRunway;
     public bool SoloTrainingMode => _data.SoloTrainingMode;
     public int SoloParkingInitialCallupRatePercent => Math.Clamp(_data.SoloParkingInitialCallupRatePercent, 0, 200);
     public int SoloArrivalGeneratorRatePercent => Math.Clamp(_data.SoloArrivalGeneratorRatePercent, 0, 100);
@@ -879,7 +880,8 @@ public sealed class UserPreferences
         bool autoCrossRunway,
         bool autoPullUpToParallel,
         bool autoGoAroundOnOccupiedRunway,
-        bool autoRejectTakeoffOnOccupiedRunway
+        bool autoRejectTakeoffOnOccupiedRunway,
+        bool autoArrivalSpacingOnOccupiedRunway
     )
     {
         _data.AutoClearedToLandGnd = autoClearedToLandGnd;
@@ -890,6 +892,7 @@ public sealed class UserPreferences
         _data.AutoPullUpToParallel = autoPullUpToParallel;
         _data.AutoGoAroundOnOccupiedRunway = autoGoAroundOnOccupiedRunway;
         _data.AutoRejectTakeoffOnOccupiedRunway = autoRejectTakeoffOnOccupiedRunway;
+        _data.AutoArrivalSpacingOnOccupiedRunway = autoArrivalSpacingOnOccupiedRunway;
         Save();
     }
 
@@ -1766,6 +1769,7 @@ public sealed class UserPreferences
             AutoPullUpToParallel = GetFieldOr(obj, "autoPullUpToParallel", true),
             AutoGoAroundOnOccupiedRunway = GetFieldOr(obj, "autoGoAroundOnOccupiedRunway", true),
             AutoRejectTakeoffOnOccupiedRunway = GetFieldOr(obj, "autoRejectTakeoffOnOccupiedRunway", true),
+            AutoArrivalSpacingOnOccupiedRunway = GetFieldOr(obj, "autoArrivalSpacingOnOccupiedRunway", true),
             SoloTrainingMode = GetFieldOr(obj, "soloTrainingMode", false),
             SoloParkingInitialCallupRatePercent = GetFieldOr(obj, "soloParkingInitialCallupRatePercent", 100),
             SoloArrivalGeneratorRatePercent = GetFieldOr(obj, "soloArrivalGeneratorRatePercent", 100),
@@ -2053,6 +2057,7 @@ public sealed class UserPreferences
         public bool AutoPullUpToParallel { get; set; } = true;
         public bool AutoGoAroundOnOccupiedRunway { get; set; } = true;
         public bool AutoRejectTakeoffOnOccupiedRunway { get; set; } = true;
+        public bool AutoArrivalSpacingOnOccupiedRunway { get; set; } = true;
 
         // How far the VFR-only command set opens up for IFR aircraft: "None", "EnterFinalOnly",
         // or "All". Stored as a string (like RendererMode) so enum reordering can't misassign it.
