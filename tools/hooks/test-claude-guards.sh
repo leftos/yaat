@@ -7,12 +7,13 @@
 # denied. Cases live in claude-guard-cases.jsonl so no flagged command string
 # ever has to appear in the shell command that runs this script.
 #
-# Usage: bash tools/hooks/test-claude-guards.sh
+# Usage: bash tools/hooks/test-claude-guards.sh [guard-script]
+# Pass a candidate copy of the guard to test an edit before it replaces the live one.
 set -uo pipefail
 
 HERE=$(cd "$(dirname "$0")" && pwd)
 CASES="$HERE/claude-guard-cases.jsonl"
-GUARD="$HERE/claude-guard-bash.sh"
+GUARD="${1:-$HERE/claude-guard-bash.sh}"
 
 fails=0
 while IFS= read -r line; do

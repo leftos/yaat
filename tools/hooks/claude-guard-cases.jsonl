@@ -27,3 +27,10 @@
 {"expect":"allow","cmd":"prek run"}
 {"expect":"allow","cmd":"dotnet workload restore"}
 {"expect":"allow","cmd":"cat > f <<'EOF'\ndotnet build\nprek run --all-files\nEOF"}
+{"expect": "allow", "cmd": "git commit -q -m \"ref: sweep\n\ndotnet format style at info severity: object initializers\nand more\""}
+{"expect": "allow", "cmd": "git rm -f -q --cached src/Probe.cs; tools/gate.sh .tmp/build.log dotnet build -p:TreatWarningsAsErrors=true"}
+{"expect": "allow", "cmd": "git fetch -q && dotnet format style yaat.slnx --severity info"}
+{"expect": "allow", "cmd": "MSG='a\ndotnet build -q\nb'; git commit -F .tmp/m.txt"}
+{"expect": "deny", "cmd": "git status; tools/gate.sh .tmp/build.log dotnet build -q"}
+{"expect": "deny", "cmd": "git fetch -q && tools/gate.sh .tmp/build.log dotnet build --nologo"}
+{"expect": "deny", "cmd": "dotnet format style yaat.slnx && dotnet format"}

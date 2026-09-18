@@ -49,11 +49,17 @@ strip_heredocs() {
 # name is only matched in command position. Quoted spans are blanked out first:
 # without that, `rg -n 'a|dotnet build' file` splits inside the search pattern
 # and the tail looks like a `dotnet build` invocation. Grepping a doc that
-# mentions a guarded command must not trip the guard.
+# mentions a guarded command must not trip the guard. Newlines are folded to
+#  while blanking, so a quoted span that runs over several lines (a commit
+# message) is blanked whole instead of leaking its inner lines as segments.
 segments() {
     printf '%s\n' "$CMD" |
         strip_heredocs |
+        tr '
+' '' |
         sed -E "s/'[^']*'//g; s/\"[^\"]*\"//g" |
+        tr '' '
+' |
         sed -E 's/&&|\|\||;|\|/\n/g' |
         sed -E 's/^[[:space:]]*//' |
         sed -E 's/^(timeout[[:space:]]+[0-9]+[smhd]?|nice([[:space:]]+-n[[:space:]]*-?[0-9]+)?|command|exec)[[:space:]]+//' |
@@ -65,18 +71,23 @@ segments() {
 # True when some segment *starts* with a match for the given extended regex.
 starts_with() { segments | grep -qE "^$1([[:space:]]|$)"; }
 
-# True when the whole command line matches (for flags, redirects, pipes).
+# True when one segment both starts with $1 and matches $2. A rule that joins a
+# command name to a flag must test both over the same segment: over the whole
+# line, `git commit -q` beside any dotnet call reads as `dotnet -q`.
+segment_has() { segments | grep -E "^$1([[:space:]]|$)" | grep -qE "$2"; }
+
+# True when the whole command line matches (for redirects, pipes, wrappers).
 line_has() { printf '%s' "$CMD" | grep -qE "$1"; }
 
 if starts_with 'prek[[:space:]]+run[[:space:]]+.*(--all-files|-a)'; then
     deny 'Never `prek run --all-files`: it runs over the whole tree instead of the staged set, and its stash/reapply can drop unstaged work. Use bare `prek run`, or let the hook fire on `git commit`.'
 fi
 
-if starts_with 'dotnet[[:space:]]+format' && ! line_has 'dotnet[[:space:]]+format[[:space:]]+(style|analyzers|whitespace)([[:space:]]|$)'; then
+if segments | grep -E '^dotnet[[:space:]]+format([[:space:]]|$)' | grep -qvE '^dotnet[[:space:]]+format[[:space:]]+(style|analyzers|whitespace)([[:space:]]|$)'; then
     deny 'Do NOT run bare `dotnet format` — its whitespace rules fight with CSharpier. Run `dotnet format style` or `dotnet format analyzers` separately, or just let prek run them.'
 fi
 
-if starts_with 'dotnet' && line_has '[[:space:]](-q|--nologo|-v[[:space:]]*q)([[:space:]]|$)'; then
+if segment_has 'dotnet' '[[:space:]](-q|--nologo|-v[[:space:]]*q)([[:space:]]|$)'; then
     deny 'Never pass -q / -v q / --nologo to a dotnet command — it suppresses output and causes spurious errors. Drop the flag.'
 fi
 
