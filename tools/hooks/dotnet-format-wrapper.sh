@@ -31,8 +31,9 @@ fi
 # `--include` must come last so its variadic file list consumes to end-of-args.
 # IDE0059 (unused value) and IDE0060 (unused parameter) are never auto-fixed: their fixer deletes the dead
 # store, and a dead store is usually a bug (a computed value that was meant to be used), not formatting.
-# They stay flagged for the CI verify and a human.
-dotnet format "$subcommand" --severity "$severity" --no-restore --exclude-diagnostics IDE0059 IDE0060 --include "$@"
+# They stay flagged for the CI verify and a human. IDE0130 (namespace matches folder) is excluded because its
+# fixer crashes dotnet format ("Changing document properties is not supported"); the build reports it instead.
+dotnet format "$subcommand" --severity "$severity" --no-restore --exclude-diagnostics IDE0059 IDE0060 IDE0130 --include "$@"
 
 # Re-stage formatter modifications so prek doesn't fail the commit on "files were
 # modified by this hook". The dotnet-build hook runs last and gates the commit on
