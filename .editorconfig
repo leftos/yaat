@@ -21,8 +21,7 @@ trim_trailing_whitespace = false
 [*.cs]
 indent_size = 4
 
-# Rules below set to `suggestion` still have violations in the tree; each goes to `warning` in the commit that
-# clears it (docs/plans/strict-formatting.md). The canonical file is the language-conventions skill's csharp/.editorconfig.
+# Copied from the language-conventions skill's csharp/.editorconfig: change the convention there first.
 
 # Namespaces and usings
 csharp_style_namespace_declarations = file_scoped:warning
