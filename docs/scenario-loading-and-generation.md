@@ -394,8 +394,9 @@ All four drain in `TickPrePhysics` (`SimulationEngine.cs:465`) once per sim-seco
 - **`ProcessDelayedSpawns`** (`:1669`) — iterates `DelayedQueue` backward; when `ElapsedSeconds >= SpawnAtSeconds`, removes the
   entry, stamps `SpawnedAtSeconds`, adds to world, dispatches presets, emits a `[Spawn] Delayed` terminal line and any
   auto-track messages.
-- **`ProcessGenerators`** — skipped entirely during replay/playback when recorded aircraft spawns exist (those are replayed
-  verbatim, not regenerated). Each non-exhausted generator past its `StartTimeOffset` (and not past `MaxTime`) feeds arrivals
+- **`ProcessGenerators`** — skipped entirely while the run profile is a replay (`RunProfile.RunsGenerators` is
+  `Kind != RunKind.Replay`): the recorded spawns are the traffic and are replayed verbatim, not regenerated. A test that
+  restores a snapshot after `Replay` returns to `RunKind.Test` and ticks the generators live. Each non-exhausted generator past its `StartTimeOffset` (and not past `MaxTime`) feeds arrivals
   onto the runway's final via `SpawnGeneratedArrival` (builds an `OnFinal` arrival, adds it to the world). The model is
   **time-first** (`TrySpawnArrival`). **Config nullability mirrors the vNAS model:** `MaxTime` is `int?` — **null means no
   time-based exhaustion** (the stream runs for the whole session), which is what most published scenarios want since they omit
@@ -413,10 +414,28 @@ All four drain in `TickPrePhysics` (`SimulationEngine.cs:465`) once per sim-seco
   - **Placement** (`#2`, back of the stream, bounded): when due, the arrival is placed at
     `D = max(InitialDistance, rearmost + gap)`, where `gap = SpacingGapNm` is the larger (binding) of the configured
     `IntervalDistance` and the 7110.65 Table 5-5-2 wake-turbulence minimum for the leader/follower pair (the two constraints
-    *bind*, they do not add). `rearmost` is the rearmost aircraft inbound to the runway (`RearmostInbound`, a final-approach
-    corridor query). `D` is capped at `MaxDistance`: if no room exists within the cap the spawn **waits** (defers via
-    `SpawnRetryBackoffSeconds`) rather than exceeding it. An empty corridor has no `rearmost`, so the arrival spawns exactly at
-    `InitialDistance` — the cold start needs no special case.
+    *bind*, they do not add). `rearmost` is the rearmost arrival to the runway (`RearmostInbound` over `CorridorAircraft`).
+    The corridor is airborne aircraft within 2 NM of the extended centreline, out to `MaxDistance` + 3 NM. **Position alone
+    does not make an arrival.** An aircraft there counts only when it is on final for the runway (`ApproachCommandHandler.IsOnFinal`:
+    a final/landing/low-approach phase, or tracking within 45° of the landing course toward the threshold) or is inbound to land
+    on this runway whatever its track (`IsInboundToLand` plus its assigned or active-approach runway — a wide intercept or a
+    base leg inside the band). A departure turned out along the extended centreline, or climbing out with its departure
+    runway assigned, is not an arrival: before this rule, an outbound VFR departure turned `FH 110` down OAK 30's final
+    pushed the S2-OAK-P stream to 28–48 NM (2026-09-17). `D` is capped at `MaxDistance`: if no room exists within the cap
+    the spawn **waits** (defers via `SpawnRetryBackoffSeconds`) rather than exceeding it. An empty corridor has no
+    `rearmost`, so the arrival spawns exactly at `InitialDistance` — the cold start needs no special case.
+  - **Spawn clear of non-arrival traffic** (`IsArrivalSpawnClearOfTraffic`): the spawn point and altitude at `D`
+    (`AircraftInitializer.FinalApproachPoint`, the same glide-path math `InitializeOnFinal` uses) must be outside
+    standard separation — `VfrSpawnSiting.IsClearOfTraffic`, 3 NM / 1,000 ft, the check the VFR and overflight generators
+    use — of every airborne aircraft except the **corridor arrivals placement already spaced behind** (the same
+    `CorridorAircraft` set, computed once per spawn); otherwise the spawn waits `SpawnRetryBackoffSeconds` and retries (a
+    debug line names the blocker). Those corridor arrivals sit at least the binding gap (≥ 3 NM) ahead along the course, so
+    checking them could only hold the spawn through floating-point error. Everything else is checked, including a hold near
+    the FAF, an arrival joining from outside the 2 NM band, and another runway's stream (parallel finals ~2–3 NM apart may get
+    a small stagger — acceptable; aviation review 2026-09-17). 3 NM / 1,000 ft is the strictest IFR standard (§5-5-4.a,
+    §4-5-1.a), so a student never inherits a spawn-made bust in any airspace class. The check is a snapshot, with no
+    look-ahead for a converging aircraft. The category for the altitude comes from `AircraftGenerator.CategoryFor(engine)`,
+    because the type is not drawn until the spawn.
   Consequences: a long `IntervalTime` drains the corridor between spawns, so arrivals keep entering near `InitialDistance`,
   time-spaced; a short `IntervalTime` packs the stream back toward `MaxDistance` at `gap` spacing, then throttles on "no room".
   Each spawn appends a `GeneratorSpawnRecord` to `GeneratorSpawnLog` (diagnostic). The solo-training arrival-rate percent (via
@@ -440,13 +459,51 @@ All four drain in `TickPrePhysics` (`SimulationEngine.cs:465`) once per sim-seco
   (above) only sets spacing at the *instant* of spawn; without this, a follower spawned farther out flies the faster
   distance-based `OnFinal` speed (the `FinalApproachSpeedSchedule` above) and overruns the closer-in, decelerating leader
   (the QXE831/SWA8154 compression: 5 NM → 1.3 NM, busting the 3 NM floor). For each generator runway it sorts the same-runway
-  final corridor (`CorridorAircraft`, closest-first) and, for each **generator-arrival follower in `FinalApproachPhase`**, stamps
-  a `ControlTargets.SpeedCeiling`: `clamp(leaderIAS + clamp((gap − target)·25, ±20), followerVref, followerScheduledSpeed)`, where
-  `target = SpacingGapNm` (the same binding `max(IntervalDistance, 3 NM, wake)` used at spawn). So the follower equalizes to the
-  leader's speed at the target gap, slows (down to its own Vref) when closer, and may re-accelerate (never above its normal
-  profile) when farther. The pure math lives in `ArrivalSpacingManager`; the ceiling is enforced continuously and downstream of
-  the phase by `FlightPhysics.UpdateSpeed` (`goal = min(TargetSpeed, SpeedCeiling)`), so it only ever *lowers* the phase target,
-  collapses to exactly Vref inside 5 NM (never blocking the landing decel), and needs no `FinalApproachPhase` change. **Override:**
+  final corridor (`CorridorAircraft`, closest-first — arrivals only, see Placement) and, for each **generator-arrival follower in
+  `FinalApproachPhase`**, stamps a `ControlTargets.SpeedCeiling` from `ArrivalSpacingManager.InTrailCeilingKts`, where
+  `target = SpacingGapNm` (the same binding `max(IntervalDistance, 3 NM, wake)` used at spawn):
+  - **Proportional term** (`SpacingCeilingKts`): `leaderIAS + clamp((gap − target)·25, ±20)`. The follower equalizes to the
+    leader's speed at the target gap and slows (down to its own Vref) when closer.
+  - **Time-based allowance** (only while `gap > target`, and only behind a leader that is on final —
+    `ApproachCommandHandler.IsOnFinal(leader, runway)`; a leader in the stream only through its landing intent, on a base
+    leg or a downwind moving away, gets the proportional term alone, because its time to the threshold is not
+    `distance / speed`). The leader's ground speed enters as its along-course component, `GS × max(0, cos θ)` for a
+    track θ off the final course, because `IsOnFinal` accepts a track up to 45° off and the bound needs the closure along
+    the course. 7110.65 §5-5-4.h measures the wake minima when the leader is over the landing threshold, so a follower far
+    back may close faster. The leader's slowest remaining ground speed is
+    `vMin = min(leaderGS, leaderVref × min(1, leaderGS/leaderIAS))`, so the follower may fly
+    `vMin × (followerDist − target) / max(leaderDist, 0.1)` in ground speed, converted to IAS with its own IAS/GS ratio. With
+    Vref as the lower bound, gap ≥ target holds throughout the leader's remaining run.
+  - The result is the larger of the two terms, clamped to `[followerVref, followerScheduledSpeed]`. Before the allowance, the
+    +20 kt cap pinned a follower 26 NM behind a leader on 2 NM final to 164 kt (S2-OAK-P, 2026-09-17).
+
+  The ceiling is enforced continuously and downstream of the phase by `FlightPhysics.UpdateSpeed`
+  (`goal = min(TargetSpeed, SpeedCeiling)`), so it only ever *lowers* the speed and collapses to exactly Vref inside 5 NM (never
+  blocking the landing decel).
+
+  **Speed restore.** A ceiling only lowers the speed; it never raises it. `FinalApproachPhase` writes no speed target between the
+  spawn and its own deceleration stages, and physics nulls a reached target, so an arrival slowed by the ceiling kept the slowed
+  speed after the ceiling rose or came off (FDX7106 flew ~25 NM at 164 kt once its leader landed). `RestoreManagedSpeed` gives a
+  still-owned generator arrival its speed back: the stream lead its scheduled speed (`ManageStreamLead`), a follower its current
+  ceiling. It is "terminate speed adjustments when no longer needed" / "resume normal speed" (§5-7-1, §5-7-4.a, AIM 4-4-12.f.1),
+  and it applies only when all of these hold:
+  - no handoff to the student is in progress, counted from *initiation* (§5-4-5.b; the lead's standing ceiling is then held
+    for the student to inherit, §5-4-6.c);
+  - the same-runway protection pass does not own the ceiling (`SameRunwayProtectionCeilingKts`);
+  - nothing else set `TargetSpeed`;
+  - the aircraft is more than `SpeedRestoreDeadbandKts` (10 kt, AIM 4-4-12.c) slow;
+  - it is outside `SpeedRestoreGateNm`: the phase's first deceleration-stage trigger cap (approach-flap reach gate + 3 NM, or
+    `MaxConfigTriggerNm` for a category with no flap stage) plus 5 NM, so it is never sped up only to be slowed moments later.
+
+  The phase's approach-flap and configuration stages no longer latch just because the aircraft is already below the stage
+  speed, so a restored aircraft still flies them. It is scoped to the simulated TRACON: `FinalApproachPhase` itself never
+  re-accelerates an aircraft.
+
+  **Only while a simulated approach controller exists.** With the student on APP or CTR
+  (`SimScenarioState.HasSimulatedApproachController` false) the student *is* the approach controller, so the pass stamps no
+  ceiling and restores nothing. `ReleaseAllManagedSpacingCeilings` hands back every ceiling it still manages on every tick the
+  gate is closed (idempotent), without latching `AutoSpacingReleased`, so management resumes if the student moves back below approach —
+  the same gate and release pattern `ApplySameRunwayArrivalProtection` uses. **Override:**
   a one-way latch (`AircraftApproachState.AutoSpacingReleased`) hands speed authority back for good once a manual speed command is
   issued or speed restrictions are deleted (the ceiling is cleared), or the student owns the track — where the ceiling is left
   **standing**, the same hand-over `ApplySameRunwayArrivalProtection` does below (§5-4-5.h.3 / §5-4-6.c: the receiving controller
@@ -510,8 +567,11 @@ All four drain in `TickPrePhysics` (`SimulationEngine.cs:465`) once per sim-seco
     owned is handed back that tick. Sim default `false` (pre-setting recordings replay without the pass — the replay E2E tests
     that assert on it set the flag after `Replay`/`RestoreFromSnapshot`), plumbed like `AutoGoAroundOnOccupiedRunway` (session
     settings, hub method, `RecordedSettingChange`). The client preference is per student position like auto-cleared-to-land —
-    `UserPreferences.GetAutoArrivalSpacingOnOccupiedRunway(positionType)`: GND and TWR each default on, APP/CTR push false —
-    and the session flyout greys the toggle (`MainViewModel.SessionAutoArrivalSpacingApplies`) for an APP or CTR student.
+    `UserPreferences.GetAutoArrivalSpacingOnOccupiedRunway(positionType)`: GND defaults on, TWR defaults **off** (a local-control
+    scenario's tight arrival spacing is often deliberate), APP/CTR push false, and a missing or unknown position type reads the
+    TWR value — and the session flyout greys the toggle (`MainViewModel.SessionAutoArrivalSpacingApplies`) for an APP or CTR
+    student. v0.13.1 shipped TWR on and saved it to every preferences file, so `UserPreferences.MigratePreferences` resets it
+    to off once for a file with no `preferencesVersion` (v0 → v1); later user choices are kept.
   Speed is still its only actuator; a real TRACON would vector first (§5-7-1.a.1). Aviation-reviewed 2026-09-16 against
   §3-10-3, §3-10-6, §5-5-4, §5-7-1, §5-7-3; the 10 NM tower hand-off and the FAS instruction were prescribed by the user (a
   controller) on 2026-09-17.

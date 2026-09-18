@@ -94,7 +94,7 @@ public static class AircraftInitializer
             distNm = 5.0;
         }
 
-        double alt = GlideSlopeGeometry.AltitudeAtDistance(distNm, runway.ElevationFt, category);
+        var (position, alt) = FinalApproachPoint(runway, category, distNm);
         double speed;
         if (requestedSpeed.HasValue)
         {
@@ -106,15 +106,6 @@ public static class AircraftInitializer
             speed = FinalApproachSpeedSchedule.SpeedAtDistanceKts(aircraftType ?? string.Empty, category, fas, callsign, distNm);
         }
 
-        // Position aircraft on extended centerline
-        TrueHeading reciprocal = runway.TrueHeading.ToReciprocal();
-        double reciprocalRad = reciprocal.ToRadians();
-        double latRad = runway.ThresholdLatitude * Math.PI / 180.0;
-        double nmPerDegLat = 60.0;
-
-        double lat = runway.ThresholdLatitude + (distNm * Math.Cos(reciprocalRad) / nmPerDegLat);
-        double lon = runway.ThresholdLongitude + (distNm * Math.Sin(reciprocalRad) / (nmPerDegLat * Math.Cos(latRad)));
-
         var phases = new PhaseList { AssignedRunway = runway };
         phases.Add(new FinalApproachPhase { SkipInterceptCheck = true });
         bool isHeli = category == AircraftCategory.Helicopter;
@@ -123,11 +114,30 @@ public static class AircraftInitializer
         return new PhaseInitResult
         {
             Phases = phases,
-            Position = new LatLon(lat, lon),
+            Position = position,
             TrueHeading = runway.TrueHeading,
             Altitude = alt,
             Speed = speed,
             IsOnGround = false,
         };
+    }
+
+    /// <summary>
+    /// Where <see cref="InitializeOnFinal"/> places an arrival <paramref name="distanceNm"/> out on the final of
+    /// <paramref name="runway"/>: on the extended centreline, at the glidepath altitude (MSL) an aircraft of
+    /// <paramref name="category"/> flies there.
+    /// </summary>
+    public static (LatLon Position, double AltitudeFt) FinalApproachPoint(RunwayInfo runway, AircraftCategory category, double distanceNm)
+    {
+        double altitudeFt = GlideSlopeGeometry.AltitudeAtDistance(distanceNm, runway.ElevationFt, category);
+
+        TrueHeading reciprocal = runway.TrueHeading.ToReciprocal();
+        double reciprocalRad = reciprocal.ToRadians();
+        double latRad = runway.ThresholdLatitude * Math.PI / 180.0;
+        double nmPerDegLat = 60.0;
+
+        double lat = runway.ThresholdLatitude + (distanceNm * Math.Cos(reciprocalRad) / nmPerDegLat);
+        double lon = runway.ThresholdLongitude + (distanceNm * Math.Sin(reciprocalRad) / (nmPerDegLat * Math.Cos(latRad)));
+        return (new LatLon(lat, lon), altitudeFt);
     }
 }

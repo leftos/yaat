@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+- A generated arrival waits a few seconds rather than appearing within 3 nm and 1,000 ft of other traffic.
+
+### Fixed
+- Generated arrivals spawn behind the arrivals on their runway's final, no longer 28–48 nm out behind departures or VFR traffic flying outbound along it.
+- A generated arrival far behind its leader flies its normal approach speed instead of being held to the leader's speed plus 20 knots.
+- A generated arrival the simulated approach controller slowed speeds back up once it no longer needs to, until its handoff to you begins.
+- With you on Approach or Center, the simulated approach controller no longer adjusts generated arrivals' speeds.
+
 ## v0.13.1-beta [2026/09/17]
 
 ### Highlights

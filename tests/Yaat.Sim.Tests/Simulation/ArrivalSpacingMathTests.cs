@@ -53,4 +53,143 @@ public class ArrivalSpacingMathTests
         double ceiling = ArrivalSpacingManager.SpacingCeilingKts(leaderIasKts: 220, gapNm: 20, targetNm: 5, vrefKts: 140, scheduledKts: 224);
         Assert.Equal(224, ceiling, 3);
     }
+
+    private static double Baseline(InTrailPair p) =>
+        ArrivalSpacingManager.SpacingCeilingKts(
+            p.LeaderIasKts,
+            p.FollowerDistanceNm - p.LeaderDistanceNm,
+            p.TargetNm,
+            p.FollowerVrefKts,
+            p.FollowerScheduledKts
+        );
+
+    [Fact]
+    public void InTrailCeiling_FarBehindLeaderOnShortFinal_AllowsScheduledSpeed()
+    {
+        // The S2-OAK-P case: a follower 26 nm behind a 144 kt leader on 2.3 nm final. The leader crosses the threshold
+        // long before the follower can close to 5 nm, so the +20 kt cap on the proportional term must not bind.
+        var pair = new InTrailPair
+        {
+            LeaderIasKts = 144,
+            LeaderGsKts = 144,
+            LeaderVrefKts = 140,
+            LeaderDistanceNm = 2.3,
+            FollowerDistanceNm = 28.3,
+            FollowerIasKts = 180,
+            FollowerGsKts = 180,
+            FollowerVrefKts = 140,
+            FollowerScheduledKts = 205,
+            TargetNm = 5,
+        };
+
+        Assert.Equal(205, ArrivalSpacingManager.InTrailCeilingKts(pair), 3);
+    }
+
+    [Fact]
+    public void InTrailCeiling_ClosePair_EqualsProportionalCeiling()
+    {
+        // Leader 10 nm out, gap 6 against a 5 nm target: the time allowance (140 kt Vref over 11 nm of closing room
+        // in 10 nm of leader run, 154 kt) sits below the proportional ceiling, so the proportional ceiling stands.
+        var pair = new InTrailPair
+        {
+            LeaderIasKts = 180,
+            LeaderGsKts = 180,
+            LeaderVrefKts = 140,
+            LeaderDistanceNm = 10,
+            FollowerDistanceNm = 16,
+            FollowerIasKts = 190,
+            FollowerGsKts = 190,
+            FollowerVrefKts = 140,
+            FollowerScheduledKts = 210,
+            TargetNm = 5,
+        };
+
+        Assert.Equal(Baseline(pair), ArrivalSpacingManager.InTrailCeilingKts(pair), 6);
+    }
+
+    [Fact]
+    public void InTrailCeiling_GapInsideTarget_EqualsProportionalCeiling()
+    {
+        var pair = new InTrailPair
+        {
+            LeaderIasKts = 180,
+            LeaderGsKts = 180,
+            LeaderVrefKts = 140,
+            LeaderDistanceNm = 10,
+            FollowerDistanceNm = 14,
+            FollowerIasKts = 190,
+            FollowerGsKts = 190,
+            FollowerVrefKts = 140,
+            FollowerScheduledKts = 210,
+            TargetNm = 5,
+        };
+
+        Assert.Equal(Baseline(pair), ArrivalSpacingManager.InTrailCeilingKts(pair), 6);
+    }
+
+    [Fact]
+    public void InTrailCeiling_AllowanceIsConvertedToIasWithFollowersOwnRatio()
+    {
+        // Leader 3 nm out at 120 kt with a 110 kt Vref; the follower 8 nm behind flies a ground speed 1.15 x its IAS.
+        // Ground-speed allowance = 110 x (11 - 5) / 3 = 220 kt, which in the follower's IAS is 220 / 1.15.
+        var pair = new InTrailPair
+        {
+            LeaderIasKts = 120,
+            LeaderGsKts = 120,
+            LeaderVrefKts = 110,
+            LeaderDistanceNm = 3,
+            FollowerDistanceNm = 11,
+            FollowerIasKts = 180,
+            FollowerGsKts = 180 * 1.15,
+            FollowerVrefKts = 130,
+            FollowerScheduledKts = 210,
+            TargetNm = 5,
+        };
+
+        double groundSpeedAllowance = 110.0 * (11 - 5) / 3;
+        Assert.Equal(groundSpeedAllowance / 1.15, ArrivalSpacingManager.InTrailCeilingKts(pair), 6);
+    }
+
+    [Fact]
+    public void InTrailCeiling_LeaderAtThreshold_AllowsScheduledSpeed()
+    {
+        var pair = new InTrailPair
+        {
+            LeaderIasKts = 140,
+            LeaderGsKts = 140,
+            LeaderVrefKts = 140,
+            LeaderDistanceNm = 0,
+            FollowerDistanceNm = 10,
+            FollowerIasKts = 190,
+            FollowerGsKts = 190,
+            FollowerVrefKts = 140,
+            FollowerScheduledKts = 200,
+            TargetNm = 5,
+        };
+
+        Assert.Equal(200, ArrivalSpacingManager.InTrailCeilingKts(pair), 6);
+    }
+
+    [Fact]
+    public void InTrailCeiling_LeaderIasZero_IsFiniteAndWithinFollowerWindow()
+    {
+        // A leader reporting no speed at all (IAS and GS zero) must not turn the GS/IAS ratio into NaN.
+        var pair = new InTrailPair
+        {
+            LeaderIasKts = 0,
+            LeaderGsKts = 0,
+            LeaderVrefKts = 140,
+            LeaderDistanceNm = 3,
+            FollowerDistanceNm = 12,
+            FollowerIasKts = 190,
+            FollowerGsKts = 190,
+            FollowerVrefKts = 140,
+            FollowerScheduledKts = 210,
+            TargetNm = 5,
+        };
+
+        double ceiling = ArrivalSpacingManager.InTrailCeilingKts(pair);
+        Assert.True(double.IsFinite(ceiling), $"expected a finite ceiling, got {ceiling}");
+        Assert.InRange(ceiling, 140, 210);
+    }
 }

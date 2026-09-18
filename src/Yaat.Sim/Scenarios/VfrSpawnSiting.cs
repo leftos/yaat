@@ -16,8 +16,8 @@ namespace Yaat.Sim.Scenarios;
 /// <item>
 /// <b>Traffic.</b> No aircraft may be born already in a loss of standard radar separation. Terminal minima
 /// are 3 NM <em>or</em> 1000 ft (7110.65 §5-5-4) — so a spawn is only rejected when it violates
-/// <em>both</em>. This is a spawn-injection buffer, deliberately wider than the Class C VFR-to-VFR
-/// standard (which is traffic advisories only, §7-8-2.a.4).
+/// <em>both</em>. This is a spawn-injection buffer, deliberately wider than the Class C IFR/VFR separation standard
+/// (visual, 500 ft or target resolution, §7-8-3) and the VFR-to-VFR standard (traffic advisories only, §7-8-2.a.4).
 /// </item>
 /// </list>
 /// </summary>

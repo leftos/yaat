@@ -1,4 +1,6 @@
 using Xunit;
+using Yaat.Sim.Phases;
+using Yaat.Sim.Scenarios;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
 
@@ -198,5 +200,349 @@ public class ArrivalGeneratorSpawnModelTests(ITestOutputHelper output)
 
         // ...but it stays centred on the base interval rather than drifting.
         Assert.InRange(diffs.Average(), 150, 210);
+    }
+
+    // The OAK RWY 30 generator from the S2-OAK-P practical-exam bundle, started at t=0 with no scripted traffic,
+    // so the only aircraft in the corridor on the first spawn is the one a test injects.
+    private const string Oak30GeneratorId = "gen-30";
+    private const int OakInitialDistance = 10;
+
+    private static string OakScenarioJson() =>
+        $$"""
+            {
+              "id": "01TEST00000000000000000001",
+              "name": "ArrivalGeneratorSpawnModelTests-OAK",
+              "artccId": "ZOA",
+              "primaryAirportId": "OAK",
+              "aircraft": [],
+              "initializationTriggers": [],
+              "aircraftGenerators": [
+                {
+                  "id": "{{Oak30GeneratorId}}",
+                  "runway": "30",
+                  "engineType": "Jet",
+                  "weightCategory": "Large",
+                  "initialDistance": {{OakInitialDistance}},
+                  "maxDistance": {{MaxDistance}},
+                  "intervalDistance": {{IntervalDistance}},
+                  "startTimeOffset": 0,
+                  "maxTime": 3600,
+                  "intervalTime": 180,
+                  "randomizeInterval": false,
+                  "randomizeWeightCategory": false
+                }
+              ]
+            }
+            """;
+
+    private (SimulationEngine Engine, RunwayInfo Runway)? BuildOakEngine()
+    {
+        TestVnasData.EnsureInitialized();
+        if (TestVnasData.NavigationDb is null)
+        {
+            return null;
+        }
+
+        var groundData = new TestAirportGroundData();
+        if (groundData.GetLayout("OAK") is null)
+        {
+            return null;
+        }
+
+        var engine = new SimulationEngine(groundData);
+        var warnings = engine.LoadScenario(OakScenarioJson(), rngSeed: 42, sessionStartUtc: MagneticDeclination.EvaluationDateUtc);
+        foreach (var w in warnings)
+        {
+            output.WriteLine($"[load-warn] {w}");
+        }
+
+        var runway = engine.Scenario!.Generators.Single(g => g.Config.Id == Oak30GeneratorId).Runway;
+        return (engine, runway);
+    }
+
+    /// <summary>Ticks until the RWY 30 generator logs its first spawn and returns that record.</summary>
+    private GeneratorSpawnRecord FirstOak30Spawn(SimulationEngine engine)
+    {
+        for (int t = 0; (t < 10) && !engine.GeneratorSpawnLog.Any(s => s.GeneratorId == Oak30GeneratorId); t++)
+        {
+            engine.TickOneSecond();
+        }
+        Dump(engine);
+        return engine.GeneratorSpawnLog.First(s => s.GeneratorId == Oak30GeneratorId);
+    }
+
+    /// <summary>
+    /// An airborne aircraft on the RWY 30 extended centreline, on the approach side of the threshold, tracking
+    /// straight away from the runway and climbing — the RPO's <c>FH 110</c> VFR departure from the bundle.
+    /// </summary>
+    private static AircraftState OutboundClimber(RunwayInfo runway, double distanceNm, PhaseList? phases)
+    {
+        var threshold = new LatLon(runway.ThresholdLatitude, runway.ThresholdLongitude);
+        var outbound = new TrueHeading((runway.TrueHeading.Degrees + 180.0) % 360.0);
+        return new AircraftState
+        {
+            Callsign = "N25313",
+            AircraftType = "C172",
+            Position = GeoMath.ProjectPoint(threshold, outbound, distanceNm),
+            TrueHeading = outbound,
+            TrueTrack = outbound,
+            Altitude = 3500,
+            IndicatedAirspeed = 100,
+            VerticalSpeed = 500,
+            IsOnGround = false,
+            FlightPlan = new AircraftFlightPlan { Departure = "KOAK" },
+            Phases = phases,
+        };
+    }
+
+    [Fact]
+    public void OutboundAircraftOnCentreline_IsNotCountedAsRearmostInbound()
+    {
+        var setup = BuildOakEngine();
+        if (setup is null)
+        {
+            return;
+        }
+        var (engine, runway) = setup.Value;
+
+        engine.World.AddAircraft(OutboundClimber(runway, distanceNm: 23, phases: null));
+
+        var spawn = FirstOak30Spawn(engine);
+        Assert.Equal(OakInitialDistance, spawn.SpawnDistanceNm, precision: 1);
+        Assert.Null(spawn.RearmostAtSpawnNm);
+    }
+
+    [Fact]
+    public void DepartureRunwayAssignment_IsNotLandingIntent()
+    {
+        var setup = BuildOakEngine();
+        if (setup is null)
+        {
+            return;
+        }
+        var (engine, runway) = setup.Value;
+
+        // A departure carries AssignedRunway = its departure runway; with no phase, approach or landing clearance
+        // that is not an intent to land, so the outbound aircraft still stays out of the stream.
+        engine.World.AddAircraft(OutboundClimber(runway, distanceNm: 23, phases: new PhaseList { AssignedRunway = runway }));
+
+        var spawn = FirstOak30Spawn(engine);
+        Assert.Equal(OakInitialDistance, spawn.SpawnDistanceNm, precision: 1);
+        Assert.Null(spawn.RearmostAtSpawnNm);
+    }
+
+    [Fact]
+    public void ArrivalOnFinal_IsRearmostInbound_SpawnSitsBehindIt()
+    {
+        var setup = BuildOakEngine();
+        if (setup is null)
+        {
+            return;
+        }
+        var (engine, runway) = setup.Value;
+
+        engine.World.AddAircraft(GeneratorArrivalOnFinal(runway, "SWA999", distanceNm: 23));
+
+        var spawn = FirstOak30Spawn(engine);
+        Assert.NotNull(spawn.RearmostAtSpawnNm);
+        Assert.InRange(spawn.RearmostAtSpawnNm.Value, 22.5, 23.5);
+        Assert.Equal(spawn.RearmostAtSpawnNm.Value + spawn.RequiredGapNm, spawn.SpawnDistanceNm, precision: 6);
+        Assert.InRange(spawn.SpawnDistanceNm, 27.5, 28.5);
+    }
+
+    [Fact]
+    public void LandingIntentAcrossTheBand_IsRearmostInbound_SpawnSitsBehindIt()
+    {
+        var setup = BuildOakEngine();
+        if (setup is null)
+        {
+            return;
+        }
+        var (engine, runway) = setup.Value;
+
+        // A base leg inside the 2 nm band: 1 nm right of the extended centreline 15 nm out, tracking 90 degrees off
+        // the landing course back toward it, already cleared to land on 30.
+        var threshold = new LatLon(runway.ThresholdLatitude, runway.ThresholdLongitude);
+        var outbound = new TrueHeading((runway.TrueHeading.Degrees + 180.0) % 360.0);
+        var rightOfCourse = new TrueHeading((runway.TrueHeading.Degrees + 90.0) % 360.0);
+        var baseHeading = new TrueHeading((runway.TrueHeading.Degrees + 270.0) % 360.0);
+        engine.World.AddAircraft(
+            new AircraftState
+            {
+                Callsign = "SWA998",
+                AircraftType = "B738",
+                Position = GeoMath.ProjectPoint(GeoMath.ProjectPoint(threshold, outbound, 15), rightOfCourse, 1),
+                TrueHeading = baseHeading,
+                TrueTrack = baseHeading,
+                Altitude = 4000,
+                IndicatedAirspeed = 210,
+                IsOnGround = false,
+                FlightPlan = new AircraftFlightPlan { Destination = "KOAK" },
+                Phases = new PhaseList { AssignedRunway = runway, LandingClearance = ClearanceType.ClearedToLand },
+            }
+        );
+
+        var spawn = FirstOak30Spawn(engine);
+        Assert.NotNull(spawn.RearmostAtSpawnNm);
+        Assert.InRange(spawn.RearmostAtSpawnNm.Value, 14.5, 15.5);
+        Assert.Equal(spawn.RearmostAtSpawnNm.Value + spawn.RequiredGapNm, spawn.SpawnDistanceNm, precision: 6);
+    }
+
+    /// <summary>
+    /// An outbound aircraft (no phase, no clearance) on the RWY 30 centreline at the spawn point, level with the spawn
+    /// altitude, is inside standard separation (3 nm / 1,000 ft, the check the VFR and overflight generators use): the
+    /// due spawn is held, and it happens once the outbound aircraft has moved clear.
+    /// </summary>
+    [Fact]
+    public void OutboundTrafficAtTheSpawnPoint_HoldsTheSpawn_UntilItHasMovedClear()
+    {
+        var setup = BuildOakEngine();
+        if (setup is null)
+        {
+            return;
+        }
+        var (engine, runway) = setup.Value;
+
+        var (_, spawnAltitudeFt) = AircraftInitializer.FinalApproachPoint(runway, AircraftCategory.Jet, OakInitialDistance);
+        var outbound = OutboundClimber(runway, distanceNm: OakInitialDistance, phases: null);
+        outbound.Altitude = spawnAltitudeFt;
+        outbound.VerticalSpeed = 0;
+        engine.World.AddAircraft(outbound);
+
+        engine.TickOneSecond();
+        Assert.Empty(engine.GeneratorSpawnLog);
+
+        for (int t = 0; (t < 300) && engine.GeneratorSpawnLog.Count == 0; t++)
+        {
+            engine.TickOneSecond();
+        }
+        Dump(engine);
+
+        var spawn = Assert.Single(engine.GeneratorSpawnLog);
+        Assert.Equal(OakInitialDistance, spawn.SpawnDistanceNm, precision: 1);
+        var arrival = engine.FindAircraft(spawn.Callsign)!;
+        var passing = engine.FindAircraft(outbound.Callsign)!;
+        double lateralNm = GeoMath.DistanceNm(arrival.Position, passing.Position);
+        double verticalFt = Math.Abs(arrival.Altitude - passing.Altitude);
+        output.WriteLine($"spawned at t={spawn.ElapsedSeconds}s: {lateralNm:F2} nm / {verticalFt:F0} ft from {passing.Callsign}");
+        Assert.True(
+            (lateralNm >= VfrSpawnSiting.MinLateralSeparationNm) || (verticalFt >= VfrSpawnSiting.MinVerticalSeparationFt),
+            $"the arrival spawned {lateralNm:F2} nm / {verticalFt:F0} ft from the outbound aircraft"
+        );
+    }
+
+    /// <summary>The same outbound aircraft 1,800 ft below the spawn altitude is vertically separated, so the spawn is on time.</summary>
+    [Fact]
+    public void OutboundTrafficWellBelowTheSpawnAltitude_DoesNotHoldTheSpawn()
+    {
+        var setup = BuildOakEngine();
+        if (setup is null)
+        {
+            return;
+        }
+        var (engine, runway) = setup.Value;
+
+        var (_, spawnAltitudeFt) = AircraftInitializer.FinalApproachPoint(runway, AircraftCategory.Jet, OakInitialDistance);
+        var outbound = OutboundClimber(runway, distanceNm: OakInitialDistance, phases: null);
+        outbound.Altitude = spawnAltitudeFt - 1800;
+        outbound.VerticalSpeed = 0;
+        engine.World.AddAircraft(outbound);
+
+        engine.TickOneSecond();
+
+        var spawn = Assert.Single(engine.GeneratorSpawnLog);
+        Assert.Equal(OakInitialDistance, spawn.SpawnDistanceNm, precision: 1);
+    }
+
+    /// <summary>
+    /// The arrival the spawn is placed behind is never separation traffic for it: the corridor arrivals placement spaced
+    /// behind are left out of the check, so the in-trail spawn at rearmost + gap goes out on time.
+    /// </summary>
+    [Fact]
+    public void ArrivalAtTheRearmost_DoesNotHoldTheSpawnBehindIt()
+    {
+        var setup = BuildOakEngine();
+        if (setup is null)
+        {
+            return;
+        }
+        var (engine, runway) = setup.Value;
+
+        engine.World.AddAircraft(GeneratorArrivalOnFinal(runway, "SWA997", distanceNm: 12));
+
+        engine.TickOneSecond();
+
+        var spawn = Assert.Single(engine.GeneratorSpawnLog);
+        Assert.NotNull(spawn.RearmostAtSpawnNm);
+        Assert.InRange(spawn.RearmostAtSpawnNm.Value, 11.5, 12.5);
+        Assert.Equal(spawn.RearmostAtSpawnNm.Value + spawn.RequiredGapNm, spawn.SpawnDistanceNm, precision: 6);
+    }
+
+    /// <summary>
+    /// An arrival inbound to land that placement did not space behind is still separation traffic for the spawn. Here it
+    /// is cleared to land on 30 but joining on a 30° intercept 2.5 nm right of the extended centreline, outside the 2 nm
+    /// corridor band, abeam the 10 nm spawn point at the spawn altitude — inside 3 nm / 1,000 ft, so the due spawn is held.
+    /// </summary>
+    [Fact]
+    public void InboundArrivalOutsideTheCorridor_NearTheSpawnPoint_HoldsTheSpawn()
+    {
+        var setup = BuildOakEngine();
+        if (setup is null)
+        {
+            return;
+        }
+        var (engine, runway) = setup.Value;
+
+        var (spawnPoint, spawnAltitudeFt) = AircraftInitializer.FinalApproachPoint(runway, AircraftCategory.Jet, OakInitialDistance);
+        var threshold = new LatLon(runway.ThresholdLatitude, runway.ThresholdLongitude);
+        var outbound = new TrueHeading((runway.TrueHeading.Degrees + 180.0) % 360.0);
+        var rightOfCourse = new TrueHeading((runway.TrueHeading.Degrees + 90.0) % 360.0);
+        var intercept = new TrueHeading((runway.TrueHeading.Degrees + 330.0) % 360.0);
+        var joining = new AircraftState
+        {
+            Callsign = "SWA996",
+            AircraftType = "B738",
+            Position = GeoMath.ProjectPoint(GeoMath.ProjectPoint(threshold, outbound, OakInitialDistance), rightOfCourse, 2.5),
+            TrueHeading = intercept,
+            TrueTrack = intercept,
+            Altitude = spawnAltitudeFt,
+            IndicatedAirspeed = 210,
+            IsOnGround = false,
+            FlightPlan = new AircraftFlightPlan { Destination = "KOAK" },
+            Phases = new PhaseList { AssignedRunway = runway, LandingClearance = ClearanceType.ClearedToLand },
+        };
+        engine.World.AddAircraft(joining);
+        double lateralNm = GeoMath.DistanceNm(spawnPoint, joining.Position);
+        Assert.True(lateralNm < VfrSpawnSiting.MinLateralSeparationNm, $"premise: the joining arrival is {lateralNm:F2} nm from the spawn point");
+
+        engine.TickOneSecond();
+
+        Assert.Empty(engine.GeneratorSpawnLog);
+    }
+
+    /// <summary>A B738 generator arrival in <c>FinalApproachPhase</c> on the runway's final, placed the way the generator places one.</summary>
+    private static AircraftState GeneratorArrivalOnFinal(RunwayInfo runway, string callsign, double distanceNm)
+    {
+        var init = AircraftInitializer.InitializeOnFinal(
+            runway,
+            AircraftCategory.Jet,
+            callsign,
+            requestedDistanceNm: distanceNm,
+            aircraftType: "B738"
+        );
+        return new AircraftState
+        {
+            Callsign = callsign,
+            AircraftType = "B738",
+            Position = init.Position,
+            TrueHeading = init.TrueHeading,
+            TrueTrack = init.TrueHeading,
+            Altitude = init.Altitude,
+            IndicatedAirspeed = init.Speed,
+            IsOnGround = false,
+            IsGeneratorArrival = true,
+            FlightPlan = new AircraftFlightPlan { Destination = "KOAK" },
+            Phases = init.Phases,
+        };
     }
 }

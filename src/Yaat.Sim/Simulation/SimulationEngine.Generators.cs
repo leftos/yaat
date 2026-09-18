@@ -179,7 +179,8 @@ public sealed partial class SimulationEngine
 
         var engine = ResolveEngine(gen.Config.EngineType);
         var weight = ResolveWeight(gen.Config, engine, World.Rng);
-        var rearmost = RearmostInbound(gen);
+        var corridor = CorridorAircraft(gen);
+        var rearmost = RearmostInbound(corridor);
 
         double gap;
         double placement;
@@ -211,6 +212,12 @@ public sealed partial class SimulationEngine
             return;
         }
 
+        if (!IsArrivalSpawnClearOfTraffic(gen, placement, engine, corridor))
+        {
+            gen.NextSpawnSeconds = scenario.ElapsedSeconds + SpawnRetryBackoffSeconds;
+            return;
+        }
+
         var state = SpawnGeneratedArrival(gen, placement, weight, engine);
         if (state is null)
         {
@@ -224,6 +231,48 @@ public sealed partial class SimulationEngine
             new GeneratorSpawnRecord(gen.Config.Id, state.Callsign, scenario.ElapsedSeconds, placement, rearmost?.DistanceNm, gap)
         );
         gen.NextSpawnSeconds = scenario.ElapsedSeconds + EffectiveSpawnIntervalSeconds(gen, ratePercent);
+    }
+
+    /// <summary>
+    /// False when the point an arrival would spawn at, <paramref name="distanceNm"/> out on the generator's final, is
+    /// inside standard separation (<see cref="VfrSpawnSiting.IsClearOfTraffic"/>: 3 nm / 1,000 ft, the check the VFR and
+    /// overflight generators use) of any airborne aircraft other than the corridor arrivals placement already spaced
+    /// behind (<paramref name="corridor"/>, the <see cref="CorridorAircraft"/> set placement used, matched by reference).
+    /// Everything else counts: an outbound departure, a VFR passing through the final, an arrival holding near the FAF or
+    /// IAF, one joining this final from outside the corridor band (a wide intercept, a procedure turn), and another
+    /// runway's approach crossing this final. The corridor arrivals are at least the binding gap (≥ 3 nm) ahead along the
+    /// course, so also at least that far in straight-line distance; checking them could only hold the spawn through a
+    /// floating-point tie. An arrival on a parallel final about 2–3 nm away can hold the spawn for a small stagger, which
+    /// is acceptable. The check is a snapshot of where traffic is now, with no look-ahead — an accepted limitation. The
+    /// spawn point and altitude are where <see cref="AircraftInitializer.InitializeOnFinal"/> will put it; the type is not
+    /// chosen yet, but every type the generator draws for <paramref name="engine"/> categorizes as that engine's category.
+    /// </summary>
+    private bool IsArrivalSpawnClearOfTraffic(
+        GeneratorState gen,
+        double distanceNm,
+        EngineKind engine,
+        List<(double DistanceNm, AircraftState Aircraft)> corridor
+    )
+    {
+        var (position, altitudeFt) = AircraftInitializer.FinalApproachPoint(gen.Runway, AircraftGenerator.CategoryFor(engine), distanceNm);
+        foreach (var other in World.GetSnapshot())
+        {
+            if (corridor.Exists(e => ReferenceEquals(e.Aircraft, other)) || VfrSpawnSiting.IsClearOfTraffic(position, altitudeFt, [other]))
+            {
+                continue;
+            }
+
+            _logger.LogDebug(
+                "Generator '{Id}' holds its spawn at {Dist:F1}nm: {Callsign} is {Lateral:F2}nm / {Vertical:F0}ft from the spawn point",
+                gen.Config.Id,
+                distanceNm,
+                other.Callsign,
+                GeoMath.DistanceNm(position.Lat, position.Lon, other.Position.Lat, other.Position.Lon),
+                Math.Abs(other.Altitude - altitudeFt)
+            );
+            return false;
+        }
+        return true;
     }
 
     private double EffectiveSpawnIntervalSeconds(GeneratorState gen, int ratePercent) =>
@@ -270,9 +319,22 @@ public sealed partial class SimulationEngine
         };
 
     /// <summary>
-    /// Airborne aircraft inside the runway's final-approach corridor (any generator's arrivals plus
-    /// manual adds), each with its along-final distance-to-threshold (nm). Used so concurrent streams to
+    /// Airborne arrivals to the generator's runway inside its final-approach corridor (any generator's arrivals
+    /// plus manual adds), each with its along-final distance-to-threshold (nm). Used so concurrent streams to
     /// the same runway don't overlap and the cold-start seed doesn't double up on existing traffic.
+    ///
+    /// <para>Position alone does not make an arrival: the corridor is within 2 nm of the extended centreline
+    /// and out to <c>MaxDistance</c> plus a margin, and an aircraft there counts only when it is on final for
+    /// the runway (<see cref="ApproachCommandHandler.IsOnFinal"/>) or is inbound to land
+    /// (<see cref="ApproachCommandHandler.IsInboundToLand"/>) on this runway — its assigned runway, else its
+    /// active approach's runway — whatever its track, which keeps a wide intercept or a base leg inside the
+    /// band. A departure turned out along the extended centreline, or climbing out with its departure runway
+    /// assigned, is not an arrival and is left out.</para>
+    ///
+    /// <para><see cref="ApproachCommandHandler.IsOnFinal"/>'s phase shortcut (a final, landing or low-approach phase counts
+    /// whatever the runway) also counts an aircraft on final to a close parallel whose final lies inside the band. That is
+    /// harmless — it can only add spacing at spawn — and matches the 7110.65 §5-5-4 note that parallel runways less than
+    /// 2,500 feet apart are considered a single runway.</para>
     /// </summary>
     private List<(double DistanceNm, AircraftState Aircraft)> CorridorAircraft(GeneratorState gen)
     {
@@ -298,19 +360,43 @@ public sealed partial class SimulationEngine
             {
                 continue;
             }
+            if (!IsArrivalToRunway(ac, rwy))
+            {
+                continue;
+            }
             result.Add((along, ac));
         }
         return result;
     }
 
     /// <summary>
-    /// Rearmost (greatest distance-to-threshold) aircraft in the runway's final-approach corridor, or
-    /// null when the corridor is empty.
+    /// True when <paramref name="aircraft"/> is on final for <paramref name="runway"/>, or intends to land on it
+    /// (inbound to land, with this runway as its assigned runway or its active approach's runway). Intent is
+    /// required on top of the runway match because a departure also carries its departure runway as
+    /// <c>AssignedRunway</c>. The on-final test's phase shortcut does not check the runway, so an aircraft on final to a
+    /// close parallel inside the corridor band counts too — harmless, since it only adds spacing at spawn, and in line with
+    /// the 7110.65 §5-5-4 note that parallel runways less than 2,500 feet apart are considered a single runway.
     /// </summary>
-    private (double DistanceNm, AircraftState Aircraft)? RearmostInbound(GeneratorState gen)
+    private static bool IsArrivalToRunway(AircraftState aircraft, RunwayInfo runway)
+    {
+        if (ApproachCommandHandler.IsOnFinal(aircraft, runway))
+        {
+            return true;
+        }
+
+        var landingRunway = aircraft.Phases?.AssignedRunway?.Designator ?? aircraft.Phases?.ActiveApproach?.RunwayId;
+        return ApproachCommandHandler.IsInboundToLand(aircraft)
+            && string.Equals(landingRunway, runway.Designator, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// Rearmost (greatest distance-to-threshold) arrival in <paramref name="corridor"/>, the runway's final-approach
+    /// corridor as <see cref="CorridorAircraft"/> built it — or null when the corridor is empty.
+    /// </summary>
+    private static (double DistanceNm, AircraftState Aircraft)? RearmostInbound(List<(double DistanceNm, AircraftState Aircraft)> corridor)
     {
         (double DistanceNm, AircraftState Aircraft)? rearmost = null;
-        foreach (var entry in CorridorAircraft(gen))
+        foreach (var entry in corridor)
         {
             if (rearmost is null || entry.DistanceNm > rearmost.Value.DistanceNm)
             {
@@ -324,9 +410,12 @@ public sealed partial class SimulationEngine
     /// In-trail speed management for the arrival-generator stream — the simulated approach
     /// controller (TRACON) that feeds correctly-spaced traffic to the tower (LC) student. Each
     /// tick, for every generator runway, pairs each generator-arrival follower on final with the
-    /// aircraft immediately ahead and stamps a <see cref="ControlTargets.SpeedCeiling"/> so the
-    /// follower equalizes to its leader and holds the spawn spacing (<c>SpacingGapNm</c>) down
-    /// the final instead of overrunning it (the QXE831/SWA8154 compression). The ceiling only
+    /// aircraft immediately ahead and stamps a <see cref="ControlTargets.SpeedCeiling"/> from
+    /// <see cref="ArrivalSpacingManager.InTrailCeilingKts"/>: the follower equalizes to its leader and
+    /// holds the spawn spacing (<c>SpacingGapNm</c>) down the final instead of overrunning it (the
+    /// QXE831/SWA8154 compression), and while it is farther back than that target behind a leader on final
+    /// it may close faster, up to its scheduled speed, as long as the gap never drops below the target during
+    /// the leader's remaining run (the leader's Vref bounds that run; see <see cref="SpaceFollower"/>). The ceiling only
     /// ever lowers the phase's speed target (<see cref="FlightPhysics.UpdateSpeed"/> applies it
     /// as a continuous <c>min</c>), floors at the follower's Vref, and collapses to Vref by the
     /// threshold, so it never blocks the landing deceleration. Uses no RNG, so replay/rewind stay
@@ -341,6 +430,24 @@ public sealed partial class SimulationEngine
     /// (§5-7-1.d, AIM 4-4-12.a.7). The controller assigning a speed or deleting the speed restrictions is a
     /// <em>release</em>: that assignment owns the speed, so the managed ceiling comes off
     /// (<see cref="ReleaseManagedSpeedCeiling"/>). Either way the manager never writes the ceiling again.</para>
+    ///
+    /// <para>While it still owns an arrival, the simulated TRACON also ends its own speed adjustment once it is no
+    /// longer needed — "resume normal speed" (§5-7-1, §5-7-4.a, AIM 4-4-12.f.1). A ceiling only ever lowers the speed, and
+    /// <see cref="FinalApproachPhase"/> writes no target between spawn and its own deceleration stages, so an arrival
+    /// the ceiling slowed would otherwise keep the slowed speed after the ceiling rose or came off (FDX7106 flew the
+    /// last ~25 nm of the OAK 30 final at 164 kt once its leader had landed). <see cref="RestoreManagedSpeed"/> gives
+    /// the stream lead its scheduled speed back, and a follower its current ceiling, outside
+    /// <see cref="SpeedRestoreGateNm"/> and never while a handoff to the student is in progress: from the moment one is
+    /// initiated (§5-4-5.b) the lead's standing ceiling is held for the student to inherit (§5-4-6.c) rather than
+    /// released.</para>
+    ///
+    /// <para>The simulated approach controller only exists while the student works a position below approach
+    /// (<see cref="SimScenarioState.HasSimulatedApproachController"/>): a student on APP or CTR does this spacing
+    /// themselves. With that gate closed no ceiling is stamped and nothing is restored, and every ceiling the manager
+    /// still holds — a generator arrival in <see cref="FinalApproachPhase"/> not yet let go of — is handed back
+    /// (<see cref="ReleaseManagedSpeedCeiling"/>). The release runs on every tick the gate is closed, not only the first,
+    /// which is harmless because it is idempotent. <see cref="ApplySameRunwayArrivalProtection"/> applies the same gate. The gate closing is not a release: <see cref="AircraftApproachState.AutoSpacingReleased"/> is not latched,
+    /// so the manager picks the stream up again if the gate reopens.</para>
     /// </summary>
     private void ApplyArrivalSpacing()
     {
@@ -350,80 +457,221 @@ public sealed partial class SimulationEngine
             return;
         }
 
+        if (!scenario.HasSimulatedApproachController)
+        {
+            ReleaseAllManagedSpacingCeilings();
+            return;
+        }
+
         foreach (var gen in scenario.Generators)
         {
-            var stream = CorridorAircraft(gen)
-                .Where(e => string.Equals(e.Aircraft.Phases?.AssignedRunway?.Designator, gen.Runway.Designator, StringComparison.OrdinalIgnoreCase))
-                .OrderBy(e => e.DistanceNm)
-                .ToList();
+            ManageGeneratorStream(gen, scenario);
+        }
+    }
 
-            for (int i = 0; i < stream.Count; i++)
+    /// <summary>
+    /// One tick of <see cref="ApplyArrivalSpacing"/> for one generator runway: sorts the runway's final corridor
+    /// (<see cref="CorridorAircraft"/>, arrivals assigned this runway) closest-first and, for each generator arrival the
+    /// manager still holds (<see cref="HoldsSpacingAuthority"/>), manages the front of the stream
+    /// (<see cref="ManageStreamLead"/>) or spaces a follower behind the aircraft immediately ahead of it
+    /// (<see cref="SpaceFollower"/>).
+    /// </summary>
+    private void ManageGeneratorStream(GeneratorState gen, SimScenarioState scenario)
+    {
+        var stream = CorridorAircraft(gen)
+            .Where(e => string.Equals(e.Aircraft.Phases?.AssignedRunway?.Designator, gen.Runway.Designator, StringComparison.OrdinalIgnoreCase))
+            .OrderBy(e => e.DistanceNm)
+            .ToList();
+
+        for (int i = 0; i < stream.Count; i++)
+        {
+            var (distanceNm, aircraft) = stream[i];
+            if (!HoldsSpacingAuthority(aircraft, scenario))
             {
-                var (followerDist, follower) = stream[i];
+                continue;
+            }
 
-                // Scope: only generator arrivals actively on final are managed as followers.
-                if (!follower.IsGeneratorArrival || follower.Phases?.CurrentPhase is not FinalApproachPhase)
-                {
-                    continue;
-                }
-
-                // Already let go of (one-way latch): whatever ceiling stands is somebody else's now — the speed the
-                // student inherited, or one the controller's own command left — so nothing is written here.
-                if (follower.Approach.AutoSpacingReleased)
-                {
-                    continue;
-                }
-
-                // The student taking the track is a handoff, not a release: the receiving controller inherits the
-                // restrictions the aircraft is flying (§5-4-5.h.3, §5-4-6.c), so the manager lets go of the speed
-                // without giving it back and the arrival does not accelerate on the tick the handoff is accepted.
-                // The ceiling left standing is then an ordinary assigned speed with nobody re-stamping it: it lapses
-                // the way any other does — the student's own speed command, or
-                // FlightPhysics.AutoCancelSpeedAtFinal at the 5 nm / FAF window (§5-7-1.d, AIM 4-4-12.a.7).
-                if (StudentOwnsTrack(follower, scenario))
-                {
-                    follower.Approach.AutoSpacingReleased = true;
-                    continue;
-                }
-
-                // The controller touching this aircraft's speed is a release: the assignment (or the deletion of its
-                // restrictions) is now the sole speed authority, so the managed ceiling comes off with it.
-                if (follower.Targets.HasExplicitSpeedCommand || follower.Procedure.SpeedRestrictionsDeleted)
-                {
-                    follower.Approach.AutoSpacingReleased = true;
-                    ReleaseManagedSpeedCeiling(follower);
-                    continue;
-                }
-
-                // The lead aircraft of the stream has no one to follow — fly the normal profile.
-                if (i == 0)
-                {
-                    ReleaseManagedSpeedCeiling(follower);
-                    continue;
-                }
-
-                var (leaderDist, leader) = stream[i - 1];
-                var followerCategory = AircraftCategorization.Categorize(follower.AircraftType);
-                double vref = AircraftPerformance.ApproachSpeed(follower.AircraftType, followerCategory);
-                double scheduled = ArrivalSpacingManager.ScheduledFinalSpeedKts(
-                    follower.AircraftType,
-                    followerCategory,
-                    vref,
-                    follower.Callsign,
-                    followerDist
-                );
-                double wakeFloor = WakeTurbulenceData.OnApproachWakeSeparationNm(
-                    leader.AircraftType,
-                    AircraftCategorization.Categorize(leader.AircraftType),
-                    follower.AircraftType,
-                    AircraftCategorization.Categorize(follower.AircraftType)
-                );
-                double target = Math.Max(gen.Config.IntervalDistance, Math.Max(TerminalRadarFloorNm, wakeFloor));
-                double gap = followerDist - leaderDist;
-
-                follower.Targets.SpeedCeiling = ArrivalSpacingManager.SpacingCeilingKts(leader.IndicatedAirspeed, gap, target, vref, scheduled);
+            if (i == 0)
+            {
+                ManageStreamLead(aircraft, distanceNm, scenario);
+            }
+            else
+            {
+                SpaceFollower(gen, stream[i - 1], stream[i], scenario);
             }
         }
+    }
+
+    /// <summary>
+    /// True when the simulated approach controller still holds <paramref name="aircraft"/>'s speed this tick: a generator
+    /// arrival in <see cref="FinalApproachPhase"/> it has not let go of. Letting go is one-way, latched here on
+    /// <see cref="AircraftApproachState.AutoSpacingReleased"/>: the student taking the track (a hand-over, the ceiling left
+    /// standing) or the controller touching the speed (a release, the managed ceiling removed).
+    /// </summary>
+    private static bool HoldsSpacingAuthority(AircraftState aircraft, SimScenarioState scenario)
+    {
+        // Scope: only generator arrivals actively on final are managed.
+        if (!aircraft.IsGeneratorArrival || (aircraft.Phases?.CurrentPhase is not FinalApproachPhase))
+        {
+            return false;
+        }
+
+        // Already let go of (one-way latch): whatever ceiling stands is somebody else's now — the speed the
+        // student inherited, or one the controller's own command left — so nothing is written here.
+        if (aircraft.Approach.AutoSpacingReleased)
+        {
+            return false;
+        }
+
+        // The student taking the track is a handoff, not a release: the receiving controller inherits the
+        // restrictions the aircraft is flying (§5-4-5.h.3, §5-4-6.c), so the manager lets go of the speed
+        // without giving it back and the arrival does not accelerate on the tick the handoff is accepted.
+        // The ceiling left standing is then an ordinary assigned speed with nobody re-stamping it: it lapses
+        // the way any other does — the student's own speed command, or
+        // FlightPhysics.AutoCancelSpeedAtFinal at the 5 nm / FAF window (§5-7-1.d, AIM 4-4-12.a.7).
+        if (StudentOwnsTrack(aircraft, scenario))
+        {
+            aircraft.Approach.AutoSpacingReleased = true;
+            return false;
+        }
+
+        // The controller touching this aircraft's speed is a release: the assignment (or the deletion of its
+        // restrictions) is now the sole speed authority, so the managed ceiling comes off with it.
+        if (aircraft.Targets.HasExplicitSpeedCommand || aircraft.Procedure.SpeedRestrictionsDeleted)
+        {
+            aircraft.Approach.AutoSpacingReleased = true;
+            ReleaseManagedSpeedCeiling(aircraft);
+            return false;
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    /// Spaces a generator-arrival follower behind the aircraft immediately ahead of it on the same final. The target gap
+    /// is <c>max(IntervalDistance, 3 nm radar floor, wake minimum)</c> for the pair; the follower's
+    /// <see cref="ControlTargets.SpeedCeiling"/> is stamped toward it, and the follower is given that ceiling back when it
+    /// is slower (<see cref="RestoreManagedSpeed"/>). The time-based allowance of
+    /// <see cref="ArrivalSpacingManager.InTrailCeilingKts"/> applies only behind a leader on final
+    /// (<see cref="ApproachCommandHandler.IsOnFinal"/>): its bound assumes the leader's along-course closure on the
+    /// threshold (ground speed × cos of its track offset from the final course) is no less than its Vref-bounded speed,
+    /// which a leader in the stream only through its landing intent — on a base leg, or a pattern aircraft on a downwind
+    /// flying away — does not. Behind such a leader the ceiling is the proportional
+    /// <see cref="ArrivalSpacingManager.SpacingCeilingKts"/> alone.
+    /// </summary>
+    private void SpaceFollower(
+        GeneratorState gen,
+        (double DistanceNm, AircraftState Aircraft) leaderEntry,
+        (double DistanceNm, AircraftState Aircraft) followerEntry,
+        SimScenarioState scenario
+    )
+    {
+        var (leaderDist, leader) = leaderEntry;
+        var (followerDist, follower) = followerEntry;
+        var (followerCategory, vref, scheduled) = ManagedSpeeds(follower, followerDist);
+        var leaderCategory = AircraftCategorization.Categorize(leader.AircraftType);
+        double wakeFloor = WakeTurbulenceData.OnApproachWakeSeparationNm(
+            leader.AircraftType,
+            leaderCategory,
+            follower.AircraftType,
+            followerCategory
+        );
+        double target = Math.Max(gen.Config.IntervalDistance, Math.Max(TerminalRadarFloorNm, wakeFloor));
+
+        // The allowance's time bound needs the leader's closure on the threshold along the final course, not its ground
+        // speed: a leader on final by its track alone may fly up to 45° off the course. An intercepting leader's offset only
+        // shrinks as it turns in, so this cosine stays a lower bound for the rest of its run; for an established leader it is ~1.
+        double leaderOffsetRad = leader.TrueTrack.AbsAngleTo(gen.Runway.TrueHeading) * Math.PI / 180.0;
+        double leaderAlongCourseGsKts = leader.GroundSpeed * Math.Max(0.0, Math.Cos(leaderOffsetRad));
+
+        double ceiling = ApproachCommandHandler.IsOnFinal(leader, gen.Runway)
+            ? ArrivalSpacingManager.InTrailCeilingKts(
+                new InTrailPair
+                {
+                    LeaderIasKts = leader.IndicatedAirspeed,
+                    LeaderGsKts = leaderAlongCourseGsKts,
+                    LeaderVrefKts = AircraftPerformance.ApproachSpeed(leader.AircraftType, leaderCategory),
+                    LeaderDistanceNm = leaderDist,
+                    FollowerDistanceNm = followerDist,
+                    FollowerIasKts = follower.IndicatedAirspeed,
+                    FollowerGsKts = follower.GroundSpeed,
+                    FollowerVrefKts = vref,
+                    FollowerScheduledKts = scheduled,
+                    TargetNm = target,
+                }
+            )
+            : ArrivalSpacingManager.SpacingCeilingKts(leader.IndicatedAirspeed, followerDist - leaderDist, target, vref, scheduled);
+        follower.Targets.SpeedCeiling = ceiling;
+        RestoreManagedSpeed(follower, followerDist, ceiling, isStreamLead: false, scenario);
+    }
+
+    /// <summary>
+    /// The category, Vref and scheduled final-approach speed at <paramref name="distanceNm"/> from the threshold
+    /// (<see cref="ArrivalSpacingManager.ScheduledFinalSpeedKts"/>) of an arrival the manager holds.
+    /// </summary>
+    private static (AircraftCategory Category, double VrefKts, double ScheduledKts) ManagedSpeeds(AircraftState aircraft, double distanceNm)
+    {
+        var category = AircraftCategorization.Categorize(aircraft.AircraftType);
+        double vref = AircraftPerformance.ApproachSpeed(aircraft.AircraftType, category);
+        double scheduled = ArrivalSpacingManager.ScheduledFinalSpeedKts(aircraft.AircraftType, category, vref, aircraft.Callsign, distanceNm);
+        return (category, vref, scheduled);
+    }
+
+    /// <summary>
+    /// The front of a generator stream has no one to follow. While a handoff of it to the student is in progress its
+    /// standing ceiling stays for the receiving controller to inherit (§5-4-6.c) and nothing is restored — the
+    /// transferring controller changes no speed once a handoff is initiated (§5-4-5.b). Otherwise the managed ceiling
+    /// comes off and the aircraft is given its scheduled profile speed back.
+    /// </summary>
+    private void ManageStreamLead(AircraftState lead, double distanceNm, SimScenarioState scenario)
+    {
+        if (HandoffToStudentInProgress(lead, scenario))
+        {
+            return;
+        }
+
+        ReleaseManagedSpeedCeiling(lead);
+        var (_, _, scheduled) = ManagedSpeeds(lead, distanceNm);
+        RestoreManagedSpeed(lead, distanceNm, scheduled, isStreamLead: true, scenario);
+    }
+
+    /// <summary>
+    /// Gives a generator arrival the simulated approach controller still owns back the speed it wants it flying
+    /// (<paramref name="desiredKts"/>: the stream lead's scheduled speed, or a follower's in-trail ceiling), by writing
+    /// <see cref="ControlTargets.TargetSpeed"/>. <see cref="FinalApproachPhase"/> writes no speed target between spawn
+    /// and its own deceleration stages and <see cref="FlightPhysics"/> nulls a reached target, so an arrival slowed by
+    /// the ceiling would otherwise keep the slowed speed after the ceiling rises or comes off. Issued only when no
+    /// handoff to the student is in progress (§5-4-5.b), the same-runway protection pass does not own the ceiling
+    /// (<see cref="AircraftApproachState.SameRunwayProtectionCeilingKts"/>), nothing else is driving the speed, the
+    /// aircraft is more than <see cref="SpeedRestoreDeadbandKts"/> below the wanted speed, and it is still outside
+    /// <see cref="SpeedRestoreGateNm"/>. Each restore is logged at debug level.
+    /// </summary>
+    private void RestoreManagedSpeed(AircraftState aircraft, double distanceNm, double desiredKts, bool isStreamLead, SimScenarioState scenario)
+    {
+        if (HandoffToStudentInProgress(aircraft, scenario) || (aircraft.Approach.SameRunwayProtectionCeilingKts is not null))
+        {
+            return;
+        }
+
+        if ((aircraft.Targets.TargetSpeed is not null) || (aircraft.IndicatedAirspeed >= desiredKts - SpeedRestoreDeadbandKts))
+        {
+            return;
+        }
+
+        if (distanceNm < SpeedRestoreGateNm(AircraftCategorization.Categorize(aircraft.AircraftType), aircraft.Callsign))
+        {
+            return;
+        }
+
+        aircraft.Targets.TargetSpeed = desiredKts;
+        _logger.LogDebug(
+            "Arrival spacing restores {Callsign} ({Role}) from {Ias:F0} kt to {Target:F0} kt at {Dist:F1}nm",
+            aircraft.Callsign,
+            isStreamLead ? "stream lead" : "follower",
+            aircraft.IndicatedAirspeed,
+            desiredKts,
+            distanceNm
+        );
     }
 
     /// <summary>
@@ -438,6 +686,55 @@ public sealed partial class SimulationEngine
         {
             aircraft.Targets.SpeedCeiling = null;
         }
+    }
+
+    /// <summary>
+    /// Hands back every ceiling <see cref="ApplyArrivalSpacing"/> still manages — each generator arrival in
+    /// <see cref="FinalApproachPhase"/> it has not let go of — without latching
+    /// <see cref="AircraftApproachState.AutoSpacingReleased"/>, for the ticks the simulated approach controller does not
+    /// exist.
+    /// </summary>
+    private void ReleaseAllManagedSpacingCeilings()
+    {
+        foreach (var aircraft in World.GetSnapshot())
+        {
+            if (aircraft.IsGeneratorArrival && (aircraft.Phases?.CurrentPhase is FinalApproachPhase) && !aircraft.Approach.AutoSpacingReleased)
+            {
+                ReleaseManagedSpeedCeiling(aircraft);
+            }
+        }
+    }
+
+    /// <summary>
+    /// How far (kt) below the speed the simulated approach controller wants an arrival may fly before a restore is
+    /// issued. A pilot complying with a speed adjustment holds it within ±10 kt (AIM 4-4-12.c; 7110.65 §5-7-1.g
+    /// NOTE 1), so a difference inside that band is not one a controller would correct.
+    /// </summary>
+    internal const double SpeedRestoreDeadbandKts = 10.0;
+
+    /// <summary>
+    /// Margin (nm) kept outside the first deceleration stage <see cref="FinalApproachPhase"/> would start on its own,
+    /// inside which no restore is issued, so an arrival is never sped up only to be slowed again moments later. A
+    /// judgement call under §5-7-1.a.2(b) (speed adjustments are not achieved instantaneously) and §5-7-1.a.3(c) (allow
+    /// increased time and distance for a speed adjustment at greater speed and in a clean configuration).
+    /// </summary>
+    internal const double RestoreGateMarginNm = 5.0;
+
+    /// <summary>
+    /// Distance from the threshold (nm) inside which the simulated approach controller no longer restores an arrival's
+    /// speed: the latest point the phase could start its first deceleration stage, plus <see cref="RestoreGateMarginNm"/>.
+    /// That stage is the clean → approach-flap bleed, which starts no farther out than the aircraft's approach-flap
+    /// reach gate plus <see cref="FinalApproachPhase.ApproachFlapTriggerHeadroomNm"/>. A category with no approach-flap
+    /// stage (a piston) starts with the configuration bleed, bounded here by <see cref="FinalApproachPhase.MaxConfigTriggerNm"/>:
+    /// the phase's own cap slides outward with a larger FAS reach gate, but a piston's clean-to-configuration bleed is
+    /// under ~20 kt and starts no farther out than about 7.3 nm, so the gate still keeps more than 5 nm of margin.
+    /// </summary>
+    internal static double SpeedRestoreGateNm(AircraftCategory category, string callsign)
+    {
+        double firstStageTriggerCapNm = FinalApproachSpeedSchedule.ApproachFlapReachGateNm(category, callsign) is { } flapGate
+            ? flapGate + FinalApproachPhase.ApproachFlapTriggerHeadroomNm
+            : FinalApproachPhase.MaxConfigTriggerNm;
+        return firstStageTriggerCapNm + RestoreGateMarginNm;
     }
 
     /// <summary>
@@ -809,6 +1106,15 @@ public sealed partial class SimulationEngine
     /// </summary>
     private static bool StudentOwnsTrack(AircraftState aircraft, SimScenarioState scenario) =>
         aircraft.Track.Owner is { } owner && scenario.StudentPosition is { } student && owner.MatchesPosition(student);
+
+    /// <summary>
+    /// True from the moment a handoff of this aircraft's track to the student controller is initiated until it is
+    /// accepted or retracted: the track's <see cref="AircraftTrack.HandoffPeer"/> is the student's position, matched the
+    /// way <see cref="StudentOwnsTrack"/> matches the owner. §5-4-5.b bars the transferring controller from changing
+    /// the aircraft's speed while the handoff is being initiated, not only after acceptance.
+    /// </summary>
+    private static bool HandoffToStudentInProgress(AircraftState aircraft, SimScenarioState scenario) =>
+        aircraft.Track.HandoffPeer is { } peer && scenario.StudentPosition is { } student && peer.MatchesPosition(student);
 
     /// <summary>
     /// Predicts the two threshold crossings and, when the follower's would fall inside the interval the leader needs

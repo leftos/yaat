@@ -355,6 +355,11 @@ If `Position` is non-finite or out of range (`|lat| > 90`, `|lon| > 180`), the W
 - **`UpdateSpeed` is a fixed 7-layer cascade** (Mach hold → floor/ceiling self-target → auto altitude-band schedule (suppressed by
   `ActiveApproach` OR `ManagesSpeed`) → ground `SpeedLimit` clamp → 91.117 250-kt cap (unless `IsSpeedLimitWaived`) → continuous `SpeedCeiling`
   clamp → snap+integrate). Add a new speed influence at the wrong layer and it silently loses to or stomps another.
+- **A `SpeedCeiling` is a one-way ratchet under a `ManagesSpeed` phase.** The floor/ceiling self-target drags IAS down to the ceiling,
+  the snap nulls `TargetSpeed`, and with the auto schedule suppressed nothing raises IAS again when the ceiling rises or is removed —
+  the aircraft holds the ceiling speed until the phase writes its own target. `FinalApproachPhase` writes none before its deceleration
+  stages, so whoever stamps a ceiling on an aircraft on a long final must also restore its speed (the generator stream's
+  `RestoreManagedSpeed`, `docs/scenario-loading-and-generation.md`). `RNS` has the same gap (backlog).
 - **There are FOUR aircraft categories — Jet, Turboprop, Piston, Helicopter.** CLAUDE.md's summary lists only the first three; the Helicopter
   column is real and aviation-reviewed. Unknown ICAO types fall back to **Jet** (after the sibling-map attempt).
 - **Constants are NOT read from `CategoryPerformance` directly in production.** `AircraftPerformance.*` is the entry point: per-type profile with

@@ -101,7 +101,7 @@ public sealed class FinalApproachPhase : Phase
     /// reach gate (<see cref="FinalApproachSpeedVariety"/>) that shifts this outward for variety;
     /// see <see cref="EffectiveFasReachGateNm"/>.
     /// </summary>
-    private const double FasReachGateNm = 2.0;
+    internal const double FasReachGateNm = 2.0;
 
     /// <summary>
     /// Upper bound on the kinematic FAS trigger: never start the FAS deceleration
@@ -138,7 +138,7 @@ public sealed class FinalApproachPhase : Phase
     /// is still a legal, non-draggy speed. Caps the start so even a slow-decelerating heavy doesn't
     /// begin the configuration bleed absurdly early.
     /// </summary>
-    private const double MaxConfigTriggerNm = 8.0;
+    internal const double MaxConfigTriggerNm = 8.0;
 
     /// <summary>
     /// Configuration speed multiplier on Vref. 1.3·Vref is the unstabilized-approach
@@ -146,14 +146,14 @@ public sealed class FinalApproachPhase : Phase
     /// aircraft be at flap-extended approach speed by the stabilization window, then
     /// bleed to Vref in the last 2 NM. Same multiplier used by InterceptCoursePhase.
     /// </summary>
-    private const double ConfigSpeedMultiplier = 1.3;
+    internal const double ConfigSpeedMultiplier = 1.3;
 
     /// <summary>
     /// Headroom (nm) beyond the approach-flap reach gate within which the clean→approach-flap bleed may start.
     /// The kinematic trigger is <c>gate + bleed distance</c>, capped at <c>gate + this</c>; a 25-kt bleed at
     /// typical jet decel rates needs ~1 nm, so the cap only binds for unusually slow-decelerating types.
     /// </summary>
-    private const double ApproachFlapTriggerHeadroomNm = 3.0;
+    internal const double ApproachFlapTriggerHeadroomNm = 3.0;
 
     /// <summary>
     /// Time-to-threshold (seconds) inside which the follower stops chasing the
@@ -324,7 +324,7 @@ public sealed class FinalApproachPhase : Phase
 
     /// <summary>
     /// True once the clean→approach-flap stage (<see cref="FinalApproachSpeedSchedule.ApproachFlapSpeedKts"/>) has
-    /// fired or been found unnecessary (already at/below that speed, or a category with no distinct stage).
+    /// fired, or the category has no distinct stage. An aircraft merely at or below that speed does not set it.
     /// Precedes the configuration gate.
     /// </summary>
     private bool _flapSet;
@@ -512,8 +512,8 @@ public sealed class FinalApproachPhase : Phase
         // past the configuration band, so seed _configSet too). Otherwise check the
         // configuration gate — heavies arriving at 1.6·Vref bleed to 1.3·Vref before
         // the stabilized window. If already at or below configSpeed (small jets, or
-        // aircraft handed off from InterceptCoursePhase post-1.3·FAS), short-circuit
-        // _configSet and leave TargetSpeed alone so OnTick can fire FAS later.
+        // aircraft handed off from InterceptCoursePhase post-1.3·FAS), leave TargetSpeed
+        // alone so OnTick can fire FAS later.
         double startFasTrigger = ComputeFasTriggerDistanceNm(
             ctx.Aircraft.IndicatedAirspeed,
             approachSpeed,
@@ -1145,19 +1145,13 @@ public sealed class FinalApproachPhase : Phase
     }
 
     /// <summary>
-    /// Computes the latest distance from the threshold at which a deceleration must
-    /// begin so the aircraft is settled at <paramref name="targetSpeed"/> by
-    /// <paramref name="reachGateNm"/>. Equals <c>reachGateNm + bleedDistance</c>,
-    /// capped at <paramref name="maxTriggerNm"/>. Bleed distance uses an average of
-    /// pre- and post-decel ground speeds (linear approximation of a constant-decel
-    /// kinematic integration).
-    /// </summary>
-    /// <summary>
     /// The two uncontrolled stages ahead of the FAS bleed, in order: clean → approach-flap speed
     /// (<see cref="FinalApproachSpeedSchedule"/>, settled by a per-aircraft ~9 nm gate), then approach-flap →
     /// configuration speed (1.3·Vref, settled by <see cref="ConfigReachGateNm"/>). Each fires once, at the
-    /// kinematic trigger that lands the bleed on its reach gate, and is skipped when the aircraft is already
-    /// at or below the stage speed. Latches survive snapshot restore.
+    /// kinematic trigger that lands the bleed on its reach gate, and latches when it fires. While the aircraft is
+    /// already at or below a stage's speed that stage waits for the tick without latching, so an aircraft sped back
+    /// up above it later (the simulated approach controller restoring its speed) still flies the stage. Latches
+    /// survive snapshot restore.
     /// </summary>
     private void TickPreConfigurationStages(PhaseContext ctx, double distNm, double fas, double decelRate, double reachGate)
     {
@@ -1174,7 +1168,6 @@ public sealed class FinalApproachPhase : Phase
         double configSpeed = fas * ConfigSpeedMultiplier;
         if (ctx.Aircraft.IndicatedAirspeed <= configSpeed)
         {
-            _configSet = true;
             return;
         }
 
@@ -1212,7 +1205,6 @@ public sealed class FinalApproachPhase : Phase
         double flapSpeed = FinalApproachSpeedSchedule.ApproachFlapSpeedKts(fas, clean);
         if (ctx.Aircraft.IndicatedAirspeed <= flapSpeed)
         {
-            _flapSet = true;
             return;
         }
 
@@ -1239,6 +1231,14 @@ public sealed class FinalApproachPhase : Phase
         }
     }
 
+    /// <summary>
+    /// Computes the latest distance from the threshold at which a deceleration must
+    /// begin so the aircraft is settled at <paramref name="targetSpeed"/> by
+    /// <paramref name="reachGateNm"/>. Equals <c>reachGateNm + bleedDistance</c>,
+    /// capped at <paramref name="maxTriggerNm"/>. Bleed distance uses an average of
+    /// pre- and post-decel ground speeds (linear approximation of a constant-decel
+    /// kinematic integration).
+    /// </summary>
     private static double ComputeKinematicTriggerNm(
         double ias,
         double targetSpeed,
@@ -1304,6 +1304,14 @@ public sealed class FinalApproachPhase : Phase
     private static double ComputeFasTriggerDistanceNm(double ias, double fas, double groundSpeed, double decelRateKtsPerSec, double fasReachGateNm) =>
         ComputeKinematicTriggerNm(ias, fas, groundSpeed, decelRateKtsPerSec, fasReachGateNm, fasReachGateNm + (MaxFasTriggerNm - FasReachGateNm));
 
+    /// <summary>
+    /// Distance from the threshold (nm) by which an aircraft with the given FAS reach gate is settled at configuration
+    /// speed (1.3·Vref): <see cref="ConfigReachGateNm"/> sliding outward with the reach gate, capped at
+    /// <see cref="ConfigReachCapNm"/>.
+    /// </summary>
+    internal static double ConfigurationReachGateNm(double fasReachGateNm) =>
+        Math.Min(fasReachGateNm + (ConfigReachGateNm - FasReachGateNm), ConfigReachCapNm);
+
     private static double ComputeConfigTriggerDistanceNm(
         double ias,
         double configSpeed,
@@ -1312,7 +1320,7 @@ public sealed class FinalApproachPhase : Phase
         double fasReachGateNm
     )
     {
-        double configReach = Math.Min(fasReachGateNm + (ConfigReachGateNm - FasReachGateNm), ConfigReachCapNm);
+        double configReach = ConfigurationReachGateNm(fasReachGateNm);
         return ComputeKinematicTriggerNm(
             ias,
             configSpeed,

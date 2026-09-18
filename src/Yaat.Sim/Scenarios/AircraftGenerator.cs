@@ -47,6 +47,17 @@ public static class AircraftGenerator
 
     public static IReadOnlyList<string> GetAirlines() => Airlines;
 
+    /// <summary>The category every type the generator draws for an engine kind must categorize as.</summary>
+    public static AircraftCategory CategoryFor(EngineKind engine) =>
+        engine switch
+        {
+            EngineKind.Piston => AircraftCategory.Piston,
+            EngineKind.Turboprop => AircraftCategory.Turboprop,
+            EngineKind.Jet => AircraftCategory.Jet,
+            EngineKind.Helicopter => AircraftCategory.Helicopter,
+            _ => AircraftCategory.Jet,
+        };
+
     /// <summary>
     /// Verify that every type listed in <see cref="TypeTable"/> resolves through both
     /// <see cref="AircraftProfileDatabase"/> and <see cref="AircraftCategorization"/>,
@@ -67,14 +78,7 @@ public static class AircraftGenerator
                     problems.Add($"{weight}+{engine}: type '{type}' has no AircraftProfileDatabase entry (and no sibling fallback)");
                 }
                 var cat = AircraftCategorization.Categorize(type);
-                var expectedCat = engine switch
-                {
-                    EngineKind.Piston => AircraftCategory.Piston,
-                    EngineKind.Turboprop => AircraftCategory.Turboprop,
-                    EngineKind.Jet => AircraftCategory.Jet,
-                    EngineKind.Helicopter => AircraftCategory.Helicopter,
-                    _ => AircraftCategory.Jet,
-                };
+                var expectedCat = CategoryFor(engine);
                 if (cat != expectedCat)
                 {
                     problems.Add($"{weight}+{engine}: type '{type}' categorized as {cat}, expected {expectedCat}");
